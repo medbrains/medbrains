@@ -21,7 +21,6 @@ import {
   Text,
   UnstyledButton,
 } from "@mantine/core";
-import { api } from "@medbrains/api";
 import { useIntegrationBuilderStore } from "@medbrains/stores";
 import type {
   AvailableField,
@@ -44,6 +43,7 @@ import {
 } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useCallback, useMemo, useState } from "react";
+import { integrationService } from "../../services/integration.service";
 import { MappingRow } from "./MappingRow";
 import { VisualFieldMapper } from "./VisualFieldMapper";
 
@@ -209,20 +209,22 @@ export function FieldMappingEditor({ nodeId }: FieldMappingEditorProps) {
 
   const { data: templates } = useQuery({
     queryKey: ["integration", "node-templates"],
-    queryFn: () => api.listNodeTemplates(),
+    queryFn: () => integrationService.listNodeTemplates(),
   });
 
   const { data: eventSchemas } = useQuery({
     queryKey: ["schema", "events"],
-    queryFn: () => api.listEventSchemas(),
+    queryFn: () => integrationService.listEventSchemas(),
   });
 
   // Fetch module entity schemas for target suggestions
   const { data: moduleEntities } = useQuery({
     queryKey: ["schema", "modules", "all-entities"],
     queryFn: async () => {
-      const modules = await api.listSchemaModules();
-      const results = await Promise.all(modules.map((m) => api.listModuleEntities(m.module_code)));
+      const modules = await integrationService.listSchemaModules();
+      const results = await Promise.all(
+        modules.map((m) => integrationService.listModuleEntities(m.module_code)),
+      );
       return results.flat();
     },
   });

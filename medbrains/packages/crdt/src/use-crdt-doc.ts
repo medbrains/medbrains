@@ -4,14 +4,10 @@
  * the same page reuse the same WebSocket and IndexedDB connection.
  */
 
+import { LoroDoc } from "loro-crdt";
 import { useEffect, useState, useSyncExternalStore } from "react";
-import type { LoroDoc } from "loro-crdt";
 import { CrdtStore } from "./store";
-import type {
-  CrdtConnectionStatus,
-  UseCrdtDocOptions,
-  UseCrdtDocResult,
-} from "./types";
+import type { CrdtConnectionStatus, UseCrdtDocOptions, UseCrdtDocResult } from "./types";
 
 const stores = new Map<string, CrdtStore>();
 
@@ -25,14 +21,16 @@ function storeFor(opts: UseCrdtDocOptions): CrdtStore {
   return s;
 }
 
-export function useCrdtDoc(
-  docId: string,
-  opts: UseCrdtDocOptions,
-): UseCrdtDocResult {
-  const store = storeFor(opts);
+export function useCrdtDoc(docId: string, opts: UseCrdtDocOptions): UseCrdtDocResult {
+  const enabled = opts.enabled ?? true;
+  const store = enabled ? storeFor(opts) : null;
   const [doc, setDoc] = useState<LoroDoc | null>(null);
 
   useEffect(() => {
+    if (!store) {
+      setDoc(null);
+      return;
+    }
     let cancelled = false;
     void store.loadDoc(docId).then((d) => {
       if (!cancelled) setDoc(d);
@@ -43,14 +41,14 @@ export function useCrdtDoc(
   }, [store, docId]);
 
   const status = useSyncExternalStore<CrdtConnectionStatus>(
-    (cb) => store.onStatus(() => cb()),
-    () => store.getStatus(),
-    () => "connecting",
+    (cb) => (store ? store.onStatus(() => cb()) : () => undefined),
+    () => store?.getStatus() ?? "offline",
+    () => "offline",
   );
 
   const unsyncedOps = useSyncExternalStore<number>(
-    (cb) => store.onUnsynced(() => cb()),
-    () => store.getUnsyncedOps(),
+    (cb) => (store ? store.onUnsynced(() => cb()) : () => undefined),
+    () => store?.getUnsyncedOps() ?? 0,
     () => 0,
   );
 
@@ -63,10 +61,5 @@ export function useCrdtDoc(
 }
 
 function emptyDoc(): LoroDoc {
-  // Lazy import so SSR builds without the wasm don't crash. In a
-  // test or pre-hydration render the consumer should gate on
-  // `ready` rather than read the doc.
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { LoroDoc } = require("loro-crdt");
   return new LoroDoc();
 }

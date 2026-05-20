@@ -1,7 +1,7 @@
 import { Button } from "@mantine/core";
-import { api } from "@medbrains/api";
 import { IconAlertTriangle } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
+import { integrationService } from "../../services/integration.service";
 import s from "./ControlRoom.module.scss";
 
 /** Pulse stat cell with optional mini bar chart. */
@@ -157,7 +157,7 @@ export function ControlRoom() {
   // Fetch job stats for pulse metrics
   const { data: jobStats } = useQuery({
     queryKey: ["orchestration", "jobs", "stats"],
-    queryFn: () => api.getJobStats(),
+    queryFn: () => integrationService.getJobStats(),
     refetchInterval: 10000,
   });
 

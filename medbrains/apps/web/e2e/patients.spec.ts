@@ -1,5 +1,10 @@
 import { test, expect, type Page } from "@playwright/test";
 import { uniquePatient, type PatientFormData } from "./fixtures/patients";
+import {
+  browserCookiesFromLogin,
+  getE2EIdentity,
+  loginForSession,
+} from "./helpers/e2e-identities";
 
 const BACKEND_URL = process.env.E2E_BACKEND_URL ?? "http://127.0.0.1:3000";
 
@@ -28,59 +33,26 @@ async function ensureOnPatientsPage(page: Page) {
   await page.goto("/patients");
 
   if (page.url().includes("/login")) {
-    const resp = await page.request.post(`${BACKEND_URL}/api/auth/login`, {
-      data: { username: "admin", password: "admin123" },
-    });
-    if (resp.ok()) {
-      const data = await resp.json();
-      await page.evaluate(
-        (user) => {
-          localStorage.setItem(
-            "auth-storage",
-            JSON.stringify({ state: { user }, version: 0 }),
-          );
-        },
-        data.user,
-      );
-      const setCookieHeaders = resp
-        .headersArray()
-        .filter((h) => h.name.toLowerCase() === "set-cookie");
-      const cookies = setCookieHeaders
-        .map((h) => {
-          const parts = h.value.split(";").map((p: string) => p.trim());
-          const [nameVal] = parts;
-          if (!nameVal) return null;
-          const eqIdx = nameVal.indexOf("=");
-          if (eqIdx < 0) return null;
-          return {
-            name: nameVal.slice(0, eqIdx),
-            value: nameVal.slice(eqIdx + 1),
-            domain: "localhost",
-            path:
-              parts
-                .find((p: string) => p.toLowerCase().startsWith("path="))
-                ?.split("=")[1] ?? "/",
-            httpOnly: parts.some(
-              (p: string) => p.toLowerCase() === "httponly",
-            ),
-            secure: false,
-            sameSite: "Lax" as const,
-          };
-        })
-        .filter(Boolean) as Array<{
-        name: string;
-        value: string;
-        domain: string;
-        path: string;
-        httpOnly: boolean;
-        secure: boolean;
-        sameSite: "Lax";
-      }>;
-      if (cookies.length > 0) {
-        await page.context().addCookies(cookies);
-      }
-      await page.goto("/patients");
+    const admin = getE2EIdentity("super_admin");
+    const session = await loginForSession(
+      page.request,
+      admin.username,
+      admin.password,
+    );
+    await page.evaluate(
+      (user) => {
+        localStorage.setItem(
+          "auth-storage",
+          JSON.stringify({ state: { user }, version: 0 }),
+        );
+      },
+      session.user,
+    );
+    const cookies = browserCookiesFromLogin(session);
+    if (cookies.length > 0) {
+      await page.context().addCookies(cookies);
     }
+    await page.goto("/patients");
   }
 
   await expect(page.getByText("Registration & records")).toBeVisible({

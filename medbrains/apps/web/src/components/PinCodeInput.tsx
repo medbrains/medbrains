@@ -1,9 +1,9 @@
 import { Alert, Badge, Group, Loader, Stack, Table, Text, TextInput } from "@mantine/core";
-import { api } from "@medbrains/api";
 import type { PincodeResult } from "@medbrains/types";
 import { IconMapPin, IconSearch } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
+import { lookupsService } from "../services/lookups.service";
 
 interface PinCodeInputProps {
   /** Called when the user selects a result row. */
@@ -21,7 +21,7 @@ export function PinCodeInput({ onSelect }: PinCodeInputProps) {
     isError,
   } = useQuery({
     queryKey: ["geo-pincode", trimmed],
-    queryFn: () => api.searchPincode(trimmed),
+    queryFn: () => lookupsService.searchPincode(trimmed),
     enabled,
     staleTime: 5 * 60 * 1000,
   });

@@ -1,3 +1,4 @@
+import { zodResolver } from "@hookform/resolvers/zod";
 import {
   ActionIcon,
   Badge,
@@ -11,14 +12,21 @@ import {
   Textarea,
   TextInput,
 } from "@mantine/core";
+import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
+import { type DrugInteractionFormInput, drugInteractionFormSchema } from "@medbrains/schemas";
 import { useHasPermission } from "@medbrains/stores";
-import type { CreateDrugInteractionRequest, DrugInteraction } from "@medbrains/types";
+import type { DrugInteraction } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import { IconPlus, IconTrash } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { Controller, useForm } from "react-hook-form";
+import {
+  DEFAULT_DRUG_INTERACTION_FORM_VALUES,
+  DRUG_INTERACTION_SEVERITY_OPTIONS,
+  toCreateDrugInteractionRequest,
+} from "../../../forms/clinical-settings.form";
+import { clinicalMastersService } from "../../../services/clinicalMasters.service";
 
 const SEVERITY_COLORS: Record<string, string> = {
   minor: "warning",
@@ -30,21 +38,20 @@ const SEVERITY_COLORS: Record<string, string> = {
 export function DrugInteractionsSettings() {
   const canManage = useHasPermission(P.ADMIN.SETTINGS.GENERAL.MANAGE);
   const queryClient = useQueryClient();
-  const [opened, setOpened] = useState(false);
-  const [drugA, setDrugA] = useState("");
-  const [drugB, setDrugB] = useState("");
-  const [severity, setSeverity] = useState<string | null>("moderate");
-  const [description, setDescription] = useState("");
-  const [mechanism, setMechanism] = useState("");
-  const [management, setManagement] = useState("");
+  const [opened, { open, close }] = useDisclosure(false);
+  const form = useForm<DrugInteractionFormInput>({
+    resolver: zodResolver(drugInteractionFormSchema),
+    defaultValues: DEFAULT_DRUG_INTERACTION_FORM_VALUES,
+  });
 
   const { data: interactions = [] } = useQuery({
     queryKey: ["drug-interactions"],
-    queryFn: () => api.listDrugInteractions(),
+    queryFn: () => clinicalMastersService.listDrugInteractions(),
   });
 
   const createMutation = useMutation({
-    mutationFn: (data: CreateDrugInteractionRequest) => api.createDrugInteraction(data),
+    mutationFn: (data: DrugInteractionFormInput) =>
+      clinicalMastersService.createDrugInteraction(toCreateDrugInteractionRequest(data)),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["drug-interactions"] });
       notifications.show({
@@ -64,7 +71,7 @@ export function DrugInteractionsSettings() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => api.deleteDrugInteraction(id),
+    mutationFn: (id: string) => clinicalMastersService.deleteDrugInteraction(id),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["drug-interactions"] });
       notifications.show({
@@ -76,25 +83,8 @@ export function DrugInteractionsSettings() {
   });
 
   const handleClose = () => {
-    setOpened(false);
-    setDrugA("");
-    setDrugB("");
-    setSeverity("moderate");
-    setDescription("");
-    setMechanism("");
-    setManagement("");
-  };
-
-  const handleCreate = () => {
-    if (!drugA.trim() || !drugB.trim() || !severity || !description.trim()) return;
-    createMutation.mutate({
-      drug_a_name: drugA.trim(),
-      drug_b_name: drugB.trim(),
-      severity: severity as CreateDrugInteractionRequest["severity"],
-      description: description.trim(),
-      mechanism: mechanism.trim() || undefined,
-      management: management.trim() || undefined,
-    });
+    close();
+    form.reset(DEFAULT_DRUG_INTERACTION_FORM_VALUES);
   };
 
   return (
@@ -102,7 +92,7 @@ export function DrugInteractionsSettings() {
       <Group justify="space-between">
         <Text fw={600}>Drug Interaction Rules ({interactions.length})</Text>
         {canManage && (
-          <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => setOpened(true)}>
+          <Button size="xs" leftSection={<IconPlus size={14} />} onClick={open}>
             Add Interaction
           </Button>
         )}
@@ -175,64 +165,102 @@ export function DrugInteractionsSettings() {
       </Table>
 
       <Modal opened={opened} onClose={handleClose} title="Add Drug Interaction Rule" size="md">
-        <Stack gap="sm">
-          <TextInput
-            label="Drug A"
-            placeholder="e.g. Warfarin"
-            value={drugA}
-            onChange={(e) => setDrugA(e.currentTarget.value)}
-            required
+        <Stack
+          component="form"
+          gap="sm"
+          onSubmit={form.handleSubmit((values) => createMutation.mutate(values))}
+        >
+          <Controller
+            control={form.control}
+            name="drug_a_name"
+            render={({ field, fieldState }) => (
+              <TextInput
+                label="Drug A"
+                placeholder="e.g. Warfarin"
+                required
+                error={fieldState.error?.message}
+                {...field}
+              />
+            )}
           />
-          <TextInput
-            label="Drug B"
-            placeholder="e.g. Aspirin"
-            value={drugB}
-            onChange={(e) => setDrugB(e.currentTarget.value)}
-            required
+          <Controller
+            control={form.control}
+            name="drug_b_name"
+            render={({ field, fieldState }) => (
+              <TextInput
+                label="Drug B"
+                placeholder="e.g. Aspirin"
+                required
+                error={fieldState.error?.message}
+                {...field}
+              />
+            )}
           />
-          <Select
-            label="Severity"
-            data={[
-              { value: "minor", label: "Minor" },
-              { value: "moderate", label: "Moderate" },
-              { value: "major", label: "Major" },
-              { value: "contraindicated", label: "Contraindicated" },
-            ]}
-            value={severity}
-            onChange={setSeverity}
-            required
+          <Controller
+            control={form.control}
+            name="severity"
+            render={({ field, fieldState }) => (
+              <Select
+                label="Severity"
+                data={DRUG_INTERACTION_SEVERITY_OPTIONS}
+                value={field.value}
+                onChange={(value) => {
+                  if (value) field.onChange(value);
+                }}
+                required
+                error={fieldState.error?.message}
+              />
+            )}
           />
-          <Textarea
-            label="Description"
-            placeholder="Describe the interaction"
-            value={description}
-            onChange={(e) => setDescription(e.currentTarget.value)}
-            required
-            autosize
-            minRows={2}
+          <Controller
+            control={form.control}
+            name="description"
+            render={({ field, fieldState }) => (
+              <Textarea
+                label="Description"
+                placeholder="Describe the interaction"
+                required
+                autosize
+                minRows={2}
+                error={fieldState.error?.message}
+                {...field}
+              />
+            )}
           />
-          <TextInput
-            label="Mechanism"
-            placeholder="Optional"
-            value={mechanism}
-            onChange={(e) => setMechanism(e.currentTarget.value)}
+          <Controller
+            control={form.control}
+            name="mechanism"
+            render={({ field, fieldState }) => (
+              <TextInput
+                label="Mechanism"
+                placeholder="Optional"
+                error={fieldState.error?.message}
+                {...field}
+              />
+            )}
           />
-          <Textarea
-            label="Management"
-            placeholder="How to manage this interaction"
-            value={management}
-            onChange={(e) => setManagement(e.currentTarget.value)}
-            autosize
-            minRows={2}
+          <Controller
+            control={form.control}
+            name="management"
+            render={({ field, fieldState }) => (
+              <Textarea
+                label="Management"
+                placeholder="How to manage this interaction"
+                autosize
+                minRows={2}
+                error={fieldState.error?.message}
+                {...field}
+              />
+            )}
           />
           <Group justify="flex-end">
             <Button variant="subtle" onClick={handleClose}>
               Cancel
             </Button>
             <Button
-              onClick={handleCreate}
+              type="submit"
               loading={createMutation.isPending}
-              disabled={!drugA.trim() || !drugB.trim() || !severity || !description.trim()}
+              disabled={createMutation.isPending}
             >
               Create
             </Button>

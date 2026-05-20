@@ -21,9 +21,9 @@ import {
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
 import { useHasPermission } from "@medbrains/stores";
 import type {
+  AddBbReadingRequest,
   AdverseReaction,
   BbColdChainDeviceRow,
   BbColdChainReadingRow,
@@ -34,6 +34,11 @@ import type {
   BloodComponent,
   BloodDonation,
   BloodDonor,
+  CreateBbCampaignRequest,
+  CreateBbDeviceRequest,
+  CreateBbLookbackRequest,
+  CreateBbMsbosRequest,
+  CreateBbReturnRequest,
   CreateComponentRequest,
   CreateCrossmatchRequestBody,
   CreateDonationRequest,
@@ -43,6 +48,8 @@ import type {
   HemovigilanceRow,
   TransfusionRecord,
   TtiReportRow,
+  UpdateBbCampaignRequest,
+  UpdateBbLookbackRequest,
   UpdateDonationRequest,
 } from "@medbrains/types";
 import { P } from "@medbrains/types";
@@ -61,6 +68,10 @@ import { DataTable, PageHeader, StatusDot } from "../components";
 import { PatientNameCell } from "../components/PatientNameCell";
 import { PatientSearchSelect } from "../components/PatientSearchSelect";
 import { useRequirePermission } from "../hooks/useRequirePermission";
+import { bloodBankService } from "../services/bloodBank.service";
+
+type UpdateBbLookbackPayload = { id: string } & UpdateBbLookbackRequest;
+type UpdateBbCampaignPayload = { id: string } & UpdateBbCampaignRequest;
 
 const bagStatusColors: Record<string, string> = {
   collected: "slate",
@@ -176,11 +187,11 @@ function DonorsTab() {
 
   const { data, isLoading } = useQuery({
     queryKey: ["blood-bank", "donors", params],
-    queryFn: () => api.listBloodDonors(params),
+    queryFn: () => bloodBankService.listBloodDonors(params),
   });
 
   const createMut = useMutation({
-    mutationFn: (d: CreateDonorRequest) => api.createBloodDonor(d),
+    mutationFn: (d: CreateDonorRequest) => bloodBankService.createBloodDonor(d),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["blood-bank", "donors"] });
       closeCreate();
@@ -386,11 +397,11 @@ function DonorDetail({ donor }: { donor: BloodDonor }) {
 
   const { data: donations } = useQuery({
     queryKey: ["blood-bank", "donations", donor.id],
-    queryFn: () => api.listDonations(donor.id),
+    queryFn: () => bloodBankService.listDonations(donor.id),
   });
 
   const donateMut = useMutation({
-    mutationFn: (d: CreateDonationRequest) => api.createDonation(donor.id, d),
+    mutationFn: (d: CreateDonationRequest) => bloodBankService.createDonation(donor.id, d),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["blood-bank"] });
       closeDonate();
@@ -404,7 +415,7 @@ function DonorDetail({ donor }: { donor: BloodDonor }) {
 
   const reactionMut = useMutation({
     mutationFn: ({ donationId, data }: { donationId: string; data: UpdateDonationRequest }) =>
-      api.updateDonation(donationId, data),
+      bloodBankService.updateDonation(donationId, data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["blood-bank", "donations", donor.id] });
       setReactionDonation(null);
@@ -748,13 +759,13 @@ function InventoryTab() {
 
   const { data: components, isLoading } = useQuery({
     queryKey: ["blood-bank", "components", params],
-    queryFn: () => api.listBloodComponents(params),
+    queryFn: () => bloodBankService.listBloodComponents(params),
   });
 
   // Also fetch all components (unfiltered) for the discard report
   const { data: allComponents } = useQuery({
     queryKey: ["blood-bank", "components", {}],
-    queryFn: () => api.listBloodComponents(),
+    queryFn: () => bloodBankService.listBloodComponents(),
   });
 
   const discardedComponents = useMemo(
@@ -781,7 +792,10 @@ function InventoryTab() {
       status: string;
       discard_reason?: string;
     }) =>
-      api.updateComponentStatus(id, { status: status as BloodComponent["status"], discard_reason }),
+      bloodBankService.updateComponentStatus(id, {
+        status: status as BloodComponent["status"],
+        discard_reason,
+      }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["blood-bank", "components"] });
       setDiscardComponent(null);
@@ -1028,7 +1042,7 @@ function InventoryTab() {
       >
         <CreateComponentForm
           onSubmit={(d) => {
-            api.createBloodComponent(d).then(() => {
+            bloodBankService.createBloodComponent(d).then(() => {
               void qc.invalidateQueries({ queryKey: ["blood-bank", "components"] });
               closeCreate();
               notifications.show({
@@ -1225,11 +1239,11 @@ function CrossmatchTab() {
 
   const { data: requests, isLoading } = useQuery({
     queryKey: ["blood-bank", "crossmatch"],
-    queryFn: () => api.listCrossmatchRequests(),
+    queryFn: () => bloodBankService.listCrossmatchRequests(),
   });
 
   const createMut = useMutation({
-    mutationFn: (d: CreateCrossmatchRequestBody) => api.createCrossmatchRequest(d),
+    mutationFn: (d: CreateCrossmatchRequestBody) => bloodBankService.createCrossmatchRequest(d),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["blood-bank", "crossmatch"] });
       closeCreate();
@@ -1243,7 +1257,10 @@ function CrossmatchTab() {
 
   const updateMut = useMutation({
     mutationFn: ({ id, status, result }: { id: string; status: string; result?: string }) =>
-      api.updateCrossmatchRequest(id, { status: status as CrossmatchRequest["status"], result }),
+      bloodBankService.updateCrossmatchRequest(id, {
+        status: status as CrossmatchRequest["status"],
+        result,
+      }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["blood-bank", "crossmatch"] });
       notifications.show({
@@ -1441,11 +1458,11 @@ function TransfusionsTab() {
 
   const { data: transfusions, isLoading } = useQuery({
     queryKey: ["blood-bank", "transfusions"],
-    queryFn: () => api.listTransfusions(),
+    queryFn: () => bloodBankService.listTransfusions(),
   });
 
   const createMut = useMutation({
-    mutationFn: (d: CreateTransfusionRequest) => api.createTransfusion(d),
+    mutationFn: (d: CreateTransfusionRequest) => bloodBankService.createTransfusion(d),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["blood-bank"] });
       closeCreate();
@@ -1467,7 +1484,7 @@ function TransfusionsTab() {
       reaction_severity: string;
       reaction_details?: string;
     }) =>
-      api.recordTransfusionReaction(id, {
+      bloodBankService.recordTransfusionReaction(id, {
         reaction_type: data.reaction_type,
         reaction_severity: data.reaction_severity as TransfusionRecord["reaction_severity"] &
           string,
@@ -1730,7 +1747,7 @@ function ReportsTab() {
 function TtiReportView() {
   const { data, isLoading } = useQuery({
     queryKey: ["blood-bank", "tti-report"],
-    queryFn: () => api.getTtiReport(),
+    queryFn: () => bloodBankService.getTtiReport(),
   });
 
   const reactiveCount = useMemo(
@@ -1800,7 +1817,7 @@ function TtiReportView() {
 function HemovigilanceView() {
   const { data, isLoading } = useQuery({
     queryKey: ["blood-bank", "hemovigilance"],
-    queryFn: () => api.getHemovigilanceReport(),
+    queryFn: () => bloodBankService.getHemovigilanceReport(),
   });
 
   const columns = [
@@ -1896,7 +1913,7 @@ function ReturnsAndMsbosTab() {
 
   const { data: msbos, isLoading: msbosLoading } = useQuery({
     queryKey: ["blood-bank", "msbos"],
-    queryFn: () => api.listBbMsbos(),
+    queryFn: () => bloodBankService.listBbMsbos(),
   });
 
   const [returnComponentId, setReturnComponentId] = useState("");
@@ -1905,7 +1922,7 @@ function ReturnsAndMsbosTab() {
   const [returnTimeOut, setReturnTimeOut] = useState<number | undefined>();
 
   const createReturnMut = useMutation({
-    mutationFn: (d: any) => api.createBbReturn(d),
+    mutationFn: (d: CreateBbReturnRequest) => bloodBankService.createBbReturn(d),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["blood-bank"] });
       closeReturn();
@@ -1925,7 +1942,7 @@ function ReturnsAndMsbosTab() {
   const [msbosNotes, setMsbosNotes] = useState("");
 
   const createMsbosMut = useMutation({
-    mutationFn: (d: any) => api.createBbMsbos(d),
+    mutationFn: (d: CreateBbMsbosRequest) => bloodBankService.createBbMsbos(d),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["blood-bank", "msbos"] });
       closeMsbos();
@@ -2148,12 +2165,12 @@ function ColdChainTab() {
 
   const { data: devices, isLoading } = useQuery({
     queryKey: ["blood-bank", "cold-chain-devices"],
-    queryFn: () => api.listBbDevices(),
+    queryFn: () => bloodBankService.listBbDevices(),
   });
 
   const { data: readings } = useQuery({
     queryKey: ["blood-bank", "cold-chain-readings", selectedDevice?.id],
-    queryFn: () => api.listBbReadings(selectedDevice?.id ?? ""),
+    queryFn: () => bloodBankService.listBbReadings(selectedDevice?.id ?? ""),
     enabled: !!selectedDevice,
   });
 
@@ -2165,7 +2182,7 @@ function ColdChainTab() {
   const [devMaxTemp, setDevMaxTemp] = useState<number | undefined>();
 
   const createDeviceMut = useMutation({
-    mutationFn: (d: any) => api.createBbDevice(d),
+    mutationFn: (d: CreateBbDeviceRequest) => bloodBankService.createBbDevice(d),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["blood-bank", "cold-chain-devices"] });
       closeDevice();
@@ -2182,7 +2199,7 @@ function ColdChainTab() {
   const [readingHumidity, setReadingHumidity] = useState<number | undefined>();
 
   const addReadingMut = useMutation({
-    mutationFn: (d: any) => api.addBbReading(d),
+    mutationFn: (d: AddBbReadingRequest) => bloodBankService.addBbReading(d),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["blood-bank", "cold-chain"] });
       closeReading();
@@ -2462,7 +2479,7 @@ function LookbackSection() {
 
   const { data: events, isLoading } = useQuery({
     queryKey: ["blood-bank", "lookback"],
-    queryFn: () => api.listBbLookback(),
+    queryFn: () => bloodBankService.listBbLookback(),
   });
 
   const [infectionType, setInfectionType] = useState("");
@@ -2472,7 +2489,7 @@ function LookbackSection() {
   const [invNotes, setInvNotes] = useState("");
 
   const createMut = useMutation({
-    mutationFn: (d: any) => api.createBbLookback(d),
+    mutationFn: (d: CreateBbLookbackRequest) => bloodBankService.createBbLookback(d),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["blood-bank", "lookback"] });
       closeCreate();
@@ -2485,7 +2502,8 @@ function LookbackSection() {
   });
 
   const updateMut = useMutation({
-    mutationFn: ({ id, ...data }: any) => api.updateBbLookback(id, data),
+    mutationFn: ({ id, ...data }: UpdateBbLookbackPayload) =>
+      bloodBankService.updateBbLookback(id, data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["blood-bank", "lookback"] });
       notifications.show({ title: "Updated", message: "Lookback event updated", color: "success" });
@@ -2634,7 +2652,7 @@ function SbtcSection() {
 
   const fetchReport = () => {
     setLoading(true);
-    api
+    bloodBankService
       .getBbSbtcReport()
       .then((data) => {
         setReport(data);
@@ -2697,7 +2715,7 @@ function RecruitmentSection() {
 
   const { data: campaigns, isLoading } = useQuery({
     queryKey: ["blood-bank", "campaigns"],
-    queryFn: () => api.listBbCampaigns(),
+    queryFn: () => bloodBankService.listBbCampaigns(),
   });
 
   const [campName, setCampName] = useState("");
@@ -2708,7 +2726,7 @@ function RecruitmentSection() {
   const [campNotes, setCampNotes] = useState("");
 
   const createMut = useMutation({
-    mutationFn: (d: any) => api.createBbCampaign(d),
+    mutationFn: (d: CreateBbCampaignRequest) => bloodBankService.createBbCampaign(d),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["blood-bank", "campaigns"] });
       closeCreate();
@@ -2721,7 +2739,8 @@ function RecruitmentSection() {
   });
 
   const updateMut = useMutation({
-    mutationFn: ({ id, ...data }: any) => api.updateBbCampaign(id, data),
+    mutationFn: ({ id, ...data }: UpdateBbCampaignPayload) =>
+      bloodBankService.updateBbCampaign(id, data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["blood-bank", "campaigns"] });
       notifications.show({

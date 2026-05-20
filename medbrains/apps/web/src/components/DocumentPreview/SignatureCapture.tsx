@@ -1,6 +1,10 @@
+import { zodResolver } from "@hookform/resolvers/zod";
 import { Button, Group, Modal, Select, Stack, Text, TextInput } from "@mantine/core";
+import type { SignatureCaptureFormInput, SignerRoleFormValue } from "@medbrains/schemas";
+import { signatureCaptureFormSchema, toSignerRoleFormValue } from "@medbrains/schemas";
 import { IconEraser, IconSignature } from "@tabler/icons-react";
 import { useCallback, useRef, useState } from "react";
+import { Controller, useForm } from "react-hook-form";
 
 interface SignatureCaptureProps {
   opened: boolean;
@@ -19,13 +23,31 @@ export interface SignatureData {
   thumb_impression: boolean;
 }
 
-const SIGNER_ROLES = [
+const DEFAULT_SIGNATURE_VALUES: SignatureCaptureFormInput = {
+  signer_role: "patient",
+  signer_name: "",
+  designation: "",
+  registration_number: "",
+};
+
+const SIGNER_ROLES: Array<{ value: SignerRoleFormValue; label: string }> = [
   { value: "patient", label: "Patient" },
   { value: "guardian", label: "Guardian" },
   { value: "witness", label: "Witness" },
   { value: "doctor", label: "Doctor" },
   { value: "nurse", label: "Nurse" },
 ];
+
+function getPointerPosition(
+  event: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>,
+  rect: DOMRect,
+): { x: number; y: number } | null {
+  if ("touches" in event) {
+    const touch = event.touches.item(0);
+    return touch ? { x: touch.clientX - rect.left, y: touch.clientY - rect.top } : null;
+  }
+  return { x: event.clientX - rect.left, y: event.clientY - rect.top };
+}
 
 export function SignatureCapture({
   opened,
@@ -35,10 +57,18 @@ export function SignatureCapture({
 }: SignatureCaptureProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isDrawing, setIsDrawing] = useState(false);
-  const [signerRole, setSignerRole] = useState<string>("patient");
-  const [signerName, setSignerName] = useState("");
-  const [designation, setDesignation] = useState("");
-  const [regNumber, setRegNumber] = useState("");
+  const {
+    control,
+    handleSubmit,
+    reset,
+    watch,
+    formState: { errors },
+  } = useForm<SignatureCaptureFormInput>({
+    resolver: zodResolver(signatureCaptureFormSchema),
+    defaultValues: DEFAULT_SIGNATURE_VALUES,
+    mode: "onTouched",
+  });
+  const signerName = watch("signer_name");
 
   const startDraw = useCallback(
     (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
@@ -49,11 +79,10 @@ export function SignatureCapture({
 
       setIsDrawing(true);
       const rect = canvas.getBoundingClientRect();
-      const touch = "touches" in e ? e.touches[0] : undefined;
-      const x = touch ? touch.clientX - rect.left : (e as React.MouseEvent).clientX - rect.left;
-      const y = touch ? touch.clientY - rect.top : (e as React.MouseEvent).clientY - rect.top;
+      const point = getPointerPosition(e, rect);
+      if (!point) return;
       ctx.beginPath();
-      ctx.moveTo(x, y);
+      ctx.moveTo(point.x, point.y);
     },
     [],
   );
@@ -67,13 +96,12 @@ export function SignatureCapture({
       if (!ctx) return;
 
       const rect = canvas.getBoundingClientRect();
-      const touch = "touches" in e ? e.touches[0] : undefined;
-      const x = touch ? touch.clientX - rect.left : (e as React.MouseEvent).clientX - rect.left;
-      const y = touch ? touch.clientY - rect.top : (e as React.MouseEvent).clientY - rect.top;
+      const point = getPointerPosition(e, rect);
+      if (!point) return;
       ctx.lineWidth = mode === "thumb" ? 4 : 2;
       ctx.lineCap = "round";
       ctx.strokeStyle = "#000";
-      ctx.lineTo(x, y);
+      ctx.lineTo(point.x, point.y);
       ctx.stroke();
     },
     [isDrawing, mode],
@@ -91,59 +119,78 @@ export function SignatureCapture({
     ctx.clearRect(0, 0, canvas.width, canvas.height);
   };
 
-  const handleCapture = () => {
+  const closeAndReset = () => {
+    clearCanvas();
+    reset(DEFAULT_SIGNATURE_VALUES);
+    onClose();
+  };
+
+  const handleCapture = handleSubmit((values) => {
     const canvas = canvasRef.current;
     const dataUrl = canvas?.toDataURL("image/png");
 
     onCapture({
-      signer_role: signerRole,
-      signer_name: signerName,
-      designation: designation || undefined,
-      registration_number: regNumber || undefined,
+      signer_role: values.signer_role,
+      signer_name: values.signer_name,
+      designation: values.designation || undefined,
+      registration_number: values.registration_number || undefined,
       signature_type: mode === "thumb" ? "biometric_thumb" : "digital_pen",
       signature_image_url: dataUrl,
       thumb_impression: mode === "thumb",
     });
 
-    clearCanvas();
-    setSignerName("");
-    setDesignation("");
-    setRegNumber("");
-    onClose();
-  };
+    closeAndReset();
+  });
 
   const canvasHeight = mode === "thumb" ? 250 : 150;
 
   return (
     <Modal
       opened={opened}
-      onClose={onClose}
+      onClose={closeAndReset}
       title={mode === "thumb" ? "Thumb Impression" : "Signature Capture"}
       size="md"
     >
       <Stack gap="sm">
-        <Select
-          label="Signer Role"
-          data={SIGNER_ROLES}
-          value={signerRole}
-          onChange={(v) => setSignerRole(v ?? "patient")}
+        <Controller
+          control={control}
+          name="signer_role"
+          render={({ field }) => (
+            <Select
+              label="Signer Role"
+              data={SIGNER_ROLES}
+              value={field.value}
+              onChange={(value) => field.onChange(toSignerRoleFormValue(value))}
+            />
+          )}
         />
-        <TextInput
-          label="Signer Name"
-          value={signerName}
-          onChange={(e) => setSignerName(e.currentTarget.value)}
-          required
+        <Controller
+          control={control}
+          name="signer_name"
+          render={({ field }) => (
+            <TextInput
+              label="Signer Name"
+              value={field.value}
+              onChange={field.onChange}
+              error={errors.signer_name?.message}
+              required
+            />
+          )}
         />
         <Group grow>
-          <TextInput
-            label="Designation"
-            value={designation}
-            onChange={(e) => setDesignation(e.currentTarget.value)}
+          <Controller
+            control={control}
+            name="designation"
+            render={({ field }) => (
+              <TextInput label="Designation" value={field.value} onChange={field.onChange} />
+            )}
           />
-          <TextInput
-            label="Registration No."
-            value={regNumber}
-            onChange={(e) => setRegNumber(e.currentTarget.value)}
+          <Controller
+            control={control}
+            name="registration_number"
+            render={({ field }) => (
+              <TextInput label="Registration No." value={field.value} onChange={field.onChange} />
+            )}
           />
         </Group>
 
@@ -184,7 +231,7 @@ export function SignatureCapture({
           </Button>
           <Button
             leftSection={<IconSignature size={16} />}
-            onClick={handleCapture}
+            onClick={() => void handleCapture()}
             disabled={!signerName}
           >
             Capture

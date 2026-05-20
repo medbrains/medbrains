@@ -1,3 +1,4 @@
+import { zodResolver } from "@hookform/resolvers/zod";
 import {
   ActionIcon,
   Badge,
@@ -18,7 +19,8 @@ import {
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
+import type { OrderSetItemFormInput, OrderSetTemplateFormInput } from "@medbrains/schemas";
+import { orderSetItemFormSchema, orderSetTemplateFormSchema } from "@medbrains/schemas";
 import { useHasPermission } from "@medbrains/stores";
 import type {
   AddOrderSetItemRequest,
@@ -40,27 +42,22 @@ import {
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { Controller, useForm } from "react-hook-form";
 import { DataTable, PageHeader } from "../components";
+import { Icd11CodeSelect } from "../components/Clinical/Icd11CodeSelect";
 import type { Column } from "../components/DataTable";
 import { PatientNameCell } from "../components/PatientNameCell";
+import {
+  orderSetContextOptions,
+  orderSetItemTypeOptions,
+  orderSetOptionalInteger,
+  orderSetOptionalText,
+  parseTriggerDiagnoses,
+} from "../forms/order-sets.form";
 import { useRequirePermission } from "../hooks/useRequirePermission";
+import { orderSetsService } from "../services/order-sets.service";
 
 // ── Constants ──────────────────────────────────────────
-
-const CONTEXT_OPTIONS = [
-  { value: "general", label: "General" },
-  { value: "admission", label: "Admission" },
-  { value: "pre_operative", label: "Pre-Operative" },
-  { value: "diagnosis_specific", label: "Diagnosis-Specific" },
-  { value: "department_specific", label: "Department-Specific" },
-];
-
-const ITEM_TYPE_OPTIONS = [
-  { value: "lab", label: "Lab Test" },
-  { value: "medication", label: "Medication" },
-  { value: "nursing", label: "Nursing Task" },
-  { value: "diet", label: "Diet Order" },
-];
 
 const CONTEXT_COLORS: Record<string, string> = {
   general: "slate",
@@ -75,6 +72,35 @@ const ITEM_TYPE_COLORS: Record<string, string> = {
   medication: "success",
   nursing: "orange",
   diet: "info",
+};
+
+const emptyTemplateForm: OrderSetTemplateFormInput = {
+  name: "",
+  code: "",
+  description: "",
+  context: "general",
+  surgery_type: "",
+  trigger_diagnoses_text: "",
+};
+
+const emptyItemForm: OrderSetItemFormInput = {
+  item_type: "lab",
+  sort_order: 0,
+  is_mandatory: false,
+  default_selected: true,
+  lab_priority: "",
+  lab_notes: "",
+  drug_name: "",
+  dosage: "",
+  frequency: "",
+  duration: "",
+  route: "",
+  med_instructions: "",
+  task_type: "",
+  task_description: "",
+  task_frequency: "",
+  diet_type: "",
+  diet_instructions: "",
 };
 
 // ── Page ───────────────────────────────────────────────
@@ -151,25 +177,33 @@ function TemplatesTab({
   const [opened, { open, close }] = useDisclosure(false);
   const [contextFilter, setContextFilter] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [selectedTriggerDiagnosis, setSelectedTriggerDiagnosis] = useState("");
 
   const { data: templates = [], isLoading } = useQuery({
     queryKey: ["order-set-templates", contextFilter, search],
     queryFn: () =>
-      api.listOrderSetTemplates({
+      orderSetsService.listOrderSetTemplates({
         context: contextFilter ?? undefined,
         search: search || undefined,
         is_active: true,
       }),
   });
 
-  // Create template form state
-  const [form, setForm] = useState<CreateOrderSetTemplateRequest>({
-    name: "",
-    context: "general",
+  const {
+    control,
+    handleSubmit,
+    reset,
+    setValue,
+    watch,
+    formState: { errors },
+  } = useForm<OrderSetTemplateFormInput>({
+    resolver: zodResolver(orderSetTemplateFormSchema),
+    defaultValues: emptyTemplateForm,
   });
 
   const createMut = useMutation({
-    mutationFn: (data: CreateOrderSetTemplateRequest) => api.createOrderSetTemplate(data),
+    mutationFn: (data: CreateOrderSetTemplateRequest) =>
+      orderSetsService.createOrderSetTemplate(data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["order-set-templates"] });
       notifications.show({
@@ -178,12 +212,13 @@ function TemplatesTab({
         color: "success",
       });
       close();
-      setForm({ name: "", context: "general" });
+      reset(emptyTemplateForm);
+      setSelectedTriggerDiagnosis("");
     },
   });
 
   const approveMut = useMutation({
-    mutationFn: (id: string) => api.approveOrderSetTemplate(id),
+    mutationFn: (id: string) => orderSetsService.approveOrderSetTemplate(id),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["order-set-templates"] });
       notifications.show({
@@ -195,7 +230,7 @@ function TemplatesTab({
   });
 
   const deleteMut = useMutation({
-    mutationFn: (id: string) => api.deleteOrderSetTemplate(id),
+    mutationFn: (id: string) => orderSetsService.deleteOrderSetTemplate(id),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["order-set-templates"] });
       notifications.show({
@@ -207,7 +242,7 @@ function TemplatesTab({
   });
 
   const versionMut = useMutation({
-    mutationFn: (id: string) => api.createOrderSetVersion(id),
+    mutationFn: (id: string) => orderSetsService.createOrderSetVersion(id),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["order-set-templates"] });
       notifications.show({
@@ -312,6 +347,31 @@ function TemplatesTab({
     },
   ];
 
+  const submitTemplate = (values: OrderSetTemplateFormInput) => {
+    createMut.mutate({
+      name: values.name.trim(),
+      code: orderSetOptionalText(values.code),
+      description: orderSetOptionalText(values.description),
+      context: values.context,
+      surgery_type: orderSetOptionalText(values.surgery_type),
+      trigger_diagnoses: parseTriggerDiagnoses(values.trigger_diagnoses_text),
+    });
+  };
+
+  const appendTriggerDiagnosis = (code: string) => {
+    const current = watch("trigger_diagnoses_text") ?? "";
+    const existing = current
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean);
+    if (!existing.some((item) => item.toLowerCase() === code.toLowerCase())) {
+      setValue("trigger_diagnoses_text", [...existing, code].join(", "), {
+        shouldDirty: true,
+        shouldValidate: true,
+      });
+    }
+  };
+
   return (
     <>
       <Group mb="md" justify="space-between">
@@ -325,7 +385,7 @@ function TemplatesTab({
           />
           <Select
             placeholder="All contexts"
-            data={CONTEXT_OPTIONS}
+            data={orderSetContextOptions}
             value={contextFilter}
             onChange={setContextFilter}
             clearable
@@ -334,7 +394,14 @@ function TemplatesTab({
           />
         </Group>
         {canCreate && (
-          <Button leftSection={<IconPlus size={16} />} onClick={open} size="sm">
+          <Button
+            leftSection={<IconPlus size={16} />}
+            onClick={() => {
+              reset(emptyTemplateForm);
+              open();
+            }}
+            size="sm"
+          >
             New Template
           </Button>
         )}
@@ -349,63 +416,67 @@ function TemplatesTab({
         position="right"
         size="xl"
       >
-        <Stack>
-          <TextInput
-            label="Name"
-            required
-            value={form.name}
-            onChange={(e) => setForm({ ...form, name: e.currentTarget.value })}
+        <Stack component="form" onSubmit={handleSubmit(submitTemplate)}>
+          <Controller
+            name="name"
+            control={control}
+            render={({ field }) => (
+              <TextInput label="Name" required {...field} error={errors.name?.message} />
+            )}
           />
-          <TextInput
-            label="Code (mnemonic)"
-            placeholder="e.g. PNEUM-WU"
-            value={form.code ?? ""}
-            onChange={(e) => setForm({ ...form, code: e.currentTarget.value || undefined })}
+          <Controller
+            name="code"
+            control={control}
+            render={({ field }) => (
+              <TextInput label="Code (mnemonic)" placeholder="e.g. PNEUM-WU" {...field} />
+            )}
           />
-          <Textarea
-            label="Description"
-            value={form.description ?? ""}
-            onChange={(e) => setForm({ ...form, description: e.currentTarget.value || undefined })}
+          <Controller
+            name="description"
+            control={control}
+            render={({ field }) => <Textarea label="Description" {...field} />}
           />
-          <Select
-            label="Context"
-            data={CONTEXT_OPTIONS}
-            value={form.context}
-            onChange={(v) =>
-              setForm({
-                ...form,
-                context: (v ?? "general") as CreateOrderSetTemplateRequest["context"],
-              })
-            }
-            required
+          <Controller
+            name="context"
+            control={control}
+            render={({ field }) => (
+              <Select
+                label="Context"
+                data={orderSetContextOptions}
+                value={field.value}
+                onChange={(value) => field.onChange(value ?? "general")}
+                required
+                error={errors.context?.message}
+              />
+            )}
           />
-          <TextInput
-            label="Surgery Type"
-            placeholder="For pre-operative sets"
-            value={form.surgery_type ?? ""}
-            onChange={(e) => setForm({ ...form, surgery_type: e.currentTarget.value || undefined })}
+          <Controller
+            name="surgery_type"
+            control={control}
+            render={({ field }) => (
+              <TextInput label="Surgery Type" placeholder="For pre-operative sets" {...field} />
+            )}
           />
-          <TextInput
-            label="Trigger Diagnoses (ICD-10 codes, comma-separated)"
-            placeholder="e.g. J18.9, J15.9"
-            value={(form.trigger_diagnoses ?? []).join(", ")}
-            onChange={(e) =>
-              setForm({
-                ...form,
-                trigger_diagnoses: e.currentTarget.value
-                  ? e.currentTarget.value
-                      .split(",")
-                      .map((s) => s.trim())
-                      .filter(Boolean)
-                  : undefined,
-              })
-            }
+          <Icd11CodeSelect
+            label="Add trigger diagnosis"
+            value={selectedTriggerDiagnosis || null}
+            onChange={(value) => {
+              setSelectedTriggerDiagnosis(value ?? "");
+              if (value) appendTriggerDiagnosis(value);
+            }}
           />
-          <Button
-            onClick={() => createMut.mutate(form)}
-            loading={createMut.isPending}
-            disabled={!form.name}
-          >
+          <Controller
+            name="trigger_diagnoses_text"
+            control={control}
+            render={({ field }) => (
+              <TextInput
+                label="Trigger diagnoses"
+                placeholder="ICD-11 codes, comma-separated"
+                {...field}
+              />
+            )}
+          />
+          <Button type="submit" loading={createMut.isPending}>
             Create Template
           </Button>
         </Stack>
@@ -426,33 +497,45 @@ function BuilderTab({ canUpdate }: { canUpdate: boolean }) {
   // List templates for picker
   const { data: templates = [] } = useQuery({
     queryKey: ["order-set-templates"],
-    queryFn: () => api.listOrderSetTemplates({ is_active: true }),
+    queryFn: () => orderSetsService.listOrderSetTemplates({ is_active: true }),
   });
 
   // Fetch selected template with items
   const { data: templateDetail, isLoading: detailLoading } = useQuery({
     queryKey: ["order-set-template-detail", selectedTemplateId],
-    queryFn: () => api.getOrderSetTemplate(selectedTemplateId!),
+    queryFn: () => {
+      if (!selectedTemplateId) throw new Error("Template not selected");
+      return orderSetsService.getOrderSetTemplate(selectedTemplateId);
+    },
     enabled: !!selectedTemplateId,
   });
 
-  // Add item form
-  const [itemForm, setItemForm] = useState<AddOrderSetItemRequest>({
-    item_type: "lab",
+  const {
+    control,
+    handleSubmit,
+    reset,
+    watch,
+    formState: { errors },
+  } = useForm<OrderSetItemFormInput>({
+    resolver: zodResolver(orderSetItemFormSchema),
+    defaultValues: emptyItemForm,
   });
+  const selectedItemType = watch("item_type");
 
   const addItemMut = useMutation({
-    mutationFn: (data: AddOrderSetItemRequest) => api.addOrderSetItem(selectedTemplateId!, data),
+    mutationFn: ({ templateId, data }: { templateId: string; data: AddOrderSetItemRequest }) =>
+      orderSetsService.addOrderSetItem(templateId, data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["order-set-template-detail", selectedTemplateId] });
       notifications.show({ title: "Added", message: "Item added to template", color: "success" });
       closeItem();
-      setItemForm({ item_type: "lab" });
+      reset(emptyItemForm);
     },
   });
 
   const deleteItemMut = useMutation({
-    mutationFn: (itemId: string) => api.deleteOrderSetItem(selectedTemplateId!, itemId),
+    mutationFn: ({ templateId, itemId }: { templateId: string; itemId: string }) =>
+      orderSetsService.deleteOrderSetItem(templateId, itemId),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["order-set-template-detail", selectedTemplateId] });
       notifications.show({
@@ -462,6 +545,32 @@ function BuilderTab({ canUpdate }: { canUpdate: boolean }) {
       });
     },
   });
+
+  const submitItem = (values: OrderSetItemFormInput) => {
+    if (!selectedTemplateId) return;
+    addItemMut.mutate({
+      templateId: selectedTemplateId,
+      data: {
+        item_type: values.item_type,
+        sort_order: orderSetOptionalInteger(values.sort_order),
+        is_mandatory: values.is_mandatory,
+        default_selected: values.default_selected,
+        lab_priority: orderSetOptionalText(values.lab_priority),
+        lab_notes: orderSetOptionalText(values.lab_notes),
+        drug_name: orderSetOptionalText(values.drug_name),
+        dosage: orderSetOptionalText(values.dosage),
+        frequency: orderSetOptionalText(values.frequency),
+        duration: orderSetOptionalText(values.duration),
+        route: orderSetOptionalText(values.route),
+        med_instructions: orderSetOptionalText(values.med_instructions),
+        task_type: orderSetOptionalText(values.task_type),
+        task_description: orderSetOptionalText(values.task_description),
+        task_frequency: orderSetOptionalText(values.task_frequency),
+        diet_type: orderSetOptionalText(values.diet_type),
+        diet_instructions: orderSetOptionalText(values.diet_instructions),
+      },
+    });
+  };
 
   const templateOptions = templates.map((t) => ({
     value: t.id,
@@ -528,7 +637,11 @@ function BuilderTab({ canUpdate }: { canUpdate: boolean }) {
               size="sm"
               variant="subtle"
               color="danger"
-              onClick={() => deleteItemMut.mutate(r.id)}
+              onClick={() => {
+                if (selectedTemplateId) {
+                  deleteItemMut.mutate({ templateId: selectedTemplateId, itemId: r.id });
+                }
+              }}
               aria-label="Delete"
             >
               <IconTrash size={14} />
@@ -551,7 +664,14 @@ function BuilderTab({ canUpdate }: { canUpdate: boolean }) {
           w={400}
         />
         {canUpdate && selectedTemplateId && (
-          <Button leftSection={<IconPlus size={16} />} onClick={openItem} size="sm">
+          <Button
+            leftSection={<IconPlus size={16} />}
+            onClick={() => {
+              reset(emptyItemForm);
+              openItem();
+            }}
+            size="sm"
+          >
             Add Item
           </Button>
         )}
@@ -593,163 +713,167 @@ function BuilderTab({ canUpdate }: { canUpdate: boolean }) {
         position="right"
         size="xl"
       >
-        <Stack>
-          <Select
-            label="Item Type"
-            data={ITEM_TYPE_OPTIONS}
-            value={itemForm.item_type}
-            onChange={(v) =>
-              setItemForm({
-                ...itemForm,
-                item_type: (v ?? "lab") as AddOrderSetItemRequest["item_type"],
-              })
-            }
-            required
+        <Stack component="form" onSubmit={handleSubmit(submitItem)}>
+          <Controller
+            name="item_type"
+            control={control}
+            render={({ field }) => (
+              <Select
+                label="Item Type"
+                data={orderSetItemTypeOptions}
+                value={field.value}
+                onChange={(value) => field.onChange(value ?? "lab")}
+                required
+                error={errors.item_type?.message}
+              />
+            )}
           />
-          <NumberInput
-            label="Sort Order"
-            value={itemForm.sort_order ?? 0}
-            onChange={(v) =>
-              setItemForm({ ...itemForm, sort_order: typeof v === "number" ? v : 0 })
-            }
+          <Controller
+            name="sort_order"
+            control={control}
+            render={({ field }) => (
+              <NumberInput
+                label="Sort Order"
+                value={field.value}
+                onChange={field.onChange}
+                error={errors.sort_order?.message}
+              />
+            )}
           />
-          <Switch
-            label="Mandatory (cannot be deselected)"
-            checked={itemForm.is_mandatory ?? false}
-            onChange={(e) => setItemForm({ ...itemForm, is_mandatory: e.currentTarget.checked })}
+          <Controller
+            name="is_mandatory"
+            control={control}
+            render={({ field }) => (
+              <Switch
+                label="Mandatory (cannot be deselected)"
+                checked={field.value}
+                onChange={(event) => field.onChange(event.currentTarget.checked)}
+              />
+            )}
           />
-          <Switch
-            label="Selected by default"
-            checked={itemForm.default_selected ?? true}
-            onChange={(e) =>
-              setItemForm({ ...itemForm, default_selected: e.currentTarget.checked })
-            }
+          <Controller
+            name="default_selected"
+            control={control}
+            render={({ field }) => (
+              <Switch
+                label="Selected by default"
+                checked={field.value}
+                onChange={(event) => field.onChange(event.currentTarget.checked)}
+              />
+            )}
           />
 
           {/* Type-specific fields */}
-          {itemForm.item_type === "lab" && (
+          {selectedItemType === "lab" && (
             <>
-              <TextInput
-                label="Lab Priority"
-                placeholder="routine / urgent / stat"
-                value={itemForm.lab_priority ?? ""}
-                onChange={(e) =>
-                  setItemForm({ ...itemForm, lab_priority: e.currentTarget.value || undefined })
-                }
+              <Controller
+                name="lab_priority"
+                control={control}
+                render={({ field }) => (
+                  <TextInput
+                    label="Lab Priority"
+                    placeholder="routine / urgent / stat"
+                    {...field}
+                  />
+                )}
               />
-              <Textarea
-                label="Lab Notes"
-                value={itemForm.lab_notes ?? ""}
-                onChange={(e) =>
-                  setItemForm({ ...itemForm, lab_notes: e.currentTarget.value || undefined })
-                }
+              <Controller
+                name="lab_notes"
+                control={control}
+                render={({ field }) => <Textarea label="Lab Notes" {...field} />}
               />
             </>
           )}
 
-          {itemForm.item_type === "medication" && (
+          {selectedItemType === "medication" && (
             <>
-              <TextInput
-                label="Drug Name"
-                value={itemForm.drug_name ?? ""}
-                onChange={(e) =>
-                  setItemForm({ ...itemForm, drug_name: e.currentTarget.value || undefined })
-                }
+              <Controller
+                name="drug_name"
+                control={control}
+                render={({ field }) => <TextInput label="Drug Name" {...field} />}
               />
-              <TextInput
-                label="Dosage"
-                placeholder="e.g. 500mg"
-                value={itemForm.dosage ?? ""}
-                onChange={(e) =>
-                  setItemForm({ ...itemForm, dosage: e.currentTarget.value || undefined })
-                }
+              <Controller
+                name="dosage"
+                control={control}
+                render={({ field }) => (
+                  <TextInput label="Dosage" placeholder="e.g. 500mg" {...field} />
+                )}
               />
-              <TextInput
-                label="Frequency"
-                placeholder="e.g. TID, BD"
-                value={itemForm.frequency ?? ""}
-                onChange={(e) =>
-                  setItemForm({ ...itemForm, frequency: e.currentTarget.value || undefined })
-                }
+              <Controller
+                name="frequency"
+                control={control}
+                render={({ field }) => (
+                  <TextInput label="Frequency" placeholder="e.g. TID, BD" {...field} />
+                )}
               />
-              <TextInput
-                label="Duration"
-                placeholder="e.g. 5 days"
-                value={itemForm.duration ?? ""}
-                onChange={(e) =>
-                  setItemForm({ ...itemForm, duration: e.currentTarget.value || undefined })
-                }
+              <Controller
+                name="duration"
+                control={control}
+                render={({ field }) => (
+                  <TextInput label="Duration" placeholder="e.g. 5 days" {...field} />
+                )}
               />
-              <TextInput
-                label="Route"
-                placeholder="e.g. PO, IV"
-                value={itemForm.route ?? ""}
-                onChange={(e) =>
-                  setItemForm({ ...itemForm, route: e.currentTarget.value || undefined })
-                }
+              <Controller
+                name="route"
+                control={control}
+                render={({ field }) => (
+                  <TextInput label="Route" placeholder="e.g. PO, IV" {...field} />
+                )}
               />
-              <Textarea
-                label="Instructions"
-                value={itemForm.med_instructions ?? ""}
-                onChange={(e) =>
-                  setItemForm({ ...itemForm, med_instructions: e.currentTarget.value || undefined })
-                }
+              <Controller
+                name="med_instructions"
+                control={control}
+                render={({ field }) => <Textarea label="Instructions" {...field} />}
               />
             </>
           )}
 
-          {itemForm.item_type === "nursing" && (
+          {selectedItemType === "nursing" && (
             <>
-              <TextInput
-                label="Task Type"
-                placeholder="e.g. vital_check, wound_care"
-                value={itemForm.task_type ?? ""}
-                onChange={(e) =>
-                  setItemForm({ ...itemForm, task_type: e.currentTarget.value || undefined })
-                }
+              <Controller
+                name="task_type"
+                control={control}
+                render={({ field }) => (
+                  <TextInput
+                    label="Task Type"
+                    placeholder="e.g. vital_check, wound_care"
+                    {...field}
+                  />
+                )}
               />
-              <Textarea
-                label="Task Description"
-                value={itemForm.task_description ?? ""}
-                onChange={(e) =>
-                  setItemForm({ ...itemForm, task_description: e.currentTarget.value || undefined })
-                }
+              <Controller
+                name="task_description"
+                control={control}
+                render={({ field }) => <Textarea label="Task Description" {...field} />}
               />
-              <TextInput
-                label="Frequency"
-                placeholder="e.g. Q4H, daily"
-                value={itemForm.task_frequency ?? ""}
-                onChange={(e) =>
-                  setItemForm({ ...itemForm, task_frequency: e.currentTarget.value || undefined })
-                }
+              <Controller
+                name="task_frequency"
+                control={control}
+                render={({ field }) => (
+                  <TextInput label="Frequency" placeholder="e.g. Q4H, daily" {...field} />
+                )}
               />
             </>
           )}
 
-          {itemForm.item_type === "diet" && (
+          {selectedItemType === "diet" && (
             <>
-              <TextInput
-                label="Diet Type"
-                placeholder="e.g. regular, liquid, NPO"
-                value={itemForm.diet_type ?? ""}
-                onChange={(e) =>
-                  setItemForm({ ...itemForm, diet_type: e.currentTarget.value || undefined })
-                }
+              <Controller
+                name="diet_type"
+                control={control}
+                render={({ field }) => (
+                  <TextInput label="Diet Type" placeholder="e.g. regular, liquid, NPO" {...field} />
+                )}
               />
-              <Textarea
-                label="Diet Instructions"
-                value={itemForm.diet_instructions ?? ""}
-                onChange={(e) =>
-                  setItemForm({
-                    ...itemForm,
-                    diet_instructions: e.currentTarget.value || undefined,
-                  })
-                }
+              <Controller
+                name="diet_instructions"
+                control={control}
+                render={({ field }) => <Textarea label="Diet Instructions" {...field} />}
               />
             </>
           )}
 
-          <Button onClick={() => addItemMut.mutate(itemForm)} loading={addItemMut.isPending}>
+          <Button type="submit" loading={addItemMut.isPending}>
             Add Item
           </Button>
         </Stack>
@@ -768,12 +892,15 @@ function ActivationsTab() {
 
   const { data: activations = [], isLoading } = useQuery({
     queryKey: ["order-set-activations"],
-    queryFn: () => api.listOrderSetActivations(),
+    queryFn: () => orderSetsService.listOrderSetActivations(),
   });
 
   const { data: detail } = useQuery({
     queryKey: ["order-set-activation-detail", detailId],
-    queryFn: () => api.getOrderSetActivation(detailId!),
+    queryFn: () => {
+      if (!detailId) throw new Error("Activation not selected");
+      return orderSetsService.getOrderSetActivation(detailId);
+    },
     enabled: !!detailId,
   });
 
@@ -906,7 +1033,7 @@ function ActivationsTab() {
 function AnalyticsTab() {
   const { data: summary } = useQuery({
     queryKey: ["order-set-analytics"],
-    queryFn: () => api.getOrderSetAnalytics(),
+    queryFn: () => orderSetsService.getOrderSetAnalytics(),
   });
 
   return (

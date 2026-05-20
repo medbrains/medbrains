@@ -1,10 +1,10 @@
 import { Badge, Combobox, Group, InputBase, Text, useCombobox } from "@mantine/core";
 import { useDebouncedValue } from "@mantine/hooks";
-import { api } from "@medbrains/api";
 import type { Employee } from "@medbrains/types";
 import { IconSearch } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
+import { lookupsService } from "../services/lookups.service";
 
 interface EmployeeSearchSelectProps {
   value: string;
@@ -38,7 +38,7 @@ export function EmployeeSearchSelect({
 
   const { data } = useQuery({
     queryKey: ["employee-search", debounced],
-    queryFn: () => api.listEmployees({ search: debounced }),
+    queryFn: () => lookupsService.listEmployees({ search: debounced }),
     enabled: debounced.length >= 2,
     staleTime: 30_000,
   });

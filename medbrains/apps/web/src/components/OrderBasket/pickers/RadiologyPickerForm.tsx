@@ -1,110 +1,150 @@
+import { zodResolver } from "@hookform/resolvers/zod";
 import { Button, Checkbox, Group, Select, Stack, TextInput } from "@mantine/core";
-import { api } from "@medbrains/api";
+import type { OrderBasketRadiologyFormInput } from "@medbrains/schemas";
+import { orderBasketRadiologyFormSchema } from "@medbrains/schemas";
 import type { BasketItem, BasketRadiologyItem } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { Controller, useForm } from "react-hook-form";
+import { radiologyPriorityOptions } from "../../../forms/orderBasket.form";
+import { clinicalSupportService } from "../../../services/clinicalSupport.service";
 
 interface RadiologyPickerFormProps {
   onAdd: (item: BasketItem) => void;
 }
 
 export function RadiologyPickerForm({ onAdd }: RadiologyPickerFormProps) {
-  const [modalityId, setModalityId] = useState<string | null>(null);
-  const [bodyPart, setBodyPart] = useState("");
-  const [indication, setIndication] = useState("");
-  const [priority, setPriority] = useState<string | null>("routine");
-  const [contrast, setContrast] = useState(false);
-  const [pregnancy, setPregnancy] = useState(false);
-  const [allergy, setAllergy] = useState(false);
-  const [notes, setNotes] = useState("");
+  const {
+    control,
+    register,
+    reset,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<OrderBasketRadiologyFormInput>({
+    resolver: zodResolver(orderBasketRadiologyFormSchema),
+    defaultValues: {
+      modality_id: "",
+      body_part: "",
+      clinical_indication: "",
+      priority: "routine",
+      contrast_required: false,
+      pregnancy_checked: false,
+      allergy_flagged: false,
+      notes: "",
+    },
+  });
 
   const { data: modalities = [] } = useQuery({
     queryKey: ["radiology-modalities"],
-    queryFn: () => api.listRadiologyModalities(),
+    queryFn: () => clinicalSupportService.listRadiologyModalities(),
     staleTime: 60_000,
   });
 
-  const reset = () => {
-    setModalityId(null);
-    setBodyPart("");
-    setIndication("");
-    setPriority("routine");
-    setContrast(false);
-    setPregnancy(false);
-    setAllergy(false);
-    setNotes("");
+  const resetForm = () => {
+    reset({
+      modality_id: "",
+      body_part: "",
+      clinical_indication: "",
+      priority: "routine",
+      contrast_required: false,
+      pregnancy_checked: false,
+      allergy_flagged: false,
+      notes: "",
+    });
   };
 
-  const handleAdd = () => {
-    if (!modalityId) return;
+  const handleAdd = (values: OrderBasketRadiologyFormInput) => {
     const item: BasketRadiologyItem = {
       kind: "radiology",
-      modality_id: modalityId,
-      body_part: bodyPart.trim() || null,
-      clinical_indication: indication.trim() || null,
-      priority,
+      modality_id: values.modality_id,
+      body_part: values.body_part.trim() || null,
+      clinical_indication: values.clinical_indication.trim() || null,
+      priority: values.priority,
       scheduled_at: null,
-      contrast_required: contrast || null,
-      pregnancy_checked: pregnancy || null,
-      allergy_flagged: allergy || null,
-      notes: notes.trim() || null,
+      contrast_required: values.contrast_required || null,
+      pregnancy_checked: values.pregnancy_checked || null,
+      allergy_flagged: values.allergy_flagged || null,
+      notes: values.notes.trim() || null,
     };
     onAdd(item);
-    reset();
+    resetForm();
   };
 
   return (
-    <Stack gap="xs">
-      <Select
-        label="Modality"
-        placeholder="X-ray, CT, MRI, US, etc."
-        data={modalities.map((m) => ({ value: m.id, label: m.name }))}
-        value={modalityId}
-        onChange={setModalityId}
-        searchable
-        required
+    <Stack component="form" gap="xs" onSubmit={handleSubmit(handleAdd)}>
+      <Controller
+        control={control}
+        name="modality_id"
+        render={({ field }) => (
+          <Select
+            label="Modality"
+            placeholder="X-ray, CT, MRI, US, etc."
+            data={modalities.map((m) => ({ value: m.id, label: m.name }))}
+            value={field.value || null}
+            onChange={(value) => field.onChange(value ?? "")}
+            error={errors.modality_id?.message}
+            searchable
+            required
+          />
+        )}
       />
       <Group grow>
         <TextInput
           label="Body part"
           placeholder="e.g., Chest PA, Abdomen"
-          value={bodyPart}
-          onChange={(e) => setBodyPart(e.currentTarget.value)}
+          {...register("body_part")}
         />
-        <Select
-          label="Priority"
-          data={["routine", "urgent", "stat"]}
-          value={priority}
-          onChange={setPriority}
+        <Controller
+          control={control}
+          name="priority"
+          render={({ field }) => (
+            <Select
+              label="Priority"
+              data={radiologyPriorityOptions}
+              value={field.value}
+              onChange={(value) => value && field.onChange(value)}
+            />
+          )}
         />
       </Group>
-      <TextInput
-        label="Clinical indication"
-        value={indication}
-        onChange={(e) => setIndication(e.currentTarget.value)}
-      />
+      <TextInput label="Clinical indication" {...register("clinical_indication")} />
       <Group>
-        <Checkbox
-          label="Contrast required"
-          checked={contrast}
-          onChange={(e) => setContrast(e.currentTarget.checked)}
+        <Controller
+          control={control}
+          name="contrast_required"
+          render={({ field }) => (
+            <Checkbox
+              label="Contrast required"
+              checked={field.value}
+              onChange={(e) => field.onChange(e.currentTarget.checked)}
+            />
+          )}
         />
-        <Checkbox
-          label="Pregnancy checked"
-          checked={pregnancy}
-          onChange={(e) => setPregnancy(e.currentTarget.checked)}
+        <Controller
+          control={control}
+          name="pregnancy_checked"
+          render={({ field }) => (
+            <Checkbox
+              label="Pregnancy checked"
+              checked={field.value}
+              onChange={(e) => field.onChange(e.currentTarget.checked)}
+            />
+          )}
         />
-        <Checkbox
-          label="Allergy flagged"
-          checked={allergy}
-          onChange={(e) => setAllergy(e.currentTarget.checked)}
+        <Controller
+          control={control}
+          name="allergy_flagged"
+          render={({ field }) => (
+            <Checkbox
+              label="Allergy flagged"
+              checked={field.value}
+              onChange={(e) => field.onChange(e.currentTarget.checked)}
+            />
+          )}
         />
       </Group>
-      <TextInput label="Notes" value={notes} onChange={(e) => setNotes(e.currentTarget.value)} />
+      <TextInput label="Notes" {...register("notes")} />
       <Group justify="flex-end">
-        <Button onClick={handleAdd} disabled={!modalityId}>
-          Add to basket
-        </Button>
+        <Button type="submit">Add to basket</Button>
       </Group>
     </Stack>
   );

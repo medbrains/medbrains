@@ -6,6 +6,7 @@
 
 import type { Module } from "@medbrains/mobile-shell";
 import { billingModule } from "./billing";
+import { bloodBankModule } from "./blood-bank";
 import { bmeModule } from "./bme";
 import { doctorModule } from "./doctor";
 import { facilitiesModule } from "./facilities";
@@ -22,6 +23,7 @@ export const MODULES: ReadonlyArray<Module> = [
   nurseModule,
   pharmacyModule,
   labModule,
+  bloodBankModule,
   billingModule,
   bmeModule,
   facilitiesModule,

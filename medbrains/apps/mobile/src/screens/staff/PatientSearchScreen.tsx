@@ -1,4 +1,3 @@
-import { api } from "@medbrains/api";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { FlatList, StyleSheet, View } from "react-native";
@@ -13,6 +12,7 @@ import {
 } from "react-native-paper";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { PatientCard } from "../../components";
+import { patientService } from "../../services/patient.service";
 
 interface PatientSearchScreenProps {
   navigation: {
@@ -28,7 +28,7 @@ export function PatientSearchScreen({ navigation }: PatientSearchScreenProps) {
   const { data, isLoading, isFetching } = useQuery({
     queryKey: ["patients", "search", search],
     queryFn: () =>
-      api.listPatients({
+      patientService.listPatients({
         search,
         page: 1,
         per_page: 20,

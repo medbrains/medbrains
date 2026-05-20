@@ -1,4 +1,3 @@
-import { api } from "@medbrains/api";
 import type { LabHomeCollection } from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
@@ -21,6 +20,7 @@ import {
   useTheme,
 } from "react-native-paper";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { phlebotomyService } from "../../services/phlebotomy.service";
 
 interface SampleCollectionScreenProps {
   route: {
@@ -55,7 +55,7 @@ export function SampleCollectionScreen({ route, navigation }: SampleCollectionSc
   const { data: collection, isLoading } = useQuery({
     queryKey: ["homeCollection", orderId],
     queryFn: async () => {
-      const collections = await api.listHomeCollections({});
+      const collections = await phlebotomyService.listHomeCollections({});
       return collections.find((c: LabHomeCollection) => c.id === orderId);
     },
     enabled: Boolean(orderId),
@@ -63,7 +63,7 @@ export function SampleCollectionScreen({ route, navigation }: SampleCollectionSc
 
   const submitMutation = useMutation({
     mutationFn: async () => {
-      await api.updateHomeCollectionStatus(orderId, {
+      await phlebotomyService.updateHomeCollectionStatus(orderId, {
         status: "collected",
         notes: notes || undefined,
       });

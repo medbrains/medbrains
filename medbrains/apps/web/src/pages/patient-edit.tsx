@@ -1,6 +1,5 @@
 import { Group, Loader, Stack } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
 import type { CreatePatientRequest, UpdatePatientRequest } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -8,30 +7,32 @@ import { useNavigate, useParams } from "react-router";
 import { PageHeader } from "../components";
 import { PatientRegisterForm } from "../components/Patient/PatientRegisterForm";
 import { useRequirePermission } from "../hooks/useRequirePermission";
+import { patientsService } from "../services/patients.service";
 
 export function PatientEditPage() {
   useRequirePermission(P.PATIENTS.UPDATE);
   const { id } = useParams<{ id: string }>();
+  const patientId = id ?? "";
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
   const { data: patient, isLoading } = useQuery({
-    queryKey: ["patient", id],
-    queryFn: () => api.getPatient(id!),
-    enabled: !!id,
+    queryKey: ["patient", patientId],
+    queryFn: () => patientsService.getPatient(patientId),
+    enabled: Boolean(patientId),
   });
 
   const updateMutation = useMutation({
-    mutationFn: (data: UpdatePatientRequest) => api.updatePatient(id!, data),
+    mutationFn: (data: UpdatePatientRequest) => patientsService.updatePatient(patientId, data),
     onSuccess: () => {
       notifications.show({
         title: "Patient updated",
         message: "Changes saved",
         color: "success",
       });
-      void queryClient.invalidateQueries({ queryKey: ["patient", id] });
+      void queryClient.invalidateQueries({ queryKey: ["patient", patientId] });
       void queryClient.invalidateQueries({ queryKey: ["patients"] });
-      navigate(`/patients/${id}`);
+      navigate(`/patients/${patientId}`);
     },
     onError: (err: Error) => {
       notifications.show({
@@ -92,7 +93,7 @@ export function PatientEditPage() {
       />
       <PatientRegisterForm
         onSubmit={handleSubmit}
-        onCancel={() => navigate(`/patients/${id}`)}
+        onCancel={() => navigate(`/patients/${patientId}`)}
         isSubmitting={updateMutation.isPending}
         submitLabel="Save"
         initialValues={{

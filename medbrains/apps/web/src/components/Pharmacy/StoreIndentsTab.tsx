@@ -15,7 +15,6 @@ import {
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
 import type {
   CreateStoreIndentRequest,
   PharmacyStoreIndent,
@@ -30,6 +29,7 @@ import {
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { pharmacyService } from "../../services/pharmacy.service";
 import { DataTable } from "../DataTable";
 
 const statusColors: Record<PharmacyStoreIndentStatus, string> = {
@@ -42,13 +42,25 @@ const statusColors: Record<PharmacyStoreIndentStatus, string> = {
 };
 
 interface IndentItem {
+  client_id: string;
   item_id: string;
   name: string;
   quantity: number;
   unit: string;
 }
 
-const emptyItem = (): IndentItem => ({ item_id: "", name: "", quantity: 1, unit: "pieces" });
+let indentItemCounter = 0;
+
+const emptyItem = (): IndentItem => {
+  indentItemCounter += 1;
+  return {
+    client_id: `indent-item-${indentItemCounter}`,
+    item_id: "",
+    name: "",
+    quantity: 1,
+    unit: "pieces",
+  };
+};
 
 const UNIT_OPTIONS = [
   { value: "pieces", label: "Pieces" },
@@ -68,11 +80,11 @@ export function StoreIndentsTab() {
 
   const { data: indents = [], isLoading } = useQuery({
     queryKey: ["pharmacy-store-indents", params],
-    queryFn: () => api.listPharmacyStoreIndents(params),
+    queryFn: () => pharmacyService.listPharmacyStoreIndents(params),
   });
 
   const approveMutation = useMutation({
-    mutationFn: (id: string) => api.approvePharmacyStoreIndent(id),
+    mutationFn: (id: string) => pharmacyService.approvePharmacyStoreIndent(id),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["pharmacy-store-indents"] });
       notifications.show({ title: "Approved", message: "Store indent approved", color: "green" });
@@ -80,7 +92,7 @@ export function StoreIndentsTab() {
   });
 
   const issueMutation = useMutation({
-    mutationFn: (id: string) => api.issuePharmacyStoreIndent(id),
+    mutationFn: (id: string) => pharmacyService.issuePharmacyStoreIndent(id),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["pharmacy-store-indents"] });
       notifications.show({ title: "Issued", message: "Store indent issued", color: "teal" });
@@ -88,7 +100,7 @@ export function StoreIndentsTab() {
   });
 
   const receiveMutation = useMutation({
-    mutationFn: (id: string) => api.receivePharmacyStoreIndent(id),
+    mutationFn: (id: string) => pharmacyService.receivePharmacyStoreIndent(id),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["pharmacy-store-indents"] });
       notifications.show({ title: "Received", message: "Store indent received", color: "green" });
@@ -230,7 +242,7 @@ function CreateStoreIndentModal({ opened, onClose }: { opened: boolean; onClose:
 
   const { data: storeLocations = [] } = useQuery({
     queryKey: ["store-locations"],
-    queryFn: () => api.listStoreLocations(),
+    queryFn: () => pharmacyService.listStoreLocations(),
     staleTime: 300_000,
   });
 
@@ -244,7 +256,7 @@ function CreateStoreIndentModal({ opened, onClose }: { opened: boolean; onClose:
   // Store catalog for item autocomplete
   const { data: storeCatalog = [] } = useQuery({
     queryKey: ["store-catalog"],
-    queryFn: () => api.listStoreCatalog(),
+    queryFn: () => pharmacyService.listStoreCatalog(),
     staleTime: 300_000,
   });
 
@@ -254,7 +266,7 @@ function CreateStoreIndentModal({ opened, onClose }: { opened: boolean; onClose:
   }));
 
   const createMutation = useMutation({
-    mutationFn: (data: CreateStoreIndentRequest) => api.createPharmacyStoreIndent(data),
+    mutationFn: (data: CreateStoreIndentRequest) => pharmacyService.createPharmacyStoreIndent(data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["pharmacy-store-indents"] });
       notifications.show({ title: "Created", message: "Store indent created", color: "green" });
@@ -293,7 +305,7 @@ function CreateStoreIndentModal({ opened, onClose }: { opened: boolean; onClose:
   }
 
   return (
-    <Modal opened={opened} onClose={resetAndClose} title="New Store Indent" size="lg">
+    <Modal opened={opened} onClose={resetAndClose} title="New Store Indent" size="xl">
       <Stack>
         <Group grow>
           <Select
@@ -330,7 +342,7 @@ function CreateStoreIndentModal({ opened, onClose }: { opened: boolean; onClose:
           </Table.Thead>
           <Table.Tbody>
             {items.map((item, index) => (
-              <Table.Tr key={`indent-item-${index}`}>
+              <Table.Tr key={item.client_id}>
                 <Table.Td>
                   <Select
                     size="xs"

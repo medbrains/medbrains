@@ -16,7 +16,6 @@ import {
 import { DatePickerInput } from "@mantine/dates";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
 import { useAuthStore } from "@medbrains/stores";
 import type {
   CoSignatureRequest as CoSigType,
@@ -28,7 +27,9 @@ import { IconBook, IconCheck, IconPlus } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { PageHeader } from "../components";
+import { Icd11CodeSelect } from "../components/Clinical/Icd11CodeSelect";
 import { useRequirePermission } from "../hooks/useRequirePermission";
+import { pgLogbookService } from "../services/pgLogbook.service";
 
 const ENTRY_TYPES = [
   { value: "case", label: "Case" },
@@ -50,31 +51,33 @@ export function PgLogbookPage() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [diagCodes, setDiagCodes] = useState("");
+  const [selectedDiagCode, setSelectedDiagCode] = useState("");
   const [procCodes, setProcCodes] = useState("");
   const [entryDate, setEntryDate] = useState<Date | null>(new Date());
 
   // My logbook entries
   const { data: myEntries = [] } = useQuery({
     queryKey: ["pg-logbook", "mine", userId],
-    queryFn: () => api.listPgLogbook({ user_id: userId }),
+    queryFn: () => pgLogbookService.listPgLogbook({ user_id: userId }),
     enabled: Boolean(userId),
   });
 
   // Entries pending my verification (supervisor view)
   const { data: pendingVerification = [] } = useQuery({
     queryKey: ["pg-logbook", "pending-verification", userId],
-    queryFn: () => api.listPgLogbook({ supervisor_id: userId, pending_verification: true }),
+    queryFn: () =>
+      pgLogbookService.listPgLogbook({ supervisor_id: userId, pending_verification: true }),
     enabled: Boolean(userId),
   });
 
   // Co-signature requests
   const { data: coSignatures = [] } = useQuery({
     queryKey: ["co-signatures"],
-    queryFn: () => api.listCoSignatures(),
+    queryFn: () => pgLogbookService.listCoSignatures(),
   });
 
   const createMutation = useMutation({
-    mutationFn: (data: CreatePgLogbookRequest) => api.createPgLogbookEntry(data),
+    mutationFn: (data: CreatePgLogbookRequest) => pgLogbookService.createPgLogbookEntry(data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["pg-logbook"] });
       notifications.show({ title: "Created", message: "Logbook entry added", color: "success" });
@@ -86,7 +89,7 @@ export function PgLogbookPage() {
   });
 
   const verifyMutation = useMutation({
-    mutationFn: (id: string) => api.verifyPgLogbookEntry(id),
+    mutationFn: (id: string) => pgLogbookService.verifyPgLogbookEntry(id),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["pg-logbook"] });
       notifications.show({
@@ -99,7 +102,7 @@ export function PgLogbookPage() {
 
   const coSignMutation = useMutation({
     mutationFn: ({ id, status }: { id: string; status: string }) =>
-      api.updateCoSignature(id, { status }),
+      pgLogbookService.updateCoSignature(id, { status }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["co-signatures"] });
       notifications.show({
@@ -116,8 +119,19 @@ export function PgLogbookPage() {
     setTitle("");
     setDescription("");
     setDiagCodes("");
+    setSelectedDiagCode("");
     setProcCodes("");
     setEntryDate(new Date());
+  };
+
+  const addDiagnosisCode = (code: string) => {
+    const existing = diagCodes
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean);
+    if (!existing.some((item) => item.toLowerCase() === code.toLowerCase())) {
+      setDiagCodes([...existing, code].join(", "));
+    }
   };
 
   const handleCreate = () => {
@@ -202,9 +216,17 @@ export function PgLogbookPage() {
             autosize
             minRows={3}
           />
+          <Icd11CodeSelect
+            label="Add ICD-11 diagnosis"
+            value={selectedDiagCode || null}
+            onChange={(value) => {
+              setSelectedDiagCode(value ?? "");
+              if (value) addDiagnosisCode(value);
+            }}
+          />
           <TextInput
-            label="Diagnosis Codes"
-            placeholder="Comma-separated ICD-10 codes"
+            label="Diagnosis codes"
+            placeholder="ICD-11 codes linked to this teaching case"
             value={diagCodes}
             onChange={(e) => setDiagCodes(e.currentTarget.value)}
           />

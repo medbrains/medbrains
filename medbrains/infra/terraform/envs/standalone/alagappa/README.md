@@ -1,21 +1,21 @@
 # `envs/standalone/alagappa/`
 
 End-to-end deploy of MedBrains for **Alagappa Hospital** at
-`hims.alagappahospital.com`. One `terraform apply` produces:
+`hims.amh.org.in`. One reviewed Terraform plan produces:
 
-1. A DigitalOcean droplet in Bangalore (`s-2vcpu-4gb`, ~$24/mo).
+1. An AWS EC2 instance in the configured region.
 2. Cloud firewall opening 22 / 80 / 443.
 3. Pre-built MedBrains binaries + SPA + deploy kit pushed to the host.
 4. `install.sh` run on the host (postgres-17, systemd units, Pingora
    edge proxy with Certbot-issued TLS).
-5. GoDaddy A record `hims.alagappahospital.com → <droplet IP>`.
+5. GoDaddy A record `hims.amh.org.in → <instance IP>`.
 
 Total wall time: 5-7 minutes.
 
 ## Manually-only prerequisites
 
-- Domain `alagappahospital.com` registered at GoDaddy (already done).
-- DigitalOcean account with billing enabled.
+- Domain `amh.org.in` registered at GoDaddy (already done).
+- AWS account with the configured region enabled.
 - SSH keypair: generate `~/.ssh/medbrains-deploy` and add the public
   key to the DigitalOcean account under name `medbrains-deploy`.
 - API tokens — both fetched once, stored in OS keychain via
@@ -62,7 +62,7 @@ Output:
 ```text
 public_ip    = "X.X.X.X"
 ssh_endpoint = "root@X.X.X.X"
-health_url   = "https://hims.alagappahospital.com/api/health"
+health_url   = "https://hims.amh.org.in/api/health"
 ```
 
 Wait ~30 seconds for ACME, then `curl $health_url` returns

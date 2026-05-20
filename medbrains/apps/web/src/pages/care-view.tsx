@@ -1,12 +1,13 @@
 import { Select, Tabs } from "@mantine/core";
-import { api } from "@medbrains/api";
 import { useHasPermission } from "@medbrains/stores";
+import type { WardListRow } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import { IconBed, IconClipboardList, IconLogout, IconUserHeart } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { PageHeader } from "../components";
 import { useRequirePermission } from "../hooks/useRequirePermission";
+import { careViewService } from "../services/careView.service";
 import { DischargeTrackerTab } from "./care-view/DischargeTrackerTab";
 import { HandoverTab } from "./care-view/HandoverTab";
 import { MyTasksTab } from "./care-view/MyTasksTab";
@@ -23,9 +24,9 @@ export function CareViewPage() {
   const [selectedWard, setSelectedWard] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<string | null>("grid");
 
-  const { data: wards } = useQuery({
+  const { data: wards } = useQuery<WardListRow[]>({
     queryKey: ["wards"],
-    queryFn: () => api.listWards(),
+    queryFn: () => careViewService.listWards(),
   });
 
   const wardOptions = [

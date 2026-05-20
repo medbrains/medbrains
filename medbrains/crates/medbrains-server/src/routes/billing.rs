@@ -10,8 +10,8 @@ use medbrains_core::billing::{
     BillingConcession, BillingPackage, BillingPackageItem, ChargeMaster, CorporateClient,
     CorporateEnrollment, CreditNote, CreditPatient, CreditPatientStatus, CurrencyCode, DayEndClose,
     ErpExportLog, ExchangeRate, GlAccount, GstReturnSummary, InsuranceClaim, Invoice,
-    InvoiceDiscount, InvoiceItem, JournalEntry, JournalEntryLine, PatientAdvance, Payment,
-    RatePlan, RatePlanItem, Receipt, Refund, TdsDeduction, TpaRateCard,
+    InvoiceDiscount, InvoiceItem, InvoiceStatus, JournalEntry, JournalEntryLine, PatientAdvance,
+    Payment, RatePlan, RatePlanItem, Receipt, Refund, TdsDeduction, TpaRateCard,
 };
 use medbrains_core::clinical_events::{ClinicalEventEnvelope, ClinicalEventName};
 use medbrains_core::permissions;
@@ -1221,14 +1221,51 @@ pub async fn record_payment(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let invoice_patient_id = sqlx::query_scalar!(
-        "SELECT patient_id FROM invoices WHERE id = $1 AND tenant_id = $2",
-        invoice_id,
-        claims.tenant_id,
+    if body.amount <= Decimal::ZERO {
+        return Err(AppError::BadRequest(
+            "Payment amount must be greater than zero".to_owned(),
+        ));
+    }
+
+    #[derive(sqlx::FromRow)]
+    struct InvoicePaymentGate {
+        patient_id: Uuid,
+        status: InvoiceStatus,
+        total_amount: Decimal,
+        paid_amount: Decimal,
+    }
+
+    let invoice = sqlx::query_as::<_, InvoicePaymentGate>(
+        "SELECT patient_id, status, total_amount, paid_amount \
+         FROM invoices WHERE id = $1 AND tenant_id = $2",
     )
+    .bind(invoice_id)
+    .bind(claims.tenant_id)
     .fetch_optional(&mut *tx)
     .await?
     .ok_or(AppError::NotFound)?;
+
+    if !matches!(
+        invoice.status,
+        InvoiceStatus::Issued | InvoiceStatus::PartiallyPaid
+    ) {
+        return Err(AppError::BadRequest(
+            "Payments can be recorded only against issued invoices with an outstanding balance"
+                .to_owned(),
+        ));
+    }
+
+    let outstanding = invoice.total_amount - invoice.paid_amount;
+    if outstanding <= Decimal::ZERO {
+        return Err(AppError::BadRequest(
+            "Invoice has no outstanding balance".to_owned(),
+        ));
+    }
+    if body.amount > outstanding {
+        return Err(AppError::BadRequest(format!(
+            "Payment exceeds outstanding balance of {outstanding}"
+        )));
+    }
 
     let payment = sqlx::query_as::<_, Payment>(
         "INSERT INTO payments \
@@ -1271,13 +1308,13 @@ pub async fn record_payment(
         serde_json::json!({
             "payment_id": payment.id,
             "invoice_id": invoice_id,
-            "patient_id": invoice_patient_id,
+            "patient_id": invoice.patient_id,
             "amount": payment.amount,
             "payment_mode": format!("{:?}", payment.mode),
             "receipt_number": payment.reference_number.as_deref(),
         }),
     )
-    .with_patient(invoice_patient_id);
+    .with_patient(invoice.patient_id);
     crate::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
 
     tx.commit().await?;
@@ -6776,7 +6813,7 @@ pub async fn copay_calculation(
         "SELECT co_pay_percent, out_of_pocket_max \
          FROM insurance_verifications \
          WHERE patient_id = $1 AND tenant_id = $2 \
-           AND status = 'verified' \
+           AND status = 'active' \
          ORDER BY verified_at DESC LIMIT 1",
     )
     .bind(invoice.patient_id)

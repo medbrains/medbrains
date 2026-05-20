@@ -1,7 +1,6 @@
 import { BarChart } from "@mantine/charts";
 import { Button, Card, Group, SegmentedControl, SimpleGrid, Stack, Text } from "@mantine/core";
 import { DateInput } from "@mantine/dates";
-import { api } from "@medbrains/api";
 import { useHasPermission } from "@medbrains/stores";
 import type { AnalyticsDoctorRevenueRow, DeptRevenueRow } from "@medbrains/types";
 import { P } from "@medbrains/types";
@@ -10,6 +9,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { DataTable } from "../../components";
 import type { Column } from "../../components/DataTable";
+import { analyticsService } from "../../services/analytics.service";
 
 // ── Helpers ──────────────────────────────────────────────
 
@@ -39,14 +39,14 @@ export function RevenueTab() {
 
   const params = useMemo(() => ({ from: toIso(from), to: toIso(to) }), [from, to]);
 
-  const deptQ = useQuery({
+  const deptQ = useQuery<DeptRevenueRow[]>({
     queryKey: ["analytics", "dept-revenue", params],
-    queryFn: () => api.getDeptRevenue(params),
+    queryFn: () => analyticsService.getDeptRevenue(params),
   });
 
-  const doctorQ = useQuery({
+  const doctorQ = useQuery<AnalyticsDoctorRevenueRow[]>({
     queryKey: ["analytics", "doctor-revenue", params],
-    queryFn: () => api.getDoctorRevenue(params),
+    queryFn: () => analyticsService.getDoctorRevenue(params),
   });
 
   const deptData = toRows(deptQ.data);
@@ -59,7 +59,7 @@ export function RevenueTab() {
   );
 
   const handleExport = () => {
-    api.exportAnalytics({ report: "revenue", from: toIso(from), to: toIso(to) });
+    analyticsService.exportAnalytics({ report: "revenue", from: toIso(from), to: toIso(to) });
   };
 
   // ── Columns ──────────────────────────────────────────

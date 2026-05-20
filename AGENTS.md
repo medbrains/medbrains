@@ -191,6 +191,36 @@ medbrains/
 - All API calls through TanStack Query — no raw `fetch` in components
 - Zod schemas for runtime validation of API responses
 
+### Form State Rules
+
+- When touching a backend-backed screen, complete the cleanup loop for that touched area: route/API contract check, service/query boundary, React Hook Form, Zod schema, typed enum/options, Mantine `useDisclosure` for visibility, and removal of avoidable `as` assertions. Do not leave the same form half-migrated.
+- **All user-editable form payloads must use React Hook Form** (`useForm`, `Controller`, `FormProvider`, `useFormContext`) instead of one `useState` per field.
+- Use `useForm` for self-contained forms and `FormProvider` + `useFormContext` for multi-step, drawer, wizard, tabbed, or nested forms.
+- `useState` is allowed for UI-only state: selected row, current tab, search/filter text, loading flags, refresh counters, and non-submitted visual toggles.
+- Modal, drawer, popover, and form-panel visibility must use Mantine `useDisclosure` on web. Do not keep `showForm`, `showModal`, `showDrawer`, or `showPanel` booleans in `useState`; pair `useDisclosure` with RHF `reset()` when opening a payload-backed form.
+- Do not synchronize form fields through `useEffect`; initialize with `defaultValues`, call `reset()` when opening a new record, and derive submit payloads inside `handleSubmit`.
+- Validation belongs in the form layer through React Hook Form plus Zod schemas/resolvers where schemas exist. Backend validation errors should be mapped back into field errors, not only shown as generic toasts.
+- Shared validation contracts belong in `packages/schemas`, not inside page/component files, once a form is reused, regulated, or backed by a real API request. When touching backend-backed forms, first check the Rust request struct, route validation, and DB constraints, then encode the same required fields/enums/basic numeric bounds in Zod.
+- Use `zodResolver(schema)` for backend-backed web forms by default. Inline React Hook Form `rules` are only for UI-only checks that need component-local context, such as “a slot button was selected”, “a duplicate candidate was acknowledged”, or “a canvas has ink”.
+- Do not add direct ad hoc field validation inside components when a Zod schema can represent the rule. Put required, enum, phone/email/code, money, integer, and date rules in `packages/schemas`, then consume them through `zodResolver`.
+- Do not introduce Yup. The canonical validation stack is React Hook Form + Zod so schemas can be shared by web, mobile, desktop/PWA, tests, and API contract validation.
+- Organize schemas by domain/module and export inferred input types from `@medbrains/schemas`. Do not define backend-backed form payload interfaces/types inside React components; import `z.infer`-based input types from `@medbrains/schemas`. Local component prop interfaces are fine when they are only view props.
+- Do not duplicate enum strings in every component. Put enum value arrays in the schema/domain layer, export typed option arrays where useful, and keep UI selects aligned with schema enums.
+- Web forms use Mantine inputs through `Controller` when the component is not native-input-compatible. Mobile and TV forms use React Native Paper inputs through `Controller`.
+- Do not use `as` type assertions to force submitted form values into domain values. Create explicit enums/union types and typed option arrays for dropdowns, radio groups, segmented controls, and status fields, then keep the form value type aligned with the API payload type.
+- Avoid TypeScript `as` assertions in application code. Prefer typed service return values, typed variables, Zod parsing, type guards, generic helpers, or `satisfies`. If a cast appears necessary, fix the source type instead of forcing the consumer.
+- Linked form logic must recalculate and revalidate dependent fields at the point of change. Examples: changing name recalculates code, changing doctor/date clears selected slot, changing pharmacy category revalidates drug-license requirement, changing patient identity fields resets duplicate confirmation.
+
+### Frontend Data Access Rules
+
+- Page and screen components must not own backend calls directly. Put module API orchestration in a service/query file (`*.service.ts`, `*.queries.ts`, or module-specific hook file), then consume those hooks/services from components.
+- Components may call TanStack Query hooks (`useQuery`, `useMutation`) only through module wrappers such as `useUsersQuery()`, `useCreateUserMutation()`, or a local module service exported from the same feature folder. Avoid inline `queryFn: () => api.*` in large page components.
+- Use TanStack Pacer for high-frequency UI events that drive queries or writes: debounced search/filter values, throttled prefetches, queued offline sync work, simulator bursts, barcode scan bursts, and batched background operations. Do not pace actual form field values; pace only the query key/input or side-effect boundary.
+- Pacer usage must stay explicit and local through small hooks/utilities such as `usePacedQueryValue()`. Keep React Hook Form as the form payload source of truth and TanStack Query as the server cache source of truth.
+- Raw `fetch` is allowed only in low-level API clients, simulator/network adapters, or platform bridge code. Screens/pages/components should never call `fetch` directly.
+- Zustand is for durable client state only: authenticated identity, permissions, selected tenant/facility/camp/session, offline/session queues, UI workspace state, and draft baskets that are intentionally client-owned. Do not store server lists or records in Zustand when TanStack Query can own cache, invalidation, and refetch.
+- If a component needs server data and client state together, keep server data in TanStack Query and reference the selected id/filter from Zustand or component UI state.
+
 ### Dead Code & Cleanup Rules
 
 - **Remove dead code immediately** — do not leave unused imports, variables, functions, types, or commented-out code. If something is no longer referenced, delete it.

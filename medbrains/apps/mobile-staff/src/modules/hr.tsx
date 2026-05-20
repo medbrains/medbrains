@@ -29,6 +29,7 @@ function HrHome(): ReactNode {
       eyebrow="MODULE"
       title="HR"
       description="Attendance, leave, roster, training."
+      tags={["Mobile-Admin", "HR", "attendance", "training"]}
       summaries={[
         { eyebrow: "TODAY", count: "—", title: "Punched-in staff" },
         { eyebrow: "LEAVE", count: "—", title: "Pending approvals" },
@@ -107,5 +108,7 @@ export const hrModule: Module = {
   icon: () => null,
   requiredPermissions: [P.HR.ATTENDANCE_LIST],
   navigator: HrScreen,
+  appCodes: ["Mobile-Admin"],
+  tags: ["hr", "attendance", "roster", "training", "credentialing"],
   offlineDocTypes: ["attendance_punch", "leave_request"],
 };

@@ -1,3 +1,4 @@
+import { zodResolver } from "@hookform/resolvers/zod";
 import {
   ActionIcon,
   Badge,
@@ -16,16 +17,24 @@ import {
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
+import {
+  type SecurityAccessCardFormInput,
+  type SecurityAccessLogFormInput,
+  type SecurityCameraFormInput,
+  type SecurityCodeDebriefFormInput,
+  type SecurityIncidentFormInput,
+  type SecurityPatientTagFormInput,
+  type SecurityZoneFormInput,
+  securityAccessCardFormSchema,
+  securityAccessLogFormSchema,
+  securityCameraFormSchema,
+  securityCodeDebriefFormSchema,
+  securityIncidentFormSchema,
+  securityPatientTagFormSchema,
+  securityZoneFormSchema,
+} from "@medbrains/schemas";
 import { useHasPermission } from "@medbrains/stores";
 import type {
-  CreateSecurityAccessCardRequest,
-  CreateSecurityAccessLogRequest,
-  CreateSecurityCameraRequest,
-  CreateSecurityCodeDebriefRequest,
-  CreateSecurityIncidentRequest,
-  CreateSecurityPatientTagRequest,
-  CreateSecurityZoneRequest,
   ResolveSecurityTagAlertRequest,
   SecurityAccessCard,
   SecurityAccessLog,
@@ -50,12 +59,29 @@ import {
   IconX,
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { Controller, useForm } from "react-hook-form";
 import { DataTable, PageHeader } from "../components";
 import type { Column } from "../components/DataTable";
 import { PatientNameCell } from "../components/PatientNameCell";
 import { PatientSearchSelect } from "../components/PatientSearchSelect";
+import {
+  defaultSecurityAccessCardFormValues,
+  defaultSecurityAccessLogFormValues,
+  defaultSecurityCameraFormValues,
+  defaultSecurityCodeDebriefFormValues,
+  defaultSecurityIncidentFormValues,
+  defaultSecurityPatientTagFormValues,
+  defaultSecurityZoneFormValues,
+  securityAccessCardFormToRequest,
+  securityAccessLogFormToRequest,
+  securityCameraFormToRequest,
+  securityCodeDebriefFormToRequest,
+  securityIncidentFormToRequest,
+  securityPatientTagFormToRequest,
+  securityZoneFormToRequest,
+} from "../forms/security.form";
 import { useRequirePermission } from "../hooks/useRequirePermission";
+import { securityService } from "../services/security.service";
 
 // ── Constants ──────────────────────────────────────────
 
@@ -145,14 +171,24 @@ function AccessControlTab() {
   // ── Zones ──
   const { data: zones = [], isLoading: zonesLoading } = useQuery({
     queryKey: ["sec-zones"],
-    queryFn: () => api.listSecurityZones(),
+    queryFn: () => securityService.listSecurityZones(),
   });
   const [zoneOpened, { open: openZone, close: closeZone }] = useDisclosure(false);
-  const [zoneForm, setZoneForm] = useState<CreateSecurityZoneRequest>({ name: "", zone_code: "" });
+  const zoneForm = useForm<SecurityZoneFormInput>({
+    resolver: zodResolver(securityZoneFormSchema),
+    defaultValues: defaultSecurityZoneFormValues,
+  });
+  const afterHoursRestricted = zoneForm.watch("after_hours_restricted");
+  const handleOpenZone = () => {
+    zoneForm.reset(defaultSecurityZoneFormValues);
+    openZone();
+  };
   const createZoneMut = useMutation({
-    mutationFn: (d: CreateSecurityZoneRequest) => api.createSecurityZone(d),
+    mutationFn: (values: SecurityZoneFormInput) =>
+      securityService.createSecurityZone(securityZoneFormToRequest(values)),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["sec-zones"] });
+      zoneForm.reset(defaultSecurityZoneFormValues);
       closeZone();
       notifications.show({
         title: "Zone Created",
@@ -196,17 +232,23 @@ function AccessControlTab() {
   // ── Access Cards ──
   const { data: cards = [], isLoading: cardsLoading } = useQuery({
     queryKey: ["sec-cards"],
-    queryFn: () => api.listSecurityAccessCards(),
+    queryFn: () => securityService.listSecurityAccessCards(),
   });
   const [cardOpened, { open: openCard, close: closeCard }] = useDisclosure(false);
-  const [cardForm, setCardForm] = useState<CreateSecurityAccessCardRequest>({
-    employee_id: "",
-    card_number: "",
+  const cardForm = useForm<SecurityAccessCardFormInput>({
+    resolver: zodResolver(securityAccessCardFormSchema),
+    defaultValues: defaultSecurityAccessCardFormValues,
   });
+  const handleOpenCard = () => {
+    cardForm.reset(defaultSecurityAccessCardFormValues);
+    openCard();
+  };
   const createCardMut = useMutation({
-    mutationFn: (d: CreateSecurityAccessCardRequest) => api.createSecurityAccessCard(d),
+    mutationFn: (values: SecurityAccessCardFormInput) =>
+      securityService.createSecurityAccessCard(securityAccessCardFormToRequest(values)),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["sec-cards"] });
+      cardForm.reset(defaultSecurityAccessCardFormValues);
       closeCard();
       notifications.show({
         title: "Card Issued",
@@ -216,7 +258,8 @@ function AccessControlTab() {
     },
   });
   const deactivateCardMut = useMutation({
-    mutationFn: (id: string) => api.deactivateSecurityAccessCard(id, "Manual deactivation"),
+    mutationFn: (id: string) =>
+      securityService.deactivateSecurityAccessCard(id, "Manual deactivation"),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["sec-cards"] });
       notifications.show({
@@ -273,14 +316,23 @@ function AccessControlTab() {
   // ── Access Logs ──
   const { data: logs = [], isLoading: logsLoading } = useQuery({
     queryKey: ["sec-access-logs"],
-    queryFn: () => api.listSecurityAccessLogs(),
+    queryFn: () => securityService.listSecurityAccessLogs(),
   });
   const [logOpened, { open: openLog, close: closeLog }] = useDisclosure(false);
-  const [logForm, setLogForm] = useState<CreateSecurityAccessLogRequest>({ zone_id: "" });
+  const logForm = useForm<SecurityAccessLogFormInput>({
+    resolver: zodResolver(securityAccessLogFormSchema),
+    defaultValues: defaultSecurityAccessLogFormValues,
+  });
+  const handleOpenLog = () => {
+    logForm.reset(defaultSecurityAccessLogFormValues);
+    openLog();
+  };
   const createLogMut = useMutation({
-    mutationFn: (d: CreateSecurityAccessLogRequest) => api.createSecurityAccessLog(d),
+    mutationFn: (values: SecurityAccessLogFormInput) =>
+      securityService.createSecurityAccessLog(securityAccessLogFormToRequest(values)),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["sec-access-logs"] });
+      logForm.reset(defaultSecurityAccessLogFormValues);
       closeLog();
       notifications.show({
         title: "Log Recorded",
@@ -344,7 +396,7 @@ function AccessControlTab() {
       </Text>
       <Group>
         {canManage && (
-          <Button leftSection={<IconPlus size={16} />} onClick={openZone}>
+          <Button leftSection={<IconPlus size={16} />} onClick={handleOpenZone}>
             Add Zone
           </Button>
         )}
@@ -356,7 +408,7 @@ function AccessControlTab() {
       </Text>
       <Group>
         {canManage && (
-          <Button leftSection={<IconPlus size={16} />} onClick={openCard}>
+          <Button leftSection={<IconPlus size={16} />} onClick={handleOpenCard}>
             Issue Card
           </Button>
         )}
@@ -368,7 +420,7 @@ function AccessControlTab() {
       </Text>
       <Group>
         {canManage && (
-          <Button leftSection={<IconPlus size={16} />} variant="light" onClick={openLog}>
+          <Button leftSection={<IconPlus size={16} />} variant="light" onClick={handleOpenLog}>
             Log Entry
           </Button>
         )}
@@ -383,63 +435,68 @@ function AccessControlTab() {
         position="right"
         size="xl"
       >
-        <Stack>
+        <Stack
+          component="form"
+          onSubmit={zoneForm.handleSubmit((values) => createZoneMut.mutate(values))}
+        >
           <TextInput
             label="Zone Code"
             required
-            value={zoneForm.zone_code}
-            onChange={(e) => setZoneForm({ ...zoneForm, zone_code: e.currentTarget.value })}
+            {...zoneForm.register("zone_code")}
+            error={zoneForm.formState.errors.zone_code?.message}
           />
           <TextInput
             label="Zone Name"
             required
-            value={zoneForm.name}
-            onChange={(e) => setZoneForm({ ...zoneForm, name: e.currentTarget.value })}
+            {...zoneForm.register("name")}
+            error={zoneForm.formState.errors.name?.message}
           />
-          <Select
-            label="Security Level"
-            data={ZONE_LEVELS}
-            value={zoneForm.level ?? null}
-            onChange={(v) =>
-              setZoneForm({
-                ...zoneForm,
-                level: (v as CreateSecurityZoneRequest["level"]) ?? undefined,
-              })
-            }
+          <Controller
+            control={zoneForm.control}
+            name="level"
+            render={({ field, fieldState }) => (
+              <Select
+                label="Security Level"
+                data={ZONE_LEVELS}
+                value={field.value}
+                onChange={field.onChange}
+                error={fieldState.error?.message}
+              />
+            )}
           />
           <Textarea
             label="Description"
-            value={zoneForm.description ?? ""}
-            onChange={(e) => setZoneForm({ ...zoneForm, description: e.currentTarget.value })}
+            {...zoneForm.register("description")}
+            error={zoneForm.formState.errors.description?.message}
           />
-          <Switch
-            label="After Hours Restricted"
-            checked={zoneForm.after_hours_restricted ?? false}
-            onChange={(e) =>
-              setZoneForm({ ...zoneForm, after_hours_restricted: e.currentTarget.checked })
-            }
+          <Controller
+            control={zoneForm.control}
+            name="after_hours_restricted"
+            render={({ field }) => (
+              <Switch
+                label="After Hours Restricted"
+                checked={field.value}
+                onChange={(event) => field.onChange(event.currentTarget.checked)}
+              />
+            )}
           />
-          {zoneForm.after_hours_restricted && (
+          {afterHoursRestricted && (
             <Group grow>
               <TextInput
                 label="Start Time"
                 placeholder="22:00"
-                value={zoneForm.after_hours_start ?? ""}
-                onChange={(e) =>
-                  setZoneForm({ ...zoneForm, after_hours_start: e.currentTarget.value })
-                }
+                {...zoneForm.register("after_hours_start")}
+                error={zoneForm.formState.errors.after_hours_start?.message}
               />
               <TextInput
                 label="End Time"
                 placeholder="06:00"
-                value={zoneForm.after_hours_end ?? ""}
-                onChange={(e) =>
-                  setZoneForm({ ...zoneForm, after_hours_end: e.currentTarget.value })
-                }
+                {...zoneForm.register("after_hours_end")}
+                error={zoneForm.formState.errors.after_hours_end?.message}
               />
             </Group>
           )}
-          <Button onClick={() => createZoneMut.mutate(zoneForm)} loading={createZoneMut.isPending}>
+          <Button type="submit" loading={createZoneMut.isPending}>
             Create Zone
           </Button>
         </Stack>
@@ -453,30 +510,40 @@ function AccessControlTab() {
         position="right"
         size="xl"
       >
-        <Stack>
+        <Stack
+          component="form"
+          onSubmit={cardForm.handleSubmit((values) => createCardMut.mutate(values))}
+        >
           <TextInput
             label="Employee ID"
             required
-            value={cardForm.employee_id}
-            onChange={(e) => setCardForm({ ...cardForm, employee_id: e.currentTarget.value })}
+            {...cardForm.register("employee_id")}
+            error={cardForm.formState.errors.employee_id?.message}
           />
           <TextInput
             label="Card Number"
             required
-            value={cardForm.card_number}
-            onChange={(e) => setCardForm({ ...cardForm, card_number: e.currentTarget.value })}
+            {...cardForm.register("card_number")}
+            error={cardForm.formState.errors.card_number?.message}
           />
-          <Select
-            label="Card Type"
-            data={[
-              { value: "standard", label: "Standard" },
-              { value: "temporary", label: "Temporary" },
-              { value: "contractor", label: "Contractor" },
-            ]}
-            value={cardForm.card_type ?? null}
-            onChange={(v) => setCardForm({ ...cardForm, card_type: v ?? undefined })}
+          <Controller
+            control={cardForm.control}
+            name="card_type"
+            render={({ field, fieldState }) => (
+              <Select
+                label="Card Type"
+                data={[
+                  { value: "standard", label: "Standard" },
+                  { value: "temporary", label: "Temporary" },
+                  { value: "contractor", label: "Contractor" },
+                ]}
+                value={field.value || null}
+                onChange={(value) => field.onChange(value ?? "")}
+                error={fieldState.error?.message}
+              />
+            )}
           />
-          <Button onClick={() => createCardMut.mutate(cardForm)} loading={createCardMut.isPending}>
+          <Button type="submit" loading={createCardMut.isPending}>
             Issue Card
           </Button>
         </Stack>
@@ -490,50 +557,81 @@ function AccessControlTab() {
         position="right"
         size="xl"
       >
-        <Stack>
-          <Select
-            label="Zone"
-            required
-            data={zones.map((z) => ({ value: z.id, label: `${z.zone_code} — ${z.name}` }))}
-            value={logForm.zone_id || null}
-            onChange={(v) => setLogForm({ ...logForm, zone_id: v ?? "" })}
+        <Stack
+          component="form"
+          onSubmit={logForm.handleSubmit((values) => createLogMut.mutate(values))}
+        >
+          <Controller
+            control={logForm.control}
+            name="zone_id"
+            render={({ field, fieldState }) => (
+              <Select
+                label="Zone"
+                required
+                data={zones.map((z) => ({ value: z.id, label: `${z.zone_code} — ${z.name}` }))}
+                value={field.value || null}
+                onChange={(value) => field.onChange(value ?? "")}
+                error={fieldState.error?.message}
+              />
+            )}
           />
           <TextInput
             label="Person Name"
-            value={logForm.person_name ?? ""}
-            onChange={(e) => setLogForm({ ...logForm, person_name: e.currentTarget.value })}
+            {...logForm.register("person_name")}
+            error={logForm.formState.errors.person_name?.message}
           />
-          <Select
-            label="Access Method"
-            data={ACCESS_METHODS}
-            value={logForm.access_method ?? null}
-            onChange={(v) =>
-              setLogForm({
-                ...logForm,
-                access_method: (v as CreateSecurityAccessLogRequest["access_method"]) ?? undefined,
-              })
-            }
+          <Controller
+            control={logForm.control}
+            name="access_method"
+            render={({ field, fieldState }) => (
+              <Select
+                label="Access Method"
+                data={ACCESS_METHODS}
+                value={field.value}
+                onChange={field.onChange}
+                error={fieldState.error?.message}
+              />
+            )}
           />
-          <Select
-            label="Direction"
-            data={[
-              { value: "entry", label: "Entry" },
-              { value: "exit", label: "Exit" },
-            ]}
-            value={logForm.direction ?? null}
-            onChange={(v) => setLogForm({ ...logForm, direction: v ?? undefined })}
+          <Controller
+            control={logForm.control}
+            name="direction"
+            render={({ field, fieldState }) => (
+              <Select
+                label="Direction"
+                data={[
+                  { value: "entry", label: "Entry" },
+                  { value: "exit", label: "Exit" },
+                ]}
+                value={field.value}
+                onChange={field.onChange}
+                error={fieldState.error?.message}
+              />
+            )}
           />
-          <Switch
-            label="Granted"
-            checked={logForm.granted ?? true}
-            onChange={(e) => setLogForm({ ...logForm, granted: e.currentTarget.checked })}
+          <Controller
+            control={logForm.control}
+            name="granted"
+            render={({ field }) => (
+              <Switch
+                label="Granted"
+                checked={field.value}
+                onChange={(event) => field.onChange(event.currentTarget.checked)}
+              />
+            )}
           />
-          <Switch
-            label="After Hours"
-            checked={logForm.is_after_hours ?? false}
-            onChange={(e) => setLogForm({ ...logForm, is_after_hours: e.currentTarget.checked })}
+          <Controller
+            control={logForm.control}
+            name="is_after_hours"
+            render={({ field }) => (
+              <Switch
+                label="After Hours"
+                checked={field.value}
+                onChange={(event) => field.onChange(event.currentTarget.checked)}
+              />
+            )}
           />
-          <Button onClick={() => createLogMut.mutate(logForm)} loading={createLogMut.isPending}>
+          <Button type="submit" loading={createLogMut.isPending}>
             Record Log
           </Button>
         </Stack>
@@ -552,18 +650,27 @@ function CctvTab() {
 
   const { data: cameras = [], isLoading } = useQuery({
     queryKey: ["sec-cameras"],
-    queryFn: () => api.listSecurityCameras(),
+    queryFn: () => securityService.listSecurityCameras(),
   });
   const { data: zones = [] } = useQuery({
     queryKey: ["sec-zones"],
-    queryFn: () => api.listSecurityZones(),
+    queryFn: () => securityService.listSecurityZones(),
   });
   const [opened, { open, close }] = useDisclosure(false);
-  const [form, setForm] = useState<CreateSecurityCameraRequest>({ name: "" });
+  const cameraForm = useForm<SecurityCameraFormInput>({
+    resolver: zodResolver(securityCameraFormSchema),
+    defaultValues: defaultSecurityCameraFormValues,
+  });
+  const handleOpen = () => {
+    cameraForm.reset(defaultSecurityCameraFormValues);
+    open();
+  };
   const createMut = useMutation({
-    mutationFn: (d: CreateSecurityCameraRequest) => api.createSecurityCamera(d),
+    mutationFn: (values: SecurityCameraFormInput) =>
+      securityService.createSecurityCamera(securityCameraFormToRequest(values)),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["sec-cameras"] });
+      cameraForm.reset(defaultSecurityCameraFormValues);
       close();
       notifications.show({ title: "Camera Added", message: "Camera registered", color: "success" });
     },
@@ -609,7 +716,7 @@ function CctvTab() {
     <Stack>
       {canManage && (
         <Group>
-          <Button leftSection={<IconPlus size={16} />} onClick={open}>
+          <Button leftSection={<IconPlus size={16} />} onClick={handleOpen}>
             Add Camera
           </Button>
         </Group>
@@ -617,54 +724,78 @@ function CctvTab() {
       <DataTable columns={columns} data={cameras} loading={isLoading} rowKey={(r) => r.id} />
 
       <Drawer opened={opened} onClose={close} title="Add Camera" position="right" size="xl">
-        <Stack>
+        <Stack
+          component="form"
+          onSubmit={cameraForm.handleSubmit((values) => createMut.mutate(values))}
+        >
           <TextInput
             label="Camera Name"
             required
-            value={form.name}
-            onChange={(e) => setForm({ ...form, name: e.currentTarget.value })}
+            {...cameraForm.register("name")}
+            error={cameraForm.formState.errors.name?.message}
           />
           <TextInput
             label="Camera ID"
-            value={form.camera_id ?? ""}
-            onChange={(e) => setForm({ ...form, camera_id: e.currentTarget.value })}
+            {...cameraForm.register("camera_id")}
+            error={cameraForm.formState.errors.camera_id?.message}
           />
-          <Select
-            label="Zone"
-            data={zones.map((z) => ({ value: z.id, label: `${z.zone_code} — ${z.name}` }))}
-            value={form.zone_id ?? null}
-            onChange={(v) => setForm({ ...form, zone_id: v ?? undefined })}
+          <Controller
+            control={cameraForm.control}
+            name="zone_id"
+            render={({ field, fieldState }) => (
+              <Select
+                label="Zone"
+                data={zones.map((z) => ({ value: z.id, label: `${z.zone_code} — ${z.name}` }))}
+                value={field.value || null}
+                onChange={(value) => field.onChange(value ?? "")}
+                error={fieldState.error?.message}
+              />
+            )}
           />
           <TextInput
             label="Location Description"
-            value={form.location_description ?? ""}
-            onChange={(e) => setForm({ ...form, location_description: e.currentTarget.value })}
+            {...cameraForm.register("location_description")}
+            error={cameraForm.formState.errors.location_description?.message}
           />
-          <Select
-            label="Camera Type"
-            data={CAMERA_TYPES}
-            value={form.camera_type ?? null}
-            onChange={(v) => setForm({ ...form, camera_type: v ?? undefined })}
+          <Controller
+            control={cameraForm.control}
+            name="camera_type"
+            render={({ field, fieldState }) => (
+              <Select
+                label="Camera Type"
+                data={CAMERA_TYPES}
+                value={field.value}
+                onChange={field.onChange}
+                error={fieldState.error?.message}
+              />
+            )}
           />
           <TextInput
             label="Resolution"
             placeholder="1080p"
-            value={form.resolution ?? ""}
-            onChange={(e) => setForm({ ...form, resolution: e.currentTarget.value })}
+            {...cameraForm.register("resolution")}
+            error={cameraForm.formState.errors.resolution?.message}
           />
-          <NumberInput
-            label="Retention Days"
-            value={form.retention_days ?? 30}
-            onChange={(v) => setForm({ ...form, retention_days: typeof v === "number" ? v : 30 })}
-            min={1}
-            max={365}
+          <Controller
+            control={cameraForm.control}
+            name="retention_days"
+            render={({ field, fieldState }) => (
+              <NumberInput
+                label="Retention Days"
+                value={field.value}
+                onChange={field.onChange}
+                error={fieldState.error?.message}
+                min={1}
+                max={365}
+              />
+            )}
           />
           <TextInput
             label="IP Address"
-            value={form.ip_address ?? ""}
-            onChange={(e) => setForm({ ...form, ip_address: e.currentTarget.value })}
+            {...cameraForm.register("ip_address")}
+            error={cameraForm.formState.errors.ip_address?.message}
           />
-          <Button onClick={() => createMut.mutate(form)} loading={createMut.isPending}>
+          <Button type="submit" loading={createMut.isPending}>
             Add Camera
           </Button>
         </Stack>
@@ -684,21 +815,28 @@ function IncidentsTab() {
 
   const { data: incidents = [], isLoading } = useQuery({
     queryKey: ["sec-incidents"],
-    queryFn: () => api.listSecurityIncidents(),
+    queryFn: () => securityService.listSecurityIncidents(),
   });
   const { data: zones = [] } = useQuery({
     queryKey: ["sec-zones"],
-    queryFn: () => api.listSecurityZones(),
+    queryFn: () => securityService.listSecurityZones(),
   });
   const [opened, { open, close }] = useDisclosure(false);
-  const [form, setForm] = useState<CreateSecurityIncidentRequest>({
-    category: "",
-    description: "",
+  const incidentForm = useForm<SecurityIncidentFormInput>({
+    resolver: zodResolver(securityIncidentFormSchema),
+    defaultValues: defaultSecurityIncidentFormValues,
   });
+  const policeNotified = incidentForm.watch("police_notified");
+  const handleOpen = () => {
+    incidentForm.reset(defaultSecurityIncidentFormValues);
+    open();
+  };
   const createMut = useMutation({
-    mutationFn: (d: CreateSecurityIncidentRequest) => api.createSecurityIncident(d),
+    mutationFn: (values: SecurityIncidentFormInput) =>
+      securityService.createSecurityIncident(securityIncidentFormToRequest(values)),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["sec-incidents"] });
+      incidentForm.reset(defaultSecurityIncidentFormValues);
       close();
       notifications.show({
         title: "Incident Reported",
@@ -709,7 +847,7 @@ function IncidentsTab() {
   });
   const updateMut = useMutation({
     mutationFn: ({ id, body }: { id: string; body: UpdateSecurityIncidentRequest }) =>
-      api.updateSecurityIncident(id, body),
+      securityService.updateSecurityIncident(id, body),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["sec-incidents"] });
       notifications.show({
@@ -805,7 +943,7 @@ function IncidentsTab() {
     <Stack>
       {canCreate && (
         <Group>
-          <Button leftSection={<IconPlus size={16} />} onClick={open}>
+          <Button leftSection={<IconPlus size={16} />} onClick={handleOpen}>
             Report Incident
           </Button>
         </Group>
@@ -819,56 +957,81 @@ function IncidentsTab() {
         position="right"
         size="lg"
       >
-        <Stack>
-          <Select
-            label="Severity"
-            data={INCIDENT_SEVERITIES}
-            value={form.severity ?? null}
-            onChange={(v) =>
-              setForm({
-                ...form,
-                severity: (v as CreateSecurityIncidentRequest["severity"]) ?? undefined,
-              })
-            }
+        <Stack
+          component="form"
+          onSubmit={incidentForm.handleSubmit((values) => createMut.mutate(values))}
+        >
+          <Controller
+            control={incidentForm.control}
+            name="severity"
+            render={({ field, fieldState }) => (
+              <Select
+                label="Severity"
+                data={INCIDENT_SEVERITIES}
+                value={field.value}
+                onChange={field.onChange}
+                error={fieldState.error?.message}
+              />
+            )}
           />
-          <Select
-            label="Category"
-            required
-            data={INCIDENT_CATEGORIES}
-            value={form.category || null}
-            onChange={(v) => setForm({ ...form, category: v ?? "" })}
+          <Controller
+            control={incidentForm.control}
+            name="category"
+            render={({ field, fieldState }) => (
+              <Select
+                label="Category"
+                required
+                data={INCIDENT_CATEGORIES}
+                value={field.value}
+                onChange={field.onChange}
+                error={fieldState.error?.message}
+              />
+            )}
           />
-          <Select
-            label="Zone"
-            data={zones.map((z) => ({ value: z.id, label: `${z.zone_code} — ${z.name}` }))}
-            value={form.zone_id ?? null}
-            onChange={(v) => setForm({ ...form, zone_id: v ?? undefined })}
+          <Controller
+            control={incidentForm.control}
+            name="zone_id"
+            render={({ field, fieldState }) => (
+              <Select
+                label="Zone"
+                data={zones.map((z) => ({ value: z.id, label: `${z.zone_code} — ${z.name}` }))}
+                value={field.value || null}
+                onChange={(value) => field.onChange(value ?? "")}
+                error={fieldState.error?.message}
+              />
+            )}
           />
           <TextInput
             label="Location"
-            value={form.location_description ?? ""}
-            onChange={(e) => setForm({ ...form, location_description: e.currentTarget.value })}
+            {...incidentForm.register("location_description")}
+            error={incidentForm.formState.errors.location_description?.message}
           />
           <Textarea
             label="Description"
             required
             minRows={3}
-            value={form.description}
-            onChange={(e) => setForm({ ...form, description: e.currentTarget.value })}
+            {...incidentForm.register("description")}
+            error={incidentForm.formState.errors.description?.message}
           />
-          <Switch
-            label="Police Notified"
-            checked={form.police_notified ?? false}
-            onChange={(e) => setForm({ ...form, police_notified: e.currentTarget.checked })}
+          <Controller
+            control={incidentForm.control}
+            name="police_notified"
+            render={({ field }) => (
+              <Switch
+                label="Police Notified"
+                checked={field.value}
+                onChange={(event) => field.onChange(event.currentTarget.checked)}
+              />
+            )}
           />
-          {form.police_notified && (
+          {policeNotified && (
             <TextInput
               label="Police Report Number"
-              value={form.police_report_number ?? ""}
-              onChange={(e) => setForm({ ...form, police_report_number: e.currentTarget.value })}
+              {...incidentForm.register("police_report_number")}
+              error={incidentForm.formState.errors.police_report_number?.message}
             />
           )}
-          <Button onClick={() => createMut.mutate(form)} loading={createMut.isPending}>
+          <Button type="submit" loading={createMut.isPending}>
             Submit Report
           </Button>
         </Stack>
@@ -887,26 +1050,32 @@ function PatientSafetyTab() {
 
   const { data: tags = [], isLoading: tagsLoading } = useQuery({
     queryKey: ["sec-patient-tags"],
-    queryFn: () => api.listSecurityPatientTags(),
+    queryFn: () => securityService.listSecurityPatientTags(),
   });
   const { data: alerts = [], isLoading: alertsLoading } = useQuery({
     queryKey: ["sec-tag-alerts"],
-    queryFn: () => api.listSecurityTagAlerts(),
+    queryFn: () => securityService.listSecurityTagAlerts(),
   });
   const { data: zones = [] } = useQuery({
     queryKey: ["sec-zones"],
-    queryFn: () => api.listSecurityZones(),
+    queryFn: () => securityService.listSecurityZones(),
   });
   const [opened, { open, close }] = useDisclosure(false);
-  const [form, setForm] = useState<CreateSecurityPatientTagRequest>({
-    patient_id: "",
-    tag_type: "infant_rfid",
+  const tagForm = useForm<SecurityPatientTagFormInput>({
+    resolver: zodResolver(securityPatientTagFormSchema),
+    defaultValues: defaultSecurityPatientTagFormValues,
   });
+  const handleOpen = () => {
+    tagForm.reset(defaultSecurityPatientTagFormValues);
+    open();
+  };
 
   const createTagMut = useMutation({
-    mutationFn: (d: CreateSecurityPatientTagRequest) => api.createSecurityPatientTag(d),
+    mutationFn: (values: SecurityPatientTagFormInput) =>
+      securityService.createSecurityPatientTag(securityPatientTagFormToRequest(values)),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["sec-patient-tags"] });
+      tagForm.reset(defaultSecurityPatientTagFormValues);
       close();
       notifications.show({
         title: "Tag Activated",
@@ -916,7 +1085,7 @@ function PatientSafetyTab() {
     },
   });
   const deactivateTagMut = useMutation({
-    mutationFn: (id: string) => api.deactivateSecurityPatientTag(id),
+    mutationFn: (id: string) => securityService.deactivateSecurityPatientTag(id),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["sec-patient-tags"] });
       notifications.show({
@@ -928,7 +1097,7 @@ function PatientSafetyTab() {
   });
   const resolveAlertMut = useMutation({
     mutationFn: ({ id, body }: { id: string; body: ResolveSecurityTagAlertRequest }) =>
-      api.resolveSecurityTagAlert(id, body),
+      securityService.resolveSecurityTagAlert(id, body),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["sec-tag-alerts"] });
       notifications.show({
@@ -1093,7 +1262,7 @@ function PatientSafetyTab() {
       </Text>
       <Group>
         {canManage && (
-          <Button leftSection={<IconPlus size={16} />} onClick={open}>
+          <Button leftSection={<IconPlus size={16} />} onClick={handleOpen}>
             Activate Tag
           </Button>
         )}
@@ -1117,41 +1286,60 @@ function PatientSafetyTab() {
         position="right"
         size="xl"
       >
-        <Stack>
-          <PatientSearchSelect
-            value={form.patient_id}
-            onChange={(id) => setForm({ ...form, patient_id: id })}
-            required
+        <Stack
+          component="form"
+          onSubmit={tagForm.handleSubmit((values) => createTagMut.mutate(values))}
+        >
+          <Controller
+            control={tagForm.control}
+            name="patient_id"
+            render={({ field, fieldState }) => (
+              <PatientSearchSelect
+                value={field.value}
+                onChange={field.onChange}
+                required
+                error={fieldState.error?.message}
+              />
+            )}
           />
-          <Select
-            label="Tag Type"
-            required
-            data={TAG_TYPES}
-            value={form.tag_type || null}
-            onChange={(v) =>
-              setForm({
-                ...form,
-                tag_type: (v as CreateSecurityPatientTagRequest["tag_type"]) ?? "infant_rfid",
-              })
-            }
+          <Controller
+            control={tagForm.control}
+            name="tag_type"
+            render={({ field, fieldState }) => (
+              <Select
+                label="Tag Type"
+                required
+                data={TAG_TYPES}
+                value={field.value}
+                onChange={field.onChange}
+                error={fieldState.error?.message}
+              />
+            )}
           />
           <TextInput
             label="Tag Identifier"
-            value={form.tag_identifier ?? ""}
-            onChange={(e) => setForm({ ...form, tag_identifier: e.currentTarget.value })}
+            {...tagForm.register("tag_identifier")}
+            error={tagForm.formState.errors.tag_identifier?.message}
           />
-          <Select
-            label="Allowed Zone"
-            data={zones.map((z) => ({ value: z.id, label: `${z.zone_code} — ${z.name}` }))}
-            value={form.allowed_zone_id ?? null}
-            onChange={(v) => setForm({ ...form, allowed_zone_id: v ?? undefined })}
+          <Controller
+            control={tagForm.control}
+            name="allowed_zone_id"
+            render={({ field, fieldState }) => (
+              <Select
+                label="Allowed Zone"
+                data={zones.map((z) => ({ value: z.id, label: `${z.zone_code} — ${z.name}` }))}
+                value={field.value || null}
+                onChange={(value) => field.onChange(value ?? "")}
+                error={fieldState.error?.message}
+              />
+            )}
           />
           <TextInput
             label="Mother ID (for infant tags)"
-            value={form.mother_id ?? ""}
-            onChange={(e) => setForm({ ...form, mother_id: e.currentTarget.value || undefined })}
+            {...tagForm.register("mother_id")}
+            error={tagForm.formState.errors.mother_id?.message}
           />
-          <Button onClick={() => createTagMut.mutate(form)} loading={createTagMut.isPending}>
+          <Button type="submit" loading={createTagMut.isPending}>
             Activate Tag
           </Button>
         </Stack>
@@ -1170,14 +1358,23 @@ function CodeDebriefsTab() {
 
   const { data: debriefs = [], isLoading } = useQuery({
     queryKey: ["sec-debriefs"],
-    queryFn: () => api.listSecurityCodeDebriefs(),
+    queryFn: () => securityService.listSecurityCodeDebriefs(),
   });
   const [opened, { open, close }] = useDisclosure(false);
-  const [form, setForm] = useState<CreateSecurityCodeDebriefRequest>({ code_activation_id: "" });
+  const debriefForm = useForm<SecurityCodeDebriefFormInput>({
+    resolver: zodResolver(securityCodeDebriefFormSchema),
+    defaultValues: defaultSecurityCodeDebriefFormValues,
+  });
+  const handleOpen = () => {
+    debriefForm.reset(defaultSecurityCodeDebriefFormValues);
+    open();
+  };
   const createMut = useMutation({
-    mutationFn: (d: CreateSecurityCodeDebriefRequest) => api.createSecurityCodeDebrief(d),
+    mutationFn: (values: SecurityCodeDebriefFormInput) =>
+      securityService.createSecurityCodeDebrief(securityCodeDebriefFormToRequest(values)),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["sec-debriefs"] });
+      debriefForm.reset(defaultSecurityCodeDebriefFormValues);
       close();
       notifications.show({
         title: "Debrief Created",
@@ -1209,7 +1406,7 @@ function CodeDebriefsTab() {
       label: "Actions",
       render: (r) => (
         <Badge variant="light">
-          {Array.isArray(r.action_items) ? `${(r.action_items as unknown[]).length} items` : "—"}
+          {Array.isArray(r.action_items) ? `${r.action_items.length} items` : "—"}
         </Badge>
       ),
     },
@@ -1224,7 +1421,7 @@ function CodeDebriefsTab() {
     <Stack>
       {canCreate && (
         <Group>
-          <Button leftSection={<IconPlus size={16} />} onClick={open}>
+          <Button leftSection={<IconPlus size={16} />} onClick={handleOpen}>
             New Debrief
           </Button>
         </Group>
@@ -1238,71 +1435,82 @@ function CodeDebriefsTab() {
         position="right"
         size="lg"
       >
-        <Stack>
+        <Stack
+          component="form"
+          onSubmit={debriefForm.handleSubmit((values) => createMut.mutate(values))}
+        >
           <TextInput
             label="Code Activation ID"
             required
-            value={form.code_activation_id}
-            onChange={(e) => setForm({ ...form, code_activation_id: e.currentTarget.value })}
+            {...debriefForm.register("code_activation_id")}
+            error={debriefForm.formState.errors.code_activation_id?.message}
           />
-          <NumberInput
-            label="Response Time (seconds)"
-            value={form.response_time_seconds ?? undefined}
-            onChange={(v) =>
-              setForm({ ...form, response_time_seconds: typeof v === "number" ? v : undefined })
-            }
-            min={0}
+          <Controller
+            control={debriefForm.control}
+            name="response_time_seconds"
+            render={({ field, fieldState }) => (
+              <NumberInput
+                label="Response Time (seconds)"
+                value={field.value}
+                onChange={field.onChange}
+                error={fieldState.error?.message}
+                min={0}
+              />
+            )}
           />
-          <NumberInput
-            label="Total Duration (minutes)"
-            value={form.total_duration_minutes ?? undefined}
-            onChange={(v) =>
-              setForm({ ...form, total_duration_minutes: typeof v === "number" ? v : undefined })
-            }
-            min={0}
+          <Controller
+            control={debriefForm.control}
+            name="total_duration_minutes"
+            render={({ field, fieldState }) => (
+              <NumberInput
+                label="Total Duration (minutes)"
+                value={field.value}
+                onChange={field.onChange}
+                error={fieldState.error?.message}
+                min={0}
+              />
+            )}
           />
           <Textarea
             label="What Went Well"
             minRows={2}
-            value={form.what_went_well ?? ""}
-            onChange={(e) => setForm({ ...form, what_went_well: e.currentTarget.value })}
+            {...debriefForm.register("what_went_well")}
+            error={debriefForm.formState.errors.what_went_well?.message}
           />
           <Textarea
             label="What Went Wrong"
             minRows={2}
-            value={form.what_went_wrong ?? ""}
-            onChange={(e) => setForm({ ...form, what_went_wrong: e.currentTarget.value })}
+            {...debriefForm.register("what_went_wrong")}
+            error={debriefForm.formState.errors.what_went_wrong?.message}
           />
           <Textarea
             label="Root Cause"
             minRows={2}
-            value={form.root_cause ?? ""}
-            onChange={(e) => setForm({ ...form, root_cause: e.currentTarget.value })}
+            {...debriefForm.register("root_cause")}
+            error={debriefForm.formState.errors.root_cause?.message}
           />
           <Textarea
             label="Lessons Learned"
             minRows={2}
-            value={form.lessons_learned ?? ""}
-            onChange={(e) => setForm({ ...form, lessons_learned: e.currentTarget.value })}
+            {...debriefForm.register("lessons_learned")}
+            error={debriefForm.formState.errors.lessons_learned?.message}
           />
           <Textarea
             label="Equipment Issues"
-            value={form.equipment_issues ?? ""}
-            onChange={(e) => setForm({ ...form, equipment_issues: e.currentTarget.value })}
+            {...debriefForm.register("equipment_issues")}
+            error={debriefForm.formState.errors.equipment_issues?.message}
           />
           <Textarea
             label="Training Gaps"
-            value={form.training_gaps ?? ""}
-            onChange={(e) => setForm({ ...form, training_gaps: e.currentTarget.value })}
+            {...debriefForm.register("training_gaps")}
+            error={debriefForm.formState.errors.training_gaps?.message}
           />
           <Textarea
             label="Protocol Changes Recommended"
-            value={form.protocol_changes_recommended ?? ""}
-            onChange={(e) =>
-              setForm({ ...form, protocol_changes_recommended: e.currentTarget.value })
-            }
+            {...debriefForm.register("protocol_changes_recommended")}
+            error={debriefForm.formState.errors.protocol_changes_recommended?.message}
           />
-          <Button onClick={() => createMut.mutate(form)} loading={createMut.isPending}>
+          <Button type="submit" loading={createMut.isPending}>
             Create Debrief
           </Button>
         </Stack>

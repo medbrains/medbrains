@@ -1,3 +1,4 @@
+import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Alert,
   Anchor,
@@ -8,32 +9,102 @@ import {
   Text,
   TextInput,
 } from "@mantine/core";
-import { api } from "@medbrains/api";
+import { useDisclosure } from "@mantine/hooks";
+import { userSchema } from "@medbrains/schemas";
 import { useAuthStore, usePermissionStore } from "@medbrains/stores";
 import { IconLock, IconUser } from "@tabler/icons-react";
 import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
+import { Controller, useForm } from "react-hook-form";
 import { Link, Navigate, useNavigate } from "react-router";
+import {
+  DEFAULT_LOGIN_FORM_VALUES,
+  type LoginFormInput,
+  loginFormSchema,
+} from "../forms/login.form";
+import {
+  defaultDesktopApiBase,
+  getStoredDesktopApiBase,
+  isTauriDesktopRuntime,
+  normalizeDesktopApiBase,
+  setStoredDesktopApiBase,
+} from "../lib/desktop-runtime";
+import { sessionService } from "../services/session.service";
 import classes from "./login.module.scss";
 
 export function LoginPage() {
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
-  const [rememberMe, setRememberMe] = useState(false);
-  const [showDevCreds, setShowDevCreds] = useState(false);
+  const [devCredsOpened, devCredsDisclosure] = useDisclosure(false);
+  const isDesktop = isTauriDesktopRuntime();
+  const defaultApiBase = defaultDesktopApiBase();
+  const [desktopSetupOpened, desktopSetupDisclosure] = useDisclosure(false);
+  const [desktopApiBaseInput, setDesktopApiBaseInput] = useState(
+    getStoredDesktopApiBase() ?? sessionService.getApiBase() ?? defaultApiBase,
+  );
+  const [connectionStatus, setConnectionStatus] = useState<{
+    color: "danger" | "success";
+    message: string;
+  } | null>(null);
   const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
   const setAuth = useAuthStore((s) => s.setAuth);
   const setPermissions = usePermissionStore((s) => s.setPermissions);
+  const loginForm = useForm<LoginFormInput>({
+    resolver: zodResolver(loginFormSchema),
+    defaultValues: DEFAULT_LOGIN_FORM_VALUES,
+  });
 
   const loginMutation = useMutation({
-    mutationFn: () => api.login({ username, password }),
+    mutationFn: (values: LoginFormInput) =>
+      sessionService.login({ username: values.username, password: values.password }),
     onSuccess: (data) => {
-      setAuth(data.user as never);
+      const authUser = userSchema.parse({
+        ...data.user,
+        access_matrix: {},
+        is_active: true,
+        created_at: "",
+        updated_at: "",
+      });
+      setAuth(authUser);
       setPermissions(data.user.role, data.permissions, data.field_access);
       navigate("/dashboard");
     },
   });
+
+  const normalizedDesktopApiBase = normalizeDesktopApiBase(desktopApiBaseInput);
+
+  const saveDesktopConnection = () => {
+    if (!normalizedDesktopApiBase) {
+      setConnectionStatus({ color: "danger", message: "Enter a backend URL or /api." });
+      return;
+    }
+
+    setStoredDesktopApiBase(normalizedDesktopApiBase);
+    sessionService.setApiBase(normalizedDesktopApiBase);
+    window.location.reload();
+  };
+
+  const resetDesktopConnection = () => {
+    setStoredDesktopApiBase(null);
+    setDesktopApiBaseInput(defaultApiBase);
+    sessionService.setApiBase(defaultApiBase);
+    window.location.reload();
+  };
+
+  const testDesktopConnection = async () => {
+    if (!normalizedDesktopApiBase) {
+      setConnectionStatus({ color: "danger", message: "Enter a backend URL or /api." });
+      return;
+    }
+
+    setConnectionStatus(null);
+    try {
+      await sessionService.testHealthAtBase(normalizedDesktopApiBase);
+      setConnectionStatus({ color: "success", message: "Backend health check passed." });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Connection failed.";
+      setConnectionStatus({ color: "danger", message });
+    }
+  };
 
   if (user) {
     return <Navigate to="/dashboard" replace />;
@@ -84,6 +155,7 @@ export function LoginPage() {
           viewBox="0 0 600 40"
           fill="none"
           preserveAspectRatio="none"
+          aria-hidden="true"
         >
           <polyline
             stroke="#ffffff"
@@ -115,19 +187,14 @@ export function LoginPage() {
             </Text>
           </Stack>
 
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              loginMutation.mutate();
-            }}
-          >
+          <form onSubmit={loginForm.handleSubmit((values) => loginMutation.mutate(values))}>
             <Stack gap="md">
               <TextInput
                 label="Username"
                 placeholder="Enter your username"
                 leftSection={<IconUser size={16} />}
-                value={username}
-                onChange={(e) => setUsername(e.currentTarget.value)}
+                error={loginForm.formState.errors.username?.message}
+                {...loginForm.register("username")}
                 required
                 size="md"
               />
@@ -135,18 +202,24 @@ export function LoginPage() {
                 label="Password"
                 placeholder="Enter your password"
                 leftSection={<IconLock size={16} />}
-                value={password}
-                onChange={(e) => setPassword(e.currentTarget.value)}
+                error={loginForm.formState.errors.password?.message}
+                {...loginForm.register("password")}
                 required
                 size="md"
               />
 
               <div className={classes.formFooter}>
-                <Checkbox
-                  label="Remember me"
-                  size="xs"
-                  checked={rememberMe}
-                  onChange={(e) => setRememberMe(e.currentTarget.checked)}
+                <Controller
+                  control={loginForm.control}
+                  name="remember_me"
+                  render={({ field }) => (
+                    <Checkbox
+                      label="Remember me"
+                      size="xs"
+                      checked={field.value}
+                      onChange={(event) => field.onChange(event.currentTarget.checked)}
+                    />
+                  )}
                 />
                 <Anchor size="xs" c="primary">
                   Forgot password?
@@ -165,6 +238,52 @@ export function LoginPage() {
             </Stack>
           </form>
 
+          {isDesktop && (
+            <div className={classes.desktopSetup}>
+              <button
+                type="button"
+                className={classes.desktopSetupToggle}
+                onClick={desktopSetupDisclosure.toggle}
+              >
+                Desktop connection setup
+              </button>
+
+              {desktopSetupOpened && (
+                <div className={classes.desktopSetupPanel}>
+                  <TextInput
+                    label="Backend API URL"
+                    description="Use /api for local dev, or enter a vendor / on-prem server URL."
+                    placeholder="https://hospital.example.com/api"
+                    value={desktopApiBaseInput}
+                    onChange={(event) => {
+                      setDesktopApiBaseInput(event.currentTarget.value);
+                      setConnectionStatus(null);
+                    }}
+                    size="sm"
+                  />
+
+                  <div className={classes.desktopSetupActions}>
+                    <Button variant="light" size="xs" onClick={testDesktopConnection}>
+                      Test
+                    </Button>
+                    <Button size="xs" onClick={saveDesktopConnection}>
+                      Save & reload
+                    </Button>
+                    <Button variant="subtle" size="xs" onClick={resetDesktopConnection}>
+                      Reset
+                    </Button>
+                  </div>
+
+                  {connectionStatus && (
+                    <Alert color={connectionStatus.color} variant="light" radius="md">
+                      {connectionStatus.message}
+                    </Alert>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
           <div className={classes.footer}>
             <div className={classes.onboardingLink}>
               New installation? <Link to="/onboarding">Set up now &rarr;</Link>
@@ -174,11 +293,11 @@ export function LoginPage() {
               <button
                 type="button"
                 className={classes.devToggle}
-                onClick={() => setShowDevCreds((v) => !v)}
+                onClick={devCredsDisclosure.toggle}
               >
-                {showDevCreds ? "Hide dev credentials" : "Dev credentials"}
+                {devCredsOpened ? "Hide dev credentials" : "Dev credentials"}
               </button>
-              {showDevCreds && (
+              {devCredsOpened && (
                 <div className={classes.devCreds}>
                   <Text size="xs" c="var(--mb-text-secondary)" ff="var(--font-mono, monospace)">
                     admin / admin123

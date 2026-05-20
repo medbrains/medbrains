@@ -19,7 +19,6 @@ import {
   Text,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
 import { useOrderBasketStore } from "@medbrains/stores";
 import type { BasketItem } from "@medbrains/types";
 import {
@@ -30,6 +29,7 @@ import {
   IconStack2,
 } from "@tabler/icons-react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { orderBasketService } from "../../services/orderBasket.service";
 import { BasketItemRow } from "./BasketItemRow";
 import { DrugPickerForm } from "./pickers/DrugPickerForm";
 import { LabPickerForm } from "./pickers/LabPickerForm";
@@ -41,6 +41,7 @@ interface OrderBasketWorkspaceProps {
   onClose: () => void;
   encounterId: string;
   patientId: string;
+  onSigned?: () => void;
 }
 
 export function OrderBasketWorkspace({
@@ -48,6 +49,7 @@ export function OrderBasketWorkspace({
   onClose,
   encounterId,
   patientId,
+  onSigned,
 }: OrderBasketWorkspaceProps) {
   const basket = useOrderBasketStore();
   const [orderSetOpen, setOrderSetOpen] = useState(false);
@@ -81,12 +83,12 @@ export function OrderBasketWorkspace({
       basket.setChecking(true);
       try {
         const [warnRes, costRes] = await Promise.all([
-          api.checkBasket({
+          orderBasketService.checkBasket({
             encounter_id: encounterId,
             patient_id: patientId,
             items: basket.items,
           }),
-          api.previewBasketCost({ items: basket.items }),
+          orderBasketService.previewBasketCost({ items: basket.items }),
         ]);
         basket.setWarnings(warnRes.warnings);
         setCostPreview({
@@ -117,7 +119,7 @@ export function OrderBasketWorkspace({
     let cancelled = false;
     void (async () => {
       try {
-        const draft = await api.getBasketDraft(encounterId);
+        const draft = await orderBasketService.getBasketDraft(encounterId);
         if (!cancelled && draft && Array.isArray(draft.items) && draft.items.length > 0) {
           basket.loadDraft(draft.items as BasketItem[]);
           notifications.show({
@@ -141,7 +143,7 @@ export function OrderBasketWorkspace({
   const handleSign = async () => {
     basket.setSigning(true);
     try {
-      const res = await api.signBasket({
+      const res = await orderBasketService.signBasket({
         encounter_id: encounterId,
         patient_id: patientId,
         items: basket.items,
@@ -154,6 +156,7 @@ export function OrderBasketWorkspace({
         icon: <IconCheck size={16} />,
       });
       basket.clear();
+      onSigned?.();
       onClose();
     } catch (err) {
       notifications.show({
@@ -169,7 +172,7 @@ export function OrderBasketWorkspace({
 
   const handleSaveDraft = async () => {
     try {
-      await api.saveBasketDraft(encounterId, {
+      await orderBasketService.saveBasketDraft(encounterId, {
         items: basket.items,
       });
       notifications.show({
@@ -276,7 +279,7 @@ export function OrderBasketWorkspace({
             <Stack gap="xs">
               {basket.items.map((item, idx) => (
                 <BasketItemRow
-                  key={`${item.kind}-${idx}`}
+                  key={basketItemKey(item)}
                   item={item}
                   index={idx}
                   warnings={warningsForItem(idx)}
@@ -386,7 +389,7 @@ function OrderSetPickerModal({
     if (!opened) return;
     void (async () => {
       try {
-        const list = await api.listOrderSetTemplates({ is_active: true });
+        const list = await orderBasketService.listOrderSetTemplates({ is_active: true });
         setTemplates(list.map((t) => ({ id: t.id, name: t.name })));
       } catch (err) {
         notifications.show({
@@ -402,7 +405,7 @@ function OrderSetPickerModal({
     if (!selected) return;
     setLoading(true);
     try {
-      const tpl = await api.getOrderSetTemplate(selected);
+      const tpl = await orderBasketService.getOrderSetTemplate(selected);
       const items: BasketItem[] = (tpl.items ?? [])
         .map((it) => orderSetItemToBasket(it))
         .filter((x): x is BasketItem => !!x);
@@ -513,7 +516,7 @@ function CarryForwardModal({
     setLoading(true);
     void (async () => {
       try {
-        const list = await api.carryForwardBasket(patientId, encounterId);
+        const list = await orderBasketService.carryForwardBasket(patientId, encounterId);
         setRows(
           list.map((r) => ({
             kind: r.kind,
@@ -569,7 +572,7 @@ function CarryForwardModal({
           <ScrollArea.Autosize mah={420}>
             <Stack gap={4}>
               {rows.map((r, idx) => (
-                <Group key={idx} gap="xs" wrap="nowrap">
+                <Group key={`${r.kind}:${r.label}:${r.created_at}`} gap="xs" wrap="nowrap">
                   <Checkbox checked={r.checked} onChange={() => toggle(idx)} />
                   <Badge size="xs" variant="light">
                     {r.kind}
@@ -596,4 +599,8 @@ function CarryForwardModal({
       )}
     </Modal>
   );
+}
+
+function basketItemKey(item: BasketItem): string {
+  return `${item.kind}:${JSON.stringify(item)}`;
 }

@@ -192,6 +192,7 @@ const DoctorSignoffsPage = lazy(() =>
 const AnalyticsPage = lazy(() =>
   import("./pages/analytics").then((m) => ({ default: m.AnalyticsPage })),
 );
+const ReportsPage = lazy(() => import("./pages/reports").then((m) => ({ default: m.ReportsPage })));
 const AuditPage = lazy(() => import("./pages/audit").then((m) => ({ default: m.AuditPage })));
 const DocumentsPage = lazy(() =>
   import("./pages/documents").then((m) => ({ default: m.DocumentsPage })),
@@ -264,6 +265,8 @@ export function App() {
               <Route path="security" element={<SecurityPage />} />
               <Route path="insurance" element={<InsurancePage />} />
               <Route path="analytics" element={<AnalyticsPage />} />
+              <Route path="reports" element={<ReportsPage />} />
+              <Route path="reports/nabh" element={<NabhIndicatorsPage />} />
               <Route path="audit" element={<AuditPage />} />
               <Route path="regulatory" element={<RegulatoryPage />} />
               <Route path="order-sets" element={<OrderSetsPage />} />

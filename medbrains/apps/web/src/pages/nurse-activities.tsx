@@ -13,7 +13,6 @@ import {
   TextInput,
   Title,
 } from "@mantine/core";
-import { api } from "@medbrains/api";
 import { P } from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
@@ -21,6 +20,7 @@ import { PageHeader } from "../components";
 import { HandoffPanel } from "../components/crdt/HandoffPanel";
 import { NursingNotesPanel } from "../components/crdt/NursingNotesPanel";
 import { useRequirePermission } from "../hooks/useRequirePermission";
+import { nurseActivitiesService } from "../services/nurseActivities.service";
 
 interface MarRow {
   id: string;
@@ -125,17 +125,18 @@ function MarTab() {
 
   const { data, isLoading } = useQuery({
     queryKey: ["mar-due-now", windowMin],
-    queryFn: () => api.listMarDueNow({ window_min: windowMin }) as Promise<MarRow[]>,
+    queryFn: () =>
+      nurseActivitiesService.listMarDueNow({ window_min: windowMin }) as Promise<MarRow[]>,
   });
 
   const administer = useMutation({
     mutationFn: (id: string) =>
-      api.administerMar(id, { wristband_scanned: true, drug_scanned: true }),
+      nurseActivitiesService.administerMar(id, { wristband_scanned: true, drug_scanned: true }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["mar-due-now"] }),
   });
   const hold = useMutation({
     mutationFn: (vars: { id: string; reason: string }) =>
-      api.holdMar(vars.id, { reason: vars.reason }),
+      nurseActivitiesService.holdMar(vars.id, { reason: vars.reason }),
     onSuccess: () => {
       setActioning(null);
       setReason("");
@@ -144,7 +145,7 @@ function MarTab() {
   });
   const refuse = useMutation({
     mutationFn: (vars: { id: string; reason: string }) =>
-      api.refuseMar(vars.id, { reason: vars.reason }),
+      nurseActivitiesService.refuseMar(vars.id, { reason: vars.reason }),
     onSuccess: () => {
       setActioning(null);
       setReason("");
@@ -266,13 +267,13 @@ function IoTab() {
 
   const { data } = useQuery({
     queryKey: ["io-entries", encounterId],
-    queryFn: () => api.listIoForEncounter(encounterId) as Promise<IoEntryRow[]>,
+    queryFn: () => nurseActivitiesService.listIoForEncounter(encounterId) as Promise<IoEntryRow[]>,
     enabled: encounterId.length > 0,
   });
   const { data: balance } = useQuery({
     queryKey: ["io-balance", encounterId],
     queryFn: () =>
-      api.getEncounterIoBalance(encounterId, 24) as Promise<{
+      nurseActivitiesService.getEncounterIoBalance(encounterId, 24) as Promise<{
         intake_total: number;
         output_total: number;
         balance: number;
@@ -371,7 +372,7 @@ function CreateIoModal({
 
   const create = useMutation({
     mutationFn: () =>
-      api.createIoEntry({
+      nurseActivitiesService.createIoEntry({
         encounter_id: encounterId,
         direction,
         category,
@@ -434,12 +435,13 @@ function CodeBlueTab() {
   const qc = useQueryClient();
   const { data } = useQuery({
     queryKey: ["code-blue", "active"],
-    queryFn: () => api.listCodeBlue({ active_only: true }) as Promise<CodeBlueRow[]>,
+    queryFn: () =>
+      nurseActivitiesService.listCodeBlue({ active_only: true }) as Promise<CodeBlueRow[]>,
     refetchInterval: 5000,
   });
 
   const end = useMutation({
-    mutationFn: (id: string) => api.endCodeBlue(id, { outcome: "stable" }),
+    mutationFn: (id: string) => nurseActivitiesService.endCodeBlue(id, { outcome: "stable" }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["code-blue"] }),
   });
 

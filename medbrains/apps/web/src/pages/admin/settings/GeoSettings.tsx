@@ -1,6 +1,5 @@
 import { Button, Divider, Group, Loader, Select, Stack, Text } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
 import { useLocaleStore } from "@medbrains/stores";
 import type { GeoCountry, GeoDistrict, GeoState } from "@medbrains/types";
 import {
@@ -13,6 +12,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { PinCodeInput } from "../../../components/PinCodeInput";
+import { tenantSettingsService } from "../../../services/tenantSettings.service";
 
 // ── GeoSettings ──────────────────────────────────────────
 
@@ -27,7 +27,7 @@ export function GeoSettings() {
 
   useQuery({
     queryKey: ["setup-tenant"],
-    queryFn: () => api.getTenant(),
+    queryFn: () => tenantSettingsService.getTenant(),
     staleTime: 60_000,
   });
 
@@ -35,7 +35,7 @@ export function GeoSettings() {
 
   const { data: countries, isLoading: countriesLoading } = useQuery({
     queryKey: ["geo-countries"],
-    queryFn: () => api.geoCountries(),
+    queryFn: () => tenantSettingsService.geoCountries(),
     staleTime: 5 * 60_000,
   });
 
@@ -48,7 +48,7 @@ export function GeoSettings() {
 
   const { data: states, isLoading: statesLoading } = useQuery({
     queryKey: ["geo-states", selectedCountryId],
-    queryFn: () => api.geoStates(selectedCountryId!),
+    queryFn: () => tenantSettingsService.geoStates(selectedCountryId ?? ""),
     enabled: !!selectedCountryId,
     staleTime: 5 * 60_000,
   });
@@ -62,7 +62,7 @@ export function GeoSettings() {
 
   const { data: districts, isLoading: districtsLoading } = useQuery({
     queryKey: ["geo-districts", selectedStateId],
-    queryFn: () => api.geoDistricts(selectedStateId!),
+    queryFn: () => tenantSettingsService.geoDistricts(selectedStateId ?? ""),
     enabled: !!selectedStateId,
     staleTime: 5 * 60_000,
   });
@@ -76,7 +76,7 @@ export function GeoSettings() {
 
   const saveGeoMutation = useMutation({
     mutationFn: () =>
-      api.updateTenantGeo({
+      tenantSettingsService.updateTenantGeo({
         country_id: selectedCountryId ?? undefined,
         state_id: selectedStateId ?? undefined,
         district_id: selectedDistrictId ?? undefined,
@@ -92,17 +92,18 @@ export function GeoSettings() {
 
       if (result.defaults_applied) {
         // Refresh locale settings in store
-        Promise.all([api.getTenantSettings("units"), api.getTenantSettings("locale")]).then(
-          ([units, locale]) => {
-            useLocaleStore.getState().setFromTenantSettings(
-              [...units, ...locale].map((r) => ({
-                category: r.category,
-                key: r.key,
-                value: r.value,
-              })),
-            );
-          },
-        );
+        Promise.all([
+          tenantSettingsService.getTenantSettings("units"),
+          tenantSettingsService.getTenantSettings("locale"),
+        ]).then(([units, locale]) => {
+          useLocaleStore.getState().setFromTenantSettings(
+            [...units, ...locale].map((r) => ({
+              category: r.category,
+              key: r.key,
+              value: r.value,
+            })),
+          );
+        });
 
         void queryClient.invalidateQueries({ queryKey: ["tenant-settings"] });
 

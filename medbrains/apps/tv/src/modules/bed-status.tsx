@@ -13,6 +13,7 @@ function BedStatusScreen() {
       title="Bed occupancy"
       subtitle="Real-time bed state across all wards."
       legend="Updates from WebSocket · medbrains://tv/bed-status"
+      tags={["TV-Ward", "TV-ICU", "IPD", "beds"]}
     >
       <TvSummaryRow
         items={[
@@ -32,4 +33,6 @@ export const bedStatusModule: Module = {
   icon: () => null,
   requiredPermissions: [],
   navigator: BedStatusScreen,
+  appCodes: ["TV-Ward", "TV-ICU"],
+  tags: ["tv", "ipd", "bed-status", "ward", "icu"],
 };

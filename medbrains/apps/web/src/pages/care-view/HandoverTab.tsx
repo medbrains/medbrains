@@ -1,8 +1,9 @@
 import { Badge, Button, Card, Group, Select, Stack, Text } from "@mantine/core";
-import { api } from "@medbrains/api";
+import type { HandoverSummaryResponse } from "@medbrains/types";
 import { IconClipboardList, IconPrinter } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
+import { careViewService } from "../../services/careView.service";
 import { SHIFTS } from "./shared";
 
 export function HandoverTab({ wardId }: { wardId: string | null }) {
@@ -11,9 +12,9 @@ export function HandoverTab({ wardId }: { wardId: string | null }) {
 
   const effectiveWard = wardId ?? "";
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading } = useQuery<HandoverSummaryResponse>({
     queryKey: ["care-view", "handover", effectiveWard, shift],
-    queryFn: () => api.handoverSummary(effectiveWard, shift ?? "morning"),
+    queryFn: () => careViewService.handoverSummary(effectiveWard, shift ?? "morning"),
     enabled: triggered && !!effectiveWard && !!shift,
   });
 

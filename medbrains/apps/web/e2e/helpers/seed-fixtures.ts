@@ -38,9 +38,11 @@ interface SeedDef {
   /** GET path used to check existence. {id} is replaced with the SEED UUID. */
   checkPath: string;
   /** POST path used to create. */
-  createPath: string;
+  createPath?: string;
   /** Body builder. Should include `id` field if the backend respects it. */
-  body: () => Record<string, unknown>;
+  body?: () => Record<string, unknown>;
+  /** Created by the protected debug/e2e canonical seed route because the production API owns IDs. */
+  serverSeeded?: boolean;
   /** Optional: dependencies that must be seeded first. */
   dependsOn?: SeedKey[];
 }
@@ -92,35 +94,8 @@ const SEED_DEFS: Partial<Record<SeedKey, SeedDef>> = {
   },
   lab_order: {
     checkPath: "/api/lab/orders/{id}",
-    createPath: "/api/lab/orders",
-    body: () => ({
-      id: SEED.lab_order,
-      patient_id: SEED.patient,
-      encounter_id: SEED.encounter,
-      test_ids: [],
-    }),
+    serverSeeded: true,
     dependsOn: ["patient", "encounter"],
-  },
-  pharmacy_order: {
-    checkPath: "/api/pharmacy/orders/{id}",
-    createPath: "/api/pharmacy/orders",
-    body: () => ({
-      id: SEED.pharmacy_order,
-      patient_id: SEED.patient,
-      encounter_id: SEED.encounter,
-      items: [],
-    }),
-    dependsOn: ["patient", "encounter"],
-  },
-  invoice: {
-    checkPath: "/api/billing/invoices/{id}",
-    createPath: "/api/billing/invoices",
-    body: () => ({
-      id: SEED.invoice,
-      patient_id: SEED.patient,
-      items: [],
-    }),
-    dependsOn: ["patient"],
   },
   admission: {
     checkPath: "/api/ipd/admissions/{id}",
@@ -134,16 +109,15 @@ const SEED_DEFS: Partial<Record<SeedKey, SeedDef>> = {
     }),
     dependsOn: ["patient", "doctor", "department"],
   },
-  emergency_case: {
-    checkPath: "/api/emergency/cases/{id}",
-    createPath: "/api/emergency/cases",
-    body: () => ({
-      id: SEED.emergency_case,
-      patient_id: SEED.patient,
-      chief_complaint: "Smoke seed",
-      triage_level: "green",
-    }),
-    dependsOn: ["patient"],
+  invoice: {
+    checkPath: "/api/billing/invoices/{id}",
+    serverSeeded: true,
+    dependsOn: ["patient", "encounter"],
+  },
+  pharmacy_order: {
+    checkPath: "/api/pharmacy/orders/{id}",
+    serverSeeded: true,
+    dependsOn: ["patient", "encounter"],
   },
 };
 
@@ -155,17 +129,18 @@ const SEED_ORDER: SeedKey[] = [
   "appointment",
   // Diagnostics + Rx
   "lab_order",
-  "pharmacy_order",
-  // Billing
-  "invoice",
   // IPD/Emergency
   "admission",
-  "emergency_case",
+  // Billing
+  "invoice",
+  // Pharmacy
+  "pharmacy_order",
 ];
 
 interface SeedRunOpts {
   baseUrl: string;
   csrfToken: string;
+  cookieHeader: string;
   request: APIRequestContext;
   /** When true, log progress per entity. Off by default to keep CI tidy. */
   verbose?: boolean;
@@ -173,6 +148,7 @@ interface SeedRunOpts {
 
 export async function seedAllFixtures(opts: SeedRunOpts): Promise<SeedResult> {
   const result: SeedResult = { created: [], reused: [], failed: [] };
+  await seedServerCanonicalFixtures(opts);
 
   for (const key of SEED_ORDER) {
     const def = SEED_DEFS[key];
@@ -181,7 +157,7 @@ export async function seedAllFixtures(opts: SeedRunOpts): Promise<SeedResult> {
     try {
       const checkUrl = `${opts.baseUrl}${def.checkPath.replace("{id}", SEED[key])}`;
       const checkResp = await opts.request.fetch(checkUrl, {
-        headers: { "x-csrf-token": opts.csrfToken },
+        headers: authHeaders(opts),
       });
       if (checkResp.status() === 200) {
         result.reused.push(key);
@@ -189,10 +165,18 @@ export async function seedAllFixtures(opts: SeedRunOpts): Promise<SeedResult> {
         continue;
       }
 
+      if (!def.createPath || !def.body) {
+        result.failed.push({
+          key,
+          reason: `server canonical seed did not create ${def.checkPath}: GET ${checkResp.status()}`,
+        });
+        continue;
+      }
+
       const createResp = await opts.request.fetch(`${opts.baseUrl}${def.createPath}`, {
         method: "POST",
         headers: {
-          "x-csrf-token": opts.csrfToken,
+          ...authHeaders(opts),
           "content-type": "application/json",
         },
         data: JSON.stringify(def.body()),
@@ -214,4 +198,20 @@ export async function seedAllFixtures(opts: SeedRunOpts): Promise<SeedResult> {
   }
 
   return result;
+}
+
+async function seedServerCanonicalFixtures(opts: SeedRunOpts): Promise<void> {
+  await opts.request
+    .fetch(`${opts.baseUrl}/api/debug/e2e/canonical-fixtures`, {
+      method: "POST",
+      headers: authHeaders(opts),
+    })
+    .catch(() => {});
+}
+
+function authHeaders(opts: SeedRunOpts): Record<string, string> {
+  return {
+    cookie: opts.cookieHeader,
+    "x-csrf-token": opts.csrfToken,
+  };
 }

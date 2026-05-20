@@ -30,6 +30,7 @@ export interface ModuleHomeProps {
   eyebrow: string;
   title: string;
   description?: string;
+  tags?: ReadonlyArray<string>;
   trailing?: ReactNode;
   loading?: boolean;
   summaries?: ReadonlyArray<ModuleSummaryTile>;
@@ -42,6 +43,7 @@ export function ModuleHome(props: ModuleHomeProps): ReactNode {
     eyebrow,
     title,
     description,
+    tags = [],
     trailing,
     loading = false,
     summaries = [],
@@ -75,6 +77,15 @@ export function ModuleHome(props: ModuleHomeProps): ReactNode {
               <Text variant="bodyMedium" style={{ color: COLORS.ink, opacity: 0.75, marginTop: 4 }}>
                 {description}
               </Text>
+            )}
+            {tags.length > 0 && (
+              <View
+                style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: SPACING.sm }}
+              >
+                {tags.map((tag) => (
+                  <Badge key={tag} label={tag} tone="info" />
+                ))}
+              </View>
             )}
           </View>
           {trailing}

@@ -1,4 +1,3 @@
-import { api } from "@medbrains/api";
 import { useAuthStore } from "@medbrains/stores";
 import type { LabHomeCollection } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
@@ -17,6 +16,7 @@ import {
   useTheme,
 } from "react-native-paper";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { phlebotomyService } from "../../services/phlebotomy.service";
 
 type FilterType = "pending" | "collected" | "all";
 
@@ -63,7 +63,7 @@ export function CollectionListScreen({ navigation }: CollectionListScreenProps) 
       if (filter !== "all") {
         params.status = filter === "pending" ? "assigned" : "collected";
       }
-      return api.listHomeCollections(params);
+      return phlebotomyService.listHomeCollections(params);
     },
     enabled: Boolean(user?.id),
     refetchInterval: 30000,

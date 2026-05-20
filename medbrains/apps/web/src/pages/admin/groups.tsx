@@ -6,6 +6,7 @@
  * — Watch consumer reconciles eventually if SpiceDB was briefly down).
  */
 
+import { zodResolver } from "@hookform/resolvers/zod";
 import {
   ActionIcon,
   Badge,
@@ -23,14 +24,25 @@ import {
   Tooltip,
 } from "@mantine/core";
 import { DateTimePicker } from "@mantine/dates";
+import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
+import type { AccessGroupFormInput, AccessGroupMemberFormInput } from "@medbrains/schemas";
+import { accessGroupFormSchema, accessGroupMemberFormSchema } from "@medbrains/schemas";
 import { IconPencil, IconPlus, IconTrash, IconUsers } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { Controller, useForm } from "react-hook-form";
 
 import { PageHeader } from "../../components";
+import {
+  accessGroupFormToRequest,
+  accessGroupMemberFormToRequest,
+  accessGroupRowToFormValues,
+  defaultAccessGroupFormValues,
+  defaultAccessGroupMemberFormValues,
+} from "../../forms/admin-groups.form";
 import { useRequirePermission } from "../../hooks/useRequirePermission";
+import { adminAccessService } from "../../services/adminAccess.service";
 
 interface GroupRow {
   id: string;
@@ -45,16 +57,16 @@ export default function GroupsPage() {
 
   const qc = useQueryClient();
   const [editTarget, setEditTarget] = useState<GroupRow | null>(null);
-  const [createOpen, setCreateOpen] = useState(false);
+  const [createOpened, { open: openCreate, close: closeCreate }] = useDisclosure(false);
   const [memberDrawerGroup, setMemberDrawerGroup] = useState<GroupRow | null>(null);
 
   const groupsQuery = useQuery({
     queryKey: ["access-groups"],
-    queryFn: () => api.listAccessGroups(),
+    queryFn: () => adminAccessService.listAccessGroups(),
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => api.deleteAccessGroup(id),
+    mutationFn: (id: string) => adminAccessService.deleteAccessGroup(id),
     onSuccess: () => {
       notifications.show({ message: "Group deactivated", color: "green" });
       qc.invalidateQueries({ queryKey: ["access-groups"] });
@@ -68,7 +80,7 @@ export default function GroupsPage() {
         title="Access Groups"
         subtitle="Care teams, on-call rotations, and privilege escalations. Membership feeds SpiceDB tuples for resource scoping."
         actions={
-          <Button leftSection={<IconPlus size={16} />} onClick={() => setCreateOpen(true)}>
+          <Button leftSection={<IconPlus size={16} />} onClick={openCreate}>
             New group
           </Button>
         }
@@ -132,15 +144,20 @@ export default function GroupsPage() {
       </Table>
 
       <GroupFormModal
-        opened={createOpen || editTarget !== null}
+        key={editTarget?.id ?? (createOpened ? "create" : "closed")}
+        opened={createOpened || editTarget !== null}
         onClose={() => {
-          setCreateOpen(false);
+          closeCreate();
           setEditTarget(null);
         }}
         target={editTarget}
       />
 
-      <GroupMembersDrawer group={memberDrawerGroup} onClose={() => setMemberDrawerGroup(null)} />
+      <GroupMembersDrawer
+        key={memberDrawerGroup?.id ?? "members-closed"}
+        group={memberDrawerGroup}
+        onClose={() => setMemberDrawerGroup(null)}
+      />
     </Stack>
   );
 }
@@ -158,28 +175,15 @@ function GroupFormModal({
 }) {
   const qc = useQueryClient();
   const isEdit = target !== null;
-  const [code, setCode] = useState(target?.code ?? "");
-  const [name, setName] = useState(target?.name ?? "");
-  const [description, setDescription] = useState(target?.description ?? "");
-
-  const reset = () => {
-    setCode(target?.code ?? "");
-    setName(target?.name ?? "");
-    setDescription(target?.description ?? "");
-  };
-
-  // Sync state when target changes (e.g. opening edit on a different row)
-  if (target && target.code !== code && code === "") {
-    reset();
-  }
+  const form = useForm<AccessGroupFormInput>({
+    resolver: zodResolver(accessGroupFormSchema),
+    defaultValues: target ? accessGroupRowToFormValues(target) : defaultAccessGroupFormValues,
+    mode: "onTouched",
+  });
 
   const createMutation = useMutation({
-    mutationFn: () =>
-      api.createAccessGroup({
-        code: code.trim(),
-        name: name.trim(),
-        description: description.trim() || undefined,
-      }),
+    mutationFn: (values: AccessGroupFormInput) =>
+      adminAccessService.createAccessGroup(accessGroupFormToRequest(values)),
     onSuccess: () => {
       notifications.show({ message: "Group created", color: "green" });
       qc.invalidateQueries({ queryKey: ["access-groups"] });
@@ -189,13 +193,9 @@ function GroupFormModal({
   });
 
   const updateMutation = useMutation({
-    mutationFn: () => {
+    mutationFn: (values: AccessGroupFormInput) => {
       if (!target) throw new Error("No access group selected");
-      return api.updateAccessGroup(target.id, {
-        code: code.trim(),
-        name: name.trim(),
-        description: description.trim() || undefined,
-      });
+      return adminAccessService.updateAccessGroup(target.id, accessGroupFormToRequest(values));
     },
     onSuccess: () => {
       notifications.show({ message: "Group updated", color: "green" });
@@ -212,25 +212,31 @@ function GroupFormModal({
       title={<Title order={4}>{isEdit ? "Edit access group" : "New access group"}</Title>}
       size="md"
     >
-      <Stack gap="sm">
+      <Stack
+        component="form"
+        gap="sm"
+        onSubmit={form.handleSubmit((values) =>
+          isEdit ? updateMutation.mutate(values) : createMutation.mutate(values),
+        )}
+      >
         <TextInput
           label="Code"
           description="Stable identifier — used in role policies + SpiceDB. e.g. lab_seniors, code_blue_team"
-          value={code}
-          onChange={(e) => setCode(e.currentTarget.value)}
+          {...form.register("code")}
+          error={form.formState.errors.code?.message}
           disabled={isEdit}
           required
         />
         <TextInput
           label="Display name"
-          value={name}
-          onChange={(e) => setName(e.currentTarget.value)}
+          {...form.register("name")}
+          error={form.formState.errors.name?.message}
           required
         />
         <Textarea
           label="Description"
-          value={description ?? ""}
-          onChange={(e) => setDescription(e.currentTarget.value)}
+          {...form.register("description")}
+          error={form.formState.errors.description?.message}
           autosize
           minRows={2}
         />
@@ -239,9 +245,9 @@ function GroupFormModal({
             Cancel
           </Button>
           <Button
-            onClick={() => (isEdit ? updateMutation.mutate() : createMutation.mutate())}
+            type="submit"
             loading={createMutation.isPending || updateMutation.isPending}
-            disabled={!code.trim() || !name.trim()}
+            disabled={!form.formState.isValid}
           >
             {isEdit ? "Save" : "Create"}
           </Button>
@@ -255,35 +261,36 @@ function GroupFormModal({
 
 function GroupMembersDrawer({ group, onClose }: { group: GroupRow | null; onClose: () => void }) {
   const qc = useQueryClient();
-  const [userId, setUserId] = useState<string | null>(null);
-  const [expiresAt, setExpiresAt] = useState<Date | null>(null);
+  const form = useForm<AccessGroupMemberFormInput>({
+    resolver: zodResolver(accessGroupMemberFormSchema),
+    defaultValues: defaultAccessGroupMemberFormValues,
+    mode: "onTouched",
+  });
 
   const usersQuery = useQuery({
     queryKey: ["setup-users"],
-    queryFn: () => api.listSetupUsers(),
+    queryFn: () => adminAccessService.listUsers(),
     enabled: !!group,
   });
 
   const membersQuery = useQuery({
     queryKey: ["access-group-members", group?.id],
-    queryFn: () => api.listAccessGroupMembers(group?.id ?? ""),
+    queryFn: () => adminAccessService.listAccessGroupMembers(group?.id ?? ""),
     enabled: !!group,
   });
 
   const addMutation = useMutation({
-    mutationFn: () => {
+    mutationFn: (values: AccessGroupMemberFormInput) => {
       if (!group) throw new Error("No access group selected");
-      if (!userId) throw new Error("No user selected");
-      return api.addAccessGroupMember(group.id, {
-        user_id: userId,
-        expires_at: expiresAt ? expiresAt.toISOString() : null,
-      });
+      return adminAccessService.addAccessGroupMember(
+        group.id,
+        accessGroupMemberFormToRequest(values),
+      );
     },
     onSuccess: () => {
       notifications.show({ message: "Member added", color: "green" });
       qc.invalidateQueries({ queryKey: ["access-group-members", group?.id] });
-      setUserId(null);
-      setExpiresAt(null);
+      form.reset(defaultAccessGroupMemberFormValues);
     },
     onError: (e: Error) => notifications.show({ message: e.message, color: "red" }),
   });
@@ -291,7 +298,7 @@ function GroupMembersDrawer({ group, onClose }: { group: GroupRow | null; onClos
   const removeMutation = useMutation({
     mutationFn: (uid: string) => {
       if (!group) throw new Error("No access group selected");
-      return api.removeAccessGroupMember(group.id, uid);
+      return adminAccessService.removeAccessGroupMember(group.id, uid);
     },
     onSuccess: () => {
       notifications.show({ message: "Member removed", color: "green" });
@@ -303,7 +310,10 @@ function GroupMembersDrawer({ group, onClose }: { group: GroupRow | null; onClos
   return (
     <Drawer
       opened={group !== null}
-      onClose={onClose}
+      onClose={() => {
+        form.reset(defaultAccessGroupMemberFormValues);
+        onClose();
+      }}
       position="right"
       size="lg"
       title={<Title order={4}>{group?.name} — members</Title>}
@@ -311,33 +321,53 @@ function GroupMembersDrawer({ group, onClose }: { group: GroupRow | null; onClos
       <Stack gap="md">
         <Stack gap="sm">
           <Title order={5}>Add member</Title>
-          <Select
-            label="User"
-            data={(usersQuery.data ?? []).map((u) => ({
-              value: u.id,
-              label: `${u.full_name} (${u.username}, ${u.role})`,
-            }))}
-            value={userId}
-            onChange={setUserId}
-            searchable
-            clearable
-          />
-          <DateTimePicker
-            label="Expires at (optional)"
-            description="Leave blank for permanent membership."
-            value={expiresAt}
-            onChange={(v) => setExpiresAt(v ? new Date(v) : null)}
-            clearable
-          />
-          <Group justify="flex-end">
-            <Button
-              onClick={() => addMutation.mutate()}
-              loading={addMutation.isPending}
-              disabled={!userId}
-            >
-              Add
-            </Button>
-          </Group>
+          <Stack
+            component="form"
+            gap="sm"
+            onSubmit={form.handleSubmit((values) => addMutation.mutate(values))}
+          >
+            <Controller
+              control={form.control}
+              name="user_id"
+              render={({ field, fieldState }) => (
+                <Select
+                  label="User"
+                  data={(usersQuery.data ?? []).map((u) => ({
+                    value: u.id,
+                    label: `${u.full_name} (${u.username}, ${u.role})`,
+                  }))}
+                  value={field.value || null}
+                  onChange={(value) => field.onChange(value ?? "")}
+                  error={fieldState.error?.message}
+                  searchable
+                  clearable
+                />
+              )}
+            />
+            <Controller
+              control={form.control}
+              name="expires_at"
+              render={({ field, fieldState }) => (
+                <DateTimePicker
+                  label="Expires at (optional)"
+                  description="Leave blank for permanent membership."
+                  value={field.value}
+                  onChange={(value) => field.onChange(value ? new Date(value) : null)}
+                  error={fieldState.error?.message}
+                  clearable
+                />
+              )}
+            />
+            <Group justify="flex-end">
+              <Button
+                type="submit"
+                loading={addMutation.isPending}
+                disabled={!form.formState.isValid}
+              >
+                Add
+              </Button>
+            </Group>
+          </Stack>
         </Stack>
 
         <Stack gap="sm">

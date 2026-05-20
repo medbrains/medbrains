@@ -20,7 +20,6 @@ import {
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
 import { useHasPermission } from "@medbrains/stores";
 import type {
   AttendanceRecord,
@@ -54,6 +53,7 @@ import { useState } from "react";
 import { DataTable, PageHeader } from "../components";
 import { EmployeeSearchSelect } from "../components/EmployeeSearchSelect";
 import { useRequirePermission } from "../hooks/useRequirePermission";
+import { hrService } from "../services/hr.service";
 
 // ── Status colors ────────────────────────────────────────────
 
@@ -181,14 +181,14 @@ function EmployeesTab({
   // ── Designations ──
   const { data: designations = [] } = useQuery({
     queryKey: ["hr-designations"],
-    queryFn: api.listDesignations,
+    queryFn: hrService.listDesignations,
   });
   const [desigOpen, { open: openDesig, close: closeDesig }] = useDisclosure(false);
 
   const { data: employees = [], isLoading } = useQuery({
     queryKey: ["hr-employees", search, statusFilter],
     queryFn: () =>
-      api.listEmployees({ search: search || undefined, status: statusFilter || undefined }),
+      hrService.listEmployees({ search: search || undefined, status: statusFilter || undefined }),
   });
 
   // ── Create employee form state ──
@@ -206,7 +206,7 @@ function EmployeesTab({
 
   const createMut = useMutation({
     mutationFn: () =>
-      api.createEmployee({
+      hrService.createEmployee({
         employee_code: form.employee_code,
         first_name: form.first_name,
         last_name: form.last_name || undefined,
@@ -250,7 +250,7 @@ function EmployeesTab({
   });
   const desigMut = useMutation({
     mutationFn: () =>
-      api.createDesignation({
+      hrService.createDesignation({
         code: desigForm.code,
         name: desigForm.name,
         level: desigForm.level,
@@ -533,17 +533,17 @@ function EmployeeDetailDrawer({
 
   const { data: employee } = useQuery({
     queryKey: ["hr-employee", employeeId],
-    queryFn: () => api.getEmployee(employeeId),
+    queryFn: () => hrService.getEmployee(employeeId),
     enabled: opened,
   });
   const { data: credentials = [] } = useQuery({
     queryKey: ["hr-credentials", employeeId],
-    queryFn: () => api.listCredentials(employeeId),
+    queryFn: () => hrService.listCredentials(employeeId),
     enabled: opened,
   });
   const { data: leaveBalances = [] } = useQuery({
     queryKey: ["hr-leave-balances", employeeId],
-    queryFn: () => api.listLeaveBalances(employeeId),
+    queryFn: () => hrService.listLeaveBalances(employeeId),
     enabled: opened,
   });
 
@@ -558,7 +558,7 @@ function EmployeeDetailDrawer({
   });
   const credMut = useMutation({
     mutationFn: () =>
-      api.createCredential(employeeId, {
+      hrService.createCredential(employeeId, {
         credential_type: credForm.credential_type,
         issuing_body: credForm.issuing_body,
         registration_no: credForm.registration_no,
@@ -845,7 +845,7 @@ function AttendanceTab({ canManage }: { canManage: boolean }) {
   const { data: records = [], isLoading } = useQuery({
     queryKey: ["hr-attendance", dateFrom, dateTo],
     queryFn: () =>
-      api.listAttendance({ date_from: dateFrom || undefined, date_to: dateTo || undefined }),
+      hrService.listAttendance({ date_from: dateFrom || undefined, date_to: dateTo || undefined }),
   });
 
   const [form, setForm] = useState({
@@ -858,7 +858,7 @@ function AttendanceTab({ canManage }: { canManage: boolean }) {
   });
   const createMut = useMutation({
     mutationFn: () =>
-      api.createAttendance({
+      hrService.createAttendance({
         employee_id: form.employee_id,
         attendance_date: form.attendance_date,
         check_in: form.check_in || undefined,
@@ -1076,7 +1076,7 @@ function LeaveTab({ canCreate, canApprove }: { canCreate: boolean; canApprove: b
 
   const { data: requests = [], isLoading } = useQuery({
     queryKey: ["hr-leaves", statusFilter],
-    queryFn: () => api.listLeaveRequests({ status: statusFilter || undefined }),
+    queryFn: () => hrService.listLeaveRequests({ status: statusFilter || undefined }),
   });
 
   const [form, setForm] = useState({
@@ -1090,7 +1090,7 @@ function LeaveTab({ canCreate, canApprove }: { canCreate: boolean; canApprove: b
   });
   const createMut = useMutation({
     mutationFn: () =>
-      api.createLeaveRequest({
+      hrService.createLeaveRequest({
         employee_id: form.employee_id,
         leave_type: form.leave_type,
         start_date: form.start_date,
@@ -1122,7 +1122,8 @@ function LeaveTab({ canCreate, canApprove }: { canCreate: boolean; canApprove: b
   });
 
   const actionMut = useMutation({
-    mutationFn: ({ id, action }: { id: string; action: string }) => api.leaveAction(id, { action }),
+    mutationFn: ({ id, action }: { id: string; action: string }) =>
+      hrService.leaveAction(id, { action }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["hr-leaves"] });
       notifications.show({
@@ -1134,7 +1135,7 @@ function LeaveTab({ canCreate, canApprove }: { canCreate: boolean; canApprove: b
   });
 
   const cancelMut = useMutation({
-    mutationFn: (id: string) => api.cancelLeave(id),
+    mutationFn: (id: string) => hrService.cancelLeave(id),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["hr-leaves"] });
       notifications.show({
@@ -1367,15 +1368,18 @@ function RosterTab({
   const [onCallOpen, { open: openOnCall, close: closeOnCall }] = useDisclosure(false);
   const [subTab, setSubTab] = useState<string | null>("roster");
 
-  const { data: shifts = [] } = useQuery({ queryKey: ["hr-shifts"], queryFn: api.listShifts });
+  const { data: shifts = [] } = useQuery({
+    queryKey: ["hr-shifts"],
+    queryFn: hrService.listShifts,
+  });
   const { data: rosters = [], isLoading: rostersLoading } = useQuery({
     queryKey: ["hr-rosters", dateFrom, dateTo],
     queryFn: () =>
-      api.listRosters({ date_from: dateFrom || undefined, date_to: dateTo || undefined }),
+      hrService.listRosters({ date_from: dateFrom || undefined, date_to: dateTo || undefined }),
   });
   const { data: onCallList = [], isLoading: onCallLoading } = useQuery({
     queryKey: ["hr-on-call"],
-    queryFn: () => api.listOnCall({}),
+    queryFn: () => hrService.listOnCall({}),
   });
 
   // ── Shift management ──
@@ -1391,7 +1395,7 @@ function RosterTab({
   });
   const shiftMut = useMutation({
     mutationFn: () =>
-      api.createShift({
+      hrService.createShift({
         code: shiftForm.code,
         name: shiftForm.name,
         shift_type: shiftForm.shift_type,
@@ -1420,7 +1424,7 @@ function RosterTab({
   });
   const rosterMut = useMutation({
     mutationFn: () =>
-      api.createRoster({
+      hrService.createRoster({
         employee_id: rosterForm.employee_id,
         shift_id: rosterForm.shift_id,
         roster_date: rosterForm.roster_date,
@@ -1455,7 +1459,7 @@ function RosterTab({
   });
   const onCallMut = useMutation({
     mutationFn: () =>
-      api.createOnCall({
+      hrService.createOnCall({
         employee_id: onCallForm.employee_id,
         schedule_date: onCallForm.schedule_date,
         start_time: onCallForm.start_time,
@@ -1489,7 +1493,7 @@ function RosterTab({
   });
 
   const swapMut = useMutation({
-    mutationFn: (id: string) => api.approveSwap(id),
+    mutationFn: (id: string) => hrService.approveSwap(id),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["hr-rosters"] });
       notifications.show({
@@ -1945,12 +1949,12 @@ function TrainingTab({ canManage }: { canManage: boolean }) {
 
   const { data: programs = [], isLoading } = useQuery({
     queryKey: ["hr-training-programs"],
-    queryFn: api.listTrainingPrograms,
+    queryFn: hrService.listTrainingPrograms,
   });
 
   const { data: complianceRows = [], isLoading: complianceLoading } = useQuery({
     queryKey: ["hr-training-compliance"],
-    queryFn: () => api.trainingCompliance(),
+    queryFn: () => hrService.trainingCompliance(),
     enabled: subView === "compliance",
   });
 
@@ -1965,7 +1969,7 @@ function TrainingTab({ canManage }: { canManage: boolean }) {
   });
   const progMut = useMutation({
     mutationFn: () =>
-      api.createTrainingProgram({
+      hrService.createTrainingProgram({
         code: progForm.code,
         name: progForm.name,
         description: progForm.description || undefined,
@@ -2004,7 +2008,7 @@ function TrainingTab({ canManage }: { canManage: boolean }) {
   });
   const recMut = useMutation({
     mutationFn: () =>
-      api.createTrainingRecord({
+      hrService.createTrainingRecord({
         employee_id: recForm.employee_id,
         program_id: recForm.program_id,
         training_date: recForm.training_date,
@@ -2388,7 +2392,7 @@ function ComplianceTab({
   // For credentials we reuse the employees query and show a summary view
   const { data: employees = [] } = useQuery({
     queryKey: ["hr-employees"],
-    queryFn: () => api.listEmployees({}),
+    queryFn: () => hrService.listEmployees({}),
   });
 
   // ── Appraisal form ──
@@ -2401,7 +2405,7 @@ function ComplianceTab({
   });
   const apprMut = useMutation({
     mutationFn: () =>
-      api.createAppraisal({
+      hrService.createAppraisal({
         employee_id: apprForm.employee_id,
         appraisal_year: apprForm.appraisal_year,
         rating: apprForm.rating,
@@ -2435,7 +2439,7 @@ function ComplianceTab({
   });
   const statMut = useMutation({
     mutationFn: () =>
-      api.createStatutoryRecord({
+      hrService.createStatutoryRecord({
         employee_id: statForm.employee_id,
         record_type: statForm.record_type,
         title: statForm.title,

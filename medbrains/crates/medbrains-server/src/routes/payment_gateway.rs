@@ -54,9 +54,9 @@ async fn get_razorpay_config(
 
     // Fall back to env vars
     let key_id = std::env::var("RAZORPAY_KEY_ID")
-        .map_err(|_| AppError::Internal("RAZORPAY_KEY_ID not configured".to_owned()))?;
+        .map_err(|_| AppError::BadRequest("RAZORPAY_KEY_ID not configured".to_owned()))?;
     let key_secret = std::env::var("RAZORPAY_KEY_SECRET")
-        .map_err(|_| AppError::Internal("RAZORPAY_KEY_SECRET not configured".to_owned()))?;
+        .map_err(|_| AppError::BadRequest("RAZORPAY_KEY_SECRET not configured".to_owned()))?;
     let webhook_secret = std::env::var("RAZORPAY_WEBHOOK_SECRET").ok();
 
     Ok(RazorpayConfig {

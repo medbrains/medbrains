@@ -1,7 +1,7 @@
-import { api } from "@medbrains/api";
 import { useQuery } from "@tanstack/react-query";
 import { ScrollView, StyleSheet, View } from "react-native";
 import { ActivityIndicator, Banner, Card, Chip, Text, useTheme } from "react-native-paper";
+import { appService } from "../services/app.service";
 
 function StatusChip({ label, status }: { label: string; status: string }) {
   const isConnected = status === "connected" || status === "ok";
@@ -25,7 +25,7 @@ export function HomeScreen() {
   const theme = useTheme();
   const { data, isLoading, error } = useQuery({
     queryKey: ["health"],
-    queryFn: api.health,
+    queryFn: appService.health,
     refetchInterval: 10_000,
   });
 

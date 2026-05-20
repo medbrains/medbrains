@@ -1,12 +1,12 @@
 import { ActionIcon, Badge, Button, Group, Loader, Modal, Stack, Text } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
 import { useHasPermission } from "@medbrains/stores";
 import type { DocumentOutput } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import { IconBan, IconDownload, IconPrinter, IconSignature } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef } from "react";
+import { documentPreviewService } from "../../services/documentPreview.service";
 
 interface DocumentPreviewModalProps {
   opened: boolean;
@@ -46,14 +46,14 @@ export function DocumentPreviewModal({
   // Fetch existing document output
   const { data: existingDoc } = useQuery({
     queryKey: ["document-output", documentOutputId],
-    queryFn: () => api.getDocumentOutput(documentOutputId as string),
+    queryFn: () => documentPreviewService.getDocumentOutput(documentOutputId as string),
     enabled: !!documentOutputId && opened,
   });
 
   // Generate new document on demand
   const generateMutation = useMutation({
     mutationFn: () =>
-      api.generateDocument({
+      documentPreviewService.generateDocument({
         template_code: templateCode as string,
         title: title ?? "Document",
         module_code: moduleCode,
@@ -83,7 +83,7 @@ export function DocumentPreviewModal({
 
   // Record print action
   const printMutation = useMutation({
-    mutationFn: (id: string) => api.recordDocumentPrint(id),
+    mutationFn: (id: string) => documentPreviewService.recordDocumentPrint(id),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["document-outputs"] });
       void queryClient.invalidateQueries({ queryKey: ["document-output"] });
@@ -111,7 +111,8 @@ export function DocumentPreviewModal({
   };
 
   const voidMutation = useMutation({
-    mutationFn: (id: string) => api.voidDocumentOutput(id, { reason: "Voided by user" }),
+    mutationFn: (id: string) =>
+      documentPreviewService.voidDocumentOutput(id, { reason: "Voided by user" }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["document-outputs"] });
       notifications.show({

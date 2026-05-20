@@ -16,7 +16,6 @@ import {
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
 import { useHasPermission } from "@medbrains/stores";
 import type {
   CreateDocumentTemplateRequest,
@@ -47,6 +46,7 @@ import { useState } from "react";
 import { DataTable, PageHeader } from "../components";
 import { DocumentPreviewModal } from "../components/DocumentPreview/DocumentPreviewModal";
 import { useRequirePermission } from "../hooks/useRequirePermission";
+import { documentsService } from "../services/documents.service";
 
 // ── Constants ────────────────────────────────────────────
 
@@ -160,11 +160,13 @@ function TemplatesTab() {
 
   const { data: templates = [], isLoading } = useQuery({
     queryKey: ["document-templates", filterCategory],
-    queryFn: () => api.listDocumentTemplates({ category: filterCategory ?? undefined }),
+    queryFn: () =>
+      documentsService.listDocumentTemplates({ category: filterCategory ?? undefined }),
   });
 
   const createMutation = useMutation({
-    mutationFn: (data: CreateDocumentTemplateRequest) => api.createDocumentTemplate(data),
+    mutationFn: (data: CreateDocumentTemplateRequest) =>
+      documentsService.createDocumentTemplate(data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["document-templates"] });
       notifications.show({
@@ -182,7 +184,7 @@ function TemplatesTab() {
 
   const updateMutation = useMutation({
     mutationFn: ({ id, data }: { id: string; data: UpdateDocumentTemplateRequest }) =>
-      api.updateDocumentTemplate(id, data),
+      documentsService.updateDocumentTemplate(id, data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["document-templates"] });
       notifications.show({
@@ -199,7 +201,7 @@ function TemplatesTab() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => api.deleteDocumentTemplate(id),
+    mutationFn: (id: string) => documentsService.deleteDocumentTemplate(id),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["document-templates"] });
       notifications.show({
@@ -211,7 +213,7 @@ function TemplatesTab() {
   });
 
   const setDefaultMutation = useMutation({
-    mutationFn: (id: string) => api.setDefaultTemplate(id),
+    mutationFn: (id: string) => documentsService.setDefaultTemplate(id),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["document-templates"] });
       notifications.show({
@@ -698,14 +700,15 @@ function OutputsTab() {
   const { data: outputs = [], isLoading } = useQuery({
     queryKey: ["document-outputs", filterCategory, filterStatus],
     queryFn: () =>
-      api.listDocumentOutputs({
+      documentsService.listDocumentOutputs({
         category: filterCategory ?? undefined,
         status: filterStatus ?? undefined,
       }),
   });
 
   const voidMutation = useMutation({
-    mutationFn: (id: string) => api.voidDocumentOutput(id, { reason: "Voided by user" }),
+    mutationFn: (id: string) =>
+      documentsService.voidDocumentOutput(id, { reason: "Voided by user" }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["document-outputs"] });
       notifications.show({
@@ -878,16 +881,16 @@ function ReviewScheduleTab() {
 
   const { data: schedules = [], isLoading } = useQuery({
     queryKey: ["document-review-schedule"],
-    queryFn: () => api.listReviewSchedule(),
+    queryFn: () => documentsService.listReviewSchedule(),
   });
 
   const { data: templates = [] } = useQuery({
     queryKey: ["document-templates-for-select"],
-    queryFn: () => api.listDocumentTemplates(),
+    queryFn: () => documentsService.listDocumentTemplates(),
   });
 
   const createMutation = useMutation({
-    mutationFn: (data: CreateReviewScheduleRequest) => api.createReviewSchedule(data),
+    mutationFn: (data: CreateReviewScheduleRequest) => documentsService.createReviewSchedule(data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["document-review-schedule"] });
       notifications.show({
@@ -903,7 +906,7 @@ function ReviewScheduleTab() {
   });
 
   const markReviewedMutation = useMutation({
-    mutationFn: (id: string) => api.markReviewed(id),
+    mutationFn: (id: string) => documentsService.markReviewed(id),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["document-review-schedule"] });
       notifications.show({

@@ -11,7 +11,6 @@ import {
   Text,
   TextInput,
 } from "@mantine/core";
-import { api } from "@medbrains/api";
 import type { CreateDepartmentInput } from "@medbrains/schemas";
 import { createDepartmentSchema } from "@medbrains/schemas";
 import { useOnboardingStore } from "@medbrains/stores";
@@ -20,6 +19,7 @@ import { IconClock, IconCopy, IconPlus, IconTrash, IconUpload } from "@tabler/ic
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { CsvImportModal } from "../../components";
+import { onboardingService } from "../../services/onboarding.service";
 import classes from "./onboarding.module.scss";
 
 interface Props {
@@ -77,7 +77,9 @@ function formatWorkingHours(wh?: WorkingHours): string | null {
   const activeDays = weekdays.filter((d) => wh[d] != null);
   if (activeDays.length === 0) return null;
 
-  const first = wh[activeDays[0]!];
+  const [firstActiveDay] = activeDays;
+  if (!firstActiveDay) return null;
+  const first = wh[firstActiveDay];
   if (!first) return null;
   const parts: string[] = [];
   if (first.morning) parts.push(`${first.morning.start}-${first.morning.end}`);
@@ -213,7 +215,7 @@ export function DepartmentsStep({ onNext, onBack }: Props) {
         title="Import Departments from CSV"
         requiredColumns={["code", "name"]}
         optionalColumns={["type", "parent_code"]}
-        onImport={api.importDepartments}
+        onImport={onboardingService.importDepartments}
       />
 
       {departments.map((dept: OnboardingDepartment) => {

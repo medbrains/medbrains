@@ -24,7 +24,6 @@ import {
 import { DateInput } from "@mantine/dates";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
 import { useHasPermission } from "@medbrains/stores";
 import type {
   BmeBreakdown,
@@ -66,6 +65,7 @@ import { useMemo, useState } from "react";
 import { DataTable, PageHeader } from "../components";
 import type { Column } from "../components/DataTable";
 import { useRequirePermission } from "../hooks/useRequirePermission";
+import { bmeService } from "../services/bme.service";
 
 // ── Constants ──────────────────────────────────────────
 
@@ -264,11 +264,11 @@ function EquipmentTab() {
 
   const { data = [], isLoading } = useQuery({
     queryKey: ["bme-equipment"],
-    queryFn: () => api.listBmeEquipment(),
+    queryFn: () => bmeService.listBmeEquipment(),
   });
 
   const createMut = useMutation({
-    mutationFn: (body: CreateBmeEquipmentRequest) => api.createBmeEquipment(body),
+    mutationFn: (body: CreateBmeEquipmentRequest) => bmeService.createBmeEquipment(body),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["bme-equipment"] });
       close();
@@ -278,7 +278,7 @@ function EquipmentTab() {
 
   const updateMut = useMutation({
     mutationFn: ({ id, body }: { id: string; body: Record<string, unknown> }) =>
-      api.updateBmeEquipment(id, body),
+      bmeService.updateBmeEquipment(id, body),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["bme-equipment"] });
       close();
@@ -473,22 +473,22 @@ function PmTab() {
 
   const { data: schedules = [], isLoading: loadingPm } = useQuery({
     queryKey: ["bme-pm-schedules"],
-    queryFn: () => api.listBmePmSchedules(),
+    queryFn: () => bmeService.listBmePmSchedules(),
   });
 
   const { data: workOrders = [], isLoading: loadingWo } = useQuery({
     queryKey: ["bme-work-orders"],
-    queryFn: () => api.listBmeWorkOrders(),
+    queryFn: () => bmeService.listBmeWorkOrders(),
   });
 
   const { data: equipment = [] } = useQuery({
     queryKey: ["bme-equipment"],
-    queryFn: () => api.listBmeEquipment(),
+    queryFn: () => bmeService.listBmeEquipment(),
   });
 
   const { data: stats } = useQuery<BmeStatsResponse>({
     queryKey: ["bme-stats"],
-    queryFn: () => api.getBmeStats(),
+    queryFn: () => bmeService.getBmeStats(),
   });
 
   const equipOptions = equipment.map((e) => ({
@@ -497,7 +497,7 @@ function PmTab() {
   }));
 
   const createPmMut = useMutation({
-    mutationFn: (body: CreateBmePmScheduleRequest) => api.createBmePmSchedule(body),
+    mutationFn: (body: CreateBmePmScheduleRequest) => bmeService.createBmePmSchedule(body),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["bme-pm-schedules"] });
       closePm();
@@ -506,7 +506,7 @@ function PmTab() {
   });
 
   const createWoMut = useMutation({
-    mutationFn: (body: CreateBmeWorkOrderRequest) => api.createBmeWorkOrder(body),
+    mutationFn: (body: CreateBmeWorkOrderRequest) => bmeService.createBmeWorkOrder(body),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["bme-work-orders"] });
       closeWo();
@@ -516,7 +516,7 @@ function PmTab() {
 
   const updateWoMut = useMutation({
     mutationFn: ({ id, body }: { id: string; body: UpdateBmeWorkOrderStatusRequest }) =>
-      api.updateBmeWorkOrderStatus(id, body),
+      bmeService.updateBmeWorkOrderStatus(id, body),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["bme-work-orders"] });
       void qc.invalidateQueries({ queryKey: ["bme-pm-schedules"] });
@@ -929,12 +929,12 @@ function CalibrationTab() {
 
   const { data = [], isLoading } = useQuery({
     queryKey: ["bme-calibrations"],
-    queryFn: () => api.listBmeCalibrations(),
+    queryFn: () => bmeService.listBmeCalibrations(),
   });
 
   const { data: equipment = [] } = useQuery({
     queryKey: ["bme-equipment"],
-    queryFn: () => api.listBmeEquipment(),
+    queryFn: () => bmeService.listBmeEquipment(),
   });
   const equipOptions = equipment.map((e) => ({
     value: e.id,
@@ -942,7 +942,7 @@ function CalibrationTab() {
   }));
 
   const createMut = useMutation({
-    mutationFn: (body: CreateBmeCalibrationRequest) => api.createBmeCalibration(body),
+    mutationFn: (body: CreateBmeCalibrationRequest) => bmeService.createBmeCalibration(body),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["bme-calibrations"] });
       close();
@@ -952,12 +952,18 @@ function CalibrationTab() {
 
   const calibrationAlerts = useMemo(() => {
     const items = data
-      .filter((c) => c.next_due_date && daysUntil(c.next_due_date) <= 30)
-      .map((c) => ({
-        ...c,
-        equipName: equipment.find((e) => e.id === c.equipment_id)?.name ?? c.equipment_id,
-        daysLeft: daysUntil(c.next_due_date!),
-      }))
+      .flatMap((c) => {
+        if (!c.next_due_date) return [];
+        const daysLeft = daysUntil(c.next_due_date);
+        if (daysLeft > 30) return [];
+        return [
+          {
+            ...c,
+            equipName: equipment.find((e) => e.id === c.equipment_id)?.name ?? c.equipment_id,
+            daysLeft,
+          },
+        ];
+      })
       .sort((a, b) => a.daysLeft - b.daysLeft);
     return items;
   }, [data, equipment]);
@@ -1180,17 +1186,17 @@ function ContractsTab() {
 
   const { data: contracts = [], isLoading } = useQuery({
     queryKey: ["bme-contracts"],
-    queryFn: () => api.listBmeContracts(),
+    queryFn: () => bmeService.listBmeContracts(),
   });
 
   const { data: evaluations = [], isLoading: loadingEvals } = useQuery({
     queryKey: ["bme-vendor-evaluations"],
-    queryFn: () => api.listBmeVendorEvaluations(),
+    queryFn: () => bmeService.listBmeVendorEvaluations(),
   });
 
   const { data: equipment = [] } = useQuery({
     queryKey: ["bme-equipment"],
-    queryFn: () => api.listBmeEquipment(),
+    queryFn: () => bmeService.listBmeEquipment(),
   });
   const equipOptions = equipment.map((e) => ({
     value: e.id,
@@ -1198,7 +1204,7 @@ function ContractsTab() {
   }));
 
   const createContractMut = useMutation({
-    mutationFn: (body: CreateBmeContractRequest) => api.createBmeContract(body),
+    mutationFn: (body: CreateBmeContractRequest) => bmeService.createBmeContract(body),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["bme-contracts"] });
       closeContract();
@@ -1207,7 +1213,8 @@ function ContractsTab() {
   });
 
   const createEvalMut = useMutation({
-    mutationFn: (body: CreateBmeVendorEvaluationRequest) => api.createBmeVendorEvaluation(body),
+    mutationFn: (body: CreateBmeVendorEvaluationRequest) =>
+      bmeService.createBmeVendorEvaluation(body),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["bme-vendor-evaluations"] });
       closeEval();
@@ -1217,7 +1224,7 @@ function ContractsTab() {
 
   const { data: workOrders = [] } = useQuery({
     queryKey: ["bme-work-orders"],
-    queryFn: () => api.listBmeWorkOrders(),
+    queryFn: () => bmeService.listBmeWorkOrders(),
   });
 
   const contractRenewalAlerts = useMemo(() => {
@@ -1782,12 +1789,12 @@ function BreakdownsTab() {
 
   const { data = [], isLoading } = useQuery({
     queryKey: ["bme-breakdowns"],
-    queryFn: () => api.listBmeBreakdowns(),
+    queryFn: () => bmeService.listBmeBreakdowns(),
   });
 
   const { data: equipment = [] } = useQuery({
     queryKey: ["bme-equipment"],
-    queryFn: () => api.listBmeEquipment(),
+    queryFn: () => bmeService.listBmeEquipment(),
   });
   const equipOptions = equipment.map((e) => ({
     value: e.id,
@@ -1795,7 +1802,7 @@ function BreakdownsTab() {
   }));
 
   const createMut = useMutation({
-    mutationFn: (body: CreateBmeBreakdownRequest) => api.createBmeBreakdown(body),
+    mutationFn: (body: CreateBmeBreakdownRequest) => bmeService.createBmeBreakdown(body),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["bme-breakdowns"] });
       void qc.invalidateQueries({ queryKey: ["bme-stats"] });
@@ -1806,7 +1813,7 @@ function BreakdownsTab() {
 
   const updateMut = useMutation({
     mutationFn: ({ id, body }: { id: string; body: UpdateBmeBreakdownStatusRequest }) =>
-      api.updateBmeBreakdownStatus(id, body),
+      bmeService.updateBmeBreakdownStatus(id, body),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["bme-breakdowns"] });
       void qc.invalidateQueries({ queryKey: ["bme-stats"] });
@@ -1973,12 +1980,12 @@ function AnalyticsTab() {
 
   const { data: mtbfData = [], isLoading: loadingMtbf } = useQuery({
     queryKey: ["bme-mtbf-analytics"],
-    queryFn: () => api.getBmeMtbfAnalytics(),
+    queryFn: () => bmeService.getBmeMtbfAnalytics(),
   });
 
   const { data: uptimeData = [], isLoading: loadingUptime } = useQuery({
     queryKey: ["bme-uptime-analytics"],
-    queryFn: () => api.getBmeUptimeAnalytics(),
+    queryFn: () => bmeService.getBmeUptimeAnalytics(),
   });
 
   const mtbfColumns: Column<BmeMtbfRow>[] = [

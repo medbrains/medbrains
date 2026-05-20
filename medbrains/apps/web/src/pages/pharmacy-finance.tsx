@@ -11,12 +11,12 @@ import {
   Textarea,
   TextInput,
 } from "@mantine/core";
-import { api } from "@medbrains/api";
 import { P } from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { PageHeader } from "../components";
 import { useRequirePermission } from "../hooks/useRequirePermission";
+import { pharmacyFinanceService } from "../services/pharmacyFinance.service";
 
 interface CashDrawerRow {
   id: string;
@@ -108,11 +108,12 @@ function CashDrawerTab() {
 
   const { data: active } = useQuery({
     queryKey: ["cash-drawer", "active"],
-    queryFn: () => api.getMyActiveCashDrawer() as Promise<CashDrawerRow | null>,
+    queryFn: () => pharmacyFinanceService.getMyActiveCashDrawer() as Promise<CashDrawerRow | null>,
   });
   const { data: list } = useQuery({
     queryKey: ["cash-drawers"],
-    queryFn: () => api.listCashDrawers({ limit: 50 }) as Promise<CashDrawerRow[]>,
+    queryFn: () =>
+      pharmacyFinanceService.listCashDrawers({ limit: 50 }) as Promise<CashDrawerRow[]>,
   });
 
   return (
@@ -197,7 +198,7 @@ function OpenDrawerModal({
 
   const open = useMutation({
     mutationFn: () =>
-      api.openCashDrawer({
+      pharmacyFinanceService.openCashDrawer({
         pharmacy_location_id: locationId,
         opening_float: openingFloat,
         notes: notes || undefined,
@@ -260,7 +261,7 @@ function CloseDrawerModal({
   const close = useMutation({
     mutationFn: () => {
       if (!drawer) throw new Error("no drawer");
-      return api.closeCashDrawer(drawer.id, {
+      return pharmacyFinanceService.closeCashDrawer(drawer.id, {
         actual_close_amount: actual,
         variance_reason: reason || undefined,
       });
@@ -308,11 +309,11 @@ function PettyCashTab() {
   const qc = useQueryClient();
   const { data } = useQuery({
     queryKey: ["petty-cash"],
-    queryFn: () => api.listPettyCash({ limit: 100 }) as Promise<PettyCashRow[]>,
+    queryFn: () => pharmacyFinanceService.listPettyCash({ limit: 100 }) as Promise<PettyCashRow[]>,
   });
   const decide = useMutation({
     mutationFn: (vars: { id: string; approved: boolean }) =>
-      api.decidePettyCash(vars.id, { approved: vars.approved }),
+      pharmacyFinanceService.decidePettyCash(vars.id, { approved: vars.approved }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["petty-cash"] }),
   });
 
@@ -368,9 +369,10 @@ function SupplierPaymentsTab() {
   const { data } = useQuery({
     queryKey: ["supplier-payments", overdueOnly],
     queryFn: () =>
-      api.listPharmacySupplierPayments({ overdue_only: overdueOnly, limit: 100 }) as Promise<
-        SupplierPaymentRow[]
-      >,
+      pharmacyFinanceService.listPharmacySupplierPayments({
+        overdue_only: overdueOnly,
+        limit: 100,
+      }) as Promise<SupplierPaymentRow[]>,
   });
 
   return (

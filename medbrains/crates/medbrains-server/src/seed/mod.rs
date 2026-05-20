@@ -30,6 +30,13 @@ use medbrains_core::access::{BUILT_IN_ROLES, DEFAULT_GROUPS};
 use medbrains_core::permissions;
 use sqlx::PgPool;
 
+pub(crate) async fn seed_canonical_fixtures_for_tenant(
+    pool: &PgPool,
+    tenant_id: uuid::Uuid,
+) -> Result<(), Box<dyn std::error::Error>> {
+    canonical_fixtures::seed_canonical_fixtures(pool, tenant_id).await
+}
+
 /// Insert DEFAULT tenant + `super_admin` user + built-in roles + operational
 /// master data if they don't already exist.
 pub async fn run_seed(pool: &PgPool) -> Result<(), Box<dyn std::error::Error>> {

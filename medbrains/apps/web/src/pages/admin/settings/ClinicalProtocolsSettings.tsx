@@ -1,3 +1,4 @@
+import { zodResolver } from "@hookform/resolvers/zod";
 import {
   ActionIcon,
   Badge,
@@ -11,44 +12,39 @@ import {
   Textarea,
   TextInput,
 } from "@mantine/core";
+import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
+import { type ClinicalProtocolFormInput, clinicalProtocolFormSchema } from "@medbrains/schemas";
 import { useHasPermission } from "@medbrains/stores";
-import type { ClinicalProtocol, CreateClinicalProtocolRequest } from "@medbrains/types";
+import type { ClinicalProtocol } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import { IconPlus, IconTrash } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
-
-const CATEGORIES = [
-  { value: "sepsis", label: "Sepsis Bundle" },
-  { value: "dvt_prophylaxis", label: "DVT Prophylaxis" },
-  { value: "diabetes", label: "Diabetes Management" },
-  { value: "hypertension", label: "Hypertension" },
-  { value: "cardiac", label: "Cardiac" },
-  { value: "respiratory", label: "Respiratory" },
-  { value: "renal", label: "Renal" },
-  { value: "infection", label: "Infection Control" },
-  { value: "surgical", label: "Surgical" },
-  { value: "other", label: "Other" },
-];
+import { Controller, useForm } from "react-hook-form";
+import {
+  CLINICAL_PROTOCOL_CATEGORY_OPTIONS,
+  DEFAULT_CLINICAL_PROTOCOL_FORM_VALUES,
+  toCreateClinicalProtocolRequest,
+} from "../../../forms/clinical-settings.form";
+import { clinicalMastersService } from "../../../services/clinicalMasters.service";
 
 export function ClinicalProtocolsSettings() {
   const canManage = useHasPermission(P.ADMIN.SETTINGS.GENERAL.MANAGE);
   const queryClient = useQueryClient();
-  const [opened, setOpened] = useState(false);
-  const [name, setName] = useState("");
-  const [code, setCode] = useState("");
-  const [category, setCategory] = useState<string | null>("other");
-  const [description, setDescription] = useState("");
+  const [opened, { open, close }] = useDisclosure(false);
+  const form = useForm<ClinicalProtocolFormInput>({
+    resolver: zodResolver(clinicalProtocolFormSchema),
+    defaultValues: DEFAULT_CLINICAL_PROTOCOL_FORM_VALUES,
+  });
 
   const { data: protocols = [] } = useQuery({
     queryKey: ["clinical-protocols"],
-    queryFn: () => api.listClinicalProtocols(),
+    queryFn: () => clinicalMastersService.listClinicalProtocols(),
   });
 
   const createMutation = useMutation({
-    mutationFn: (data: CreateClinicalProtocolRequest) => api.createClinicalProtocol(data),
+    mutationFn: (data: ClinicalProtocolFormInput) =>
+      clinicalMastersService.createClinicalProtocol(toCreateClinicalProtocolRequest(data)),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["clinical-protocols"] });
       notifications.show({
@@ -64,7 +60,7 @@ export function ClinicalProtocolsSettings() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => api.deleteClinicalProtocol(id),
+    mutationFn: (id: string) => clinicalMastersService.deleteClinicalProtocol(id),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["clinical-protocols"] });
       notifications.show({ title: "Deleted", message: "Protocol removed", color: "warning" });
@@ -72,21 +68,8 @@ export function ClinicalProtocolsSettings() {
   });
 
   const handleClose = () => {
-    setOpened(false);
-    setName("");
-    setCode("");
-    setCategory("other");
-    setDescription("");
-  };
-
-  const handleCreate = () => {
-    if (!name.trim() || !category) return;
-    createMutation.mutate({
-      name: name.trim(),
-      code: code.trim() || undefined,
-      category,
-      description: description.trim() || undefined,
-    });
+    close();
+    form.reset(DEFAULT_CLINICAL_PROTOCOL_FORM_VALUES);
   };
 
   return (
@@ -94,7 +77,7 @@ export function ClinicalProtocolsSettings() {
       <Group justify="space-between">
         <Text fw={600}>Clinical Protocols ({protocols.length})</Text>
         {canManage && (
-          <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => setOpened(true)}>
+          <Button size="xs" leftSection={<IconPlus size={14} />} onClick={open}>
             Add Protocol
           </Button>
         )}
@@ -161,45 +144,76 @@ export function ClinicalProtocolsSettings() {
       </Table>
 
       <Modal opened={opened} onClose={handleClose} title="Add Clinical Protocol" size="md">
-        <Stack gap="sm">
-          <TextInput
-            label="Protocol Name"
-            placeholder="e.g. Sepsis Bundle 1-Hour"
-            value={name}
-            onChange={(e) => setName(e.currentTarget.value)}
-            required
+        <Stack
+          component="form"
+          gap="sm"
+          onSubmit={form.handleSubmit((values) => createMutation.mutate(values))}
+        >
+          <Controller
+            control={form.control}
+            name="name"
+            render={({ field, fieldState }) => (
+              <TextInput
+                label="Protocol Name"
+                placeholder="e.g. Sepsis Bundle 1-Hour"
+                required
+                error={fieldState.error?.message}
+                {...field}
+              />
+            )}
           />
           <Group grow>
-            <TextInput
-              label="Code"
-              placeholder="Optional identifier"
-              value={code}
-              onChange={(e) => setCode(e.currentTarget.value)}
+            <Controller
+              control={form.control}
+              name="code"
+              render={({ field, fieldState }) => (
+                <TextInput
+                  label="Code"
+                  placeholder="Optional identifier"
+                  error={fieldState.error?.message}
+                  {...field}
+                />
+              )}
             />
-            <Select
-              label="Category"
-              data={CATEGORIES}
-              value={category}
-              onChange={setCategory}
-              required
+            <Controller
+              control={form.control}
+              name="category"
+              render={({ field, fieldState }) => (
+                <Select
+                  label="Category"
+                  data={CLINICAL_PROTOCOL_CATEGORY_OPTIONS}
+                  value={field.value}
+                  onChange={(value) => {
+                    if (value) field.onChange(value);
+                  }}
+                  required
+                  error={fieldState.error?.message}
+                />
+              )}
             />
           </Group>
-          <Textarea
-            label="Description"
-            placeholder="Protocol description"
-            value={description}
-            onChange={(e) => setDescription(e.currentTarget.value)}
-            autosize
-            minRows={3}
+          <Controller
+            control={form.control}
+            name="description"
+            render={({ field, fieldState }) => (
+              <Textarea
+                label="Description"
+                placeholder="Protocol description"
+                autosize
+                minRows={3}
+                error={fieldState.error?.message}
+                {...field}
+              />
+            )}
           />
           <Group justify="flex-end">
             <Button variant="subtle" onClick={handleClose}>
               Cancel
             </Button>
             <Button
-              onClick={handleCreate}
+              type="submit"
               loading={createMutation.isPending}
-              disabled={!name.trim() || !category}
+              disabled={createMutation.isPending}
             >
               Create
             </Button>

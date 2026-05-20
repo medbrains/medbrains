@@ -1,7 +1,9 @@
-import { api } from "@medbrains/api";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { type MobileVitalsEntryFormInput, mobileVitalsEntryFormSchema } from "@medbrains/schemas";
 import type { Vital } from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { Controller, useForm } from "react-hook-form";
 import { ScrollView, StyleSheet, View } from "react-native";
 import {
   ActivityIndicator,
@@ -17,6 +19,7 @@ import {
 } from "react-native-paper";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { VITAL_CONFIGS, VitalInput } from "../../components";
+import { clinicalService } from "../../services/clinical.service";
 
 interface VitalsEntryScreenProps {
   route: {
@@ -30,19 +33,7 @@ interface VitalsEntryScreenProps {
   };
 }
 
-interface VitalFormState {
-  temperature: string;
-  pulse: string;
-  systolic: string;
-  diastolic: string;
-  respiration: string;
-  spo2: string;
-  weight: string;
-  height: string;
-  notes: string;
-}
-
-const initialState: VitalFormState = {
+const initialVitalsEntryFormValues: MobileVitalsEntryFormInput = {
   temperature: "",
   pulse: "",
   systolic: "",
@@ -56,11 +47,16 @@ const initialState: VitalFormState = {
 
 function calculateBMI(weight: string, height: string): string {
   const w = Number.parseFloat(weight);
-  const h = Number.parseFloat(height) / 100; // cm to m
+  const h = Number.parseFloat(height) / 100;
   if (w > 0 && h > 0) {
     return (w / (h * h)).toFixed(1);
   }
   return "";
+}
+
+function toOptionalNumber(value: string): number | undefined {
+  const trimmed = value.trim();
+  return trimmed ? Number(trimmed) : undefined;
 }
 
 export function VitalsEntryScreen({ route, navigation }: VitalsEntryScreenProps) {
@@ -68,34 +64,41 @@ export function VitalsEntryScreen({ route, navigation }: VitalsEntryScreenProps)
   const queryClient = useQueryClient();
   const { encounterId } = route.params;
 
-  const [vitals, setVitals] = useState<VitalFormState>(initialState);
+  const {
+    control,
+    handleSubmit,
+    watch,
+    formState: { errors },
+  } = useForm<MobileVitalsEntryFormInput>({
+    resolver: zodResolver(mobileVitalsEntryFormSchema),
+    defaultValues: initialVitalsEntryFormValues,
+  });
   const [snackbar, setSnackbar] = useState({ visible: false, message: "" });
+  const vitals = watch();
 
   const { data: existingVitals, isLoading } = useQuery({
     queryKey: ["vitals", encounterId],
-    queryFn: () => api.listVitals(encounterId || ""),
+    queryFn: () => clinicalService.listVitals(encounterId || ""),
     enabled: Boolean(encounterId),
   });
 
   const saveMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (values: MobileVitalsEntryFormInput) => {
       if (!encounterId) throw new Error("No encounter ID");
 
-      // CreateVitalRequest has these fields - send all at once
       const data = {
-        temperature: vitals.temperature ? Number.parseFloat(vitals.temperature) : undefined,
-        pulse: vitals.pulse ? Number.parseFloat(vitals.pulse) : undefined,
-        systolic_bp: vitals.systolic ? Number.parseFloat(vitals.systolic) : undefined,
-        diastolic_bp: vitals.diastolic ? Number.parseFloat(vitals.diastolic) : undefined,
-        respiratory_rate: vitals.respiration ? Number.parseFloat(vitals.respiration) : undefined,
-        spo2: vitals.spo2 ? Number.parseFloat(vitals.spo2) : undefined,
-        weight_kg: vitals.weight ? Number.parseFloat(vitals.weight) : undefined,
-        height_cm: vitals.height ? Number.parseFloat(vitals.height) : undefined,
-        notes: vitals.notes || undefined,
+        temperature: toOptionalNumber(values.temperature),
+        pulse: toOptionalNumber(values.pulse),
+        systolic_bp: toOptionalNumber(values.systolic),
+        diastolic_bp: toOptionalNumber(values.diastolic),
+        respiratory_rate: toOptionalNumber(values.respiration),
+        spo2: toOptionalNumber(values.spo2),
+        weight_kg: toOptionalNumber(values.weight),
+        height_cm: toOptionalNumber(values.height),
+        notes: values.notes.trim() || undefined,
       };
 
-      // createVital takes (encounterId, data)
-      await api.createVital(encounterId, data);
+      await clinicalService.createVital(encounterId, data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["vitals"] });
@@ -107,12 +110,10 @@ export function VitalsEntryScreen({ route, navigation }: VitalsEntryScreenProps)
     },
   });
 
-  const updateVital = (key: keyof VitalFormState, value: string) => {
-    setVitals((prev) => ({ ...prev, [key]: value }));
-  };
+  const submitVitals = handleSubmit((values) => saveMutation.mutate(values));
 
   const bmi = calculateBMI(vitals.weight, vitals.height);
-  const hasAnyValue = Object.values(vitals).some((v) => v !== "");
+  const hasAnyValue = Object.values(vitals).some((v) => v.trim() !== "");
 
   if (isLoading) {
     return (
@@ -163,48 +164,90 @@ export function VitalsEntryScreen({ route, navigation }: VitalsEntryScreenProps)
           Vital Signs
         </Text>
 
-        <VitalInput
-          {...VITAL_CONFIGS.temperature}
-          value={vitals.temperature}
-          onChangeText={(v) => updateVital("temperature", v)}
+        <Controller
+          control={control}
+          name="temperature"
+          render={({ field }) => (
+            <VitalInput
+              {...VITAL_CONFIGS.temperature}
+              value={field.value}
+              onChangeText={field.onChange}
+              error={errors.temperature?.message}
+            />
+          )}
         />
 
-        <VitalInput
-          {...VITAL_CONFIGS.pulse}
-          value={vitals.pulse}
-          onChangeText={(v) => updateVital("pulse", v)}
-          required
+        <Controller
+          control={control}
+          name="pulse"
+          render={({ field }) => (
+            <VitalInput
+              {...VITAL_CONFIGS.pulse}
+              value={field.value}
+              onChangeText={field.onChange}
+              error={errors.pulse?.message}
+              required
+            />
+          )}
         />
 
         <View style={styles.bpRow}>
           <View style={styles.bpInput}>
-            <VitalInput
-              {...VITAL_CONFIGS.systolic}
-              value={vitals.systolic}
-              onChangeText={(v) => updateVital("systolic", v)}
-              required
+            <Controller
+              control={control}
+              name="systolic"
+              render={({ field }) => (
+                <VitalInput
+                  {...VITAL_CONFIGS.systolic}
+                  value={field.value}
+                  onChangeText={field.onChange}
+                  error={errors.systolic?.message}
+                  required
+                />
+              )}
             />
           </View>
           <View style={styles.bpInput}>
-            <VitalInput
-              {...VITAL_CONFIGS.diastolic}
-              value={vitals.diastolic}
-              onChangeText={(v) => updateVital("diastolic", v)}
-              required
+            <Controller
+              control={control}
+              name="diastolic"
+              render={({ field }) => (
+                <VitalInput
+                  {...VITAL_CONFIGS.diastolic}
+                  value={field.value}
+                  onChangeText={field.onChange}
+                  error={errors.diastolic?.message}
+                  required
+                />
+              )}
             />
           </View>
         </View>
 
-        <VitalInput
-          {...VITAL_CONFIGS.respiration}
-          value={vitals.respiration}
-          onChangeText={(v) => updateVital("respiration", v)}
+        <Controller
+          control={control}
+          name="respiration"
+          render={({ field }) => (
+            <VitalInput
+              {...VITAL_CONFIGS.respiration}
+              value={field.value}
+              onChangeText={field.onChange}
+              error={errors.respiration?.message}
+            />
+          )}
         />
 
-        <VitalInput
-          {...VITAL_CONFIGS.spo2}
-          value={vitals.spo2}
-          onChangeText={(v) => updateVital("spo2", v)}
+        <Controller
+          control={control}
+          name="spo2"
+          render={({ field }) => (
+            <VitalInput
+              {...VITAL_CONFIGS.spo2}
+              value={field.value}
+              onChangeText={field.onChange}
+              error={errors.spo2?.message}
+            />
+          )}
         />
 
         {/* Anthropometry Section */}
@@ -214,17 +257,31 @@ export function VitalsEntryScreen({ route, navigation }: VitalsEntryScreenProps)
 
         <View style={styles.bpRow}>
           <View style={styles.bpInput}>
-            <VitalInput
-              {...VITAL_CONFIGS.weight}
-              value={vitals.weight}
-              onChangeText={(v) => updateVital("weight", v)}
+            <Controller
+              control={control}
+              name="weight"
+              render={({ field }) => (
+                <VitalInput
+                  {...VITAL_CONFIGS.weight}
+                  value={field.value}
+                  onChangeText={field.onChange}
+                  error={errors.weight?.message}
+                />
+              )}
             />
           </View>
           <View style={styles.bpInput}>
-            <VitalInput
-              {...VITAL_CONFIGS.height}
-              value={vitals.height}
-              onChangeText={(v) => updateVital("height", v)}
+            <Controller
+              control={control}
+              name="height"
+              render={({ field }) => (
+                <VitalInput
+                  {...VITAL_CONFIGS.height}
+                  value={field.value}
+                  onChangeText={field.onChange}
+                  error={errors.height?.message}
+                />
+              )}
             />
           </View>
         </View>
@@ -250,7 +307,7 @@ export function VitalsEntryScreen({ route, navigation }: VitalsEntryScreenProps)
         {/* Save Button */}
         <Button
           mode="contained"
-          onPress={() => saveMutation.mutate()}
+          onPress={() => void submitVitals()}
           loading={saveMutation.isPending}
           disabled={!hasAnyValue || saveMutation.isPending}
           style={styles.saveButton}

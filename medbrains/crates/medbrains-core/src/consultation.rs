@@ -32,6 +32,11 @@ pub struct Diagnosis {
     pub tenant_id: Uuid,
     pub encounter_id: Uuid,
     pub icd_code: Option<String>,
+    pub icd_system: String,
+    pub icd_display: Option<String>,
+    pub icd_source_url: Option<String>,
+    pub icd_source_version: Option<String>,
+    pub icd_provider_mode: Option<String>,
     pub description: String,
     pub is_primary: bool,
     pub notes: Option<String>,
@@ -102,6 +107,11 @@ pub struct PrescriptionItem {
     pub route: Option<String>,
     pub instructions: Option<String>,
     pub created_at: DateTime<Utc>,
+    pub item_status: String,
+    pub discontinued_at: Option<DateTime<Utc>>,
+    pub discontinued_by: Option<Uuid>,
+    pub discontinue_reason: Option<String>,
+    pub catalog_item_id: Option<Uuid>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]

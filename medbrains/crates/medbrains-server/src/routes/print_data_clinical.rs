@@ -394,7 +394,7 @@ pub async fn get_treatment_chart_print_data(
         "SELECT \
            (p.first_name || ' ' || p.last_name) AS patient_name, \
            p.uhid, \
-           EXTRACT(YEAR FROM age(current_date, p.date_of_birth)) AS age, \
+           EXTRACT(YEAR FROM age(current_date, p.date_of_birth))::float8 AS age, \
            p.gender::text AS gender, \
            a.admitted_at AS admission_date, \
            b.bed_number, \
@@ -470,7 +470,7 @@ pub async fn get_treatment_chart_print_data(
         "SELECT \
            order_type, \
            description, \
-           created_at::text AS ordered_at, \
+           so.created_at::text AS ordered_at, \
            u.full_name AS ordered_by \
          FROM stat_orders so \
          LEFT JOIN users u ON u.id = so.ordered_by \
@@ -553,7 +553,7 @@ pub async fn get_transfer_summary_print_data(
         "SELECT \
            (p.first_name || ' ' || p.last_name) AS patient_name, \
            p.uhid, \
-           EXTRACT(YEAR FROM age(current_date, p.date_of_birth)) AS age, \
+           EXTRACT(YEAR FROM age(current_date, p.date_of_birth))::float8 AS age, \
            p.gender::text AS gender, \
            pt.transferred_at AS transfer_date, \
            fw.name AS from_ward, \
@@ -1001,7 +1001,7 @@ pub async fn get_opd_prescription_print_data(
            p.gender::text AS gender, \
            p.phone, \
            p.address_line1 AS address, \
-           e.encounter_date, \
+           e.encounter_date::timestamptz AS encounter_date, \
            e.encounter_number, \
            d.name AS department_name, \
            doc.full_name AS doctor_name, \

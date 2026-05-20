@@ -10,7 +10,6 @@ import {
   Text,
   TextInput,
 } from "@mantine/core";
-import { api } from "@medbrains/api";
 import type { CreateLocationInput } from "@medbrains/schemas";
 import { createLocationSchema } from "@medbrains/schemas";
 import { useOnboardingStore } from "@medbrains/stores";
@@ -19,6 +18,7 @@ import { IconTrash, IconUpload } from "@tabler/icons-react";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { CsvImportModal } from "../../components";
+import { onboardingService } from "../../services/onboarding.service";
 import classes from "./onboarding.module.scss";
 
 interface Props {
@@ -131,7 +131,7 @@ export function LocationsStep({ onNext, onBack }: Props) {
         title="Import Locations from CSV"
         requiredColumns={["code", "name", "level"]}
         optionalColumns={["parent_code"]}
-        onImport={api.importLocations}
+        onImport={onboardingService.importLocations}
       />
 
       <Modal opened={showModal} onClose={() => setShowModal(false)} title="Add Location">

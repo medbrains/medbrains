@@ -1,11 +1,11 @@
 import { Group, Text } from "@mantine/core";
 import { useDebouncedValue } from "@mantine/hooks";
-import { api } from "@medbrains/api";
 import { useHasPermission } from "@medbrains/stores";
 import { type LabTestCatalog, P } from "@medbrains/types";
 import { IconMicroscope } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
+import { lookupsService } from "../services/lookups.service";
 import { MiniAddLabTest } from "./Lab/MiniAddLabTest";
 import { SearchOrCreate } from "./SearchOrCreate";
 
@@ -34,7 +34,7 @@ export function LabTestSearchSelect({
 
   const { data } = useQuery({
     queryKey: ["lab-test-search", debounced],
-    queryFn: () => api.listLabCatalog({ search: debounced }),
+    queryFn: () => lookupsService.listLabCatalog({ search: debounced }),
     enabled: debounced.length >= 2,
     staleTime: 60_000,
   });

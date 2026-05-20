@@ -1,4 +1,3 @@
-import { api } from "@medbrains/api";
 import { useAuthStore } from "@medbrains/stores";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
@@ -18,6 +17,7 @@ import {
   useTheme,
 } from "react-native-paper";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { patientService } from "../../services/patient.service";
 
 type FilterType = "upcoming" | "past" | "cancelled";
 
@@ -56,12 +56,12 @@ export function AppointmentsScreen({ navigation }: AppointmentsScreenProps) {
 
   const { data, isLoading, refetch } = useQuery({
     queryKey: ["appointments", user?.id, filter],
-    queryFn: () => api.listPatientAppointments(user?.id || ""),
+    queryFn: () => patientService.listPatientAppointments(user?.id || ""),
     enabled: Boolean(user?.id),
   });
 
   const cancelMutation = useMutation({
-    mutationFn: (id: string) => api.cancelAppointment(id, {}),
+    mutationFn: (id: string) => patientService.cancelAppointment(id, {}),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["appointments"] });
       setSnackbar({ visible: true, message: "Appointment cancelled" });

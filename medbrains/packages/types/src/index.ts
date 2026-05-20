@@ -1361,6 +1361,8 @@ export interface Patient {
   created_by: string | null;
   created_at: string;
   updated_at: string;
+  outstanding_balance?: string;
+  pending_invoice_count?: number;
 }
 
 // Sub-resource interfaces
@@ -1741,6 +1743,10 @@ export interface CreatePatientRequest {
   initial_diagnosis_text?: string;
   icd10_code?: string;
   icd11_code?: string;
+  icd11_display?: string;
+  icd11_source_url?: string;
+  icd11_source_version?: string;
+  icd11_provider_mode?: string;
   is_medico_legal?: boolean;
   mlc_number?: string;
   is_vip?: boolean;
@@ -3092,12 +3098,18 @@ export interface UpdateConsultationRequest {
 
 export type DiagnosisSeverity = "mild" | "moderate" | "severe" | "critical";
 export type DiagnosisCertainty = "suspected" | "probable" | "confirmed" | "ruled_out";
+export type DiagnosisCodingSystem = "icd10" | "icd11" | "snomed";
 
 export interface Diagnosis {
   id: string;
   tenant_id: string;
   encounter_id: string;
   icd_code: string | null;
+  icd_system: DiagnosisCodingSystem;
+  icd_display: string | null;
+  icd_source_url: string | null;
+  icd_source_version: string | null;
+  icd_provider_mode: string | null;
   description: string;
   is_primary: boolean;
   notes: string | null;
@@ -3112,6 +3124,11 @@ export interface Diagnosis {
 
 export interface CreateDiagnosisRequest {
   icd_code?: string;
+  icd_system?: DiagnosisCodingSystem;
+  icd_display?: string;
+  icd_source_url?: string;
+  icd_source_version?: string;
+  icd_provider_mode?: string;
   description: string;
   is_primary?: boolean;
   notes?: string;
@@ -3121,6 +3138,24 @@ export interface CreateDiagnosisRequest {
   resolved_date?: string;
   snomed_code?: string;
   snomed_display?: string;
+}
+
+export interface UpdateDiagnosisRequest {
+  icd_code?: string;
+  icd_system?: DiagnosisCodingSystem;
+  icd_display?: string;
+  icd_source_url?: string;
+  icd_source_version?: string;
+  icd_provider_mode?: string;
+  description?: string;
+  is_primary?: boolean;
+  notes?: string;
+  severity?: DiagnosisSeverity;
+  certainty?: DiagnosisCertainty;
+  onset_date?: string | null;
+  resolved_date?: string | null;
+  snomed_code?: string | null;
+  snomed_display?: string | null;
 }
 
 // -- ICD-10 Reference --
@@ -3146,6 +3181,122 @@ export interface SnomedCode {
   semantic_tag: string | null;
   is_active: boolean;
   created_at: string;
+}
+
+// -- Clinical Corpus / Note Completion --
+
+export type ClinicalCorpusType =
+  | "soap_phrase"
+  | "medical_term"
+  | "lay_term"
+  | "icd10"
+  | "icd11"
+  | "snomed"
+  | "loinc"
+  | "rxnorm";
+
+export type ClinicalCorpusLicenseStatus =
+  | "owned"
+  | "open"
+  | "licensed"
+  | "restricted"
+  | "reference_only";
+
+export interface ClinicalCorpusEntry {
+  id: string;
+  tenant_id: string | null;
+  entry_key: string;
+  corpus_type: ClinicalCorpusType;
+  section: string | null;
+  term: string;
+  aliases: string[];
+  short_text: string | null;
+  insert_text: string | null;
+  source_name: string;
+  source_url: string | null;
+  license_name: string | null;
+  license_status: ClinicalCorpusLicenseStatus;
+  source_version: string | null;
+  language: string;
+  priority: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SearchClinicalCorpusParams {
+  q: string;
+  section?: string;
+  corpus_type?: ClinicalCorpusType;
+  limit?: number;
+}
+
+export interface CreateClinicalCorpusEntryRequest {
+  corpus_type: ClinicalCorpusType;
+  section?: string;
+  term: string;
+  aliases?: string[];
+  short_text?: string;
+  insert_text?: string;
+  source_name?: string;
+  source_url?: string;
+  license_name?: string;
+  license_status?: ClinicalCorpusLicenseStatus;
+  source_version?: string;
+  language?: string;
+  priority?: number;
+}
+
+export interface UpdateClinicalCorpusEntryRequest {
+  section?: string;
+  term?: string;
+  aliases?: string[];
+  short_text?: string;
+  insert_text?: string;
+  source_name?: string;
+  source_url?: string;
+  license_name?: string;
+  license_status?: ClinicalCorpusLicenseStatus;
+  source_version?: string;
+  language?: string;
+  priority?: number;
+  is_active?: boolean;
+}
+
+// -- Terminology Service --
+
+export type TerminologySystem = "icd11" | "snomed";
+
+export type TerminologyProviderMode =
+  | "official_api_cache"
+  | "official_api_cloud"
+  | "official_api_local"
+  | "official_release_cache"
+  | "local_cache";
+
+export interface TerminologySearchResult {
+  system: TerminologySystem;
+  code: string;
+  display: string;
+  semantic_tag: string | null;
+  source: string;
+  source_url: string | null;
+  source_version: string | null;
+  active: boolean;
+  provider_mode: TerminologyProviderMode;
+  corpus_entry_id: string | null;
+}
+
+export interface SearchTerminologyParams {
+  system: TerminologySystem;
+  q: string;
+  limit?: number;
+  semantic_tag?: string;
+}
+
+export interface LookupTerminologyParams {
+  system: TerminologySystem;
+  code: string;
 }
 
 // -- Wait Time Estimation --
@@ -3249,6 +3400,11 @@ export interface PrescriptionItem {
   route: string | null;
   instructions: string | null;
   created_at: string;
+  item_status: string;
+  discontinued_at: string | null;
+  discontinued_by: string | null;
+  discontinue_reason: string | null;
+  catalog_item_id: string | null;
 }
 
 export interface PrescriptionItemInput {
@@ -3266,9 +3422,16 @@ export interface CreatePrescriptionRequest {
   items: PrescriptionItemInput[];
 }
 
+export interface UpdatePrescriptionRequest {
+  notes?: string;
+  items: PrescriptionItemInput[];
+}
+
 export interface PrescriptionWithItems {
   prescription: Prescription;
   items: PrescriptionItem[];
+  pharmacy_status?: PharmacyRxStatus | null;
+  pharmacy_order_id?: string | null;
 }
 
 export interface PrescriptionTemplate {
@@ -3641,12 +3804,20 @@ export interface PatientDiagnosisRow {
   id: string;
   encounter_id: string;
   icd_code: string | null;
+  icd_system: DiagnosisCodingSystem;
+  icd_display: string | null;
+  icd_source_url: string | null;
+  icd_source_version: string | null;
+  icd_provider_mode: string | null;
   description: string;
   is_primary: boolean;
+  notes: string | null;
   severity: string | null;
   certainty: string | null;
   onset_date: string | null;
   resolved_date: string | null;
+  snomed_code: string | null;
+  snomed_display: string | null;
   encounter_date: string;
   doctor_name: string | null;
   created_at: string;
@@ -3842,6 +4013,25 @@ export interface PatientVisitRow {
   prescription_count: number | null;
   lab_order_count: number | null;
   created_at: string;
+}
+
+export interface PatientConsultationHistoryRow {
+  id: string;
+  encounter_id: string;
+  encounter_type: "opd" | "ipd" | "emergency";
+  status: "open" | "in_progress" | "completed" | "cancelled";
+  encounter_date: string;
+  doctor_name: string | null;
+  department_name: string | null;
+  chief_complaint: string | null;
+  history: string | null;
+  examination: string | null;
+  plan: string | null;
+  notes: string | null;
+  hpi: string | null;
+  general_appearance: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface PatientLabOrderRow {
@@ -8554,6 +8744,54 @@ export interface CampRemoteOperationsResponse {
   readiness: CampReadinessSummary;
 }
 
+export interface CampPacketDepartmentRef {
+  id: string;
+  code: string;
+  name: string;
+  department_type: string;
+}
+
+export interface CampPacketDoctorRef {
+  id: string;
+  full_name: string;
+  specialization: string | null;
+  medical_registration_number: string | null;
+  department_ids: string[];
+}
+
+export interface CampPacketLabTestRef {
+  id: string;
+  code: string;
+  name: string;
+  department_id: string | null;
+  sample_type: string | null;
+  price: string;
+  loinc_code: string | null;
+}
+
+export interface CampPacketPharmacyStockRef {
+  catalog_item_id: string;
+  code: string;
+  name: string;
+  generic_name: string | null;
+  category: string | null;
+  unit: string | null;
+  base_price: string;
+  tax_percent: string;
+  current_stock: number;
+  drug_schedule: string | null;
+  is_controlled: boolean;
+  is_lasa: boolean;
+  aware_category: string | null;
+  prescription_only: boolean | null;
+  batch_id: string | null;
+  batch_number: string | null;
+  expiry_date: string | null;
+  quantity_on_hand: number | null;
+  store_location_id: string | null;
+  selling_rate: string | null;
+}
+
 export interface CampPacketResponse {
   camp: Camp;
   team: CampTeamMember[];
@@ -8570,12 +8808,25 @@ export interface CampPacketResponse {
   visit_history: CampPacketVisitHistory[];
   diagnosis_history: CampPacketDiagnosisHistory[];
   medication_history: CampPacketMedicationHistory[];
+  department_refs: CampPacketDepartmentRef[];
+  doctor_refs: CampPacketDoctorRef[];
+  lab_test_refs: CampPacketLabTestRef[];
+  pharmacy_stock_refs: CampPacketPharmacyStockRef[];
   downloaded_at: string;
   expires_at: string;
   packet_revision: string;
 }
 
 export type CampSyncEventType =
+  | "camp.patient.upsert"
+  | "camp.opd.encounter.create"
+  | "camp.vitals.record"
+  | "camp.lab.order.create"
+  | "camp.lab.sample.collect"
+  | "camp.prescription.create"
+  | "camp.pharmacy.dispense"
+  | "camp.billing.record"
+  | "camp.stock.adjust"
   | "camp.registration.create"
   | "camp.screening.create"
   | "camp.lab_sample.create"
@@ -8605,6 +8856,7 @@ export interface CampSyncEventResult {
   status: "applied" | "duplicate" | "failed";
   server_entity_type: string | null;
   server_entity_id: string | null;
+  server_entities?: Record<string, string | null>;
   message: string | null;
 }
 
@@ -19127,6 +19379,92 @@ export interface BedOccupancyRow {
   occupied: number;
   vacant: number;
   occupancy_pct: number;
+}
+
+export type ReportPriority = "p1" | "p2" | "p3";
+
+export type ReportReadiness =
+  | "live_api"
+  | "query_buildable"
+  | "derived_view"
+  | "predictive"
+  | "capture_needed";
+
+export type ReportExportFormat = "pdf" | "excel" | "csv" | "png";
+
+export type ReportExportMode = "standard" | "governed";
+
+export type ReportDataStatus = "live" | "not_wired";
+
+export type EChartsTemplate =
+  | "line_stack"
+  | "line_gradient"
+  | "area_stack"
+  | "bar_stack"
+  | "bar_race"
+  | "bar_waterfall"
+  | "heatmap_cartesian"
+  | "heatmap_calendar"
+  | "boxplot"
+  | "sankey"
+  | "graph_network"
+  | "radar"
+  | "treemap"
+  | "sunburst"
+  | "funnel"
+  | "gauge"
+  | "geo_map"
+  | "effect_scatter_map"
+  | "pictorial_bar"
+  | "custom_svg"
+  | "timeline"
+  | "parallel_coordinates"
+  | "theme_river"
+  | "candlestick_ohlc";
+
+export interface ReportDefinition {
+  id: string;
+  title: string;
+  purpose: string;
+  source_tables: string[];
+  permissions: string[];
+  priority: ReportPriority;
+  readiness: ReportReadiness;
+  chart_types: string[];
+  echarts_template: EChartsTemplate;
+  visual_kind: string;
+  refresh: string;
+  exports: ReportExportFormat[];
+  export_mode: ReportExportMode;
+  drilldowns: string[];
+  data_endpoint: string | null;
+}
+
+export interface ReportFamilyDefinition {
+  id: string;
+  title: string;
+  eyebrow: string;
+  description: string;
+  reports: ReportDefinition[];
+}
+
+export interface ReportCatalogResponse {
+  generated_at: string;
+  families: ReportFamilyDefinition[];
+}
+
+export interface ReportDataSummary {
+  row_count: number;
+  status: ReportDataStatus;
+  source: string;
+  warning: string | null;
+}
+
+export interface ReportDataResponse<T = unknown> {
+  report_id: string;
+  generated_at: string;
+  summary: ReportDataSummary;
+  rows: T[];
 }
 
 // ── Print Data ─────────────────────────────────────────

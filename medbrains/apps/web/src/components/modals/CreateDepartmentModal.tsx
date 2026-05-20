@@ -1,10 +1,13 @@
+import { zodResolver } from "@hookform/resolvers/zod";
 import { Button, Group, Modal, Select, Stack, TextInput } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
+import type { CreateDepartmentFormInput } from "@medbrains/schemas";
+import { createDepartmentFormSchema } from "@medbrains/schemas";
 import type { DepartmentRow } from "@medbrains/types";
 import { IconCheck } from "@tabler/icons-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { Controller, useForm } from "react-hook-form";
+import { adminAccessService } from "../../services/adminAccess.service";
 
 const DEPARTMENT_TYPE_OPTIONS = [
   { value: "clinical", label: "Clinical" },
@@ -23,20 +26,29 @@ interface CreateDepartmentModalProps {
 
 export function CreateDepartmentModal({ opened, onClose, onCreated }: CreateDepartmentModalProps) {
   const queryClient = useQueryClient();
+  const {
+    control,
+    handleSubmit,
+    reset,
+    formState: { errors },
+  } = useForm<CreateDepartmentFormInput>({
+    resolver: zodResolver(createDepartmentFormSchema),
+    defaultValues: { code: "", name: "", department_type: "clinical" },
+    mode: "onTouched",
+  });
 
-  const [code, setCode] = useState("");
-  const [name, setName] = useState("");
-  const [departmentType, setDepartmentType] = useState("clinical");
-
-  const handleOpen = () => {
-    setCode("");
-    setName("");
-    setDepartmentType("clinical");
+  const handleClose = () => {
+    reset();
+    onClose();
   };
 
   const createMutation = useMutation({
-    mutationFn: (data: { code: string; name: string; department_type: string }) =>
-      api.createDepartment(data),
+    mutationFn: (data: CreateDepartmentFormInput) =>
+      adminAccessService.createDepartment({
+        code: data.code.trim(),
+        name: data.name.trim(),
+        department_type: data.department_type,
+      }),
     onSuccess: (created: DepartmentRow) => {
       notifications.show({
         title: "Department created",
@@ -45,6 +57,7 @@ export function CreateDepartmentModal({ opened, onClose, onCreated }: CreateDepa
         icon: <IconCheck size={16} />,
       });
       void queryClient.invalidateQueries({ queryKey: ["setup-departments"] });
+      reset();
       if (onCreated) {
         onCreated(created);
       } else {
@@ -60,57 +73,58 @@ export function CreateDepartmentModal({ opened, onClose, onCreated }: CreateDepa
     },
   });
 
-  const handleSubmit = () => {
-    if (!code.trim() || !name.trim()) {
-      notifications.show({
-        title: "Missing fields",
-        message: "Code and Name are required",
-        color: "danger",
-      });
-      return;
-    }
-    createMutation.mutate({
-      code,
-      name,
-      department_type: departmentType,
-    });
-  };
+  const submitDepartment = handleSubmit((values) => createMutation.mutate(values));
 
   return (
-    <Modal
-      opened={opened}
-      onClose={onClose}
-      title="Add Department"
-      size="md"
-      onTransitionEnd={handleOpen}
-    >
+    <Modal opened={opened} onClose={handleClose} title="Add Department" size="md">
       <Stack gap="sm">
-        <TextInput
-          label="Code"
-          placeholder="GEN-MED"
-          value={code}
-          onChange={(e) => setCode(e.currentTarget.value.toUpperCase())}
-          required
+        <Controller
+          control={control}
+          name="code"
+          render={({ field }) => (
+            <TextInput
+              label="Code"
+              placeholder="GEN-MED"
+              value={field.value}
+              onChange={(e) => field.onChange(e.currentTarget.value.toUpperCase())}
+              error={errors.code?.message}
+              required
+            />
+          )}
         />
-        <TextInput
-          label="Name"
-          placeholder="General Medicine"
-          value={name}
-          onChange={(e) => setName(e.currentTarget.value)}
-          required
+        <Controller
+          control={control}
+          name="name"
+          render={({ field }) => (
+            <TextInput
+              label="Name"
+              placeholder="General Medicine"
+              value={field.value}
+              onChange={field.onChange}
+              error={errors.name?.message}
+              required
+            />
+          )}
         />
-        <Select
-          label="Department Type"
-          data={DEPARTMENT_TYPE_OPTIONS}
-          value={departmentType}
-          onChange={(v) => setDepartmentType(v ?? "clinical")}
-          required
+        <Controller
+          control={control}
+          name="department_type"
+          render={({ field }) => (
+            <Select
+              label="Department Type"
+              data={DEPARTMENT_TYPE_OPTIONS}
+              value={field.value}
+              onChange={(v) => field.onChange(v ?? "clinical")}
+              error={errors.department_type?.message}
+              required
+            />
+          )}
         />
         <Group justify="flex-end" mt="md">
-          <Button variant="light" onClick={onClose}>
+          <Button variant="light" onClick={handleClose}>
             Cancel
           </Button>
-          <Button onClick={handleSubmit} loading={createMutation.isPending}>
+          <Button onClick={() => void submitDepartment()} loading={createMutation.isPending}>
             Create
           </Button>
         </Group>

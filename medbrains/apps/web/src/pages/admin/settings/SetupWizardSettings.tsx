@@ -1,8 +1,9 @@
 import { Group, Loader, Progress, Stack, Text, ThemeIcon } from "@mantine/core";
-import { api } from "@medbrains/api";
 import { IconCheck, IconX } from "@tabler/icons-react";
 import { useQueries } from "@tanstack/react-query";
 import { useMemo } from "react";
+import { adminAccessService } from "../../../services/adminAccess.service";
+import { settingsSetupService } from "../../../services/settingsSetup.service";
 
 interface SetupStep {
   key: string;
@@ -16,23 +17,23 @@ export function SetupWizardSettings() {
     queries: [
       {
         queryKey: ["setup-departments"],
-        queryFn: () => api.listDepartments(),
+        queryFn: () => settingsSetupService.listDepartments(),
       },
       {
         queryKey: ["setup-users"],
-        queryFn: () => api.listSetupUsers(),
+        queryFn: () => adminAccessService.listUsers(),
       },
       {
         queryKey: ["setup-roles"],
-        queryFn: () => api.listRoles(),
+        queryFn: () => adminAccessService.listRoles(),
       },
       {
         queryKey: ["setup-services"],
-        queryFn: () => api.listServices(),
+        queryFn: () => settingsSetupService.listServices(),
       },
       {
         queryKey: ["setup-locations"],
-        queryFn: () => api.listLocations(),
+        queryFn: () => settingsSetupService.listLocations(),
       },
     ],
   });

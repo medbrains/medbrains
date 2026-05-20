@@ -39,6 +39,13 @@ pub struct CreateFreeDispensingRequest {
     pub notes: Option<String>,
 }
 
+#[derive(Debug, sqlx::FromRow)]
+struct FreeDispensingOrderGate {
+    status: String,
+    item_count: i64,
+    insufficient_count: i64,
+}
+
 pub async fn approve_free_dispensing(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -53,6 +60,44 @@ pub async fn approve_free_dispensing(
     }
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let gate = sqlx::query_as::<_, FreeDispensingOrderGate>(
+        "SELECT o.status, COUNT(oi.id)::bigint AS item_count, \
+         COUNT(*) FILTER ( \
+           WHERE oi.catalog_item_id IS NOT NULL \
+             AND o.status = 'ordered' \
+             AND COALESCE(pc.current_stock, 0) < oi.quantity \
+         )::bigint AS insufficient_count \
+         FROM pharmacy_orders o \
+         LEFT JOIN pharmacy_order_items oi \
+           ON oi.order_id = o.id AND oi.tenant_id = o.tenant_id AND oi.removed_at IS NULL \
+         LEFT JOIN pharmacy_catalog pc \
+           ON pc.id = oi.catalog_item_id AND pc.tenant_id = oi.tenant_id \
+         WHERE o.id = $1 AND o.tenant_id = $2 \
+         GROUP BY o.id, o.status",
+    )
+    .bind(body.pharmacy_order_id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+
+    if gate.status == "cancelled" {
+        return Err(AppError::BadRequest(
+            "Free dispensing cannot be approved for a cancelled pharmacy order".to_owned(),
+        ));
+    }
+    if gate.item_count == 0 {
+        return Err(AppError::BadRequest(
+            "Free dispensing requires at least one pharmacy order item".to_owned(),
+        ));
+    }
+    if gate.insufficient_count > 0 {
+        return Err(AppError::Conflict(
+            "Free dispensing approval is blocked because one or more ordered medicines are out of stock"
+                .to_owned(),
+        ));
+    }
 
     let row = sqlx::query_as::<_, FreeDispensing>(
         "INSERT INTO pharmacy_free_dispensings \

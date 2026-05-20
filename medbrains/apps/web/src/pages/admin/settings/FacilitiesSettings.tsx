@@ -1,3 +1,4 @@
+import { zodResolver } from "@hookform/resolvers/zod";
 import {
   ActionIcon,
   Badge,
@@ -14,60 +15,93 @@ import {
   TextInput,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
+import {
+  type FacilitySettingsFormInput,
+  type FacilityTypeFormValue,
+  facilitySettingsFormSchema,
+  facilityTypeFormSchema,
+} from "@medbrains/schemas";
 import type { Facility } from "@medbrains/types";
 import { IconCheck, IconPencil, IconPlus, IconTrash } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { Controller, useForm } from "react-hook-form";
 import { CreateFacilityModal, SelectLabel } from "../../../components";
 import { useCreateInline } from "../../../hooks/useCreateInline";
+import { settingsSetupService } from "../../../services/settingsSetup.service";
 
 // ── Constants ─────────────────────────────────────────────
 
 const FACILITY_TYPE_OPTIONS = [
-  { value: "hospital", label: "Hospital" },
-  { value: "clinic", label: "Clinic" },
-  { value: "satellite_center", label: "Satellite Center" },
-  { value: "nursing_home", label: "Nursing Home" },
+  { value: "main_hospital", label: "Main Hospital" },
+  { value: "medical_college", label: "Medical College" },
+  { value: "dental_college", label: "Dental College" },
+  { value: "nursing_college", label: "Nursing College" },
+  { value: "pharmacy_college", label: "Pharmacy College" },
+  { value: "ayush_hospital", label: "AYUSH Hospital" },
+  { value: "research_center", label: "Research Center" },
   { value: "blood_bank", label: "Blood Bank" },
+  { value: "dialysis_center", label: "Dialysis Center" },
+  { value: "trauma_center", label: "Trauma Center" },
+  { value: "burn_center", label: "Burn Center" },
+  { value: "rehabilitation_center", label: "Rehabilitation Center" },
+  { value: "palliative_care", label: "Palliative Care" },
+  { value: "psychiatric_hospital", label: "Psychiatric Hospital" },
+  { value: "eye_hospital", label: "Eye Hospital" },
+  { value: "maternity_hospital", label: "Maternity Hospital" },
+  { value: "pediatric_hospital", label: "Pediatric Hospital" },
+  { value: "cancer_center", label: "Cancer Center" },
+  { value: "cardiac_center", label: "Cardiac Center" },
+  { value: "neuro_center", label: "Neuro Center" },
+  { value: "ortho_center", label: "Ortho Center" },
+  { value: "day_care_center", label: "Day Care Center" },
   { value: "diagnostic_center", label: "Diagnostic Center" },
-  { value: "pharmacy", label: "Pharmacy" },
-  { value: "warehouse", label: "Warehouse" },
-];
+  { value: "telemedicine_hub", label: "Telemedicine Hub" },
+  { value: "community_health_center", label: "Community Health Center" },
+  { value: "primary_health_center", label: "Primary Health Center" },
+  { value: "sub_center", label: "Sub Center" },
+  { value: "urban_health_center", label: "Urban Health Center" },
+  { value: "mobile_health_unit", label: "Mobile Health Unit" },
+  { value: "other", label: "Other" },
+] satisfies Array<{ value: FacilityTypeFormValue; label: string }>;
 
 const FACILITY_TYPE_COLORS: Record<string, string> = {
-  hospital: "primary",
-  clinic: "success",
-  satellite_center: "violet",
-  nursing_home: "orange",
+  main_hospital: "primary",
+  medical_college: "violet",
+  dental_college: "grape",
+  nursing_college: "indigo",
+  pharmacy_college: "teal",
+  ayush_hospital: "green",
+  research_center: "cyan",
   blood_bank: "danger",
+  dialysis_center: "blue",
+  trauma_center: "red",
+  burn_center: "orange",
+  rehabilitation_center: "lime",
+  palliative_care: "green",
+  psychiatric_hospital: "pink",
+  eye_hospital: "yellow",
+  maternity_hospital: "pink",
+  pediatric_hospital: "cyan",
+  cancer_center: "violet",
+  cardiac_center: "red",
+  neuro_center: "indigo",
+  ortho_center: "orange",
+  day_care_center: "blue",
   diagnostic_center: "info",
-  pharmacy: "teal",
-  warehouse: "slate",
+  telemedicine_hub: "blue",
+  community_health_center: "success",
+  primary_health_center: "green",
+  sub_center: "gray",
+  urban_health_center: "teal",
+  mobile_health_unit: "cyan",
+  other: "slate",
 };
 
-// ── Form State ────────────────────────────────────────────
-
-interface FacilityFormState {
-  code: string;
-  name: string;
-  facility_type: string | null;
-  parent_id: string | null;
-  address_line1: string;
-  city: string;
-  phone: string;
-  email: string;
-  bed_count: number | string;
-  shared_billing: boolean;
-  shared_pharmacy: boolean;
-  shared_lab: boolean;
-  shared_hr: boolean;
-}
-
-const EMPTY_FORM: FacilityFormState = {
+const EMPTY_FORM: FacilitySettingsFormInput = {
   code: "",
   name: "",
-  facility_type: null,
+  facility_type: "main_hospital",
   parent_id: null,
   address_line1: "",
   city: "",
@@ -80,11 +114,11 @@ const EMPTY_FORM: FacilityFormState = {
   shared_hr: false,
 };
 
-function formStateFromFacility(f: Facility): FacilityFormState {
+function formStateFromFacility(f: Facility): FacilitySettingsFormInput {
   return {
     code: f.code,
     name: f.name,
-    facility_type: f.facility_type,
+    facility_type: facilityTypeFormSchema.catch("main_hospital").parse(f.facility_type),
     parent_id: f.parent_id,
     address_line1: f.address_line1 ?? "",
     city: f.city ?? "",
@@ -98,17 +132,24 @@ function formStateFromFacility(f: Facility): FacilityFormState {
   };
 }
 
-function formStateToPayload(form: FacilityFormState) {
+function formStateToPayload(form: FacilitySettingsFormInput) {
+  const bedCount =
+    typeof form.bed_count === "number"
+      ? form.bed_count
+      : form.bed_count.trim().length > 0
+        ? Number(form.bed_count)
+        : undefined;
+
   return {
-    code: form.code,
-    name: form.name,
-    facility_type: form.facility_type ?? "hospital",
+    code: form.code.trim(),
+    name: form.name.trim(),
+    facility_type: form.facility_type,
     parent_id: form.parent_id || undefined,
-    address_line1: form.address_line1 || undefined,
-    city: form.city || undefined,
-    phone: form.phone || undefined,
-    email: form.email || undefined,
-    bed_count: typeof form.bed_count === "number" ? form.bed_count : undefined,
+    address_line1: form.address_line1.trim() || undefined,
+    city: form.city.trim() || undefined,
+    phone: form.phone.trim() || undefined,
+    email: form.email?.trim() || undefined,
+    bed_count: bedCount,
     shared_billing: form.shared_billing,
     shared_pharmacy: form.shared_pharmacy,
     shared_lab: form.shared_lab,
@@ -131,29 +172,19 @@ function FacilityModal({
 }) {
   const queryClient = useQueryClient();
   const isEdit = !!editingFacility;
-
-  const [form, setForm] = useState<FacilityFormState>(EMPTY_FORM);
+  const {
+    control,
+    formState: { errors },
+    handleSubmit,
+    register,
+    setValue,
+  } = useForm<FacilitySettingsFormInput>({
+    resolver: zodResolver(facilitySettingsFormSchema),
+    defaultValues: EMPTY_FORM,
+    values: editingFacility ? formStateFromFacility(editingFacility) : EMPTY_FORM,
+  });
 
   const parentInline = useCreateInline<Facility>({ queryKey: ["setup-facilities"] });
-
-  useEffect(() => {
-    if (parentInline.pendingSelect) {
-      setForm((prev) => ({ ...prev, parent_id: parentInline.pendingSelect?.id ?? null }));
-      parentInline.clearPendingSelect();
-    }
-  }, [parentInline.pendingSelect, parentInline.clearPendingSelect]);
-
-  const updateField = <K extends keyof FacilityFormState>(key: K, value: FacilityFormState[K]) => {
-    setForm((prev) => ({ ...prev, [key]: value }));
-  };
-
-  const handleOpen = () => {
-    if (editingFacility) {
-      setForm(formStateFromFacility(editingFacility));
-    } else {
-      setForm(EMPTY_FORM);
-    }
-  };
 
   const parentOptions = facilities
     .filter((f) => !editingFacility || f.id !== editingFacility.id)
@@ -163,7 +194,8 @@ function FacilityModal({
     }));
 
   const createMutation = useMutation({
-    mutationFn: (data: ReturnType<typeof formStateToPayload>) => api.createFacility(data),
+    mutationFn: (data: ReturnType<typeof formStateToPayload>) =>
+      settingsSetupService.createFacility(data),
     onSuccess: () => {
       notifications.show({
         title: "Facility created",
@@ -186,7 +218,7 @@ function FacilityModal({
   const updateMutation = useMutation({
     mutationFn: (data: ReturnType<typeof formStateToPayload>) => {
       if (!editingFacility) throw new Error("No facility selected");
-      return api.updateFacility(editingFacility.id, data);
+      return settingsSetupService.updateFacility(editingFacility.id, data);
     },
     onSuccess: () => {
       notifications.show({
@@ -207,16 +239,13 @@ function FacilityModal({
     },
   });
 
-  const handleSubmit = () => {
-    if (!form.code.trim() || !form.name.trim() || !form.facility_type) {
-      notifications.show({
-        title: "Missing fields",
-        message: "Code, name, and facility type are required",
-        color: "danger",
-      });
-      return;
-    }
+  const handleParentCreated = (facility: Facility) => {
+    setValue("parent_id", facility.id, { shouldDirty: true, shouldValidate: true });
+    parentInline.onCreated(facility);
+    parentInline.clearPendingSelect();
+  };
 
+  const submitFacility = handleSubmit((form) => {
     const payload = formStateToPayload(form);
 
     if (isEdit) {
@@ -224,7 +253,7 @@ function FacilityModal({
     } else {
       createMutation.mutate(payload);
     }
-  };
+  });
 
   return (
     <Modal
@@ -232,66 +261,87 @@ function FacilityModal({
       onClose={onClose}
       title={isEdit ? "Edit Facility" : "Add Facility"}
       size="lg"
-      onTransitionEnd={handleOpen}
     >
       <Stack gap="sm">
         <Group grow>
           <TextInput
             label="Code"
             placeholder="FAC-001"
-            value={form.code}
-            onChange={(e) => updateField("code", e.currentTarget.value)}
+            error={errors.code?.message}
+            {...register("code")}
             required
           />
           <TextInput
             label="Name"
             placeholder="Main Hospital"
-            value={form.name}
-            onChange={(e) => updateField("name", e.currentTarget.value)}
+            error={errors.name?.message}
+            {...register("name")}
             required
           />
         </Group>
 
         <Group grow>
-          <Select
-            label="Facility Type"
-            data={FACILITY_TYPE_OPTIONS}
-            value={form.facility_type}
-            onChange={(v) => updateField("facility_type", v)}
-            required
-            placeholder="Select type..."
+          <Controller
+            control={control}
+            name="facility_type"
+            render={({ field }) => (
+              <Select
+                label="Facility Type"
+                data={FACILITY_TYPE_OPTIONS}
+                value={field.value}
+                onChange={(value) => field.onChange(value ?? "main_hospital")}
+                error={errors.facility_type?.message}
+                required
+                placeholder="Select type..."
+              />
+            )}
           />
-          <Select
-            label={<SelectLabel label="Parent Facility" onCreate={parentInline.openCreateModal} />}
-            data={parentOptions}
-            value={form.parent_id}
-            onChange={(v) => updateField("parent_id", v)}
-            searchable
-            clearable
-            placeholder="None (top-level)"
+          <Controller
+            control={control}
+            name="parent_id"
+            render={({ field }) => (
+              <Select
+                label={
+                  <SelectLabel label="Parent Facility" onCreate={parentInline.openCreateModal} />
+                }
+                data={parentOptions}
+                value={field.value}
+                onChange={field.onChange}
+                searchable
+                clearable
+                placeholder="None (top-level)"
+              />
+            )}
           />
         </Group>
 
         <TextInput
           label="Address"
           placeholder="123 Medical Lane"
-          value={form.address_line1}
-          onChange={(e) => updateField("address_line1", e.currentTarget.value)}
+          error={errors.address_line1?.message}
+          {...register("address_line1")}
         />
 
         <Group grow>
           <TextInput
             label="City"
             placeholder="Mumbai"
-            value={form.city}
-            onChange={(e) => updateField("city", e.currentTarget.value)}
+            error={errors.city?.message}
+            {...register("city")}
           />
-          <NumberInput
-            label="Bed Count"
-            placeholder="100"
-            min={0}
-            value={form.bed_count}
-            onChange={(v) => updateField("bed_count", v)}
+          <Controller
+            control={control}
+            name="bed_count"
+            render={({ field }) => (
+              <NumberInput
+                label="Bed Count"
+                placeholder="100"
+                min={0}
+                value={field.value}
+                onChange={field.onChange}
+                error={errors.bed_count?.message}
+              />
+            )}
           />
         </Group>
 
@@ -299,14 +349,14 @@ function FacilityModal({
           <TextInput
             label="Phone"
             placeholder="+91 22 1234 5678"
-            value={form.phone}
-            onChange={(e) => updateField("phone", e.currentTarget.value)}
+            error={errors.phone?.message}
+            {...register("phone")}
           />
           <TextInput
             label="Email"
             placeholder="admin@hospital.com"
-            value={form.email}
-            onChange={(e) => updateField("email", e.currentTarget.value)}
+            error={errors.email?.message}
+            {...register("email")}
           />
         </Group>
 
@@ -314,25 +364,49 @@ function FacilityModal({
           Shared Services
         </Text>
         <Group>
-          <Switch
-            label="Billing"
-            checked={form.shared_billing}
-            onChange={(e) => updateField("shared_billing", e.currentTarget.checked)}
+          <Controller
+            control={control}
+            name="shared_billing"
+            render={({ field }) => (
+              <Switch
+                label="Billing"
+                checked={field.value}
+                onChange={(event) => field.onChange(event.currentTarget.checked)}
+              />
+            )}
           />
-          <Switch
-            label="Pharmacy"
-            checked={form.shared_pharmacy}
-            onChange={(e) => updateField("shared_pharmacy", e.currentTarget.checked)}
+          <Controller
+            control={control}
+            name="shared_pharmacy"
+            render={({ field }) => (
+              <Switch
+                label="Pharmacy"
+                checked={field.value}
+                onChange={(event) => field.onChange(event.currentTarget.checked)}
+              />
+            )}
           />
-          <Switch
-            label="Lab"
-            checked={form.shared_lab}
-            onChange={(e) => updateField("shared_lab", e.currentTarget.checked)}
+          <Controller
+            control={control}
+            name="shared_lab"
+            render={({ field }) => (
+              <Switch
+                label="Lab"
+                checked={field.value}
+                onChange={(event) => field.onChange(event.currentTarget.checked)}
+              />
+            )}
           />
-          <Switch
-            label="HR"
-            checked={form.shared_hr}
-            onChange={(e) => updateField("shared_hr", e.currentTarget.checked)}
+          <Controller
+            control={control}
+            name="shared_hr"
+            render={({ field }) => (
+              <Switch
+                label="HR"
+                checked={field.value}
+                onChange={(event) => field.onChange(event.currentTarget.checked)}
+              />
+            )}
           />
         </Group>
 
@@ -341,7 +415,7 @@ function FacilityModal({
             Cancel
           </Button>
           <Button
-            onClick={handleSubmit}
+            onClick={() => void submitFacility()}
             loading={createMutation.isPending || updateMutation.isPending}
           >
             {isEdit ? "Save" : "Create"}
@@ -352,7 +426,7 @@ function FacilityModal({
       <CreateFacilityModal
         opened={parentInline.createModalOpened}
         onClose={parentInline.closeCreateModal}
-        onCreated={parentInline.onCreated}
+        onCreated={handleParentCreated}
       />
     </Modal>
   );
@@ -367,11 +441,11 @@ export function FacilitiesSettings() {
 
   const { data: facilities, isLoading } = useQuery({
     queryKey: ["setup-facilities"],
-    queryFn: () => api.listFacilities(),
+    queryFn: () => settingsSetupService.listFacilities(),
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => api.deleteFacility(id),
+    mutationFn: (id: string) => settingsSetupService.deleteFacility(id),
     onSuccess: () => {
       notifications.show({
         title: "Facility deleted",

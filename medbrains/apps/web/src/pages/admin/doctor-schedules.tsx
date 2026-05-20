@@ -23,7 +23,6 @@ import { DatePickerInput } from "@mantine/dates";
 import { notifications } from "@mantine/notifications";
 import type { ScheduleEventData } from "@mantine/schedule";
 import { WeekView } from "@mantine/schedule";
-import { api } from "@medbrains/api";
 import { useHasPermission } from "@medbrains/stores";
 import type {
   DepartmentRow,
@@ -47,6 +46,8 @@ import { useMemo, useState } from "react";
 import { PageHeader } from "../../components/PageHeader";
 import { useRequirePermission } from "../../hooks/useRequirePermission";
 import { nextOccurrence, toDateString } from "../../lib/date-utils";
+import { adminAccessService } from "../../services/adminAccess.service";
+import { schedulingService } from "../../services/scheduling.service";
 
 // ── Helpers ────────────────────────────────────────────────
 
@@ -100,14 +101,17 @@ function ScheduleFormModal({
 
   const createMutation = useMutation({
     mutationFn: async () => {
+      if (!startTime || !endTime) {
+        throw new Error("Start and end time are required");
+      }
       const days = selectedDays.length > 0 ? selectedDays : editDayOfWeek ? [editDayOfWeek] : [];
       for (const day of days) {
-        await api.createSchedule({
+        await schedulingService.createSchedule({
           doctor_id: doctorId,
           department_id: departmentId || undefined,
           day_of_week: parseInt(day, 10),
-          start_time: startTime!,
-          end_time: endTime!,
+          start_time: startTime,
+          end_time: endTime,
           slot_duration_mins: slotDuration,
           max_patients: maxPatients,
         });
@@ -131,7 +135,7 @@ function ScheduleFormModal({
   const updateMutation = useMutation({
     mutationFn: () => {
       if (!editSchedule) throw new Error("No schedule selected");
-      return api.updateSchedule(editSchedule.id, {
+      return schedulingService.updateSchedule(editSchedule.id, {
         start_time: startTime ?? undefined,
         end_time: endTime ?? undefined,
         slot_duration_mins: slotDuration,
@@ -192,7 +196,7 @@ function ScheduleFormModal({
             <Checkbox.Group value={selectedDays} onChange={setSelectedDays}>
               <Group gap="xs">
                 {DAY_NAMES.map((name, i) => (
-                  <Checkbox key={i} value={String(i)} label={name.slice(0, 3)} size="sm" />
+                  <Checkbox key={name} value={String(i)} label={name.slice(0, 3)} size="sm" />
                 ))}
               </Group>
             </Checkbox.Group>
@@ -288,7 +292,7 @@ function ExceptionFormModal({
 
   const createMutation = useMutation({
     mutationFn: () =>
-      api.createScheduleException({
+      schedulingService.createScheduleException({
         doctor_id: doctorId,
         exception_date: toDateString(exceptionDate),
         is_available: isAvailable,
@@ -476,12 +480,12 @@ export function DoctorSchedulesPage() {
   // Load doctors (server-side filtered to role=doctor, is_active=true)
   const { data: users, isLoading: usersLoading } = useQuery({
     queryKey: ["doctors"],
-    queryFn: () => api.listDoctors(),
+    queryFn: () => adminAccessService.listDoctors(),
   });
 
   const { data: departments } = useQuery({
     queryKey: ["setup-departments"],
-    queryFn: () => api.listDepartments(),
+    queryFn: () => adminAccessService.listDepartments(),
   });
 
   const doctors = useMemo(() => {
@@ -510,19 +514,20 @@ export function DoctorSchedulesPage() {
   // Load schedules for selected doctor
   const { data: schedules, isLoading: schedulesLoading } = useQuery({
     queryKey: ["doctor-schedules", selectedDoctor?.id],
-    queryFn: () => api.listSchedules({ doctor_id: selectedDoctor?.id ?? "" }),
+    queryFn: () => schedulingService.listSchedules({ doctor_id: selectedDoctor?.id ?? "" }),
     enabled: !!selectedDoctor,
   });
 
   // Load exceptions for selected doctor
   const { data: exceptions } = useQuery({
     queryKey: ["doctor-exceptions", selectedDoctor?.id],
-    queryFn: () => api.listScheduleExceptions({ doctor_id: selectedDoctor?.id ?? "" }),
+    queryFn: () =>
+      schedulingService.listScheduleExceptions({ doctor_id: selectedDoctor?.id ?? "" }),
     enabled: !!selectedDoctor,
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => api.deleteSchedule(id),
+    mutationFn: (id: string) => schedulingService.deleteSchedule(id),
     onSuccess: () => {
       notifications.show({
         title: "Deleted",
@@ -538,7 +543,7 @@ export function DoctorSchedulesPage() {
   });
 
   const deleteExceptionMutation = useMutation({
-    mutationFn: (id: string) => api.deleteScheduleException(id),
+    mutationFn: (id: string) => schedulingService.deleteScheduleException(id),
     onSuccess: () => {
       notifications.show({
         title: "Deleted",

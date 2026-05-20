@@ -12,15 +12,15 @@ import {
   ThemeIcon,
   Tooltip,
 } from "@mantine/core";
-import { useDebouncedValue, useDisclosure } from "@mantine/hooks";
+import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
 import { useHasPermission } from "@medbrains/stores";
 import type { CreatePatientRequest, MpiMatchResult, Patient } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import {
   IconAlertTriangle,
   IconBolt,
+  IconCash,
   IconEye,
   IconSearch,
   IconStarFilled,
@@ -28,12 +28,14 @@ import {
   IconUsers,
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router";
 import { DataTable, PageHeader, StatusDot } from "../components";
 import { PatientRegisterForm } from "../components/Patient/PatientRegisterForm";
+import { usePacedQueryValue } from "../hooks/usePacedQueryValue";
 import { useRequirePermission } from "../hooks/useRequirePermission";
+import { patientsService } from "../services/patients.service";
 
 const PER_PAGE = 20;
 
@@ -97,6 +99,15 @@ function buildFullName(patient: Patient): string {
   return parts.join(" ");
 }
 
+function formatMoney(value: number | string | null | undefined): string {
+  const parsed = Number(value ?? 0);
+  const amount = Number.isFinite(parsed) ? parsed : 0;
+  return amount.toLocaleString("en-IN", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
 // #endregion
 
 export function PatientsPage() {
@@ -108,12 +119,12 @@ export function PatientsPage() {
 
   // State
   const [search, setSearch] = useState("");
-  const [debouncedSearch] = useDebouncedValue(search, 300);
+  const debouncedSearch = usePacedQueryValue(search, 300);
   const [page, setPage] = useState(1);
-  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [drawerOpen, { open: openDrawer, close: closeDrawer }] = useDisclosure(false);
   const [quickMode, setQuickMode] = useState(false);
   const [duplicateMatches, setDuplicateMatches] = useState<MpiMatchResult[]>([]);
-  const [pendingRequest, setPendingRequest] = useState<CreatePatientRequest | null>(null);
+  const pendingRequestRef = useRef<CreatePatientRequest | null>(null);
   const [dupModalOpen, dupModalHandlers] = useDisclosure(false);
 
   const handleSearchChange = (val: string) => {
@@ -125,7 +136,7 @@ export function PatientsPage() {
   const { data, isLoading } = useQuery({
     queryKey: ["patients", page, debouncedSearch],
     queryFn: () =>
-      api.listPatients({
+      patientsService.listPatients({
         page,
         per_page: PER_PAGE,
         search: debouncedSearch || undefined,
@@ -133,7 +144,7 @@ export function PatientsPage() {
   });
 
   const createMutation = useMutation({
-    mutationFn: (req: CreatePatientRequest) => api.createPatient(req),
+    mutationFn: (req: CreatePatientRequest) => patientsService.createPatient(req),
     onSuccess: (patient) => {
       notifications.show({
         title: "Patient registered",
@@ -141,7 +152,7 @@ export function PatientsPage() {
         color: "success",
       });
       void queryClient.invalidateQueries({ queryKey: ["patients"] });
-      setDrawerOpen(false);
+      closeDrawer();
     },
     onError: (err: Error) => {
       notifications.show({
@@ -155,7 +166,7 @@ export function PatientsPage() {
   const handleRegisterSubmit = async (req: CreatePatientRequest) => {
     // Check for duplicates via MPI before creating
     try {
-      const matches = await api.matchPatients({
+      const matches = await patientsService.matchPatients({
         first_name: req.first_name,
         last_name: req.last_name,
         date_of_birth: req.date_of_birth ?? undefined,
@@ -163,7 +174,7 @@ export function PatientsPage() {
       });
       if (matches.length > 0) {
         setDuplicateMatches(matches);
-        setPendingRequest(req);
+        pendingRequestRef.current = req;
         dupModalHandlers.open();
         return;
       }
@@ -174,17 +185,17 @@ export function PatientsPage() {
   };
 
   const handleCreateAnyway = () => {
-    if (pendingRequest) {
-      createMutation.mutate(pendingRequest);
+    if (pendingRequestRef.current) {
+      createMutation.mutate(pendingRequestRef.current);
     }
     dupModalHandlers.close();
-    setPendingRequest(null);
+    pendingRequestRef.current = null;
     setDuplicateMatches([]);
   };
 
   const openRegister = (quick: boolean) => {
     setQuickMode(quick);
-    setDrawerOpen(true);
+    openDrawer();
   };
 
   const totalPages = data ? Math.ceil(data.total / PER_PAGE) : 0;
@@ -276,6 +287,30 @@ export function PatientsPage() {
       },
     },
     {
+      key: "payment_pending",
+      label: "Payment",
+      render: (row: Patient) => {
+        const balance = Number(row.outstanding_balance ?? 0);
+        const pendingCount = row.pending_invoice_count ?? 0;
+        if (!Number.isFinite(balance) || balance <= 0) {
+          return (
+            <Text size="sm" c="dimmed">
+              -
+            </Text>
+          );
+        }
+        return (
+          <Tooltip
+            label={`${pendingCount || 1} invoice${pendingCount === 1 ? "" : "s"} with pending payment`}
+          >
+            <Badge color="danger" variant="light" leftSection={<IconCash size={12} />}>
+              ₹{formatMoney(balance)} pending
+            </Badge>
+          </Tooltip>
+        );
+      },
+    },
+    {
       key: "actions",
       label: "",
       render: (row: Patient) => (
@@ -352,7 +387,7 @@ export function PatientsPage() {
       {/* Registration Drawer */}
       <Drawer
         opened={drawerOpen}
-        onClose={() => setDrawerOpen(false)}
+        onClose={closeDrawer}
         title={quickMode ? "Quick Registration" : "Register Patient"}
         position="right"
         size="100%"
@@ -361,7 +396,7 @@ export function PatientsPage() {
         <PatientRegisterForm
           quickMode={quickMode}
           onSubmit={handleRegisterSubmit}
-          onCancel={() => setDrawerOpen(false)}
+          onCancel={closeDrawer}
           isSubmitting={createMutation.isPending}
           submitLabel="Register"
         />
@@ -372,7 +407,7 @@ export function PatientsPage() {
         opened={dupModalOpen}
         onClose={() => {
           dupModalHandlers.close();
-          setPendingRequest(null);
+          pendingRequestRef.current = null;
         }}
         title="Potential Duplicates Found"
         size="lg"
@@ -433,7 +468,7 @@ export function PatientsPage() {
             variant="subtle"
             onClick={() => {
               dupModalHandlers.close();
-              setPendingRequest(null);
+              pendingRequestRef.current = null;
             }}
           >
             Cancel

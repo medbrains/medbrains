@@ -1,7 +1,7 @@
+/* @refresh reload */
 import "./i18n";
 import { DirectionProvider, MantineProvider } from "@mantine/core";
 import { Notifications } from "@mantine/notifications";
-import { api, setApiBase } from "@medbrains/api";
 import { createQueryClient } from "@medbrains/stores";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { StrictMode } from "react";
@@ -9,6 +9,12 @@ import { createRoot } from "react-dom/client";
 import { useTranslation } from "react-i18next";
 import { App } from "./App";
 import { RTL_LANGUAGES } from "./i18n";
+import {
+  defaultDesktopApiBase,
+  getStoredDesktopApiBase,
+  isTauriDesktopRuntime,
+} from "./lib/desktop-runtime";
+import { sessionService } from "./services/session.service";
 import { cssVariableResolver, theme } from "./theme";
 
 import "@fontsource/jetbrains-mono/400.css";
@@ -21,7 +27,24 @@ import "@mantine/dates/styles.css";
 import "@mantine/schedule/styles.css";
 import "./styles/global.scss";
 
-setApiBase(import.meta.env.VITE_API_BASE || "/api");
+const isTauriDesktop = isTauriDesktopRuntime();
+const desktopSearchParams = new URLSearchParams(window.location.search);
+const desktopStartRoute = desktopSearchParams.get("desktopStartRoute");
+const desktopRuntimeApiBase = desktopSearchParams.get("desktopApiBase")?.trim();
+if (isTauriDesktop && desktopStartRoute && window.location.pathname.endsWith("/index.html")) {
+  window.history.replaceState(null, "", desktopStartRoute);
+}
+
+const desktopApiBase =
+  desktopRuntimeApiBase ||
+  getStoredDesktopApiBase() ||
+  import.meta.env.VITE_DESKTOP_API_BASE ||
+  defaultDesktopApiBase();
+
+sessionService.setApiBase(
+  import.meta.env.VITE_API_BASE || (isTauriDesktop ? desktopApiBase : "/api"),
+);
+sessionService.configureNativeAuth(isTauriDesktop ? "desktop" : null);
 
 const runtimeState = globalThis as typeof globalThis & {
   __medbrainsConsoleReporterInstalled?: boolean;
@@ -70,7 +93,7 @@ function installConsoleErrorReporter() {
     }
     reportedConsoleMessages.add(reportKey);
 
-    void api
+    void sessionService
       .reportClientError({
         message: message.slice(0, 500),
         name: "ConsoleError",

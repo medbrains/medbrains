@@ -76,6 +76,7 @@ test.describe("Admin Setup Flow", () => {
     const fullName = `Dr. E2E User ${suffix}`;
     const updatedName = `${fullName} Updated`;
     const email = `${username}@example.com`;
+    const password = `E2eUser#${suffix}Aa9`;
 
     await createDepartment(page, departmentCode, departmentName);
 
@@ -83,18 +84,23 @@ test.describe("Admin Setup Flow", () => {
 
     await page.getByRole("button", { name: "Add User" }).click();
 
-    const createDialog = page.getByRole("dialog").filter({ hasText: "Add User" });
+    const createDialog = page.getByRole("dialog").filter({ hasText: "Create user" });
     await expect(createDialog).toBeVisible();
-    await createDialog.getByLabel("Full Name").fill(fullName);
     await createDialog.getByLabel("Username").fill(username);
+    await createDialog.getByLabel("Full name").fill(fullName);
     await createDialog.getByLabel("Email").fill(email);
-    await createDialog.getByLabel("Password").fill("admin123");
+    await createDialog.getByLabel("Password").fill(password);
+    await createDialog.getByRole("button", { name: "Next" }).click();
+
     await createDialog.getByLabel("Role").click();
     await page.getByRole("option", { name: "Doctor" }).click();
     await expect(createDialog.getByLabel("Departments")).toBeVisible();
     await createDialog.getByLabel("Departments").click();
     await page.getByRole("option", { name: new RegExp(departmentName) }).click();
-    await createDialog.getByRole("button", { name: "Create" }).click();
+    await createDialog.getByRole("button", { name: "Next" }).click();
+    await createDialog.getByRole("button", { name: "Next" }).click();
+    await createDialog.getByRole("button", { name: "Review" }).click();
+    await createDialog.getByRole("button", { name: "Create user" }).click();
 
     const row = page.locator("tr", { hasText: username });
     await expect(row).toBeVisible({ timeout: 10_000 });

@@ -1,10 +1,11 @@
 import { Button, Group, Select, Stack, TextInput } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
 import type { AvailableBed } from "@medbrains/types";
 import { IconBed, IconCheck } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
+import { ipdService } from "../../services/ipd.service";
+import { settingsSetupService } from "../../services/settingsSetup.service";
 
 interface MiniAddBedProps {
   searchText: string;
@@ -39,7 +40,7 @@ export function MiniAddBed({ searchText, wardId, onCreated, onCancel }: MiniAddB
 
   const { data: locations = [] } = useQuery({
     queryKey: ["setup-locations"],
-    queryFn: () => api.listLocations(),
+    queryFn: () => settingsSetupService.listLocations(),
     staleTime: 300_000,
   });
 
@@ -56,7 +57,7 @@ export function MiniAddBed({ searchText, wardId, onCreated, onCancel }: MiniAddB
 
   const mutation = useMutation({
     mutationFn: async () => {
-      const location = await api.createLocation({
+      const location = await settingsSetupService.createLocation({
         parent_id: parentId,
         level: "bed",
         code: code.trim(),
@@ -64,7 +65,7 @@ export function MiniAddBed({ searchText, wardId, onCreated, onCancel }: MiniAddB
       });
 
       if (wardId) {
-        await api.assignBedToWard(wardId, { bed_location_id: location.id });
+        await ipdService.assignBedToWard(wardId, { bed_location_id: location.id });
       }
 
       return {

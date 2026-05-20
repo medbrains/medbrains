@@ -1,3 +1,4 @@
+import { zodResolver } from "@hookform/resolvers/zod";
 import {
   ActionIcon,
   Badge,
@@ -13,22 +14,15 @@ import {
   TextInput,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
+import { type BedTypeSettingsFormInput, bedTypeSettingsFormSchema } from "@medbrains/schemas";
 import type { BedTypeRow } from "@medbrains/types";
 import { IconCheck, IconPencil, IconPlus, IconTrash } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { Controller, useForm } from "react-hook-form";
+import { settingsSetupService } from "../../../services/settingsSetup.service";
 
-// ── Form state for create / edit modal ──────────────────
-
-interface BedTypeFormState {
-  code: string;
-  name: string;
-  daily_rate: number;
-  description: string;
-}
-
-const EMPTY_FORM: BedTypeFormState = {
+const EMPTY_FORM: BedTypeSettingsFormInput = {
   code: "",
   name: "",
   daily_rate: 0,
@@ -44,8 +38,17 @@ export function BedTypesSettings() {
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [form, setForm] = useState<BedTypeFormState>(EMPTY_FORM);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const {
+    control,
+    handleSubmit,
+    reset,
+    register,
+    formState: { errors },
+  } = useForm<BedTypeSettingsFormInput>({
+    resolver: zodResolver(bedTypeSettingsFormSchema),
+    defaultValues: EMPTY_FORM,
+  });
 
   // ── Queries ─────────────────────────────────────────────
 
@@ -56,14 +59,13 @@ export function BedTypesSettings() {
     error,
   } = useQuery({
     queryKey: QUERY_KEY,
-    queryFn: () => api.listBedTypes(),
+    queryFn: settingsSetupService.listBedTypes,
   });
 
   // ── Mutations ───────────────────────────────────────────
 
   const createMutation = useMutation({
-    mutationFn: (data: { code: string; name: string; daily_rate: number; description?: string }) =>
-      api.createBedType(data),
+    mutationFn: settingsSetupService.createBedType,
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: QUERY_KEY });
       closeModal();
@@ -84,8 +86,13 @@ export function BedTypesSettings() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: Record<string, unknown> }) =>
-      api.updateBedType(id, data),
+    mutationFn: ({
+      id,
+      data,
+    }: {
+      id: string;
+      data: Parameters<typeof settingsSetupService.updateBedType>[1];
+    }) => settingsSetupService.updateBedType(id, data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: QUERY_KEY });
       closeModal();
@@ -106,7 +113,7 @@ export function BedTypesSettings() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => api.deleteBedType(id),
+    mutationFn: settingsSetupService.deleteBedType,
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: QUERY_KEY });
       setDeleteConfirmId(null);
@@ -131,13 +138,13 @@ export function BedTypesSettings() {
 
   const openCreateModal = () => {
     setEditingId(null);
-    setForm(EMPTY_FORM);
+    reset(EMPTY_FORM);
     setModalOpen(true);
   };
 
   const openEditModal = (bedType: BedTypeRow) => {
     setEditingId(bedType.id);
-    setForm({
+    reset({
       code: bedType.code,
       name: bedType.name,
       daily_rate: bedType.daily_rate,
@@ -149,23 +156,14 @@ export function BedTypesSettings() {
   const closeModal = () => {
     setModalOpen(false);
     setEditingId(null);
-    setForm(EMPTY_FORM);
+    reset(EMPTY_FORM);
   };
 
-  const handleSubmit = () => {
-    if (!form.code.trim() || !form.name.trim()) {
-      notifications.show({
-        title: "Validation error",
-        message: "Code and Name are required.",
-        color: "orange",
-      });
-      return;
-    }
-
+  const submitBedType = handleSubmit((form) => {
     const payload = {
       code: form.code.trim(),
       name: form.name.trim(),
-      daily_rate: form.daily_rate,
+      daily_rate: Number(form.daily_rate),
       description: form.description.trim() || undefined,
     };
 
@@ -174,14 +172,10 @@ export function BedTypesSettings() {
     } else {
       createMutation.mutate(payload);
     }
-  };
+  });
 
   const handleDelete = (id: string) => {
     deleteMutation.mutate(id);
-  };
-
-  const updateField = <K extends keyof BedTypeFormState>(key: K, value: BedTypeFormState[K]) => {
-    setForm((prev) => ({ ...prev, [key]: value }));
   };
 
   // ── Format currency ─────────────────────────────────────
@@ -306,8 +300,8 @@ export function BedTypesSettings() {
           <TextInput
             label="Code"
             placeholder="e.g. GENERAL, SEMI_PVT, ICU"
-            value={form.code}
-            onChange={(e) => updateField("code", e.currentTarget.value)}
+            {...register("code")}
+            error={errors.code?.message}
             required
             disabled={!!editingId}
             data-autofocus
@@ -315,25 +309,32 @@ export function BedTypesSettings() {
           <TextInput
             label="Name"
             placeholder="e.g. General Ward, Semi-Private, ICU Bed"
-            value={form.name}
-            onChange={(e) => updateField("name", e.currentTarget.value)}
+            {...register("name")}
+            error={errors.name?.message}
             required
           />
-          <NumberInput
-            label="Daily Rate"
-            placeholder="0.00"
-            prefix={"\u20B9"}
-            min={0}
-            decimalScale={2}
-            value={form.daily_rate}
-            onChange={(value) => updateField("daily_rate", typeof value === "number" ? value : 0)}
-            required
+          <Controller
+            control={control}
+            name="daily_rate"
+            render={({ field }) => (
+              <NumberInput
+                label="Daily Rate"
+                placeholder="0.00"
+                prefix={"\u20B9"}
+                min={0}
+                decimalScale={2}
+                value={field.value}
+                onChange={(value) => field.onChange(typeof value === "number" ? value : 0)}
+                error={errors.daily_rate?.message}
+                required
+              />
+            )}
           />
           <Textarea
             label="Description"
             placeholder="Optional description for this bed type"
-            value={form.description}
-            onChange={(e) => updateField("description", e.currentTarget.value)}
+            {...register("description")}
+            error={errors.description?.message}
             autosize
             minRows={2}
             maxRows={4}
@@ -342,7 +343,7 @@ export function BedTypesSettings() {
             <Button variant="default" onClick={closeModal}>
               Cancel
             </Button>
-            <Button onClick={handleSubmit} loading={isMutating}>
+            <Button onClick={() => void submitBedType()} loading={isMutating}>
               {editingId ? "Save Changes" : "Create"}
             </Button>
           </Group>

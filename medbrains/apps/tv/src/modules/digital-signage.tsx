@@ -13,6 +13,7 @@ function DigitalSignageScreen() {
       title="Welcome"
       subtitle="Visitor hours · 9 AM to 7 PM. Please follow infection control protocols."
       legend="Rotates every 30 seconds · medbrains://tv/digital-signage"
+      tags={["TV-Notice", "TV-Wayfinding", "TV-Education", "signage"]}
     />
   );
 }
@@ -23,4 +24,6 @@ export const digitalSignageModule: Module = {
   icon: () => null,
   requiredPermissions: [],
   navigator: DigitalSignageScreen,
+  appCodes: ["TV-Notice", "TV-Wayfinding", "TV-Education", "TV-Cafeteria", "TV-Donor"],
+  tags: ["tv", "signage", "notices", "wayfinding", "education"],
 };

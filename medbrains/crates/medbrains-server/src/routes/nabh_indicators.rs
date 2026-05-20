@@ -617,7 +617,7 @@ pub async fn get_indicators(
     // ── Access / OPD waiting time (NABH 6) ─────────────────
     let opd_wait = scalar_minutes(
         &mut tx,
-        "SELECT EXTRACT(EPOCH FROM AVG(COALESCE(called_at, completed_at) - created_at))/60.0 \
+        "SELECT (EXTRACT(EPOCH FROM AVG(COALESCE(called_at, completed_at) - created_at))/60.0)::float8 \
          FROM opd_queues \
          WHERE tenant_id = $1 \
            AND COALESCE(called_at, completed_at) IS NOT NULL \
@@ -627,7 +627,7 @@ pub async fn get_indicators(
     .await;
     let opd_wait_prev = scalar_minutes(
         &mut tx,
-        "SELECT EXTRACT(EPOCH FROM AVG(COALESCE(called_at, completed_at) - created_at))/60.0 \
+        "SELECT (EXTRACT(EPOCH FROM AVG(COALESCE(called_at, completed_at) - created_at))/60.0)::float8 \
          FROM opd_queues \
          WHERE tenant_id = $1 \
            AND COALESCE(called_at, completed_at) IS NOT NULL \
@@ -649,10 +649,114 @@ pub async fn get_indicators(
         note: None,
     });
 
+    // ── Access / Appointment no-show rate ─────────────────
+    let appointment_no_show_rate = scalar_f64(
+        &mut tx,
+        "SELECT (100.0 * COUNT(*) FILTER (WHERE status = 'no_show')::float8 \
+                / NULLIF(COUNT(*) FILTER (WHERE status IN ('completed', 'no_show')), 0)::float8)::float8 \
+         FROM appointments \
+         WHERE tenant_id = $1 \
+           AND appointment_date >= date_trunc('month', now())::date \
+           AND appointment_date <= CURRENT_DATE",
+        claims.tenant_id,
+    )
+    .await;
+    indicators.push(Indicator {
+        code: "ACCESS_APPOINTMENT_NO_SHOW".into(),
+        label: "Appointment no-show rate".into(),
+        category: "access".into(),
+        direction: "lower_better".into(),
+        unit: "percent".into(),
+        target: Some(5.0),
+        value_current_month: appointment_no_show_rate,
+        value_prev_month: None,
+        denominator_label: Some("completed + marked no-show appointments".into()),
+        note: Some(
+            "Computed from appointment statuses; pending future appointments are excluded".into(),
+        ),
+    });
+
+    // ── Access / Appointment cancellation rate ─────────────
+    let appointment_cancel_rate = scalar_f64(
+        &mut tx,
+        "SELECT (100.0 * COUNT(*) FILTER (WHERE status = 'cancelled')::float8 \
+                / NULLIF(COUNT(*), 0)::float8)::float8 \
+         FROM appointments \
+         WHERE tenant_id = $1 \
+           AND appointment_date >= date_trunc('month', now())::date \
+           AND appointment_date < (date_trunc('month', now()) + interval '1 month')::date",
+        claims.tenant_id,
+    )
+    .await;
+    indicators.push(Indicator {
+        code: "ACCESS_APPOINTMENT_CANCEL_RATE".into(),
+        label: "Appointment cancellation rate".into(),
+        category: "access".into(),
+        direction: "lower_better".into(),
+        unit: "percent".into(),
+        target: Some(10.0),
+        value_current_month: appointment_cancel_rate,
+        value_prev_month: None,
+        denominator_label: Some("of booked appointments in the month".into()),
+        note: Some("Computed from appointment cancellation status".into()),
+    });
+
+    // ── Access / OPD queue no-show rate ────────────────────
+    let opd_no_show_rate = scalar_f64(
+        &mut tx,
+        "SELECT (100.0 * COUNT(*) FILTER (WHERE status = 'no_show')::float8 \
+                / NULLIF(COUNT(*) FILTER (WHERE status IN ('completed', 'no_show')), 0)::float8)::float8 \
+         FROM opd_queues \
+         WHERE tenant_id = $1 \
+           AND queue_date >= date_trunc('month', now())::date \
+           AND queue_date <= CURRENT_DATE",
+        claims.tenant_id,
+    )
+    .await;
+    indicators.push(Indicator {
+        code: "ACCESS_OPD_TOKEN_NO_SHOW".into(),
+        label: "OPD token no-show rate".into(),
+        category: "access".into(),
+        direction: "lower_better".into(),
+        unit: "percent".into(),
+        target: Some(5.0),
+        value_current_month: opd_no_show_rate,
+        value_prev_month: None,
+        denominator_label: Some("completed + marked no-show OPD tokens".into()),
+        note: Some("Computed from live OPD queue statuses".into()),
+    });
+
+    // ── Access / Appointment check-in delay ────────────────
+    let appointment_checkin_delay = scalar_minutes(
+        &mut tx,
+        "SELECT (EXTRACT(EPOCH FROM AVG( \
+             checked_in_at - (appointment_date + slot_start) \
+         )) / 60.0)::float8 \
+         FROM appointments \
+         WHERE tenant_id = $1 \
+           AND checked_in_at IS NOT NULL \
+           AND appointment_date >= date_trunc('month', now())::date \
+           AND appointment_date < (date_trunc('month', now()) + interval '1 month')::date",
+        claims.tenant_id,
+    )
+    .await;
+    indicators.push(Indicator {
+        code: "ACCESS_APPOINTMENT_CHECKIN_DELAY".into(),
+        label: "Appointment check-in delay".into(),
+        category: "access".into(),
+        direction: "lower_better".into(),
+        unit: "minutes".into(),
+        target: Some(15.0),
+        value_current_month: appointment_checkin_delay,
+        value_prev_month: None,
+        denominator_label: Some("checked-in appointments".into()),
+        note: Some("Average delay from scheduled slot start to check-in".into()),
+    });
+
     // ── Access / ER triage TAT (NABH 3) ────────────────────
     let er_triage = scalar_minutes(
         &mut tx,
-        "SELECT AVG(door_to_doctor_mins)::float \
+        "SELECT AVG(door_to_doctor_mins)::float8 \
          FROM er_visits \
          WHERE tenant_id = $1 \
            AND door_to_doctor_mins IS NOT NULL \
@@ -676,7 +780,7 @@ pub async fn get_indicators(
     // ── Operations / Average LOS (NABH 7) ──────────────────
     let alos = scalar_f64(
         &mut tx,
-        "SELECT AVG(EXTRACT(EPOCH FROM (discharged_at - admitted_at)) / 86400.0) \
+        "SELECT AVG(EXTRACT(EPOCH FROM (discharged_at - admitted_at)) / 86400.0)::float8 \
          FROM admissions \
          WHERE tenant_id = $1 AND discharged_at IS NOT NULL \
            AND discharged_at >= date_trunc('month', now())",
@@ -699,8 +803,8 @@ pub async fn get_indicators(
     // ── Operations / Bed occupancy % ───────────────────────
     let occupancy = scalar_f64(
         &mut tx,
-        "SELECT 100.0 * COUNT(*) FILTER (WHERE is_occupied)::float \
-                / NULLIF(COUNT(*), 0)::float \
+        "SELECT (100.0 * COUNT(*) FILTER (WHERE is_occupied)::float8 \
+                / NULLIF(COUNT(*), 0)::float8)::float8 \
          FROM beds WHERE tenant_id = $1",
         claims.tenant_id,
     )
@@ -721,7 +825,7 @@ pub async fn get_indicators(
     // ── Clinical / Lab TAT (NABH 8) ────────────────────────
     let lab_tat = scalar_minutes(
         &mut tx,
-        "SELECT EXTRACT(EPOCH FROM AVG(completed_at - created_at))/60.0 \
+        "SELECT (EXTRACT(EPOCH FROM AVG(completed_at - created_at))/60.0)::float8 \
          FROM lab_orders \
          WHERE tenant_id = $1 AND completed_at IS NOT NULL \
            AND completed_at >= date_trunc('month', now())",
@@ -744,9 +848,9 @@ pub async fn get_indicators(
     // ── Clinical / Imaging TAT (NABH 11) ───────────────────
     let img_tat = scalar_minutes(
         &mut tx,
-        "SELECT EXTRACT(EPOCH FROM AVG( \
+        "SELECT (EXTRACT(EPOCH FROM AVG( \
              COALESCE(rr.verified_at, rr.created_at, ro.completed_at) - ro.created_at \
-         ))/60.0 \
+         ))/60.0)::float8 \
          FROM radiology_orders ro \
          LEFT JOIN LATERAL ( \
              SELECT r.verified_at, r.created_at \
@@ -777,8 +881,8 @@ pub async fn get_indicators(
     // ── Safety / Inpatient mortality rate (NABH 50) ────────
     let mortality_pct = scalar_f64(
         &mut tx,
-        "SELECT 100.0 * COUNT(*) FILTER (WHERE discharge_type::text IN ('deceased', 'death'))::float \
-                / NULLIF(COUNT(*), 0)::float \
+        "SELECT (100.0 * COUNT(*) FILTER (WHERE discharge_type::text IN ('deceased', 'death'))::float8 \
+                / NULLIF(COUNT(*), 0)::float8)::float8 \
          FROM admissions \
          WHERE tenant_id = $1 AND discharged_at IS NOT NULL \
            AND discharged_at >= date_trunc('month', now())",
@@ -801,8 +905,8 @@ pub async fn get_indicators(
     // ── Safety / 30-day readmission rate (NABH 52) ─────────
     let readmit = scalar_f64(
         &mut tx,
-        "SELECT 100.0 * COUNT(*) FILTER (WHERE readmitted_within_30d)::float \
-                / NULLIF(COUNT(*), 0)::float \
+        "SELECT (100.0 * COUNT(*) FILTER (WHERE readmitted_within_30d)::float8 \
+                / NULLIF(COUNT(*), 0)::float8)::float8 \
          FROM ipd_post_discharge_followups \
          WHERE tenant_id = $1 \
            AND created_at >= date_trunc('month', now() - interval '1 month') \
@@ -826,7 +930,7 @@ pub async fn get_indicators(
     // ── Operations / Discharge TAT (NABH 65) ───────────────
     let discharge_tat = scalar_minutes(
         &mut tx,
-        "SELECT AVG(total_minutes)::float \
+        "SELECT AVG(total_minutes)::float8 \
          FROM ipd_discharge_tat_logs \
          WHERE tenant_id = $1 AND total_minutes IS NOT NULL \
            AND patient_released_at >= date_trunc('month', now())",
@@ -849,7 +953,7 @@ pub async fn get_indicators(
     // ── Experience / Patient survey score (NABH 67) ───────
     let survey_avg = scalar_f64(
         &mut tx,
-        "SELECT AVG(survey_score)::float \
+        "SELECT AVG(survey_score)::float8 \
          FROM ipd_post_discharge_followups \
          WHERE tenant_id = $1 AND survey_score IS NOT NULL \
            AND survey_responded_at >= date_trunc('month', now())",
@@ -872,8 +976,8 @@ pub async fn get_indicators(
     // ── Safety / Cancelled Rx (medication-error proxy) ─────
     let cancelled_rx = scalar_f64(
         &mut tx,
-        "SELECT 100.0 * COUNT(*) FILTER (WHERE status = 'cancelled')::float \
-                / NULLIF(COUNT(*), 0)::float \
+        "SELECT (100.0 * COUNT(*) FILTER (WHERE status = 'cancelled')::float8 \
+                / NULLIF(COUNT(*), 0)::float8)::float8 \
          FROM pharmacy_orders \
          WHERE tenant_id = $1 \
            AND created_at >= date_trunc('month', now())",
@@ -903,7 +1007,7 @@ pub async fn get_indicators(
     // ── COP-12 / IPSG-6: Falls per 1000 patient-days ──
     let falls_count = scalar_f64(
         &mut tx,
-        "SELECT COUNT(*)::float FROM nabh_falls_register \
+        "SELECT COUNT(*)::float8 FROM nabh_falls_register \
          WHERE tenant_id = $1 \
            AND fall_at >= date_trunc('month', now())",
         claims.tenant_id,
@@ -915,7 +1019,7 @@ pub async fn get_indicators(
         "SELECT COALESCE(SUM(EXTRACT(EPOCH FROM ( \
              LEAST(COALESCE(discharged_at, now()), now()) \
              - GREATEST(admitted_at, date_trunc('month', now())) \
-         )) / 86400.0), 0)::float \
+         )) / 86400.0), 0)::float8 \
          FROM admissions \
          WHERE tenant_id = $1 \
            AND admitted_at < now() \
@@ -947,7 +1051,7 @@ pub async fn get_indicators(
     // ── COP-11: Hospital-acquired pressure ulcer rate ──
     let pu_assessed = scalar_f64(
         &mut tx,
-        "SELECT COUNT(*)::float FROM nabh_pressure_ulcer_assessments \
+        "SELECT COUNT(*)::float8 FROM nabh_pressure_ulcer_assessments \
          WHERE tenant_id = $1 AND assessed_at >= date_trunc('month', now())",
         claims.tenant_id,
     )
@@ -955,7 +1059,7 @@ pub async fn get_indicators(
     .unwrap_or(0.0);
     let pu_hai = scalar_f64(
         &mut tx,
-        "SELECT COUNT(*)::float FROM nabh_pressure_ulcer_assessments \
+        "SELECT COUNT(*)::float8 FROM nabh_pressure_ulcer_assessments \
          WHERE tenant_id = $1 AND assessed_at >= date_trunc('month', now()) \
            AND injury_present = true AND injury_acquired = 'hospital_acquired'",
         claims.tenant_id,
@@ -983,7 +1087,7 @@ pub async fn get_indicators(
     // ── PSQ-3 / PSQ-6: Sentinel events — open count ──
     let sentinel_open = scalar_f64(
         &mut tx,
-        "SELECT COUNT(*)::float FROM nabh_sentinel_event_register \
+        "SELECT COUNT(*)::float8 FROM nabh_sentinel_event_register \
          WHERE tenant_id = $1 AND review_status <> 'closed'",
         claims.tenant_id,
     )
@@ -1004,7 +1108,7 @@ pub async fn get_indicators(
     // ── MOM-7 / IPSG-3: Transfusion reactions per 100 transfusions ──
     let btr_count = scalar_f64(
         &mut tx,
-        "SELECT COUNT(*)::float FROM nabh_blood_transfusion_reactions \
+        "SELECT COUNT(*)::float8 FROM nabh_blood_transfusion_reactions \
          WHERE tenant_id = $1 AND reaction_at >= date_trunc('month', now())",
         claims.tenant_id,
     )
@@ -1031,7 +1135,7 @@ pub async fn get_indicators(
     // ── AOP-9: Code Blue activations + survival rate ──
     let cb_count = scalar_f64(
         &mut tx,
-        "SELECT COUNT(*)::float FROM nabh_code_blue_activations \
+        "SELECT COUNT(*)::float8 FROM nabh_code_blue_activations \
          WHERE tenant_id = $1 AND activated_at >= date_trunc('month', now())",
         claims.tenant_id,
     )
@@ -1039,7 +1143,7 @@ pub async fn get_indicators(
     .unwrap_or(0.0);
     let cb_survived = scalar_f64(
         &mut tx,
-        "SELECT COUNT(*)::float FROM nabh_code_blue_activations \
+        "SELECT COUNT(*)::float8 FROM nabh_code_blue_activations \
          WHERE tenant_id = $1 AND activated_at >= date_trunc('month', now()) \
            AND outcome IN ('survived_intact', 'survived_with_disability', 'transferred_icu')",
         claims.tenant_id,
@@ -1067,7 +1171,7 @@ pub async fn get_indicators(
     // ── HIC-7 / FMS: Equipment downtime — open count ──
     let downtime_open = scalar_f64(
         &mut tx,
-        "SELECT COUNT(*)::float FROM nabh_equipment_downtime_log \
+        "SELECT COUNT(*)::float8 FROM nabh_equipment_downtime_log \
          WHERE tenant_id = $1 AND downtime_end IS NULL",
         claims.tenant_id,
     )
@@ -1088,7 +1192,7 @@ pub async fn get_indicators(
     // ── FMS-2: Days since last fire drill ──
     let days_since_drill = scalar_f64(
         &mut tx,
-        "SELECT COALESCE(EXTRACT(EPOCH FROM (now() - MAX(drill_at))) / 86400.0, NULL)::float \
+        "SELECT COALESCE(EXTRACT(EPOCH FROM (now() - MAX(drill_at))) / 86400.0, NULL)::float8 \
          FROM nabh_fire_safety_drills \
          WHERE tenant_id = $1",
         claims.tenant_id,
@@ -1110,7 +1214,7 @@ pub async fn get_indicators(
     // ── FMS-4 / BMW Rules 2016: 48-hour storage breach count ──
     let bmw_breaches = scalar_f64(
         &mut tx,
-        "SELECT COUNT(*)::float FROM nabh_bmw_disposal_log \
+        "SELECT COUNT(*)::float8 FROM nabh_bmw_disposal_log \
          WHERE tenant_id = $1 \
            AND disposal_date >= date_trunc('month', now())::date \
            AND storage_hours > 48",

@@ -1,17 +1,17 @@
 import { Badge, Button, Card, Group, SimpleGrid, Stack, Text, ThemeIcon } from "@mantine/core";
-import { api } from "@medbrains/api";
-import type { PatientCardRow, VitalsChecklistRow } from "@medbrains/types";
+import { useDisclosure } from "@mantine/hooks";
+import type { PatientCardRow, VitalsChecklistRow, WardGridResponse } from "@medbrains/types";
 import { IconHeartbeat, IconTemperature } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
 import { DataTable } from "../../components";
 import type { Column } from "../../components/DataTable";
+import { careViewService } from "../../services/careView.service";
 import { fallRiskColor, news2Color, urgencyColor } from "./shared";
 
 export function PatientGridTab({ wardId }: { wardId: string | null }) {
-  const { data, isLoading } = useQuery({
+  const { data, isLoading } = useQuery<WardGridResponse>({
     queryKey: ["care-view", "ward-grid", wardId],
-    queryFn: () => api.wardPatientGrid(wardId ?? undefined),
+    queryFn: () => careViewService.wardPatientGrid(wardId ?? undefined),
     refetchInterval: 30_000,
   });
 
@@ -181,12 +181,12 @@ function PatientCard({ patient }: { patient: PatientCardRow }) {
 }
 
 function VitalsChecklistSection({ wardId }: { wardId: string | null }) {
-  const [show, setShow] = useState(false);
+  const [opened, disclosure] = useDisclosure(false);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading } = useQuery<VitalsChecklistRow[]>({
     queryKey: ["care-view", "vitals-checklist", wardId],
-    queryFn: () => api.vitalsChecklist(wardId ?? undefined),
-    enabled: show,
+    queryFn: () => careViewService.vitalsChecklist(wardId ?? undefined),
+    enabled: opened,
     refetchInterval: 60_000,
   });
 
@@ -229,11 +229,11 @@ function VitalsChecklistSection({ wardId }: { wardId: string | null }) {
         variant="subtle"
         size="compact-sm"
         leftSection={<IconTemperature size={16} />}
-        onClick={() => setShow((value) => !value)}
+        onClick={disclosure.toggle}
       >
         Vitals Checklist {dueCount > 0 && `(${dueCount} due)`}
       </Button>
-      {show && (
+      {opened && (
         <DataTable
           columns={columns}
           data={data ?? []}

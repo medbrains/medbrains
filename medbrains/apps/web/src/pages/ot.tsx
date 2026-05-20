@@ -1,3 +1,4 @@
+import { zodResolver } from "@hookform/resolvers/zod";
 import {
   ActionIcon,
   Badge,
@@ -20,37 +21,48 @@ import {
 import { DatePickerInput } from "@mantine/dates";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
+import type {
+  OtAnesthesiaRecordFormInput,
+  OtBookingFormInput,
+  OtCaseRecordFormInput,
+  OtPostopRecordFormInput,
+  OtPostopRecordUpdateFormInput,
+  OtPreopAssessmentFormInput,
+  OtPreopAssessmentUpdateFormInput,
+  OtRoomFormInput,
+  OtStatusReasonActionFormValue,
+  OtStatusReasonFormInput,
+  OtSurgeonPreferenceFormInput,
+  OtUtilizationFilterFormInput,
+} from "@medbrains/schemas";
+import {
+  otAnesthesiaRecordFormSchema,
+  otBookingFormSchema,
+  otCaseRecordFormSchema,
+  otConsumableFormSchema,
+  otPostopRecordFormSchema,
+  otPostopRecordUpdateFormSchema,
+  otPreopAssessmentFormSchema,
+  otPreopAssessmentUpdateFormSchema,
+  otRoomFormSchema,
+  otStatusReasonFormSchema,
+  otSurgeonPreferenceFormSchema,
+  otUtilizationFilterFormSchema,
+} from "@medbrains/schemas";
 import { useHasPermission } from "@medbrains/stores";
 import type {
-  AnesthesiaType,
-  AsaClassification,
   ChecklistPhase,
-  CreateAnesthesiaRecordRequest,
-  CreateCaseRecordRequest,
-  CreateOtBookingRequest,
-  CreateOtConsumableRequest,
-  CreateOtRoomRequest,
-  CreatePostopRecordRequest,
-  CreatePreopAssessmentRequest,
   CreateSafetyChecklistRequest,
-  CreateSurgeonPreferenceRequest,
   OtAnesthesiaRecord,
   OtBooking,
-  OtCasePriority,
   OtCaseRecord,
-  OtConsumableCategory,
   OtConsumableUsage,
   OtPostopRecord,
   OtPreopAssessment,
   OtRoom,
   OtSurgeonPreference,
   OtSurgicalSafetyChecklist,
-  PostopRecoveryStatus,
-  PreopClearanceStatus,
   RoomUtilization,
-  UpdatePostopRecordRequest,
-  UpdatePreopAssessmentRequest,
 } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import {
@@ -69,11 +81,50 @@ import {
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { Controller, useForm, useWatch } from "react-hook-form";
 import { DataTable, PageHeader, StatusDot } from "../components";
 import { PatientContextBanner } from "../components/Patient/PatientContextBanner";
 import { PatientNameCell } from "../components/PatientNameCell";
 import { PatientSearchSelect } from "../components/PatientSearchSelect";
+import {
+  DEFAULT_OT_ANESTHESIA_RECORD_FORM_VALUES,
+  DEFAULT_OT_BOOKING_FORM_VALUES,
+  DEFAULT_OT_CASE_RECORD_FORM_VALUES,
+  DEFAULT_OT_CONSUMABLE_FORM_VALUES,
+  DEFAULT_OT_POSTOP_RECORD_FORM_VALUES,
+  DEFAULT_OT_POSTOP_UPDATE_FORM_VALUES,
+  DEFAULT_OT_PREOP_ASSESSMENT_FORM_VALUES,
+  DEFAULT_OT_PREOP_UPDATE_FORM_VALUES,
+  DEFAULT_OT_ROOM_FORM_VALUES,
+  DEFAULT_OT_STATUS_REASON_FORM_VALUES,
+  DEFAULT_OT_SURGEON_PREFERENCE_FORM_VALUES,
+  DEFAULT_OT_UTILIZATION_FILTER_FORM_VALUES,
+  normalizeOtAnesthesiaType,
+  normalizeOtAsaClassification,
+  normalizeOtCasePriority,
+  normalizeOtPostopRecoveryStatus,
+  normalizeOtPreopClearanceStatus,
+  OT_ANESTHESIA_TYPE_OPTIONS,
+  OT_ASA_OPTIONS,
+  OT_CASE_PRIORITY_OPTIONS,
+  OT_CONSUMABLE_CATEGORY_OPTIONS,
+  OT_POSTOP_RECOVERY_STATUS_OPTIONS,
+  OT_PREOP_CLEARANCE_STATUS_OPTIONS,
+  toCreateAnesthesiaRecordRequest,
+  toCreateCaseRecordRequest,
+  toCreateOtBookingRequest,
+  toCreateOtConsumableRequest,
+  toCreateOtRoomRequest,
+  toCreatePostopRecordRequest,
+  toCreatePreopAssessmentRequest,
+  toCreateSurgeonPreferenceRequest,
+  toOtUtilizationParams,
+  toUpdateOtBookingStatusRequest,
+  toUpdatePostopRecordRequest,
+  toUpdatePreopAssessmentRequest,
+} from "../forms/ot.form";
 import { useRequirePermission } from "../hooks/useRequirePermission";
+import { otService } from "../services/ot.service";
 
 const bookingStatusColors: Record<string, string> = {
   requested: "warning",
@@ -134,22 +185,22 @@ export function OtPage() {
 // ── Schedule Tab ───────────────────────────────────────
 
 function ScheduleTab() {
-  const [date, setDate] = useState<Date | null>(new Date());
+  const [date, setDate] = useState<string | null>(new Date().toISOString().slice(0, 10));
   const [roomId, setRoomId] = useState<string | null>(null);
 
   const { data: rooms } = useQuery({
     queryKey: ["ot-rooms"],
-    queryFn: () => api.listOtRooms(),
+    queryFn: () => otService.listOtRooms(),
   });
 
-  const dateStr = date ? date.toISOString().split("T")[0] : undefined;
+  const dateStr = date ?? undefined;
   const params: Record<string, string> = {};
   if (dateStr) params.date = dateStr;
   if (roomId) params.room_id = roomId;
 
   const { data, isLoading } = useQuery({
     queryKey: ["ot-schedule", dateStr, roomId],
-    queryFn: () => api.getOtSchedule(params),
+    queryFn: () => otService.getOtSchedule(params),
     enabled: !!dateStr,
   });
 
@@ -161,7 +212,7 @@ function ScheduleTab() {
         <DatePickerInput
           label="Date"
           value={date}
-          onChange={(v) => setDate(v as Date | null)}
+          onChange={setDate}
           leftSection={<IconCalendar size={16} />}
           w={200}
         />
@@ -260,7 +311,7 @@ function BookingsTab({ canCreate }: { canCreate: boolean }) {
 
   const { data, isLoading } = useQuery({
     queryKey: ["ot-bookings", params],
-    queryFn: () => api.listOtBookings(params),
+    queryFn: () => otService.listOtBookings(params),
   });
 
   const columns = [
@@ -376,15 +427,26 @@ function BookingsTab({ canCreate }: { canCreate: boolean }) {
 
 function CreateBookingDrawer({ opened, onClose }: { opened: boolean; onClose: () => void }) {
   const queryClient = useQueryClient();
-  const [form, setForm] = useState<Partial<CreateOtBookingRequest>>({});
+  const {
+    control,
+    handleSubmit,
+    reset,
+    watch,
+    formState: { errors },
+  } = useForm<OtBookingFormInput>({
+    resolver: zodResolver(otBookingFormSchema),
+    defaultValues: DEFAULT_OT_BOOKING_FORM_VALUES,
+  });
+  const selectedPatientId = watch("patient_id");
 
   const mutation = useMutation({
-    mutationFn: (data: CreateOtBookingRequest) => api.createOtBooking(data),
+    mutationFn: (values: OtBookingFormInput) =>
+      otService.createOtBooking(toCreateOtBookingRequest(values)),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["ot-bookings"] });
       notifications.show({ title: "Created", message: "OT booking created", color: "success" });
       onClose();
-      setForm({});
+      reset(DEFAULT_OT_BOOKING_FORM_VALUES);
     },
     onError: () =>
       notifications.show({ title: "Error", message: "Failed to create booking", color: "danger" }),
@@ -392,59 +454,104 @@ function CreateBookingDrawer({ opened, onClose }: { opened: boolean; onClose: ()
 
   return (
     <Drawer opened={opened} onClose={onClose} title="New OT Booking" position="right" size="xl">
-      <Stack>
-        <PatientSearchSelect
-          value={form.patient_id ?? ""}
-          onChange={(id) => setForm({ ...form, patient_id: id })}
-          required
+      <Stack component="form" onSubmit={handleSubmit((values) => mutation.mutate(values))}>
+        <Controller
+          control={control}
+          name="patient_id"
+          render={({ field }) => (
+            <PatientSearchSelect
+              value={field.value}
+              onChange={field.onChange}
+              required
+              error={errors.patient_id?.message}
+            />
+          )}
         />
-        <PatientContextBanner patientId={form.patient_id} hideLoadingState />
-        <TextInput
-          label="OT Room ID"
-          required
-          onChange={(e) => setForm({ ...form, ot_room_id: e.currentTarget.value })}
+        <PatientContextBanner patientId={selectedPatientId} hideLoadingState />
+        <Controller
+          control={control}
+          name="ot_room_id"
+          render={({ field }) => (
+            <TextInput label="OT Room ID" required {...field} error={errors.ot_room_id?.message} />
+          )}
         />
-        <TextInput
-          label="Primary Surgeon ID"
-          required
-          onChange={(e) => setForm({ ...form, primary_surgeon_id: e.currentTarget.value })}
+        <Controller
+          control={control}
+          name="primary_surgeon_id"
+          render={({ field }) => (
+            <TextInput
+              label="Primary Surgeon ID"
+              required
+              {...field}
+              error={errors.primary_surgeon_id?.message}
+            />
+          )}
         />
-        <TextInput
-          label="Procedure Name"
-          required
-          onChange={(e) => setForm({ ...form, procedure_name: e.currentTarget.value })}
+        <Controller
+          control={control}
+          name="procedure_name"
+          render={({ field }) => (
+            <TextInput
+              label="Procedure Name"
+              required
+              {...field}
+              error={errors.procedure_name?.message}
+            />
+          )}
         />
-        <TextInput
-          label="Scheduled Date"
-          placeholder="YYYY-MM-DD"
-          onChange={(e) => setForm({ ...form, scheduled_date: e.currentTarget.value })}
+        <Controller
+          control={control}
+          name="scheduled_date"
+          render={({ field }) => (
+            <TextInput
+              label="Scheduled Date"
+              placeholder="YYYY-MM-DD"
+              {...field}
+              error={errors.scheduled_date?.message}
+            />
+          )}
         />
-        <TextInput
-          label="Scheduled Start (ISO)"
-          onChange={(e) => setForm({ ...form, scheduled_start: e.currentTarget.value })}
+        <Controller
+          control={control}
+          name="scheduled_start"
+          render={({ field }) => (
+            <TextInput
+              label="Scheduled Start (ISO)"
+              {...field}
+              error={errors.scheduled_start?.message}
+            />
+          )}
         />
-        <TextInput
-          label="Scheduled End (ISO)"
-          onChange={(e) => setForm({ ...form, scheduled_end: e.currentTarget.value })}
+        <Controller
+          control={control}
+          name="scheduled_end"
+          render={({ field }) => (
+            <TextInput
+              label="Scheduled End (ISO)"
+              {...field}
+              error={errors.scheduled_end?.message}
+            />
+          )}
         />
-        <Select
-          label="Priority"
-          data={[
-            { value: "elective", label: "Elective" },
-            { value: "urgent", label: "Urgent" },
-            { value: "emergency", label: "Emergency" },
-          ]}
-          value={form.priority ?? "elective"}
-          onChange={(v) => setForm({ ...form, priority: (v ?? "elective") as OtCasePriority })}
+        <Controller
+          control={control}
+          name="priority"
+          render={({ field }) => (
+            <Select
+              label="Priority"
+              data={OT_CASE_PRIORITY_OPTIONS}
+              value={field.value}
+              onChange={(value) => field.onChange(normalizeOtCasePriority(value))}
+              error={errors.priority?.message}
+            />
+          )}
         />
-        <Textarea
-          label="Notes"
-          onChange={(e) => setForm({ ...form, notes: e.currentTarget.value || undefined })}
+        <Controller
+          control={control}
+          name="notes"
+          render={({ field }) => <Textarea label="Notes" {...field} />}
         />
-        <Button
-          onClick={() => mutation.mutate(form as CreateOtBookingRequest)}
-          loading={mutation.isPending}
-        >
+        <Button type="submit" loading={mutation.isPending}>
           Create Booking
         </Button>
       </Stack>
@@ -455,14 +562,13 @@ function CreateBookingDrawer({ opened, onClose }: { opened: boolean; onClose: ()
 // ── Booking Detail (Tabbed Surgical Workflow) ──────────
 
 function BookingDetail({ bookingId }: { bookingId: string }) {
-  const { data } = useQuery({
+  const { data } = useQuery<OtBooking>({
     queryKey: ["ot-booking", bookingId],
-    queryFn: () => api.getOtBooking(bookingId),
+    queryFn: () => otService.getOtBooking(bookingId),
   });
 
   if (!data) return <Text c="dimmed">Loading...</Text>;
 
-  const b = data as OtBooking;
   return (
     <Tabs defaultValue="overview">
       <Tabs.List>
@@ -476,7 +582,7 @@ function BookingDetail({ bookingId }: { bookingId: string }) {
       </Tabs.List>
 
       <Tabs.Panel value="overview" pt="md">
-        <OverviewTab booking={b} />
+        <OverviewTab booking={data} />
       </Tabs.Panel>
       <Tabs.Panel value="preop" pt="md">
         <PreopTab bookingId={bookingId} />
@@ -505,23 +611,38 @@ function BookingDetail({ bookingId }: { bookingId: string }) {
 function OverviewTab({ booking: b }: { booking: OtBooking }) {
   const queryClient = useQueryClient();
   const canUpdate = useHasPermission(P.OT.BOOKINGS_UPDATE);
-  const [reason, setReason] = useState("");
-  const [showReason, setShowReason] = useState<"cancel" | "postpone" | null>(null);
+  const [reasonAction, setReasonAction] = useState<OtStatusReasonActionFormValue>("cancel");
+  const [reasonOpened, { open: openReasonEditor, close: closeReasonEditor }] = useDisclosure(false);
+  const {
+    control: reasonControl,
+    handleSubmit: handleReasonSubmit,
+    reset: resetReason,
+    formState: { errors: reasonErrors },
+  } = useForm<OtStatusReasonFormInput>({
+    resolver: zodResolver(otStatusReasonFormSchema),
+    defaultValues: DEFAULT_OT_STATUS_REASON_FORM_VALUES,
+  });
+
+  const openStatusReasonEditor = (action: OtStatusReasonActionFormValue) => {
+    setReasonAction(action);
+    resetReason(DEFAULT_OT_STATUS_REASON_FORM_VALUES);
+    openReasonEditor();
+  };
+
+  const closeStatusReasonEditor = () => {
+    closeReasonEditor();
+    resetReason(DEFAULT_OT_STATUS_REASON_FORM_VALUES);
+  };
 
   const statusMutation = useMutation({
-    mutationFn: (payload: {
-      status: string;
-      cancellation_reason?: string;
-      postpone_reason?: string;
-    }) =>
-      api.updateOtBookingStatus(b.id, payload as Parameters<typeof api.updateOtBookingStatus>[1]),
+    mutationFn: (payload: Parameters<typeof otService.updateOtBookingStatus>[1]) =>
+      otService.updateOtBookingStatus(b.id, payload),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["ot-booking", b.id] });
       void queryClient.invalidateQueries({ queryKey: ["ot-bookings"] });
       void queryClient.invalidateQueries({ queryKey: ["ot-schedule"] });
       notifications.show({ title: "Updated", message: "Booking status updated", color: "success" });
-      setShowReason(null);
-      setReason("");
+      closeStatusReasonEditor();
     },
     onError: () =>
       notifications.show({ title: "Error", message: "Status update failed", color: "danger" }),
@@ -582,7 +703,7 @@ function OverviewTab({ booking: b }: { booking: OtBooking }) {
                 color="danger"
                 variant="light"
                 leftSection={<IconX size={14} />}
-                onClick={() => setShowReason("cancel")}
+                onClick={() => openStatusReasonEditor("cancel")}
               >
                 Cancel
               </Button>
@@ -600,7 +721,7 @@ function OverviewTab({ booking: b }: { booking: OtBooking }) {
                   statusMutation.mutate({
                     status: "in_progress",
                     actual_start: new Date().toISOString(),
-                  } as Parameters<typeof statusMutation.mutate>[0])
+                  })
                 }
               >
                 Start Surgery
@@ -610,7 +731,7 @@ function OverviewTab({ booking: b }: { booking: OtBooking }) {
                 color="orange"
                 variant="light"
                 leftSection={<IconClock size={14} />}
-                onClick={() => setShowReason("postpone")}
+                onClick={() => openStatusReasonEditor("postpone")}
               >
                 Postpone
               </Button>
@@ -619,7 +740,7 @@ function OverviewTab({ booking: b }: { booking: OtBooking }) {
                 color="danger"
                 variant="light"
                 leftSection={<IconX size={14} />}
-                onClick={() => setShowReason("cancel")}
+                onClick={() => openStatusReasonEditor("cancel")}
               >
                 Cancel
               </Button>
@@ -637,7 +758,7 @@ function OverviewTab({ booking: b }: { booking: OtBooking }) {
                   statusMutation.mutate({
                     status: "completed",
                     actual_end: new Date().toISOString(),
-                  } as Parameters<typeof statusMutation.mutate>[0])
+                  })
                 }
               >
                 Complete Surgery
@@ -647,44 +768,42 @@ function OverviewTab({ booking: b }: { booking: OtBooking }) {
                 color="danger"
                 variant="light"
                 leftSection={<IconX size={14} />}
-                onClick={() => setShowReason("cancel")}
+                onClick={() => openStatusReasonEditor("cancel")}
               >
                 Cancel
               </Button>
             </Group>
           )}
 
-          {showReason && (
-            <Stack gap="xs">
-              <TextInput
-                label={showReason === "cancel" ? "Cancellation Reason" : "Postpone Reason"}
-                value={reason}
-                onChange={(e) => setReason(e.currentTarget.value)}
+          {reasonOpened && (
+            <Stack
+              component="form"
+              gap="xs"
+              onSubmit={handleReasonSubmit((values) =>
+                statusMutation.mutate(toUpdateOtBookingStatusRequest(reasonAction, values)),
+              )}
+            >
+              <Controller
+                control={reasonControl}
+                name="reason"
+                render={({ field }) => (
+                  <TextInput
+                    label={reasonAction === "cancel" ? "Cancellation Reason" : "Postpone Reason"}
+                    error={reasonErrors.reason?.message}
+                    {...field}
+                  />
+                )}
               />
               <Group>
                 <Button
+                  type="submit"
                   size="sm"
-                  color={showReason === "cancel" ? "danger" : "orange"}
+                  color={reasonAction === "cancel" ? "danger" : "orange"}
                   loading={statusMutation.isPending}
-                  onClick={() =>
-                    statusMutation.mutate({
-                      status: showReason === "cancel" ? "cancelled" : "postponed",
-                      ...(showReason === "cancel"
-                        ? { cancellation_reason: reason }
-                        : { postpone_reason: reason }),
-                    })
-                  }
                 >
-                  Confirm {showReason === "cancel" ? "Cancellation" : "Postpone"}
+                  Confirm {reasonAction === "cancel" ? "Cancellation" : "Postpone"}
                 </Button>
-                <Button
-                  size="sm"
-                  variant="subtle"
-                  onClick={() => {
-                    setShowReason(null);
-                    setReason("");
-                  }}
-                >
+                <Button size="sm" variant="subtle" onClick={closeStatusReasonEditor}>
                   Back
                 </Button>
               </Group>
@@ -717,24 +836,28 @@ function OverviewTab({ booking: b }: { booking: OtBooking }) {
 function PreopTab({ bookingId }: { bookingId: string }) {
   const queryClient = useQueryClient();
   const canCreate = useHasPermission(P.OT.PREOP_CREATE);
-  const [editing, setEditing] = useState(false);
+  const [editing, { open: openEditing, close: closeEditing }] = useDisclosure(false);
 
   const { data, isLoading } = useQuery({
     queryKey: ["ot-preop", bookingId],
-    queryFn: () => api.listPreopAssessments(bookingId),
+    queryFn: () => otService.listPreopAssessments(bookingId),
   });
 
-  const assessment = (data as OtPreopAssessment[] | undefined)?.[0];
-
-  const [form, setForm] = useState<Partial<CreatePreopAssessmentRequest>>({
-    fasting_status: false,
-    lab_results_reviewed: false,
-    imaging_reviewed: false,
-    blood_group_confirmed: false,
+  const assessments: OtPreopAssessment[] = data ?? [];
+  const assessment = assessments[0];
+  const {
+    control,
+    handleSubmit,
+    reset,
+    formState: { errors },
+  } = useForm<OtPreopAssessmentFormInput>({
+    resolver: zodResolver(otPreopAssessmentFormSchema),
+    defaultValues: DEFAULT_OT_PREOP_ASSESSMENT_FORM_VALUES,
   });
 
   const createMutation = useMutation({
-    mutationFn: (d: CreatePreopAssessmentRequest) => api.createPreopAssessment(bookingId, d),
+    mutationFn: (values: OtPreopAssessmentFormInput) =>
+      otService.createPreopAssessment(bookingId, toCreatePreopAssessmentRequest(values)),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["ot-preop", bookingId] });
       notifications.show({
@@ -742,18 +865,30 @@ function PreopTab({ bookingId }: { bookingId: string }) {
         message: "Pre-op assessment recorded",
         color: "success",
       });
+      reset(DEFAULT_OT_PREOP_ASSESSMENT_FORM_VALUES);
     },
     onError: () =>
       notifications.show({ title: "Error", message: "Failed to save assessment", color: "danger" }),
   });
 
-  const [updateForm, setUpdateForm] = useState<Partial<UpdatePreopAssessmentRequest>>({});
+  const {
+    control: updateControl,
+    handleSubmit: handleUpdateSubmit,
+    reset: resetUpdate,
+    formState: { errors: updateErrors },
+  } = useForm<OtPreopAssessmentUpdateFormInput>({
+    resolver: zodResolver(otPreopAssessmentUpdateFormSchema),
+    defaultValues: DEFAULT_OT_PREOP_UPDATE_FORM_VALUES,
+  });
+
   const updateMutation = useMutation({
-    mutationFn: (d: UpdatePreopAssessmentRequest) => api.updatePreopAssessment(bookingId, d),
+    mutationFn: (values: OtPreopAssessmentUpdateFormInput) =>
+      otService.updatePreopAssessment(bookingId, toUpdatePreopAssessmentRequest(values)),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["ot-preop", bookingId] });
       notifications.show({ title: "Updated", message: "Assessment updated", color: "success" });
-      setEditing(false);
+      closeEditing();
+      resetUpdate(DEFAULT_OT_PREOP_UPDATE_FORM_VALUES);
     },
     onError: () =>
       notifications.show({ title: "Error", message: "Update failed", color: "danger" }),
@@ -805,11 +940,11 @@ function PreopTab({ bookingId }: { bookingId: string }) {
             size="sm"
             variant="light"
             onClick={() => {
-              setUpdateForm({
+              resetUpdate({
                 clearance_status: a.clearance_status,
-                asa_class: a.asa_class ?? undefined,
+                asa_class: a.asa_class,
               });
-              setEditing(true);
+              openEditing();
             }}
           >
             Edit Assessment
@@ -821,45 +956,50 @@ function PreopTab({ bookingId }: { bookingId: string }) {
 
   if (assessment && editing) {
     return (
-      <Stack>
+      <Stack
+        component="form"
+        onSubmit={handleUpdateSubmit((values) => updateMutation.mutate(values))}
+      >
         <Text fw={600}>Edit Assessment</Text>
-        <Select
-          label="Clearance Status"
-          data={[
-            { value: "pending", label: "Pending" },
-            { value: "cleared", label: "Cleared" },
-            { value: "not_cleared", label: "Not Cleared" },
-            { value: "conditional", label: "Conditional" },
-          ]}
-          value={updateForm.clearance_status ?? assessment.clearance_status}
-          onChange={(v) =>
-            setUpdateForm({
-              ...updateForm,
-              clearance_status: (v ?? "pending") as PreopClearanceStatus,
-            })
-          }
+        <Controller
+          control={updateControl}
+          name="clearance_status"
+          render={({ field }) => (
+            <Select
+              label="Clearance Status"
+              data={OT_PREOP_CLEARANCE_STATUS_OPTIONS}
+              value={field.value}
+              onChange={(value) => field.onChange(normalizeOtPreopClearanceStatus(value))}
+              error={updateErrors.clearance_status?.message}
+            />
+          )}
         />
-        <Select
-          label="ASA Class"
-          data={asaOptions}
-          value={updateForm.asa_class ?? assessment.asa_class ?? null}
-          onChange={(v) =>
-            setUpdateForm({
-              ...updateForm,
-              asa_class: (v ?? undefined) as AsaClassification | undefined,
-            })
-          }
-          clearable
+        <Controller
+          control={updateControl}
+          name="asa_class"
+          render={({ field }) => (
+            <Select
+              label="ASA Class"
+              data={OT_ASA_OPTIONS}
+              value={field.value}
+              onChange={(value) => field.onChange(normalizeOtAsaClassification(value))}
+              error={updateErrors.asa_class?.message}
+              clearable
+            />
+          )}
         />
         <Group>
-          <Button
-            size="sm"
-            onClick={() => updateMutation.mutate(updateForm as UpdatePreopAssessmentRequest)}
-            loading={updateMutation.isPending}
-          >
+          <Button size="sm" type="submit" loading={updateMutation.isPending}>
             Save
           </Button>
-          <Button size="sm" variant="subtle" onClick={() => setEditing(false)}>
+          <Button
+            size="sm"
+            variant="subtle"
+            onClick={() => {
+              closeEditing();
+              resetUpdate(DEFAULT_OT_PREOP_UPDATE_FORM_VALUES);
+            }}
+          >
             Cancel
           </Button>
         </Group>
@@ -875,73 +1015,92 @@ function PreopTab({ bookingId }: { bookingId: string }) {
     );
 
   return (
-    <Stack>
+    <Stack component="form" onSubmit={handleSubmit((values) => createMutation.mutate(values))}>
       <Text fw={600}>Create Pre-Op Assessment</Text>
-      <Select
-        label="ASA Class"
-        data={asaOptions}
-        clearable
-        onChange={(v) =>
-          setForm({ ...form, asa_class: (v ?? undefined) as AsaClassification | undefined })
-        }
+      <Controller
+        control={control}
+        name="asa_class"
+        render={({ field }) => (
+          <Select
+            label="ASA Class"
+            data={OT_ASA_OPTIONS}
+            value={field.value}
+            onChange={(value) => field.onChange(normalizeOtAsaClassification(value))}
+            error={errors.asa_class?.message}
+            clearable
+          />
+        )}
       />
-      <Checkbox
-        label="Fasting"
-        checked={form.fasting_status ?? false}
-        onChange={(e) => setForm({ ...form, fasting_status: e.currentTarget.checked })}
+      <Controller
+        control={control}
+        name="fasting_status"
+        render={({ field }) => (
+          <Checkbox
+            label="Fasting"
+            checked={field.value}
+            onChange={(event) => field.onChange(event.currentTarget.checked)}
+          />
+        )}
       />
-      <TextInput
-        label="NPO Since"
-        placeholder="e.g. 22:00"
-        onChange={(e) => setForm({ ...form, npo_since: e.currentTarget.value || undefined })}
+      <Controller
+        control={control}
+        name="npo_since"
+        render={({ field }) => <TextInput label="NPO Since" placeholder="e.g. 22:00" {...field} />}
       />
-      <Checkbox
-        label="Lab Results Reviewed"
-        checked={form.lab_results_reviewed ?? false}
-        onChange={(e) => setForm({ ...form, lab_results_reviewed: e.currentTarget.checked })}
+      <Controller
+        control={control}
+        name="lab_results_reviewed"
+        render={({ field }) => (
+          <Checkbox
+            label="Lab Results Reviewed"
+            checked={field.value}
+            onChange={(event) => field.onChange(event.currentTarget.checked)}
+          />
+        )}
       />
-      <Checkbox
-        label="Imaging Reviewed"
-        checked={form.imaging_reviewed ?? false}
-        onChange={(e) => setForm({ ...form, imaging_reviewed: e.currentTarget.checked })}
+      <Controller
+        control={control}
+        name="imaging_reviewed"
+        render={({ field }) => (
+          <Checkbox
+            label="Imaging Reviewed"
+            checked={field.value}
+            onChange={(event) => field.onChange(event.currentTarget.checked)}
+          />
+        )}
       />
-      <Checkbox
-        label="Blood Group Confirmed"
-        checked={form.blood_group_confirmed ?? false}
-        onChange={(e) => setForm({ ...form, blood_group_confirmed: e.currentTarget.checked })}
+      <Controller
+        control={control}
+        name="blood_group_confirmed"
+        render={({ field }) => (
+          <Checkbox
+            label="Blood Group Confirmed"
+            checked={field.value}
+            onChange={(event) => field.onChange(event.currentTarget.checked)}
+          />
+        )}
       />
-      <TextInput
-        label="Allergies"
-        onChange={(e) => setForm({ ...form, allergies_noted: e.currentTarget.value || undefined })}
+      <Controller
+        control={control}
+        name="allergies_noted"
+        render={({ field }) => <TextInput label="Allergies" {...field} />}
       />
-      <TextInput
-        label="Current Medications"
-        onChange={(e) =>
-          setForm({ ...form, current_medications: e.currentTarget.value || undefined })
-        }
+      <Controller
+        control={control}
+        name="current_medications"
+        render={({ field }) => <TextInput label="Current Medications" {...field} />}
       />
-      <Textarea
-        label="Conditions"
-        onChange={(e) => setForm({ ...form, conditions: e.currentTarget.value || undefined })}
+      <Controller
+        control={control}
+        name="conditions"
+        render={({ field }) => <Textarea label="Conditions" {...field} />}
       />
-      <Button
-        onClick={() => createMutation.mutate(form as CreatePreopAssessmentRequest)}
-        loading={createMutation.isPending}
-      >
+      <Button type="submit" loading={createMutation.isPending}>
         Save Assessment
       </Button>
     </Stack>
   );
 }
-
-const asaOptions = [
-  { value: "asa_1", label: "ASA I — Healthy" },
-  { value: "asa_2", label: "ASA II — Mild systemic disease" },
-  { value: "asa_3", label: "ASA III — Severe systemic disease" },
-  { value: "asa_4", label: "ASA IV — Life-threatening disease" },
-  { value: "asa_5", label: "ASA V — Moribund" },
-  { value: "asa_6", label: "ASA VI — Brain-dead organ donor" },
-];
 
 // ── WHO Safety Checklist Sub-Tab ──────────────────────
 
@@ -952,20 +1111,28 @@ const phaseLabels: Record<ChecklistPhase, string> = {
   sign_out: "Sign Out",
 };
 
+function previousChecklistPhase(phase: ChecklistPhase): ChecklistPhase | null {
+  const index = PHASES.indexOf(phase);
+  if (index <= 0) {
+    return null;
+  }
+
+  return PHASES[index - 1] ?? null;
+}
+
 function ChecklistTab({ bookingId }: { bookingId: string }) {
   const queryClient = useQueryClient();
   const canCreate = useHasPermission(P.OT.SAFETY_CHECKLIST_CREATE);
 
-  const { data, isLoading } = useQuery({
+  const { data: checklists = [], isLoading } = useQuery<OtSurgicalSafetyChecklist[]>({
     queryKey: ["ot-checklists", bookingId],
-    queryFn: () => api.listSafetyChecklists(bookingId),
+    queryFn: () => otService.listSafetyChecklists(bookingId),
   });
 
-  const checklists = (data ?? []) as OtSurgicalSafetyChecklist[];
   const byPhase = new Map(checklists.map((c) => [c.phase, c]));
 
   const createMutation = useMutation({
-    mutationFn: (d: CreateSafetyChecklistRequest) => api.createSafetyChecklist(bookingId, d),
+    mutationFn: (d: CreateSafetyChecklistRequest) => otService.createSafetyChecklist(bookingId, d),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["ot-checklists", bookingId] });
       notifications.show({
@@ -984,7 +1151,7 @@ function ChecklistTab({ bookingId }: { bookingId: string }) {
 
   const completeMutation = useMutation({
     mutationFn: ({ id }: { id: string }) =>
-      api.updateSafetyChecklist(bookingId, id, { completed: true }),
+      otService.updateSafetyChecklist(bookingId, id, { completed: true }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["ot-checklists", bookingId] });
       notifications.show({ title: "Completed", message: "Phase completed", color: "success" });
@@ -996,9 +1163,10 @@ function ChecklistTab({ bookingId }: { bookingId: string }) {
   if (isLoading) return <Text c="dimmed">Loading...</Text>;
 
   const isPhaseBlocked = (phase: ChecklistPhase): boolean => {
-    const idx = PHASES.indexOf(phase);
-    if (idx <= 0) return false;
-    const prevPhase = PHASES[idx - 1] as ChecklistPhase;
+    const prevPhase = previousChecklistPhase(phase);
+    if (!prevPhase) {
+      return false;
+    }
     const prev = byPhase.get(prevPhase);
     return !prev?.completed;
   };
@@ -1010,6 +1178,7 @@ function ChecklistTab({ bookingId }: { bookingId: string }) {
         const checklist = byPhase.get(phase);
         const blocked = isPhaseBlocked(phase);
         const completed = checklist?.completed ?? false;
+        const previousPhase = previousChecklistPhase(phase);
 
         return (
           <Card
@@ -1068,7 +1237,7 @@ function ChecklistTab({ bookingId }: { bookingId: string }) {
                 onClick={() => createMutation.mutate({ phase, items: {} })}
               >
                 {blocked
-                  ? `Complete ${phaseLabels[PHASES[PHASES.indexOf(phase) - 1] as ChecklistPhase]} first`
+                  ? `Complete ${previousPhase ? phaseLabels[previousPhase] : "previous phase"} first`
                   : `Start ${phaseLabels[phase]}`}
               </Button>
             )}
@@ -1097,23 +1266,32 @@ function CaseRecordTab({ bookingId }: { bookingId: string }) {
   const queryClient = useQueryClient();
   const canCreate = useHasPermission(P.OT.CASE_RECORDS_CREATE);
 
-  const { data, isLoading } = useQuery({
+  const { data: record = null, isLoading } = useQuery<OtCaseRecord | null>({
     queryKey: ["ot-case-record", bookingId],
-    queryFn: () => api.getCaseRecord(bookingId),
+    queryFn: () => otService.getCaseRecord(bookingId),
   });
 
-  const [form, setForm] = useState<Partial<CreateCaseRecordRequest>>({
-    procedure_performed: "",
-    instrument_count_correct_before: false,
-    instrument_count_correct_after: false,
-    sponge_count_correct: false,
+  const {
+    control,
+    handleSubmit,
+    reset,
+    watch,
+    formState: { errors },
+  } = useForm<OtCaseRecordFormInput>({
+    resolver: zodResolver(otCaseRecordFormSchema),
+    defaultValues: DEFAULT_OT_CASE_RECORD_FORM_VALUES,
   });
+  const instrumentCountBefore = watch("instrument_count_correct_before");
+  const instrumentCountAfter = watch("instrument_count_correct_after");
+  const spongeCountCorrect = watch("sponge_count_correct");
 
   const createMutation = useMutation({
-    mutationFn: (d: CreateCaseRecordRequest) => api.createCaseRecord(bookingId, d),
+    mutationFn: (values: OtCaseRecordFormInput) =>
+      otService.createCaseRecord(bookingId, toCreateCaseRecordRequest(values)),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["ot-case-record", bookingId] });
       notifications.show({ title: "Saved", message: "Case record created", color: "success" });
+      reset(DEFAULT_OT_CASE_RECORD_FORM_VALUES);
     },
     onError: () =>
       notifications.show({
@@ -1124,8 +1302,6 @@ function CaseRecordTab({ bookingId }: { bookingId: string }) {
   });
 
   if (isLoading) return <Text c="dimmed">Loading...</Text>;
-
-  const record = data as OtCaseRecord | null;
 
   if (record) {
     return (
@@ -1209,114 +1385,141 @@ function CaseRecordTab({ bookingId }: { bookingId: string }) {
     );
 
   return (
-    <Stack>
+    <Stack component="form" onSubmit={handleSubmit((values) => createMutation.mutate(values))}>
       <Text fw={600}>Create Case Record</Text>
-      <TextInput
-        label="Procedure Performed"
-        required
-        onChange={(e) => setForm({ ...form, procedure_performed: e.currentTarget.value })}
+      <Controller
+        control={control}
+        name="procedure_performed"
+        render={({ field }) => (
+          <TextInput
+            label="Procedure Performed"
+            required
+            {...field}
+            error={errors.procedure_performed?.message}
+          />
+        )}
       />
-      <Textarea
-        label="Findings"
-        onChange={(e) => setForm({ ...form, findings: e.currentTarget.value || undefined })}
+      <Controller
+        control={control}
+        name="findings"
+        render={({ field }) => <Textarea label="Findings" {...field} />}
       />
-      <Textarea
-        label="Technique"
-        onChange={(e) => setForm({ ...form, technique: e.currentTarget.value || undefined })}
+      <Controller
+        control={control}
+        name="technique"
+        render={({ field }) => <Textarea label="Technique" {...field} />}
       />
-      <Textarea
-        label="Complications"
-        onChange={(e) => setForm({ ...form, complications: e.currentTarget.value || undefined })}
+      <Controller
+        control={control}
+        name="complications"
+        render={({ field }) => <Textarea label="Complications" {...field} />}
       />
-      <NumberInput
-        label="Blood Loss (ml)"
-        min={0}
-        onChange={(v) => setForm({ ...form, blood_loss_ml: typeof v === "number" ? v : undefined })}
+      <Controller
+        control={control}
+        name="blood_loss_ml"
+        render={({ field }) => (
+          <NumberInput
+            label="Blood Loss (ml)"
+            min={0}
+            value={field.value}
+            onChange={field.onChange}
+            error={errors.blood_loss_ml?.message}
+          />
+        )}
       />
-      <TextInput
-        label="Incision Time (ISO)"
-        placeholder="Auto-filled or manual"
-        onChange={(e) => setForm({ ...form, incision_time: e.currentTarget.value || undefined })}
+      <Controller
+        control={control}
+        name="incision_time"
+        render={({ field }) => (
+          <TextInput label="Incision Time (ISO)" placeholder="Auto-filled or manual" {...field} />
+        )}
       />
-      <TextInput
-        label="Closure Time (ISO)"
-        onChange={(e) => setForm({ ...form, closure_time: e.currentTarget.value || undefined })}
+      <Controller
+        control={control}
+        name="closure_time"
+        render={({ field }) => <TextInput label="Closure Time (ISO)" {...field} />}
       />
-      <TextInput
-        label="Patient In Time (ISO)"
-        onChange={(e) => setForm({ ...form, patient_in_time: e.currentTarget.value || undefined })}
+      <Controller
+        control={control}
+        name="patient_in_time"
+        render={({ field }) => <TextInput label="Patient In Time (ISO)" {...field} />}
       />
-      <TextInput
-        label="Patient Out Time (ISO)"
-        onChange={(e) => setForm({ ...form, patient_out_time: e.currentTarget.value || undefined })}
+      <Controller
+        control={control}
+        name="patient_out_time"
+        render={({ field }) => <TextInput label="Patient Out Time (ISO)" {...field} />}
       />
 
       <Text size="sm" fw={500} mt="xs">
         Instrument & Sponge Counts
       </Text>
-      <Checkbox
-        label="Instruments correct (before)"
-        checked={form.instrument_count_correct_before ?? false}
-        onChange={(e) =>
-          setForm({ ...form, instrument_count_correct_before: e.currentTarget.checked })
-        }
+      <Controller
+        control={control}
+        name="instrument_count_correct_before"
+        render={({ field }) => (
+          <Checkbox
+            label="Instruments correct (before)"
+            checked={field.value}
+            onChange={(event) => field.onChange(event.currentTarget.checked)}
+          />
+        )}
       />
-      <Checkbox
-        label="Instruments correct (after)"
-        checked={form.instrument_count_correct_after ?? false}
-        onChange={(e) =>
-          setForm({ ...form, instrument_count_correct_after: e.currentTarget.checked })
-        }
+      <Controller
+        control={control}
+        name="instrument_count_correct_after"
+        render={({ field }) => (
+          <Checkbox
+            label="Instruments correct (after)"
+            checked={field.value}
+            onChange={(event) => field.onChange(event.currentTarget.checked)}
+          />
+        )}
       />
-      <Checkbox
-        label="Sponges correct"
-        checked={form.sponge_count_correct ?? false}
-        onChange={(e) => setForm({ ...form, sponge_count_correct: e.currentTarget.checked })}
+      <Controller
+        control={control}
+        name="sponge_count_correct"
+        render={({ field }) => (
+          <Checkbox
+            label="Sponges correct"
+            checked={field.value}
+            onChange={(event) => field.onChange(event.currentTarget.checked)}
+          />
+        )}
       />
-      {(!form.instrument_count_correct_before ||
-        !form.instrument_count_correct_after ||
-        !form.sponge_count_correct) && (
+      {(!instrumentCountBefore || !instrumentCountAfter || !spongeCountCorrect) && (
         <Text size="xs" c="danger" fw={600}>
           WARNING: Unchecked counts require verification before closure.
         </Text>
       )}
 
-      <Textarea
-        label="Specimens"
-        placeholder="List specimens collected"
-        onChange={(e) =>
-          setForm({
-            ...form,
-            specimens: e.currentTarget.value ? [e.currentTarget.value] : undefined,
-          })
-        }
+      <Controller
+        control={control}
+        name="specimens"
+        render={({ field }) => (
+          <Textarea label="Specimens" placeholder="List specimens collected" {...field} />
+        )}
       />
-      <Textarea
-        label="Implants"
-        placeholder="List implants used"
-        onChange={(e) =>
-          setForm({
-            ...form,
-            implants: e.currentTarget.value ? [e.currentTarget.value] : undefined,
-          })
-        }
+      <Controller
+        control={control}
+        name="implants"
+        render={({ field }) => (
+          <Textarea label="Implants" placeholder="List implants used" {...field} />
+        )}
       />
-      <Textarea
-        label="Drains"
-        placeholder="List drains placed"
-        onChange={(e) =>
-          setForm({ ...form, drains: e.currentTarget.value ? [e.currentTarget.value] : undefined })
-        }
+      <Controller
+        control={control}
+        name="drains"
+        render={({ field }) => (
+          <Textarea label="Drains" placeholder="List drains placed" {...field} />
+        )}
       />
-      <Textarea
-        label="Notes"
-        onChange={(e) => setForm({ ...form, notes: e.currentTarget.value || undefined })}
+      <Controller
+        control={control}
+        name="notes"
+        render={({ field }) => <Textarea label="Notes" {...field} />}
       />
 
-      <Button
-        onClick={() => createMutation.mutate(form as CreateCaseRecordRequest)}
-        loading={createMutation.isPending}
-      >
+      <Button type="submit" loading={createMutation.isPending}>
         Save Case Record
       </Button>
     </Stack>
@@ -1325,31 +1528,28 @@ function CaseRecordTab({ bookingId }: { bookingId: string }) {
 
 // ── Anesthesia Sub-Tab ────────────────────────────────
 
-const anesthesiaTypeOptions = [
-  { value: "general", label: "General" },
-  { value: "spinal", label: "Spinal" },
-  { value: "epidural", label: "Epidural" },
-  { value: "regional_block", label: "Regional Block" },
-  { value: "local", label: "Local" },
-  { value: "sedation", label: "Sedation" },
-  { value: "combined", label: "Combined" },
-];
-
 function AnesthesiaTab({ bookingId }: { bookingId: string }) {
   const queryClient = useQueryClient();
   const canCreate = useHasPermission(P.OT.ANESTHESIA_CREATE);
 
-  const { data, isLoading } = useQuery({
+  const { data: record = null, isLoading } = useQuery<OtAnesthesiaRecord | null>({
     queryKey: ["ot-anesthesia", bookingId],
-    queryFn: () => api.getAnesthesiaRecord(bookingId),
+    queryFn: () => otService.getAnesthesiaRecord(bookingId),
   });
 
-  const [form, setForm] = useState<Partial<CreateAnesthesiaRecordRequest>>({
-    anesthesia_type: "general",
+  const {
+    control,
+    handleSubmit,
+    reset,
+    formState: { errors },
+  } = useForm<OtAnesthesiaRecordFormInput>({
+    resolver: zodResolver(otAnesthesiaRecordFormSchema),
+    defaultValues: DEFAULT_OT_ANESTHESIA_RECORD_FORM_VALUES,
   });
 
   const createMutation = useMutation({
-    mutationFn: (d: CreateAnesthesiaRecordRequest) => api.createAnesthesiaRecord(bookingId, d),
+    mutationFn: (values: OtAnesthesiaRecordFormInput) =>
+      otService.createAnesthesiaRecord(bookingId, toCreateAnesthesiaRecordRequest(values)),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["ot-anesthesia", bookingId] });
       notifications.show({
@@ -1357,6 +1557,7 @@ function AnesthesiaTab({ bookingId }: { bookingId: string }) {
         message: "Anesthesia record created",
         color: "success",
       });
+      reset(DEFAULT_OT_ANESTHESIA_RECORD_FORM_VALUES);
     },
     onError: () =>
       notifications.show({
@@ -1367,8 +1568,6 @@ function AnesthesiaTab({ bookingId }: { bookingId: string }) {
   });
 
   if (isLoading) return <Text c="dimmed">Loading...</Text>;
-
-  const record = data as OtAnesthesiaRecord | null;
 
   if (record) {
     return (
@@ -1409,59 +1608,66 @@ function AnesthesiaTab({ bookingId }: { bookingId: string }) {
     );
 
   return (
-    <Stack>
+    <Stack component="form" onSubmit={handleSubmit((values) => createMutation.mutate(values))}>
       <Text fw={600}>Create Anesthesia Record</Text>
-      <Select
-        label="Anesthesia Type"
-        data={anesthesiaTypeOptions}
-        required
-        value={form.anesthesia_type ?? "general"}
-        onChange={(v) => setForm({ ...form, anesthesia_type: (v ?? "general") as AnesthesiaType })}
+      <Controller
+        control={control}
+        name="anesthesia_type"
+        render={({ field }) => (
+          <Select
+            label="Anesthesia Type"
+            data={OT_ANESTHESIA_TYPE_OPTIONS}
+            required
+            value={field.value}
+            onChange={(value) => field.onChange(normalizeOtAnesthesiaType(value))}
+            error={errors.anesthesia_type?.message}
+          />
+        )}
       />
-      <Select
-        label="ASA Class"
-        data={asaOptions}
-        clearable
-        onChange={(v) =>
-          setForm({ ...form, asa_class: (v ?? undefined) as AsaClassification | undefined })
-        }
+      <Controller
+        control={control}
+        name="asa_class"
+        render={({ field }) => (
+          <Select
+            label="ASA Class"
+            data={OT_ASA_OPTIONS}
+            value={field.value}
+            onChange={(value) => field.onChange(normalizeOtAsaClassification(value))}
+            error={errors.asa_class?.message}
+            clearable
+          />
+        )}
       />
-      <TextInput
-        label="Induction Time (ISO)"
-        onChange={(e) => setForm({ ...form, induction_time: e.currentTarget.value || undefined })}
+      <Controller
+        control={control}
+        name="induction_time"
+        render={({ field }) => <TextInput label="Induction Time (ISO)" {...field} />}
       />
-      <TextInput
-        label="Intubation Time (ISO)"
-        onChange={(e) => setForm({ ...form, intubation_time: e.currentTarget.value || undefined })}
+      <Controller
+        control={control}
+        name="intubation_time"
+        render={({ field }) => <TextInput label="Intubation Time (ISO)" {...field} />}
       />
-      <Textarea
-        label="Airway Details"
-        placeholder="Airway assessment details"
-        onChange={(e) =>
-          setForm({
-            ...form,
-            airway_details: e.currentTarget.value ? { notes: e.currentTarget.value } : undefined,
-          })
-        }
+      <Controller
+        control={control}
+        name="airway_details"
+        render={({ field }) => (
+          <Textarea label="Airway Details" placeholder="Airway assessment details" {...field} />
+        )}
       />
-      <Textarea
-        label="Drugs Administered"
-        placeholder="List drugs, doses, routes"
-        onChange={(e) =>
-          setForm({
-            ...form,
-            drugs_administered: e.currentTarget.value ? [e.currentTarget.value] : undefined,
-          })
-        }
+      <Controller
+        control={control}
+        name="drugs_administered"
+        render={({ field }) => (
+          <Textarea label="Drugs Administered" placeholder="List drugs, doses, routes" {...field} />
+        )}
       />
-      <Textarea
-        label="Notes"
-        onChange={(e) => setForm({ ...form, notes: e.currentTarget.value || undefined })}
+      <Controller
+        control={control}
+        name="notes"
+        render={({ field }) => <Textarea label="Notes" {...field} />}
       />
-      <Button
-        onClick={() => createMutation.mutate(form as CreateAnesthesiaRecordRequest)}
-        loading={createMutation.isPending}
-      >
+      <Button type="submit" loading={createMutation.isPending}>
         Save Anesthesia Record
       </Button>
     </Stack>
@@ -1470,30 +1676,32 @@ function AnesthesiaTab({ bookingId }: { bookingId: string }) {
 
 // ── Post-Op / PACU Sub-Tab ────────────────────────────
 
-const recoveryStatusOptions = [
-  { value: "in_recovery", label: "In Recovery" },
-  { value: "stable", label: "Stable" },
-  { value: "shifted_to_ward", label: "Shifted to Ward" },
-  { value: "shifted_to_icu", label: "Shifted to ICU" },
-  { value: "discharged", label: "Discharged" },
-];
-
 function PostopTab({ bookingId }: { bookingId: string }) {
   const queryClient = useQueryClient();
   const canCreate = useHasPermission(P.OT.POSTOP_CREATE);
 
-  const { data, isLoading } = useQuery({
+  const { data: record = null, isLoading } = useQuery<OtPostopRecord | null>({
     queryKey: ["ot-postop", bookingId],
-    queryFn: () => api.getPostopRecord(bookingId),
+    queryFn: () => otService.getPostopRecord(bookingId),
   });
 
-  const [form, setForm] = useState<Partial<CreatePostopRecordRequest>>({});
+  const {
+    control,
+    handleSubmit,
+    reset,
+    formState: { errors },
+  } = useForm<OtPostopRecordFormInput>({
+    resolver: zodResolver(otPostopRecordFormSchema),
+    defaultValues: DEFAULT_OT_POSTOP_RECORD_FORM_VALUES,
+  });
 
   const createMutation = useMutation({
-    mutationFn: (d: CreatePostopRecordRequest) => api.createPostopRecord(bookingId, d),
+    mutationFn: (values: OtPostopRecordFormInput) =>
+      otService.createPostopRecord(bookingId, toCreatePostopRecordRequest(values)),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["ot-postop", bookingId] });
       notifications.show({ title: "Saved", message: "Post-op record created", color: "success" });
+      reset(DEFAULT_OT_POSTOP_RECORD_FORM_VALUES);
     },
     onError: () =>
       notifications.show({
@@ -1503,23 +1711,31 @@ function PostopTab({ bookingId }: { bookingId: string }) {
       }),
   });
 
-  const [editing, setEditing] = useState(false);
-  const [updateForm, setUpdateForm] = useState<Partial<UpdatePostopRecordRequest>>({});
+  const [editing, { open: openEditing, close: closeEditing }] = useDisclosure(false);
+  const {
+    control: updateControl,
+    handleSubmit: handleUpdateSubmit,
+    reset: resetUpdate,
+    formState: { errors: updateErrors },
+  } = useForm<OtPostopRecordUpdateFormInput>({
+    resolver: zodResolver(otPostopRecordUpdateFormSchema),
+    defaultValues: DEFAULT_OT_POSTOP_UPDATE_FORM_VALUES,
+  });
 
   const updateMutation = useMutation({
-    mutationFn: (d: UpdatePostopRecordRequest) => api.updatePostopRecord(bookingId, d),
+    mutationFn: (values: OtPostopRecordUpdateFormInput) =>
+      otService.updatePostopRecord(bookingId, toUpdatePostopRecordRequest(values)),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["ot-postop", bookingId] });
       notifications.show({ title: "Updated", message: "Post-op record updated", color: "success" });
-      setEditing(false);
+      closeEditing();
+      resetUpdate(DEFAULT_OT_POSTOP_UPDATE_FORM_VALUES);
     },
     onError: () =>
       notifications.show({ title: "Error", message: "Update failed", color: "danger" }),
   });
 
   if (isLoading) return <Text c="dimmed">Loading...</Text>;
-
-  const record = data as OtPostopRecord | null;
 
   if (record && !editing) {
     return (
@@ -1566,8 +1782,14 @@ function PostopTab({ bookingId }: { bookingId: string }) {
             size="sm"
             variant="light"
             onClick={() => {
-              setUpdateForm({ recovery_status: record.recovery_status });
-              setEditing(true);
+              resetUpdate({
+                recovery_status: record.recovery_status,
+                aldrete_score_discharge: record.aldrete_score_discharge ?? "",
+                discharge_time: "",
+                disposition: record.disposition ?? "",
+                notes: record.notes ?? "",
+              });
+              openEditing();
             }}
           >
             Update Recovery
@@ -1579,59 +1801,67 @@ function PostopTab({ bookingId }: { bookingId: string }) {
 
   if (record && editing) {
     return (
-      <Stack>
+      <Stack
+        component="form"
+        onSubmit={handleUpdateSubmit((values) => updateMutation.mutate(values))}
+      >
         <Text fw={600}>Update Post-Op Recovery</Text>
-        <Select
-          label="Recovery Status"
-          data={recoveryStatusOptions}
-          value={updateForm.recovery_status ?? record.recovery_status}
-          onChange={(v) =>
-            setUpdateForm({
-              ...updateForm,
-              recovery_status: (v ?? "in_recovery") as PostopRecoveryStatus,
-            })
-          }
+        <Controller
+          control={updateControl}
+          name="recovery_status"
+          render={({ field }) => (
+            <Select
+              label="Recovery Status"
+              data={OT_POSTOP_RECOVERY_STATUS_OPTIONS}
+              value={field.value}
+              onChange={(value) => field.onChange(normalizeOtPostopRecoveryStatus(value))}
+              error={updateErrors.recovery_status?.message}
+            />
+          )}
         />
-        <NumberInput
-          label="Aldrete Score (discharge)"
-          min={0}
-          max={10}
-          value={updateForm.aldrete_score_discharge ?? record.aldrete_score_discharge ?? undefined}
-          onChange={(v) =>
-            setUpdateForm({
-              ...updateForm,
-              aldrete_score_discharge: typeof v === "number" ? v : undefined,
-            })
-          }
+        <Controller
+          control={updateControl}
+          name="aldrete_score_discharge"
+          render={({ field }) => (
+            <NumberInput
+              label="Aldrete Score (discharge)"
+              min={0}
+              max={10}
+              value={field.value}
+              onChange={field.onChange}
+              error={updateErrors.aldrete_score_discharge?.message}
+            />
+          )}
         />
-        <TextInput
-          label="Discharge Time (ISO)"
-          placeholder="Auto or manual"
-          onChange={(e) =>
-            setUpdateForm({ ...updateForm, discharge_time: e.currentTarget.value || undefined })
-          }
+        <Controller
+          control={updateControl}
+          name="discharge_time"
+          render={({ field }) => (
+            <TextInput label="Discharge Time (ISO)" placeholder="Auto or manual" {...field} />
+          )}
         />
-        <TextInput
-          label="Disposition"
-          onChange={(e) =>
-            setUpdateForm({ ...updateForm, disposition: e.currentTarget.value || undefined })
-          }
+        <Controller
+          control={updateControl}
+          name="disposition"
+          render={({ field }) => <TextInput label="Disposition" {...field} />}
         />
-        <Textarea
-          label="Notes"
-          onChange={(e) =>
-            setUpdateForm({ ...updateForm, notes: e.currentTarget.value || undefined })
-          }
+        <Controller
+          control={updateControl}
+          name="notes"
+          render={({ field }) => <Textarea label="Notes" {...field} />}
         />
         <Group>
-          <Button
-            size="sm"
-            onClick={() => updateMutation.mutate(updateForm as UpdatePostopRecordRequest)}
-            loading={updateMutation.isPending}
-          >
+          <Button size="sm" type="submit" loading={updateMutation.isPending}>
             Save
           </Button>
-          <Button size="sm" variant="subtle" onClick={() => setEditing(false)}>
+          <Button
+            size="sm"
+            variant="subtle"
+            onClick={() => {
+              closeEditing();
+              resetUpdate(DEFAULT_OT_POSTOP_UPDATE_FORM_VALUES);
+            }}
+          >
             Cancel
           </Button>
         </Group>
@@ -1647,46 +1877,57 @@ function PostopTab({ bookingId }: { bookingId: string }) {
     );
 
   return (
-    <Stack>
+    <Stack component="form" onSubmit={handleSubmit((values) => createMutation.mutate(values))}>
       <Text fw={600}>Create Post-Op Record</Text>
-      <TextInput
-        label="Arrival Time (ISO)"
-        placeholder="PACU arrival"
-        onChange={(e) => setForm({ ...form, arrival_time: e.currentTarget.value || undefined })}
+      <Controller
+        control={control}
+        name="arrival_time"
+        render={({ field }) => (
+          <TextInput label="Arrival Time (ISO)" placeholder="PACU arrival" {...field} />
+        )}
       />
-      <NumberInput
-        label="Aldrete Score (arrival)"
-        min={0}
-        max={10}
-        onChange={(v) =>
-          setForm({ ...form, aldrete_score_arrival: typeof v === "number" ? v : undefined })
-        }
+      <Controller
+        control={control}
+        name="aldrete_score_arrival"
+        render={({ field }) => (
+          <NumberInput
+            label="Aldrete Score (arrival)"
+            min={0}
+            max={10}
+            value={field.value}
+            onChange={field.onChange}
+            error={errors.aldrete_score_arrival?.message}
+          />
+        )}
       />
-      <TextInput
-        label="Pain Assessment"
-        placeholder="e.g. NRS 4/10"
-        onChange={(e) => setForm({ ...form, pain_assessment: e.currentTarget.value || undefined })}
+      <Controller
+        control={control}
+        name="pain_assessment"
+        render={({ field }) => (
+          <TextInput label="Pain Assessment" placeholder="e.g. NRS 4/10" {...field} />
+        )}
       />
-      <TextInput
-        label="Fluid Orders"
-        onChange={(e) => setForm({ ...form, fluid_orders: e.currentTarget.value || undefined })}
+      <Controller
+        control={control}
+        name="fluid_orders"
+        render={({ field }) => <TextInput label="Fluid Orders" {...field} />}
       />
-      <TextInput
-        label="Diet Orders"
-        onChange={(e) => setForm({ ...form, diet_orders: e.currentTarget.value || undefined })}
+      <Controller
+        control={control}
+        name="diet_orders"
+        render={({ field }) => <TextInput label="Diet Orders" {...field} />}
       />
-      <TextInput
-        label="Activity Orders"
-        onChange={(e) => setForm({ ...form, activity_orders: e.currentTarget.value || undefined })}
+      <Controller
+        control={control}
+        name="activity_orders"
+        render={({ field }) => <TextInput label="Activity Orders" {...field} />}
       />
-      <Textarea
-        label="Notes"
-        onChange={(e) => setForm({ ...form, notes: e.currentTarget.value || undefined })}
+      <Controller
+        control={control}
+        name="notes"
+        render={({ field }) => <Textarea label="Notes" {...field} />}
       />
-      <Button
-        onClick={() => createMutation.mutate(form as CreatePostopRecordRequest)}
-        loading={createMutation.isPending}
-      >
+      <Button type="submit" loading={createMutation.isPending}>
         Save Post-Op Record
       </Button>
     </Stack>
@@ -1698,9 +1939,9 @@ function PostopTab({ bookingId }: { bookingId: string }) {
 function RoomsTab({ canManage }: { canManage: boolean }) {
   const [createOpened, { open: openCreate, close: closeCreate }] = useDisclosure(false);
 
-  const { data, isLoading } = useQuery({
+  const { data = [], isLoading } = useQuery<OtRoom[]>({
     queryKey: ["ot-rooms"],
-    queryFn: () => api.listOtRooms(),
+    queryFn: () => otService.listOtRooms(),
   });
 
   const roomStatusColors: Record<string, string> = {
@@ -1753,12 +1994,7 @@ function RoomsTab({ canManage }: { canManage: boolean }) {
           </Button>
         </Group>
       )}
-      <DataTable
-        columns={columns}
-        data={(data as OtRoom[]) ?? []}
-        loading={isLoading}
-        rowKey={(r) => r.id}
-      />
+      <DataTable columns={columns} data={data} loading={isLoading} rowKey={(r) => r.id} />
       <CreateRoomDrawer opened={createOpened} onClose={closeCreate} />
     </Stack>
   );
@@ -1766,36 +2002,44 @@ function RoomsTab({ canManage }: { canManage: boolean }) {
 
 function CreateRoomDrawer({ opened, onClose }: { opened: boolean; onClose: () => void }) {
   const queryClient = useQueryClient();
-  const [name, setName] = useState("");
-  const [code, setCode] = useState("");
+  const {
+    control,
+    handleSubmit,
+    reset,
+    formState: { errors },
+  } = useForm<OtRoomFormInput>({
+    resolver: zodResolver(otRoomFormSchema),
+    defaultValues: DEFAULT_OT_ROOM_FORM_VALUES,
+  });
 
   const mutation = useMutation({
-    mutationFn: (data: CreateOtRoomRequest) => api.createOtRoom(data),
+    mutationFn: (values: OtRoomFormInput) => otService.createOtRoom(toCreateOtRoomRequest(values)),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["ot-rooms"] });
       notifications.show({ title: "Created", message: "OT room created", color: "success" });
       onClose();
-      setName("");
-      setCode("");
+      reset(DEFAULT_OT_ROOM_FORM_VALUES);
     },
   });
 
   return (
     <Drawer opened={opened} onClose={onClose} title="New OT Room" position="right" size="sm">
-      <Stack>
-        <TextInput
-          label="Room Name"
-          required
-          value={name}
-          onChange={(e) => setName(e.currentTarget.value)}
+      <Stack component="form" onSubmit={handleSubmit((values) => mutation.mutate(values))}>
+        <Controller
+          control={control}
+          name="name"
+          render={({ field }) => (
+            <TextInput label="Room Name" required error={errors.name?.message} {...field} />
+          )}
         />
-        <TextInput
-          label="Code"
-          required
-          value={code}
-          onChange={(e) => setCode(e.currentTarget.value)}
+        <Controller
+          control={control}
+          name="code"
+          render={({ field }) => (
+            <TextInput label="Code" required error={errors.code?.message} {...field} />
+          )}
         />
-        <Button onClick={() => mutation.mutate({ name, code })} loading={mutation.isPending}>
+        <Button type="submit" loading={mutation.isPending}>
           Create
         </Button>
       </Stack>
@@ -1808,9 +2052,9 @@ function CreateRoomDrawer({ opened, onClose }: { opened: boolean; onClose: () =>
 function PreferencesTab({ canManage }: { canManage: boolean }) {
   const [createOpened, { open: openCreate, close: closeCreate }] = useDisclosure(false);
 
-  const { data, isLoading } = useQuery({
+  const { data = [], isLoading } = useQuery<OtSurgeonPreference[]>({
     queryKey: ["ot-surgeon-preferences"],
-    queryFn: () => api.listSurgeonPreferences(),
+    queryFn: () => otService.listSurgeonPreferences(),
   });
 
   const columns = [
@@ -1853,12 +2097,7 @@ function PreferencesTab({ canManage }: { canManage: boolean }) {
           </Button>
         </Group>
       )}
-      <DataTable
-        columns={columns}
-        data={(data as OtSurgeonPreference[]) ?? []}
-        loading={isLoading}
-        rowKey={(r) => r.id}
-      />
+      <DataTable columns={columns} data={data} loading={isLoading} rowKey={(r) => r.id} />
       <CreatePreferenceDrawer opened={createOpened} onClose={closeCreate} />
     </Stack>
   );
@@ -1866,15 +2105,24 @@ function PreferencesTab({ canManage }: { canManage: boolean }) {
 
 function CreatePreferenceDrawer({ opened, onClose }: { opened: boolean; onClose: () => void }) {
   const queryClient = useQueryClient();
-  const [form, setForm] = useState<Partial<CreateSurgeonPreferenceRequest>>({});
+  const {
+    control,
+    handleSubmit,
+    reset,
+    formState: { errors },
+  } = useForm<OtSurgeonPreferenceFormInput>({
+    resolver: zodResolver(otSurgeonPreferenceFormSchema),
+    defaultValues: DEFAULT_OT_SURGEON_PREFERENCE_FORM_VALUES,
+  });
 
   const mutation = useMutation({
-    mutationFn: (data: CreateSurgeonPreferenceRequest) => api.createSurgeonPreference(data),
+    mutationFn: (values: OtSurgeonPreferenceFormInput) =>
+      otService.createSurgeonPreference(toCreateSurgeonPreferenceRequest(values)),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["ot-surgeon-preferences"] });
       notifications.show({ title: "Created", message: "Preference card saved", color: "success" });
       onClose();
-      setForm({});
+      reset(DEFAULT_OT_SURGEON_PREFERENCE_FORM_VALUES);
     },
   });
 
@@ -1886,39 +2134,47 @@ function CreatePreferenceDrawer({ opened, onClose }: { opened: boolean; onClose:
       position="right"
       size="xl"
     >
-      <Stack>
-        <TextInput
-          label="Surgeon ID"
-          required
-          onChange={(e) => setForm({ ...form, surgeon_id: e.currentTarget.value })}
+      <Stack component="form" onSubmit={handleSubmit((values) => mutation.mutate(values))}>
+        <Controller
+          control={control}
+          name="surgeon_id"
+          render={({ field }) => (
+            <TextInput label="Surgeon ID" required {...field} error={errors.surgeon_id?.message} />
+          )}
         />
-        <TextInput
-          label="Procedure Name"
-          required
-          onChange={(e) => setForm({ ...form, procedure_name: e.currentTarget.value })}
+        <Controller
+          control={control}
+          name="procedure_name"
+          render={({ field }) => (
+            <TextInput
+              label="Procedure Name"
+              required
+              {...field}
+              error={errors.procedure_name?.message}
+            />
+          )}
         />
-        <TextInput
-          label="Position"
-          onChange={(e) => setForm({ ...form, position: e.currentTarget.value || undefined })}
+        <Controller
+          control={control}
+          name="position"
+          render={({ field }) => <TextInput label="Position" {...field} />}
         />
-        <TextInput
-          label="Skin Prep"
-          onChange={(e) => setForm({ ...form, skin_prep: e.currentTarget.value || undefined })}
+        <Controller
+          control={control}
+          name="skin_prep"
+          render={({ field }) => <TextInput label="Skin Prep" {...field} />}
         />
-        <TextInput
-          label="Draping"
-          onChange={(e) => setForm({ ...form, draping: e.currentTarget.value || undefined })}
+        <Controller
+          control={control}
+          name="draping"
+          render={({ field }) => <TextInput label="Draping" {...field} />}
         />
-        <Textarea
-          label="Special Instructions"
-          onChange={(e) =>
-            setForm({ ...form, special_instructions: e.currentTarget.value || undefined })
-          }
+        <Controller
+          control={control}
+          name="special_instructions"
+          render={({ field }) => <Textarea label="Special Instructions" {...field} />}
         />
-        <Button
-          onClick={() => mutation.mutate(form as CreateSurgeonPreferenceRequest)}
-          loading={mutation.isPending}
-        >
+        <Button type="submit" loading={mutation.isPending}>
           Save
         </Button>
       </Stack>
@@ -1930,64 +2186,63 @@ function CreatePreferenceDrawer({ opened, onClose }: { opened: boolean; onClose:
 //  OT Phase 2b — Consumables Sub-Tab
 // ══════════════════════════════════════════════════════════
 
-const CONSUMABLE_CATEGORIES: { value: OtConsumableCategory; label: string }[] = [
-  { value: "surgical_instrument", label: "Surgical Instrument" },
-  { value: "implant", label: "Implant" },
-  { value: "disposable", label: "Disposable" },
-  { value: "suture", label: "Suture" },
-  { value: "drug", label: "Drug" },
-  { value: "blood_product", label: "Blood Product" },
-  { value: "other", label: "Other" },
-];
-
 function ConsumablesSubTab({ bookingId }: { bookingId: string }) {
   const canManage = useHasPermission(P.OT.CONSUMABLES_MANAGE);
   const queryClient = useQueryClient();
-  const [showForm, setShowForm] = useState(false);
-  const [itemName, setItemName] = useState("");
-  const [category, setCategory] = useState<string | null>(null);
-  const [quantity, setQuantity] = useState<number | string>(1);
-  const [unit, setUnit] = useState("");
-  const [unitPrice, setUnitPrice] = useState<number | string>("");
-  const [batchNumber, setBatchNumber] = useState("");
+  const [formOpened, formHandlers] = useDisclosure(false);
+  const {
+    control,
+    handleSubmit,
+    reset,
+    watch,
+    formState: { errors },
+  } = useForm({
+    resolver: zodResolver(otConsumableFormSchema),
+    defaultValues: DEFAULT_OT_CONSUMABLE_FORM_VALUES,
+    mode: "onTouched",
+  });
+  const consumableValues = watch();
 
-  const { data: consumables, isLoading } = useQuery({
+  const { data: consumables = [], isLoading } = useQuery<OtConsumableUsage[]>({
     queryKey: ["ot-consumables", bookingId],
-    queryFn: () => api.listOtConsumables(bookingId),
+    queryFn: () => otService.listOtConsumables(bookingId),
   });
 
   const createMutation = useMutation({
-    mutationFn: (data: CreateOtConsumableRequest) => api.createOtConsumable(bookingId, data),
+    mutationFn: (data: ReturnType<typeof toCreateOtConsumableRequest>) =>
+      otService.createOtConsumable(bookingId, data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["ot-consumables", bookingId] });
       notifications.show({ title: "Added", message: "Consumable recorded", color: "success" });
-      setShowForm(false);
-      setItemName("");
-      setCategory(null);
-      setQuantity(1);
-      setUnit("");
-      setUnitPrice("");
-      setBatchNumber("");
+      formHandlers.close();
+      reset(DEFAULT_OT_CONSUMABLE_FORM_VALUES);
     },
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (itemId: string) => api.deleteOtConsumable(bookingId, itemId),
+    mutationFn: (itemId: string) => otService.deleteOtConsumable(bookingId, itemId),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["ot-consumables", bookingId] });
       notifications.show({ title: "Removed", message: "Consumable removed", color: "success" });
     },
   });
 
-  const rows = (consumables ?? []) as OtConsumableUsage[];
+  const rows = consumables;
   const totalCost = rows.reduce((sum, r) => sum + (r.unit_price ?? 0) * r.quantity, 0);
+  const handleCreate = handleSubmit((values) => {
+    createMutation.mutate(toCreateOtConsumableRequest(values));
+  });
+  const closeForm = () => {
+    formHandlers.close();
+    reset(DEFAULT_OT_CONSUMABLE_FORM_VALUES);
+  };
 
   return (
     <Stack>
       <Group justify="space-between">
         <Text fw={500}>Consumables Used</Text>
         {canManage && (
-          <Button leftSection={<IconPlus size={16} />} size="sm" onClick={() => setShowForm(true)}>
+          <Button leftSection={<IconPlus size={16} />} size="sm" onClick={formHandlers.open}>
             Add Consumable
           </Button>
         )}
@@ -1999,71 +2254,90 @@ function ConsumablesSubTab({ bookingId }: { bookingId: string }) {
         </Badge>
       )}
 
-      {showForm && (
+      {formOpened && (
         <Card withBorder p="sm">
           <Stack gap="xs">
-            <TextInput
-              label="Item Name"
-              required
-              value={itemName}
-              onChange={(e) => setItemName(e.currentTarget.value)}
+            <Controller
+              control={control}
+              name="item_name"
+              render={({ field }) => (
+                <TextInput
+                  label="Item Name"
+                  error={errors.item_name?.message}
+                  required
+                  {...field}
+                />
+              )}
             />
-            <Select
-              label="Category"
-              data={CONSUMABLE_CATEGORIES}
-              value={category}
-              onChange={setCategory}
-              required
+            <Controller
+              control={control}
+              name="category"
+              render={({ field }) => (
+                <Select
+                  label="Category"
+                  data={OT_CONSUMABLE_CATEGORY_OPTIONS}
+                  value={field.value}
+                  onChange={field.onChange}
+                  error={errors.category?.message}
+                  required
+                />
+              )}
             />
             <Group grow>
-              <NumberInput
-                label="Quantity"
-                value={quantity}
-                onChange={setQuantity}
-                min={0.01}
-                decimalScale={2}
-                required
+              <Controller
+                control={control}
+                name="quantity"
+                render={({ field }) => (
+                  <NumberInput
+                    label="Quantity"
+                    value={field.value}
+                    onChange={field.onChange}
+                    error={errors.quantity?.message}
+                    min={0.01}
+                    decimalScale={2}
+                    required
+                  />
+                )}
               />
-              <TextInput
-                label="Unit"
-                placeholder="pcs, ml, etc."
-                value={unit}
-                onChange={(e) => setUnit(e.currentTarget.value)}
+              <Controller
+                control={control}
+                name="unit"
+                render={({ field }) => (
+                  <TextInput label="Unit" placeholder="pcs, ml, etc." {...field} />
+                )}
               />
             </Group>
             <Group grow>
-              <NumberInput
-                label="Unit Price"
-                value={unitPrice}
-                onChange={setUnitPrice}
-                min={0}
-                decimalScale={2}
+              <Controller
+                control={control}
+                name="unit_price"
+                render={({ field }) => (
+                  <NumberInput
+                    label="Unit Price"
+                    value={field.value}
+                    onChange={field.onChange}
+                    error={errors.unit_price?.message}
+                    min={0}
+                    decimalScale={2}
+                  />
+                )}
               />
-              <TextInput
-                label="Batch Number"
-                value={batchNumber}
-                onChange={(e) => setBatchNumber(e.currentTarget.value)}
+              <Controller
+                control={control}
+                name="batch_number"
+                render={({ field }) => <TextInput label="Batch Number" {...field} />}
               />
             </Group>
             <Group>
               <Button
                 size="sm"
-                onClick={() =>
-                  createMutation.mutate({
-                    item_name: itemName,
-                    category: category as OtConsumableCategory,
-                    quantity: Number(quantity),
-                    unit: unit || undefined,
-                    unit_price: unitPrice ? Number(unitPrice) : undefined,
-                    batch_number: batchNumber || undefined,
-                  })
-                }
+                onClick={handleCreate}
                 loading={createMutation.isPending}
-                disabled={!itemName || !category}
+                disabled={!consumableValues.item_name.trim() || !consumableValues.category}
               >
                 Save
               </Button>
-              <Button size="sm" variant="subtle" onClick={() => setShowForm(false)}>
+              <Button size="sm" variant="subtle" onClick={closeForm}>
                 Cancel
               </Button>
             </Group>
@@ -2144,15 +2418,26 @@ function ConsumablesSubTab({ bookingId }: { bookingId: string }) {
 // ══════════════════════════════════════════════════════════
 
 function OtReportsTab() {
-  const [from, setFrom] = useState("");
-  const [to, setTo] = useState("");
-
-  const { data, isLoading } = useQuery({
-    queryKey: ["ot-utilization", from, to],
-    queryFn: () => api.otUtilization({ from: from || undefined, to: to || undefined }),
+  const {
+    control,
+    formState: { errors },
+  } = useForm<OtUtilizationFilterFormInput>({
+    resolver: zodResolver(otUtilizationFilterFormSchema),
+    defaultValues: DEFAULT_OT_UTILIZATION_FILTER_FORM_VALUES,
+    mode: "onChange",
   });
+  const watchedFilters = useWatch({ control });
+  const filterValues: OtUtilizationFilterFormInput = {
+    from: watchedFilters.from ?? "",
+    to: watchedFilters.to ?? "",
+  };
+  const utilizationParams = toOtUtilizationParams(filterValues);
 
-  const rows = (data ?? []) as RoomUtilization[];
+  const { data: rows = [], isLoading } = useQuery<RoomUtilization[]>({
+    queryKey: ["ot-utilization", utilizationParams?.from ?? "", utilizationParams?.to ?? ""],
+    queryFn: () => otService.otUtilization(utilizationParams),
+    enabled: !errors.to,
+  });
 
   return (
     <Stack>
@@ -2160,19 +2445,19 @@ function OtReportsTab() {
         OT Utilization Report
       </Text>
       <Group>
-        <TextInput
-          label="From"
-          type="date"
-          value={from}
-          onChange={(e) => setFrom(e.currentTarget.value)}
-          w={180}
+        <Controller
+          control={control}
+          name="from"
+          render={({ field }) => (
+            <TextInput label="From" type="date" error={errors.from?.message} w={180} {...field} />
+          )}
         />
-        <TextInput
-          label="To"
-          type="date"
-          value={to}
-          onChange={(e) => setTo(e.currentTarget.value)}
-          w={180}
+        <Controller
+          control={control}
+          name="to"
+          render={({ field }) => (
+            <TextInput label="To" type="date" error={errors.to?.message} w={180} {...field} />
+          )}
         />
       </Group>
 

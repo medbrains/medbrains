@@ -1,3 +1,4 @@
+import { zodResolver } from "@hookform/resolvers/zod";
 import {
   ActionIcon,
   Alert,
@@ -24,7 +25,26 @@ import {
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
+import {
+  type EmergencyCodeActivationFormInput,
+  type ErAdmitFormInput,
+  type ErVisitFormInput,
+  emergencyCodeActivationFormSchema,
+  erAdmitFormSchema,
+  erVisitFormSchema,
+  type MassCasualtyEventFormInput,
+  type MlcAgeEstimationFormInput,
+  type MlcCaseFormInput,
+  type MlcCourtSummonsFormInput,
+  type MlcPocsoReportFormInput,
+  type MlcSbarFormInput,
+  massCasualtyEventFormSchema,
+  mlcAgeEstimationFormSchema,
+  mlcCaseFormSchema,
+  mlcCourtSummonsFormSchema,
+  mlcPocsoReportFormSchema,
+  mlcSbarFormSchema,
+} from "@medbrains/schemas";
 import { useHasPermission } from "@medbrains/stores";
 import type {
   AdmitFromErRequest,
@@ -32,7 +52,6 @@ import type {
   CreateErVisitRequest,
   CreateMassCasualtyEventRequest,
   CreateMlcCaseRequest,
-  CreateMlcDocumentRequest,
   ErCodeActivation,
   ErVisit,
   MassCasualtyEvent,
@@ -59,6 +78,7 @@ import {
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Controller, useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { DataTable, PageHeader } from "../components";
 import { BedSelect } from "../components/BedSelect";
@@ -66,44 +86,17 @@ import { TriagePanel } from "../components/crdt/TriagePanel";
 import { DoctorSearchSelect } from "../components/DoctorSearchSelect";
 import { PatientContextBanner } from "../components/Patient/PatientContextBanner";
 import { PatientSearchSelect } from "../components/PatientSearchSelect";
+import {
+  emergencyArrivalModeOptions,
+  emergencyCodeTypeOptions,
+  emergencyMassCasualtyTypeOptions,
+  emergencyMlcBroughtByOptions,
+  emergencyMlcCaseTypeOptions,
+  emergencyOptionalInteger,
+  emergencyOptionalText,
+} from "../forms/emergency.form";
 import { useRequirePermission } from "../hooks/useRequirePermission";
-
-// ── Constants ──────────────────────────────────────────
-
-const ARRIVAL_MODES = [
-  { value: "walk_in", label: "Walk-in" },
-  { value: "ambulance", label: "Ambulance" },
-  { value: "police", label: "Police" },
-  { value: "referred", label: "Referred" },
-];
-
-const CODE_TYPES = [
-  { value: "code_blue", label: "Code Blue (Cardiac Arrest)" },
-  { value: "code_yellow", label: "Code Yellow (Mass Casualty)" },
-  { value: "code_pink", label: "Code Pink (Child Abduction)" },
-  { value: "code_orange", label: "Code Orange (Hazmat)" },
-  { value: "code_red", label: "Code Red (Fire)" },
-  { value: "code_silver", label: "Code Silver (Active Threat)" },
-  { value: "code_black", label: "Code Black (Bomb Threat)" },
-];
-
-const MLC_CASE_TYPES = [
-  { value: "assault", label: "Assault" },
-  { value: "rta", label: "Road Traffic Accident" },
-  { value: "burn", label: "Burns" },
-  { value: "poisoning", label: "Poisoning" },
-  { value: "sexual_assault", label: "Sexual Assault" },
-  { value: "suicide_attempt", label: "Suicide Attempt" },
-  { value: "unknown", label: "Unknown" },
-];
-
-const MASS_CASUALTY_TYPES = [
-  { value: "natural_disaster", label: "Natural Disaster" },
-  { value: "industrial", label: "Industrial Accident" },
-  { value: "transport", label: "Transport Accident" },
-  { value: "violence", label: "Violence" },
-  { value: "other", label: "Other" },
-];
+import { type CreateMlcDocumentInput, emergencyService } from "../services/emergency.service";
 
 const CRASH_CART_ITEMS = [
   { key: "defibrillator_present", label: "Defibrillator present and functional" },
@@ -117,6 +110,49 @@ const CRASH_CART_ITEMS = [
   { key: "oxygen_supply", label: "Oxygen supply connected and flowing" },
   { key: "monitor_leads", label: "Cardiac monitor leads and pads" },
 ];
+
+const emptyErVisitForm: ErVisitFormInput = {
+  patient_id: "",
+  arrival_mode: "",
+  chief_complaint: "",
+  bay_number: "",
+  is_mlc: false,
+  notes: "",
+};
+
+const emptyErAdmitForm: ErAdmitFormInput = {
+  bed_id: "",
+  admitting_doctor_id: "",
+  admission_notes: "",
+};
+
+const emptyCodeActivationForm: EmergencyCodeActivationFormInput = {
+  code_type: "code_blue",
+  location: "",
+  notes: "",
+};
+
+const emptyMlcCaseForm: MlcCaseFormInput = {
+  patient_id: "",
+  case_type: "",
+  fir_number: "",
+  police_station: "",
+  brought_by: "",
+  informant_name: "",
+  informant_relation: "",
+  informant_contact: "",
+  history_of_incident: "",
+  is_pocso: false,
+  is_death_case: false,
+};
+
+const emptyMassCasualtyEventForm: MassCasualtyEventFormInput = {
+  event_name: "",
+  event_type: "",
+  location: "",
+  estimated_casualties: "",
+  notes: "",
+};
 
 // ── Triage helpers ────────────────────────────────────
 
@@ -322,7 +358,7 @@ function TriageLogTab() {
   const [visitId, setVisitId] = useState<string | null>(null);
   const { data: visits = [] } = useQuery({
     queryKey: ["er-visits"],
-    queryFn: () => api.listErVisits(),
+    queryFn: () => emergencyService.listErVisits(),
   });
 
   const options = (visits as ErVisit[]).map((v) => ({
@@ -362,12 +398,22 @@ function VisitsTab({ canCreate }: { canCreate: boolean }) {
   const qc = useQueryClient();
   const { data = [], isLoading } = useQuery({
     queryKey: ["er-visits"],
-    queryFn: () => api.listErVisits(),
+    queryFn: () => emergencyService.listErVisits(),
   });
 
-  const [form, setForm] = useState<CreateErVisitRequest>({ patient_id: "" });
+  const {
+    control,
+    handleSubmit,
+    watch,
+    reset,
+    formState: { errors },
+  } = useForm<ErVisitFormInput>({
+    resolver: zodResolver(erVisitFormSchema),
+    defaultValues: emptyErVisitForm,
+  });
+  const selectedPatientId = watch("patient_id");
   const mutation = useMutation({
-    mutationFn: (d: CreateErVisitRequest) => api.createErVisit(d),
+    mutationFn: (d: CreateErVisitRequest) => emergencyService.createErVisit(d),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["er-visits"] });
       close();
@@ -376,10 +422,18 @@ function VisitsTab({ canCreate }: { canCreate: boolean }) {
   });
 
   // Admit from ER
-  const [admitForm, setAdmitForm] = useState<Partial<AdmitFromErRequest>>({});
+  const {
+    control: admitControl,
+    handleSubmit: handleAdmitSubmit,
+    reset: resetAdmit,
+    formState: { errors: admitErrors },
+  } = useForm<ErAdmitFormInput>({
+    resolver: zodResolver(erAdmitFormSchema),
+    defaultValues: emptyErAdmitForm,
+  });
   const admitMutation = useMutation({
     mutationFn: ({ visitId, data: d }: { visitId: string; data: AdmitFromErRequest }) =>
-      api.admitFromEr(visitId, d),
+      emergencyService.admitFromEr(visitId, d),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["er-visits"] });
       notifications.show({
@@ -387,7 +441,7 @@ function VisitsTab({ canCreate }: { canCreate: boolean }) {
         message: "Patient has been admitted to IPD from ER",
         color: "success",
       });
-      setAdmitForm({});
+      resetAdmit(emptyErAdmitForm);
       setAdmitVisitId(null);
       admitHandlers.close();
     },
@@ -395,8 +449,31 @@ function VisitsTab({ canCreate }: { canCreate: boolean }) {
 
   const handleOpenAdmit = (visitId: string) => {
     setAdmitVisitId(visitId);
-    setAdmitForm({});
+    resetAdmit(emptyErAdmitForm);
     admitHandlers.open();
+  };
+
+  const submitErVisit = (values: ErVisitFormInput) => {
+    mutation.mutate({
+      patient_id: values.patient_id,
+      arrival_mode: values.arrival_mode || undefined,
+      chief_complaint: emergencyOptionalText(values.chief_complaint),
+      is_mlc: values.is_mlc,
+      bay_number: emergencyOptionalText(values.bay_number),
+      notes: emergencyOptionalText(values.notes),
+    });
+  };
+
+  const submitAdmitFromEr = (values: ErAdmitFormInput) => {
+    if (!admitVisitId) return;
+    admitMutation.mutate({
+      visitId: admitVisitId,
+      data: {
+        bed_id: values.bed_id,
+        admitting_doctor_id: values.admitting_doctor_id,
+        admission_notes: emergencyOptionalText(values.admission_notes),
+      },
+    });
   };
 
   const columns = [
@@ -501,7 +578,13 @@ function VisitsTab({ canCreate }: { canCreate: boolean }) {
     <Stack mt="md">
       {canCreate && (
         <Group justify="flex-end">
-          <Button leftSection={<IconPlus size={16} />} onClick={open}>
+          <Button
+            leftSection={<IconPlus size={16} />}
+            onClick={() => {
+              reset(emptyErVisitForm);
+              open();
+            }}
+          >
             Register ER Visit
           </Button>
         </Group>
@@ -509,44 +592,65 @@ function VisitsTab({ canCreate }: { canCreate: boolean }) {
       <DataTable columns={columns} data={data} loading={isLoading} rowKey={(r) => r.id} />
 
       <Drawer opened={opened} onClose={close} title="Register ER Visit" position="right" size="xl">
-        <Stack>
-          <PatientSearchSelect
-            value={form.patient_id}
-            onChange={(v) => setForm({ ...form, patient_id: v })}
-            required
+        <Stack component="form" onSubmit={handleSubmit(submitErVisit)}>
+          <Controller
+            name="patient_id"
+            control={control}
+            render={({ field }) => (
+              <PatientSearchSelect value={field.value} onChange={field.onChange} required />
+            )}
           />
-          <PatientContextBanner patientId={form.patient_id} hideLoadingState />
-          <Select
-            label="Arrival Mode"
-            data={ARRIVAL_MODES}
-            value={form.arrival_mode ?? null}
-            onChange={(v) => setForm({ ...form, arrival_mode: v ?? undefined })}
+          {errors.patient_id?.message && (
+            <Text size="xs" c="danger">
+              {errors.patient_id.message}
+            </Text>
+          )}
+          <PatientContextBanner patientId={selectedPatientId} hideLoadingState />
+          <Controller
+            name="arrival_mode"
+            control={control}
+            render={({ field }) => (
+              <Select
+                label="Arrival Mode"
+                data={emergencyArrivalModeOptions}
+                value={field.value || null}
+                onChange={(value) => field.onChange(value ?? "")}
+                clearable
+                error={errors.arrival_mode?.message}
+              />
+            )}
           />
-          <TextInput
-            label="Chief Complaint"
-            value={form.chief_complaint ?? ""}
-            onChange={(e) => setForm({ ...form, chief_complaint: e.currentTarget.value })}
+          <Controller
+            name="chief_complaint"
+            control={control}
+            render={({ field }) => <TextInput label="Chief Complaint" {...field} />}
           />
-          <TextInput
-            label="Bay Number"
-            value={form.bay_number ?? ""}
-            onChange={(e) => setForm({ ...form, bay_number: e.currentTarget.value })}
+          <Controller
+            name="bay_number"
+            control={control}
+            render={({ field }) => <TextInput label="Bay Number" {...field} />}
           />
-          <Select
-            label="MLC"
-            data={[
-              { value: "true", label: "Yes" },
-              { value: "false", label: "No" },
-            ]}
-            value={form.is_mlc ? "true" : "false"}
-            onChange={(v) => setForm({ ...form, is_mlc: v === "true" })}
+          <Controller
+            name="is_mlc"
+            control={control}
+            render={({ field }) => (
+              <Select
+                label="MLC"
+                data={[
+                  { value: "true", label: "Yes" },
+                  { value: "false", label: "No" },
+                ]}
+                value={field.value ? "true" : "false"}
+                onChange={(value) => field.onChange(value === "true")}
+              />
+            )}
           />
-          <Textarea
-            label="Notes"
-            value={form.notes ?? ""}
-            onChange={(e) => setForm({ ...form, notes: e.currentTarget.value })}
+          <Controller
+            name="notes"
+            control={control}
+            render={({ field }) => <Textarea label="Notes" {...field} />}
           />
-          <Button onClick={() => mutation.mutate(form)} loading={mutation.isPending}>
+          <Button type="submit" loading={mutation.isPending}>
             Register
           </Button>
         </Stack>
@@ -558,44 +662,57 @@ function VisitsTab({ canCreate }: { canCreate: boolean }) {
         onClose={() => {
           admitHandlers.close();
           setAdmitVisitId(null);
-          setAdmitForm({});
+          resetAdmit(emptyErAdmitForm);
         }}
         title="Admit Patient to IPD"
         size="md"
       >
-        <Stack>
-          <BedSelect
-            value={admitForm.bed_id ?? ""}
-            onChange={(id) => setAdmitForm({ ...admitForm, bed_id: id })}
-            required
+        <Stack component="form" onSubmit={handleAdmitSubmit(submitAdmitFromEr)}>
+          <Controller
+            name="bed_id"
+            control={admitControl}
+            render={({ field }) => (
+              <BedSelect value={field.value} onChange={field.onChange} required />
+            )}
           />
-          <DoctorSearchSelect
-            label="Admitting Doctor"
-            value={admitForm.admitting_doctor_id ?? ""}
-            onChange={(id) => setAdmitForm({ ...admitForm, admitting_doctor_id: id })}
-            required
+          {admitErrors.bed_id?.message && (
+            <Text size="xs" c="danger">
+              {admitErrors.bed_id.message}
+            </Text>
+          )}
+          <Controller
+            name="admitting_doctor_id"
+            control={admitControl}
+            render={({ field }) => (
+              <DoctorSearchSelect
+                label="Admitting Doctor"
+                value={field.value}
+                onChange={field.onChange}
+                required
+              />
+            )}
           />
-          <Textarea
-            label="Admission Notes"
-            value={admitForm.admission_notes ?? ""}
-            onChange={(e) => setAdmitForm({ ...admitForm, admission_notes: e.currentTarget.value })}
-            placeholder="Reason for admission, clinical notes..."
-            minRows={3}
+          {admitErrors.admitting_doctor_id?.message && (
+            <Text size="xs" c="danger">
+              {admitErrors.admitting_doctor_id.message}
+            </Text>
+          )}
+          <Controller
+            name="admission_notes"
+            control={admitControl}
+            render={({ field }) => (
+              <Textarea
+                label="Admission Notes"
+                {...field}
+                placeholder="Reason for admission, clinical notes..."
+                minRows={3}
+              />
+            )}
           />
           <Button
+            type="submit"
             color="teal"
             leftSection={<IconBuildingHospital size={16} />}
-            onClick={() => {
-              if (!admitVisitId || !admitForm.bed_id || !admitForm.admitting_doctor_id) return;
-              admitMutation.mutate({
-                visitId: admitVisitId,
-                data: {
-                  bed_id: admitForm.bed_id,
-                  admitting_doctor_id: admitForm.admitting_doctor_id,
-                  admission_notes: admitForm.admission_notes,
-                },
-              });
-            }}
             loading={admitMutation.isPending}
           >
             Confirm Admission
@@ -651,38 +768,48 @@ function CodesTab({ canCreate }: { canCreate: boolean }) {
   const qc = useQueryClient();
   const { data = [], isLoading } = useQuery({
     queryKey: ["er-codes"],
-    queryFn: () => api.listCodeActivations(),
+    queryFn: () => emergencyService.listCodeActivations(),
   });
 
-  const [form, setForm] = useState<CreateCodeActivationRequest>({ code_type: "" });
+  const {
+    control,
+    handleSubmit,
+    reset,
+    formState: { errors },
+  } = useForm<EmergencyCodeActivationFormInput>({
+    resolver: zodResolver(emergencyCodeActivationFormSchema),
+    defaultValues: emptyCodeActivationForm,
+  });
   const [crashCart, setCrashCart] = useState<Record<string, boolean>>({});
 
   const createMut = useMutation({
-    mutationFn: (d: CreateCodeActivationRequest) => api.createCodeActivation(d),
-    onSuccess: () => {
+    mutationFn: (d: CreateCodeActivationRequest) => emergencyService.createCodeActivation(d),
+    onSuccess: (_data, variables) => {
       void qc.invalidateQueries({ queryKey: ["er-codes"] });
       close();
       setCrashCart({});
       notifications.show({
         title: "Code Activated",
-        message: `${form.code_type.toUpperCase()} activated`,
+        message: `${variables.code_type.toUpperCase()} activated`,
         color: "danger",
       });
     },
   });
 
   const deactivateMut = useMutation({
-    mutationFn: (id: string) => api.deactivateCode(id, {}),
+    mutationFn: (id: string) => emergencyService.deactivateCode(id),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["er-codes"] });
       notifications.show({ title: "Code Deactivated", message: "Code has been deactivated" });
     },
   });
 
-  const handleCreate = () => {
+  const handleCreate = (values: EmergencyCodeActivationFormInput) => {
     const hasCheckedItems = Object.values(crashCart).some((v) => v);
     const payload: CreateCodeActivationRequest = {
-      ...form,
+      code_type: values.code_type,
+      location: emergencyOptionalText(values.location),
+      notes: emergencyOptionalText(values.notes),
       crash_cart_checklist: hasCheckedItems ? crashCart : undefined,
     };
     createMut.mutate(payload);
@@ -781,7 +908,14 @@ function CodesTab({ canCreate }: { canCreate: boolean }) {
     <Stack mt="md">
       {canCreate && (
         <Group justify="flex-end">
-          <Button leftSection={<IconAlertTriangle size={16} />} color="danger" onClick={open}>
+          <Button
+            leftSection={<IconAlertTriangle size={16} />}
+            color="danger"
+            onClick={() => {
+              reset(emptyCodeActivationForm);
+              open();
+            }}
+          >
             Activate Code
           </Button>
         </Group>
@@ -794,32 +928,40 @@ function CodesTab({ canCreate }: { canCreate: boolean }) {
         onClose={() => {
           close();
           setCrashCart({});
+          reset(emptyCodeActivationForm);
         }}
         title="Activate Emergency Code"
         position="right"
         size="lg"
       >
-        <Stack>
-          <Select
-            label="Code Type"
-            required
-            data={CODE_TYPES}
-            value={form.code_type || null}
-            onChange={(v) => setForm({ ...form, code_type: v ?? "" })}
+        <Stack component="form" onSubmit={handleSubmit(handleCreate)}>
+          <Controller
+            name="code_type"
+            control={control}
+            render={({ field }) => (
+              <Select
+                label="Code Type"
+                required
+                data={emergencyCodeTypeOptions}
+                value={field.value}
+                onChange={(value) => field.onChange(value ?? "code_blue")}
+                error={errors.code_type?.message}
+              />
+            )}
           />
-          <TextInput
-            label="Location"
-            value={form.location ?? ""}
-            onChange={(e) => setForm({ ...form, location: e.currentTarget.value })}
+          <Controller
+            name="location"
+            control={control}
+            render={({ field }) => <TextInput label="Location" {...field} />}
           />
-          <Textarea
-            label="Notes"
-            value={form.notes ?? ""}
-            onChange={(e) => setForm({ ...form, notes: e.currentTarget.value })}
+          <Controller
+            name="notes"
+            control={control}
+            render={({ field }) => <Textarea label="Notes" {...field} />}
           />
           <Divider />
           <CrashCartChecklist value={crashCart} onChange={setCrashCart} />
-          <Button color="danger" onClick={handleCreate} loading={createMut.isPending}>
+          <Button color="danger" type="submit" loading={createMut.isPending}>
             Activate Code
           </Button>
         </Stack>
@@ -925,53 +1067,27 @@ function CodesTab({ canCreate }: { canCreate: boolean }) {
 
 // ── MLC Cases Tab ──────────────────────────────────────
 
-interface SbarForm {
-  situation: string;
-  background: string;
-  assessment: string;
-  recommendation: string;
-}
-
-interface AgeEstimationForm {
-  ossification_center_findings: string;
-  dental_examination: string;
-  secondary_sexual_characteristics: string;
-  estimated_age_range: string;
-  examiner_opinion: string;
-}
-
-interface PocsoReportForm {
-  child_age: string;
-  guardian_details: string;
-  statement_summary: string;
-  injuries_documented: string;
-  psych_assessment_needed: boolean;
-}
-
-interface CourtSummonsForm {
-  date: string;
-  court_name: string;
-  case_number: string;
-  status: string;
-  notes: string;
-}
-
-const EMPTY_SBAR: SbarForm = { situation: "", background: "", assessment: "", recommendation: "" };
-const EMPTY_AGE_EST: AgeEstimationForm = {
+const EMPTY_SBAR: MlcSbarFormInput = {
+  situation: "",
+  background: "",
+  assessment: "",
+  recommendation: "",
+};
+const EMPTY_AGE_EST: MlcAgeEstimationFormInput = {
   ossification_center_findings: "",
   dental_examination: "",
   secondary_sexual_characteristics: "",
   estimated_age_range: "",
   examiner_opinion: "",
 };
-const EMPTY_POCSO: PocsoReportForm = {
+const EMPTY_POCSO: MlcPocsoReportFormInput = {
   child_age: "",
   guardian_details: "",
   statement_summary: "",
   injuries_documented: "",
   psych_assessment_needed: false,
 };
-const EMPTY_SUMMONS: CourtSummonsForm = {
+const EMPTY_SUMMONS: MlcCourtSummonsFormInput = {
   date: "",
   court_name: "",
   case_number: "",
@@ -988,69 +1104,99 @@ function MlcCaseDetail({ mlcCase }: { mlcCase: MlcCase }) {
   const [pocsoOpened, { open: openPocso, close: closePocso }] = useDisclosure(false);
   const [summonsOpened, { open: openSummons, close: closeSummons }] = useDisclosure(false);
 
-  // Forms
-  const [sbarForm, setSbarForm] = useState<SbarForm>({ ...EMPTY_SBAR });
-  const [ageEstForm, setAgeEstForm] = useState<AgeEstimationForm>({ ...EMPTY_AGE_EST });
-  const [pocsoForm, setPocsoForm] = useState<PocsoReportForm>({ ...EMPTY_POCSO });
-  const [summonsForm, setSummonsForm] = useState<CourtSummonsForm>({ ...EMPTY_SUMMONS });
+  const {
+    formState: { errors: sbarErrors },
+    handleSubmit: handleSbarSubmit,
+    register: registerSbar,
+    reset: resetSbar,
+  } = useForm<MlcSbarFormInput>({
+    resolver: zodResolver(mlcSbarFormSchema),
+    defaultValues: EMPTY_SBAR,
+  });
+  const {
+    formState: { errors: ageEstErrors },
+    handleSubmit: handleAgeEstSubmit,
+    register: registerAgeEst,
+    reset: resetAgeEst,
+  } = useForm<MlcAgeEstimationFormInput>({
+    resolver: zodResolver(mlcAgeEstimationFormSchema),
+    defaultValues: EMPTY_AGE_EST,
+  });
+  const {
+    control: pocsoControl,
+    formState: { errors: pocsoErrors },
+    handleSubmit: handlePocsoSubmit,
+    register: registerPocso,
+    reset: resetPocso,
+  } = useForm<MlcPocsoReportFormInput>({
+    resolver: zodResolver(mlcPocsoReportFormSchema),
+    defaultValues: EMPTY_POCSO,
+  });
+  const {
+    control: summonsControl,
+    formState: { errors: summonsErrors },
+    handleSubmit: handleSummonsSubmit,
+    register: registerSummons,
+    reset: resetSummons,
+  } = useForm<MlcCourtSummonsFormInput>({
+    resolver: zodResolver(mlcCourtSummonsFormSchema),
+    defaultValues: EMPTY_SUMMONS,
+  });
 
   // Fetch documents for this MLC case
   const { data: documents = [] } = useQuery({
     queryKey: ["mlc-documents", mlcCase.id],
-    queryFn: () => api.listMlcDocuments(mlcCase.id),
+    queryFn: () => emergencyService.listMlcDocuments(mlcCase.id),
   });
 
   const createDocMut = useMutation({
-    mutationFn: (data: CreateMlcDocumentRequest) => api.createMlcDocument(mlcCase.id, data),
+    mutationFn: (data: CreateMlcDocumentInput) =>
+      emergencyService.createMlcDocument(mlcCase.id, data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["mlc-documents", mlcCase.id] });
       notifications.show({ title: "Document Created", message: "MLC document saved successfully" });
     },
   });
 
-  // SBAR submit
-  const handleSbarSubmit = () => {
+  const submitSbar = handleSbarSubmit((values) => {
     createDocMut.mutate({
       document_type: "sbar_handover",
       title: `SBAR Handover - ${mlcCase.mlc_number}`,
-      content: { ...sbarForm },
+      content: values,
     });
     closeSbar();
-    setSbarForm({ ...EMPTY_SBAR });
-  };
+    resetSbar(EMPTY_SBAR);
+  });
 
-  // Age estimation submit
-  const handleAgeEstSubmit = () => {
+  const submitAgeEst = handleAgeEstSubmit((values) => {
     createDocMut.mutate({
       document_type: "age_estimation",
       title: `Age Estimation - ${mlcCase.mlc_number}`,
-      content: { ...ageEstForm },
+      content: values,
     });
     closeAgeEst();
-    setAgeEstForm({ ...EMPTY_AGE_EST });
-  };
+    resetAgeEst(EMPTY_AGE_EST);
+  });
 
-  // POCSO report submit
-  const handlePocsoSubmit = () => {
+  const submitPocso = handlePocsoSubmit((values) => {
     createDocMut.mutate({
       document_type: "pocso_report",
       title: `POCSO Report - ${mlcCase.mlc_number}`,
-      content: { ...pocsoForm },
+      content: values,
     });
     closePocso();
-    setPocsoForm({ ...EMPTY_POCSO });
-  };
+    resetPocso(EMPTY_POCSO);
+  });
 
-  // Court summons submit
-  const handleSummonsSubmit = () => {
+  const submitSummons = handleSummonsSubmit((values) => {
     createDocMut.mutate({
       document_type: "court_summons",
-      title: `Court Summons - ${summonsForm.court_name}`,
-      content: { ...summonsForm },
+      title: `Court Summons - ${values.court_name}`,
+      content: values,
     });
     closeSummons();
-    setSummonsForm({ ...EMPTY_SUMMONS });
-  };
+    resetSummons(EMPTY_SUMMONS);
+  });
 
   // Filter documents by type
   const sbarDocs = documents.filter((d) => d.document_type === "sbar_handover");
@@ -1394,13 +1540,13 @@ function MlcCaseDetail({ mlcCase }: { mlcCase: MlcCase }) {
         opened={sbarOpened}
         onClose={() => {
           closeSbar();
-          setSbarForm({ ...EMPTY_SBAR });
+          resetSbar(EMPTY_SBAR);
         }}
         title="SBAR Handover"
         position="right"
         size="lg"
       >
-        <Stack>
+        <Stack component="form" onSubmit={submitSbar}>
           <Alert color="primary" variant="light" icon={<IconShieldCheck size={16} />}>
             SBAR (Situation-Background-Assessment-Recommendation) is a standardized communication
             tool for clinical handovers as recommended by WHO and NABH.
@@ -1408,45 +1554,36 @@ function MlcCaseDetail({ mlcCase }: { mlcCase: MlcCase }) {
           <Textarea
             label="Situation"
             description="Concise statement of the problem: who is the patient, what is the current concern?"
-            value={sbarForm.situation}
-            onChange={(e) => setSbarForm({ ...sbarForm, situation: e.currentTarget.value })}
+            error={sbarErrors.situation?.message}
+            {...registerSbar("situation")}
             minRows={3}
             required
           />
           <Textarea
             label="Background"
             description="Pertinent history, context: relevant medical history, current medications, allergies, lab results"
-            value={sbarForm.background}
-            onChange={(e) => setSbarForm({ ...sbarForm, background: e.currentTarget.value })}
+            error={sbarErrors.background?.message}
+            {...registerSbar("background")}
             minRows={3}
             required
           />
           <Textarea
             label="Assessment"
             description="Your clinical assessment: what you think the problem is"
-            value={sbarForm.assessment}
-            onChange={(e) => setSbarForm({ ...sbarForm, assessment: e.currentTarget.value })}
+            error={sbarErrors.assessment?.message}
+            {...registerSbar("assessment")}
             minRows={3}
             required
           />
           <Textarea
             label="Recommendation"
             description="What you need: specific request, action needed, timeline"
-            value={sbarForm.recommendation}
-            onChange={(e) => setSbarForm({ ...sbarForm, recommendation: e.currentTarget.value })}
+            error={sbarErrors.recommendation?.message}
+            {...registerSbar("recommendation")}
             minRows={3}
             required
           />
-          <Button
-            onClick={handleSbarSubmit}
-            loading={createDocMut.isPending}
-            disabled={
-              !sbarForm.situation ||
-              !sbarForm.background ||
-              !sbarForm.assessment ||
-              !sbarForm.recommendation
-            }
-          >
+          <Button type="submit" loading={createDocMut.isPending}>
             Save SBAR Handover
           </Button>
         </Stack>
@@ -1457,13 +1594,13 @@ function MlcCaseDetail({ mlcCase }: { mlcCase: MlcCase }) {
         opened={ageEstOpened}
         onClose={() => {
           closeAgeEst();
-          setAgeEstForm({ ...EMPTY_AGE_EST });
+          resetAgeEst(EMPTY_AGE_EST);
         }}
         title="Age Estimation Documentation"
         position="right"
         size="lg"
       >
-        <Stack>
+        <Stack component="form" onSubmit={submitAgeEst}>
           <Alert color="violet" variant="light" icon={<IconScale size={16} />}>
             Age estimation is a medico-legal procedure. Document all findings carefully. Ensure the
             examination is conducted by an authorized medical officer.
@@ -1471,66 +1608,43 @@ function MlcCaseDetail({ mlcCase }: { mlcCase: MlcCase }) {
           <Textarea
             label="Ossification Center Findings"
             description="X-ray findings of wrist, elbow, pelvis, and other ossification centers"
-            value={ageEstForm.ossification_center_findings}
-            onChange={(e) =>
-              setAgeEstForm({ ...ageEstForm, ossification_center_findings: e.currentTarget.value })
-            }
+            error={ageEstErrors.ossification_center_findings?.message}
+            {...registerAgeEst("ossification_center_findings")}
             minRows={3}
             required
           />
           <Textarea
             label="Dental Examination"
             description="Eruption of teeth, third molar status, dental age assessment"
-            value={ageEstForm.dental_examination}
-            onChange={(e) =>
-              setAgeEstForm({ ...ageEstForm, dental_examination: e.currentTarget.value })
-            }
+            error={ageEstErrors.dental_examination?.message}
+            {...registerAgeEst("dental_examination")}
             minRows={3}
             required
           />
           <Textarea
             label="Secondary Sexual Characteristics"
             description="Development stage as per Tanner staging"
-            value={ageEstForm.secondary_sexual_characteristics}
-            onChange={(e) =>
-              setAgeEstForm({
-                ...ageEstForm,
-                secondary_sexual_characteristics: e.currentTarget.value,
-              })
-            }
+            error={ageEstErrors.secondary_sexual_characteristics?.message}
+            {...registerAgeEst("secondary_sexual_characteristics")}
             minRows={3}
             required
           />
           <TextInput
             label="Estimated Age Range"
             description="e.g., 16-18 years"
-            value={ageEstForm.estimated_age_range}
-            onChange={(e) =>
-              setAgeEstForm({ ...ageEstForm, estimated_age_range: e.currentTarget.value })
-            }
+            error={ageEstErrors.estimated_age_range?.message}
+            {...registerAgeEst("estimated_age_range")}
             required
           />
           <Textarea
             label="Examiner Opinion"
             description="Final opinion on probable age with reasoning"
-            value={ageEstForm.examiner_opinion}
-            onChange={(e) =>
-              setAgeEstForm({ ...ageEstForm, examiner_opinion: e.currentTarget.value })
-            }
+            error={ageEstErrors.examiner_opinion?.message}
+            {...registerAgeEst("examiner_opinion")}
             minRows={3}
             required
           />
-          <Button
-            color="violet"
-            onClick={handleAgeEstSubmit}
-            loading={createDocMut.isPending}
-            disabled={
-              !ageEstForm.ossification_center_findings ||
-              !ageEstForm.dental_examination ||
-              !ageEstForm.estimated_age_range ||
-              !ageEstForm.examiner_opinion
-            }
-          >
+          <Button color="violet" type="submit" loading={createDocMut.isPending}>
             Save Age Estimation
           </Button>
         </Stack>
@@ -1541,13 +1655,13 @@ function MlcCaseDetail({ mlcCase }: { mlcCase: MlcCase }) {
         opened={pocsoOpened}
         onClose={() => {
           closePocso();
-          setPocsoForm({ ...EMPTY_POCSO });
+          resetPocso(EMPTY_POCSO);
         }}
         title="POCSO Report"
         position="right"
         size="lg"
       >
-        <Stack>
+        <Stack component="form" onSubmit={submitPocso}>
           <Alert color="danger" variant="filled" icon={<IconAlertOctagon size={16} />}>
             POCSO Act, 2012 mandates mandatory reporting. This report is a legal document. Ensure
             child-friendly language and procedures throughout.
@@ -1555,58 +1669,46 @@ function MlcCaseDetail({ mlcCase }: { mlcCase: MlcCase }) {
           <TextInput
             label="Child Age"
             description="Age of the child victim"
-            value={pocsoForm.child_age}
-            onChange={(e) => setPocsoForm({ ...pocsoForm, child_age: e.currentTarget.value })}
+            error={pocsoErrors.child_age?.message}
+            {...registerPocso("child_age")}
             required
           />
           <Textarea
             label="Guardian Details"
             description="Name, relation, contact of guardian/parent accompanying the child"
-            value={pocsoForm.guardian_details}
-            onChange={(e) =>
-              setPocsoForm({ ...pocsoForm, guardian_details: e.currentTarget.value })
-            }
+            error={pocsoErrors.guardian_details?.message}
+            {...registerPocso("guardian_details")}
             minRows={2}
             required
           />
           <Textarea
             label="Statement Summary"
             description="Summary of statement in the child's own words (do not lead or suggest)"
-            value={pocsoForm.statement_summary}
-            onChange={(e) =>
-              setPocsoForm({ ...pocsoForm, statement_summary: e.currentTarget.value })
-            }
+            error={pocsoErrors.statement_summary?.message}
+            {...registerPocso("statement_summary")}
             minRows={4}
             required
           />
           <Textarea
             label="Injuries Documented"
             description="Clinical findings: injuries, marks, physical examination findings"
-            value={pocsoForm.injuries_documented}
-            onChange={(e) =>
-              setPocsoForm({ ...pocsoForm, injuries_documented: e.currentTarget.value })
-            }
+            error={pocsoErrors.injuries_documented?.message}
+            {...registerPocso("injuries_documented")}
             minRows={3}
             required
           />
-          <Checkbox
-            label="Psychological assessment needed"
-            checked={pocsoForm.psych_assessment_needed}
-            onChange={(e) =>
-              setPocsoForm({ ...pocsoForm, psych_assessment_needed: e.currentTarget.checked })
-            }
+          <Controller
+            name="psych_assessment_needed"
+            control={pocsoControl}
+            render={({ field }) => (
+              <Checkbox
+                label="Psychological assessment needed"
+                checked={field.value}
+                onChange={(event) => field.onChange(event.currentTarget.checked)}
+              />
+            )}
           />
-          <Button
-            color="danger"
-            onClick={handlePocsoSubmit}
-            loading={createDocMut.isPending}
-            disabled={
-              !pocsoForm.child_age ||
-              !pocsoForm.guardian_details ||
-              !pocsoForm.statement_summary ||
-              !pocsoForm.injuries_documented
-            }
-          >
+          <Button color="danger" type="submit" loading={createDocMut.isPending}>
             Save POCSO Report
           </Button>
         </Stack>
@@ -1617,54 +1719,56 @@ function MlcCaseDetail({ mlcCase }: { mlcCase: MlcCase }) {
         opened={summonsOpened}
         onClose={() => {
           closeSummons();
-          setSummonsForm({ ...EMPTY_SUMMONS });
+          resetSummons(EMPTY_SUMMONS);
         }}
         title="Add Court Summons"
         position="right"
         size="md"
       >
-        <Stack>
+        <Stack component="form" onSubmit={submitSummons}>
           <TextInput
             label="Date"
             type="date"
-            value={summonsForm.date}
-            onChange={(e) => setSummonsForm({ ...summonsForm, date: e.currentTarget.value })}
+            error={summonsErrors.date?.message}
+            {...registerSummons("date")}
             required
           />
           <TextInput
             label="Court Name"
-            value={summonsForm.court_name}
-            onChange={(e) => setSummonsForm({ ...summonsForm, court_name: e.currentTarget.value })}
+            error={summonsErrors.court_name?.message}
+            {...registerSummons("court_name")}
             required
           />
           <TextInput
             label="Case Number"
-            value={summonsForm.case_number}
-            onChange={(e) => setSummonsForm({ ...summonsForm, case_number: e.currentTarget.value })}
+            error={summonsErrors.case_number?.message}
+            {...registerSummons("case_number")}
             required
           />
-          <Select
-            label="Status"
-            data={[
-              { value: "pending", label: "Pending" },
-              { value: "attended", label: "Attended" },
-              { value: "adjourned", label: "Adjourned" },
-              { value: "cancelled", label: "Cancelled" },
-            ]}
-            value={summonsForm.status}
-            onChange={(v) => setSummonsForm({ ...summonsForm, status: v ?? "pending" })}
+          <Controller
+            name="status"
+            control={summonsControl}
+            render={({ field }) => (
+              <Select
+                label="Status"
+                data={[
+                  { value: "pending", label: "Pending" },
+                  { value: "attended", label: "Attended" },
+                  { value: "adjourned", label: "Adjourned" },
+                  { value: "cancelled", label: "Cancelled" },
+                ]}
+                value={field.value}
+                onChange={field.onChange}
+                error={summonsErrors.status?.message}
+              />
+            )}
           />
           <Textarea
             label="Notes"
-            value={summonsForm.notes}
-            onChange={(e) => setSummonsForm({ ...summonsForm, notes: e.currentTarget.value })}
+            error={summonsErrors.notes?.message}
+            {...registerSummons("notes")}
           />
-          <Button
-            color="warning"
-            onClick={handleSummonsSubmit}
-            loading={createDocMut.isPending}
-            disabled={!summonsForm.date || !summonsForm.court_name || !summonsForm.case_number}
-          >
+          <Button color="warning" type="submit" loading={createDocMut.isPending}>
             Save Court Summons
           </Button>
         </Stack>
@@ -1680,12 +1784,22 @@ function MlcTab({ canCreate }: { canCreate: boolean }) {
   const qc = useQueryClient();
   const { data = [], isLoading } = useQuery({
     queryKey: ["mlc-cases"],
-    queryFn: () => api.listMlcCases(),
+    queryFn: () => emergencyService.listMlcCases(),
   });
 
-  const [form, setForm] = useState<CreateMlcCaseRequest>({ patient_id: "" });
+  const {
+    control,
+    handleSubmit,
+    reset,
+    watch,
+    formState: { errors },
+  } = useForm<MlcCaseFormInput>({
+    resolver: zodResolver(mlcCaseFormSchema),
+    defaultValues: emptyMlcCaseForm,
+  });
+  const selectedPatientId = watch("patient_id");
   const mutation = useMutation({
-    mutationFn: (d: CreateMlcCaseRequest) => api.createMlcCase(d),
+    mutationFn: (d: CreateMlcCaseRequest) => emergencyService.createMlcCase(d),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["mlc-cases"] });
       close();
@@ -1713,6 +1827,22 @@ function MlcTab({ canCreate }: { canCreate: boolean }) {
   const handleViewCase = (mlc: MlcCase) => {
     setSelectedCase(mlc);
     openDetail();
+  };
+
+  const submitMlcCase = (values: MlcCaseFormInput) => {
+    mutation.mutate({
+      patient_id: values.patient_id,
+      case_type: values.case_type || undefined,
+      fir_number: emergencyOptionalText(values.fir_number),
+      police_station: emergencyOptionalText(values.police_station),
+      brought_by: values.brought_by || undefined,
+      informant_name: emergencyOptionalText(values.informant_name),
+      informant_relation: emergencyOptionalText(values.informant_relation),
+      informant_contact: emergencyOptionalText(values.informant_contact),
+      history_of_incident: emergencyOptionalText(values.history_of_incident),
+      is_pocso: values.is_pocso,
+      is_death_case: values.is_death_case,
+    });
   };
 
   const columns = [
@@ -1779,7 +1909,13 @@ function MlcTab({ canCreate }: { canCreate: boolean }) {
     <Stack mt="md">
       {canCreate && (
         <Group justify="flex-end">
-          <Button leftSection={<IconPlus size={16} />} onClick={open}>
+          <Button
+            leftSection={<IconPlus size={16} />}
+            onClick={() => {
+              reset(emptyMlcCaseForm);
+              open();
+            }}
+          >
             Register MLC Case
           </Button>
         </Group>
@@ -1788,80 +1924,115 @@ function MlcTab({ canCreate }: { canCreate: boolean }) {
 
       {/* Create MLC Drawer */}
       <Drawer opened={opened} onClose={close} title="Register MLC Case" position="right" size="lg">
-        <Stack>
-          <PatientSearchSelect
-            value={form.patient_id}
-            onChange={(v) => setForm({ ...form, patient_id: v })}
-            required
+        <Stack component="form" onSubmit={handleSubmit(submitMlcCase)}>
+          <Controller
+            name="patient_id"
+            control={control}
+            render={({ field }) => (
+              <PatientSearchSelect value={field.value} onChange={field.onChange} required />
+            )}
           />
-          <PatientContextBanner patientId={form.patient_id} hideLoadingState />
-          <Select
-            label="Case Type"
-            data={MLC_CASE_TYPES}
-            value={form.case_type ?? null}
-            onChange={(v) => setForm({ ...form, case_type: v ?? undefined })}
+          {errors.patient_id?.message && (
+            <Text size="xs" c="danger">
+              {errors.patient_id.message}
+            </Text>
+          )}
+          <PatientContextBanner patientId={selectedPatientId} hideLoadingState />
+          <Controller
+            name="case_type"
+            control={control}
+            render={({ field }) => (
+              <Select
+                label="Case Type"
+                data={emergencyMlcCaseTypeOptions}
+                value={field.value || null}
+                onChange={(value) => field.onChange(value ?? "")}
+                clearable
+                error={errors.case_type?.message}
+              />
+            )}
           />
-          <TextInput
-            label="FIR Number"
-            value={form.fir_number ?? ""}
-            onChange={(e) => setForm({ ...form, fir_number: e.currentTarget.value })}
+          <Controller
+            name="fir_number"
+            control={control}
+            render={({ field }) => <TextInput label="FIR Number" {...field} />}
           />
-          <TextInput
-            label="Police Station"
-            value={form.police_station ?? ""}
-            onChange={(e) => setForm({ ...form, police_station: e.currentTarget.value })}
+          <Controller
+            name="police_station"
+            control={control}
+            render={({ field }) => <TextInput label="Police Station" {...field} />}
           />
-          <Select
-            label="Brought By"
-            data={[
-              { value: "police", label: "Police" },
-              { value: "ambulance", label: "Ambulance" },
-              { value: "bystander", label: "Bystander" },
-              { value: "self", label: "Self" },
-            ]}
-            value={form.brought_by ?? null}
-            onChange={(v) => setForm({ ...form, brought_by: v ?? undefined })}
+          <Controller
+            name="brought_by"
+            control={control}
+            render={({ field }) => (
+              <Select
+                label="Brought By"
+                data={emergencyMlcBroughtByOptions}
+                value={field.value || null}
+                onChange={(value) => field.onChange(value ?? "")}
+                clearable
+                error={errors.brought_by?.message}
+              />
+            )}
           />
-          <TextInput
-            label="Informant Name"
-            value={form.informant_name ?? ""}
-            onChange={(e) => setForm({ ...form, informant_name: e.currentTarget.value })}
+          <Controller
+            name="informant_name"
+            control={control}
+            render={({ field }) => <TextInput label="Informant Name" {...field} />}
           />
-          <TextInput
-            label="Informant Relation"
-            value={form.informant_relation ?? ""}
-            onChange={(e) => setForm({ ...form, informant_relation: e.currentTarget.value })}
+          <Controller
+            name="informant_relation"
+            control={control}
+            render={({ field }) => <TextInput label="Informant Relation" {...field} />}
           />
-          <TextInput
-            label="Informant Contact"
-            value={form.informant_contact ?? ""}
-            onChange={(e) => setForm({ ...form, informant_contact: e.currentTarget.value })}
+          <Controller
+            name="informant_contact"
+            control={control}
+            render={({ field }) => (
+              <TextInput
+                label="Informant Contact"
+                {...field}
+                error={errors.informant_contact?.message}
+              />
+            )}
           />
-          <Textarea
-            label="History of Incident"
-            value={form.history_of_incident ?? ""}
-            onChange={(e) => setForm({ ...form, history_of_incident: e.currentTarget.value })}
-            minRows={3}
+          <Controller
+            name="history_of_incident"
+            control={control}
+            render={({ field }) => <Textarea label="History of Incident" {...field} minRows={3} />}
           />
-          <Select
-            label="POCSO Case"
-            data={[
-              { value: "true", label: "Yes" },
-              { value: "false", label: "No" },
-            ]}
-            value={form.is_pocso ? "true" : "false"}
-            onChange={(v) => setForm({ ...form, is_pocso: v === "true" })}
+          <Controller
+            name="is_pocso"
+            control={control}
+            render={({ field }) => (
+              <Select
+                label="POCSO Case"
+                data={[
+                  { value: "true", label: "Yes" },
+                  { value: "false", label: "No" },
+                ]}
+                value={field.value ? "true" : "false"}
+                onChange={(value) => field.onChange(value === "true")}
+              />
+            )}
           />
-          <Select
-            label="Death Case"
-            data={[
-              { value: "true", label: "Yes" },
-              { value: "false", label: "No" },
-            ]}
-            value={form.is_death_case ? "true" : "false"}
-            onChange={(v) => setForm({ ...form, is_death_case: v === "true" })}
+          <Controller
+            name="is_death_case"
+            control={control}
+            render={({ field }) => (
+              <Select
+                label="Death Case"
+                data={[
+                  { value: "true", label: "Yes" },
+                  { value: "false", label: "No" },
+                ]}
+                value={field.value ? "true" : "false"}
+                onChange={(value) => field.onChange(value === "true")}
+              />
+            )}
           />
-          <Button onClick={() => mutation.mutate(form)} loading={mutation.isPending}>
+          <Button type="submit" loading={mutation.isPending}>
             Register MLC Case
           </Button>
         </Stack>
@@ -1891,12 +2062,20 @@ function MassCasualtyTab({ canCreate }: { canCreate: boolean }) {
   const qc = useQueryClient();
   const { data = [], isLoading } = useQuery({
     queryKey: ["mass-casualty"],
-    queryFn: () => api.listMassCasualtyEvents(),
+    queryFn: () => emergencyService.listMassCasualtyEvents(),
   });
 
-  const [form, setForm] = useState<CreateMassCasualtyEventRequest>({ event_name: "" });
+  const {
+    control,
+    handleSubmit,
+    reset,
+    formState: { errors },
+  } = useForm<MassCasualtyEventFormInput>({
+    resolver: zodResolver(massCasualtyEventFormSchema),
+    defaultValues: emptyMassCasualtyEventForm,
+  });
   const mutation = useMutation({
-    mutationFn: (d: CreateMassCasualtyEventRequest) => api.createMassCasualtyEvent(d),
+    mutationFn: (d: CreateMassCasualtyEventRequest) => emergencyService.createMassCasualtyEvent(d),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["mass-casualty"] });
       close();
@@ -1907,6 +2086,16 @@ function MassCasualtyTab({ canCreate }: { canCreate: boolean }) {
       });
     },
   });
+
+  const submitMassCasualtyEvent = (values: MassCasualtyEventFormInput) => {
+    mutation.mutate({
+      event_name: values.event_name.trim(),
+      event_type: values.event_type || undefined,
+      location: emergencyOptionalText(values.location),
+      estimated_casualties: emergencyOptionalInteger(values.estimated_casualties),
+      notes: emergencyOptionalText(values.notes),
+    });
+  };
 
   const mcStatusColor = (s: string) => {
     switch (s) {
@@ -1961,7 +2150,14 @@ function MassCasualtyTab({ canCreate }: { canCreate: boolean }) {
     <Stack mt="md">
       {canCreate && (
         <Group justify="flex-end">
-          <Button leftSection={<IconBell size={16} />} color="danger" onClick={open}>
+          <Button
+            leftSection={<IconBell size={16} />}
+            color="danger"
+            onClick={() => {
+              reset(emptyMassCasualtyEventForm);
+              open();
+            }}
+          >
             Activate Mass Casualty
           </Button>
         </Group>
@@ -1975,37 +2171,56 @@ function MassCasualtyTab({ canCreate }: { canCreate: boolean }) {
         position="right"
         size="xl"
       >
-        <Stack>
-          <TextInput
-            label="Event Name"
-            required
-            value={form.event_name}
-            onChange={(e) => setForm({ ...form, event_name: e.currentTarget.value })}
+        <Stack component="form" onSubmit={handleSubmit(submitMassCasualtyEvent)}>
+          <Controller
+            name="event_name"
+            control={control}
+            render={({ field }) => (
+              <TextInput
+                label="Event Name"
+                required
+                {...field}
+                error={errors.event_name?.message}
+              />
+            )}
           />
-          <Select
-            label="Event Type"
-            data={MASS_CASUALTY_TYPES}
-            value={form.event_type ?? null}
-            onChange={(v) => setForm({ ...form, event_type: v ?? undefined })}
+          <Controller
+            name="event_type"
+            control={control}
+            render={({ field }) => (
+              <Select
+                label="Event Type"
+                data={emergencyMassCasualtyTypeOptions}
+                value={field.value || null}
+                onChange={(value) => field.onChange(value ?? "")}
+                clearable
+                error={errors.event_type?.message}
+              />
+            )}
           />
-          <TextInput
-            label="Location"
-            value={form.location ?? ""}
-            onChange={(e) => setForm({ ...form, location: e.currentTarget.value })}
+          <Controller
+            name="location"
+            control={control}
+            render={({ field }) => <TextInput label="Location" {...field} />}
           />
-          <NumberInput
-            label="Estimated Casualties"
-            value={form.estimated_casualties ?? ""}
-            onChange={(v) =>
-              setForm({ ...form, estimated_casualties: typeof v === "number" ? v : undefined })
-            }
+          <Controller
+            name="estimated_casualties"
+            control={control}
+            render={({ field }) => (
+              <NumberInput
+                label="Estimated Casualties"
+                value={field.value}
+                onChange={field.onChange}
+                error={errors.estimated_casualties?.message}
+              />
+            )}
           />
-          <Textarea
-            label="Notes"
-            value={form.notes ?? ""}
-            onChange={(e) => setForm({ ...form, notes: e.currentTarget.value })}
+          <Controller
+            name="notes"
+            control={control}
+            render={({ field }) => <Textarea label="Notes" {...field} />}
           />
-          <Button color="danger" onClick={() => mutation.mutate(form)} loading={mutation.isPending}>
+          <Button color="danger" type="submit" loading={mutation.isPending}>
             Activate Mass Casualty
           </Button>
         </Stack>

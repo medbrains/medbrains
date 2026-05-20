@@ -1,3 +1,4 @@
+import { zodResolver } from "@hookform/resolvers/zod";
 import {
   ActionIcon,
   Badge,
@@ -14,7 +15,14 @@ import {
   TextInput,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
+import {
+  type ClinicalMasterSettingsFormInput,
+  clinicalMasterSettingsFormSchema,
+  type InsuranceProviderSettingsFormInput,
+  type InsuranceProviderTypeFormValue,
+  insuranceProviderSettingsFormSchema,
+  insuranceProviderTypeFormSchema,
+} from "@medbrains/schemas";
 import { useHasPermission } from "@medbrains/stores";
 import type { InsuranceProvider, MasterItem } from "@medbrains/types";
 import { P } from "@medbrains/types";
@@ -30,20 +38,36 @@ import {
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { Controller, useForm } from "react-hook-form";
+import {
+  type CreateMasterItemInput,
+  clinicalMastersService,
+  type UpdateMasterItemInput,
+} from "../../../services/clinicalMasters.service";
 
 // ── Generic Master Item Modal ──────────────────────────────
 
-type MasterFormState = {
-  code: string;
-  name: string;
-  sort_order: number;
-};
-
-const EMPTY_MASTER_FORM: MasterFormState = {
+const EMPTY_MASTER_FORM: ClinicalMasterSettingsFormInput = {
   code: "",
   name: "",
   sort_order: 0,
 };
+
+function masterFormFromItem(item: MasterItem): ClinicalMasterSettingsFormInput {
+  return {
+    code: item.code,
+    name: item.name,
+    sort_order: item.sort_order,
+  };
+}
+
+function masterFormToPayload(form: ClinicalMasterSettingsFormInput): CreateMasterItemInput {
+  return {
+    code: form.code.trim(),
+    name: form.name.trim(),
+    sort_order: Number(form.sort_order),
+  };
+}
 
 function MasterItemModal({
   opened,
@@ -58,35 +82,25 @@ function MasterItemModal({
   onClose: () => void;
   editingItem: MasterItem | null;
   masterType: string;
-  createFn: (data: { code: string; name: string; sort_order?: number }) => Promise<MasterItem>;
-  updateFn: (
-    id: string,
-    data: { code?: string; name?: string; sort_order?: number; is_active?: boolean },
-  ) => Promise<MasterItem>;
+  createFn: (data: CreateMasterItemInput) => Promise<MasterItem>;
+  updateFn: (id: string, data: UpdateMasterItemInput) => Promise<MasterItem>;
   queryKey: string;
 }) {
   const queryClient = useQueryClient();
   const isEdit = !!editingItem;
-  const [form, setForm] = useState<MasterFormState>(EMPTY_MASTER_FORM);
-
-  const handleOpen = () => {
-    if (editingItem) {
-      setForm({
-        code: editingItem.code,
-        name: editingItem.name,
-        sort_order: editingItem.sort_order,
-      });
-    } else {
-      setForm(EMPTY_MASTER_FORM);
-    }
-  };
-
-  const updateField = <K extends keyof MasterFormState>(key: K, value: MasterFormState[K]) => {
-    setForm((prev) => ({ ...prev, [key]: value }));
-  };
+  const {
+    control,
+    formState: { errors },
+    handleSubmit,
+    register,
+  } = useForm<ClinicalMasterSettingsFormInput>({
+    resolver: zodResolver(clinicalMasterSettingsFormSchema),
+    defaultValues: EMPTY_MASTER_FORM,
+    values: editingItem ? masterFormFromItem(editingItem) : EMPTY_MASTER_FORM,
+  });
 
   const createMutation = useMutation({
-    mutationFn: (data: { code: string; name: string; sort_order?: number }) => createFn(data),
+    mutationFn: (data: CreateMasterItemInput) => createFn(data),
     onSuccess: () => {
       notifications.show({
         title: `${masterType} created`,
@@ -107,7 +121,7 @@ function MasterItemModal({
   });
 
   const updateMutation = useMutation({
-    mutationFn: (data: { code?: string; name?: string; sort_order?: number }) => {
+    mutationFn: (data: UpdateMasterItemInput) => {
       if (!editingItem) throw new Error(`No ${masterType} selected`);
       return updateFn(editingItem.id, data);
     },
@@ -130,28 +144,15 @@ function MasterItemModal({
     },
   });
 
-  const handleSubmit = () => {
-    if (!form.code.trim() || !form.name.trim()) {
-      notifications.show({
-        title: "Validation error",
-        message: "Code and Name are required.",
-        color: "danger",
-      });
-      return;
-    }
-
-    const payload = {
-      code: form.code.trim(),
-      name: form.name.trim(),
-      sort_order: form.sort_order,
-    };
+  const submitMasterItem = handleSubmit((form) => {
+    const payload = masterFormToPayload(form);
 
     if (isEdit) {
       updateMutation.mutate(payload);
     } else {
       createMutation.mutate(payload);
     }
-  };
+  });
 
   return (
     <Modal
@@ -159,35 +160,41 @@ function MasterItemModal({
       onClose={onClose}
       title={isEdit ? `Edit ${masterType}` : `Add ${masterType}`}
       size="sm"
-      onTransitionEnd={handleOpen}
     >
       <Stack gap="sm">
         <TextInput
           label="Code"
           placeholder="e.g. HIN"
-          value={form.code}
-          onChange={(e) => updateField("code", e.currentTarget.value)}
+          error={errors.code?.message}
+          {...register("code")}
           required
         />
         <TextInput
           label="Name"
           placeholder={`e.g. ${masterType} name`}
-          value={form.name}
-          onChange={(e) => updateField("name", e.currentTarget.value)}
+          error={errors.name?.message}
+          {...register("name")}
           required
         />
-        <NumberInput
-          label="Sort Order"
-          value={form.sort_order}
-          onChange={(value) => updateField("sort_order", typeof value === "number" ? value : 0)}
-          min={0}
+        <Controller
+          control={control}
+          name="sort_order"
+          render={({ field }) => (
+            <NumberInput
+              label="Sort Order"
+              value={field.value}
+              onChange={field.onChange}
+              error={errors.sort_order?.message}
+              min={0}
+            />
+          )}
         />
         <Group justify="flex-end" mt="md">
           <Button variant="light" onClick={onClose}>
             Cancel
           </Button>
           <Button
-            onClick={handleSubmit}
+            onClick={() => void submitMasterItem()}
             loading={createMutation.isPending || updateMutation.isPending}
           >
             {isEdit ? "Save" : "Create"}
@@ -210,11 +217,8 @@ function MasterTable({
 }: {
   queryKey: string;
   listFn: () => Promise<MasterItem[]>;
-  createFn: (data: { code: string; name: string; sort_order?: number }) => Promise<MasterItem>;
-  updateFn: (
-    id: string,
-    data: { code?: string; name?: string; sort_order?: number; is_active?: boolean },
-  ) => Promise<MasterItem>;
+  createFn: (data: CreateMasterItemInput) => Promise<MasterItem>;
+  updateFn: (id: string, data: UpdateMasterItemInput) => Promise<MasterItem>;
   deleteFn: (id: string) => Promise<{ status: string }>;
   masterType: string;
 }) {
@@ -428,7 +432,7 @@ const PROVIDER_TYPE_OPTIONS = [
   { value: "private", label: "Private" },
   { value: "government", label: "Government" },
   { value: "tpa", label: "TPA" },
-];
+] satisfies Array<{ value: InsuranceProviderTypeFormValue; label: string }>;
 
 const PROVIDER_TYPE_COLORS: Record<string, string> = {
   private: "primary",
@@ -436,16 +440,7 @@ const PROVIDER_TYPE_COLORS: Record<string, string> = {
   tpa: "violet",
 };
 
-type InsuranceFormState = {
-  code: string;
-  name: string;
-  provider_type: string;
-  contact_phone: string;
-  contact_email: string;
-  website: string;
-};
-
-const EMPTY_INSURANCE_FORM: InsuranceFormState = {
+const EMPTY_INSURANCE_FORM: InsuranceProviderSettingsFormInput = {
   code: "",
   name: "",
   provider_type: "private",
@@ -453,6 +448,41 @@ const EMPTY_INSURANCE_FORM: InsuranceFormState = {
   contact_email: "",
   website: "",
 };
+
+function insuranceFormFromProvider(
+  provider: InsuranceProvider,
+): InsuranceProviderSettingsFormInput {
+  return {
+    code: provider.code,
+    name: provider.name,
+    provider_type: insuranceProviderTypeFormSchema.catch("private").parse(provider.provider_type),
+    contact_phone: provider.contact_phone ?? "",
+    contact_email: provider.contact_email ?? "",
+    website: provider.website ?? "",
+  };
+}
+
+function insuranceFormToCreatePayload(form: InsuranceProviderSettingsFormInput) {
+  return {
+    code: form.code.trim(),
+    name: form.name.trim(),
+    provider_type: form.provider_type,
+    contact_phone: form.contact_phone.trim() || undefined,
+    contact_email: form.contact_email?.trim() || undefined,
+    website: form.website.trim() || undefined,
+  };
+}
+
+function insuranceFormToUpdatePayload(form: InsuranceProviderSettingsFormInput) {
+  return {
+    code: form.code.trim(),
+    name: form.name.trim(),
+    provider_type: form.provider_type,
+    contact_phone: form.contact_phone.trim() || null,
+    contact_email: form.contact_email?.trim() || null,
+    website: form.website.trim() || null,
+  };
+}
 
 function InsuranceProviderModal({
   opened,
@@ -465,40 +495,20 @@ function InsuranceProviderModal({
 }) {
   const queryClient = useQueryClient();
   const isEdit = !!editingItem;
-  const [form, setForm] = useState<InsuranceFormState>(EMPTY_INSURANCE_FORM);
-
-  const handleOpen = () => {
-    if (editingItem) {
-      setForm({
-        code: editingItem.code,
-        name: editingItem.name,
-        provider_type: editingItem.provider_type,
-        contact_phone: editingItem.contact_phone ?? "",
-        contact_email: editingItem.contact_email ?? "",
-        website: editingItem.website ?? "",
-      });
-    } else {
-      setForm(EMPTY_INSURANCE_FORM);
-    }
-  };
-
-  const updateField = <K extends keyof InsuranceFormState>(
-    key: K,
-    value: InsuranceFormState[K],
-  ) => {
-    setForm((prev) => ({ ...prev, [key]: value }));
-  };
+  const {
+    control,
+    formState: { errors },
+    handleSubmit,
+    register,
+  } = useForm<InsuranceProviderSettingsFormInput>({
+    resolver: zodResolver(insuranceProviderSettingsFormSchema),
+    defaultValues: EMPTY_INSURANCE_FORM,
+    values: editingItem ? insuranceFormFromProvider(editingItem) : EMPTY_INSURANCE_FORM,
+  });
 
   const createMutation = useMutation({
-    mutationFn: () =>
-      api.adminCreateInsuranceProvider({
-        code: form.code.trim(),
-        name: form.name.trim(),
-        provider_type: form.provider_type,
-        contact_phone: form.contact_phone.trim() || undefined,
-        contact_email: form.contact_email.trim() || undefined,
-        website: form.website.trim() || undefined,
-      }),
+    mutationFn: (data: ReturnType<typeof insuranceFormToCreatePayload>) =>
+      clinicalMastersService.createInsuranceProvider(data),
     onSuccess: () => {
       notifications.show({
         title: "Provider created",
@@ -519,16 +529,9 @@ function InsuranceProviderModal({
   });
 
   const updateMutation = useMutation({
-    mutationFn: () => {
+    mutationFn: (data: ReturnType<typeof insuranceFormToUpdatePayload>) => {
       if (!editingItem) throw new Error("No insurance provider selected");
-      return api.adminUpdateInsuranceProvider(editingItem.id, {
-        code: form.code.trim(),
-        name: form.name.trim(),
-        provider_type: form.provider_type,
-        contact_phone: form.contact_phone.trim() || null,
-        contact_email: form.contact_email.trim() || null,
-        website: form.website.trim() || null,
-      });
+      return clinicalMastersService.updateInsuranceProvider(editingItem.id, data);
     },
     onSuccess: () => {
       notifications.show({
@@ -549,22 +552,13 @@ function InsuranceProviderModal({
     },
   });
 
-  const handleSubmit = () => {
-    if (!form.code.trim() || !form.name.trim()) {
-      notifications.show({
-        title: "Validation error",
-        message: "Code and Name are required.",
-        color: "danger",
-      });
-      return;
-    }
-
+  const submitInsuranceProvider = handleSubmit((form) => {
     if (isEdit) {
-      updateMutation.mutate();
+      updateMutation.mutate(insuranceFormToUpdatePayload(form));
     } else {
-      createMutation.mutate();
+      createMutation.mutate(insuranceFormToCreatePayload(form));
     }
-  };
+  });
 
   return (
     <Modal
@@ -572,55 +566,61 @@ function InsuranceProviderModal({
       onClose={onClose}
       title={isEdit ? "Edit Insurance Provider" : "Add Insurance Provider"}
       size="md"
-      onTransitionEnd={handleOpen}
     >
       <Stack gap="sm">
         <TextInput
           label="Code"
           placeholder="e.g. ICICI-LOMBARD"
-          value={form.code}
-          onChange={(e) => updateField("code", e.currentTarget.value)}
+          error={errors.code?.message}
+          {...register("code")}
           required
         />
         <TextInput
           label="Name"
           placeholder="e.g. ICICI Lombard General Insurance"
-          value={form.name}
-          onChange={(e) => updateField("name", e.currentTarget.value)}
+          error={errors.name?.message}
+          {...register("name")}
           required
         />
-        <Select
-          label="Provider Type"
-          data={PROVIDER_TYPE_OPTIONS}
-          value={form.provider_type}
-          onChange={(value) => updateField("provider_type", value ?? "private")}
-          allowDeselect={false}
-          required
+        <Controller
+          control={control}
+          name="provider_type"
+          render={({ field }) => (
+            <Select
+              label="Provider Type"
+              data={PROVIDER_TYPE_OPTIONS}
+              value={field.value}
+              onChange={(value) => field.onChange(value ?? "private")}
+              error={errors.provider_type?.message}
+              allowDeselect={false}
+              required
+            />
+          )}
         />
         <TextInput
           label="Contact Phone"
           placeholder="Optional"
-          value={form.contact_phone}
-          onChange={(e) => updateField("contact_phone", e.currentTarget.value)}
+          error={errors.contact_phone?.message}
+          {...register("contact_phone")}
         />
         <TextInput
           label="Contact Email"
           placeholder="Optional"
-          value={form.contact_email}
-          onChange={(e) => updateField("contact_email", e.currentTarget.value)}
+          error={errors.contact_email?.message}
+          {...register("contact_email")}
         />
         <TextInput
           label="Website"
           placeholder="Optional"
-          value={form.website}
-          onChange={(e) => updateField("website", e.currentTarget.value)}
+          error={errors.website?.message}
+          {...register("website")}
         />
         <Group justify="flex-end" mt="md">
           <Button variant="light" onClick={onClose}>
             Cancel
           </Button>
           <Button
-            onClick={handleSubmit}
+            onClick={() => void submitInsuranceProvider()}
             loading={createMutation.isPending || updateMutation.isPending}
           >
             {isEdit ? "Save" : "Create"}
@@ -648,11 +648,11 @@ function InsuranceProvidersTable() {
     error,
   } = useQuery({
     queryKey: ["admin-insurance-providers"],
-    queryFn: () => api.adminListInsuranceProviders(),
+    queryFn: () => clinicalMastersService.listInsuranceProviders(),
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => api.adminDeleteInsuranceProvider(id),
+    mutationFn: (id: string) => clinicalMastersService.deleteInsuranceProvider(id),
     onSuccess: () => {
       notifications.show({
         title: "Provider deleted",
@@ -865,10 +865,10 @@ export function ClinicalMastersSettings() {
       <Tabs.Panel value="religions">
         <MasterTable
           queryKey="admin-religions"
-          listFn={() => api.adminListReligions()}
-          createFn={(data) => api.adminCreateReligion(data)}
-          updateFn={(id, data) => api.adminUpdateReligion(id, data)}
-          deleteFn={(id) => api.adminDeleteReligion(id)}
+          listFn={clinicalMastersService.listReligions}
+          createFn={clinicalMastersService.createReligion}
+          updateFn={clinicalMastersService.updateReligion}
+          deleteFn={clinicalMastersService.deleteReligion}
           masterType="Religion"
         />
       </Tabs.Panel>
@@ -876,10 +876,10 @@ export function ClinicalMastersSettings() {
       <Tabs.Panel value="occupations">
         <MasterTable
           queryKey="admin-occupations"
-          listFn={() => api.adminListOccupations()}
-          createFn={(data) => api.adminCreateOccupation(data)}
-          updateFn={(id, data) => api.adminUpdateOccupation(id, data)}
-          deleteFn={(id) => api.adminDeleteOccupation(id)}
+          listFn={clinicalMastersService.listOccupations}
+          createFn={clinicalMastersService.createOccupation}
+          updateFn={clinicalMastersService.updateOccupation}
+          deleteFn={clinicalMastersService.deleteOccupation}
           masterType="Occupation"
         />
       </Tabs.Panel>
@@ -887,10 +887,10 @@ export function ClinicalMastersSettings() {
       <Tabs.Panel value="relations">
         <MasterTable
           queryKey="admin-relations"
-          listFn={() => api.adminListRelations()}
-          createFn={(data) => api.adminCreateRelation(data)}
-          updateFn={(id, data) => api.adminUpdateRelation(id, data)}
-          deleteFn={(id) => api.adminDeleteRelation(id)}
+          listFn={clinicalMastersService.listRelations}
+          createFn={clinicalMastersService.createRelation}
+          updateFn={clinicalMastersService.updateRelation}
+          deleteFn={clinicalMastersService.deleteRelation}
           masterType="Relation"
         />
       </Tabs.Panel>

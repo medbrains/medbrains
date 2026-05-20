@@ -13,6 +13,7 @@ function LabStatusScreen() {
       title="Test progress"
       subtitle="Reports ready for collection blink amber."
       legend="Updates every 30 seconds · medbrains://tv/lab-status"
+      tags={["TV-Lab", "lab", "TAT", "reports"]}
     >
       <TvSummaryRow
         items={[
@@ -32,4 +33,6 @@ export const labStatusModule: Module = {
   icon: () => null,
   requiredPermissions: [],
   navigator: LabStatusScreen,
+  appCodes: ["TV-Lab"],
+  tags: ["tv", "lab", "queue", "tat", "reports"],
 };

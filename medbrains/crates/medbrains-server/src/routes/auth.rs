@@ -83,7 +83,11 @@ fn wants_native_token_response(headers: &HeaderMap) -> bool {
         headers
             .get("x-medbrains-client")
             .and_then(|value| value.to_str().ok()),
-        Some(value) if value.starts_with("mobile-") || value == "mobile"
+        Some(value)
+            if value.starts_with("mobile-")
+                || value == "mobile"
+                || value.starts_with("desktop-")
+                || value == "desktop"
     )
 }
 
@@ -248,6 +252,8 @@ pub struct RefreshRequestBody {
 
 #[derive(Debug, Serialize)]
 pub struct RefreshResponse {
+    pub token: Option<String>,
+    pub refresh_token: Option<String>,
     pub user: UserInfo,
     pub csrf_token: String,
     pub permissions: Vec<String>,
@@ -261,6 +267,8 @@ pub async fn refresh_token(
     jar: CookieJar,
     body: Option<Json<RefreshRequestBody>>,
 ) -> Result<impl IntoResponse, AppError> {
+    let include_native_tokens = wants_native_token_response(&headers);
+
     // Try cookie first, fall back to JSON body (for mobile)
     let refresh_raw = jar
         .get("refresh_token")
@@ -486,6 +494,8 @@ pub async fn refresh_token(
         .add(build_csrf_cookie(&csrf_token, cfg));
 
     let resp_body = RefreshResponse {
+        token: include_native_tokens.then(|| access_token.clone()),
+        refresh_token: include_native_tokens.then(|| new_refresh_raw.clone()),
         user: UserInfo {
             id: row.user_id,
             tenant_id: row.tenant_id,

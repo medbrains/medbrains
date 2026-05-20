@@ -1,3 +1,4 @@
+import { zodResolver } from "@hookform/resolvers/zod";
 import {
   ActionIcon,
   Alert,
@@ -23,7 +24,61 @@ import {
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
+import type {
+  BillingAdvanceAdjustmentFormInput,
+  BillingAdvanceFormInput,
+  BillingAdvanceRefundFormInput,
+  BillingChargeMasterFormInput,
+  BillingCorporateEnrollmentFormInput,
+  BillingCorporateFormInput,
+  BillingCorporateUpdateFormInput,
+  BillingCreditNoteFormInput,
+  BillingCreditPatientFormInput,
+  BillingDayCloseFormInput,
+  BillingDiscountFormInput,
+  BillingErpExportFormInput,
+  BillingGstrFormInput,
+  BillingInsuranceClaimFormInput,
+  BillingInvoiceItemFormInput,
+  BillingJournalEntryFormInput,
+  BillingJournalLineFormInput,
+  BillingPackageFormInput,
+  BillingPackageItemFormInput,
+  BillingPaymentFormInput,
+  BillingRatePlanFormInput,
+  BillingRatePlanItemFormInput,
+  BillingRefundFormInput,
+  BillingTdsFormInput,
+  BillingTpaRateCardFormInput,
+  BillingWriteOffFormInput,
+} from "@medbrains/schemas";
+import {
+  billingAdvanceAdjustmentFormSchema,
+  billingAdvanceFormSchema,
+  billingAdvanceRefundFormSchema,
+  billingChargeMasterFormSchema,
+  billingCorporateEnrollmentFormSchema,
+  billingCorporateFormSchema,
+  billingCorporateUpdateFormSchema,
+  billingCreditNoteFormSchema,
+  billingCreditPatientFormSchema,
+  billingDayCloseFormSchema,
+  billingDiscountFormSchema,
+  billingErpExportFormSchema,
+  billingGstrFormSchema,
+  billingInsuranceClaimFormSchema,
+  billingInvoiceItemFormSchema,
+  billingJournalEntryFormSchema,
+  billingPackageFormSchema,
+  billingPackageItemFormSchema,
+  billingPaymentFormSchema,
+  billingRatePlanFormSchema,
+  billingRatePlanItemFormSchema,
+  billingRefundFormSchema,
+  billingTdsFormSchema,
+  billingTpaRateCardFormSchema,
+  billingWriteOffFormSchema,
+} from "@medbrains/schemas";
 import { useHasPermission } from "@medbrains/stores";
 import type {
   AddDiscountRequest,
@@ -47,12 +102,14 @@ import type {
   CreateChargeMasterRequest,
   CreateCorporateRequest,
   CreateCreditNoteRequest,
+  CreateCreditPatientRequest,
   CreateDayCloseRequest,
   CreateEnrollmentRequest,
   CreateInsuranceClaimRequest,
   CreateInvoiceRequest,
   CreateJournalEntryRequest,
   CreatePackageRequest,
+  CreateRatePlanRequest,
   CreateRefundRequest,
   CreateTdsRequest,
   CreateTpaRateCardRequest,
@@ -78,7 +135,6 @@ import type {
   InvoiceDetailResponse,
   InvoiceDiscount,
   JournalEntry,
-  JournalLineInput,
   PatientAdvance,
   ProfitLossDeptRow,
   RatePlan,
@@ -127,6 +183,7 @@ import {
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { Controller, useFieldArray, useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import {
   ClinicalEventProvider,
@@ -139,8 +196,30 @@ import { EmployeeSearchSelect } from "../components/EmployeeSearchSelect";
 import { PatientContextBanner } from "../components/Patient/PatientContextBanner";
 import { PatientNameCell } from "../components/PatientNameCell";
 import { PatientSearchSelect } from "../components/PatientSearchSelect";
-import { PaymentModal } from "../components/PaymentModal";
+import { PaymentModal, type PaymentModalSettlement } from "../components/PaymentModal";
+import {
+  billingAdvancePurposeOptions,
+  billingChargeSourceOptions,
+  billingCreditPatientStatusOptions,
+  billingDiscountTypeOptions,
+  billingErpExportTypeOptions,
+  billingErpTargetSystemOptions,
+  billingGstCategoryOptions,
+  billingGstrReturnTypeOptions,
+  billingInsuranceClaimTypeOptions,
+  billingInsuranceSchemeTypeOptions,
+  billingIntegerOrFallback,
+  billingNumberOrFallback,
+  billingOptionalInteger,
+  billingOptionalNumber,
+  billingOptionalText,
+  billingPaymentModeOptions,
+  billingServiceCategoryOptions,
+  billingTdsQuarterOptions,
+  billingTdsSectionOptions,
+} from "../forms/billing.form";
 import { useRequirePermission } from "../hooks/useRequirePermission";
+import { billingService } from "../services/billing.service";
 
 const statusColors: Record<string, string> = {
   draft: "slate",
@@ -151,36 +230,32 @@ const statusColors: Record<string, string> = {
   refunded: "orange",
 };
 
-// Dropdown options for categorical fields
-const SERVICE_CATEGORIES = [
-  { value: "consultation", label: "Consultation" },
-  { value: "procedure", label: "Procedure" },
-  { value: "laboratory", label: "Laboratory" },
-  { value: "radiology", label: "Radiology" },
-  { value: "pharmacy", label: "Pharmacy" },
-  { value: "nursing", label: "Nursing Services" },
-  { value: "room_rent", label: "Room Rent" },
-  { value: "ot", label: "Operation Theatre" },
-  { value: "icu", label: "ICU Charges" },
-  { value: "physiotherapy", label: "Physiotherapy" },
-  { value: "ambulance", label: "Ambulance" },
-  { value: "consumables", label: "Consumables" },
-  { value: "equipment", label: "Equipment" },
-  { value: "miscellaneous", label: "Miscellaneous" },
-];
+function money(value: number | string | null | undefined): string {
+  const parsed = Number(value ?? 0);
+  const amount = Number.isFinite(parsed) ? parsed : 0;
+  return amount.toLocaleString("en-IN", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
 
-const INSURANCE_SCHEME_TYPES = [
-  { value: "tpa", label: "TPA (Third Party Administrator)" },
-  { value: "cghs", label: "CGHS (Central Government Health Scheme)" },
-  { value: "echs", label: "ECHS (Ex-Servicemen Health Scheme)" },
-  { value: "esic", label: "ESIC (Employee State Insurance)" },
-  { value: "ayushman_bharat", label: "Ayushman Bharat (PMJAY)" },
-  { value: "state_scheme", label: "State Government Scheme" },
-  { value: "corporate", label: "Corporate Insurance" },
-  { value: "cashless", label: "Cashless" },
-  { value: "reimbursement", label: "Reimbursement" },
-  { value: "other", label: "Other" },
-];
+function invoiceBalance(invoice: Invoice): number {
+  const total = Number(invoice.total_amount);
+  const paid = Number(invoice.paid_amount);
+  return Math.max(0, (Number.isFinite(total) ? total : 0) - (Number.isFinite(paid) ? paid : 0));
+}
+
+function invoiceDisplayStatus(invoice: Invoice): Invoice["status"] {
+  const paid = Number(invoice.paid_amount);
+  const balance = invoiceBalance(invoice);
+  if (invoice.status === "issued" && Number.isFinite(paid) && paid > 0 && balance > 0) {
+    return "partially_paid";
+  }
+  if (invoice.status !== "cancelled" && balance <= 0 && Number(invoice.total_amount) > 0) {
+    return "paid";
+  }
+  return invoice.status;
+}
 
 export function BillingPage() {
   useRequirePermission(P.BILLING.INVOICES_LIST);
@@ -223,11 +298,11 @@ function BillingPageInner() {
 
   const { data, isLoading } = useQuery({
     queryKey: ["invoices", params],
-    queryFn: () => api.listInvoices(params),
+    queryFn: () => billingService.listInvoices(params),
   });
 
   const cloneMutation = useMutation({
-    mutationFn: (id: string) => api.cloneInvoice(id),
+    mutationFn: (id: string) => billingService.cloneInvoice(id),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["invoices"] });
       notifications.show({
@@ -249,58 +324,75 @@ function BillingPageInner() {
     {
       key: "status",
       label: "Status",
-      render: (row: Invoice) => (
-        <Group gap={6}>
-          <StatusDot
-            color={statusColors[row.status] ?? "slate"}
-            label={row.status.replace(/_/g, " ")}
-          />
-          {row.notes === "Auto-generated" && (
-            <Badge size="xs" color="primary" variant="light">
-              Auto
-            </Badge>
-          )}
-          {row.is_interim && (
-            <Badge size="xs" color="violet" variant="light">
-              Interim
-            </Badge>
-          )}
-          {row.corporate_id && (
-            <Badge size="xs" color="info" variant="light">
-              Corporate
-            </Badge>
-          )}
-          {row.is_er_deferred && (
-            <Badge size="xs" color="danger" variant="light">
-              ER Deferred
-            </Badge>
-          )}
-          {row.cloned_from_id && (
-            <Badge size="xs" color="violet" variant="light">
-              Cloned
-            </Badge>
-          )}
-        </Group>
-      ),
+      render: (row: Invoice) => {
+        const displayStatus = invoiceDisplayStatus(row);
+        return (
+          <Group gap={6}>
+            <StatusDot
+              color={statusColors[displayStatus] ?? "slate"}
+              label={displayStatus.replace(/_/g, " ")}
+            />
+            {row.notes === "Auto-generated" && (
+              <Badge size="xs" color="primary" variant="light">
+                Auto
+              </Badge>
+            )}
+            {row.is_interim && (
+              <Badge size="xs" color="violet" variant="light">
+                Interim
+              </Badge>
+            )}
+            {row.corporate_id && (
+              <Badge size="xs" color="info" variant="light">
+                Corporate
+              </Badge>
+            )}
+            {row.is_er_deferred && (
+              <Badge size="xs" color="danger" variant="light">
+                ER Deferred
+              </Badge>
+            )}
+            {row.cloned_from_id && (
+              <Badge size="xs" color="violet" variant="light">
+                Cloned
+              </Badge>
+            )}
+          </Group>
+        );
+      },
     },
     {
       key: "total_amount",
       label: "Total",
-      render: (row: Invoice) => <Text size="sm">₹{row.total_amount}</Text>,
+      render: (row: Invoice) => <Text size="sm">₹{money(row.total_amount)}</Text>,
     },
     {
       key: "paid_amount",
       label: "Paid",
-      render: (row: Invoice) => <Text size="sm">₹{row.paid_amount}</Text>,
+      render: (row: Invoice) => {
+        const paid = Number(row.paid_amount);
+        const total = Number(row.total_amount);
+        const percent = total > 0 ? Math.min(100, Math.max(0, (paid / total) * 100)) : 0;
+        return (
+          <Stack gap={2}>
+            <Text size="sm" fw={paid > 0 ? 600 : 400}>
+              ₹{money(row.paid_amount)}
+            </Text>
+            {paid > 0 && paid < total && (
+              <Progress value={percent} size={4} color="warning" aria-label="Payment progress" />
+            )}
+          </Stack>
+        );
+      },
     },
     {
       key: "balance",
       label: "Balance",
       render: (row: Invoice) => {
-        const balance = Number(row.total_amount) - Number(row.paid_amount);
+        const balance = invoiceBalance(row);
         return (
           <Text size="sm" c={balance > 0 ? "danger" : "success"}>
-            ₹{balance.toFixed(2)}
+            ₹{money(balance)}
           </Text>
         );
       },
@@ -570,10 +662,13 @@ function BillingPageInner() {
 
       <Drawer
         opened={detailOpened}
-        onClose={closeDetail}
+        onClose={() => {
+          closeDetail();
+          setSelectedInvoiceId(null);
+        }}
         title="Invoice Detail"
         position="right"
-        size="lg"
+        size="min(100%, 1040px)"
       >
         {selectedInvoiceId && (
           <InvoiceDetail invoiceId={selectedInvoiceId} canCreate={canCreate} canPay={canPay} />
@@ -591,7 +686,7 @@ function CreateInvoiceDrawer({ opened, onClose }: { opened: boolean; onClose: ()
   const [notes, setNotes] = useState("");
 
   const createMutation = useMutation({
-    mutationFn: (data: CreateInvoiceRequest) => api.createInvoice(data),
+    mutationFn: (data: CreateInvoiceRequest) => billingService.createInvoice(data),
     onSuccess: (_result, variables) => {
       void queryClient.invalidateQueries({ queryKey: ["invoices"] });
       notifications.show({
@@ -660,22 +755,62 @@ function InvoiceDetail({
   const [showGateway, setShowGateway] = useState(false);
   const [showDiscount, setShowDiscount] = useState(false);
   const [showCopay, setShowCopay] = useState(false);
-  const [itemForm, setItemForm] = useState<Partial<AddInvoiceItemRequest>>({
+  const itemDefaults: BillingInvoiceItemFormInput = {
+    charge_code: "",
+    description: "",
     source: "manual",
     quantity: 1,
-  });
-  const [payForm, setPayForm] = useState<Partial<RecordPaymentRequest>>({ mode: "cash" });
-  const [discForm, setDiscForm] = useState<Partial<AddDiscountRequest>>({
+    unit_price: 0,
+    tax_percent: 0,
+  };
+  const paymentDefaults: BillingPaymentFormInput = {
+    amount: 0,
+    mode: "cash",
+    reference_number: "",
+  };
+  const discountDefaults: BillingDiscountFormInput = {
     discount_type: "percentage",
+    discount_value: 0,
+    reason: "",
+  };
+  const {
+    control: itemControl,
+    register: registerItem,
+    reset: resetItem,
+    handleSubmit: handleSubmitItem,
+    formState: { errors: itemErrors },
+  } = useForm<BillingInvoiceItemFormInput>({
+    resolver: zodResolver(billingInvoiceItemFormSchema),
+    defaultValues: itemDefaults,
+  });
+  const {
+    control: paymentControl,
+    register: registerPayment,
+    reset: resetPayment,
+    handleSubmit: handleSubmitPayment,
+    formState: { errors: paymentErrors },
+  } = useForm<BillingPaymentFormInput>({
+    resolver: zodResolver(billingPaymentFormSchema),
+    defaultValues: paymentDefaults,
+  });
+  const {
+    control: discountControl,
+    register: registerDiscount,
+    reset: resetDiscount,
+    handleSubmit: handleSubmitDiscount,
+    formState: { errors: discountErrors },
+  } = useForm<BillingDiscountFormInput>({
+    resolver: zodResolver(billingDiscountFormSchema),
+    defaultValues: discountDefaults,
   });
 
   const { data } = useQuery({
     queryKey: ["invoice-detail", invoiceId],
-    queryFn: () => api.getInvoice(invoiceId),
+    queryFn: () => billingService.getInvoice(invoiceId),
   });
 
   const issueMutation = useMutation({
-    mutationFn: () => api.issueInvoice(invoiceId),
+    mutationFn: () => billingService.issueInvoice(invoiceId),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["invoice-detail", invoiceId] });
       emit("invoice.issued", { invoice_id: invoiceId });
@@ -683,54 +818,58 @@ function InvoiceDetail({
   });
 
   const cancelMutation = useMutation({
-    mutationFn: () => api.cancelInvoice(invoiceId),
+    mutationFn: () => billingService.cancelInvoice(invoiceId),
     onSuccess: () =>
       void queryClient.invalidateQueries({ queryKey: ["invoice-detail", invoiceId] }),
   });
 
   const addItemMutation = useMutation({
-    mutationFn: (item: AddInvoiceItemRequest) => api.addInvoiceItem(invoiceId, item),
+    mutationFn: (item: AddInvoiceItemRequest) => billingService.addInvoiceItem(invoiceId, item),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["invoice-detail", invoiceId] });
       setShowAddItem(false);
+      resetItem(itemDefaults);
     },
   });
 
   const removeItemMutation = useMutation({
-    mutationFn: (itemId: string) => api.removeInvoiceItem(invoiceId, itemId),
+    mutationFn: (itemId: string) => billingService.removeInvoiceItem(invoiceId, itemId),
     onSuccess: () =>
       void queryClient.invalidateQueries({ queryKey: ["invoice-detail", invoiceId] }),
   });
 
   const payMutation = useMutation({
-    mutationFn: (pay: RecordPaymentRequest) => api.recordPayment(invoiceId, pay),
+    mutationFn: (pay: RecordPaymentRequest) => billingService.recordPayment(invoiceId, pay),
     onSuccess: (_result, variables) => {
       void queryClient.invalidateQueries({ queryKey: ["invoice-detail", invoiceId] });
+      void queryClient.invalidateQueries({ queryKey: ["invoices"] });
       emit("payment.recorded", {
         invoice_id: invoiceId,
         amount: variables.amount,
         mode: variables.mode,
       });
       setShowPayment(false);
+      resetPayment(paymentDefaults);
     },
   });
 
   const { data: discounts = [] } = useQuery({
     queryKey: ["invoice-discounts", invoiceId],
-    queryFn: () => api.listInvoiceDiscounts(invoiceId),
+    queryFn: () => billingService.listInvoiceDiscounts(invoiceId),
   });
 
   const addDiscountMutation = useMutation({
-    mutationFn: (d: AddDiscountRequest) => api.addDiscount(invoiceId, d),
+    mutationFn: (d: AddDiscountRequest) => billingService.addDiscount(invoiceId, d),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["invoice-discounts", invoiceId] });
       void queryClient.invalidateQueries({ queryKey: ["invoice-detail", invoiceId] });
       setShowDiscount(false);
+      resetDiscount(discountDefaults);
     },
   });
 
   const removeDiscountMutation = useMutation({
-    mutationFn: (discId: string) => api.removeDiscount(invoiceId, discId),
+    mutationFn: (discId: string) => billingService.removeDiscount(invoiceId, discId),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["invoice-discounts", invoiceId] });
       void queryClient.invalidateQueries({ queryKey: ["invoice-detail", invoiceId] });
@@ -738,7 +877,7 @@ function InvoiceDetail({
   });
 
   const receiptMutation = useMutation({
-    mutationFn: (paymentId: string) => api.generateReceipt(invoiceId, paymentId),
+    mutationFn: (paymentId: string) => billingService.generateReceipt(invoiceId, paymentId),
     onSuccess: () => {
       notifications.show({
         title: "Receipt generated",
@@ -752,6 +891,43 @@ function InvoiceDetail({
 
   const detail = data as InvoiceDetailResponse;
   const inv = detail.invoice;
+  const handleAddInvoiceItem = (values: BillingInvoiceItemFormInput) => {
+    addItemMutation.mutate({
+      charge_code: values.charge_code.trim(),
+      description: values.description.trim(),
+      source: values.source,
+      quantity: billingIntegerOrFallback(values.quantity, 1),
+      unit_price: billingNumberOrFallback(values.unit_price, 0),
+      tax_percent: billingNumberOrFallback(values.tax_percent, 0),
+    });
+  };
+  const handleRecordPayment = (values: BillingPaymentFormInput) => {
+    payMutation.mutate({
+      amount: billingNumberOrFallback(values.amount, 0),
+      mode: values.mode,
+      reference_number: billingOptionalText(values.reference_number),
+    });
+  };
+  const handleAddDiscount = (values: BillingDiscountFormInput) => {
+    addDiscountMutation.mutate({
+      discount_type: values.discount_type,
+      discount_value: billingNumberOrFallback(values.discount_value, 0),
+      reason: billingOptionalText(values.reason),
+    });
+  };
+  const handleGatewayPaymentSuccess = (_paymentId: string, settlement: PaymentModalSettlement) => {
+    if (settlement.source === "manual") {
+      payMutation.mutate({
+        amount: settlement.amount,
+        mode: settlement.mode,
+        reference_number: settlement.reference_number,
+      });
+      return;
+    }
+    void queryClient.invalidateQueries({ queryKey: ["invoice-detail", invoiceId] });
+    void queryClient.invalidateQueries({ queryKey: ["invoices"] });
+    setShowGateway(false);
+  };
 
   return (
     <Stack>
@@ -764,10 +940,10 @@ function InvoiceDetail({
         </Badge>
       </Group>
       <Group>
-        <Text size="sm">Total: ₹{inv.total_amount}</Text>
-        <Text size="sm">Paid: ₹{inv.paid_amount}</Text>
+        <Text size="sm">Total: ₹{money(inv.total_amount)}</Text>
+        <Text size="sm">Paid: ₹{money(inv.paid_amount)}</Text>
         <Text size="sm" c="danger">
-          Balance: ₹{(Number(inv.total_amount) - Number(inv.paid_amount)).toFixed(2)}
+          Balance: ₹{money(invoiceBalance(inv))}
         </Text>
       </Group>
       <PatientContextBanner patientId={inv.patient_id} hideLoadingState />
@@ -878,59 +1054,79 @@ function InvoiceDetail({
             Add Item
           </Button>
           {showAddItem && (
-            <Stack gap="xs">
+            <Stack component="form" gap="xs" onSubmit={handleSubmitItem(handleAddInvoiceItem)}>
               <Group grow>
                 <TextInput
                   label="Charge Code"
                   required
-                  onChange={(e) => setItemForm({ ...itemForm, charge_code: e.currentTarget.value })}
+                  error={itemErrors.charge_code?.message}
+                  {...registerItem("charge_code")}
                 />
-                <Select
-                  label="Source"
-                  data={[
-                    { value: "opd", label: "OPD" },
-                    { value: "ipd", label: "IPD" },
-                    { value: "lab", label: "Lab" },
-                    { value: "pharmacy", label: "Pharmacy" },
-                    { value: "radiology", label: "Radiology" },
-                    { value: "procedure", label: "Procedure" },
-                    { value: "manual", label: "Manual" },
-                  ]}
-                  value={itemForm.source}
-                  onChange={(v) => setItemForm({ ...itemForm, source: v ?? "manual" })}
+                <Controller
+                  control={itemControl}
+                  name="source"
+                  render={({ field }) => (
+                    <Select
+                      label="Source"
+                      data={billingChargeSourceOptions}
+                      value={field.value}
+                      onChange={(value) => field.onChange(value ?? "manual")}
+                      error={itemErrors.source?.message}
+                    />
+                  )}
                 />
               </Group>
               <TextInput
                 label="Description"
                 required
-                onChange={(e) => setItemForm({ ...itemForm, description: e.currentTarget.value })}
+                error={itemErrors.description?.message}
+                {...registerItem("description")}
               />
               <Group grow>
-                <NumberInput
-                  label="Qty"
-                  min={1}
-                  value={itemForm.quantity}
-                  onChange={(v) => setItemForm({ ...itemForm, quantity: Number(v) })}
+                <Controller
+                  control={itemControl}
+                  name="quantity"
+                  render={({ field }) => (
+                    <NumberInput
+                      label="Qty"
+                      min={1}
+                      value={field.value}
+                      onChange={field.onChange}
+                      error={itemErrors.quantity?.message}
+                    />
+                  )}
                 />
-                <NumberInput
-                  label="Unit Price"
-                  min={0}
-                  decimalScale={2}
-                  onChange={(v) => setItemForm({ ...itemForm, unit_price: Number(v) })}
+                <Controller
+                  control={itemControl}
+                  name="unit_price"
+                  render={({ field }) => (
+                    <NumberInput
+                      label="Unit Price"
+                      min={0}
+                      decimalScale={2}
+                      value={field.value}
+                      onChange={field.onChange}
+                      error={itemErrors.unit_price?.message}
+                    />
+                  )}
                 />
-                <NumberInput
-                  label="Tax %"
-                  min={0}
-                  max={100}
-                  decimalScale={2}
-                  onChange={(v) => setItemForm({ ...itemForm, tax_percent: Number(v) })}
+                <Controller
+                  control={itemControl}
+                  name="tax_percent"
+                  render={({ field }) => (
+                    <NumberInput
+                      label="Tax %"
+                      min={0}
+                      max={100}
+                      decimalScale={2}
+                      value={field.value}
+                      onChange={field.onChange}
+                      error={itemErrors.tax_percent?.message}
+                    />
+                  )}
                 />
               </Group>
-              <Button
-                size="xs"
-                onClick={() => addItemMutation.mutate(itemForm as AddInvoiceItemRequest)}
-                loading={addItemMutation.isPending}
-              >
+              <Button size="xs" type="submit" loading={addItemMutation.isPending}>
                 Add
               </Button>
             </Stack>
@@ -993,39 +1189,41 @@ function InvoiceDetail({
             </Button>
           </Group>
           {showPayment && (
-            <Stack gap="xs">
-              <NumberInput
-                label="Amount"
-                required
-                min={0}
-                decimalScale={2}
-                onChange={(v) => setPayForm({ ...payForm, amount: Number(v) })}
+            <Stack component="form" gap="xs" onSubmit={handleSubmitPayment(handleRecordPayment)}>
+              <Controller
+                control={paymentControl}
+                name="amount"
+                render={({ field }) => (
+                  <NumberInput
+                    label="Amount"
+                    required
+                    min={0}
+                    decimalScale={2}
+                    value={field.value}
+                    onChange={field.onChange}
+                    error={paymentErrors.amount?.message}
+                  />
+                )}
               />
-              <Select
-                label="Mode"
-                data={[
-                  { value: "cash", label: "Cash" },
-                  { value: "card", label: "Card" },
-                  { value: "upi", label: "UPI" },
-                  { value: "bank_transfer", label: "Bank Transfer" },
-                  { value: "cheque", label: "Cheque" },
-                  { value: "insurance", label: "Insurance" },
-                  { value: "credit", label: "Credit" },
-                ]}
-                value={payForm.mode}
-                onChange={(v) => setPayForm({ ...payForm, mode: v ?? "cash" })}
+              <Controller
+                control={paymentControl}
+                name="mode"
+                render={({ field }) => (
+                  <Select
+                    label="Mode"
+                    data={billingPaymentModeOptions}
+                    value={field.value}
+                    onChange={(value) => field.onChange(value ?? "cash")}
+                    error={paymentErrors.mode?.message}
+                  />
+                )}
               />
               <TextInput
                 label="Reference #"
-                onChange={(e) =>
-                  setPayForm({ ...payForm, reference_number: e.currentTarget.value || undefined })
-                }
+                error={paymentErrors.reference_number?.message}
+                {...registerPayment("reference_number")}
               />
-              <Button
-                size="xs"
-                onClick={() => payMutation.mutate(payForm as RecordPaymentRequest)}
-                loading={payMutation.isPending}
-              >
+              <Button size="xs" type="submit" loading={payMutation.isPending}>
                 Save Payment
               </Button>
             </Stack>
@@ -1033,12 +1231,9 @@ function InvoiceDetail({
           <PaymentModal
             opened={showGateway}
             onClose={() => setShowGateway(false)}
-            amount={Number(inv.total_amount) - Number(inv.paid_amount)}
+            amount={invoiceBalance(inv)}
             invoiceId={invoiceId}
-            onSuccess={() => {
-              void queryClient.invalidateQueries({ queryKey: ["invoice-detail", invoiceId] });
-              setShowGateway(false);
-            }}
+            onSuccess={handleGatewayPaymentSuccess}
           />
         </>
       )}
@@ -1101,37 +1296,43 @@ function InvoiceDetail({
             Add Discount
           </Button>
           {showDiscount && (
-            <Stack gap="xs">
+            <Stack component="form" gap="xs" onSubmit={handleSubmitDiscount(handleAddDiscount)}>
               <Group grow>
-                <Select
-                  label="Type"
-                  data={[
-                    { value: "percentage", label: "Percentage" },
-                    { value: "fixed", label: "Fixed Amount" },
-                    { value: "concession", label: "Concession" },
-                  ]}
-                  value={discForm.discount_type}
-                  onChange={(v) => setDiscForm({ ...discForm, discount_type: v ?? "percentage" })}
+                <Controller
+                  control={discountControl}
+                  name="discount_type"
+                  render={({ field }) => (
+                    <Select
+                      label="Type"
+                      data={billingDiscountTypeOptions}
+                      value={field.value}
+                      onChange={(value) => field.onChange(value ?? "percentage")}
+                      error={discountErrors.discount_type?.message}
+                    />
+                  )}
                 />
-                <NumberInput
-                  label="Value"
-                  required
-                  min={0}
-                  decimalScale={2}
-                  onChange={(v) => setDiscForm({ ...discForm, discount_value: Number(v) })}
+                <Controller
+                  control={discountControl}
+                  name="discount_value"
+                  render={({ field }) => (
+                    <NumberInput
+                      label="Value"
+                      required
+                      min={0}
+                      decimalScale={2}
+                      value={field.value}
+                      onChange={field.onChange}
+                      error={discountErrors.discount_value?.message}
+                    />
+                  )}
                 />
               </Group>
               <TextInput
                 label="Reason"
-                onChange={(e) =>
-                  setDiscForm({ ...discForm, reason: e.currentTarget.value || undefined })
-                }
+                error={discountErrors.reason?.message}
+                {...registerDiscount("reason")}
               />
-              <Button
-                size="xs"
-                onClick={() => addDiscountMutation.mutate(discForm as AddDiscountRequest)}
-                loading={addDiscountMutation.isPending}
-              >
+              <Button size="xs" type="submit" loading={addDiscountMutation.isPending}>
                 Apply Discount
               </Button>
             </Stack>
@@ -1151,24 +1352,54 @@ function InvoiceDetail({
 function ChargeMasterTab({ canCreate }: { canCreate: boolean }) {
   const queryClient = useQueryClient();
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState<Partial<CreateChargeMasterRequest>>({});
+  const chargeDefaults: BillingChargeMasterFormInput = {
+    code: "",
+    name: "",
+    category: "consultation",
+    base_price: 0,
+    tax_percent: 0,
+    hsn_sac_code: "",
+    gst_category: undefined,
+  };
+  const {
+    control,
+    register,
+    reset,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<BillingChargeMasterFormInput>({
+    resolver: zodResolver(billingChargeMasterFormSchema),
+    defaultValues: chargeDefaults,
+  });
 
   const { data: charges = [], isLoading } = useQuery({
     queryKey: ["charge-master"],
-    queryFn: () => api.listChargeMaster(),
+    queryFn: () => billingService.listChargeMaster(),
   });
 
   const createMutation = useMutation({
-    mutationFn: (data: CreateChargeMasterRequest) => api.createChargeMaster(data),
+    mutationFn: (data: CreateChargeMasterRequest) => billingService.createChargeMaster(data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["charge-master"] });
       setShowForm(false);
-      setForm({});
+      reset(chargeDefaults);
     },
   });
 
+  const handleCreateCharge = (values: BillingChargeMasterFormInput) => {
+    createMutation.mutate({
+      code: values.code.trim(),
+      name: values.name.trim(),
+      category: values.category,
+      base_price: billingNumberOrFallback(values.base_price, 0),
+      tax_percent: billingNumberOrFallback(values.tax_percent, 0),
+      hsn_sac_code: billingOptionalText(values.hsn_sac_code),
+      gst_category: values.gst_category,
+    });
+  };
+
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => api.deleteChargeMaster(id),
+    mutationFn: (id: string) => billingService.deleteChargeMaster(id),
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["charge-master"] }),
   });
 
@@ -1235,68 +1466,81 @@ function ChargeMasterTab({ canCreate }: { canCreate: boolean }) {
         </Group>
       )}
       {showForm && (
-        <Stack gap="xs">
+        <Stack component="form" gap="xs" onSubmit={handleSubmit(handleCreateCharge)}>
           <Group grow>
-            <TextInput
-              label="Code"
-              required
-              onChange={(e) => setForm({ ...form, code: e.currentTarget.value })}
-            />
-            <TextInput
-              label="Name"
-              required
-              onChange={(e) => setForm({ ...form, name: e.currentTarget.value })}
-            />
+            <TextInput label="Code" required error={errors.code?.message} {...register("code")} />
+            <TextInput label="Name" required error={errors.name?.message} {...register("name")} />
           </Group>
-          <Select
-            label="Category"
-            required
-            data={SERVICE_CATEGORIES}
-            onChange={(v) => setForm({ ...form, category: v ?? "" })}
-            searchable
+          <Controller
+            control={control}
+            name="category"
+            render={({ field }) => (
+              <Select
+                label="Category"
+                required
+                data={billingServiceCategoryOptions}
+                value={field.value}
+                onChange={(value) => field.onChange(value ?? "consultation")}
+                error={errors.category?.message}
+                searchable
+              />
+            )}
           />
           <Group grow>
-            <NumberInput
-              label="Base Price"
-              required
-              min={0}
-              decimalScale={2}
-              onChange={(v) => setForm({ ...form, base_price: Number(v) })}
+            <Controller
+              control={control}
+              name="base_price"
+              render={({ field }) => (
+                <NumberInput
+                  label="Base Price"
+                  required
+                  min={0}
+                  decimalScale={2}
+                  value={field.value}
+                  onChange={field.onChange}
+                  error={errors.base_price?.message}
+                />
+              )}
             />
-            <NumberInput
-              label="Tax %"
-              min={0}
-              max={100}
-              decimalScale={2}
-              onChange={(v) => setForm({ ...form, tax_percent: Number(v) })}
+            <Controller
+              control={control}
+              name="tax_percent"
+              render={({ field }) => (
+                <NumberInput
+                  label="Tax %"
+                  min={0}
+                  max={100}
+                  decimalScale={2}
+                  value={field.value}
+                  onChange={field.onChange}
+                  error={errors.tax_percent?.message}
+                />
+              )}
             />
           </Group>
           <Group grow>
             <TextInput
               label="HSN/SAC Code"
               placeholder="e.g. 999312"
-              onChange={(e) =>
-                setForm({ ...form, hsn_sac_code: e.currentTarget.value || undefined })
-              }
+              error={errors.hsn_sac_code?.message}
+              {...register("hsn_sac_code")}
             />
-            <Select
-              label="GST Category"
-              data={[
-                { value: "healthcare", label: "Healthcare (Exempt)" },
-                { value: "pharmacy", label: "Pharmacy (Taxable)" },
-                { value: "room_rent", label: "Room Rent" },
-                { value: "consumable", label: "Consumable" },
-                { value: "equipment", label: "Equipment" },
-              ]}
-              onChange={(v) => setForm({ ...form, gst_category: v ?? undefined })}
-              clearable
+            <Controller
+              control={control}
+              name="gst_category"
+              render={({ field }) => (
+                <Select
+                  label="GST Category"
+                  data={billingGstCategoryOptions}
+                  value={field.value ?? null}
+                  onChange={(value) => field.onChange(value ?? undefined)}
+                  error={errors.gst_category?.message}
+                  clearable
+                />
+              )}
             />
           </Group>
-          <Button
-            size="xs"
-            onClick={() => createMutation.mutate(form as CreateChargeMasterRequest)}
-            loading={createMutation.isPending}
-          >
+          <Button size="xs" type="submit" loading={createMutation.isPending}>
             Save
           </Button>
         </Stack>
@@ -1313,12 +1557,12 @@ function ChargeMasterTab({ canCreate }: { canCreate: boolean }) {
 function CopayBreakdown({ invoiceId }: { invoiceId: string }) {
   const { data, isLoading, refetch } = useQuery({
     queryKey: ["copay-calculation", invoiceId],
-    queryFn: () => api.calculateCopay({ invoice_id: invoiceId }),
+    queryFn: () => billingService.calculateCopay({ invoice_id: invoiceId }),
     enabled: false,
   });
 
   const calculateMutation = useMutation({
-    mutationFn: () => api.calculateCopay({ invoice_id: invoiceId }),
+    mutationFn: () => billingService.calculateCopay({ invoice_id: invoiceId }),
     onSuccess: () => refetch(),
   });
 
@@ -1401,7 +1645,7 @@ function ErFastInvoiceModal({ opened, onClose }: { opened: boolean; onClose: () 
   const [emergencyVisitId, setEmergencyVisitId] = useState("");
 
   const createMutation = useMutation({
-    mutationFn: (data: ErFastInvoiceRequest) => api.erFastInvoice(data),
+    mutationFn: (data: ErFastInvoiceRequest) => billingService.erFastInvoice(data),
     onSuccess: (result) => {
       void queryClient.invalidateQueries({ queryKey: ["invoices"] });
       notifications.show({
@@ -1455,44 +1699,90 @@ function ErFastInvoiceModal({ opened, onClose }: { opened: boolean; onClose: () 
 function PackagesTab({ canCreate }: { canCreate: boolean }) {
   const queryClient = useQueryClient();
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState<Partial<CreatePackageRequest>>({ items: [] });
-  const [itemCode, setItemCode] = useState("");
-  const [itemDesc, setItemDesc] = useState("");
-  const [itemQty, setItemQty] = useState(1);
-  const [itemPrice, setItemPrice] = useState(0);
+  const packageDefaults: BillingPackageFormInput = {
+    code: "",
+    name: "",
+    description: "",
+    total_price: 0,
+    discount_percent: 0,
+    items: [],
+  };
+  const packageItemDefaults: BillingPackageItemFormInput = {
+    charge_code: "",
+    description: "",
+    quantity: 1,
+    unit_price: 0,
+  };
+  const {
+    control: packageControl,
+    register: registerPackage,
+    reset: resetPackage,
+    handleSubmit: handleSubmitPackage,
+    formState: { errors: packageErrors },
+  } = useForm<BillingPackageFormInput>({
+    resolver: zodResolver(billingPackageFormSchema),
+    defaultValues: packageDefaults,
+  });
+  const {
+    control: packageItemControl,
+    register: registerPackageItem,
+    reset: resetPackageItem,
+    handleSubmit: handleSubmitPackageItem,
+    formState: { errors: packageItemErrors },
+  } = useForm<BillingPackageItemFormInput>({
+    resolver: zodResolver(billingPackageItemFormSchema),
+    defaultValues: packageItemDefaults,
+  });
+  const {
+    fields: packageItems,
+    append: appendPackageItem,
+    remove: removePackageItem,
+  } = useFieldArray({ control: packageControl, name: "items" });
 
   const { data: packages = [], isLoading } = useQuery({
     queryKey: ["billing-packages"],
-    queryFn: () => api.listPackages(),
+    queryFn: () => billingService.listPackages(),
   });
 
   const createMutation = useMutation({
-    mutationFn: (data: CreatePackageRequest) => api.createPackage(data),
+    mutationFn: (data: CreatePackageRequest) => billingService.createPackage(data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["billing-packages"] });
       setShowForm(false);
-      setForm({ items: [] });
+      resetPackage(packageDefaults);
+      resetPackageItem(packageItemDefaults);
     },
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => api.deletePackage(id),
+    mutationFn: (id: string) => billingService.deletePackage(id),
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["billing-packages"] }),
   });
 
-  const addPkgItem = () => {
-    if (!itemCode || !itemDesc) return;
-    setForm({
-      ...form,
-      items: [
-        ...(form.items ?? []),
-        { charge_code: itemCode, description: itemDesc, quantity: itemQty, unit_price: itemPrice },
-      ],
+  const addPkgItem = (values: BillingPackageItemFormInput) => {
+    appendPackageItem({
+      charge_code: values.charge_code.trim(),
+      description: values.description.trim(),
+      quantity: billingIntegerOrFallback(values.quantity, 1),
+      unit_price: billingNumberOrFallback(values.unit_price, 0),
     });
-    setItemCode("");
-    setItemDesc("");
-    setItemQty(1);
-    setItemPrice(0);
+    resetPackageItem(packageItemDefaults);
+  };
+
+  const handleCreatePackage = (values: BillingPackageFormInput) => {
+    createMutation.mutate({
+      code: values.code.trim(),
+      name: values.name.trim(),
+      description: billingOptionalText(values.description),
+      total_price: billingNumberOrFallback(values.total_price, 0),
+      discount_percent: billingNumberOrFallback(values.discount_percent, 0),
+      items: values.items.map((item) => ({
+        charge_code: item.charge_code.trim(),
+        description: item.description.trim(),
+        quantity: billingIntegerOrFallback(item.quantity, 1),
+        unit_price: billingNumberOrFallback(item.unit_price, 0),
+      })),
+    });
   };
 
   const columns = [
@@ -1552,84 +1842,133 @@ function PackagesTab({ canCreate }: { canCreate: boolean }) {
         </Group>
       )}
       {showForm && (
-        <Stack gap="xs">
+        <Stack component="form" gap="xs" onSubmit={handleSubmitPackage(handleCreatePackage)}>
           <Group grow>
             <TextInput
               label="Code"
               required
-              onChange={(e) => setForm({ ...form, code: e.currentTarget.value })}
+              error={packageErrors.code?.message}
+              {...registerPackage("code")}
             />
             <TextInput
               label="Name"
               required
-              onChange={(e) => setForm({ ...form, name: e.currentTarget.value })}
+              error={packageErrors.name?.message}
+              {...registerPackage("name")}
             />
           </Group>
           <Group grow>
-            <NumberInput
-              label="Total Price"
-              required
-              min={0}
-              decimalScale={2}
-              onChange={(v) => setForm({ ...form, total_price: Number(v) })}
+            <Controller
+              control={packageControl}
+              name="total_price"
+              render={({ field }) => (
+                <NumberInput
+                  label="Total Price"
+                  required
+                  min={0}
+                  decimalScale={2}
+                  value={field.value}
+                  onChange={field.onChange}
+                  error={packageErrors.total_price?.message}
+                />
+              )}
             />
-            <NumberInput
-              label="Discount %"
-              min={0}
-              max={100}
-              decimalScale={2}
-              onChange={(v) => setForm({ ...form, discount_percent: Number(v) })}
+            <Controller
+              control={packageControl}
+              name="discount_percent"
+              render={({ field }) => (
+                <NumberInput
+                  label="Discount %"
+                  min={0}
+                  max={100}
+                  decimalScale={2}
+                  value={field.value}
+                  onChange={field.onChange}
+                  error={packageErrors.discount_percent?.message}
+                />
+              )}
             />
           </Group>
           <Textarea
             label="Description"
-            onChange={(e) => setForm({ ...form, description: e.currentTarget.value || undefined })}
+            error={packageErrors.description?.message}
+            {...registerPackage("description")}
           />
           <Text fw={500} size="sm" mt="xs">
-            Package Items ({form.items?.length ?? 0})
+            Package Items ({packageItems.length})
           </Text>
-          {(form.items ?? []).map((it) => (
-            <Text key={`${it.charge_code}-${it.description}`} size="xs" c="dimmed">
-              {it.charge_code} — {it.description} x{it.quantity} @ ₹{it.unit_price}
+          {packageErrors.items?.message && (
+            <Text size="xs" c="danger">
+              {packageErrors.items.message}
             </Text>
+          )}
+          {packageItems.map((item, index) => (
+            <Group key={item.id} gap="xs">
+              <Text size="xs" c="dimmed">
+                {item.charge_code} — {item.description} x{item.quantity} @ ₹{item.unit_price}
+              </Text>
+              <ActionIcon
+                size="xs"
+                variant="subtle"
+                color="danger"
+                onClick={() => removePackageItem(index)}
+              >
+                <IconTrash size={12} />
+              </ActionIcon>
+            </Group>
           ))}
           <Group grow>
             <TextInput
               size="xs"
               placeholder="Charge Code"
-              value={itemCode}
-              onChange={(e) => setItemCode(e.currentTarget.value)}
+              error={packageItemErrors.charge_code?.message}
+              {...registerPackageItem("charge_code")}
             />
             <TextInput
               size="xs"
               placeholder="Description"
-              value={itemDesc}
-              onChange={(e) => setItemDesc(e.currentTarget.value)}
+              error={packageItemErrors.description?.message}
+              {...registerPackageItem("description")}
             />
-            <NumberInput
+            <Controller
+              control={packageItemControl}
+              name="quantity"
+              render={({ field }) => (
+                <NumberInput
+                  size="xs"
+                  placeholder="Qty"
+                  min={1}
+                  value={field.value}
+                  onChange={field.onChange}
+                  error={packageItemErrors.quantity?.message}
+                />
+              )}
+            />
+            <Controller
+              control={packageItemControl}
+              name="unit_price"
+              render={({ field }) => (
+                <NumberInput
+                  size="xs"
+                  placeholder="Price"
+                  min={0}
+                  decimalScale={2}
+                  value={field.value}
+                  onChange={field.onChange}
+                  error={packageItemErrors.unit_price?.message}
+                />
+              )}
+            />
+            <Button
               size="xs"
-              placeholder="Qty"
-              min={1}
-              value={itemQty}
-              onChange={(v) => setItemQty(Number(v))}
-            />
-            <NumberInput
-              size="xs"
-              placeholder="Price"
-              min={0}
-              decimalScale={2}
-              value={itemPrice}
-              onChange={(v) => setItemPrice(Number(v))}
-            />
-            <Button size="xs" variant="light" onClick={addPkgItem}>
+              type="button"
+              variant="light"
+              onClick={handleSubmitPackageItem(addPkgItem)}
+            >
               + Item
             </Button>
           </Group>
-          <Button
-            size="xs"
-            onClick={() => createMutation.mutate(form as CreatePackageRequest)}
-            loading={createMutation.isPending}
-          >
+          <Button size="xs" type="submit" loading={createMutation.isPending}>
             Save Package
           </Button>
         </Stack>
@@ -1644,45 +1983,80 @@ function PackagesTab({ canCreate }: { canCreate: boolean }) {
 function RatePlansTab({ canCreate }: { canCreate: boolean }) {
   const queryClient = useQueryClient();
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState<{
-    name: string;
-    description: string;
-    patient_category: string;
-    items: { charge_code: string; override_price: number; override_tax_percent?: number }[];
-  }>({ name: "", description: "", patient_category: "", items: [] });
-  const [rpCode, setRpCode] = useState("");
-  const [rpPrice, setRpPrice] = useState(0);
+  const ratePlanDefaults: BillingRatePlanFormInput = {
+    name: "",
+    description: "",
+    patient_category: "",
+    items: [],
+  };
+  const ratePlanItemDefaults: BillingRatePlanItemFormInput = {
+    charge_code: "",
+    override_price: 0,
+  };
+  const {
+    control: ratePlanControl,
+    register: registerRatePlan,
+    reset: resetRatePlan,
+    handleSubmit: handleSubmitRatePlan,
+    formState: { errors: ratePlanErrors },
+  } = useForm<BillingRatePlanFormInput>({
+    resolver: zodResolver(billingRatePlanFormSchema),
+    defaultValues: ratePlanDefaults,
+  });
+  const {
+    control: ratePlanItemControl,
+    register: registerRatePlanItem,
+    reset: resetRatePlanItem,
+    handleSubmit: handleSubmitRatePlanItem,
+    formState: { errors: ratePlanItemErrors },
+  } = useForm<BillingRatePlanItemFormInput>({
+    resolver: zodResolver(billingRatePlanItemFormSchema),
+    defaultValues: ratePlanItemDefaults,
+  });
+  const {
+    fields: ratePlanItems,
+    append: appendRatePlanItem,
+    remove: removeRatePlanItem,
+  } = useFieldArray({ control: ratePlanControl, name: "items" });
 
   const { data: plans = [], isLoading } = useQuery({
     queryKey: ["rate-plans"],
-    queryFn: () => api.listRatePlans(),
+    queryFn: () => billingService.listRatePlans(),
   });
 
   const createMutation = useMutation({
-    mutationFn: () =>
-      api.createRatePlan({
-        name: form.name,
-        description: form.description || undefined,
-        patient_category: form.patient_category || undefined,
-        items: form.items,
-      }),
+    mutationFn: (data: CreateRatePlanRequest) => billingService.createRatePlan(data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["rate-plans"] });
       setShowForm(false);
-      setForm({ name: "", description: "", patient_category: "", items: [] });
+      resetRatePlan(ratePlanDefaults);
+      resetRatePlanItem(ratePlanItemDefaults);
     },
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => api.deleteRatePlan(id),
+    mutationFn: (id: string) => billingService.deleteRatePlan(id),
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["rate-plans"] }),
   });
 
-  const addRpItem = () => {
-    if (!rpCode) return;
-    setForm({ ...form, items: [...form.items, { charge_code: rpCode, override_price: rpPrice }] });
-    setRpCode("");
-    setRpPrice(0);
+  const addRpItem = (values: BillingRatePlanItemFormInput) => {
+    appendRatePlanItem({
+      charge_code: values.charge_code.trim(),
+      override_price: billingNumberOrFallback(values.override_price, 0),
+    });
+    resetRatePlanItem(ratePlanItemDefaults);
+  };
+
+  const handleCreateRatePlan = (values: BillingRatePlanFormInput) => {
+    createMutation.mutate({
+      name: values.name.trim(),
+      description: billingOptionalText(values.description),
+      patient_category: billingOptionalText(values.patient_category),
+      items: values.items.map((item) => ({
+        charge_code: item.charge_code.trim(),
+        override_price: billingNumberOrFallback(item.override_price, 0),
+      })),
+    });
   };
 
   const columns = [
@@ -1738,64 +2112,94 @@ function RatePlansTab({ canCreate }: { canCreate: boolean }) {
         </Group>
       )}
       {showForm && (
-        <Stack gap="xs">
+        <Stack component="form" gap="xs" onSubmit={handleSubmitRatePlan(handleCreateRatePlan)}>
           <Group grow>
             <TextInput
               label="Name"
               required
-              value={form.name}
-              onChange={(e) => setForm({ ...form, name: e.currentTarget.value })}
+              error={ratePlanErrors.name?.message}
+              {...registerRatePlan("name")}
             />
-            <Select
-              label="Patient Category"
-              data={[
-                { value: "general", label: "General" },
-                { value: "insurance", label: "Insurance" },
-                { value: "corporate", label: "Corporate" },
-                { value: "staff", label: "Staff" },
-              ]}
-              value={form.patient_category || null}
-              onChange={(v) => setForm({ ...form, patient_category: v ?? "" })}
-              clearable
+            <Controller
+              control={ratePlanControl}
+              name="patient_category"
+              render={({ field }) => (
+                <Select
+                  label="Patient Category"
+                  data={[
+                    { value: "general", label: "General" },
+                    { value: "insurance", label: "Insurance" },
+                    { value: "corporate", label: "Corporate" },
+                    { value: "staff", label: "Staff" },
+                  ]}
+                  value={field.value || null}
+                  onChange={(value) => field.onChange(value ?? "")}
+                  error={ratePlanErrors.patient_category?.message}
+                  clearable
+                />
+              )}
             />
           </Group>
           <Textarea
             label="Description"
-            value={form.description}
-            onChange={(e) => setForm({ ...form, description: e.currentTarget.value })}
+            error={ratePlanErrors.description?.message}
+            {...registerRatePlan("description")}
           />
           <Text fw={500} size="sm" mt="xs">
-            Price Overrides ({form.items.length})
+            Price Overrides ({ratePlanItems.length})
           </Text>
-          {form.items.map((it) => (
-            <Text key={`${it.charge_code}-${it.override_price}`} size="xs" c="dimmed">
-              {it.charge_code} → ₹{it.override_price}
+          {ratePlanErrors.items?.message && (
+            <Text size="xs" c="danger">
+              {ratePlanErrors.items.message}
             </Text>
+          )}
+          {ratePlanItems.map((item, index) => (
+            <Group key={item.id} gap="xs">
+              <Text size="xs" c="dimmed">
+                {item.charge_code} → ₹{item.override_price}
+              </Text>
+              <ActionIcon
+                size="xs"
+                variant="subtle"
+                color="danger"
+                onClick={() => removeRatePlanItem(index)}
+              >
+                <IconTrash size={12} />
+              </ActionIcon>
+            </Group>
           ))}
           <Group grow>
             <TextInput
               size="xs"
               placeholder="Charge Code"
-              value={rpCode}
-              onChange={(e) => setRpCode(e.currentTarget.value)}
+              error={ratePlanItemErrors.charge_code?.message}
+              {...registerRatePlanItem("charge_code")}
             />
-            <NumberInput
+            <Controller
+              control={ratePlanItemControl}
+              name="override_price"
+              render={({ field }) => (
+                <NumberInput
+                  size="xs"
+                  placeholder="Override Price"
+                  min={0}
+                  decimalScale={2}
+                  value={field.value}
+                  onChange={field.onChange}
+                  error={ratePlanItemErrors.override_price?.message}
+                />
+              )}
+            />
+            <Button
               size="xs"
-              placeholder="Override Price"
-              min={0}
-              decimalScale={2}
-              value={rpPrice}
-              onChange={(v) => setRpPrice(Number(v))}
-            />
-            <Button size="xs" variant="light" onClick={addRpItem}>
+              type="button"
+              variant="light"
+              onClick={handleSubmitRatePlanItem(addRpItem)}
+            >
               + Override
             </Button>
           </Group>
-          <Button
-            size="xs"
-            onClick={() => createMutation.mutate()}
-            loading={createMutation.isPending}
-          >
+          <Button size="xs" type="submit" loading={createMutation.isPending}>
             Save Rate Plan
           </Button>
         </Stack>
@@ -1819,61 +2223,133 @@ function RefundsCreditsTab({
   const [showRefund, setShowRefund] = useState(false);
   const [showCredit, setShowCredit] = useState(false);
   const [showWriteOff, setShowWriteOff] = useState(false);
-  const [refundForm, setRefundForm] = useState<Partial<CreateRefundRequest>>({ mode: "cash" });
-  const [creditForm, setCreditForm] = useState<Partial<CreateCreditNoteRequest>>({});
-  const [writeOffForm, setWriteOffForm] = useState<Partial<CreateWriteOffRequest>>({});
+  const refundDefaults: BillingRefundFormInput = {
+    invoice_id: "",
+    amount: 0,
+    reason: "",
+    mode: "cash",
+    reference_number: "",
+  };
+  const creditDefaults: BillingCreditNoteFormInput = {
+    invoice_id: "",
+    amount: 0,
+    reason: "",
+  };
+  const writeOffDefaults: BillingWriteOffFormInput = {
+    invoice_id: "",
+    amount: 0,
+    reason: "",
+    notes: "",
+  };
+  const {
+    control: refundControl,
+    register: registerRefund,
+    reset: resetRefund,
+    handleSubmit: handleSubmitRefund,
+    formState: { errors: refundErrors },
+  } = useForm<BillingRefundFormInput>({
+    resolver: zodResolver(billingRefundFormSchema),
+    defaultValues: refundDefaults,
+  });
+  const {
+    control: creditControl,
+    register: registerCredit,
+    reset: resetCredit,
+    handleSubmit: handleSubmitCredit,
+    formState: { errors: creditErrors },
+  } = useForm<BillingCreditNoteFormInput>({
+    resolver: zodResolver(billingCreditNoteFormSchema),
+    defaultValues: creditDefaults,
+  });
+  const {
+    control: writeOffControl,
+    register: registerWriteOff,
+    reset: resetWriteOff,
+    handleSubmit: handleSubmitWriteOff,
+    formState: { errors: writeOffErrors },
+  } = useForm<BillingWriteOffFormInput>({
+    resolver: zodResolver(billingWriteOffFormSchema),
+    defaultValues: writeOffDefaults,
+  });
 
   const { data: refunds = [] } = useQuery({
     queryKey: ["refunds"],
-    queryFn: () => api.listRefunds(),
+    queryFn: () => billingService.listRefunds(),
   });
 
   const { data: creditNotes = [] } = useQuery({
     queryKey: ["credit-notes"],
-    queryFn: () => api.listCreditNotes(),
+    queryFn: () => billingService.listCreditNotes(),
   });
 
   const refundMutation = useMutation({
-    mutationFn: (data: CreateRefundRequest) => api.createRefund(data),
+    mutationFn: (data: CreateRefundRequest) => billingService.createRefund(data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["refunds"] });
       setShowRefund(false);
-      setRefundForm({ mode: "cash" });
+      resetRefund(refundDefaults);
     },
   });
 
   const creditMutation = useMutation({
-    mutationFn: (data: CreateCreditNoteRequest) => api.createCreditNote(data),
+    mutationFn: (data: CreateCreditNoteRequest) => billingService.createCreditNote(data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["credit-notes"] });
       setShowCredit(false);
-      setCreditForm({});
+      resetCredit(creditDefaults);
     },
   });
 
   const applyMutation = useMutation({
     mutationFn: ({ noteId, invoiceId }: { noteId: string; invoiceId: string }) =>
-      api.applyCreditNote(noteId, invoiceId),
+      billingService.applyCreditNote(noteId, invoiceId),
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["credit-notes"] }),
   });
 
   const { data: writeOffs = [] } = useQuery({
     queryKey: ["write-offs"],
-    queryFn: () => api.listWriteOffs(),
+    queryFn: () => billingService.listWriteOffs(),
   });
 
   const writeOffMutation = useMutation({
-    mutationFn: (data: CreateWriteOffRequest) => api.createWriteOff(data),
+    mutationFn: (data: CreateWriteOffRequest) => billingService.createWriteOff(data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["write-offs"] });
       setShowWriteOff(false);
-      setWriteOffForm({});
+      resetWriteOff(writeOffDefaults);
     },
   });
 
+  const handleCreateRefund = (values: BillingRefundFormInput) => {
+    refundMutation.mutate({
+      invoice_id: values.invoice_id.trim(),
+      amount: billingNumberOrFallback(values.amount, 0),
+      reason: values.reason.trim(),
+      mode: values.mode,
+      reference_number: billingOptionalText(values.reference_number),
+    });
+  };
+
+  const handleCreateCreditNote = (values: BillingCreditNoteFormInput) => {
+    creditMutation.mutate({
+      invoice_id: values.invoice_id.trim(),
+      amount: billingNumberOrFallback(values.amount, 0),
+      reason: values.reason.trim(),
+    });
+  };
+
+  const handleCreateWriteOff = (values: BillingWriteOffFormInput) => {
+    writeOffMutation.mutate({
+      invoice_id: values.invoice_id.trim(),
+      amount: billingNumberOrFallback(values.amount, 0),
+      reason: values.reason.trim(),
+      notes: billingOptionalText(values.notes),
+    });
+  };
+
   const approveWriteOffMutation = useMutation({
     mutationFn: ({ id, data }: { id: string; data: ApproveWriteOffRequest }) =>
-      api.approveWriteOff(id, data),
+      billingService.approveWriteOff(id, data),
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["write-offs"] }),
   });
 
@@ -2032,39 +2508,55 @@ function RefundsCreditsTab({
             Create Refund
           </Button>
           {showRefund && (
-            <Stack gap="xs">
+            <Stack component="form" gap="xs" onSubmit={handleSubmitRefund(handleCreateRefund)}>
               <Group grow>
                 <TextInput
                   label="Invoice ID"
                   required
-                  onChange={(e) =>
-                    setRefundForm({ ...refundForm, invoice_id: e.currentTarget.value })
-                  }
+                  error={refundErrors.invoice_id?.message}
+                  {...registerRefund("invoice_id")}
                 />
-                <NumberInput
-                  label="Amount"
-                  required
-                  min={0}
-                  decimalScale={2}
-                  onChange={(v) => setRefundForm({ ...refundForm, amount: Number(v) })}
+                <Controller
+                  control={refundControl}
+                  name="amount"
+                  render={({ field }) => (
+                    <NumberInput
+                      label="Amount"
+                      required
+                      min={0}
+                      decimalScale={2}
+                      value={field.value}
+                      onChange={field.onChange}
+                      error={refundErrors.amount?.message}
+                    />
+                  )}
                 />
               </Group>
               <TextInput
                 label="Reason"
                 required
-                onChange={(e) => setRefundForm({ ...refundForm, reason: e.currentTarget.value })}
+                error={refundErrors.reason?.message}
+                {...registerRefund("reason")}
               />
-              <Select
-                label="Mode"
-                data={["cash", "card", "upi", "bank_transfer", "cheque", "insurance", "credit"]}
-                value={refundForm.mode}
-                onChange={(v) => setRefundForm({ ...refundForm, mode: v ?? "cash" })}
+              <Controller
+                control={refundControl}
+                name="mode"
+                render={({ field }) => (
+                  <Select
+                    label="Mode"
+                    data={billingPaymentModeOptions}
+                    value={field.value}
+                    onChange={(value) => field.onChange(value ?? "cash")}
+                    error={refundErrors.mode?.message}
+                  />
+                )}
               />
-              <Button
-                size="xs"
-                onClick={() => refundMutation.mutate(refundForm as CreateRefundRequest)}
-                loading={refundMutation.isPending}
-              >
+              <TextInput
+                label="Reference #"
+                error={refundErrors.reference_number?.message}
+                {...registerRefund("reference_number")}
+              />
+              <Button size="xs" type="submit" loading={refundMutation.isPending}>
                 Process Refund
               </Button>
             </Stack>
@@ -2086,31 +2578,35 @@ function RefundsCreditsTab({
             Create Credit Note
           </Button>
           {showCredit && (
-            <Stack gap="xs">
+            <Stack component="form" gap="xs" onSubmit={handleSubmitCredit(handleCreateCreditNote)}>
               <TextInput
                 label="Invoice ID"
                 required
-                onChange={(e) =>
-                  setCreditForm({ ...creditForm, invoice_id: e.currentTarget.value })
-                }
+                error={creditErrors.invoice_id?.message}
+                {...registerCredit("invoice_id")}
               />
-              <NumberInput
-                label="Amount"
-                required
-                min={0}
-                decimalScale={2}
-                onChange={(v) => setCreditForm({ ...creditForm, amount: Number(v) })}
+              <Controller
+                control={creditControl}
+                name="amount"
+                render={({ field }) => (
+                  <NumberInput
+                    label="Amount"
+                    required
+                    min={0}
+                    decimalScale={2}
+                    value={field.value}
+                    onChange={field.onChange}
+                    error={creditErrors.amount?.message}
+                  />
+                )}
               />
               <TextInput
                 label="Reason"
                 required
-                onChange={(e) => setCreditForm({ ...creditForm, reason: e.currentTarget.value })}
+                error={creditErrors.reason?.message}
+                {...registerCredit("reason")}
               />
-              <Button
-                size="xs"
-                onClick={() => creditMutation.mutate(creditForm as CreateCreditNoteRequest)}
-                loading={creditMutation.isPending}
-              >
+              <Button size="xs" type="submit" loading={creditMutation.isPending}>
                 Issue Credit Note
               </Button>
             </Stack>
@@ -2132,39 +2628,40 @@ function RefundsCreditsTab({
             Request Write-Off
           </Button>
           {showWriteOff && (
-            <Stack gap="xs">
+            <Stack component="form" gap="xs" onSubmit={handleSubmitWriteOff(handleCreateWriteOff)}>
               <TextInput
                 label="Invoice ID"
                 required
-                onChange={(e) =>
-                  setWriteOffForm({ ...writeOffForm, invoice_id: e.currentTarget.value })
-                }
+                error={writeOffErrors.invoice_id?.message}
+                {...registerWriteOff("invoice_id")}
               />
-              <NumberInput
-                label="Amount"
-                required
-                min={0}
-                decimalScale={2}
-                onChange={(v) => setWriteOffForm({ ...writeOffForm, amount: Number(v) })}
+              <Controller
+                control={writeOffControl}
+                name="amount"
+                render={({ field }) => (
+                  <NumberInput
+                    label="Amount"
+                    required
+                    min={0}
+                    decimalScale={2}
+                    value={field.value}
+                    onChange={field.onChange}
+                    error={writeOffErrors.amount?.message}
+                  />
+                )}
               />
               <TextInput
                 label="Reason"
                 required
-                onChange={(e) =>
-                  setWriteOffForm({ ...writeOffForm, reason: e.currentTarget.value })
-                }
+                error={writeOffErrors.reason?.message}
+                {...registerWriteOff("reason")}
               />
               <Textarea
                 label="Notes"
-                onChange={(e) =>
-                  setWriteOffForm({ ...writeOffForm, notes: e.currentTarget.value || undefined })
-                }
+                error={writeOffErrors.notes?.message}
+                {...registerWriteOff("notes")}
               />
-              <Button
-                size="xs"
-                onClick={() => writeOffMutation.mutate(writeOffForm as CreateWriteOffRequest)}
-                loading={writeOffMutation.isPending}
-              >
+              <Button size="xs" type="submit" loading={writeOffMutation.isPending}>
                 Submit Write-Off
               </Button>
             </Stack>
@@ -2188,54 +2685,94 @@ function InsuranceClaimsTab({
   const queryClient = useQueryClient();
   const [showForm, setShowForm] = useState(false);
   const [showTpa, setShowTpa] = useState(false);
-  const [form, setForm] = useState<Partial<CreateInsuranceClaimRequest>>({
+  const insuranceClaimDefaults: BillingInsuranceClaimFormInput = {
+    invoice_id: "",
+    patient_id: "",
+    insurance_provider: "",
+    policy_number: "",
     claim_type: "cashless",
+    pre_auth_amount: "",
+    scheme_type: "",
+    tpa_name: "",
+    co_pay_percent: "",
+    deductible_amount: "",
+    member_id: "",
+    scheme_card_number: "",
+    notes: "",
+  };
+  const tpaRateCardDefaults: BillingTpaRateCardFormInput = {
+    tpa_name: "",
+    insurance_provider: "",
+    scheme_type: "",
+    rate_plan_id: "",
+    valid_from: "",
+    valid_to: "",
+    is_active: true,
+  };
+  const {
+    control: claimControl,
+    register: registerClaim,
+    reset: resetClaim,
+    handleSubmit: handleSubmitClaim,
+    formState: { errors: claimErrors },
+  } = useForm<BillingInsuranceClaimFormInput>({
+    resolver: zodResolver(billingInsuranceClaimFormSchema),
+    defaultValues: insuranceClaimDefaults,
   });
-  const [tpaForm, setTpaForm] = useState<Partial<CreateTpaRateCardRequest>>({});
+  const {
+    control: tpaControl,
+    register: registerTpa,
+    reset: resetTpa,
+    handleSubmit: handleSubmitTpa,
+    formState: { errors: tpaErrors },
+  } = useForm<BillingTpaRateCardFormInput>({
+    resolver: zodResolver(billingTpaRateCardFormSchema),
+    defaultValues: tpaRateCardDefaults,
+  });
   const [detailClaim, setDetailClaim] = useState<InsuranceClaim | null>(null);
 
   const { data: claims = [], isLoading } = useQuery({
     queryKey: ["insurance-claims"],
-    queryFn: () => api.listInsuranceClaims(),
+    queryFn: () => billingService.listInsuranceClaims(),
   });
 
   const { data: nhcxCallbacks = [] } = useQuery({
     queryKey: ["nhcx-callbacks", detailClaim?.id],
-    queryFn: () => api.listNhcxCallbacks({ matched_id: detailClaim?.id }),
+    queryFn: () => billingService.listNhcxCallbacks({ matched_id: detailClaim?.id }),
     enabled: !!detailClaim,
   });
 
   const createMutation = useMutation({
-    mutationFn: (data: CreateInsuranceClaimRequest) => api.createInsuranceClaim(data),
+    mutationFn: (data: CreateInsuranceClaimRequest) => billingService.createInsuranceClaim(data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["insurance-claims"] });
       setShowForm(false);
-      setForm({ claim_type: "cashless" });
+      resetClaim(insuranceClaimDefaults);
     },
   });
 
   const updateMutation = useMutation({
     mutationFn: ({ id, status }: { id: string; status: string }) =>
-      api.updateInsuranceClaim(id, { status }),
+      billingService.updateInsuranceClaim(id, { status }),
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["insurance-claims"] }),
   });
 
   const { data: tpaCards = [] } = useQuery({
     queryKey: ["tpa-rate-cards"],
-    queryFn: () => api.listTpaRateCards(),
+    queryFn: () => billingService.listTpaRateCards(),
   });
 
   const tpaMutation = useMutation({
-    mutationFn: (data: CreateTpaRateCardRequest) => api.createTpaRateCard(data),
+    mutationFn: (data: CreateTpaRateCardRequest) => billingService.createTpaRateCard(data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["tpa-rate-cards"] });
       setShowTpa(false);
-      setTpaForm({});
+      resetTpa(tpaRateCardDefaults);
     },
   });
 
   const deleteTpaMutation = useMutation({
-    mutationFn: (id: string) => api.deleteTpaRateCard(id),
+    mutationFn: (id: string) => billingService.deleteTpaRateCard(id),
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["tpa-rate-cards"] }),
   });
 
@@ -2303,6 +2840,38 @@ function InsuranceClaimsTab({
     partially_settled: "warning",
   };
 
+  const handleCreateInsuranceClaim = (values: BillingInsuranceClaimFormInput) => {
+    const payload: CreateInsuranceClaimRequest = {
+      invoice_id: values.invoice_id.trim(),
+      patient_id: values.patient_id.trim(),
+      insurance_provider: values.insurance_provider.trim(),
+      policy_number: billingOptionalText(values.policy_number),
+      claim_type: values.claim_type,
+      pre_auth_amount: billingOptionalNumber(values.pre_auth_amount),
+      tpa_name: billingOptionalText(values.tpa_name),
+      notes: billingOptionalText(values.notes),
+      scheme_type: values.scheme_type || undefined,
+      co_pay_percent: billingOptionalNumber(values.co_pay_percent),
+      deductible_amount: billingOptionalNumber(values.deductible_amount),
+      member_id: billingOptionalText(values.member_id),
+      scheme_card_number: billingOptionalText(values.scheme_card_number),
+    };
+    createMutation.mutate(payload);
+  };
+
+  const handleCreateTpaRateCard = (values: BillingTpaRateCardFormInput) => {
+    const payload: CreateTpaRateCardRequest = {
+      tpa_name: values.tpa_name.trim(),
+      insurance_provider: values.insurance_provider.trim(),
+      rate_plan_id: billingOptionalText(values.rate_plan_id),
+      scheme_type: values.scheme_type || undefined,
+      valid_from: billingOptionalText(values.valid_from),
+      valid_to: billingOptionalText(values.valid_to),
+      is_active: values.is_active,
+    };
+    tpaMutation.mutate(payload);
+  };
+
   const columns = [
     {
       key: "insurance_provider",
@@ -2367,113 +2936,146 @@ function InsuranceClaimsTab({
           <Button
             size="xs"
             leftSection={<IconPlus size={14} />}
-            onClick={() => setShowForm(!showForm)}
+            onClick={() => {
+              setShowForm(!showForm);
+              if (showForm) resetClaim(insuranceClaimDefaults);
+            }}
           >
             New Claim
           </Button>
           {showForm && (
-            <Stack gap="xs">
+            <Stack
+              component="form"
+              gap="xs"
+              onSubmit={handleSubmitClaim(handleCreateInsuranceClaim)}
+            >
               <Group grow>
                 <TextInput
                   label="Invoice ID"
                   required
-                  onChange={(e) => setForm({ ...form, invoice_id: e.currentTarget.value })}
+                  error={claimErrors.invoice_id?.message}
+                  {...registerClaim("invoice_id")}
                 />
                 <TextInput
                   label="Patient ID"
                   required
-                  onChange={(e) => setForm({ ...form, patient_id: e.currentTarget.value })}
+                  error={claimErrors.patient_id?.message}
+                  {...registerClaim("patient_id")}
                 />
               </Group>
               <Group grow>
                 <TextInput
                   label="Insurance Provider"
                   required
-                  onChange={(e) => setForm({ ...form, insurance_provider: e.currentTarget.value })}
+                  error={claimErrors.insurance_provider?.message}
+                  {...registerClaim("insurance_provider")}
                 />
                 <TextInput
                   label="Policy Number"
-                  onChange={(e) =>
-                    setForm({ ...form, policy_number: e.currentTarget.value || undefined })
-                  }
+                  error={claimErrors.policy_number?.message}
+                  {...registerClaim("policy_number")}
                 />
               </Group>
               <Group grow>
-                <Select
-                  label="Claim Type"
-                  data={[
-                    { value: "cashless", label: "Cashless" },
-                    { value: "reimbursement", label: "Reimbursement" },
-                  ]}
-                  value={form.claim_type}
-                  onChange={(v) => setForm({ ...form, claim_type: v ?? "cashless" })}
+                <Controller
+                  control={claimControl}
+                  name="claim_type"
+                  render={({ field }) => (
+                    <Select
+                      label="Claim Type"
+                      data={billingInsuranceClaimTypeOptions}
+                      value={field.value}
+                      onChange={(value) => field.onChange(value ?? "cashless")}
+                      error={claimErrors.claim_type?.message}
+                    />
+                  )}
                 />
-                <NumberInput
-                  label="Pre-Auth Amount"
-                  min={0}
-                  decimalScale={2}
-                  onChange={(v) => setForm({ ...form, pre_auth_amount: Number(v) || undefined })}
+                <Controller
+                  control={claimControl}
+                  name="pre_auth_amount"
+                  render={({ field }) => (
+                    <NumberInput
+                      label="Pre-Auth Amount"
+                      min={0}
+                      decimalScale={2}
+                      value={field.value}
+                      onChange={field.onChange}
+                      error={claimErrors.pre_auth_amount?.message}
+                    />
+                  )}
                 />
               </Group>
               <Group grow>
-                <Select
-                  label="Scheme Type"
-                  data={[
-                    { value: "private", label: "Private Insurance" },
-                    { value: "cghs", label: "CGHS" },
-                    { value: "echs", label: "ECHS" },
-                    { value: "pmjay", label: "PM-JAY (Ayushman Bharat)" },
-                    { value: "esis", label: "ESIS" },
-                    { value: "state_scheme", label: "State Scheme" },
-                  ]}
-                  onChange={(v) => setForm({ ...form, scheme_type: v ?? undefined })}
-                  clearable
+                <Controller
+                  control={claimControl}
+                  name="scheme_type"
+                  render={({ field }) => (
+                    <Select
+                      label="Scheme Type"
+                      data={billingInsuranceSchemeTypeOptions}
+                      value={field.value || null}
+                      onChange={(value) => field.onChange(value ?? "")}
+                      error={claimErrors.scheme_type?.message}
+                      clearable
+                      searchable
+                    />
+                  )}
                 />
                 <TextInput
                   label="TPA Name"
-                  onChange={(e) =>
-                    setForm({ ...form, tpa_name: e.currentTarget.value || undefined })
-                  }
+                  error={claimErrors.tpa_name?.message}
+                  {...registerClaim("tpa_name")}
                 />
               </Group>
               <Group grow>
-                <NumberInput
-                  label="Co-Pay %"
-                  min={0}
-                  max={100}
-                  decimalScale={2}
-                  onChange={(v) => setForm({ ...form, co_pay_percent: Number(v) || undefined })}
+                <Controller
+                  control={claimControl}
+                  name="co_pay_percent"
+                  render={({ field }) => (
+                    <NumberInput
+                      label="Co-Pay %"
+                      min={0}
+                      max={100}
+                      decimalScale={2}
+                      value={field.value}
+                      onChange={field.onChange}
+                      error={claimErrors.co_pay_percent?.message}
+                    />
+                  )}
                 />
-                <NumberInput
-                  label="Deductible Amount"
-                  min={0}
-                  decimalScale={2}
-                  onChange={(v) => setForm({ ...form, deductible_amount: Number(v) || undefined })}
+                <Controller
+                  control={claimControl}
+                  name="deductible_amount"
+                  render={({ field }) => (
+                    <NumberInput
+                      label="Deductible Amount"
+                      min={0}
+                      decimalScale={2}
+                      value={field.value}
+                      onChange={field.onChange}
+                      error={claimErrors.deductible_amount?.message}
+                    />
+                  )}
                 />
               </Group>
               <Group grow>
                 <TextInput
                   label="Member ID"
-                  onChange={(e) =>
-                    setForm({ ...form, member_id: e.currentTarget.value || undefined })
-                  }
+                  error={claimErrors.member_id?.message}
+                  {...registerClaim("member_id")}
                 />
                 <TextInput
                   label="Scheme Card Number"
-                  onChange={(e) =>
-                    setForm({ ...form, scheme_card_number: e.currentTarget.value || undefined })
-                  }
+                  error={claimErrors.scheme_card_number?.message}
+                  {...registerClaim("scheme_card_number")}
                 />
               </Group>
               <Textarea
                 label="Notes"
-                onChange={(e) => setForm({ ...form, notes: e.currentTarget.value || undefined })}
+                error={claimErrors.notes?.message}
+                {...registerClaim("notes")}
               />
-              <Button
-                size="xs"
-                onClick={() => createMutation.mutate(form as CreateInsuranceClaimRequest)}
-                loading={createMutation.isPending}
-              >
+              <Button size="xs" type="submit" loading={createMutation.isPending}>
                 Create Claim
               </Button>
             </Stack>
@@ -2502,62 +3104,77 @@ function InsuranceClaimsTab({
           <Button
             size="xs"
             leftSection={<IconPlus size={14} />}
-            onClick={() => setShowTpa(!showTpa)}
+            onClick={() => {
+              setShowTpa(!showTpa);
+              if (showTpa) resetTpa(tpaRateCardDefaults);
+            }}
           >
             Add TPA Rate Card
           </Button>
           {showTpa && (
-            <Stack gap="xs">
+            <Stack component="form" gap="xs" onSubmit={handleSubmitTpa(handleCreateTpaRateCard)}>
               <Group grow>
                 <TextInput
                   label="TPA Name"
                   required
-                  onChange={(e) => setTpaForm({ ...tpaForm, tpa_name: e.currentTarget.value })}
+                  error={tpaErrors.tpa_name?.message}
+                  {...registerTpa("tpa_name")}
                 />
                 <TextInput
                   label="Insurance Provider"
                   required
-                  onChange={(e) =>
-                    setTpaForm({ ...tpaForm, insurance_provider: e.currentTarget.value })
-                  }
+                  error={tpaErrors.insurance_provider?.message}
+                  {...registerTpa("insurance_provider")}
                 />
               </Group>
               <Group grow>
-                <Select
-                  label="Scheme Type"
-                  data={INSURANCE_SCHEME_TYPES}
-                  onChange={(v) => setTpaForm({ ...tpaForm, scheme_type: v || undefined })}
-                  clearable
-                  searchable
+                <Controller
+                  control={tpaControl}
+                  name="scheme_type"
+                  render={({ field }) => (
+                    <Select
+                      label="Scheme Type"
+                      data={billingInsuranceSchemeTypeOptions}
+                      value={field.value || null}
+                      onChange={(value) => field.onChange(value ?? "")}
+                      error={tpaErrors.scheme_type?.message}
+                      clearable
+                      searchable
+                    />
+                  )}
                 />
                 <TextInput
                   label="Rate Plan ID"
-                  onChange={(e) =>
-                    setTpaForm({ ...tpaForm, rate_plan_id: e.currentTarget.value || undefined })
-                  }
+                  error={tpaErrors.rate_plan_id?.message}
+                  {...registerTpa("rate_plan_id")}
                 />
               </Group>
               <Group grow>
                 <TextInput
                   label="Valid From"
                   type="date"
-                  onChange={(e) =>
-                    setTpaForm({ ...tpaForm, valid_from: e.currentTarget.value || undefined })
-                  }
+                  error={tpaErrors.valid_from?.message}
+                  {...registerTpa("valid_from")}
                 />
                 <TextInput
                   label="Valid To"
                   type="date"
-                  onChange={(e) =>
-                    setTpaForm({ ...tpaForm, valid_to: e.currentTarget.value || undefined })
-                  }
+                  error={tpaErrors.valid_to?.message}
+                  {...registerTpa("valid_to")}
                 />
               </Group>
-              <Button
-                size="xs"
-                onClick={() => tpaMutation.mutate(tpaForm as CreateTpaRateCardRequest)}
-                loading={tpaMutation.isPending}
-              >
+              <Controller
+                control={tpaControl}
+                name="is_active"
+                render={({ field }) => (
+                  <Switch
+                    label="Active rate card"
+                    checked={field.value}
+                    onChange={(event) => field.onChange(event.currentTarget.checked)}
+                  />
+                )}
+              />
+              <Button size="xs" type="submit" loading={tpaMutation.isPending}>
                 Save TPA Rate Card
               </Button>
             </Stack>
@@ -2792,14 +3409,14 @@ function BillingSettingsTab() {
 
   const { data: settings = [], isLoading } = useQuery({
     queryKey: ["tenant-settings", "billing"],
-    queryFn: () => api.getTenantSettings("billing"),
+    queryFn: () => billingService.getTenantSettings("billing"),
   });
 
   const settingsMap = new Map(settings.map((s: TenantSettingsRow) => [s.key, s.value]));
 
   const updateMutation = useMutation({
     mutationFn: (data: { category: string; key: string; value: unknown }) =>
-      api.updateTenantSetting(data),
+      billingService.updateTenantSetting(data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["tenant-settings", "billing"] });
     },
@@ -2908,22 +3525,66 @@ function AdvancesTab() {
   const canRefund = useHasPermission(P.BILLING.ADVANCES_REFUND);
   const queryClient = useQueryClient();
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState<Partial<CreateAdvanceRequest>>({
+  const advanceDefaults: BillingAdvanceFormInput = {
+    patient_id: "",
+    encounter_id: "",
+    amount: 0,
     payment_mode: "cash",
+    reference_number: "",
     purpose: "general",
+    notes: "",
+  };
+  const adjustmentDefaults: BillingAdvanceAdjustmentFormInput = {
+    invoice_id: "",
+    amount: 0,
+    notes: "",
+  };
+  const advanceRefundDefaults: BillingAdvanceRefundFormInput = {
+    amount: 0,
+    reason: "",
+    mode: "cash",
+    reference_number: "",
+  };
+  const {
+    control: advanceControl,
+    register: registerAdvance,
+    reset: resetAdvance,
+    handleSubmit: handleSubmitAdvance,
+    formState: { errors: advanceErrors },
+  } = useForm<BillingAdvanceFormInput>({
+    resolver: zodResolver(billingAdvanceFormSchema),
+    defaultValues: advanceDefaults,
   });
   const [adjustId, setAdjustId] = useState<string | null>(null);
-  const [adjustForm, setAdjustForm] = useState<Partial<AdjustAdvanceRequest>>({});
+  const {
+    control: adjustmentControl,
+    register: registerAdjustment,
+    reset: resetAdjustment,
+    handleSubmit: handleSubmitAdjustment,
+    formState: { errors: adjustmentErrors },
+  } = useForm<BillingAdvanceAdjustmentFormInput>({
+    resolver: zodResolver(billingAdvanceAdjustmentFormSchema),
+    defaultValues: adjustmentDefaults,
+  });
   const [refundId, setRefundId] = useState<string | null>(null);
-  const [refundForm, setRefundForm] = useState<Partial<RefundAdvanceRequest>>({ mode: "cash" });
+  const {
+    control: advanceRefundControl,
+    register: registerAdvanceRefund,
+    reset: resetAdvanceRefund,
+    handleSubmit: handleSubmitAdvanceRefund,
+    formState: { errors: advanceRefundErrors },
+  } = useForm<BillingAdvanceRefundFormInput>({
+    resolver: zodResolver(billingAdvanceRefundFormSchema),
+    defaultValues: advanceRefundDefaults,
+  });
 
   const { data: advances = [], isLoading } = useQuery({
     queryKey: ["advances"],
-    queryFn: () => api.listAdvances(),
+    queryFn: () => billingService.listAdvances(),
   });
 
   const createMutation = useMutation({
-    mutationFn: (data: CreateAdvanceRequest) => api.createAdvance(data),
+    mutationFn: (data: CreateAdvanceRequest) => billingService.createAdvance(data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["advances"] });
       notifications.show({
@@ -2932,7 +3593,7 @@ function AdvancesTab() {
         color: "success",
       });
       setShowForm(false);
-      setForm({ payment_mode: "cash", purpose: "general" });
+      resetAdvance(advanceDefaults);
     },
     onError: () =>
       notifications.show({ title: "Error", message: "Failed to create advance", color: "danger" }),
@@ -2940,7 +3601,7 @@ function AdvancesTab() {
 
   const adjustMutation = useMutation({
     mutationFn: ({ id, data }: { id: string; data: AdjustAdvanceRequest }) =>
-      api.adjustAdvance(id, data),
+      billingService.adjustAdvance(id, data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["advances"] });
       notifications.show({
@@ -2949,7 +3610,7 @@ function AdvancesTab() {
         color: "success",
       });
       setAdjustId(null);
-      setAdjustForm({});
+      resetAdjustment(adjustmentDefaults);
     },
     onError: () =>
       notifications.show({ title: "Error", message: "Failed to adjust advance", color: "danger" }),
@@ -2957,12 +3618,12 @@ function AdvancesTab() {
 
   const refundMutation = useMutation({
     mutationFn: ({ id, data }: { id: string; data: RefundAdvanceRequest }) =>
-      api.refundAdvance(id, data),
+      billingService.refundAdvance(id, data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["advances"] });
       notifications.show({ title: "Refunded", message: "Advance refunded", color: "success" });
       setRefundId(null);
-      setRefundForm({ mode: "cash" });
+      resetAdvanceRefund(advanceRefundDefaults);
     },
     onError: () =>
       notifications.show({ title: "Error", message: "Failed to refund advance", color: "danger" }),
@@ -3042,6 +3703,43 @@ function AdvancesTab() {
     },
   ];
 
+  const handleCreateAdvance = (values: BillingAdvanceFormInput) => {
+    createMutation.mutate({
+      patient_id: values.patient_id.trim(),
+      encounter_id: billingOptionalText(values.encounter_id),
+      amount: billingNumberOrFallback(values.amount, 0),
+      payment_mode: values.payment_mode,
+      reference_number: billingOptionalText(values.reference_number),
+      purpose: values.purpose,
+      notes: billingOptionalText(values.notes),
+    });
+  };
+
+  const handleAdjustAdvance = (values: BillingAdvanceAdjustmentFormInput) => {
+    if (!adjustId) return;
+    adjustMutation.mutate({
+      id: adjustId,
+      data: {
+        invoice_id: values.invoice_id.trim(),
+        amount: billingNumberOrFallback(values.amount, 0),
+        notes: billingOptionalText(values.notes),
+      },
+    });
+  };
+
+  const handleRefundAdvance = (values: BillingAdvanceRefundFormInput) => {
+    if (!refundId) return;
+    refundMutation.mutate({
+      id: refundId,
+      data: {
+        amount: billingNumberOrFallback(values.amount, 0),
+        reason: values.reason.trim(),
+        mode: values.mode,
+        reference_number: billingOptionalText(values.reference_number),
+      },
+    });
+  };
+
   return (
     <Stack>
       {canCreate && (
@@ -3056,63 +3754,76 @@ function AdvancesTab() {
         </Group>
       )}
       {showForm && (
-        <Stack gap="xs">
+        <Stack component="form" gap="xs" onSubmit={handleSubmitAdvance(handleCreateAdvance)}>
           <Group grow>
             <TextInput
               label="Patient ID"
               required
-              onChange={(e) => setForm({ ...form, patient_id: e.currentTarget.value })}
+              error={advanceErrors.patient_id?.message}
+              {...registerAdvance("patient_id")}
             />
             <TextInput
               label="Encounter ID"
-              onChange={(e) =>
-                setForm({ ...form, encounter_id: e.currentTarget.value || undefined })
-              }
+              error={advanceErrors.encounter_id?.message}
+              {...registerAdvance("encounter_id")}
             />
           </Group>
           <Group grow>
-            <NumberInput
-              label="Amount"
-              required
-              min={0}
-              decimalScale={2}
-              onChange={(v) => setForm({ ...form, amount: Number(v) })}
+            <Controller
+              control={advanceControl}
+              name="amount"
+              render={({ field }) => (
+                <NumberInput
+                  label="Amount"
+                  required
+                  min={0}
+                  decimalScale={2}
+                  value={field.value}
+                  onChange={field.onChange}
+                  error={advanceErrors.amount?.message}
+                />
+              )}
             />
-            <Select
-              label="Payment Mode"
-              data={["cash", "card", "upi", "bank_transfer", "cheque"]}
-              value={form.payment_mode}
-              onChange={(v) => setForm({ ...form, payment_mode: v ?? "cash" })}
+            <Controller
+              control={advanceControl}
+              name="payment_mode"
+              render={({ field }) => (
+                <Select
+                  label="Payment Mode"
+                  data={billingPaymentModeOptions}
+                  value={field.value}
+                  onChange={(value) => field.onChange(value ?? "cash")}
+                  error={advanceErrors.payment_mode?.message}
+                />
+              )}
             />
           </Group>
           <Group grow>
-            <Select
-              label="Purpose"
-              data={[
-                { value: "general", label: "General" },
-                { value: "admission", label: "Admission Deposit" },
-                { value: "prepaid", label: "Prepaid" },
-                { value: "procedure", label: "Procedure" },
-              ]}
-              value={form.purpose}
-              onChange={(v) => setForm({ ...form, purpose: v ?? "general" })}
+            <Controller
+              control={advanceControl}
+              name="purpose"
+              render={({ field }) => (
+                <Select
+                  label="Purpose"
+                  data={billingAdvancePurposeOptions}
+                  value={field.value}
+                  onChange={(value) => field.onChange(value ?? "general")}
+                  error={advanceErrors.purpose?.message}
+                />
+              )}
             />
             <TextInput
               label="Reference #"
-              onChange={(e) =>
-                setForm({ ...form, reference_number: e.currentTarget.value || undefined })
-              }
+              error={advanceErrors.reference_number?.message}
+              {...registerAdvance("reference_number")}
             />
           </Group>
           <Textarea
             label="Notes"
-            onChange={(e) => setForm({ ...form, notes: e.currentTarget.value || undefined })}
+            error={advanceErrors.notes?.message}
+            {...registerAdvance("notes")}
           />
-          <Button
-            size="xs"
-            onClick={() => createMutation.mutate(form as CreateAdvanceRequest)}
-            loading={createMutation.isPending}
-          >
+          <Button size="xs" type="submit" loading={createMutation.isPending}>
             Save Advance
           </Button>
         </Stack>
@@ -3127,32 +3838,34 @@ function AdvancesTab() {
         position="right"
         size="sm"
       >
-        <Stack>
+        <Stack component="form" onSubmit={handleSubmitAdjustment(handleAdjustAdvance)}>
           <TextInput
             label="Invoice ID"
             required
-            onChange={(e) => setAdjustForm({ ...adjustForm, invoice_id: e.currentTarget.value })}
+            error={adjustmentErrors.invoice_id?.message}
+            {...registerAdjustment("invoice_id")}
           />
-          <NumberInput
-            label="Amount"
-            required
-            min={0}
-            decimalScale={2}
-            onChange={(v) => setAdjustForm({ ...adjustForm, amount: Number(v) })}
+          <Controller
+            control={adjustmentControl}
+            name="amount"
+            render={({ field }) => (
+              <NumberInput
+                label="Amount"
+                required
+                min={0}
+                decimalScale={2}
+                value={field.value}
+                onChange={field.onChange}
+                error={adjustmentErrors.amount?.message}
+              />
+            )}
           />
           <Textarea
             label="Notes"
-            onChange={(e) =>
-              setAdjustForm({ ...adjustForm, notes: e.currentTarget.value || undefined })
-            }
+            error={adjustmentErrors.notes?.message}
+            {...registerAdjustment("notes")}
           />
-          <Button
-            onClick={() =>
-              adjustId &&
-              adjustMutation.mutate({ id: adjustId, data: adjustForm as AdjustAdvanceRequest })
-            }
-            loading={adjustMutation.isPending}
-          >
+          <Button type="submit" loading={adjustMutation.isPending}>
             Apply Adjustment
           </Button>
         </Stack>
@@ -3165,38 +3878,47 @@ function AdvancesTab() {
         position="right"
         size="sm"
       >
-        <Stack>
-          <NumberInput
-            label="Refund Amount"
-            required
-            min={0}
-            decimalScale={2}
-            onChange={(v) => setRefundForm({ ...refundForm, amount: Number(v) })}
+        <Stack component="form" onSubmit={handleSubmitAdvanceRefund(handleRefundAdvance)}>
+          <Controller
+            control={advanceRefundControl}
+            name="amount"
+            render={({ field }) => (
+              <NumberInput
+                label="Refund Amount"
+                required
+                min={0}
+                decimalScale={2}
+                value={field.value}
+                onChange={field.onChange}
+                error={advanceRefundErrors.amount?.message}
+              />
+            )}
           />
           <TextInput
             label="Reason"
             required
-            onChange={(e) => setRefundForm({ ...refundForm, reason: e.currentTarget.value })}
+            error={advanceRefundErrors.reason?.message}
+            {...registerAdvanceRefund("reason")}
           />
-          <Select
-            label="Refund Mode"
-            data={["cash", "card", "upi", "bank_transfer", "cheque"]}
-            value={refundForm.mode}
-            onChange={(v) => setRefundForm({ ...refundForm, mode: v ?? "cash" })}
+          <Controller
+            control={advanceRefundControl}
+            name="mode"
+            render={({ field }) => (
+              <Select
+                label="Refund Mode"
+                data={billingPaymentModeOptions}
+                value={field.value}
+                onChange={(value) => field.onChange(value ?? "cash")}
+                error={advanceRefundErrors.mode?.message}
+              />
+            )}
           />
           <TextInput
             label="Reference #"
-            onChange={(e) =>
-              setRefundForm({ ...refundForm, reference_number: e.currentTarget.value || undefined })
-            }
+            error={advanceRefundErrors.reference_number?.message}
+            {...registerAdvanceRefund("reference_number")}
           />
-          <Button
-            onClick={() =>
-              refundId &&
-              refundMutation.mutate({ id: refundId, data: refundForm as RefundAdvanceRequest })
-            }
-            loading={refundMutation.isPending}
-          >
+          <Button type="submit" loading={refundMutation.isPending}>
             Process Refund
           </Button>
         </Stack>
@@ -3212,17 +3934,37 @@ function CorporateTab() {
   const canUpdate = useHasPermission(P.BILLING.CORPORATE_UPDATE);
   const queryClient = useQueryClient();
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState<Partial<CreateCorporateRequest>>({});
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detailOpened, { open: openDetail, close: closeDetail }] = useDisclosure(false);
+  const corporateDefaults: BillingCorporateFormInput = {
+    code: "",
+    name: "",
+    gst_number: "",
+    billing_address: "",
+    contact_email: "",
+    contact_phone: "",
+    credit_limit: "",
+    credit_days: 30,
+    agreed_discount_percent: "",
+  };
+  const {
+    control,
+    register,
+    reset,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<BillingCorporateFormInput>({
+    resolver: zodResolver(billingCorporateFormSchema),
+    defaultValues: corporateDefaults,
+  });
 
   const { data: corporates = [], isLoading } = useQuery({
     queryKey: ["corporates"],
-    queryFn: () => api.listCorporates(),
+    queryFn: () => billingService.listCorporates(),
   });
 
   const createMutation = useMutation({
-    mutationFn: (data: CreateCorporateRequest) => api.createCorporate(data),
+    mutationFn: (data: CreateCorporateRequest) => billingService.createCorporate(data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["corporates"] });
       notifications.show({
@@ -3231,7 +3973,7 @@ function CorporateTab() {
         color: "success",
       });
       setShowForm(false);
-      setForm({});
+      reset(corporateDefaults);
     },
     onError: () =>
       notifications.show({
@@ -3240,6 +3982,21 @@ function CorporateTab() {
         color: "danger",
       }),
   });
+
+  const handleCreateCorporate = (values: BillingCorporateFormInput) => {
+    const payload: CreateCorporateRequest = {
+      code: values.code.trim(),
+      name: values.name.trim(),
+      gst_number: billingOptionalText(values.gst_number),
+      billing_address: billingOptionalText(values.billing_address),
+      contact_email: billingOptionalText(values.contact_email),
+      contact_phone: billingOptionalText(values.contact_phone),
+      credit_limit: billingOptionalNumber(values.credit_limit),
+      credit_days: billingOptionalInteger(values.credit_days),
+      agreed_discount_percent: billingOptionalNumber(values.agreed_discount_percent),
+    };
+    createMutation.mutate(payload);
+  };
 
   const columns = [
     {
@@ -3308,77 +4065,94 @@ function CorporateTab() {
           <Button
             size="xs"
             leftSection={<IconPlus size={14} />}
-            onClick={() => setShowForm(!showForm)}
+            onClick={() => {
+              setShowForm(!showForm);
+              if (showForm) reset(corporateDefaults);
+            }}
           >
             Add Corporate Client
           </Button>
         </Group>
       )}
       {showForm && (
-        <Stack gap="xs">
+        <Stack component="form" gap="xs" onSubmit={handleSubmit(handleCreateCorporate)}>
           <Group grow>
             <TextInput
               label="Code"
               required
               placeholder="e.g. CORP-001"
-              onChange={(e) => setForm({ ...form, code: e.currentTarget.value })}
+              error={errors.code?.message}
+              {...register("code")}
             />
-            <TextInput
-              label="Name"
-              required
-              onChange={(e) => setForm({ ...form, name: e.currentTarget.value })}
-            />
+            <TextInput label="Name" required error={errors.name?.message} {...register("name")} />
           </Group>
           <Group grow>
             <TextInput
               label="GST Number"
-              onChange={(e) => setForm({ ...form, gst_number: e.currentTarget.value || undefined })}
+              error={errors.gst_number?.message}
+              {...register("gst_number")}
             />
             <TextInput
               label="Contact Email"
-              onChange={(e) =>
-                setForm({ ...form, contact_email: e.currentTarget.value || undefined })
-              }
+              error={errors.contact_email?.message}
+              {...register("contact_email")}
             />
             <TextInput
               label="Contact Phone"
-              onChange={(e) =>
-                setForm({ ...form, contact_phone: e.currentTarget.value || undefined })
-              }
+              error={errors.contact_phone?.message}
+              {...register("contact_phone")}
             />
           </Group>
           <Textarea
             label="Billing Address"
-            onChange={(e) =>
-              setForm({ ...form, billing_address: e.currentTarget.value || undefined })
-            }
+            error={errors.billing_address?.message}
+            {...register("billing_address")}
           />
           <Group grow>
-            <NumberInput
-              label="Credit Limit (₹)"
-              min={0}
-              decimalScale={2}
-              onChange={(v) => setForm({ ...form, credit_limit: Number(v) })}
+            <Controller
+              control={control}
+              name="credit_limit"
+              render={({ field }) => (
+                <NumberInput
+                  label="Credit Limit (₹)"
+                  min={0}
+                  decimalScale={2}
+                  value={field.value}
+                  onChange={field.onChange}
+                  error={errors.credit_limit?.message}
+                />
+              )}
             />
-            <NumberInput
-              label="Credit Days"
-              min={0}
-              value={30}
-              onChange={(v) => setForm({ ...form, credit_days: Number(v) })}
+            <Controller
+              control={control}
+              name="credit_days"
+              render={({ field }) => (
+                <NumberInput
+                  label="Credit Days"
+                  min={0}
+                  value={field.value}
+                  onChange={field.onChange}
+                  error={errors.credit_days?.message}
+                />
+              )}
             />
-            <NumberInput
-              label="Agreed Discount %"
-              min={0}
-              max={100}
-              decimalScale={2}
-              onChange={(v) => setForm({ ...form, agreed_discount_percent: Number(v) })}
+            <Controller
+              control={control}
+              name="agreed_discount_percent"
+              render={({ field }) => (
+                <NumberInput
+                  label="Agreed Discount %"
+                  min={0}
+                  max={100}
+                  decimalScale={2}
+                  value={field.value}
+                  onChange={field.onChange}
+                  error={errors.agreed_discount_percent?.message}
+                />
+              )}
             />
           </Group>
-          <Button
-            size="xs"
-            onClick={() => createMutation.mutate(form as CreateCorporateRequest)}
-            loading={createMutation.isPending}
-          >
+          <Button size="xs" type="submit" loading={createMutation.isPending}>
             Save Client
           </Button>
         </Stack>
@@ -3402,50 +4176,131 @@ function CorporateTab() {
 function CorporateDetail({ corporateId, canUpdate }: { corporateId: string; canUpdate: boolean }) {
   const queryClient = useQueryClient();
   const [showEnroll, setShowEnroll] = useState(false);
-  const [enrollForm, setEnrollForm] = useState<Partial<CreateEnrollmentRequest>>({});
-  const [editForm, setEditForm] = useState<Partial<UpdateCorporateRequest>>({});
   const [editing, setEditing] = useState(false);
+  const enrollmentDefaults: BillingCorporateEnrollmentFormInput = {
+    patient_id: "",
+    employee_id: "",
+    department: "",
+  };
+  const corporateUpdateDefaults: BillingCorporateUpdateFormInput = {
+    name: "",
+    gst_number: "",
+    billing_address: "",
+    contact_email: "",
+    contact_phone: "",
+    credit_limit: "",
+    credit_days: "",
+    agreed_discount_percent: "",
+    is_active: true,
+  };
+  const {
+    control: enrollmentControl,
+    register: registerEnrollment,
+    reset: resetEnrollment,
+    handleSubmit: handleSubmitEnrollment,
+    formState: { errors: enrollmentErrors },
+  } = useForm<BillingCorporateEnrollmentFormInput>({
+    resolver: zodResolver(billingCorporateEnrollmentFormSchema),
+    defaultValues: enrollmentDefaults,
+  });
+  const {
+    control: updateControl,
+    register: registerUpdate,
+    reset: resetUpdate,
+    handleSubmit: handleSubmitUpdate,
+    formState: { errors: updateErrors },
+  } = useForm<BillingCorporateUpdateFormInput>({
+    resolver: zodResolver(billingCorporateUpdateFormSchema),
+    defaultValues: corporateUpdateDefaults,
+  });
 
   const { data: corporate } = useQuery({
     queryKey: ["corporate", corporateId],
-    queryFn: () => api.getCorporate(corporateId),
+    queryFn: () => billingService.getCorporate(corporateId),
   });
 
   const { data: enrollments = [] } = useQuery({
     queryKey: ["corporate-enrollments", corporateId],
-    queryFn: () => api.listCorporateEnrollments(corporateId),
+    queryFn: () => billingService.listCorporateEnrollments(corporateId),
   });
 
   const { data: invoices = [] } = useQuery({
     queryKey: ["corporate-invoices", corporateId],
-    queryFn: () => api.listCorporateInvoices(corporateId),
+    queryFn: () => billingService.listCorporateInvoices(corporateId),
   });
 
   const updateMutation = useMutation({
-    mutationFn: (data: UpdateCorporateRequest) => api.updateCorporate(corporateId, data),
+    mutationFn: (data: UpdateCorporateRequest) => billingService.updateCorporate(corporateId, data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["corporate", corporateId] });
       void queryClient.invalidateQueries({ queryKey: ["corporates"] });
       setEditing(false);
+      resetUpdate(corporateUpdateDefaults);
     },
   });
 
   const enrollMutation = useMutation({
-    mutationFn: (data: CreateEnrollmentRequest) => api.createCorporateEnrollment(corporateId, data),
+    mutationFn: (data: CreateEnrollmentRequest) =>
+      billingService.createCorporateEnrollment(corporateId, data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["corporate-enrollments", corporateId] });
       setShowEnroll(false);
-      setEnrollForm({});
+      resetEnrollment(enrollmentDefaults);
     },
   });
 
   const unenrollMutation = useMutation({
-    mutationFn: (enrollmentId: string) => api.deleteCorporateEnrollment(corporateId, enrollmentId),
+    mutationFn: (enrollmentId: string) =>
+      billingService.deleteCorporateEnrollment(corporateId, enrollmentId),
     onSuccess: () =>
       void queryClient.invalidateQueries({ queryKey: ["corporate-enrollments", corporateId] }),
   });
 
   if (!corporate) return <Text c="dimmed">Loading...</Text>;
+
+  const handleUpdateCorporate = (values: BillingCorporateUpdateFormInput) => {
+    const payload: UpdateCorporateRequest = {
+      name: values.name.trim(),
+      gst_number: billingOptionalText(values.gst_number),
+      billing_address: billingOptionalText(values.billing_address),
+      contact_email: billingOptionalText(values.contact_email),
+      contact_phone: billingOptionalText(values.contact_phone),
+      credit_limit: billingOptionalNumber(values.credit_limit),
+      credit_days: billingOptionalInteger(values.credit_days),
+      agreed_discount_percent: billingOptionalNumber(values.agreed_discount_percent),
+      is_active: values.is_active,
+    };
+    updateMutation.mutate(payload);
+  };
+
+  const handleEnrollCorporatePatient = (values: BillingCorporateEnrollmentFormInput) => {
+    const payload: CreateEnrollmentRequest = {
+      patient_id: values.patient_id.trim(),
+      employee_id: billingOptionalText(values.employee_id),
+      department: billingOptionalText(values.department),
+    };
+    enrollMutation.mutate(payload);
+  };
+
+  const toggleEdit = () => {
+    if (editing) {
+      resetUpdate(corporateUpdateDefaults);
+      setEditing(false);
+      return;
+    }
+    resetUpdate({
+      name: corporate.name,
+      gst_number: corporate.gst_number ?? "",
+      billing_address: corporate.billing_address ?? "",
+      contact_email: corporate.contact_email ?? "",
+      contact_phone: corporate.contact_phone ?? "",
+      credit_limit: Number(corporate.credit_limit),
+      credit_days: corporate.credit_days,
+      agreed_discount_percent: Number(corporate.agreed_discount_percent),
+      is_active: corporate.is_active,
+    });
+    setEditing(true);
+  };
 
   return (
     <Stack>
@@ -3471,42 +4326,97 @@ function CorporateDetail({ corporateId, canUpdate }: { corporateId: string; canU
 
       {canUpdate && (
         <>
-          <Button size="xs" variant="light" onClick={() => setEditing(!editing)}>
+          <Button size="xs" variant="light" onClick={toggleEdit}>
             {editing ? "Cancel Edit" : "Edit Client"}
           </Button>
           {editing && (
-            <Stack gap="xs">
+            <Stack component="form" gap="xs" onSubmit={handleSubmitUpdate(handleUpdateCorporate)}>
               <Group grow>
                 <TextInput
                   label="Name"
-                  defaultValue={corporate.name}
-                  onChange={(e) => setEditForm({ ...editForm, name: e.currentTarget.value })}
+                  required
+                  error={updateErrors.name?.message}
+                  {...registerUpdate("name")}
                 />
-                <NumberInput
-                  label="Credit Limit"
-                  defaultValue={Number(corporate.credit_limit)}
-                  decimalScale={2}
-                  onChange={(v) => setEditForm({ ...editForm, credit_limit: Number(v) })}
+                <TextInput
+                  label="GST Number"
+                  error={updateErrors.gst_number?.message}
+                  {...registerUpdate("gst_number")}
                 />
               </Group>
               <Group grow>
-                <NumberInput
-                  label="Credit Days"
-                  defaultValue={corporate.credit_days}
-                  onChange={(v) => setEditForm({ ...editForm, credit_days: Number(v) })}
+                <TextInput
+                  label="Contact Email"
+                  error={updateErrors.contact_email?.message}
+                  {...registerUpdate("contact_email")}
                 />
-                <NumberInput
-                  label="Discount %"
-                  defaultValue={Number(corporate.agreed_discount_percent)}
-                  decimalScale={2}
-                  onChange={(v) => setEditForm({ ...editForm, agreed_discount_percent: Number(v) })}
+                <TextInput
+                  label="Contact Phone"
+                  error={updateErrors.contact_phone?.message}
+                  {...registerUpdate("contact_phone")}
                 />
               </Group>
-              <Button
-                size="xs"
-                onClick={() => updateMutation.mutate(editForm)}
-                loading={updateMutation.isPending}
-              >
+              <Textarea
+                label="Billing Address"
+                error={updateErrors.billing_address?.message}
+                {...registerUpdate("billing_address")}
+              />
+              <Group grow>
+                <Controller
+                  control={updateControl}
+                  name="credit_limit"
+                  render={({ field }) => (
+                    <NumberInput
+                      label="Credit Limit"
+                      min={0}
+                      decimalScale={2}
+                      value={field.value}
+                      onChange={field.onChange}
+                      error={updateErrors.credit_limit?.message}
+                    />
+                  )}
+                />
+                <Controller
+                  control={updateControl}
+                  name="credit_days"
+                  render={({ field }) => (
+                    <NumberInput
+                      label="Credit Days"
+                      min={0}
+                      value={field.value}
+                      onChange={field.onChange}
+                      error={updateErrors.credit_days?.message}
+                    />
+                  )}
+                />
+                <Controller
+                  control={updateControl}
+                  name="agreed_discount_percent"
+                  render={({ field }) => (
+                    <NumberInput
+                      label="Discount %"
+                      min={0}
+                      max={100}
+                      decimalScale={2}
+                      value={field.value}
+                      onChange={field.onChange}
+                      error={updateErrors.agreed_discount_percent?.message}
+                    />
+                  )}
+                />
+                <Controller
+                  control={updateControl}
+                  name="is_active"
+                  render={({ field }) => (
+                    <Switch
+                      label="Active"
+                      checked={field.value}
+                      onChange={(event) => field.onChange(event.currentTarget.checked)}
+                    />
+                  )}
+                />
+              </Group>
+              <Button size="xs" type="submit" loading={updateMutation.isPending}>
                 Save Changes
               </Button>
             </Stack>
@@ -3561,29 +4471,41 @@ function CorporateDetail({ corporateId, canUpdate }: { corporateId: string; canU
             Enroll Patient
           </Button>
           {showEnroll && (
-            <Stack gap="xs">
+            <Stack
+              component="form"
+              gap="xs"
+              onSubmit={handleSubmitEnrollment(handleEnrollCorporatePatient)}
+            >
               <Group grow>
-                <PatientSearchSelect
-                  value={enrollForm.patient_id ?? ""}
-                  onChange={(id) => setEnrollForm({ ...enrollForm, patient_id: id })}
-                  required
+                <Controller
+                  control={enrollmentControl}
+                  name="patient_id"
+                  render={({ field }) => (
+                    <PatientSearchSelect
+                      value={field.value}
+                      onChange={(id) => field.onChange(id)}
+                      required
+                      error={enrollmentErrors.patient_id?.message}
+                    />
+                  )}
                 />
-                <EmployeeSearchSelect
-                  value={enrollForm.employee_id ?? ""}
-                  onChange={(id) => setEnrollForm({ ...enrollForm, employee_id: id || undefined })}
+                <Controller
+                  control={enrollmentControl}
+                  name="employee_id"
+                  render={({ field }) => (
+                    <EmployeeSearchSelect
+                      value={field.value}
+                      onChange={(id) => field.onChange(id ?? "")}
+                    />
+                  )}
                 />
                 <TextInput
                   label="Department"
-                  onChange={(e) =>
-                    setEnrollForm({ ...enrollForm, department: e.currentTarget.value || undefined })
-                  }
+                  error={enrollmentErrors.department?.message}
+                  {...registerEnrollment("department")}
                 />
               </Group>
-              <Button
-                size="xs"
-                onClick={() => enrollMutation.mutate(enrollForm as CreateEnrollmentRequest)}
-                loading={enrollMutation.isPending}
-              >
+              <Button size="xs" type="submit" loading={enrollMutation.isPending}>
                 Enroll
               </Button>
             </Stack>
@@ -3641,48 +4563,48 @@ function ReportsTab() {
 
   const { data: summary, isLoading: summaryLoading } = useQuery({
     queryKey: ["billing-report-summary", fromStr, toStr],
-    queryFn: () => api.billingReportSummary(fromStr, toStr),
+    queryFn: () => billingService.billingReportSummary(fromStr, toStr),
     enabled: !!fromStr && !!toStr,
   });
 
   const { data: deptRevenue = [] } = useQuery({
     queryKey: ["billing-report-dept", fromStr, toStr],
-    queryFn: () => api.billingReportDepartmentRevenue(fromStr, toStr),
+    queryFn: () => billingService.billingReportDepartmentRevenue(fromStr, toStr),
     enabled: !!fromStr && !!toStr,
   });
 
   const { data: aging = [] } = useQuery({
     queryKey: ["billing-report-aging"],
-    queryFn: () => api.billingReportAging(),
+    queryFn: () => billingService.billingReportAging(),
   });
 
   const { data: efficiency } = useQuery({
     queryKey: ["billing-report-efficiency", fromStr, toStr],
-    queryFn: () => api.billingReportCollectionEfficiency(fromStr, toStr),
+    queryFn: () => billingService.billingReportCollectionEfficiency(fromStr, toStr),
     enabled: !!fromStr && !!toStr,
   });
 
   const todayStr = today.toISOString().slice(0, 10);
   const { data: daily } = useQuery({
     queryKey: ["billing-report-daily", todayStr],
-    queryFn: () => api.billingReportDaily(todayStr),
+    queryFn: () => billingService.billingReportDaily(todayStr),
   });
 
   const { data: doctorRevenue = [] } = useQuery({
     queryKey: ["billing-report-doctor-revenue", fromStr, toStr],
-    queryFn: () => api.billingReportDoctorRevenue(fromStr, toStr),
+    queryFn: () => billingService.billingReportDoctorRevenue(fromStr, toStr),
     enabled: !!fromStr && !!toStr,
   });
 
   const { data: insurancePanel = [] } = useQuery({
     queryKey: ["billing-report-insurance-panel", fromStr, toStr],
-    queryFn: () => api.billingReportInsurancePanel(fromStr, toStr),
+    queryFn: () => billingService.billingReportInsurancePanel(fromStr, toStr),
     enabled: !!fromStr && !!toStr,
   });
 
   const { data: reconciliation } = useQuery({
     queryKey: ["billing-report-reconciliation", reconDate],
-    queryFn: () => api.billingReportReconciliation(reconDate),
+    queryFn: () => billingService.billingReportReconciliation(reconDate),
     enabled: !!reconDate,
   });
 
@@ -4051,19 +4973,36 @@ function DayCloseTab() {
   const queryClient = useQueryClient();
   const canVerify = useHasPermission(P.BILLING.DAY_CLOSE_VERIFY);
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState<Partial<CreateDayCloseRequest>>({});
+  const today = new Date();
+  const dayCloseDefaults: BillingDayCloseFormInput = {
+    close_date: `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(
+      today.getDate(),
+    ).padStart(2, "0")}`,
+    actual_cash: 0,
+    notes: "",
+  };
+  const {
+    control,
+    register,
+    reset,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<BillingDayCloseFormInput>({
+    resolver: zodResolver(billingDayCloseFormSchema),
+    defaultValues: dayCloseDefaults,
+  });
 
   const { data: dayCloses = [], isLoading } = useQuery({
     queryKey: ["day-closes"],
-    queryFn: () => api.listDayCloses(),
+    queryFn: () => billingService.listDayCloses(),
   });
 
   const createMutation = useMutation({
-    mutationFn: (data: CreateDayCloseRequest) => api.createDayClose(data),
+    mutationFn: (data: CreateDayCloseRequest) => billingService.createDayClose(data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["day-closes"] });
       setShowForm(false);
-      setForm({});
+      reset(dayCloseDefaults);
       notifications.show({ title: "Success", message: "Day close created", color: "success" });
     },
     onError: () =>
@@ -4074,8 +5013,17 @@ function DayCloseTab() {
       }),
   });
 
+  const handleCreateDayClose = (values: BillingDayCloseFormInput) => {
+    const payload: CreateDayCloseRequest = {
+      close_date: values.close_date.trim(),
+      actual_cash: billingNumberOrFallback(values.actual_cash, 0),
+      notes: billingOptionalText(values.notes),
+    };
+    createMutation.mutate(payload);
+  };
+
   const verifyMutation = useMutation({
-    mutationFn: (id: string) => api.verifyDayClose(id),
+    mutationFn: (id: string) => billingService.verifyDayClose(id),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["day-closes"] });
       notifications.show({ title: "Verified", message: "Day close verified", color: "success" });
@@ -4155,35 +5103,44 @@ function DayCloseTab() {
 
   return (
     <Stack>
-      <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => setShowForm(!showForm)}>
+      <Button
+        size="xs"
+        leftSection={<IconPlus size={14} />}
+        onClick={() => {
+          setShowForm(!showForm);
+          if (showForm) reset(dayCloseDefaults);
+        }}
+      >
         Create Day Close
       </Button>
       {showForm && (
-        <Stack gap="xs">
+        <Stack component="form" gap="xs" onSubmit={handleSubmit(handleCreateDayClose)}>
           <Group grow>
             <TextInput
               label="Close Date"
               type="date"
               required
-              onChange={(e) => setForm({ ...form, close_date: e.currentTarget.value })}
+              error={errors.close_date?.message}
+              {...register("close_date")}
             />
-            <NumberInput
-              label="Actual Cash"
-              required
-              min={0}
-              decimalScale={2}
-              onChange={(v) => setForm({ ...form, actual_cash: Number(v) })}
+            <Controller
+              control={control}
+              name="actual_cash"
+              render={({ field }) => (
+                <NumberInput
+                  label="Actual Cash"
+                  required
+                  min={0}
+                  decimalScale={2}
+                  value={field.value}
+                  onChange={field.onChange}
+                  error={errors.actual_cash?.message}
+                />
+              )}
             />
           </Group>
-          <Textarea
-            label="Notes"
-            onChange={(e) => setForm({ ...form, notes: e.currentTarget.value || undefined })}
-          />
-          <Button
-            size="xs"
-            onClick={() => createMutation.mutate(form as CreateDayCloseRequest)}
-            loading={createMutation.isPending}
-          >
+          <Textarea label="Notes" error={errors.notes?.message} {...register("notes")} />
+          <Button size="xs" type="submit" loading={createMutation.isPending}>
             Submit Day Close
           </Button>
         </Stack>
@@ -4204,7 +5161,7 @@ function AuditLogTab() {
 
   const { data, isLoading } = useQuery({
     queryKey: ["billing-audit-log", params],
-    queryFn: () => api.listBillingAuditLog(params),
+    queryFn: () => billingService.listBillingAuditLog(params),
   });
 
   const actionColors: Record<string, string> = {
@@ -4316,41 +5273,46 @@ function CreditPatientsTab() {
   const [editId, setEditId] = useState<string | null>(null);
   const [showAging, setShowAging] = useState(false);
   const queryClient = useQueryClient();
+  const creditPatientDefaults: BillingCreditPatientFormInput = {
+    patient_id: "",
+    credit_limit: 0,
+    notes: "",
+    status: "",
+  };
+  const {
+    control,
+    register,
+    reset,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<BillingCreditPatientFormInput>({
+    resolver: zodResolver(billingCreditPatientFormSchema),
+    defaultValues: creditPatientDefaults,
+  });
 
   const params: Record<string, string> = {};
   if (statusFilter) params.status = statusFilter;
 
   const { data: allCreditPatients, isLoading } = useQuery({
     queryKey: ["credit-patients", params],
-    queryFn: () => api.listCreditPatients(params),
+    queryFn: () => billingService.listCreditPatients(params),
   });
 
   const creditPatients = allCreditPatients ?? [];
 
   const { data: agingRaw } = useQuery({
     queryKey: ["credit-aging"],
-    queryFn: () => api.reportCreditAging(),
+    queryFn: () => billingService.reportCreditAging(),
     enabled: showAging,
   });
   const agingData = agingRaw ?? [];
 
-  const [form, setForm] = useState({
-    patient_id: "",
-    credit_limit: 0,
-    notes: "",
-    status: "" as string,
-  });
-
   const createMut = useMutation({
-    mutationFn: () =>
-      api.createCreditPatient({
-        patient_id: form.patient_id,
-        credit_limit: form.credit_limit,
-        notes: form.notes,
-      }),
+    mutationFn: (data: CreateCreditPatientRequest) => billingService.createCreditPatient(data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["credit-patients"] });
       close();
+      reset(creditPatientDefaults);
       notifications.show({ title: "Created", message: "Credit patient added", color: "success" });
     },
     onError: () =>
@@ -4359,10 +5321,12 @@ function CreditPatientsTab() {
 
   const updateMut = useMutation({
     mutationFn: (data: { id: string; req: UpdateCreditPatientRequest }) =>
-      api.updateCreditPatient(data.id, data.req),
+      billingService.updateCreditPatient(data.id, data.req),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["credit-patients"] });
       close();
+      setEditId(null);
+      reset(creditPatientDefaults);
       notifications.show({ title: "Updated", message: "Credit patient updated", color: "success" });
     },
     onError: () =>
@@ -4424,7 +5388,7 @@ function CreditPatientsTab() {
                 variant="subtle"
                 onClick={() => {
                   setEditId(r.id);
-                  setForm({
+                  reset({
                     patient_id: r.patient_id,
                     credit_limit: r.credit_limit,
                     notes: r.notes ?? "",
@@ -4525,7 +5489,7 @@ function CreditPatientsTab() {
             leftSection={<IconPlus size={16} />}
             onClick={() => {
               setEditId(null);
-              setForm({ patient_id: "", credit_limit: 0, notes: "", status: "" });
+              reset(creditPatientDefaults);
               open();
             }}
           >
@@ -4563,59 +5527,76 @@ function CreditPatientsTab() {
 
       <Drawer
         opened={opened}
-        onClose={close}
+        onClose={() => {
+          close();
+          setEditId(null);
+          reset(creditPatientDefaults);
+        }}
         title={editId ? "Edit Credit Patient" : "Add Credit Patient"}
         position="right"
         size="xl"
       >
-        <Stack>
+        <Stack
+          component="form"
+          onSubmit={handleSubmit((values) => {
+            if (editId) {
+              updateMut.mutate({
+                id: editId,
+                req: {
+                  credit_limit: billingNumberOrFallback(values.credit_limit, 0),
+                  notes: billingOptionalText(values.notes),
+                  ...(values.status ? { status: values.status } : {}),
+                },
+              });
+              return;
+            }
+            createMut.mutate({
+              patient_id: values.patient_id.trim(),
+              credit_limit: billingNumberOrFallback(values.credit_limit, 0),
+              notes: billingOptionalText(values.notes),
+            });
+          })}
+        >
           {!editId && (
             <TextInput
               label="Patient ID"
-              value={form.patient_id}
-              onChange={(e) => setForm({ ...form, patient_id: e.currentTarget.value })}
+              error={errors.patient_id?.message}
+              {...register("patient_id")}
               required
             />
           )}
-          <NumberInput
-            label="Credit Limit (₹)"
-            value={form.credit_limit}
-            onChange={(v) => setForm({ ...form, credit_limit: Number(v) })}
-            min={0}
-            required
+          <Controller
+            control={control}
+            name="credit_limit"
+            render={({ field }) => (
+              <NumberInput
+                label="Credit Limit (₹)"
+                value={field.value}
+                onChange={field.onChange}
+                error={errors.credit_limit?.message}
+                min={0}
+                required
+              />
+            )}
           />
-          <Textarea
-            label="Notes"
-            value={form.notes ?? ""}
-            onChange={(e) => setForm({ ...form, notes: e.currentTarget.value })}
-          />
+          <Textarea label="Notes" error={errors.notes?.message} {...register("notes")} />
           {editId && (
-            <Select
-              label="Status"
-              data={["active", "overdue", "suspended", "closed"].map((s) => ({
-                value: s,
-                label: s,
-              }))}
-              onChange={(v) => setForm({ ...form, status: v ?? "" })}
+            <Controller
+              control={control}
+              name="status"
+              render={({ field }) => (
+                <Select
+                  label="Status"
+                  data={billingCreditPatientStatusOptions}
+                  value={field.value || null}
+                  onChange={(value) => field.onChange(value ?? "")}
+                  error={errors.status?.message}
+                  clearable
+                />
+              )}
             />
           )}
-          <Button
-            onClick={() =>
-              editId
-                ? updateMut.mutate({
-                    id: editId,
-                    req: {
-                      credit_limit: form.credit_limit,
-                      notes: form.notes,
-                      ...(form.status
-                        ? { status: form.status as UpdateCreditPatientRequest["status"] }
-                        : {}),
-                    },
-                  })
-                : createMut.mutate()
-            }
-            loading={createMut.isPending || updateMut.isPending}
-          >
+          <Button type="submit" loading={createMut.isPending || updateMut.isPending}>
             {editId ? "Update" : "Create"}
           </Button>
         </Stack>
@@ -4651,22 +5632,33 @@ function GstTdsTab({ canTds }: { canTds: boolean }) {
 
 function GstrSubView({ canManage }: { canManage: boolean }) {
   const queryClient = useQueryClient();
-  const [genForm, setGenForm] = useState<GenerateGstrRequest>({
+  const gstrDefaults: BillingGstrFormInput = {
     return_type: "GSTR-1",
     period: "",
+  };
+  const {
+    control,
+    register,
+    reset,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<BillingGstrFormInput>({
+    resolver: zodResolver(billingGstrFormSchema),
+    defaultValues: gstrDefaults,
   });
   const [genOpened, { open: openGen, close: closeGen }] = useDisclosure(false);
 
   const { data: gstrSummaries, isLoading } = useQuery({
     queryKey: ["gstr-summaries"],
-    queryFn: () => api.listGstrSummaries(),
+    queryFn: () => billingService.listGstrSummaries(),
   });
 
   const generateMut = useMutation({
-    mutationFn: () => api.generateGstrSummary(genForm),
+    mutationFn: (data: GenerateGstrRequest) => billingService.generateGstrSummary(data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["gstr-summaries"] });
       closeGen();
+      reset(gstrDefaults);
       notifications.show({ title: "Generated", message: "GSTR summary created", color: "success" });
     },
     onError: () =>
@@ -4674,7 +5666,7 @@ function GstrSubView({ canManage }: { canManage: boolean }) {
   });
 
   const fileMut = useMutation({
-    mutationFn: (id: string) => api.fileGstr(id),
+    mutationFn: (id: string) => billingService.fileGstr(id),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["gstr-summaries"] });
       notifications.show({ title: "Filed", message: "GSTR marked as filed", color: "success" });
@@ -4749,12 +5741,25 @@ function GstrSubView({ canManage }: { canManage: boolean }) {
       : []),
   ];
 
+  const handleGenerateGstr = (values: BillingGstrFormInput) => {
+    generateMut.mutate({
+      return_type: values.return_type,
+      period: values.period.trim(),
+    });
+  };
+
   return (
     <Stack>
       <Group justify="space-between">
         <Text fw={600}>GST Return Summaries</Text>
         {canManage && (
-          <Button leftSection={<IconPlus size={16} />} onClick={openGen}>
+          <Button
+            leftSection={<IconPlus size={16} />}
+            onClick={() => {
+              reset(gstrDefaults);
+              openGen();
+            }}
+          >
             Generate Summary
           </Button>
         )}
@@ -4771,25 +5776,35 @@ function GstrSubView({ canManage }: { canManage: boolean }) {
 
       <Drawer
         opened={genOpened}
-        onClose={closeGen}
+        onClose={() => {
+          closeGen();
+          reset(gstrDefaults);
+        }}
         title="Generate GSTR Summary"
         position="right"
         size="xl"
       >
-        <Stack>
-          <Select
-            label="Return Type"
-            data={["GSTR-1", "GSTR-2B", "GSTR-3B"].map((v) => ({ value: v, label: v }))}
-            value={genForm.return_type}
-            onChange={(v) => setGenForm({ ...genForm, return_type: v ?? "GSTR-1" })}
+        <Stack component="form" onSubmit={handleSubmit(handleGenerateGstr)}>
+          <Controller
+            control={control}
+            name="return_type"
+            render={({ field }) => (
+              <Select
+                label="Return Type"
+                data={billingGstrReturnTypeOptions}
+                value={field.value}
+                onChange={(value) => field.onChange(value ?? "GSTR-1")}
+                error={errors.return_type?.message}
+              />
+            )}
           />
           <TextInput
             label="Period (e.g. 2026-03)"
-            value={genForm.period}
-            onChange={(e) => setGenForm({ ...genForm, period: e.currentTarget.value })}
+            error={errors.period?.message}
+            {...register("period")}
             required
           />
-          <Button onClick={() => generateMut.mutate()} loading={generateMut.isPending}>
+          <Button type="submit" loading={generateMut.isPending}>
             Generate
           </Button>
         </Stack>
@@ -4802,7 +5817,7 @@ function TdsSubView({ canManage }: { canManage: boolean }) {
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
   const [opened, { open, close }] = useDisclosure(false);
-  const [form, setForm] = useState<CreateTdsRequest>({
+  const tdsDefaults: BillingTdsFormInput = {
     invoice_id: "",
     deductee_name: "",
     deductee_pan: "",
@@ -4812,18 +5827,36 @@ function TdsSubView({ canManage }: { canManage: boolean }) {
     deducted_date: new Date().toISOString().slice(0, 10),
     financial_year: "2025-26",
     quarter: "Q4",
+  };
+  const {
+    control,
+    register,
+    reset,
+    handleSubmit,
+    watch,
+    formState: { errors },
+  } = useForm<BillingTdsFormInput>({
+    resolver: zodResolver(billingTdsFormSchema),
+    defaultValues: tdsDefaults,
   });
+  const watchedTds = watch();
+  const estimatedTds = Math.round(
+    (billingNumberOrFallback(watchedTds.base_amount, 0) *
+      billingNumberOrFallback(watchedTds.tds_rate, 0)) /
+      100,
+  );
 
   const { data: tdsItems, isLoading } = useQuery({
     queryKey: ["tds-deductions"],
-    queryFn: () => api.listTdsDeductions(),
+    queryFn: () => billingService.listTdsDeductions(),
   });
 
   const createMut = useMutation({
-    mutationFn: () => api.createTdsDeduction(form),
+    mutationFn: (data: CreateTdsRequest) => billingService.createTdsDeduction(data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["tds-deductions"] });
       close();
+      reset(tdsDefaults);
       notifications.show({ title: "Created", message: "TDS deduction recorded", color: "success" });
     },
     onError: () => notifications.show({ title: "Error", message: "Failed", color: "danger" }),
@@ -4831,7 +5864,7 @@ function TdsSubView({ canManage }: { canManage: boolean }) {
 
   const depositMut = useMutation({
     mutationFn: (args: { id: string; challan: string }) =>
-      api.depositTds(args.id, {
+      billingService.depositTds(args.id, {
         challan_number: args.challan,
         challan_date: new Date().toISOString().slice(0, 10),
       }),
@@ -4843,7 +5876,7 @@ function TdsSubView({ canManage }: { canManage: boolean }) {
 
   const certMut = useMutation({
     mutationFn: (args: { id: string; cert: string }) =>
-      api.issueTdsCertificate(args.id, {
+      billingService.issueTdsCertificate(args.id, {
         certificate_number: args.cert,
         certificate_date: new Date().toISOString().slice(0, 10),
       }),
@@ -4956,12 +5989,33 @@ function TdsSubView({ canManage }: { canManage: boolean }) {
       : []),
   ];
 
+  const handleCreateTds = (values: BillingTdsFormInput) => {
+    const payload: CreateTdsRequest = {
+      invoice_id: billingOptionalText(values.invoice_id),
+      deductee_name: values.deductee_name.trim(),
+      deductee_pan: values.deductee_pan.trim().toUpperCase(),
+      tds_section: values.tds_section,
+      tds_rate: billingNumberOrFallback(values.tds_rate, 0),
+      base_amount: billingNumberOrFallback(values.base_amount, 0),
+      deducted_date: values.deducted_date.trim(),
+      financial_year: values.financial_year.trim(),
+      quarter: values.quarter,
+    };
+    createMut.mutate(payload);
+  };
+
   return (
     <Stack>
       <Group justify="space-between">
         <Text fw={600}>TDS Deductions</Text>
         {canManage && (
-          <Button leftSection={<IconPlus size={16} />} onClick={open}>
+          <Button
+            leftSection={<IconPlus size={16} />}
+            onClick={() => {
+              reset(tdsDefaults);
+              open();
+            }}
+          >
             Record TDS
           </Button>
         )}
@@ -4978,78 +6032,103 @@ function TdsSubView({ canManage }: { canManage: boolean }) {
 
       <Drawer
         opened={opened}
-        onClose={close}
+        onClose={() => {
+          close();
+          reset(tdsDefaults);
+        }}
         title="Record TDS Deduction"
         position="right"
         size="xl"
       >
-        <Stack>
+        <Stack component="form" onSubmit={handleSubmit(handleCreateTds)}>
           <TextInput
             label="Invoice ID"
-            value={form.invoice_id}
-            onChange={(e) => setForm({ ...form, invoice_id: e.currentTarget.value })}
-            required
+            error={errors.invoice_id?.message}
+            {...register("invoice_id")}
           />
           <TextInput
             label="Deductee Name"
-            value={form.deductee_name}
-            onChange={(e) => setForm({ ...form, deductee_name: e.currentTarget.value })}
+            error={errors.deductee_name?.message}
+            {...register("deductee_name")}
             required
           />
           <TextInput
             label="PAN"
-            value={form.deductee_pan}
-            onChange={(e) =>
-              setForm({ ...form, deductee_pan: e.currentTarget.value.toUpperCase() })
-            }
+            error={errors.deductee_pan?.message}
+            {...register("deductee_pan")}
             required
             maxLength={10}
           />
-          <Select
-            label="Section"
-            data={["194J", "194C", "194H", "194I", "194A", "194Q"].map((v) => ({
-              value: v,
-              label: v,
-            }))}
-            value={form.tds_section}
-            onChange={(v) => setForm({ ...form, tds_section: v ?? "194J" })}
+          <Controller
+            control={control}
+            name="tds_section"
+            render={({ field }) => (
+              <Select
+                label="Section"
+                data={billingTdsSectionOptions}
+                value={field.value}
+                onChange={(value) => field.onChange(value ?? "194J")}
+                error={errors.tds_section?.message}
+              />
+            )}
           />
-          <NumberInput
-            label="TDS Rate %"
-            value={form.tds_rate}
-            onChange={(v) => setForm({ ...form, tds_rate: Number(v) })}
-            min={0}
-            max={100}
+          <Controller
+            control={control}
+            name="tds_rate"
+            render={({ field }) => (
+              <NumberInput
+                label="TDS Rate %"
+                value={field.value}
+                onChange={field.onChange}
+                error={errors.tds_rate?.message}
+                min={0}
+                max={100}
+              />
+            )}
           />
-          <NumberInput
-            label="Base Amount"
-            value={form.base_amount}
-            onChange={(v) => setForm({ ...form, base_amount: Number(v) })}
-            min={0}
+          <Controller
+            control={control}
+            name="base_amount"
+            render={({ field }) => (
+              <NumberInput
+                label="Base Amount"
+                value={field.value}
+                onChange={field.onChange}
+                error={errors.base_amount?.message}
+                min={0}
+              />
+            )}
           />
           <Text size="sm" c="dimmed">
-            Estimated TDS: ₹{Math.round((form.base_amount * form.tds_rate) / 100).toLocaleString()}
+            Estimated TDS: ₹{estimatedTds.toLocaleString()}
           </Text>
           <TextInput
             label="Deducted Date"
             type="date"
-            value={form.deducted_date}
-            onChange={(e) => setForm({ ...form, deducted_date: e.currentTarget.value })}
+            error={errors.deducted_date?.message}
+            {...register("deducted_date")}
             required
           />
-          <Select
+          <TextInput
             label="Financial Year"
-            data={["2024-25", "2025-26", "2026-27"].map((v) => ({ value: v, label: v }))}
-            value={form.financial_year}
-            onChange={(v) => setForm({ ...form, financial_year: v ?? "2025-26" })}
+            placeholder="2025-26"
+            error={errors.financial_year?.message}
+            {...register("financial_year")}
           />
-          <Select
-            label="Quarter"
-            data={["Q1", "Q2", "Q3", "Q4"].map((v) => ({ value: v, label: v }))}
-            value={form.quarter}
-            onChange={(v) => setForm({ ...form, quarter: v ?? "Q4" })}
+          <Controller
+            control={control}
+            name="quarter"
+            render={({ field }) => (
+              <Select
+                label="Quarter"
+                data={billingTdsQuarterOptions}
+                value={field.value}
+                onChange={(value) => field.onChange(value ?? "Q4")}
+                error={errors.quarter?.message}
+              />
+            )}
           />
-          <Button onClick={() => createMut.mutate()} loading={createMut.isPending}>
+          <Button type="submit" loading={createMut.isPending}>
             Record
           </Button>
         </Stack>
@@ -5062,7 +6141,7 @@ function HsnSubView() {
   const [period, setPeriod] = useState("");
   const { data: hsnRows, isLoading } = useQuery({
     queryKey: ["hsn-summary", period],
-    queryFn: () => api.reportHsnSummary(period),
+    queryFn: () => billingService.reportHsnSummary(period),
     enabled: period.length >= 7,
   });
 
@@ -5147,27 +6226,51 @@ function JournalEntriesTab() {
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
   const [opened, { open, close }] = useDisclosure(false);
   const queryClient = useQueryClient();
+  const journalLineDefaults: BillingJournalLineFormInput = {
+    account_id: "",
+    department_id: "",
+    debit_amount: 0,
+    credit_amount: 0,
+    narration: "",
+  };
+  const journalDefaults: BillingJournalEntryFormInput = {
+    entry_date: new Date().toISOString().slice(0, 10),
+    description: "",
+    reference_type: "",
+    reference_id: "",
+    lines: [{ ...journalLineDefaults }, { ...journalLineDefaults }],
+  };
+  const {
+    control,
+    register,
+    reset,
+    handleSubmit,
+    watch,
+    formState: { errors },
+  } = useForm<BillingJournalEntryFormInput>({
+    resolver: zodResolver(billingJournalEntryFormSchema),
+    defaultValues: journalDefaults,
+  });
+  const {
+    fields: journalLines,
+    append: appendJournalLine,
+    remove: removeJournalLine,
+  } = useFieldArray({
+    control,
+    name: "lines",
+  });
 
   const params: Record<string, string> = { page: String(page), per_page: "20" };
   if (statusFilter) params.status = statusFilter;
 
   const { data: jeItems, isLoading } = useQuery({
     queryKey: ["journal-entries", params],
-    queryFn: () => api.listJournalEntries(params),
-  });
-
-  const [form, setForm] = useState<CreateJournalEntryRequest>({
-    entry_date: new Date().toISOString().slice(0, 10),
-    description: "",
-    lines: [
-      { account_id: "", debit_amount: 0, credit_amount: 0 },
-      { account_id: "", debit_amount: 0, credit_amount: 0 },
-    ],
+    queryFn: () => billingService.listJournalEntries(params),
   });
 
   const { data: glAccounts } = useQuery({
     queryKey: ["gl-accounts"],
-    queryFn: () => api.listGlAccounts(),
+    queryFn: () => billingService.listGlAccounts(),
     enabled: opened,
   });
 
@@ -5176,15 +6279,23 @@ function JournalEntriesTab() {
     label: `${a.code} — ${a.name}`,
   }));
 
-  const totalDebit = form.lines.reduce((s, l) => s + (l.debit_amount ?? 0), 0);
-  const totalCredit = form.lines.reduce((s, l) => s + (l.credit_amount ?? 0), 0);
+  const watchedLines = watch("lines");
+  const totalDebit = watchedLines.reduce(
+    (sum, line) => sum + billingNumberOrFallback(line.debit_amount, 0),
+    0,
+  );
+  const totalCredit = watchedLines.reduce(
+    (sum, line) => sum + billingNumberOrFallback(line.credit_amount, 0),
+    0,
+  );
   const balanced = Math.abs(totalDebit - totalCredit) < 0.01 && totalDebit > 0;
 
   const createMut = useMutation({
-    mutationFn: () => api.createJournalEntry(form),
+    mutationFn: (data: CreateJournalEntryRequest) => billingService.createJournalEntry(data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["journal-entries"] });
       close();
+      reset(journalDefaults);
       notifications.show({ title: "Created", message: "Journal entry created", color: "success" });
     },
     onError: () =>
@@ -5196,7 +6307,7 @@ function JournalEntriesTab() {
   });
 
   const postMut = useMutation({
-    mutationFn: (id: string) => api.postJournalEntry(id),
+    mutationFn: (id: string) => billingService.postJournalEntry(id),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["journal-entries"] });
       notifications.show({
@@ -5209,7 +6320,7 @@ function JournalEntriesTab() {
   });
 
   const reverseMut = useMutation({
-    mutationFn: (id: string) => api.reverseJournalEntry(id),
+    mutationFn: (id: string) => billingService.reverseJournalEntry(id),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["journal-entries"] });
       notifications.show({
@@ -5221,20 +6332,6 @@ function JournalEntriesTab() {
     onError: () =>
       notifications.show({ title: "Error", message: "Reversal failed", color: "danger" }),
   });
-
-  const addLine = () =>
-    setForm({
-      ...form,
-      lines: [...form.lines, { account_id: "", debit_amount: 0, credit_amount: 0 }],
-    });
-  const removeLine = (idx: number) =>
-    setForm({ ...form, lines: form.lines.filter((_, i) => i !== idx) });
-  const updateLine = (idx: number, field: keyof JournalLineInput, value: string | number) => {
-    const lines: JournalLineInput[] = form.lines.map((l, i) =>
-      i === idx ? { ...l, [field]: value } : l,
-    );
-    setForm({ ...form, lines });
-  };
 
   const jeStatusColors: Record<string, string> = {
     draft: "slate",
@@ -5332,6 +6429,22 @@ function JournalEntriesTab() {
       : []),
   ];
 
+  const handleCreateJournalEntry = (values: BillingJournalEntryFormInput) => {
+    createMut.mutate({
+      entry_date: values.entry_date.trim(),
+      description: billingOptionalText(values.description),
+      reference_type: billingOptionalText(values.reference_type),
+      reference_id: billingOptionalText(values.reference_id),
+      lines: values.lines.map((line) => ({
+        account_id: line.account_id.trim(),
+        department_id: billingOptionalText(line.department_id),
+        debit_amount: billingNumberOrFallback(line.debit_amount, 0),
+        credit_amount: billingNumberOrFallback(line.credit_amount, 0),
+        narration: billingOptionalText(line.narration),
+      })),
+    });
+  };
+
   return (
     <Stack>
       <Group justify="space-between">
@@ -5344,7 +6457,13 @@ function JournalEntriesTab() {
           w={160}
         />
         {canCreate && (
-          <Button leftSection={<IconPlus size={16} />} onClick={open}>
+          <Button
+            leftSection={<IconPlus size={16} />}
+            onClick={() => {
+              reset(journalDefaults);
+              open();
+            }}
+          >
             New Journal Entry
           </Button>
         )}
@@ -5361,63 +6480,91 @@ function JournalEntriesTab() {
 
       <Drawer
         opened={opened}
-        onClose={close}
+        onClose={() => {
+          close();
+          reset(journalDefaults);
+        }}
         title="Create Journal Entry"
         position="right"
         size="lg"
       >
-        <Stack>
+        <Stack component="form" onSubmit={handleSubmit(handleCreateJournalEntry)}>
           <TextInput
             label="Entry Date"
             type="date"
-            value={form.entry_date}
-            onChange={(e) => setForm({ ...form, entry_date: e.currentTarget.value })}
+            error={errors.entry_date?.message}
+            {...register("entry_date")}
             required
           />
           <Textarea
             label="Description"
-            value={form.description ?? ""}
-            onChange={(e) => setForm({ ...form, description: e.currentTarget.value })}
+            error={errors.description?.message}
+            {...register("description")}
           />
 
           <Group justify="space-between">
             <Text fw={600}>Lines</Text>
-            <Button size="xs" variant="light" onClick={addLine}>
+            <Button
+              size="xs"
+              variant="light"
+              onClick={() => appendJournalLine({ ...journalLineDefaults })}
+            >
               Add Line
             </Button>
           </Group>
 
-          {form.lines.map((line, idx) => (
-            <Card
-              key={`${line.account_id || "line"}-${line.debit_amount}-${line.credit_amount}`}
-              withBorder
-              p="xs"
-            >
+          {journalLines.map((line, idx) => (
+            <Card key={line.id} withBorder p="xs">
               <Group>
-                <Select
-                  placeholder="Account"
-                  data={glOptions}
-                  value={line.account_id}
-                  onChange={(v) => updateLine(idx, "account_id", v ?? "")}
-                  searchable
-                  style={{ flex: 1 }}
+                <Controller
+                  control={control}
+                  name={`lines.${idx}.account_id`}
+                  render={({ field }) => (
+                    <Select
+                      placeholder="Account"
+                      data={glOptions}
+                      value={field.value}
+                      onChange={(value) => field.onChange(value ?? "")}
+                      error={errors.lines?.[idx]?.account_id?.message}
+                      searchable
+                      style={{ flex: 1 }}
+                    />
+                  )}
                 />
-                <NumberInput
-                  placeholder="Debit"
-                  value={line.debit_amount}
-                  onChange={(v) => updateLine(idx, "debit_amount", Number(v))}
-                  min={0}
-                  w={120}
+                <Controller
+                  control={control}
+                  name={`lines.${idx}.debit_amount`}
+                  render={({ field }) => (
+                    <NumberInput
+                      placeholder="Debit"
+                      value={field.value}
+                      onChange={field.onChange}
+                      error={errors.lines?.[idx]?.debit_amount?.message}
+                      min={0}
+                      w={120}
+                    />
+                  )}
                 />
-                <NumberInput
-                  placeholder="Credit"
-                  value={line.credit_amount}
-                  onChange={(v) => updateLine(idx, "credit_amount", Number(v))}
-                  min={0}
-                  w={120}
+                <Controller
+                  control={control}
+                  name={`lines.${idx}.credit_amount`}
+                  render={({ field }) => (
+                    <NumberInput
+                      placeholder="Credit"
+                      value={field.value}
+                      onChange={field.onChange}
+                      error={errors.lines?.[idx]?.credit_amount?.message}
+                      min={0}
+                      w={120}
+                    />
+                  )}
                 />
-                {form.lines.length > 2 && (
-                  <ActionIcon variant="subtle" color="danger" onClick={() => removeLine(idx)}>
+                {journalLines.length > 2 && (
+                  <ActionIcon
+                    variant="subtle"
+                    color="danger"
+                    onClick={() => removeJournalLine(idx)}
+                  >
                     <IconTrash size={16} />
                   </ActionIcon>
                 )}
@@ -5434,12 +6581,13 @@ function JournalEntriesTab() {
               Debits must equal credits before saving.
             </Alert>
           )}
+          {errors.lines?.message && (
+            <Alert color="danger" title="Journal validation">
+              {errors.lines.message}
+            </Alert>
+          )}
 
-          <Button
-            onClick={() => createMut.mutate()}
-            loading={createMut.isPending}
-            disabled={!balanced}
-          >
+          <Button type="submit" loading={createMut.isPending} disabled={!balanced}>
             Create Journal Entry
           </Button>
         </Stack>
@@ -5462,7 +6610,7 @@ function BankReconTab() {
 
   const { data: bankTxns, isLoading } = useQuery({
     queryKey: ["bank-transactions", params],
-    queryFn: () => api.listBankTransactions(params),
+    queryFn: () => billingService.listBankTransactions(params),
   });
 
   const [bankName, setBankName] = useState("");
@@ -5478,7 +6626,7 @@ function BankReconTab() {
   });
 
   const importMut = useMutation({
-    mutationFn: () => api.importBankTransactions({ transactions: importTxns }),
+    mutationFn: () => billingService.importBankTransactions({ transactions: importTxns }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["bank-transactions"] });
       closeImport();
@@ -5493,7 +6641,7 @@ function BankReconTab() {
   });
 
   const autoReconMut = useMutation({
-    mutationFn: () => api.autoReconcile(),
+    mutationFn: () => billingService.autoReconcile(),
     onSuccess: (res) => {
       void queryClient.invalidateQueries({ queryKey: ["bank-transactions"] });
       notifications.show({
@@ -5509,7 +6657,7 @@ function BankReconTab() {
   // TPA recon (priority #4) — matches unmatched credits to insurance_claims
   // by reference / claim_number / amount-window heuristics.
   const autoMatchTpaMut = useMutation({
-    mutationFn: () => api.autoMatchBankTransactions(),
+    mutationFn: () => billingService.autoMatchBankTransactions(),
     onSuccess: (res) => {
       void queryClient.invalidateQueries({ queryKey: ["bank-transactions"] });
       void queryClient.invalidateQueries({ queryKey: ["insurance-receivables-aging"] });
@@ -5525,7 +6673,7 @@ function BankReconTab() {
 
   const { data: insAging = [] } = useQuery({
     queryKey: ["insurance-receivables-aging"],
-    queryFn: () => api.listInsuranceReceivablesAging(),
+    queryFn: () => billingService.listInsuranceReceivablesAging(),
   });
 
   const reconStatusColors: Record<string, string> = {
@@ -5799,13 +6947,13 @@ function FinancialMisTab() {
 
   const { data: misData } = useQuery({
     queryKey: ["financial-mis", dateFrom, dateTo],
-    queryFn: () => api.reportFinancialMis(dateFrom, dateTo),
+    queryFn: () => billingService.reportFinancialMis(dateFrom, dateTo),
     enabled: Boolean(dateFrom && dateTo),
   });
 
   const { data: plRows, isLoading: plLoading } = useQuery({
     queryKey: ["profit-loss", dateFrom, dateTo],
-    queryFn: () => api.reportProfitLoss(dateFrom, dateTo),
+    queryFn: () => billingService.reportProfitLoss(dateFrom, dateTo),
     enabled: Boolean(dateFrom && dateTo),
   });
 
@@ -5969,23 +7117,32 @@ function FinancialMisTab() {
 /* ─── ERP Export Tab ─────────────────────────────────────────────── */
 
 function ErpExportTab() {
-  const [form, setForm] = useState<ErpExportRequest>({
+  const erpExportDefaults: BillingErpExportFormInput = {
     target_system: "tally",
     export_type: "invoices",
     date_from: new Date(new Date().getFullYear(), new Date().getMonth(), 1)
       .toISOString()
       .slice(0, 10),
     date_to: new Date().toISOString().slice(0, 10),
+  };
+  const {
+    control,
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<BillingErpExportFormInput>({
+    resolver: zodResolver(billingErpExportFormSchema),
+    defaultValues: erpExportDefaults,
   });
   const queryClient = useQueryClient();
 
   const { data: erpExports, isLoading } = useQuery({
     queryKey: ["erp-exports"],
-    queryFn: () => api.listErpExports(),
+    queryFn: () => billingService.listErpExports(),
   });
 
   const exportMut = useMutation({
-    mutationFn: () => api.exportToErp(form),
+    mutationFn: (data: ErpExportRequest) => billingService.exportToErp(data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["erp-exports"] });
       notifications.show({ title: "Exported", message: "Data exported to ERP", color: "success" });
@@ -5993,6 +7150,15 @@ function ErpExportTab() {
     onError: () =>
       notifications.show({ title: "Error", message: "Export failed", color: "danger" }),
   });
+
+  const handleExportToErp = (values: BillingErpExportFormInput) => {
+    exportMut.mutate({
+      target_system: values.target_system,
+      export_type: values.export_type,
+      date_from: billingOptionalText(values.date_from),
+      date_to: billingOptionalText(values.date_to),
+    });
+  };
 
   const erpStatusColors: Record<string, string> = {
     pending: "warning",
@@ -6048,48 +7214,52 @@ function ErpExportTab() {
         <Text fw={600} mb="sm">
           Export to ERP
         </Text>
-        <Group align="end">
-          <Select
-            label="Target System"
-            data={[
-              { value: "tally", label: "Tally ERP" },
-              { value: "sap", label: "SAP" },
-              { value: "odoo", label: "Odoo" },
-              { value: "zoho", label: "Zoho Books" },
-            ]}
-            value={form.target_system}
-            onChange={(v) => setForm({ ...form, target_system: v ?? "tally" })}
-            w={180}
+        <Group component="form" align="end" onSubmit={handleSubmit(handleExportToErp)}>
+          <Controller
+            control={control}
+            name="target_system"
+            render={({ field }) => (
+              <Select
+                label="Target System"
+                data={billingErpTargetSystemOptions}
+                value={field.value}
+                onChange={(value) => field.onChange(value ?? "tally")}
+                error={errors.target_system?.message}
+                w={180}
+              />
+            )}
           />
-          <Select
-            label="Export Type"
-            data={[
-              { value: "invoices", label: "Invoices" },
-              { value: "payments", label: "Payments" },
-              { value: "journal_entries", label: "Journal Entries" },
-              { value: "all", label: "All Financial Data" },
-            ]}
-            value={form.export_type}
-            onChange={(v) => setForm({ ...form, export_type: v ?? "invoices" })}
-            w={200}
+          <Controller
+            control={control}
+            name="export_type"
+            render={({ field }) => (
+              <Select
+                label="Export Type"
+                data={billingErpExportTypeOptions}
+                value={field.value}
+                onChange={(value) => field.onChange(value ?? "invoices")}
+                error={errors.export_type?.message}
+                w={200}
+              />
+            )}
           />
           <TextInput
             label="From"
             type="date"
-            value={form.date_from ?? ""}
-            onChange={(e) => setForm({ ...form, date_from: e.currentTarget.value })}
+            error={errors.date_from?.message}
+            {...register("date_from")}
             w={160}
           />
           <TextInput
             label="To"
             type="date"
-            value={form.date_to ?? ""}
-            onChange={(e) => setForm({ ...form, date_to: e.currentTarget.value })}
+            error={errors.date_to?.message}
+            {...register("date_to")}
             w={160}
           />
           <Button
             leftSection={<IconDatabase size={16} />}
-            onClick={() => exportMut.mutate()}
+            type="submit"
             loading={exportMut.isPending}
           >
             Export
@@ -6125,17 +7295,18 @@ function ConcessionsTab({ canApprove }: { canApprove: boolean }) {
 
   const { data, isLoading } = useQuery({
     queryKey: ["billing", "concessions", params],
-    queryFn: () => api.listConcessions(Object.keys(params).length > 0 ? params : undefined),
+    queryFn: () =>
+      billingService.listConcessions(Object.keys(params).length > 0 ? params : undefined),
   });
 
   const { data: rulesData } = useQuery({
     queryKey: ["billing", "concessions", "auto-rules"],
-    queryFn: () => api.getAutoConcessionRules(),
+    queryFn: () => billingService.getAutoConcessionRules(),
     enabled: view === "rules",
   });
 
   const approveMut = useMutation({
-    mutationFn: (id: string) => api.approveConcession(id),
+    mutationFn: (id: string) => billingService.approveConcession(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["billing", "concessions"] });
       notifications.show({ title: "Approved", message: "Concession approved", color: "success" });
@@ -6143,7 +7314,7 @@ function ConcessionsTab({ canApprove }: { canApprove: boolean }) {
   });
 
   const rejectMut = useMutation({
-    mutationFn: (id: string) => api.rejectConcession(id),
+    mutationFn: (id: string) => billingService.rejectConcession(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["billing", "concessions"] });
       notifications.show({ title: "Rejected", message: "Concession rejected", color: "danger" });
@@ -6154,7 +7325,7 @@ function ConcessionsTab({ canApprove }: { canApprove: boolean }) {
   const saveRulesMut = useMutation({
     mutationFn: () => {
       const parsed = JSON.parse(rulesDraft) as AutoConcessionRule[];
-      return api.updateAutoConcessionRules({ rules: parsed });
+      return billingService.updateAutoConcessionRules({ rules: parsed });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["billing", "concessions", "auto-rules"] });

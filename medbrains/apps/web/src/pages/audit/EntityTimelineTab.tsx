@@ -11,7 +11,6 @@ import {
   TextInput,
   Timeline,
 } from "@mantine/core";
-import { api } from "@medbrains/api";
 import type { AuditLogEntry } from "@medbrains/types";
 import {
   IconChevronDown,
@@ -23,6 +22,7 @@ import {
 } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
+import { auditService } from "../../services/audit.service";
 
 // ── Constants ──────────────────────────────────────────
 
@@ -48,13 +48,14 @@ export function EntityTimelineTab() {
   // Fetch entity types for dropdown
   const { data: entityTypes } = useQuery({
     queryKey: ["audit-entity-types"],
-    queryFn: () => api.listAuditEntityTypes(),
+    queryFn: () => auditService.listEntityTypes(),
   });
 
   // Fetch timeline only when search is triggered
   const { data: timeline, isLoading } = useQuery({
     queryKey: ["entity-timeline", entityType, entityId],
-    queryFn: () => api.getEntityTimeline(entityType as string, entityId),
+    queryFn: () =>
+      entityType ? auditService.getEntityTimeline(entityType, entityId) : Promise.resolve([]),
     enabled: searchTriggered && !!entityType && !!entityId,
   });
 

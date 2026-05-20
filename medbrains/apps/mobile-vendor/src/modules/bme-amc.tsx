@@ -8,7 +8,7 @@
  */
 
 import type { Module } from "@medbrains/mobile-shell";
-import { Card, COLORS, SPACING } from "@medbrains/ui-mobile";
+import { Badge, Card, COLORS, SPACING } from "@medbrains/ui-mobile";
 import { ScrollView, View } from "react-native";
 import { Text } from "react-native-paper";
 
@@ -37,6 +37,11 @@ function BmeAmcScreen() {
           Open AMC tickets for your contracts. Log service visits and upload calibration
           certificates.
         </Text>
+        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: SPACING.sm }}>
+          {["Mobile-Vendor", "Mobile-BME", "AMC", "calibration"].map((tag) => (
+            <Badge key={tag} label={tag} tone="info" />
+          ))}
+        </View>
       </View>
       <Card eyebrow="SKELETON" title="Not wired to backend yet" accent>
         <Text variant="bodyMedium" style={{ color: COLORS.ink }}>
@@ -54,4 +59,6 @@ export const bmeAmcModule: Module = {
   icon: () => null,
   requiredPermissions: [],
   navigator: BmeAmcScreen,
+  appCodes: ["Mobile-Vendor", "Mobile-BME"],
+  tags: ["vendor", "bme", "amc", "calibration", "service-visit"],
 };

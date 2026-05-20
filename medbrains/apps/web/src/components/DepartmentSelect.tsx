@@ -1,10 +1,10 @@
 import { Stack, Text } from "@mantine/core";
-import { api } from "@medbrains/api";
 import { useHasPermission } from "@medbrains/stores";
 import { type DepartmentRow, P } from "@medbrains/types";
 import { IconBuilding, IconPlus } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
+import { lookupsService } from "../services/lookups.service";
 import { MiniAddDepartment } from "./admin/MiniAddDepartment";
 import { SearchOrCreate } from "./SearchOrCreate";
 
@@ -36,7 +36,7 @@ export function DepartmentSelect({
 
   const { data: departments = [] } = useQuery({
     queryKey: ["departments-list"],
-    queryFn: () => api.listDepartments(),
+    queryFn: () => lookupsService.listDepartments(),
     staleTime: 300_000,
   });
 

@@ -14,11 +14,11 @@ import {
   Tooltip,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
-import { api } from "@medbrains/api";
 import type { ConnectorRow } from "@medbrains/types";
 import { IconActivity, IconPlus } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { integrationService } from "../../services/integration.service";
 import { showError, showSuccess } from "../../utils/notifications";
 
 const STATUS_DOT: Record<string, string> = {
@@ -48,12 +48,12 @@ export function ConnectorsTab() {
 
   const { data: connectors = [] } = useQuery({
     queryKey: ["orchestration", "connectors"],
-    queryFn: () => api.listConnectors(),
+    queryFn: () => integrationService.listConnectors(),
   });
 
   const createMut = useMutation({
     mutationFn: () =>
-      api.createConnector({
+      integrationService.createConnector({
         connector_type: formType ?? "rest_api",
         name: formName,
         description: formDesc || undefined,
@@ -71,7 +71,7 @@ export function ConnectorsTab() {
   });
 
   const testMut = useMutation({
-    mutationFn: (id: string) => api.testConnector(id),
+    mutationFn: (id: string) => integrationService.testConnector(id),
     onSuccess: (res) => {
       if (res.is_healthy) {
         showSuccess("Healthy", "Connector responded successfully");

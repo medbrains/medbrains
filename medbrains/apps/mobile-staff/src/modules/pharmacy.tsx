@@ -29,6 +29,7 @@ function PharmacyHome(): ReactNode {
       eyebrow="MODULE"
       title="Pharmacy"
       description="Dispensing, NDPS register, stock, formulary."
+      tags={["Mobile-Pharmacist", "NDPS", "stock", "dispense"]}
       summaries={[
         { eyebrow: "QUEUE", count: "—", title: "Rx awaiting dispense" },
         { eyebrow: "NDPS", count: "—", title: "Controlled balance entries" },
@@ -105,5 +106,7 @@ export const pharmacyModule: Module = {
   icon: () => null,
   requiredPermissions: [P.PHARMACY.PRESCRIPTIONS_LIST],
   navigator: PharmacyScreen,
+  appCodes: ["Mobile-Pharmacist"],
+  tags: ["pharmacy", "dispensing", "ndps", "inventory", "regulatory"],
   offlineDocTypes: ["dispense_event", "ndps_entry"],
 };

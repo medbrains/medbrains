@@ -24,32 +24,18 @@ import {
   Tooltip,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
-import { api } from "@medbrains/api";
 import { useHasPermission } from "@medbrains/stores";
 import { P } from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { PageHeader } from "../../components";
 import { useRequirePermission } from "../../hooks/useRequirePermission";
+import { adminDevicesService, type PairingToken } from "../../services/adminDevices.service";
 
-interface PairingToken {
-  id: string;
-  token: string;
-  qr_payload: string;
-  expires_at: string;
-  intended_device_label: string;
-  intended_app_variant: string;
-}
+type AppVariant = "staff" | "tv" | "vendor";
 
-interface PairedDeviceRow {
-  id: string;
-  label: string;
-  app_variant: string;
-  cert_fingerprint: string;
-  issued_to_user_id: string | null;
-  paired_at: string;
-  last_seen_at: string | null;
-  revoked_at: string | null;
+function isAppVariant(value: string | null): value is AppVariant {
+  return value === "staff" || value === "tv" || value === "vendor";
 }
 
 export function PairedDevicesPage() {
@@ -63,15 +49,15 @@ export function PairedDevicesPage() {
   const queryClient = useQueryClient();
   const { data, isLoading } = useQuery({
     queryKey: ["paired-devices"],
-    queryFn: () => api.listPairedDevices() as Promise<PairedDeviceRow[]>,
+    queryFn: () => adminDevicesService.listPairedDevices(),
   });
 
   const mintMutation = useMutation({
     mutationFn: (input: {
       intended_device_label: string;
-      intended_app_variant: "staff" | "tv" | "vendor";
+      intended_app_variant: AppVariant;
       notes?: string;
-    }) => api.mintDevicePairingToken(input) as Promise<PairingToken>,
+    }) => adminDevicesService.mintDevicePairingToken(input),
     onSuccess: (result) => {
       setTokenResult(result);
     },
@@ -79,7 +65,7 @@ export function PairedDevicesPage() {
 
   const revokeMutation = useMutation({
     mutationFn: (input: { id: string; reason?: string }) =>
-      api.revokePairedDevice(input.id, input.reason),
+      adminDevicesService.revokePairedDevice(input.id, input.reason),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["paired-devices"] });
     },
@@ -185,7 +171,7 @@ export function PairedDevicesPage() {
 
 interface MintFormState {
   intended_device_label: string;
-  intended_app_variant: "staff" | "tv" | "vendor";
+  intended_app_variant: AppVariant;
   notes?: string;
 }
 
@@ -199,7 +185,7 @@ function MintTokenForm({
   onSubmit: (input: MintFormState) => void;
 }) {
   const [label, setLabel] = useState("");
-  const [variant, setVariant] = useState<"staff" | "tv" | "vendor">("staff");
+  const [variant, setVariant] = useState<AppVariant>("staff");
   const [notes, setNotes] = useState("");
 
   return (
@@ -214,7 +200,11 @@ function MintTokenForm({
       <Select
         label="App variant"
         value={variant}
-        onChange={(v) => v && setVariant(v as "staff" | "tv" | "vendor")}
+        onChange={(value) => {
+          if (isAppVariant(value)) {
+            setVariant(value);
+          }
+        }}
         data={[
           { value: "staff", label: "Staff (clinical, MDM)" },
           { value: "tv", label: "TV (kiosk display)" },

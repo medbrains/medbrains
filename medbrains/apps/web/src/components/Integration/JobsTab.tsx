@@ -1,8 +1,8 @@
 import { Badge, Card, Group, Select, SimpleGrid, Stack, Text } from "@mantine/core";
-import { api } from "@medbrains/api";
 import type { JobQueueRow, JobStats } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
+import { integrationService } from "../../services/integration.service";
 import { DataTable } from "../DataTable";
 
 const STATUS_COLORS: Record<string, string> = {
@@ -27,13 +27,13 @@ export function JobsTab() {
 
   const { data: stats } = useQuery({
     queryKey: ["orchestration", "job-stats"],
-    queryFn: () => api.getJobStats(),
+    queryFn: () => integrationService.getJobStats(),
     refetchInterval: 10_000,
   });
 
   const { data: jobsData, isLoading } = useQuery({
     queryKey: ["orchestration", "jobs", statusFilter],
-    queryFn: () => api.listJobs(statusFilter ? { status: statusFilter } : undefined),
+    queryFn: () => integrationService.listJobs(statusFilter ? { status: statusFilter } : undefined),
     refetchInterval: 10_000,
   });
 

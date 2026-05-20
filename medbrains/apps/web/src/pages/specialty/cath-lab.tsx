@@ -13,7 +13,6 @@ import {
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
 import { useHasPermission } from "@medbrains/stores";
 import type {
   CathDevice,
@@ -34,6 +33,7 @@ import { EmployeeSearchSelect } from "../../components/EmployeeSearchSelect";
 import { PatientNameCell } from "../../components/PatientNameCell";
 import { PatientSearchSelect } from "../../components/PatientSearchSelect";
 import { useRequirePermission } from "../../hooks/useRequirePermission";
+import { specialtyService } from "../../services/specialty.service";
 
 const PROCEDURE_TYPES: { value: CathProcedureType; label: string }[] = [
   { value: "diagnostic_cath", label: "Diagnostic Catheterization" },
@@ -47,6 +47,22 @@ const PROCEDURE_TYPES: { value: CathProcedureType; label: string }[] = [
   { value: "peripheral", label: "Peripheral" },
 ];
 
+function toCathProcedureType(value: string | null): CathProcedureType {
+  switch (value) {
+    case "pci":
+    case "pacemaker":
+    case "icd":
+    case "eps":
+    case "ablation":
+    case "valve_intervention":
+    case "structural":
+    case "peripheral":
+      return value;
+    default:
+      return "diagnostic_cath";
+  }
+}
+
 export function CathLabPage() {
   useRequirePermission(P.SPECIALTY.CATH_LAB.PROCEDURES_LIST);
   const qc = useQueryClient();
@@ -59,30 +75,30 @@ export function CathLabPage() {
   // ── Queries ──
   const { data: procedures = [], isLoading } = useQuery({
     queryKey: ["cath-procedures"],
-    queryFn: () => api.listCathProcedures(),
+    queryFn: () => specialtyService.listCathProcedures(),
   });
 
   const { data: hemos = [] } = useQuery({
     queryKey: ["cath-hemos", detailId],
-    queryFn: () => api.listCathHemodynamics(detailId!),
+    queryFn: () => specialtyService.listCathHemodynamics(detailId ?? ""),
     enabled: !!detailId,
   });
 
   const { data: devices = [] } = useQuery({
     queryKey: ["cath-devices", detailId],
-    queryFn: () => api.listCathDevices(detailId!),
+    queryFn: () => specialtyService.listCathDevices(detailId ?? ""),
     enabled: !!detailId,
   });
 
   const { data: timeline = [] } = useQuery({
     queryKey: ["stemi-timeline", detailId],
-    queryFn: () => api.listStemiTimeline(detailId!),
+    queryFn: () => specialtyService.listStemiTimeline(detailId ?? ""),
     enabled: !!detailId,
   });
 
   const { data: monitoring = [] } = useQuery({
     queryKey: ["post-monitoring", detailId],
-    queryFn: () => api.listPostMonitoring(detailId!),
+    queryFn: () => specialtyService.listPostMonitoring(detailId ?? ""),
     enabled: !!detailId,
   });
 
@@ -94,7 +110,7 @@ export function CathLabPage() {
   });
 
   const createProc = useMutation({
-    mutationFn: (data: CreateCathProcedureRequest) => api.createCathProcedure(data),
+    mutationFn: (data: CreateCathProcedureRequest) => specialtyService.createCathProcedure(data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["cath-procedures"] });
       procHandlers.close();
@@ -347,7 +363,7 @@ export function CathLabPage() {
             onChange={(v) =>
               setProcForm((p) => ({
                 ...p,
-                procedure_type: (v ?? "diagnostic_cath") as CathProcedureType,
+                procedure_type: toCathProcedureType(v),
               }))
             }
           />

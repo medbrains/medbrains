@@ -1,10 +1,17 @@
+import { zodResolver } from "@hookform/resolvers/zod";
 import { Button, Group, Select, Stack, TextInput } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
-import type { CreatePharmacyCatalogRequest, DrugSchedule, PharmacyCatalog } from "@medbrains/types";
+import type { DrugScheduleFormValue, MiniAddDrugFormInput } from "@medbrains/schemas";
+import { miniAddDrugFormSchema, toDrugScheduleFormValue } from "@medbrains/schemas";
+import type { PharmacyCatalog } from "@medbrains/types";
 import { IconCheck, IconPill } from "@tabler/icons-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
+import { Controller, useForm } from "react-hook-form";
+import {
+  type CreatePharmacyCatalogInput,
+  pharmacyCatalogService,
+} from "../../services/pharmacyCatalog.service";
 
 interface MiniAddDrugProps {
   searchText: string;
@@ -12,7 +19,7 @@ interface MiniAddDrugProps {
   onCancel: () => void;
 }
 
-const scheduleOptions: { value: DrugSchedule; label: string }[] = [
+const scheduleOptions: { value: DrugScheduleFormValue; label: string }[] = [
   { value: "OTC", label: "OTC" },
   { value: "H", label: "Schedule H" },
   { value: "H1", label: "Schedule H1" },
@@ -41,16 +48,31 @@ function errorMessage(error: unknown): string {
 export function MiniAddDrug({ searchText, onCreated, onCancel }: MiniAddDrugProps) {
   const initialName = useMemo(() => inferName(searchText), [searchText]);
   const queryClient = useQueryClient();
-  const [name, setName] = useState(initialName);
-  const [genericName, setGenericName] = useState("");
-  const [code, setCode] = useState(() => inferCode(initialName));
-  const [unit, setUnit] = useState("tablet");
-  const [basePrice, setBasePrice] = useState("0");
-  const [reorderLevel, setReorderLevel] = useState("0");
-  const [drugSchedule, setDrugSchedule] = useState<DrugSchedule>("OTC");
+  const {
+    control,
+    getValues,
+    handleSubmit,
+    setValue,
+    watch,
+    formState: { errors },
+  } = useForm<MiniAddDrugFormInput>({
+    resolver: zodResolver(miniAddDrugFormSchema),
+    defaultValues: {
+      name: initialName,
+      generic_name: "",
+      code: inferCode(initialName),
+      unit: "tablet",
+      base_price: "0",
+      reorder_level: "0",
+      drug_schedule: "OTC",
+    },
+    mode: "onTouched",
+  });
+  const values = watch();
 
   const mutation = useMutation({
-    mutationFn: (payload: CreatePharmacyCatalogRequest) => api.createPharmacyCatalog(payload),
+    mutationFn: (payload: CreatePharmacyCatalogInput) =>
+      pharmacyCatalogService.createPharmacyCatalog(payload),
     onSuccess: (drug) => {
       queryClient.invalidateQueries({ queryKey: ["drug-search"] });
       notifications.show({
@@ -70,83 +92,122 @@ export function MiniAddDrug({ searchText, onCreated, onCancel }: MiniAddDrugProp
     },
   });
 
-  const canSubmit = name.trim().length > 0 && code.trim().length > 0;
+  const canSubmit = values.name.trim().length > 0 && values.code.trim().length > 0;
 
-  const handleSubmit = () => {
+  const submitDrug = handleSubmit((formValues) => {
     if (!canSubmit) {
       return;
     }
 
-    const payload: CreatePharmacyCatalogRequest = {
-      code: code.trim(),
-      name: name.trim(),
-      base_price: Number(basePrice) || 0,
+    const payload: CreatePharmacyCatalogInput = {
+      code: formValues.code.trim(),
+      name: formValues.name.trim(),
+      base_price: Number(formValues.base_price) || 0,
       tax_percent: 0,
-      reorder_level: Number(reorderLevel) || 0,
-      drug_schedule: drugSchedule,
+      reorder_level: Number(formValues.reorder_level) || 0,
+      drug_schedule: formValues.drug_schedule,
       formulary_status: "approved",
-      unit: unit.trim() || "unit",
+      unit: formValues.unit.trim() || "unit",
     };
 
-    if (genericName.trim()) {
-      payload.generic_name = genericName.trim();
+    if (formValues.generic_name.trim()) {
+      payload.generic_name = formValues.generic_name.trim();
     }
 
     mutation.mutate(payload);
-  };
+  });
 
   return (
     <Stack gap="sm">
-      <TextInput
-        label="Drug name"
-        required
-        value={name}
-        onChange={(event) => {
-          const next = event.currentTarget.value;
-          setName(next);
-          if (!code || code === inferCode(name)) {
-            setCode(inferCode(next));
-          }
-        }}
+      <Controller
+        control={control}
+        name="name"
+        render={({ field }) => (
+          <TextInput
+            label="Drug name"
+            required
+            value={field.value}
+            onChange={(event) => {
+              const next = event.currentTarget.value;
+              const currentCode = getValues("code");
+              if (!currentCode || currentCode === inferCode(field.value)) {
+                setValue("code", inferCode(next), { shouldValidate: true });
+              }
+              field.onChange(next);
+            }}
+            error={errors.name?.message}
+          />
+        )}
       />
-      <TextInput
-        label="Generic / INN"
-        value={genericName}
-        onChange={(event) => setGenericName(event.currentTarget.value)}
+      <Controller
+        control={control}
+        name="generic_name"
+        render={({ field }) => (
+          <TextInput label="Generic / INN" value={field.value} onChange={field.onChange} />
+        )}
       />
       <Group grow align="flex-start">
-        <TextInput
-          label="Code"
-          required
-          value={code}
-          onChange={(event) => setCode(event.currentTarget.value)}
+        <Controller
+          control={control}
+          name="code"
+          render={({ field }) => (
+            <TextInput
+              label="Code"
+              required
+              value={field.value}
+              onChange={field.onChange}
+              error={errors.code?.message}
+            />
+          )}
         />
-        <TextInput
-          label="Unit"
-          value={unit}
-          onChange={(event) => setUnit(event.currentTarget.value)}
+        <Controller
+          control={control}
+          name="unit"
+          render={({ field }) => (
+            <TextInput label="Unit" value={field.value} onChange={field.onChange} />
+          )}
         />
       </Group>
       <Group grow align="flex-start">
-        <TextInput
-          label="Base price"
-          inputMode="decimal"
-          value={basePrice}
-          onChange={(event) => setBasePrice(event.currentTarget.value)}
+        <Controller
+          control={control}
+          name="base_price"
+          render={({ field }) => (
+            <TextInput
+              label="Base price"
+              inputMode="decimal"
+              value={field.value}
+              onChange={field.onChange}
+              error={errors.base_price?.message}
+            />
+          )}
         />
-        <TextInput
-          label="Reorder level"
-          inputMode="numeric"
-          value={reorderLevel}
-          onChange={(event) => setReorderLevel(event.currentTarget.value)}
+        <Controller
+          control={control}
+          name="reorder_level"
+          render={({ field }) => (
+            <TextInput
+              label="Reorder level"
+              inputMode="numeric"
+              value={field.value}
+              onChange={field.onChange}
+              error={errors.reorder_level?.message}
+            />
+          )}
         />
       </Group>
-      <Select
-        allowDeselect={false}
-        data={scheduleOptions}
-        label="Drug schedule"
-        value={drugSchedule}
-        onChange={(value) => setDrugSchedule((value as DrugSchedule | null) ?? "OTC")}
+      <Controller
+        control={control}
+        name="drug_schedule"
+        render={({ field }) => (
+          <Select
+            allowDeselect={false}
+            data={scheduleOptions}
+            label="Drug schedule"
+            value={field.value}
+            onChange={(value) => field.onChange(toDrugScheduleFormValue(value))}
+          />
+        )}
       />
       <Group justify="flex-end">
         <Button variant="subtle" onClick={onCancel}>
@@ -156,7 +217,7 @@ export function MiniAddDrug({ searchText, onCreated, onCancel }: MiniAddDrugProp
           leftSection={<IconPill size={16} />}
           loading={mutation.isPending}
           disabled={!canSubmit}
-          onClick={handleSubmit}
+          onClick={() => void submitDrug()}
         >
           Add & select
         </Button>

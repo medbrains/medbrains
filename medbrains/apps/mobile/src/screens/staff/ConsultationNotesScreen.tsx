@@ -1,7 +1,12 @@
-import { api } from "@medbrains/api";
+import { zodResolver } from "@hookform/resolvers/zod";
+import {
+  type MobileConsultationNotesFormInput,
+  mobileConsultationNotesFormSchema,
+} from "@medbrains/schemas";
 import type { Diagnosis } from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import React, { useState } from "react";
+import { useMemo, useState } from "react";
+import { Controller, useForm } from "react-hook-form";
 import { ScrollView, StyleSheet, View } from "react-native";
 import {
   ActivityIndicator,
@@ -18,6 +23,7 @@ import {
   useTheme,
 } from "react-native-paper";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { clinicalService } from "../../services/clinical.service";
 
 interface ConsultationNotesScreenProps {
   route: {
@@ -31,19 +37,16 @@ interface ConsultationNotesScreenProps {
   };
 }
 
-// SOAP note sections mapped to backend Consultation fields:
-// S (Subjective) → chief_complaint + history
-// O (Objective) → examination
-// A (Assessment) → notes (clinical impression)
-// P (Plan) → plan
-type NoteSection = "subjective" | "objective" | "assessment" | "plan";
+type NoteSection = keyof MobileConsultationNotesFormInput;
 
-interface SOAPNote {
-  subjective: string; // maps to chief_complaint
-  objective: string; // maps to examination
-  assessment: string; // maps to notes
-  plan: string; // maps to plan
-}
+const NOTE_SECTIONS: NoteSection[] = ["subjective", "objective", "assessment", "plan"];
+
+const EMPTY_CONSULTATION_NOTES_FORM: MobileConsultationNotesFormInput = {
+  subjective: "",
+  objective: "",
+  assessment: "",
+  plan: "",
+};
 
 const SECTION_PROMPTS = {
   subjective: "Patient's symptoms, complaints, and history in their own words...",
@@ -65,42 +68,56 @@ export function ConsultationNotesScreen({ route }: ConsultationNotesScreenProps)
   const { encounterId } = route.params;
 
   const [activeSection, setActiveSection] = useState<NoteSection>("subjective");
-  const [notes, setNotes] = useState<SOAPNote>({
-    subjective: "",
-    objective: "",
-    assessment: "",
-    plan: "",
-  });
   const [snackbar, setSnackbar] = useState({ visible: false, message: "" });
 
   const { data: existingConsultation, isLoading } = useQuery({
     queryKey: ["consultation", encounterId],
-    queryFn: () => api.getConsultation(encounterId),
+    queryFn: () => clinicalService.getConsultation(encounterId),
     enabled: Boolean(encounterId),
   });
 
   const { data: diagnoses } = useQuery({
     queryKey: ["diagnoses", encounterId],
-    queryFn: () => api.listDiagnoses(encounterId),
+    queryFn: () => clinicalService.listDiagnoses(encounterId),
     enabled: Boolean(encounterId),
   });
 
+  const consultationValues = useMemo<MobileConsultationNotesFormInput>(
+    () =>
+      existingConsultation
+        ? {
+            subjective: existingConsultation.chief_complaint || "",
+            objective: existingConsultation.examination || "",
+            assessment: existingConsultation.notes || "",
+            plan: existingConsultation.plan || "",
+          }
+        : EMPTY_CONSULTATION_NOTES_FORM,
+    [existingConsultation],
+  );
+
+  const { control, handleSubmit, setValue, watch } = useForm<MobileConsultationNotesFormInput>({
+    resolver: zodResolver(mobileConsultationNotesFormSchema),
+    values: consultationValues,
+  });
+  const notes = watch();
+
   const saveMutation = useMutation({
-    mutationFn: async () => {
-      // Map SOAP fields to backend Consultation fields
+    mutationFn: async (values: MobileConsultationNotesFormInput) => {
       const consultationData = {
-        chief_complaint: notes.subjective || undefined,
-        examination: notes.objective || undefined,
-        notes: notes.assessment || undefined,
-        plan: notes.plan || undefined,
+        chief_complaint: values.subjective.trim() || undefined,
+        examination: values.objective.trim() || undefined,
+        notes: values.assessment.trim() || undefined,
+        plan: values.plan.trim() || undefined,
       };
 
       if (existingConsultation) {
-        // updateConsultation takes (encounterId, consultationId, data)
-        await api.updateConsultation(encounterId, existingConsultation.id, consultationData);
+        await clinicalService.updateConsultation(
+          encounterId,
+          existingConsultation.id,
+          consultationData,
+        );
       } else {
-        // createConsultation takes (encounterId, data)
-        await api.createConsultation(encounterId, consultationData);
+        await clinicalService.createConsultation(encounterId, consultationData);
       }
     },
     onSuccess: () => {
@@ -112,20 +129,10 @@ export function ConsultationNotesScreen({ route }: ConsultationNotesScreenProps)
     },
   });
 
-  // Load existing notes from consultation
-  React.useEffect(() => {
-    if (existingConsultation) {
-      setNotes({
-        subjective: existingConsultation.chief_complaint || "",
-        objective: existingConsultation.examination || "",
-        assessment: existingConsultation.notes || "",
-        plan: existingConsultation.plan || "",
-      });
-    }
-  }, [existingConsultation]);
+  const submitNotes = handleSubmit((values) => saveMutation.mutate(values));
 
   const updateNote = (section: NoteSection, value: string) => {
-    setNotes((prev) => ({ ...prev, [section]: value }));
+    setValue(section, value, { shouldDirty: true, shouldValidate: true });
   };
 
   const getSectionProgress = (): number => {
@@ -160,7 +167,7 @@ export function ConsultationNotesScreen({ route }: ConsultationNotesScreenProps)
             <View style={[styles.progressFill, { width: `${getSectionProgress()}%` }]} />
           </View>
           <View style={styles.sectionIndicators}>
-            {(["subjective", "objective", "assessment", "plan"] as NoteSection[]).map((section) => (
+            {NOTE_SECTIONS.map((section) => (
               <View
                 key={section}
                 style={[
@@ -175,7 +182,12 @@ export function ConsultationNotesScreen({ route }: ConsultationNotesScreenProps)
         {/* Section Tabs */}
         <SegmentedButtons
           value={activeSection}
-          onValueChange={(v) => setActiveSection(v as NoteSection)}
+          onValueChange={(value) => {
+            const nextSection = NOTE_SECTIONS.find((section) => section === value);
+            if (nextSection) {
+              setActiveSection(nextSection);
+            }
+          }}
           buttons={[
             { value: "subjective", label: "S", icon: SECTION_ICONS.subjective },
             { value: "objective", label: "O", icon: SECTION_ICONS.objective },
@@ -199,14 +211,20 @@ export function ConsultationNotesScreen({ route }: ConsultationNotesScreenProps)
               </Text>
             </View>
 
-            <TextInput
-              mode="outlined"
-              multiline
-              numberOfLines={8}
-              value={notes[activeSection]}
-              onChangeText={(v) => updateNote(activeSection, v)}
-              placeholder={SECTION_PROMPTS[activeSection]}
-              style={styles.noteInput}
+            <Controller
+              control={control}
+              name={activeSection}
+              render={({ field }) => (
+                <TextInput
+                  mode="outlined"
+                  multiline
+                  numberOfLines={8}
+                  value={field.value}
+                  onChangeText={field.onChange}
+                  placeholder={SECTION_PROMPTS[activeSection]}
+                  style={styles.noteInput}
+                />
+              )}
             />
 
             {/* Quick Templates */}
@@ -362,7 +380,7 @@ export function ConsultationNotesScreen({ route }: ConsultationNotesScreenProps)
         {/* Save Button */}
         <Button
           mode="contained"
-          onPress={() => saveMutation.mutate()}
+          onPress={() => void submitNotes()}
           loading={saveMutation.isPending}
           disabled={!hasContent || saveMutation.isPending}
           style={styles.saveButton}
@@ -377,8 +395,7 @@ export function ConsultationNotesScreen({ route }: ConsultationNotesScreenProps)
           <Button
             mode="outlined"
             onPress={() => {
-              saveMutation.mutate();
-              // Additional sign-off logic could navigate back after save
+              void submitNotes();
             }}
             style={styles.signButton}
             icon="check-decagram"

@@ -23,7 +23,6 @@ import {
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
 import { useHasPermission } from "@medbrains/stores";
 import type {
   ConsentAuditEntry,
@@ -52,6 +51,7 @@ import type { Column } from "../components/DataTable";
 import { PatientContextBanner } from "../components/Patient/PatientContextBanner";
 import { PatientNameCell } from "../components/PatientNameCell";
 import { useRequirePermission } from "../hooks/useRequirePermission";
+import { consentService } from "../services/consent.service";
 
 // ── Constants ──────────────────────────────────────────
 
@@ -225,13 +225,13 @@ function TemplatesTab({
   const { data: templates = [], isLoading } = useQuery({
     queryKey: ["consent-templates", categoryFilter],
     queryFn: () =>
-      api.listConsentTemplates({
+      consentService.listConsentTemplates({
         category: categoryFilter ?? undefined,
       }),
   });
 
   const createMut = useMutation({
-    mutationFn: (d: CreateConsentTemplateRequest) => api.createConsentTemplate(d),
+    mutationFn: (d: CreateConsentTemplateRequest) => consentService.createConsentTemplate(d),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["consent-templates"] });
       close();
@@ -241,7 +241,7 @@ function TemplatesTab({
 
   const updateMut = useMutation({
     mutationFn: ({ id, data }: { id: string; data: UpdateConsentTemplateRequest }) =>
-      api.updateConsentTemplate(id, data),
+      consentService.updateConsentTemplate(id, data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["consent-templates"] });
       close();
@@ -251,7 +251,7 @@ function TemplatesTab({
   });
 
   const deleteMut = useMutation({
-    mutationFn: (id: string) => api.deleteConsentTemplate(id),
+    mutationFn: (id: string) => consentService.deleteConsentTemplate(id),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["consent-templates"] });
       notifications.show({ title: "Deleted", message: "Template removed", color: "danger" });
@@ -345,7 +345,7 @@ function TemplatesTab({
   ];
 
   const deathCertMut = useMutation({
-    mutationFn: (d: CreateConsentTemplateRequest) => api.createConsentTemplate(d),
+    mutationFn: (d: CreateConsentTemplateRequest) => consentService.createConsentTemplate(d),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["consent-templates"] });
       closeDeathCert();
@@ -358,7 +358,7 @@ function TemplatesTab({
   });
 
   const mloMut = useMutation({
-    mutationFn: (d: CreateConsentTemplateRequest) => api.createConsentTemplate(d),
+    mutationFn: (d: CreateConsentTemplateRequest) => consentService.createConsentTemplate(d),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["consent-templates"] });
       closeMlo();
@@ -1144,7 +1144,7 @@ function AuditTab() {
   const { data: entries = [], isLoading } = useQuery({
     queryKey: ["consent-audit", patientId, actionFilter, sourceFilter],
     queryFn: () =>
-      api.listConsentAudit({
+      consentService.listConsentAudit({
         patient_id: patientId || undefined,
         action: actionFilter ?? undefined,
         consent_source: sourceFilter ?? undefined,
@@ -1337,13 +1337,13 @@ function VerificationTab({ canRevoke }: { canRevoke: boolean }) {
 
   const { data: summary = [], isLoading } = useQuery({
     queryKey: ["consent-summary", patientId],
-    queryFn: () => api.getPatientConsentSummary(patientId),
+    queryFn: () => consentService.getPatientConsentSummary(patientId),
     enabled: !!patientId && searched,
   });
 
   const revokeMut = useMutation({
     mutationFn: (item: ConsentSummaryItem) =>
-      api.revokeConsent({
+      consentService.revokeConsent({
         consent_source: item.source,
         consent_id: item.consent_id,
         patient_id: patientId,
@@ -1477,7 +1477,7 @@ function SignaturesTab({ canManage }: { canManage: boolean }) {
   const { data: signatures = [], isLoading } = useQuery({
     queryKey: ["consent-signatures", sourceFilter],
     queryFn: () =>
-      api.listConsentSignatures({
+      consentService.listConsentSignatures({
         consent_source: sourceFilter ?? undefined,
       }),
   });
@@ -1485,7 +1485,7 @@ function SignaturesTab({ canManage }: { canManage: boolean }) {
   const [detailSig, setDetailSig] = useState<ConsentSignatureMetadata | null>(null);
 
   const createMut = useMutation({
-    mutationFn: (d: CreateConsentSignatureRequest) => api.createConsentSignature(d),
+    mutationFn: (d: CreateConsentSignatureRequest) => consentService.createConsentSignature(d),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["consent-signatures"] });
       close();
@@ -1494,7 +1494,7 @@ function SignaturesTab({ canManage }: { canManage: boolean }) {
   });
 
   const deleteMut = useMutation({
-    mutationFn: (id: string) => api.deleteConsentSignature(id),
+    mutationFn: (id: string) => consentService.deleteConsentSignature(id),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["consent-signatures"] });
       notifications.show({ title: "Deleted", message: "Signature removed", color: "danger" });

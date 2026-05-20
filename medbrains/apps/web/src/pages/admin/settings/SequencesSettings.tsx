@@ -1,3 +1,4 @@
+import { zodResolver } from "@hookform/resolvers/zod";
 import {
   ActionIcon,
   Button,
@@ -11,11 +12,13 @@ import {
   TextInput,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
+import { type SequenceSettingsFormInput, sequenceSettingsFormSchema } from "@medbrains/schemas";
 import type { SequenceRow } from "@medbrains/types";
 import { IconCheck, IconPencil, IconPlus, IconTrash } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { Controller, useForm } from "react-hook-form";
+import { settingsSetupService } from "../../../services/settingsSetup.service";
 
 // ── Helpers ──────────────────────────────────────────────
 
@@ -29,17 +32,34 @@ function formatPreview(prefix: string, padWidth: number, nextVal: number): strin
 
 type ModalMode = "add" | "edit";
 
-type ModalForm = {
-  seq_type: string;
-  prefix: string;
-  pad_width: number;
-};
-
-const EMPTY_FORM: ModalForm = {
+const EMPTY_FORM: SequenceSettingsFormInput = {
   seq_type: "",
   prefix: "",
   pad_width: 6,
 };
+
+function sequenceFormFromRow(row: SequenceRow): SequenceSettingsFormInput {
+  return {
+    seq_type: row.seq_type,
+    prefix: row.prefix,
+    pad_width: row.pad_width,
+  };
+}
+
+function sequenceFormToCreatePayload(form: SequenceSettingsFormInput) {
+  return {
+    seq_type: form.seq_type.trim(),
+    prefix: form.prefix.trim(),
+    pad_width: Number(form.pad_width),
+  };
+}
+
+function sequenceFormToUpdatePayload(form: SequenceSettingsFormInput) {
+  return {
+    prefix: form.prefix.trim(),
+    pad_width: Number(form.pad_width),
+  };
+}
 
 // ── SequencesSettings ────────────────────────────────────
 
@@ -48,7 +68,17 @@ export function SequencesSettings() {
 
   const [modalOpen, setModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<ModalMode>("add");
-  const [form, setForm] = useState<ModalForm>(EMPTY_FORM);
+  const {
+    control,
+    formState: { errors },
+    handleSubmit,
+    register,
+    reset,
+    watch,
+  } = useForm<SequenceSettingsFormInput>({
+    resolver: zodResolver(sequenceSettingsFormSchema),
+    defaultValues: EMPTY_FORM,
+  });
 
   // ── Query: list sequences ──
 
@@ -59,19 +89,19 @@ export function SequencesSettings() {
     error,
   } = useQuery({
     queryKey: ["setup-sequences"],
-    queryFn: () => api.listSequences(),
+    queryFn: () => settingsSetupService.listSequences(),
   });
 
   // ── Mutation: create ──
 
   const createMutation = useMutation({
-    mutationFn: (data: { seq_type: string; prefix: string; pad_width: number }) =>
-      api.createSequence(data),
-    onSuccess: () => {
+    mutationFn: (data: ReturnType<typeof sequenceFormToCreatePayload>) =>
+      settingsSetupService.createSequence(data),
+    onSuccess: (_row, data) => {
       void queryClient.invalidateQueries({ queryKey: ["setup-sequences"] });
       notifications.show({
         title: "Sequence created",
-        message: `Sequence "${form.seq_type}" has been added.`,
+        message: `Sequence "${data.seq_type}" has been added.`,
         color: "success",
         icon: <IconCheck size={16} />,
       });
@@ -89,13 +119,15 @@ export function SequencesSettings() {
   // ── Mutation: update ──
 
   const updateMutation = useMutation({
-    mutationFn: (data: { seqType: string; prefix: string; pad_width: number }) =>
-      api.updateSequence(data.seqType, { prefix: data.prefix, pad_width: data.pad_width }),
-    onSuccess: () => {
+    mutationFn: (data: {
+      seqType: string;
+      values: ReturnType<typeof sequenceFormToUpdatePayload>;
+    }) => settingsSetupService.updateSequence(data.seqType, data.values),
+    onSuccess: (_row, data) => {
       void queryClient.invalidateQueries({ queryKey: ["setup-sequences"] });
       notifications.show({
         title: "Sequence updated",
-        message: `Sequence "${form.seq_type}" has been updated.`,
+        message: `Sequence "${data.seqType}" has been updated.`,
         color: "success",
         icon: <IconCheck size={16} />,
       });
@@ -113,7 +145,7 @@ export function SequencesSettings() {
   // ── Mutation: delete ──
 
   const deleteMutation = useMutation({
-    mutationFn: (seqType: string) => api.deleteSequence(seqType),
+    mutationFn: (seqType: string) => settingsSetupService.deleteSequence(seqType),
     onSuccess: (_data, seqType) => {
       void queryClient.invalidateQueries({ queryKey: ["setup-sequences"] });
       notifications.show({
@@ -136,57 +168,36 @@ export function SequencesSettings() {
 
   const openAddModal = () => {
     setModalMode("add");
-    setForm(EMPTY_FORM);
+    reset(EMPTY_FORM);
     setModalOpen(true);
   };
 
   const openEditModal = (row: SequenceRow) => {
     setModalMode("edit");
-    setForm({
-      seq_type: row.seq_type,
-      prefix: row.prefix,
-      pad_width: row.pad_width,
-    });
+    reset(sequenceFormFromRow(row));
     setModalOpen(true);
   };
 
   const closeModal = () => {
     setModalOpen(false);
-    setForm(EMPTY_FORM);
+    reset(EMPTY_FORM);
   };
 
-  const handleSubmit = () => {
+  const submitSequence = handleSubmit((form) => {
     if (modalMode === "add") {
-      if (!form.seq_type.trim()) {
-        notifications.show({
-          title: "Validation error",
-          message: "Sequence type is required.",
-          color: "orange",
-        });
-        return;
-      }
-      createMutation.mutate({
-        seq_type: form.seq_type.trim(),
-        prefix: form.prefix,
-        pad_width: form.pad_width,
-      });
+      createMutation.mutate(sequenceFormToCreatePayload(form));
     } else {
       updateMutation.mutate({
         seqType: form.seq_type,
-        prefix: form.prefix,
-        pad_width: form.pad_width,
+        values: sequenceFormToUpdatePayload(form),
       });
     }
-  };
+  });
 
   const handleDelete = (seqType: string) => {
     if (window.confirm(`Delete sequence "${seqType}"? This cannot be undone.`)) {
       deleteMutation.mutate(seqType);
     }
-  };
-
-  const updateField = <K extends keyof ModalForm>(key: K, value: ModalForm[K]) => {
-    setForm((prev) => ({ ...prev, [key]: value }));
   };
 
   // ── Loading / Error states ──
@@ -213,6 +224,8 @@ export function SequencesSettings() {
   const rows = sequences ?? [];
   const isMutating =
     createMutation.isPending || updateMutation.isPending || deleteMutation.isPending;
+  const previewPrefix = watch("prefix");
+  const previewPadWidth = Number(watch("pad_width"));
 
   // ── Render ──
 
@@ -304,8 +317,8 @@ export function SequencesSettings() {
           <TextInput
             label="Sequence Type"
             placeholder="e.g. uhid, invoice, lab_order"
-            value={form.seq_type}
-            onChange={(e) => updateField("seq_type", e.currentTarget.value)}
+            error={errors.seq_type?.message}
+            {...register("seq_type")}
             readOnly={modalMode === "edit"}
             variant={modalMode === "edit" ? "filled" : "default"}
             description={
@@ -316,23 +329,30 @@ export function SequencesSettings() {
           <TextInput
             label="Prefix"
             placeholder="e.g. MED-, INV-, LAB-"
-            value={form.prefix}
-            onChange={(e) => updateField("prefix", e.currentTarget.value)}
+            error={errors.prefix?.message}
+            {...register("prefix")}
           />
-          <NumberInput
-            label="Pad Width"
-            description="Minimum number of digits (zero-padded)."
-            value={form.pad_width}
-            onChange={(value) => updateField("pad_width", typeof value === "number" ? value : 6)}
-            min={3}
-            max={10}
+          <Controller
+            control={control}
+            name="pad_width"
+            render={({ field }) => (
+              <NumberInput
+                label="Pad Width"
+                description="Minimum number of digits (zero-padded)."
+                value={field.value}
+                onChange={field.onChange}
+                error={errors.pad_width?.message}
+                min={3}
+                max={10}
+              />
+            )}
           />
 
-          {form.prefix && (
+          {previewPrefix && Number.isFinite(previewPadWidth) && (
             <Text size="sm" c="dimmed">
               Preview:{" "}
               <Text span ff="monospace" c="primary">
-                {formatPreview(form.prefix, form.pad_width, 1)}
+                {formatPreview(previewPrefix, previewPadWidth, 1)}
               </Text>
             </Text>
           )}
@@ -341,7 +361,7 @@ export function SequencesSettings() {
             <Button variant="default" onClick={closeModal}>
               Cancel
             </Button>
-            <Button onClick={handleSubmit} loading={isMutating}>
+            <Button onClick={() => void submitSequence()} loading={isMutating}>
               {modalMode === "add" ? "Create" : "Save Changes"}
             </Button>
           </Group>

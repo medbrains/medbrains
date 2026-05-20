@@ -2,6 +2,7 @@
  * Self-service doctor profile page — edit bio, photo, languages.
  * Capability flags (can_sign_mlc etc.) are admin-only, shown read-only.
  */
+import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Avatar,
   Badge,
@@ -16,49 +17,41 @@ import {
   TextInput,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
+import type { DoctorProfile } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import { IconUserCog } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useForm } from "react-hook-form";
 import { PageHeader } from "../../components/PageHeader";
+import {
+  DEFAULT_DOCTOR_PROFILE_FORM_VALUES,
+  type DoctorProfileFormInput,
+  doctorProfileFormSchema,
+  toDoctorProfileFormValues,
+  toUpdateMyDoctorProfileRequest,
+} from "../../forms/doctor-profile.form";
 import { useRequirePermission } from "../../hooks/useRequirePermission";
+import { doctorService } from "../../services/doctor.service";
 
 export function DoctorProfilePage() {
   useRequirePermission(P.DOCTOR.PROFILE.VIEW_OWN);
   const queryClient = useQueryClient();
 
-  const { data: profile, isLoading } = useQuery({
+  const { data: profile, isLoading } = useQuery<DoctorProfile>({
     queryKey: ["my-doctor-profile"],
-    queryFn: () => api.getMyDoctorProfile(),
+    queryFn: () => doctorService.getMyProfile(),
     retry: 0,
   });
 
-  const [bioShort, setBioShort] = useState("");
-  const [bioLong, setBioLong] = useState("");
-  const [photoUrl, setPhotoUrl] = useState("");
-  const [languages, setLanguages] = useState("");
-
-  useEffect(() => {
-    if (profile) {
-      setBioShort(profile.bio_short ?? "");
-      setBioLong(profile.bio_long ?? "");
-      setPhotoUrl(profile.photo_url ?? "");
-      setLanguages((profile.languages_spoken ?? []).join(", "));
-    }
-  }, [profile]);
+  const profileForm = useForm<DoctorProfileFormInput>({
+    resolver: zodResolver(doctorProfileFormSchema),
+    defaultValues: DEFAULT_DOCTOR_PROFILE_FORM_VALUES,
+    values: toDoctorProfileFormValues(profile),
+  });
 
   const update = useMutation({
-    mutationFn: () =>
-      api.updateMyDoctorProfile({
-        bio_short: bioShort || null,
-        bio_long: bioLong || null,
-        photo_url: photoUrl || null,
-        languages_spoken: languages
-          .split(",")
-          .map((s) => s.trim())
-          .filter(Boolean),
-      }),
+    mutationFn: (values: DoctorProfileFormInput) =>
+      doctorService.updateMyProfile(toUpdateMyDoctorProfileRequest(values)),
     onSuccess: () => {
       notifications.show({
         title: "Profile updated",
@@ -135,36 +128,40 @@ export function DoctorProfilePage() {
             <Text fw={600} size="sm" mb="sm">
               Editable
             </Text>
-            <Stack gap="sm">
+            <Stack
+              component="form"
+              gap="sm"
+              onSubmit={profileForm.handleSubmit((values) => update.mutate(values))}
+            >
               <TextInput
                 label="Photo URL"
-                value={photoUrl}
-                onChange={(e) => setPhotoUrl(e.currentTarget.value)}
+                error={profileForm.formState.errors.photo_url?.message}
+                {...profileForm.register("photo_url")}
               />
               <TextInput
                 label="Languages spoken (comma-separated)"
-                value={languages}
-                onChange={(e) => setLanguages(e.currentTarget.value)}
                 placeholder="English, Hindi, Tamil"
+                error={profileForm.formState.errors.languages_spoken?.message}
+                {...profileForm.register("languages_spoken")}
               />
               <Textarea
                 label="Short bio"
-                value={bioShort}
-                onChange={(e) => setBioShort(e.currentTarget.value)}
                 autosize
                 minRows={2}
                 maxRows={4}
+                error={profileForm.formState.errors.bio_short?.message}
+                {...profileForm.register("bio_short")}
               />
               <Textarea
                 label="Long bio"
-                value={bioLong}
-                onChange={(e) => setBioLong(e.currentTarget.value)}
                 autosize
                 minRows={4}
                 maxRows={10}
+                error={profileForm.formState.errors.bio_long?.message}
+                {...profileForm.register("bio_long")}
               />
               <Group justify="flex-end">
-                <Button loading={update.isPending} onClick={() => update.mutate()}>
+                <Button type="submit" loading={update.isPending}>
                   Save changes
                 </Button>
               </Group>

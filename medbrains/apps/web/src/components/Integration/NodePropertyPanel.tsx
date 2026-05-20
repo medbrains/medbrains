@@ -14,7 +14,6 @@ import {
   TextInput,
   ThemeIcon,
 } from "@mantine/core";
-import { api } from "@medbrains/api";
 import { useIntegrationBuilderStore } from "@medbrains/stores";
 import type { EventRegistryRow } from "@medbrains/types";
 import {
@@ -28,6 +27,7 @@ import {
 } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
+import { integrationService } from "../../services/integration.service";
 import { FieldMappingEditor } from "./FieldMappingEditor";
 
 const NODE_TYPE_ICONS: Record<string, typeof IconBolt> = {
@@ -67,7 +67,7 @@ export function NodePropertyPanel() {
   // Fetch all templates to get config_schema for selected node's template
   const { data: templates } = useQuery({
     queryKey: ["integration", "node-templates"],
-    queryFn: () => api.listNodeTemplates(),
+    queryFn: () => integrationService.listNodeTemplates(),
   });
 
   // Find the matching template for the selected node
@@ -96,7 +96,7 @@ export function NodePropertyPanel() {
   // Fetch connectors for action node connector selector
   const { data: connectors } = useQuery({
     queryKey: ["orchestration", "connectors"],
-    queryFn: () => api.listConnectors(),
+    queryFn: () => integrationService.listConnectors(),
     enabled: isActionNode,
   });
 
@@ -111,7 +111,7 @@ export function NodePropertyPanel() {
   // Fetch events list for trigger node event selector + action field mapping
   const { data: eventsData } = useQuery({
     queryKey: ["orchestration", "events"],
-    queryFn: () => api.listOrchestrationEvents(),
+    queryFn: () => integrationService.listOrchestrationEvents(),
     enabled: isTriggerEvent || isActionNode,
   });
 

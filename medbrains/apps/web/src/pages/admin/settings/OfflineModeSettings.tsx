@@ -16,6 +16,7 @@
  * tells the operator a hard reload triggers the change immediately.
  */
 
+import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Alert,
   Button,
@@ -29,18 +30,23 @@ import {
   TextInput,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
+import {
+  type OfflineModeSettingsFormInput,
+  offlineModeSettingsFormSchema,
+} from "@medbrains/schemas";
 import type { TenantSettingsRow } from "@medbrains/types";
 import { IconAlertCircle, IconCheck, IconCloudOff, IconDeviceFloppy } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useMemo } from "react";
+import { Controller, useForm } from "react-hook-form";
+import { tenantSettingsService } from "../../../services/tenantSettings.service";
 
-interface OfflineModeForm {
-  offlineMode: boolean;
-  edgeUrl: string;
-}
+const EMPTY_FORM: OfflineModeSettingsFormInput = {
+  offlineMode: false,
+  edgeUrl: "",
+};
 
-function parseSettings(rows: TenantSettingsRow[]): OfflineModeForm {
+function parseSettings(rows: TenantSettingsRow[]): OfflineModeSettingsFormInput {
   const off = rows.find((r) => r.key === "offline_mode");
   const url = rows.find((r) => r.key === "edge_url");
   return {
@@ -50,14 +56,18 @@ function parseSettings(rows: TenantSettingsRow[]): OfflineModeForm {
   };
 }
 
-function isPlausibleWsUrl(value: string): boolean {
-  if (!value) return true; // empty is fine when offline mode is off
-  return value.startsWith("ws://") || value.startsWith("wss://");
-}
+type OfflineModeSettingUpdate = {
+  key: string;
+  value: unknown;
+};
+
+type OfflineModeSettingsPayload = {
+  offlineMode: boolean;
+  edgeUrl: string;
+};
 
 export function OfflineModeSettings() {
   const queryClient = useQueryClient();
-  const [form, setForm] = useState<OfflineModeForm | null>(null);
 
   const {
     data: rows,
@@ -66,17 +76,24 @@ export function OfflineModeSettings() {
     error,
   } = useQuery({
     queryKey: ["tenant-settings", "clinical"],
-    queryFn: () => api.getTenantSettings("clinical"),
-    select: (data: TenantSettingsRow[]) => {
-      if (form === null) setForm(parseSettings(data));
-      return data;
-    },
+    queryFn: () => tenantSettingsService.getTenantSettings("clinical"),
+  });
+  const formValues = useMemo(() => (rows ? parseSettings(rows) : EMPTY_FORM), [rows]);
+  const {
+    control,
+    formState: { errors },
+    handleSubmit,
+    watch,
+  } = useForm<OfflineModeSettingsFormInput>({
+    resolver: zodResolver(offlineModeSettingsFormSchema),
+    defaultValues: EMPTY_FORM,
+    values: formValues,
   });
 
   const mutation = useMutation({
-    mutationFn: async (values: OfflineModeForm) => {
+    mutationFn: async (values: OfflineModeSettingsPayload) => {
       const original = parseSettings(rows ?? []);
-      const updates: { key: string; value: unknown }[] = [];
+      const updates: OfflineModeSettingUpdate[] = [];
       if (values.offlineMode !== original.offlineMode) {
         updates.push({ key: "offline_mode", value: values.offlineMode });
       }
@@ -84,7 +101,7 @@ export function OfflineModeSettings() {
         updates.push({ key: "edge_url", value: values.edgeUrl });
       }
       for (const u of updates) {
-        await api.updateTenantSetting({
+        await tenantSettingsService.updateTenantSetting({
           category: "clinical",
           key: u.key,
           value: u.value,
@@ -110,6 +127,14 @@ export function OfflineModeSettings() {
       });
     },
   });
+  const submitOfflineSettings = handleSubmit((values) => {
+    mutation.mutate({
+      offlineMode: values.offlineMode,
+      edgeUrl: values.edgeUrl.trim(),
+    });
+  });
+  const offlineMode = watch("offlineMode");
+  const edgeUrl = watch("edgeUrl");
 
   if (isLoading) {
     return (
@@ -128,13 +153,9 @@ export function OfflineModeSettings() {
     );
   }
 
-  if (!form) return null;
+  if (!rows) return null;
 
-  const setField = <K extends keyof OfflineModeForm>(k: K, v: OfflineModeForm[K]) =>
-    setForm((p) => (p ? { ...p, [k]: v } : p));
-
-  const offlineWithoutUrl = form.offlineMode && form.edgeUrl.trim() === "";
-  const malformedUrl = form.edgeUrl !== "" && !isPlausibleWsUrl(form.edgeUrl);
+  const offlineWithoutUrl = offlineMode && edgeUrl.trim() === "";
 
   return (
     <Stack gap="lg" maw={720}>
@@ -153,30 +174,37 @@ export function OfflineModeSettings() {
 
       <Card withBorder>
         <Stack gap="sm">
-          <Switch
-            label="Enable offline-tolerant mode"
-            description="Flips the data layer for participating pages from cloud REST to LAN CRDT. Other pages (billing, prescriptions, admin) stay on cloud REST regardless."
-            checked={form.offlineMode}
-            onChange={(e) => setField("offlineMode", e.currentTarget.checked)}
+          <Controller
+            control={control}
+            name="offlineMode"
+            render={({ field }) => (
+              <Switch
+                label="Enable offline-tolerant mode"
+                description="Flips the data layer for participating pages from cloud REST to LAN CRDT. Other pages (billing, prescriptions, admin) stay on cloud REST regardless."
+                checked={field.value}
+                onChange={(event) => field.onChange(event.currentTarget.checked)}
+              />
+            )}
           />
         </Stack>
       </Card>
 
       <Card withBorder>
         <Stack gap="sm">
-          <TextInput
-            label="Edge appliance URL"
-            description="Browsers connect here for LAN sync. WebSocket scheme (ws:// or wss://). Required when offline mode is enabled."
-            placeholder="ws://medbrains-edge.local:7811"
-            value={form.edgeUrl}
-            onChange={(e) => setField("edgeUrl", e.currentTarget.value.trim())}
+          <Controller
+            control={control}
+            name="edgeUrl"
+            render={({ field }) => (
+              <TextInput
+                label="Edge appliance URL"
+                description="Browsers connect here for LAN sync. WebSocket scheme (ws:// or wss://). Required when offline mode is enabled."
+                placeholder="ws://medbrains-edge.local:7811"
+                value={field.value}
+                onChange={(event) => field.onChange(event.currentTarget.value)}
+                error={errors.edgeUrl?.message}
+              />
+            )}
           />
-          {malformedUrl && (
-            <Alert color="orange" icon={<IconAlertCircle size={16} />} title="Unusual URL">
-              Edge URLs typically start with <Code>ws://</Code> or <Code>wss://</Code>. Saving
-              anyway — browsers will fail to connect if the scheme is wrong.
-            </Alert>
-          )}
         </Stack>
       </Card>
 
@@ -192,7 +220,7 @@ export function OfflineModeSettings() {
         <Button
           leftSection={<IconDeviceFloppy size={16} />}
           loading={mutation.isPending}
-          onClick={() => form && mutation.mutate(form)}
+          onClick={() => void submitOfflineSettings()}
         >
           Save
         </Button>

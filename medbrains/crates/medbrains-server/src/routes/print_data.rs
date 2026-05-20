@@ -373,7 +373,7 @@ pub async fn get_culture_sensitivity_print_data(
         "SELECT \
            (p.first_name || ' ' || p.last_name) AS patient_name, \
            p.uhid, \
-           EXTRACT(YEAR FROM age(current_date, p.date_of_birth)) AS age, \
+           EXTRACT(YEAR FROM age(current_date, p.date_of_birth))::float8 AS age, \
            p.gender::text AS gender, \
            lo.sample_type, \
            lo.sample_id, \
@@ -505,7 +505,7 @@ pub async fn get_histopath_report_print_data(
         "SELECT \
            (p.first_name || ' ' || p.last_name) AS patient_name, \
            p.uhid, \
-           EXTRACT(YEAR FROM age(current_date, p.date_of_birth)) AS age, \
+           EXTRACT(YEAR FROM age(current_date, p.date_of_birth))::float8 AS age, \
            p.gender::text AS gender, \
            lo.sample_type AS specimen_type, \
            lo.sample_id AS specimen_id, \
@@ -638,7 +638,7 @@ pub async fn get_crossmatch_report_print_data(
         "SELECT \
            (p.first_name || ' ' || p.last_name) AS patient_name, \
            p.uhid, \
-           EXTRACT(YEAR FROM age(current_date, p.date_of_birth)) AS age, \
+           EXTRACT(YEAR FROM age(current_date, p.date_of_birth))::float8 AS age, \
            p.gender::text AS gender, \
            br.patient_blood_group AS blood_group, \
            br.patient_rh_type AS rh_type, \
@@ -856,7 +856,7 @@ pub async fn get_investigation_requisition_print_data(
            lo.created_at AS requisition_date, \
            (p.first_name || ' ' || p.last_name) AS patient_name, \
            p.uhid, \
-           EXTRACT(YEAR FROM age(current_date, p.date_of_birth)) AS age, \
+           EXTRACT(YEAR FROM age(current_date, p.date_of_birth))::float8 AS age, \
            p.gender::text AS gender, \
            w.name AS ward, \
            b.bed_number AS bed, \

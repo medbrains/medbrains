@@ -1,10 +1,13 @@
+import { zodResolver } from "@hookform/resolvers/zod";
 import { Button, Group, Loader, Select, Stack, Text, TextInput } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
+import { type GeneralSettingsFormInput, generalSettingsFormSchema } from "@medbrains/schemas";
 import type { TenantSummary } from "@medbrains/types";
 import { IconCheck, IconDeviceFloppy } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useMemo } from "react";
+import { Controller, useForm } from "react-hook-form";
+import { tenantSettingsService } from "../../../services/tenantSettings.service";
 
 const TIMEZONE_OPTIONS = [
   { value: "Asia/Kolkata", label: "Asia/Kolkata (IST, UTC+5:30)" },
@@ -56,22 +59,22 @@ const MONTH_OPTIONS = [
   { value: "12", label: "December" },
 ];
 
-type FormState = {
-  address_line1: string;
-  address_line2: string;
-  city: string;
-  pincode: string;
-  phone: string;
-  email: string;
-  website: string;
-  registration_no: string;
-  accreditation: string;
-  timezone: string;
-  currency: string;
-  fy_start_month: number;
+const EMPTY_FORM: GeneralSettingsFormInput = {
+  address_line1: "",
+  address_line2: "",
+  city: "",
+  pincode: "",
+  phone: "",
+  email: "",
+  website: "",
+  registration_no: "",
+  accreditation: "",
+  timezone: "Asia/Kolkata",
+  currency: "INR",
+  fy_start_month: "4",
 };
 
-function tenantToFormState(tenant: TenantSummary): FormState {
+function tenantToFormState(tenant: TenantSummary): GeneralSettingsFormInput {
   return {
     address_line1: tenant.address_line1 ?? "",
     address_line2: tenant.address_line2 ?? "",
@@ -84,31 +87,29 @@ function tenantToFormState(tenant: TenantSummary): FormState {
     accreditation: tenant.accreditation ?? "",
     timezone: tenant.timezone,
     currency: tenant.currency,
-    fy_start_month: tenant.fy_start_month,
+    fy_start_month: String(tenant.fy_start_month),
   };
 }
 
-function formStateToPayload(form: FormState): Partial<TenantSummary> {
+function formStateToPayload(form: GeneralSettingsFormInput): Partial<TenantSummary> {
   return {
-    address_line1: form.address_line1 || null,
-    address_line2: form.address_line2 || null,
-    city: form.city || null,
-    pincode: form.pincode || null,
-    phone: form.phone || null,
-    email: form.email || null,
-    website: form.website || null,
-    registration_no: form.registration_no || null,
-    accreditation: form.accreditation || null,
+    address_line1: form.address_line1.trim() || null,
+    address_line2: form.address_line2.trim() || null,
+    city: form.city.trim() || null,
+    pincode: form.pincode.trim() || null,
+    phone: form.phone.trim() || null,
+    email: form.email?.trim() || null,
+    website: form.website.trim() || null,
+    registration_no: form.registration_no.trim() || null,
+    accreditation: form.accreditation.trim() || null,
     timezone: form.timezone,
     currency: form.currency,
-    fy_start_month: form.fy_start_month,
+    fy_start_month: Number(form.fy_start_month),
   };
 }
 
 export function GeneralSettings() {
   const queryClient = useQueryClient();
-  const [form, setForm] = useState<FormState | null>(null);
-
   const {
     data: tenant,
     isLoading,
@@ -116,21 +117,26 @@ export function GeneralSettings() {
     error,
   } = useQuery({
     queryKey: ["tenant"],
-    queryFn: () => api.getTenant(),
-    select: (data) => {
-      // Initialize form state from fetched data on first load
-      if (form === null) {
-        setForm(tenantToFormState(data));
-      }
-      return data;
-    },
+    queryFn: () => tenantSettingsService.getTenant(),
+  });
+  const formValues = useMemo(() => (tenant ? tenantToFormState(tenant) : EMPTY_FORM), [tenant]);
+
+  const {
+    control,
+    formState: { errors },
+    handleSubmit,
+    register,
+  } = useForm<GeneralSettingsFormInput>({
+    resolver: zodResolver(generalSettingsFormSchema),
+    defaultValues: EMPTY_FORM,
+    values: formValues,
   });
 
   const mutation = useMutation({
-    mutationFn: (data: Partial<TenantSummary>) => api.updateTenant(data),
+    mutationFn: (data: ReturnType<typeof formStateToPayload>) =>
+      tenantSettingsService.updateTenant(data),
     onSuccess: (updated) => {
       queryClient.setQueryData(["tenant"], updated);
-      setForm(tenantToFormState(updated));
       notifications.show({
         title: "Settings saved",
         message: "General settings have been updated successfully.",
@@ -147,14 +153,9 @@ export function GeneralSettings() {
     },
   });
 
-  const handleSave = () => {
-    if (!form) return;
+  const submitSettings = handleSubmit((form) => {
     mutation.mutate(formStateToPayload(form));
-  };
-
-  const updateField = <K extends keyof FormState>(key: K, value: FormState[K]) => {
-    setForm((prev) => (prev ? { ...prev, [key]: value } : prev));
-  };
+  });
 
   if (isLoading) {
     return (
@@ -175,7 +176,7 @@ export function GeneralSettings() {
     );
   }
 
-  if (!tenant || !form) {
+  if (!tenant) {
     return null;
   }
 
@@ -206,14 +207,14 @@ export function GeneralSettings() {
         <TextInput
           label="Address Line 1"
           placeholder="Street address"
-          value={form.address_line1}
-          onChange={(e) => updateField("address_line1", e.currentTarget.value)}
+          error={errors.address_line1?.message}
+          {...register("address_line1")}
         />
         <TextInput
           label="Address Line 2"
           placeholder="Building, floor, etc."
-          value={form.address_line2}
-          onChange={(e) => updateField("address_line2", e.currentTarget.value)}
+          error={errors.address_line2?.message}
+          {...register("address_line2")}
         />
       </Group>
 
@@ -221,14 +222,14 @@ export function GeneralSettings() {
         <TextInput
           label="City"
           placeholder="City name"
-          value={form.city}
-          onChange={(e) => updateField("city", e.currentTarget.value)}
+          error={errors.city?.message}
+          {...register("city")}
         />
         <TextInput
           label="Pincode"
           placeholder="Postal code"
-          value={form.pincode}
-          onChange={(e) => updateField("pincode", e.currentTarget.value)}
+          error={errors.pincode?.message}
+          {...register("pincode")}
         />
       </Group>
 
@@ -236,14 +237,14 @@ export function GeneralSettings() {
         <TextInput
           label="Phone"
           placeholder="+91 XXXXXXXXXX"
-          value={form.phone}
-          onChange={(e) => updateField("phone", e.currentTarget.value)}
+          error={errors.phone?.message}
+          {...register("phone")}
         />
         <TextInput
           label="Email"
           placeholder="hospital@example.com"
-          value={form.email}
-          onChange={(e) => updateField("email", e.currentTarget.value)}
+          error={errors.email?.message}
+          {...register("email")}
         />
       </Group>
 
@@ -251,22 +252,22 @@ export function GeneralSettings() {
         <TextInput
           label="Website"
           placeholder="https://www.hospital.com"
-          value={form.website}
-          onChange={(e) => updateField("website", e.currentTarget.value)}
+          error={errors.website?.message}
+          {...register("website")}
         />
         <TextInput
           label="Registration No."
           placeholder="Hospital registration number"
-          value={form.registration_no}
-          onChange={(e) => updateField("registration_no", e.currentTarget.value)}
+          error={errors.registration_no?.message}
+          {...register("registration_no")}
         />
       </Group>
 
       <TextInput
         label="Accreditation"
         placeholder="NABH, JCI, etc."
-        value={form.accreditation}
-        onChange={(e) => updateField("accreditation", e.currentTarget.value)}
+        error={errors.accreditation?.message}
+        {...register("accreditation")}
       />
 
       <Text fw={600} size="lg" mt="md">
@@ -274,38 +275,59 @@ export function GeneralSettings() {
       </Text>
 
       <Group grow align="flex-start">
-        <Select
-          label="Timezone"
-          data={TIMEZONE_OPTIONS}
-          value={form.timezone}
-          onChange={(value) => updateField("timezone", value ?? "UTC")}
-          searchable
-          allowDeselect={false}
+        <Controller
+          control={control}
+          name="timezone"
+          render={({ field }) => (
+            <Select
+              label="Timezone"
+              data={TIMEZONE_OPTIONS}
+              value={field.value}
+              onChange={(value) => field.onChange(value ?? "UTC")}
+              error={errors.timezone?.message}
+              searchable
+              allowDeselect={false}
+            />
+          )}
         />
-        <Select
-          label="Currency"
-          data={CURRENCY_OPTIONS}
-          value={form.currency}
-          onChange={(value) => updateField("currency", value ?? "INR")}
-          searchable
-          allowDeselect={false}
+        <Controller
+          control={control}
+          name="currency"
+          render={({ field }) => (
+            <Select
+              label="Currency"
+              data={CURRENCY_OPTIONS}
+              value={field.value}
+              onChange={(value) => field.onChange(value ?? "INR")}
+              error={errors.currency?.message}
+              searchable
+              allowDeselect={false}
+            />
+          )}
         />
       </Group>
 
-      <Select
-        label="Financial Year Start Month"
-        description="The month when your hospital's financial year begins."
-        data={MONTH_OPTIONS}
-        value={String(form.fy_start_month)}
-        onChange={(value) => updateField("fy_start_month", Number(value ?? "4"))}
-        allowDeselect={false}
-        maw={300}
+      <Controller
+        control={control}
+        name="fy_start_month"
+        render={({ field }) => (
+          <Select
+            label="Financial Year Start Month"
+            description="The month when your hospital's financial year begins."
+            data={MONTH_OPTIONS}
+            value={field.value}
+            onChange={(value) => field.onChange(value ?? "4")}
+            error={errors.fy_start_month?.message}
+            allowDeselect={false}
+            maw={300}
+          />
+        )}
       />
 
       <Group mt="md">
         <Button
           leftSection={<IconDeviceFloppy size={16} />}
-          onClick={handleSave}
+          onClick={() => void submitSettings()}
           loading={mutation.isPending}
         >
           Save Settings

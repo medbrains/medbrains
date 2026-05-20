@@ -7,10 +7,10 @@
 // help nursing locate the patient quickly. Critical / MLC / allergy
 // indicators surface as inline glyphs the moment the band is read.
 import { Alert, Button, Group, Modal, Stack, Text } from "@mantine/core";
-import { api } from "@medbrains/api";
 import type { AdmissionDetailResponse } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
+import { ipdService } from "../../services/ipd.service";
 
 interface WristbandPrintModalProps {
   admissionId: string;
@@ -22,7 +22,7 @@ export function WristbandPrintModal({ admissionId, opened, onClose }: WristbandP
   const printRef = useRef<HTMLDivElement | null>(null);
   const { data } = useQuery({
     queryKey: ["admission-detail", admissionId],
-    queryFn: () => api.getAdmission(admissionId),
+    queryFn: () => ipdService.getAdmission(admissionId),
     enabled: opened,
   });
 
@@ -31,7 +31,7 @@ export function WristbandPrintModal({ admissionId, opened, onClose }: WristbandP
   const patientId = adm?.patient_id ?? "";
   const { data: patient } = useQuery({
     queryKey: ["patient-detail", patientId],
-    queryFn: () => api.getPatient(patientId),
+    queryFn: () => ipdService.getPatient(patientId),
     enabled: patientId.length > 0,
   });
 

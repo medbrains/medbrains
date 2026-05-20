@@ -1,3 +1,4 @@
+import { zodResolver } from "@hookform/resolvers/zod";
 import { BarChart } from "@mantine/charts";
 import {
   ActionIcon,
@@ -19,22 +20,15 @@ import {
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
 import { useHasPermission } from "@medbrains/stores";
 import type {
-  CreateEnquiryRequest,
-  CreateVisitorPassRequest,
-  CreateVisitorRequest,
   FrontOfficeEnquiryLog,
   QueueDisplayConfig,
-  QueueMetrics as QueueMetricsRow,
+  QueueMetrics,
   QueuePriorityRule,
   QueueStatsResponse,
-  UpsertDisplayConfigRequest,
-  UpsertQueuePriorityRequest,
-  UpsertVisitingHoursRequest,
   VisitingHours,
-  VisitorAnalytics as VisitorAnalyticsType,
+  VisitorAnalytics,
   VisitorLog,
   VisitorPass,
   VisitorRegistration,
@@ -55,46 +49,45 @@ import {
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { Controller, useForm } from "react-hook-form";
 import { DataTable, PageHeader } from "../components";
 import type { Column } from "../components/DataTable";
+import {
+  DAY_OPTIONS,
+  DEFAULT_DISPLAY_CONFIG_FORM_VALUES,
+  DEFAULT_ENQUIRY_FORM_VALUES,
+  DEFAULT_QUEUE_PRIORITY_FORM_VALUES,
+  DEFAULT_VISITING_HOURS_FORM_VALUES,
+  DEFAULT_VISITOR_FORM_VALUES,
+  DEFAULT_VISITOR_PASS_FORM_VALUES,
+  DISPLAY_TYPE_OPTIONS,
+  ENQUIRY_TYPE_OPTIONS,
+  type FrontOfficeDisplayConfigFormInput,
+  type FrontOfficeEnquiryFormInput,
+  type FrontOfficeQueuePriorityFormInput,
+  type FrontOfficeVisitingHoursFormInput,
+  type FrontOfficeVisitorFormInput,
+  type FrontOfficeVisitorPassFormInput,
+  frontOfficeDisplayConfigFormSchema,
+  frontOfficeEnquiryFormSchema,
+  frontOfficeQueuePriorityFormSchema,
+  frontOfficeVisitingHoursFormSchema,
+  frontOfficeVisitorFormSchema,
+  frontOfficeVisitorPassFormSchema,
+  QUEUE_PRIORITY_OPTIONS,
+  toCreateEnquiryRequest,
+  toCreateVisitorPassRequest,
+  toCreateVisitorRequest,
+  toUpsertDisplayConfigRequest,
+  toUpsertQueuePriorityRequest,
+  toUpsertVisitingHoursRequest,
+  VISITOR_CATEGORY_OPTIONS,
+  VISITOR_ID_TYPE_OPTIONS,
+} from "../forms/front-office.form";
 import { useRequirePermission } from "../hooks/useRequirePermission";
+import { frontOfficeService } from "../services/frontOffice.service";
 
 // ── Constants ──────────────────────────────────────────
-
-const VISITOR_CATEGORIES = [
-  { value: "general", label: "General" },
-  { value: "legal_counsel", label: "Legal Counsel" },
-  { value: "religious", label: "Religious" },
-  { value: "vip", label: "VIP" },
-  { value: "media", label: "Media" },
-  { value: "vendor", label: "Vendor" },
-  { value: "emergency", label: "Emergency" },
-];
-
-const ID_TYPES = [
-  { value: "aadhaar", label: "Aadhaar" },
-  { value: "driving_license", label: "Driving License" },
-  { value: "passport", label: "Passport" },
-  { value: "pan", label: "PAN Card" },
-  { value: "voter_id", label: "Voter ID" },
-];
-
-const QUEUE_PRIORITIES = [
-  { value: "normal", label: "Normal" },
-  { value: "elderly", label: "Elderly" },
-  { value: "disabled", label: "Disabled" },
-  { value: "pregnant", label: "Pregnant" },
-  { value: "emergency_referral", label: "Emergency Referral" },
-  { value: "vip", label: "VIP" },
-];
-
-const ENQUIRY_TYPES = [
-  { value: "patient_status", label: "Patient Status" },
-  { value: "visiting_hours", label: "Visiting Hours" },
-  { value: "doctor_availability", label: "Doctor Availability" },
-  { value: "general", label: "General" },
-  { value: "billing", label: "Billing" },
-];
 
 const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
@@ -185,7 +178,7 @@ export function FrontOfficePage() {
 function QueueDashboardTab() {
   const { data: stats, isLoading } = useQuery<QueueStatsResponse[]>({
     queryKey: ["front-office", "queue-stats"],
-    queryFn: () => api.getQueueStats(),
+    queryFn: () => frontOfficeService.getQueueStats(),
   });
 
   return (
@@ -246,60 +239,60 @@ function VisitorManagementTab({
   const [passDrawer, passDrawerHandlers] = useDisclosure(false);
   const [selectedRegistration, setSelectedRegistration] = useState<string | null>(null);
 
-  // Visitor form state
-  const [vName, setVName] = useState("");
-  const [vPhone, setVPhone] = useState("");
-  const [vIdType, setVIdType] = useState<string | null>(null);
-  const [vIdNumber, setVIdNumber] = useState("");
-  const [vRelationship, setVRelationship] = useState("");
-  const [vCategory, setVCategory] = useState<string | null>("general");
-  const [vPurpose, setVPurpose] = useState("");
+  const visitorForm = useForm<FrontOfficeVisitorFormInput>({
+    resolver: zodResolver(frontOfficeVisitorFormSchema),
+    defaultValues: DEFAULT_VISITOR_FORM_VALUES,
+  });
 
-  // Pass form state
-  const [passHours, setPassHours] = useState<number | string>(2);
+  const passForm = useForm<FrontOfficeVisitorPassFormInput>({
+    resolver: zodResolver(frontOfficeVisitorPassFormSchema),
+    defaultValues: DEFAULT_VISITOR_PASS_FORM_VALUES,
+  });
 
   const { data: visitors, isLoading: loadingVisitors } = useQuery<VisitorRegistration[]>({
     queryKey: ["front-office", "visitors"],
-    queryFn: () => api.listVisitors(),
+    queryFn: () => frontOfficeService.listVisitors(),
   });
 
   const { data: passes, isLoading: loadingPasses } = useQuery<VisitorPass[]>({
     queryKey: ["front-office", "passes"],
-    queryFn: () => api.listVisitorPasses(),
+    queryFn: () => frontOfficeService.listVisitorPasses(),
   });
 
   const { data: logs } = useQuery<VisitorLog[]>({
     queryKey: ["front-office", "visitor-logs"],
-    queryFn: () => api.listVisitorLogs({ active_only: "true" }),
+    queryFn: () => frontOfficeService.listVisitorLogs({ active_only: "true" }),
   });
 
   const createVisitor = useMutation({
-    mutationFn: (data: CreateVisitorRequest) => api.createVisitor(data),
+    mutationFn: (data: FrontOfficeVisitorFormInput) =>
+      frontOfficeService.createVisitor(toCreateVisitorRequest(data)),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["front-office", "visitors"] });
       visitorDrawerHandlers.close();
       notifications.show({ message: "Visitor registered", color: "success" });
-      setVName("");
-      setVPhone("");
-      setVIdType(null);
-      setVIdNumber("");
-      setVRelationship("");
-      setVCategory("general");
-      setVPurpose("");
+      visitorForm.reset(DEFAULT_VISITOR_FORM_VALUES);
     },
   });
 
   const createPass = useMutation({
-    mutationFn: (data: CreateVisitorPassRequest) => api.createVisitorPass(data),
+    mutationFn: (data: FrontOfficeVisitorPassFormInput) =>
+      selectedRegistration
+        ? frontOfficeService.createVisitorPass(
+            toCreateVisitorPassRequest(selectedRegistration, data),
+          )
+        : Promise.reject(new Error("Select a visitor registration before issuing a pass")),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["front-office", "passes"] });
       passDrawerHandlers.close();
+      passForm.reset(DEFAULT_VISITOR_PASS_FORM_VALUES);
       notifications.show({ message: "Pass issued", color: "success" });
     },
   });
 
   const revokePass = useMutation({
-    mutationFn: (id: string) => api.revokeVisitorPass(id, { reason: "Revoked by staff" }),
+    mutationFn: (id: string) =>
+      frontOfficeService.revokeVisitorPass(id, { reason: "Revoked by staff" }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["front-office", "passes"] });
       notifications.show({ message: "Pass revoked", color: "orange" });
@@ -307,7 +300,7 @@ function VisitorManagementTab({
   });
 
   const checkIn = useMutation({
-    mutationFn: (passId: string) => api.checkInVisitor(passId),
+    mutationFn: (passId: string) => frontOfficeService.checkInVisitor(passId),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["front-office", "visitor-logs"] });
       notifications.show({ message: "Visitor checked in", color: "success" });
@@ -315,7 +308,7 @@ function VisitorManagementTab({
   });
 
   const checkOut = useMutation({
-    mutationFn: (passId: string) => api.checkOutVisitor(passId),
+    mutationFn: (passId: string) => frontOfficeService.checkOutVisitor(passId),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["front-office", "visitor-logs"] });
       notifications.show({ message: "Visitor checked out", color: "primary" });
@@ -481,55 +474,65 @@ function VisitorManagementTab({
         position="right"
         size="xl"
       >
-        <Stack gap="sm">
+        <Stack
+          component="form"
+          gap="sm"
+          onSubmit={visitorForm.handleSubmit((values) => createVisitor.mutate(values))}
+        >
           <TextInput
             label="Visitor Name"
             required
-            value={vName}
-            onChange={(e) => setVName(e.currentTarget.value)}
+            error={visitorForm.formState.errors.visitor_name?.message}
+            {...visitorForm.register("visitor_name")}
           />
           <TextInput
             label="Phone"
-            value={vPhone}
-            onChange={(e) => setVPhone(e.currentTarget.value)}
+            error={visitorForm.formState.errors.phone?.message}
+            {...visitorForm.register("phone")}
           />
-          <Select label="ID Type" data={ID_TYPES} value={vIdType} onChange={setVIdType} clearable />
+          <Controller
+            control={visitorForm.control}
+            name="id_type"
+            render={({ field, fieldState }) => (
+              <Select
+                label="ID Type"
+                data={VISITOR_ID_TYPE_OPTIONS}
+                value={field.value}
+                onChange={field.onChange}
+                error={fieldState.error?.message}
+                clearable
+              />
+            )}
+          />
           <TextInput
             label="ID Number"
-            value={vIdNumber}
-            onChange={(e) => setVIdNumber(e.currentTarget.value)}
+            error={visitorForm.formState.errors.id_number?.message}
+            {...visitorForm.register("id_number")}
           />
           <TextInput
             label="Relationship"
-            value={vRelationship}
-            onChange={(e) => setVRelationship(e.currentTarget.value)}
+            error={visitorForm.formState.errors.relationship?.message}
+            {...visitorForm.register("relationship")}
           />
-          <Select
-            label="Category"
-            data={VISITOR_CATEGORIES}
-            value={vCategory}
-            onChange={setVCategory}
+          <Controller
+            control={visitorForm.control}
+            name="category"
+            render={({ field, fieldState }) => (
+              <Select
+                label="Category"
+                data={VISITOR_CATEGORY_OPTIONS}
+                value={field.value}
+                onChange={field.onChange}
+                error={fieldState.error?.message}
+              />
+            )}
           />
           <Textarea
             label="Purpose"
-            value={vPurpose}
-            onChange={(e) => setVPurpose(e.currentTarget.value)}
+            error={visitorForm.formState.errors.purpose?.message}
+            {...visitorForm.register("purpose")}
           />
-          <Button
-            onClick={() =>
-              createVisitor.mutate({
-                visitor_name: vName,
-                phone: vPhone || undefined,
-                id_type: vIdType ?? undefined,
-                id_number: vIdNumber || undefined,
-                relationship: vRelationship || undefined,
-                category: vCategory ?? undefined,
-                purpose: vPurpose || undefined,
-              })
-            }
-            loading={createVisitor.isPending}
-            disabled={!vName}
-          >
+          <Button type="submit" loading={createVisitor.isPending}>
             Register
           </Button>
         </Stack>
@@ -543,28 +546,29 @@ function VisitorManagementTab({
         position="right"
         size="sm"
       >
-        <Stack gap="sm">
+        <Stack
+          component="form"
+          gap="sm"
+          onSubmit={passForm.handleSubmit((values) => createPass.mutate(values))}
+        >
           <Text size="sm" c="dimmed">
             Issuing pass for registration: {selectedRegistration?.slice(0, 8)}...
           </Text>
-          <NumberInput
-            label="Valid Hours"
-            value={passHours}
-            onChange={setPassHours}
-            min={1}
-            max={24}
+          <Controller
+            control={passForm.control}
+            name="valid_hours"
+            render={({ field, fieldState }) => (
+              <NumberInput
+                label="Valid Hours"
+                value={field.value}
+                onChange={field.onChange}
+                error={fieldState.error?.message}
+                min={1}
+                max={24}
+              />
+            )}
           />
-          <Button
-            onClick={() => {
-              if (selectedRegistration) {
-                createPass.mutate({
-                  registration_id: selectedRegistration,
-                  valid_hours: typeof passHours === "number" ? passHours : 2,
-                });
-              }
-            }}
-            loading={createPass.isPending}
-          >
+          <Button type="submit" loading={createPass.isPending} disabled={!selectedRegistration}>
             Issue Pass
           </Button>
         </Stack>
@@ -589,62 +593,65 @@ function QueueConfigTab({
   const [configDrawer, configDrawerHandlers] = useDisclosure(false);
   const [hoursDrawer, hoursDrawerHandlers] = useDisclosure(false);
 
-  // Priority rule form
-  const [rulePriority, setRulePriority] = useState<string | null>("normal");
-  const [ruleWeight, setRuleWeight] = useState<number | string>(1);
+  const priorityForm = useForm<FrontOfficeQueuePriorityFormInput>({
+    resolver: zodResolver(frontOfficeQueuePriorityFormSchema),
+    defaultValues: DEFAULT_QUEUE_PRIORITY_FORM_VALUES,
+  });
 
-  // Display config form
-  const [cfgName, setCfgName] = useState("");
-  const [cfgType, setCfgType] = useState<string | null>("waiting_area");
-  const [cfgDoctors, setCfgDoctors] = useState<number | string>(4);
-  const [cfgShowName, setCfgShowName] = useState(false);
-  const [cfgShowWait, setCfgShowWait] = useState(true);
-  const [cfgAnnounce, setCfgAnnounce] = useState(false);
+  const displayConfigForm = useForm<FrontOfficeDisplayConfigFormInput>({
+    resolver: zodResolver(frontOfficeDisplayConfigFormSchema),
+    defaultValues: DEFAULT_DISPLAY_CONFIG_FORM_VALUES,
+  });
 
-  // Visiting hours form
-  const [hDay, setHDay] = useState<string | null>("1");
-  const [hStart, setHStart] = useState("09:00");
-  const [hEnd, setHEnd] = useState("17:00");
-  const [hMax, setHMax] = useState<number | string>(2);
+  const visitingHoursForm = useForm<FrontOfficeVisitingHoursFormInput>({
+    resolver: zodResolver(frontOfficeVisitingHoursFormSchema),
+    defaultValues: DEFAULT_VISITING_HOURS_FORM_VALUES,
+  });
 
   const { data: rules, isLoading: loadingRules } = useQuery<QueuePriorityRule[]>({
     queryKey: ["front-office", "queue-priority"],
-    queryFn: () => api.listQueuePriorityRules(),
+    queryFn: () => frontOfficeService.listQueuePriorityRules(),
   });
 
   const { data: configs, isLoading: loadingConfigs } = useQuery<QueueDisplayConfig[]>({
     queryKey: ["front-office", "display-config"],
-    queryFn: () => api.listQueueDisplayConfig(),
+    queryFn: () => frontOfficeService.listQueueDisplayConfig(),
   });
 
   const { data: hours, isLoading: loadingHours } = useQuery<VisitingHours[]>({
     queryKey: ["front-office", "visiting-hours"],
-    queryFn: () => api.listVisitingHours(),
+    queryFn: () => frontOfficeService.listVisitingHours(),
   });
 
   const createRule = useMutation({
-    mutationFn: (data: UpsertQueuePriorityRequest) => api.upsertQueuePriorityRule(data),
+    mutationFn: (data: FrontOfficeQueuePriorityFormInput) =>
+      frontOfficeService.upsertQueuePriorityRule(toUpsertQueuePriorityRequest(data)),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["front-office", "queue-priority"] });
       ruleDrawerHandlers.close();
+      priorityForm.reset(DEFAULT_QUEUE_PRIORITY_FORM_VALUES);
       notifications.show({ message: "Priority rule added", color: "success" });
     },
   });
 
   const createConfig = useMutation({
-    mutationFn: (data: UpsertDisplayConfigRequest) => api.upsertQueueDisplayConfig(data),
+    mutationFn: (data: FrontOfficeDisplayConfigFormInput) =>
+      frontOfficeService.upsertQueueDisplayConfig(toUpsertDisplayConfigRequest(data)),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["front-office", "display-config"] });
       configDrawerHandlers.close();
+      displayConfigForm.reset(DEFAULT_DISPLAY_CONFIG_FORM_VALUES);
       notifications.show({ message: "Display config saved", color: "success" });
     },
   });
 
   const createHours = useMutation({
-    mutationFn: (data: UpsertVisitingHoursRequest) => api.upsertVisitingHours(data),
+    mutationFn: (data: FrontOfficeVisitingHoursFormInput) =>
+      frontOfficeService.upsertVisitingHours(toUpsertVisitingHoursRequest(data)),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["front-office", "visiting-hours"] });
       hoursDrawerHandlers.close();
+      visitingHoursForm.reset(DEFAULT_VISITING_HOURS_FORM_VALUES);
       notifications.show({ message: "Visiting hours saved", color: "success" });
     },
   });
@@ -783,29 +790,39 @@ function QueueConfigTab({
         position="right"
         size="sm"
       >
-        <Stack gap="sm">
-          <Select
-            label="Priority"
-            data={QUEUE_PRIORITIES}
-            value={rulePriority}
-            onChange={setRulePriority}
+        <Stack
+          component="form"
+          gap="sm"
+          onSubmit={priorityForm.handleSubmit((values) => createRule.mutate(values))}
+        >
+          <Controller
+            control={priorityForm.control}
+            name="priority"
+            render={({ field, fieldState }) => (
+              <Select
+                label="Priority"
+                data={QUEUE_PRIORITY_OPTIONS}
+                value={field.value}
+                onChange={field.onChange}
+                error={fieldState.error?.message}
+              />
+            )}
           />
-          <NumberInput
-            label="Weight (higher = called sooner)"
-            value={ruleWeight}
-            onChange={setRuleWeight}
-            min={1}
-            max={100}
+          <Controller
+            control={priorityForm.control}
+            name="weight"
+            render={({ field, fieldState }) => (
+              <NumberInput
+                label="Weight (higher = called sooner)"
+                value={field.value}
+                onChange={field.onChange}
+                error={fieldState.error?.message}
+                min={1}
+                max={100}
+              />
+            )}
           />
-          <Button
-            onClick={() =>
-              createRule.mutate({
-                priority: rulePriority ?? "normal",
-                weight: typeof ruleWeight === "number" ? ruleWeight : 1,
-              })
-            }
-            loading={createRule.isPending}
-          >
+          <Button type="submit" loading={createRule.isPending}>
             Save
           </Button>
         </Stack>
@@ -819,55 +836,78 @@ function QueueConfigTab({
         position="right"
         size="xl"
       >
-        <Stack gap="sm">
+        <Stack
+          component="form"
+          gap="sm"
+          onSubmit={displayConfigForm.handleSubmit((values) => createConfig.mutate(values))}
+        >
           <TextInput
             label="Location Name"
             required
-            value={cfgName}
-            onChange={(e) => setCfgName(e.currentTarget.value)}
+            error={displayConfigForm.formState.errors.location_name?.message}
+            {...displayConfigForm.register("location_name")}
           />
-          <Select
-            label="Display Type"
-            data={["waiting_area", "doctor_room", "counter"]}
-            value={cfgType}
-            onChange={setCfgType}
+          <Controller
+            control={displayConfigForm.control}
+            name="display_type"
+            render={({ field, fieldState }) => (
+              <Select
+                label="Display Type"
+                data={DISPLAY_TYPE_OPTIONS}
+                value={field.value}
+                onChange={field.onChange}
+                error={fieldState.error?.message}
+              />
+            )}
           />
-          <NumberInput
-            label="Doctors Per Screen"
-            value={cfgDoctors}
-            onChange={setCfgDoctors}
-            min={1}
-            max={20}
+          <Controller
+            control={displayConfigForm.control}
+            name="doctors_per_screen"
+            render={({ field, fieldState }) => (
+              <NumberInput
+                label="Doctors Per Screen"
+                value={field.value}
+                onChange={field.onChange}
+                error={fieldState.error?.message}
+                min={1}
+                max={20}
+              />
+            )}
           />
-          <Switch
-            label="Show Patient Name"
-            checked={cfgShowName}
-            onChange={(e) => setCfgShowName(e.currentTarget.checked)}
+          <Controller
+            control={displayConfigForm.control}
+            name="show_patient_name"
+            render={({ field }) => (
+              <Switch
+                label="Show Patient Name"
+                checked={field.value}
+                onChange={(event) => field.onChange(event.currentTarget.checked)}
+              />
+            )}
           />
-          <Switch
-            label="Show Wait Time"
-            checked={cfgShowWait}
-            onChange={(e) => setCfgShowWait(e.currentTarget.checked)}
+          <Controller
+            control={displayConfigForm.control}
+            name="show_wait_time"
+            render={({ field }) => (
+              <Switch
+                label="Show Wait Time"
+                checked={field.value}
+                onChange={(event) => field.onChange(event.currentTarget.checked)}
+              />
+            )}
           />
-          <Switch
-            label="Enable Announcements"
-            checked={cfgAnnounce}
-            onChange={(e) => setCfgAnnounce(e.currentTarget.checked)}
+          <Controller
+            control={displayConfigForm.control}
+            name="announcement_enabled"
+            render={({ field }) => (
+              <Switch
+                label="Enable Announcements"
+                checked={field.value}
+                onChange={(event) => field.onChange(event.currentTarget.checked)}
+              />
+            )}
           />
-          <Button
-            onClick={() =>
-              createConfig.mutate({
-                location_name: cfgName,
-                display_type: cfgType ?? undefined,
-                doctors_per_screen: typeof cfgDoctors === "number" ? cfgDoctors : undefined,
-                show_patient_name: cfgShowName,
-                show_wait_time: cfgShowWait,
-                announcement_enabled: cfgAnnounce,
-              })
-            }
-            loading={createConfig.isPending}
-            disabled={!cfgName}
-          >
+          <Button type="submit" loading={createConfig.isPending}>
             Save
           </Button>
         </Stack>
@@ -881,43 +921,51 @@ function QueueConfigTab({
         position="right"
         size="sm"
       >
-        <Stack gap="sm">
-          <Select
-            label="Day of Week"
-            data={DAY_NAMES.map((d, i) => ({ value: String(i), label: d }))}
-            value={hDay}
-            onChange={setHDay}
+        <Stack
+          component="form"
+          gap="sm"
+          onSubmit={visitingHoursForm.handleSubmit((values) => createHours.mutate(values))}
+        >
+          <Controller
+            control={visitingHoursForm.control}
+            name="day_of_week"
+            render={({ field, fieldState }) => (
+              <Select
+                label="Day of Week"
+                data={DAY_OPTIONS}
+                value={field.value}
+                onChange={field.onChange}
+                error={fieldState.error?.message}
+              />
+            )}
           />
           <TextInput
             label="Start Time"
-            value={hStart}
-            onChange={(e) => setHStart(e.currentTarget.value)}
             placeholder="HH:MM"
+            error={visitingHoursForm.formState.errors.start_time?.message}
+            {...visitingHoursForm.register("start_time")}
           />
           <TextInput
             label="End Time"
-            value={hEnd}
-            onChange={(e) => setHEnd(e.currentTarget.value)}
             placeholder="HH:MM"
+            error={visitingHoursForm.formState.errors.end_time?.message}
+            {...visitingHoursForm.register("end_time")}
           />
-          <NumberInput
-            label="Max Visitors Per Patient"
-            value={hMax}
-            onChange={setHMax}
-            min={1}
-            max={10}
+          <Controller
+            control={visitingHoursForm.control}
+            name="max_visitors_per_patient"
+            render={({ field, fieldState }) => (
+              <NumberInput
+                label="Max Visitors Per Patient"
+                value={field.value}
+                onChange={field.onChange}
+                error={fieldState.error?.message}
+                min={1}
+                max={10}
+              />
+            )}
           />
-          <Button
-            onClick={() =>
-              createHours.mutate({
-                day_of_week: Number(hDay ?? 1),
-                start_time: hStart,
-                end_time: hEnd,
-                max_visitors_per_patient: typeof hMax === "number" ? hMax : 2,
-              })
-            }
-            loading={createHours.isPending}
-          >
+          <Button type="submit" loading={createHours.isPending}>
             Save
           </Button>
         </Stack>
@@ -934,31 +982,29 @@ function EnquiryDeskTab({ canCreate, canManage }: { canCreate: boolean; canManag
   const qc = useQueryClient();
   const [drawer, drawerHandlers] = useDisclosure(false);
 
-  const [eName, setEName] = useState("");
-  const [ePhone, setEPhone] = useState("");
-  const [eType, setEType] = useState<string | null>("general");
-  const [eResponse, setEResponse] = useState("");
+  const enquiryForm = useForm<FrontOfficeEnquiryFormInput>({
+    resolver: zodResolver(frontOfficeEnquiryFormSchema),
+    defaultValues: DEFAULT_ENQUIRY_FORM_VALUES,
+  });
 
   const { data: enquiries, isLoading } = useQuery<FrontOfficeEnquiryLog[]>({
     queryKey: ["front-office", "enquiries"],
-    queryFn: () => api.listEnquiries(),
+    queryFn: () => frontOfficeService.listEnquiries(),
   });
 
   const createEnquiry = useMutation({
-    mutationFn: (data: CreateEnquiryRequest) => api.createEnquiry(data),
+    mutationFn: (data: FrontOfficeEnquiryFormInput) =>
+      frontOfficeService.createEnquiry(toCreateEnquiryRequest(data)),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["front-office", "enquiries"] });
       drawerHandlers.close();
       notifications.show({ message: "Enquiry logged", color: "success" });
-      setEName("");
-      setEPhone("");
-      setEType("general");
-      setEResponse("");
+      enquiryForm.reset(DEFAULT_ENQUIRY_FORM_VALUES);
     },
   });
 
   const resolveEnquiry = useMutation({
-    mutationFn: (id: string) => api.resolveEnquiry(id),
+    mutationFn: (id: string) => frontOfficeService.resolveEnquiry(id),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["front-office", "enquiries"] });
       notifications.show({ message: "Enquiry resolved", color: "success" });
@@ -1044,35 +1090,41 @@ function EnquiryDeskTab({ canCreate, canManage }: { canCreate: boolean; canManag
         position="right"
         size="xl"
       >
-        <Stack gap="sm">
+        <Stack
+          component="form"
+          gap="sm"
+          onSubmit={enquiryForm.handleSubmit((values) => createEnquiry.mutate(values))}
+        >
           <TextInput
             label="Caller Name"
-            value={eName}
-            onChange={(e) => setEName(e.currentTarget.value)}
+            error={enquiryForm.formState.errors.caller_name?.message}
+            {...enquiryForm.register("caller_name")}
           />
           <TextInput
             label="Caller Phone"
-            value={ePhone}
-            onChange={(e) => setEPhone(e.currentTarget.value)}
+            error={enquiryForm.formState.errors.caller_phone?.message}
+            {...enquiryForm.register("caller_phone")}
           />
-          <Select label="Enquiry Type" data={ENQUIRY_TYPES} value={eType} onChange={setEType} />
+          <Controller
+            control={enquiryForm.control}
+            name="enquiry_type"
+            render={({ field, fieldState }) => (
+              <Select
+                label="Enquiry Type"
+                data={ENQUIRY_TYPE_OPTIONS}
+                value={field.value}
+                onChange={field.onChange}
+                error={fieldState.error?.message}
+              />
+            )}
+          />
           <Textarea
             label="Response"
-            value={eResponse}
-            onChange={(e) => setEResponse(e.currentTarget.value)}
+            error={enquiryForm.formState.errors.response_text?.message}
             rows={3}
+            {...enquiryForm.register("response_text")}
           />
-          <Button
-            onClick={() =>
-              createEnquiry.mutate({
-                caller_name: eName || undefined,
-                caller_phone: ePhone || undefined,
-                enquiry_type: eType ?? undefined,
-                response_text: eResponse || undefined,
-              })
-            }
-            loading={createEnquiry.isPending}
-          >
+          <Button type="submit" loading={createEnquiry.isPending}>
             Log Enquiry
           </Button>
         </Stack>
@@ -1089,12 +1141,11 @@ function VisitorAnalyticsTab() {
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
 
-  const { data, isLoading } = useQuery({
+  const { data: analytics, isLoading } = useQuery<VisitorAnalytics>({
     queryKey: ["front-office", "visitor-analytics", from, to],
-    queryFn: () => api.visitorAnalytics({ from: from || undefined, to: to || undefined }),
+    queryFn: () =>
+      frontOfficeService.visitorAnalytics({ from: from || undefined, to: to || undefined }),
   });
-
-  const analytics = data as VisitorAnalyticsType | undefined;
 
   const byDeptChart = analytics
     ? Object.entries(analytics.by_department).map(([dept, count]) => ({
@@ -1203,14 +1254,12 @@ function VisitorAnalyticsTab() {
 // ══════════════════════════════════════════════════════════
 
 function QueueMetricsTab() {
-  const { data, isLoading } = useQuery({
+  const { data: metrics = [], isLoading } = useQuery<QueueMetrics[]>({
     queryKey: ["front-office", "queue-metrics"],
-    queryFn: () => api.queueMetrics(),
+    queryFn: () => frontOfficeService.queueMetrics(),
   });
 
-  const metrics = (data ?? []) as QueueMetricsRow[];
-
-  const cols: Column<QueueMetricsRow>[] = [
+  const cols: Column<QueueMetrics>[] = [
     {
       key: "department",
       label: "Department",

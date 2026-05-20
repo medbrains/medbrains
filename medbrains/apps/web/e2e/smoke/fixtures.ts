@@ -471,8 +471,10 @@ export const SMOKE_BODIES: Record<string, Record<string, unknown>> = {
  */
 export const SKIP_ENDPOINTS: string[] = [
   "POST /api/auth/logout",
+  "POST /api/auth/logout-all",
   "POST /api/auth/login",
   "POST /api/auth/refresh",
+  "POST /api/auth/change-password",
   "POST /api/onboarding/init",
   "POST /api/setup/seed",
   "DELETE /api/admin/tenants/{id}", // destructive

@@ -7,7 +7,9 @@ use axum::{
 };
 use jsonwebtoken::{DecodingKey, EncodingKey};
 use tower_http::{
-    cors::CorsLayer, request_id::SetRequestIdLayer, set_header::SetResponseHeaderLayer,
+    cors::{AllowOrigin, CorsLayer},
+    request_id::SetRequestIdLayer,
+    set_header::SetResponseHeaderLayer,
     trace::TraceLayer,
 };
 use tracing_subscriber::{EnvFilter, layer::SubscriberExt, util::SubscriberInitExt};
@@ -224,14 +226,33 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Run seed (insert default tenant + super_admin if not exists)
     seed::run_seed(&db_pool).await?;
 
-    // CORS — specific origin with credentials support
-    let origin: HeaderValue = config
+    // CORS — explicit HTTPS allow-list with credentials support.
+    // Do not use wildcard CORS or generic localhost origins for HMS traffic.
+    let cors_origins = config
         .cors_origin
-        .parse()
-        .map_err(|e| format!("Invalid CORS_ORIGIN: {e}"))?;
+        .split(',')
+        .map(str::trim)
+        .filter(|origin| !origin.is_empty())
+        .map(|origin| {
+            if origin == "*" {
+                return Err("CORS_ORIGIN must not contain wildcard origins".to_owned());
+            }
+            if !origin.starts_with("https://") {
+                return Err(format!(
+                    "CORS_ORIGIN must use HTTPS MedBrains-controlled origins only: {origin}"
+                ));
+            }
+            origin
+                .parse::<HeaderValue>()
+                .map_err(|e| format!("Invalid CORS_ORIGIN value {origin}: {e}"))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    if cors_origins.is_empty() {
+        return Err("CORS_ORIGIN must contain at least one origin".into());
+    }
 
     let cors = CorsLayer::new()
-        .allow_origin(origin)
+        .allow_origin(AllowOrigin::list(cors_origins))
         .allow_methods([
             Method::GET,
             Method::POST,
@@ -244,6 +265,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             CONTENT_TYPE,
             axum::http::header::AUTHORIZATION,
             HeaderName::from_static("x-csrf-token"),
+            HeaderName::from_static("x-medbrains-client"),
         ])
         .allow_credentials(true);
 

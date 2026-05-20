@@ -20,12 +20,12 @@ import {
 import { DateTimePicker } from "@mantine/dates";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
 import { IconPlus, IconTrash, IconUserCheck } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { PageHeader } from "../../components/PageHeader";
 import { useRequirePermission } from "../../hooks/useRequirePermission";
+import { adminDoctorsService } from "../../services/adminDoctors.service";
 
 export function AdminCoveragePage() {
   useRequirePermission("admin.coverage.list");
@@ -35,12 +35,12 @@ export function AdminCoveragePage() {
 
   const { data: assignments = [], isLoading } = useQuery({
     queryKey: ["admin-coverage", activeOnly],
-    queryFn: () => api.adminListCoverage({ active_now: activeOnly }),
+    queryFn: () => adminDoctorsService.listCoverage({ active_now: activeOnly }),
   });
 
   const { data: doctors = [] } = useQuery({
     queryKey: ["admin-doctors-active"],
-    queryFn: () => api.adminListDoctors({ is_active: true, limit: 500 }),
+    queryFn: () => adminDoctorsService.listDoctors({ is_active: true, limit: 500 }),
   });
 
   const doctorName = (id: string) => {
@@ -49,7 +49,7 @@ export function AdminCoveragePage() {
   };
 
   const remove = useMutation({
-    mutationFn: (id: string) => api.adminDeleteCoverage(id),
+    mutationFn: (id: string) => adminDoctorsService.deleteCoverage(id),
     onSuccess: () => {
       notifications.show({ title: "Removed", message: "Coverage deleted.", color: "success" });
       void queryClient.invalidateQueries({ queryKey: ["admin-coverage"] });
@@ -181,19 +181,23 @@ function CreateCoverageModal({
 }) {
   const [absent, setAbsent] = useState<string | null>(null);
   const [covering, setCovering] = useState<string | null>(null);
-  const [start, setStart] = useState<Date | null>(null);
-  const [end, setEnd] = useState<Date | null>(null);
+  const [start, setStart] = useState<string | null>(null);
+  const [end, setEnd] = useState<string | null>(null);
   const [reason, setReason] = useState("");
 
   const create = useMutation({
-    mutationFn: () =>
-      api.adminCreateCoverage({
-        absent_doctor_id: absent!,
-        covering_doctor_id: covering!,
-        start_at: start ? start.toISOString() : "",
-        end_at: end ? end.toISOString() : "",
+    mutationFn: () => {
+      if (!absent || !covering || !start || !end) {
+        throw new Error("Select both doctors and a valid date range");
+      }
+      return adminDoctorsService.createCoverage({
+        absent_doctor_id: absent,
+        covering_doctor_id: covering,
+        start_at: new Date(start).toISOString(),
+        end_at: new Date(end).toISOString(),
         reason: reason || null,
-      }),
+      });
+    },
     onSuccess: () => {
       notifications.show({ title: "Coverage assigned", message: "Saved.", color: "success" });
       onCreated();
@@ -202,7 +206,13 @@ function CreateCoverageModal({
       notifications.show({ title: "Create failed", message: err.message, color: "danger" }),
   });
 
-  const canSubmit = absent && covering && start && end && absent !== covering && end > start;
+  const canSubmit =
+    absent &&
+    covering &&
+    start &&
+    end &&
+    absent !== covering &&
+    new Date(end).getTime() > new Date(start).getTime();
 
   return (
     <Modal opened onClose={onClose} title="Assign locum coverage" size="md">
@@ -224,18 +234,8 @@ function CreateCoverageModal({
           required
         />
         <Group grow>
-          <DateTimePicker
-            label="Start"
-            value={start}
-            onChange={(v) => setStart(v as unknown as Date | null)}
-            required
-          />
-          <DateTimePicker
-            label="End"
-            value={end}
-            onChange={(v) => setEnd(v as unknown as Date | null)}
-            required
-          />
+          <DateTimePicker label="Start" value={start} onChange={setStart} required />
+          <DateTimePicker label="End" value={end} onChange={setEnd} required />
         </Group>
         <Textarea
           label="Reason"

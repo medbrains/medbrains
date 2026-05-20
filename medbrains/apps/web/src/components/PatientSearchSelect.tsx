@@ -1,11 +1,11 @@
 import { Group, Text } from "@mantine/core";
 import { useDebouncedValue } from "@mantine/hooks";
-import { api } from "@medbrains/api";
 import { useHasPermission } from "@medbrains/stores";
 import { P } from "@medbrains/types";
 import { IconSearch, IconUserPlus } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
+import { lookupsService } from "../services/lookups.service";
 import { MiniRegisterPatient } from "./Patient/MiniRegisterPatient";
 import { SearchOrCreate } from "./SearchOrCreate";
 
@@ -56,7 +56,7 @@ export function PatientSearchSelect({
 
   const { data } = useQuery({
     queryKey: ["patient-search", debounced],
-    queryFn: () => api.listPatients({ search: debounced, per_page: 15 }),
+    queryFn: () => lookupsService.listPatients({ search: debounced, per_page: 15 }),
     enabled: debounced.length >= 2,
     staleTime: 30_000,
   });

@@ -11,7 +11,6 @@ import {
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
 import { useHasPermission } from "@medbrains/stores";
 import { type BreakGlassEventSummary, P } from "@medbrains/types";
 import { IconEye, IconShieldLock } from "@tabler/icons-react";
@@ -19,6 +18,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { type Column, DataTable } from "../../components/DataTable";
 import { formatDateTime } from "../../lib/date-utils";
+import { auditService } from "../../services/audit.service";
 
 type BreakGlassFilter = "all" | "active" | "needs_review" | "reviewed";
 
@@ -76,6 +76,17 @@ const queryForFilter = (filter: BreakGlassFilter) => {
   }
 };
 
+function toBreakGlassFilter(value: string | null): BreakGlassFilter {
+  switch (value) {
+    case "all":
+    case "active":
+    case "reviewed":
+      return value;
+    default:
+      return "needs_review";
+  }
+}
+
 export function BreakGlassReviewTab() {
   const queryClient = useQueryClient();
   const canReview = useHasPermission(P.AUDIT.BREAK_GLASS_REVIEW);
@@ -86,18 +97,18 @@ export function BreakGlassReviewTab() {
 
   const { data: events = [], isLoading } = useQuery({
     queryKey: ["break-glass", filter],
-    queryFn: () => api.listBreakGlass(queryForFilter(filter)),
+    queryFn: () => auditService.listBreakGlass(queryForFilter(filter)),
   });
 
   const { data: selectedEvent, isLoading: detailLoading } = useQuery({
     queryKey: ["break-glass", selectedId],
-    queryFn: () => api.getBreakGlass(selectedId ?? ""),
+    queryFn: () => auditService.getBreakGlass(selectedId ?? ""),
     enabled: !!selectedId,
   });
 
   const reviewMutation = useMutation({
     mutationFn: ({ id, notes }: { id: string; notes: string }) =>
-      api.reviewBreakGlass(id, { review_notes: notes.trim() }),
+      auditService.reviewBreakGlass(id, { review_notes: notes.trim() }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["break-glass"] });
       setReviewNotes("");
@@ -223,7 +234,7 @@ export function BreakGlassReviewTab() {
           label="Queue"
           data={FILTER_OPTIONS}
           value={filter}
-          onChange={(value) => setFilter((value as BreakGlassFilter | null) ?? "needs_review")}
+          onChange={(value) => setFilter(toBreakGlassFilter(value))}
           w={180}
         />
       </Group>

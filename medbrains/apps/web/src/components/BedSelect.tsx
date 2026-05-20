@@ -1,10 +1,10 @@
 import { Stack, Text } from "@mantine/core";
-import { api } from "@medbrains/api";
 import { useHasPermission } from "@medbrains/stores";
 import { type AvailableBed, P } from "@medbrains/types";
 import { IconBed, IconPlus } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
+import { lookupsService } from "../services/lookups.service";
 import { MiniAddBed } from "./Ipd/MiniAddBed";
 import { SearchOrCreate } from "./SearchOrCreate";
 
@@ -38,7 +38,7 @@ export function BedSelect({
 
   const { data: beds = [] } = useQuery({
     queryKey: ["available-beds", wardId],
-    queryFn: () => api.listAvailableBeds(wardId ? { ward_id: wardId } : undefined),
+    queryFn: () => lookupsService.listAvailableBeds(wardId ? { ward_id: wardId } : undefined),
     staleTime: 30_000,
   });
 

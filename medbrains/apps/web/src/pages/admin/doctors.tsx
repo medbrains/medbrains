@@ -5,6 +5,8 @@
  * registration, qualification, specialty, privileges, and signing readiness all
  * need to be visible before a doctor signs clinical records.
  */
+
+import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Alert,
   Avatar,
@@ -29,7 +31,16 @@ import {
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
+import type {
+  DoctorProfileFormInput,
+  LinkedDoctorUserFormInput,
+  SignatureCredentialIssueFormInput,
+} from "@medbrains/schemas";
+import {
+  doctorProfileFormSchema,
+  linkedDoctorUserFormSchema,
+  signatureCredentialIssueFormSchema,
+} from "@medbrains/schemas";
 import type {
   CreateDoctorRequest,
   DoctorProfile,
@@ -50,25 +61,30 @@ import {
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
+import { Controller, useForm } from "react-hook-form";
 import { PageHeader } from "../../components/PageHeader";
+import { usePacedQueryValue } from "../../hooks/usePacedQueryValue";
 import { useRequirePermission } from "../../hooks/useRequirePermission";
+import { adminDoctorsService } from "../../services/adminDoctors.service";
 
 export function AdminDoctorsPage() {
   useRequirePermission("admin.doctors.list");
 
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
+  const pacedSearch = usePacedQueryValue(search.trim(), 350);
   const [createOpen, createHandlers] = useDisclosure(false);
   const [credentialDoctor, setCredentialDoctor] = useState<DoctorProfile | null>(null);
 
   const { data: doctors = [], isLoading } = useQuery({
-    queryKey: ["admin-doctors", search],
-    queryFn: () => api.adminListDoctors({ search: search || undefined, limit: 200 }),
+    queryKey: ["admin-doctors", pacedSearch],
+    queryFn: () =>
+      adminDoctorsService.listDoctors({ search: pacedSearch || undefined, limit: 200 }),
   });
 
   const { data: credentials = [], isLoading: credentialsLoading } = useQuery({
     queryKey: ["sig-credentials", "all"],
-    queryFn: () => api.adminListSignatureCredentials({ include_revoked: true }),
+    queryFn: () => adminDoctorsService.listSignatureCredentials({ include_revoked: true }),
   });
 
   const activeDefaultsByDoctor = useMemo(() => {
@@ -98,7 +114,7 @@ export function AdminDoctorsPage() {
   const signingBlockedCount = Math.max(doctors.length - readyToSignCount, 0);
 
   const create = useMutation({
-    mutationFn: (data: CreateDoctorRequest) => api.adminCreateDoctor(data),
+    mutationFn: (data: CreateDoctorRequest) => adminDoctorsService.createDoctor(data),
     onSuccess: () => {
       notifications.show({
         title: "Doctor profile created",
@@ -444,22 +460,35 @@ function CreateDoctorModal({
 }) {
   const queryClient = useQueryClient();
   const [createUserOpen, createUserHandlers] = useDisclosure(false);
-  const [userId, setUserId] = useState("");
-  const [prefix, setPrefix] = useState("Dr.");
-  const [displayName, setDisplayName] = useState("");
-  const [qualification, setQualification] = useState("");
-  const [mciNumber, setMciNumber] = useState("");
-  const [stateCouncilNumber, setStateCouncilNumber] = useState("");
-  const [stateCouncilName, setStateCouncilName] = useState("");
-  const [subspecialty, setSubspecialty] = useState("");
-  const [yearsExperience, setYearsExperience] = useState("");
-  const [isVisiting, setIsVisiting] = useState(false);
-  const [canSignMlc, setCanSignMlc] = useState(false);
-  const [canPerformSurgery, setCanPerformSurgery] = useState(false);
+  const {
+    control,
+    handleSubmit,
+    setValue,
+    watch,
+    formState: { errors },
+  } = useForm<DoctorProfileFormInput>({
+    resolver: zodResolver(doctorProfileFormSchema),
+    defaultValues: {
+      user_id: null,
+      prefix: "Dr.",
+      display_name: "",
+      qualification_string: "",
+      mci_number: "",
+      state_council_number: "",
+      state_council_name: "",
+      subspecialty: "",
+      years_experience: "",
+      is_visiting: false,
+      can_sign_mlc: false,
+      can_perform_surgery: false,
+    },
+    mode: "onTouched",
+  });
+  const userId = watch("user_id");
 
   const { data: users = [], isLoading: usersLoading } = useQuery({
     queryKey: ["setup-users", "doctor-picker"],
-    queryFn: () => api.listSetupUsers(),
+    queryFn: () => adminDoctorsService.listSetupUsers(),
     enabled: opened,
   });
 
@@ -486,18 +515,39 @@ function CreateDoctorModal({
   );
 
   const applySelectedUser = (user: SetupUser) => {
-    setUserId(user.id);
-    setDisplayName(user.full_name || user.username);
-    setQualification(user.qualification ?? "");
-    setMciNumber(user.medical_registration_number ?? "");
-    setSubspecialty(user.specialization ?? "");
+    setValue("user_id", user.id, { shouldDirty: true, shouldValidate: true });
+    setValue("display_name", user.full_name || user.username, {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
+    setValue("qualification_string", user.qualification ?? "", { shouldDirty: true });
+    setValue("mci_number", user.medical_registration_number ?? "", { shouldDirty: true });
+    setValue("subspecialty", user.specialization ?? "", { shouldDirty: true });
   };
 
   const handleUserSelect = (value: string | null) => {
-    setUserId(value ?? "");
+    setValue("user_id", value, { shouldDirty: true, shouldValidate: true });
     const selectedUser = users.find((user) => user.id === value);
     if (selectedUser) applySelectedUser(selectedUser);
   };
+
+  const submitProfile = handleSubmit((values) => {
+    onSubmit({
+      user_id: values.user_id ?? "",
+      prefix: values.prefix || null,
+      display_name: values.display_name.trim(),
+      qualification_string: values.qualification_string.trim() || null,
+      mci_number: values.mci_number.trim() || null,
+      state_council_number: values.state_council_number.trim() || null,
+      state_council_name: values.state_council_name.trim() || null,
+      subspecialty: values.subspecialty.trim() || null,
+      years_experience: values.years_experience ? Number(values.years_experience) : null,
+      is_visiting: values.is_visiting,
+      is_full_time: !values.is_visiting,
+      can_sign_mlc: values.can_sign_mlc,
+      can_perform_surgery: values.can_perform_surgery,
+    });
+  });
 
   return (
     <>
@@ -510,18 +560,25 @@ function CreateDoctorModal({
             </Text>
           </Alert>
           <Group align="flex-end" wrap="nowrap">
-            <Select
-              label="Linked doctor user"
-              placeholder="Search by doctor name or username"
-              data={doctorUserOptions}
-              value={userId || null}
-              onChange={handleUserSelect}
-              searchable
-              clearable
-              required
-              description="Doctor users with an existing profile are shown but disabled."
-              rightSection={usersLoading ? <Loader size="xs" /> : undefined}
-              style={{ flex: 1 }}
+            <Controller
+              control={control}
+              name="user_id"
+              render={() => (
+                <Select
+                  label="Linked doctor user"
+                  placeholder="Search by doctor name or username"
+                  data={doctorUserOptions}
+                  value={userId}
+                  onChange={handleUserSelect}
+                  searchable
+                  clearable
+                  required
+                  description="Doctor users with an existing profile are shown but disabled."
+                  rightSection={usersLoading ? <Loader size="xs" /> : undefined}
+                  style={{ flex: 1 }}
+                  error={errors.user_id?.message}
+                />
+              )}
             />
             <Button
               variant="light"
@@ -537,99 +594,139 @@ function CreateDoctorModal({
             </Text>
           )}
           <Group grow>
-            <TextInput
-              label="Prefix"
-              value={prefix}
-              onChange={(e) => setPrefix(e.currentTarget.value)}
+            <Controller
+              control={control}
+              name="prefix"
+              render={({ field }) => (
+                <TextInput label="Prefix" value={field.value} onChange={field.onChange} />
+              )}
             />
-            <TextInput
-              label="Display name"
-              placeholder="Ravi Menon"
-              value={displayName}
-              onChange={(e) => setDisplayName(e.currentTarget.value)}
-              required
+            <Controller
+              control={control}
+              name="display_name"
+              render={({ field }) => (
+                <TextInput
+                  label="Display name"
+                  placeholder="Ravi Menon"
+                  value={field.value}
+                  onChange={field.onChange}
+                  error={errors.display_name?.message}
+                  required
+                />
+              )}
             />
           </Group>
-          <TextInput
-            label="Qualification"
-            placeholder="MBBS, MD General Medicine"
-            value={qualification}
-            onChange={(e) => setQualification(e.currentTarget.value)}
+          <Controller
+            control={control}
+            name="qualification_string"
+            render={({ field }) => (
+              <TextInput
+                label="Qualification"
+                placeholder="MBBS, MD General Medicine"
+                value={field.value}
+                onChange={field.onChange}
+              />
+            )}
           />
           <Group grow>
-            <TextInput
-              label="MCI / NMC number"
-              value={mciNumber}
-              onChange={(e) => setMciNumber(e.currentTarget.value)}
+            <Controller
+              control={control}
+              name="mci_number"
+              render={({ field }) => (
+                <TextInput label="MCI / NMC number" value={field.value} onChange={field.onChange} />
+              )}
             />
-            <TextInput
-              label="State council number"
-              value={stateCouncilNumber}
-              onChange={(e) => setStateCouncilNumber(e.currentTarget.value)}
-            />
-          </Group>
-          <Group grow>
-            <TextInput
-              label="State council name"
-              value={stateCouncilName}
-              onChange={(e) => setStateCouncilName(e.currentTarget.value)}
-            />
-            <TextInput
-              label="Specialty / unit"
-              placeholder="General Medicine"
-              value={subspecialty}
-              onChange={(e) => setSubspecialty(e.currentTarget.value)}
+            <Controller
+              control={control}
+              name="state_council_number"
+              render={({ field }) => (
+                <TextInput
+                  label="State council number"
+                  value={field.value}
+                  onChange={field.onChange}
+                />
+              )}
             />
           </Group>
           <Group grow>
-            <TextInput
-              label="Years experience"
-              value={yearsExperience}
-              onChange={(e) => setYearsExperience(e.currentTarget.value)}
+            <Controller
+              control={control}
+              name="state_council_name"
+              render={({ field }) => (
+                <TextInput
+                  label="State council name"
+                  value={field.value}
+                  onChange={field.onChange}
+                />
+              )}
             />
-            <Switch
-              label="Visiting consultant"
-              checked={isVisiting}
-              onChange={(e) => setIsVisiting(e.currentTarget.checked)}
+            <Controller
+              control={control}
+              name="subspecialty"
+              render={({ field }) => (
+                <TextInput
+                  label="Specialty / unit"
+                  placeholder="General Medicine"
+                  value={field.value}
+                  onChange={field.onChange}
+                />
+              )}
+            />
+          </Group>
+          <Group grow>
+            <Controller
+              control={control}
+              name="years_experience"
+              render={({ field }) => (
+                <TextInput
+                  label="Years experience"
+                  value={field.value}
+                  onChange={field.onChange}
+                  error={errors.years_experience?.message}
+                />
+              )}
+            />
+            <Controller
+              control={control}
+              name="is_visiting"
+              render={({ field }) => (
+                <Switch
+                  label="Visiting consultant"
+                  checked={field.value}
+                  onChange={(e) => field.onChange(e.currentTarget.checked)}
+                />
+              )}
             />
           </Group>
           <Group>
-            <Switch
-              label="Can sign MLC"
-              checked={canSignMlc}
-              onChange={(e) => setCanSignMlc(e.currentTarget.checked)}
+            <Controller
+              control={control}
+              name="can_sign_mlc"
+              render={({ field }) => (
+                <Switch
+                  label="Can sign MLC"
+                  checked={field.value}
+                  onChange={(e) => field.onChange(e.currentTarget.checked)}
+                />
+              )}
             />
-            <Switch
-              label="Can perform surgery"
-              checked={canPerformSurgery}
-              onChange={(e) => setCanPerformSurgery(e.currentTarget.checked)}
+            <Controller
+              control={control}
+              name="can_perform_surgery"
+              render={({ field }) => (
+                <Switch
+                  label="Can perform surgery"
+                  checked={field.value}
+                  onChange={(e) => field.onChange(e.currentTarget.checked)}
+                />
+              )}
             />
           </Group>
           <Group justify="flex-end">
             <Button variant="subtle" onClick={onClose}>
               Cancel
             </Button>
-            <Button
-              loading={submitting}
-              disabled={!userId || !displayName}
-              onClick={() =>
-                onSubmit({
-                  user_id: userId,
-                  prefix: prefix || null,
-                  display_name: displayName,
-                  qualification_string: qualification || null,
-                  mci_number: mciNumber || null,
-                  state_council_number: stateCouncilNumber || null,
-                  state_council_name: stateCouncilName || null,
-                  subspecialty: subspecialty || null,
-                  years_experience: yearsExperience ? Number(yearsExperience) : null,
-                  is_visiting: isVisiting,
-                  is_full_time: !isVisiting,
-                  can_sign_mlc: canSignMlc,
-                  can_perform_surgery: canPerformSurgery,
-                })
-              }
-            >
+            <Button loading={submitting} onClick={() => void submitProfile()}>
               Create profile
             </Button>
           </Group>
@@ -658,31 +755,31 @@ function CreateLinkedDoctorUserModal({
   onCreated: (user: SetupUser) => void;
 }) {
   const queryClient = useQueryClient();
-  const [fullName, setFullName] = useState("");
-  const [username, setUsername] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [departmentIds, setDepartmentIds] = useState<string[]>([]);
-  const [specialization, setSpecialization] = useState("");
-  const [medicalRegistrationNumber, setMedicalRegistrationNumber] = useState("");
-  const [qualification, setQualification] = useState("");
+  const {
+    control,
+    handleSubmit,
+    reset,
+    formState: { errors },
+  } = useForm<LinkedDoctorUserFormInput>({
+    resolver: zodResolver(linkedDoctorUserFormSchema),
+    defaultValues: {
+      full_name: "",
+      username: "",
+      email: "",
+      password: "",
+      department_ids: [],
+      specialization: "",
+      medical_registration_number: "",
+      qualification: "",
+    },
+    mode: "onTouched",
+  });
 
   const { data: departments = [], isLoading: departmentsLoading } = useQuery({
     queryKey: ["setup", "departments", "doctor-create"],
-    queryFn: () => api.listDepartments(),
+    queryFn: () => adminDoctorsService.listDepartments(),
     enabled: opened,
   });
-
-  const reset = () => {
-    setFullName("");
-    setUsername("");
-    setEmail("");
-    setPassword("");
-    setDepartmentIds([]);
-    setSpecialization("");
-    setMedicalRegistrationNumber("");
-    setQualification("");
-  };
 
   const handleClose = () => {
     reset();
@@ -690,17 +787,17 @@ function CreateLinkedDoctorUserModal({
   };
 
   const createUser = useMutation({
-    mutationFn: () =>
-      api.createSetupUser({
-        full_name: fullName.trim(),
-        username: username.trim(),
-        email: email.trim(),
-        password,
+    mutationFn: (values: LinkedDoctorUserFormInput) =>
+      adminDoctorsService.createSetupUser({
+        full_name: values.full_name.trim(),
+        username: values.username.trim(),
+        email: values.email.trim(),
+        password: values.password,
         role: "doctor",
-        department_ids: departmentIds.length > 0 ? departmentIds : undefined,
-        specialization: specialization.trim() || undefined,
-        medical_registration_number: medicalRegistrationNumber.trim() || undefined,
-        qualification: qualification.trim() || undefined,
+        department_ids: values.department_ids.length > 0 ? values.department_ids : undefined,
+        specialization: values.specialization.trim() || undefined,
+        medical_registration_number: values.medical_registration_number.trim() || undefined,
+        qualification: values.qualification.trim() || undefined,
       }),
     onSuccess: (user) => {
       notifications.show({
@@ -717,11 +814,9 @@ function CreateLinkedDoctorUserModal({
       notifications.show({ title: "User create failed", message: err.message, color: "danger" }),
   });
 
-  const canCreate =
-    fullName.trim().length > 0 &&
-    username.trim().length >= 3 &&
-    email.includes("@") &&
-    password.length >= 8;
+  const submitUser = handleSubmit((values) => {
+    createUser.mutate(values);
+  });
 
   return (
     <Modal opened={opened} onClose={handleClose} title="Create doctor user" size="lg">
@@ -733,67 +828,119 @@ function CreateLinkedDoctorUserModal({
           </Text>
         </Alert>
         <Group grow>
-          <TextInput
-            label="Full name"
-            placeholder="Dr. Ravi Menon"
-            value={fullName}
-            onChange={(e) => setFullName(e.currentTarget.value)}
-            required
+          <Controller
+            control={control}
+            name="full_name"
+            render={({ field }) => (
+              <TextInput
+                label="Full name"
+                placeholder="Dr. Ravi Menon"
+                value={field.value}
+                onChange={field.onChange}
+                error={errors.full_name?.message}
+                required
+              />
+            )}
           />
-          <TextInput
-            label="Username"
-            placeholder="ravi.menon"
-            value={username}
-            onChange={(e) => setUsername(e.currentTarget.value)}
-            required
+          <Controller
+            control={control}
+            name="username"
+            render={({ field }) => (
+              <TextInput
+                label="Username"
+                placeholder="ravi.menon"
+                value={field.value}
+                onChange={field.onChange}
+                error={errors.username?.message}
+                required
+              />
+            )}
           />
         </Group>
         <Group grow>
-          <TextInput
-            label="Email"
-            placeholder="ravi.menon@hospital.local"
-            value={email}
-            onChange={(e) => setEmail(e.currentTarget.value)}
-            required
+          <Controller
+            control={control}
+            name="email"
+            render={({ field }) => (
+              <TextInput
+                label="Email"
+                placeholder="ravi.menon@hospital.local"
+                value={field.value}
+                onChange={field.onChange}
+                error={errors.email?.message}
+                required
+              />
+            )}
           />
-          <PasswordInput
-            label="Temporary password"
-            value={password}
-            onChange={(e) => setPassword(e.currentTarget.value)}
-            required
-            description="Minimum 8 characters. The user can change it after first login."
+          <Controller
+            control={control}
+            name="password"
+            render={({ field }) => (
+              <PasswordInput
+                label="Temporary password"
+                value={field.value}
+                onChange={field.onChange}
+                error={errors.password?.message}
+                required
+                description="Minimum 8 characters. The user can change it after first login."
+              />
+            )}
           />
         </Group>
-        <MultiSelect
-          label="Departments / units"
-          placeholder={departmentsLoading ? "Loading departments..." : "Select departments"}
-          data={departments.map((department) => ({
-            value: department.id,
-            label: `${department.name} (${department.department_type ?? "department"})`,
-          }))}
-          value={departmentIds}
-          onChange={setDepartmentIds}
-          searchable
-          clearable
+        <Controller
+          control={control}
+          name="department_ids"
+          render={({ field }) => (
+            <MultiSelect
+              label="Departments / units"
+              placeholder={departmentsLoading ? "Loading departments..." : "Select departments"}
+              data={departments.map((department) => ({
+                value: department.id,
+                label: `${department.name} (${department.department_type ?? "department"})`,
+              }))}
+              value={field.value}
+              onChange={field.onChange}
+              searchable
+              clearable
+            />
+          )}
         />
         <Group grow>
-          <TextInput
-            label="Specialty / unit"
-            placeholder="General Medicine"
-            value={specialization}
-            onChange={(e) => setSpecialization(e.currentTarget.value)}
+          <Controller
+            control={control}
+            name="specialization"
+            render={({ field }) => (
+              <TextInput
+                label="Specialty / unit"
+                placeholder="General Medicine"
+                value={field.value}
+                onChange={field.onChange}
+              />
+            )}
           />
-          <TextInput
-            label="MCI / NMC registration"
-            value={medicalRegistrationNumber}
-            onChange={(e) => setMedicalRegistrationNumber(e.currentTarget.value)}
+          <Controller
+            control={control}
+            name="medical_registration_number"
+            render={({ field }) => (
+              <TextInput
+                label="MCI / NMC registration"
+                value={field.value}
+                onChange={field.onChange}
+              />
+            )}
           />
         </Group>
-        <TextInput
-          label="Qualification"
-          placeholder="MBBS, MD General Medicine"
-          value={qualification}
-          onChange={(e) => setQualification(e.currentTarget.value)}
+        <Controller
+          control={control}
+          name="qualification"
+          render={({ field }) => (
+            <TextInput
+              label="Qualification"
+              placeholder="MBBS, MD General Medicine"
+              value={field.value}
+              onChange={field.onChange}
+            />
+          )}
         />
         <Group justify="flex-end">
           <Button variant="subtle" onClick={handleClose}>
@@ -801,9 +948,8 @@ function CreateLinkedDoctorUserModal({
           </Button>
           <Button
             loading={createUser.isPending}
-            disabled={!canCreate}
             leftSection={<IconPlus size={14} />}
-            onClick={() => createUser.mutate()}
+            onClick={() => void submitUser()}
           >
             Create and select user
           </Button>
@@ -816,23 +962,34 @@ function CreateLinkedDoctorUserModal({
 function CredentialsModal({ doctor, onClose }: { doctor: DoctorProfile; onClose: () => void }) {
   const queryClient = useQueryClient();
   const [includeRevoked, setIncludeRevoked] = useState(false);
-  const [imageUrl, setImageUrl] = useState("");
   const [signatureImageFile, setSignatureImageFile] = useState<File | null>(null);
+  const {
+    control,
+    handleSubmit,
+    reset,
+    setValue,
+    watch,
+    formState: { errors },
+  } = useForm<SignatureCredentialIssueFormInput>({
+    resolver: zodResolver(signatureCredentialIssueFormSchema),
+    defaultValues: { display_image_url: "" },
+  });
+  const imageUrl = watch("display_image_url");
 
   const { data: creds = [] } = useQuery({
     queryKey: ["sig-credentials", doctor.user_id, includeRevoked],
     queryFn: () =>
-      api.adminListSignatureCredentials({
+      adminDoctorsService.listSignatureCredentials({
         doctor_user_id: doctor.user_id,
         include_revoked: includeRevoked,
       }),
   });
 
   const issue = useMutation({
-    mutationFn: () =>
-      api.adminIssueSignatureCredential({
+    mutationFn: (values: SignatureCredentialIssueFormInput) =>
+      adminDoctorsService.issueSignatureCredential({
         doctor_user_id: doctor.user_id,
-        display_image_url: imageUrl || null,
+        display_image_url: values.display_image_url || null,
         make_default: true,
       }),
     onSuccess: () => {
@@ -841,7 +998,7 @@ function CredentialsModal({ doctor, onClose }: { doctor: DoctorProfile; onClose:
         message: "Ed25519 keypair generated and set as default.",
         color: "success",
       });
-      setImageUrl("");
+      reset();
       setSignatureImageFile(null);
       void queryClient.invalidateQueries({ queryKey: ["sig-credentials"] });
     },
@@ -851,17 +1008,21 @@ function CredentialsModal({ doctor, onClose }: { doctor: DoctorProfile; onClose:
 
   const revoke = useMutation({
     mutationFn: ({ id, reason }: { id: string; reason: string }) =>
-      api.adminRevokeSignatureCredential(id, { reason }),
+      adminDoctorsService.revokeSignatureCredential(id, { reason }),
     onSuccess: () => {
       notifications.show({ title: "Revoked", message: "Credential revoked.", color: "success" });
       void queryClient.invalidateQueries({ queryKey: ["sig-credentials"] });
     },
   });
 
+  const submitCredential = handleSubmit((values) => {
+    issue.mutate(values);
+  });
+
   const handleSignatureImage = (file: File | null) => {
     setSignatureImageFile(file);
     if (!file) {
-      setImageUrl("");
+      setValue("display_image_url", "", { shouldDirty: true, shouldValidate: true });
       return;
     }
     if (!file.type.startsWith("image/")) {
@@ -885,7 +1046,7 @@ function CredentialsModal({ doctor, onClose }: { doctor: DoctorProfile; onClose:
     const reader = new FileReader();
     reader.onload = () => {
       if (typeof reader.result === "string") {
-        setImageUrl(reader.result);
+        setValue("display_image_url", reader.result, { shouldDirty: true, shouldValidate: true });
       }
     };
     reader.onerror = () =>
@@ -943,7 +1104,10 @@ function CredentialsModal({ doctor, onClose }: { doctor: DoctorProfile; onClose:
                     variant="subtle"
                     leftSection={<IconRefresh size={12} />}
                     onClick={() => {
-                      setImageUrl("");
+                      setValue("display_image_url", "", {
+                        shouldDirty: true,
+                        shouldValidate: true,
+                      });
                       setSignatureImageFile(null);
                     }}
                   >
@@ -952,20 +1116,27 @@ function CredentialsModal({ doctor, onClose }: { doctor: DoctorProfile; onClose:
                 </Group>
               </Card>
             )}
-            <TextInput
-              size="sm"
-              label="Or paste signature image URL"
-              description="Use this when the image is already stored in object storage."
-              placeholder="https://.../signature.png"
-              value={imageUrl}
-              onChange={(e) => setImageUrl(e.currentTarget.value)}
+            <Controller
+              control={control}
+              name="display_image_url"
+              render={({ field }) => (
+                <TextInput
+                  size="sm"
+                  label="Or paste signature image URL"
+                  description="Use this when the image is already stored in object storage."
+                  placeholder="https://.../signature.png"
+                  value={field.value}
+                  onChange={field.onChange}
+                  error={errors.display_image_url?.message}
+                />
+              )}
             />
             <Group justify="flex-end">
               <Button
                 size="xs"
                 loading={issue.isPending}
                 leftSection={<IconShieldCheck size={14} />}
-                onClick={() => issue.mutate()}
+                onClick={() => void submitCredential()}
               >
                 Generate default Ed25519 credential
               </Button>

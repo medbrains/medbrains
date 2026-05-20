@@ -14,7 +14,7 @@ import {
   Text,
   ThemeIcon,
 } from "@mantine/core";
-import { api } from "@medbrains/api";
+import type { DoctorProfile, MyDayResponse } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import {
   IconActivity,
@@ -29,20 +29,21 @@ import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router";
 import { PageHeader } from "../../components/PageHeader";
 import { useRequirePermission } from "../../hooks/useRequirePermission";
+import { doctorService } from "../../services/doctor.service";
 
 export function MyDayPage() {
   useRequirePermission(P.DOCTOR.DASHBOARD.VIEW_OWN);
   const navigate = useNavigate();
 
-  const { data: profile } = useQuery({
+  const { data: profile } = useQuery<DoctorProfile>({
     queryKey: ["my-doctor-profile"],
-    queryFn: () => api.getMyDoctorProfile(),
+    queryFn: () => doctorService.getMyProfile(),
     retry: 0,
   });
 
-  const { data: myDay, isLoading } = useQuery({
+  const { data: myDay, isLoading } = useQuery<MyDayResponse>({
     queryKey: ["my-day"],
-    queryFn: () => api.getMyDay(),
+    queryFn: () => doctorService.getMyDay(),
     refetchInterval: 30_000,
   });
 

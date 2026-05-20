@@ -1,3 +1,4 @@
+import { zodResolver } from "@hookform/resolvers/zod";
 import {
   ActionIcon,
   Badge,
@@ -16,11 +17,20 @@ import {
   Title,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
+import {
+  type PaymentMethodSettingsFormInput,
+  paymentMethodSettingsFormSchema,
+  type TaxApplicabilityFormValue,
+  type TaxCategorySettingsFormInput,
+  taxApplicabilityFormSchema,
+  taxCategorySettingsFormSchema,
+} from "@medbrains/schemas";
 import type { PaymentMethodRow, TaxCategoryRow } from "@medbrains/types";
 import { IconCheck, IconPencil, IconPlus, IconTrash } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { Controller, useForm } from "react-hook-form";
+import { settingsSetupService } from "../../../services/settingsSetup.service";
 
 // ── Constants ─────────────────────────────────────────────
 
@@ -28,7 +38,7 @@ const APPLICABILITY_OPTIONS = [
   { value: "taxable", label: "Taxable" },
   { value: "exempt", label: "Exempt" },
   { value: "zero_rated", label: "Zero Rated" },
-];
+] satisfies Array<{ value: TaxApplicabilityFormValue; label: string }>;
 
 const APPLICABILITY_COLORS: Record<string, string> = {
   taxable: "primary",
@@ -36,59 +46,41 @@ const APPLICABILITY_COLORS: Record<string, string> = {
   zero_rated: "slate",
 };
 
-// ── Tax Category Form State ──────────────────────────────
-
-interface TaxCategoryFormState {
-  code: string;
-  name: string;
-  rate_percent: number | string;
-  applicability: string | null;
-  description: string;
-}
-
-const EMPTY_TAX_FORM: TaxCategoryFormState = {
+const EMPTY_TAX_FORM: TaxCategorySettingsFormInput = {
   code: "",
   name: "",
   rate_percent: "",
-  applicability: null,
+  applicability: "taxable",
   description: "",
 };
 
-function taxFormFromRow(row: TaxCategoryRow): TaxCategoryFormState {
+function taxFormFromRow(row: TaxCategoryRow): TaxCategorySettingsFormInput {
   return {
     code: row.code,
     name: row.name,
     rate_percent: row.rate_percent,
-    applicability: row.applicability,
+    applicability: taxApplicabilityFormSchema.catch("taxable").parse(row.applicability),
     description: row.description ?? "",
   };
 }
 
-function taxFormToPayload(form: TaxCategoryFormState) {
+function taxFormToPayload(form: TaxCategorySettingsFormInput) {
   return {
-    code: form.code,
-    name: form.name,
-    rate_percent: typeof form.rate_percent === "number" ? form.rate_percent : 0,
-    applicability: form.applicability ?? "taxable",
-    description: form.description || undefined,
+    code: form.code.trim(),
+    name: form.name.trim(),
+    rate_percent: Number(form.rate_percent),
+    applicability: form.applicability,
+    description: form.description.trim() || undefined,
   };
 }
 
-// ── Payment Method Form State ────────────────────────────
-
-interface PaymentMethodFormState {
-  code: string;
-  name: string;
-  is_default: boolean;
-}
-
-const EMPTY_PAYMENT_FORM: PaymentMethodFormState = {
+const EMPTY_PAYMENT_FORM: PaymentMethodSettingsFormInput = {
   code: "",
   name: "",
   is_default: false,
 };
 
-function paymentFormFromRow(row: PaymentMethodRow): PaymentMethodFormState {
+function paymentFormFromRow(row: PaymentMethodRow): PaymentMethodSettingsFormInput {
   return {
     code: row.code,
     name: row.name,
@@ -96,10 +88,10 @@ function paymentFormFromRow(row: PaymentMethodRow): PaymentMethodFormState {
   };
 }
 
-function paymentFormToPayload(form: PaymentMethodFormState) {
+function paymentFormToPayload(form: PaymentMethodSettingsFormInput) {
   return {
-    code: form.code,
-    name: form.name,
+    code: form.code.trim(),
+    name: form.name.trim(),
     is_default: form.is_default,
   };
 }
@@ -118,25 +110,20 @@ function TaxCategoryModal({
   const queryClient = useQueryClient();
   const isEdit = !!editingRow;
 
-  const [form, setForm] = useState<TaxCategoryFormState>(EMPTY_TAX_FORM);
-
-  const updateField = <K extends keyof TaxCategoryFormState>(
-    key: K,
-    value: TaxCategoryFormState[K],
-  ) => {
-    setForm((prev) => ({ ...prev, [key]: value }));
-  };
-
-  const handleOpen = () => {
-    if (editingRow) {
-      setForm(taxFormFromRow(editingRow));
-    } else {
-      setForm(EMPTY_TAX_FORM);
-    }
-  };
+  const {
+    control,
+    formState: { errors },
+    handleSubmit,
+    register,
+  } = useForm<TaxCategorySettingsFormInput>({
+    resolver: zodResolver(taxCategorySettingsFormSchema),
+    defaultValues: EMPTY_TAX_FORM,
+    values: editingRow ? taxFormFromRow(editingRow) : EMPTY_TAX_FORM,
+  });
 
   const createMutation = useMutation({
-    mutationFn: (data: ReturnType<typeof taxFormToPayload>) => api.createTaxCategory(data),
+    mutationFn: (data: ReturnType<typeof taxFormToPayload>) =>
+      settingsSetupService.createTaxCategory(data),
     onSuccess: () => {
       notifications.show({
         title: "Tax category created",
@@ -159,7 +146,7 @@ function TaxCategoryModal({
   const updateMutation = useMutation({
     mutationFn: (data: ReturnType<typeof taxFormToPayload>) => {
       if (!editingRow) throw new Error("No tax category selected");
-      return api.updateTaxCategory(editingRow.id, data);
+      return settingsSetupService.updateTaxCategory(editingRow.id, data);
     },
     onSuccess: () => {
       notifications.show({
@@ -180,16 +167,7 @@ function TaxCategoryModal({
     },
   });
 
-  const handleSubmit = () => {
-    if (!form.code.trim() || !form.name.trim() || !form.applicability) {
-      notifications.show({
-        title: "Missing fields",
-        message: "Code, name, and applicability are required",
-        color: "danger",
-      });
-      return;
-    }
-
+  const submitTaxCategory = handleSubmit((form) => {
     const payload = taxFormToPayload(form);
 
     if (isEdit) {
@@ -197,7 +175,7 @@ function TaxCategoryModal({
     } else {
       createMutation.mutate(payload);
     }
-  };
+  });
 
   return (
     <Modal
@@ -205,53 +183,66 @@ function TaxCategoryModal({
       onClose={onClose}
       title={isEdit ? "Edit Tax Category" : "Add Tax Category"}
       size="md"
-      onTransitionEnd={handleOpen}
     >
       <Stack gap="sm">
         <Group grow>
           <TextInput
             label="Code"
             placeholder="GST-18"
-            value={form.code}
-            onChange={(e) => updateField("code", e.currentTarget.value)}
+            error={errors.code?.message}
+            {...register("code")}
             required
           />
           <TextInput
             label="Name"
             placeholder="GST 18%"
-            value={form.name}
-            onChange={(e) => updateField("name", e.currentTarget.value)}
+            error={errors.name?.message}
+            {...register("name")}
             required
           />
         </Group>
 
         <Group grow>
-          <NumberInput
-            label="Rate (%)"
-            placeholder="18.00"
-            value={form.rate_percent}
-            onChange={(v) => updateField("rate_percent", v)}
-            min={0}
-            max={100}
-            decimalScale={2}
-            suffix="%"
-            required
+          <Controller
+            control={control}
+            name="rate_percent"
+            render={({ field }) => (
+              <NumberInput
+                label="Rate (%)"
+                placeholder="18.00"
+                value={field.value}
+                onChange={field.onChange}
+                error={errors.rate_percent?.message}
+                min={0}
+                max={100}
+                decimalScale={2}
+                suffix="%"
+                required
+              />
+            )}
           />
-          <Select
-            label="Applicability"
-            data={APPLICABILITY_OPTIONS}
-            value={form.applicability}
-            onChange={(v) => updateField("applicability", v)}
-            placeholder="Select..."
-            required
+          <Controller
+            control={control}
+            name="applicability"
+            render={({ field }) => (
+              <Select
+                label="Applicability"
+                data={APPLICABILITY_OPTIONS}
+                value={field.value}
+                onChange={(value) => field.onChange(value ?? "taxable")}
+                error={errors.applicability?.message}
+                placeholder="Select..."
+                required
+              />
+            )}
           />
         </Group>
 
         <Textarea
           label="Description"
           placeholder="Optional description"
-          value={form.description}
-          onChange={(e) => updateField("description", e.currentTarget.value)}
+          error={errors.description?.message}
+          {...register("description")}
           autosize
           minRows={2}
           maxRows={4}
@@ -262,7 +253,7 @@ function TaxCategoryModal({
             Cancel
           </Button>
           <Button
-            onClick={handleSubmit}
+            onClick={() => void submitTaxCategory()}
             loading={createMutation.isPending || updateMutation.isPending}
           >
             {isEdit ? "Save" : "Create"}
@@ -287,25 +278,20 @@ function PaymentMethodModal({
   const queryClient = useQueryClient();
   const isEdit = !!editingRow;
 
-  const [form, setForm] = useState<PaymentMethodFormState>(EMPTY_PAYMENT_FORM);
-
-  const updateField = <K extends keyof PaymentMethodFormState>(
-    key: K,
-    value: PaymentMethodFormState[K],
-  ) => {
-    setForm((prev) => ({ ...prev, [key]: value }));
-  };
-
-  const handleOpen = () => {
-    if (editingRow) {
-      setForm(paymentFormFromRow(editingRow));
-    } else {
-      setForm(EMPTY_PAYMENT_FORM);
-    }
-  };
+  const {
+    control,
+    formState: { errors },
+    handleSubmit,
+    register,
+  } = useForm<PaymentMethodSettingsFormInput>({
+    resolver: zodResolver(paymentMethodSettingsFormSchema),
+    defaultValues: EMPTY_PAYMENT_FORM,
+    values: editingRow ? paymentFormFromRow(editingRow) : EMPTY_PAYMENT_FORM,
+  });
 
   const createMutation = useMutation({
-    mutationFn: (data: ReturnType<typeof paymentFormToPayload>) => api.createPaymentMethod(data),
+    mutationFn: (data: ReturnType<typeof paymentFormToPayload>) =>
+      settingsSetupService.createPaymentMethod(data),
     onSuccess: () => {
       notifications.show({
         title: "Payment method created",
@@ -328,7 +314,7 @@ function PaymentMethodModal({
   const updateMutation = useMutation({
     mutationFn: (data: ReturnType<typeof paymentFormToPayload>) => {
       if (!editingRow) throw new Error("No payment method selected");
-      return api.updatePaymentMethod(editingRow.id, data);
+      return settingsSetupService.updatePaymentMethod(editingRow.id, data);
     },
     onSuccess: () => {
       notifications.show({
@@ -349,16 +335,7 @@ function PaymentMethodModal({
     },
   });
 
-  const handleSubmit = () => {
-    if (!form.code.trim() || !form.name.trim()) {
-      notifications.show({
-        title: "Missing fields",
-        message: "Code and name are required",
-        color: "danger",
-      });
-      return;
-    }
-
+  const submitPaymentMethod = handleSubmit((form) => {
     const payload = paymentFormToPayload(form);
 
     if (isEdit) {
@@ -366,7 +343,7 @@ function PaymentMethodModal({
     } else {
       createMutation.mutate(payload);
     }
-  };
+  });
 
   return (
     <Modal
@@ -374,27 +351,32 @@ function PaymentMethodModal({
       onClose={onClose}
       title={isEdit ? "Edit Payment Method" : "Add Payment Method"}
       size="sm"
-      onTransitionEnd={handleOpen}
     >
       <Stack gap="sm">
         <TextInput
           label="Code"
           placeholder="CASH"
-          value={form.code}
-          onChange={(e) => updateField("code", e.currentTarget.value)}
+          error={errors.code?.message}
+          {...register("code")}
           required
         />
         <TextInput
           label="Name"
           placeholder="Cash Payment"
-          value={form.name}
-          onChange={(e) => updateField("name", e.currentTarget.value)}
+          error={errors.name?.message}
+          {...register("name")}
           required
         />
-        <Switch
-          label="Default payment method"
-          checked={form.is_default}
-          onChange={(e) => updateField("is_default", e.currentTarget.checked)}
+        <Controller
+          control={control}
+          name="is_default"
+          render={({ field }) => (
+            <Switch
+              label="Default payment method"
+              checked={field.value}
+              onChange={(event) => field.onChange(event.currentTarget.checked)}
+            />
+          )}
         />
 
         <Group justify="flex-end" mt="md">
@@ -402,7 +384,7 @@ function PaymentMethodModal({
             Cancel
           </Button>
           <Button
-            onClick={handleSubmit}
+            onClick={() => void submitPaymentMethod()}
             loading={createMutation.isPending || updateMutation.isPending}
           >
             {isEdit ? "Save" : "Create"}
@@ -430,11 +412,11 @@ export function BillingTaxSettings() {
 
   const { data: taxCategories, isLoading: taxLoading } = useQuery({
     queryKey: ["setup-tax-categories"],
-    queryFn: () => api.listTaxCategories(),
+    queryFn: () => settingsSetupService.listTaxCategories(),
   });
 
   const deleteTaxMutation = useMutation({
-    mutationFn: (id: string) => api.deleteTaxCategory(id),
+    mutationFn: (id: string) => settingsSetupService.deleteTaxCategory(id),
     onSuccess: () => {
       notifications.show({
         title: "Tax category deleted",
@@ -457,11 +439,11 @@ export function BillingTaxSettings() {
 
   const { data: paymentMethods, isLoading: paymentLoading } = useQuery({
     queryKey: ["setup-payment-methods"],
-    queryFn: () => api.listPaymentMethods(),
+    queryFn: () => settingsSetupService.listPaymentMethods(),
   });
 
   const deletePaymentMutation = useMutation({
-    mutationFn: (id: string) => api.deletePaymentMethod(id),
+    mutationFn: (id: string) => settingsSetupService.deletePaymentMethod(id),
     onSuccess: () => {
       notifications.show({
         title: "Payment method deleted",

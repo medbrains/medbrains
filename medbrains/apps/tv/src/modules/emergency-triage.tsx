@@ -14,6 +14,7 @@ function EmergencyTriageScreen() {
       title="Triage board"
       subtitle="ESI-level distribution + active code activations."
       legend="Updates every 5 seconds · medbrains://tv/emergency-triage"
+      tags={["TV-Emergency", "triage", "code-alerts", "ESI"]}
     >
       <TvSummaryRow
         items={[
@@ -33,4 +34,6 @@ export const emergencyTriageModule: Module = {
   icon: () => null,
   requiredPermissions: [],
   navigator: EmergencyTriageScreen,
+  appCodes: ["TV-Emergency"],
+  tags: ["tv", "emergency", "triage", "code-alert"],
 };

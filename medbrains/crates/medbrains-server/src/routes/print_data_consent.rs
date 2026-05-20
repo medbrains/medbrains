@@ -732,7 +732,7 @@ pub async fn get_dnr_consent_print_data(
         "SELECT \
            (p.first_name || ' ' || p.last_name) AS patient_name, \
            p.uhid, \
-           EXTRACT(YEAR FROM age(current_date, p.date_of_birth)) AS age, \
+           EXTRACT(YEAR FROM age(current_date, p.date_of_birth))::float8 AS age, \
            p.gender::text AS gender, \
            a.admitted_at AS admission_date, \
            b.bed_number, \
@@ -899,7 +899,7 @@ pub async fn get_research_consent_print_data(
         "SELECT \
            (p.first_name || ' ' || p.last_name) AS patient_name, \
            p.uhid, \
-           EXTRACT(YEAR FROM age(current_date, p.date_of_birth)) AS age, \
+           EXTRACT(YEAR FROM age(current_date, p.date_of_birth))::float8 AS age, \
            p.gender::text AS gender, \
            rs.title AS study_title, \
            rs.protocol_number AS study_protocol_number, \

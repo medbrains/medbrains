@@ -8,7 +8,7 @@
  * the right boot screen per deep-link.
  */
 
-import { COLORS, SPACING } from "@medbrains/ui-mobile";
+import { Badge, COLORS, SPACING } from "@medbrains/ui-mobile";
 import type { ReactNode } from "react";
 import { ScrollView, View } from "react-native";
 import { Text } from "react-native-paper";
@@ -18,10 +18,18 @@ export interface TvBoardProps {
   title: string;
   subtitle?: string;
   legend?: string;
+  tags?: ReadonlyArray<string>;
   children?: ReactNode;
 }
 
-export function TvBoard({ eyebrow, title, subtitle, legend, children }: TvBoardProps): ReactNode {
+export function TvBoard({
+  eyebrow,
+  title,
+  subtitle,
+  legend,
+  tags = [],
+  children,
+}: TvBoardProps): ReactNode {
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: COLORS.brandDeep }}
@@ -60,6 +68,13 @@ export function TvBoard({ eyebrow, title, subtitle, legend, children }: TvBoardP
           >
             {subtitle}
           </Text>
+        )}
+        {tags.length > 0 && (
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: SPACING.md }}>
+            {tags.map((tag) => (
+              <Badge key={tag} label={tag} tone="info" />
+            ))}
+          </View>
         )}
       </View>
       {children}

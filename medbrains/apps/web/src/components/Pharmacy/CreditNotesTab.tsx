@@ -16,7 +16,6 @@ import {
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
 import type {
   CreatePharmacyCreditNoteRequest,
   PharmacyCreditNote,
@@ -26,6 +25,7 @@ import type {
 import { IconCheck, IconLock, IconPlus, IconSearch, IconTrash, IconX } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
+import { pharmacyService } from "../../services/pharmacy.service";
 import { DataTable } from "../DataTable";
 import { PatientNameCell } from "../PatientNameCell";
 import { PatientSearchSelect } from "../PatientSearchSelect";
@@ -87,11 +87,11 @@ export function CreditNotesTab() {
 
   const { data: creditNotes = [], isLoading } = useQuery({
     queryKey: ["pharmacy-credit-notes", params],
-    queryFn: () => api.listPharmacyCreditNotes(params),
+    queryFn: () => pharmacyService.listPharmacyCreditNotes(params),
   });
 
   const approveMutation = useMutation({
-    mutationFn: (id: string) => api.approvePharmacyCreditNote(id),
+    mutationFn: (id: string) => pharmacyService.approvePharmacyCreditNote(id),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["pharmacy-credit-notes"] });
       notifications.show({ title: "Approved", message: "Credit note approved", color: "green" });
@@ -99,7 +99,7 @@ export function CreditNotesTab() {
   });
 
   const settleMutation = useMutation({
-    mutationFn: (id: string) => api.settlePharmacyCreditNote(id),
+    mutationFn: (id: string) => pharmacyService.settlePharmacyCreditNote(id),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["pharmacy-credit-notes"] });
       notifications.show({ title: "Settled", message: "Credit note settled", color: "green" });
@@ -107,7 +107,7 @@ export function CreditNotesTab() {
   });
 
   const cancelMutation = useMutation({
-    mutationFn: (id: string) => api.cancelPharmacyCreditNote(id),
+    mutationFn: (id: string) => pharmacyService.cancelPharmacyCreditNote(id),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["pharmacy-credit-notes"] });
       notifications.show({ title: "Cancelled", message: "Credit note cancelled", color: "orange" });
@@ -263,7 +263,7 @@ function CreateCreditNoteModal({ opened, onClose }: { opened: boolean; onClose: 
   const [receiptSearch, setReceiptSearch] = useState("");
 
   function lookupReceipt() {
-    api
+    pharmacyService
       .lookupPosSale(receiptSearch)
       .then((sale) => {
         const saleItems = (
@@ -297,7 +297,7 @@ function CreateCreditNoteModal({ opened, onClose }: { opened: boolean; onClose: 
   // Fetch drug catalog for drug selector
   const { data: drugs } = useQuery({
     queryKey: ["pharmacy", "catalog"],
-    queryFn: () => api.listPharmacyCatalog(),
+    queryFn: () => pharmacyService.listPharmacyCatalog(),
   });
 
   const drugOptions = useMemo(() => {
@@ -320,7 +320,8 @@ function CreateCreditNoteModal({ opened, onClose }: { opened: boolean; onClose: 
   );
 
   const createMutation = useMutation({
-    mutationFn: (data: CreatePharmacyCreditNoteRequest) => api.createPharmacyCreditNote(data),
+    mutationFn: (data: CreatePharmacyCreditNoteRequest) =>
+      pharmacyService.createPharmacyCreditNote(data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["pharmacy-credit-notes"] });
       notifications.show({ title: "Created", message: "Credit note created", color: "green" });
@@ -602,7 +603,7 @@ function OrderLookupSection({
 }) {
   const { data: orders } = useQuery({
     queryKey: ["pharmacy", "patient-orders", patientId],
-    queryFn: () => api.listPatientOrdersForReturn(patientId),
+    queryFn: () => pharmacyService.listPatientOrdersForReturn(patientId),
     enabled: Boolean(patientId),
   });
 

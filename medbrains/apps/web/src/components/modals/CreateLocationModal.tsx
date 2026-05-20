@@ -1,10 +1,13 @@
+import { zodResolver } from "@hookform/resolvers/zod";
 import { Button, Group, Modal, Select, Stack, TextInput } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
+import type { CreateLocationFormInput } from "@medbrains/schemas";
+import { createLocationFormSchema } from "@medbrains/schemas";
 import type { LocationRow } from "@medbrains/types";
 import { IconCheck } from "@tabler/icons-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { Controller, useForm } from "react-hook-form";
+import { adminAccessService } from "../../services/adminAccess.service";
 
 const LEVEL_OPTIONS = [
   { value: "campus", label: "Campus" },
@@ -24,19 +27,29 @@ interface CreateLocationModalProps {
 
 export function CreateLocationModal({ opened, onClose, onCreated }: CreateLocationModalProps) {
   const queryClient = useQueryClient();
+  const {
+    control,
+    handleSubmit,
+    reset,
+    formState: { errors },
+  } = useForm<CreateLocationFormInput>({
+    resolver: zodResolver(createLocationFormSchema),
+    defaultValues: { code: "", name: "", level: "campus" },
+    mode: "onTouched",
+  });
 
-  const [code, setCode] = useState("");
-  const [name, setName] = useState("");
-  const [level, setLevel] = useState("campus");
-
-  const handleOpen = () => {
-    setCode("");
-    setName("");
-    setLevel("campus");
+  const handleClose = () => {
+    reset();
+    onClose();
   };
 
   const createMutation = useMutation({
-    mutationFn: (data: { code: string; name: string; level: string }) => api.createLocation(data),
+    mutationFn: (data: CreateLocationFormInput) =>
+      adminAccessService.createLocation({
+        code: data.code.trim(),
+        name: data.name.trim(),
+        level: data.level,
+      }),
     onSuccess: (created: LocationRow) => {
       notifications.show({
         title: "Location created",
@@ -45,6 +58,7 @@ export function CreateLocationModal({ opened, onClose, onCreated }: CreateLocati
         icon: <IconCheck size={16} />,
       });
       void queryClient.invalidateQueries({ queryKey: ["setup-locations"] });
+      reset();
       if (onCreated) {
         onCreated(created);
       } else {
@@ -60,53 +74,58 @@ export function CreateLocationModal({ opened, onClose, onCreated }: CreateLocati
     },
   });
 
-  const handleSubmit = () => {
-    if (!code.trim() || !name.trim()) {
-      notifications.show({
-        title: "Missing fields",
-        message: "Code and Name are required",
-        color: "danger",
-      });
-      return;
-    }
-    createMutation.mutate({ code, name, level });
-  };
+  const submitLocation = handleSubmit((values) => createMutation.mutate(values));
 
   return (
-    <Modal
-      opened={opened}
-      onClose={onClose}
-      title="Add Location"
-      size="md"
-      onTransitionEnd={handleOpen}
-    >
+    <Modal opened={opened} onClose={handleClose} title="Add Location" size="md">
       <Stack gap="sm">
-        <TextInput
-          label="Code"
-          placeholder="MAIN-CAMPUS"
-          value={code}
-          onChange={(e) => setCode(e.currentTarget.value.toUpperCase())}
-          required
+        <Controller
+          control={control}
+          name="code"
+          render={({ field }) => (
+            <TextInput
+              label="Code"
+              placeholder="MAIN-CAMPUS"
+              value={field.value}
+              onChange={(e) => field.onChange(e.currentTarget.value.toUpperCase())}
+              error={errors.code?.message}
+              required
+            />
+          )}
         />
-        <TextInput
-          label="Name"
-          placeholder="Main Campus"
-          value={name}
-          onChange={(e) => setName(e.currentTarget.value)}
-          required
+        <Controller
+          control={control}
+          name="name"
+          render={({ field }) => (
+            <TextInput
+              label="Name"
+              placeholder="Main Campus"
+              value={field.value}
+              onChange={field.onChange}
+              error={errors.name?.message}
+              required
+            />
+          )}
         />
-        <Select
-          label="Level"
-          data={LEVEL_OPTIONS}
-          value={level}
-          onChange={(v) => setLevel(v ?? "campus")}
-          required
+        <Controller
+          control={control}
+          name="level"
+          render={({ field }) => (
+            <Select
+              label="Level"
+              data={LEVEL_OPTIONS}
+              value={field.value}
+              onChange={(v) => field.onChange(v ?? "campus")}
+              error={errors.level?.message}
+              required
+            />
+          )}
         />
         <Group justify="flex-end" mt="md">
-          <Button variant="light" onClick={onClose}>
+          <Button variant="light" onClick={handleClose}>
             Cancel
           </Button>
-          <Button onClick={handleSubmit} loading={createMutation.isPending}>
+          <Button onClick={() => void submitLocation()} loading={createMutation.isPending}>
             Create
           </Button>
         </Group>

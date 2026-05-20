@@ -16,7 +16,6 @@ import {
   Title,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
 import { useHasPermission } from "@medbrains/stores";
 import type {
   SecureDeviceSettingsKey,
@@ -27,6 +26,7 @@ import { P } from "@medbrains/types";
 import { IconDeviceFloppy, IconLock, IconPlugConnected } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
+import { settingsSetupService } from "../../../services/settingsSetup.service";
 
 type ConnectorField =
   | {
@@ -334,7 +334,7 @@ export function DeviceIntegrationsSettings() {
 
   const { data: rows = [], isLoading } = useQuery({
     queryKey: ["secure-device-settings"],
-    queryFn: () => api.getSecureDeviceSettings(),
+    queryFn: () => settingsSetupService.getSecureDeviceSettings(),
     staleTime: 300_000,
   });
 
@@ -342,7 +342,7 @@ export function DeviceIntegrationsSettings() {
 
   const mutation = useMutation({
     mutationFn: (payload: UpdateSecureDeviceSettingRequest) =>
-      api.updateSecureDeviceSetting(payload),
+      settingsSetupService.updateSecureDeviceSetting(payload),
     onSuccess: (row) => {
       queryClient.setQueryData<SecureTenantSettingRow[]>(
         ["secure-device-settings"],

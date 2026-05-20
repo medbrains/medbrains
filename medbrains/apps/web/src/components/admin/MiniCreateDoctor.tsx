@@ -1,3 +1,4 @@
+import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Button,
   Group,
@@ -9,11 +10,14 @@ import {
   TextInput,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
+import type { MiniDoctorFormInput } from "@medbrains/schemas";
+import { miniDoctorFormSchema } from "@medbrains/schemas";
 import type { SetupUser } from "@medbrains/types";
 import { IconCheck, IconStethoscope } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
+import { Controller, useForm } from "react-hook-form";
+import { adminAccessService } from "../../services/adminAccess.service";
 
 interface MiniCreateDoctorProps {
   searchText: string;
@@ -45,26 +49,39 @@ function errorMessage(error: unknown): string {
 export function MiniCreateDoctor({ searchText, onCreated, onCancel }: MiniCreateDoctorProps) {
   const initialName = useMemo(() => inferName(searchText), [searchText]);
   const queryClient = useQueryClient();
-  const [fullName, setFullName] = useState(initialName);
-  const [email, setEmail] = useState("");
-  const [username, setUsername] = useState(() => inferUsername(initialName, ""));
-  const [password, setPassword] = useState("");
-  const [role, setRole] = useState("doctor");
-  const [departmentIds, setDepartmentIds] = useState<string[]>([]);
-  const [specialization, setSpecialization] = useState("");
-  const [registrationNumber, setRegistrationNumber] = useState("");
-  const [qualification, setQualification] = useState("");
-  const [consultationFee, setConsultationFee] = useState<number | string>("");
+  const {
+    control,
+    getValues,
+    handleSubmit,
+    setValue,
+    watch,
+    formState: { errors },
+  } = useForm<MiniDoctorFormInput>({
+    resolver: zodResolver(miniDoctorFormSchema),
+    defaultValues: {
+      full_name: initialName,
+      email: "",
+      username: inferUsername(initialName, ""),
+      password: "",
+      role: "doctor",
+      department_ids: [],
+      specialization: "",
+      medical_registration_number: "",
+      qualification: "",
+      consultation_fee: "",
+    },
+    mode: "onTouched",
+  });
 
   const { data: roles = [] } = useQuery({
     queryKey: ["setup", "roles"],
-    queryFn: () => api.listRoles(),
+    queryFn: () => adminAccessService.listRoles(),
     staleTime: 300_000,
   });
 
   const { data: departments = [] } = useQuery({
     queryKey: ["setup", "departments"],
-    queryFn: () => api.listDepartments(),
+    queryFn: () => adminAccessService.listDepartments(),
     staleTime: 300_000,
   });
 
@@ -78,6 +95,8 @@ export function MiniCreateDoctor({ searchText, onCreated, onCancel }: MiniCreate
       roleOptions.find((item) => /doctor/i.test(item.label))?.value,
     [roleOptions],
   );
+  const formValues = watch();
+  const role = formValues.role;
   const selectedRole = roleOptions.some((item) => item.value === role)
     ? role
     : (doctorRole ?? role);
@@ -94,18 +113,19 @@ export function MiniCreateDoctor({ searchText, onCreated, onCancel }: MiniCreate
   );
 
   const mutation = useMutation({
-    mutationFn: () =>
-      api.createSetupUser({
-        username: username.trim(),
-        email: email.trim(),
-        password,
-        full_name: fullName.trim(),
+    mutationFn: (values: MiniDoctorFormInput) =>
+      adminAccessService.createUser({
+        username: values.username.trim(),
+        email: values.email.trim(),
+        password: values.password,
+        full_name: values.full_name.trim(),
         role: selectedRole,
-        department_ids: departmentIds,
-        specialization: specialization.trim() || undefined,
-        medical_registration_number: registrationNumber.trim() || undefined,
-        qualification: qualification.trim() || undefined,
-        consultation_fee: typeof consultationFee === "number" ? consultationFee : undefined,
+        department_ids: values.department_ids,
+        specialization: values.specialization.trim() || undefined,
+        medical_registration_number: values.medical_registration_number.trim() || undefined,
+        qualification: values.qualification.trim() || undefined,
+        consultation_fee:
+          typeof values.consultation_fee === "number" ? values.consultation_fee : undefined,
       }),
     onSuccess: (doctor) => {
       void queryClient.invalidateQueries({ queryKey: ["doctors-list"] });
@@ -128,93 +148,164 @@ export function MiniCreateDoctor({ searchText, onCreated, onCancel }: MiniCreate
   });
 
   const canSubmit =
-    fullName.trim().length > 0 &&
-    username.trim().length >= 3 &&
-    email.includes("@") &&
-    password.length >= 8 &&
+    formValues.full_name.trim().length > 0 &&
+    formValues.username.trim().length >= 3 &&
+    formValues.email.includes("@") &&
+    formValues.password.length >= 8 &&
     selectedRole.length > 0;
+  const submitDoctor = handleSubmit((values) => mutation.mutate(values));
 
   return (
     <Stack gap="sm">
-      <TextInput
-        label="Full name"
-        required
-        value={fullName}
-        onChange={(event) => {
-          const next = event.currentTarget.value;
-          setFullName(next);
-          if (!username || username === inferUsername(fullName, email)) {
-            setUsername(inferUsername(next, email));
-          }
-        }}
+      <Controller
+        control={control}
+        name="full_name"
+        render={({ field }) => (
+          <TextInput
+            label="Full name"
+            required
+            value={field.value}
+            onChange={(event) => {
+              const next = event.currentTarget.value;
+              const currentEmail = getValues("email");
+              const currentUsername = getValues("username");
+              field.onChange(next);
+              if (
+                !currentUsername ||
+                currentUsername === inferUsername(field.value, currentEmail)
+              ) {
+                setValue("username", inferUsername(next, currentEmail), {
+                  shouldDirty: true,
+                  shouldValidate: true,
+                });
+              }
+            }}
+            error={errors.full_name?.message}
+          />
+        )}
       />
       <Group grow align="flex-start">
-        <TextInput
-          label="Email"
-          required
-          type="email"
-          value={email}
-          onChange={(event) => {
-            const next = event.currentTarget.value;
-            setEmail(next);
-            if (!username || username === inferUsername(fullName, email)) {
-              setUsername(inferUsername(fullName, next));
-            }
-          }}
+        <Controller
+          control={control}
+          name="email"
+          render={({ field }) => (
+            <TextInput
+              label="Email"
+              required
+              type="email"
+              value={field.value}
+              onChange={(event) => {
+                const next = event.currentTarget.value;
+                const currentFullName = getValues("full_name");
+                const currentUsername = getValues("username");
+                field.onChange(next);
+                if (
+                  !currentUsername ||
+                  currentUsername === inferUsername(currentFullName, field.value)
+                ) {
+                  setValue("username", inferUsername(currentFullName, next), {
+                    shouldDirty: true,
+                    shouldValidate: true,
+                  });
+                }
+              }}
+              error={errors.email?.message}
+            />
+          )}
         />
-        <TextInput
-          label="Username"
-          required
-          value={username}
-          onChange={(event) => setUsername(event.currentTarget.value)}
+        <Controller
+          control={control}
+          name="username"
+          render={({ field }) => (
+            <TextInput
+              label="Username"
+              required
+              value={field.value}
+              onChange={field.onChange}
+              error={errors.username?.message}
+            />
+          )}
         />
       </Group>
-      <PasswordInput
-        label="Temporary password"
-        required
-        value={password}
-        onChange={(event) => setPassword(event.currentTarget.value)}
+      <Controller
+        control={control}
+        name="password"
+        render={({ field }) => (
+          <PasswordInput
+            label="Temporary password"
+            required
+            value={field.value}
+            onChange={field.onChange}
+            error={errors.password?.message}
+          />
+        )}
       />
       <Group grow align="flex-start">
-        <Select
-          allowDeselect={false}
-          data={roleOptions}
-          label="Role"
-          required
-          value={selectedRole}
-          onChange={(value) => setRole(value ?? "doctor")}
+        <Controller
+          control={control}
+          name="role"
+          render={({ field }) => (
+            <Select
+              allowDeselect={false}
+              data={roleOptions}
+              label="Role"
+              required
+              value={selectedRole}
+              onChange={(value) => field.onChange(value ?? "doctor")}
+              error={errors.role?.message}
+            />
+          )}
         />
-        <NumberInput
-          label="Consultation fee"
-          min={0}
-          value={consultationFee}
-          onChange={(value) => setConsultationFee(value)}
+        <Controller
+          control={control}
+          name="consultation_fee"
+          render={({ field }) => (
+            <NumberInput
+              label="Consultation fee"
+              min={0}
+              value={field.value}
+              onChange={field.onChange}
+              error={errors.consultation_fee?.message}
+            />
+          )}
         />
       </Group>
-      <MultiSelect
-        clearable
-        data={departmentOptions}
-        label="Departments"
-        searchable
-        value={departmentIds}
-        onChange={setDepartmentIds}
+      <Controller
+        control={control}
+        name="department_ids"
+        render={({ field }) => (
+          <MultiSelect
+            clearable
+            data={departmentOptions}
+            label="Departments"
+            searchable
+            value={field.value}
+            onChange={field.onChange}
+          />
+        )}
       />
       <Group grow align="flex-start">
-        <TextInput
-          label="Specialization"
-          value={specialization}
-          onChange={(event) => setSpecialization(event.currentTarget.value)}
+        <Controller
+          control={control}
+          name="specialization"
+          render={({ field }) => (
+            <TextInput label="Specialization" value={field.value} onChange={field.onChange} />
+          )}
         />
-        <TextInput
-          label="Registration no."
-          value={registrationNumber}
-          onChange={(event) => setRegistrationNumber(event.currentTarget.value)}
+        <Controller
+          control={control}
+          name="medical_registration_number"
+          render={({ field }) => (
+            <TextInput label="Registration no." value={field.value} onChange={field.onChange} />
+          )}
         />
       </Group>
-      <TextInput
-        label="Qualification"
-        value={qualification}
-        onChange={(event) => setQualification(event.currentTarget.value)}
+      <Controller
+        control={control}
+        name="qualification"
+        render={({ field }) => (
+          <TextInput label="Qualification" value={field.value} onChange={field.onChange} />
+        )}
       />
       <Group justify="flex-end">
         <Button variant="subtle" onClick={onCancel}>
@@ -224,7 +315,7 @@ export function MiniCreateDoctor({ searchText, onCreated, onCancel }: MiniCreate
           leftSection={<IconStethoscope size={16} />}
           loading={mutation.isPending}
           disabled={!canSubmit}
-          onClick={() => mutation.mutate()}
+          onClick={() => void submitDoctor()}
         >
           Create & select
         </Button>

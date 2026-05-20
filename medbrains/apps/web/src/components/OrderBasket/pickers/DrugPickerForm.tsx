@@ -1,109 +1,184 @@
+import { zodResolver } from "@hookform/resolvers/zod";
 import { Button, Group, NumberInput, Select, Stack, TextInput } from "@mantine/core";
+import type { OrderBasketDrugFormInput } from "@medbrains/schemas";
+import { orderBasketDrugFormSchema } from "@medbrains/schemas";
 import type { BasketDrugItem, BasketItem, PharmacyCatalog } from "@medbrains/types";
 import { useState } from "react";
+import { Controller, useForm } from "react-hook-form";
+import {
+  drugFrequencyOptions,
+  drugRouteOptions,
+  formNumberOrFallback,
+} from "../../../forms/orderBasket.form";
 import { DrugSearchSelect } from "../../DrugSearchSelect";
 
 interface DrugPickerFormProps {
   onAdd: (item: BasketItem) => void;
 }
 
-const FREQ = ["OD", "BD", "TDS", "QID", "Q4H", "Q6H", "Q8H", "Q12H", "PRN", "STAT", "Once"];
-const ROUTES = ["PO", "IV", "IM", "SC", "Inhalation", "Topical", "PR", "SL", "Per NG"];
-
 export function DrugPickerForm({ onAdd }: DrugPickerFormProps) {
-  const [drugId, setDrugId] = useState("");
   const [drug, setDrug] = useState<PharmacyCatalog | undefined>();
-  const [dose, setDose] = useState("");
-  const [frequency, setFrequency] = useState<string | null>("BD");
-  const [route, setRoute] = useState<string | null>("PO");
-  const [duration, setDuration] = useState<number | string>(5);
-  const [quantity, setQuantity] = useState<number | string>(10);
-  const [indication, setIndication] = useState("");
-  const [scheduleX, setScheduleX] = useState("");
+  const {
+    control,
+    register,
+    reset,
+    setValue,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<OrderBasketDrugFormInput>({
+    resolver: zodResolver(orderBasketDrugFormSchema),
+    mode: "onChange",
+    defaultValues: {
+      drug_id: "",
+      dose: "",
+      frequency: "BD",
+      route: "PO",
+      duration_days: 5,
+      quantity: 10,
+      indication: "",
+      schedule_x_serial: "",
+      is_schedule_x: false,
+    },
+  });
 
   const isScheduleX =
     drug?.drug_schedule != null && String(drug.drug_schedule).toUpperCase() === "X";
 
-  const reset = () => {
-    setDrugId("");
+  const resetForm = () => {
     setDrug(undefined);
-    setDose("");
-    setFrequency("BD");
-    setRoute("PO");
-    setDuration(5);
-    setQuantity(10);
-    setIndication("");
-    setScheduleX("");
+    reset({
+      drug_id: "",
+      dose: "",
+      frequency: "BD",
+      route: "PO",
+      duration_days: 5,
+      quantity: 10,
+      indication: "",
+      schedule_x_serial: "",
+      is_schedule_x: false,
+    });
   };
 
-  const canAdd = !!drug && dose.trim() && frequency && route;
-
-  const handleAdd = () => {
+  const handleAdd = (values: OrderBasketDrugFormInput) => {
     if (!drug) return;
     const item: BasketDrugItem = {
       kind: "drug",
       drug_id: drug.id,
       drug_name: drug.name,
-      dose: dose.trim(),
-      frequency: frequency ?? "BD",
-      route: route ?? "PO",
-      duration_days: typeof duration === "number" ? duration : Number(duration) || null,
-      indication: indication.trim() || null,
-      quantity: typeof quantity === "number" ? quantity : Number(quantity) || 1,
+      dose: values.dose.trim(),
+      frequency: values.frequency,
+      route: values.route,
+      duration_days: formNumberOrFallback(values.duration_days, 0),
+      indication: values.indication.trim() || null,
+      quantity: formNumberOrFallback(values.quantity, 1),
       unit_price: String(drug.base_price ?? "0"),
-      schedule_x_serial: isScheduleX ? scheduleX.trim() || null : null,
+      schedule_x_serial: isScheduleX ? values.schedule_x_serial.trim() || null : null,
     };
     onAdd(item);
-    reset();
+    resetForm();
   };
 
   return (
-    <Stack gap="xs">
-      <DrugSearchSelect
-        value={drugId}
-        onChange={(id, d) => {
-          setDrugId(id);
-          setDrug(d);
-        }}
+    <Stack component="form" gap="xs" onSubmit={handleSubmit(handleAdd)}>
+      <Controller
+        control={control}
+        name="drug_id"
+        render={({ field }) => (
+          <DrugSearchSelect
+            value={field.value}
+            onChange={(id, selectedDrug) => {
+              field.onChange(id);
+              setDrug(selectedDrug);
+              setValue(
+                "is_schedule_x",
+                selectedDrug?.drug_schedule != null &&
+                  String(selectedDrug.drug_schedule).toUpperCase() === "X",
+                { shouldDirty: true, shouldValidate: true },
+              );
+            }}
+          />
+        )}
       />
       <Group grow>
         <TextInput
           label="Dose"
           placeholder="e.g., 500mg"
-          value={dose}
-          onChange={(e) => setDose(e.currentTarget.value)}
+          error={errors.dose?.message}
+          {...register("dose")}
           required
         />
-        <Select label="Frequency" data={FREQ} value={frequency} onChange={setFrequency} required />
+        <Controller
+          control={control}
+          name="frequency"
+          render={({ field }) => (
+            <Select
+              label="Frequency"
+              data={drugFrequencyOptions}
+              value={field.value}
+              onChange={(value) => value && field.onChange(value)}
+              required
+            />
+          )}
+        />
       </Group>
       <Group grow>
-        <Select label="Route" data={ROUTES} value={route} onChange={setRoute} required />
-        <NumberInput
-          label="Duration (days)"
-          value={duration}
-          onChange={(v) => setDuration(v)}
-          min={0}
-          max={365}
+        <Controller
+          control={control}
+          name="route"
+          render={({ field }) => (
+            <Select
+              label="Route"
+              data={drugRouteOptions}
+              value={field.value}
+              onChange={(value) => value && field.onChange(value)}
+              required
+            />
+          )}
         />
-        <NumberInput label="Quantity" value={quantity} onChange={(v) => setQuantity(v)} min={1} />
+        <Controller
+          control={control}
+          name="duration_days"
+          render={({ field }) => (
+            <NumberInput
+              label="Duration (days)"
+              value={field.value}
+              onChange={field.onChange}
+              error={errors.duration_days?.message}
+              min={0}
+              max={365}
+            />
+          )}
+        />
+        <Controller
+          control={control}
+          name="quantity"
+          render={({ field }) => (
+            <NumberInput
+              label="Quantity"
+              value={field.value}
+              onChange={field.onChange}
+              error={errors.quantity?.message}
+              min={1}
+            />
+          )}
+        />
       </Group>
       <TextInput
         label="Indication"
         placeholder="optional — diagnosis or reason"
-        value={indication}
-        onChange={(e) => setIndication(e.currentTarget.value)}
+        {...register("indication")}
       />
       {isScheduleX && (
         <TextInput
           label="Schedule X paper Rx serial number"
           placeholder="required for Schedule X"
-          value={scheduleX}
-          onChange={(e) => setScheduleX(e.currentTarget.value)}
+          error={errors.schedule_x_serial?.message}
+          {...register("schedule_x_serial")}
           required
         />
       )}
       <Group justify="flex-end">
-        <Button onClick={handleAdd} disabled={!canAdd}>
+        <Button type="submit" disabled={!drug}>
           Add to basket
         </Button>
       </Group>

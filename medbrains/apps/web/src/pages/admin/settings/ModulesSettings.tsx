@@ -10,10 +10,10 @@ import {
   Tooltip,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
 import type { ModuleConfig } from "@medbrains/types";
 import { IconCheck } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { settingsSetupService } from "../../../services/settingsSetup.service";
 
 // Core modules that cannot be disabled by the user.
 // These are fundamental to the system and must always remain enabled.
@@ -33,12 +33,12 @@ export function ModulesSettings() {
     error,
   } = useQuery({
     queryKey: ["setup-modules"],
-    queryFn: () => api.listModules(),
+    queryFn: () => settingsSetupService.listModules(),
   });
 
   const toggleMutation = useMutation({
     mutationFn: ({ code, status }: { code: string; status: string }) =>
-      api.updateModule(code, { status }),
+      settingsSetupService.updateModule(code, { status }),
     onSuccess: (updated: ModuleConfig) => {
       void queryClient.invalidateQueries({ queryKey: ["setup-modules"] });
       const label = updated.status === "enabled" ? "enabled" : "disabled";

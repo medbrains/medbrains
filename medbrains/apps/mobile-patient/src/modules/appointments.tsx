@@ -13,6 +13,7 @@ function AppointmentsScreen() {
       eyebrow="MODULE"
       title="Appointments"
       description="Book, view, reschedule, or cancel your visits."
+      tags={["Mobile-Patient", "OPD", "slots", "self-service"]}
       summaries={[
         { eyebrow: "UPCOMING", count: "—", title: "Next 14 days" },
         { eyebrow: "PAST", count: "—", title: "Last 30 days" },
@@ -49,4 +50,6 @@ export const appointmentsModule: Module = {
   icon: () => null,
   requiredPermissions: [],
   navigator: AppointmentsScreen,
+  appCodes: ["Mobile-Patient", "Desktop-Kiosk"],
+  tags: ["patient", "appointments", "opd", "self-service"],
 };

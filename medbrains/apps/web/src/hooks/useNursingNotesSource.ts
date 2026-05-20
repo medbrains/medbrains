@@ -4,11 +4,11 @@
  * patient_id.
  */
 
-import { api } from "@medbrains/api";
 import { type CrdtConnectionStatus, useCrdtText } from "@medbrains/crdt";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback } from "react";
 import { useTenantConfig } from "../providers/TenantConfigProvider";
+import { clinicalSourcesService } from "../services/clinicalSources.service";
 
 export interface NursingNotesResult {
   text: string;
@@ -22,39 +22,22 @@ export interface NursingNotesResult {
 
 export function useNursingNotesSource(shiftId: string): NursingNotesResult {
   const config = useTenantConfig();
-  if (config.mode === "crdt") return useNursingNotesCrdt(shiftId, config);
-  return useNursingNotesRest(shiftId);
+  const useCrdt = config.mode === "crdt";
+  const rest = useNursingNotesRest(shiftId, !useCrdt);
+  const crdt = useNursingNotesCrdt(shiftId, { ...config, enabled: useCrdt });
+  return useCrdt ? crdt : rest;
 }
 
-// REST stub — same defensive pattern as useNotesSource.
-type NursingApi = {
-  getNursingNotes?: (shiftId: string) => Promise<{
-    text: string;
-    last_author?: string;
-    last_edited_at?: string;
-  }>;
-  updateNursingNotes?: (shiftId: string, text: string) => Promise<unknown>;
-};
-const nursingApi = api as unknown as NursingApi;
-
-function useNursingNotesRest(shiftId: string): NursingNotesResult {
+function useNursingNotesRest(shiftId: string, enabled: boolean): NursingNotesResult {
   const qc = useQueryClient();
   const query = useQuery({
     queryKey: ["nursing-notes", shiftId],
-    queryFn: async () => {
-      if (typeof nursingApi.getNursingNotes !== "function") {
-        return { text: "", last_author: undefined, last_edited_at: undefined };
-      }
-      return nursingApi.getNursingNotes(shiftId);
-    },
-    enabled: !!shiftId,
+    queryFn: () => clinicalSourcesService.getNursingNotes(shiftId),
+    enabled: enabled && !!shiftId,
   });
   const mutation = useMutation({
     mutationFn: async (text: string) => {
-      if (typeof nursingApi.updateNursingNotes !== "function") {
-        throw new Error("nursing-notes REST endpoint not implemented yet");
-      }
-      return nursingApi.updateNursingNotes(shiftId, text);
+      return clinicalSourcesService.updateNursingNotes(shiftId, text);
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["nursing-notes", shiftId] }),
   });
@@ -72,13 +55,20 @@ function useNursingNotesRest(shiftId: string): NursingNotesResult {
 
 function useNursingNotesCrdt(
   shiftId: string,
-  config: { edgeUrl: string; tenantId: string; deviceId: string; authorName: string },
+  config: {
+    edgeUrl: string;
+    tenantId: string;
+    deviceId: string;
+    authorName: string;
+    enabled: boolean;
+  },
 ): NursingNotesResult {
   const t = useCrdtText(`nursing-notes/${shiftId}`, {
     edgeUrl: config.edgeUrl,
     tenantId: config.tenantId,
     deviceId: config.deviceId,
     authorName: config.authorName,
+    enabled: config.enabled,
   });
   return {
     text: t.text,

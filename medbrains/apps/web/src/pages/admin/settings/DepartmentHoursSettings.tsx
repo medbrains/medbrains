@@ -1,40 +1,80 @@
-import { ActionIcon, Badge, Group, Loader, Modal, Stack, Table, Text } from "@mantine/core";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { ActionIcon, Badge, Button, Group, Loader, Modal, Stack, Table, Text } from "@mantine/core";
 import { TimeInput } from "@mantine/dates";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
+import {
+  type DepartmentHoursSettingsFormInput,
+  departmentHoursSettingsFormSchema,
+} from "@medbrains/schemas";
 import type { DepartmentRow, TimeSlot } from "@medbrains/types";
 import { IconCheck, IconClock } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-
-interface HoursFormState {
-  monday?: TimeSlot;
-  tuesday?: TimeSlot;
-  wednesday?: TimeSlot;
-  thursday?: TimeSlot;
-  friday?: TimeSlot;
-  saturday?: TimeSlot;
-  sunday?: TimeSlot;
-}
-
-const EMPTY_HOURS: HoursFormState = {};
+import { Controller, type Path, useForm } from "react-hook-form";
+import { settingsSetupService } from "../../../services/settingsSetup.service";
 
 const QUERY_KEY = ["setup-departments"] as const;
 
-const WEEKDAYS = [
-  "monday",
-  "tuesday",
-  "wednesday",
-  "thursday",
-  "friday",
-  "saturday",
-  "sunday",
-] as const;
+const EMPTY_SLOT = { start: "", end: "" };
+
+const EMPTY_HOURS: DepartmentHoursSettingsFormInput = {
+  monday: { ...EMPTY_SLOT },
+  tuesday: { ...EMPTY_SLOT },
+  wednesday: { ...EMPTY_SLOT },
+  thursday: { ...EMPTY_SLOT },
+  friday: { ...EMPTY_SLOT },
+  saturday: { ...EMPTY_SLOT },
+  sunday: { ...EMPTY_SLOT },
+};
+
+type WeekdayField = {
+  key: keyof DepartmentHoursSettingsFormInput;
+  label: string;
+  startName: Path<DepartmentHoursSettingsFormInput>;
+  endName: Path<DepartmentHoursSettingsFormInput>;
+};
+
+const WEEKDAY_FIELDS = [
+  { key: "monday", label: "Monday", startName: "monday.start", endName: "monday.end" },
+  { key: "tuesday", label: "Tuesday", startName: "tuesday.start", endName: "tuesday.end" },
+  {
+    key: "wednesday",
+    label: "Wednesday",
+    startName: "wednesday.start",
+    endName: "wednesday.end",
+  },
+  { key: "thursday", label: "Thursday", startName: "thursday.start", endName: "thursday.end" },
+  { key: "friday", label: "Friday", startName: "friday.start", endName: "friday.end" },
+  { key: "saturday", label: "Saturday", startName: "saturday.start", endName: "saturday.end" },
+  { key: "sunday", label: "Sunday", startName: "sunday.start", endName: "sunday.end" },
+] satisfies WeekdayField[];
 
 const formatTimeSlot = (slot: TimeSlot | undefined): string => {
   if (!slot) return "--";
   return `${slot.start} - ${slot.end}`;
 };
+
+function isTimeSlot(value: unknown): value is TimeSlot {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "start" in value &&
+    "end" in value &&
+    typeof value.start === "string" &&
+    typeof value.end === "string"
+  );
+}
+
+function extractMorningSlot(
+  hours: Record<string, unknown> | null,
+  day: keyof DepartmentHoursSettingsFormInput,
+): TimeSlot | undefined {
+  const dayValue = hours?.[day];
+  if (typeof dayValue !== "object" || dayValue === null || !("morning" in dayValue)) {
+    return undefined;
+  }
+  return isTimeSlot(dayValue.morning) ? dayValue.morning : undefined;
+}
 
 const formatOperatingHours = (hours: Record<string, unknown> | null): string => {
   if (!hours || Object.keys(hours).length === 0) return "Not configured";
@@ -43,22 +83,70 @@ const formatOperatingHours = (hours: Record<string, unknown> | null): string => 
   if (entries.length === 0) return "Not configured";
 
   const days = entries.map(([day, slot]) => {
-    const ts = slot as { morning?: TimeSlot; evening?: TimeSlot };
     const times: string[] = [];
-    if (ts.morning) times.push(formatTimeSlot(ts.morning));
-    if (ts.evening) times.push(formatTimeSlot(ts.evening));
+    if (
+      typeof slot === "object" &&
+      slot !== null &&
+      "morning" in slot &&
+      isTimeSlot(slot.morning)
+    ) {
+      times.push(formatTimeSlot(slot.morning));
+    }
+    if (
+      typeof slot === "object" &&
+      slot !== null &&
+      "evening" in slot &&
+      isTimeSlot(slot.evening)
+    ) {
+      times.push(formatTimeSlot(slot.evening));
+    }
     return `${day.charAt(0).toUpperCase() + day.slice(1)}: ${times.join(", ")}`;
   });
 
   return days.join(" | ");
 };
 
+function hoursFormFromDepartment(department: DepartmentRow): DepartmentHoursSettingsFormInput {
+  const hours = department.working_hours || {};
+  return {
+    monday: extractMorningSlot(hours, "monday") ?? { ...EMPTY_SLOT },
+    tuesday: extractMorningSlot(hours, "tuesday") ?? { ...EMPTY_SLOT },
+    wednesday: extractMorningSlot(hours, "wednesday") ?? { ...EMPTY_SLOT },
+    thursday: extractMorningSlot(hours, "thursday") ?? { ...EMPTY_SLOT },
+    friday: extractMorningSlot(hours, "friday") ?? { ...EMPTY_SLOT },
+    saturday: extractMorningSlot(hours, "saturday") ?? { ...EMPTY_SLOT },
+    sunday: extractMorningSlot(hours, "sunday") ?? { ...EMPTY_SLOT },
+  };
+}
+
+function hoursFormToPayload(form: DepartmentHoursSettingsFormInput) {
+  const working_hours: Record<string, { morning?: TimeSlot } | null> = {};
+
+  for (const day of WEEKDAY_FIELDS) {
+    const slot = form[day.key];
+    working_hours[day.key] =
+      slot.start.trim().length > 0 && slot.end.trim().length > 0
+        ? { morning: { start: slot.start, end: slot.end } }
+        : null;
+  }
+
+  return { working_hours };
+}
+
 export function DepartmentHoursSettings() {
   const queryClient = useQueryClient();
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editingDept, setEditingDept] = useState<DepartmentRow | null>(null);
-  const [form, setForm] = useState<HoursFormState>(EMPTY_HOURS);
+  const {
+    control,
+    formState: { errors },
+    handleSubmit,
+    reset,
+  } = useForm<DepartmentHoursSettingsFormInput>({
+    resolver: zodResolver(departmentHoursSettingsFormSchema),
+    defaultValues: EMPTY_HOURS,
+  });
 
   const {
     data: departments,
@@ -67,12 +155,12 @@ export function DepartmentHoursSettings() {
     error,
   } = useQuery({
     queryKey: QUERY_KEY,
-    queryFn: () => api.listDepartments(),
+    queryFn: () => settingsSetupService.listDepartments(),
   });
 
   const updateMutation = useMutation({
     mutationFn: ({ id, data }: { id: string; data: Record<string, unknown> }) =>
-      api.updateDepartment(id, data),
+      settingsSetupService.updateDepartment(id, data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: QUERY_KEY });
       closeModal();
@@ -94,58 +182,24 @@ export function DepartmentHoursSettings() {
 
   const openEditModal = (dept: DepartmentRow) => {
     setEditingDept(dept);
-    const hours = dept.working_hours || {};
-    const formData: HoursFormState = {};
-
-    WEEKDAYS.forEach((day) => {
-      const dayData = hours[day] as { morning?: TimeSlot } | null;
-      if (dayData?.morning) {
-        formData[day] = dayData.morning;
-      }
-    });
-
-    setForm(formData);
+    reset(hoursFormFromDepartment(dept));
     setModalOpen(true);
   };
 
   const closeModal = () => {
     setModalOpen(false);
     setEditingDept(null);
-    setForm(EMPTY_HOURS);
+    reset(EMPTY_HOURS);
   };
 
-  const handleSubmit = () => {
+  const submitHours = handleSubmit((form) => {
     if (!editingDept) return;
-
-    const working_hours: Record<string, { morning?: TimeSlot } | null> = {};
-
-    WEEKDAYS.forEach((day) => {
-      const slot = form[day];
-      if (slot) {
-        working_hours[day] = { morning: slot };
-      } else {
-        working_hours[day] = null;
-      }
-    });
 
     updateMutation.mutate({
       id: editingDept.id,
-      data: { working_hours },
+      data: hoursFormToPayload(form),
     });
-  };
-
-  const updateTimeSlot = (day: string, field: "start" | "end", value: string) => {
-    setForm((prev) => {
-      const existing = prev[day as keyof HoursFormState];
-      return {
-        ...prev,
-        [day]: {
-          start: field === "start" ? value : existing?.start || "09:00",
-          end: field === "end" ? value : existing?.end || "17:00",
-        },
-      };
-    });
-  };
+  });
 
   if (isLoading) {
     return (
@@ -241,57 +295,49 @@ export function DepartmentHoursSettings() {
         size="lg"
       >
         <Stack gap="md">
-          {WEEKDAYS.map((day) => (
-            <Group key={day} wrap="nowrap" align="flex-start">
+          {WEEKDAY_FIELDS.map((day) => (
+            <Group key={day.key} wrap="nowrap" align="flex-start">
               <Text size="sm" fw={500} w={100}>
-                {day.charAt(0).toUpperCase() + day.slice(1)}
+                {day.label}
               </Text>
-              <TimeInput
-                placeholder="Start time"
-                value={form[day]?.start || ""}
-                onChange={(e) => updateTimeSlot(day, "start", e.currentTarget.value)}
-                flex={1}
+              <Controller
+                control={control}
+                name={day.startName}
+                render={({ field }) => (
+                  <TimeInput
+                    placeholder="Start time"
+                    value={field.value}
+                    onChange={field.onChange}
+                    error={errors[day.key]?.start?.message}
+                    flex={1}
+                  />
+                )}
               />
               <Text size="sm" c="dimmed">
                 to
               </Text>
-              <TimeInput
-                placeholder="End time"
-                value={form[day]?.end || ""}
-                onChange={(e) => updateTimeSlot(day, "end", e.currentTarget.value)}
-                flex={1}
+              <Controller
+                control={control}
+                name={day.endName}
+                render={({ field }) => (
+                  <TimeInput
+                    placeholder="End time"
+                    value={field.value}
+                    onChange={field.onChange}
+                    error={errors[day.key]?.end?.message}
+                    flex={1}
+                  />
+                )}
               />
             </Group>
           ))}
           <Group justify="flex-end" mt="sm">
-            <button
-              type="button"
-              onClick={closeModal}
-              style={{
-                padding: "8px 16px",
-                border: "1px solid #ccc",
-                borderRadius: "4px",
-                background: "white",
-                cursor: "pointer",
-              }}
-            >
+            <Button variant="light" onClick={closeModal}>
               Cancel
-            </button>
-            <button
-              type="button"
-              onClick={handleSubmit}
-              disabled={updateMutation.isPending}
-              style={{
-                padding: "8px 16px",
-                border: "none",
-                borderRadius: "4px",
-                background: updateMutation.isPending ? "#ccc" : "#228be6",
-                color: "white",
-                cursor: updateMutation.isPending ? "not-allowed" : "pointer",
-              }}
-            >
-              {updateMutation.isPending ? "Saving..." : "Save Changes"}
-            </button>
+            </Button>
+            <Button onClick={() => void submitHours()} loading={updateMutation.isPending}>
+              Save Changes
+            </Button>
           </Group>
         </Stack>
       </Modal>

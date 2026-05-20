@@ -1,5 +1,4 @@
 import { Alert, Button, Stack, Text, ThemeIcon, Title } from "@mantine/core";
-import { api } from "@medbrains/api";
 import { useOnboardingStore } from "@medbrains/stores";
 import type {
   OnboardingBedType,
@@ -14,6 +13,7 @@ import type {
 import { IconAlertTriangle, IconCheck, IconRocket } from "@tabler/icons-react";
 import { useMutation } from "@tanstack/react-query";
 import { useNavigate } from "react-router";
+import { onboardingService } from "../../services/onboarding.service";
 import classes from "./onboarding.module.scss";
 
 interface Props {
@@ -61,7 +61,7 @@ export function ReviewStep({ onBack }: Props) {
         payment_methods: paymentMethods.length > 0 ? paymentMethods : undefined,
         branding: branding ?? undefined,
       };
-      return api.onboardingSetup(request);
+      return onboardingService.onboardingSetup(request);
     },
     onSuccess: () => {
       reset();

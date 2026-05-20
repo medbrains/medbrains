@@ -14,6 +14,7 @@ function ConsentScreen() {
       eyebrow="MODULE"
       title="Consent"
       description="View, grant, or revoke consent for any of your records."
+      tags={["Mobile-Patient", "consent", "DPDP", "ABDM"]}
       summaries={[
         { eyebrow: "ACTIVE", count: "—", title: "Granted consents" },
         { eyebrow: "REVOKED", count: "—", title: "Revoked / expired" },
@@ -55,4 +56,6 @@ export const consentModule: Module = {
   icon: () => null,
   requiredPermissions: [],
   navigator: ConsentScreen,
+  appCodes: ["Mobile-Patient"],
+  tags: ["patient", "consent", "dpdp", "abdm", "audit"],
 };

@@ -1,3 +1,4 @@
+import { zodResolver } from "@hookform/resolvers/zod";
 import {
   ActionIcon,
   Badge,
@@ -18,7 +19,24 @@ import {
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
+import type {
+  CssdIndicatorFormInput,
+  CssdInstrumentFormInput,
+  CssdIssuanceFormInput,
+  CssdLoadFormInput,
+  CssdMaintenanceFormInput,
+  CssdSetFormInput,
+  CssdSterilizerFormInput,
+} from "@medbrains/schemas";
+import {
+  cssdIndicatorFormSchema,
+  cssdInstrumentFormSchema,
+  cssdIssuanceFormSchema,
+  cssdLoadFormSchema,
+  cssdMaintenanceFormSchema,
+  cssdSetFormSchema,
+  cssdSterilizerFormSchema,
+} from "@medbrains/schemas";
 import { useHasPermission } from "@medbrains/stores";
 import type {
   CreateCssdInstrumentRequest,
@@ -34,7 +52,6 @@ import type {
   CssdMaintenanceLog,
   CssdSterilizationLoad,
   CssdSterilizer,
-  IndicatorType,
   LoadStatus,
   RecordCssdIndicatorRequest,
   SterilizationMethod,
@@ -53,9 +70,20 @@ import {
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { Controller, useForm } from "react-hook-form";
 import { DataTable, PageHeader } from "../components";
 import { PatientSearchSelect } from "../components/PatientSearchSelect";
+import {
+  cssdIndicatorTypeOptions,
+  cssdInstrumentCategoryOptions,
+  cssdMaintenanceTypeOptions,
+  cssdMethodOptions,
+  cssdOptionalInteger,
+  cssdOptionalNumber,
+  cssdOptionalText,
+} from "../forms/cssd.form";
 import { useRequirePermission } from "../hooks/useRequirePermission";
+import { cssdService } from "../services/cssd.service";
 
 // ── Label Maps ──────────────────────────────────────────
 
@@ -84,35 +112,6 @@ const methodLabels: Record<SterilizationMethod, string> = {
   flash: "Flash",
 };
 
-// Dropdown options for categorical fields
-const INSTRUMENT_CATEGORIES = [
-  { value: "surgical", label: "Surgical Instruments" },
-  { value: "diagnostic", label: "Diagnostic Instruments" },
-  { value: "dental", label: "Dental Instruments" },
-  { value: "ophthalmic", label: "Ophthalmic Instruments" },
-  { value: "orthopedic", label: "Orthopedic Instruments" },
-  { value: "endoscopy", label: "Endoscopy Equipment" },
-  { value: "laparoscopy", label: "Laparoscopy Instruments" },
-  { value: "cardiology", label: "Cardiology Instruments" },
-  { value: "neurology", label: "Neurology Instruments" },
-  { value: "urology", label: "Urology Instruments" },
-  { value: "gynecology", label: "Gynecology Instruments" },
-  { value: "ent", label: "ENT Instruments" },
-  { value: "other", label: "Other" },
-];
-
-const MAINTENANCE_TYPES = [
-  { value: "preventive", label: "Preventive Maintenance" },
-  { value: "corrective", label: "Corrective Maintenance" },
-  { value: "calibration", label: "Calibration" },
-  { value: "validation", label: "Validation" },
-  { value: "inspection", label: "Inspection" },
-  { value: "repair", label: "Repair" },
-  { value: "replacement", label: "Part Replacement" },
-  { value: "cleaning", label: "Deep Cleaning" },
-  { value: "other", label: "Other" },
-];
-
 // ── Instruments Tab ─────────────────────────────────────
 
 function InstrumentsTab() {
@@ -124,38 +123,85 @@ function InstrumentsTab() {
 
   const { data: instruments = [], isLoading } = useQuery({
     queryKey: ["cssd-instruments"],
-    queryFn: () => api.listCssdInstruments(),
+    queryFn: () => cssdService.listCssdInstruments(),
   });
 
   const { data: sets = [] } = useQuery({
     queryKey: ["cssd-sets"],
-    queryFn: () => api.listCssdSets(),
+    queryFn: () => cssdService.listCssdSets(),
   });
 
-  const [instrForm, setInstrForm] = useState<CreateCssdInstrumentRequest>({
-    barcode: "",
-    name: "",
+  const instrForm = useForm<CssdInstrumentFormInput>({
+    resolver: zodResolver(cssdInstrumentFormSchema),
+    defaultValues: {
+      barcode: "",
+      name: "",
+      category: "",
+      manufacturer: "",
+      max_uses: "",
+      notes: "",
+    },
   });
+  const {
+    control: instrControl,
+    handleSubmit: handleInstrSubmit,
+    reset: resetInstr,
+    formState: { errors: instrErrors },
+  } = instrForm;
   const createInstrMut = useMutation({
-    mutationFn: (data: CreateCssdInstrumentRequest) => api.createCssdInstrument(data),
+    mutationFn: (data: CreateCssdInstrumentRequest) => cssdService.createCssdInstrument(data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["cssd-instruments"] });
       notifications.show({ title: "Instrument added", message: "", color: "success" });
       closeInstr();
-      setInstrForm({ barcode: "", name: "" });
+      resetInstr();
     },
   });
 
-  const [setForm, setSetForm] = useState<CreateCssdSetRequest>({ set_code: "", set_name: "" });
+  const setForm = useForm<CssdSetFormInput>({
+    resolver: zodResolver(cssdSetFormSchema),
+    defaultValues: {
+      set_code: "",
+      set_name: "",
+      department: "",
+      description: "",
+    },
+  });
+  const {
+    control: setControl,
+    handleSubmit: handleSetSubmit,
+    reset: resetSet,
+    formState: { errors: setErrors },
+  } = setForm;
   const createSetMut = useMutation({
-    mutationFn: (data: CreateCssdSetRequest) => api.createCssdSet(data),
+    mutationFn: (data: CreateCssdSetRequest) => cssdService.createCssdSet(data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["cssd-sets"] });
       notifications.show({ title: "Set created", message: "", color: "success" });
       closeSet();
-      setSetForm({ set_code: "", set_name: "" });
+      resetSet();
     },
   });
+
+  const submitInstrument = (values: CssdInstrumentFormInput) => {
+    createInstrMut.mutate({
+      barcode: values.barcode.trim(),
+      name: values.name.trim(),
+      category: values.category || undefined,
+      manufacturer: cssdOptionalText(values.manufacturer),
+      max_uses: cssdOptionalInteger(values.max_uses),
+      notes: cssdOptionalText(values.notes),
+    });
+  };
+
+  const submitSet = (values: CssdSetFormInput) => {
+    createSetMut.mutate({
+      set_code: values.set_code.trim(),
+      set_name: values.set_name.trim(),
+      department: cssdOptionalText(values.department),
+      description: cssdOptionalText(values.description),
+    });
+  };
 
   const instrColumns = [
     { key: "barcode" as const, label: "Barcode", render: (i: CssdInstrument) => i.barcode },
@@ -249,52 +295,67 @@ function InstrumentsTab() {
         position="right"
         size="sm"
       >
-        <Stack>
-          <TextInput
-            label="Barcode"
-            required
-            value={instrForm.barcode}
-            onChange={(e) => setInstrForm({ ...instrForm, barcode: e.currentTarget.value })}
+        <Stack component="form" onSubmit={handleInstrSubmit(submitInstrument)}>
+          <Controller
+            name="barcode"
+            control={instrControl}
+            render={({ field }) => (
+              <TextInput label="Barcode" required {...field} error={instrErrors.barcode?.message} />
+            )}
           />
-          <TextInput
-            label="Name"
-            required
-            value={instrForm.name}
-            onChange={(e) => setInstrForm({ ...instrForm, name: e.currentTarget.value })}
+          <Controller
+            name="name"
+            control={instrControl}
+            render={({ field }) => (
+              <TextInput label="Name" required {...field} error={instrErrors.name?.message} />
+            )}
           />
-          <Select
-            label="Category"
-            data={INSTRUMENT_CATEGORIES}
-            value={instrForm.category ?? null}
-            onChange={(v) => setInstrForm({ ...instrForm, category: v || undefined })}
-            clearable
-            searchable
+          <Controller
+            name="category"
+            control={instrControl}
+            render={({ field }) => (
+              <Select
+                label="Category"
+                data={cssdInstrumentCategoryOptions}
+                value={field.value || null}
+                onChange={(value) => field.onChange(value ?? "")}
+                clearable
+                searchable
+                error={instrErrors.category?.message}
+              />
+            )}
           />
-          <TextInput
-            label="Manufacturer"
-            value={instrForm.manufacturer ?? ""}
-            onChange={(e) =>
-              setInstrForm({ ...instrForm, manufacturer: e.currentTarget.value || undefined })
-            }
+          <Controller
+            name="manufacturer"
+            control={instrControl}
+            render={({ field }) => (
+              <TextInput
+                label="Manufacturer"
+                {...field}
+                error={instrErrors.manufacturer?.message}
+              />
+            )}
           />
-          <NumberInput
-            label="Max Uses (lifecycle)"
-            value={instrForm.max_uses ?? ""}
-            onChange={(v) =>
-              setInstrForm({ ...instrForm, max_uses: v === "" ? undefined : Number(v) })
-            }
+          <Controller
+            name="max_uses"
+            control={instrControl}
+            render={({ field }) => (
+              <NumberInput
+                label="Max Uses (lifecycle)"
+                value={field.value}
+                onChange={field.onChange}
+                error={instrErrors.max_uses?.message}
+              />
+            )}
           />
-          <Textarea
-            label="Notes"
-            value={instrForm.notes ?? ""}
-            onChange={(e) =>
-              setInstrForm({ ...instrForm, notes: e.currentTarget.value || undefined })
-            }
+          <Controller
+            name="notes"
+            control={instrControl}
+            render={({ field }) => (
+              <Textarea label="Notes" {...field} error={instrErrors.notes?.message} />
+            )}
           />
-          <Button
-            loading={createInstrMut.isPending}
-            onClick={() => createInstrMut.mutate(instrForm)}
-          >
+          <Button loading={createInstrMut.isPending} type="submit">
             Save
           </Button>
         </Stack>
@@ -307,34 +368,36 @@ function InstrumentsTab() {
         position="right"
         size="sm"
       >
-        <Stack>
-          <TextInput
-            label="Set Code"
-            required
-            value={setForm.set_code}
-            onChange={(e) => setSetForm({ ...setForm, set_code: e.currentTarget.value })}
+        <Stack component="form" onSubmit={handleSetSubmit(submitSet)}>
+          <Controller
+            name="set_code"
+            control={setControl}
+            render={({ field }) => (
+              <TextInput label="Set Code" required {...field} error={setErrors.set_code?.message} />
+            )}
           />
-          <TextInput
-            label="Set Name"
-            required
-            value={setForm.set_name}
-            onChange={(e) => setSetForm({ ...setForm, set_name: e.currentTarget.value })}
+          <Controller
+            name="set_name"
+            control={setControl}
+            render={({ field }) => (
+              <TextInput label="Set Name" required {...field} error={setErrors.set_name?.message} />
+            )}
           />
-          <TextInput
-            label="Department"
-            value={setForm.department ?? ""}
-            onChange={(e) =>
-              setSetForm({ ...setForm, department: e.currentTarget.value || undefined })
-            }
+          <Controller
+            name="department"
+            control={setControl}
+            render={({ field }) => (
+              <TextInput label="Department" {...field} error={setErrors.department?.message} />
+            )}
           />
-          <Textarea
-            label="Description"
-            value={setForm.description ?? ""}
-            onChange={(e) =>
-              setSetForm({ ...setForm, description: e.currentTarget.value || undefined })
-            }
+          <Controller
+            name="description"
+            control={setControl}
+            render={({ field }) => (
+              <Textarea label="Description" {...field} error={setErrors.description?.message} />
+            )}
           />
-          <Button loading={createSetMut.isPending} onClick={() => createSetMut.mutate(setForm)}>
+          <Button loading={createSetMut.isPending} type="submit">
             Save
           </Button>
         </Stack>
@@ -354,31 +417,44 @@ function SterilizationTab() {
 
   const { data: loads = [], isLoading } = useQuery({
     queryKey: ["cssd-loads"],
-    queryFn: () => api.listCssdLoads(),
+    queryFn: () => cssdService.listCssdLoads(),
   });
 
   const { data: sterilizers = [] } = useQuery({
     queryKey: ["cssd-sterilizers"],
-    queryFn: () => api.listCssdSterilizers(),
+    queryFn: () => cssdService.listCssdSterilizers(),
   });
 
-  const [loadForm, setLoadForm] = useState<CreateCssdLoadRequest>({
-    sterilizer_id: "",
-    method: "steam",
+  const loadForm = useForm<CssdLoadFormInput>({
+    resolver: zodResolver(cssdLoadFormSchema),
+    defaultValues: {
+      sterilizer_id: "",
+      method: "steam",
+      is_flash: false,
+      flash_reason: "",
+      notes: "",
+    },
   });
+  const {
+    control: loadControl,
+    handleSubmit: handleLoadSubmit,
+    reset: resetLoad,
+    watch: watchLoad,
+    formState: { errors: loadErrors },
+  } = loadForm;
   const createLoadMut = useMutation({
-    mutationFn: (data: CreateCssdLoadRequest) => api.createCssdLoad(data),
+    mutationFn: (data: CreateCssdLoadRequest) => cssdService.createCssdLoad(data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["cssd-loads"] });
       notifications.show({ title: "Load created", message: "", color: "success" });
       closeLoad();
-      setLoadForm({ sterilizer_id: "", method: "steam" });
+      resetLoad();
     },
   });
 
   const updateStatusMut = useMutation({
     mutationFn: ({ id, status }: { id: string; status: LoadStatus }) =>
-      api.updateCssdLoadStatus(id, { status }),
+      cssdService.updateCssdLoadStatus(id, status),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["cssd-loads"] });
       notifications.show({ title: "Load status updated", message: "", color: "primary" });
@@ -388,23 +464,53 @@ function SterilizationTab() {
   // Indicators for detail view
   const { data: indicators = [] } = useQuery({
     queryKey: ["cssd-indicators", selectedLoad?.id],
-    queryFn: () => api.listCssdIndicators(selectedLoad?.id ?? ""),
+    queryFn: () => cssdService.listCssdIndicators(selectedLoad?.id ?? ""),
     enabled: !!selectedLoad,
   });
 
-  const [indicatorForm, setIndicatorForm] = useState<RecordCssdIndicatorRequest>({
-    indicator_type: "chemical",
-    result_pass: true,
+  const indicatorForm = useForm<CssdIndicatorFormInput>({
+    resolver: zodResolver(cssdIndicatorFormSchema),
+    defaultValues: {
+      indicator_type: "chemical",
+      result_pass: true,
+      indicator_brand: "",
+      indicator_lot: "",
+    },
   });
+  const {
+    control: indicatorControl,
+    handleSubmit: handleIndicatorSubmit,
+    reset: resetIndicator,
+    formState: { errors: indicatorErrors },
+  } = indicatorForm;
   const indicatorMut = useMutation({
     mutationFn: (data: RecordCssdIndicatorRequest) =>
-      api.recordCssdIndicator(selectedLoad?.id ?? "", data),
+      cssdService.recordCssdIndicator(selectedLoad?.id ?? "", data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["cssd-indicators", selectedLoad?.id] });
       notifications.show({ title: "Indicator recorded", message: "", color: "success" });
-      setIndicatorForm({ indicator_type: "chemical", result_pass: true });
+      resetIndicator();
     },
   });
+
+  const submitLoad = (values: CssdLoadFormInput) => {
+    createLoadMut.mutate({
+      sterilizer_id: values.sterilizer_id.trim(),
+      method: values.method,
+      is_flash: values.is_flash,
+      flash_reason: values.is_flash ? cssdOptionalText(values.flash_reason) : undefined,
+      notes: cssdOptionalText(values.notes),
+    });
+  };
+
+  const submitIndicator = (values: CssdIndicatorFormInput) => {
+    indicatorMut.mutate({
+      indicator_type: values.indicator_type,
+      result_pass: values.result_pass,
+      indicator_brand: cssdOptionalText(values.indicator_brand),
+      indicator_lot: cssdOptionalText(values.indicator_lot),
+    });
+  };
 
   const columns = [
     {
@@ -506,43 +612,65 @@ function SterilizationTab() {
         position="right"
         size="sm"
       >
-        <Stack>
-          <Select
-            label="Sterilizer"
-            data={sterilizers.map((s) => ({ value: s.id, label: s.name }))}
-            value={loadForm.sterilizer_id}
-            onChange={(v) => setLoadForm({ ...loadForm, sterilizer_id: v ?? "" })}
+        <Stack component="form" onSubmit={handleLoadSubmit(submitLoad)}>
+          <Controller
+            name="sterilizer_id"
+            control={loadControl}
+            render={({ field }) => (
+              <Select
+                label="Sterilizer"
+                data={sterilizers.map((s) => ({ value: s.id, label: s.name }))}
+                value={field.value || null}
+                onChange={(value) => field.onChange(value ?? "")}
+                error={loadErrors.sterilizer_id?.message}
+              />
+            )}
           />
-          <Select
-            label="Method"
-            data={Object.entries(methodLabels).map(([v, l]) => ({ value: v, label: l }))}
-            value={loadForm.method}
-            onChange={(v) =>
-              setLoadForm({ ...loadForm, method: (v ?? "steam") as SterilizationMethod })
-            }
+          <Controller
+            name="method"
+            control={loadControl}
+            render={({ field }) => (
+              <Select
+                label="Method"
+                data={cssdMethodOptions}
+                value={field.value}
+                onChange={(value) => field.onChange(value ?? "steam")}
+                error={loadErrors.method?.message}
+              />
+            )}
           />
-          <Checkbox
-            label="Flash Sterilization"
-            checked={loadForm.is_flash ?? false}
-            onChange={(e) => setLoadForm({ ...loadForm, is_flash: e.currentTarget.checked })}
+          <Controller
+            name="is_flash"
+            control={loadControl}
+            render={({ field }) => (
+              <Checkbox
+                label="Flash Sterilization"
+                checked={field.value}
+                onChange={(event) => field.onChange(event.currentTarget.checked)}
+              />
+            )}
           />
-          {loadForm.is_flash && (
-            <TextInput
-              label="Flash Reason"
-              value={loadForm.flash_reason ?? ""}
-              onChange={(e) =>
-                setLoadForm({ ...loadForm, flash_reason: e.currentTarget.value || undefined })
-              }
+          {watchLoad("is_flash") && (
+            <Controller
+              name="flash_reason"
+              control={loadControl}
+              render={({ field }) => (
+                <TextInput
+                  label="Flash Reason"
+                  {...field}
+                  error={loadErrors.flash_reason?.message}
+                />
+              )}
             />
           )}
-          <Textarea
-            label="Notes"
-            value={loadForm.notes ?? ""}
-            onChange={(e) =>
-              setLoadForm({ ...loadForm, notes: e.currentTarget.value || undefined })
-            }
+          <Controller
+            name="notes"
+            control={loadControl}
+            render={({ field }) => (
+              <Textarea label="Notes" {...field} error={loadErrors.notes?.message} />
+            )}
           />
-          <Button loading={createLoadMut.isPending} onClick={() => createLoadMut.mutate(loadForm)}>
+          <Button loading={createLoadMut.isPending} type="submit">
             Create
           </Button>
         </Stack>
@@ -650,55 +778,59 @@ function SterilizationTab() {
               {canCreate && (
                 <>
                   <Text fw={600}>Record Indicator</Text>
-                  <Select
-                    label="Type"
-                    data={[
-                      { value: "chemical", label: "Chemical" },
-                      { value: "biological", label: "Biological" },
-                    ]}
-                    value={indicatorForm.indicator_type}
-                    onChange={(v) =>
-                      setIndicatorForm({
-                        ...indicatorForm,
-                        indicator_type: (v ?? "chemical") as IndicatorType,
-                      })
-                    }
-                  />
-                  <Checkbox
-                    label="Pass"
-                    checked={indicatorForm.result_pass}
-                    onChange={(e) =>
-                      setIndicatorForm({ ...indicatorForm, result_pass: e.currentTarget.checked })
-                    }
-                  />
-                  <Group grow>
-                    <TextInput
-                      label="Brand"
-                      value={indicatorForm.indicator_brand ?? ""}
-                      onChange={(e) =>
-                        setIndicatorForm({
-                          ...indicatorForm,
-                          indicator_brand: e.currentTarget.value || undefined,
-                        })
-                      }
+                  <Stack component="form" onSubmit={handleIndicatorSubmit(submitIndicator)}>
+                    <Controller
+                      name="indicator_type"
+                      control={indicatorControl}
+                      render={({ field }) => (
+                        <Select
+                          label="Type"
+                          data={cssdIndicatorTypeOptions}
+                          value={field.value}
+                          onChange={(value) => field.onChange(value ?? "chemical")}
+                          error={indicatorErrors.indicator_type?.message}
+                        />
+                      )}
                     />
-                    <TextInput
-                      label="Lot #"
-                      value={indicatorForm.indicator_lot ?? ""}
-                      onChange={(e) =>
-                        setIndicatorForm({
-                          ...indicatorForm,
-                          indicator_lot: e.currentTarget.value || undefined,
-                        })
-                      }
+                    <Controller
+                      name="result_pass"
+                      control={indicatorControl}
+                      render={({ field }) => (
+                        <Checkbox
+                          label="Pass"
+                          checked={field.value}
+                          onChange={(event) => field.onChange(event.currentTarget.checked)}
+                        />
+                      )}
                     />
-                  </Group>
-                  <Button
-                    loading={indicatorMut.isPending}
-                    onClick={() => indicatorMut.mutate(indicatorForm)}
-                  >
-                    Record
-                  </Button>
+                    <Group grow>
+                      <Controller
+                        name="indicator_brand"
+                        control={indicatorControl}
+                        render={({ field }) => (
+                          <TextInput
+                            label="Brand"
+                            {...field}
+                            error={indicatorErrors.indicator_brand?.message}
+                          />
+                        )}
+                      />
+                      <Controller
+                        name="indicator_lot"
+                        control={indicatorControl}
+                        render={({ field }) => (
+                          <TextInput
+                            label="Lot #"
+                            {...field}
+                            error={indicatorErrors.indicator_lot?.message}
+                          />
+                        )}
+                      />
+                    </Group>
+                    <Button loading={indicatorMut.isPending} type="submit">
+                      Record
+                    </Button>
+                  </Stack>
                 </>
               )}
             </>
@@ -718,22 +850,43 @@ function IssuanceTab() {
 
   const { data: issuances = [], isLoading } = useQuery({
     queryKey: ["cssd-issuances"],
-    queryFn: () => api.listCssdIssuances(),
+    queryFn: () => cssdService.listCssdIssuances(),
   });
 
-  const [form, setForm] = useState<CreateCssdIssuanceRequest>({ issued_to_department: "" });
+  const issuanceForm = useForm<CssdIssuanceFormInput>({
+    resolver: zodResolver(cssdIssuanceFormSchema),
+    defaultValues: {
+      issued_to_department: "",
+      issued_to_patient_id: "",
+      notes: "",
+    },
+  });
+  const {
+    control,
+    handleSubmit,
+    reset,
+    formState: { errors },
+  } = issuanceForm;
   const createMut = useMutation({
-    mutationFn: (data: CreateCssdIssuanceRequest) => api.createCssdIssuance(data),
+    mutationFn: (data: CreateCssdIssuanceRequest) => cssdService.createCssdIssuance(data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["cssd-issuances"] });
       notifications.show({ title: "Pack issued", message: "", color: "success" });
       close();
-      setForm({ issued_to_department: "" });
+      reset();
     },
   });
 
+  const submitIssuance = (values: CssdIssuanceFormInput) => {
+    createMut.mutate({
+      issued_to_department: values.issued_to_department.trim(),
+      issued_to_patient_id: cssdOptionalText(values.issued_to_patient_id),
+      notes: cssdOptionalText(values.notes),
+    });
+  };
+
   const returnMut = useMutation({
-    mutationFn: (id: string) => api.returnCssdIssuance(id),
+    mutationFn: (id: string) => cssdService.returnCssdIssuance(id),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["cssd-issuances"] });
       notifications.show({ title: "Pack returned", message: "", color: "primary" });
@@ -742,7 +895,7 @@ function IssuanceTab() {
 
   const recallMut = useMutation({
     mutationFn: ({ id, reason }: { id: string; reason: string }) =>
-      api.recallCssdIssuance(id, reason),
+      cssdService.recallCssdIssuance(id, reason),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["cssd-issuances"] });
       notifications.show({ title: "Pack recalled", message: "", color: "orange" });
@@ -827,24 +980,43 @@ function IssuanceTab() {
       />
 
       <Drawer opened={opened} onClose={close} title="Issue Sterile Pack" position="right" size="sm">
-        <Stack>
-          <TextInput
-            label="Department"
-            required
-            value={form.issued_to_department}
-            onChange={(e) => setForm({ ...form, issued_to_department: e.currentTarget.value })}
+        <Stack component="form" onSubmit={handleSubmit(submitIssuance)}>
+          <Controller
+            name="issued_to_department"
+            control={control}
+            render={({ field }) => (
+              <TextInput
+                label="Department"
+                required
+                {...field}
+                error={errors.issued_to_department?.message}
+              />
+            )}
           />
-          <PatientSearchSelect
-            value={form.issued_to_patient_id ?? ""}
-            onChange={(id) => setForm({ ...form, issued_to_patient_id: id || undefined })}
-            label="Patient (optional)"
+          <Controller
+            name="issued_to_patient_id"
+            control={control}
+            render={({ field }) => (
+              <PatientSearchSelect
+                value={field.value}
+                onChange={field.onChange}
+                label="Patient (optional)"
+              />
+            )}
           />
-          <Textarea
-            label="Notes"
-            value={form.notes ?? ""}
-            onChange={(e) => setForm({ ...form, notes: e.currentTarget.value || undefined })}
+          {errors.issued_to_patient_id?.message && (
+            <Text size="xs" c="danger">
+              {errors.issued_to_patient_id.message}
+            </Text>
+          )}
+          <Controller
+            name="notes"
+            control={control}
+            render={({ field }) => (
+              <Textarea label="Notes" {...field} error={errors.notes?.message} />
+            )}
           />
-          <Button loading={createMut.isPending} onClick={() => createMut.mutate(form)}>
+          <Button loading={createMut.isPending} type="submit">
             Issue
           </Button>
         </Stack>
@@ -864,40 +1036,90 @@ function EquipmentTab() {
 
   const { data: sterilizers = [], isLoading } = useQuery({
     queryKey: ["cssd-sterilizers"],
-    queryFn: () => api.listCssdSterilizers(),
+    queryFn: () => cssdService.listCssdSterilizers(),
   });
 
-  const [form, setForm] = useState<CreateCssdSterilizerRequest>({ name: "" });
+  const sterilizerForm = useForm<CssdSterilizerFormInput>({
+    resolver: zodResolver(cssdSterilizerFormSchema),
+    defaultValues: {
+      name: "",
+      model: "",
+      serial_number: "",
+      method: "steam",
+      chamber_size_liters: "",
+      location: "",
+    },
+  });
+  const {
+    control: sterilizerControl,
+    handleSubmit: handleSterilizerSubmit,
+    reset: resetSterilizer,
+    formState: { errors: sterilizerErrors },
+  } = sterilizerForm;
   const createMut = useMutation({
-    mutationFn: (data: CreateCssdSterilizerRequest) => api.createCssdSterilizer(data),
+    mutationFn: (data: CreateCssdSterilizerRequest) => cssdService.createCssdSterilizer(data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["cssd-sterilizers"] });
       notifications.show({ title: "Sterilizer added", message: "", color: "success" });
       close();
-      setForm({ name: "" });
+      resetSterilizer();
     },
   });
 
   // Maintenance logs
   const { data: maintLogs = [] } = useQuery({
     queryKey: ["cssd-maintenance", selectedSterilizer?.id],
-    queryFn: () => api.listCssdMaintenanceLogs(selectedSterilizer?.id ?? ""),
+    queryFn: () => cssdService.listCssdMaintenanceLogs(selectedSterilizer?.id ?? ""),
     enabled: !!selectedSterilizer,
   });
 
-  const [maintForm, setMaintForm] = useState<CreateCssdMaintenanceRequest>({
-    maintenance_type: "",
+  const maintenanceForm = useForm<CssdMaintenanceFormInput>({
+    resolver: zodResolver(cssdMaintenanceFormSchema),
+    defaultValues: {
+      maintenance_type: "preventive",
+      performed_by: "",
+      findings: "",
+      actions_taken: "",
+      cost: "",
+    },
   });
+  const {
+    control: maintenanceControl,
+    handleSubmit: handleMaintenanceSubmit,
+    reset: resetMaintenance,
+    formState: { errors: maintenanceErrors },
+  } = maintenanceForm;
   const maintMut = useMutation({
     mutationFn: (data: CreateCssdMaintenanceRequest) =>
-      api.createCssdMaintenanceLog(selectedSterilizer?.id ?? "", data),
+      cssdService.createCssdMaintenanceLog(selectedSterilizer?.id ?? "", data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["cssd-maintenance", selectedSterilizer?.id] });
       void qc.invalidateQueries({ queryKey: ["cssd-sterilizers"] });
       notifications.show({ title: "Maintenance logged", message: "", color: "success" });
-      setMaintForm({ maintenance_type: "" });
+      resetMaintenance();
     },
   });
+
+  const submitSterilizer = (values: CssdSterilizerFormInput) => {
+    createMut.mutate({
+      name: values.name.trim(),
+      model: cssdOptionalText(values.model),
+      serial_number: cssdOptionalText(values.serial_number),
+      method: values.method,
+      chamber_size_liters: cssdOptionalNumber(values.chamber_size_liters),
+      location: cssdOptionalText(values.location),
+    });
+  };
+
+  const submitMaintenance = (values: CssdMaintenanceFormInput) => {
+    maintMut.mutate({
+      maintenance_type: values.maintenance_type,
+      performed_by: cssdOptionalText(values.performed_by),
+      findings: cssdOptionalText(values.findings),
+      actions_taken: cssdOptionalText(values.actions_taken),
+      cost: cssdOptionalNumber(values.cost),
+    });
+  };
 
   const columns = [
     { key: "name" as const, label: "Name", render: (s: CssdSterilizer) => s.name },
@@ -958,45 +1180,66 @@ function EquipmentTab() {
       />
 
       <Drawer opened={opened} onClose={close} title="Add Sterilizer" position="right" size="sm">
-        <Stack>
-          <TextInput
-            label="Name"
-            required
-            value={form.name}
-            onChange={(e) => setForm({ ...form, name: e.currentTarget.value })}
+        <Stack component="form" onSubmit={handleSterilizerSubmit(submitSterilizer)}>
+          <Controller
+            name="name"
+            control={sterilizerControl}
+            render={({ field }) => (
+              <TextInput label="Name" required {...field} error={sterilizerErrors.name?.message} />
+            )}
           />
-          <TextInput
-            label="Model"
-            value={form.model ?? ""}
-            onChange={(e) => setForm({ ...form, model: e.currentTarget.value || undefined })}
+          <Controller
+            name="model"
+            control={sterilizerControl}
+            render={({ field }) => (
+              <TextInput label="Model" {...field} error={sterilizerErrors.model?.message} />
+            )}
           />
-          <TextInput
-            label="Serial Number"
-            value={form.serial_number ?? ""}
-            onChange={(e) =>
-              setForm({ ...form, serial_number: e.currentTarget.value || undefined })
-            }
+          <Controller
+            name="serial_number"
+            control={sterilizerControl}
+            render={({ field }) => (
+              <TextInput
+                label="Serial Number"
+                {...field}
+                error={sterilizerErrors.serial_number?.message}
+              />
+            )}
           />
-          <Select
-            label="Method"
-            data={Object.entries(methodLabels).map(([v, l]) => ({ value: v, label: l }))}
-            value={form.method ?? "steam"}
-            onChange={(v) => setForm({ ...form, method: (v ?? "steam") as SterilizationMethod })}
+          <Controller
+            name="method"
+            control={sterilizerControl}
+            render={({ field }) => (
+              <Select
+                label="Method"
+                data={cssdMethodOptions}
+                value={field.value}
+                onChange={(value) => field.onChange(value ?? "steam")}
+                error={sterilizerErrors.method?.message}
+              />
+            )}
           />
-          <NumberInput
-            label="Chamber Size (Liters)"
-            decimalScale={1}
-            value={form.chamber_size_liters ?? ""}
-            onChange={(v) =>
-              setForm({ ...form, chamber_size_liters: v === "" ? undefined : Number(v) })
-            }
+          <Controller
+            name="chamber_size_liters"
+            control={sterilizerControl}
+            render={({ field }) => (
+              <NumberInput
+                label="Chamber Size (Liters)"
+                decimalScale={1}
+                value={field.value}
+                onChange={field.onChange}
+                error={sterilizerErrors.chamber_size_liters?.message}
+              />
+            )}
           />
-          <TextInput
-            label="Location"
-            value={form.location ?? ""}
-            onChange={(e) => setForm({ ...form, location: e.currentTarget.value || undefined })}
+          <Controller
+            name="location"
+            control={sterilizerControl}
+            render={({ field }) => (
+              <TextInput label="Location" {...field} error={sterilizerErrors.location?.message} />
+            )}
           />
-          <Button loading={createMut.isPending} onClick={() => createMut.mutate(form)}>
+          <Button loading={createMut.isPending} type="submit">
             Save
           </Button>
         </Stack>
@@ -1036,46 +1279,72 @@ function EquipmentTab() {
           {canManage && (
             <>
               <Text fw={600}>Log Maintenance</Text>
-              <Select
-                label="Type"
-                required
-                data={MAINTENANCE_TYPES}
-                value={maintForm.maintenance_type}
-                onChange={(v) => setMaintForm({ ...maintForm, maintenance_type: v ?? "" })}
-                searchable
-              />
-              <TextInput
-                label="Performed By"
-                value={maintForm.performed_by ?? ""}
-                onChange={(e) =>
-                  setMaintForm({ ...maintForm, performed_by: e.currentTarget.value || undefined })
-                }
-              />
-              <Textarea
-                label="Findings"
-                value={maintForm.findings ?? ""}
-                onChange={(e) =>
-                  setMaintForm({ ...maintForm, findings: e.currentTarget.value || undefined })
-                }
-              />
-              <Textarea
-                label="Actions Taken"
-                value={maintForm.actions_taken ?? ""}
-                onChange={(e) =>
-                  setMaintForm({ ...maintForm, actions_taken: e.currentTarget.value || undefined })
-                }
-              />
-              <NumberInput
-                label="Cost"
-                decimalScale={2}
-                value={maintForm.cost ?? ""}
-                onChange={(v) =>
-                  setMaintForm({ ...maintForm, cost: v === "" ? undefined : Number(v) })
-                }
-              />
-              <Button loading={maintMut.isPending} onClick={() => maintMut.mutate(maintForm)}>
-                Log
-              </Button>
+              <Stack component="form" onSubmit={handleMaintenanceSubmit(submitMaintenance)}>
+                <Controller
+                  name="maintenance_type"
+                  control={maintenanceControl}
+                  render={({ field }) => (
+                    <Select
+                      label="Type"
+                      required
+                      data={cssdMaintenanceTypeOptions}
+                      value={field.value}
+                      onChange={(value) => field.onChange(value ?? "preventive")}
+                      searchable
+                      error={maintenanceErrors.maintenance_type?.message}
+                    />
+                  )}
+                />
+                <Controller
+                  name="performed_by"
+                  control={maintenanceControl}
+                  render={({ field }) => (
+                    <TextInput
+                      label="Performed By"
+                      {...field}
+                      error={maintenanceErrors.performed_by?.message}
+                    />
+                  )}
+                />
+                <Controller
+                  name="findings"
+                  control={maintenanceControl}
+                  render={({ field }) => (
+                    <Textarea
+                      label="Findings"
+                      {...field}
+                      error={maintenanceErrors.findings?.message}
+                    />
+                  )}
+                />
+                <Controller
+                  name="actions_taken"
+                  control={maintenanceControl}
+                  render={({ field }) => (
+                    <Textarea
+                      label="Actions Taken"
+                      {...field}
+                      error={maintenanceErrors.actions_taken?.message}
+                    />
+                  )}
+                />
+                <Controller
+                  name="cost"
+                  control={maintenanceControl}
+                  render={({ field }) => (
+                    <NumberInput
+                      label="Cost"
+                      decimalScale={2}
+                      value={field.value}
+                      onChange={field.onChange}
+                      error={maintenanceErrors.cost?.message}
+                    />
+                  )}
+                />
+                <Button loading={maintMut.isPending} type="submit">
+                  Log
+                </Button>
+              </Stack>
             </>
           )}
         </Stack>

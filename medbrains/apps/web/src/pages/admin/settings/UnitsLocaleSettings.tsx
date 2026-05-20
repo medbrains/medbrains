@@ -1,11 +1,11 @@
 import { Group, Loader, Radio, Stack, Text } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
 import { useLocaleStore } from "@medbrains/stores";
 import type { TenantSettingsRow } from "@medbrains/types";
 import { IconCheck, IconRuler2 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo } from "react";
+import { tenantSettingsService } from "../../../services/tenantSettings.service";
 
 export function UnitsLocaleSettings() {
   const queryClient = useQueryClient();
@@ -13,13 +13,13 @@ export function UnitsLocaleSettings() {
   // Load current units settings
   const { data: unitsRows, isLoading: unitsLoading } = useQuery({
     queryKey: ["tenant-settings", "units"],
-    queryFn: () => api.getTenantSettings("units"),
+    queryFn: () => tenantSettingsService.getTenantSettings("units"),
     staleTime: 60_000,
   });
 
   const { data: localeRows, isLoading: localeLoading } = useQuery({
     queryKey: ["tenant-settings", "locale"],
-    queryFn: () => api.getTenantSettings("locale"),
+    queryFn: () => tenantSettingsService.getTenantSettings("locale"),
     staleTime: 60_000,
   });
 
@@ -53,7 +53,7 @@ export function UnitsLocaleSettings() {
   // Mutation to save a setting
   const saveMutation = useMutation({
     mutationFn: (data: { category: string; key: string; value: string }) =>
-      api.updateTenantSetting({
+      tenantSettingsService.updateTenantSetting({
         category: data.category,
         key: data.key,
         value: data.value,

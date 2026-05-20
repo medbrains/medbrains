@@ -23,7 +23,6 @@ import {
   ThemeIcon,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
 import type { PendingSignoffEntry, SignPreviewResponse } from "@medbrains/types";
 import {
   IconAlertTriangle,
@@ -37,6 +36,7 @@ import {
 } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
+import { signoffService } from "../../services/signoff.service";
 
 interface SignWorkspaceProps {
   opened: boolean;
@@ -65,7 +65,7 @@ export function SignWorkspace({ opened, target, onClose, onSigned }: SignWorkspa
   } = useQuery({
     queryKey: ["signature-preview", target.record_type, target.record_id, legalClass],
     queryFn: () =>
-      api.previewSignature({
+      signoffService.previewSignature({
         record_type: target.record_type,
         record_id: target.record_id,
         signer_role: "primary",
@@ -76,7 +76,7 @@ export function SignWorkspace({ opened, target, onClose, onSigned }: SignWorkspa
   });
   const { data: credentials = [], isLoading: credentialsLoading } = useQuery({
     queryKey: ["my-signature-credentials"],
-    queryFn: () => api.getMySignatureCredentials(),
+    queryFn: () => signoffService.getMySignatureCredentials(),
     enabled: opened,
     staleTime: 30_000,
   });
@@ -88,7 +88,7 @@ export function SignWorkspace({ opened, target, onClose, onSigned }: SignWorkspa
     if (!canSign) return;
     setIsSigning(true);
     try {
-      const res = await api.signRecord({
+      const res = await signoffService.signRecord({
         record_type: target.record_type,
         record_id: target.record_id,
         signer_role: "primary",

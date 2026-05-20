@@ -11,12 +11,12 @@
  * height_cm) so the visual rendering in opd.tsx works either way.
  */
 
-import { api } from "@medbrains/api";
 import { type CrdtConnectionStatus, useAppendOnlyCrdtList } from "@medbrains/crdt";
 import type { CreateVitalRequest, Vital } from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback } from "react";
 import { useTenantConfig } from "../providers/TenantConfigProvider";
+import { opdService } from "../services/opd.service";
 
 export type VitalsSourceMode = "rest" | "crdt";
 
@@ -39,23 +39,23 @@ export interface VitalsSourceResult {
 export function useVitalsSource(opts: UseVitalsSourceOptions): VitalsSourceResult {
   const config = useTenantConfig();
   const mode = opts.modeOverride ?? config.mode;
-  if (mode === "crdt") {
-    return useVitalsCrdt(opts.encounterId, config);
-  }
-  return useVitalsRest(opts.encounterId);
+  const useCrdt = mode === "crdt";
+  const rest = useVitalsRest(opts.encounterId, !useCrdt);
+  const crdt = useVitalsCrdt(opts.encounterId, { ...config, enabled: useCrdt });
+  return useCrdt ? crdt : rest;
 }
 
 // ── REST ───────────────────────────────────────────────────────────
 
-function useVitalsRest(encounterId: string): VitalsSourceResult {
+function useVitalsRest(encounterId: string, enabled: boolean): VitalsSourceResult {
   const qc = useQueryClient();
   const query = useQuery<Vital[]>({
     queryKey: ["vitals", encounterId],
-    queryFn: () => api.listVitals(encounterId),
-    enabled: !!encounterId,
+    queryFn: () => opdService.listVitals(encounterId),
+    enabled: enabled && !!encounterId,
   });
   const mutation = useMutation({
-    mutationFn: (data: CreateVitalRequest) => api.createVital(encounterId, data),
+    mutationFn: (data: CreateVitalRequest) => opdService.createVital(encounterId, data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["vitals", encounterId] });
     },
@@ -94,21 +94,23 @@ interface CrdtVitalEntry extends Record<string, unknown> {
 
 function useVitalsCrdt(
   encounterId: string,
-  config: { edgeUrl: string; tenantId: string; deviceId: string },
+  config: { edgeUrl: string; tenantId: string; deviceId: string; enabled: boolean },
 ): VitalsSourceResult {
   const list = useAppendOnlyCrdtList<CrdtVitalEntry>(`vitals/${encounterId}`, {
     edgeUrl: config.edgeUrl,
     tenantId: config.tenantId,
     deviceId: config.deviceId,
+    enabled: config.enabled,
   });
 
   const append = useCallback(
     (data: CreateVitalRequest) => {
-      list.append({
+      const entry: CrdtVitalEntry = {
         ts: Date.now(),
         recordedBy: config.deviceId,
         ...data,
-      } as CrdtVitalEntry);
+      };
+      list.append(entry);
     },
     [list, config.deviceId],
   );

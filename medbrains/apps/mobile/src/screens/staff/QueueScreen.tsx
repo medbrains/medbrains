@@ -1,4 +1,3 @@
-import { api } from "@medbrains/api";
 import type { QueueEntry } from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
@@ -14,6 +13,7 @@ import {
 } from "react-native-paper";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { QueueItem } from "../../components";
+import { queueService } from "../../services/queue.service";
 
 type QueueFilter = "all" | "waiting" | "called" | "in_progress";
 
@@ -35,7 +35,6 @@ export function QueueScreen({ route, navigation }: QueueScreenProps) {
 
   const [filter, setFilter] = useState<QueueFilter>("all");
 
-  // listQueue returns QueueEntry[] directly and takes Record<string, string>
   const { data, isLoading, refetch } = useQuery({
     queryKey: ["queue", departmentId, filter],
     queryFn: () => {
@@ -44,34 +43,34 @@ export function QueueScreen({ route, navigation }: QueueScreenProps) {
       if (filter !== "all") {
         params.status = filter === "in_progress" ? "in_consultation" : filter;
       }
-      return api.listQueue(params);
+      return queueService.listQueue(params);
     },
-    refetchInterval: 30000, // Refresh every 30 seconds
+    refetchInterval: 30000,
   });
 
   const callMutation = useMutation({
-    mutationFn: (id: string) => api.callQueueEntry(id),
+    mutationFn: queueService.callQueueEntry,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["queue"] });
     },
   });
 
   const startMutation = useMutation({
-    mutationFn: (id: string) => api.startConsultation(id),
+    mutationFn: queueService.startConsultation,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["queue"] });
     },
   });
 
   const completeMutation = useMutation({
-    mutationFn: (id: string) => api.completeQueueEntry(id),
+    mutationFn: queueService.completeQueueEntry,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["queue"] });
     },
   });
 
   const noShowMutation = useMutation({
-    mutationFn: (id: string) => api.markNoShow(id),
+    mutationFn: queueService.markNoShow,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["queue"] });
     },

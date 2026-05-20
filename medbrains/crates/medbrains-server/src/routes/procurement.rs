@@ -59,6 +59,9 @@ pub struct CreateVendorRequest {
     pub credit_limit: Option<Decimal>,
     pub credit_days: Option<i32>,
     pub categories: Option<serde_json::Value>,
+    pub supply_categories: Option<Vec<String>>,
+    pub product_lines: Option<String>,
+    pub is_pharmacy_vendor: Option<bool>,
     pub notes: Option<String>,
 }
 
@@ -384,8 +387,9 @@ pub async fn create_vendor(
           address_line1, address_line2, city, state, pincode, country, \
           gst_number, pan_number, drug_license_number, fssai_license, \
           bank_name, bank_account, bank_ifsc, \
-          payment_terms, credit_limit, credit_days, categories, notes) \
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27) \
+          payment_terms, credit_limit, credit_days, categories, notes, \
+          supply_categories, product_lines, is_pharmacy_vendor) \
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30) \
          RETURNING *",
     )
     .bind(claims.tenant_id)
@@ -415,6 +419,9 @@ pub async fn create_vendor(
     .bind(body.credit_days.unwrap_or(30))
     .bind(&categories)
     .bind(&body.notes)
+    .bind(&body.supply_categories)
+    .bind(&body.product_lines)
+    .bind(body.is_pharmacy_vendor.unwrap_or(false))
     .fetch_one(&mut *tx)
     .await?;
 
@@ -1072,6 +1079,35 @@ pub async fn create_grn(
             .as_deref()
             .and_then(|d| chrono::NaiveDate::parse_from_str(d, "%Y-%m-%d").ok());
 
+        let pharmacy_catalog_id: Option<Uuid> = match item.catalog_item_id {
+            Some(catalog_id) if item.quantity_accepted > 0 => sqlx::query_scalar(
+                "SELECT id FROM pharmacy_catalog \
+                 WHERE store_catalog_id = $1 AND tenant_id = $2",
+            )
+            .bind(catalog_id)
+            .bind(claims.tenant_id)
+            .fetch_optional(&mut *tx)
+            .await?
+            .flatten(),
+            _ => None,
+        };
+
+        if pharmacy_catalog_id.is_some() {
+            let has_batch = item.batch_number.as_deref().is_some_and(|b| !b.trim().is_empty());
+            if !has_batch {
+                return Err(AppError::BadRequest(format!(
+                    "Batch number is required for pharmacy GRN item {}",
+                    item.item_name
+                )));
+            }
+            if expiry.is_none() {
+                return Err(AppError::BadRequest(format!(
+                    "Expiry date is required for pharmacy GRN item {}",
+                    item.item_name
+                )));
+            }
+        }
+
         sqlx::query(
             "INSERT INTO grn_items \
              (tenant_id, grn_id, po_item_id, catalog_item_id, item_name, \
@@ -1145,20 +1181,14 @@ pub async fn create_grn(
                 .execute(&mut *tx)
                 .await?;
 
-                // Auto-sync to pharmacy if item has pharmacy link
-                let pharmacy_catalog_id: Option<Uuid> = sqlx::query_scalar(
-                    "SELECT id FROM pharmacy_catalog \
-                     WHERE store_catalog_id = $1 AND tenant_id = $2",
-                )
-                .bind(catalog_id)
-                .bind(claims.tenant_id)
-                .fetch_optional(&mut *tx)
-                .await?
-                .flatten();
-
                 if let Some(pharm_id) = pharmacy_catalog_id {
                     let pharmacy_batch_id = Uuid::new_v4();
-                    let batch_num = item.batch_number.as_deref().unwrap_or("N/A");
+                    let batch_num = item.batch_number.as_deref().ok_or_else(|| {
+                        AppError::BadRequest(format!(
+                            "Batch number is required for pharmacy GRN item {}",
+                            item.item_name
+                        ))
+                    })?;
                     sqlx::query(
                         "INSERT INTO pharmacy_batches \
                          (id, tenant_id, catalog_item_id, batch_number, expiry_date, \

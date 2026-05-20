@@ -1,4 +1,6 @@
+import { zodResolver } from "@hookform/resolvers/zod";
 import {
+  Autocomplete,
   Box,
   Button,
   Checkbox,
@@ -9,46 +11,41 @@ import {
   TextInput,
 } from "@mantine/core";
 import { DateInput } from "@mantine/dates";
-import { api } from "@medbrains/api";
 import type {
-  BloodGroup,
+  PatientRegistrationFormInput,
+  PatientRegistrationInitialValues,
+} from "@medbrains/schemas";
+import { patientRegistrationFormSchema } from "@medbrains/schemas";
+import type {
+  Camp,
   CreatePatientRequest,
   DepartmentRow,
-  FinancialClass,
-  Gender,
-  MaritalStatus,
-  PatientCategory,
-  RegistrationSource,
-  RegistrationType,
+  Facility,
   SetupUser,
+  TerminologySearchResult,
 } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
+import {
+  bloodGroupOptions,
+  campReferenceLabel,
+  campVenueLabel,
+  categoryOptions,
+  estimateDobFromAge,
+  genderOptions,
+  maritalStatusOptions,
+  optionLabel,
+  prefixOptions,
+  referredByKindOptions,
+  registrationSourceOptions,
+  registrationTypeOptions,
+  trimOrUndefined,
+} from "../../forms/patientRegistration.form";
+import { patientsService } from "../../services/patients.service";
+import { Icd11CodeSelect } from "../Clinical/Icd11CodeSelect";
 import { ClinicalForm, FormRow, FormSection } from "../ClinicalForm";
 import { AllergyField } from "../inputs";
-
-export interface PatientRegisterFormInitialValues {
-  prefix?: string;
-  first_name?: string;
-  middle_name?: string;
-  last_name?: string;
-  suffix?: string;
-  date_of_birth?: string;
-  gender?: Gender;
-  blood_group?: BloodGroup;
-  marital_status?: MaritalStatus;
-  religion?: string;
-  occupation?: string;
-  phone?: string;
-  phone_secondary?: string;
-  email?: string;
-  father_name?: string;
-  guardian_name?: string;
-  guardian_relation?: string;
-  category?: PatientCategory;
-  known_allergies?: string;
-}
 
 interface PatientRegisterFormProps {
   quickMode?: boolean;
@@ -56,178 +53,7 @@ interface PatientRegisterFormProps {
   submitLabel?: string;
   onSubmit: (req: CreatePatientRequest) => void | Promise<void>;
   onCancel: () => void;
-  initialValues?: PatientRegisterFormInitialValues;
-}
-
-interface FormValues {
-  prefix?: string;
-  first_name: string;
-  middle_name?: string;
-  last_name: string;
-  suffix?: string;
-  date_of_birth?: Date | null;
-  age_years?: number;
-  gender: Gender;
-  blood_group?: BloodGroup;
-  marital_status?: MaritalStatus;
-  religion?: string;
-  occupation?: string;
-  phone: string;
-  phone_secondary?: string;
-  email?: string;
-  father_name?: string;
-  guardian_name?: string;
-  guardian_relation?: string;
-  category?: PatientCategory;
-  registration_type?: RegistrationType;
-  registration_source?: RegistrationSource;
-  financial_class?: FinancialClass;
-  abha_number?: string;
-  abha_address?: string;
-  aadhaar_number?: string;
-  referred_by_name?: string;
-  referred_by_phone?: string;
-  referred_by_facility?: string;
-  department_id?: string;
-  consultant_id?: string;
-  clinical_unit?: string;
-  camp_id?: string;
-  camp_name?: string;
-  initial_diagnosis_text?: string;
-  icd10_code?: string;
-  icd11_code?: string;
-  is_medico_legal?: boolean;
-  mlc_number?: string;
-  is_vip?: boolean;
-  known_allergies?: string;
-  drug_allergies?: string;
-  // Address
-  line1?: string;
-  line2?: string;
-  city?: string;
-  district?: string;
-  state?: string;
-  postal_code?: string;
-  country?: string;
-  landmark?: string;
-  // Multi-speciality / VIP attributes (stored in patients.attributes JSONB)
-  next_of_kin_name?: string;
-  next_of_kin_relation?: string;
-  next_of_kin_phone?: string;
-  emergency_contact_name?: string;
-  emergency_contact_phone?: string;
-  emergency_contact_relation?: string;
-  preferred_room_class?: string;
-  dietary_preference?: string;
-  dietary_restrictions?: string;
-  religious_observances?: string;
-  language_preference?: string;
-  primary_physician_id?: string;
-  primary_physician_name?: string;
-  secondary_insurance_provider?: string;
-  secondary_insurance_policy_no?: string;
-  attendant_passes_count?: string;
-}
-
-const genderOptions: { value: Gender; label: string }[] = [
-  { value: "male", label: "Male" },
-  { value: "female", label: "Female" },
-  { value: "other", label: "Other" },
-  { value: "unknown", label: "Unknown" },
-];
-
-const bloodGroupOptions: { value: BloodGroup; label: string }[] = [
-  { value: "a_positive", label: "A+" },
-  { value: "a_negative", label: "A−" },
-  { value: "b_positive", label: "B+" },
-  { value: "b_negative", label: "B−" },
-  { value: "ab_positive", label: "AB+" },
-  { value: "ab_negative", label: "AB−" },
-  { value: "o_positive", label: "O+" },
-  { value: "o_negative", label: "O−" },
-  { value: "unknown", label: "Unknown" },
-];
-
-const maritalStatusOptions: { value: MaritalStatus; label: string }[] = [
-  { value: "single", label: "Single" },
-  { value: "married", label: "Married" },
-  { value: "divorced", label: "Divorced" },
-  { value: "widowed", label: "Widowed" },
-  { value: "separated", label: "Separated" },
-  { value: "domestic_partner", label: "Domestic partner" },
-  { value: "unknown", label: "Unknown" },
-];
-
-const categoryOptions: { value: PatientCategory; label: string }[] = [
-  { value: "general", label: "General" },
-  { value: "private", label: "Private" },
-  { value: "insurance", label: "Insurance" },
-  { value: "pmjay", label: "PMJAY" },
-  { value: "cghs", label: "CGHS" },
-  { value: "esi", label: "ESI" },
-  { value: "corporate", label: "Corporate" },
-  { value: "staff", label: "Staff" },
-  { value: "vip", label: "VIP" },
-  { value: "mlc", label: "MLC" },
-  { value: "free", label: "Free" },
-  { value: "charity", label: "Charity" },
-];
-
-const registrationTypeOptions: { value: RegistrationType; label: string }[] = [
-  { value: "new", label: "New" },
-  { value: "revisit", label: "Revisit" },
-  { value: "transfer_in", label: "Transfer in" },
-  { value: "referral", label: "Referral" },
-  { value: "emergency", label: "Emergency" },
-  { value: "camp", label: "Camp" },
-  { value: "telemedicine", label: "Telemedicine" },
-  { value: "pre_registration", label: "Pre-registration" },
-];
-
-const registrationSourceOptions: { value: RegistrationSource; label: string }[] = [
-  { value: "walk_in", label: "Walk-in" },
-  { value: "phone", label: "Phone" },
-  { value: "online_portal", label: "Online portal" },
-  { value: "mobile_app", label: "Mobile app" },
-  { value: "kiosk", label: "Kiosk" },
-  { value: "referral", label: "Referral" },
-  { value: "ambulance", label: "Ambulance" },
-  { value: "camp", label: "Camp" },
-  { value: "telemedicine", label: "Telemedicine" },
-];
-
-const prefixOptions = [
-  { value: "Mr.", label: "Mr." },
-  { value: "Mrs.", label: "Mrs." },
-  { value: "Ms.", label: "Ms." },
-  { value: "Miss", label: "Miss" },
-  { value: "Master", label: "Master" },
-  { value: "Baby", label: "Baby" },
-  { value: "Baby of", label: "Baby of" },
-  { value: "Dr.", label: "Dr." },
-  { value: "Prof.", label: "Prof." },
-  { value: "Shri", label: "Shri" },
-  { value: "Smt.", label: "Smt." },
-  { value: "Kumari", label: "Kumari" },
-  { value: "Rev.", label: "Rev." },
-  { value: "Mx.", label: "Mx." },
-];
-
-function estimateDobFromAge(ageYears: number): Date {
-  const today = new Date();
-  return new Date(today.getFullYear() - ageYears, 0, 1);
-}
-
-function trimOrUndefined(value: string | undefined): string | undefined {
-  const trimmed = value?.trim();
-  return trimmed ? trimmed : undefined;
-}
-
-function optionLabel<T extends { value: string; label: string }>(
-  options: T[],
-  value: string | undefined,
-): string | undefined {
-  return options.find((option) => option.value === value)?.label;
+  initialValues?: PatientRegistrationInitialValues;
 }
 
 export function PatientRegisterForm({
@@ -242,9 +68,11 @@ export function PatientRegisterForm({
     register,
     control,
     setValue,
+    watch,
     handleSubmit,
     formState: { errors },
-  } = useForm<FormValues>({
+  } = useForm<PatientRegistrationFormInput>({
+    resolver: zodResolver(patientRegistrationFormSchema),
     defaultValues: {
       gender: initialValues?.gender ?? "unknown",
       prefix: initialValues?.prefix,
@@ -258,26 +86,38 @@ export function PatientRegisterForm({
       religion: initialValues?.religion,
       occupation: initialValues?.occupation,
       phone: initialValues?.phone ?? "",
-      phone_secondary: initialValues?.phone_secondary,
-      email: initialValues?.email,
+      phone_secondary: initialValues?.phone_secondary ?? "",
+      email: initialValues?.email ?? "",
       father_name: initialValues?.father_name,
       guardian_name: initialValues?.guardian_name,
       guardian_relation: initialValues?.guardian_relation,
       category: initialValues?.category,
       registration_type: "new",
       registration_source: "walk_in",
+      referred_by_kind: "self",
       known_allergies: initialValues?.known_allergies,
     },
   });
+  const [selectedIcd11, setSelectedIcd11] = useState<TerminologySearchResult | null>(null);
 
   const { data: departments = [] } = useQuery<DepartmentRow[]>({
     queryKey: ["setup-departments"],
-    queryFn: () => api.listDepartments(),
+    queryFn: () => patientsService.listDepartments(),
     staleTime: 5 * 60 * 1000,
   });
   const { data: doctors = [] } = useQuery<SetupUser[]>({
     queryKey: ["setup-doctors"],
-    queryFn: () => api.listDoctors(),
+    queryFn: () => patientsService.listDoctors(),
+    staleTime: 5 * 60 * 1000,
+  });
+  const { data: camps = [] } = useQuery<Camp[]>({
+    queryKey: ["camp-camps", "patient-registration"],
+    queryFn: () => patientsService.listCamps(),
+    staleTime: 5 * 60 * 1000,
+  });
+  const { data: facilities = [] } = useQuery<Facility[]>({
+    queryKey: ["setup-facilities", "patient-registration"],
+    queryFn: () => patientsService.listFacilities(),
     staleTime: 5 * 60 * 1000,
   });
 
@@ -303,8 +143,48 @@ export function PatientRegisterForm({
         })),
     [doctors],
   );
+  const campOptions = useMemo(
+    () =>
+      camps
+        .filter((camp) => camp.status !== "cancelled")
+        .map((camp) => ({
+          value: camp.id,
+          label: campReferenceLabel(camp),
+        })),
+    [camps],
+  );
+  const campNameOptions = useMemo(() => {
+    const options = new Set<string>();
+    for (const camp of camps) {
+      options.add(camp.name);
+      const venue = campVenueLabel(camp);
+      if (venue) options.add(venue);
+    }
+    return [...options].sort();
+  }, [camps]);
+  const referredByNameOptions = useMemo(
+    () =>
+      doctors
+        .filter((doctor) => doctor.is_active)
+        .map((doctor) => doctor.full_name)
+        .sort(),
+    [doctors],
+  );
+  const referredByFacilityOptions = useMemo(() => {
+    const options = new Set<string>();
+    for (const facility of facilities) {
+      if (facility.is_active) options.add(facility.name);
+    }
+    for (const camp of camps) {
+      options.add(camp.name);
+      const venue = campVenueLabel(camp);
+      if (venue) options.add(venue);
+    }
+    return [...options].sort();
+  }, [camps, facilities]);
+  const referredByKind = watch("referred_by_kind");
 
-  const submit = (values: FormValues) => {
+  const submit = (values: PatientRegistrationFormInput) => {
     const dateOfBirth =
       values.date_of_birth ??
       (typeof values.age_years === "number" ? estimateDobFromAge(values.age_years) : null);
@@ -354,6 +234,8 @@ export function PatientRegisterForm({
     if (values.primary_physician_id) attributes.primary_physician_id = values.primary_physician_id;
     if (values.primary_physician_name)
       attributes.primary_physician_name = values.primary_physician_name;
+    if (values.referred_by_kind) attributes.referred_by_kind = values.referred_by_kind;
+    if (values.referred_by_user_id) attributes.referred_by_user_id = values.referred_by_user_id;
     if (values.secondary_insurance_provider) {
       attributes.secondary_insurance = {
         provider: values.secondary_insurance_provider,
@@ -401,8 +283,11 @@ export function PatientRegisterForm({
       camp_id: trimOrUndefined(values.camp_id),
       camp_name: trimOrUndefined(values.camp_name),
       initial_diagnosis_text: trimOrUndefined(values.initial_diagnosis_text),
-      icd10_code: trimOrUndefined(values.icd10_code),
       icd11_code: trimOrUndefined(values.icd11_code),
+      icd11_display: selectedIcd11?.display,
+      icd11_source_url: selectedIcd11?.source_url ?? undefined,
+      icd11_source_version: selectedIcd11?.source_version ?? undefined,
+      icd11_provider_mode: selectedIcd11?.provider_mode,
       is_medico_legal: values.is_medico_legal || undefined,
       mlc_number: values.mlc_number || undefined,
       is_vip: values.is_vip || undefined,
@@ -457,10 +342,10 @@ export function PatientRegisterForm({
               </Grid.Col>
               <Grid.Col span={{ base: 12, sm: 4 }}>
                 <TextInput
-                  aria-label="First name"
+                  aria-label="First Name"
                   placeholder="First name"
                   error={errors.first_name?.message}
-                  {...register("first_name", { required: "First name required" })}
+                  {...register("first_name")}
                 />
               </Grid.Col>
               <Grid.Col span={{ base: 12, sm: 3 }}>
@@ -472,10 +357,10 @@ export function PatientRegisterForm({
               </Grid.Col>
               <Grid.Col span={{ base: 12, sm: 3 }}>
                 <TextInput
-                  aria-label="Last name"
+                  aria-label="Last Name"
                   placeholder="Last name"
                   error={errors.last_name?.message}
-                  {...register("last_name", { required: "Last name required" })}
+                  {...register("last_name")}
                 />
               </Grid.Col>
             </Grid>
@@ -516,6 +401,7 @@ export function PatientRegisterForm({
                         if (typeof age === "number") {
                           setValue("date_of_birth", estimateDobFromAge(age), {
                             shouldDirty: true,
+                            shouldValidate: true,
                           });
                         }
                       }}
@@ -532,7 +418,6 @@ export function PatientRegisterForm({
                 <Controller
                   control={control}
                   name="gender"
-                  rules={{ required: "Gender required" }}
                   render={({ field }) => (
                     <Select
                       aria-label="Gender"
@@ -569,16 +454,17 @@ export function PatientRegisterForm({
             <Grid>
               <Grid.Col span={{ base: 12, sm: 6 }}>
                 <TextInput
-                  aria-label="Phone (primary)"
+                  aria-label="Phone (primary) Phone Primary"
                   placeholder="+91 xxxxxxxxxx"
                   error={errors.phone?.message}
-                  {...register("phone", { required: "Phone required" })}
+                  {...register("phone")}
                 />
               </Grid.Col>
               <Grid.Col span={{ base: 12, sm: 6 }}>
                 <TextInput
-                  aria-label="Phone (alternate)"
+                  aria-label="Phone (alternate) Phone Alternate"
                   placeholder="Alternate phone"
+                  error={errors.phone_secondary?.message}
                   {...register("phone_secondary")}
                 />
               </Grid.Col>
@@ -590,6 +476,7 @@ export function PatientRegisterForm({
               aria-label="Email"
               type="email"
               placeholder="patient@example.com"
+              error={errors.email?.message}
               {...register("email")}
             />
           </FormRow>
@@ -602,6 +489,7 @@ export function PatientRegisterForm({
                 <TextInput
                   aria-label="ABHA number"
                   placeholder="14 digit ABHA number"
+                  error={errors.abha_number?.message}
                   {...register("abha_number")}
                 />
               </Grid.Col>
@@ -619,6 +507,7 @@ export function PatientRegisterForm({
               aria-label="Aadhaar number"
               placeholder="12 digit Aadhaar"
               description="The server stores only a masked value and SHA-256 hash, not the raw Aadhaar number."
+              error={errors.aadhaar_number?.message}
               {...register("aadhaar_number")}
             />
           </FormRow>
@@ -639,7 +528,10 @@ export function PatientRegisterForm({
                       onChange={(v) => {
                         field.onChange(v ?? undefined);
                         if (v === "camp") {
-                          setValue("registration_source", "camp", { shouldDirty: true });
+                          setValue("registration_source", "camp", {
+                            shouldDirty: true,
+                            shouldValidate: true,
+                          });
                         }
                       }}
                       clearable
@@ -667,42 +559,166 @@ export function PatientRegisterForm({
           <FormRow label="Camp reference">
             <Grid>
               <Grid.Col span={{ base: 12, sm: 5 }}>
-                <TextInput
-                  aria-label="Camp ID"
-                  placeholder="Camp UUID if already created"
-                  {...register("camp_id")}
+                <Controller
+                  control={control}
+                  name="camp_id"
+                  render={({ field }) => (
+                    <Select
+                      aria-label="Camp reference"
+                      placeholder="Select existing camp"
+                      data={campOptions}
+                      value={field.value ?? null}
+                      onChange={(value) => {
+                        field.onChange(value ?? undefined);
+                        const camp = camps.find((item) => item.id === value);
+                        if (camp) {
+                          setValue("camp_name", camp.name, {
+                            shouldDirty: true,
+                            shouldValidate: true,
+                          });
+                          setValue("registration_type", "camp", {
+                            shouldDirty: true,
+                            shouldValidate: true,
+                          });
+                          setValue("registration_source", "camp", {
+                            shouldDirty: true,
+                            shouldValidate: true,
+                          });
+                          const venue = campVenueLabel(camp);
+                          if (venue) {
+                            setValue("referred_by_facility", venue, {
+                              shouldDirty: true,
+                              shouldValidate: true,
+                            });
+                          }
+                          if (camp.organizing_department_id) {
+                            setValue("department_id", camp.organizing_department_id, {
+                              shouldDirty: true,
+                              shouldValidate: true,
+                            });
+                          }
+                        }
+                      }}
+                      searchable
+                      clearable
+                    />
+                  )}
                 />
               </Grid.Col>
               <Grid.Col span={{ base: 12, sm: 7 }}>
-                <TextInput
-                  aria-label="Camp name"
-                  placeholder="Village / school / outreach camp name"
-                  {...register("camp_name")}
+                <Controller
+                  control={control}
+                  name="camp_name"
+                  render={({ field }) => (
+                    <Autocomplete
+                      aria-label="Camp name"
+                      placeholder="Village / school / outreach camp name"
+                      data={campNameOptions}
+                      value={field.value ?? ""}
+                      onBlur={field.onBlur}
+                      onChange={(value) => field.onChange(value || undefined)}
+                      clearable
+                    />
+                  )}
                 />
               </Grid.Col>
             </Grid>
           </FormRow>
           <FormRow label="Referred by">
             <Grid>
+              <Grid.Col span={{ base: 12, sm: 3 }}>
+                <Controller
+                  control={control}
+                  name="referred_by_kind"
+                  render={({ field }) => (
+                    <Select
+                      aria-label="Referral type"
+                      placeholder="Referral type"
+                      data={referredByKindOptions}
+                      value={field.value ?? null}
+                      onChange={(value) => {
+                        field.onChange(value ?? undefined);
+                        if (value !== "doctor") {
+                          setValue("referred_by_user_id", undefined, {
+                            shouldDirty: true,
+                            shouldValidate: true,
+                          });
+                        }
+                      }}
+                      clearable
+                    />
+                  )}
+                />
+              </Grid.Col>
               <Grid.Col span={{ base: 12, sm: 4 }}>
-                <TextInput
-                  aria-label="Referred by"
-                  placeholder="Doctor / ASHA / camp worker"
-                  {...register("referred_by_name")}
+                <Controller
+                  control={control}
+                  name="referred_by_user_id"
+                  render={({ field }) => (
+                    <Select
+                      aria-label="Referring doctor"
+                      placeholder={
+                        referredByKind === "doctor" ? "Select doctor" : "Optional doctor link"
+                      }
+                      data={consultantOptions}
+                      value={field.value ?? null}
+                      onChange={(value) => {
+                        field.onChange(value ?? undefined);
+                        const doctor = doctors.find((item) => item.id === value);
+                        if (doctor) {
+                          setValue("referred_by_name", doctor.full_name, {
+                            shouldDirty: true,
+                            shouldValidate: true,
+                          });
+                        }
+                      }}
+                      searchable
+                      clearable
+                      disabled={referredByKind !== "doctor"}
+                    />
+                  )}
+                />
+              </Grid.Col>
+              <Grid.Col span={{ base: 12, sm: 5 }}>
+                <Controller
+                  control={control}
+                  name="referred_by_name"
+                  render={({ field }) => (
+                    <Autocomplete
+                      aria-label="Referred by"
+                      placeholder="Name of doctor / ASHA / camp worker"
+                      data={referredByNameOptions}
+                      value={field.value ?? ""}
+                      onBlur={field.onBlur}
+                      onChange={(value) => field.onChange(value || undefined)}
+                      clearable
+                    />
+                  )}
                 />
               </Grid.Col>
               <Grid.Col span={{ base: 12, sm: 4 }}>
                 <TextInput
                   aria-label="Referred by phone"
                   placeholder="Phone"
+                  error={errors.referred_by_phone?.message}
                   {...register("referred_by_phone")}
                 />
               </Grid.Col>
-              <Grid.Col span={{ base: 12, sm: 4 }}>
-                <TextInput
-                  aria-label="Referred by facility"
-                  placeholder="Facility / village / NGO"
-                  {...register("referred_by_facility")}
+              <Grid.Col span={{ base: 12, sm: 8 }}>
+                <Controller
+                  control={control}
+                  name="referred_by_facility"
+                  render={({ field }) => (
+                    <Autocomplete
+                      aria-label="Referred by facility"
+                      placeholder="Facility / village / NGO"
+                      data={referredByFacilityOptions}
+                      value={field.value ?? ""}
+                      onBlur={field.onBlur}
+                      onChange={(value) => field.onChange(value || undefined)}
+                      clearable
+                    />
+                  )}
                 />
               </Grid.Col>
             </Grid>
@@ -757,29 +773,47 @@ export function PatientRegisterForm({
           </FormRow>
           <FormRow label="Provisional diagnosis">
             <Grid>
-              <Grid.Col span={{ base: 12, sm: 6 }}>
+              <Grid.Col span={{ base: 12, sm: 7 }}>
                 <TextInput
                   aria-label="Initial diagnosis"
                   placeholder="Clinical impression at registration"
                   {...register("initial_diagnosis_text")}
                 />
               </Grid.Col>
-              <Grid.Col span={{ base: 6, sm: 3 }}>
-                <TextInput
-                  aria-label="ICD-10 code"
-                  placeholder="ICD-10"
-                  {...register("icd10_code")}
-                />
-              </Grid.Col>
-              <Grid.Col span={{ base: 6, sm: 3 }}>
-                <TextInput
-                  aria-label="ICD-11 code"
-                  placeholder="ICD-11"
-                  {...register("icd11_code")}
+              <Grid.Col span={{ base: 12, sm: 5 }}>
+                <Controller
+                  control={control}
+                  name="icd11_code"
+                  render={({ field }) => (
+                    <Icd11CodeSelect
+                      aria-label="ICD-11 code"
+                      placeholder="Search ICD-11"
+                      value={field.value ?? null}
+                      onChange={(value) => {
+                        field.onChange(value ?? undefined);
+                        if (!value) {
+                          setSelectedIcd11(null);
+                        }
+                      }}
+                      onSelectResult={(result) => {
+                        setSelectedIcd11(result);
+                        if (!watch("initial_diagnosis_text")?.trim()) {
+                          setValue("initial_diagnosis_text", result.display, {
+                            shouldDirty: true,
+                            shouldValidate: true,
+                          });
+                        }
+                      }}
+                      error={errors.icd11_code?.message}
+                    />
+                  )}
                 />
               </Grid.Col>
             </Grid>
           </FormRow>
+        </FormSection>
+
+        <FormSection num="06" name="Safety flags">
           <FormRow label="Safety flags">
             <Grid>
               <Grid.Col span={{ base: 12, sm: 4 }}>
@@ -821,7 +855,7 @@ export function PatientRegisterForm({
           </FormRow>
         </FormSection>
 
-        <FormSection num="06" name="Allergies">
+        <FormSection num="07" name="Allergies">
           {/* Both fields are optional — many patients have no known
               allergies. Empty = "not yet recorded"; the prescriber
               still gets a banner before issuing meds, but registration
@@ -875,7 +909,7 @@ export function PatientRegisterForm({
 
         {!quickMode && (
           <>
-            <FormSection num="07" name="Family & background">
+            <FormSection num="08" name="Family & background">
               <FormRow label="Father's name">
                 <TextInput {...register("father_name")} />
               </FormRow>
@@ -916,7 +950,7 @@ export function PatientRegisterForm({
               </FormRow>
             </FormSection>
 
-            <FormSection num="08" name="Address">
+            <FormSection num="09" name="Address">
               <FormRow label="Address line 1">
                 <Textarea
                   placeholder="House / building / street"
@@ -955,7 +989,7 @@ export function PatientRegisterForm({
               </FormRow>
             </FormSection>
 
-            <FormSection num="09" name="Next of kin & emergency contact">
+            <FormSection num="10" name="Next of kin & emergency contact">
               <FormRow label="Next of kin">
                 <Grid>
                   <Grid.Col span={{ base: 12, sm: 5 }}>
@@ -965,7 +999,11 @@ export function PatientRegisterForm({
                     <TextInput placeholder="Relation" {...register("next_of_kin_relation")} />
                   </Grid.Col>
                   <Grid.Col span={{ base: 6, sm: 4 }}>
-                    <TextInput placeholder="Phone" {...register("next_of_kin_phone")} />
+                    <TextInput
+                      placeholder="Phone"
+                      error={errors.next_of_kin_phone?.message}
+                      {...register("next_of_kin_phone")}
+                    />
                   </Grid.Col>
                 </Grid>
               </FormRow>
@@ -978,13 +1016,17 @@ export function PatientRegisterForm({
                     <TextInput placeholder="Relation" {...register("emergency_contact_relation")} />
                   </Grid.Col>
                   <Grid.Col span={{ base: 6, sm: 4 }}>
-                    <TextInput placeholder="Phone" {...register("emergency_contact_phone")} />
+                    <TextInput
+                      placeholder="Phone"
+                      error={errors.emergency_contact_phone?.message}
+                      {...register("emergency_contact_phone")}
+                    />
                   </Grid.Col>
                 </Grid>
               </FormRow>
             </FormSection>
 
-            <FormSection num="10" name="Preferences & care continuity">
+            <FormSection num="11" name="Preferences & care continuity">
               <FormRow label="Preferred ward / room class">
                 <Controller
                   control={control}
@@ -1067,7 +1109,7 @@ export function PatientRegisterForm({
               </FormRow>
             </FormSection>
 
-            <FormSection num="11" name="Insurance & visitor pass">
+            <FormSection num="12" name="Insurance & visitor pass">
               <FormRow label="Secondary insurance">
                 <Grid>
                   <Grid.Col span={{ base: 12, sm: 6 }}>
@@ -1088,12 +1130,13 @@ export function PatientRegisterForm({
                 <TextInput
                   type="number"
                   placeholder="Number of bedside attendants allowed (defaults per ward type)"
+                  error={errors.attendant_passes_count?.message}
                   {...register("attendant_passes_count")}
                 />
               </FormRow>
             </FormSection>
 
-            <FormSection num="12" name="Registration">
+            <FormSection num="13" name="Registration">
               <FormRow label="Patient category">
                 <Controller
                   control={control}

@@ -12,7 +12,6 @@ import {
   Text,
   TextInput,
 } from "@mantine/core";
-import { api } from "@medbrains/api";
 import { useHasPermission } from "@medbrains/stores";
 import type {
   EnrollmentWithCourse,
@@ -36,6 +35,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { PageHeader } from "../components";
 import { useRequirePermission } from "../hooks/useRequirePermission";
+import { lmsService } from "../services/lms.service";
 
 // ── Constants ──────────────────────────────────────────
 
@@ -71,10 +71,10 @@ function CourseCatalogTab() {
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("");
   const canCreate = useHasPermission(P.LMS.COURSES_CREATE);
-  const { data: courses = [], isLoading } = useQuery({
+  const { data: courses = [], isLoading } = useQuery<LmsCourse[]>({
     queryKey: ["lms-courses", search, category],
     queryFn: () =>
-      api.listLmsCourses({
+      lmsService.listCourses({
         search: search || undefined,
         category: category || undefined,
       }),
@@ -151,9 +151,9 @@ function CourseCatalogTab() {
 // ── My Learning Tab ────────────────────────────────────
 
 function MyLearningTab() {
-  const { data: enrollments = [], isLoading } = useQuery({
+  const { data: enrollments = [], isLoading } = useQuery<EnrollmentWithCourse[]>({
     queryKey: ["lms-my-enrollments"],
-    queryFn: () => api.myLmsEnrollments(),
+    queryFn: () => lmsService.listMyEnrollments(),
   });
 
   if (isLoading) return <EmptyState message="Loading your enrollments..." />;
@@ -222,9 +222,9 @@ function QuizzesTab() {
 
 function LearningPathsTab() {
   const canCreate = useHasPermission(P.LMS.PATHS_CREATE);
-  const { data: paths = [], isLoading } = useQuery({
+  const { data: paths = [], isLoading } = useQuery<LmsLearningPath[]>({
     queryKey: ["lms-paths"],
-    queryFn: () => api.listLmsPaths(),
+    queryFn: () => lmsService.listPaths(),
   });
 
   return (
@@ -276,9 +276,9 @@ function LearningPathsTab() {
 // ── Compliance Tab ─────────────────────────────────────
 
 function ComplianceTab() {
-  const { data: rows = [], isLoading } = useQuery({
+  const { data: rows = [], isLoading } = useQuery<LmsComplianceRow[]>({
     queryKey: ["lms-compliance"],
-    queryFn: () => api.lmsComplianceOverview(),
+    queryFn: () => lmsService.complianceOverview(),
   });
 
   if (isLoading) return <EmptyState message="Loading compliance data..." />;
@@ -339,9 +339,9 @@ function ComplianceTab() {
 // ── Certificates Tab ───────────────────────────────────
 
 function CertificatesTab() {
-  const { data: certs = [], isLoading } = useQuery({
+  const { data: certs = [], isLoading } = useQuery<LmsCertificate[]>({
     queryKey: ["lms-my-certificates"],
-    queryFn: () => api.myLmsCertificates(),
+    queryFn: () => lmsService.listMyCertificates(),
   });
 
   if (isLoading) return <EmptyState message="Loading certificates..." />;

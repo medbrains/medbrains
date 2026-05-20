@@ -9,13 +9,13 @@ import {
   ThemeIcon,
   Title,
 } from "@mantine/core";
-import { api } from "@medbrains/api";
 import type { OnboardingInitInput } from "@medbrains/schemas";
 import { useAuthStore } from "@medbrains/stores";
 import { IconArrowLeft, IconBuildingHospital } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useCallback, useRef, useState } from "react";
 import { useNavigate } from "react-router";
+import { onboardingService } from "../../services/onboarding.service";
 
 import { AdminStep } from "./AdminStep";
 import { BedConfigStep } from "./BedConfigStep";
@@ -63,7 +63,7 @@ export function OnboardingPage() {
 
   const { isLoading: statusLoading } = useQuery({
     queryKey: ["onboarding-status"],
-    queryFn: () => api.onboardingStatus(),
+    queryFn: () => onboardingService.onboardingStatus(),
   });
 
   const goNext = useCallback(() => {

@@ -10,9 +10,9 @@ import {
   Stack,
   Text,
 } from "@mantine/core";
-import { api } from "@medbrains/api";
 import type { ExecutionStatus, IntegrationExecution } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
+import { integrationService } from "../../services/integration.service";
 
 interface ExecutionPanelProps {
   pipelineId: string | null;
@@ -36,7 +36,7 @@ function formatTime(ts: string | null): string {
 export function ExecutionPanel({ pipelineId, opened, onClose }: ExecutionPanelProps) {
   const { data, isLoading } = useQuery({
     queryKey: ["integration", "executions", pipelineId],
-    queryFn: () => api.listPipelineExecutions(pipelineId ?? "", { per_page: "50" }),
+    queryFn: () => integrationService.listPipelineExecutions(pipelineId ?? "", { per_page: "50" }),
     enabled: opened && Boolean(pipelineId),
   });
 

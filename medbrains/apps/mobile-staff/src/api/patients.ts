@@ -3,6 +3,7 @@
  * mirrors `crates/medbrains-server/src/routes/patients.rs`.
  */
 
+import type { CreatePatientRequest } from "@medbrains/types";
 import { request } from "./client.js";
 import { apiConfig } from "./config.js";
 
@@ -43,14 +44,7 @@ export async function listPatients(params?: ListPatientsParams): Promise<Patient
   return request<PatientListResponse>(apiConfig, "GET", `/api/patients${suffix}`);
 }
 
-export interface CreatePatientPayload {
-  first_name: string;
-  last_name: string;
-  gender: "male" | "female" | "other";
-  phone?: string;
-  date_of_birth?: string;
-  registration_type?: "self_paid" | "insurance" | "corporate" | "scheme" | "other";
-}
+export type CreatePatientPayload = CreatePatientRequest;
 
 export async function createPatient(payload: CreatePatientPayload): Promise<PatientRow> {
   return request<PatientRow>(apiConfig, "POST", "/api/patients", payload);

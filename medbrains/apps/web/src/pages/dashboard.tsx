@@ -12,9 +12,8 @@ import {
   ThemeIcon,
   UnstyledButton,
 } from "@mantine/core";
-import { api } from "@medbrains/api";
 import { useHasPermission } from "@medbrains/stores";
-import type { RecentActivity } from "@medbrains/types";
+import type { DashboardStatsResponse, RecentActivity } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import {
   IconActivity,
@@ -37,6 +36,7 @@ import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router";
 import { PageHeader, StatCard } from "../components";
 import { useRequirePermission } from "../hooks/useRequirePermission";
+import { dashboardService } from "../services/dashboard.service";
 
 export function DashboardPage() {
   useRequirePermission(P.DASHBOARD.VIEW);
@@ -138,9 +138,9 @@ function DefaultDashboard({
   canManage: boolean;
   t: (key: string) => string;
 }) {
-  const { data: stats } = useQuery({
+  const { data: stats } = useQuery<DashboardStatsResponse>({
     queryKey: ["dashboard-stats"],
-    queryFn: () => api.getDashboardStats(),
+    queryFn: () => dashboardService.getDashboardStats(),
     refetchInterval: 30_000, // refresh every 30s
   });
 

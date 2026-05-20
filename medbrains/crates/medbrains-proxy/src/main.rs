@@ -16,6 +16,7 @@ use config::{EdgePolicyConfig, ProxyConfig, RouteConfig};
 #[derive(Clone)]
 struct RuntimeRoute {
     upstream: String,
+    cors_allowed_origins: Vec<String>,
 }
 
 #[derive(Clone)]
@@ -79,6 +80,7 @@ impl MedBrainsProxy {
         for route in &cfg.routes {
             let runtime = RuntimeRoute {
                 upstream: route.upstream.clone(),
+                cors_allowed_origins: route.cors_allowed_origins.clone(),
             };
             routes.insert(route.domain.clone(), runtime.clone());
             if default_route.is_none() {
@@ -117,6 +119,12 @@ impl MedBrainsProxy {
 
     fn known_host(&self, session: &Session) -> bool {
         host_without_port(session).is_some_and(|host| self.routes.contains_key(host))
+    }
+
+    fn route_for_session(&self, session: &Session) -> &RuntimeRoute {
+        host_without_port(session)
+            .and_then(|host| self.routes.get(host))
+            .unwrap_or(&self.default_route)
     }
 }
 
@@ -367,6 +375,16 @@ impl ProxyHttp for MedBrainsProxy {
             return Ok(true);
         }
 
+        if is_cors_preflight(session) {
+            let route = self.route_for_session(session);
+            if cors_request_allowed(session, route) {
+                cors_preflight_response(session, route).await?;
+                return Ok(true);
+            }
+            text_response(session, 403, "CORS origin is not allowed.\n").await?;
+            return Ok(true);
+        }
+
         if self.block_source_maps && is_source_map_request(session) {
             tracing::info!(
                 request_id = %ctx.request_id,
@@ -455,9 +473,7 @@ impl ProxyHttp for MedBrainsProxy {
         session: &mut Session,
         ctx: &mut Self::CTX,
     ) -> Result<Box<HttpPeer>> {
-        let route = host_without_port(session)
-            .and_then(|host| self.routes.get(host))
-            .unwrap_or(&self.default_route);
+        let route = self.route_for_session(session);
 
         let upstream = ctx
             .edge_policy
@@ -527,6 +543,8 @@ impl ProxyHttp for MedBrainsProxy {
         resp.insert_header("X-Frame-Options", "SAMEORIGIN")?;
         resp.insert_header("Referrer-Policy", "strict-origin-when-cross-origin")?;
         resp.insert_header("X-Permitted-Cross-Domain-Policies", "none")?;
+        strip_cors_headers(resp);
+        apply_cors_headers(session, resp, self.route_for_session(session))?;
         resp.insert_header(
             "Content-Security-Policy",
             self.content_security_policy.as_str(),
@@ -580,12 +598,7 @@ impl ProxyHttp for MedBrainsProxy {
         }
     }
 
-    async fn logging(
-        &self,
-        session: &mut Session,
-        error: Option<&Error>,
-        ctx: &mut Self::CTX,
-    ) {
+    async fn logging(&self, session: &mut Session, error: Option<&Error>, ctx: &mut Self::CTX) {
         let status = session
             .response_written()
             .map_or(0, |resp| resp.status.as_u16());
@@ -644,11 +657,7 @@ fn is_expected_vite_hmr_disconnect(
         && session.req_header().uri.path() == "/vite-hmr"
 }
 
-fn is_expected_websocket_disconnect(
-    error: &Error,
-    status: u16,
-    policy: &EdgePolicy,
-) -> bool {
+fn is_expected_websocket_disconnect(error: &Error, status: u16, policy: &EdgePolicy) -> bool {
     matches!(error.esource(), ErrorSource::Downstream)
         && status == 101
         && policy.class == "websocket"
@@ -751,6 +760,84 @@ fn method_allowed(session: &Session, policy: &EdgePolicy) -> bool {
                 .allowed_methods
                 .iter()
                 .any(|allowed| allowed.eq_ignore_ascii_case(method)))
+}
+
+fn request_origin(session: &Session) -> Option<&str> {
+    session
+        .req_header()
+        .headers
+        .get("origin")
+        .and_then(|value| value.to_str().ok())
+}
+
+fn is_cors_preflight(session: &Session) -> bool {
+    session
+        .req_header()
+        .method
+        .as_str()
+        .eq_ignore_ascii_case("OPTIONS")
+        && request_origin(session).is_some()
+        && session
+            .req_header()
+            .headers
+            .contains_key("access-control-request-method")
+}
+
+fn cors_request_allowed(session: &Session, route: &RuntimeRoute) -> bool {
+    request_origin(session).is_some_and(|origin| {
+        route
+            .cors_allowed_origins
+            .iter()
+            .any(|allowed| allowed.eq_ignore_ascii_case(origin))
+    })
+}
+
+fn strip_cors_headers(resp: &mut ResponseHeader) {
+    resp.remove_header("access-control-allow-origin");
+    resp.remove_header("access-control-allow-credentials");
+    resp.remove_header("access-control-allow-methods");
+    resp.remove_header("access-control-allow-headers");
+    resp.remove_header("access-control-max-age");
+    resp.remove_header("access-control-expose-headers");
+}
+
+fn apply_cors_headers(
+    session: &Session,
+    resp: &mut ResponseHeader,
+    route: &RuntimeRoute,
+) -> Result<()> {
+    let Some(origin) = request_origin(session) else {
+        return Ok(());
+    };
+    let allowed = route
+        .cors_allowed_origins
+        .iter()
+        .any(|allowed| allowed.eq_ignore_ascii_case(origin));
+    if !allowed {
+        return Ok(());
+    }
+
+    resp.insert_header("Access-Control-Allow-Origin", origin)?;
+    resp.insert_header("Access-Control-Allow-Credentials", "true")?;
+    resp.insert_header("Vary", "Origin")?;
+    resp.insert_header(
+        "Access-Control-Allow-Methods",
+        "GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS",
+    )?;
+    resp.insert_header(
+        "Access-Control-Allow-Headers",
+        "Authorization, Content-Type, X-CSRF-Token, X-MedBrains-Client, X-Requested-With, API-Version, Accept-Language",
+    )?;
+    resp.insert_header("Access-Control-Max-Age", "600")?;
+    Ok(())
+}
+
+async fn cors_preflight_response(session: &mut Session, route: &RuntimeRoute) -> Result<()> {
+    let mut resp = ResponseHeader::build(204, Some(8))?;
+    apply_cors_headers(session, &mut resp, route)?;
+    resp.insert_header("Content-Length", "0")?;
+    session.write_response_header(Box::new(resp), true).await?;
+    Ok(())
 }
 
 fn mutation_method(req: &RequestHeader) -> bool {

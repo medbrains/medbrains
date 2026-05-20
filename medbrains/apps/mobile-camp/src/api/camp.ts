@@ -3,8 +3,10 @@ import type {
   CampPacketResponse,
   CampSyncInboundRequest,
   CampSyncInboundResponse,
+  DepartmentRow,
   PatientContext,
   PatientListResponse,
+  SetupUser,
 } from "@medbrains/types";
 import { request } from "./client.js";
 import { apiConfig } from "./config.js";
@@ -41,4 +43,12 @@ export function listPatients(params?: {
 
 export function getPatientContext(patientId: string): Promise<PatientContext> {
   return request(apiConfig, "GET", `/api/patients/${patientId}/context`);
+}
+
+export function listDepartments(): Promise<DepartmentRow[]> {
+  return request(apiConfig, "GET", "/api/setup/departments");
+}
+
+export function listDoctors(): Promise<SetupUser[]> {
+  return request(apiConfig, "GET", "/api/setup/doctors");
 }

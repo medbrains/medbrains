@@ -1439,14 +1439,16 @@ pub async fn dq_dashboard(
     }
 
     let scores = sqlx::query_as::<_, Scores>(
-        "SELECT AVG(overall_score)::float AS overall,
-         AVG(completeness_score)::float AS completeness,
-         AVG(accuracy_score)::float AS accuracy,
-         AVG(timeliness_score)::float AS timeliness,
-         AVG(consistency_score)::float AS consistency
+        "SELECT AVG(overall_score)::float8 AS overall,
+         AVG(completeness_score)::float8 AS completeness,
+         AVG(accuracy_score)::float8 AS accuracy,
+         AVG(timeliness_score)::float8 AS timeliness,
+         AVG(consistency_score)::float8 AS consistency
          FROM data_quality_scores
-         WHERE score_date >= CURRENT_DATE - INTERVAL '7 days'",
+         WHERE tenant_id = $1
+         AND score_date >= CURRENT_DATE - INTERVAL '7 days'",
     )
+    .bind(claims.tenant_id)
     .fetch_one(&mut *tx)
     .await?;
 
@@ -1461,21 +1463,27 @@ pub async fn dq_dashboard(
         "SELECT COUNT(*) AS total,
          COUNT(*) FILTER (WHERE is_resolved = false) AS unresolved,
          COUNT(*) FILTER (WHERE severity = 'critical' AND is_resolved = false) AS critical
-         FROM data_quality_issues",
+         FROM data_quality_issues
+         WHERE tenant_id = $1",
     )
+    .bind(claims.tenant_id)
     .fetch_one(&mut *tx)
     .await?;
 
     let by_entity_type = sqlx::query_as::<_, EntityQualityStats>(
-        "SELECT entity_type,
-         AVG(overall_score)::float AS overall_score,
+        "SELECT s.entity_type AS entity_type,
+         AVG(s.overall_score)::float8 AS overall_score,
          COUNT(DISTINCT i.id) AS total_issues,
          COUNT(DISTINCT i.id) FILTER (WHERE i.is_resolved = false) AS unresolved_issues
          FROM data_quality_scores s
-         LEFT JOIN data_quality_issues i ON i.entity_type = s.entity_type
-         WHERE s.score_date >= CURRENT_DATE - INTERVAL '7 days'
+         LEFT JOIN data_quality_issues i
+           ON i.tenant_id = s.tenant_id
+          AND i.entity_type = s.entity_type
+         WHERE s.tenant_id = $1
+         AND s.score_date >= CURRENT_DATE - INTERVAL '7 days'
          GROUP BY s.entity_type",
     )
+    .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
     .await?;
 

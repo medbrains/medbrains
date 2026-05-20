@@ -15,7 +15,6 @@ import {
   TextInput,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
 import type {
   CustomRole,
   DepartmentRow,
@@ -42,6 +41,10 @@ import {
 } from "../../../components";
 import { useCreateInline } from "../../../hooks/useCreateInline";
 import { useHashTabs } from "../../../hooks/useHashTabs";
+import {
+  adminAccessService,
+  type CreateSetupUserInput,
+} from "../../../services/adminAccess.service";
 
 // ── Constants ─────────────────────────────────────────────
 
@@ -87,16 +90,18 @@ function UserModal({
   const queryClient = useQueryClient();
   const isEdit = !!editingUser;
 
-  const [fullName, setFullName] = useState("");
-  const [username, setUsername] = useState("");
-  const [email, setEmail] = useState("");
+  const [fullName, setFullName] = useState(editingUser?.full_name ?? "");
+  const [username, setUsername] = useState(editingUser?.username ?? "");
+  const [email, setEmail] = useState(editingUser?.email ?? "");
   const [password, setPassword] = useState("");
-  const [role, setRole] = useState<string | null>(null);
-  const [specialization, setSpecialization] = useState("");
-  const [medRegNumber, setMedRegNumber] = useState("");
-  const [qualification, setQualification] = useState("");
-  const [consultationFee, setConsultationFee] = useState<number | string>("");
-  const [departmentIds, setDepartmentIds] = useState<string[]>([]);
+  const [role, setRole] = useState<string | null>(editingUser?.role ?? null);
+  const [specialization, setSpecialization] = useState(editingUser?.specialization ?? "");
+  const [medRegNumber, setMedRegNumber] = useState(editingUser?.medical_registration_number ?? "");
+  const [qualification, setQualification] = useState(editingUser?.qualification ?? "");
+  const [consultationFee, setConsultationFee] = useState<number | string>(
+    editingUser?.consultation_fee ?? "",
+  );
+  const [departmentIds, setDepartmentIds] = useState<string[]>(editingUser?.department_ids ?? []);
   const [facilityIds, setFacilityIds] = useState<string[]>([]);
   const [primaryFacilityId, setPrimaryFacilityId] = useState<string | null>(null);
 
@@ -120,7 +125,7 @@ function UserModal({
   // Load custom roles for the role dropdown
   const { data: customRoles } = useQuery({
     queryKey: ["setup-roles"],
-    queryFn: () => api.listRoles(),
+    queryFn: () => adminAccessService.listRoles(),
     staleTime: 60_000,
     enabled: opened,
   });
@@ -128,7 +133,7 @@ function UserModal({
   // Load departments for the doctor MultiSelect
   const { data: departments, isLoading: depsLoading } = useQuery({
     queryKey: ["setup-departments"],
-    queryFn: () => api.listDepartments(),
+    queryFn: () => adminAccessService.listDepartments(),
     staleTime: 60_000,
     enabled: opened && role === "doctor",
   });
@@ -136,7 +141,7 @@ function UserModal({
   // Load facilities for the facility MultiSelect
   const { data: facilities, isLoading: facilitiesLoading } = useQuery({
     queryKey: ["setup-facilities"],
-    queryFn: () => api.listFacilities(),
+    queryFn: () => adminAccessService.listFacilities(),
     staleTime: 60_000,
     enabled: opened,
   });
@@ -144,10 +149,18 @@ function UserModal({
   // Load existing user facility assignments when editing
   const { data: userFacilities } = useQuery({
     queryKey: ["user-facilities", editingUser?.id],
-    queryFn: () => api.listUserFacilities(editingUser?.id ?? ""),
+    queryFn: () => adminAccessService.listUserFacilities(editingUser?.id ?? ""),
     staleTime: 30_000,
     enabled: opened && !!editingUser,
   });
+
+  useEffect(() => {
+    if (!opened || !editingUser || !userFacilities) return;
+    setFacilityIds(userFacilities.map((f: UserFacilityAssignment) => f.facility_id));
+    setPrimaryFacilityId(
+      userFacilities.find((f: UserFacilityAssignment) => f.is_primary)?.facility_id ?? null,
+    );
+  }, [opened, editingUser, userFacilities]);
 
   const roleOptions = [
     ...BUILT_IN_ROLES,
@@ -166,44 +179,12 @@ function UserModal({
     label: `${f.name} (${f.code})`,
   }));
 
-  const handleOpen = () => {
-    if (editingUser) {
-      setFullName(editingUser.full_name);
-      setUsername(editingUser.username);
-      setEmail(editingUser.email);
-      setPassword("");
-      setRole(editingUser.role);
-      setSpecialization(editingUser.specialization ?? "");
-      setMedRegNumber(editingUser.medical_registration_number ?? "");
-      setQualification(editingUser.qualification ?? "");
-      setConsultationFee(editingUser.consultation_fee ?? "");
-      setDepartmentIds(editingUser.department_ids ?? []);
-      setFacilityIds(userFacilities?.map((f: UserFacilityAssignment) => f.facility_id) ?? []);
-      setPrimaryFacilityId(
-        userFacilities?.find((f: UserFacilityAssignment) => f.is_primary)?.facility_id ?? null,
-      );
-    } else {
-      setFullName("");
-      setUsername("");
-      setEmail("");
-      setPassword("");
-      setRole(null);
-      setSpecialization("");
-      setMedRegNumber("");
-      setQualification("");
-      setConsultationFee("");
-      setDepartmentIds([]);
-      setFacilityIds([]);
-      setPrimaryFacilityId(null);
-    }
-  };
-
   const createMutation = useMutation({
-    mutationFn: (data: Parameters<typeof api.createSetupUser>[0]) => api.createSetupUser(data),
+    mutationFn: (data: CreateSetupUserInput) => adminAccessService.createUser(data),
     onSuccess: async (newUser) => {
       if (facilityIds.length > 0) {
         try {
-          await api.assignUserFacilities(newUser.id, {
+          await adminAccessService.assignUserFacilities(newUser.id, {
             facility_ids: facilityIds,
             primary_facility_id: primaryFacilityId ?? undefined,
           });
@@ -232,12 +213,12 @@ function UserModal({
   const updateMutation = useMutation({
     mutationFn: (data: Record<string, unknown>) => {
       if (!editingUser) throw new Error("No user selected");
-      return api.updateSetupUser(editingUser.id, data);
+      return adminAccessService.updateUser(editingUser.id, data);
     },
     onSuccess: async () => {
       if (editingUser) {
         try {
-          await api.assignUserFacilities(editingUser.id, {
+          await adminAccessService.assignUserFacilities(editingUser.id, {
             facility_ids: facilityIds,
             primary_facility_id: primaryFacilityId ?? undefined,
           });
@@ -313,13 +294,7 @@ function UserModal({
   };
 
   return (
-    <Modal
-      opened={opened}
-      onClose={onClose}
-      title={isEdit ? "Edit User" : "Add User"}
-      size="lg"
-      onTransitionEnd={handleOpen}
-    >
+    <Modal opened={opened} onClose={onClose} title={isEdit ? "Edit User" : "Add User"} size="lg">
       <Stack gap="sm">
         <TextInput
           label="Full Name"
@@ -476,7 +451,7 @@ function DeleteUserModal({
   const deleteMutation = useMutation({
     mutationFn: () => {
       if (!user) throw new Error("No user selected");
-      return api.deleteSetupUser(user.id);
+      return adminAccessService.deleteUser(user.id);
     },
     onSuccess: () => {
       notifications.show({
@@ -534,7 +509,7 @@ function UsersTab() {
 
   const { data: users, isLoading } = useQuery({
     queryKey: ["setup-users"],
-    queryFn: () => api.listSetupUsers(),
+    queryFn: () => adminAccessService.listUsers(),
   });
 
   const openCreate = () => {
@@ -656,7 +631,14 @@ function UsersTab() {
         emptyDescription="No users have been created yet"
       />
 
-      <UserModal opened={modalOpen} onClose={() => setModalOpen(false)} editingUser={editingUser} />
+      {modalOpen && (
+        <UserModal
+          key={editingUser?.id ?? "create"}
+          opened={modalOpen}
+          onClose={() => setModalOpen(false)}
+          editingUser={editingUser}
+        />
+      )}
 
       <DeleteUserModal
         opened={deleteModalOpen}
@@ -681,25 +663,13 @@ function RoleModal({
   const queryClient = useQueryClient();
   const isEdit = !!editingRole;
 
-  const [code, setCode] = useState("");
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
-
-  const handleOpen = () => {
-    if (editingRole) {
-      setCode(editingRole.code);
-      setName(editingRole.name);
-      setDescription(editingRole.description ?? "");
-    } else {
-      setCode("");
-      setName("");
-      setDescription("");
-    }
-  };
+  const [code, setCode] = useState(editingRole?.code ?? "");
+  const [name, setName] = useState(editingRole?.name ?? "");
+  const [description, setDescription] = useState(editingRole?.description ?? "");
 
   const createMutation = useMutation({
     mutationFn: (data: { code: string; name: string; description?: string }) =>
-      api.createRole(data),
+      adminAccessService.createRole(data),
     onSuccess: () => {
       notifications.show({
         title: "Role created",
@@ -722,7 +692,7 @@ function RoleModal({
   const updateMutation = useMutation({
     mutationFn: (data: { name?: string; description?: string }) => {
       if (!editingRole) throw new Error("No role selected");
-      return api.updateRole(editingRole.id, data);
+      return adminAccessService.updateRole(editingRole.id, data);
     },
     onSuccess: () => {
       notifications.show({
@@ -759,13 +729,7 @@ function RoleModal({
   };
 
   return (
-    <Modal
-      opened={opened}
-      onClose={onClose}
-      title={isEdit ? "Edit Role" : "Add Role"}
-      size="md"
-      onTransitionEnd={handleOpen}
-    >
+    <Modal opened={opened} onClose={onClose} title={isEdit ? "Edit Role" : "Add Role"} size="md">
       <Stack gap="sm">
         <TextInput
           label="Code"
@@ -821,7 +785,7 @@ function DeleteRoleModal({
   const deleteMutation = useMutation({
     mutationFn: () => {
       if (!role) throw new Error("No role selected");
-      return api.deleteRole(role.id);
+      return adminAccessService.deleteRole(role.id);
     },
     onSuccess: () => {
       notifications.show({
@@ -879,7 +843,7 @@ function RolesTab() {
 
   const { data: roles, isLoading } = useQuery({
     queryKey: ["setup-roles"],
-    queryFn: () => api.listRoles(),
+    queryFn: () => adminAccessService.listRoles(),
   });
 
   const openCreate = () => {
@@ -985,7 +949,14 @@ function RolesTab() {
         emptyDescription="No custom roles have been created yet"
       />
 
-      <RoleModal opened={modalOpen} onClose={() => setModalOpen(false)} editingRole={editingRole} />
+      {modalOpen && (
+        <RoleModal
+          key={editingRole?.id ?? "create"}
+          opened={modalOpen}
+          onClose={() => setModalOpen(false)}
+          editingRole={editingRole}
+        />
+      )}
 
       <DeleteRoleModal
         opened={deleteModalOpen}

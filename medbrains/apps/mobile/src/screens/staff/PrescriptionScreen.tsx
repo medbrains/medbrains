@@ -1,7 +1,12 @@
-import { api } from "@medbrains/api";
+import { zodResolver } from "@hookform/resolvers/zod";
+import {
+  type MobilePrescriptionItemFormInput,
+  mobilePrescriptionItemFormSchema,
+} from "@medbrains/schemas";
 import type { PharmacyCatalog, PrescriptionWithItems } from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { Controller, useForm } from "react-hook-form";
 import { ScrollView, StyleSheet, TouchableOpacity, View } from "react-native";
 import {
   ActivityIndicator,
@@ -23,6 +28,7 @@ import {
   useTheme,
 } from "react-native-paper";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { clinicalService } from "../../services/clinical.service";
 
 interface PrescriptionScreenProps {
   route: {
@@ -35,16 +41,7 @@ interface PrescriptionScreenProps {
   };
 }
 
-interface PrescriptionItem {
-  id?: string;
-  drug_name: string;
-  generic_name?: string;
-  dosage: string;
-  frequency: string;
-  duration: string;
-  route: string;
-  instructions?: string;
-}
+type PrescriptionItem = MobilePrescriptionItemFormInput & { id: string };
 
 const FREQUENCIES = [
   "Once daily",
@@ -68,6 +65,16 @@ const DURATIONS = [
   "Continuous",
 ];
 
+const defaultPrescriptionItemFormValues: MobilePrescriptionItemFormInput = {
+  drug_name: "",
+  generic_name: "",
+  dosage: "",
+  frequency: FREQUENCIES[0] ?? "Once daily",
+  duration: DURATIONS[2] ?? "7 days",
+  route: ROUTES[0] ?? "Oral",
+  instructions: "",
+};
+
 export function PrescriptionScreen({ route, navigation }: PrescriptionScreenProps) {
   const theme = useTheme();
   const queryClient = useQueryClient();
@@ -76,24 +83,31 @@ export function PrescriptionScreen({ route, navigation }: PrescriptionScreenProp
   const [items, setItems] = useState<PrescriptionItem[]>([]);
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [drugSearch, setDrugSearch] = useState("");
-  const [currentItem, setCurrentItem] = useState<PrescriptionItem>({
-    drug_name: "",
-    dosage: "",
-    frequency: FREQUENCIES[0] ?? "Once daily",
-    duration: DURATIONS[2] ?? "7 days",
-    route: ROUTES[0] ?? "Oral",
+  const {
+    control,
+    handleSubmit,
+    reset,
+    setValue,
+    watch,
+    formState: { errors },
+  } = useForm<MobilePrescriptionItemFormInput>({
+    resolver: zodResolver(mobilePrescriptionItemFormSchema),
+    mode: "onChange",
+    defaultValues: defaultPrescriptionItemFormValues,
   });
+  const currentItem = watch();
   const [snackbar, setSnackbar] = useState({ visible: false, message: "" });
 
   const { data: existingPrescriptions, isLoading } = useQuery({
     queryKey: ["prescriptions", encounterId],
-    queryFn: () => api.listPrescriptions(encounterId || ""),
+    queryFn: () => clinicalService.listPrescriptions(encounterId || ""),
     enabled: Boolean(encounterId),
   });
 
   const { data: drugCatalog } = useQuery({
     queryKey: ["pharmacy", "catalog", drugSearch],
-    queryFn: () => api.listPharmacyCatalog({ search: drugSearch, page: "1", per_page: "10" }),
+    queryFn: () =>
+      clinicalService.listPharmacyCatalog({ search: drugSearch, page: "1", per_page: "10" }),
     enabled: drugSearch.length >= 2,
   });
 
@@ -101,7 +115,7 @@ export function PrescriptionScreen({ route, navigation }: PrescriptionScreenProp
     mutationFn: async () => {
       if (!encounterId || items.length === 0) throw new Error("No items to save");
 
-      await api.createPrescription(encounterId, {
+      await clinicalService.createPrescription(encounterId, {
         items: items.map((item) => ({
           drug_name: item.drug_name,
           dosage: item.dosage,
@@ -122,31 +136,20 @@ export function PrescriptionScreen({ route, navigation }: PrescriptionScreenProp
     },
   });
 
-  const handleAddItem = () => {
-    if (currentItem.drug_name && currentItem.dosage) {
-      setItems([...items, { ...currentItem, id: Date.now().toString() }]);
-      setCurrentItem({
-        drug_name: "",
-        dosage: "",
-        frequency: FREQUENCIES[0] ?? "Once daily",
-        duration: DURATIONS[2] ?? "7 days",
-        route: ROUTES[0] ?? "Oral",
-      });
-      setDrugSearch("");
-      setShowAddDialog(false);
-    }
-  };
+  const handleAddItem = handleSubmit((item) => {
+    setItems([...items, { ...item, id: Date.now().toString() }]);
+    reset(defaultPrescriptionItemFormValues);
+    setDrugSearch("");
+    setShowAddDialog(false);
+  });
 
   const handleRemoveItem = (id: string) => {
     setItems(items.filter((item) => item.id !== id));
   };
 
   const handleSelectDrug = (drug: PharmacyCatalog) => {
-    setCurrentItem({
-      ...currentItem,
-      drug_name: drug.name,
-      generic_name: drug.generic_name || undefined,
-    });
+    setValue("drug_name", drug.name, { shouldDirty: true, shouldValidate: true });
+    setValue("generic_name", drug.generic_name || "", { shouldDirty: true, shouldValidate: true });
     setDrugSearch("");
   };
 
@@ -227,11 +230,7 @@ export function PrescriptionScreen({ route, navigation }: PrescriptionScreenProp
                     </Text>
                   )}
                 </View>
-                <IconButton
-                  icon="close"
-                  size={20}
-                  onPress={() => handleRemoveItem(item.id || "")}
-                />
+                <IconButton icon="close" size={20} onPress={() => handleRemoveItem(item.id)} />
               </View>
               <View style={styles.itemDetails}>
                 <Chip compact icon="pill">
@@ -319,20 +318,34 @@ export function PrescriptionScreen({ route, navigation }: PrescriptionScreenProp
                 </Chip>
               )}
 
-              <TextInput
-                label="Drug Name"
-                value={currentItem.drug_name}
-                onChangeText={(v) => setCurrentItem({ ...currentItem, drug_name: v })}
-                mode="outlined"
-                style={styles.dialogInput}
+              <Controller
+                control={control}
+                name="drug_name"
+                render={({ field }) => (
+                  <TextInput
+                    label="Drug Name"
+                    value={field.value}
+                    onChangeText={field.onChange}
+                    mode="outlined"
+                    error={Boolean(errors.drug_name)}
+                    style={styles.dialogInput}
+                  />
+                )}
               />
 
-              <TextInput
-                label="Dosage (e.g., 500mg)"
-                value={currentItem.dosage}
-                onChangeText={(v) => setCurrentItem({ ...currentItem, dosage: v })}
-                mode="outlined"
-                style={styles.dialogInput}
+              <Controller
+                control={control}
+                name="dosage"
+                render={({ field }) => (
+                  <TextInput
+                    label="Dosage (e.g., 500mg)"
+                    value={field.value}
+                    onChangeText={field.onChange}
+                    mode="outlined"
+                    error={Boolean(errors.dosage)}
+                    style={styles.dialogInput}
+                  />
+                )}
               />
 
               <Text variant="labelMedium" style={styles.dialogLabel}>
@@ -343,7 +356,9 @@ export function PrescriptionScreen({ route, navigation }: PrescriptionScreenProp
                   <Chip
                     key={freq}
                     selected={currentItem.frequency === freq}
-                    onPress={() => setCurrentItem({ ...currentItem, frequency: freq })}
+                    onPress={() =>
+                      setValue("frequency", freq, { shouldDirty: true, shouldValidate: true })
+                    }
                     style={styles.selectChip}
                   >
                     {freq}
@@ -359,7 +374,9 @@ export function PrescriptionScreen({ route, navigation }: PrescriptionScreenProp
                   <Chip
                     key={dur}
                     selected={currentItem.duration === dur}
-                    onPress={() => setCurrentItem({ ...currentItem, duration: dur })}
+                    onPress={() =>
+                      setValue("duration", dur, { shouldDirty: true, shouldValidate: true })
+                    }
                     style={styles.selectChip}
                   >
                     {dur}
@@ -375,7 +392,9 @@ export function PrescriptionScreen({ route, navigation }: PrescriptionScreenProp
                   <Chip
                     key={rt}
                     selected={currentItem.route === rt}
-                    onPress={() => setCurrentItem({ ...currentItem, route: rt })}
+                    onPress={() =>
+                      setValue("route", rt, { shouldDirty: true, shouldValidate: true })
+                    }
                     style={styles.selectChip}
                   >
                     {rt}
@@ -383,13 +402,19 @@ export function PrescriptionScreen({ route, navigation }: PrescriptionScreenProp
                 ))}
               </View>
 
-              <TextInput
-                label="Special Instructions (optional)"
-                value={currentItem.instructions || ""}
-                onChangeText={(v) => setCurrentItem({ ...currentItem, instructions: v })}
-                mode="outlined"
-                multiline
-                style={styles.dialogInput}
+              <Controller
+                control={control}
+                name="instructions"
+                render={({ field }) => (
+                  <TextInput
+                    label="Special Instructions (optional)"
+                    value={field.value || ""}
+                    onChangeText={field.onChange}
+                    mode="outlined"
+                    multiline
+                    style={styles.dialogInput}
+                  />
+                )}
               />
             </ScrollView>
           </Dialog.ScrollArea>
@@ -397,8 +422,8 @@ export function PrescriptionScreen({ route, navigation }: PrescriptionScreenProp
             <Button onPress={() => setShowAddDialog(false)}>Cancel</Button>
             <Button
               mode="contained"
-              onPress={handleAddItem}
-              disabled={!currentItem.drug_name || !currentItem.dosage}
+              onPress={() => void handleAddItem()}
+              disabled={!currentItem.drug_name.trim() || !currentItem.dosage.trim()}
             >
               Add
             </Button>

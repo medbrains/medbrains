@@ -24,11 +24,11 @@
  * must happen exactly once per app lifetime.
  */
 
-import { api } from "@medbrains/api";
 import { useAuthStore } from "@medbrains/stores";
 import type { TenantSettingsRow } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
 import { createContext, type ReactNode, useContext, useMemo } from "react";
+import { tenantSettingsService } from "../services/tenantSettings.service";
 
 const DEVICE_ID_KEY = "medbrains-crdt-device-id";
 
@@ -84,7 +84,7 @@ export function TenantConfigProvider({
 
   const { data: clinicalSettings } = useQuery<TenantSettingsRow[]>({
     queryKey: ["tenant-settings", "clinical"],
-    queryFn: () => api.getTenantSettings("clinical"),
+    queryFn: () => tenantSettingsService.getTenantSettings("clinical"),
     staleTime: 5 * 60 * 1000,
     enabled: !!user,
   });

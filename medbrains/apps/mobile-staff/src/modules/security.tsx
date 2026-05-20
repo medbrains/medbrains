@@ -29,6 +29,7 @@ function SecurityHome(): ReactNode {
       eyebrow="MODULE"
       title="Security"
       description="Access, CCTV, incidents, patient safety."
+      tags={["Mobile-Security", "visitor-pass", "incident", "code-response"]}
       summaries={[
         { eyebrow: "OPEN", count: "—", title: "Active incidents" },
         { eyebrow: "TODAY", count: "—", title: "Visitor pass issued" },
@@ -106,5 +107,7 @@ export const securityModule: Module = {
   icon: () => null,
   requiredPermissions: [P.SECURITY.INCIDENTS_LIST],
   navigator: SecurityScreen,
+  appCodes: ["Mobile-Security", "TV-Emergency"],
+  tags: ["security", "incident", "visitor-pass", "code-response", "cctv"],
   offlineDocTypes: ["security_incident"],
 };

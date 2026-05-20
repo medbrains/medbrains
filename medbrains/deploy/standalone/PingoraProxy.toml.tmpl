@@ -64,6 +64,17 @@ cache_control = "no-store"
 allowed_methods = ["GET", "OPTIONS"]
 
 [[edge_policies]]
+prefix = "/icd/"
+class = "icd-api"
+upstream = "127.0.0.1:8382"
+body_limit_bytes = 1048576
+upstream_total_timeout_ms = 15000
+upstream_read_timeout_ms = 60000
+retry_after_seconds = 5
+cache_control = "no-store"
+allowed_methods = ["GET", "HEAD", "OPTIONS"]
+
+[[edge_policies]]
 prefix = "/assets/"
 class = "assets"
 body_limit_bytes = 1048576
@@ -87,3 +98,6 @@ domain = "{{DOMAIN}}"
 upstream = "127.0.0.1:3000"
 cert_path = "/etc/medbrains/tls/fullchain.pem"
 key_path = "/etc/medbrains/tls/privkey.pem"
+
+# WHO ICD-API is exposed under the same hospital domain at /icd/*.
+# Backend env should use WHO_ICD_API_BASE_URL=https://{{DOMAIN}}.

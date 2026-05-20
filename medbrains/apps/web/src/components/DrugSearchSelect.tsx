@@ -1,11 +1,11 @@
 import { Badge, Group, Text } from "@mantine/core";
 import { useDebouncedValue } from "@mantine/hooks";
-import { api } from "@medbrains/api";
 import { useHasPermission } from "@medbrains/stores";
 import { P, type PharmacyCatalog } from "@medbrains/types";
 import { IconPill } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
+import { lookupsService } from "../services/lookups.service";
 import { MiniAddDrug } from "./Pharmacy/MiniAddDrug";
 import { SearchOrCreate } from "./SearchOrCreate";
 
@@ -43,7 +43,7 @@ export function DrugSearchSelect({
 
   const { data } = useQuery({
     queryKey: ["drug-search", debounced],
-    queryFn: () => api.listPharmacyCatalog({ search: debounced }),
+    queryFn: () => lookupsService.listPharmacyCatalog({ search: debounced }),
     enabled: debounced.length >= 2,
     staleTime: 60_000,
   });

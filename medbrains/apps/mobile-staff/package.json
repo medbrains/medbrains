@@ -16,9 +16,11 @@
     "lint": "biome check src/"
   },
   "dependencies": {
+    "@hookform/resolvers": "^5.2.2",
     "@medbrains/api": "workspace:*",
     "@medbrains/edge-rn-bindings": "workspace:*",
     "@medbrains/mobile-shell": "workspace:*",
+    "@medbrains/schemas": "workspace:*",
     "@medbrains/types": "workspace:*",
     "@medbrains/ui-mobile": "workspace:*",
     "@medbrains/uniffi-rn-plugin": "workspace:*",
@@ -31,6 +33,7 @@
     "expo-secure-store": "~15.0.8",
     "expo-status-bar": "~3.0.9",
     "react": "19.1.0",
+    "react-hook-form": "^7.71.2",
     "react-native": "0.81.5",
     "react-native-paper": "^5.15.0",
     "react-native-safe-area-context": "~5.6.0",

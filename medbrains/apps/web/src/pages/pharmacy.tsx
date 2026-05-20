@@ -22,10 +22,18 @@ import {
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
+import type {
+  PharmacyCatalogFormInput,
+  PharmacyNdpsEntryFormInput,
+  PharmacyStockTransactionFormInput,
+} from "@medbrains/schemas";
+import {
+  pharmacyCatalogFormSchema,
+  pharmacyNdpsEntryFormSchema,
+  pharmacyStockTransactionFormSchema,
+} from "@medbrains/schemas";
 import { useHasPermission } from "@medbrains/stores";
 import type {
-  AwareCategory,
   ComplianceSettings,
   CreateNdpsEntryRequest,
   CreateOtcSaleRequest,
@@ -34,10 +42,8 @@ import type {
   CreateStockTransactionRequest,
   DrugInteractionCheckRequest,
   DrugInteractionResult,
-  DrugSchedule,
   DrugUtilizationRow,
   FormularyCheckResult,
-  FormularyStatus,
   NdpsRegisterEntry,
   NearExpiryRow,
   PharmacyAbcVedRow,
@@ -58,7 +64,6 @@ import type {
   PrescriptionAuditEntry,
   PrescriptionWithItems,
   RxQueueRow,
-  StockTransactionType,
   TenantSettingsRow,
 } from "@medbrains/types";
 import { P } from "@medbrains/types";
@@ -84,6 +89,7 @@ import {
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
+import { Controller, useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import {
   ClinicalEventProvider,
@@ -101,9 +107,20 @@ import { CreditNotesTab } from "../components/Pharmacy/CreditNotesTab";
 import { PharmacyDispensingView } from "../components/Pharmacy/PharmacyDispensingView";
 import { PharmacyLabel } from "../components/Pharmacy/PharmacyLabel";
 import { StoreIndentsTab } from "../components/Pharmacy/StoreIndentsTab";
+import {
+  awareCategoryOptions,
+  drugScheduleOptions,
+  formIntegerOrFallback,
+  formNumberOrFallback,
+  formularyStatusOptions,
+  ndpsActionOptions,
+  optionalFormText,
+  stockTransactionTypeOptions,
+} from "../forms/pharmacy.form";
 import { usePatientName } from "../hooks/usePatientName";
 import { useRequirePermission } from "../hooks/useRequirePermission";
 import { instructionsDisplayText } from "../lib/medication-timing-utils";
+import { pharmacyService } from "../services/pharmacy.service";
 import styles from "./pharmacy.module.scss";
 
 const statusColors: Record<string, string> = {
@@ -235,7 +252,7 @@ function PharmacyPageInner() {
 
   const { data: complianceRaw = [] } = useQuery<TenantSettingsRow[]>({
     queryKey: ["tenant-settings", "compliance"],
-    queryFn: () => api.getTenantSettings("compliance"),
+    queryFn: () => pharmacyService.getTenantSettings("compliance"),
     staleTime: 300_000,
   });
 
@@ -403,13 +420,13 @@ function PharmacyOrdersTab({
 
   const { data, isLoading } = useQuery({
     queryKey: ["pharmacy-orders", params],
-    queryFn: () => api.listPharmacyOrders(params),
+    queryFn: () => pharmacyService.listPharmacyOrders(params),
   });
 
   const emit = useClinicalEmit();
 
   const dispenseMutation = useMutation({
-    mutationFn: (id: string) => api.dispenseOrder(id),
+    mutationFn: (id: string) => pharmacyService.dispenseOrder(id),
     onSuccess: (_result, id) => {
       void queryClient.invalidateQueries({ queryKey: ["pharmacy-orders"] });
       notifications.show({
@@ -422,7 +439,7 @@ function PharmacyOrdersTab({
   });
 
   const cancelMutation = useMutation({
-    mutationFn: (id: string) => api.cancelPharmacyOrder(id),
+    mutationFn: (id: string) => pharmacyService.cancelPharmacyOrder(id),
     onSuccess: (_result, id) => {
       void queryClient.invalidateQueries({ queryKey: ["pharmacy-orders"] });
       emit("order.cancelled", { order_id: id });
@@ -586,7 +603,7 @@ function OtcSaleDrawer({ opened, onClose }: { opened: boolean; onClose: () => vo
   ]);
 
   const createMutation = useMutation({
-    mutationFn: (data: CreateOtcSaleRequest) => api.createOtcSale(data),
+    mutationFn: (data: CreateOtcSaleRequest) => pharmacyService.createOtcSale(data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["pharmacy-orders"] });
       notifications.show({ title: "OTC Sale", message: "Walk-in sale recorded", color: "teal" });
@@ -600,7 +617,7 @@ function OtcSaleDrawer({ opened, onClose }: { opened: boolean; onClose: () => vo
   });
 
   return (
-    <Drawer opened={opened} onClose={onClose} title="OTC Walk-in Sale" position="right" size="lg">
+    <Drawer opened={opened} onClose={onClose} title="OTC Walk-in Sale" position="right" size="xl">
       <Stack>
         <Textarea label="Notes" value={notes} onChange={(e) => setNotes(e.currentTarget.value)} />
         <Text fw={600} size="sm">
@@ -701,7 +718,7 @@ function CreatePharmacyOrderDrawer({ opened, onClose }: { opened: boolean; onClo
   ]);
 
   const createMutation = useMutation({
-    mutationFn: (data: CreatePharmacyOrderRequest) => api.createPharmacyOrder(data),
+    mutationFn: (data: CreatePharmacyOrderRequest) => pharmacyService.createPharmacyOrder(data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["pharmacy-orders"] });
       void queryClient.invalidateQueries({ queryKey: ["invoices"] });
@@ -730,7 +747,13 @@ function CreatePharmacyOrderDrawer({ opened, onClose }: { opened: boolean; onClo
     createMutation.error instanceof Error ? createMutation.error.message : undefined;
 
   return (
-    <Drawer opened={opened} onClose={onClose} title="New Pharmacy Order" position="right" size="lg">
+    <Drawer
+      opened={opened}
+      onClose={onClose}
+      title="New Pharmacy Order"
+      position="right"
+      size="min(100%, 1040px)"
+    >
       <Stack>
         <PatientSearchSelect value={patientId} onChange={setPatientId} required />
         <PatientContextBanner patientId={patientId} hideLoadingState />
@@ -881,7 +904,7 @@ function PharmacyOrderDetail({
   const [viewMode, setViewMode] = useState<"table" | "schedule">("schedule");
   const { data } = useQuery({
     queryKey: ["pharmacy-order-detail", orderId],
-    queryFn: () => api.getPharmacyOrder(orderId),
+    queryFn: () => pharmacyService.getPharmacyOrder(orderId),
   });
 
   // Fetch linked prescription for structured timing data
@@ -889,7 +912,7 @@ function PharmacyOrderDetail({
   const prescriptionId = detail?.order.prescription_id;
   const { data: rxData } = useQuery<PrescriptionWithItems>({
     queryKey: ["prescription-detail", prescriptionId],
-    queryFn: () => api.getPrescription(prescriptionId as string),
+    queryFn: () => pharmacyService.getPrescription(prescriptionId as string),
     enabled: !!prescriptionId,
   });
 
@@ -899,7 +922,7 @@ function PharmacyOrderDetail({
 
   const updateItemMutation = useMutation({
     mutationFn: ({ itemId, quantity }: { itemId: string; quantity: number }) =>
-      api.updatePharmacyOrderItem(orderId, itemId, { quantity }),
+      pharmacyService.updatePharmacyOrderItem(orderId, itemId, { quantity }),
     onSuccess: (next) => {
       queryClient.setQueryData(["pharmacy-order-detail", orderId], next);
       void queryClient.invalidateQueries({ queryKey: ["pharmacy-orders"] });
@@ -913,7 +936,7 @@ function PharmacyOrderDetail({
   });
 
   const removeItemMutation = useMutation({
-    mutationFn: (itemId: string) => api.removePharmacyOrderItem(orderId, itemId),
+    mutationFn: (itemId: string) => pharmacyService.removePharmacyOrderItem(orderId, itemId),
     onSuccess: (next) => {
       queryClient.setQueryData(["pharmacy-order-detail", orderId], next);
       void queryClient.invalidateQueries({ queryKey: ["pharmacy-orders"] });
@@ -1141,7 +1164,7 @@ function EditablePharmacyQuantity({
 function PrescriptionAuditTrail({ prescriptionId }: { prescriptionId: string }) {
   const { data: entries = [], isLoading } = useQuery({
     queryKey: ["prescription-audit", prescriptionId],
-    queryFn: () => api.prescriptionAudit(prescriptionId),
+    queryFn: () => pharmacyService.prescriptionAudit(prescriptionId),
   });
 
   if (isLoading)
@@ -1210,7 +1233,7 @@ function DrugInteractionModal({ opened, onClose }: { opened: boolean; onClose: (
   const [drugId, setDrugId] = useState("");
 
   const checkMutation = useMutation({
-    mutationFn: (data: DrugInteractionCheckRequest) => api.checkDrugInteractions(data),
+    mutationFn: (data: DrugInteractionCheckRequest) => pharmacyService.checkDrugInteractions(data),
   });
 
   const severityColors: Record<string, string> = {
@@ -1221,7 +1244,7 @@ function DrugInteractionModal({ opened, onClose }: { opened: boolean; onClose: (
   };
 
   return (
-    <Modal opened={opened} onClose={onClose} title="Drug Interaction Check" size="lg">
+    <Modal opened={opened} onClose={onClose} title="Drug Interaction Check" size="xl">
       <Stack>
         <PatientSearchSelect value={patientId} onChange={setPatientId} required />
         <PatientContextBanner patientId={patientId} hideLoadingState />
@@ -1281,13 +1304,13 @@ function FormularyCheckModal({ opened, onClose }: { opened: boolean; onClose: ()
   const [drugId, setDrugId] = useState("");
 
   const checkMutation = useMutation({
-    mutationFn: (data: { drug_id: string }) => api.formularyCheck(data),
+    mutationFn: (data: { drug_id: string }) => pharmacyService.formularyCheck(data),
   });
 
   const result = checkMutation.data as FormularyCheckResult | undefined;
 
   return (
-    <Modal opened={opened} onClose={onClose} title="Formulary Check" size="md">
+    <Modal opened={opened} onClose={onClose} title="Formulary Check" size="lg">
       <Stack>
         <DrugSearchSelect value={drugId} onChange={(id) => setDrugId(id)} label="Drug" required />
         <Button
@@ -1346,13 +1369,39 @@ function PharmacyCatalogTab({
   compliance: ComplianceSettings;
 }) {
   const queryClient = useQueryClient();
-  const [showForm, setShowForm] = useState(false);
+  const [formOpened, formHandlers] = useDisclosure(false);
   const [formularyFilter, setFormularyFilter] = useState<string | null>(null);
-  const [form, setForm] = useState<Partial<CreatePharmacyCatalogRequest>>({});
+  const catalogDefaults: PharmacyCatalogFormInput = {
+    code: "",
+    name: "",
+    generic_name: "",
+    category: "",
+    manufacturer: "",
+    unit: "",
+    base_price: 0,
+    tax_percent: 0,
+    reorder_level: 0,
+    drug_schedule: undefined,
+    formulary_status: "approved",
+    aware_category: undefined,
+    inn_name: "",
+    atc_code: "",
+    is_controlled: false,
+  };
+  const {
+    control,
+    register,
+    reset,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<PharmacyCatalogFormInput>({
+    resolver: zodResolver(pharmacyCatalogFormSchema),
+    defaultValues: catalogDefaults,
+  });
 
   const { data: catalog = [], isLoading } = useQuery({
     queryKey: ["pharmacy-catalog"],
-    queryFn: () => api.listPharmacyCatalog(),
+    queryFn: () => pharmacyService.listPharmacyCatalog(),
   });
 
   const filtered = useMemo(() => {
@@ -1361,13 +1410,33 @@ function PharmacyCatalogTab({
   }, [catalog, formularyFilter]);
 
   const createMutation = useMutation({
-    mutationFn: (data: CreatePharmacyCatalogRequest) => api.createPharmacyCatalog(data),
+    mutationFn: (data: CreatePharmacyCatalogRequest) => pharmacyService.createPharmacyCatalog(data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["pharmacy-catalog"] });
-      setShowForm(false);
-      setForm({});
+      formHandlers.close();
+      reset(catalogDefaults);
     },
   });
+
+  const handleCreateCatalog = (values: PharmacyCatalogFormInput) => {
+    createMutation.mutate({
+      code: values.code.trim(),
+      name: values.name.trim(),
+      generic_name: optionalFormText(values.generic_name),
+      category: optionalFormText(values.category),
+      manufacturer: optionalFormText(values.manufacturer),
+      unit: optionalFormText(values.unit),
+      base_price: formNumberOrFallback(values.base_price, 0),
+      tax_percent: formNumberOrFallback(values.tax_percent, 0),
+      reorder_level: formIntegerOrFallback(values.reorder_level, 0),
+      drug_schedule: values.drug_schedule,
+      formulary_status: values.formulary_status,
+      aware_category: values.aware_category,
+      inn_name: optionalFormText(values.inn_name),
+      atc_code: optionalFormText(values.atc_code),
+      is_controlled: values.is_controlled || undefined,
+    });
+  };
 
   const columns = [
     {
@@ -1484,11 +1553,7 @@ function PharmacyCatalogTab({
     <Stack>
       <Group>
         {canManage && (
-          <Button
-            size="xs"
-            leftSection={<IconPlus size={14} />}
-            onClick={() => setShowForm(!showForm)}
-          >
+          <Button size="xs" leftSection={<IconPlus size={14} />} onClick={formHandlers.toggle}>
             Add Drug
           </Button>
         )}
@@ -1505,143 +1570,165 @@ function PharmacyCatalogTab({
           w={180}
         />
       </Group>
-      {showForm && (
-        <Stack gap="xs">
+      {formOpened && (
+        <Stack component="form" gap="xs" onSubmit={handleSubmit(handleCreateCatalog)}>
           <Group grow>
-            <TextInput
-              label="Code"
-              required
-              onChange={(e) => setForm({ ...form, code: e.currentTarget.value })}
-            />
-            <TextInput
-              label="Name"
-              required
-              onChange={(e) => setForm({ ...form, name: e.currentTarget.value })}
-            />
+            <TextInput label="Code" required error={errors.code?.message} {...register("code")} />
+            <TextInput label="Name" required error={errors.name?.message} {...register("name")} />
           </Group>
           <Group grow>
             <TextInput
               label="Generic Name"
-              onChange={(e) =>
-                setForm({ ...form, generic_name: e.currentTarget.value || undefined })
-              }
+              error={errors.generic_name?.message}
+              {...register("generic_name")}
             />
-            <Select
-              label="Category"
-              data={DRUG_CATEGORIES}
-              onChange={(v) => setForm({ ...form, category: v || undefined })}
-              clearable
-              searchable
+            <Controller
+              control={control}
+              name="category"
+              render={({ field }) => (
+                <Select
+                  label="Category"
+                  data={DRUG_CATEGORIES}
+                  value={field.value || null}
+                  onChange={(value) => field.onChange(value ?? "")}
+                  error={errors.category?.message}
+                  clearable
+                  searchable
+                />
+              )}
             />
           </Group>
           <Group grow>
             <TextInput
               label="Manufacturer"
-              onChange={(e) =>
-                setForm({ ...form, manufacturer: e.currentTarget.value || undefined })
-              }
+              error={errors.manufacturer?.message}
+              {...register("manufacturer")}
             />
-            <TextInput
-              label="Unit"
-              onChange={(e) => setForm({ ...form, unit: e.currentTarget.value || undefined })}
-            />
+            <TextInput label="Unit" error={errors.unit?.message} {...register("unit")} />
           </Group>
           <Group grow>
-            <NumberInput
-              label="Base Price"
-              required
-              min={0}
-              decimalScale={2}
-              onChange={(v) => setForm({ ...form, base_price: Number(v) })}
+            <Controller
+              control={control}
+              name="base_price"
+              render={({ field }) => (
+                <NumberInput
+                  label="Base Price"
+                  required
+                  min={0}
+                  decimalScale={2}
+                  value={field.value}
+                  onChange={field.onChange}
+                  error={errors.base_price?.message}
+                />
+              )}
             />
-            <NumberInput
-              label="Tax %"
-              min={0}
-              max={100}
-              decimalScale={2}
-              onChange={(v) => setForm({ ...form, tax_percent: Number(v) })}
+            <Controller
+              control={control}
+              name="tax_percent"
+              render={({ field }) => (
+                <NumberInput
+                  label="Tax %"
+                  min={0}
+                  max={100}
+                  decimalScale={2}
+                  value={field.value}
+                  onChange={field.onChange}
+                  error={errors.tax_percent?.message}
+                />
+              )}
             />
-            <NumberInput
-              label="Reorder Level"
-              min={0}
-              onChange={(v) => setForm({ ...form, reorder_level: Number(v) || undefined })}
+            <Controller
+              control={control}
+              name="reorder_level"
+              render={({ field }) => (
+                <NumberInput
+                  label="Reorder Level"
+                  min={0}
+                  value={field.value}
+                  onChange={field.onChange}
+                  error={errors.reorder_level?.message}
+                />
+              )}
             />
           </Group>
           <Text fw={600} size="sm" mt="xs">
             Regulatory Classification
           </Text>
           <Group grow>
-            <Select
-              label="Drug Schedule"
-              placeholder="Select schedule"
-              data={[
-                { value: "H", label: "H" },
-                { value: "H1", label: "H1" },
-                { value: "X", label: "X" },
-                { value: "G", label: "G" },
-                { value: "OTC", label: "OTC" },
-                { value: "NDPS", label: "NDPS" },
-              ]}
-              value={form.drug_schedule ?? null}
-              onChange={(v) =>
-                setForm({ ...form, drug_schedule: (v as DrugSchedule) || undefined })
-              }
-              clearable
+            <Controller
+              control={control}
+              name="drug_schedule"
+              render={({ field }) => (
+                <Select
+                  label="Drug Schedule"
+                  placeholder="Select schedule"
+                  data={drugScheduleOptions}
+                  value={field.value ?? null}
+                  onChange={(value) => field.onChange(value ?? undefined)}
+                  error={errors.drug_schedule?.message}
+                  clearable
+                />
+              )}
             />
-            <Select
-              label="Formulary Status"
-              placeholder="Select status"
-              data={[
-                { value: "approved", label: "Approved" },
-                { value: "restricted", label: "Restricted" },
-                { value: "non_formulary", label: "Non-Formulary" },
-              ]}
-              value={form.formulary_status ?? null}
-              onChange={(v) =>
-                setForm({ ...form, formulary_status: (v as FormularyStatus) || undefined })
-              }
-              clearable
+            <Controller
+              control={control}
+              name="formulary_status"
+              render={({ field }) => (
+                <Select
+                  label="Formulary Status"
+                  placeholder="Select status"
+                  data={formularyStatusOptions}
+                  value={field.value ?? null}
+                  onChange={(value) => field.onChange(value ?? undefined)}
+                  error={errors.formulary_status?.message}
+                  clearable
+                />
+              )}
             />
-            <Select
-              label="AWaRe Category"
-              description="For antibiotics only"
-              placeholder="Select category"
-              data={[
-                { value: "access", label: "Access" },
-                { value: "watch", label: "Watch" },
-                { value: "reserve", label: "Reserve" },
-              ]}
-              value={form.aware_category ?? null}
-              onChange={(v) =>
-                setForm({ ...form, aware_category: (v as AwareCategory) || undefined })
-              }
-              clearable
+            <Controller
+              control={control}
+              name="aware_category"
+              render={({ field }) => (
+                <Select
+                  label="AWaRe Category"
+                  description="For antibiotics only"
+                  placeholder="Select category"
+                  data={awareCategoryOptions}
+                  value={field.value ?? null}
+                  onChange={(value) => field.onChange(value ?? undefined)}
+                  error={errors.aware_category?.message}
+                  clearable
+                />
+              )}
             />
           </Group>
           <Group grow>
             <TextInput
               label="INN Name"
               placeholder="International Nonproprietary Name"
-              onChange={(e) => setForm({ ...form, inn_name: e.currentTarget.value || undefined })}
+              error={errors.inn_name?.message}
+              {...register("inn_name")}
             />
             <TextInput
               label="ATC Code"
               placeholder="e.g. J01CA04"
-              onChange={(e) => setForm({ ...form, atc_code: e.currentTarget.value || undefined })}
+              error={errors.atc_code?.message}
+              {...register("atc_code")}
             />
           </Group>
-          <Switch
-            label="Controlled Substance"
-            checked={form.is_controlled ?? false}
-            onChange={(e) =>
-              setForm({ ...form, is_controlled: e.currentTarget.checked || undefined })
-            }
+          <Controller
+            control={control}
+            name="is_controlled"
+            render={({ field }) => (
+              <Switch
+                label="Controlled Substance"
+                checked={field.value}
+                onChange={(event) => field.onChange(event.currentTarget.checked)}
+                error={errors.is_controlled?.message}
+              />
+            )}
           />
-          <Button
-            size="xs"
-            onClick={() => createMutation.mutate(form as CreatePharmacyCatalogRequest)}
-            loading={createMutation.isPending}
-          >
+          <Button size="xs" type="submit" loading={createMutation.isPending}>
             Save
           </Button>
         </Stack>
@@ -1657,20 +1744,33 @@ function PharmacyCatalogTab({
 
 function StockTab({ canManage }: { canManage: boolean }) {
   const queryClient = useQueryClient();
-  const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState<Partial<CreateStockTransactionRequest>>({
-    transaction_type: "receipt" as StockTransactionType,
+  const [formOpened, formHandlers] = useDisclosure(false);
+  const {
+    control,
+    register,
+    reset,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<PharmacyStockTransactionFormInput>({
+    resolver: zodResolver(pharmacyStockTransactionFormSchema),
+    defaultValues: {
+      catalog_item_id: "",
+      transaction_type: "receipt",
+      quantity: 1,
+      notes: "",
+    },
   });
 
   const { data: stock = [], isLoading } = useQuery({
     queryKey: ["pharmacy-stock"],
-    queryFn: () => api.listStock(),
+    queryFn: () => pharmacyService.listStock(),
   });
 
   const emit = useClinicalEmit();
 
   const createTxMutation = useMutation({
-    mutationFn: (data: CreateStockTransactionRequest) => api.createStockTransaction(data),
+    mutationFn: (data: CreateStockTransactionRequest) =>
+      pharmacyService.createStockTransaction(data),
     onSuccess: (_result, variables) => {
       void queryClient.invalidateQueries({ queryKey: ["pharmacy-stock"] });
       void queryClient.invalidateQueries({ queryKey: ["pharmacy-catalog"] });
@@ -1683,10 +1783,24 @@ function StockTab({ canManage }: { canManage: boolean }) {
         transaction_type: variables.transaction_type,
         quantity: variables.quantity,
       });
-      setShowForm(false);
-      setForm({ transaction_type: "receipt" as StockTransactionType });
+      formHandlers.close();
+      reset({
+        catalog_item_id: "",
+        transaction_type: "receipt",
+        quantity: 1,
+        notes: "",
+      });
     },
   });
+
+  const handleCreateTransaction = (values: PharmacyStockTransactionFormInput) => {
+    createTxMutation.mutate({
+      catalog_item_id: values.catalog_item_id,
+      transaction_type: values.transaction_type,
+      quantity: formIntegerOrFallback(values.quantity, 1),
+      notes: values.notes.trim() || undefined,
+    });
+  };
 
   const columns = [
     {
@@ -1733,52 +1847,55 @@ function StockTab({ canManage }: { canManage: boolean }) {
     <Stack>
       {canManage && (
         <Group>
-          <Button
-            size="xs"
-            leftSection={<IconPackage size={14} />}
-            onClick={() => setShowForm(!showForm)}
-          >
+          <Button size="xs" leftSection={<IconPackage size={14} />} onClick={formHandlers.toggle}>
             New Stock Transaction
           </Button>
         </Group>
       )}
-      {showForm && (
-        <Stack gap="xs">
-          <DrugSearchSelect
-            value={form.catalog_item_id ?? ""}
-            onChange={(id) => setForm({ ...form, catalog_item_id: id })}
-            required
+      {formOpened && (
+        <Stack component="form" gap="xs" onSubmit={handleSubmit(handleCreateTransaction)}>
+          <Controller
+            control={control}
+            name="catalog_item_id"
+            render={({ field }) => (
+              <DrugSearchSelect
+                value={field.value}
+                onChange={field.onChange}
+                error={errors.catalog_item_id?.message}
+                required
+              />
+            )}
           />
           <Group grow>
-            <Select
-              label="Type"
-              data={[
-                { value: "receipt", label: "Receipt (In)" },
-                { value: "issue", label: "Issue (Out)" },
-                { value: "return", label: "Return" },
-                { value: "adjustment", label: "Adjustment" },
-              ]}
-              value={form.transaction_type}
-              onChange={(v) =>
-                setForm({ ...form, transaction_type: (v ?? "receipt") as StockTransactionType })
-              }
+            <Controller
+              control={control}
+              name="transaction_type"
+              render={({ field }) => (
+                <Select
+                  label="Type"
+                  data={stockTransactionTypeOptions}
+                  value={field.value}
+                  onChange={(value) => value && field.onChange(value)}
+                />
+              )}
             />
-            <NumberInput
-              label="Quantity"
-              required
-              min={1}
-              onChange={(v) => setForm({ ...form, quantity: Number(v) })}
+            <Controller
+              control={control}
+              name="quantity"
+              render={({ field }) => (
+                <NumberInput
+                  label="Quantity"
+                  required
+                  min={1}
+                  value={field.value}
+                  onChange={field.onChange}
+                  error={errors.quantity?.message}
+                />
+              )}
             />
           </Group>
-          <TextInput
-            label="Notes"
-            onChange={(e) => setForm({ ...form, notes: e.currentTarget.value || undefined })}
-          />
-          <Button
-            size="xs"
-            onClick={() => createTxMutation.mutate(form as CreateStockTransactionRequest)}
-            loading={createTxMutation.isPending}
-          >
+          <TextInput label="Notes" {...register("notes")} />
+          <Button size="xs" type="submit" loading={createTxMutation.isPending}>
             Record Transaction
           </Button>
         </Stack>
@@ -1795,21 +1912,36 @@ function StockTab({ canManage }: { canManage: boolean }) {
 function NdpsRegisterTab() {
   const canManage = useHasPermission(P.PHARMACY.NDPS_MANAGE);
   const queryClient = useQueryClient();
-  const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState<Partial<CreateNdpsEntryRequest>>({ action: "receipt" });
+  const [formOpened, formHandlers] = useDisclosure(false);
+  const {
+    control,
+    register,
+    reset,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<PharmacyNdpsEntryFormInput>({
+    resolver: zodResolver(pharmacyNdpsEntryFormSchema),
+    defaultValues: {
+      catalog_item_id: "",
+      action: "receipt",
+      quantity: 1,
+      notes: "",
+      witnessed_by: "",
+    },
+  });
 
   const { data, isLoading } = useQuery({
     queryKey: ["pharmacy-ndps"],
-    queryFn: () => api.listNdpsEntries(),
+    queryFn: () => pharmacyService.listNdpsEntries(),
   });
 
   const { data: balance } = useQuery({
     queryKey: ["pharmacy-ndps-balance"],
-    queryFn: () => api.getNdpsBalance(),
+    queryFn: () => pharmacyService.getNdpsBalance(),
   });
 
   const createMutation = useMutation({
-    mutationFn: (d: CreateNdpsEntryRequest) => api.createNdpsEntry(d),
+    mutationFn: (d: CreateNdpsEntryRequest) => pharmacyService.createNdpsEntry(d),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["pharmacy-ndps"] });
       void queryClient.invalidateQueries({ queryKey: ["pharmacy-ndps-balance"] });
@@ -1818,10 +1950,26 @@ function NdpsRegisterTab() {
         message: "Register entry recorded",
         color: "success",
       });
-      setShowForm(false);
-      setForm({ action: "receipt" });
+      formHandlers.close();
+      reset({
+        catalog_item_id: "",
+        action: "receipt",
+        quantity: 1,
+        notes: "",
+        witnessed_by: "",
+      });
     },
   });
+
+  const handleCreateNdpsEntry = (values: PharmacyNdpsEntryFormInput) => {
+    createMutation.mutate({
+      catalog_item_id: values.catalog_item_id,
+      action: values.action,
+      quantity: formIntegerOrFallback(values.quantity, 1),
+      notes: values.notes.trim() || undefined,
+      witnessed_by: values.witnessed_by.trim() || undefined,
+    });
+  };
 
   const actionColors: Record<string, string> = {
     receipt: "success",
@@ -1896,50 +2044,56 @@ function NdpsRegisterTab() {
       )}
       {canManage && (
         <Group>
-          <Button
-            size="xs"
-            leftSection={<IconPlus size={14} />}
-            onClick={() => setShowForm(!showForm)}
-          >
+          <Button size="xs" leftSection={<IconPlus size={14} />} onClick={formHandlers.toggle}>
             Manual Entry
           </Button>
         </Group>
       )}
-      {showForm && (
-        <Stack gap="xs">
-          <DrugSearchSelect
-            value={form.catalog_item_id ?? ""}
-            onChange={(id) => setForm({ ...form, catalog_item_id: id })}
-            required
+      {formOpened && (
+        <Stack component="form" gap="xs" onSubmit={handleSubmit(handleCreateNdpsEntry)}>
+          <Controller
+            control={control}
+            name="catalog_item_id"
+            render={({ field }) => (
+              <DrugSearchSelect
+                value={field.value}
+                onChange={field.onChange}
+                error={errors.catalog_item_id?.message}
+                required
+              />
+            )}
           />
           <Group grow>
-            <Select
-              label="Action"
-              data={[
-                { value: "receipt", label: "Receipt" },
-                { value: "destroyed", label: "Destroyed" },
-                { value: "transferred", label: "Transferred" },
-                { value: "adjustment", label: "Adjustment" },
-              ]}
-              value={form.action ?? "receipt"}
-              onChange={(v) => setForm({ ...form, action: v as CreateNdpsEntryRequest["action"] })}
+            <Controller
+              control={control}
+              name="action"
+              render={({ field }) => (
+                <Select
+                  label="Action"
+                  data={ndpsActionOptions}
+                  value={field.value}
+                  onChange={(value) => value && field.onChange(value)}
+                />
+              )}
             />
-            <NumberInput
-              label="Quantity"
-              required
-              min={1}
-              onChange={(v) => setForm({ ...form, quantity: Number(v) })}
+            <Controller
+              control={control}
+              name="quantity"
+              render={({ field }) => (
+                <NumberInput
+                  label="Quantity"
+                  required
+                  min={1}
+                  value={field.value}
+                  onChange={field.onChange}
+                  error={errors.quantity?.message}
+                />
+              )}
             />
           </Group>
-          <TextInput
-            label="Notes"
-            onChange={(e) => setForm({ ...form, notes: e.currentTarget.value || undefined })}
-          />
-          <Button
-            size="xs"
-            onClick={() => createMutation.mutate(form as CreateNdpsEntryRequest)}
-            loading={createMutation.isPending}
-          >
+          <TextInput label="Witnessed by" {...register("witnessed_by")} />
+          <TextInput label="Notes" {...register("notes")} />
+          <Button size="xs" type="submit" loading={createMutation.isPending}>
             Record
           </Button>
         </Stack>
@@ -1982,7 +2136,7 @@ function BatchExpiryTab() {
 function BatchLedgerView() {
   const { data: batches = [], isLoading } = useQuery({
     queryKey: ["pharmacy-batches"],
-    queryFn: () => api.listPharmacyBatches(),
+    queryFn: () => pharmacyService.listPharmacyBatches(),
   });
 
   const columns = [
@@ -2060,7 +2214,7 @@ function NearExpiryHints({ drugNames }: { drugNames: string[] }) {
   const nameSet = useMemo(() => new Set(drugNames.map((n) => n.toLowerCase())), [drugNames]);
   const { data: rows = [] } = useQuery({
     queryKey: ["pharmacy-near-expiry-hints"],
-    queryFn: () => api.getNearExpiryReport({ days: "180" }),
+    queryFn: () => pharmacyService.getNearExpiryReport({ days: "180" }),
     enabled: drugNames.length > 0,
   });
   const relevant = rows.filter((r) => nameSet.has(r.drug_name.toLowerCase())).slice(0, 8);
@@ -2099,7 +2253,7 @@ function NearExpiryHints({ drugNames }: { drugNames: string[] }) {
 function NearExpiryView() {
   const { data: rows = [], isLoading } = useQuery({
     queryKey: ["pharmacy-near-expiry"],
-    queryFn: () => api.getNearExpiryReport({ days: "90" }),
+    queryFn: () => pharmacyService.getNearExpiryReport({ days: "90" }),
   });
 
   const columns = [
@@ -2170,7 +2324,7 @@ function NearExpiryView() {
 function DeadStockView() {
   const { data: rows = [], isLoading } = useQuery({
     queryKey: ["pharmacy-dead-stock"],
-    queryFn: () => api.getPharmacyDeadStock({ idle_days: "90" }),
+    queryFn: () => pharmacyService.getPharmacyDeadStock({ idle_days: "90" }),
   });
 
   const columns = [
@@ -2247,7 +2401,7 @@ function StoresTransfersTab() {
 function PharmacyLocationsView() {
   const { data: assignments = [], isLoading } = useQuery({
     queryKey: ["pharmacy-store-assignments"],
-    queryFn: () => api.listPharmacyStoreAssignments(),
+    queryFn: () => pharmacyService.listPharmacyStoreAssignments(),
   });
 
   const columns = [
@@ -2297,11 +2451,11 @@ function TransfersView() {
 
   const { data: transfers = [], isLoading } = useQuery({
     queryKey: ["pharmacy-transfers"],
-    queryFn: () => api.listPharmacyTransfers(),
+    queryFn: () => pharmacyService.listPharmacyTransfers(),
   });
 
   const approveMutation = useMutation({
-    mutationFn: (id: string) => api.approvePharmacyTransfer(id),
+    mutationFn: (id: string) => pharmacyService.approvePharmacyTransfer(id),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["pharmacy-transfers"] });
       notifications.show({
@@ -2404,7 +2558,7 @@ function AnalyticsTab() {
 function ConsumptionView() {
   const { data: rows = [], isLoading } = useQuery({
     queryKey: ["pharmacy-consumption"],
-    queryFn: () => api.getPharmacyConsumption(),
+    queryFn: () => pharmacyService.getPharmacyConsumption(),
   });
 
   const columns = [
@@ -2447,7 +2601,7 @@ function ConsumptionView() {
 function AbcVedView() {
   const { data: rows = [], isLoading } = useQuery({
     queryKey: ["pharmacy-abc-ved"],
-    queryFn: () => api.getPharmacyAbcVed(),
+    queryFn: () => pharmacyService.getPharmacyAbcVed(),
   });
 
   const abcColors: Record<string, string> = { A: "danger", B: "orange", C: "success" };
@@ -2500,7 +2654,7 @@ function AbcVedView() {
 function UtilizationView() {
   const { data: rows = [], isLoading } = useQuery({
     queryKey: ["pharmacy-utilization"],
-    queryFn: () => api.getDrugUtilization(),
+    queryFn: () => pharmacyService.getDrugUtilization(),
   });
 
   const columns = [
@@ -2584,7 +2738,7 @@ function RxQueueTab({ canReview }: { canReview: boolean }) {
   const params = filterStatus ? { status: filterStatus } : undefined;
   const { data: queue = [], isLoading } = useQuery({
     queryKey: ["pharmacy-rx-queue", params],
-    queryFn: () => api.listRxQueue(params),
+    queryFn: () => pharmacyService.listRxQueue(params),
     refetchInterval: 15_000,
   });
 
@@ -2596,7 +2750,7 @@ function RxQueueTab({ canReview }: { canReview: boolean }) {
       rejection_reason?: string;
       items?: PharmacyRxReviewItemInput[];
     }) =>
-      api.reviewPrescription(data.id, {
+      pharmacyService.reviewPrescription(data.id, {
         action: data.action,
         notes: data.notes,
         rejection_reason: data.rejection_reason,
@@ -2608,6 +2762,7 @@ function RxQueueTab({ canReview }: { canReview: boolean }) {
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
       queryClient.invalidateQueries({ queryKey: ["billing-report-daily"] });
       closeReview();
+      setSelectedId(null);
       setReviewNotes("");
       setRejectionReason("");
       setReviewItems([]);
@@ -2624,9 +2779,20 @@ function RxQueueTab({ canReview }: { canReview: boolean }) {
 
   const { data: reviewDetail, isLoading: reviewDetailLoading } = useQuery({
     queryKey: ["pharmacy-rx-detail", selectedId],
-    queryFn: () => api.getRxDetail(selectedId as string),
+    queryFn: () => {
+      if (!selectedId) throw new Error("No prescription selected");
+      return pharmacyService.getRxDetail(selectedId);
+    },
     enabled: reviewOpened && reviewAction === "approved" && Boolean(selectedId),
   });
+
+  function closeReviewModal() {
+    closeReview();
+    setSelectedId(null);
+    setReviewNotes("");
+    setRejectionReason("");
+    setReviewItems([]);
+  }
 
   function handleOpenReview(id: string, action: string) {
     if (selectedId !== id) {
@@ -2813,7 +2979,7 @@ function RxQueueTab({ canReview }: { canReview: boolean }) {
         onClose={() => setSelectedId(null)}
         title="Prescription Detail"
         position="right"
-        size="xl"
+        size="min(100%, 1040px)"
       >
         {selectedId && (
           <RxDetailView
@@ -2830,9 +2996,9 @@ function RxQueueTab({ canReview }: { canReview: boolean }) {
 
       <Modal
         opened={reviewOpened}
-        onClose={closeReview}
+        onClose={closeReviewModal}
         title={`${reviewAction === "approved" ? "Approve and bill" : reviewAction === "rejected" ? "Reject" : "Hold"} Prescription`}
-        size="sm"
+        size="min(100%, 980px)"
       >
         <Stack>
           <Textarea
@@ -2868,7 +3034,7 @@ function RxQueueTab({ canReview }: { canReview: boolean }) {
             </Alert>
           )}
           <Group justify="flex-end">
-            <Button variant="default" onClick={closeReview}>
+            <Button variant="default" onClick={closeReviewModal}>
               Cancel
             </Button>
             <Button
@@ -2912,7 +3078,7 @@ function RxDetailView({
 }) {
   const { data, isLoading, error } = useQuery({
     queryKey: ["pharmacy-rx-detail", rxQueueId],
-    queryFn: () => api.getRxDetail(rxQueueId),
+    queryFn: () => pharmacyService.getRxDetail(rxQueueId),
     retry: 1,
   });
 
@@ -2954,6 +3120,11 @@ function RxDetailView({
         route: it.route ?? null,
         instructions: it.instructions ?? null,
         created_at: prescription.received_at,
+        item_status: "active",
+        discontinued_at: null,
+        discontinued_by: null,
+        discontinue_reason: null,
+        catalog_item_id: it.catalog_item_id,
       })),
     },
   ];
@@ -3266,17 +3437,17 @@ function PosCounterTab({ canCreate }: { canCreate: boolean }) {
 
   const { data: daySummary } = useQuery({
     queryKey: ["pharmacy-pos-day-summary"],
-    queryFn: () => api.getPosDaySummary(),
+    queryFn: () => pharmacyService.getPosDaySummary(),
     refetchInterval: 60_000,
   });
 
   const { data: sales = [], isLoading: salesLoading } = useQuery({
     queryKey: ["pharmacy-pos-sales"],
-    queryFn: () => api.listPosSales(),
+    queryFn: () => pharmacyService.listPosSales(),
   });
 
   const createMutation = useMutation({
-    mutationFn: (data: Record<string, unknown>) => api.createPosSale(data),
+    mutationFn: (data: Record<string, unknown>) => pharmacyService.createPosSale(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["pharmacy-pos"] });
       queryClient.invalidateQueries({ queryKey: ["pharmacy-pos-day-summary"] });
@@ -3599,3 +3770,5 @@ function PosCounterTab({ canCreate }: { canCreate: boolean }) {
     </Stack>
   );
 }
+
+import { zodResolver } from "@hookform/resolvers/zod";

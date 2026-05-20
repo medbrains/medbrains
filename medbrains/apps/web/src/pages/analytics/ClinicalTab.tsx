@@ -1,12 +1,12 @@
 import { AreaChart, BarChart, LineChart } from "@mantine/charts";
 import { Card, Group, SegmentedControl, SimpleGrid, Stack, Text } from "@mantine/core";
 import { DateInput } from "@mantine/dates";
-import { api } from "@medbrains/api";
 import type { ClinicalIndicatorRow, ErVolumeRow, OtUtilizationRow } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { DataTable } from "../../components";
 import type { Column } from "../../components/DataTable";
+import { analyticsService } from "../../services/analytics.service";
 
 // ── Helpers ──────────────────────────────────────────────
 
@@ -75,9 +75,9 @@ export function ClinicalTab() {
 // ── OT Utilization Section ──────────────────────────────
 
 function OtSection({ params }: { params: { from?: string; to?: string } }) {
-  const { data, isLoading } = useQuery({
+  const { data, isLoading } = useQuery<OtUtilizationRow[]>({
     queryKey: ["analytics", "ot-utilization", params],
-    queryFn: () => api.getOtUtilization(params),
+    queryFn: () => analyticsService.getOtUtilization(params),
   });
 
   const rows = toRows(data);
@@ -148,9 +148,9 @@ function OtSection({ params }: { params: { from?: string; to?: string } }) {
 // ── ER Volume Section ───────────────────────────────────
 
 function ErSection({ params }: { params: { from?: string; to?: string } }) {
-  const { data, isLoading } = useQuery({
+  const { data, isLoading } = useQuery<ErVolumeRow[]>({
     queryKey: ["analytics", "er-volume", params],
-    queryFn: () => api.getErVolume(params),
+    queryFn: () => analyticsService.getErVolume(params),
   });
 
   const rows = toRows(data);
@@ -247,9 +247,9 @@ function ErSection({ params }: { params: { from?: string; to?: string } }) {
 // ── Clinical Indicators Section ─────────────────────────
 
 function IndicatorsSection({ params }: { params: { from?: string; to?: string } }) {
-  const { data, isLoading } = useQuery({
+  const { data, isLoading } = useQuery<ClinicalIndicatorRow[]>({
     queryKey: ["analytics", "clinical-indicators", params],
-    queryFn: () => api.getClinicalIndicators(params),
+    queryFn: () => analyticsService.getClinicalIndicators(params),
   });
 
   const rows = toRows(data);

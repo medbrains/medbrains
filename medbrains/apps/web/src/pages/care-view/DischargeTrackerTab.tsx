@@ -1,15 +1,15 @@
 import { Badge, Progress, Stack, Text } from "@mantine/core";
-import { api } from "@medbrains/api";
 import type { DischargeReadinessRow } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
 import { DataTable } from "../../components";
 import type { Column } from "../../components/DataTable";
+import { careViewService } from "../../services/careView.service";
 import { readinessColor } from "./shared";
 
 export function DischargeTrackerTab({ wardId }: { wardId: string | null }) {
-  const { data, isLoading } = useQuery({
+  const { data, isLoading } = useQuery<DischargeReadinessRow[]>({
     queryKey: ["care-view", "discharge-tracker", wardId],
-    queryFn: () => api.dischargeReadiness(wardId ?? undefined),
+    queryFn: () => careViewService.dischargeReadiness(wardId ?? undefined),
     refetchInterval: 60_000,
   });
 

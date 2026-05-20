@@ -18,7 +18,6 @@ import {
 import { DateTimePicker } from "@mantine/dates";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
 import { useHasPermission } from "@medbrains/stores";
 import type { IamAccessRequest } from "@medbrains/types";
 import { P, PERMISSIONS } from "@medbrains/types";
@@ -35,6 +34,7 @@ import { useMemo, useState } from "react";
 
 import { PageHeader } from "../../components";
 import { useRequirePermission } from "../../hooks/useRequirePermission";
+import { adminAccessService } from "../../services/adminAccess.service";
 
 const STATUS_COLOR: Record<IamAccessRequest["status"], string> = {
   pending: "warning",
@@ -90,12 +90,13 @@ export function AccessRequestsPage() {
 
   const requestsQuery = useQuery({
     queryKey: ["iam-access-requests", status],
-    queryFn: () => api.listIamAccessRequests(status === "all" ? undefined : { status }),
+    queryFn: () =>
+      adminAccessService.listIamAccessRequests(status === "all" ? undefined : { status }),
   });
 
   const usersQuery = useQuery({
     queryKey: ["setup-users"],
-    queryFn: () => api.listSetupUsers(),
+    queryFn: () => adminAccessService.listUsers(),
     enabled: createOpened && canManage,
   });
 
@@ -115,12 +116,18 @@ export function AccessRequestsPage() {
     mutationFn: async () => {
       if (!reviewTarget) throw new Error("No request selected");
       if (reviewTarget.action === "approve") {
-        return api.approveIamAccessRequest(reviewTarget.request.id, { note: reviewNote.trim() });
+        return adminAccessService.approveIamAccessRequest(reviewTarget.request.id, {
+          note: reviewNote.trim(),
+        });
       }
       if (reviewTarget.action === "reject") {
-        return api.rejectIamAccessRequest(reviewTarget.request.id, { note: reviewNote.trim() });
+        return adminAccessService.rejectIamAccessRequest(reviewTarget.request.id, {
+          note: reviewNote.trim(),
+        });
       }
-      return api.revokeIamAccessRequest(reviewTarget.request.id, { reason: reviewNote.trim() });
+      return adminAccessService.revokeIamAccessRequest(reviewTarget.request.id, {
+        reason: reviewNote.trim(),
+      });
     },
     onSuccess: () => {
       notifications.show({ message: "Access request updated", color: "green" });
@@ -322,7 +329,7 @@ function CreateAccessRequestDrawer({
 
   const createMutation = useMutation({
     mutationFn: () =>
-      api.createIamAccessRequest({
+      adminAccessService.createIamAccessRequest({
         target_user_id: canManage ? (targetUserId ?? undefined) : undefined,
         requested_permissions: permissions,
         requested_modules: modulesForPermissions(permissions),

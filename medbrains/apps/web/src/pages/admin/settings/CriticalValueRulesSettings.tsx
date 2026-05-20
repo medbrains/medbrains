@@ -1,3 +1,4 @@
+import { zodResolver } from "@hookform/resolvers/zod";
 import {
   ActionIcon,
   Button,
@@ -11,34 +12,39 @@ import {
   Textarea,
   TextInput,
 } from "@mantine/core";
+import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
+import { type CriticalValueRuleFormInput, criticalValueRuleFormSchema } from "@medbrains/schemas";
 import { useHasPermission } from "@medbrains/stores";
-import type { CreateCriticalValueRuleRequest, CriticalValueRule } from "@medbrains/types";
+import type { CriticalValueRule } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import { IconPlus, IconTrash } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { Controller, useForm } from "react-hook-form";
+import {
+  CRITICAL_VALUE_GENDER_OPTIONS,
+  DEFAULT_CRITICAL_VALUE_RULE_FORM_VALUES,
+  toCreateCriticalValueRuleRequest,
+} from "../../../forms/clinical-settings.form";
+import { clinicalMastersService } from "../../../services/clinicalMasters.service";
 
 export function CriticalValueRulesSettings() {
   const canManage = useHasPermission(P.ADMIN.SETTINGS.GENERAL.MANAGE);
   const queryClient = useQueryClient();
-  const [opened, setOpened] = useState(false);
-  const [testCode, setTestCode] = useState("");
-  const [testName, setTestName] = useState("");
-  const [lowCritical, setLowCritical] = useState<number | string>("");
-  const [highCritical, setHighCritical] = useState<number | string>("");
-  const [unit, setUnit] = useState("");
-  const [gender, setGender] = useState<string | null>(null);
-  const [alertMessage, setAlertMessage] = useState("");
+  const [opened, { open, close }] = useDisclosure(false);
+  const form = useForm<CriticalValueRuleFormInput>({
+    resolver: zodResolver(criticalValueRuleFormSchema),
+    defaultValues: DEFAULT_CRITICAL_VALUE_RULE_FORM_VALUES,
+  });
 
   const { data: rules = [] } = useQuery({
     queryKey: ["critical-value-rules"],
-    queryFn: () => api.listCriticalValueRules(),
+    queryFn: () => clinicalMastersService.listCriticalValueRules(),
   });
 
   const createMutation = useMutation({
-    mutationFn: (data: CreateCriticalValueRuleRequest) => api.createCriticalValueRule(data),
+    mutationFn: (data: CriticalValueRuleFormInput) =>
+      clinicalMastersService.createCriticalValueRule(toCreateCriticalValueRuleRequest(data)),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["critical-value-rules"] });
       notifications.show({
@@ -54,7 +60,7 @@ export function CriticalValueRulesSettings() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => api.deleteCriticalValueRule(id),
+    mutationFn: (id: string) => clinicalMastersService.deleteCriticalValueRule(id),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["critical-value-rules"] });
       notifications.show({ title: "Deleted", message: "Rule removed", color: "warning" });
@@ -62,27 +68,8 @@ export function CriticalValueRulesSettings() {
   });
 
   const handleClose = () => {
-    setOpened(false);
-    setTestCode("");
-    setTestName("");
-    setLowCritical("");
-    setHighCritical("");
-    setUnit("");
-    setGender(null);
-    setAlertMessage("");
-  };
-
-  const handleCreate = () => {
-    if (!testCode.trim() || !testName.trim() || !alertMessage.trim()) return;
-    createMutation.mutate({
-      test_code: testCode.trim(),
-      test_name: testName.trim(),
-      low_critical: typeof lowCritical === "number" ? lowCritical : undefined,
-      high_critical: typeof highCritical === "number" ? highCritical : undefined,
-      unit: unit.trim() || undefined,
-      gender: gender ?? undefined,
-      alert_message: alertMessage.trim(),
-    });
+    close();
+    form.reset(DEFAULT_CRITICAL_VALUE_RULE_FORM_VALUES);
   };
 
   return (
@@ -90,7 +77,7 @@ export function CriticalValueRulesSettings() {
       <Group justify="space-between">
         <Text fw={600}>Critical Value Rules ({rules.length})</Text>
         {canManage && (
-          <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => setOpened(true)}>
+          <Button size="xs" leftSection={<IconPlus size={14} />} onClick={open}>
             Add Rule
           </Button>
         )}
@@ -165,75 +152,121 @@ export function CriticalValueRulesSettings() {
       </Table>
 
       <Modal opened={opened} onClose={handleClose} title="Add Critical Value Rule" size="md">
-        <Stack gap="sm">
+        <Stack
+          component="form"
+          gap="sm"
+          onSubmit={form.handleSubmit((values) => createMutation.mutate(values))}
+        >
           <Group grow>
-            <TextInput
-              label="Test Code"
-              placeholder="e.g. K"
-              value={testCode}
-              onChange={(e) => setTestCode(e.currentTarget.value)}
-              required
+            <Controller
+              control={form.control}
+              name="test_code"
+              render={({ field, fieldState }) => (
+                <TextInput
+                  label="Test Code"
+                  placeholder="e.g. K"
+                  required
+                  error={fieldState.error?.message}
+                  {...field}
+                />
+              )}
             />
-            <TextInput
-              label="Test Name"
-              placeholder="e.g. Potassium"
-              value={testName}
-              onChange={(e) => setTestName(e.currentTarget.value)}
-              required
+            <Controller
+              control={form.control}
+              name="test_name"
+              render={({ field, fieldState }) => (
+                <TextInput
+                  label="Test Name"
+                  placeholder="e.g. Potassium"
+                  required
+                  error={fieldState.error?.message}
+                  {...field}
+                />
+              )}
             />
           </Group>
           <Group grow>
-            <NumberInput
-              label="Low Critical"
-              placeholder="e.g. 2.5"
-              value={lowCritical}
-              onChange={setLowCritical}
-              decimalScale={4}
+            <Controller
+              control={form.control}
+              name="low_critical"
+              render={({ field, fieldState }) => (
+                <NumberInput
+                  label="Low Critical"
+                  placeholder="e.g. 2.5"
+                  value={field.value}
+                  onChange={field.onChange}
+                  decimalScale={4}
+                  error={fieldState.error?.message}
+                />
+              )}
             />
-            <NumberInput
-              label="High Critical"
-              placeholder="e.g. 6.5"
-              value={highCritical}
-              onChange={setHighCritical}
-              decimalScale={4}
+            <Controller
+              control={form.control}
+              name="high_critical"
+              render={({ field, fieldState }) => (
+                <NumberInput
+                  label="High Critical"
+                  placeholder="e.g. 6.5"
+                  value={field.value}
+                  onChange={field.onChange}
+                  decimalScale={4}
+                  error={fieldState.error?.message}
+                />
+              )}
             />
           </Group>
           <Group grow>
-            <TextInput
-              label="Unit"
-              placeholder="e.g. mEq/L"
-              value={unit}
-              onChange={(e) => setUnit(e.currentTarget.value)}
+            <Controller
+              control={form.control}
+              name="unit"
+              render={({ field, fieldState }) => (
+                <TextInput
+                  label="Unit"
+                  placeholder="e.g. mEq/L"
+                  error={fieldState.error?.message}
+                  {...field}
+                />
+              )}
             />
-            <Select
-              label="Gender"
-              data={[
-                { value: "male", label: "Male" },
-                { value: "female", label: "Female" },
-              ]}
-              value={gender}
-              onChange={setGender}
-              clearable
-              placeholder="All"
+            <Controller
+              control={form.control}
+              name="gender"
+              render={({ field, fieldState }) => (
+                <Select
+                  label="Gender"
+                  data={CRITICAL_VALUE_GENDER_OPTIONS}
+                  value={field.value}
+                  onChange={field.onChange}
+                  clearable
+                  placeholder="All"
+                  error={fieldState.error?.message}
+                />
+              )}
             />
           </Group>
-          <Textarea
-            label="Alert Message"
-            placeholder="Critical value alert text"
-            value={alertMessage}
-            onChange={(e) => setAlertMessage(e.currentTarget.value)}
-            required
-            autosize
-            minRows={2}
+          <Controller
+            control={form.control}
+            name="alert_message"
+            render={({ field, fieldState }) => (
+              <Textarea
+                label="Alert Message"
+                placeholder="Critical value alert text"
+                required
+                autosize
+                minRows={2}
+                error={fieldState.error?.message}
+                {...field}
+              />
+            )}
           />
           <Group justify="flex-end">
             <Button variant="subtle" onClick={handleClose}>
               Cancel
             </Button>
             <Button
-              onClick={handleCreate}
+              type="submit"
               loading={createMutation.isPending}
-              disabled={!testCode.trim() || !testName.trim() || !alertMessage.trim()}
+              disabled={createMutation.isPending}
             >
               Create
             </Button>

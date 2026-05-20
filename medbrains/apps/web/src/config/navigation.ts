@@ -436,6 +436,12 @@ export const NAV_GROUPS: NavGroupConfig[] = [
         requiredPermission: "analytics.view",
       },
       {
+        i18nKey: "reports",
+        path: "/reports",
+        icon: "IconReport",
+        requiredPermission: "analytics.view",
+      },
+      {
         i18nKey: "audit",
         path: "/audit",
         icon: "IconFileAnalytics",

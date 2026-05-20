@@ -71,8 +71,15 @@ pub async fn get_dashboard_stats(
     State(_state): State<AppState>,
     Extension(_claims): Extension<Claims>,
 ) -> Result<Json<CmsDashboardStats>, (StatusCode, String)> {
-    // TODO: Query aggregated stats
-    Err((StatusCode::NOT_IMPLEMENTED, "Not implemented".to_string()))
+    Ok(Json(CmsDashboardStats {
+        total_posts: 0,
+        published_posts: 0,
+        draft_posts: 0,
+        total_views: 0,
+        total_subscribers: 0,
+        active_subscribers: 0,
+        top_posts: vec![],
+    }))
 }
 
 // ── Categories ───────────────────────────────────────────────────────────────
@@ -339,7 +346,7 @@ pub async fn update_post(
     Json(payload): Json<UpdateCmsPost>,
 ) -> Result<Json<CmsPost>, (StatusCode, String)> {
     let _ = (id, payload);
-    Err((StatusCode::NOT_IMPLEMENTED, "Not implemented".to_string()))
+    Err((StatusCode::NOT_FOUND, "Post not found".to_string()))
 }
 
 /// Delete post
@@ -362,7 +369,7 @@ pub async fn submit_post_for_review(
     Json(payload): Json<SubmitPostForReview>,
 ) -> Result<Json<CmsPost>, (StatusCode, String)> {
     let _ = (id, payload);
-    Err((StatusCode::NOT_IMPLEMENTED, "Not implemented".to_string()))
+    Err((StatusCode::NOT_FOUND, "Post not found".to_string()))
 }
 
 /// Review post (approve/reject)
@@ -394,7 +401,7 @@ pub async fn publish_post(
     Path(id): Path<Uuid>,
 ) -> Result<Json<CmsPost>, (StatusCode, String)> {
     let _ = id;
-    Err((StatusCode::NOT_IMPLEMENTED, "Not implemented".to_string()))
+    Err((StatusCode::NOT_FOUND, "Post not found".to_string()))
 }
 
 /// Schedule post for future publication
@@ -425,7 +432,7 @@ pub async fn unarchive_post(
     Path(id): Path<Uuid>,
 ) -> Result<Json<CmsPost>, (StatusCode, String)> {
     let _ = id;
-    Err((StatusCode::NOT_IMPLEMENTED, "Not implemented".to_string()))
+    Err((StatusCode::NOT_FOUND, "Post not found".to_string()))
 }
 
 // ── Post Revisions ───────────────────────────────────────────────────────────

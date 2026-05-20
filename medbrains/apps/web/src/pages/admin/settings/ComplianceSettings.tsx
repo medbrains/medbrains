@@ -1,10 +1,10 @@
 import { Alert, Card, Divider, Group, Loader, Stack, Switch, Text, Title } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
 import type { ComplianceSettings as ComplianceFlags, TenantSettingsRow } from "@medbrains/types";
 import { IconAlertTriangle, IconShieldCheck } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo } from "react";
+import { tenantSettingsService } from "../../../services/tenantSettings.service";
 
 const DEFAULT_COMPLIANCE: ComplianceFlags = {
   enforce_drug_scheduling: false,
@@ -97,21 +97,24 @@ const ENFORCEMENT_TOGGLES: ToggleItem[] = [
   },
 ];
 
+function isComplianceKey(key: string): key is keyof ComplianceFlags {
+  return key in DEFAULT_COMPLIANCE;
+}
+
 export function ComplianceSettingsTab() {
   const queryClient = useQueryClient();
 
   const { data: raw = [], isLoading } = useQuery({
     queryKey: ["tenant-settings", "compliance"],
-    queryFn: () => api.getTenantSettings("compliance"),
+    queryFn: () => tenantSettingsService.getTenantSettings("compliance"),
     staleTime: 300_000,
   });
 
   const settings = useMemo(() => {
     const result = { ...DEFAULT_COMPLIANCE };
     for (const row of raw) {
-      const key = row.key as keyof ComplianceFlags;
-      if (key in result) {
-        result[key] = row.value === true || row.value === "true";
+      if (isComplianceKey(row.key)) {
+        result[row.key] = row.value === true || row.value === "true";
       }
     }
     return result;
@@ -119,7 +122,11 @@ export function ComplianceSettingsTab() {
 
   const updateMutation = useMutation({
     mutationFn: (data: { key: string; value: boolean }) =>
-      api.updateTenantSetting({ category: "compliance", key: data.key, value: data.value }),
+      tenantSettingsService.updateTenantSetting({
+        category: "compliance",
+        key: data.key,
+        value: data.value,
+      }),
     onSuccess: (_data, variables) => {
       queryClient.setQueryData<TenantSettingsRow[]>(["tenant-settings", "compliance"], (old) => {
         if (!old) return old;

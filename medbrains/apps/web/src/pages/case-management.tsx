@@ -1,3 +1,4 @@
+import { zodResolver } from "@hookform/resolvers/zod";
 import {
   ActionIcon,
   Badge,
@@ -19,7 +20,22 @@ import {
 import { DateInput } from "@mantine/dates";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
+import type {
+  CaseAssignmentFormInput,
+  CaseAssignmentUpdateFormInput,
+  CaseAutoAssignFormInput,
+  CaseReferralFormInput,
+  CaseReferralUpdateFormInput,
+  DischargeBarrierFormInput,
+} from "@medbrains/schemas";
+import {
+  caseAssignmentFormSchema,
+  caseAssignmentUpdateFormSchema,
+  caseAutoAssignFormSchema,
+  caseReferralFormSchema,
+  caseReferralUpdateFormSchema,
+  dischargeBarrierFormSchema,
+} from "@medbrains/schemas";
 import { useHasPermission } from "@medbrains/stores";
 import type {
   AutoAssignRequest,
@@ -49,12 +65,23 @@ import {
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
+import { Controller, useForm } from "react-hook-form";
 import { DataTable, PageHeader } from "../components";
 import type { Column } from "../components/DataTable";
 import { PatientSearchSelect } from "../components/PatientSearchSelect";
+import {
+  caseOptionalText,
+  casePriorityOptions,
+  caseReferralStatusOptions,
+  caseReferralTypeOptions,
+  caseStatusOptions,
+  dischargeBarrierTypeOptions,
+  toCasePriorityFormValue,
+  toCaseReferralStatusFormValue,
+  toCaseStatusFormValue,
+} from "../forms/case-management.form";
 import { useRequirePermission } from "../hooks/useRequirePermission";
-
-// ── Constants ──────────────────────────────────────────
+import { caseManagementService } from "../services/case-management.service";
 
 const STATUS_COLORS: Record<string, string> = {
   assigned: "primary",
@@ -82,28 +109,6 @@ const BARRIER_TYPE_COLORS: Record<string, string> = {
   other: "dark",
 };
 
-const BARRIER_TYPES = [
-  { value: "insurance_auth", label: "Insurance Auth" },
-  { value: "placement", label: "Placement" },
-  { value: "equipment", label: "Equipment" },
-  { value: "family", label: "Family" },
-  { value: "transport", label: "Transport" },
-  { value: "financial", label: "Financial" },
-  { value: "clinical", label: "Clinical" },
-  { value: "documentation", label: "Documentation" },
-  { value: "other", label: "Other" },
-];
-
-const REFERRAL_TYPES = [
-  { value: "post_acute", label: "Post Acute" },
-  { value: "rehab", label: "Rehab" },
-  { value: "home_health", label: "Home Health" },
-  { value: "social_work", label: "Social Work" },
-  { value: "hospice", label: "Hospice" },
-  { value: "snf", label: "SNF" },
-  { value: "other", label: "Other" },
-];
-
 const REFERRAL_STATUS_COLORS: Record<string, string> = {
   pending: "warning",
   accepted: "success",
@@ -111,12 +116,6 @@ const REFERRAL_STATUS_COLORS: Record<string, string> = {
   completed: "teal",
   cancelled: "slate",
 };
-
-const PRIORITIES = [
-  { value: "routine", label: "Routine" },
-  { value: "urgent", label: "Urgent" },
-  { value: "complex", label: "Complex" },
-];
 
 // ── Helpers ────────────────────────────────────────────
 
@@ -200,37 +199,71 @@ function CaseBoardTab() {
 
   const { data: assignments = [], isLoading } = useQuery({
     queryKey: ["case-assignments"],
-    queryFn: () => api.listCaseAssignments(),
+    queryFn: () => caseManagementService.listCaseAssignments(),
   });
 
   const { data: caseload = [] } = useQuery({
     queryKey: ["case-caseload"],
-    queryFn: () => api.caseloadSummary(),
+    queryFn: () => caseManagementService.caseloadSummary(),
   });
 
-  // Create form
-  const [form, setForm] = useState<CreateCaseAssignmentRequest>({
-    admission_id: "",
-    patient_id: "",
-    case_manager_id: "",
+  const createForm = useForm<CaseAssignmentFormInput>({
+    resolver: zodResolver(caseAssignmentFormSchema),
+    defaultValues: {
+      admission_id: "",
+      patient_id: "",
+      case_manager_id: "",
+      priority: "routine",
+      target_discharge_date: "",
+      notes: "",
+    },
   });
-
-  // Edit form
-  const [editForm, setEditForm] = useState<UpdateCaseAssignmentRequest>({});
-
-  // Auto-assign form
-  const [autoForm, setAutoForm] = useState<AutoAssignRequest>({
-    admission_id: "",
-    patient_id: "",
+  const {
+    control: createControl,
+    handleSubmit: handleCreateSubmit,
+    reset: resetCreate,
+    formState: { errors: createErrors },
+  } = createForm;
+  const editForm = useForm<CaseAssignmentUpdateFormInput>({
+    resolver: zodResolver(caseAssignmentUpdateFormSchema),
+    defaultValues: {
+      status: "",
+      priority: "",
+      target_discharge_date: "",
+      actual_discharge_date: "",
+      discharge_disposition: "",
+      notes: "",
+    },
   });
+  const {
+    control: editControl,
+    handleSubmit: handleEditSubmit,
+    reset: resetEdit,
+    formState: { errors: editErrors },
+  } = editForm;
+  const autoForm = useForm<CaseAutoAssignFormInput>({
+    resolver: zodResolver(caseAutoAssignFormSchema),
+    defaultValues: {
+      admission_id: "",
+      patient_id: "",
+      priority: "",
+    },
+  });
+  const {
+    control: autoControl,
+    handleSubmit: handleAutoSubmit,
+    reset: resetAuto,
+    formState: { errors: autoErrors },
+  } = autoForm;
 
   const createMut = useMutation({
-    mutationFn: () => api.createCaseAssignment(form),
+    mutationFn: (data: CreateCaseAssignmentRequest) =>
+      caseManagementService.createCaseAssignment(data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["case-assignments"] });
       void qc.invalidateQueries({ queryKey: ["case-caseload"] });
       createHandlers.close();
-      setForm({ admission_id: "", patient_id: "", case_manager_id: "" });
+      resetCreate();
       notifications.show({
         title: "Case Assigned",
         message: "Case assignment created",
@@ -240,16 +273,16 @@ function CaseBoardTab() {
   });
 
   const updateMut = useMutation({
-    mutationFn: () => {
+    mutationFn: (data: UpdateCaseAssignmentRequest) => {
       if (!editing) return Promise.reject(new Error("No case selected"));
-      return api.updateCaseAssignment(editing.id, editForm);
+      return caseManagementService.updateCaseAssignment(editing.id, data);
     },
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["case-assignments"] });
       void qc.invalidateQueries({ queryKey: ["case-caseload"] });
       editHandlers.close();
       setEditing(null);
-      setEditForm({});
+      resetEdit();
       notifications.show({
         title: "Updated",
         message: "Case assignment updated",
@@ -259,12 +292,12 @@ function CaseBoardTab() {
   });
 
   const autoMut = useMutation({
-    mutationFn: () => api.autoAssignCase(autoForm),
+    mutationFn: (data: AutoAssignRequest) => caseManagementService.autoAssignCase(data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["case-assignments"] });
       void qc.invalidateQueries({ queryKey: ["case-caseload"] });
       autoHandlers.close();
-      setAutoForm({ admission_id: "", patient_id: "" });
+      resetAuto();
       notifications.show({
         title: "Auto-Assigned",
         message: "Case automatically assigned to a case manager",
@@ -273,6 +306,36 @@ function CaseBoardTab() {
       });
     },
   });
+
+  const submitCreateCase = (values: CaseAssignmentFormInput) => {
+    createMut.mutate({
+      admission_id: values.admission_id.trim(),
+      patient_id: values.patient_id.trim(),
+      case_manager_id: values.case_manager_id.trim(),
+      priority: values.priority,
+      target_discharge_date: caseOptionalText(values.target_discharge_date),
+      notes: caseOptionalText(values.notes),
+    });
+  };
+
+  const submitUpdateCase = (values: CaseAssignmentUpdateFormInput) => {
+    updateMut.mutate({
+      status: values.status || undefined,
+      priority: values.priority || undefined,
+      target_discharge_date: caseOptionalText(values.target_discharge_date),
+      actual_discharge_date: caseOptionalText(values.actual_discharge_date),
+      discharge_disposition: caseOptionalText(values.discharge_disposition),
+      notes: caseOptionalText(values.notes),
+    });
+  };
+
+  const submitAutoAssign = (values: CaseAutoAssignFormInput) => {
+    autoMut.mutate({
+      admission_id: values.admission_id.trim(),
+      patient_id: values.patient_id.trim(),
+      priority: values.priority || undefined,
+    });
+  };
 
   // Calculate LOS and risk badges
   const enhancedAssignments = useMemo(() => {
@@ -413,11 +476,13 @@ function CaseBoardTab() {
               size="sm"
               onClick={() => {
                 setEditing(r);
-                setEditForm({
-                  status: r.status,
-                  priority: r.priority,
-                  target_discharge_date: r.target_discharge_date,
-                  notes: r.notes,
+                resetEdit({
+                  status: toCaseStatusFormValue(r.status),
+                  priority: toCasePriorityFormValue(r.priority),
+                  target_discharge_date: r.target_discharge_date ?? "",
+                  actual_discharge_date: r.actual_discharge_date ?? "",
+                  discharge_disposition: r.discharge_disposition ?? "",
+                  notes: r.notes ?? "",
                 });
                 editHandlers.open();
               }}
@@ -503,50 +568,78 @@ function CaseBoardTab() {
         position="right"
         size="xl"
       >
-        <Stack>
-          <TextInput
-            label="Admission ID"
-            required
-            value={form.admission_id}
-            onChange={(e) => setForm({ ...form, admission_id: e.currentTarget.value })}
+        <Stack component="form" onSubmit={handleCreateSubmit(submitCreateCase)}>
+          <Controller
+            name="admission_id"
+            control={createControl}
+            render={({ field }) => (
+              <TextInput
+                label="Admission ID"
+                required
+                {...field}
+                error={createErrors.admission_id?.message}
+              />
+            )}
           />
-          <PatientSearchSelect
-            value={form.patient_id}
-            onChange={(v) => setForm({ ...form, patient_id: v })}
-            required
+          <Controller
+            name="patient_id"
+            control={createControl}
+            render={({ field }) => (
+              <PatientSearchSelect value={field.value} onChange={field.onChange} required />
+            )}
           />
-          <TextInput
-            label="Case Manager ID"
-            required
-            value={form.case_manager_id}
-            onChange={(e) => setForm({ ...form, case_manager_id: e.currentTarget.value })}
+          {createErrors.patient_id?.message && (
+            <Text size="xs" c="danger">
+              {createErrors.patient_id.message}
+            </Text>
+          )}
+          <Controller
+            name="case_manager_id"
+            control={createControl}
+            render={({ field }) => (
+              <TextInput
+                label="Case Manager ID"
+                required
+                {...field}
+                error={createErrors.case_manager_id?.message}
+              />
+            )}
           />
-          <Select
-            label="Priority"
-            data={PRIORITIES}
-            value={form.priority ?? "routine"}
-            onChange={(v) => setForm({ ...form, priority: v ?? undefined })}
+          <Controller
+            name="priority"
+            control={createControl}
+            render={({ field }) => (
+              <Select
+                label="Priority"
+                data={casePriorityOptions}
+                value={field.value}
+                onChange={(value) => field.onChange(value ?? "routine")}
+                error={createErrors.priority?.message}
+              />
+            )}
           />
-          <DateInput
-            label="Target Discharge Date"
-            value={form.target_discharge_date ? new Date(form.target_discharge_date) : null}
-            onChange={(d) =>
-              setForm({
-                ...form,
-                target_discharge_date: d ? new Date(d).toISOString().slice(0, 10) : undefined,
-              })
-            }
+          <Controller
+            name="target_discharge_date"
+            control={createControl}
+            render={({ field }) => (
+              <DateInput
+                label="Target Discharge Date"
+                value={field.value ? new Date(field.value) : null}
+                onChange={(date) =>
+                  field.onChange(date ? new Date(date).toISOString().slice(0, 10) : "")
+                }
+                error={createErrors.target_discharge_date?.message}
+              />
+            )}
           />
-          <Textarea
-            label="Notes"
-            value={form.notes ?? ""}
-            onChange={(e) => setForm({ ...form, notes: e.currentTarget.value || undefined })}
+          <Controller
+            name="notes"
+            control={createControl}
+            render={({ field }) => (
+              <Textarea label="Notes" {...field} error={createErrors.notes?.message} />
+            )}
           />
-          <Button
-            onClick={() => createMut.mutate()}
-            loading={createMut.isPending}
-            disabled={!form.admission_id || !form.patient_id || !form.case_manager_id}
-          >
+          <Button type="submit" loading={createMut.isPending}>
             Create Assignment
           </Button>
         </Stack>
@@ -560,31 +653,46 @@ function CaseBoardTab() {
         position="right"
         size="sm"
       >
-        <Stack>
-          <TextInput
-            label="Admission ID"
-            required
-            value={autoForm.admission_id}
-            onChange={(e) => setAutoForm({ ...autoForm, admission_id: e.currentTarget.value })}
+        <Stack component="form" onSubmit={handleAutoSubmit(submitAutoAssign)}>
+          <Controller
+            name="admission_id"
+            control={autoControl}
+            render={({ field }) => (
+              <TextInput
+                label="Admission ID"
+                required
+                {...field}
+                error={autoErrors.admission_id?.message}
+              />
+            )}
           />
-          <PatientSearchSelect
-            value={autoForm.patient_id}
-            onChange={(v) => setAutoForm({ ...autoForm, patient_id: v })}
-            required
+          <Controller
+            name="patient_id"
+            control={autoControl}
+            render={({ field }) => (
+              <PatientSearchSelect value={field.value} onChange={field.onChange} required />
+            )}
           />
-          <Select
-            label="Priority"
-            data={PRIORITIES}
-            value={autoForm.priority ?? null}
-            onChange={(v) => setAutoForm({ ...autoForm, priority: v ?? undefined })}
-            clearable
+          {autoErrors.patient_id?.message && (
+            <Text size="xs" c="danger">
+              {autoErrors.patient_id.message}
+            </Text>
+          )}
+          <Controller
+            name="priority"
+            control={autoControl}
+            render={({ field }) => (
+              <Select
+                label="Priority"
+                data={casePriorityOptions}
+                value={field.value || null}
+                onChange={(value) => field.onChange(value ?? "")}
+                clearable
+                error={autoErrors.priority?.message}
+              />
+            )}
           />
-          <Button
-            onClick={() => autoMut.mutate()}
-            loading={autoMut.isPending}
-            disabled={!autoForm.admission_id || !autoForm.patient_id}
-            leftSection={<IconRobot size={16} />}
-          >
+          <Button type="submit" loading={autoMut.isPending} leftSection={<IconRobot size={16} />}>
             Auto-Assign
           </Button>
         </Stack>
@@ -598,68 +706,82 @@ function CaseBoardTab() {
         position="right"
         size="xl"
       >
-        <Stack>
-          <Select
-            label="Status"
-            data={[
-              { value: "assigned", label: "Assigned" },
-              { value: "active", label: "Active" },
-              { value: "pending_discharge", label: "Pending Discharge" },
-              { value: "discharged", label: "Discharged" },
-              { value: "closed", label: "Closed" },
-            ]}
-            value={editForm.status ?? null}
-            onChange={(v) =>
-              setEditForm({
-                ...editForm,
-                status: (v as UpdateCaseAssignmentRequest["status"]) ?? undefined,
-              })
-            }
+        <Stack component="form" onSubmit={handleEditSubmit(submitUpdateCase)}>
+          <Controller
+            name="status"
+            control={editControl}
+            render={({ field }) => (
+              <Select
+                label="Status"
+                data={caseStatusOptions}
+                value={field.value || null}
+                onChange={(value) => field.onChange(value ?? "")}
+                clearable
+                error={editErrors.status?.message}
+              />
+            )}
           />
-          <Select
-            label="Priority"
-            data={PRIORITIES}
-            value={editForm.priority ?? null}
-            onChange={(v) => setEditForm({ ...editForm, priority: v ?? undefined })}
+          <Controller
+            name="priority"
+            control={editControl}
+            render={({ field }) => (
+              <Select
+                label="Priority"
+                data={casePriorityOptions}
+                value={field.value || null}
+                onChange={(value) => field.onChange(value ?? "")}
+                clearable
+                error={editErrors.priority?.message}
+              />
+            )}
           />
-          <DateInput
-            label="Target Discharge Date"
-            value={editForm.target_discharge_date ? new Date(editForm.target_discharge_date) : null}
-            onChange={(d) =>
-              setEditForm({
-                ...editForm,
-                target_discharge_date: d ? new Date(d).toISOString().slice(0, 10) : undefined,
-              })
-            }
+          <Controller
+            name="target_discharge_date"
+            control={editControl}
+            render={({ field }) => (
+              <DateInput
+                label="Target Discharge Date"
+                value={field.value ? new Date(field.value) : null}
+                onChange={(date) =>
+                  field.onChange(date ? new Date(date).toISOString().slice(0, 10) : "")
+                }
+                error={editErrors.target_discharge_date?.message}
+              />
+            )}
           />
-          <DateInput
-            label="Actual Discharge Date"
-            value={editForm.actual_discharge_date ? new Date(editForm.actual_discharge_date) : null}
-            onChange={(d) =>
-              setEditForm({
-                ...editForm,
-                actual_discharge_date: d ? new Date(d).toISOString().slice(0, 10) : undefined,
-              })
-            }
+          <Controller
+            name="actual_discharge_date"
+            control={editControl}
+            render={({ field }) => (
+              <DateInput
+                label="Actual Discharge Date"
+                value={field.value ? new Date(field.value) : null}
+                onChange={(date) =>
+                  field.onChange(date ? new Date(date).toISOString().slice(0, 10) : "")
+                }
+                error={editErrors.actual_discharge_date?.message}
+              />
+            )}
           />
-          <TextInput
-            label="Discharge Disposition"
-            value={editForm.discharge_disposition ?? ""}
-            onChange={(e) =>
-              setEditForm({
-                ...editForm,
-                discharge_disposition: e.currentTarget.value || undefined,
-              })
-            }
+          <Controller
+            name="discharge_disposition"
+            control={editControl}
+            render={({ field }) => (
+              <TextInput
+                label="Discharge Disposition"
+                {...field}
+                error={editErrors.discharge_disposition?.message}
+              />
+            )}
           />
-          <Textarea
-            label="Notes"
-            value={editForm.notes ?? ""}
-            onChange={(e) =>
-              setEditForm({ ...editForm, notes: e.currentTarget.value || undefined })
-            }
+          <Controller
+            name="notes"
+            control={editControl}
+            render={({ field }) => (
+              <Textarea label="Notes" {...field} error={editErrors.notes?.message} />
+            )}
           />
-          <Button onClick={() => updateMut.mutate()} loading={updateMut.isPending}>
+          <Button type="submit" loading={updateMut.isPending}>
             Update Assignment
           </Button>
         </Stack>
@@ -759,9 +881,9 @@ function CaseBoardTab() {
                       {progressPct.toFixed(0)}%)
                     </Text>
                     <Timeline active={completedCount - 1} bulletSize={24} lineWidth={2}>
-                      {milestones.map((m, idx) => (
+                      {milestones.map((m) => (
                         <Timeline.Item
-                          key={idx}
+                          key={m.title}
                           bullet={
                             m.status === "completed" ? (
                               <IconCheck size={12} />
@@ -825,25 +947,35 @@ function DischargeBarriersTab() {
   const { data: barriers = [], isLoading } = useQuery({
     queryKey: ["case-barriers", filterAssignmentId, filterType, filterResolved],
     queryFn: () =>
-      api.listDischargeBarriers({
+      caseManagementService.listDischargeBarriers({
         case_assignment_id: filterAssignmentId || undefined,
         barrier_type: filterType ?? undefined,
         is_resolved: filterResolved === "all" ? undefined : (filterResolved ?? undefined),
       }),
   });
 
-  const [form, setForm] = useState<CreateDischargeBarrierRequest>({
-    case_assignment_id: "",
-    barrier_type: "insurance_auth",
-    description: "",
+  const barrierForm = useForm<DischargeBarrierFormInput>({
+    resolver: zodResolver(dischargeBarrierFormSchema),
+    defaultValues: {
+      case_assignment_id: "",
+      barrier_type: "insurance_auth",
+      description: "",
+    },
   });
+  const {
+    control,
+    handleSubmit,
+    reset,
+    formState: { errors },
+  } = barrierForm;
 
   const createMut = useMutation({
-    mutationFn: () => api.createDischargeBarrier(form),
+    mutationFn: (data: CreateDischargeBarrierRequest) =>
+      caseManagementService.createDischargeBarrier(data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["case-barriers"] });
       createHandlers.close();
-      setForm({ case_assignment_id: "", barrier_type: "insurance_auth", description: "" });
+      reset();
       notifications.show({
         title: "Barrier Added",
         message: "Discharge barrier recorded",
@@ -853,7 +985,8 @@ function DischargeBarriersTab() {
   });
 
   const resolveMut = useMutation({
-    mutationFn: (id: string) => api.updateDischargeBarrier(id, { is_resolved: true }),
+    mutationFn: (id: string) =>
+      caseManagementService.updateDischargeBarrier(id, { is_resolved: true }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["case-barriers"] });
       notifications.show({
@@ -863,6 +996,14 @@ function DischargeBarriersTab() {
       });
     },
   });
+
+  const submitBarrier = (values: DischargeBarrierFormInput) => {
+    createMut.mutate({
+      case_assignment_id: values.case_assignment_id.trim(),
+      barrier_type: values.barrier_type,
+      description: values.description.trim(),
+    });
+  };
 
   const columns: Column<DischargeBarrier>[] = [
     {
@@ -937,7 +1078,7 @@ function DischargeBarriersTab() {
         />
         <Select
           placeholder="Barrier Type"
-          data={BARRIER_TYPES}
+          data={dischargeBarrierTypeOptions}
           value={filterType}
           onChange={setFilterType}
           clearable
@@ -970,37 +1111,46 @@ function DischargeBarriersTab() {
         position="right"
         size="xl"
       >
-        <Stack>
-          <TextInput
-            label="Case Assignment ID"
-            required
-            value={form.case_assignment_id}
-            onChange={(e) => setForm({ ...form, case_assignment_id: e.currentTarget.value })}
+        <Stack component="form" onSubmit={handleSubmit(submitBarrier)}>
+          <Controller
+            name="case_assignment_id"
+            control={control}
+            render={({ field }) => (
+              <TextInput
+                label="Case Assignment ID"
+                required
+                {...field}
+                error={errors.case_assignment_id?.message}
+              />
+            )}
           />
-          <Select
-            label="Barrier Type"
-            required
-            data={BARRIER_TYPES}
-            value={form.barrier_type}
-            onChange={(v) =>
-              setForm({
-                ...form,
-                barrier_type:
-                  (v as CreateDischargeBarrierRequest["barrier_type"]) ?? "insurance_auth",
-              })
-            }
+          <Controller
+            name="barrier_type"
+            control={control}
+            render={({ field }) => (
+              <Select
+                label="Barrier Type"
+                required
+                data={dischargeBarrierTypeOptions}
+                value={field.value}
+                onChange={(value) => field.onChange(value ?? "insurance_auth")}
+                error={errors.barrier_type?.message}
+              />
+            )}
           />
-          <Textarea
-            label="Description"
-            required
-            value={form.description}
-            onChange={(e) => setForm({ ...form, description: e.currentTarget.value })}
+          <Controller
+            name="description"
+            control={control}
+            render={({ field }) => (
+              <Textarea
+                label="Description"
+                required
+                {...field}
+                error={errors.description?.message}
+              />
+            )}
           />
-          <Button
-            onClick={() => createMut.mutate()}
-            loading={createMut.isPending}
-            disabled={!form.case_assignment_id || !form.description}
-          >
+          <Button type="submit" loading={createMut.isPending}>
             Add Barrier
           </Button>
         </Stack>
@@ -1022,23 +1172,44 @@ function ReferralsTab() {
 
   const { data: referrals = [], isLoading } = useQuery({
     queryKey: ["case-referrals"],
-    queryFn: () => api.listCaseReferrals(),
+    queryFn: () => caseManagementService.listCaseReferrals(),
   });
 
-  const [form, setForm] = useState<CreateCaseReferralRequest>({
-    case_assignment_id: "",
-    referral_type: "post_acute",
-    referred_to: "",
+  const referralForm = useForm<CaseReferralFormInput>({
+    resolver: zodResolver(caseReferralFormSchema),
+    defaultValues: {
+      case_assignment_id: "",
+      referral_type: "post_acute",
+      referred_to: "",
+      facility_name: "",
+    },
   });
-
-  const [editForm, setEditForm] = useState<UpdateCaseReferralRequest>({});
+  const {
+    control: referralControl,
+    handleSubmit: handleReferralSubmit,
+    reset: resetReferral,
+    formState: { errors: referralErrors },
+  } = referralForm;
+  const referralUpdateForm = useForm<CaseReferralUpdateFormInput>({
+    resolver: zodResolver(caseReferralUpdateFormSchema),
+    defaultValues: {
+      status: "",
+      outcome: "",
+    },
+  });
+  const {
+    control: referralUpdateControl,
+    handleSubmit: handleReferralUpdateSubmit,
+    reset: resetReferralUpdate,
+    formState: { errors: referralUpdateErrors },
+  } = referralUpdateForm;
 
   const createMut = useMutation({
-    mutationFn: () => api.createCaseReferral(form),
+    mutationFn: (data: CreateCaseReferralRequest) => caseManagementService.createCaseReferral(data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["case-referrals"] });
       createHandlers.close();
-      setForm({ case_assignment_id: "", referral_type: "post_acute", referred_to: "" });
+      resetReferral();
       notifications.show({
         title: "Referral Created",
         message: "Referral recorded",
@@ -1048,18 +1219,35 @@ function ReferralsTab() {
   });
 
   const updateMut = useMutation({
-    mutationFn: () => {
+    mutationFn: (data: UpdateCaseReferralRequest) => {
       if (!editing) return Promise.reject(new Error("No referral selected"));
-      return api.updateCaseReferral(editing.id, editForm);
+      return caseManagementService.updateCaseReferral(editing.id, data);
     },
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["case-referrals"] });
       editHandlers.close();
       setEditing(null);
-      setEditForm({});
+      resetReferralUpdate();
       notifications.show({ title: "Updated", message: "Referral updated", color: "success" });
     },
   });
+
+  const submitReferral = (values: CaseReferralFormInput) => {
+    const facilityName = caseOptionalText(values.facility_name);
+    createMut.mutate({
+      case_assignment_id: values.case_assignment_id.trim(),
+      referral_type: values.referral_type,
+      referred_to: values.referred_to.trim(),
+      facility_details: facilityName ? { name: facilityName } : undefined,
+    });
+  };
+
+  const submitReferralUpdate = (values: CaseReferralUpdateFormInput) => {
+    updateMut.mutate({
+      status: values.status || undefined,
+      outcome: caseOptionalText(values.outcome),
+    });
+  };
 
   const columns: Column<CaseReferral>[] = [
     {
@@ -1072,7 +1260,8 @@ function ReferralsTab() {
       label: "Type",
       render: (r) => (
         <Badge variant="light" size="sm">
-          {REFERRAL_TYPES.find((t) => t.value === r.referral_type)?.label ?? r.referral_type}
+          {caseReferralTypeOptions.find((t) => t.value === r.referral_type)?.label ??
+            r.referral_type}
         </Badge>
       ),
     },
@@ -1105,7 +1294,10 @@ function ReferralsTab() {
             size="sm"
             onClick={() => {
               setEditing(r);
-              setEditForm({ status: r.status, outcome: r.outcome });
+              resetReferralUpdate({
+                status: toCaseReferralStatusFormValue(r.status),
+                outcome: r.outcome ?? "",
+              });
               editHandlers.open();
             }}
             aria-label="Edit"
@@ -1136,48 +1328,57 @@ function ReferralsTab() {
         position="right"
         size="xl"
       >
-        <Stack>
-          <TextInput
-            label="Case Assignment ID"
-            required
-            value={form.case_assignment_id}
-            onChange={(e) => setForm({ ...form, case_assignment_id: e.currentTarget.value })}
+        <Stack component="form" onSubmit={handleReferralSubmit(submitReferral)}>
+          <Controller
+            name="case_assignment_id"
+            control={referralControl}
+            render={({ field }) => (
+              <TextInput
+                label="Case Assignment ID"
+                required
+                {...field}
+                error={referralErrors.case_assignment_id?.message}
+              />
+            )}
           />
-          <Select
-            label="Referral Type"
-            required
-            data={REFERRAL_TYPES}
-            value={form.referral_type}
-            onChange={(v) => setForm({ ...form, referral_type: v ?? "post_acute" })}
+          <Controller
+            name="referral_type"
+            control={referralControl}
+            render={({ field }) => (
+              <Select
+                label="Referral Type"
+                required
+                data={caseReferralTypeOptions}
+                value={field.value}
+                onChange={(value) => field.onChange(value ?? "post_acute")}
+                error={referralErrors.referral_type?.message}
+              />
+            )}
           />
-          <TextInput
-            label="Referred To"
-            required
-            value={form.referred_to}
-            onChange={(e) => setForm({ ...form, referred_to: e.currentTarget.value })}
+          <Controller
+            name="referred_to"
+            control={referralControl}
+            render={({ field }) => (
+              <TextInput
+                label="Referred To"
+                required
+                {...field}
+                error={referralErrors.referred_to?.message}
+              />
+            )}
           />
-          <TextInput
-            label="Facility Name"
-            value={
-              form.facility_details && typeof form.facility_details === "object"
-                ? ((form.facility_details as Record<string, string>).name ?? "")
-                : ""
-            }
-            onChange={(e) =>
-              setForm({
-                ...form,
-                facility_details: {
-                  ...((form.facility_details as Record<string, unknown>) ?? {}),
-                  name: e.currentTarget.value || undefined,
-                },
-              })
-            }
+          <Controller
+            name="facility_name"
+            control={referralControl}
+            render={({ field }) => (
+              <TextInput
+                label="Facility Name"
+                {...field}
+                error={referralErrors.facility_name?.message}
+              />
+            )}
           />
-          <Button
-            onClick={() => createMut.mutate()}
-            loading={createMut.isPending}
-            disabled={!form.case_assignment_id || !form.referred_to}
-          >
+          <Button type="submit" loading={createMut.isPending}>
             Create Referral
           </Button>
         </Stack>
@@ -1191,27 +1392,29 @@ function ReferralsTab() {
         position="right"
         size="xl"
       >
-        <Stack>
-          <Select
-            label="Status"
-            data={[
-              { value: "pending", label: "Pending" },
-              { value: "accepted", label: "Accepted" },
-              { value: "declined", label: "Declined" },
-              { value: "completed", label: "Completed" },
-              { value: "cancelled", label: "Cancelled" },
-            ]}
-            value={editForm.status ?? null}
-            onChange={(v) => setEditForm({ ...editForm, status: v ?? undefined })}
+        <Stack component="form" onSubmit={handleReferralUpdateSubmit(submitReferralUpdate)}>
+          <Controller
+            name="status"
+            control={referralUpdateControl}
+            render={({ field }) => (
+              <Select
+                label="Status"
+                data={caseReferralStatusOptions}
+                value={field.value || null}
+                onChange={(value) => field.onChange(value ?? "")}
+                clearable
+                error={referralUpdateErrors.status?.message}
+              />
+            )}
           />
-          <Textarea
-            label="Outcome"
-            value={editForm.outcome ?? ""}
-            onChange={(e) =>
-              setEditForm({ ...editForm, outcome: e.currentTarget.value || undefined })
-            }
+          <Controller
+            name="outcome"
+            control={referralUpdateControl}
+            render={({ field }) => (
+              <Textarea label="Outcome" {...field} error={referralUpdateErrors.outcome?.message} />
+            )}
           />
-          <Button onClick={() => updateMut.mutate()} loading={updateMut.isPending}>
+          <Button type="submit" loading={updateMut.isPending}>
             Update Referral
           </Button>
         </Stack>
@@ -1227,17 +1430,17 @@ function ReferralsTab() {
 function AnalyticsTab() {
   const { data: dispositions = [], isLoading: dispLoading } = useQuery({
     queryKey: ["case-analytics-dispositions"],
-    queryFn: () => api.dispositionAnalytics(),
+    queryFn: () => caseManagementService.dispositionAnalytics(),
   });
 
   const { data: barrierData = [], isLoading: barrierLoading } = useQuery({
     queryKey: ["case-analytics-barriers"],
-    queryFn: () => api.barrierAnalytics(),
+    queryFn: () => caseManagementService.barrierAnalytics(),
   });
 
   const { data: outcomes } = useQuery({
     queryKey: ["case-analytics-outcomes"],
-    queryFn: () => api.outcomeAnalytics(),
+    queryFn: () => caseManagementService.outcomeAnalytics(),
   });
 
   const dispositionCols: Column<DispositionRow>[] = [

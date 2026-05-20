@@ -8,11 +8,11 @@
  * Merkle audit chain.
  */
 
-import { api } from "@medbrains/api";
 import { type CrdtConnectionStatus, useCrdtText } from "@medbrains/crdt";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback } from "react";
 import { useTenantConfig } from "../providers/TenantConfigProvider";
+import { clinicalSourcesService } from "../services/clinicalSources.service";
 
 export interface NotesSourceResult {
   text: string;
@@ -28,41 +28,22 @@ export interface NotesSourceResult {
 
 export function useNotesSource(patientId: string): NotesSourceResult {
   const config = useTenantConfig();
-  if (config.mode === "crdt") return useNotesCrdt(patientId, config);
-  return useNotesRest(patientId, config.authorName);
+  const useCrdt = config.mode === "crdt";
+  const rest = useNotesRest(patientId, config.authorName, !useCrdt);
+  const crdt = useNotesCrdt(patientId, { ...config, enabled: useCrdt });
+  return useCrdt ? crdt : rest;
 }
 
-// REST adapter (existing api.* may not have a 1:1 method —
-// stubbed if missing so the unified surface still type-checks).
-
-type NotesApi = {
-  getPatientNotes?: (patientId: string) => Promise<{
-    text: string;
-    last_author?: string;
-    last_edited_at?: string;
-  }>;
-  updatePatientNotes?: (patientId: string, text: string) => Promise<unknown>;
-};
-const notesApi = api as unknown as NotesApi;
-
-function useNotesRest(patientId: string, _authorName: string): NotesSourceResult {
+function useNotesRest(patientId: string, _authorName: string, enabled: boolean): NotesSourceResult {
   const qc = useQueryClient();
   const query = useQuery({
     queryKey: ["patient-notes", patientId],
-    queryFn: async () => {
-      if (typeof notesApi.getPatientNotes !== "function") {
-        return { text: "", last_author: undefined, last_edited_at: undefined };
-      }
-      return notesApi.getPatientNotes(patientId);
-    },
-    enabled: !!patientId,
+    queryFn: () => clinicalSourcesService.getPatientNotes(patientId),
+    enabled: enabled && !!patientId,
   });
   const mutation = useMutation({
     mutationFn: async (text: string) => {
-      if (typeof notesApi.updatePatientNotes !== "function") {
-        throw new Error("patient-notes REST endpoint not implemented yet");
-      }
-      return notesApi.updatePatientNotes(patientId, text);
+      return clinicalSourcesService.updatePatientNotes(patientId, text);
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["patient-notes", patientId] }),
   });
@@ -80,13 +61,20 @@ function useNotesRest(patientId: string, _authorName: string): NotesSourceResult
 
 function useNotesCrdt(
   patientId: string,
-  config: { edgeUrl: string; tenantId: string; deviceId: string; authorName: string },
+  config: {
+    edgeUrl: string;
+    tenantId: string;
+    deviceId: string;
+    authorName: string;
+    enabled: boolean;
+  },
 ): NotesSourceResult {
   const t = useCrdtText(`notes/${patientId}`, {
     edgeUrl: config.edgeUrl,
     tenantId: config.tenantId,
     deviceId: config.deviceId,
     authorName: config.authorName,
+    enabled: config.enabled,
   });
   return {
     text: t.text,

@@ -451,6 +451,21 @@ pub async fn create_order_in_tx(
 ) -> Result<LabOrder, AppError> {
     let priority = body.priority.as_deref().unwrap_or("routine");
 
+    let encounter_patient_id = sqlx::query_scalar::<_, Uuid>(
+        "SELECT patient_id FROM encounters WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(body.encounter_id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut **tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+
+    if encounter_patient_id != body.patient_id {
+        return Err(AppError::BadRequest(
+            "encounter does not belong to patient".to_owned(),
+        ));
+    }
+
     let order = sqlx::query_as::<_, LabOrder>(
         "INSERT INTO lab_orders \
          (tenant_id, encounter_id, patient_id, test_id, ordered_by, \
@@ -469,7 +484,58 @@ pub async fn create_order_in_tx(
     .fetch_one(&mut **tx)
     .await?;
 
+    auto_bill_lab_order_in_tx(tx, claims, &order).await?;
+
     Ok(order)
+}
+
+async fn auto_bill_lab_order_in_tx(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    claims: &Claims,
+    order: &LabOrder,
+) -> Result<(), AppError> {
+    if !super::billing::is_auto_billing_enabled(tx, &claims.tenant_id, "lab").await? {
+        return Ok(());
+    }
+
+    #[derive(sqlx::FromRow)]
+    struct TestInfo {
+        code: String,
+        name: String,
+        price: Decimal,
+    }
+
+    let test_info = sqlx::query_as::<_, TestInfo>(
+        "SELECT code, name, price FROM lab_test_catalog \
+         WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(order.test_id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut **tx)
+    .await?;
+
+    let Some(test) = test_info else {
+        return Ok(());
+    };
+
+    super::billing::auto_charge(
+        tx,
+        &claims.tenant_id,
+        super::billing::AutoChargeInput {
+            patient_id: order.patient_id,
+            encounter_id: Some(order.encounter_id),
+            charge_code: test.code,
+            source: "lab".to_owned(),
+            source_id: order.id,
+            quantity: 1,
+            description_override: Some(test.name),
+            unit_price_override: Some(test.price),
+            tax_percent_override: None,
+        },
+    )
+    .await?;
+
+    Ok(())
 }
 
 // ══════════════════════════════════════════════════════════
@@ -550,18 +616,6 @@ pub async fn collect_sample(
     .fetch_optional(&mut *tx)
     .await?;
 
-    if order.is_some() {
-        super::billing::reverse_auto_charge_for_source(
-            &mut tx,
-            &claims.tenant_id,
-            "lab",
-            id,
-            claims.sub,
-            "Lab order cancelled",
-        )
-        .await?;
-    }
-
     tx.commit().await?;
     order.map_or_else(|| Err(AppError::NotFound), |o| Ok(Json(o)))
 }
@@ -615,43 +669,8 @@ pub async fn complete_order(
     .fetch_optional(&mut *tx)
     .await?;
 
-    // Auto-billing: charge for completed lab order
     if let Some(ref o) = order {
-        if super::billing::is_auto_billing_enabled(&mut tx, &claims.tenant_id, "lab").await? {
-            #[derive(sqlx::FromRow)]
-            struct TestInfo {
-                code: String,
-                name: String,
-                price: Decimal,
-            }
-            let test_info = sqlx::query_as::<_, TestInfo>(
-                "SELECT code, name, price FROM lab_test_catalog \
-                 WHERE id = $1 AND tenant_id = $2",
-            )
-            .bind(o.test_id)
-            .bind(claims.tenant_id)
-            .fetch_optional(&mut *tx)
-            .await?;
-
-            if let Some(test) = test_info {
-                let _ = super::billing::auto_charge(
-                    &mut tx,
-                    &claims.tenant_id,
-                    super::billing::AutoChargeInput {
-                        patient_id: o.patient_id,
-                        encounter_id: Some(o.encounter_id),
-                        charge_code: test.code,
-                        source: "lab".to_owned(),
-                        source_id: o.id,
-                        quantity: 1,
-                        description_override: Some(test.name),
-                        unit_price_override: Some(test.price),
-                        tax_percent_override: None,
-                    },
-                )
-                .await;
-            }
-        }
+        auto_bill_lab_order_in_tx(&mut tx, &claims, o).await?;
 
         let event = ClinicalEventEnvelope::new(
             claims.tenant_id,
@@ -800,6 +819,18 @@ pub async fn cancel_order(
     .bind(claims.tenant_id)
     .fetch_optional(&mut *tx)
     .await?;
+
+    if order.is_some() {
+        super::billing::reverse_auto_charge_for_source(
+            &mut tx,
+            &claims.tenant_id,
+            "lab",
+            id,
+            claims.sub,
+            "Lab order cancelled",
+        )
+        .await?;
+    }
 
     tx.commit().await?;
     order.map_or_else(|| Err(AppError::NotFound), |o| Ok(Json(o)))
@@ -3768,10 +3799,10 @@ pub async fn get_tat_analytics(
     let rows = sqlx::query_as::<_, TatAnalyticsRow>(
         "SELECT tc.name AS test_name, \
                 COUNT(*)::bigint AS total_orders, \
-                AVG(EXTRACT(EPOCH FROM (lo.completed_at - lo.created_at)) / 60.0) \
+                AVG(EXTRACT(EPOCH FROM (lo.completed_at - lo.created_at)) / 60.0)::float8 \
                     AS avg_tat_minutes, \
                 PERCENTILE_CONT(0.95) WITHIN GROUP \
-                    (ORDER BY EXTRACT(EPOCH FROM (lo.completed_at - lo.created_at)) / 60.0) \
+                    (ORDER BY EXTRACT(EPOCH FROM (lo.completed_at - lo.created_at)) / 60.0)::float8 \
                     AS p95_tat_minutes, \
                 COUNT(*) FILTER (WHERE EXTRACT(EPOCH FROM (lo.completed_at - lo.created_at)) / 60.0 \
                     <= COALESCE(tc.tat_hours * 60, 120))::bigint AS within_sla \

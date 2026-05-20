@@ -6,12 +6,20 @@
 // the same drawer. The modal here keeps them in place, creates the
 // encounter, and emits an event so the patient-detail view refetches
 // the active encounter.
+
+import { zodResolver } from "@hookform/resolvers/zod";
 import { Alert, Button, Group, Modal, Select, Stack, Textarea } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
-import type { CreateEncounterRequest } from "@medbrains/types";
+import type { StartOpdVisitFormInput } from "@medbrains/schemas";
+import { startOpdVisitFormSchema } from "@medbrains/schemas";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { Controller, useForm } from "react-hook-form";
+import {
+  DEFAULT_START_OPD_VISIT_FORM_VALUES,
+  OPD_VISIT_TYPE_OPTIONS,
+  toCreateEncounterRequestForPatient,
+} from "../../forms/opd.form";
+import { clinicalActionsService } from "../../services/clinicalActions.service";
 import { DepartmentSelect } from "../DepartmentSelect";
 import { DoctorSearchSelect } from "../DoctorSearchSelect";
 
@@ -26,14 +34,6 @@ interface StartOpdVisitModalProps {
   onCreated?: (encounterId: string) => void;
 }
 
-const VISIT_TYPES = [
-  { value: "new", label: "New visit" },
-  { value: "follow_up", label: "Follow-up" },
-  { value: "review", label: "Review" },
-  { value: "emergency", label: "Emergency walk-in" },
-  { value: "telemedicine", label: "Telemedicine" },
-];
-
 export function StartOpdVisitModal({
   patientId,
   patientName,
@@ -42,13 +42,20 @@ export function StartOpdVisitModal({
   onCreated,
 }: StartOpdVisitModalProps) {
   const queryClient = useQueryClient();
-  const [departmentId, setDepartmentId] = useState<string | null>(null);
-  const [doctorId, setDoctorId] = useState<string | null>(null);
-  const [visitType, setVisitType] = useState<string>("new");
-  const [notes, setNotes] = useState("");
+  const {
+    control,
+    handleSubmit,
+    reset,
+    formState: { errors },
+  } = useForm<StartOpdVisitFormInput>({
+    resolver: zodResolver(startOpdVisitFormSchema),
+    defaultValues: DEFAULT_START_OPD_VISIT_FORM_VALUES,
+    mode: "onTouched",
+  });
 
   const mutation = useMutation({
-    mutationFn: (data: CreateEncounterRequest) => api.createEncounter(data),
+    mutationFn: (values: StartOpdVisitFormInput) =>
+      clinicalActionsService.createEncounter(toCreateEncounterRequestForPatient(patientId, values)),
     onSuccess: (result) => {
       notifications.show({
         title: "OPD visit started",
@@ -61,11 +68,7 @@ export function StartOpdVisitModal({
       void queryClient.invalidateQueries({ queryKey: ["patient-visits", patientId] });
       void queryClient.invalidateQueries({ queryKey: ["opd-queue"] });
       onCreated?.(result.encounter.id);
-      // Reset + close
-      setDepartmentId(null);
-      setDoctorId(null);
-      setVisitType("new");
-      setNotes("");
+      reset();
       onClose();
     },
     onError: () => {
@@ -77,23 +80,9 @@ export function StartOpdVisitModal({
     },
   });
 
-  const submit = () => {
-    if (!departmentId) {
-      notifications.show({
-        title: "Department required",
-        message: "Pick the OPD department before starting the visit.",
-        color: "danger",
-      });
-      return;
-    }
-    mutation.mutate({
-      patient_id: patientId,
-      department_id: departmentId,
-      doctor_id: doctorId ?? undefined,
-      visit_type: visitType,
-      notes: notes || undefined,
-    });
-  };
+  const submit = handleSubmit((values) => {
+    mutation.mutate(values);
+  });
 
   return (
     <Modal opened={opened} onClose={onClose} title={`New OPD visit — ${patientName}`} size="md">
@@ -102,38 +91,63 @@ export function StartOpdVisitModal({
           Creates an encounter + queue token in one shot, then opens the current OPD visit record.
         </Alert>
 
-        <DepartmentSelect
-          label="Department"
-          placeholder="Pick OPD department"
-          value={departmentId ?? ""}
-          onChange={(v) => setDepartmentId(v || null)}
-          required
+        <Controller
+          control={control}
+          name="department_id"
+          render={({ field }) => (
+            <DepartmentSelect
+              label="Department"
+              placeholder="Pick OPD department"
+              value={field.value ?? ""}
+              onChange={(v) => field.onChange(v || null)}
+              error={errors.department_id?.message}
+              required
+            />
+          )}
         />
-        <DoctorSearchSelect
-          label="Doctor (optional — assigned at consultation if blank)"
-          value={doctorId ?? ""}
-          onChange={(v) => setDoctorId(v || null)}
+        <Controller
+          control={control}
+          name="doctor_id"
+          render={({ field }) => (
+            <DoctorSearchSelect
+              label="Doctor (optional — assigned at consultation if blank)"
+              value={field.value ?? ""}
+              onChange={(v) => field.onChange(v || null)}
+            />
+          )}
         />
-        <Select
-          label="Visit type"
-          data={VISIT_TYPES}
-          value={visitType}
-          onChange={(v) => setVisitType(v ?? "new")}
+        <Controller
+          control={control}
+          name="visit_type"
+          render={({ field }) => (
+            <Select
+              label="Visit type"
+              data={OPD_VISIT_TYPE_OPTIONS}
+              value={field.value}
+              onChange={(v) => field.onChange(v ?? "walk_in")}
+            />
+          )}
         />
-        <Textarea
-          label="Reason / chief complaint"
-          autosize
-          minRows={2}
-          value={notes}
-          onChange={(e) => setNotes(e.currentTarget.value)}
-          placeholder="Headache for 3 days, follow-up of HTN, etc."
+        <Controller
+          control={control}
+          name="notes"
+          render={({ field }) => (
+            <Textarea
+              label="Reason / chief complaint"
+              autosize
+              minRows={2}
+              value={field.value}
+              onChange={field.onChange}
+              placeholder="Headache for 3 days, follow-up of HTN, etc."
+            />
+          )}
         />
 
         <Group justify="flex-end">
           <Button variant="subtle" onClick={onClose}>
             Cancel
           </Button>
-          <Button onClick={submit} loading={mutation.isPending}>
+          <Button onClick={() => void submit()} loading={mutation.isPending}>
             Start visit
           </Button>
         </Group>

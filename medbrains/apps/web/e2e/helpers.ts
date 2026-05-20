@@ -6,6 +6,7 @@
  */
 
 import type { Page, APIRequestContext } from "@playwright/test";
+import { getE2EIdentity } from "./helpers/e2e-identities";
 
 export const BACKEND_URL =
   process.env.E2E_BACKEND_URL ?? "http://127.0.0.1:3000";
@@ -41,8 +42,9 @@ export async function ensureAuthenticated(page: Page) {
     .catch(() => false);
   if (!page.url().includes("/login") && !signInVisible) return;
 
+  const admin = getE2EIdentity("super_admin");
   const resp = await page.request.post(`${BACKEND_URL}/api/auth/login`, {
-    data: { username: "admin", password: "admin123" },
+    data: { username: admin.username, password: admin.password },
   });
   if (!resp.ok()) return;
 
@@ -102,8 +104,8 @@ export async function ensureAuthenticated(page: Page) {
  * Authenticate as an arbitrary seeded user (not just admin). Sets
  * cookies + localStorage so the SPA loads as that role on the next nav.
  *
- * Pass `password` explicitly because the test fixtures use mixed defaults
- * (admin123 / doctor123 / test123).
+ * Pass the temp password from e2e-identities. Tests should not use
+ * permanent seeded credentials.
  */
 export async function loginAsRole(
   page: Page,
@@ -170,7 +172,10 @@ export async function getAuthToken(
   cookies: string;
 }> {
   const resp = await request.post(`${BACKEND_URL}/api/auth/login`, {
-    data: { username: "admin", password: "admin123" },
+    data: {
+      username: getE2EIdentity("super_admin").username,
+      password: getE2EIdentity("super_admin").password,
+    },
   });
 
   const setCookieHeaders = resp

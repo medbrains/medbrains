@@ -5,7 +5,6 @@
  * Per RFCs/sprints/SPRINT-doctor-activities.md §5.2.
  */
 import { ActionIcon, Badge, Card, Group, Stack, Tabs, Text, Tooltip } from "@mantine/core";
-import { api } from "@medbrains/api";
 import { P, type PendingSignoffEntry } from "@medbrains/types";
 import { IconAlertTriangle, IconClipboardCheck, IconSignature } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
@@ -13,6 +12,7 @@ import { useMemo, useState } from "react";
 import { SignWorkspace } from "../../components/Doctor/SignWorkspace";
 import { PageHeader } from "../../components/PageHeader";
 import { useRequirePermission } from "../../hooks/useRequirePermission";
+import { signoffService } from "../../services/signoff.service";
 
 export function SignoffsPage() {
   useRequirePermission(P.DOCTOR.SIGNOFFS.VIEW_OWN);
@@ -25,7 +25,7 @@ export function SignoffsPage() {
     refetch,
   } = useQuery({
     queryKey: ["my-pending-signoffs"],
-    queryFn: () => api.getMyPendingSignoffs(),
+    queryFn: () => signoffService.getMyPendingSignoffs(),
     refetchInterval: 30_000,
   });
 

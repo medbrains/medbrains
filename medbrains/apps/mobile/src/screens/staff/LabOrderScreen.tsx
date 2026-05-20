@@ -1,4 +1,3 @@
-import { api } from "@medbrains/api";
 import type { LabOrder, LabPriority, LabTestCatalog } from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
@@ -20,6 +19,7 @@ import {
   useTheme,
 } from "react-native-paper";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { clinicalService } from "../../services/clinical.service";
 
 interface LabOrderScreenProps {
   route: {
@@ -65,13 +65,15 @@ export function LabOrderScreen({ route, navigation }: LabOrderScreenProps) {
 
   const { data: labCatalog, isLoading: catalogLoading } = useQuery({
     queryKey: ["lab", "catalog", testSearch],
-    queryFn: () => api.listLabCatalog({ search: testSearch, page: "1", per_page: "20" }),
+    queryFn: () =>
+      clinicalService.listLabCatalog({ search: testSearch, page: "1", per_page: "20" }),
     enabled: testSearch.length >= 2,
   });
 
   const { data: existingOrders, isLoading: ordersLoading } = useQuery({
     queryKey: ["lab", "orders", patientId],
-    queryFn: () => api.listLabOrders({ patient_id: patientId || "", page: "1", per_page: "5" }),
+    queryFn: () =>
+      clinicalService.listLabOrders({ patient_id: patientId || "", page: "1", per_page: "5" }),
     enabled: Boolean(patientId),
   });
 
@@ -81,7 +83,7 @@ export function LabOrderScreen({ route, navigation }: LabOrderScreenProps) {
 
       // Create orders for each selected test
       for (const test of selectedTests) {
-        await api.createLabOrder({
+        await clinicalService.createLabOrder({
           patient_id: patientId,
           encounter_id: encounterId,
           test_id: test.id,

@@ -1,3 +1,4 @@
+import { zodResolver } from "@hookform/resolvers/zod";
 import { BarChart } from "@mantine/charts";
 import {
   ActionIcon,
@@ -20,7 +21,16 @@ import {
 import { DateInput } from "@mantine/dates";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
+import type {
+  CampCreateFormInput,
+  CampFollowupFormInput,
+  CampRegistrationFormInput,
+} from "@medbrains/schemas";
+import {
+  campCreateFormSchema,
+  campFollowupFormSchema,
+  campRegistrationFormSchema,
+} from "@medbrains/schemas";
 import { useHasPermission } from "@medbrains/stores";
 import type {
   Camp,
@@ -57,22 +67,22 @@ import {
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { Controller, useForm } from "react-hook-form";
 import { DataTable, PageHeader } from "../components";
 import type { Column } from "../components/DataTable";
 import { EmployeeSearchSelect } from "../components/EmployeeSearchSelect";
+import {
+  campFollowupTypeOptions,
+  campIdProofTypeOptions,
+  campOptionalInteger,
+  campOptionalNumber,
+  campOptionalText,
+  campTypeOptions,
+} from "../forms/camp.form";
 import { useRequirePermission } from "../hooks/useRequirePermission";
+import { campService } from "../services/camp.service";
 
 // ── Constants ──────────────────────────────────────────
-
-const CAMP_TYPES = [
-  { value: "general_health", label: "General Health" },
-  { value: "blood_donation", label: "Blood Donation" },
-  { value: "vaccination", label: "Vaccination" },
-  { value: "eye_screening", label: "Eye Screening" },
-  { value: "dental", label: "Dental" },
-  { value: "awareness", label: "Awareness" },
-  { value: "specialized", label: "Specialized" },
-];
 
 const CAMP_STATUS_COLORS: Record<string, string> = {
   planned: "slate",
@@ -107,29 +117,12 @@ const TEAM_ROLES = [
   { value: "driver", label: "Driver" },
 ];
 
-const ID_PROOF_TYPES = [
-  { value: "aadhar", label: "Aadhaar Card" },
-  { value: "pan", label: "PAN Card" },
-  { value: "passport", label: "Passport" },
-  { value: "voter_id", label: "Voter ID" },
-  { value: "driving_license", label: "Driving License" },
-  { value: "ration_card", label: "Ration Card" },
-  { value: "employee_id", label: "Employee ID" },
-  { value: "other", label: "Other" },
-];
-
 const SAMPLE_TYPES = [
   { value: "blood", label: "Blood" },
   { value: "urine", label: "Urine" },
   { value: "sputum", label: "Sputum" },
   { value: "swab", label: "Swab" },
   { value: "other", label: "Other" },
-];
-
-const FOLLOWUP_TYPES = [
-  { value: "phone_call", label: "Phone Call" },
-  { value: "hospital_visit", label: "Hospital Visit" },
-  { value: "home_visit", label: "Home Visit" },
 ];
 
 // ── Main Page ──────────────────────────────────────────
@@ -195,25 +188,44 @@ function CampsTab() {
   const [detailOpen, detailHandlers] = useDisclosure(false);
   const [selectedCamp, setSelectedCamp] = useState<Camp | null>(null);
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
-
-  const { data: camps = [], isLoading } = useQuery({
-    queryKey: ["camps", statusFilter],
-    queryFn: () => api.listCamps(statusFilter ? { status: statusFilter } : undefined),
-  });
-
-  // Create form state
-  const [form, setForm] = useState<CreateCampRequest>({
+  const campDefaults: CampCreateFormInput = {
     name: "",
     camp_type: "general_health",
     scheduled_date: "",
+    start_time: "",
+    end_time: "",
+    venue_name: "",
+    venue_address: "",
+    venue_city: "",
+    venue_state: "",
+    venue_pincode: "",
+    expected_participants: "",
+    budget_allocated: "",
+    is_free: true,
+    logistics_notes: "",
+  };
+  const {
+    control,
+    register,
+    reset,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<CampCreateFormInput>({
+    resolver: zodResolver(campCreateFormSchema),
+    defaultValues: campDefaults,
+  });
+
+  const { data: camps = [], isLoading } = useQuery({
+    queryKey: ["camps", statusFilter],
+    queryFn: () => campService.listCamps(statusFilter ? { status: statusFilter } : undefined),
   });
 
   const createMut = useMutation({
-    mutationFn: () => api.createCamp(form),
+    mutationFn: (data: CreateCampRequest) => campService.createCamp(data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["camps"] });
       createHandlers.close();
-      setForm({ name: "", camp_type: "general_health", scheduled_date: "" });
+      reset(campDefaults);
       notifications.show({
         title: "Camp Created",
         message: "Camp planned successfully",
@@ -222,8 +234,27 @@ function CampsTab() {
     },
   });
 
+  const handleCreateCamp = (values: CampCreateFormInput) => {
+    createMut.mutate({
+      name: values.name.trim(),
+      camp_type: values.camp_type,
+      scheduled_date: values.scheduled_date.trim(),
+      start_time: campOptionalText(values.start_time),
+      end_time: campOptionalText(values.end_time),
+      venue_name: campOptionalText(values.venue_name),
+      venue_address: campOptionalText(values.venue_address),
+      venue_city: campOptionalText(values.venue_city),
+      venue_state: campOptionalText(values.venue_state),
+      venue_pincode: campOptionalText(values.venue_pincode),
+      expected_participants: campOptionalInteger(values.expected_participants),
+      budget_allocated: campOptionalNumber(values.budget_allocated),
+      is_free: values.is_free,
+      logistics_notes: campOptionalText(values.logistics_notes),
+    });
+  };
+
   const approveMut = useMutation({
-    mutationFn: (id: string) => api.approveCamp(id),
+    mutationFn: (id: string) => campService.approveCamp(id),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["camps"] });
       notifications.show({ title: "Approved", message: "Camp approved", color: "success" });
@@ -231,7 +262,7 @@ function CampsTab() {
   });
 
   const activateMut = useMutation({
-    mutationFn: (id: string) => api.activateCamp(id),
+    mutationFn: (id: string) => campService.activateCamp(id),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["camps"] });
       notifications.show({ title: "Activated", message: "Camp is now active", color: "success" });
@@ -239,7 +270,7 @@ function CampsTab() {
   });
 
   const completeMut = useMutation({
-    mutationFn: (id: string) => api.completeCamp(id),
+    mutationFn: (id: string) => campService.completeCamp(id),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["camps"] });
       notifications.show({
@@ -251,7 +282,7 @@ function CampsTab() {
   });
 
   const cancelMut = useMutation({
-    mutationFn: (id: string) => api.cancelCamp(id, {}),
+    mutationFn: (id: string) => campService.cancelCamp(id, {}),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["camps"] });
       notifications.show({ title: "Cancelled", message: "Camp cancelled", color: "danger" });
@@ -274,7 +305,7 @@ function CampsTab() {
       label: "Type",
       render: (r) => (
         <Badge variant="light" size="sm">
-          {CAMP_TYPES.find((t) => t.value === r.camp_type)?.label ?? r.camp_type}
+          {campTypeOptions.find((t) => t.value === r.camp_type)?.label ?? r.camp_type}
         </Badge>
       ),
     },
@@ -395,112 +426,133 @@ function CampsTab() {
       {/* Create Drawer */}
       <Drawer
         opened={createOpen}
-        onClose={createHandlers.close}
+        onClose={() => {
+          createHandlers.close();
+          reset(campDefaults);
+        }}
         title="Plan New Camp"
         position="right"
         size="xl"
       >
-        <Stack>
+        <Stack component="form" onSubmit={handleSubmit(handleCreateCamp)}>
           <TextInput
             label="Camp Name"
             required
-            value={form.name}
-            onChange={(e) => setForm({ ...form, name: e.currentTarget.value })}
+            error={errors.name?.message}
+            {...register("name")}
           />
-          <Select
-            label="Camp Type"
-            required
-            data={CAMP_TYPES}
-            value={form.camp_type}
-            onChange={(v) => setForm({ ...form, camp_type: v ?? "general_health" })}
+          <Controller
+            control={control}
+            name="camp_type"
+            render={({ field }) => (
+              <Select
+                label="Camp Type"
+                required
+                data={campTypeOptions}
+                value={field.value}
+                onChange={(value) => field.onChange(value ?? "general_health")}
+                error={errors.camp_type?.message}
+              />
+            )}
           />
-          <DateInput
-            label="Scheduled Date"
-            required
-            value={form.scheduled_date ? new Date(form.scheduled_date) : null}
-            onChange={(d) =>
-              setForm({ ...form, scheduled_date: d ? new Date(d).toISOString().slice(0, 10) : "" })
-            }
+          <Controller
+            control={control}
+            name="scheduled_date"
+            render={({ field }) => (
+              <DateInput
+                label="Scheduled Date"
+                required
+                value={field.value ? new Date(field.value) : null}
+                onChange={(date) =>
+                  field.onChange(date ? new Date(date).toISOString().slice(0, 10) : "")
+                }
+                error={errors.scheduled_date?.message}
+              />
+            )}
           />
           <TextInput
             label="Start Time"
             placeholder="09:00"
-            value={form.start_time ?? ""}
-            onChange={(e) => setForm({ ...form, start_time: e.currentTarget.value || undefined })}
+            error={errors.start_time?.message}
+            {...register("start_time")}
           />
           <TextInput
             label="End Time"
             placeholder="17:00"
-            value={form.end_time ?? ""}
-            onChange={(e) => setForm({ ...form, end_time: e.currentTarget.value || undefined })}
+            error={errors.end_time?.message}
+            {...register("end_time")}
           />
           <TextInput
             label="Venue Name"
-            value={form.venue_name ?? ""}
-            onChange={(e) => setForm({ ...form, venue_name: e.currentTarget.value || undefined })}
+            error={errors.venue_name?.message}
+            {...register("venue_name")}
           />
           <TextInput
             label="Venue Address"
-            value={form.venue_address ?? ""}
-            onChange={(e) =>
-              setForm({ ...form, venue_address: e.currentTarget.value || undefined })
-            }
+            error={errors.venue_address?.message}
+            {...register("venue_address")}
           />
           <Group grow>
             <TextInput
               label="City"
-              value={form.venue_city ?? ""}
-              onChange={(e) => setForm({ ...form, venue_city: e.currentTarget.value || undefined })}
+              error={errors.venue_city?.message}
+              {...register("venue_city")}
             />
             <TextInput
               label="State"
-              value={form.venue_state ?? ""}
-              onChange={(e) =>
-                setForm({ ...form, venue_state: e.currentTarget.value || undefined })
-              }
+              error={errors.venue_state?.message}
+              {...register("venue_state")}
             />
             <TextInput
               label="Pincode"
-              value={form.venue_pincode ?? ""}
-              onChange={(e) =>
-                setForm({ ...form, venue_pincode: e.currentTarget.value || undefined })
-              }
+              error={errors.venue_pincode?.message}
+              {...register("venue_pincode")}
             />
           </Group>
-          <NumberInput
-            label="Expected Participants"
-            min={0}
-            value={form.expected_participants ?? ""}
-            onChange={(v) =>
-              setForm({ ...form, expected_participants: typeof v === "number" ? v : undefined })
-            }
+          <Controller
+            control={control}
+            name="expected_participants"
+            render={({ field }) => (
+              <NumberInput
+                label="Expected Participants"
+                min={0}
+                value={field.value}
+                onChange={field.onChange}
+                error={errors.expected_participants?.message}
+              />
+            )}
           />
-          <NumberInput
-            label="Budget Allocated"
-            min={0}
-            decimalScale={2}
-            value={form.budget_allocated ?? ""}
-            onChange={(v) =>
-              setForm({ ...form, budget_allocated: typeof v === "number" ? v : undefined })
-            }
+          <Controller
+            control={control}
+            name="budget_allocated"
+            render={({ field }) => (
+              <NumberInput
+                label="Budget Allocated"
+                min={0}
+                decimalScale={2}
+                value={field.value}
+                onChange={field.onChange}
+                error={errors.budget_allocated?.message}
+              />
+            )}
           />
-          <Switch
-            label="Free Camp"
-            checked={form.is_free !== false}
-            onChange={(e) => setForm({ ...form, is_free: e.currentTarget.checked })}
+          <Controller
+            control={control}
+            name="is_free"
+            render={({ field }) => (
+              <Switch
+                label="Free Camp"
+                checked={field.value}
+                onChange={(event) => field.onChange(event.currentTarget.checked)}
+              />
+            )}
           />
           <Textarea
             label="Logistics Notes"
-            value={form.logistics_notes ?? ""}
-            onChange={(e) =>
-              setForm({ ...form, logistics_notes: e.currentTarget.value || undefined })
-            }
+            error={errors.logistics_notes?.message}
+            {...register("logistics_notes")}
           />
-          <Button
-            onClick={() => createMut.mutate()}
-            loading={createMut.isPending}
-            disabled={!form.name || !form.scheduled_date}
-          >
+          <Button type="submit" loading={createMut.isPending}>
             Create Camp
           </Button>
         </Stack>
@@ -556,22 +608,22 @@ function CampDetail({ camp }: { camp: Camp }) {
 
   const { data: team = [] } = useQuery({
     queryKey: ["camp-team", camp.id],
-    queryFn: () => api.listCampTeamMembers(camp.id),
+    queryFn: () => campService.listCampTeamMembers(camp.id),
   });
 
   const { data: stats } = useQuery({
     queryKey: ["camp-stats", camp.id],
-    queryFn: () => api.getCampStats(camp.id),
+    queryFn: () => campService.getCampStats(camp.id),
   });
 
   const { data: remoteOps } = useQuery({
     queryKey: ["camp-remote-operations", camp.id],
-    queryFn: () => api.getCampRemoteOperations(camp.id),
+    queryFn: () => campService.getCampRemoteOperations(camp.id),
   });
 
   const addMut = useMutation({
     mutationFn: () =>
-      api.addCampTeamMember(camp.id, {
+      campService.addCampTeamMember(camp.id, {
         employee_id: teamForm.employee_id,
         role_in_camp: teamForm.role_in_camp,
       }),
@@ -583,12 +635,12 @@ function CampDetail({ camp }: { camp: Camp }) {
   });
 
   const removeMut = useMutation({
-    mutationFn: (memberId: string) => api.removeCampTeamMember(camp.id, memberId),
+    mutationFn: (memberId: string) => campService.removeCampTeamMember(camp.id, memberId),
     onSuccess: () => void qc.invalidateQueries({ queryKey: ["camp-team", camp.id] }),
   });
 
   const packetMut = useMutation({
-    mutationFn: () => api.getCampPacket(camp.id, { device_id: "web-admin-preview" }),
+    mutationFn: () => campService.getCampPacket(camp.id, { device_id: "web-admin-preview" }),
     onSuccess: (packet) => {
       notifications.show({
         title: "Packet ready",
@@ -600,7 +652,7 @@ function CampDetail({ camp }: { camp: Camp }) {
 
   const checklistMut = useMutation({
     mutationFn: (input: { id: string; status: "ok" | "issue" | "not_applicable" }) =>
-      api.updateCampRemoteChecklistItem(input.id, { status: input.status }),
+      campService.updateCampRemoteChecklistItem(input.id, { status: input.status }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["camp-remote-operations", camp.id] });
     },
@@ -608,7 +660,7 @@ function CampDetail({ camp }: { camp: Camp }) {
 
   const supplyMut = useMutation({
     mutationFn: () =>
-      api.createCampSupplyItem(camp.id, {
+      campService.createCampSupplyItem(camp.id, {
         category: supplyForm.category,
         item_name: supplyForm.item_name,
         unit: supplyForm.unit || undefined,
@@ -629,7 +681,7 @@ function CampDetail({ camp }: { camp: Camp }) {
 
   const incidentMut = useMutation({
     mutationFn: () =>
-      api.createCampIncident(camp.id, {
+      campService.createCampIncident(camp.id, {
         incident_type: incidentForm.incident_type,
         severity: incidentForm.severity,
         description: incidentForm.description,
@@ -1066,29 +1118,45 @@ function RegistrationsTab() {
   const qc = useQueryClient();
   const [createOpen, createHandlers] = useDisclosure(false);
   const [selectedCampId, setSelectedCampId] = useState<string | null>(null);
+  const registrationDefaults: CampRegistrationFormInput = {
+    person_name: "",
+    age: "",
+    gender: "",
+    phone: "",
+    address: "",
+    id_proof_type: "",
+    id_proof_number: "",
+    chief_complaint: "",
+    is_walk_in: true,
+  };
+  const {
+    control,
+    register,
+    reset,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<CampRegistrationFormInput>({
+    resolver: zodResolver(campRegistrationFormSchema),
+    defaultValues: registrationDefaults,
+  });
 
   const { data: camps = [] } = useQuery({
     queryKey: ["camps"],
-    queryFn: () => api.listCamps(),
+    queryFn: () => campService.listCamps(),
   });
 
   const { data: regs = [], isLoading } = useQuery({
     queryKey: ["camp-registrations", selectedCampId],
-    queryFn: () => api.listCampRegistrations({ camp_id: selectedCampId ?? "" }),
+    queryFn: () => campService.listCampRegistrations({ camp_id: selectedCampId ?? "" }),
     enabled: !!selectedCampId,
   });
 
-  const [form, setForm] = useState<CreateCampRegistrationRequest>({
-    camp_id: "",
-    person_name: "",
-  });
-
   const createMut = useMutation({
-    mutationFn: () => api.createCampRegistration({ ...form, camp_id: selectedCampId ?? "" }),
+    mutationFn: (data: CreateCampRegistrationRequest) => campService.createCampRegistration(data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["camp-registrations"] });
       createHandlers.close();
-      setForm({ camp_id: "", person_name: "" });
+      reset(registrationDefaults);
       notifications.show({
         title: "Registered",
         message: "Participant registered",
@@ -1096,6 +1164,22 @@ function RegistrationsTab() {
       });
     },
   });
+
+  const handleCreateRegistration = (values: CampRegistrationFormInput) => {
+    if (!selectedCampId) return;
+    createMut.mutate({
+      camp_id: selectedCampId,
+      person_name: values.person_name.trim(),
+      age: campOptionalInteger(values.age),
+      gender: campOptionalText(values.gender),
+      phone: campOptionalText(values.phone),
+      address: campOptionalText(values.address),
+      id_proof_type: campOptionalText(values.id_proof_type),
+      id_proof_number: campOptionalText(values.id_proof_number),
+      chief_complaint: campOptionalText(values.chief_complaint),
+      is_walk_in: values.is_walk_in,
+    });
+  };
 
   const columns: Column<CampRegistration>[] = [
     {
@@ -1151,82 +1235,97 @@ function RegistrationsTab() {
 
       <Drawer
         opened={createOpen}
-        onClose={createHandlers.close}
+        onClose={() => {
+          createHandlers.close();
+          reset(registrationDefaults);
+        }}
         title="Register Participant"
         position="right"
         size="xl"
       >
-        <Stack>
+        <Stack component="form" onSubmit={handleSubmit(handleCreateRegistration)}>
           <TextInput
             label="Person Name"
             required
-            value={form.person_name}
-            onChange={(e) => setForm({ ...form, person_name: e.currentTarget.value })}
+            error={errors.person_name?.message}
+            {...register("person_name")}
           />
           <Group grow>
-            <NumberInput
-              label="Age"
-              min={0}
-              max={150}
-              value={form.age ?? ""}
-              onChange={(v) => setForm({ ...form, age: typeof v === "number" ? v : undefined })}
+            <Controller
+              control={control}
+              name="age"
+              render={({ field }) => (
+                <NumberInput
+                  label="Age"
+                  min={0}
+                  max={150}
+                  value={field.value}
+                  onChange={field.onChange}
+                  error={errors.age?.message}
+                />
+              )}
             />
-            <Select
-              label="Gender"
-              data={[
-                { value: "male", label: "Male" },
-                { value: "female", label: "Female" },
-                { value: "other", label: "Other" },
-              ]}
-              value={form.gender ?? null}
-              onChange={(v) => setForm({ ...form, gender: v ?? undefined })}
+            <Controller
+              control={control}
+              name="gender"
+              render={({ field }) => (
+                <Select
+                  label="Gender"
+                  data={[
+                    { value: "male", label: "Male" },
+                    { value: "female", label: "Female" },
+                    { value: "other", label: "Other" },
+                  ]}
+                  value={field.value || null}
+                  onChange={(value) => field.onChange(value ?? "")}
+                  error={errors.gender?.message}
+                  clearable
+                />
+              )}
             />
           </Group>
-          <TextInput
-            label="Phone"
-            value={form.phone ?? ""}
-            onChange={(e) => setForm({ ...form, phone: e.currentTarget.value || undefined })}
-          />
-          <Textarea
-            label="Address"
-            value={form.address ?? ""}
-            onChange={(e) => setForm({ ...form, address: e.currentTarget.value || undefined })}
-          />
+          <TextInput label="Phone" error={errors.phone?.message} {...register("phone")} />
+          <Textarea label="Address" error={errors.address?.message} {...register("address")} />
           <Group grow>
-            <Select
-              label="ID Proof Type"
-              data={ID_PROOF_TYPES}
-              placeholder="Select ID type"
-              value={form.id_proof_type ?? null}
-              onChange={(v) => setForm({ ...form, id_proof_type: v || undefined })}
-              clearable
-              searchable
+            <Controller
+              control={control}
+              name="id_proof_type"
+              render={({ field }) => (
+                <Select
+                  label="ID Proof Type"
+                  data={campIdProofTypeOptions}
+                  placeholder="Select ID type"
+                  value={field.value || null}
+                  onChange={(value) => field.onChange(value ?? "")}
+                  error={errors.id_proof_type?.message}
+                  clearable
+                  searchable
+                />
+              )}
             />
             <TextInput
               label="ID Proof Number"
-              value={form.id_proof_number ?? ""}
-              onChange={(e) =>
-                setForm({ ...form, id_proof_number: e.currentTarget.value || undefined })
-              }
+              error={errors.id_proof_number?.message}
+              {...register("id_proof_number")}
             />
           </Group>
           <Textarea
             label="Chief Complaint"
-            value={form.chief_complaint ?? ""}
-            onChange={(e) =>
-              setForm({ ...form, chief_complaint: e.currentTarget.value || undefined })
-            }
+            error={errors.chief_complaint?.message}
+            {...register("chief_complaint")}
           />
-          <Switch
-            label="Walk-in"
-            checked={form.is_walk_in !== false}
-            onChange={(e) => setForm({ ...form, is_walk_in: e.currentTarget.checked })}
+          <Controller
+            control={control}
+            name="is_walk_in"
+            render={({ field }) => (
+              <Switch
+                label="Walk-in"
+                checked={field.value}
+                onChange={(event) => field.onChange(event.currentTarget.checked)}
+              />
+            )}
           />
-          <Button
-            onClick={() => createMut.mutate()}
-            loading={createMut.isPending}
-            disabled={!form.person_name}
-          >
+          <Button type="submit" loading={createMut.isPending}>
             Register
           </Button>
         </Stack>
@@ -1249,18 +1348,20 @@ function ScreeningsTab() {
 
   const { data: camps = [] } = useQuery({
     queryKey: ["camps"],
-    queryFn: () => api.listCamps(),
+    queryFn: () => campService.listCamps(),
   });
 
   const { data: screenings = [], isLoading: scrLoading } = useQuery({
     queryKey: ["camp-screenings", selectedCampId],
-    queryFn: () => api.listCampScreenings(selectedCampId ? { camp_id: selectedCampId } : undefined),
+    queryFn: () =>
+      campService.listCampScreenings(selectedCampId ? { camp_id: selectedCampId } : undefined),
     enabled: !!selectedCampId,
   });
 
   const { data: labSamples = [], isLoading: labLoading } = useQuery({
     queryKey: ["camp-lab-samples", selectedCampId],
-    queryFn: () => api.listCampLabSamples(selectedCampId ? { camp_id: selectedCampId } : undefined),
+    queryFn: () =>
+      campService.listCampLabSamples(selectedCampId ? { camp_id: selectedCampId } : undefined),
     enabled: !!selectedCampId,
   });
 
@@ -1271,7 +1372,7 @@ function ScreeningsTab() {
   });
 
   const scrMut = useMutation({
-    mutationFn: () => api.createCampScreening(scrForm),
+    mutationFn: () => campService.createCampScreening(scrForm),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["camp-screenings"] });
       scrHandlers.close();
@@ -1285,7 +1386,7 @@ function ScreeningsTab() {
   });
 
   const labMut = useMutation({
-    mutationFn: () => api.createCampLabSample(labForm),
+    mutationFn: () => campService.createCampLabSample(labForm),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["camp-lab-samples"] });
       labHandlers.close();
@@ -1626,37 +1727,48 @@ function FollowupsTab() {
   const qc = useQueryClient();
   const [createOpen, createHandlers] = useDisclosure(false);
   const [selectedCampId, setSelectedCampId] = useState<string | null>(null);
+  const followupDefaults: CampFollowupFormInput = {
+    registration_id: "",
+    followup_date: "",
+    followup_type: "phone_call",
+    notes: "",
+  };
+  const {
+    control,
+    register,
+    reset,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<CampFollowupFormInput>({
+    resolver: zodResolver(campFollowupFormSchema),
+    defaultValues: followupDefaults,
+  });
 
   const { data: camps = [] } = useQuery({
     queryKey: ["camps"],
-    queryFn: () => api.listCamps(),
+    queryFn: () => campService.listCamps(),
   });
 
   const { data: followups = [], isLoading } = useQuery({
     queryKey: ["camp-followups", selectedCampId],
-    queryFn: () => api.listCampFollowups(selectedCampId ? { camp_id: selectedCampId } : undefined),
+    queryFn: () =>
+      campService.listCampFollowups(selectedCampId ? { camp_id: selectedCampId } : undefined),
     enabled: !!selectedCampId,
   });
 
   const { data: stats } = useQuery({
     queryKey: ["camp-stats", selectedCampId],
-    queryFn: () => api.getCampStats(selectedCampId ?? ""),
+    queryFn: () => campService.getCampStats(selectedCampId ?? ""),
     enabled: !!selectedCampId,
   });
 
-  const [form, setForm] = useState<CreateCampFollowupRequest>({
-    registration_id: "",
-    followup_date: "",
-    followup_type: "phone_call",
-  });
-
   const createMut = useMutation({
-    mutationFn: () => api.createCampFollowup(form),
+    mutationFn: (data: CreateCampFollowupRequest) => campService.createCampFollowup(data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["camp-followups"] });
       void qc.invalidateQueries({ queryKey: ["camp-stats"] });
       createHandlers.close();
-      setForm({ registration_id: "", followup_date: "", followup_type: "phone_call" });
+      reset(followupDefaults);
       notifications.show({
         title: "Follow-up Created",
         message: "Follow-up scheduled",
@@ -1665,9 +1777,18 @@ function FollowupsTab() {
     },
   });
 
+  const handleCreateFollowup = (values: CampFollowupFormInput) => {
+    createMut.mutate({
+      registration_id: values.registration_id.trim(),
+      followup_date: values.followup_date.trim(),
+      followup_type: values.followup_type,
+      notes: campOptionalText(values.notes),
+    });
+  };
+
   const completeMut = useMutation({
     mutationFn: ({ id, data }: { id: string; data: UpdateCampFollowupRequest }) =>
-      api.updateCampFollowup(id, data),
+      campService.updateCampFollowup(id, data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["camp-followups"] });
       void qc.invalidateQueries({ queryKey: ["camp-stats"] });
@@ -1681,7 +1802,7 @@ function FollowupsTab() {
       key: "followup_type",
       label: "Type",
       render: (r) =>
-        FOLLOWUP_TYPES.find((t) => t.value === r.followup_type)?.label ?? r.followup_type,
+        campFollowupTypeOptions.find((t) => t.value === r.followup_type)?.label ?? r.followup_type,
     },
     {
       key: "status",
@@ -1786,42 +1907,51 @@ function FollowupsTab() {
 
       <Drawer
         opened={createOpen}
-        onClose={createHandlers.close}
+        onClose={() => {
+          createHandlers.close();
+          reset(followupDefaults);
+        }}
         title="Schedule Follow-up"
         position="right"
         size="sm"
       >
-        <Stack>
+        <Stack component="form" onSubmit={handleSubmit(handleCreateFollowup)}>
           <TextInput
             label="Registration ID"
             required
-            value={form.registration_id}
-            onChange={(e) => setForm({ ...form, registration_id: e.currentTarget.value })}
+            error={errors.registration_id?.message}
+            {...register("registration_id")}
           />
-          <DateInput
-            label="Follow-up Date"
-            required
-            value={form.followup_date ? new Date(form.followup_date) : null}
-            onChange={(d) =>
-              setForm({ ...form, followup_date: d ? new Date(d).toISOString().slice(0, 10) : "" })
-            }
+          <Controller
+            control={control}
+            name="followup_date"
+            render={({ field }) => (
+              <DateInput
+                label="Follow-up Date"
+                required
+                value={field.value ? new Date(field.value) : null}
+                onChange={(date) =>
+                  field.onChange(date ? new Date(date).toISOString().slice(0, 10) : "")
+                }
+                error={errors.followup_date?.message}
+              />
+            )}
           />
-          <Select
-            label="Follow-up Type"
-            data={FOLLOWUP_TYPES}
-            value={form.followup_type}
-            onChange={(v) => setForm({ ...form, followup_type: v ?? "phone_call" })}
+          <Controller
+            control={control}
+            name="followup_type"
+            render={({ field }) => (
+              <Select
+                label="Follow-up Type"
+                data={campFollowupTypeOptions}
+                value={field.value}
+                onChange={(value) => field.onChange(value ?? "phone_call")}
+                error={errors.followup_type?.message}
+              />
+            )}
           />
-          <Textarea
-            label="Notes"
-            value={form.notes ?? ""}
-            onChange={(e) => setForm({ ...form, notes: e.currentTarget.value || undefined })}
-          />
-          <Button
-            onClick={() => createMut.mutate()}
-            loading={createMut.isPending}
-            disabled={!form.registration_id || !form.followup_date}
-          >
+          <Textarea label="Notes" error={errors.notes?.message} {...register("notes")} />
+          <Button type="submit" loading={createMut.isPending}>
             Schedule
           </Button>
         </Stack>
@@ -1839,17 +1969,17 @@ function CampAnalyticsTab() {
 
   const { data: camps = [] } = useQuery({
     queryKey: ["camps"],
-    queryFn: () => api.listCamps(),
+    queryFn: () => campService.listCamps(),
   });
 
   const { data: analytics, isLoading: analyticsLoading } = useQuery({
     queryKey: ["camp-analytics"],
-    queryFn: () => api.campAnalytics(),
+    queryFn: () => campService.campAnalytics(),
   });
 
   const { data: report } = useQuery({
     queryKey: ["camp-report", selectedCampId],
-    queryFn: () => api.campReport(selectedCampId ?? ""),
+    queryFn: () => campService.campReport(selectedCampId ?? ""),
     enabled: !!selectedCampId,
   });
 

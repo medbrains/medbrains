@@ -1,7 +1,7 @@
-import { api } from "@medbrains/api";
 import { useAuthStore, useLocaleStore, usePermissionStore } from "@medbrains/stores";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Navigate } from "react-router";
+import { sessionService } from "../services/session.service";
 import { PageSkeleton } from "./PageSkeleton";
 
 /** Subscribe to Zustand persist hydration state without polling */
@@ -35,7 +35,7 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
     }
 
     let cancelled = false;
-    api
+    sessionService
       .me()
       .then(async (resp) => {
         if (cancelled) return;
@@ -44,8 +44,8 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
         // Load locale/units settings for the tenant
         try {
           const [unitsRows, localeRows] = await Promise.all([
-            api.getTenantSettings("units"),
-            api.getTenantSettings("locale"),
+            sessionService.getTenantSettings("units"),
+            sessionService.getTenantSettings("locale"),
           ]);
           if (!cancelled) {
             useLocaleStore.getState().setFromTenantSettings([...unitsRows, ...localeRows]);
@@ -94,7 +94,7 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
     // Silently refresh the access token every 13 minutes
     // (access token lasts 15 min, so this refreshes 2 min before expiry)
     refreshTimer.current = setInterval(() => {
-      api.refreshToken().catch(() => {
+      sessionService.refreshToken().catch(() => {
         // Refresh failed — session expired, force re-login
         clearAuth();
         clearPermissions();
@@ -127,7 +127,7 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
     return <Navigate to="/login" replace />;
   }
 
-  // Wait for api.me() to complete and permissions to load before rendering
+  // Wait for session verification to complete and permissions to load before rendering
   if (verified === null) {
     return <PageSkeleton />;
   }

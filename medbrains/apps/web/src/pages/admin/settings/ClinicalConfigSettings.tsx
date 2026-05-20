@@ -13,12 +13,12 @@ import {
   Title,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
 import type { TenantSettingsRow } from "@medbrains/types";
 import { IconArrowRight, IconHeartbeat, IconPlus, IconTrash } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router";
+import { tenantSettingsService } from "../../../services/tenantSettings.service";
 
 /* ------------------------------------------------------------------ */
 /*  Constants                                                          */
@@ -160,7 +160,7 @@ function RosSystemsCard({
       </Group>
       <Stack gap="xs">
         {local.map((item, idx) => (
-          <Group key={idx} gap="xs" wrap="nowrap">
+          <Group key={`${item.key}:${item.label}`} gap="xs" wrap="nowrap">
             <TextInput
               size="xs"
               placeholder="Key (e.g. cardiovascular)"
@@ -298,7 +298,7 @@ function DischargeChecklistCard({
       </Group>
       <Stack gap="xs">
         {local.map((it, idx) => (
-          <Group key={idx} gap="xs" wrap="nowrap">
+          <Group key={it.item} gap="xs" wrap="nowrap">
             <TextInput
               size="xs"
               placeholder="Checklist item (e.g. Discharge summary signed)"
@@ -381,7 +381,7 @@ export function ClinicalConfigSettings() {
 
   const { data: raw = [], isLoading } = useQuery({
     queryKey: ["tenant-settings", "clinical"],
-    queryFn: () => api.getTenantSettings("clinical"),
+    queryFn: () => tenantSettingsService.getTenantSettings("clinical"),
     staleTime: 300_000,
   });
 
@@ -419,7 +419,11 @@ export function ClinicalConfigSettings() {
 
   const updateMutation = useMutation({
     mutationFn: (data: { key: string; value: unknown }) =>
-      api.updateTenantSetting({ category: "clinical", key: data.key, value: data.value }),
+      tenantSettingsService.updateTenantSetting({
+        category: "clinical",
+        key: data.key,
+        value: data.value,
+      }),
     onSuccess: (_data, variables) => {
       queryClient.setQueryData<TenantSettingsRow[]>(["tenant-settings", "clinical"], (old) => {
         if (!old) return old;

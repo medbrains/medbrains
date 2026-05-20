@@ -1,3 +1,4 @@
+import { zodResolver } from "@hookform/resolvers/zod";
 import { LineChart } from "@mantine/charts";
 import {
   ActionIcon,
@@ -11,6 +12,7 @@ import {
   Select,
   SimpleGrid,
   Stack,
+  Switch,
   Table,
   Tabs,
   Text,
@@ -20,7 +22,44 @@ import {
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
+import type {
+  LabB2bClientFormInput,
+  LabB2bRateFormInput,
+  LabCalibrationFormInput,
+  LabCatalogFormInput,
+  LabCollectionCenterFormInput,
+  LabCytologyReportFormInput,
+  LabEqasResultFormInput,
+  LabHistopathReportFormInput,
+  LabHomeCollectionFormInput,
+  LabMolecularReportFormInput,
+  LabNablDocumentFormInput,
+  LabOutsourcedOrderFormInput,
+  LabPanelFormInput,
+  LabProficiencyTestFormInput,
+  LabQcResultFormInput,
+  LabReagentLotFormInput,
+  LabSampleArchiveFormInput,
+} from "@medbrains/schemas";
+import {
+  labB2bClientFormSchema,
+  labB2bRateFormSchema,
+  labCalibrationFormSchema,
+  labCatalogFormSchema,
+  labCollectionCenterFormSchema,
+  labCytologyReportFormSchema,
+  labEqasResultFormSchema,
+  labHistopathReportFormSchema,
+  labHomeCollectionFormSchema,
+  labMolecularReportFormSchema,
+  labNablDocumentFormSchema,
+  labOutsourcedOrderFormSchema,
+  labPanelFormSchema,
+  labProficiencyTestFormSchema,
+  labQcResultFormSchema,
+  labReagentLotFormSchema,
+  labSampleArchiveFormSchema,
+} from "@medbrains/schemas";
 import { useHasPermission } from "@medbrains/stores";
 import type {
   AmendResultRequest,
@@ -85,6 +124,7 @@ import {
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
+import { Controller, useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import {
   ClinicalEventProvider,
@@ -93,12 +133,29 @@ import {
   StatusDot,
   useClinicalEmit,
 } from "../components";
+import { Icd11CodeSelect } from "../components/Clinical/Icd11CodeSelect";
 import { EncounterSelect } from "../components/EncounterSelect";
 import { LabTestSearchSelect } from "../components/LabTestSearchSelect";
 import { PatientContextBanner } from "../components/Patient/PatientContextBanner";
 import { PatientNameCell } from "../components/PatientNameCell";
 import { PatientSearchSelect } from "../components/PatientSearchSelect";
+import {
+  labB2bClientTypeOptions,
+  labBethesdaCategoryOptions,
+  labCollectionCenterTypeOptions,
+  labEqasEvaluationOptions,
+  labMethodOptions,
+  labMolecularResultInterpretationOptions,
+  labMolecularTestMethodOptions,
+  labNablDocumentTypeOptions,
+  labNumberOrFallback,
+  labOptionalInteger,
+  labOptionalNumber,
+  labOptionalText,
+  labSampleTypeOptions,
+} from "../forms/lab.form";
 import { useRequirePermission } from "../hooks/useRequirePermission";
+import { labService } from "../services/lab.service";
 
 const statusColors: Record<string, string> = {
   ordered: "primary",
@@ -114,6 +171,25 @@ const priorityColors: Record<string, string> = {
   urgent: "orange",
   stat: "danger",
 };
+
+function toLabPriority(value: string | null): LabPriority {
+  if (value === "urgent" || value === "stat") return value;
+  return "routine";
+}
+
+function toLabResultFlag(value: string | null): LabResultFlag | undefined {
+  switch (value) {
+    case "normal":
+    case "low":
+    case "high":
+    case "critical_low":
+    case "critical_high":
+    case "abnormal":
+      return value;
+    default:
+      return undefined;
+  }
+}
 
 const flagColors: Record<string, string> = {
   normal: "success",
@@ -143,76 +219,6 @@ const phlebotomyStatusColors: Record<string, string> = {
   completed: "success",
   skipped: "slate",
 };
-
-// Dropdown options for categorical fields
-const SAMPLE_TYPES = [
-  { value: "blood", label: "Blood" },
-  { value: "serum", label: "Serum" },
-  { value: "plasma", label: "Plasma" },
-  { value: "urine", label: "Urine" },
-  { value: "stool", label: "Stool" },
-  { value: "swab", label: "Swab" },
-  { value: "csf", label: "CSF (Cerebrospinal Fluid)" },
-  { value: "sputum", label: "Sputum" },
-  { value: "tissue", label: "Tissue" },
-  { value: "aspirate", label: "Aspirate" },
-  { value: "other", label: "Other" },
-];
-
-const LAB_METHODS = [
-  { value: "photometry", label: "Photometry" },
-  { value: "elisa", label: "ELISA" },
-  { value: "pcr", label: "PCR" },
-  { value: "rt_pcr", label: "RT-PCR" },
-  { value: "chromatography", label: "Chromatography" },
-  { value: "immunoassay", label: "Immunoassay" },
-  { value: "spectrophotometry", label: "Spectrophotometry" },
-  { value: "electrophoresis", label: "Electrophoresis" },
-  { value: "microscopy", label: "Microscopy" },
-  { value: "culture", label: "Culture" },
-  { value: "flow_cytometry", label: "Flow Cytometry" },
-  { value: "sequencing", label: "Sequencing" },
-  { value: "other", label: "Other" },
-];
-
-const DOCUMENT_TYPES = [
-  { value: "sop", label: "SOP" },
-  { value: "manual", label: "Manual" },
-  { value: "form", label: "Form" },
-  { value: "policy", label: "Policy" },
-  { value: "work_instruction", label: "Work Instruction" },
-  { value: "record", label: "Record" },
-  { value: "other", label: "Other" },
-];
-
-const B2B_CLIENT_TYPES = [
-  { value: "clinic", label: "Clinic" },
-  { value: "laboratory", label: "Laboratory" },
-  { value: "hospital", label: "Hospital" },
-  { value: "pharmacy", label: "Pharmacy" },
-  { value: "diagnostic_center", label: "Diagnostic Center" },
-  { value: "other", label: "Other" },
-];
-
-const MOLECULAR_TEST_METHODS = [
-  { value: "rt_pcr", label: "RT-PCR" },
-  { value: "pcr", label: "PCR" },
-  { value: "sequencing", label: "Sequencing (NGS)" },
-  { value: "microarray", label: "Microarray" },
-  { value: "fish", label: "FISH" },
-  { value: "western_blot", label: "Western Blot" },
-  { value: "southern_blot", label: "Southern Blot" },
-  { value: "other", label: "Other" },
-];
-
-const RESULT_INTERPRETATIONS = [
-  { value: "positive", label: "Positive" },
-  { value: "negative", label: "Negative" },
-  { value: "indeterminate", label: "Indeterminate" },
-  { value: "invalid", label: "Invalid" },
-  { value: "detected", label: "Detected" },
-  { value: "not_detected", label: "Not Detected" },
-];
 
 export function LabPage() {
   useRequirePermission(P.LAB.ORDERS_LIST);
@@ -250,7 +256,7 @@ function LabPageInner() {
 
   const { data, isLoading } = useQuery({
     queryKey: ["lab-orders", params],
-    queryFn: () => api.listLabOrders(params),
+    queryFn: () => labService.listLabOrders(params),
   });
 
   const columns = [
@@ -328,7 +334,7 @@ function LabPageInner() {
   // Critical alerts count — general overview
   const { data: criticalAlerts = [] } = useQuery({
     queryKey: ["lab-critical-alerts"],
-    queryFn: () => api.listCriticalAlerts(),
+    queryFn: () => labService.listCriticalAlerts(),
     refetchInterval: 30_000,
   });
 
@@ -561,11 +567,11 @@ function CreateLabOrderDrawer({ opened, onClose }: { opened: boolean; onClose: (
   const [patientId, setPatientId] = useState("");
   const [testId, setTestId] = useState("");
   const [encounterId, setEncounterId] = useState("");
-  const [priority, setPriority] = useState<string>("routine");
+  const [priority, setPriority] = useState<LabPriority>("routine");
   const [clinicalNotes, setClinicalNotes] = useState("");
 
   const createMutation = useMutation({
-    mutationFn: (data: CreateLabOrderRequest) => api.createLabOrder(data),
+    mutationFn: (data: CreateLabOrderRequest) => labService.createLabOrder(data),
     onSuccess: (_result, variables) => {
       void queryClient.invalidateQueries({ queryKey: ["lab-orders"] });
       notifications.show({ title: "Order created", message: "Lab order placed", color: "success" });
@@ -611,7 +617,7 @@ function CreateLabOrderDrawer({ opened, onClose }: { opened: boolean; onClose: (
             { value: "stat", label: "STAT" },
           ]}
           value={priority}
-          onChange={(v) => setPriority(v ?? "routine")}
+          onChange={(value) => setPriority(toLabPriority(value))}
         />
         <TextInput
           label={t("label.clinicalNotes")}
@@ -624,7 +630,7 @@ function CreateLabOrderDrawer({ opened, onClose }: { opened: boolean; onClose: (
               patient_id: patientId,
               test_id: testId,
               encounter_id: encounterId || undefined,
-              priority: priority as LabPriority,
+              priority,
               notes: clinicalNotes || undefined,
             })
           }
@@ -651,7 +657,7 @@ function LabOrderDetail({
   const { t } = useTranslation("lab");
   const emit = useClinicalEmit();
   const queryClient = useQueryClient();
-  const [showResultForm, setShowResultForm] = useState(false);
+  const [resultFormOpen, resultFormHandlers] = useDisclosure(false);
   const [resultInputs, setResultInputs] = useState<ResultInput[]>([
     { parameter_name: "", value: "" },
   ]);
@@ -662,15 +668,15 @@ function LabOrderDetail({
     reason: string;
   } | null>(null);
 
-  const { data } = useQuery({
+  const { data } = useQuery<LabOrderDetailResponse>({
     queryKey: ["lab-order-detail", orderId],
-    queryFn: () => api.getLabOrder(orderId),
+    queryFn: () => labService.getLabOrder(orderId),
   });
 
   // Critical alerts for this order
   const { data: alerts = [] } = useQuery({
     queryKey: ["lab-critical-alerts"],
-    queryFn: () => api.listCriticalAlerts(),
+    queryFn: () => labService.listCriticalAlerts(),
   });
 
   const orderAlerts = alerts.filter(
@@ -678,38 +684,38 @@ function LabOrderDetail({
   );
 
   const collectMutation = useMutation({
-    mutationFn: () => api.collectSample(orderId),
+    mutationFn: () => labService.collectSample(orderId),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["lab-order-detail", orderId] });
       emit("lab.sample_collected", { order_id: orderId });
     },
   });
   const processMutation = useMutation({
-    mutationFn: () => api.startProcessing(orderId),
+    mutationFn: () => labService.startProcessing(orderId),
     onSuccess: () =>
       void queryClient.invalidateQueries({ queryKey: ["lab-order-detail", orderId] }),
   });
   const completeMutation = useMutation({
-    mutationFn: () => api.completeLabOrder(orderId),
+    mutationFn: () => labService.completeLabOrder(orderId),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["lab-order-detail", orderId] });
       emit("lab.completed", { order_id: orderId });
     },
   });
   const verifyMutation = useMutation({
-    mutationFn: () => api.verifyResults(orderId),
+    mutationFn: () => labService.verifyResults(orderId),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["lab-order-detail", orderId] });
       emit("lab.results_verified", { order_id: orderId });
     },
   });
   const cancelMutation = useMutation({
-    mutationFn: () => api.cancelLabOrder(orderId),
+    mutationFn: () => labService.cancelLabOrder(orderId),
     onSuccess: () =>
       void queryClient.invalidateQueries({ queryKey: ["lab-order-detail", orderId] }),
   });
   const rejectMutation = useMutation({
-    mutationFn: (reason: string) => api.rejectSample(orderId, { rejection_reason: reason }),
+    mutationFn: (reason: string) => labService.rejectSample(orderId, { rejection_reason: reason }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["lab-order-detail", orderId] });
       void queryClient.invalidateQueries({ queryKey: ["lab-orders"] });
@@ -717,12 +723,12 @@ function LabOrderDetail({
     },
   });
   const addResultsMutation = useMutation({
-    mutationFn: () => api.addLabResults(orderId, { results: resultInputs }),
+    mutationFn: () => labService.addLabResults(orderId, { results: resultInputs }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["lab-order-detail", orderId] });
       void queryClient.invalidateQueries({ queryKey: ["lab-critical-alerts"] });
       emit("lab.results_entered", { order_id: orderId, result_count: resultInputs.length });
-      setShowResultForm(false);
+      resultFormHandlers.close();
       setResultInputs([{ parameter_name: "", value: "" }]);
     },
   });
@@ -730,30 +736,30 @@ function LabOrderDetail({
   // Report status mutations
   const reportStatusMutation = useMutation({
     mutationFn: (status: string) =>
-      api.updateLabReportStatus(orderId, {
+      labService.updateLabReportStatus(orderId, {
         report_status: status as "preliminary" | "final" | "amended",
       }),
     onSuccess: () =>
       void queryClient.invalidateQueries({ queryKey: ["lab-order-detail", orderId] }),
   });
   const lockReportMutation = useMutation({
-    mutationFn: () => api.lockLabReport(orderId),
+    mutationFn: () => labService.lockLabReport(orderId),
     onSuccess: () =>
       void queryClient.invalidateQueries({ queryKey: ["lab-order-detail", orderId] }),
   });
   const acknowledgeMutation = useMutation({
-    mutationFn: (alertId: string) => api.acknowledgeCriticalAlert(alertId),
+    mutationFn: (alertId: string) => labService.acknowledgeCriticalAlert(alertId),
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["lab-critical-alerts"] }),
   });
   const amendMutation = useMutation({
-    mutationFn: (data: AmendResultRequest) => api.amendLabResult(orderId, data),
+    mutationFn: (data: AmendResultRequest) => labService.amendLabResult(orderId, data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["lab-order-detail", orderId] });
       setAmendData(null);
     },
   });
   const addOnMutation = useMutation({
-    mutationFn: (testId: string) => api.addOnLabTest(orderId, { test_id: testId }),
+    mutationFn: (testId: string) => labService.addOnLabTest(orderId, { test_id: testId }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["lab-orders"] });
       notifications.show({
@@ -765,7 +771,7 @@ function LabOrderDetail({
   });
 
   const autoValidateMutation = useMutation({
-    mutationFn: (resultId: string) => api.autoValidateResult(resultId),
+    mutationFn: (resultId: string) => labService.autoValidateResult(resultId),
     onSuccess: (result: AutoValidateResult) => {
       void queryClient.invalidateQueries({ queryKey: ["lab-order-detail", orderId] });
       void queryClient.invalidateQueries({ queryKey: ["lab-orders"] });
@@ -783,15 +789,14 @@ function LabOrderDetail({
   // Crossmatch link
   const { data: crossmatchData } = useQuery({
     queryKey: ["lab-order-crossmatch", orderId],
-    queryFn: () => api.getOrderCrossmatch(orderId),
+    queryFn: () => labService.getOrderCrossmatch(orderId),
     enabled: !!orderId,
     retry: false,
   });
 
   if (!data) return <Text c="dimmed">{t("loading...")}</Text>;
 
-  const detail = data as LabOrderDetailResponse;
-  const order = detail.order;
+  const order = data.order;
 
   return (
     <Stack>
@@ -965,7 +970,7 @@ function LabOrderDetail({
           </Table.Tr>
         </Table.Thead>
         <Table.Tbody>
-          {detail.results.map((r: LabResult) => (
+          {data.results.map((r: LabResult) => (
             <Table.Tr key={r.id}>
               <Table.Td>{r.parameter_name}</Table.Td>
               <Table.Td fw={500}>{r.value}</Table.Td>
@@ -1080,11 +1085,11 @@ function LabOrderDetail({
               size="xs"
               variant="light"
               leftSection={<IconPlus size={14} />}
-              onClick={() => setShowResultForm(!showResultForm)}
+              onClick={resultFormHandlers.toggle}
             >
               Add Results
             </Button>
-            {showResultForm && (
+            {resultFormOpen && (
               <Stack gap="xs">
                 {resultInputs.map((ri, idx) => (
                   <Group
@@ -1123,7 +1128,7 @@ function LabOrderDetail({
                       clearable
                       onChange={(v) => {
                         const updated = [...resultInputs];
-                        updated[idx] = { ...ri, flag: (v as LabResultFlag) || undefined };
+                        updated[idx] = { ...ri, flag: toLabResultFlag(v) };
                         setResultInputs(updated);
                       }}
                     />
@@ -1205,22 +1210,64 @@ function LabCatalogTab({ canCreate }: { canCreate: boolean }) {
   const { t } = useTranslation("lab");
 
   const queryClient = useQueryClient();
-  const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState<Partial<CreateLabCatalogRequest>>({});
+  const [formOpen, formHandlers] = useDisclosure(false);
+  const catalogDefaults: LabCatalogFormInput = {
+    code: "",
+    name: "",
+    sample_type: "",
+    normal_range: "",
+    unit: "",
+    price: 0,
+    tat_hours: "",
+    loinc_code: "",
+    method: "",
+    specimen_volume: "",
+    critical_low: "",
+    critical_high: "",
+    delta_check_percent: "",
+  };
+  const {
+    control,
+    register,
+    reset,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<LabCatalogFormInput>({
+    resolver: zodResolver(labCatalogFormSchema),
+    defaultValues: catalogDefaults,
+  });
 
   const { data: catalog = [], isLoading } = useQuery({
     queryKey: ["lab-catalog"],
-    queryFn: () => api.listLabCatalog(),
+    queryFn: () => labService.listLabCatalog(),
   });
 
   const createMutation = useMutation({
-    mutationFn: (data: CreateLabCatalogRequest) => api.createLabCatalogEntry(data),
+    mutationFn: (data: CreateLabCatalogRequest) => labService.createLabCatalogEntry(data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["lab-catalog"] });
-      setShowForm(false);
-      setForm({});
+      formHandlers.close();
+      reset(catalogDefaults);
     },
   });
+
+  const handleCreateCatalog = (values: LabCatalogFormInput) => {
+    createMutation.mutate({
+      code: values.code.trim(),
+      name: values.name.trim(),
+      sample_type: labOptionalText(values.sample_type),
+      normal_range: labOptionalText(values.normal_range),
+      unit: labOptionalText(values.unit),
+      price: labNumberOrFallback(values.price, 0),
+      tat_hours: labOptionalInteger(values.tat_hours),
+      loinc_code: labOptionalText(values.loinc_code),
+      method: labOptionalText(values.method),
+      specimen_volume: labOptionalText(values.specimen_volume),
+      critical_low: labOptionalNumber(values.critical_low),
+      critical_high: labOptionalNumber(values.critical_high),
+      delta_check_percent: labOptionalNumber(values.delta_check_percent),
+    });
+  };
 
   const columns = [
     {
@@ -1285,105 +1332,162 @@ function LabCatalogTab({ canCreate }: { canCreate: boolean }) {
           <Button
             size="xs"
             leftSection={<IconPlus size={14} />}
-            onClick={() => setShowForm(!showForm)}
+            onClick={() => {
+              if (formOpen) reset(catalogDefaults);
+              formHandlers.toggle();
+            }}
           >
             Add Test
           </Button>
         </Group>
       )}
-      {showForm && (
-        <Stack gap="xs">
+      {formOpen && (
+        <Stack component="form" gap="xs" onSubmit={handleSubmit(handleCreateCatalog)}>
           <Group grow>
             <TextInput
               label={t("label.code")}
               required
-              onChange={(e) => setForm({ ...form, code: e.currentTarget.value })}
+              error={errors.code?.message}
+              {...register("code")}
             />
             <TextInput
               label={t("label.name")}
               required
-              onChange={(e) => setForm({ ...form, name: e.currentTarget.value })}
+              error={errors.name?.message}
+              {...register("name")}
             />
           </Group>
           <Group grow>
-            <Select
-              label={t("label.sampleType")}
-              data={SAMPLE_TYPES}
-              onChange={(v) => setForm({ ...form, sample_type: v || undefined })}
-              clearable
-              searchable
+            <Controller
+              control={control}
+              name="sample_type"
+              render={({ field }) => (
+                <Select
+                  label={t("label.sampleType")}
+                  data={labSampleTypeOptions}
+                  value={field.value || null}
+                  onChange={(value) => field.onChange(value ?? "")}
+                  error={errors.sample_type?.message}
+                  clearable
+                  searchable
+                />
+              )}
             />
             <TextInput
               label={t("label.normalRange")}
               placeholder={t("placeholder.e.g.70100")}
-              onChange={(e) =>
-                setForm({ ...form, normal_range: e.currentTarget.value || undefined })
-              }
+              error={errors.normal_range?.message}
+              {...register("normal_range")}
             />
           </Group>
           <Group grow>
             <TextInput
               label={t("unit")}
               placeholder={t("placeholder.e.g.MgDl")}
-              onChange={(e) => setForm({ ...form, unit: e.currentTarget.value || undefined })}
+              error={errors.unit?.message}
+              {...register("unit")}
             />
-            <NumberInput
-              label={t("label.price")}
-              required
-              min={0}
-              decimalScale={2}
-              onChange={(v) => setForm({ ...form, price: Number(v) })}
+            <Controller
+              control={control}
+              name="price"
+              render={({ field }) => (
+                <NumberInput
+                  label={t("label.price")}
+                  required
+                  min={0}
+                  decimalScale={2}
+                  value={field.value}
+                  onChange={field.onChange}
+                  error={errors.price?.message}
+                />
+              )}
             />
-            <NumberInput
-              label={t("label.tat(hours)")}
-              min={0}
-              onChange={(v) => setForm({ ...form, tat_hours: Number(v) || undefined })}
+            <Controller
+              control={control}
+              name="tat_hours"
+              render={({ field }) => (
+                <NumberInput
+                  label={t("label.tat(hours)")}
+                  min={0}
+                  value={field.value}
+                  onChange={field.onChange}
+                  error={errors.tat_hours?.message}
+                />
+              )}
             />
           </Group>
           <Group grow>
             <TextInput
               label={t("label.loincCode")}
               placeholder={t("placeholder.e.g.23457")}
-              onChange={(e) => setForm({ ...form, loinc_code: e.currentTarget.value || undefined })}
+              error={errors.loinc_code?.message}
+              {...register("loinc_code")}
             />
-            <Select
-              label={t("label.method")}
-              data={LAB_METHODS}
-              onChange={(v) => setForm({ ...form, method: v || undefined })}
-              clearable
-              searchable
+            <Controller
+              control={control}
+              name="method"
+              render={({ field }) => (
+                <Select
+                  label={t("label.method")}
+                  data={labMethodOptions}
+                  value={field.value || null}
+                  onChange={(value) => field.onChange(value ?? "")}
+                  error={errors.method?.message}
+                  clearable
+                  searchable
+                />
+              )}
             />
             <TextInput
               label={t("label.specimenVolume")}
               placeholder={t("placeholder.e.g.5Ml")}
-              onChange={(e) =>
-                setForm({ ...form, specimen_volume: e.currentTarget.value || undefined })
-              }
+              error={errors.specimen_volume?.message}
+              {...register("specimen_volume")}
             />
           </Group>
           <Group grow>
-            <NumberInput
-              label={t("label.criticalLow")}
-              decimalScale={4}
-              onChange={(v) => setForm({ ...form, critical_low: Number(v) || undefined })}
+            <Controller
+              control={control}
+              name="critical_low"
+              render={({ field }) => (
+                <NumberInput
+                  label={t("label.criticalLow")}
+                  decimalScale={4}
+                  value={field.value}
+                  onChange={field.onChange}
+                  error={errors.critical_low?.message}
+                />
+              )}
             />
-            <NumberInput
-              label={t("label.criticalHigh")}
-              decimalScale={4}
-              onChange={(v) => setForm({ ...form, critical_high: Number(v) || undefined })}
+            <Controller
+              control={control}
+              name="critical_high"
+              render={({ field }) => (
+                <NumberInput
+                  label={t("label.criticalHigh")}
+                  decimalScale={4}
+                  value={field.value}
+                  onChange={field.onChange}
+                  error={errors.critical_high?.message}
+                />
+              )}
             />
-            <NumberInput
-              label={t("label.deltaCheck%")}
-              min={0}
-              max={100}
-              onChange={(v) => setForm({ ...form, delta_check_percent: Number(v) || undefined })}
+            <Controller
+              control={control}
+              name="delta_check_percent"
+              render={({ field }) => (
+                <NumberInput
+                  label={t("label.deltaCheck%")}
+                  min={0}
+                  max={100}
+                  value={field.value}
+                  onChange={field.onChange}
+                  error={errors.delta_check_percent?.message}
+                />
+              )}
             />
           </Group>
-          <Button
-            size="xs"
-            onClick={() => createMutation.mutate(form as CreateLabCatalogRequest)}
-            loading={createMutation.isPending}
-          >
+          <Button size="xs" type="submit" loading={createMutation.isPending}>
             Save
           </Button>
         </Stack>
@@ -1401,34 +1505,79 @@ function LabPanelsTab({ canCreate }: { canCreate: boolean }) {
   const { t } = useTranslation("lab");
 
   const queryClient = useQueryClient();
-  const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState<Partial<CreateLabPanelRequest>>({ test_ids: [] });
+  const [formOpen, formHandlers] = useDisclosure(false);
   const [testIdInput, setTestIdInput] = useState("");
+  const panelDefaults: LabPanelFormInput = {
+    code: "",
+    name: "",
+    description: "",
+    price: 0,
+    test_ids: [],
+  };
+  const {
+    control,
+    register,
+    reset,
+    handleSubmit,
+    setValue,
+    watch,
+    formState: { errors },
+  } = useForm<LabPanelFormInput>({
+    resolver: zodResolver(labPanelFormSchema),
+    defaultValues: panelDefaults,
+  });
+  const selectedTestIds = watch("test_ids");
 
   const { data: panels = [], isLoading } = useQuery({
     queryKey: ["lab-panels"],
-    queryFn: () => api.listLabPanels(),
+    queryFn: () => labService.listLabPanels(),
   });
 
   const createMutation = useMutation({
-    mutationFn: (data: CreateLabPanelRequest) => api.createLabPanel(data),
+    mutationFn: (data: CreateLabPanelRequest) => labService.createLabPanel(data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["lab-panels"] });
-      setShowForm(false);
-      setForm({ test_ids: [] });
+      formHandlers.close();
+      reset(panelDefaults);
+      setTestIdInput("");
     },
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => api.deleteLabPanel(id),
+    mutationFn: (id: string) => labService.deleteLabPanel(id),
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["lab-panels"] }),
   });
 
   const addTestId = () => {
-    if (testIdInput.trim()) {
-      setForm({ ...form, test_ids: [...(form.test_ids ?? []), testIdInput.trim()] });
+    const testId = testIdInput.trim();
+    if (testId && !selectedTestIds.includes(testId)) {
+      setValue("test_ids", [...selectedTestIds, testId], {
+        shouldDirty: true,
+        shouldValidate: true,
+      });
       setTestIdInput("");
     }
+  };
+
+  const removeTestId = (index: number) => {
+    setValue(
+      "test_ids",
+      selectedTestIds.filter((_, currentIndex) => currentIndex !== index),
+      {
+        shouldDirty: true,
+        shouldValidate: true,
+      },
+    );
+  };
+
+  const handleCreatePanel = (values: LabPanelFormInput) => {
+    createMutation.mutate({
+      code: values.code.trim(),
+      name: values.name.trim(),
+      description: labOptionalText(values.description),
+      price: labNumberOrFallback(values.price, 0),
+      test_ids: values.test_ids,
+    });
   };
 
   const columns = [
@@ -1481,41 +1630,56 @@ function LabPanelsTab({ canCreate }: { canCreate: boolean }) {
           <Button
             size="xs"
             leftSection={<IconPlus size={14} />}
-            onClick={() => setShowForm(!showForm)}
+            onClick={() => {
+              if (formOpen) {
+                reset(panelDefaults);
+                setTestIdInput("");
+              }
+              formHandlers.toggle();
+            }}
           >
             Add Panel
           </Button>
         </Group>
       )}
-      {showForm && (
-        <Stack gap="xs">
+      {formOpen && (
+        <Stack component="form" gap="xs" onSubmit={handleSubmit(handleCreatePanel)}>
           <Group grow>
             <TextInput
               label={t("label.code")}
               required
               placeholder={t("placeholder.e.g.Cbc")}
-              onChange={(e) => setForm({ ...form, code: e.currentTarget.value })}
+              error={errors.code?.message}
+              {...register("code")}
             />
             <TextInput
               label={t("label.name")}
               required
               placeholder={t("placeholder.e.g.CompleteBloodCount")}
-              onChange={(e) => setForm({ ...form, name: e.currentTarget.value })}
+              error={errors.name?.message}
+              {...register("name")}
             />
           </Group>
           <Group grow>
             <TextInput
               label={t("label.description")}
-              onChange={(e) =>
-                setForm({ ...form, description: e.currentTarget.value || undefined })
-              }
+              error={errors.description?.message}
+              {...register("description")}
             />
-            <NumberInput
-              label={t("label.panelPrice")}
-              required
-              min={0}
-              decimalScale={2}
-              onChange={(v) => setForm({ ...form, price: Number(v) })}
+            <Controller
+              control={control}
+              name="price"
+              render={({ field }) => (
+                <NumberInput
+                  label={t("label.panelPrice")}
+                  required
+                  min={0}
+                  decimalScale={2}
+                  value={field.value}
+                  onChange={field.onChange}
+                  error={errors.price?.message}
+                />
+              )}
             />
           </Group>
           <Group>
@@ -1528,9 +1692,14 @@ function LabPanelsTab({ canCreate }: { canCreate: boolean }) {
               Add
             </Button>
           </Group>
-          {(form.test_ids ?? []).length > 0 && (
+          {errors.test_ids?.message && (
+            <Alert color="danger" variant="light">
+              {errors.test_ids.message}
+            </Alert>
+          )}
+          {selectedTestIds.length > 0 && (
             <Group gap="xs">
-              {(form.test_ids ?? []).map((tid, i) => (
+              {selectedTestIds.map((tid, i) => (
                 <Badge
                   key={tid}
                   variant="light"
@@ -1538,12 +1707,7 @@ function LabPanelsTab({ canCreate }: { canCreate: boolean }) {
                     <ActionIcon
                       size="xs"
                       variant="transparent"
-                      onClick={() =>
-                        setForm({
-                          ...form,
-                          test_ids: (form.test_ids ?? []).filter((_, j) => j !== i),
-                        })
-                      }
+                      onClick={() => removeTestId(i)}
                       aria-label={t("aria.close")}
                     >
                       <IconX size={10} />
@@ -1555,11 +1719,7 @@ function LabPanelsTab({ canCreate }: { canCreate: boolean }) {
               ))}
             </Group>
           )}
-          <Button
-            size="xs"
-            onClick={() => createMutation.mutate(form as CreateLabPanelRequest)}
-            loading={createMutation.isPending}
-          >
+          <Button size="xs" type="submit" loading={createMutation.isPending}>
             Save Panel
           </Button>
         </Stack>
@@ -1580,13 +1740,13 @@ function PhlebotomyTab() {
 
   const { data: queue = [], isLoading } = useQuery({
     queryKey: ["lab-phlebotomy-queue"],
-    queryFn: () => api.listPhlebotomyQueue(),
+    queryFn: () => labService.listPhlebotomyQueue(),
     refetchInterval: 15_000,
   });
 
   const statusMutation = useMutation({
     mutationFn: ({ id, status }: { id: string; status: string }) =>
-      api.updatePhlebotomyStatus(id, {
+      labService.updatePhlebotomyStatus(id, {
         status: status as "in_progress" | "completed" | "skipped" | "waiting",
       }),
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["lab-phlebotomy-queue"] }),
@@ -1735,22 +1895,56 @@ function ReagentLotsSection() {
   const { t } = useTranslation("lab");
   const canCreate = useHasPermission(P.LAB.QC_CREATE);
   const queryClient = useQueryClient();
-  const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState<Partial<CreateReagentLotRequest>>({});
+  const [formOpen, formHandlers] = useDisclosure(false);
+  const reagentLotDefaults: LabReagentLotFormInput = {
+    reagent_name: "",
+    lot_number: "",
+    manufacturer: "",
+    test_id: "",
+    received_date: "",
+    expiry_date: "",
+    quantity: "",
+    quantity_unit: "",
+    notes: "",
+  };
+  const {
+    control,
+    register,
+    reset,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<LabReagentLotFormInput>({
+    resolver: zodResolver(labReagentLotFormSchema),
+    defaultValues: reagentLotDefaults,
+  });
 
   const { data: lots = [], isLoading } = useQuery({
     queryKey: ["lab-reagent-lots"],
-    queryFn: () => api.listReagentLots(),
+    queryFn: () => labService.listReagentLots(),
   });
 
   const createMutation = useMutation({
-    mutationFn: (data: CreateReagentLotRequest) => api.createReagentLot(data),
+    mutationFn: (data: CreateReagentLotRequest) => labService.createReagentLot(data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["lab-reagent-lots"] });
-      setShowForm(false);
-      setForm({});
+      formHandlers.close();
+      reset(reagentLotDefaults);
     },
   });
+
+  const handleCreateReagentLot = (values: LabReagentLotFormInput) => {
+    createMutation.mutate({
+      reagent_name: values.reagent_name.trim(),
+      lot_number: values.lot_number.trim(),
+      manufacturer: labOptionalText(values.manufacturer),
+      test_id: labOptionalText(values.test_id),
+      received_date: labOptionalText(values.received_date),
+      expiry_date: labOptionalText(values.expiry_date),
+      quantity: labOptionalNumber(values.quantity),
+      quantity_unit: labOptionalText(values.quantity_unit),
+      notes: labOptionalText(values.notes),
+    });
+  };
 
   const columns = [
     {
@@ -1807,64 +2001,84 @@ function ReagentLotsSection() {
           <Button
             size="xs"
             leftSection={<IconPlus size={14} />}
-            onClick={() => setShowForm(!showForm)}
+            onClick={() => {
+              if (formOpen) reset(reagentLotDefaults);
+              formHandlers.toggle();
+            }}
           >
             {t("addReagentLot")}
           </Button>
         </Group>
       )}
-      {showForm && (
-        <Stack gap="xs">
+      {formOpen && (
+        <Stack component="form" gap="xs" onSubmit={handleSubmit(handleCreateReagentLot)}>
           <Group grow>
             <TextInput
               label={t("label.reagentName")}
               required
-              onChange={(e) => setForm({ ...form, reagent_name: e.currentTarget.value })}
+              error={errors.reagent_name?.message}
+              {...register("reagent_name")}
             />
             <TextInput
               label={t("label.lotNumber")}
               required
-              onChange={(e) => setForm({ ...form, lot_number: e.currentTarget.value })}
+              error={errors.lot_number?.message}
+              {...register("lot_number")}
             />
           </Group>
           <Group grow>
             <TextInput
               label={t("label.manufacturer")}
-              onChange={(e) =>
-                setForm({ ...form, manufacturer: e.currentTarget.value || undefined })
-              }
+              error={errors.manufacturer?.message}
+              {...register("manufacturer")}
             />
-            <LabTestSearchSelect
-              value={form.test_id ?? ""}
-              onChange={(id) => setForm({ ...form, test_id: id || undefined })}
+            <Controller
+              control={control}
+              name="test_id"
+              render={({ field }) => (
+                <LabTestSearchSelect
+                  value={field.value}
+                  onChange={(id) => field.onChange(id)}
+                  error={errors.test_id?.message}
+                />
+              )}
             />
           </Group>
           <Group grow>
             <TextInput
+              label={t("label.receivedDate")}
+              type="date"
+              error={errors.received_date?.message}
+              {...register("received_date")}
+            />
+            <TextInput
               label={t("label.expiryDate")}
               type="date"
-              onChange={(e) =>
-                setForm({ ...form, expiry_date: e.currentTarget.value || undefined })
-              }
+              error={errors.expiry_date?.message}
+              {...register("expiry_date")}
             />
-            <NumberInput
-              label={t("label.quantity")}
-              min={0}
-              decimalScale={2}
-              onChange={(v) => setForm({ ...form, quantity: Number(v) || undefined })}
+            <Controller
+              control={control}
+              name="quantity"
+              render={({ field }) => (
+                <NumberInput
+                  label={t("label.quantity")}
+                  min={0}
+                  decimalScale={2}
+                  value={field.value}
+                  onChange={field.onChange}
+                  error={errors.quantity?.message}
+                />
+              )}
             />
             <TextInput
               label={t("unit")}
-              onChange={(e) =>
-                setForm({ ...form, quantity_unit: e.currentTarget.value || undefined })
-              }
+              error={errors.quantity_unit?.message}
+              {...register("quantity_unit")}
             />
           </Group>
-          <Button
-            size="xs"
-            onClick={() => createMutation.mutate(form as CreateReagentLotRequest)}
-            loading={createMutation.isPending}
-          >
+          <Textarea label={t("notes")} error={errors.notes?.message} {...register("notes")} />
+          <Button size="xs" type="submit" loading={createMutation.isPending}>
             {t("save")}
           </Button>
         </Stack>
@@ -1878,28 +2092,64 @@ function QcResultsSection() {
   const { t } = useTranslation("lab");
   const canCreate = useHasPermission(P.LAB.QC_CREATE);
   const queryClient = useQueryClient();
-  const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState<Partial<CreateQcResultRequest>>({});
+  const [formOpen, formHandlers] = useDisclosure(false);
   const [chartLotId, setChartLotId] = useState<string | null>(null);
+  const qcDefaults: LabQcResultFormInput = {
+    test_id: "",
+    lot_id: "",
+    level: "",
+    target_mean: "",
+    target_sd: "",
+    observed_value: "",
+    run_date: "",
+    reviewer_notes: "",
+  };
+  const {
+    control,
+    register,
+    reset,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<LabQcResultFormInput>({
+    resolver: zodResolver(labQcResultFormSchema),
+    defaultValues: qcDefaults,
+  });
 
   const { data: qcResults = [], isLoading } = useQuery({
     queryKey: ["lab-qc-results"],
-    queryFn: () => api.listQcResults(),
+    queryFn: () => labService.listQcResults(),
   });
 
   const { data: lots = [] } = useQuery({
     queryKey: ["lab-reagent-lots"],
-    queryFn: () => api.listReagentLots(),
+    queryFn: () => labService.listReagentLots(),
   });
+  const lotOptions = lots.map((lot) => ({
+    value: lot.id,
+    label: `${lot.reagent_name} · ${lot.lot_number}`,
+  }));
 
   const createMutation = useMutation({
-    mutationFn: (data: CreateQcResultRequest) => api.createQcResult(data),
+    mutationFn: (data: CreateQcResultRequest) => labService.createQcResult(data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["lab-qc-results"] });
-      setShowForm(false);
-      setForm({});
+      formHandlers.close();
+      reset(qcDefaults);
     },
   });
+
+  const handleCreateQcResult = (values: LabQcResultFormInput) => {
+    createMutation.mutate({
+      test_id: values.test_id.trim(),
+      lot_id: values.lot_id.trim(),
+      level: values.level.trim(),
+      target_mean: labOptionalNumber(values.target_mean),
+      target_sd: labOptionalNumber(values.target_sd),
+      observed_value: labOptionalNumber(values.observed_value),
+      run_date: labOptionalText(values.run_date),
+      reviewer_notes: labOptionalText(values.reviewer_notes),
+    });
+  };
 
   const columns = [
     {
@@ -1963,60 +2213,107 @@ function QcResultsSection() {
           <Button
             size="xs"
             leftSection={<IconPlus size={14} />}
-            onClick={() => setShowForm(!showForm)}
+            onClick={() => {
+              if (formOpen) reset(qcDefaults);
+              formHandlers.toggle();
+            }}
           >
             {t("addQcResult")}
           </Button>
         </Group>
       )}
-      {showForm && (
-        <Stack gap="xs">
+      {formOpen && (
+        <Stack component="form" gap="xs" onSubmit={handleSubmit(handleCreateQcResult)}>
           <Group grow>
-            <LabTestSearchSelect
-              value={form.test_id ?? ""}
-              onChange={(id) => setForm({ ...form, test_id: id })}
-              required
+            <Controller
+              control={control}
+              name="test_id"
+              render={({ field }) => (
+                <LabTestSearchSelect
+                  value={field.value}
+                  onChange={(id) => field.onChange(id)}
+                  error={errors.test_id?.message}
+                  required
+                />
+              )}
             />
-            <TextInput
-              label={t("label.lotId")}
-              required
-              onChange={(e) => setForm({ ...form, lot_id: e.currentTarget.value })}
+            <Controller
+              control={control}
+              name="lot_id"
+              render={({ field }) => (
+                <Select
+                  label={t("label.lotId")}
+                  data={lotOptions}
+                  value={field.value || null}
+                  onChange={(value) => field.onChange(value ?? "")}
+                  error={errors.lot_id?.message}
+                  required
+                  searchable
+                />
+              )}
             />
             <TextInput
               label={t("label.level")}
               required
               placeholder={t("placeholder.e.g.L1,L2")}
-              onChange={(e) => setForm({ ...form, level: e.currentTarget.value })}
+              error={errors.level?.message}
+              {...register("level")}
             />
           </Group>
           <Group grow>
-            <NumberInput
-              label={t("label.targetMean")}
-              decimalScale={4}
-              onChange={(v) => setForm({ ...form, target_mean: Number(v) || undefined })}
+            <Controller
+              control={control}
+              name="target_mean"
+              render={({ field }) => (
+                <NumberInput
+                  label={t("label.targetMean")}
+                  decimalScale={4}
+                  value={field.value}
+                  onChange={field.onChange}
+                  error={errors.target_mean?.message}
+                />
+              )}
             />
-            <NumberInput
-              label={t("label.targetSd")}
-              decimalScale={4}
-              onChange={(v) => setForm({ ...form, target_sd: Number(v) || undefined })}
+            <Controller
+              control={control}
+              name="target_sd"
+              render={({ field }) => (
+                <NumberInput
+                  label={t("label.targetSd")}
+                  decimalScale={4}
+                  value={field.value}
+                  onChange={field.onChange}
+                  error={errors.target_sd?.message}
+                />
+              )}
             />
-            <NumberInput
-              label={t("label.observedValue")}
-              decimalScale={4}
-              onChange={(v) => setForm({ ...form, observed_value: Number(v) || undefined })}
+            <Controller
+              control={control}
+              name="observed_value"
+              render={({ field }) => (
+                <NumberInput
+                  label={t("label.observedValue")}
+                  decimalScale={4}
+                  value={field.value}
+                  onChange={field.onChange}
+                  error={errors.observed_value?.message}
+                />
+              )}
             />
           </Group>
           <TextInput
             label={t("label.runDate")}
             type="date"
-            onChange={(e) => setForm({ ...form, run_date: e.currentTarget.value || undefined })}
+            error={errors.run_date?.message}
+            {...register("run_date")}
             w={200}
           />
-          <Button
-            size="xs"
-            onClick={() => createMutation.mutate(form as CreateQcResultRequest)}
-            loading={createMutation.isPending}
-          >
+          <Textarea
+            label={t("reviewerNotes")}
+            error={errors.reviewer_notes?.message}
+            {...register("reviewer_notes")}
+          />
+          <Button size="xs" type="submit" loading={createMutation.isPending}>
             Save
           </Button>
         </Stack>
@@ -2162,22 +2459,52 @@ function CalibrationsSection() {
   const { t } = useTranslation("lab");
   const canCreate = useHasPermission(P.LAB.QC_CREATE);
   const queryClient = useQueryClient();
-  const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState<Partial<CreateCalibrationRequest>>({});
+  const [formOpen, formHandlers] = useDisclosure(false);
+  const calibrationDefaults: LabCalibrationFormInput = {
+    test_id: "",
+    instrument_name: "",
+    calibrator_lot: "",
+    calibration_date: "",
+    next_calibration_date: "",
+    is_passed: true,
+    notes: "",
+  };
+  const {
+    control,
+    register,
+    reset,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<LabCalibrationFormInput>({
+    resolver: zodResolver(labCalibrationFormSchema),
+    defaultValues: calibrationDefaults,
+  });
 
   const { data: calibrations = [], isLoading } = useQuery({
     queryKey: ["lab-calibrations"],
-    queryFn: () => api.listCalibrations(),
+    queryFn: () => labService.listCalibrations(),
   });
 
   const createMutation = useMutation({
-    mutationFn: (data: CreateCalibrationRequest) => api.createCalibration(data),
+    mutationFn: (data: CreateCalibrationRequest) => labService.createCalibration(data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["lab-calibrations"] });
-      setShowForm(false);
-      setForm({});
+      formHandlers.close();
+      reset(calibrationDefaults);
     },
   });
+
+  const handleCreateCalibration = (values: LabCalibrationFormInput) => {
+    createMutation.mutate({
+      test_id: values.test_id.trim(),
+      instrument_name: labOptionalText(values.instrument_name),
+      calibrator_lot: labOptionalText(values.calibrator_lot),
+      calibration_date: labOptionalText(values.calibration_date),
+      next_calibration_date: labOptionalText(values.next_calibration_date),
+      is_passed: values.is_passed,
+      notes: labOptionalText(values.notes),
+    });
+  };
 
   const columns = [
     {
@@ -2224,54 +2551,68 @@ function CalibrationsSection() {
           <Button
             size="xs"
             leftSection={<IconPlus size={14} />}
-            onClick={() => setShowForm(!showForm)}
+            onClick={() => {
+              formHandlers.toggle();
+              if (formOpen) reset(calibrationDefaults);
+            }}
           >
             {t("addCalibration")}
           </Button>
         </Group>
       )}
-      {showForm && (
-        <Stack gap="xs">
+      {formOpen && (
+        <Stack component="form" gap="xs" onSubmit={handleSubmit(handleCreateCalibration)}>
           <Group grow>
-            <LabTestSearchSelect
-              value={form.test_id ?? ""}
-              onChange={(id) => setForm({ ...form, test_id: id })}
-              required
+            <Controller
+              control={control}
+              name="test_id"
+              render={({ field }) => (
+                <LabTestSearchSelect
+                  value={field.value}
+                  onChange={(id) => field.onChange(id)}
+                  error={errors.test_id?.message}
+                  required
+                />
+              )}
             />
             <TextInput
               label={t("label.instrument")}
-              onChange={(e) =>
-                setForm({ ...form, instrument_name: e.currentTarget.value || undefined })
-              }
+              error={errors.instrument_name?.message}
+              {...register("instrument_name")}
             />
             <TextInput
               label={t("label.calibratorLot")}
-              onChange={(e) =>
-                setForm({ ...form, calibrator_lot: e.currentTarget.value || undefined })
-              }
+              error={errors.calibrator_lot?.message}
+              {...register("calibrator_lot")}
             />
           </Group>
           <Group grow>
             <TextInput
               label={t("label.date")}
               type="date"
-              onChange={(e) =>
-                setForm({ ...form, calibration_date: e.currentTarget.value || undefined })
-              }
+              error={errors.calibration_date?.message}
+              {...register("calibration_date")}
             />
             <TextInput
               label={t("label.nextCalibration")}
               type="date"
-              onChange={(e) =>
-                setForm({ ...form, next_calibration_date: e.currentTarget.value || undefined })
-              }
+              error={errors.next_calibration_date?.message}
+              {...register("next_calibration_date")}
             />
           </Group>
-          <Button
-            size="xs"
-            onClick={() => createMutation.mutate(form as CreateCalibrationRequest)}
-            loading={createMutation.isPending}
-          >
+          <Controller
+            control={control}
+            name="is_passed"
+            render={({ field }) => (
+              <Switch
+                label={t("passed")}
+                checked={field.value}
+                onChange={(event) => field.onChange(event.currentTarget.checked)}
+              />
+            )}
+          />
+          <Textarea label={t("notes")} error={errors.notes?.message} {...register("notes")} />
+          <Button size="xs" type="submit" loading={createMutation.isPending}>
             Save
           </Button>
         </Stack>
@@ -2294,26 +2635,56 @@ function OutsourcedTab() {
   const { t } = useTranslation("lab");
   const canManage = useHasPermission(P.LAB.OUTSOURCED_MANAGE);
   const queryClient = useQueryClient();
-  const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState<Partial<CreateOutsourcedOrderRequest>>({});
+  const [formOpen, formHandlers] = useDisclosure(false);
+  const outsourcedDefaults: LabOutsourcedOrderFormInput = {
+    order_id: "",
+    external_lab_name: "",
+    external_lab_code: "",
+    sent_date: "",
+    expected_return_date: "",
+    cost: "",
+    notes: "",
+  };
+  const {
+    control,
+    register,
+    reset,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<LabOutsourcedOrderFormInput>({
+    resolver: zodResolver(labOutsourcedOrderFormSchema),
+    defaultValues: outsourcedDefaults,
+  });
 
   const { data: outsourced = [], isLoading } = useQuery({
     queryKey: ["lab-outsourced"],
-    queryFn: () => api.listOutsourcedOrders(),
+    queryFn: () => labService.listOutsourcedOrders(),
   });
 
   const createMutation = useMutation({
-    mutationFn: (data: CreateOutsourcedOrderRequest) => api.createOutsourcedOrder(data),
+    mutationFn: (data: CreateOutsourcedOrderRequest) => labService.createOutsourcedOrder(data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["lab-outsourced"] });
-      setShowForm(false);
-      setForm({});
+      formHandlers.close();
+      reset(outsourcedDefaults);
     },
   });
 
+  const handleCreateOutsourcedOrder = (values: LabOutsourcedOrderFormInput) => {
+    createMutation.mutate({
+      order_id: values.order_id.trim(),
+      external_lab_name: values.external_lab_name.trim(),
+      external_lab_code: labOptionalText(values.external_lab_code),
+      sent_date: labOptionalText(values.sent_date),
+      expected_return_date: labOptionalText(values.expected_return_date),
+      cost: labOptionalNumber(values.cost),
+      notes: labOptionalText(values.notes),
+    });
+  };
+
   const updateMutation = useMutation({
     mutationFn: ({ id, status }: { id: string; status: string }) =>
-      api.updateOutsourcedOrder(id, {
+      labService.updateOutsourcedOrder(id, {
         status: status as "pending_send" | "sent" | "result_received" | "cancelled",
       }),
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["lab-outsourced"] }),
@@ -2395,58 +2766,67 @@ function OutsourcedTab() {
           <Button
             size="xs"
             leftSection={<IconPlus size={14} />}
-            onClick={() => setShowForm(!showForm)}
+            onClick={() => {
+              formHandlers.toggle();
+              if (formOpen) reset(outsourcedDefaults);
+            }}
           >
             {t("outsourceOrder")}
           </Button>
         </Group>
       )}
-      {showForm && (
-        <Stack gap="xs">
+      {formOpen && (
+        <Stack component="form" gap="xs" onSubmit={handleSubmit(handleCreateOutsourcedOrder)}>
           <Group grow>
             <TextInput
               label={t("label.orderId")}
               required
-              onChange={(e) => setForm({ ...form, order_id: e.currentTarget.value })}
+              error={errors.order_id?.message}
+              {...register("order_id")}
             />
             <TextInput
               label={t("label.externalLabName")}
               required
-              onChange={(e) => setForm({ ...form, external_lab_name: e.currentTarget.value })}
+              error={errors.external_lab_name?.message}
+              {...register("external_lab_name")}
             />
           </Group>
           <Group grow>
             <TextInput
               label={t("label.labCode")}
-              onChange={(e) =>
-                setForm({ ...form, external_lab_code: e.currentTarget.value || undefined })
-              }
+              error={errors.external_lab_code?.message}
+              {...register("external_lab_code")}
             />
             <TextInput
               label={t("label.sentDate")}
               type="date"
-              onChange={(e) => setForm({ ...form, sent_date: e.currentTarget.value || undefined })}
+              error={errors.sent_date?.message}
+              {...register("sent_date")}
             />
             <TextInput
               label={t("label.expectedReturn")}
               type="date"
-              onChange={(e) =>
-                setForm({ ...form, expected_return_date: e.currentTarget.value || undefined })
-              }
+              error={errors.expected_return_date?.message}
+              {...register("expected_return_date")}
             />
           </Group>
-          <NumberInput
-            label={t("label.cost")}
-            min={0}
-            decimalScale={2}
-            onChange={(v) => setForm({ ...form, cost: Number(v) || undefined })}
-            w={200}
+          <Controller
+            control={control}
+            name="cost"
+            render={({ field }) => (
+              <NumberInput
+                label={t("label.cost")}
+                min={0}
+                decimalScale={2}
+                value={field.value}
+                onChange={field.onChange}
+                error={errors.cost?.message}
+                w={200}
+              />
+            )}
           />
-          <Button
-            size="xs"
-            onClick={() => createMutation.mutate(form as CreateOutsourcedOrderRequest)}
-            loading={createMutation.isPending}
-          >
+          <Textarea label={t("notes")} error={errors.notes?.message} {...register("notes")} />
+          <Button size="xs" type="submit" loading={createMutation.isPending}>
             Save
           </Button>
         </Stack>
@@ -2505,28 +2885,62 @@ function HomeCollectionsSection() {
   const { t } = useTranslation("lab");
   const canManage = useHasPermission(P.LAB.SAMPLES_MANAGE);
   const queryClient = useQueryClient();
-  const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState<Partial<CreateHomeCollectionRequest>>({});
+  const [formOpen, formHandlers] = useDisclosure(false);
+  const homeCollectionDefaults: LabHomeCollectionFormInput = {
+    order_id: "",
+    patient_id: "",
+    scheduled_date: "",
+    scheduled_time_slot: "",
+    address_line: "",
+    city: "",
+    pincode: "",
+    contact_phone: "",
+    special_instructions: "",
+  };
+  const {
+    control,
+    register,
+    reset,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<LabHomeCollectionFormInput>({
+    resolver: zodResolver(labHomeCollectionFormSchema),
+    defaultValues: homeCollectionDefaults,
+  });
 
   const { data: collections = [], isLoading } = useQuery({
     queryKey: ["lab-home-collections"],
-    queryFn: () => api.listHomeCollections(),
+    queryFn: () => labService.listHomeCollections(),
   });
 
   const { data: stats = [] } = useQuery({
     queryKey: ["lab-home-collection-stats"],
-    queryFn: () => api.getHomeCollectionStats(),
+    queryFn: () => labService.getHomeCollectionStats(),
   });
 
   const createMutation = useMutation({
-    mutationFn: (data: CreateHomeCollectionRequest) => api.createHomeCollection(data),
+    mutationFn: (data: CreateHomeCollectionRequest) => labService.createHomeCollection(data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["lab-home-collections"] });
       void queryClient.invalidateQueries({ queryKey: ["lab-home-collection-stats"] });
-      setShowForm(false);
-      setForm({});
+      formHandlers.close();
+      reset(homeCollectionDefaults);
     },
   });
+
+  const handleCreateHomeCollection = (values: LabHomeCollectionFormInput) => {
+    createMutation.mutate({
+      order_id: labOptionalText(values.order_id),
+      patient_id: values.patient_id.trim(),
+      scheduled_date: values.scheduled_date.trim(),
+      scheduled_time_slot: labOptionalText(values.scheduled_time_slot),
+      address_line: labOptionalText(values.address_line),
+      city: labOptionalText(values.city),
+      pincode: labOptionalText(values.pincode),
+      contact_phone: labOptionalText(values.contact_phone),
+      special_instructions: labOptionalText(values.special_instructions),
+    });
+  };
 
   const columns = [
     {
@@ -2589,62 +3003,69 @@ function HomeCollectionsSection() {
           <Button
             size="xs"
             leftSection={<IconPlus size={14} />}
-            onClick={() => setShowForm(!showForm)}
+            onClick={() => {
+              formHandlers.toggle();
+              if (formOpen) reset(homeCollectionDefaults);
+            }}
           >
             {t("scheduleCollection")}
           </Button>
         </Group>
       )}
-      {showForm && (
-        <Stack gap="xs">
+      {formOpen && (
+        <Stack component="form" gap="xs" onSubmit={handleSubmit(handleCreateHomeCollection)}>
           <Group grow>
-            <PatientSearchSelect
-              value={form.patient_id ?? ""}
-              onChange={(id) => setForm({ ...form, patient_id: id })}
-              required
+            <Controller
+              control={control}
+              name="patient_id"
+              render={({ field }) => (
+                <PatientSearchSelect
+                  value={field.value}
+                  onChange={(id) => field.onChange(id)}
+                  error={errors.patient_id?.message}
+                  required
+                />
+              )}
             />
             <TextInput
               label={t("label.scheduledDate")}
               type="date"
               required
-              onChange={(e) => setForm({ ...form, scheduled_date: e.currentTarget.value })}
+              error={errors.scheduled_date?.message}
+              {...register("scheduled_date")}
             />
             <TextInput
               label={t("label.timeSlot")}
               placeholder={t("placeholder.e.g.9:0011:00Am")}
-              onChange={(e) =>
-                setForm({ ...form, scheduled_time_slot: e.currentTarget.value || undefined })
-              }
+              error={errors.scheduled_time_slot?.message}
+              {...register("scheduled_time_slot")}
             />
           </Group>
           <Group grow>
             <TextInput
               label={t("label.address")}
-              onChange={(e) =>
-                setForm({ ...form, address_line: e.currentTarget.value || undefined })
-              }
+              error={errors.address_line?.message}
+              {...register("address_line")}
             />
-            <TextInput
-              label={t("label.city")}
-              onChange={(e) => setForm({ ...form, city: e.currentTarget.value || undefined })}
-            />
+            <TextInput label={t("label.city")} error={errors.city?.message} {...register("city")} />
             <TextInput
               label={t("label.pincode")}
-              onChange={(e) => setForm({ ...form, pincode: e.currentTarget.value || undefined })}
+              error={errors.pincode?.message}
+              {...register("pincode")}
             />
           </Group>
           <TextInput
             label={t("label.contactPhone")}
-            onChange={(e) =>
-              setForm({ ...form, contact_phone: e.currentTarget.value || undefined })
-            }
+            error={errors.contact_phone?.message}
+            {...register("contact_phone")}
             w={200}
           />
-          <Button
-            size="xs"
-            onClick={() => createMutation.mutate(form as CreateHomeCollectionRequest)}
-            loading={createMutation.isPending}
-          >
+          <Textarea
+            label={t("specialInstructions")}
+            error={errors.special_instructions?.message}
+            {...register("special_instructions")}
+          />
+          <Button size="xs" type="submit" loading={createMutation.isPending}>
             Save
           </Button>
         </Stack>
@@ -2663,22 +3084,54 @@ function CollectionCentersSection() {
   const { t } = useTranslation("lab");
   const canManage = useHasPermission(P.LAB.SAMPLES_MANAGE);
   const queryClient = useQueryClient();
-  const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState<Partial<CreateCollectionCenterRequest>>({});
+  const [formOpen, formHandlers] = useDisclosure(false);
+  const centerDefaults: LabCollectionCenterFormInput = {
+    code: "",
+    name: "",
+    center_type: "hospital",
+    address: "",
+    city: "",
+    phone: "",
+    contact_person: "",
+    notes: "",
+  };
+  const {
+    control,
+    register,
+    reset,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<LabCollectionCenterFormInput>({
+    resolver: zodResolver(labCollectionCenterFormSchema),
+    defaultValues: centerDefaults,
+  });
 
   const { data: centers = [], isLoading } = useQuery({
     queryKey: ["lab-collection-centers"],
-    queryFn: () => api.listCollectionCenters(),
+    queryFn: () => labService.listCollectionCenters(),
   });
 
   const createMutation = useMutation({
-    mutationFn: (data: CreateCollectionCenterRequest) => api.createCollectionCenter(data),
+    mutationFn: (data: CreateCollectionCenterRequest) => labService.createCollectionCenter(data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["lab-collection-centers"] });
-      setShowForm(false);
-      setForm({});
+      formHandlers.close();
+      reset(centerDefaults);
     },
   });
+
+  const handleCreateCollectionCenter = (values: LabCollectionCenterFormInput) => {
+    createMutation.mutate({
+      code: values.code.trim(),
+      name: values.name.trim(),
+      center_type: values.center_type,
+      address: labOptionalText(values.address),
+      city: labOptionalText(values.city),
+      phone: labOptionalText(values.phone),
+      contact_person: labOptionalText(values.contact_person),
+      notes: labOptionalText(values.notes),
+    });
+  };
 
   const columns = [
     {
@@ -2729,55 +3182,65 @@ function CollectionCentersSection() {
           <Button
             size="xs"
             leftSection={<IconPlus size={14} />}
-            onClick={() => setShowForm(!showForm)}
+            onClick={() => {
+              formHandlers.toggle();
+              if (formOpen) reset(centerDefaults);
+            }}
           >
             {t("addCenter")}
           </Button>
         </Group>
       )}
-      {showForm && (
-        <Stack gap="xs">
+      {formOpen && (
+        <Stack component="form" gap="xs" onSubmit={handleSubmit(handleCreateCollectionCenter)}>
           <Group grow>
             <TextInput
               label={t("label.code")}
               required
-              onChange={(e) => setForm({ ...form, code: e.currentTarget.value })}
+              error={errors.code?.message}
+              {...register("code")}
             />
             <TextInput
               label={t("label.name")}
               required
-              onChange={(e) => setForm({ ...form, name: e.currentTarget.value })}
+              error={errors.name?.message}
+              {...register("name")}
             />
-            <Select
-              label={t("label.type")}
-              required
-              data={["hospital", "satellite", "partner", "camp"]}
-              onChange={(v) =>
-                setForm({ ...form, center_type: v as CreateCollectionCenterRequest["center_type"] })
-              }
+            <Controller
+              control={control}
+              name="center_type"
+              render={({ field }) => (
+                <Select
+                  label={t("label.type")}
+                  required
+                  data={labCollectionCenterTypeOptions}
+                  value={field.value}
+                  onChange={(value) => field.onChange(value ?? "hospital")}
+                  error={errors.center_type?.message}
+                />
+              )}
             />
           </Group>
           <Group grow>
-            <TextInput
-              label={t("label.city")}
-              onChange={(e) => setForm({ ...form, city: e.currentTarget.value || undefined })}
-            />
+            <TextInput label={t("label.city")} error={errors.city?.message} {...register("city")} />
             <TextInput
               label={t("label.phone")}
-              onChange={(e) => setForm({ ...form, phone: e.currentTarget.value || undefined })}
+              error={errors.phone?.message}
+              {...register("phone")}
             />
             <TextInput
               label={t("label.contactPerson")}
-              onChange={(e) =>
-                setForm({ ...form, contact_person: e.currentTarget.value || undefined })
-              }
+              error={errors.contact_person?.message}
+              {...register("contact_person")}
             />
           </Group>
-          <Button
-            size="xs"
-            onClick={() => createMutation.mutate(form as CreateCollectionCenterRequest)}
-            loading={createMutation.isPending}
-          >
+          <Textarea
+            label={t("label.address")}
+            error={errors.address?.message}
+            {...register("address")}
+          />
+          <Textarea label={t("notes")} error={errors.notes?.message} {...register("notes")} />
+          <Button size="xs" type="submit" loading={createMutation.isPending}>
             Save
           </Button>
         </Stack>
@@ -2791,25 +3254,51 @@ function SampleArchiveSection() {
   const { t } = useTranslation("lab");
   const canManage = useHasPermission(P.LAB.SAMPLES_MANAGE);
   const queryClient = useQueryClient();
-  const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState<Partial<CreateSampleArchiveRequest>>({});
+  const [formOpen, formHandlers] = useDisclosure(false);
+  const archiveDefaults: LabSampleArchiveFormInput = {
+    order_id: "",
+    patient_id: "",
+    sample_barcode: "",
+    storage_location: "",
+    notes: "",
+  };
+  const {
+    control,
+    register,
+    reset,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<LabSampleArchiveFormInput>({
+    resolver: zodResolver(labSampleArchiveFormSchema),
+    defaultValues: archiveDefaults,
+  });
 
   const { data: archives = [], isLoading } = useQuery({
     queryKey: ["lab-sample-archive"],
-    queryFn: () => api.listSampleArchive(),
+    queryFn: () => labService.listSampleArchive(),
   });
 
   const createMutation = useMutation({
-    mutationFn: (data: CreateSampleArchiveRequest) => api.createSampleArchive(data),
+    mutationFn: (data: CreateSampleArchiveRequest) => labService.createSampleArchive(data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["lab-sample-archive"] });
-      setShowForm(false);
-      setForm({});
+      formHandlers.close();
+      reset(archiveDefaults);
     },
   });
 
+  const handleCreateSampleArchive = (values: LabSampleArchiveFormInput) => {
+    createMutation.mutate({
+      order_id: labOptionalText(values.order_id),
+      patient_id: labOptionalText(values.patient_id),
+      sample_barcode: labOptionalText(values.sample_barcode),
+      storage_location: labOptionalText(values.storage_location),
+      notes: labOptionalText(values.notes),
+    });
+  };
+
   const retrieveMutation = useMutation({
-    mutationFn: (id: string) => api.retrieveSampleArchive(id),
+    mutationFn: (id: string) => labService.retrieveSampleArchive(id),
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["lab-sample-archive"] }),
   });
 
@@ -2870,37 +3359,49 @@ function SampleArchiveSection() {
           <Button
             size="xs"
             leftSection={<IconPlus size={14} />}
-            onClick={() => setShowForm(!showForm)}
+            onClick={() => {
+              formHandlers.toggle();
+              if (formOpen) reset(archiveDefaults);
+            }}
           >
             {t("archiveSample")}
           </Button>
         </Group>
       )}
-      {showForm && (
-        <Stack gap="xs">
+      {formOpen && (
+        <Stack component="form" gap="xs" onSubmit={handleSubmit(handleCreateSampleArchive)}>
           <Group grow>
             <TextInput
               label={t("label.sampleBarcode")}
-              onChange={(e) =>
-                setForm({ ...form, sample_barcode: e.currentTarget.value || undefined })
-              }
+              error={errors.sample_barcode?.message}
+              {...register("sample_barcode")}
             />
-            <PatientSearchSelect
-              value={form.patient_id ?? ""}
-              onChange={(id) => setForm({ ...form, patient_id: id || undefined })}
+            <Controller
+              control={control}
+              name="patient_id"
+              render={({ field }) => (
+                <PatientSearchSelect
+                  value={field.value}
+                  onChange={(id) => field.onChange(id)}
+                  error={errors.patient_id?.message}
+                />
+              )}
             />
             <TextInput
               label={t("label.storageLocation")}
-              onChange={(e) =>
-                setForm({ ...form, storage_location: e.currentTarget.value || undefined })
-              }
+              error={errors.storage_location?.message}
+              {...register("storage_location")}
             />
           </Group>
-          <Button
-            size="xs"
-            onClick={() => createMutation.mutate(form as CreateSampleArchiveRequest)}
-            loading={createMutation.isPending}
-          >
+          <Group grow>
+            <TextInput
+              label={t("label.orderId")}
+              error={errors.order_id?.message}
+              {...register("order_id")}
+            />
+            <Textarea label={t("notes")} error={errors.notes?.message} {...register("notes")} />
+          </Group>
+          <Button size="xs" type="submit" loading={createMutation.isPending}>
             Save
           </Button>
         </Stack>
@@ -2925,22 +3426,62 @@ function EqasSection() {
   const { t } = useTranslation("lab");
   const canCreate = useHasPermission(P.LAB.QC_CREATE);
   const queryClient = useQueryClient();
-  const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState<Partial<CreateEqasResultRequest>>({});
+  const [formOpen, formHandlers] = useDisclosure(false);
+  const eqasDefaults: LabEqasResultFormInput = {
+    program_name: "",
+    provider: "",
+    test_id: "",
+    cycle: "",
+    sample_number: "",
+    expected_value: "",
+    reported_value: "",
+    evaluation: "pending",
+    bias_percent: "",
+    z_score: "",
+    report_date: "",
+    notes: "",
+  };
+  const {
+    control,
+    register,
+    reset,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<LabEqasResultFormInput>({
+    resolver: zodResolver(labEqasResultFormSchema),
+    defaultValues: eqasDefaults,
+  });
 
   const { data: results = [], isLoading } = useQuery({
     queryKey: ["lab-eqas"],
-    queryFn: () => api.listEqasResults(),
+    queryFn: () => labService.listEqasResults(),
   });
 
   const createMutation = useMutation({
-    mutationFn: (data: CreateEqasResultRequest) => api.createEqasResult(data),
+    mutationFn: (data: CreateEqasResultRequest) => labService.createEqasResult(data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["lab-eqas"] });
-      setShowForm(false);
-      setForm({});
+      formHandlers.close();
+      reset(eqasDefaults);
     },
   });
+
+  const handleCreateEqasResult = (values: LabEqasResultFormInput) => {
+    createMutation.mutate({
+      program_name: values.program_name.trim(),
+      provider: labOptionalText(values.provider),
+      test_id: labOptionalText(values.test_id),
+      cycle: labOptionalText(values.cycle),
+      sample_number: labOptionalText(values.sample_number),
+      expected_value: labOptionalNumber(values.expected_value),
+      reported_value: labOptionalNumber(values.reported_value),
+      evaluation: values.evaluation,
+      bias_percent: labOptionalNumber(values.bias_percent),
+      z_score: labOptionalNumber(values.z_score),
+      report_date: labOptionalText(values.report_date),
+      notes: labOptionalText(values.notes),
+    });
+  };
 
   const columns = [
     {
@@ -2998,72 +3539,131 @@ function EqasSection() {
           <Button
             size="xs"
             leftSection={<IconPlus size={14} />}
-            onClick={() => setShowForm(!showForm)}
+            onClick={() => {
+              formHandlers.toggle();
+              if (formOpen) reset(eqasDefaults);
+            }}
           >
             {t("addEqasResult")}
           </Button>
         </Group>
       )}
-      {showForm && (
-        <Stack gap="xs">
+      {formOpen && (
+        <Stack component="form" gap="xs" onSubmit={handleSubmit(handleCreateEqasResult)}>
           <Group grow>
             <TextInput
               label={t("label.programName")}
               required
-              onChange={(e) => setForm({ ...form, program_name: e.currentTarget.value })}
+              error={errors.program_name?.message}
+              {...register("program_name")}
             />
             <TextInput
               label={t("label.provider")}
-              onChange={(e) => setForm({ ...form, provider: e.currentTarget.value || undefined })}
+              error={errors.provider?.message}
+              {...register("provider")}
             />
             <TextInput
               label={t("label.cycle")}
-              onChange={(e) => setForm({ ...form, cycle: e.currentTarget.value || undefined })}
+              error={errors.cycle?.message}
+              {...register("cycle")}
             />
           </Group>
           <Group grow>
-            <NumberInput
-              label={t("label.expectedValue")}
-              decimalScale={4}
-              onChange={(v) => setForm({ ...form, expected_value: Number(v) || undefined })}
+            <Controller
+              control={control}
+              name="test_id"
+              render={({ field }) => (
+                <LabTestSearchSelect
+                  value={field.value}
+                  onChange={(id) => field.onChange(id)}
+                  error={errors.test_id?.message}
+                />
+              )}
             />
-            <NumberInput
-              label={t("label.reportedValue")}
-              decimalScale={4}
-              onChange={(v) => setForm({ ...form, reported_value: Number(v) || undefined })}
+            <TextInput
+              label={t("label.sampleNumber")}
+              error={errors.sample_number?.message}
+              {...register("sample_number")}
             />
-            <Select
-              label={t("label.evaluation")}
-              data={["acceptable", "marginal", "unacceptable", "pending"]}
-              onChange={(v) =>
-                setForm({ ...form, evaluation: v as CreateEqasResultRequest["evaluation"] })
-              }
+            <Controller
+              control={control}
+              name="evaluation"
+              render={({ field }) => (
+                <Select
+                  label={t("label.evaluation")}
+                  data={labEqasEvaluationOptions}
+                  value={field.value}
+                  onChange={(value) => field.onChange(value ?? "pending")}
+                  error={errors.evaluation?.message}
+                  required
+                />
+              )}
             />
           </Group>
           <Group grow>
-            <NumberInput
-              label={t("label.bias%")}
-              decimalScale={2}
-              onChange={(v) => setForm({ ...form, bias_percent: Number(v) || undefined })}
+            <Controller
+              control={control}
+              name="expected_value"
+              render={({ field }) => (
+                <NumberInput
+                  label={t("label.expectedValue")}
+                  decimalScale={4}
+                  value={field.value}
+                  onChange={field.onChange}
+                  error={errors.expected_value?.message}
+                />
+              )}
             />
-            <NumberInput
-              label={t("label.zScore")}
-              decimalScale={2}
-              onChange={(v) => setForm({ ...form, z_score: Number(v) || undefined })}
+            <Controller
+              control={control}
+              name="reported_value"
+              render={({ field }) => (
+                <NumberInput
+                  label={t("label.reportedValue")}
+                  decimalScale={4}
+                  value={field.value}
+                  onChange={field.onChange}
+                  error={errors.reported_value?.message}
+                />
+              )}
+            />
+            <Controller
+              control={control}
+              name="bias_percent"
+              render={({ field }) => (
+                <NumberInput
+                  label={t("label.bias%")}
+                  decimalScale={2}
+                  value={field.value}
+                  onChange={field.onChange}
+                  error={errors.bias_percent?.message}
+                />
+              )}
+            />
+          </Group>
+          <Group grow>
+            <Controller
+              control={control}
+              name="z_score"
+              render={({ field }) => (
+                <NumberInput
+                  label={t("label.zScore")}
+                  decimalScale={2}
+                  value={field.value}
+                  onChange={field.onChange}
+                  error={errors.z_score?.message}
+                />
+              )}
             />
             <TextInput
               label={t("label.reportDate")}
               type="date"
-              onChange={(e) =>
-                setForm({ ...form, report_date: e.currentTarget.value || undefined })
-              }
+              error={errors.report_date?.message}
+              {...register("report_date")}
             />
+            <Textarea label={t("notes")} error={errors.notes?.message} {...register("notes")} />
           </Group>
-          <Button
-            size="xs"
-            onClick={() => createMutation.mutate(form as CreateEqasResultRequest)}
-            loading={createMutation.isPending}
-          >
+          <Button size="xs" type="submit" loading={createMutation.isPending}>
             Save
           </Button>
         </Stack>
@@ -3077,22 +3677,60 @@ function ProficiencyTestingSection() {
   const { t } = useTranslation("lab");
   const canCreate = useHasPermission(P.LAB.QC_CREATE);
   const queryClient = useQueryClient();
-  const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState<Partial<CreateProficiencyTestRequest>>({});
+  const [formOpen, formHandlers] = useDisclosure(false);
+  const proficiencyDefaults: LabProficiencyTestFormInput = {
+    program: "",
+    test_id: "",
+    survey_round: "",
+    sample_id: "",
+    assigned_value: "",
+    reported_value: "",
+    acceptable_range_low: "",
+    acceptable_range_high: "",
+    is_acceptable: null,
+    evaluation_date: "",
+    notes: "",
+  };
+  const {
+    control,
+    register,
+    reset,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<LabProficiencyTestFormInput>({
+    resolver: zodResolver(labProficiencyTestFormSchema),
+    defaultValues: proficiencyDefaults,
+  });
 
   const { data: tests = [], isLoading } = useQuery({
     queryKey: ["lab-proficiency-tests"],
-    queryFn: () => api.listProficiencyTests(),
+    queryFn: () => labService.listProficiencyTests(),
   });
 
   const createMutation = useMutation({
-    mutationFn: (data: CreateProficiencyTestRequest) => api.createProficiencyTest(data),
+    mutationFn: (data: CreateProficiencyTestRequest) => labService.createProficiencyTest(data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["lab-proficiency-tests"] });
-      setShowForm(false);
-      setForm({});
+      formHandlers.close();
+      reset(proficiencyDefaults);
     },
   });
+
+  const handleCreateProficiencyTest = (values: LabProficiencyTestFormInput) => {
+    createMutation.mutate({
+      program: values.program.trim(),
+      test_id: labOptionalText(values.test_id),
+      survey_round: labOptionalText(values.survey_round),
+      sample_id: labOptionalText(values.sample_id),
+      assigned_value: labOptionalNumber(values.assigned_value),
+      reported_value: labOptionalNumber(values.reported_value),
+      acceptable_range_low: labOptionalNumber(values.acceptable_range_low),
+      acceptable_range_high: labOptionalNumber(values.acceptable_range_high),
+      is_acceptable: values.is_acceptable ?? undefined,
+      evaluation_date: labOptionalText(values.evaluation_date),
+      notes: labOptionalText(values.notes),
+    });
+  };
 
   const columns = [
     {
@@ -3154,60 +3792,133 @@ function ProficiencyTestingSection() {
           <Button
             size="xs"
             leftSection={<IconPlus size={14} />}
-            onClick={() => setShowForm(!showForm)}
+            onClick={() => {
+              formHandlers.toggle();
+              if (formOpen) reset(proficiencyDefaults);
+            }}
           >
             {t("addPtResult")}
           </Button>
         </Group>
       )}
-      {showForm && (
-        <Stack gap="xs">
+      {formOpen && (
+        <Stack component="form" gap="xs" onSubmit={handleSubmit(handleCreateProficiencyTest)}>
           <Group grow>
             <TextInput
               label={t("label.program")}
               required
-              onChange={(e) => setForm({ ...form, program: e.currentTarget.value })}
+              error={errors.program?.message}
+              {...register("program")}
             />
             <TextInput
               label={t("label.surveyRound")}
-              onChange={(e) =>
-                setForm({ ...form, survey_round: e.currentTarget.value || undefined })
-              }
+              error={errors.survey_round?.message}
+              {...register("survey_round")}
             />
             <TextInput
               label={t("label.sampleId")}
-              onChange={(e) => setForm({ ...form, sample_id: e.currentTarget.value || undefined })}
+              error={errors.sample_id?.message}
+              {...register("sample_id")}
             />
           </Group>
           <Group grow>
-            <NumberInput
-              label={t("label.assignedValue")}
-              decimalScale={4}
-              onChange={(v) => setForm({ ...form, assigned_value: Number(v) || undefined })}
+            <Controller
+              control={control}
+              name="test_id"
+              render={({ field }) => (
+                <LabTestSearchSelect
+                  value={field.value}
+                  onChange={(id) => field.onChange(id)}
+                  error={errors.test_id?.message}
+                />
+              )}
             />
-            <NumberInput
-              label={t("label.reportedValue")}
-              decimalScale={4}
-              onChange={(v) => setForm({ ...form, reported_value: Number(v) || undefined })}
+            <Controller
+              control={control}
+              name="assigned_value"
+              render={({ field }) => (
+                <NumberInput
+                  label={t("label.assignedValue")}
+                  decimalScale={4}
+                  value={field.value}
+                  onChange={field.onChange}
+                  error={errors.assigned_value?.message}
+                />
+              )}
+            />
+            <Controller
+              control={control}
+              name="reported_value"
+              render={({ field }) => (
+                <NumberInput
+                  label={t("label.reportedValue")}
+                  decimalScale={4}
+                  value={field.value}
+                  onChange={field.onChange}
+                  error={errors.reported_value?.message}
+                />
+              )}
             />
           </Group>
           <Group grow>
-            <NumberInput
-              label={t("label.rangeLow")}
-              decimalScale={4}
-              onChange={(v) => setForm({ ...form, acceptable_range_low: Number(v) || undefined })}
+            <Controller
+              control={control}
+              name="acceptable_range_low"
+              render={({ field }) => (
+                <NumberInput
+                  label={t("label.rangeLow")}
+                  decimalScale={4}
+                  value={field.value}
+                  onChange={field.onChange}
+                  error={errors.acceptable_range_low?.message}
+                />
+              )}
             />
-            <NumberInput
-              label={t("label.rangeHigh")}
-              decimalScale={4}
-              onChange={(v) => setForm({ ...form, acceptable_range_high: Number(v) || undefined })}
+            <Controller
+              control={control}
+              name="acceptable_range_high"
+              render={({ field }) => (
+                <NumberInput
+                  label={t("label.rangeHigh")}
+                  decimalScale={4}
+                  value={field.value}
+                  onChange={field.onChange}
+                  error={errors.acceptable_range_high?.message}
+                />
+              )}
+            />
+            <Controller
+              control={control}
+              name="is_acceptable"
+              render={({ field }) => (
+                <Select
+                  label={t("label.result")}
+                  data={[
+                    { value: "pending", label: t("pending") },
+                    { value: "pass", label: "Pass" },
+                    { value: "fail", label: "Fail" },
+                  ]}
+                  value={field.value == null ? "pending" : field.value ? "pass" : "fail"}
+                  onChange={(value) => {
+                    if (value === "pass") field.onChange(true);
+                    else if (value === "fail") field.onChange(false);
+                    else field.onChange(null);
+                  }}
+                  error={errors.is_acceptable?.message}
+                />
+              )}
             />
           </Group>
-          <Button
-            size="xs"
-            onClick={() => createMutation.mutate(form as CreateProficiencyTestRequest)}
-            loading={createMutation.isPending}
-          >
+          <Group grow>
+            <TextInput
+              label={t("label.evaluationDate")}
+              type="date"
+              error={errors.evaluation_date?.message}
+              {...register("evaluation_date")}
+            />
+            <Textarea label={t("notes")} error={errors.notes?.message} {...register("notes")} />
+          </Group>
+          <Button size="xs" type="submit" loading={createMutation.isPending}>
             Save
           </Button>
         </Stack>
@@ -3221,22 +3932,56 @@ function NablDocumentsSection() {
   const { t } = useTranslation("lab");
   const canManage = useHasPermission(P.LAB.QC_MANAGE);
   const queryClient = useQueryClient();
-  const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState<Partial<CreateNablDocumentRequest>>({});
+  const [formOpen, formHandlers] = useDisclosure(false);
+  const nablDocumentDefaults: LabNablDocumentFormInput = {
+    document_type: "",
+    document_number: "",
+    title: "",
+    version: "",
+    effective_date: "",
+    review_date: "",
+    file_path: "",
+    is_current: true,
+    notes: "",
+  };
+  const {
+    control,
+    register,
+    reset,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<LabNablDocumentFormInput>({
+    resolver: zodResolver(labNablDocumentFormSchema),
+    defaultValues: nablDocumentDefaults,
+  });
 
   const { data: docs = [], isLoading } = useQuery({
     queryKey: ["lab-nabl-documents"],
-    queryFn: () => api.listNablDocuments(),
+    queryFn: () => labService.listNablDocuments(),
   });
 
   const createMutation = useMutation({
-    mutationFn: (data: CreateNablDocumentRequest) => api.createNablDocument(data),
+    mutationFn: (data: CreateNablDocumentRequest) => labService.createNablDocument(data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["lab-nabl-documents"] });
-      setShowForm(false);
-      setForm({});
+      formHandlers.close();
+      reset(nablDocumentDefaults);
     },
   });
+
+  const handleCreateNablDocument = (values: LabNablDocumentFormInput) => {
+    createMutation.mutate({
+      document_type: labOptionalText(values.document_type),
+      document_number: values.document_number.trim(),
+      title: values.title.trim(),
+      version: labOptionalText(values.version),
+      effective_date: labOptionalText(values.effective_date),
+      review_date: labOptionalText(values.review_date),
+      file_path: labOptionalText(values.file_path),
+      is_current: values.is_current,
+      notes: labOptionalText(values.notes),
+    });
+  };
 
   const columns = [
     {
@@ -3292,58 +4037,87 @@ function NablDocumentsSection() {
           <Button
             size="xs"
             leftSection={<IconPlus size={14} />}
-            onClick={() => setShowForm(!showForm)}
+            onClick={() => {
+              formHandlers.toggle();
+              if (formOpen) reset(nablDocumentDefaults);
+            }}
           >
             {t("addDocument")}
           </Button>
         </Group>
       )}
-      {showForm && (
-        <Stack gap="xs">
+      {formOpen && (
+        <Stack component="form" gap="xs" onSubmit={handleSubmit(handleCreateNablDocument)}>
           <Group grow>
             <TextInput
               label={t("label.documentNumber")}
               required
-              onChange={(e) => setForm({ ...form, document_number: e.currentTarget.value })}
+              error={errors.document_number?.message}
+              {...register("document_number")}
             />
             <TextInput
               label={t("label.title")}
               required
-              onChange={(e) => setForm({ ...form, title: e.currentTarget.value })}
+              error={errors.title?.message}
+              {...register("title")}
             />
-            <Select
-              label={t("label.type")}
-              data={DOCUMENT_TYPES}
-              placeholder={t("placeholder.selectType")}
-              onChange={(v) => setForm({ ...form, document_type: v || undefined })}
-              clearable
+            <Controller
+              control={control}
+              name="document_type"
+              render={({ field }) => (
+                <Select
+                  label={t("label.type")}
+                  data={labNablDocumentTypeOptions}
+                  placeholder={t("placeholder.selectType")}
+                  value={field.value || null}
+                  onChange={(value) => field.onChange(value ?? "")}
+                  error={errors.document_type?.message}
+                  clearable
+                  searchable
+                />
+              )}
             />
           </Group>
           <Group grow>
             <TextInput
               label={t("label.version")}
-              onChange={(e) => setForm({ ...form, version: e.currentTarget.value || undefined })}
+              error={errors.version?.message}
+              {...register("version")}
             />
             <TextInput
               label={t("label.effectiveDate")}
               type="date"
-              onChange={(e) =>
-                setForm({ ...form, effective_date: e.currentTarget.value || undefined })
-              }
+              error={errors.effective_date?.message}
+              {...register("effective_date")}
             />
             <TextInput
               label={t("label.reviewDate")}
               type="date"
-              onChange={(e) =>
-                setForm({ ...form, review_date: e.currentTarget.value || undefined })
-              }
+              error={errors.review_date?.message}
+              {...register("review_date")}
             />
           </Group>
-          <Button
-            size="xs"
-            onClick={() => createMutation.mutate(form as CreateNablDocumentRequest)}
-            loading={createMutation.isPending}
-          >
+          <Group grow align="flex-end">
+            <TextInput
+              label={t("label.filePath")}
+              error={errors.file_path?.message}
+              {...register("file_path")}
+            />
+            <Controller
+              control={control}
+              name="is_current"
+              render={({ field }) => (
+                <Switch
+                  label={t("label.current")}
+                  checked={field.value}
+                  onChange={(event) => field.onChange(event.currentTarget.checked)}
+                  error={errors.is_current?.message}
+                />
+              )}
+            />
+          </Group>
+          <Textarea label={t("notes")} error={errors.notes?.message} {...register("notes")} />
+          <Button size="xs" type="submit" loading={createMutation.isPending}>
             Save
           </Button>
         </Stack>
@@ -3357,7 +4131,7 @@ function ReagentConsumptionSection() {
   const { t } = useTranslation("lab");
   const { data: consumption = [], isLoading } = useQuery({
     queryKey: ["lab-reagent-consumption"],
-    queryFn: () => api.getReagentConsumption(),
+    queryFn: () => labService.getReagentConsumption(),
   });
 
   const columns = [
@@ -3449,7 +4223,7 @@ function TatAnalyticsSection() {
   const { t } = useTranslation("lab");
   const { data: tatData = [], isLoading } = useQuery({
     queryKey: ["lab-tat-analytics"],
-    queryFn: () => api.getLabTatAnalytics(),
+    queryFn: () => labService.getLabTatAnalytics(),
   });
 
   const columns = [
@@ -3550,22 +4324,44 @@ function HistopathSection() {
   const { t } = useTranslation("lab");
   const canCreate = useHasPermission(P.LAB.SPECIALIZED_CREATE);
   const queryClient = useQueryClient();
-  const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState<Partial<CreateHistopathReportRequest>>({});
+  const [formOpen, formHandlers] = useDisclosure(false);
   const [lookupOrderId, setLookupOrderId] = useState("");
+  const histopathDefaults: LabHistopathReportFormInput = {
+    order_id: "",
+    patient_id: "",
+    specimen_type: "",
+    clinical_history: "",
+    gross_description: "",
+    microscopy_findings: "",
+    diagnosis: "",
+    icd_code: "",
+    notes: "",
+    turnaround_days: "",
+  };
+  const {
+    control,
+    register,
+    reset,
+    setValue,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<LabHistopathReportFormInput>({
+    resolver: zodResolver(labHistopathReportFormSchema),
+    defaultValues: histopathDefaults,
+  });
 
   const { data: report } = useQuery({
     queryKey: ["lab-histopath", lookupOrderId],
-    queryFn: () => api.getHistopathReport(lookupOrderId),
+    queryFn: () => labService.getHistopathReport(lookupOrderId),
     enabled: !!lookupOrderId,
   });
 
   const createMutation = useMutation({
-    mutationFn: (data: CreateHistopathReportRequest) => api.createHistopathReport(data),
+    mutationFn: (data: CreateHistopathReportRequest) => labService.createHistopathReport(data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["lab-histopath"] });
-      setShowForm(false);
-      setForm({});
+      formHandlers.close();
+      reset(histopathDefaults);
       notifications.show({
         title: "Report created",
         message: "Histopathology report saved",
@@ -3573,6 +4369,21 @@ function HistopathSection() {
       });
     },
   });
+
+  const handleCreateHistopathReport = (values: LabHistopathReportFormInput) => {
+    createMutation.mutate({
+      order_id: values.order_id.trim(),
+      patient_id: values.patient_id.trim(),
+      specimen_type: labOptionalText(values.specimen_type),
+      clinical_history: labOptionalText(values.clinical_history),
+      gross_description: labOptionalText(values.gross_description),
+      microscopy_findings: labOptionalText(values.microscopy_findings),
+      diagnosis: labOptionalText(values.diagnosis),
+      icd_code: labOptionalText(values.icd_code),
+      notes: labOptionalText(values.notes),
+      turnaround_days: labOptionalInteger(values.turnaround_days),
+    });
+  };
 
   return (
     <Stack>
@@ -3619,77 +4430,113 @@ function HistopathSection() {
         <Button
           size="xs"
           leftSection={<IconPlus size={14} />}
-          onClick={() => setShowForm(!showForm)}
+          onClick={() => {
+            formHandlers.toggle();
+            if (formOpen) reset(histopathDefaults);
+          }}
         >
           {t("newHistopathReport")}
         </Button>
       )}
 
-      {showForm && (
-        <Stack gap="xs">
+      {formOpen && (
+        <Stack component="form" gap="xs" onSubmit={handleSubmit(handleCreateHistopathReport)}>
           <Group grow>
             <TextInput
               label={t("label.orderId")}
               required
-              onChange={(e) => setForm({ ...form, order_id: e.currentTarget.value })}
+              error={errors.order_id?.message}
+              {...register("order_id")}
             />
-            <PatientSearchSelect
-              value={form.patient_id ?? ""}
-              onChange={(id) => setForm({ ...form, patient_id: id })}
-              required
+            <Controller
+              control={control}
+              name="patient_id"
+              render={({ field }) => (
+                <PatientSearchSelect
+                  value={field.value}
+                  onChange={(id) => field.onChange(id)}
+                  error={errors.patient_id?.message}
+                  required
+                />
+              )}
             />
-            <Select
-              label={t("label.specimenType")}
-              data={SAMPLE_TYPES}
-              onChange={(v) => setForm({ ...form, specimen_type: v || undefined })}
-              clearable
-              searchable
+            <Controller
+              control={control}
+              name="specimen_type"
+              render={({ field }) => (
+                <Select
+                  label={t("label.specimenType")}
+                  data={labSampleTypeOptions}
+                  value={field.value || null}
+                  onChange={(value) => field.onChange(value ?? "")}
+                  error={errors.specimen_type?.message}
+                  clearable
+                  searchable
+                />
+              )}
             />
           </Group>
           <Textarea
             label={t("label.clinicalHistory")}
             autosize
             minRows={2}
-            onChange={(e) =>
-              setForm({ ...form, clinical_history: e.currentTarget.value || undefined })
-            }
+            error={errors.clinical_history?.message}
+            {...register("clinical_history")}
           />
           <Textarea
             label={t("label.grossDescription")}
             autosize
             minRows={2}
-            onChange={(e) =>
-              setForm({ ...form, gross_description: e.currentTarget.value || undefined })
-            }
+            error={errors.gross_description?.message}
+            {...register("gross_description")}
           />
           <Textarea
             label={t("label.microscopyFindings")}
             autosize
             minRows={2}
-            onChange={(e) =>
-              setForm({ ...form, microscopy_findings: e.currentTarget.value || undefined })
-            }
+            error={errors.microscopy_findings?.message}
+            {...register("microscopy_findings")}
           />
           <Group grow>
             <TextInput
               label={t("label.diagnosis")}
-              onChange={(e) => setForm({ ...form, diagnosis: e.currentTarget.value || undefined })}
+              error={errors.diagnosis?.message}
+              {...register("diagnosis")}
             />
-            <TextInput
-              label={t("label.icdCode")}
-              onChange={(e) => setForm({ ...form, icd_code: e.currentTarget.value || undefined })}
+            <Controller
+              control={control}
+              name="icd_code"
+              render={({ field }) => (
+                <Icd11CodeSelect
+                  label="ICD-11"
+                  value={field.value || null}
+                  onChange={(value) => field.onChange(value ?? "")}
+                  onSelectResult={(result) => {
+                    setValue("diagnosis", result.display, {
+                      shouldDirty: true,
+                      shouldValidate: true,
+                    });
+                  }}
+                  error={errors.icd_code?.message}
+                />
+              )}
             />
-            <NumberInput
-              label={t("label.turnaround(days)")}
-              min={0}
-              onChange={(v) => setForm({ ...form, turnaround_days: Number(v) || undefined })}
+            <Controller
+              control={control}
+              name="turnaround_days"
+              render={({ field }) => (
+                <NumberInput
+                  label={t("label.turnaround(days)")}
+                  min={0}
+                  value={field.value}
+                  onChange={field.onChange}
+                  error={errors.turnaround_days?.message}
+                />
+              )}
             />
           </Group>
-          <Button
-            size="xs"
-            onClick={() => createMutation.mutate(form as CreateHistopathReportRequest)}
-            loading={createMutation.isPending}
-          >
+          <Textarea label={t("notes")} error={errors.notes?.message} {...register("notes")} />
+          <Button size="xs" type="submit" loading={createMutation.isPending}>
             {t("saveReport")}
           </Button>
         </Stack>
@@ -3702,22 +4549,44 @@ function CytologySection() {
   const { t } = useTranslation("lab");
   const canCreate = useHasPermission(P.LAB.SPECIALIZED_CREATE);
   const queryClient = useQueryClient();
-  const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState<Partial<CreateCytologyReportRequest>>({});
+  const [formOpen, formHandlers] = useDisclosure(false);
   const [lookupOrderId, setLookupOrderId] = useState("");
+  const cytologyDefaults: LabCytologyReportFormInput = {
+    order_id: "",
+    patient_id: "",
+    specimen_type: "",
+    clinical_indication: "",
+    adequacy: "",
+    screening_findings: "",
+    diagnosis: "",
+    bethesda_category: "",
+    icd_code: "",
+    notes: "",
+  };
+  const {
+    control,
+    register,
+    reset,
+    setValue,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<LabCytologyReportFormInput>({
+    resolver: zodResolver(labCytologyReportFormSchema),
+    defaultValues: cytologyDefaults,
+  });
 
   const { data: report } = useQuery({
     queryKey: ["lab-cytology", lookupOrderId],
-    queryFn: () => api.getCytologyReport(lookupOrderId),
+    queryFn: () => labService.getCytologyReport(lookupOrderId),
     enabled: !!lookupOrderId,
   });
 
   const createMutation = useMutation({
-    mutationFn: (data: CreateCytologyReportRequest) => api.createCytologyReport(data),
+    mutationFn: (data: CreateCytologyReportRequest) => labService.createCytologyReport(data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["lab-cytology"] });
-      setShowForm(false);
-      setForm({});
+      formHandlers.close();
+      reset(cytologyDefaults);
       notifications.show({
         title: "Report created",
         message: "Cytology report saved",
@@ -3725,6 +4594,21 @@ function CytologySection() {
       });
     },
   });
+
+  const handleCreateCytologyReport = (values: LabCytologyReportFormInput) => {
+    createMutation.mutate({
+      order_id: values.order_id.trim(),
+      patient_id: values.patient_id.trim(),
+      specimen_type: labOptionalText(values.specimen_type),
+      clinical_indication: labOptionalText(values.clinical_indication),
+      adequacy: labOptionalText(values.adequacy),
+      screening_findings: labOptionalText(values.screening_findings),
+      diagnosis: labOptionalText(values.diagnosis),
+      bethesda_category: labOptionalText(values.bethesda_category),
+      icd_code: labOptionalText(values.icd_code),
+      notes: labOptionalText(values.notes),
+    });
+  };
 
   return (
     <Stack>
@@ -3767,83 +4651,113 @@ function CytologySection() {
         <Button
           size="xs"
           leftSection={<IconPlus size={14} />}
-          onClick={() => setShowForm(!showForm)}
+          onClick={() => {
+            formHandlers.toggle();
+            if (formOpen) reset(cytologyDefaults);
+          }}
         >
           {t("newCytologyReport")}
         </Button>
       )}
 
-      {showForm && (
-        <Stack gap="xs">
+      {formOpen && (
+        <Stack component="form" gap="xs" onSubmit={handleSubmit(handleCreateCytologyReport)}>
           <Group grow>
             <TextInput
               label={t("label.orderId")}
               required
-              onChange={(e) => setForm({ ...form, order_id: e.currentTarget.value })}
+              error={errors.order_id?.message}
+              {...register("order_id")}
             />
-            <PatientSearchSelect
-              value={form.patient_id ?? ""}
-              onChange={(id) => setForm({ ...form, patient_id: id })}
-              required
+            <Controller
+              control={control}
+              name="patient_id"
+              render={({ field }) => (
+                <PatientSearchSelect
+                  value={field.value}
+                  onChange={(id) => field.onChange(id)}
+                  error={errors.patient_id?.message}
+                  required
+                />
+              )}
             />
-            <Select
-              label={t("label.specimenType")}
-              data={SAMPLE_TYPES}
-              onChange={(v) => setForm({ ...form, specimen_type: v || undefined })}
-              clearable
-              searchable
+            <Controller
+              control={control}
+              name="specimen_type"
+              render={({ field }) => (
+                <Select
+                  label={t("label.specimenType")}
+                  data={labSampleTypeOptions}
+                  value={field.value || null}
+                  onChange={(value) => field.onChange(value ?? "")}
+                  error={errors.specimen_type?.message}
+                  clearable
+                  searchable
+                />
+              )}
             />
           </Group>
           <TextInput
             label={t("label.clinicalIndication")}
-            onChange={(e) =>
-              setForm({ ...form, clinical_indication: e.currentTarget.value || undefined })
-            }
+            error={errors.clinical_indication?.message}
+            {...register("clinical_indication")}
           />
           <Group grow>
             <TextInput
               label={t("label.adequacy")}
-              onChange={(e) => setForm({ ...form, adequacy: e.currentTarget.value || undefined })}
+              error={errors.adequacy?.message}
+              {...register("adequacy")}
             />
-            <Select
-              label={t("label.bethesdaCategory")}
-              data={[
-                { value: "NILM", label: "NILM" },
-                { value: "ASC-US", label: "ASC-US" },
-                { value: "ASC-H", label: "ASC-H" },
-                { value: "LSIL", label: "LSIL" },
-                { value: "HSIL", label: "HSIL" },
-                { value: "SCC", label: "SCC" },
-                { value: "AGC", label: "AGC" },
-                { value: "AIS", label: "AIS" },
-              ]}
-              clearable
-              onChange={(v) => setForm({ ...form, bethesda_category: v || undefined })}
+            <Controller
+              control={control}
+              name="bethesda_category"
+              render={({ field }) => (
+                <Select
+                  label={t("label.bethesdaCategory")}
+                  data={labBethesdaCategoryOptions}
+                  value={field.value || null}
+                  onChange={(value) => field.onChange(value ?? "")}
+                  error={errors.bethesda_category?.message}
+                  clearable
+                  searchable
+                />
+              )}
             />
           </Group>
           <Textarea
             label={t("label.screeningFindings")}
             autosize
             minRows={2}
-            onChange={(e) =>
-              setForm({ ...form, screening_findings: e.currentTarget.value || undefined })
-            }
+            error={errors.screening_findings?.message}
+            {...register("screening_findings")}
           />
           <Group grow>
             <TextInput
               label={t("label.diagnosis")}
-              onChange={(e) => setForm({ ...form, diagnosis: e.currentTarget.value || undefined })}
+              error={errors.diagnosis?.message}
+              {...register("diagnosis")}
             />
-            <TextInput
-              label={t("label.icdCode")}
-              onChange={(e) => setForm({ ...form, icd_code: e.currentTarget.value || undefined })}
+            <Controller
+              control={control}
+              name="icd_code"
+              render={({ field }) => (
+                <Icd11CodeSelect
+                  label="ICD-11"
+                  value={field.value || null}
+                  onChange={(value) => field.onChange(value ?? "")}
+                  onSelectResult={(result) => {
+                    setValue("diagnosis", result.display, {
+                      shouldDirty: true,
+                      shouldValidate: true,
+                    });
+                  }}
+                  error={errors.icd_code?.message}
+                />
+              )}
             />
           </Group>
-          <Button
-            size="xs"
-            onClick={() => createMutation.mutate(form as CreateCytologyReportRequest)}
-            loading={createMutation.isPending}
-          >
+          <Textarea label={t("notes")} error={errors.notes?.message} {...register("notes")} />
+          <Button size="xs" type="submit" loading={createMutation.isPending}>
             Save Report
           </Button>
         </Stack>
@@ -3856,22 +4770,44 @@ function MolecularSection() {
   const { t } = useTranslation("lab");
   const canCreate = useHasPermission(P.LAB.SPECIALIZED_CREATE);
   const queryClient = useQueryClient();
-  const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState<Partial<CreateMolecularReportRequest>>({});
+  const [formOpen, formHandlers] = useDisclosure(false);
   const [lookupOrderId, setLookupOrderId] = useState("");
+  const molecularDefaults: LabMolecularReportFormInput = {
+    order_id: "",
+    patient_id: "",
+    test_method: "",
+    target_gene: "",
+    ct_value: "",
+    result_interpretation: "",
+    quantitative_value: "",
+    quantitative_unit: "",
+    kit_name: "",
+    kit_lot: "",
+    notes: "",
+  };
+  const {
+    control,
+    register,
+    reset,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<LabMolecularReportFormInput>({
+    resolver: zodResolver(labMolecularReportFormSchema),
+    defaultValues: molecularDefaults,
+  });
 
   const { data: report } = useQuery({
     queryKey: ["lab-molecular", lookupOrderId],
-    queryFn: () => api.getMolecularReport(lookupOrderId),
+    queryFn: () => labService.getMolecularReport(lookupOrderId),
     enabled: !!lookupOrderId,
   });
 
   const createMutation = useMutation({
-    mutationFn: (data: CreateMolecularReportRequest) => api.createMolecularReport(data),
+    mutationFn: (data: CreateMolecularReportRequest) => labService.createMolecularReport(data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["lab-molecular"] });
-      setShowForm(false);
-      setForm({});
+      formHandlers.close();
+      reset(molecularDefaults);
       notifications.show({
         title: "Report created",
         message: "Molecular report saved",
@@ -3879,6 +4815,22 @@ function MolecularSection() {
       });
     },
   });
+
+  const handleCreateMolecularReport = (values: LabMolecularReportFormInput) => {
+    createMutation.mutate({
+      order_id: values.order_id.trim(),
+      patient_id: values.patient_id.trim(),
+      test_method: labOptionalText(values.test_method),
+      target_gene: labOptionalText(values.target_gene),
+      ct_value: labOptionalNumber(values.ct_value),
+      result_interpretation: labOptionalText(values.result_interpretation),
+      quantitative_value: labOptionalNumber(values.quantitative_value),
+      quantitative_unit: labOptionalText(values.quantitative_unit),
+      kit_name: labOptionalText(values.kit_name),
+      kit_lot: labOptionalText(values.kit_lot),
+      notes: labOptionalText(values.notes),
+    });
+  };
 
   return (
     <Stack>
@@ -3921,79 +4873,120 @@ function MolecularSection() {
         <Button
           size="xs"
           leftSection={<IconPlus size={14} />}
-          onClick={() => setShowForm(!showForm)}
+          onClick={() => {
+            formHandlers.toggle();
+            if (formOpen) reset(molecularDefaults);
+          }}
         >
           {t("newMolecularReport")}
         </Button>
       )}
 
-      {showForm && (
-        <Stack gap="xs">
+      {formOpen && (
+        <Stack component="form" gap="xs" onSubmit={handleSubmit(handleCreateMolecularReport)}>
           <Group grow>
             <TextInput
               label={t("label.orderId")}
               required
-              onChange={(e) => setForm({ ...form, order_id: e.currentTarget.value })}
+              error={errors.order_id?.message}
+              {...register("order_id")}
             />
-            <PatientSearchSelect
-              value={form.patient_id ?? ""}
-              onChange={(id) => setForm({ ...form, patient_id: id })}
-              required
+            <Controller
+              control={control}
+              name="patient_id"
+              render={({ field }) => (
+                <PatientSearchSelect
+                  value={field.value}
+                  onChange={(id) => field.onChange(id)}
+                  error={errors.patient_id?.message}
+                  required
+                />
+              )}
             />
-            <Select
-              label={t("label.testMethod")}
-              data={MOLECULAR_TEST_METHODS}
-              placeholder={t("placeholder.selectMethod")}
-              onChange={(v) => setForm({ ...form, test_method: v || undefined })}
-              clearable
-              searchable
+            <Controller
+              control={control}
+              name="test_method"
+              render={({ field }) => (
+                <Select
+                  label={t("label.testMethod")}
+                  data={labMolecularTestMethodOptions}
+                  placeholder={t("placeholder.selectMethod")}
+                  value={field.value || null}
+                  onChange={(value) => field.onChange(value ?? "")}
+                  error={errors.test_method?.message}
+                  clearable
+                  searchable
+                />
+              )}
             />
           </Group>
           <Group grow>
             <TextInput
               label={t("label.targetGene")}
-              onChange={(e) =>
-                setForm({ ...form, target_gene: e.currentTarget.value || undefined })
-              }
+              error={errors.target_gene?.message}
+              {...register("target_gene")}
             />
-            <NumberInput
-              label={t("label.ctValue")}
-              decimalScale={2}
-              onChange={(v) => setForm({ ...form, ct_value: Number(v) || undefined })}
+            <Controller
+              control={control}
+              name="ct_value"
+              render={({ field }) => (
+                <NumberInput
+                  label={t("label.ctValue")}
+                  decimalScale={2}
+                  value={field.value}
+                  onChange={field.onChange}
+                  error={errors.ct_value?.message}
+                />
+              )}
             />
-            <Select
-              label={t("label.interpretation")}
-              data={RESULT_INTERPRETATIONS}
-              onChange={(v) => setForm({ ...form, result_interpretation: v || undefined })}
-              clearable
+            <Controller
+              control={control}
+              name="result_interpretation"
+              render={({ field }) => (
+                <Select
+                  label={t("label.interpretation")}
+                  data={labMolecularResultInterpretationOptions}
+                  value={field.value || null}
+                  onChange={(value) => field.onChange(value ?? "")}
+                  error={errors.result_interpretation?.message}
+                  clearable
+                  searchable
+                />
+              )}
             />
           </Group>
           <Group grow>
             <TextInput
               label={t("label.kitName")}
-              onChange={(e) => setForm({ ...form, kit_name: e.currentTarget.value || undefined })}
+              error={errors.kit_name?.message}
+              {...register("kit_name")}
             />
             <TextInput
               label={t("label.kitLot")}
-              onChange={(e) => setForm({ ...form, kit_lot: e.currentTarget.value || undefined })}
+              error={errors.kit_lot?.message}
+              {...register("kit_lot")}
             />
-            <NumberInput
-              label={t("label.quantitativeValue")}
-              decimalScale={4}
-              onChange={(v) => setForm({ ...form, quantitative_value: Number(v) || undefined })}
+            <Controller
+              control={control}
+              name="quantitative_value"
+              render={({ field }) => (
+                <NumberInput
+                  label={t("label.quantitativeValue")}
+                  decimalScale={4}
+                  value={field.value}
+                  onChange={field.onChange}
+                  error={errors.quantitative_value?.message}
+                />
+              )}
             />
             <TextInput
               label={t("unit")}
-              onChange={(e) =>
-                setForm({ ...form, quantitative_unit: e.currentTarget.value || undefined })
-              }
+              error={errors.quantitative_unit?.message}
+              {...register("quantitative_unit")}
             />
           </Group>
-          <Button
-            size="xs"
-            onClick={() => createMutation.mutate(form as CreateMolecularReportRequest)}
-            loading={createMutation.isPending}
-          >
+          <Textarea label={t("notes")} error={errors.notes?.message} {...register("notes")} />
+          <Button size="xs" type="submit" loading={createMutation.isPending}>
             Save Report
           </Button>
         </Stack>
@@ -4030,22 +5023,58 @@ function B2bClientsSection() {
   const { t } = useTranslation("lab");
   const canManage = useHasPermission(P.LAB.B2B_MANAGE);
   const queryClient = useQueryClient();
-  const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState<Partial<CreateB2bClientRequest>>({});
+  const [formOpen, formHandlers] = useDisclosure(false);
+  const b2bClientDefaults: LabB2bClientFormInput = {
+    code: "",
+    name: "",
+    client_type: "",
+    address: "",
+    city: "",
+    phone: "",
+    email: "",
+    contact_person: "",
+    credit_limit: "",
+    payment_terms_days: 30,
+  };
+  const {
+    control,
+    register,
+    reset,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<LabB2bClientFormInput>({
+    resolver: zodResolver(labB2bClientFormSchema),
+    defaultValues: b2bClientDefaults,
+  });
 
   const { data: clients = [], isLoading } = useQuery({
     queryKey: ["lab-b2b-clients"],
-    queryFn: () => api.listB2bClients(),
+    queryFn: () => labService.listB2bClients(),
   });
 
   const createMutation = useMutation({
-    mutationFn: (data: CreateB2bClientRequest) => api.createB2bClient(data),
+    mutationFn: (data: CreateB2bClientRequest) => labService.createB2bClient(data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["lab-b2b-clients"] });
-      setShowForm(false);
-      setForm({});
+      formHandlers.close();
+      reset(b2bClientDefaults);
     },
   });
+
+  const handleCreateB2bClient = (values: LabB2bClientFormInput) => {
+    createMutation.mutate({
+      code: values.code.trim(),
+      name: values.name.trim(),
+      client_type: labOptionalText(values.client_type),
+      address: labOptionalText(values.address),
+      city: labOptionalText(values.city),
+      phone: labOptionalText(values.phone),
+      email: labOptionalText(values.email),
+      contact_person: labOptionalText(values.contact_person),
+      credit_limit: labOptionalNumber(values.credit_limit),
+      payment_terms_days: labOptionalInteger(values.payment_terms_days),
+    });
+  };
 
   const columns = [
     { key: "code", label: "Code", render: (row: LabB2bClient) => <Text fw={500}>{row.code}</Text> },
@@ -4100,72 +5129,100 @@ function B2bClientsSection() {
           <Button
             size="xs"
             leftSection={<IconPlus size={14} />}
-            onClick={() => setShowForm(!showForm)}
+            onClick={() => {
+              formHandlers.toggle();
+              if (formOpen) reset(b2bClientDefaults);
+            }}
           >
             {t("addClient")}
           </Button>
         </Group>
       )}
-      {showForm && (
-        <Stack gap="xs">
+      {formOpen && (
+        <Stack component="form" gap="xs" onSubmit={handleSubmit(handleCreateB2bClient)}>
           <Group grow>
             <TextInput
               label={t("label.code")}
               required
-              onChange={(e) => setForm({ ...form, code: e.currentTarget.value })}
+              error={errors.code?.message}
+              {...register("code")}
             />
             <TextInput
               label={t("label.name")}
               required
-              onChange={(e) => setForm({ ...form, name: e.currentTarget.value })}
+              error={errors.name?.message}
+              {...register("name")}
             />
-            <Select
-              label={t("label.type")}
-              data={B2B_CLIENT_TYPES}
-              placeholder={t("placeholder.selectType")}
-              onChange={(v) => setForm({ ...form, client_type: v || undefined })}
-              clearable
+            <Controller
+              control={control}
+              name="client_type"
+              render={({ field }) => (
+                <Select
+                  label={t("label.type")}
+                  data={labB2bClientTypeOptions}
+                  placeholder={t("placeholder.selectType")}
+                  value={field.value || null}
+                  onChange={(value) => field.onChange(value ?? "")}
+                  error={errors.client_type?.message}
+                  clearable
+                  searchable
+                />
+              )}
             />
           </Group>
+          <Textarea
+            label={t("label.address")}
+            error={errors.address?.message}
+            {...register("address")}
+          />
           <Group grow>
-            <TextInput
-              label={t("label.city")}
-              onChange={(e) => setForm({ ...form, city: e.currentTarget.value || undefined })}
-            />
+            <TextInput label={t("label.city")} error={errors.city?.message} {...register("city")} />
             <TextInput
               label={t("label.phone")}
-              onChange={(e) => setForm({ ...form, phone: e.currentTarget.value || undefined })}
+              error={errors.phone?.message}
+              {...register("phone")}
             />
             <TextInput
               label={t("label.email")}
-              onChange={(e) => setForm({ ...form, email: e.currentTarget.value || undefined })}
+              error={errors.email?.message}
+              {...register("email")}
             />
             <TextInput
               label={t("label.contactPerson")}
-              onChange={(e) =>
-                setForm({ ...form, contact_person: e.currentTarget.value || undefined })
-              }
+              error={errors.contact_person?.message}
+              {...register("contact_person")}
             />
           </Group>
           <Group grow>
-            <NumberInput
-              label={t("label.creditLimit")}
-              min={0}
-              decimalScale={2}
-              onChange={(v) => setForm({ ...form, credit_limit: Number(v) || undefined })}
+            <Controller
+              control={control}
+              name="credit_limit"
+              render={({ field }) => (
+                <NumberInput
+                  label={t("label.creditLimit")}
+                  min={0}
+                  decimalScale={2}
+                  value={field.value}
+                  onChange={field.onChange}
+                  error={errors.credit_limit?.message}
+                />
+              )}
             />
-            <NumberInput
-              label={t("label.paymentTerms(days)")}
-              min={0}
-              value={form.payment_terms_days ?? 30}
-              onChange={(v) => setForm({ ...form, payment_terms_days: Number(v) || undefined })}
+            <Controller
+              control={control}
+              name="payment_terms_days"
+              render={({ field }) => (
+                <NumberInput
+                  label={t("label.paymentTerms(days)")}
+                  min={0}
+                  value={field.value}
+                  onChange={field.onChange}
+                  error={errors.payment_terms_days?.message}
+                />
+              )}
             />
           </Group>
-          <Button
-            size="xs"
-            onClick={() => createMutation.mutate(form as CreateB2bClientRequest)}
-            loading={createMutation.isPending}
-          >
+          <Button size="xs" type="submit" loading={createMutation.isPending}>
             Save
           </Button>
         </Stack>
@@ -4180,28 +5237,54 @@ function B2bRatesSection() {
   const canManage = useHasPermission(P.LAB.B2B_MANAGE);
   const queryClient = useQueryClient();
   const [selectedClientId, setSelectedClientId] = useState("");
-  const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState<Partial<CreateB2bRateRequest>>({});
+  const [formOpen, formHandlers] = useDisclosure(false);
+  const b2bRateDefaults: LabB2bRateFormInput = {
+    test_id: "",
+    agreed_price: "",
+    discount_percent: "",
+    effective_from: "",
+    effective_to: "",
+  };
+  const {
+    control,
+    register,
+    reset,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<LabB2bRateFormInput>({
+    resolver: zodResolver(labB2bRateFormSchema),
+    defaultValues: b2bRateDefaults,
+  });
 
   const { data: clients = [] } = useQuery({
     queryKey: ["lab-b2b-clients"],
-    queryFn: () => api.listB2bClients(),
+    queryFn: () => labService.listB2bClients(),
   });
 
   const { data: rates = [], isLoading } = useQuery({
     queryKey: ["lab-b2b-rates", selectedClientId],
-    queryFn: () => api.listB2bRates(selectedClientId),
+    queryFn: () => labService.listB2bRates(selectedClientId),
     enabled: !!selectedClientId,
   });
 
   const createMutation = useMutation({
-    mutationFn: (data: CreateB2bRateRequest) => api.createB2bRate(selectedClientId, data),
+    mutationFn: (data: CreateB2bRateRequest) => labService.createB2bRate(selectedClientId, data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["lab-b2b-rates", selectedClientId] });
-      setShowForm(false);
-      setForm({});
+      formHandlers.close();
+      reset(b2bRateDefaults);
     },
   });
+
+  const handleCreateB2bRate = (values: LabB2bRateFormInput) => {
+    createMutation.mutate({
+      test_id: values.test_id.trim(),
+      agreed_price: labOptionalNumber(values.agreed_price),
+      discount_percent: labOptionalNumber(values.discount_percent),
+      effective_from: labOptionalText(values.effective_from),
+      effective_to: labOptionalText(values.effective_to),
+    });
+  };
 
   const columns = [
     {
@@ -4253,55 +5336,75 @@ function B2bRatesSection() {
               <Button
                 size="xs"
                 leftSection={<IconPlus size={14} />}
-                onClick={() => setShowForm(!showForm)}
+                onClick={() => {
+                  formHandlers.toggle();
+                  if (formOpen) reset(b2bRateDefaults);
+                }}
               >
                 {t("addRate")}
               </Button>
             </Group>
           )}
-          {showForm && (
-            <Stack gap="xs">
+          {formOpen && (
+            <Stack component="form" gap="xs" onSubmit={handleSubmit(handleCreateB2bRate)}>
               <Group grow>
-                <LabTestSearchSelect
-                  value={form.test_id ?? ""}
-                  onChange={(id) => setForm({ ...form, test_id: id })}
-                  required
+                <Controller
+                  control={control}
+                  name="test_id"
+                  render={({ field }) => (
+                    <LabTestSearchSelect
+                      value={field.value}
+                      onChange={(id) => field.onChange(id)}
+                      error={errors.test_id?.message}
+                      required
+                    />
+                  )}
                 />
-                <NumberInput
-                  label={t("label.agreedPrice")}
-                  min={0}
-                  decimalScale={2}
-                  onChange={(v) => setForm({ ...form, agreed_price: Number(v) || undefined })}
+                <Controller
+                  control={control}
+                  name="agreed_price"
+                  render={({ field }) => (
+                    <NumberInput
+                      label={t("label.agreedPrice")}
+                      min={0}
+                      decimalScale={2}
+                      value={field.value}
+                      onChange={field.onChange}
+                      error={errors.agreed_price?.message}
+                    />
+                  )}
                 />
-                <NumberInput
-                  label={t("label.discount%")}
-                  min={0}
-                  max={100}
-                  decimalScale={2}
-                  onChange={(v) => setForm({ ...form, discount_percent: Number(v) || undefined })}
+                <Controller
+                  control={control}
+                  name="discount_percent"
+                  render={({ field }) => (
+                    <NumberInput
+                      label={t("label.discount%")}
+                      min={0}
+                      max={100}
+                      decimalScale={2}
+                      value={field.value}
+                      onChange={field.onChange}
+                      error={errors.discount_percent?.message}
+                    />
+                  )}
                 />
               </Group>
               <Group grow>
                 <TextInput
                   label={t("label.effectiveFrom")}
                   type="date"
-                  onChange={(e) =>
-                    setForm({ ...form, effective_from: e.currentTarget.value || undefined })
-                  }
+                  error={errors.effective_from?.message}
+                  {...register("effective_from")}
                 />
                 <TextInput
                   label={t("label.effectiveTo")}
                   type="date"
-                  onChange={(e) =>
-                    setForm({ ...form, effective_to: e.currentTarget.value || undefined })
-                  }
+                  error={errors.effective_to?.message}
+                  {...register("effective_to")}
                 />
               </Group>
-              <Button
-                size="xs"
-                onClick={() => createMutation.mutate(form as CreateB2bRateRequest)}
-                loading={createMutation.isPending}
-              >
+              <Button size="xs" type="submit" loading={createMutation.isPending}>
                 Save
               </Button>
             </Stack>

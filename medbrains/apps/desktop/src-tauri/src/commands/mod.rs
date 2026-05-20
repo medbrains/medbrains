@@ -2,5 +2,5 @@
 // submodule registers a small, narrow set — desktop is a thin
 // shell, all real business logic stays in medbrains-server.
 
-pub mod printer;
-pub mod system;
+pub(crate) mod printer;
+pub(crate) mod system;

@@ -1,3 +1,4 @@
+import { zodResolver } from "@hookform/resolvers/zod";
 import { BarChart } from "@mantine/charts";
 import {
   ActionIcon,
@@ -20,7 +21,18 @@ import {
 import { DateInput } from "@mantine/dates";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
+import type {
+  SchedulingBlockFormInput,
+  SchedulingOverbookingRuleFormInput,
+  SchedulingRecurringFormInput,
+  SchedulingWaitlistFormInput,
+} from "@medbrains/schemas";
+import {
+  schedulingBlockFormSchema,
+  schedulingOverbookingRuleFormSchema,
+  schedulingRecurringFormSchema,
+  schedulingWaitlistFormSchema,
+} from "@medbrains/schemas";
 import { useHasPermission } from "@medbrains/stores";
 import type {
   AutoFillResult,
@@ -53,9 +65,20 @@ import {
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { Controller, useForm } from "react-hook-form";
 import { DataTable, PageHeader } from "../components";
 import type { Column } from "../components/DataTable";
+import {
+  schedulingInteger,
+  schedulingNumber,
+  schedulingOptionalText,
+  schedulingPriorityOptions,
+  schedulingResourceTypeOptions,
+  toDateInputValue,
+  toIsoDateInputValue,
+} from "../forms/scheduling.form";
 import { useRequirePermission } from "../hooks/useRequirePermission";
+import { schedulingService } from "../services/scheduling.service";
 
 // ── Constants ──────────────────────────────────────────
 
@@ -80,6 +103,43 @@ const WAITLIST_STATUS_COLORS: Record<string, string> = {
   booked: "success",
   expired: "slate",
   cancelled: "danger",
+};
+
+const emptyWaitlistForm: SchedulingWaitlistFormInput = {
+  patient_id: "",
+  doctor_id: "",
+  department_id: "",
+  preferred_date_from: "",
+  preferred_date_to: "",
+  priority: "normal",
+  reason: "",
+};
+
+const emptyOverbookingForm: SchedulingOverbookingRuleFormInput = {
+  doctor_id: "",
+  department_id: "",
+  day_of_week: 1,
+  max_overbook_slots: 2,
+  overbook_threshold_probability: 0.3,
+  is_active: true,
+};
+
+const emptyRecurringForm: SchedulingRecurringFormInput = {
+  resource_id: "",
+  resource_type: "doctor",
+  day_of_week: 1,
+  start_time: "09:00",
+  end_time: "10:00",
+  repeat_count: 4,
+  start_date: "",
+};
+
+const emptyBlockForm: SchedulingBlockFormInput = {
+  resource_id: "",
+  resource_type: "doctor",
+  start_time: "",
+  end_time: "",
+  block_reason: "",
 };
 
 // ── Helpers ────────────────────────────────────────────
@@ -178,13 +238,13 @@ function PredictionsTab({ canScore }: { canScore: boolean }) {
   const { data: predictions = [], isLoading } = useQuery({
     queryKey: ["scheduling-predictions", riskFilter],
     queryFn: () =>
-      api.listPredictions({
+      schedulingService.listPredictions({
         risk_level: riskFilter ?? undefined,
       }),
   });
 
   const scoreBatchMut = useMutation({
-    mutationFn: () => api.scoreBatch({ appointment_ids: [] }),
+    mutationFn: () => schedulingService.scoreBatch({ appointment_ids: [] }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["scheduling-predictions"] });
       notifications.show({
@@ -203,7 +263,8 @@ function PredictionsTab({ canScore }: { canScore: boolean }) {
   });
 
   const scoreOneMut = useMutation({
-    mutationFn: (appointmentId: string) => api.scoreAppointment({ appointment_id: appointmentId }),
+    mutationFn: (appointmentId: string) =>
+      schedulingService.scoreAppointment({ appointment_id: appointmentId }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["scheduling-predictions"] });
       notifications.show({
@@ -332,36 +393,37 @@ function WaitlistTab({ canManage, canAutoFill }: { canManage: boolean; canAutoFi
   const [offerTarget, setOfferTarget] = useState<SchedulingWaitlistEntry | null>(null);
   const [offeredAppointmentId, setOfferedAppointmentId] = useState("");
 
-  // Create form state
-  const [createPatientId, setCreatePatientId] = useState("");
-  const [createDoctorId, setCreateDoctorId] = useState("");
-  const [createDeptId, setCreateDeptId] = useState("");
-  const [createDateFrom, setCreateDateFrom] = useState<string | null>(null);
-  const [createDateTo, setCreateDateTo] = useState<string | null>(null);
-  const [createPriority, setCreatePriority] = useState<string | null>("normal");
-  const [createReason, setCreateReason] = useState("");
+  const {
+    control,
+    handleSubmit,
+    reset,
+    formState: { errors },
+  } = useForm<SchedulingWaitlistFormInput>({
+    resolver: zodResolver(schedulingWaitlistFormSchema),
+    defaultValues: emptyWaitlistForm,
+  });
 
   const { data: entries = [], isLoading } = useQuery({
     queryKey: ["scheduling-waitlist", statusFilter],
     queryFn: () =>
-      api.listWaitlist({
+      schedulingService.listWaitlist({
         status: statusFilter ?? undefined,
       }),
   });
 
   const createMut = useMutation({
-    mutationFn: (d: CreateWaitlistRequest) => api.createWaitlistEntry(d),
+    mutationFn: (d: CreateWaitlistRequest) => schedulingService.createWaitlistEntry(d),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["scheduling-waitlist"] });
       closeCreate();
-      resetCreateForm();
+      reset(emptyWaitlistForm);
       notifications.show({ title: "Created", message: "Waitlist entry created", color: "success" });
     },
   });
 
   const offerMut = useMutation({
     mutationFn: ({ id, appointmentId }: { id: string; appointmentId: string }) =>
-      api.offerSlot(id, { offered_appointment_id: appointmentId }),
+      schedulingService.offerSlot(id, { offered_appointment_id: appointmentId }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["scheduling-waitlist"] });
       closeOffer();
@@ -377,7 +439,7 @@ function WaitlistTab({ canManage, canAutoFill }: { canManage: boolean; canAutoFi
 
   const respondMut = useMutation({
     mutationFn: ({ id, accept }: { id: string; accept: boolean }) =>
-      api.respondToOffer(id, { accept }),
+      schedulingService.respondToOffer(id, { accept }),
     onSuccess: (_data, variables) => {
       void qc.invalidateQueries({ queryKey: ["scheduling-waitlist"] });
       notifications.show({
@@ -389,7 +451,7 @@ function WaitlistTab({ canManage, canAutoFill }: { canManage: boolean; canAutoFi
   });
 
   const autoFillMut = useMutation({
-    mutationFn: () => api.autoFillSlots(),
+    mutationFn: () => schedulingService.autoFillSlots(),
     onSuccess: (result: AutoFillResult) => {
       void qc.invalidateQueries({ queryKey: ["scheduling-waitlist"] });
       notifications.show({
@@ -407,25 +469,15 @@ function WaitlistTab({ canManage, canAutoFill }: { canManage: boolean; canAutoFi
     },
   });
 
-  function resetCreateForm() {
-    setCreatePatientId("");
-    setCreateDoctorId("");
-    setCreateDeptId("");
-    setCreateDateFrom(null);
-    setCreateDateTo(null);
-    setCreatePriority("normal");
-    setCreateReason("");
-  }
-
-  function handleCreate() {
+  function handleCreate(values: SchedulingWaitlistFormInput) {
     createMut.mutate({
-      patient_id: createPatientId,
-      doctor_id: createDoctorId || undefined,
-      department_id: createDeptId || undefined,
-      preferred_date_from: createDateFrom ?? undefined,
-      preferred_date_to: createDateTo ?? undefined,
-      priority: createPriority ?? undefined,
-      reason: createReason || undefined,
+      patient_id: values.patient_id,
+      doctor_id: schedulingOptionalText(values.doctor_id),
+      department_id: schedulingOptionalText(values.department_id),
+      preferred_date_from: schedulingOptionalText(values.preferred_date_from),
+      preferred_date_to: schedulingOptionalText(values.preferred_date_to),
+      priority: values.priority,
+      reason: schedulingOptionalText(values.reason),
     });
   }
 
@@ -576,7 +628,13 @@ function WaitlistTab({ canManage, canAutoFill }: { canManage: boolean; canAutoFi
             </Button>
           )}
           {canManage && (
-            <Button leftSection={<IconPlus size={16} />} onClick={openCreate}>
+            <Button
+              leftSection={<IconPlus size={16} />}
+              onClick={() => {
+                reset(emptyWaitlistForm);
+                openCreate();
+              }}
+            >
               Add to Waitlist
             </Button>
           )}
@@ -599,46 +657,71 @@ function WaitlistTab({ canManage, canAutoFill }: { canManage: boolean; canAutoFi
         position="right"
         size="xl"
       >
-        <Stack gap="md">
-          <TextInput
-            label="Patient ID"
-            value={createPatientId}
-            onChange={(e) => setCreatePatientId(e.currentTarget.value)}
-            required
+        <Stack component="form" gap="md" onSubmit={handleSubmit(handleCreate)}>
+          <Controller
+            name="patient_id"
+            control={control}
+            render={({ field }) => (
+              <TextInput
+                label="Patient ID"
+                required
+                {...field}
+                error={errors.patient_id?.message}
+              />
+            )}
           />
-          <TextInput
-            label="Doctor ID"
-            value={createDoctorId}
-            onChange={(e) => setCreateDoctorId(e.currentTarget.value)}
+          <Controller
+            name="doctor_id"
+            control={control}
+            render={({ field }) => <TextInput label="Doctor ID" {...field} />}
           />
-          <TextInput
-            label="Department ID"
-            value={createDeptId}
-            onChange={(e) => setCreateDeptId(e.currentTarget.value)}
+          <Controller
+            name="department_id"
+            control={control}
+            render={({ field }) => <TextInput label="Department ID" {...field} />}
           />
-          <DateInput
-            label="Preferred Date From"
-            value={createDateFrom}
-            onChange={setCreateDateFrom}
+          <Controller
+            name="preferred_date_from"
+            control={control}
+            render={({ field }) => (
+              <DateInput
+                label="Preferred Date From"
+                value={toDateInputValue(field.value)}
+                onChange={(date) => field.onChange(toIsoDateInputValue(date))}
+                error={errors.preferred_date_from?.message}
+              />
+            )}
           />
-          <DateInput label="Preferred Date To" value={createDateTo} onChange={setCreateDateTo} />
-          <Select
-            label="Priority"
-            data={[
-              { value: "low", label: "Low" },
-              { value: "normal", label: "Normal" },
-              { value: "high", label: "High" },
-              { value: "urgent", label: "Urgent" },
-            ]}
-            value={createPriority}
-            onChange={setCreatePriority}
+          <Controller
+            name="preferred_date_to"
+            control={control}
+            render={({ field }) => (
+              <DateInput
+                label="Preferred Date To"
+                value={toDateInputValue(field.value)}
+                onChange={(date) => field.onChange(toIsoDateInputValue(date))}
+                error={errors.preferred_date_to?.message}
+              />
+            )}
           />
-          <Textarea
-            label="Reason"
-            value={createReason}
-            onChange={(e) => setCreateReason(e.currentTarget.value)}
+          <Controller
+            name="priority"
+            control={control}
+            render={({ field }) => (
+              <Select
+                label="Priority"
+                data={schedulingPriorityOptions}
+                value={field.value}
+                onChange={(value) => field.onChange(value ?? "normal")}
+              />
+            )}
           />
-          <Button onClick={handleCreate} loading={createMut.isPending}>
+          <Controller
+            name="reason"
+            control={control}
+            render={({ field }) => <Textarea label="Reason" {...field} />}
+          />
+          <Button type="submit" loading={createMut.isPending}>
             Create Entry
           </Button>
         </Stack>
@@ -679,26 +762,27 @@ function OverbookingTab({ canManage }: { canManage: boolean }) {
   const qc = useQueryClient();
   const [opened, { open, close }] = useDisclosure(false);
   const [editing, setEditing] = useState<SchedulingOverbookingRule | null>(null);
-
-  // Form state
-  const [formDoctorId, setFormDoctorId] = useState("");
-  const [formDeptId, setFormDeptId] = useState("");
-  const [formDayOfWeek, setFormDayOfWeek] = useState<string | null>("1");
-  const [formMaxSlots, setFormMaxSlots] = useState<number | string>(2);
-  const [formThreshold, setFormThreshold] = useState<number | string>(0.3);
-  const [formIsActive, setFormIsActive] = useState(true);
+  const {
+    control,
+    handleSubmit,
+    reset,
+    formState: { errors },
+  } = useForm<SchedulingOverbookingRuleFormInput>({
+    resolver: zodResolver(schedulingOverbookingRuleFormSchema),
+    defaultValues: emptyOverbookingForm,
+  });
 
   const { data: rules = [], isLoading } = useQuery({
     queryKey: ["scheduling-overbooking-rules"],
-    queryFn: () => api.listOverbookingRules(),
+    queryFn: () => schedulingService.listOverbookingRules(),
   });
 
   const createMut = useMutation({
-    mutationFn: (d: CreateOverbookingRuleRequest) => api.createOverbookingRule(d),
+    mutationFn: (d: CreateOverbookingRuleRequest) => schedulingService.createOverbookingRule(d),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["scheduling-overbooking-rules"] });
       close();
-      resetForm();
+      reset(emptyOverbookingForm);
       notifications.show({
         title: "Created",
         message: "Overbooking rule created",
@@ -709,12 +793,12 @@ function OverbookingTab({ canManage }: { canManage: boolean }) {
 
   const updateMut = useMutation({
     mutationFn: ({ id, data }: { id: string; data: UpdateOverbookingRuleRequest }) =>
-      api.updateOverbookingRule(id, data),
+      schedulingService.updateOverbookingRule(id, data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["scheduling-overbooking-rules"] });
       close();
       setEditing(null);
-      resetForm();
+      reset(emptyOverbookingForm);
       notifications.show({
         title: "Updated",
         message: "Overbooking rule updated",
@@ -724,7 +808,7 @@ function OverbookingTab({ canManage }: { canManage: boolean }) {
   });
 
   const deleteMut = useMutation({
-    mutationFn: (id: string) => api.deleteOverbookingRule(id),
+    mutationFn: (id: string) => schedulingService.deleteOverbookingRule(id),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["scheduling-overbooking-rules"] });
       notifications.show({
@@ -735,44 +819,36 @@ function OverbookingTab({ canManage }: { canManage: boolean }) {
     },
   });
 
-  function resetForm() {
-    setFormDoctorId("");
-    setFormDeptId("");
-    setFormDayOfWeek("1");
-    setFormMaxSlots(2);
-    setFormThreshold(0.3);
-    setFormIsActive(true);
-  }
-
   function openEdit(rule: SchedulingOverbookingRule) {
     setEditing(rule);
-    setFormDoctorId(rule.doctor_id);
-    setFormDeptId(rule.department_id);
-    setFormDayOfWeek(String(rule.day_of_week));
-    setFormMaxSlots(rule.max_overbook_slots);
-    setFormThreshold(rule.overbook_threshold_probability);
-    setFormIsActive(rule.is_active);
+    reset({
+      doctor_id: rule.doctor_id,
+      department_id: rule.department_id,
+      day_of_week: rule.day_of_week,
+      max_overbook_slots: rule.max_overbook_slots,
+      overbook_threshold_probability: rule.overbook_threshold_probability,
+      is_active: rule.is_active,
+    });
     open();
   }
 
-  function handleSave() {
-    const dayNum = Number(formDayOfWeek);
-    const maxSlots = typeof formMaxSlots === "string" ? Number(formMaxSlots) : formMaxSlots;
-    const threshold = typeof formThreshold === "string" ? Number(formThreshold) : formThreshold;
-
+  function handleSave(values: SchedulingOverbookingRuleFormInput) {
+    const dayNum = schedulingInteger(values.day_of_week, 1);
+    const maxSlots = schedulingInteger(values.max_overbook_slots, 2);
+    const threshold = schedulingNumber(values.overbook_threshold_probability, 0.3);
     if (editing) {
       updateMut.mutate({
         id: editing.id,
         data: {
           max_overbook_slots: maxSlots,
           overbook_threshold_probability: threshold,
-          is_active: formIsActive,
+          is_active: values.is_active,
         },
       });
     } else {
       createMut.mutate({
-        doctor_id: formDoctorId,
-        department_id: formDeptId,
+        doctor_id: values.doctor_id,
+        department_id: values.department_id,
         day_of_week: dayNum,
         max_overbook_slots: maxSlots,
         overbook_threshold_probability: threshold,
@@ -864,7 +940,7 @@ function OverbookingTab({ canManage }: { canManage: boolean }) {
             leftSection={<IconPlus size={16} />}
             onClick={() => {
               setEditing(null);
-              resetForm();
+              reset(emptyOverbookingForm);
               open();
             }}
           >
@@ -886,59 +962,98 @@ function OverbookingTab({ canManage }: { canManage: boolean }) {
         onClose={() => {
           close();
           setEditing(null);
-          resetForm();
+          reset(emptyOverbookingForm);
         }}
         title={editing ? "Edit Overbooking Rule" : "Create Overbooking Rule"}
         position="right"
         size="md"
       >
-        <Stack gap="md">
-          <TextInput
-            label="Doctor ID"
-            value={formDoctorId}
-            onChange={(e) => setFormDoctorId(e.currentTarget.value)}
-            required
-            disabled={!!editing}
+        <Stack component="form" gap="md" onSubmit={handleSubmit(handleSave)}>
+          <Controller
+            name="doctor_id"
+            control={control}
+            render={({ field }) => (
+              <TextInput
+                label="Doctor ID"
+                required
+                disabled={!!editing}
+                {...field}
+                error={errors.doctor_id?.message}
+              />
+            )}
           />
-          <TextInput
-            label="Department ID"
-            value={formDeptId}
-            onChange={(e) => setFormDeptId(e.currentTarget.value)}
-            required
-            disabled={!!editing}
+          <Controller
+            name="department_id"
+            control={control}
+            render={({ field }) => (
+              <TextInput
+                label="Department ID"
+                required
+                disabled={!!editing}
+                {...field}
+                error={errors.department_id?.message}
+              />
+            )}
           />
-          <Select
-            label="Day of Week"
-            data={DAY_NAMES.map((name, i) => ({ value: String(i), label: name }))}
-            value={formDayOfWeek}
-            onChange={setFormDayOfWeek}
-            required
-            disabled={!!editing}
+          <Controller
+            name="day_of_week"
+            control={control}
+            render={({ field }) => (
+              <Select
+                label="Day of Week"
+                data={DAY_NAMES.map((name, i) => ({ value: String(i), label: name }))}
+                value={String(field.value)}
+                onChange={(value) => field.onChange(Number(value ?? 1))}
+                required
+                disabled={!!editing}
+                error={errors.day_of_week?.message}
+              />
+            )}
           />
-          <NumberInput
-            label="Max Overbook Slots"
-            value={formMaxSlots}
-            onChange={setFormMaxSlots}
-            min={1}
-            max={20}
+          <Controller
+            name="max_overbook_slots"
+            control={control}
+            render={({ field }) => (
+              <NumberInput
+                label="Max Overbook Slots"
+                value={field.value}
+                onChange={field.onChange}
+                min={1}
+                max={20}
+                error={errors.max_overbook_slots?.message}
+              />
+            )}
           />
-          <NumberInput
-            label="Overbook Threshold Probability"
-            value={formThreshold}
-            onChange={setFormThreshold}
-            min={0}
-            max={1}
-            step={0.01}
-            decimalScale={2}
+          <Controller
+            name="overbook_threshold_probability"
+            control={control}
+            render={({ field }) => (
+              <NumberInput
+                label="Overbook Threshold Probability"
+                value={field.value}
+                onChange={field.onChange}
+                min={0}
+                max={1}
+                step={0.01}
+                decimalScale={2}
+                error={errors.overbook_threshold_probability?.message}
+              />
+            )}
           />
           {editing && (
-            <Switch
-              label="Active"
-              checked={formIsActive}
-              onChange={(e) => setFormIsActive(e.currentTarget.checked)}
+            <Controller
+              name="is_active"
+              control={control}
+              render={({ field }) => (
+                <Switch
+                  label="Active"
+                  checked={field.value}
+                  onChange={(event) => field.onChange(event.currentTarget.checked)}
+                />
+              )}
             />
           )}
-          <Button onClick={handleSave} loading={createMut.isPending || updateMut.isPending}>
+          <Button type="submit" loading={createMut.isPending || updateMut.isPending}>
             {editing ? "Update Rule" : "Create Rule"}
           </Button>
         </Stack>
@@ -954,7 +1069,7 @@ function OverbookingTab({ canManage }: { canManage: boolean }) {
 function ConflictsTab() {
   const { data: conflicts = [], isLoading } = useQuery({
     queryKey: ["scheduling-conflicts"],
-    queryFn: () => api.schedulingConflicts(),
+    queryFn: () => schedulingService.schedulingConflicts(),
   });
 
   const columns: Column<SchedulingConflict>[] = [
@@ -1030,31 +1145,22 @@ function RecurringBlocksTab({ canManage }: { canManage: boolean }) {
   const qc = useQueryClient();
   const [recurringOpen, { open: openRecurring, close: closeRecurring }] = useDisclosure(false);
   const [blockOpen, { open: openBlock, close: closeBlock }] = useDisclosure(false);
-
-  // ── Recurring Appointment form ──
-  const [recForm, setRecForm] = useState<CreateRecurringRequest>({
-    resource_id: "",
-    resource_type: "doctor",
-    day_of_week: 1,
-    start_time: "09:00",
-    end_time: "10:00",
-    repeat_count: 4,
-    start_date: "",
+  const {
+    control: recurringControl,
+    handleSubmit: handleRecurringSubmit,
+    reset: resetRecurring,
+    formState: { errors: recurringErrors },
+  } = useForm<SchedulingRecurringFormInput>({
+    resolver: zodResolver(schedulingRecurringFormSchema),
+    defaultValues: emptyRecurringForm,
   });
 
   const recurringMut = useMutation({
-    mutationFn: () => api.createRecurringAppointment(recForm),
+    mutationFn: (data: CreateRecurringRequest) =>
+      schedulingService.createRecurringAppointment(data),
     onSuccess: (result) => {
       closeRecurring();
-      setRecForm({
-        resource_id: "",
-        resource_type: "doctor",
-        day_of_week: 1,
-        start_time: "09:00",
-        end_time: "10:00",
-        repeat_count: 4,
-        start_date: "",
-      });
+      resetRecurring(emptyRecurringForm);
       notifications.show({
         title: "Recurring Created",
         message: `${result.created} recurring slot(s) created`,
@@ -1067,26 +1173,21 @@ function RecurringBlocksTab({ canManage }: { canManage: boolean }) {
     },
   });
 
-  // ── Block Scheduling form ──
-  const [blockForm, setBlockForm] = useState<CreateBlockRequest>({
-    resource_id: "",
-    resource_type: "doctor",
-    start_time: "",
-    end_time: "",
-    block_reason: "",
+  const {
+    control: blockControl,
+    handleSubmit: handleBlockSubmit,
+    reset: resetBlock,
+    formState: { errors: blockErrors },
+  } = useForm<SchedulingBlockFormInput>({
+    resolver: zodResolver(schedulingBlockFormSchema),
+    defaultValues: emptyBlockForm,
   });
 
   const blockMut = useMutation({
-    mutationFn: () => api.createScheduleBlock(blockForm),
+    mutationFn: (data: CreateBlockRequest) => schedulingService.createScheduleBlock(data),
     onSuccess: () => {
       closeBlock();
-      setBlockForm({
-        resource_id: "",
-        resource_type: "doctor",
-        start_time: "",
-        end_time: "",
-        block_reason: "",
-      });
+      resetBlock(emptyBlockForm);
       notifications.show({
         title: "Block Created",
         message: "Schedule block created successfully",
@@ -1101,7 +1202,7 @@ function RecurringBlocksTab({ canManage }: { canManage: boolean }) {
   // ── Waitlist Promotion ──
   const [promoteSlotId, setPromoteSlotId] = useState("");
   const promoteMut = useMutation({
-    mutationFn: () => api.promoteWaitlist({ slot_id: promoteSlotId }),
+    mutationFn: () => schedulingService.promoteWaitlist({ slot_id: promoteSlotId }),
     onSuccess: (result) => {
       setPromoteSlotId("");
       notifications.show({
@@ -1117,6 +1218,28 @@ function RecurringBlocksTab({ canManage }: { canManage: boolean }) {
       notifications.show({ title: "Error", message: err.message, color: "danger" });
     },
   });
+
+  const submitRecurring = (values: SchedulingRecurringFormInput) => {
+    recurringMut.mutate({
+      resource_id: values.resource_id,
+      resource_type: values.resource_type,
+      day_of_week: schedulingInteger(values.day_of_week, 1),
+      start_time: values.start_time,
+      end_time: values.end_time,
+      repeat_count: schedulingInteger(values.repeat_count, 4),
+      start_date: values.start_date,
+    });
+  };
+
+  const submitBlock = (values: SchedulingBlockFormInput) => {
+    blockMut.mutate({
+      resource_id: values.resource_id,
+      resource_type: values.resource_type,
+      start_time: values.start_time,
+      end_time: values.end_time,
+      block_reason: values.block_reason,
+    });
+  };
 
   return (
     <Stack gap="lg">
@@ -1149,14 +1272,23 @@ function RecurringBlocksTab({ canManage }: { canManage: boolean }) {
       {/* Action Buttons */}
       {canManage && (
         <Group gap="sm">
-          <Button leftSection={<IconCalendarPlus size={16} />} onClick={openRecurring}>
+          <Button
+            leftSection={<IconCalendarPlus size={16} />}
+            onClick={() => {
+              resetRecurring(emptyRecurringForm);
+              openRecurring();
+            }}
+          >
             Create Recurring Slots
           </Button>
           <Button
             variant="light"
             color="danger"
             leftSection={<IconLock size={16} />}
-            onClick={openBlock}
+            onClick={() => {
+              resetBlock(emptyBlockForm);
+              openBlock();
+            }}
           >
             Block Schedule
           </Button>
@@ -1170,65 +1302,100 @@ function RecurringBlocksTab({ canManage }: { canManage: boolean }) {
         title="Create Recurring Appointment Slots"
         size="md"
       >
-        <Stack gap="md">
-          <TextInput
-            label="Resource ID"
-            placeholder="Doctor or resource UUID"
-            required
-            value={recForm.resource_id}
-            onChange={(e) => setRecForm({ ...recForm, resource_id: e.currentTarget.value })}
+        <Stack component="form" gap="md" onSubmit={handleRecurringSubmit(submitRecurring)}>
+          <Controller
+            name="resource_id"
+            control={recurringControl}
+            render={({ field }) => (
+              <TextInput
+                label="Resource ID"
+                placeholder="Doctor or resource UUID"
+                required
+                {...field}
+                error={recurringErrors.resource_id?.message}
+              />
+            )}
           />
-          <Select
-            label="Resource Type"
-            data={[
-              { value: "doctor", label: "Doctor" },
-              { value: "room", label: "Room" },
-              { value: "equipment", label: "Equipment" },
-            ]}
-            value={recForm.resource_type}
-            onChange={(v) => setRecForm({ ...recForm, resource_type: v ?? "doctor" })}
+          <Controller
+            name="resource_type"
+            control={recurringControl}
+            render={({ field }) => (
+              <Select
+                label="Resource Type"
+                data={schedulingResourceTypeOptions}
+                value={field.value}
+                onChange={(value) => field.onChange(value ?? "doctor")}
+                error={recurringErrors.resource_type?.message}
+              />
+            )}
           />
-          <Select
-            label="Day of Week"
-            data={DAY_NAMES.map((name, i) => ({ value: String(i), label: name }))}
-            value={String(recForm.day_of_week)}
-            onChange={(v) => setRecForm({ ...recForm, day_of_week: Number(v ?? 1) })}
+          <Controller
+            name="day_of_week"
+            control={recurringControl}
+            render={({ field }) => (
+              <Select
+                label="Day of Week"
+                data={DAY_NAMES.map((name, i) => ({ value: String(i), label: name }))}
+                value={String(field.value)}
+                onChange={(value) => field.onChange(Number(value ?? 1))}
+                error={recurringErrors.day_of_week?.message}
+              />
+            )}
           />
           <Group grow>
-            <TextInput
-              label="Start Time"
-              placeholder="HH:MM"
-              value={recForm.start_time}
-              onChange={(e) => setRecForm({ ...recForm, start_time: e.currentTarget.value })}
+            <Controller
+              name="start_time"
+              control={recurringControl}
+              render={({ field }) => (
+                <TextInput
+                  label="Start Time"
+                  placeholder="HH:MM"
+                  {...field}
+                  error={recurringErrors.start_time?.message}
+                />
+              )}
             />
-            <TextInput
-              label="End Time"
-              placeholder="HH:MM"
-              value={recForm.end_time}
-              onChange={(e) => setRecForm({ ...recForm, end_time: e.currentTarget.value })}
+            <Controller
+              name="end_time"
+              control={recurringControl}
+              render={({ field }) => (
+                <TextInput
+                  label="End Time"
+                  placeholder="HH:MM"
+                  {...field}
+                  error={recurringErrors.end_time?.message}
+                />
+              )}
             />
           </Group>
-          <NumberInput
-            label="Repeat Count (weeks)"
-            min={1}
-            max={52}
-            value={recForm.repeat_count}
-            onChange={(v) =>
-              setRecForm({ ...recForm, repeat_count: typeof v === "number" ? v : 4 })
-            }
+          <Controller
+            name="repeat_count"
+            control={recurringControl}
+            render={({ field }) => (
+              <NumberInput
+                label="Repeat Count (weeks)"
+                min={1}
+                max={52}
+                value={field.value}
+                onChange={field.onChange}
+                error={recurringErrors.repeat_count?.message}
+              />
+            )}
           />
-          <TextInput
-            label="Start Date"
-            placeholder="YYYY-MM-DD"
-            required
-            value={recForm.start_date}
-            onChange={(e) => setRecForm({ ...recForm, start_date: e.currentTarget.value })}
+          <Controller
+            name="start_date"
+            control={recurringControl}
+            render={({ field }) => (
+              <TextInput
+                label="Start Date"
+                placeholder="YYYY-MM-DD"
+                required
+                {...field}
+                error={recurringErrors.start_date?.message}
+              />
+            )}
           />
-          <Button
-            onClick={() => recurringMut.mutate()}
-            loading={recurringMut.isPending}
-            disabled={!recForm.resource_id || !recForm.start_date}
-          >
+          <Button type="submit" loading={recurringMut.isPending}>
             Create Recurring Slots
           </Button>
         </Stack>
@@ -1236,55 +1403,72 @@ function RecurringBlocksTab({ canManage }: { canManage: boolean }) {
 
       {/* Block Schedule Modal */}
       <Modal opened={blockOpen} onClose={closeBlock} title="Block Schedule" size="md">
-        <Stack gap="md">
-          <TextInput
-            label="Resource ID"
-            placeholder="Doctor or resource UUID"
-            required
-            value={blockForm.resource_id}
-            onChange={(e) => setBlockForm({ ...blockForm, resource_id: e.currentTarget.value })}
+        <Stack component="form" gap="md" onSubmit={handleBlockSubmit(submitBlock)}>
+          <Controller
+            name="resource_id"
+            control={blockControl}
+            render={({ field }) => (
+              <TextInput
+                label="Resource ID"
+                placeholder="Doctor or resource UUID"
+                required
+                {...field}
+                error={blockErrors.resource_id?.message}
+              />
+            )}
           />
-          <Select
-            label="Resource Type"
-            data={[
-              { value: "doctor", label: "Doctor" },
-              { value: "room", label: "Room" },
-              { value: "equipment", label: "Equipment" },
-            ]}
-            value={blockForm.resource_type}
-            onChange={(v) => setBlockForm({ ...blockForm, resource_type: v ?? "doctor" })}
+          <Controller
+            name="resource_type"
+            control={blockControl}
+            render={({ field }) => (
+              <Select
+                label="Resource Type"
+                data={schedulingResourceTypeOptions}
+                value={field.value}
+                onChange={(value) => field.onChange(value ?? "doctor")}
+                error={blockErrors.resource_type?.message}
+              />
+            )}
           />
-          <TextInput
-            label="Block Start (ISO datetime)"
-            placeholder="2026-04-10T09:00:00"
-            required
-            value={blockForm.start_time}
-            onChange={(e) => setBlockForm({ ...blockForm, start_time: e.currentTarget.value })}
+          <Controller
+            name="start_time"
+            control={blockControl}
+            render={({ field }) => (
+              <TextInput
+                label="Block Start (ISO datetime)"
+                placeholder="2026-04-10T09:00:00"
+                required
+                {...field}
+                error={blockErrors.start_time?.message}
+              />
+            )}
           />
-          <TextInput
-            label="Block End (ISO datetime)"
-            placeholder="2026-04-10T17:00:00"
-            required
-            value={blockForm.end_time}
-            onChange={(e) => setBlockForm({ ...blockForm, end_time: e.currentTarget.value })}
+          <Controller
+            name="end_time"
+            control={blockControl}
+            render={({ field }) => (
+              <TextInput
+                label="Block End (ISO datetime)"
+                placeholder="2026-04-10T17:00:00"
+                required
+                {...field}
+                error={blockErrors.end_time?.message}
+              />
+            )}
           />
-          <Textarea
-            label="Reason"
-            required
-            value={blockForm.block_reason}
-            onChange={(e) => setBlockForm({ ...blockForm, block_reason: e.currentTarget.value })}
+          <Controller
+            name="block_reason"
+            control={blockControl}
+            render={({ field }) => (
+              <Textarea
+                label="Reason"
+                required
+                {...field}
+                error={blockErrors.block_reason?.message}
+              />
+            )}
           />
-          <Button
-            color="danger"
-            onClick={() => blockMut.mutate()}
-            loading={blockMut.isPending}
-            disabled={
-              !blockForm.resource_id ||
-              !blockForm.start_time ||
-              !blockForm.end_time ||
-              !blockForm.block_reason
-            }
-          >
+          <Button color="danger" type="submit" loading={blockMut.isPending}>
             Create Block
           </Button>
         </Stack>
@@ -1303,23 +1487,23 @@ function AnalyticsTab() {
 
   const { data: noshowRates = [], isLoading: ratesLoading } = useQuery({
     queryKey: ["scheduling-analytics-noshow-rates"],
-    queryFn: () => api.noshowRates(),
+    queryFn: () => schedulingService.noshowRates(),
   });
 
   const { data: accuracy } = useQuery({
     queryKey: ["scheduling-analytics-prediction-accuracy"],
-    queryFn: () => api.predictionAccuracy(),
+    queryFn: () => schedulingService.predictionAccuracy(),
   });
 
   const { data: waitlistStatsData } = useQuery({
     queryKey: ["scheduling-analytics-waitlist-stats"],
-    queryFn: () => api.waitlistStats(),
+    queryFn: () => schedulingService.waitlistStats(),
   });
 
   const { data: schedAnalytics } = useQuery({
     queryKey: ["scheduling-analytics-schedule", dateFrom, dateTo],
     queryFn: () =>
-      api.scheduleAnalytics({
+      schedulingService.scheduleAnalytics({
         from: dateFrom || undefined,
         to: dateTo || undefined,
       }),

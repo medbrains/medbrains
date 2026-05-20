@@ -3,6 +3,8 @@
 // accepts patient + relative + witness signatures plus risks-explained
 // acknowledgment. MLC notification fires automatically when the case
 // is flagged.
+
+import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Alert,
   Button,
@@ -15,10 +17,12 @@ import {
   TextInput,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
+import type { IpdDamaFormInput } from "@medbrains/schemas";
+import { ipdDamaFormSchema } from "@medbrains/schemas";
 import type { IpdDamaRequest } from "@medbrains/types";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { Controller, useForm } from "react-hook-form";
+import { clinicalActionsService } from "../../services/clinicalActions.service";
 
 interface DamaModalProps {
   admissionId: string;
@@ -28,20 +32,33 @@ interface DamaModalProps {
 
 export function DamaModal({ admissionId, opened, onClose }: DamaModalProps) {
   const queryClient = useQueryClient();
-  const [recordType, setRecordType] = useState<"dama" | "lama">("dama");
-  const [patientSigned, setPatientSigned] = useState(false);
-  const [relativeName, setRelativeName] = useState("");
-  const [relativeRelation, setRelativeRelation] = useState("");
-  const [relativeSigned, setRelativeSigned] = useState(false);
-  const [witnessName, setWitnessName] = useState("");
-  const [witnessSigned, setWitnessSigned] = useState(false);
-  const [risksExplained, setRisksExplained] = useState("");
-  const [reason, setReason] = useState("");
-  const [isMlc, setIsMlc] = useState(false);
-  const [notes, setNotes] = useState("");
+  const {
+    control,
+    handleSubmit,
+    reset,
+    watch,
+    formState: { errors },
+  } = useForm<IpdDamaFormInput>({
+    resolver: zodResolver(ipdDamaFormSchema),
+    defaultValues: {
+      record_type: "dama",
+      patient_signed: false,
+      relative_name: "",
+      relative_relation: "",
+      relative_signed: false,
+      witness_name: "",
+      witness_signed: false,
+      risks_explained: "",
+      reason_for_leaving: "",
+      is_mlc_case: false,
+      notes: "",
+    },
+    mode: "onTouched",
+  });
+  const recordType = watch("record_type");
 
   const mutation = useMutation({
-    mutationFn: (body: IpdDamaRequest) => api.recordIpdDama(admissionId, body),
+    mutationFn: (body: IpdDamaRequest) => clinicalActionsService.recordIpdDama(admissionId, body),
     onSuccess: () => {
       notifications.show({
         title: recordType === "dama" ? "DAMA recorded" : "LAMA recorded",
@@ -50,33 +67,26 @@ export function DamaModal({ admissionId, opened, onClose }: DamaModalProps) {
       });
       void queryClient.invalidateQueries({ queryKey: ["ipd-dama", admissionId] });
       void queryClient.invalidateQueries({ queryKey: ["ipd-admission", admissionId] });
+      reset();
       onClose();
     },
   });
 
-  const submit = () => {
-    if (!patientSigned && !relativeSigned) {
-      notifications.show({
-        title: "Signature required",
-        message: "Either patient or relative must sign before recording.",
-        color: "danger",
-      });
-      return;
-    }
+  const submit = handleSubmit((values) => {
     mutation.mutate({
-      record_type: recordType,
-      patient_signed: patientSigned,
-      relative_name: relativeName || undefined,
-      relative_relation: relativeRelation || undefined,
-      relative_signed: relativeSigned,
-      witness_name: witnessName || undefined,
-      witness_signed: witnessSigned,
-      risks_explained: risksExplained || undefined,
-      reason_for_leaving: reason || undefined,
-      is_mlc_case: isMlc,
-      notes: notes || undefined,
+      record_type: values.record_type,
+      patient_signed: values.patient_signed,
+      relative_name: values.relative_name || undefined,
+      relative_relation: values.relative_relation || undefined,
+      relative_signed: values.relative_signed,
+      witness_name: values.witness_name || undefined,
+      witness_signed: values.witness_signed,
+      risks_explained: values.risks_explained || undefined,
+      reason_for_leaving: values.reason_for_leaving || undefined,
+      is_mlc_case: values.is_mlc_case,
+      notes: values.notes || undefined,
     });
-  };
+  });
 
   return (
     <Modal
@@ -91,90 +101,150 @@ export function DamaModal({ admissionId, opened, onClose }: DamaModalProps) {
           witness must sign. If this is an MLC, notification will fire to the police liaison.
         </Alert>
 
-        <Radio.Group
-          label="Record type"
-          value={recordType}
-          onChange={(v) => setRecordType(v as "dama" | "lama")}
-          required
-        >
-          <Group mt="xs">
-            <Radio value="dama" label="DAMA — formal discharge against advice" />
-            <Radio value="lama" label="LAMA — left without formal discharge" />
-          </Group>
-        </Radio.Group>
-
-        <Textarea
-          label="Risks explained to patient/family"
-          autosize
-          minRows={2}
-          value={risksExplained}
-          onChange={(e) => setRisksExplained(e.currentTarget.value)}
-          placeholder="What was explained — risk of complications, mortality, alternative care options"
+        <Controller
+          control={control}
+          name="record_type"
+          render={({ field }) => (
+            <Radio.Group label="Record type" value={field.value} onChange={field.onChange} required>
+              <Group mt="xs">
+                <Radio value="dama" label="DAMA — formal discharge against advice" />
+                <Radio value="lama" label="LAMA — left without formal discharge" />
+              </Group>
+            </Radio.Group>
+          )}
         />
 
-        <Textarea
-          label="Reason for leaving"
-          autosize
-          minRows={2}
-          value={reason}
-          onChange={(e) => setReason(e.currentTarget.value)}
-          placeholder="Patient-stated reason"
+        <Controller
+          control={control}
+          name="risks_explained"
+          render={({ field }) => (
+            <Textarea
+              label="Risks explained to patient/family"
+              autosize
+              minRows={2}
+              value={field.value}
+              onChange={field.onChange}
+              error={errors.risks_explained?.message}
+              placeholder="What was explained — risk of complications, mortality, alternative care options"
+            />
+          )}
         />
 
-        <Checkbox
-          label="Patient signed (or thumb impression)"
-          checked={patientSigned}
-          onChange={(e) => setPatientSigned(e.currentTarget.checked)}
+        <Controller
+          control={control}
+          name="reason_for_leaving"
+          render={({ field }) => (
+            <Textarea
+              label="Reason for leaving"
+              autosize
+              minRows={2}
+              value={field.value}
+              onChange={field.onChange}
+              placeholder="Patient-stated reason"
+            />
+          )}
+        />
+
+        <Controller
+          control={control}
+          name="patient_signed"
+          render={({ field }) => (
+            <Checkbox
+              label="Patient signed (or thumb impression)"
+              checked={field.value}
+              onChange={(e) => field.onChange(e.currentTarget.checked)}
+              error={errors.patient_signed?.message}
+            />
+          )}
         />
 
         <Group grow>
-          <TextInput
-            label="Authorised relative — name"
-            value={relativeName}
-            onChange={(e) => setRelativeName(e.currentTarget.value)}
+          <Controller
+            control={control}
+            name="relative_name"
+            render={({ field }) => (
+              <TextInput
+                label="Authorised relative — name"
+                value={field.value}
+                onChange={field.onChange}
+              />
+            )}
           />
-          <TextInput
-            label="Relation"
-            value={relativeRelation}
-            onChange={(e) => setRelativeRelation(e.currentTarget.value)}
+          <Controller
+            control={control}
+            name="relative_relation"
+            render={({ field }) => (
+              <TextInput label="Relation" value={field.value} onChange={field.onChange} />
+            )}
           />
         </Group>
-        <Checkbox
-          label="Relative signed"
-          checked={relativeSigned}
-          onChange={(e) => setRelativeSigned(e.currentTarget.checked)}
+        <Controller
+          control={control}
+          name="relative_signed"
+          render={({ field }) => (
+            <Checkbox
+              label="Relative signed"
+              checked={field.value}
+              onChange={(e) => field.onChange(e.currentTarget.checked)}
+              error={errors.relative_signed?.message}
+            />
+          )}
         />
 
-        <TextInput
-          label="Witness name (staff or independent)"
-          value={witnessName}
-          onChange={(e) => setWitnessName(e.currentTarget.value)}
+        <Controller
+          control={control}
+          name="witness_name"
+          render={({ field }) => (
+            <TextInput
+              label="Witness name (staff or independent)"
+              value={field.value}
+              onChange={field.onChange}
+            />
+          )}
         />
-        <Checkbox
-          label="Witness signed"
-          checked={witnessSigned}
-          onChange={(e) => setWitnessSigned(e.currentTarget.checked)}
+        <Controller
+          control={control}
+          name="witness_signed"
+          render={({ field }) => (
+            <Checkbox
+              label="Witness signed"
+              checked={field.value}
+              onChange={(e) => field.onChange(e.currentTarget.checked)}
+            />
+          )}
         />
 
-        <Checkbox
-          label="MLC case — notify police liaison"
-          checked={isMlc}
-          onChange={(e) => setIsMlc(e.currentTarget.checked)}
+        <Controller
+          control={control}
+          name="is_mlc_case"
+          render={({ field }) => (
+            <Checkbox
+              label="MLC case — notify police liaison"
+              checked={field.value}
+              onChange={(e) => field.onChange(e.currentTarget.checked)}
+            />
+          )}
         />
 
-        <Textarea
-          label="Internal notes"
-          autosize
-          minRows={2}
-          value={notes}
-          onChange={(e) => setNotes(e.currentTarget.value)}
+        <Controller
+          control={control}
+          name="notes"
+          render={({ field }) => (
+            <Textarea
+              label="Internal notes"
+              autosize
+              minRows={2}
+              value={field.value}
+              onChange={field.onChange}
+            />
+          )}
         />
 
         <Group justify="flex-end">
           <Button variant="subtle" onClick={onClose}>
             Cancel
           </Button>
-          <Button color="warning" loading={mutation.isPending} onClick={submit}>
+          <Button color="warning" loading={mutation.isPending} onClick={() => void submit()}>
             Record refusal
           </Button>
         </Group>

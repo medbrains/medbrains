@@ -1,12 +1,12 @@
 import { LineChart } from "@mantine/charts";
 import { Card, Group, Progress, SegmentedControl, SimpleGrid, Stack, Text } from "@mantine/core";
 import { DateInput } from "@mantine/dates";
-import { api } from "@medbrains/api";
 import type { BedOccupancyRow, OpdFootfallRow } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { DataTable } from "../../components";
 import type { Column } from "../../components/DataTable";
+import { analyticsService } from "../../services/analytics.service";
 
 // ── Helpers ──────────────────────────────────────────────
 
@@ -78,9 +78,9 @@ export function OpdBedTab() {
 // ── OPD Footfall Section ────────────────────────────────
 
 function OpdSection({ params }: { params: { from?: string; to?: string } }) {
-  const { data, isLoading } = useQuery({
+  const { data, isLoading } = useQuery<OpdFootfallRow[]>({
     queryKey: ["analytics", "opd-footfall", params],
-    queryFn: () => api.getOpdFootfall(params),
+    queryFn: () => analyticsService.getOpdFootfall(params),
   });
 
   const rows = toRows(data);
@@ -169,9 +169,9 @@ function OpdSection({ params }: { params: { from?: string; to?: string } }) {
 // ── Bed Occupancy Section ───────────────────────────────
 
 function BedSection() {
-  const { data, isLoading } = useQuery({
+  const { data, isLoading } = useQuery<BedOccupancyRow[]>({
     queryKey: ["analytics", "bed-occupancy"],
-    queryFn: () => api.getBedOccupancy(),
+    queryFn: () => analyticsService.getBedOccupancy(),
     refetchInterval: 60_000,
   });
 

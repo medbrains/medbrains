@@ -1,10 +1,13 @@
+import { zodResolver } from "@hookform/resolvers/zod";
 import { Button, Group, Modal, Stack, Textarea, TextInput } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
+import type { InlineCreateRoleFormInput } from "@medbrains/schemas";
+import { inlineCreateRoleFormSchema } from "@medbrains/schemas";
 import type { CustomRole } from "@medbrains/types";
 import { IconCheck } from "@tabler/icons-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { Controller, useForm } from "react-hook-form";
+import { adminAccessService } from "../../services/adminAccess.service";
 
 interface CreateRoleModalProps {
   opened: boolean;
@@ -14,20 +17,29 @@ interface CreateRoleModalProps {
 
 export function CreateRoleModal({ opened, onClose, onCreated }: CreateRoleModalProps) {
   const queryClient = useQueryClient();
+  const {
+    control,
+    handleSubmit,
+    reset,
+    formState: { errors },
+  } = useForm<InlineCreateRoleFormInput>({
+    resolver: zodResolver(inlineCreateRoleFormSchema),
+    defaultValues: { code: "", name: "", description: "" },
+    mode: "onTouched",
+  });
 
-  const [code, setCode] = useState("");
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
-
-  const handleOpen = () => {
-    setCode("");
-    setName("");
-    setDescription("");
+  const handleClose = () => {
+    reset();
+    onClose();
   };
 
   const createMutation = useMutation({
-    mutationFn: (data: { code: string; name: string; description?: string }) =>
-      api.createRole(data),
+    mutationFn: (data: InlineCreateRoleFormInput) =>
+      adminAccessService.createRole({
+        code: data.code.trim(),
+        name: data.name.trim(),
+        description: data.description.trim() || undefined,
+      }),
     onSuccess: (created: CustomRole) => {
       notifications.show({
         title: "Role created",
@@ -36,6 +48,7 @@ export function CreateRoleModal({ opened, onClose, onCreated }: CreateRoleModalP
         icon: <IconCheck size={16} />,
       });
       void queryClient.invalidateQueries({ queryKey: ["setup-roles"] });
+      reset();
       if (onCreated) {
         onCreated(created);
       } else {
@@ -51,57 +64,57 @@ export function CreateRoleModal({ opened, onClose, onCreated }: CreateRoleModalP
     },
   });
 
-  const handleSubmit = () => {
-    if (!code.trim() || !name.trim()) {
-      notifications.show({
-        title: "Missing fields",
-        message: "Code and Name are required",
-        color: "danger",
-      });
-      return;
-    }
-    createMutation.mutate({
-      code,
-      name,
-      description: description || undefined,
-    });
-  };
+  const submitRole = handleSubmit((values) => createMutation.mutate(values));
 
   return (
-    <Modal
-      opened={opened}
-      onClose={onClose}
-      title="Add Role"
-      size="md"
-      onTransitionEnd={handleOpen}
-    >
+    <Modal opened={opened} onClose={handleClose} title="Add Role" size="md">
       <Stack gap="sm">
-        <TextInput
-          label="Code"
-          placeholder="custom_role"
-          value={code}
-          onChange={(e) => setCode(e.currentTarget.value)}
-          required
+        <Controller
+          control={control}
+          name="code"
+          render={({ field }) => (
+            <TextInput
+              label="Code"
+              placeholder="custom_role"
+              value={field.value}
+              onChange={field.onChange}
+              error={errors.code?.message}
+              required
+            />
+          )}
         />
-        <TextInput
-          label="Name"
-          placeholder="Custom Role"
-          value={name}
-          onChange={(e) => setName(e.currentTarget.value)}
-          required
+        <Controller
+          control={control}
+          name="name"
+          render={({ field }) => (
+            <TextInput
+              label="Name"
+              placeholder="Custom Role"
+              value={field.value}
+              onChange={field.onChange}
+              error={errors.name?.message}
+              required
+            />
+          )}
         />
-        <Textarea
-          label="Description"
-          placeholder="Describe the role responsibilities..."
-          value={description}
-          onChange={(e) => setDescription(e.currentTarget.value)}
-          minRows={3}
+        <Controller
+          control={control}
+          name="description"
+          render={({ field }) => (
+            <Textarea
+              label="Description"
+              placeholder="Describe the role responsibilities..."
+              value={field.value}
+              onChange={field.onChange}
+              minRows={3}
+            />
+          )}
         />
         <Group justify="flex-end" mt="md">
-          <Button variant="light" onClick={onClose}>
+          <Button variant="light" onClick={handleClose}>
             Cancel
           </Button>
-          <Button onClick={handleSubmit} loading={createMutation.isPending}>
+          <Button onClick={() => void submitRole()} loading={createMutation.isPending}>
             Create
           </Button>
         </Group>

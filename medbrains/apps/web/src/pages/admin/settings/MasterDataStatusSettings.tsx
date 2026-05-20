@@ -1,5 +1,4 @@
 import { Badge, Card, Grid, Group, Loader, Stack, Text, ThemeIcon } from "@mantine/core";
-import { api } from "@medbrains/api";
 import {
   IconAlertCircle,
   IconCheck,
@@ -12,6 +11,10 @@ import {
 } from "@tabler/icons-react";
 import { useQueries } from "@tanstack/react-query";
 import { useMemo } from "react";
+import { adminAccessService } from "../../../services/adminAccess.service";
+import { labCatalogService } from "../../../services/labCatalog.service";
+import { pharmacyCatalogService } from "../../../services/pharmacyCatalog.service";
+import { settingsSetupService } from "../../../services/settingsSetup.service";
 
 interface MasterDataItem {
   key: string;
@@ -26,30 +29,27 @@ export function MasterDataStatusSettings() {
     queries: [
       {
         queryKey: ["pharmacy-catalog"],
-        queryFn: () => api.listPharmacyCatalog?.() || Promise.resolve([]),
-        enabled: !!api.listPharmacyCatalog,
+        queryFn: () => pharmacyCatalogService.listPharmacyCatalog(),
       },
       {
         queryKey: ["lab-catalog"],
-        queryFn: () => api.listLabCatalog?.() || Promise.resolve([]),
-        enabled: !!api.listLabCatalog,
+        queryFn: () => labCatalogService.listLabCatalog(),
       },
       {
         queryKey: ["procedure-catalog"],
-        queryFn: () => api.listProcedureCatalog?.() || Promise.resolve([]),
-        enabled: !!api.listProcedureCatalog,
+        queryFn: () => settingsSetupService.listProcedureCatalog(),
       },
       {
         queryKey: ["setup-departments"],
-        queryFn: () => api.listDepartments(),
+        queryFn: () => settingsSetupService.listDepartments(),
       },
       {
         queryKey: ["setup-users"],
-        queryFn: () => api.listSetupUsers(),
+        queryFn: () => adminAccessService.listUsers(),
       },
       {
         queryKey: ["setup-locations"],
-        queryFn: () => api.listLocations(),
+        queryFn: () => settingsSetupService.listLocations(),
       },
     ],
   });

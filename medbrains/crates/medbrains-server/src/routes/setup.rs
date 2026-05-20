@@ -772,7 +772,7 @@ pub async fn create_role(
 ) -> Result<Json<CustomRole>, AppError> {
     require_permission(&claims, permissions::admin::roles::CREATE)?;
     let mut errors = ValidationErrors::new();
-    validation::validate_code(&mut errors, "code", &body.code);
+    validation::validate_username(&mut errors, "code", &body.code);
     validation::validate_name(&mut errors, "name", &body.name);
     if errors.has_errors() {
         return Err(AppError::ValidationFailed(errors));

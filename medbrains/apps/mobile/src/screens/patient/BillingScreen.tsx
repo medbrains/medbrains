@@ -1,4 +1,3 @@
-import { api } from "@medbrains/api";
 import { useAuthStore } from "@medbrains/stores";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
@@ -15,6 +14,7 @@ import {
   useTheme,
 } from "react-native-paper";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { patientService } from "../../services/patient.service";
 
 type FilterType = "pending" | "paid" | "all";
 
@@ -56,7 +56,7 @@ export function BillingScreen({ navigation }: BillingScreenProps) {
 
   const { data, isLoading, refetch } = useQuery({
     queryKey: ["patient", "invoices", user?.id, filter],
-    queryFn: () => api.listPatientInvoices(user?.id || ""),
+    queryFn: () => patientService.listPatientInvoices(user?.id || ""),
     enabled: Boolean(user?.id),
   });
 

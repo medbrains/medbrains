@@ -2,7 +2,7 @@
 # MedBrains standalone deploy — bootstrap a single Ubuntu/Debian
 # server to run the HMS behind the MedBrains Pingora edge proxy.
 #
-#   sudo bash install.sh hims.alagappahospital.com admin@example.com [backup-bucket]
+#   sudo bash install.sh hims.amh.org.in admin@example.com [backup-bucket]
 #
 # Idempotent: re-running advances state without breaking anything.
 
@@ -24,7 +24,7 @@ if [[ -z "$DOMAIN" || -z "$ADMIN_EMAIL" ]]; then
 Usage:  sudo bash install.sh <domain> <admin-email> [backup-bucket]
 
 Examples:
-  sudo bash install.sh hims.alagappahospital.com ops@alagappahospital.com
+  sudo bash install.sh hims.amh.org.in ops@amh.org.in
 
 Prerequisites:
   - Ubuntu 22.04 / 24.04 or Debian 12 host (root access)
@@ -145,15 +145,29 @@ else
     fi
 fi
 
+env_value() {
+    local key="$1"
+    awk -F= -v key="$key" '$1 == key { value = substr($0, index($0, "=") + 1) } END { print value }' /etc/medbrains/env
+}
+
 echo "==> [4/9] Bringing up postgres-17 via docker compose"
 install -m 0644 "$DEPLOY_DIR/docker-compose.prod.yml" /etc/medbrains/docker-compose.yml
 # Pull the postgres password out of /etc/medbrains/env for the
 # compose file to consume.
 DBPW="$(grep '^DATABASE_URL=' /etc/medbrains/env | sed -E 's|.*://[^:]+:([^@]+)@.*|\1|')"
+ICD_LOCAL_SERVICE="$(env_value MEDBRAINS_ICD_LOCAL_SERVICE)"
+ICD_API_ACCEPT_LICENSE="$(env_value ICD_API_ACCEPT_LICENSE)"
+ICD_API_PORT="$(env_value ICD_API_PORT)"
+ICD_API_INCLUDE="$(env_value ICD_API_INCLUDE)"
+ICD_API_SAVE_ANALYTICS="$(env_value ICD_API_SAVE_ANALYTICS)"
 cat > /etc/medbrains/.compose-env <<COMPOSE_ENV
 POSTGRES_DB=medbrains
 POSTGRES_USER=medbrains
 POSTGRES_PASSWORD=$DBPW
+ICD_API_ACCEPT_LICENSE=${ICD_API_ACCEPT_LICENSE:-false}
+ICD_API_PORT=${ICD_API_PORT:-8382}
+ICD_API_INCLUDE=${ICD_API_INCLUDE:-2026-01_en}
+ICD_API_SAVE_ANALYTICS=${ICD_API_SAVE_ANALYTICS:-false}
 COMPOSE_ENV
 chmod 600 /etc/medbrains/.compose-env
 
@@ -183,6 +197,20 @@ fi
 
 docker compose --env-file /etc/medbrains/.compose-env \
     -f /etc/medbrains/docker-compose.yml up -d postgres
+
+if [[ "${ICD_LOCAL_SERVICE:-false}" == "true" ]]; then
+    if [[ "${ICD_API_ACCEPT_LICENSE:-false}" != "true" ]]; then
+        echo "ERROR: MEDBRAINS_ICD_LOCAL_SERVICE=true requires ICD_API_ACCEPT_LICENSE=true in /etc/medbrains/env"
+        echo "       Review WHO ICD-API license terms before enabling the local ICD sidecar."
+        exit 1
+    fi
+    echo "    Starting local WHO ICD-API sidecar on 127.0.0.1:${ICD_API_PORT:-8382}"
+    docker compose --env-file /etc/medbrains/.compose-env \
+        -f /etc/medbrains/docker-compose.yml --profile icd up -d icd-api
+else
+    echo "    WHO ICD-API local sidecar disabled; using cloud OAuth or local cache based on /etc/medbrains/env."
+fi
+
 echo "    Waiting for postgres ready…"
 for _ in {1..30}; do
     if docker exec medbrains-postgres pg_isready -U medbrains >/dev/null 2>&1; then

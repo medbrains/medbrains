@@ -1,4 +1,3 @@
-import { api } from "@medbrains/api";
 import { useAuthStore } from "@medbrains/stores";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
@@ -15,6 +14,7 @@ import {
   useTheme,
 } from "react-native-paper";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { patientService } from "../../services/patient.service";
 
 type FilterType = "all" | "pending" | "completed";
 
@@ -49,7 +49,7 @@ export function LabResultsScreen({ navigation }: LabResultsScreenProps) {
 
   const { data, isLoading, refetch } = useQuery({
     queryKey: ["patient", "labOrders", user?.id, filter],
-    queryFn: () => api.listPatientLabOrders(user?.id || ""),
+    queryFn: () => patientService.listPatientLabOrders(user?.id || ""),
     enabled: Boolean(user?.id),
   });
 

@@ -12,7 +12,7 @@ For multi-server / cloud / RustFS layouts see `STORAGE.md`.
 
 - A clean Ubuntu 22.04 / 24.04 or Debian 12 host with root access.
 - DNS `A` (and ideally `AAAA`) record for the deploy hostname (e.g.
-  `hims.alagappahospital.com`) pointed at the server's public IP.
+  `hims.amh.org.in`) pointed at the server's public IP.
   Let's Encrypt verifies HTTP-01 over port 80 — both 80 and 443
   must be reachable from the public internet.
 - Pre-built binaries dropped into `/tmp` on the host:
@@ -35,7 +35,7 @@ For multi-server / cloud / RustFS layouts see `STORAGE.md`.
 ## Run
 
 ```sh
-sudo bash /tmp/standalone/install.sh hims.alagappahospital.com admin@alagappahospital.com
+sudo bash /tmp/standalone/install.sh hims.amh.org.in admin@amh.org.in
 ```
 
 Idempotent — re-running advances state without re-bootstrapping
@@ -49,7 +49,8 @@ secrets. Picks up where it left off if interrupted.
 3. Writes `/etc/medbrains/env` (postgres password, Ed25519 JWT
    keypair both auto-generated; permissions `640 root:medbrains`).
 4. Brings up postgres-17 via docker compose, bound to localhost
-   only.
+   only. If `MEDBRAINS_ICD_LOCAL_SERVICE=true`, also starts the
+   WHO ICD-API sidecar on `127.0.0.1:8382`.
 5. Installs `medbrains-server`, `medbrains-archive`, and `medbrains-proxy` binaries to
    `/usr/local/bin`.
 6. Copies SPA static files to `/var/www/medbrains`.
@@ -66,7 +67,7 @@ systemctl is-active medbrains-server.service           # active
 systemctl list-timers medbrains-archive.timer          # next run scheduled
 curl -fsS http://127.0.0.1:3000/api/health             # {"status":"ok",...}
 journalctl -u medbrains-proxy -f                       # edge proxy logs
-curl -I https://hims.alagappahospital.com              # 200 once ACME completes
+curl -I https://hims.amh.org.in                        # 200 once ACME completes
 ```
 
 ## Day-2 ops
@@ -78,6 +79,7 @@ curl -I https://hims.alagappahospital.com              # 200 once ACME completes
 | Tail archive sweeper | `journalctl -u medbrains-archive -f` |
 | Run sweeper now | `sudo systemctl start medbrains-archive.service` |
 | Restart server | `sudo systemctl restart medbrains-server.service` |
+| Tail local ICD-API | `sudo docker logs -f medbrains-icd-api` |
 | Backup postgres | `sudo docker exec medbrains-postgres pg_dump -U medbrains medbrains > backup-$(date +%F).sql` |
 | Update binary | Replace `/usr/local/bin/medbrains-server` and `systemctl restart medbrains-server.service` |
 | Update SPA | `rsync apps/web/dist/ /var/www/medbrains/` (no restart needed) |
@@ -95,9 +97,32 @@ curl -I https://hims.alagappahospital.com              # 200 once ACME completes
 | `medbrains-server.service` | systemd unit for the API + SPA server |
 | `medbrains-archive.service` | systemd one-shot for the storage sweeper |
 | `medbrains-archive.timer` | daily 02:00 timer |
-| `docker-compose.prod.yml` | postgres-17 only |
+| `docker-compose.prod.yml` | postgres-17 plus optional profile-gated sidecars |
 | `env.example` | starter `/etc/medbrains/env` |
 | `STORAGE.md` | LocalFs / RustFS / S3+Glacier deployment shapes |
+
+## Optional local WHO ICD-API
+
+For research and diagnosis-code reproducibility, prefer the official
+WHO ICD-API local service over cloud OAuth:
+
+```env
+MEDBRAINS_ICD_LOCAL_SERVICE=true
+ICD_API_ACCEPT_LICENSE=true
+ICD_API_INCLUDE=2026-01_en
+ICD_API_SAVE_ANALYTICS=false
+WHO_ICD_RELEASE_ID=2026-01
+WHO_ICD_API_BASE_URL=https://hims.amh.org.in
+WHO_ICD_AUTH_MODE=none
+```
+
+The standalone Pingora proxy exposes the ICD service under the same
+hospital domain at `/icd/*`; the backend uses the same base URL as the
+UI domain and appends the official ICD API path. Do not use wildcard
+CORS. WHO also documents a native Linux systemd install for ICD-API,
+but this kit keeps the default on Docker Compose because Docker is
+already required for Postgres and makes sidecar lifecycle/rollback
+simpler.
 
 ## What this kit does NOT install
 

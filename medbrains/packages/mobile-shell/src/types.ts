@@ -6,6 +6,7 @@
  */
 
 import type { ComponentType } from "react";
+import type { AppSurfaceCode } from "./app-surfaces.js";
 
 export type ShellVariant = "staff" | "patient" | "tv" | "vendor" | "camp";
 
@@ -29,16 +30,15 @@ export interface Module {
   icon: ComponentType<{ size?: number; color?: string }>;
   requiredPermissions: ReadonlyArray<string>;
   navigator: ComponentType;
+  appCodes?: ReadonlyArray<AppSurfaceCode>;
+  tags?: ReadonlyArray<string>;
   offlineDocTypes?: ReadonlyArray<string>;
   badge?: () => ModuleBadge | null;
 }
 
 export type ModuleList = ReadonlyArray<Module>;
 
-export function userHasModuleAccess(
-  module: Module,
-  identity: TenantIdentity | null,
-): boolean {
+export function userHasModuleAccess(module: Module, identity: TenantIdentity | null): boolean {
   if (!identity) {
     return false;
   }
@@ -57,4 +57,8 @@ export function filterAccessibleModules(
   identity: TenantIdentity | null,
 ): ModuleList {
   return modules.filter((m) => userHasModuleAccess(m, identity));
+}
+
+export function filterModulesForApp(modules: ModuleList, appCode: AppSurfaceCode): ModuleList {
+  return modules.filter((module) => !module.appCodes?.length || module.appCodes.includes(appCode));
 }

@@ -13,6 +13,7 @@ function FamilyShareScreen() {
       eyebrow="MODULE"
       title="Family share"
       description="Link family, share specific records, set expiry."
+      tags={["Mobile-Patient", "family", "sharing", "time-bound"]}
       summaries={[
         { eyebrow: "LINKED", count: "—", title: "Family members" },
         { eyebrow: "SHARED", count: "—", title: "Active grants" },
@@ -49,4 +50,6 @@ export const familyShareModule: Module = {
   icon: () => null,
   requiredPermissions: [],
   navigator: FamilyShareScreen,
+  appCodes: ["Mobile-Patient"],
+  tags: ["patient", "family-share", "record-sharing", "time-bound"],
 };

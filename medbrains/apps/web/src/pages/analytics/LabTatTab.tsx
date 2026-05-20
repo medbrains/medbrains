@@ -1,12 +1,12 @@
 import { BarChart } from "@mantine/charts";
 import { Card, Group, SimpleGrid, Stack, Text } from "@mantine/core";
 import { DateInput } from "@mantine/dates";
-import { api } from "@medbrains/api";
 import type { LabTatRow } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { DataTable } from "../../components";
 import type { Column } from "../../components/DataTable";
+import { analyticsService } from "../../services/analytics.service";
 
 // ── Helpers ──────────────────────────────────────────────
 
@@ -33,9 +33,9 @@ export function LabTatTab() {
 
   const params = useMemo(() => ({ from: toIso(from), to: toIso(to) }), [from, to]);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading } = useQuery<LabTatRow[]>({
     queryKey: ["analytics", "lab-tat", params],
-    queryFn: () => api.getLabTat(params),
+    queryFn: () => analyticsService.getLabTat(params),
   });
 
   const rows = toRows(data);

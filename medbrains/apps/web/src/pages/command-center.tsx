@@ -1,3 +1,4 @@
+import { zodResolver } from "@hookform/resolvers/zod";
 import {
   ActionIcon,
   Badge,
@@ -19,19 +20,24 @@ import {
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
+import {
+  type CommandCenterAlertThresholdFormInput,
+  type CommandCenterAssignTransportFormInput,
+  type CommandCenterTransportFormInput,
+  commandCenterAlertThresholdFormSchema,
+  commandCenterAssignTransportFormSchema,
+  commandCenterTransportFormSchema,
+} from "@medbrains/schemas";
 import { useHasPermission } from "@medbrains/stores";
 import type {
   AlertThresholdRow,
   BedTurnaroundRow,
-  CreateAlertThresholdRequest,
   DepartmentAlertRow,
   DepartmentLoadRow,
   KpiTile,
   PatientFlowSnapshot,
   PendingDischargeRow,
   TransportRequestRow,
-  UpdateAlertThresholdRequest,
 } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import {
@@ -54,9 +60,17 @@ import {
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { Controller, useForm } from "react-hook-form";
 import { DataTable, PageHeader, StatCard } from "../components";
 import type { Column } from "../components/DataTable";
 import { useRequirePermission } from "../hooks/useRequirePermission";
+import {
+  type AssignTransportInput,
+  type CreateAlertThresholdInput,
+  type CreateTransportInput,
+  commandCenterService,
+  type UpdateAlertThresholdInput,
+} from "../services/commandCenter.service";
 
 // ── Constants ──────────────────────────────────────────
 
@@ -83,17 +97,24 @@ const METRIC_OPTIONS = [
   { value: "er_wait_mins", label: "ER Wait Time (mins)" },
 ];
 
-interface TransportFormState {
-  patient_id?: string;
-  patient_name?: string;
-  from_location: string;
-  to_location: string;
-  transport_mode: string;
-  priority?: string;
-  notes?: string;
-}
-
 const REFETCH = 30_000;
+const EMPTY_TRANSPORT_FORM: CommandCenterTransportFormInput = {
+  patient_id: "",
+  from_location_id: "",
+  to_location_id: "",
+  transport_mode: "wheelchair",
+  priority: "routine",
+  notes: "",
+};
+const EMPTY_ASSIGN_TRANSPORT_FORM: CommandCenterAssignTransportFormInput = {
+  assigned_to: "",
+};
+const EMPTY_ALERT_THRESHOLD_FORM: CommandCenterAlertThresholdFormInput = {
+  department_id: "",
+  metric_code: "",
+  warning_threshold: "",
+  critical_threshold: "",
+};
 
 // ── Helpers ────────────────────────────────────────────
 
@@ -177,6 +198,39 @@ function fmtShortDate(d: string | null | undefined): string {
   return new Date(d).toLocaleDateString();
 }
 
+function optionalTrimmed(value: string): string | undefined {
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+}
+
+function optionalFormNumber(value: string | number): number | undefined {
+  if (typeof value === "string" && value.trim().length === 0) return undefined;
+  const parsed = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function formToTransportPayload(form: CommandCenterTransportFormInput): CreateTransportInput {
+  return {
+    patient_id: optionalTrimmed(form.patient_id),
+    from_location_id: form.from_location_id.trim(),
+    to_location_id: form.to_location_id.trim(),
+    transport_mode: form.transport_mode,
+    priority: form.priority,
+    notes: optionalTrimmed(form.notes),
+  };
+}
+
+function formToAlertThresholdPayload(
+  form: CommandCenterAlertThresholdFormInput,
+): CreateAlertThresholdInput {
+  return {
+    department_id: form.department_id.trim(),
+    metric_code: form.metric_code.trim(),
+    warning_threshold: optionalFormNumber(form.warning_threshold),
+    critical_threshold: optionalFormNumber(form.critical_threshold),
+  };
+}
+
 // ── Main Page ─────────────────────────────────────────
 
 export function CommandCenterPage() {
@@ -240,30 +294,30 @@ function OverviewTab() {
 
   const { data: kpis } = useQuery({
     queryKey: ["command-center", "kpis"],
-    queryFn: () => api.getKpis(),
+    queryFn: () => commandCenterService.getKpis(),
     refetchInterval: REFETCH,
   });
 
   const { data: flow } = useQuery({
     queryKey: ["command-center", "patient-flow"],
-    queryFn: () => api.getPatientFlow(),
+    queryFn: () => commandCenterService.getPatientFlow(),
     refetchInterval: REFETCH,
   });
 
   const { data: deptLoad, isLoading: deptLoading } = useQuery({
     queryKey: ["command-center", "department-load"],
-    queryFn: () => api.getDepartmentLoad(),
+    queryFn: () => commandCenterService.getDepartmentLoad(),
     refetchInterval: REFETCH,
   });
 
   const { data: alerts, isLoading: alertsLoading } = useQuery({
     queryKey: ["command-center", "alerts"],
-    queryFn: () => api.getActiveAlerts(),
+    queryFn: () => commandCenterService.getActiveAlerts(),
     refetchInterval: REFETCH,
   });
 
   const ackAlert = useMutation({
-    mutationFn: (id: string) => api.acknowledgeDeptAlert(id),
+    mutationFn: (id: string) => commandCenterService.acknowledgeAlert(id),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["command-center", "alerts"] });
       notifications.show({ title: "Alert Acknowledged", message: "Alert has been acknowledged" });
@@ -559,19 +613,19 @@ function PatientFlowPipeline({ flow }: { flow: PatientFlowSnapshot | null }) {
 function BedManagementTab() {
   const { data: stats, isLoading: statsLoading } = useQuery({
     queryKey: ["command-center", "turnaround-stats"],
-    queryFn: () => api.getTurnaroundStats(),
+    queryFn: () => commandCenterService.getTurnaroundStats(),
     refetchInterval: REFETCH,
   });
 
   const { data: beds, isLoading: bedsLoading } = useQuery({
     queryKey: ["command-center", "bed-turnaround"],
-    queryFn: () => api.getBedTurnaround(),
+    queryFn: () => commandCenterService.getBedTurnaround(),
     refetchInterval: REFETCH,
   });
 
   const { data: pendingDischarges, isLoading: dischargesLoading } = useQuery({
     queryKey: ["command-center", "pending-discharges"],
-    queryFn: () => api.listPendingDischarges(),
+    queryFn: () => commandCenterService.listPendingDischarges(),
     refetchInterval: REFETCH,
   });
 
@@ -755,7 +809,7 @@ function BedManagementTab() {
 function DischargeCoordinatorTab() {
   const { data: pendingDischarges, isLoading } = useQuery({
     queryKey: ["command-center", "pending-discharges"],
-    queryFn: () => api.listPendingDischarges(),
+    queryFn: () => commandCenterService.listPendingDischarges(),
     refetchInterval: REFETCH,
   });
 
@@ -933,60 +987,56 @@ function TransportTab() {
   const canManage = useHasPermission(P.COMMAND_CENTER.TRANSPORT.MANAGE);
   const [createOpen, { open: openCreate, close: closeCreate }] = useDisclosure(false);
   const [assignModalId, setAssignModalId] = useState<string | null>(null);
-  const [assignTo, setAssignTo] = useState("");
   const qc = useQueryClient();
+  const {
+    control: transportControl,
+    formState: { errors: transportErrors },
+    handleSubmit: handleTransportSubmit,
+    register: registerTransport,
+    reset: resetTransport,
+  } = useForm<CommandCenterTransportFormInput>({
+    resolver: zodResolver(commandCenterTransportFormSchema),
+    defaultValues: EMPTY_TRANSPORT_FORM,
+  });
+  const {
+    formState: { errors: assignErrors },
+    handleSubmit: handleAssignSubmit,
+    register: registerAssign,
+    reset: resetAssign,
+  } = useForm<CommandCenterAssignTransportFormInput>({
+    resolver: zodResolver(commandCenterAssignTransportFormSchema),
+    defaultValues: EMPTY_ASSIGN_TRANSPORT_FORM,
+  });
 
   const { data: transport, isLoading } = useQuery({
     queryKey: ["command-center", "transport"],
-    queryFn: () => api.listTransportRequests(),
+    queryFn: () => commandCenterService.listTransportRequests(),
     refetchInterval: REFETCH,
   });
 
-  const [form, setForm] = useState<TransportFormState>({
-    from_location: "",
-    to_location: "",
-    transport_mode: "wheelchair",
-    priority: "routine",
-  });
-
   const createMut = useMutation({
-    mutationFn: () =>
-      api.createTransportRequest({
-        from_location_id: form.from_location || undefined,
-        to_location_id: form.to_location || undefined,
-        transport_mode: form.transport_mode,
-        priority: form.priority,
-        notes: form.notes || undefined,
-        patient_id: form.patient_id || undefined,
-      }),
+    mutationFn: (data: CreateTransportInput) => commandCenterService.createTransportRequest(data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["command-center", "transport"] });
       closeCreate();
-      setForm({
-        from_location: "",
-        to_location: "",
-        transport_mode: "wheelchair",
-        priority: "routine",
-        patient_name: "",
-        notes: "",
-      });
+      resetTransport(EMPTY_TRANSPORT_FORM);
       notifications.show({ title: "Success", message: "Transport request created" });
     },
   });
 
   const assignMut = useMutation({
-    mutationFn: ({ id, assigned_to }: { id: string; assigned_to: string }) =>
-      api.assignTransport(id, { assigned_to }),
+    mutationFn: ({ id, data }: { id: string; data: AssignTransportInput }) =>
+      commandCenterService.assignTransport(id, data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["command-center", "transport"] });
       setAssignModalId(null);
-      setAssignTo("");
+      resetAssign(EMPTY_ASSIGN_TRANSPORT_FORM);
       notifications.show({ title: "Success", message: "Transport assigned" });
     },
   });
 
   const completeMut = useMutation({
-    mutationFn: (id: string) => api.completeTransport(id),
+    mutationFn: (id: string) => commandCenterService.completeTransport(id),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["command-center", "transport"] });
       notifications.show({ title: "Success", message: "Transport completed" });
@@ -1009,10 +1059,36 @@ function TransportTab() {
   const avgResponse =
     completedWithTime.length > 0
       ? completedWithTime.reduce((sum, t) => {
-          const diff = new Date(t.completed_at!).getTime() - new Date(t.requested_at).getTime();
+          if (!t.completed_at) return sum;
+          const diff = new Date(t.completed_at).getTime() - new Date(t.requested_at).getTime();
           return sum + diff / 60000;
         }, 0) / completedWithTime.length
       : 0;
+
+  const openCreateTransport = () => {
+    resetTransport(EMPTY_TRANSPORT_FORM);
+    openCreate();
+  };
+
+  const closeCreateTransport = () => {
+    resetTransport(EMPTY_TRANSPORT_FORM);
+    closeCreate();
+  };
+
+  const closeAssignTransport = () => {
+    setAssignModalId(null);
+    resetAssign(EMPTY_ASSIGN_TRANSPORT_FORM);
+  };
+
+  const submitTransport = handleTransportSubmit((values) => {
+    createMut.mutate(formToTransportPayload(values));
+  });
+
+  const submitAssign = handleAssignSubmit((values) => {
+    if (assignModalId) {
+      assignMut.mutate({ id: assignModalId, data: { assigned_to: values.assigned_to.trim() } });
+    }
+  });
 
   const cols: Column<TransportRequestRow>[] = [
     {
@@ -1137,7 +1213,7 @@ function TransportTab() {
         toolbar={
           canManage ? (
             <Group justify="flex-end">
-              <Button leftSection={<IconPlus size={14} />} size="xs" onClick={openCreate}>
+              <Button leftSection={<IconPlus size={14} />} size="xs" onClick={openCreateTransport}>
                 New Transport Request
               </Button>
             </Group>
@@ -1146,47 +1222,66 @@ function TransportTab() {
       />
 
       {/* Create Transport Modal */}
-      <Modal opened={createOpen} onClose={closeCreate} title="New Transport Request" size="md">
-        <Stack gap="sm">
+      <Modal
+        opened={createOpen}
+        onClose={closeCreateTransport}
+        title="New Transport Request"
+        size="md"
+      >
+        <Stack component="form" gap="sm" onSubmit={submitTransport}>
           <TextInput
-            label="Patient Name (optional)"
-            value={form.patient_name ?? ""}
-            onChange={(e) => setForm({ ...form, patient_name: e.currentTarget.value })}
+            label="Patient ID (optional)"
+            error={transportErrors.patient_id?.message}
+            {...registerTransport("patient_id")}
           />
           <TextInput
-            label="From Location"
+            label="From Location ID"
             required
-            value={form.from_location}
-            onChange={(e) => setForm({ ...form, from_location: e.currentTarget.value })}
+            error={transportErrors.from_location_id?.message}
+            {...registerTransport("from_location_id")}
           />
           <TextInput
-            label="To Location"
+            label="To Location ID"
             required
-            value={form.to_location}
-            onChange={(e) => setForm({ ...form, to_location: e.currentTarget.value })}
+            error={transportErrors.to_location_id?.message}
+            {...registerTransport("to_location_id")}
           />
-          <Select
-            label="Mode"
-            data={TRANSPORT_MODES}
-            value={form.transport_mode}
-            onChange={(v) => setForm({ ...form, transport_mode: v ?? "wheelchair" })}
+          <Controller
+            name="transport_mode"
+            control={transportControl}
+            render={({ field }) => (
+              <Select
+                label="Mode"
+                data={TRANSPORT_MODES}
+                value={field.value}
+                onChange={field.onChange}
+                error={transportErrors.transport_mode?.message}
+              />
+            )}
           />
-          <Select
-            label="Priority"
-            data={TRANSPORT_PRIORITIES}
-            value={form.priority ?? "routine"}
-            onChange={(v) => setForm({ ...form, priority: v ?? "routine" })}
+          <Controller
+            name="priority"
+            control={transportControl}
+            render={({ field }) => (
+              <Select
+                label="Priority"
+                data={TRANSPORT_PRIORITIES}
+                value={field.value}
+                onChange={field.onChange}
+                error={transportErrors.priority?.message}
+              />
+            )}
           />
           <TextInput
             label="Notes"
-            value={form.notes ?? ""}
-            onChange={(e) => setForm({ ...form, notes: e.currentTarget.value })}
+            error={transportErrors.notes?.message}
+            {...registerTransport("notes")}
           />
           <Group justify="flex-end" mt="sm">
-            <Button variant="subtle" onClick={closeCreate}>
+            <Button variant="subtle" onClick={closeCreateTransport}>
               Cancel
             </Button>
-            <Button onClick={() => createMut.mutate()} loading={createMut.isPending}>
+            <Button type="submit" loading={createMut.isPending}>
               Create
             </Button>
           </Group>
@@ -1196,38 +1291,22 @@ function TransportTab() {
       {/* Assign Modal */}
       <Modal
         opened={assignModalId !== null}
-        onClose={() => {
-          setAssignModalId(null);
-          setAssignTo("");
-        }}
+        onClose={closeAssignTransport}
         title="Assign Transport"
         size="sm"
       >
-        <Stack gap="sm">
+        <Stack component="form" gap="sm" onSubmit={submitAssign}>
           <TextInput
-            label="Assign To (Staff Name / ID)"
+            label="Assign To (Staff ID)"
             required
-            value={assignTo}
-            onChange={(e) => setAssignTo(e.currentTarget.value)}
+            error={assignErrors.assigned_to?.message}
+            {...registerAssign("assigned_to")}
           />
           <Group justify="flex-end" mt="sm">
-            <Button
-              variant="subtle"
-              onClick={() => {
-                setAssignModalId(null);
-                setAssignTo("");
-              }}
-            >
+            <Button variant="subtle" onClick={closeAssignTransport}>
               Cancel
             </Button>
-            <Button
-              onClick={() => {
-                if (assignModalId && assignTo.trim()) {
-                  assignMut.mutate({ id: assignModalId, assigned_to: assignTo.trim() });
-                }
-              }}
-              loading={assignMut.isPending}
-            >
+            <Button type="submit" loading={assignMut.isPending}>
               Assign
             </Button>
           </Group>
@@ -1245,51 +1324,69 @@ function AlertsThresholdsTab() {
   const canManage = useHasPermission(P.COMMAND_CENTER.ALERTS.MANAGE);
   const [thresholdOpen, { open: openThreshold, close: closeThreshold }] = useDisclosure(false);
   const qc = useQueryClient();
+  const {
+    control: thresholdControl,
+    formState: { errors: thresholdErrors },
+    handleSubmit: handleThresholdSubmit,
+    register: registerThreshold,
+    reset: resetThreshold,
+  } = useForm<CommandCenterAlertThresholdFormInput>({
+    resolver: zodResolver(commandCenterAlertThresholdFormSchema),
+    defaultValues: EMPTY_ALERT_THRESHOLD_FORM,
+  });
 
   const { data: alerts, isLoading: alertsLoading } = useQuery({
     queryKey: ["command-center", "alerts"],
-    queryFn: () => api.getActiveAlerts(),
+    queryFn: () => commandCenterService.getActiveAlerts(),
     refetchInterval: REFETCH,
   });
 
   const { data: thresholds, isLoading: thresholdsLoading } = useQuery({
     queryKey: ["command-center", "alert-thresholds"],
-    queryFn: () => api.listAlertThresholds(),
+    queryFn: () => commandCenterService.listAlertThresholds(),
     refetchInterval: REFETCH,
   });
 
   const ackAlert = useMutation({
-    mutationFn: (id: string) => api.acknowledgeDeptAlert(id),
+    mutationFn: (id: string) => commandCenterService.acknowledgeAlert(id),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["command-center", "alerts"] });
       notifications.show({ title: "Alert Acknowledged", message: "Alert has been acknowledged" });
     },
   });
 
-  const [thresholdForm, setThresholdForm] = useState<CreateAlertThresholdRequest>({
-    department_id: "",
-    metric_code: "",
-    warning_threshold: undefined,
-    critical_threshold: undefined,
-  });
-
   const createThreshold = useMutation({
-    mutationFn: () => api.createAlertThreshold(thresholdForm),
+    mutationFn: (data: CreateAlertThresholdInput) =>
+      commandCenterService.createAlertThreshold(data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["command-center", "alert-thresholds"] });
       closeThreshold();
-      setThresholdForm({ department_id: "", metric_code: "" });
+      resetThreshold(EMPTY_ALERT_THRESHOLD_FORM);
       notifications.show({ title: "Success", message: "Threshold created" });
     },
   });
 
   const updateThreshold = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: UpdateAlertThresholdRequest }) =>
-      api.updateAlertThreshold(id, data),
+    mutationFn: ({ id, data }: { id: string; data: UpdateAlertThresholdInput }) =>
+      commandCenterService.updateAlertThreshold(id, data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["command-center", "alert-thresholds"] });
       notifications.show({ title: "Success", message: "Threshold updated" });
     },
+  });
+
+  const openCreateThreshold = () => {
+    resetThreshold(EMPTY_ALERT_THRESHOLD_FORM);
+    openThreshold();
+  };
+
+  const closeCreateThreshold = () => {
+    resetThreshold(EMPTY_ALERT_THRESHOLD_FORM);
+    closeThreshold();
+  };
+
+  const submitThreshold = handleThresholdSubmit((values) => {
+    createThreshold.mutate(formToAlertThresholdPayload(values));
   });
 
   // Alert columns (full view)
@@ -1491,7 +1588,7 @@ function AlertsThresholdsTab() {
         toolbar={
           canManage ? (
             <Group justify="flex-end">
-              <Button leftSection={<IconPlus size={14} />} size="xs" onClick={openThreshold}>
+              <Button leftSection={<IconPlus size={14} />} size="xs" onClick={openCreateThreshold}>
                 Add Threshold
               </Button>
             </Group>
@@ -1500,55 +1597,65 @@ function AlertsThresholdsTab() {
       />
 
       {/* Create Threshold Modal */}
-      <Modal opened={thresholdOpen} onClose={closeThreshold} title="Add Alert Threshold" size="md">
-        <Stack gap="sm">
+      <Modal
+        opened={thresholdOpen}
+        onClose={closeCreateThreshold}
+        title="Add Alert Threshold"
+        size="md"
+      >
+        <Stack component="form" gap="sm" onSubmit={submitThreshold}>
           <TextInput
             label="Department ID"
             required
-            value={thresholdForm.department_id}
-            onChange={(e) =>
-              setThresholdForm({ ...thresholdForm, department_id: e.currentTarget.value })
-            }
+            error={thresholdErrors.department_id?.message}
+            {...registerThreshold("department_id")}
             placeholder="Enter department UUID"
           />
-          <Select
-            label="Metric"
-            required
-            data={METRIC_OPTIONS}
-            value={thresholdForm.metric_code}
-            onChange={(v) => setThresholdForm({ ...thresholdForm, metric_code: v ?? "" })}
+          <Controller
+            name="metric_code"
+            control={thresholdControl}
+            render={({ field }) => (
+              <Select
+                label="Metric"
+                required
+                data={METRIC_OPTIONS}
+                value={field.value}
+                onChange={field.onChange}
+                error={thresholdErrors.metric_code?.message}
+              />
+            )}
           />
-          <NumberInput
-            label="Warning Threshold"
-            value={thresholdForm.warning_threshold ?? ""}
-            onChange={(v) =>
-              setThresholdForm({
-                ...thresholdForm,
-                warning_threshold: typeof v === "number" ? v : undefined,
-              })
-            }
-            min={0}
+          <Controller
+            name="warning_threshold"
+            control={thresholdControl}
+            render={({ field }) => (
+              <NumberInput
+                label="Warning Threshold"
+                value={field.value}
+                onChange={field.onChange}
+                error={thresholdErrors.warning_threshold?.message}
+                min={0}
+              />
+            )}
           />
-          <NumberInput
-            label="Critical Threshold"
-            value={thresholdForm.critical_threshold ?? ""}
-            onChange={(v) =>
-              setThresholdForm({
-                ...thresholdForm,
-                critical_threshold: typeof v === "number" ? v : undefined,
-              })
-            }
-            min={0}
+          <Controller
+            name="critical_threshold"
+            control={thresholdControl}
+            render={({ field }) => (
+              <NumberInput
+                label="Critical Threshold"
+                value={field.value}
+                onChange={field.onChange}
+                error={thresholdErrors.critical_threshold?.message}
+                min={0}
+              />
+            )}
           />
           <Group justify="flex-end" mt="sm">
-            <Button variant="subtle" onClick={closeThreshold}>
+            <Button variant="subtle" onClick={closeCreateThreshold}>
               Cancel
             </Button>
-            <Button
-              onClick={() => createThreshold.mutate()}
-              loading={createThreshold.isPending}
-              disabled={!thresholdForm.department_id || !thresholdForm.metric_code}
-            >
+            <Button type="submit" loading={createThreshold.isPending}>
               Create
             </Button>
           </Group>

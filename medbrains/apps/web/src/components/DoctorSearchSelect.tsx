@@ -1,10 +1,10 @@
 import { Stack, Text } from "@mantine/core";
-import { api } from "@medbrains/api";
 import { useHasPermission } from "@medbrains/stores";
 import { P, type SetupUser } from "@medbrains/types";
 import { IconPlus, IconStethoscope } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
+import { lookupsService } from "../services/lookups.service";
 import { MiniCreateDoctor } from "./admin/MiniCreateDoctor";
 import { SearchOrCreate } from "./SearchOrCreate";
 
@@ -32,7 +32,7 @@ export function DoctorSearchSelect({
 
   const { data: doctors = [] } = useQuery({
     queryKey: ["doctors-list"],
-    queryFn: () => api.listDoctors(),
+    queryFn: () => lookupsService.listDoctors(),
     staleTime: 300_000,
   });
 

@@ -1,3 +1,4 @@
+import { zodResolver } from "@hookform/resolvers/zod";
 import {
   ActionIcon,
   Badge,
@@ -19,14 +20,20 @@ import {
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
+import {
+  type QueueTokenFormInput,
+  queueTokenFormSchema,
+  type TvAnnouncementFormInput,
+  type TvDisplayFormInput,
+  tvAnnouncementFormSchema,
+  tvDisplayFormSchema,
+} from "@medbrains/schemas";
 import { useHasPermission } from "@medbrains/stores";
 import type {
   BroadcastAnnouncementRequest,
   CreateQueueTokenRequest,
   CreateTvDisplayRequest,
   DepartmentRow,
-  QueuePriority,
   QueueToken,
   QueueTokenStatus,
   TvDisplay,
@@ -47,9 +54,21 @@ import {
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { Controller, useForm } from "react-hook-form";
 import { DataTable, PageHeader } from "../components";
 import type { Column } from "../components/DataTable";
+import {
+  defaultQueueTokenFormValues,
+  defaultTvAnnouncementFormValues,
+  defaultTvDisplayFormValues,
+  queueTokenFormToRequest,
+  tvAnnouncementFormToRequest,
+  tvDisplayFormToCreateRequest,
+  tvDisplayFormToUpdateRequest,
+  tvDisplayToForm,
+} from "../forms/tv-displays.form";
 import { useRequirePermission } from "../hooks/useRequirePermission";
+import { tvDisplaysService } from "../services/tvDisplays.service";
 
 // ── Constants ──────────────────────────────────────────
 
@@ -110,6 +129,20 @@ const displayTypeLabels: Record<string, string> = {
   digital_signage: "Signage",
   dashboard: "Dashboard",
 };
+
+function toQueueTokenStatus(value: string | null): QueueTokenStatus | null {
+  if (
+    value === "waiting" ||
+    value === "called" ||
+    value === "in_progress" ||
+    value === "completed" ||
+    value === "no_show" ||
+    value === "cancelled"
+  ) {
+    return value;
+  }
+  return null;
+}
 
 // ══════════════════════════════════════════════════════════
 //  Main Page
@@ -173,19 +206,23 @@ function DisplaysTab({
   const queryClient = useQueryClient();
   const [opened, { open, close }] = useDisclosure(false);
   const [selectedDisplay, setSelectedDisplay] = useState<TvDisplay | null>(null);
+  const displayForm = useForm<TvDisplayFormInput>({
+    resolver: zodResolver(tvDisplayFormSchema),
+    defaultValues: defaultTvDisplayFormValues,
+  });
 
   const { data: displays = [], isLoading } = useQuery({
     queryKey: ["tv-displays"],
-    queryFn: () => api.listTvDisplays(),
+    queryFn: () => tvDisplaysService.listTvDisplays(),
   });
 
   const { data: departments = [] } = useQuery({
     queryKey: ["departments"],
-    queryFn: () => api.listDepartments(),
+    queryFn: () => tvDisplaysService.listDepartments(),
   });
 
   const createMutation = useMutation({
-    mutationFn: (data: CreateTvDisplayRequest) => api.createTvDisplay(data),
+    mutationFn: (data: CreateTvDisplayRequest) => tvDisplaysService.createTvDisplay(data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["tv-displays"] });
       notifications.show({ title: "Success", message: "Display created", color: "success" });
@@ -198,7 +235,7 @@ function DisplaysTab({
 
   const updateMutation = useMutation({
     mutationFn: ({ id, data }: { id: string; data: UpdateTvDisplayRequest }) =>
-      api.updateTvDisplay(id, data),
+      tvDisplaysService.updateTvDisplay(id, data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["tv-displays"] });
       notifications.show({ title: "Success", message: "Display updated", color: "success" });
@@ -210,7 +247,7 @@ function DisplaysTab({
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => api.deleteTvDisplay(id),
+    mutationFn: (id: string) => tvDisplaysService.deleteTvDisplay(id),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["tv-displays"] });
       notifications.show({ title: "Success", message: "Display deleted", color: "success" });
@@ -286,6 +323,7 @@ function DisplaysTab({
                 variant="subtle"
                 onClick={() => {
                   setSelectedDisplay(row);
+                  displayForm.reset(tvDisplayToForm(row));
                   open();
                 }}
                 aria-label="Edit"
@@ -311,30 +349,16 @@ function DisplaysTab({
     },
   ];
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const formData = new FormData(e.currentTarget);
-    const data: CreateTvDisplayRequest = {
-      location_name: formData.get("location_name") as string,
-      display_type: formData.get("display_type") as string,
-      department_id: (formData.get("department_id") as string) || undefined,
-      doctors_per_screen: Number(formData.get("doctors_per_screen")) || 4,
-      show_patient_name: formData.get("show_patient_name") === "on",
-      show_wait_time: formData.get("show_wait_time") === "on",
-      language:
-        (formData.getAll("language") as string[]).length > 0
-          ? (formData.getAll("language") as string[])
-          : ["en"],
-      announcement_enabled: formData.get("announcement_enabled") === "on",
-      scroll_speed: Number(formData.get("scroll_speed")) || 5,
-    };
-
+  const handleSubmit = displayForm.handleSubmit((values) => {
     if (selectedDisplay) {
-      updateMutation.mutate({ id: selectedDisplay.id, data });
+      updateMutation.mutate({
+        id: selectedDisplay.id,
+        data: tvDisplayFormToUpdateRequest(values),
+      });
     } else {
-      createMutation.mutate(data);
+      createMutation.mutate(tvDisplayFormToCreateRequest(values));
     }
-  };
+  });
 
   return (
     <>
@@ -344,6 +368,7 @@ function DisplaysTab({
             leftSection={<IconPlus size={16} />}
             onClick={() => {
               setSelectedDisplay(null);
+              displayForm.reset(defaultTvDisplayFormValues);
               open();
             }}
           >
@@ -364,61 +389,114 @@ function DisplaysTab({
         <form onSubmit={handleSubmit}>
           <Stack gap="md">
             <TextInput
-              name="location_name"
               label="Location Name"
               placeholder="e.g., OPD Waiting Hall"
-              defaultValue={selectedDisplay?.location_name}
+              error={displayForm.formState.errors.location_name?.message}
+              {...displayForm.register("location_name")}
               required
             />
-            <Select
+            <Controller
+              control={displayForm.control}
               name="display_type"
-              label="Display Type"
-              data={DISPLAY_TYPES}
-              defaultValue={selectedDisplay?.display_type || "opd_queue"}
-              required
+              render={({ field, fieldState }) => (
+                <Select
+                  label="Display Type"
+                  data={DISPLAY_TYPES}
+                  value={field.value}
+                  onChange={(value) => field.onChange(value ?? "opd_queue")}
+                  error={fieldState.error?.message}
+                  required
+                />
+              )}
             />
-            <Select
+            <Controller
+              control={displayForm.control}
               name="department_id"
-              label="Department"
-              placeholder="All departments"
-              data={departments.map((d: DepartmentRow) => ({ value: d.id, label: d.name }))}
-              defaultValue={selectedDisplay?.department_id || undefined}
-              clearable
+              render={({ field, fieldState }) => (
+                <Select
+                  label="Department"
+                  placeholder="All departments"
+                  data={departments.map((d: DepartmentRow) => ({ value: d.id, label: d.name }))}
+                  value={field.value || null}
+                  onChange={(value) => field.onChange(value ?? "")}
+                  error={fieldState.error?.message}
+                  clearable
+                />
+              )}
             />
-            <NumberInput
+            <Controller
+              control={displayForm.control}
               name="doctors_per_screen"
-              label="Doctors Per Screen"
-              min={1}
-              max={8}
-              defaultValue={selectedDisplay?.doctors_per_screen ?? 4}
+              render={({ field, fieldState }) => (
+                <NumberInput
+                  label="Doctors Per Screen"
+                  min={1}
+                  max={8}
+                  value={field.value}
+                  onChange={field.onChange}
+                  error={fieldState.error?.message}
+                />
+              )}
             />
-            <MultiSelect
+            <Controller
+              control={displayForm.control}
               name="language"
-              label="Languages"
-              data={LANGUAGES}
-              defaultValue={selectedDisplay?.language || ["en"]}
+              render={({ field, fieldState }) => (
+                <MultiSelect
+                  label="Languages"
+                  data={LANGUAGES}
+                  value={field.value}
+                  onChange={field.onChange}
+                  error={fieldState.error?.message}
+                />
+              )}
             />
-            <NumberInput
+            <Controller
+              control={displayForm.control}
               name="scroll_speed"
-              label="Scroll Speed (seconds)"
-              min={1}
-              max={30}
-              defaultValue={selectedDisplay?.scroll_speed ?? 5}
+              render={({ field, fieldState }) => (
+                <NumberInput
+                  label="Scroll Speed (seconds)"
+                  min={1}
+                  max={30}
+                  value={field.value}
+                  onChange={field.onChange}
+                  error={fieldState.error?.message}
+                />
+              )}
             />
-            <Switch
+            <Controller
+              control={displayForm.control}
               name="show_patient_name"
-              label="Show Patient Name"
-              defaultChecked={selectedDisplay?.show_patient_name ?? false}
+              render={({ field }) => (
+                <Switch
+                  label="Show Patient Name"
+                  checked={field.value}
+                  onChange={(event) => field.onChange(event.currentTarget.checked)}
+                />
+              )}
             />
-            <Switch
+            <Controller
+              control={displayForm.control}
               name="show_wait_time"
-              label="Show Wait Time"
-              defaultChecked={selectedDisplay?.show_wait_time ?? true}
+              render={({ field }) => (
+                <Switch
+                  label="Show Wait Time"
+                  checked={field.value}
+                  onChange={(event) => field.onChange(event.currentTarget.checked)}
+                />
+              )}
             />
-            <Switch
+            <Controller
+              control={displayForm.control}
               name="announcement_enabled"
-              label="Enable Announcements"
-              defaultChecked={selectedDisplay?.announcement_enabled ?? true}
+              render={({ field }) => (
+                <Switch
+                  label="Enable Announcements"
+                  checked={field.value}
+                  onChange={(event) => field.onChange(event.currentTarget.checked)}
+                />
+              )}
             />
             <Group justify="flex-end" mt="md">
               <Button variant="subtle" onClick={close}>
@@ -442,32 +520,37 @@ function DisplaysTab({
 function QueueTokensTab({ canManage }: { canManage: boolean }) {
   const queryClient = useQueryClient();
   const [selectedDepartment, setSelectedDepartment] = useState<string | null>(null);
-  const [selectedStatus, setSelectedStatus] = useState<string | null>(null);
+  const [selectedStatus, setSelectedStatus] = useState<QueueTokenStatus | null>(null);
   const [generateOpened, { open: openGenerate, close: closeGenerate }] = useDisclosure(false);
+  const tokenForm = useForm<QueueTokenFormInput>({
+    resolver: zodResolver(queueTokenFormSchema),
+    defaultValues: defaultQueueTokenFormValues,
+  });
 
   const { data: departments = [] } = useQuery({
     queryKey: ["departments"],
-    queryFn: () => api.listDepartments(),
+    queryFn: () => tvDisplaysService.listDepartments(),
   });
 
   const { data: tokens = [], isLoading } = useQuery({
     queryKey: ["queue-tokens", selectedDepartment, selectedStatus],
     queryFn: () =>
-      api.listQueueTokens({
+      tvDisplaysService.listQueueTokens({
         department_id: selectedDepartment || undefined,
-        status: (selectedStatus as QueueTokenStatus) || undefined,
+        status: selectedStatus || undefined,
         date: new Date().toISOString().split("T")[0],
       }),
   });
 
   const { data: queueState } = useQuery({
     queryKey: ["queue-state", selectedDepartment],
-    queryFn: () => (selectedDepartment ? api.getQueueState(selectedDepartment) : null),
+    queryFn: () =>
+      selectedDepartment ? tvDisplaysService.getQueueState(selectedDepartment) : null,
     enabled: !!selectedDepartment,
   });
 
   const generateMutation = useMutation({
-    mutationFn: (data: CreateQueueTokenRequest) => api.createQueueToken(data),
+    mutationFn: (data: CreateQueueTokenRequest) => tvDisplaysService.createQueueToken(data),
     onSuccess: (result) => {
       void queryClient.invalidateQueries({ queryKey: ["queue-tokens"] });
       notifications.show({
@@ -483,7 +566,7 @@ function QueueTokensTab({ canManage }: { canManage: boolean }) {
   });
 
   const callMutation = useMutation({
-    mutationFn: (id: string) => api.callQueueToken(id),
+    mutationFn: (id: string) => tvDisplaysService.callQueueToken(id),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["queue-tokens"] });
       void queryClient.invalidateQueries({ queryKey: ["queue-state"] });
@@ -492,7 +575,7 @@ function QueueTokensTab({ canManage }: { canManage: boolean }) {
   });
 
   const completeMutation = useMutation({
-    mutationFn: (id: string) => api.completeQueueToken(id),
+    mutationFn: (id: string) => tvDisplaysService.completeQueueToken(id),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["queue-tokens"] });
       void queryClient.invalidateQueries({ queryKey: ["queue-state"] });
@@ -501,7 +584,7 @@ function QueueTokensTab({ canManage }: { canManage: boolean }) {
   });
 
   const noShowMutation = useMutation({
-    mutationFn: (id: string) => api.noShowQueueToken(id),
+    mutationFn: (id: string) => tvDisplaysService.noShowQueueToken(id),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["queue-tokens"] });
       void queryClient.invalidateQueries({ queryKey: ["queue-state"] });
@@ -603,16 +686,9 @@ function QueueTokensTab({ canManage }: { canManage: boolean }) {
     },
   ];
 
-  const handleGenerateSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const formData = new FormData(e.currentTarget);
-    generateMutation.mutate({
-      department_id: formData.get("department_id") as string,
-      patient_id: (formData.get("patient_id") as string) || undefined,
-      doctor_id: (formData.get("doctor_id") as string) || undefined,
-      priority: ((formData.get("priority") as string) || "normal") as QueuePriority,
-    });
-  };
+  const handleGenerateSubmit = tokenForm.handleSubmit((values) => {
+    generateMutation.mutate(queueTokenFormToRequest(values));
+  });
 
   return (
     <>
@@ -671,7 +747,7 @@ function QueueTokensTab({ canManage }: { canManage: boolean }) {
           placeholder="Filter by status"
           data={TOKEN_STATUSES}
           value={selectedStatus}
-          onChange={setSelectedStatus}
+          onChange={(value) => setSelectedStatus(toQueueTokenStatus(value))}
           clearable
           style={{ width: 150 }}
         />
@@ -687,7 +763,16 @@ function QueueTokensTab({ canManage }: { canManage: boolean }) {
         </Button>
         <div style={{ flex: 1 }} />
         {canManage && (
-          <Button leftSection={<IconPlus size={16} />} onClick={openGenerate}>
+          <Button
+            leftSection={<IconPlus size={16} />}
+            onClick={() => {
+              tokenForm.reset({
+                ...defaultQueueTokenFormValues,
+                department_id: selectedDepartment ?? "",
+              });
+              openGenerate();
+            }}
+          >
             Generate Token
           </Button>
         )}
@@ -705,34 +790,51 @@ function QueueTokensTab({ canManage }: { canManage: boolean }) {
       >
         <form onSubmit={handleGenerateSubmit}>
           <Stack gap="md">
-            <Select
+            <Controller
+              control={tokenForm.control}
               name="department_id"
-              label="Department"
-              data={departments.map((d: DepartmentRow) => ({ value: d.id, label: d.name }))}
-              required
+              render={({ field, fieldState }) => (
+                <Select
+                  label="Department"
+                  data={departments.map((d: DepartmentRow) => ({ value: d.id, label: d.name }))}
+                  value={field.value || null}
+                  onChange={(value) => field.onChange(value ?? "")}
+                  error={fieldState.error?.message}
+                  required
+                />
+              )}
             />
             <TextInput
-              name="patient_id"
               label="Patient ID (optional)"
               placeholder="Leave blank for walk-in"
+              error={tokenForm.formState.errors.patient_id?.message}
+              {...tokenForm.register("patient_id")}
             />
             <TextInput
-              name="doctor_id"
               label="Doctor ID (optional)"
               placeholder="Leave blank for any doctor"
+              error={tokenForm.formState.errors.doctor_id?.message}
+              {...tokenForm.register("doctor_id")}
             />
-            <Select
+            <Controller
+              control={tokenForm.control}
               name="priority"
-              label="Priority"
-              data={[
-                { value: "normal", label: "Normal" },
-                { value: "elderly", label: "Elderly" },
-                { value: "disabled", label: "Disabled" },
-                { value: "pregnant", label: "Pregnant" },
-                { value: "emergency_referral", label: "Emergency Referral" },
-                { value: "vip", label: "VIP" },
-              ]}
-              defaultValue="normal"
+              render={({ field, fieldState }) => (
+                <Select
+                  label="Priority"
+                  data={[
+                    { value: "normal", label: "Normal" },
+                    { value: "elderly", label: "Elderly" },
+                    { value: "disabled", label: "Disabled" },
+                    { value: "pregnant", label: "Pregnant" },
+                    { value: "emergency_referral", label: "Emergency Referral" },
+                    { value: "vip", label: "VIP" },
+                  ]}
+                  value={field.value}
+                  onChange={(value) => field.onChange(value ?? "normal")}
+                  error={fieldState.error?.message}
+                />
+              )}
             />
             <Group justify="flex-end" mt="md">
               <Button variant="subtle" onClick={closeGenerate}>
@@ -754,26 +856,28 @@ function QueueTokensTab({ canManage }: { canManage: boolean }) {
 // ══════════════════════════════════════════════════════════
 
 function AnnouncementsTab({ canBroadcast }: { canBroadcast: boolean }) {
-  const [message, setMessage] = useState("");
-  const [priority, setPriority] = useState<string | null>("info");
-  const [displayIds, setDisplayIds] = useState<string[]>([]);
+  const announcementForm = useForm<TvAnnouncementFormInput>({
+    resolver: zodResolver(tvAnnouncementFormSchema),
+    defaultValues: defaultTvAnnouncementFormValues,
+  });
+  const priority = announcementForm.watch("priority");
+  const message = announcementForm.watch("message");
 
   const { data: displays = [] } = useQuery({
     queryKey: ["tv-displays"],
-    queryFn: () => api.listTvDisplays(),
+    queryFn: () => tvDisplaysService.listTvDisplays(),
   });
 
   const broadcastMutation = useMutation({
-    mutationFn: (data: BroadcastAnnouncementRequest) => api.broadcastAnnouncement(data),
+    mutationFn: (data: BroadcastAnnouncementRequest) =>
+      tvDisplaysService.broadcastAnnouncement(data),
     onSuccess: () => {
       notifications.show({
         title: "Announcement Sent",
         message: "Announcement has been broadcast to all displays",
         color: "success",
       });
-      setMessage("");
-      setPriority("info");
-      setDisplayIds([]);
+      announcementForm.reset(defaultTvAnnouncementFormValues);
     },
     onError: () => {
       notifications.show({
@@ -784,17 +888,9 @@ function AnnouncementsTab({ canBroadcast }: { canBroadcast: boolean }) {
     },
   });
 
-  const handleBroadcast = () => {
-    if (!message.trim()) {
-      notifications.show({ title: "Error", message: "Please enter a message", color: "danger" });
-      return;
-    }
-    broadcastMutation.mutate({
-      message: message.trim(),
-      priority: (priority || "info") as "info" | "warning" | "emergency",
-      display_ids: displayIds.length > 0 ? displayIds : undefined,
-    });
-  };
+  const handleBroadcast = announcementForm.handleSubmit((values) => {
+    broadcastMutation.mutate(tvAnnouncementFormToRequest(values));
+  });
 
   return (
     <Stack gap="lg">
@@ -805,33 +901,52 @@ function AnnouncementsTab({ canBroadcast }: { canBroadcast: boolean }) {
             label="Message"
             placeholder="Enter announcement message..."
             rows={4}
-            value={message}
-            onChange={(e) => setMessage(e.currentTarget.value)}
+            error={announcementForm.formState.errors.message?.message}
             disabled={!canBroadcast}
+            {...announcementForm.register("message")}
           />
           <Group>
-            <Select
-              label="Priority"
-              data={ANNOUNCEMENT_PRIORITIES}
-              value={priority}
-              onChange={setPriority}
-              style={{ width: 150 }}
-              disabled={!canBroadcast}
+            <Controller
+              control={announcementForm.control}
+              name="priority"
+              render={({ field, fieldState }) => (
+                <Select
+                  label="Priority"
+                  data={ANNOUNCEMENT_PRIORITIES}
+                  value={field.value}
+                  onChange={(value) => field.onChange(value ?? "info")}
+                  error={fieldState.error?.message}
+                  style={{ width: 150 }}
+                  disabled={!canBroadcast}
+                />
+              )}
             />
-            <MultiSelect
-              label="Target Displays"
-              placeholder="All displays"
-              data={displays.map((d: TvDisplay) => ({ value: d.id, label: d.location_name }))}
-              value={displayIds}
-              onChange={setDisplayIds}
-              style={{ flex: 1 }}
-              disabled={!canBroadcast}
+            <Controller
+              control={announcementForm.control}
+              name="display_ids"
+              render={({ field, fieldState }) => (
+                <MultiSelect
+                  label="Target Displays"
+                  placeholder="All displays"
+                  data={displays.map((d: TvDisplay) => ({
+                    value: d.id,
+                    label: d.location_name,
+                  }))}
+                  value={field.value}
+                  onChange={field.onChange}
+                  error={fieldState.error?.message}
+                  style={{ flex: 1 }}
+                  disabled={!canBroadcast}
+                />
+              )}
             />
           </Group>
           <Group justify="flex-end">
             <Button
               leftSection={<IconBell size={16} />}
-              onClick={handleBroadcast}
+              onClick={() => {
+                void handleBroadcast();
+              }}
               loading={broadcastMutation.isPending}
               disabled={!canBroadcast || !message.trim()}
               color={

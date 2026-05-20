@@ -21,13 +21,21 @@ import {
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
 import type { CreateInclusionRequest } from "@medbrains/types";
 import { IconList, IconPackage, IconPlus, IconTrash } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { PageHeader } from "../../components/PageHeader";
 import { useRequirePermission } from "../../hooks/useRequirePermission";
+import { patientPackagesService } from "../../services/patientPackages.service";
+
+type InclusionType = "consultation" | "lab" | "procedure" | "service";
+
+function isInclusionType(value: string | null): value is InclusionType {
+  return (
+    value === "consultation" || value === "lab" || value === "procedure" || value === "service"
+  );
+}
 
 export function AdminDoctorPackagesPage() {
   useRequirePermission("admin.doctor_packages.list");
@@ -38,7 +46,10 @@ export function AdminDoctorPackagesPage() {
 
   const { data: packages = [] } = useQuery({
     queryKey: ["admin-doctor-packages", showInactive],
-    queryFn: () => api.adminListDoctorPackages({ is_active: showInactive ? undefined : true }),
+    queryFn: () =>
+      patientPackagesService.adminListDoctorPackages({
+        is_active: showInactive ? undefined : true,
+      }),
   });
 
   const create = useMutation({
@@ -48,7 +59,7 @@ export function AdminDoctorPackagesPage() {
       total_price: string;
       validity_days: number;
     }) =>
-      api.adminCreateDoctorPackage({
+      patientPackagesService.adminCreateDoctorPackage({
         code: data.code,
         name: data.name,
         total_price: data.total_price,
@@ -246,11 +257,12 @@ function InclusionsDrawer({ packageId, onClose }: { packageId: string; onClose: 
 
   const { data: detail } = useQuery({
     queryKey: ["admin-doctor-package-detail", packageId],
-    queryFn: () => api.adminGetDoctorPackage(packageId),
+    queryFn: () => patientPackagesService.adminGetDoctorPackage(packageId),
   });
 
   const add = useMutation({
-    mutationFn: (data: CreateInclusionRequest) => api.adminAddInclusion(packageId, data),
+    mutationFn: (data: CreateInclusionRequest) =>
+      patientPackagesService.adminAddInclusion(packageId, data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["admin-doctor-package-detail", packageId] });
       setType("consultation");
@@ -260,7 +272,8 @@ function InclusionsDrawer({ packageId, onClose }: { packageId: string; onClose: 
   });
 
   const remove = useMutation({
-    mutationFn: (inclusionId: string) => api.adminRemoveInclusion(packageId, inclusionId),
+    mutationFn: (inclusionId: string) =>
+      patientPackagesService.adminRemoveInclusion(packageId, inclusionId),
     onSuccess: () =>
       void queryClient.invalidateQueries({ queryKey: ["admin-doctor-package-detail", packageId] }),
   });
@@ -311,13 +324,14 @@ function InclusionsDrawer({ packageId, onClose }: { packageId: string; onClose: 
               <Button
                 size="xs"
                 loading={add.isPending}
-                onClick={() =>
+                onClick={() => {
+                  if (!isInclusionType(type)) return;
                   add.mutate({
-                    inclusion_type: type as "consultation" | "lab" | "procedure" | "service",
+                    inclusion_type: type,
                     included_quantity: Number(quantity),
                     notes: notes || null,
-                  })
-                }
+                  });
+                }}
               >
                 Add
               </Button>

@@ -274,6 +274,23 @@ pub async fn create_order_in_tx(
     let pregnancy = body.pregnancy_checked.unwrap_or(false);
     let allergy = body.allergy_flagged.unwrap_or(false);
 
+    if let Some(encounter_id) = body.encounter_id {
+        let encounter_patient_id = sqlx::query_scalar::<_, Uuid>(
+            "SELECT patient_id FROM encounters WHERE id = $1 AND tenant_id = $2",
+        )
+        .bind(encounter_id)
+        .bind(claims.tenant_id)
+        .fetch_optional(&mut **tx)
+        .await?
+        .ok_or(AppError::NotFound)?;
+
+        if encounter_patient_id != body.patient_id {
+            return Err(AppError::BadRequest(
+                "encounter does not belong to patient".to_owned(),
+            ));
+        }
+    }
+
     let order = sqlx::query_as::<_, RadiologyOrder>(
         "INSERT INTO radiology_orders \
          (tenant_id, patient_id, encounter_id, modality_id, ordered_by, \
@@ -300,7 +317,62 @@ pub async fn create_order_in_tx(
     .fetch_one(&mut **tx)
     .await?;
 
+    auto_bill_radiology_order_in_tx(tx, claims, &order).await?;
+
     Ok(order)
+}
+
+async fn auto_bill_radiology_order_in_tx(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    claims: &Claims,
+    order: &RadiologyOrder,
+) -> Result<(), AppError> {
+    if !super::billing::is_auto_billing_enabled(tx, &claims.tenant_id, "radiology").await? {
+        return Ok(());
+    }
+
+    let Some(encounter_id) = order.encounter_id else {
+        return Ok(());
+    };
+
+    #[derive(sqlx::FromRow)]
+    struct ModalityBillingInfo {
+        code: String,
+        name: String,
+    }
+
+    let modality = sqlx::query_as::<_, ModalityBillingInfo>(
+        "SELECT code, name FROM radiology_modalities \
+         WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(order.modality_id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut **tx)
+    .await?;
+
+    let (charge_code, description) = modality.map_or_else(
+        || ("RAD-EXAM".to_owned(), None),
+        |m| (format!("RAD-{}", m.code), Some(format!("Radiology - {}", m.name))),
+    );
+
+    super::billing::auto_charge(
+        tx,
+        &claims.tenant_id,
+        super::billing::AutoChargeInput {
+            patient_id: order.patient_id,
+            encounter_id: Some(encounter_id),
+            charge_code,
+            source: "radiology".to_owned(),
+            source_id: order.id,
+            quantity: 1,
+            description_override: description,
+            unit_price_override: None,
+            tax_percent_override: None,
+        },
+    )
+    .await?;
+
+    Ok(())
 }
 
 // ══════════════════════════════════════════════════════════
@@ -406,40 +478,8 @@ pub async fn update_order_status(
         .await?
         .ok_or(AppError::NotFound)?;
 
-    // Auto-billing: charge when radiology order is completed
-    if body.status == "completed"
-        && super::billing::is_auto_billing_enabled(&mut tx, &claims.tenant_id, "radiology").await?
-    {
-        if let Some(encounter_id) = order.encounter_id {
-            let modality_code = sqlx::query_scalar::<_, String>(
-                "SELECT code FROM radiology_modalities \
-                 WHERE id = $1 AND tenant_id = $2",
-            )
-            .bind(order.modality_id)
-            .bind(claims.tenant_id)
-            .fetch_optional(&mut *tx)
-            .await?;
-
-            let charge_code =
-                modality_code.map_or_else(|| "RAD-EXAM".to_owned(), |c| format!("RAD-{c}"));
-
-            let _ = super::billing::auto_charge(
-                &mut tx,
-                &claims.tenant_id,
-                super::billing::AutoChargeInput {
-                    patient_id: order.patient_id,
-                    encounter_id: Some(encounter_id),
-                    charge_code,
-                    source: "radiology".to_owned(),
-                    source_id: order.id,
-                    quantity: 1,
-                    description_override: None,
-                    unit_price_override: None,
-                    tax_percent_override: None,
-                },
-            )
-            .await;
-        }
+    if body.status == "completed" {
+        auto_bill_radiology_order_in_tx(&mut tx, &claims, &order).await?;
     }
 
     let is_completed = body.status == "completed";
@@ -961,8 +1001,8 @@ pub async fn get_radiology_tat(
     let rows = sqlx::query_as::<_, RadiologyTatRow>(
         "SELECT rm.name AS modality_name, \
                 COUNT(*)::bigint AS total_orders, \
-                AVG(EXTRACT(EPOCH FROM (ro.updated_at - ro.created_at)) / 3600.0) \
-                    FILTER (WHERE ro.status = 'completed') AS avg_tat_hours, \
+                (AVG(EXTRACT(EPOCH FROM (ro.updated_at - ro.created_at)) / 3600.0) \
+                    FILTER (WHERE ro.status = 'completed'))::float8 AS avg_tat_hours, \
                 COUNT(*) FILTER (WHERE ro.status = 'completed')::bigint AS completed_count \
          FROM radiology_orders ro \
          JOIN radiology_modalities rm ON rm.id = ro.modality_id \

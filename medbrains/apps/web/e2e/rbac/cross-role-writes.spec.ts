@@ -18,45 +18,12 @@
  */
 
 import { expect, test, type APIRequestContext } from "@playwright/test";
+import { E2E_ROLE_DEFINITIONS, getE2EIdentity } from "../helpers/e2e-identities";
 
 const BASE = process.env.E2E_BACKEND_URL ?? "http://127.0.0.1:3000";
 const NIL_UUID = "00000000-0000-0000-0000-000000000000";
 
-interface RoleUser {
-  username: string;
-  password: string;
-  role: string;
-  bypass?: boolean;
-}
-
-const PASS_DOC = "doctor123";
-const PASS_ROLE = "test123";
-
-const ROLE_USERS: RoleUser[] = [
-  { username: "admin", password: "admin123", role: "super_admin", bypass: true },
-  { username: "hosp_admin_demo", password: PASS_ROLE, role: "hospital_admin", bypass: true },
-  { username: "dr_priya", password: PASS_DOC, role: "doctor" },
-  { username: "nurse_anita", password: PASS_ROLE, role: "nurse" },
-  { username: "lab_suresh", password: PASS_ROLE, role: "lab_technician" },
-  { username: "pharm_kavita", password: PASS_ROLE, role: "pharmacist" },
-  { username: "billing_raj", password: PASS_ROLE, role: "billing_clerk" },
-  { username: "recept_meera", password: PASS_ROLE, role: "receptionist" },
-  { username: "audit_neha", password: PASS_ROLE, role: "audit_officer" },
-  { username: "mrd_sanjay", password: PASS_ROLE, role: "mrd_officer" },
-  { username: "biomed_arvind", password: PASS_ROLE, role: "biomed_engineer" },
-  { username: "amb_gopal", password: PASS_ROLE, role: "ambulance_driver" },
-  { username: "radio_tech_sita", password: PASS_ROLE, role: "radiology_tech" },
-  { username: "cssd_ramesh", password: PASS_ROLE, role: "cssd_technician" },
-  { username: "bb_tech_divya", password: PASS_ROLE, role: "blood_bank_tech" },
-  { username: "fo_priti", password: PASS_ROLE, role: "front_office_staff" },
-  { username: "ic_dr_kavya", password: PASS_ROLE, role: "infection_control_officer" },
-  { username: "proc_amit", password: PASS_ROLE, role: "procurement_officer" },
-  { username: "store_naveen", password: PASS_ROLE, role: "store_keeper" },
-  { username: "hr_deepika", password: PASS_ROLE, role: "hr_officer" },
-  { username: "camp_rohit", password: PASS_ROLE, role: "camp_coordinator" },
-  { username: "ins_nidhi", password: PASS_ROLE, role: "insurance_officer" },
-  { username: "ot_staff_jaya", password: PASS_ROLE, role: "ot_staff" },
-];
+const ROLE_USERS = E2E_ROLE_DEFINITIONS;
 
 interface DeleteEntry {
   path: string;
@@ -116,7 +83,8 @@ interface RoleSummary {
 async function fetchRolesPermMap(
   request: APIRequestContext,
 ): Promise<Map<string, Set<string>>> {
-  const adminSession = await login(request, "admin", "admin123");
+  const admin = getE2EIdentity("super_admin");
+  const adminSession = await login(request, admin.username, admin.password);
   const resp = await request.fetch(`${BASE}/api/setup/roles`, {
     method: "GET",
     headers: { cookie: adminSession.cookieHeader, "x-csrf-token": adminSession.csrf },
@@ -137,11 +105,12 @@ test.beforeAll(async ({ request }) => {
 });
 
 for (const user of ROLE_USERS) {
-  test.describe(`DELETE matrix — ${user.role} (${user.username})`, () => {
+  test.describe(`DELETE matrix — ${user.role}`, () => {
     let session: AuthSession;
 
     test.beforeAll(async ({ request }) => {
-      session = await login(request, user.username, user.password);
+      const identity = getE2EIdentity(user.role);
+      session = await login(request, identity.username, identity.password);
     });
 
     for (const entry of DELETES) {

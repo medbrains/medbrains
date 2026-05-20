@@ -6,11 +6,11 @@
  * difference from consumers).
  */
 
-import { api } from "@medbrains/api";
 import { type CrdtConnectionStatus, useAppendOnlyCrdtList } from "@medbrains/crdt";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback } from "react";
 import { useTenantConfig } from "../providers/TenantConfigProvider";
+import { clinicalSourcesService } from "../services/clinicalSources.service";
 
 export interface TriageEntry extends Record<string, unknown> {
   ts: number;
@@ -36,36 +36,22 @@ export interface TriageSourceResult {
 
 export function useTriageSource(visitId: string): TriageSourceResult {
   const config = useTenantConfig();
-  if (config.mode === "crdt") return useTriageCrdt(visitId, config);
-  return useTriageRest(visitId, config.authorName);
+  const useCrdt = config.mode === "crdt";
+  const rest = useTriageRest(visitId, config.authorName, !useCrdt);
+  const crdt = useTriageCrdt(visitId, { ...config, enabled: useCrdt });
+  return useCrdt ? crdt : rest;
 }
 
-// REST adapter — uses whatever the emergency module exposes; for
-// now we wrap two probable api methods. If they don't exist on a
-// given build the consumer falls back to an empty list (the
-// catch makes the path resilient until backend ships them).
-type EmergencyTriageApi = {
-  listTriageEntries?: (visitId: string) => Promise<TriageEntry[]>;
-  createTriageEntry?: (visitId: string, entry: TriageEntryInput) => Promise<TriageEntry>;
-};
-const emergencyApi = api as unknown as EmergencyTriageApi;
-
-function useTriageRest(visitId: string, _authorName: string): TriageSourceResult {
+function useTriageRest(visitId: string, _authorName: string, enabled: boolean): TriageSourceResult {
   const qc = useQueryClient();
   const query = useQuery<TriageEntry[]>({
     queryKey: ["triage", visitId],
-    queryFn: async () => {
-      if (typeof emergencyApi.listTriageEntries !== "function") return [];
-      return emergencyApi.listTriageEntries(visitId);
-    },
-    enabled: !!visitId,
+    queryFn: () => clinicalSourcesService.listTriageEntries(visitId),
+    enabled: enabled && !!visitId,
   });
   const mutation = useMutation({
     mutationFn: async (e: TriageEntryInput) => {
-      if (typeof emergencyApi.createTriageEntry !== "function") {
-        throw new Error("triage REST endpoint not implemented yet");
-      }
-      return emergencyApi.createTriageEntry(visitId, e);
+      return clinicalSourcesService.createTriageEntry(visitId, e);
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["triage", visitId] }),
   });
@@ -81,12 +67,19 @@ function useTriageRest(visitId: string, _authorName: string): TriageSourceResult
 
 function useTriageCrdt(
   visitId: string,
-  config: { edgeUrl: string; tenantId: string; deviceId: string; authorName: string },
+  config: {
+    edgeUrl: string;
+    tenantId: string;
+    deviceId: string;
+    authorName: string;
+    enabled: boolean;
+  },
 ): TriageSourceResult {
   const list = useAppendOnlyCrdtList<TriageEntry>(`triage/${visitId}`, {
     edgeUrl: config.edgeUrl,
     tenantId: config.tenantId,
     deviceId: config.deviceId,
+    enabled: config.enabled,
   });
   const append = useCallback(
     (e: TriageEntryInput) => {

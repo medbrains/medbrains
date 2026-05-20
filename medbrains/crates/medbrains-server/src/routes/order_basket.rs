@@ -221,6 +221,8 @@ pub async fn check_basket(
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    ensure_encounter_patient_in_tx(&mut tx, &claims.tenant_id, &body.encounter_id, &body.patient_id)
+        .await?;
     let warnings =
         run_basket_checks(&mut tx, &claims.tenant_id, &body.patient_id, &body.items).await?;
     tx.commit().await?;
@@ -250,6 +252,8 @@ pub async fn sign_basket(
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    ensure_encounter_patient_in_tx(&mut tx, &claims.tenant_id, &body.encounter_id, &body.patient_id)
+        .await?;
 
     // Defense-in-depth: re-run CDS inside the sign tx. If a BLOCK warning
     // has appeared since the client's last check and is not in
@@ -725,6 +729,7 @@ pub async fn get_draft(
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    ensure_encounter_exists_in_tx(&mut tx, &claims.tenant_id, &encounter_id).await?;
 
     let draft = sqlx::query_as::<_, OrderBasketDraft>(
         "SELECT * FROM order_basket_drafts \
@@ -738,6 +743,50 @@ pub async fn get_draft(
 
     tx.commit().await?;
     Ok(Json(draft))
+}
+
+async fn ensure_encounter_patient_in_tx(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: &Uuid,
+    encounter_id: &Uuid,
+    patient_id: &Uuid,
+) -> Result<(), AppError> {
+    let encounter_patient_id = sqlx::query_scalar::<_, Uuid>(
+        "SELECT patient_id FROM encounters WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(encounter_id)
+    .bind(tenant_id)
+    .fetch_optional(&mut **tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+
+    if &encounter_patient_id != patient_id {
+        return Err(AppError::BadRequest(
+            "encounter does not belong to patient".to_owned(),
+        ));
+    }
+
+    Ok(())
+}
+
+async fn ensure_encounter_exists_in_tx(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: &Uuid,
+    encounter_id: &Uuid,
+) -> Result<(), AppError> {
+    let exists = sqlx::query_scalar::<_, bool>(
+        "SELECT EXISTS(SELECT 1 FROM encounters WHERE id = $1 AND tenant_id = $2)",
+    )
+    .bind(encounter_id)
+    .bind(tenant_id)
+    .fetch_one(&mut **tx)
+    .await?;
+
+    if !exists {
+        return Err(AppError::NotFound);
+    }
+
+    Ok(())
 }
 
 pub async fn save_draft(
@@ -758,6 +807,7 @@ pub async fn save_draft(
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    ensure_encounter_exists_in_tx(&mut tx, &claims.tenant_id, &encounter_id).await?;
 
     let draft = sqlx::query_as::<_, OrderBasketDraft>(
         "INSERT INTO order_basket_drafts \
@@ -788,6 +838,7 @@ pub async fn delete_draft(
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    ensure_encounter_exists_in_tx(&mut tx, &claims.tenant_id, &encounter_id).await?;
 
     sqlx::query(
         "DELETE FROM order_basket_drafts \

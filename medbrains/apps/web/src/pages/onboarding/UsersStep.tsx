@@ -12,7 +12,6 @@ import {
   Text,
   TextInput,
 } from "@mantine/core";
-import { api } from "@medbrains/api";
 import type { CreateRoleInput, CreateUserInput } from "@medbrains/schemas";
 import { createRoleSchema, createUserSchema } from "@medbrains/schemas";
 import { useOnboardingStore } from "@medbrains/stores";
@@ -21,6 +20,7 @@ import { IconPlus, IconStethoscope, IconTrash, IconUpload, IconUser } from "@tab
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { CsvImportModal, SelectLabel } from "../../components";
+import { onboardingService } from "../../services/onboarding.service";
 import classes from "./onboarding.module.scss";
 
 interface Props {
@@ -185,7 +185,7 @@ export function UsersStep({ onNext, onBack }: Props) {
         title="Import Users from CSV"
         requiredColumns={["username", "full_name", "email"]}
         optionalColumns={["password", "role"]}
-        onImport={api.importUsers}
+        onImport={onboardingService.importUsers}
       />
 
       {roles.length > 0 && (

@@ -1,6 +1,10 @@
 #![allow(clippy::too_many_lines)]
 
-use std::collections::HashMap;
+use std::{
+    collections::HashMap,
+    sync::{LazyLock, RwLock},
+    time::{Duration, Instant},
+};
 
 use axum::{
     Extension, Json,
@@ -184,6 +188,11 @@ pub struct UpdateConsultationRequest {
 #[derive(Debug, Deserialize)]
 pub struct CreateDiagnosisRequest {
     pub icd_code: Option<String>,
+    pub icd_system: Option<String>,
+    pub icd_display: Option<String>,
+    pub icd_source_url: Option<String>,
+    pub icd_source_version: Option<String>,
+    pub icd_provider_mode: Option<String>,
     pub description: String,
     pub is_primary: Option<bool>,
     pub notes: Option<String>,
@@ -196,7 +205,32 @@ pub struct CreateDiagnosisRequest {
 }
 
 #[derive(Debug, Deserialize)]
+pub struct UpdateDiagnosisRequest {
+    pub icd_code: Option<String>,
+    pub icd_system: Option<String>,
+    pub icd_display: Option<String>,
+    pub icd_source_url: Option<String>,
+    pub icd_source_version: Option<String>,
+    pub icd_provider_mode: Option<String>,
+    pub description: Option<String>,
+    pub is_primary: Option<bool>,
+    pub notes: Option<String>,
+    pub severity: Option<String>,
+    pub certainty: Option<String>,
+    pub onset_date: Option<Option<NaiveDate>>,
+    pub resolved_date: Option<Option<NaiveDate>>,
+    pub snomed_code: Option<String>,
+    pub snomed_display: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
 pub struct CreatePrescriptionRequest {
+    pub notes: Option<String>,
+    pub items: Vec<PrescriptionItemInput>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdatePrescriptionRequest {
     pub notes: Option<String>,
     pub items: Vec<PrescriptionItemInput>,
 }
@@ -216,6 +250,8 @@ pub struct PrescriptionItemInput {
 pub struct PrescriptionWithItems {
     pub prescription: Prescription,
     pub items: Vec<PrescriptionItem>,
+    pub pharmacy_status: Option<String>,
+    pub pharmacy_order_id: Option<Uuid>,
 }
 
 // ══════════════════════════════════════════════════════════
@@ -1087,48 +1123,32 @@ pub async fn create_consultation(
     .fetch_one(&mut *tx)
     .await?;
 
-    // Inline lab orders — same transaction, atomic with consultation.
     for lab in &body.lab_orders {
-        let priority = lab.priority.as_deref().unwrap_or("routine");
-        sqlx::query(
-            "INSERT INTO lab_orders \
-             (tenant_id, encounter_id, patient_id, test_id, ordered_by, \
-              status, priority, notes) \
-             VALUES ($1, $2, $3, $4, $5, 'ordered'::lab_order_status, \
-                     $6::lab_priority, $7)",
-        )
-        .bind(claims.tenant_id)
-        .bind(encounter_id)
-        .bind(patient_id)
-        .bind(lab.test_id)
-        .bind(claims.sub)
-        .bind(priority)
-        .bind(&lab.notes)
-        .execute(&mut *tx)
-        .await?;
+        let req = super::lab::CreateOrderRequest {
+            encounter_id,
+            patient_id,
+            test_id: lab.test_id,
+            priority: lab.priority.clone(),
+            notes: lab.notes.clone(),
+        };
+        super::lab::create_order_in_tx(&mut tx, &claims, &req).await?;
     }
 
-    // Inline radiology orders.
     for rad in &body.radiology_orders {
-        let priority = rad.priority.as_deref().unwrap_or("routine");
-        sqlx::query(
-            "INSERT INTO radiology_orders \
-             (tenant_id, encounter_id, patient_id, modality_id, ordered_by, \
-              body_part, clinical_indication, priority, notes, \
-              contrast_required, status) \
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, false, 'requested')",
-        )
-        .bind(claims.tenant_id)
-        .bind(encounter_id)
-        .bind(patient_id)
-        .bind(rad.modality_id)
-        .bind(claims.sub)
-        .bind(&rad.body_part)
-        .bind(&rad.clinical_indication)
-        .bind(priority)
-        .bind(&rad.notes)
-        .execute(&mut *tx)
-        .await?;
+        let req = super::radiology::CreateOrderRequest {
+            patient_id,
+            encounter_id: Some(encounter_id),
+            modality_id: rad.modality_id,
+            body_part: rad.body_part.clone(),
+            clinical_indication: rad.clinical_indication.clone(),
+            priority: rad.priority.clone(),
+            scheduled_at: None,
+            notes: rad.notes.clone(),
+            contrast_required: Some(false),
+            pregnancy_checked: Some(false),
+            allergy_flagged: Some(false),
+        };
+        super::radiology::create_order_in_tx(&mut tx, &claims, &req).await?;
     }
 
     tx.commit().await?;
@@ -1238,17 +1258,27 @@ pub async fn create_diagnosis(
 
     let severity = body.severity.as_deref().unwrap_or("moderate");
     let certainty = body.certainty.as_deref().unwrap_or("confirmed");
+    let icd_system = body.icd_system.as_deref().unwrap_or("icd11");
+    if !matches!(icd_system, "icd10" | "icd11" | "snomed") {
+        return Err(AppError::BadRequest("invalid icd_system".to_owned()));
+    }
 
     let row = sqlx::query_as::<_, Diagnosis>(
         "INSERT INTO diagnoses \
-         (tenant_id, encounter_id, icd_code, description, is_primary, notes, \
+         (tenant_id, encounter_id, icd_code, icd_system, icd_display, icd_source_url, \
+          icd_source_version, icd_provider_mode, description, is_primary, notes, \
           severity, certainty, onset_date, resolved_date, snomed_code, snomed_display) \
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17) \
          RETURNING *",
     )
     .bind(claims.tenant_id)
     .bind(encounter_id)
     .bind(&body.icd_code)
+    .bind(icd_system)
+    .bind(&body.icd_display)
+    .bind(&body.icd_source_url)
+    .bind(&body.icd_source_version)
+    .bind(&body.icd_provider_mode)
     .bind(&body.description)
     .bind(is_primary)
     .bind(&body.notes)
@@ -1260,6 +1290,86 @@ pub async fn create_diagnosis(
     .bind(&body.snomed_display)
     .fetch_one(&mut *tx)
     .await?;
+
+    tx.commit().await?;
+    Ok(Json(row))
+}
+
+pub async fn update_diagnosis(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path((encounter_id, did)): Path<(Uuid, Uuid)>,
+    Json(body): Json<UpdateDiagnosisRequest>,
+) -> Result<Json<Diagnosis>, AppError> {
+    require_permission(&claims, permissions::opd::visit::UPDATE)?;
+
+    if let Some(value) = body.icd_system.as_deref() {
+        if !matches!(value, "icd10" | "icd11" | "snomed") {
+            return Err(AppError::BadRequest("invalid icd_system".to_owned()));
+        }
+    }
+    if let Some(value) = body.severity.as_deref() {
+        if !matches!(value, "mild" | "moderate" | "severe" | "critical") {
+            return Err(AppError::BadRequest("invalid severity".to_owned()));
+        }
+    }
+    if let Some(value) = body.certainty.as_deref() {
+        if !matches!(value, "suspected" | "probable" | "confirmed" | "ruled_out") {
+            return Err(AppError::BadRequest("invalid certainty".to_owned()));
+        }
+    }
+
+    let should_update_onset = body.onset_date.is_some();
+    let onset_date = body.onset_date.flatten();
+    let should_update_resolved = body.resolved_date.is_some();
+    let resolved_date = body.resolved_date.flatten();
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let row = sqlx::query_as::<_, Diagnosis>(
+        "UPDATE diagnoses SET \
+            icd_code = COALESCE($1, icd_code), \
+            icd_system = COALESCE($2, icd_system), \
+            icd_display = COALESCE($3, icd_display), \
+            icd_source_url = COALESCE($4, icd_source_url), \
+            icd_source_version = COALESCE($5, icd_source_version), \
+            icd_provider_mode = COALESCE($6, icd_provider_mode), \
+            description = COALESCE(NULLIF($7, ''), description), \
+            is_primary = COALESCE($8, is_primary), \
+            notes = COALESCE($9, notes), \
+            severity = COALESCE($10, severity), \
+            certainty = COALESCE($11, certainty), \
+            onset_date = CASE WHEN $12 THEN $13 ELSE onset_date END, \
+            resolved_date = CASE WHEN $14 THEN $15 ELSE resolved_date END, \
+            snomed_code = COALESCE($16, snomed_code), \
+            snomed_display = COALESCE($17, snomed_display) \
+         WHERE id = $18 AND tenant_id = $19 AND encounter_id = $20 \
+         RETURNING *",
+    )
+    .bind(body.icd_code.as_deref())
+    .bind(body.icd_system.as_deref())
+    .bind(body.icd_display.as_deref())
+    .bind(body.icd_source_url.as_deref())
+    .bind(body.icd_source_version.as_deref())
+    .bind(body.icd_provider_mode.as_deref())
+    .bind(body.description.as_deref())
+    .bind(body.is_primary)
+    .bind(body.notes.as_deref())
+    .bind(body.severity.as_deref())
+    .bind(body.certainty.as_deref())
+    .bind(should_update_onset)
+    .bind(onset_date)
+    .bind(should_update_resolved)
+    .bind(resolved_date)
+    .bind(body.snomed_code.as_deref())
+    .bind(body.snomed_display.as_deref())
+    .bind(did)
+    .bind(claims.tenant_id)
+    .bind(encounter_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
 
     tx.commit().await?;
     Ok(Json(row))
@@ -1293,6 +1403,33 @@ pub async fn delete_diagnosis(
 //  Prescriptions
 // ══════════════════════════════════════════════════════════
 
+async fn prescription_pharmacy_statuses(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: Uuid,
+    prescription_ids: &[Uuid],
+) -> Result<HashMap<Uuid, (Option<String>, Option<Uuid>)>, AppError> {
+    if prescription_ids.is_empty() {
+        return Ok(HashMap::new());
+    }
+
+    let rows = sqlx::query_as::<_, (Uuid, String, Option<Uuid>)>(
+        "SELECT prescription_id, status::text, pharmacy_order_id \
+         FROM pharmacy_prescriptions \
+         WHERE prescription_id = ANY($1) AND tenant_id = $2",
+    )
+    .bind(prescription_ids)
+    .bind(tenant_id)
+    .fetch_all(&mut **tx)
+    .await?;
+
+    Ok(rows
+        .into_iter()
+        .map(|(prescription_id, status, pharmacy_order_id)| {
+            (prescription_id, (Some(status), pharmacy_order_id))
+        })
+        .collect())
+}
+
 pub async fn list_prescriptions(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -1313,12 +1450,15 @@ pub async fn list_prescriptions(
     .await?;
 
     let prescription_ids: Vec<Uuid> = prescriptions.iter().map(|rx| rx.id).collect();
+    let pharmacy_statuses =
+        prescription_pharmacy_statuses(&mut tx, claims.tenant_id, &prescription_ids).await?;
     let items = if prescription_ids.is_empty() {
         Vec::new()
     } else {
         sqlx::query_as::<_, PrescriptionItem>(
             "SELECT * FROM prescription_items \
              WHERE prescription_id = ANY($1) AND tenant_id = $2 \
+               AND item_status = 'active' \
              ORDER BY prescription_id, created_at",
         )
         .bind(&prescription_ids)
@@ -1338,9 +1478,15 @@ pub async fn list_prescriptions(
     let mut result = Vec::with_capacity(prescriptions.len());
     for rx in prescriptions {
         let items = items_by_prescription.remove(&rx.id).unwrap_or_default();
+        let (pharmacy_status, pharmacy_order_id) = pharmacy_statuses
+            .get(&rx.id)
+            .cloned()
+            .unwrap_or((None, None));
         result.push(PrescriptionWithItems {
             prescription: rx,
             items,
+            pharmacy_status,
+            pharmacy_order_id,
         });
     }
 
@@ -1366,17 +1512,25 @@ pub async fn get_prescription(
     .await?;
 
     let items = sqlx::query_as::<_, PrescriptionItem>(
-        "SELECT * FROM prescription_items WHERE prescription_id = $1 AND tenant_id = $2 ORDER BY created_at",
+        "SELECT * FROM prescription_items \
+         WHERE prescription_id = $1 AND tenant_id = $2 AND item_status = 'active' \
+         ORDER BY created_at",
     )
     .bind(rx.id)
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
     .await?;
 
+    let statuses = prescription_pharmacy_statuses(&mut tx, claims.tenant_id, &[rx.id]).await?;
+    let (pharmacy_status, pharmacy_order_id) =
+        statuses.get(&rx.id).cloned().unwrap_or((None, None));
+
     tx.commit().await?;
     Ok(Json(PrescriptionWithItems {
         prescription: rx,
         items,
+        pharmacy_status,
+        pharmacy_order_id,
     }))
 }
 
@@ -1519,6 +1673,147 @@ pub async fn create_prescription(
     Ok(Json(PrescriptionWithItems {
         prescription: rx,
         items,
+        pharmacy_status: patient_id.map(|_| "pending_review".to_owned()),
+        pharmacy_order_id: None,
+    }))
+}
+
+pub async fn update_prescription(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<UpdatePrescriptionRequest>,
+) -> Result<Json<PrescriptionWithItems>, AppError> {
+    require_permission(&claims, permissions::opd::visit::UPDATE)?;
+
+    if body.items.is_empty() {
+        return Err(AppError::BadRequest(
+            "At least one prescription item is required".to_owned(),
+        ));
+    }
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    sqlx::query("SELECT id FROM prescriptions WHERE id = $1 AND tenant_id = $2 FOR UPDATE")
+        .bind(id)
+        .bind(claims.tenant_id)
+        .fetch_optional(&mut *tx)
+        .await?
+        .ok_or(AppError::NotFound)?;
+
+    let pharmacy_state = sqlx::query_as::<_, (Uuid, String, Option<Uuid>)>(
+        "SELECT id, status::text, pharmacy_order_id \
+         FROM pharmacy_prescriptions \
+         WHERE prescription_id = $1 AND tenant_id = $2 \
+         FOR UPDATE",
+    )
+    .bind(id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?;
+
+    if let Some((_, status, pharmacy_order_id)) = &pharmacy_state {
+        if pharmacy_order_id.is_some()
+            || !matches!(status.as_str(), "pending_review" | "on_hold" | "rejected")
+        {
+            return Err(AppError::Conflict(
+                "Prescription can be edited only before pharmacy approval and billing calculation"
+                    .to_owned(),
+            ));
+        }
+    }
+
+    let rx = sqlx::query_as::<_, Prescription>(
+        "UPDATE prescriptions SET notes = $1, updated_at = now() \
+         WHERE id = $2 AND tenant_id = $3 \
+         RETURNING *",
+    )
+    .bind(&body.notes)
+    .bind(id)
+    .bind(claims.tenant_id)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    sqlx::query(
+        "UPDATE prescription_items SET \
+            item_status = 'changed', \
+            discontinued_at = now(), \
+            discontinued_by = $3, \
+            discontinue_reason = 'Prescription edited before pharmacy approval' \
+         WHERE prescription_id = $1 AND tenant_id = $2 AND item_status = 'active'",
+    )
+    .bind(id)
+    .bind(claims.tenant_id)
+    .bind(claims.sub)
+    .execute(&mut *tx)
+    .await?;
+
+    let mut items = Vec::with_capacity(body.items.len());
+    for item in &body.items {
+        let pi = sqlx::query_as::<_, PrescriptionItem>(
+            "INSERT INTO prescription_items \
+             (tenant_id, prescription_id, drug_name, dosage, frequency, duration, \
+              route, instructions, catalog_item_id) \
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *",
+        )
+        .bind(claims.tenant_id)
+        .bind(id)
+        .bind(&item.drug_name)
+        .bind(&item.dosage)
+        .bind(&item.frequency)
+        .bind(&item.duration)
+        .bind(&item.route)
+        .bind(&item.instructions)
+        .bind(item.catalog_item_id)
+        .fetch_one(&mut *tx)
+        .await?;
+        items.push(pi);
+    }
+
+    let (pharmacy_status, pharmacy_order_id) = if let Some((queue_id, _, _)) = pharmacy_state {
+        sqlx::query(
+            "UPDATE pharmacy_prescriptions SET \
+                status = 'pending_review'::pharmacy_rx_status, \
+                reviewed_by = NULL, \
+                reviewed_at = NULL, \
+                review_notes = NULL, \
+                rejection_reason = NULL, \
+                allergy_check_done = false, \
+                interaction_check_done = false, \
+                interaction_check_result = NULL \
+             WHERE id = $1 AND tenant_id = $2",
+        )
+        .bind(queue_id)
+        .bind(claims.tenant_id)
+        .execute(&mut *tx)
+        .await?;
+        (Some("pending_review".to_owned()), None)
+    } else {
+        (None, None)
+    };
+
+    tx.commit().await?;
+
+    let _ = crate::orchestration::lifecycle::emit_after_event(
+        &state.db,
+        claims.tenant_id,
+        claims.sub,
+        "opd.prescription.updated_before_pharmacy_approval",
+        serde_json::json!({
+            "prescription_id": id,
+            "encounter_id": rx.encounter_id,
+            "doctor_id": rx.doctor_id,
+            "items_count": items.len(),
+        }),
+    )
+    .await;
+
+    Ok(Json(PrescriptionWithItems {
+        prescription: rx,
+        items,
+        pharmacy_status,
+        pharmacy_order_id,
     }))
 }
 
@@ -1652,7 +1947,8 @@ pub async fn list_patient_prescriptions(
     for rx in &prescriptions {
         let items = sqlx::query_as::<_, PrescriptionItem>(
             "SELECT * FROM prescription_items \
-             WHERE prescription_id = $1 AND tenant_id = $2 ORDER BY created_at",
+             WHERE prescription_id = $1 AND tenant_id = $2 AND item_status = 'active' \
+             ORDER BY created_at",
         )
         .bind(rx.id)
         .bind(claims.tenant_id)
@@ -1695,12 +1991,20 @@ pub struct PatientDiagnosisRow {
     pub id: Uuid,
     pub encounter_id: Uuid,
     pub icd_code: Option<String>,
+    pub icd_system: String,
+    pub icd_display: Option<String>,
+    pub icd_source_url: Option<String>,
+    pub icd_source_version: Option<String>,
+    pub icd_provider_mode: Option<String>,
     pub description: String,
     pub is_primary: bool,
+    pub notes: Option<String>,
     pub severity: Option<String>,
     pub certainty: Option<String>,
     pub onset_date: Option<NaiveDate>,
     pub resolved_date: Option<NaiveDate>,
+    pub snomed_code: Option<String>,
+    pub snomed_display: Option<String>,
     pub encounter_date: NaiveDate,
     pub doctor_name: Option<String>,
     pub created_at: DateTime<Utc>,
@@ -1717,8 +2021,10 @@ pub async fn list_patient_diagnoses(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, PatientDiagnosisRow>(
-        "SELECT d.id, d.encounter_id, d.icd_code, d.description, d.is_primary, \
-         d.severity, d.certainty, d.onset_date, d.resolved_date, \
+        "SELECT d.id, d.encounter_id, d.icd_code, d.icd_system, d.icd_display, \
+         d.icd_source_url, d.icd_source_version, d.icd_provider_mode, \
+         d.description, d.is_primary, d.notes, d.severity, d.certainty, \
+         d.onset_date, d.resolved_date, d.snomed_code, d.snomed_display, \
          e.encounter_date, \
          u.full_name AS doctor_name, \
          d.created_at \
@@ -2252,6 +2558,427 @@ pub async fn search_icd10(
     .await?;
 
     Ok(Json(rows))
+}
+
+// ══════════════════════════════════════════════════════════
+//  Clinical corpus search and editable tenant entries
+// ══════════════════════════════════════════════════════════
+
+const CLINICAL_CORPUS_CACHE_TTL: Duration = Duration::from_secs(600);
+
+#[derive(Debug, Clone, Eq, Hash, PartialEq)]
+struct ClinicalCorpusCacheKey {
+    tenant_id: Uuid,
+    term: String,
+    section: Option<String>,
+    corpus_type: Option<String>,
+    limit: i64,
+}
+
+#[derive(Debug, Clone)]
+struct ClinicalCorpusCacheEntry {
+    fetched_at: Instant,
+    rows: Vec<ClinicalCorpusEntry>,
+}
+
+static CLINICAL_CORPUS_SEARCH_CACHE: LazyLock<
+    RwLock<HashMap<ClinicalCorpusCacheKey, ClinicalCorpusCacheEntry>>,
+> = LazyLock::new(|| RwLock::new(HashMap::new()));
+
+#[derive(Debug, Clone, Serialize, sqlx::FromRow)]
+pub struct ClinicalCorpusEntry {
+    pub id: Uuid,
+    pub tenant_id: Option<Uuid>,
+    pub entry_key: String,
+    pub corpus_type: String,
+    pub section: Option<String>,
+    pub term: String,
+    pub aliases: Vec<String>,
+    pub short_text: Option<String>,
+    pub insert_text: Option<String>,
+    pub source_name: String,
+    pub source_url: Option<String>,
+    pub license_name: Option<String>,
+    pub license_status: String,
+    pub source_version: Option<String>,
+    pub language: String,
+    pub priority: i32,
+    pub is_active: bool,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ClinicalCorpusSearchQuery {
+    pub q: String,
+    pub section: Option<String>,
+    pub corpus_type: Option<String>,
+    pub limit: Option<i64>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct Icd11SearchQuery {
+    pub q: String,
+    pub limit: Option<i64>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CreateClinicalCorpusEntryRequest {
+    pub corpus_type: String,
+    pub section: Option<String>,
+    pub term: String,
+    pub aliases: Option<Vec<String>>,
+    pub short_text: Option<String>,
+    pub insert_text: Option<String>,
+    pub source_name: Option<String>,
+    pub source_url: Option<String>,
+    pub license_name: Option<String>,
+    pub license_status: Option<String>,
+    pub source_version: Option<String>,
+    pub language: Option<String>,
+    pub priority: Option<i32>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateClinicalCorpusEntryRequest {
+    pub section: Option<String>,
+    pub term: Option<String>,
+    pub aliases: Option<Vec<String>>,
+    pub short_text: Option<String>,
+    pub insert_text: Option<String>,
+    pub source_name: Option<String>,
+    pub source_url: Option<String>,
+    pub license_name: Option<String>,
+    pub license_status: Option<String>,
+    pub source_version: Option<String>,
+    pub language: Option<String>,
+    pub priority: Option<i32>,
+    pub is_active: Option<bool>,
+}
+
+fn normalized_corpus_key(corpus_type: &str, section: Option<&str>, term: &str) -> String {
+    let corpus_type_part = corpus_type.trim().to_lowercase();
+    let section_part = section.unwrap_or("general").trim().to_lowercase();
+    let term_part: String = term
+        .trim()
+        .to_lowercase()
+        .chars()
+        .map(|ch| if ch.is_ascii_alphanumeric() { ch } else { '-' })
+        .collect();
+    format!("tenant:{corpus_type_part}:{section_part}:{term_part}")
+}
+
+fn cleaned_aliases(aliases: Option<Vec<String>>) -> Vec<String> {
+    aliases
+        .unwrap_or_default()
+        .into_iter()
+        .map(|alias| alias.trim().to_lowercase())
+        .filter(|alias| !alias.is_empty())
+        .collect()
+}
+
+fn normalized_optional_text(value: Option<&str>) -> Option<String> {
+    value
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_lowercase)
+}
+
+fn is_valid_corpus_type(value: &str) -> bool {
+    matches!(
+        value,
+        "soap_phrase"
+            | "medical_term"
+            | "lay_term"
+            | "icd10"
+            | "icd11"
+            | "snomed"
+            | "loinc"
+            | "rxnorm"
+    )
+}
+
+fn is_valid_license_status(value: &str) -> bool {
+    matches!(
+        value,
+        "owned" | "open" | "licensed" | "restricted" | "reference_only"
+    )
+}
+
+fn read_clinical_corpus_cache(key: &ClinicalCorpusCacheKey) -> Option<Vec<ClinicalCorpusEntry>> {
+    let cache = CLINICAL_CORPUS_SEARCH_CACHE.read().ok()?;
+    let entry = cache.get(key)?;
+    if entry.fetched_at.elapsed() > CLINICAL_CORPUS_CACHE_TTL {
+        return None;
+    }
+    Some(entry.rows.clone())
+}
+
+fn write_clinical_corpus_cache(key: ClinicalCorpusCacheKey, rows: Vec<ClinicalCorpusEntry>) {
+    if let Ok(mut cache) = CLINICAL_CORPUS_SEARCH_CACHE.write() {
+        cache.insert(
+            key,
+            ClinicalCorpusCacheEntry {
+                fetched_at: Instant::now(),
+                rows,
+            },
+        );
+    }
+}
+
+fn clear_clinical_corpus_cache() {
+    if let Ok(mut cache) = CLINICAL_CORPUS_SEARCH_CACHE.write() {
+        cache.clear();
+    }
+}
+
+async fn search_clinical_corpus_rows(
+    state: &AppState,
+    tenant_id: Uuid,
+    term: &str,
+    section_filter: Option<&str>,
+    corpus_type_filter: Option<&str>,
+    limit_filter: Option<i64>,
+) -> Result<Vec<ClinicalCorpusEntry>, AppError> {
+    let term = term.trim();
+    if term.len() < 2 {
+        return Ok(Vec::new());
+    }
+
+    let limit = limit_filter.unwrap_or(12).clamp(1, 50);
+    let normalized_term = term.to_lowercase();
+    let section = normalized_optional_text(section_filter);
+    let corpus_type = normalized_optional_text(corpus_type_filter);
+    if let Some(value) = corpus_type.as_deref() {
+        if !is_valid_corpus_type(value) {
+            return Err(AppError::BadRequest("invalid corpus_type".to_owned()));
+        }
+    }
+
+    let cache_key = ClinicalCorpusCacheKey {
+        tenant_id,
+        term: normalized_term.clone(),
+        section: section.clone(),
+        corpus_type: corpus_type.clone(),
+        limit,
+    };
+    if let Some(rows) = read_clinical_corpus_cache(&cache_key) {
+        return Ok(rows);
+    }
+
+    let contains = format!("%{normalized_term}%");
+    let starts = format!("{normalized_term}%");
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &tenant_id).await?;
+
+    let rows = sqlx::query_as::<_, ClinicalCorpusEntry>(
+        "SELECT id, tenant_id, entry_key, corpus_type, section, term, aliases, short_text, \
+                insert_text, source_name, source_url, license_name, license_status, \
+                source_version, language, priority, is_active, created_at, updated_at \
+         FROM clinical_corpus_entries \
+         WHERE is_active = true \
+           AND (tenant_id IS NULL OR tenant_id = $1) \
+           AND ($2::text IS NULL OR section = $2) \
+           AND ($3::text IS NULL OR corpus_type = $3) \
+           AND ( \
+                term ILIKE $4 \
+                OR COALESCE(short_text, '') ILIKE $4 \
+                OR COALESCE(insert_text, '') ILIKE $4 \
+                OR EXISTS (SELECT 1 FROM unnest(aliases) alias WHERE alias ILIKE $4) \
+           ) \
+         ORDER BY \
+           CASE \
+             WHEN term ILIKE $5 THEN 0 \
+             WHEN EXISTS (SELECT 1 FROM unnest(aliases) alias WHERE alias ILIKE $5) THEN 1 \
+             ELSE 2 \
+           END, \
+           priority ASC, \
+           CASE WHEN tenant_id IS NULL THEN 1 ELSE 0 END, \
+           term ASC \
+         LIMIT $6",
+    )
+    .bind(tenant_id)
+    .bind(section.as_deref())
+    .bind(corpus_type.as_deref())
+    .bind(&contains)
+    .bind(&starts)
+    .bind(limit)
+    .fetch_all(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+    write_clinical_corpus_cache(cache_key, rows.clone());
+    Ok(rows)
+}
+
+pub async fn search_clinical_corpus(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Query(q): Query<ClinicalCorpusSearchQuery>,
+) -> Result<Json<Vec<ClinicalCorpusEntry>>, AppError> {
+    require_permission(&claims, permissions::opd::queue::VIEW)?;
+
+    let rows = search_clinical_corpus_rows(
+        &state,
+        claims.tenant_id,
+        &q.q,
+        q.section.as_deref(),
+        q.corpus_type.as_deref(),
+        q.limit,
+    )
+    .await?;
+    Ok(Json(rows))
+}
+
+pub async fn search_icd11(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Query(q): Query<Icd11SearchQuery>,
+) -> Result<Json<Vec<ClinicalCorpusEntry>>, AppError> {
+    require_permission(&claims, permissions::opd::queue::VIEW)?;
+
+    let rows =
+        search_clinical_corpus_rows(&state, claims.tenant_id, &q.q, None, Some("icd11"), q.limit)
+            .await?;
+    Ok(Json(rows))
+}
+
+pub async fn create_clinical_corpus_entry(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Json(body): Json<CreateClinicalCorpusEntryRequest>,
+) -> Result<Json<ClinicalCorpusEntry>, AppError> {
+    require_permission(
+        &claims,
+        permissions::admin::settings::clinical_masters::CREATE,
+    )?;
+
+    let corpus_type = body.corpus_type.trim().to_lowercase();
+    let term = body.term.trim();
+    if corpus_type.is_empty() || term.is_empty() {
+        return Err(AppError::BadRequest(
+            "corpus_type and term are required".to_owned(),
+        ));
+    }
+    if !is_valid_corpus_type(&corpus_type) {
+        return Err(AppError::BadRequest("invalid corpus_type".to_owned()));
+    }
+    if let Some(value) = body.license_status.as_deref() {
+        if !is_valid_license_status(value) {
+            return Err(AppError::BadRequest("invalid license_status".to_owned()));
+        }
+    }
+
+    let section = normalized_optional_text(body.section.as_deref());
+    let entry_key = normalized_corpus_key(&corpus_type, section.as_deref(), term);
+    let aliases = cleaned_aliases(body.aliases);
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let row = sqlx::query_as::<_, ClinicalCorpusEntry>(
+        "INSERT INTO clinical_corpus_entries \
+          (tenant_id, entry_key, corpus_type, section, term, aliases, short_text, insert_text, \
+           source_name, source_url, license_name, license_status, source_version, language, \
+           priority, created_by, updated_by) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, COALESCE($9, 'MedBrains'), $10, $11, \
+                 COALESCE($12, 'owned'), $13, COALESCE($14, 'en'), COALESCE($15, 100), $16, $16) \
+         RETURNING id, tenant_id, entry_key, corpus_type, section, term, aliases, short_text, \
+                   insert_text, source_name, source_url, license_name, license_status, \
+                   source_version, language, priority, is_active, created_at, updated_at",
+    )
+    .bind(claims.tenant_id)
+    .bind(entry_key)
+    .bind(corpus_type)
+    .bind(section.as_deref())
+    .bind(term)
+    .bind(aliases)
+    .bind(body.short_text.as_deref())
+    .bind(body.insert_text.as_deref())
+    .bind(body.source_name.as_deref())
+    .bind(body.source_url.as_deref())
+    .bind(body.license_name.as_deref())
+    .bind(body.license_status.as_deref())
+    .bind(body.source_version.as_deref())
+    .bind(body.language.as_deref())
+    .bind(body.priority)
+    .bind(claims.sub)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+    clear_clinical_corpus_cache();
+    Ok(Json(row))
+}
+
+pub async fn update_clinical_corpus_entry(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<UpdateClinicalCorpusEntryRequest>,
+) -> Result<Json<ClinicalCorpusEntry>, AppError> {
+    require_permission(
+        &claims,
+        permissions::admin::settings::clinical_masters::UPDATE,
+    )?;
+
+    if let Some(value) = body.license_status.as_deref() {
+        if !is_valid_license_status(value) {
+            return Err(AppError::BadRequest("invalid license_status".to_owned()));
+        }
+    }
+
+    let section = normalized_optional_text(body.section.as_deref());
+    let aliases = body.aliases.map(|values| cleaned_aliases(Some(values)));
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let row = sqlx::query_as::<_, ClinicalCorpusEntry>(
+        "UPDATE clinical_corpus_entries SET \
+            section = COALESCE($1::text, section), \
+            term = COALESCE(NULLIF($2, ''), term), \
+            aliases = COALESCE($3::text[], aliases), \
+            short_text = COALESCE($4::text, short_text), \
+            insert_text = COALESCE($5::text, insert_text), \
+            source_name = COALESCE($6::text, source_name), \
+            source_url = COALESCE($7::text, source_url), \
+            license_name = COALESCE($8::text, license_name), \
+            license_status = COALESCE($9::text, license_status), \
+            source_version = COALESCE($10::text, source_version), \
+            language = COALESCE($11::text, language), \
+            priority = COALESCE($12::integer, priority), \
+            is_active = COALESCE($13::boolean, is_active), \
+            updated_by = $14 \
+         WHERE id = $15 AND tenant_id = $16 \
+         RETURNING id, tenant_id, entry_key, corpus_type, section, term, aliases, short_text, \
+                   insert_text, source_name, source_url, license_name, license_status, \
+                   source_version, language, priority, is_active, created_at, updated_at",
+    )
+    .bind(section.as_deref())
+    .bind(body.term.as_deref())
+    .bind(aliases)
+    .bind(body.short_text.as_deref())
+    .bind(body.insert_text.as_deref())
+    .bind(body.source_name.as_deref())
+    .bind(body.source_url.as_deref())
+    .bind(body.license_name.as_deref())
+    .bind(body.license_status.as_deref())
+    .bind(body.source_version.as_deref())
+    .bind(body.language.as_deref())
+    .bind(body.priority)
+    .bind(body.is_active)
+    .bind(claims.sub)
+    .bind(id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+
+    tx.commit().await?;
+    clear_clinical_corpus_cache();
+    Ok(Json(row))
 }
 
 // ══════════════════════════════════════════════════════════
@@ -3131,9 +3858,11 @@ pub async fn admit_from_opd(
     // 6. Copy active diagnoses from OPD encounter to IPD encounter
     let diagnoses_result = sqlx::query(
         "INSERT INTO diagnoses \
-         (tenant_id, encounter_id, icd_code, description, is_primary, notes, \
+         (tenant_id, encounter_id, icd_code, icd_system, icd_display, icd_source_url, \
+          icd_source_version, icd_provider_mode, description, is_primary, notes, \
           severity, certainty, onset_date, resolved_date, snomed_code, snomed_display) \
-         SELECT tenant_id, $2, icd_code, description, is_primary, notes, \
+         SELECT tenant_id, $2, icd_code, icd_system, icd_display, icd_source_url, \
+                icd_source_version, icd_provider_mode, description, is_primary, notes, \
                 severity, certainty, onset_date, resolved_date, snomed_code, snomed_display \
          FROM diagnoses WHERE encounter_id = $1 AND tenant_id = $3 AND resolved_date IS NULL",
     )

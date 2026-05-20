@@ -11,7 +11,6 @@ import {
   ThemeIcon,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
 import type { CompletenessCheck } from "@medbrains/types";
 import {
   IconCheck,
@@ -25,6 +24,7 @@ import {
 } from "@tabler/icons-react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
+import { settingsSetupService } from "../../../services/settingsSetup.service";
 
 // ── Completeness thresholds ──────────────────────────────
 
@@ -48,7 +48,7 @@ export function SystemHealthSettings() {
     refetch: refetchCompleteness,
   } = useQuery({
     queryKey: ["setup-completeness"],
-    queryFn: () => api.completenessCheck(),
+    queryFn: () => settingsSetupService.completenessCheck(),
     staleTime: 30_000,
   });
 
@@ -59,13 +59,13 @@ export function SystemHealthSettings() {
     refetch: refetchHealth,
   } = useQuery({
     queryKey: ["setup-health"],
-    queryFn: () => api.systemHealth(),
+    queryFn: () => settingsSetupService.systemHealth(),
     staleTime: 30_000,
   });
 
   // ── Config Export ──
   const exportMut = useMutation({
-    mutationFn: () => api.exportConfig(),
+    mutationFn: () => settingsSetupService.exportConfig(),
     onSuccess: (data) => {
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
       const url = URL.createObjectURL(blob);
@@ -96,7 +96,7 @@ export function SystemHealthSettings() {
       if (!importFile) throw new Error("No file selected");
       const text = await importFile.text();
       const data = JSON.parse(text);
-      return api.importConfig(data);
+      return settingsSetupService.importConfig(data);
     },
     onSuccess: () => {
       notifications.show({

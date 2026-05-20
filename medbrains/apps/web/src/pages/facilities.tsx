@@ -20,7 +20,6 @@ import {
 import { DateInput } from "@mantine/dates";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
 import { useHasPermission } from "@medbrains/stores";
 import type {
   CreateFmsEnergyReadingRequest,
@@ -61,6 +60,7 @@ import { useState } from "react";
 import { DataTable, PageHeader } from "../components";
 import type { Column } from "../components/DataTable";
 import { useRequirePermission } from "../hooks/useRequirePermission";
+import { facilitiesService } from "../services/facilities.service";
 
 // ── Constants ──────────────────────────────────────────
 
@@ -272,11 +272,11 @@ function MgpsTab() {
 
   const readings = useQuery({
     queryKey: ["fms-gas-readings"],
-    queryFn: () => api.listFmsGasReadings(),
+    queryFn: () => facilitiesService.listFmsGasReadings(),
   });
   const compliance = useQuery({
     queryKey: ["fms-gas-compliance"],
-    queryFn: () => api.listFmsGasCompliance(),
+    queryFn: () => facilitiesService.listFmsGasCompliance(),
   });
 
   const [gasForm, setGasForm] = useState<CreateFmsGasReadingRequest>({
@@ -286,7 +286,7 @@ function MgpsTab() {
   const [compForm, setCompForm] = useState<CreateFmsGasComplianceRequest>({ gas_type: "oxygen" });
 
   const createReading = useMutation({
-    mutationFn: () => api.createFmsGasReading(gasForm),
+    mutationFn: () => facilitiesService.createFmsGasReading(gasForm),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["fms-gas-readings"] });
       closeReading();
@@ -294,7 +294,7 @@ function MgpsTab() {
     },
   });
   const createCompliance = useMutation({
-    mutationFn: () => api.createFmsGasCompliance(compForm),
+    mutationFn: () => facilitiesService.createFmsGasCompliance(compForm),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["fms-gas-compliance"] });
       closeCompliance();
@@ -560,17 +560,20 @@ function FireSafetyTab() {
 
   const equipment = useQuery({
     queryKey: ["fms-fire-equipment"],
-    queryFn: () => api.listFmsFireEquipment(),
+    queryFn: () => facilitiesService.listFmsFireEquipment(),
   });
   const inspections = useQuery({
     queryKey: ["fms-fire-inspections"],
-    queryFn: () => api.listFmsFireInspections(),
+    queryFn: () => facilitiesService.listFmsFireInspections(),
   });
   const drills = useQuery({
     queryKey: ["fms-fire-drills"],
-    queryFn: () => api.listFmsFireDrills(),
+    queryFn: () => facilitiesService.listFmsFireDrills(),
   });
-  const nocs = useQuery({ queryKey: ["fms-fire-noc"], queryFn: () => api.listFmsFireNoc() });
+  const nocs = useQuery({
+    queryKey: ["fms-fire-noc"],
+    queryFn: () => facilitiesService.listFmsFireNoc(),
+  });
 
   const [equipForm, setEquipForm] = useState<CreateFmsFireEquipmentRequest>({
     name: "",
@@ -582,7 +585,7 @@ function FireSafetyTab() {
   });
 
   const createEquip = useMutation({
-    mutationFn: () => api.createFmsFireEquipment(equipForm),
+    mutationFn: () => facilitiesService.createFmsFireEquipment(equipForm),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["fms-fire-equipment"] });
       closeEquip();
@@ -590,7 +593,7 @@ function FireSafetyTab() {
     },
   });
   const createDrill = useMutation({
-    mutationFn: () => api.createFmsFireDrill(drillForm),
+    mutationFn: () => facilitiesService.createFmsFireDrill(drillForm),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["fms-fire-drills"] });
       closeDrill();
@@ -957,10 +960,13 @@ function WaterQualityTab() {
   const [schedOpen, { open: openSched, close: closeSched }] = useDisclosure(false);
   const qc = useQueryClient();
 
-  const tests = useQuery({ queryKey: ["fms-water-tests"], queryFn: () => api.listFmsWaterTests() });
+  const tests = useQuery({
+    queryKey: ["fms-water-tests"],
+    queryFn: () => facilitiesService.listFmsWaterTests(),
+  });
   const schedules = useQuery({
     queryKey: ["fms-water-schedules"],
-    queryFn: () => api.listFmsWaterSchedules(),
+    queryFn: () => facilitiesService.listFmsWaterSchedules(),
   });
 
   const [testForm, setTestForm] = useState<CreateFmsWaterTestRequest>({
@@ -975,7 +981,7 @@ function WaterQualityTab() {
   });
 
   const createTest = useMutation({
-    mutationFn: () => api.createFmsWaterTest(testForm),
+    mutationFn: () => facilitiesService.createFmsWaterTest(testForm),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["fms-water-tests"] });
       closeTest();
@@ -983,7 +989,7 @@ function WaterQualityTab() {
     },
   });
   const createSched = useMutation({
-    mutationFn: () => api.createFmsWaterSchedule(schedForm),
+    mutationFn: () => facilitiesService.createFmsWaterSchedule(schedForm),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["fms-water-schedules"] });
       closeSched();
@@ -1225,13 +1231,13 @@ function EnergyTab() {
 
   const readings = useQuery({
     queryKey: ["fms-energy-readings"],
-    queryFn: () => api.listFmsEnergyReadings(),
+    queryFn: () => facilitiesService.listFmsEnergyReadings(),
   });
 
   const [form, setForm] = useState<CreateFmsEnergyReadingRequest>({ source_type: "grid" });
 
   const createReading = useMutation({
-    mutationFn: () => api.createFmsEnergyReading(form),
+    mutationFn: () => facilitiesService.createFmsEnergyReading(form),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["fms-energy-readings"] });
       closeReading();
@@ -1419,7 +1425,8 @@ function EnergyAnalyticsView() {
 
   const { data, isLoading } = useQuery({
     queryKey: ["energy-analytics", from, to],
-    queryFn: () => api.energyAnalytics({ from: from || undefined, to: to || undefined }),
+    queryFn: () =>
+      facilitiesService.energyAnalytics({ from: from || undefined, to: to || undefined }),
   });
 
   const analytics = data as EnergyAnalyticsType | undefined;
@@ -1529,7 +1536,7 @@ function WorkOrdersTab() {
 
   const orders = useQuery({
     queryKey: ["fms-work-orders"],
-    queryFn: () => api.listFmsWorkOrders(),
+    queryFn: () => facilitiesService.listFmsWorkOrders(),
   });
 
   const [form, setForm] = useState<CreateFmsWorkOrderRequest>({ description: "" });
@@ -1542,7 +1549,7 @@ function WorkOrdersTab() {
   });
 
   const createWo = useMutation({
-    mutationFn: () => api.createFmsWorkOrder(form),
+    mutationFn: () => facilitiesService.createFmsWorkOrder(form),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["fms-work-orders"] });
       closeCreate();
@@ -1552,7 +1559,7 @@ function WorkOrdersTab() {
   const updateStatus = useMutation({
     mutationFn: () => {
       if (!selectedWo) return Promise.reject(new Error("No WO selected"));
-      return api.updateFmsWorkOrderStatus(selectedWo.id, statusForm);
+      return facilitiesService.updateFmsWorkOrderStatus(selectedWo.id, statusForm);
     },
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["fms-work-orders"] });
@@ -1561,7 +1568,7 @@ function WorkOrdersTab() {
     },
   });
   const schedulePm = useMutation({
-    mutationFn: () => api.schedulePm(pmForm),
+    mutationFn: () => facilitiesService.schedulePm(pmForm),
     onSuccess: (res) => {
       void qc.invalidateQueries({ queryKey: ["fms-work-orders"] });
       closePm();

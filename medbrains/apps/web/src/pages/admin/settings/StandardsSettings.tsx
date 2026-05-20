@@ -13,9 +13,7 @@ import {
   ThemeIcon,
   Title,
 } from "@mantine/core";
-import { api } from "@medbrains/api";
 import { useHasPermission } from "@medbrains/stores";
-import type { LabTestCatalog, PharmacyCatalog } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import {
   IconAlertCircle,
@@ -29,6 +27,11 @@ import {
 } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
+import { clinicalSupportService } from "../../../services/clinicalSupport.service";
+import { labCatalogService } from "../../../services/labCatalog.service";
+import { pharmacyCatalogService } from "../../../services/pharmacyCatalog.service";
+import { radiologyService } from "../../../services/radiology.service";
+import { standardsService } from "../../../services/standards.service";
 
 type ReadinessStatus = "ready" | "partial" | "missing" | "blocked" | "loading";
 
@@ -155,62 +158,72 @@ export function StandardsSettings() {
 
   const fhirQuery = useQuery({
     queryKey: ["standards", "fhir-metadata"],
-    queryFn: () => api.fhirMetadata(),
+    queryFn: () => standardsService.fhirMetadata(),
     staleTime: 300_000,
   });
 
   const icdQuery = useQuery({
-    queryKey: ["standards", "icd10-smoke", "fever"],
-    queryFn: () => api.searchIcd10("fever", 5),
+    queryKey: ["standards", "terminology", "icd11", "fever"],
+    queryFn: () =>
+      clinicalSupportService.searchTerminology({
+        system: "icd11",
+        q: "fever",
+        limit: 5,
+      }),
     enabled: canUseTerminology,
     staleTime: 300_000,
   });
 
   const snomedQuery = useQuery({
-    queryKey: ["standards", "snomed-smoke", "fever"],
-    queryFn: () => api.searchSnomed("fever", 5),
+    queryKey: ["standards", "terminology", "snomed", "fever"],
+    queryFn: () =>
+      clinicalSupportService.searchTerminology({
+        system: "snomed",
+        q: "fever",
+        limit: 5,
+      }),
     enabled: canUseTerminology,
     staleTime: 300_000,
   });
 
   const labCatalogQuery = useQuery({
     queryKey: ["standards", "lab-catalog"],
-    queryFn: () => api.listLabCatalog(),
+    queryFn: () => labCatalogService.listLabCatalog(),
     enabled: canReadLab,
     staleTime: 300_000,
   });
 
   const pharmacyCatalogQuery = useQuery({
     queryKey: ["standards", "pharmacy-catalog"],
-    queryFn: () => api.listPharmacyCatalog(),
+    queryFn: () => pharmacyCatalogService.listPharmacyCatalog(),
     enabled: canReadPharmacy,
     staleTime: 300_000,
   });
 
   const pacsConfigQuery = useQuery({
     queryKey: ["standards", "pacs-config"],
-    queryFn: () => api.getRadiologyPacsConfig(),
+    queryFn: () => radiologyService.getRadiologyPacsConfig(),
     enabled: canReadRadiology,
     staleTime: 300_000,
   });
 
   const dicomStudiesQuery = useQuery({
     queryKey: ["standards", "dicom-studies"],
-    queryFn: () => api.listRadiologyDicomStudies(),
+    queryFn: () => radiologyService.listRadiologyDicomStudies(),
     enabled: canReadRadiology,
     staleTime: 300_000,
   });
 
   const abdmTenantQuery = useQuery({
     queryKey: ["standards", "abdm-tenant-hfr"],
-    queryFn: () => api.getTenantAbdmHfr(),
+    queryFn: () => standardsService.getTenantAbdmHfr(),
     enabled: canReadAbdm,
     staleTime: 300_000,
   });
 
   const abdmRegistrationsQuery = useQuery({
     queryKey: ["standards", "abdm-hfr-registrations"],
-    queryFn: () => api.getAbdmHfr(),
+    queryFn: () => standardsService.getAbdmHfr(),
     enabled: canReadAbdm,
     staleTime: 300_000,
   });
@@ -231,13 +244,13 @@ export function StandardsSettings() {
       ? "blocked"
       : icdQuery.isLoading || snomedQuery.isLoading
         ? "loading"
-        : icdQuery.isError || snomedQuery.isError || (icdCount === 0 && snomedCount === 0)
+        : icdQuery.isError || snomedQuery.isError || icdCount === 0
           ? "missing"
-          : icdCount > 0 && snomedCount > 0
+          : snomedCount > 0
             ? "ready"
             : "partial";
 
-    const labRows = (labCatalogQuery.data ?? []) as LabTestCatalog[];
+    const labRows = labCatalogQuery.data ?? [];
     const loincMapped = labRows.filter((row) => hasText(row.loinc_code)).length;
     const labStatus: ReadinessStatus = !canReadLab
       ? "blocked"
@@ -247,7 +260,7 @@ export function StandardsSettings() {
           ? "missing"
           : statusFromCoverage(labRows.length, loincMapped);
 
-    const drugRows = (pharmacyCatalogQuery.data ?? []) as PharmacyCatalog[];
+    const drugRows = pharmacyCatalogQuery.data ?? [];
     const codedDrugs = drugRows.filter(
       (row) =>
         hasText(row.inn_name) ||
@@ -306,11 +319,11 @@ export function StandardsSettings() {
       {
         key: "terminology",
         title: "Diagnosis Terminology",
-        standard: "ICD-10 + SNOMED CT",
+        standard: "WHO ICD-11 primary + SNOMED CT secondary",
         status: terminologyStatus,
-        metric: `ICD ${icdCount} / SNOMED ${snomedCount}`,
+        metric: `ICD-11 ${icdCount} / SNOMED ${snomedCount}`,
         description:
-          "OPD diagnosis entry should code diagnoses with ICD for reporting/billing and SNOMED CT for clinical semantics.",
+          "OPD diagnosis entry uses the hospital primary diagnosis policy. ICD-11 remains the primary reporting code; SNOMED CT is stored as the linked clinical concept when licensed release data is available.",
       },
       {
         key: "loinc",
@@ -404,7 +417,6 @@ export function StandardsSettings() {
   const refreshAll = () => {
     fhirQuery.refetch();
     icdQuery.refetch();
-    snomedQuery.refetch();
     labCatalogQuery.refetch();
     pharmacyCatalogQuery.refetch();
     pacsConfigQuery.refetch();
@@ -469,7 +481,8 @@ export function StandardsSettings() {
               Patient registration must capture UHID and ABHA/health ID where used.
             </Text>
             <Text size="sm">
-              OPD diagnosis must use ICD-10 and SNOMED CT selection, not free text only.
+              OPD diagnosis must default to ICD-11 selection; SNOMED CT is secondary and ICD-10 is
+              only for legacy payer/statutory exports when configured.
             </Text>
             <Text size="sm">
               Lab tests need LOINC mapping before external diagnostic reports are exchanged.
@@ -511,11 +524,11 @@ export function StandardsSettings() {
             </Button>
             <Button
               component="a"
-              href="https://www.implementation.snomed.org/terminology-services"
+              href="https://www.snomedctnrc.in/standards/snomed-ct"
               target="_blank"
               variant="subtle"
             >
-              SNOMED CT terminology services
+              NRCeS CSNOtk / SNOMED CT
             </Button>
             <Button
               component="a"
@@ -537,10 +550,10 @@ export function StandardsSettings() {
           <Title order={5}>Implementation Boundary</Title>
         </Group>
         <Text size="sm" c="dimmed">
-          Current implementation is read/check focused: FHIR R4 read endpoints, ICD-10/SNOMED
+          Current implementation is read/check focused: FHIR R4 read endpoints, official ICD-11
           search, mapped catalog coverage, DICOM study visibility and ABDM facility status. The next
-          backend steps are FHIR document/bundle validation, ICD-11 support, terminology-server sync
-          jobs, and DICOMweb gateway operations.
+          backend steps are FHIR document/bundle validation, terminology-server sync jobs, SNOMED
+          enablement, legacy ICD-10 export mapping, and DICOMweb gateway operations.
         </Text>
       </Card>
     </Stack>

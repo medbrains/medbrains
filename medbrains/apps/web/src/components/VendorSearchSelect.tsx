@@ -1,10 +1,10 @@
 import { Stack, Text } from "@mantine/core";
-import { api } from "@medbrains/api";
 import { useHasPermission } from "@medbrains/stores";
 import { P, type Vendor } from "@medbrains/types";
 import { IconPlus, IconTruck } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
+import { procurementService } from "../services/procurement.service";
 import { MiniAddVendor } from "./Procurement/MiniAddVendor";
 import { SearchOrCreate } from "./SearchOrCreate";
 
@@ -36,7 +36,7 @@ export function VendorSearchSelect({
 
   const { data: vendors = [] } = useQuery({
     queryKey: ["procurement", "vendors", activeOnly ? "active" : "all"],
-    queryFn: () => api.listVendors(activeOnly ? { status: "active" } : undefined),
+    queryFn: () => procurementService.listVendors(activeOnly ? { status: "active" } : undefined),
     staleTime: 300_000,
   });
 

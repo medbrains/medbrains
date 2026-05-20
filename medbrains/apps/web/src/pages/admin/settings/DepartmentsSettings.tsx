@@ -13,13 +13,13 @@ import {
   TextInput,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
 import type { DepartmentRow, WorkingHours } from "@medbrains/types";
 import { IconCheck, IconClock, IconPencil, IconPlus, IconTrash } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { CreateDepartmentModal, SelectLabel } from "../../../components";
 import { useCreateInline } from "../../../hooks/useCreateInline";
+import { settingsSetupService } from "../../../services/settingsSetup.service";
 
 // ── Constants ─────────────────────────────────────────────
 
@@ -65,7 +65,10 @@ function formatWorkingHoursSummary(wh?: WorkingHours | null): string {
   const activeDays = WEEKDAYS.filter((d) => wh[d] != null);
   if (activeDays.length === 0) return "No hours set";
 
-  const first = wh[activeDays[0]!];
+  const firstDay = activeDays[0];
+  if (!firstDay) return "No hours set";
+
+  const first = wh[firstDay];
   if (!first) return "No hours set";
 
   const parts: string[] = [];
@@ -97,11 +100,16 @@ function DepartmentModal({
   const queryClient = useQueryClient();
   const isEdit = !!editingDept;
 
-  const [code, setCode] = useState("");
-  const [name, setName] = useState("");
-  const [departmentType, setDepartmentType] = useState("clinical");
-  const [parentId, setParentId] = useState<string | null>(null);
-  const [workingHours, setWorkingHours] = useState<WorkingHours>(makeDefaultWorkingHours());
+  const initialWorkingHours =
+    editingDept?.working_hours && Object.keys(editingDept.working_hours).length > 0
+      ? editingDept.working_hours
+      : makeDefaultWorkingHours();
+
+  const [code, setCode] = useState(editingDept?.code ?? "");
+  const [name, setName] = useState(editingDept?.name ?? "");
+  const [departmentType, setDepartmentType] = useState(editingDept?.department_type ?? "clinical");
+  const [parentId, setParentId] = useState<string | null>(editingDept?.parent_id ?? null);
+  const [workingHours, setWorkingHours] = useState<WorkingHours>(initialWorkingHours);
 
   const parentInline = useCreateInline<DepartmentRow>({ queryKey: ["setup-departments"] });
 
@@ -118,26 +126,6 @@ function DepartmentModal({
       value: d.id,
       label: `${d.name} (${d.code})`,
     }));
-
-  const handleOpen = () => {
-    if (editingDept) {
-      setCode(editingDept.code);
-      setName(editingDept.name);
-      setDepartmentType(editingDept.department_type);
-      setParentId(editingDept.parent_id);
-      setWorkingHours(
-        editingDept.working_hours && Object.keys(editingDept.working_hours).length > 0
-          ? editingDept.working_hours
-          : makeDefaultWorkingHours(),
-      );
-    } else {
-      setCode("");
-      setName("");
-      setDepartmentType("clinical");
-      setParentId(null);
-      setWorkingHours(makeDefaultWorkingHours());
-    }
-  };
 
   const updateDayTime = (
     day: string,
@@ -177,7 +165,7 @@ function DepartmentModal({
       department_type: string;
       parent_id?: string;
       working_hours?: WorkingHours;
-    }) => api.createDepartment(data),
+    }) => settingsSetupService.createDepartment(data),
     onSuccess: () => {
       notifications.show({
         title: "Department created",
@@ -200,7 +188,7 @@ function DepartmentModal({
   const updateMutation = useMutation({
     mutationFn: (data: Record<string, unknown>) => {
       if (!editingDept) throw new Error("No department selected");
-      return api.updateDepartment(editingDept.id, data);
+      return settingsSetupService.updateDepartment(editingDept.id, data);
     },
     onSuccess: () => {
       notifications.show({
@@ -233,6 +221,7 @@ function DepartmentModal({
 
     if (isEdit) {
       updateMutation.mutate({
+        code,
         name,
         department_type: departmentType,
         parent_id: parentId ?? undefined,
@@ -255,7 +244,6 @@ function DepartmentModal({
       onClose={onClose}
       title={isEdit ? "Edit Department" : "Add Department"}
       size="lg"
-      onTransitionEnd={handleOpen}
     >
       <Stack gap="sm">
         <TextInput
@@ -436,11 +424,11 @@ export function DepartmentsSettings() {
 
   const { data: departments, isLoading } = useQuery({
     queryKey: ["setup-departments"],
-    queryFn: () => api.listDepartments(),
+    queryFn: () => settingsSetupService.listDepartments(),
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => api.deleteDepartment(id),
+    mutationFn: (id: string) => settingsSetupService.deleteDepartment(id),
     onSuccess: () => {
       notifications.show({
         title: "Department deleted",
@@ -583,12 +571,15 @@ export function DepartmentsSettings() {
         </Table.Tbody>
       </Table>
 
-      <DepartmentModal
-        opened={modalOpen}
-        onClose={() => setModalOpen(false)}
-        editingDept={editingDept}
-        departments={departments ?? []}
-      />
+      {modalOpen && (
+        <DepartmentModal
+          key={editingDept?.id ?? "create"}
+          opened={modalOpen}
+          onClose={() => setModalOpen(false)}
+          editingDept={editingDept}
+          departments={departments ?? []}
+        />
+      )}
 
       <DeleteConfirmModal
         opened={!!deletingDept}

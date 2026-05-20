@@ -14,6 +14,7 @@ function PharmacyQueueScreen() {
       title="Dispensing queue"
       subtitle="Please proceed to the counter when your token shows."
       legend="Updates every 10 seconds · medbrains://tv/pharmacy-queue"
+      tags={["TV-Pharmacy", "pharmacy", "dispense", "queue"]}
     >
       <TvSummaryRow
         items={[
@@ -32,4 +33,6 @@ export const pharmacyQueueModule: Module = {
   icon: () => null,
   requiredPermissions: [],
   navigator: PharmacyQueueScreen,
+  appCodes: ["TV-Pharmacy"],
+  tags: ["tv", "pharmacy", "dispensing", "queue"],
 };

@@ -10,6 +10,7 @@
     "lint": "biome check src/"
   },
   "dependencies": {
+    "@hookform/resolvers": "^5.2.2",
     "@medbrains/api": "workspace:*",
     "@medbrains/schemas": "workspace:*",
     "@medbrains/stores": "workspace:*",
@@ -19,6 +20,7 @@
     "@react-navigation/native-stack": "^7.14.4",
     "@tanstack/react-query": "^5.90.21",
     "react": "^19.2.4",
+    "react-hook-form": "^7.71.2",
     "react-native": "^0.84.1",
     "react-native-paper": "^5.15.0",
     "react-native-safe-area-context": "^5.4.0",

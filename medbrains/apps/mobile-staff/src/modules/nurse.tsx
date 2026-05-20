@@ -22,6 +22,7 @@ function NurseHome(): ReactNode {
       eyebrow="MODULE"
       title="Nurse"
       description="MAR, vitals, handoff, intake/output."
+      tags={["Mobile-Nurse", "IPD", "eMAR", "offline-ready"]}
       summaries={[
         { eyebrow: "DUE", count: "—", title: "MAR doses (next hour)" },
         { eyebrow: "VITALS", count: "—", title: "Bedside rounds left" },
@@ -96,5 +97,7 @@ export const nurseModule: Module = {
   icon: () => null,
   requiredPermissions: [P.NURSE.DASHBOARD_VIEW],
   navigator: NurseScreen,
+  appCodes: ["Mobile-Nurse"],
+  tags: ["clinical", "ipd", "emar", "vitals", "handoff", "offline-ready"],
   offlineDocTypes: ["mar_admin", "vitals", "io_event", "handoff"],
 };

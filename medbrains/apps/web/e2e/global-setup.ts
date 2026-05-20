@@ -1,11 +1,13 @@
 import { test as setup, expect } from "@playwright/test";
-import { mkdir } from "node:fs/promises";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
+import {
+  authStatePath,
+  browserCookiesFromLogin,
+  ensureE2EIdentities,
+  loginForSession,
+} from "./helpers/e2e-identities";
 import { seedAllFixtures } from "./helpers/seed-fixtures";
+import { routeApiDirect } from "./helpers";
 
-const e2eRoot = path.dirname(fileURLToPath(import.meta.url));
-const authStatePath = path.join(e2eRoot, ".auth/user.json");
 const backendUrl = process.env.E2E_BACKEND_URL ?? "http://127.0.0.1:3000";
 
 /**
@@ -13,22 +15,14 @@ const backendUrl = process.env.E2E_BACKEND_URL ?? "http://127.0.0.1:3000";
  * Runs as a project dependency before the main test suite.
  */
 setup("authenticate as admin", async ({ page, request }) => {
-  // Call backend directly — bypasses Vite proxy and follows E2E_BACKEND_URL.
-  const loginResp = await request.post(`${backendUrl}/api/auth/login`, {
-    data: { username: "admin", password: "admin123" },
-  });
+  await routeApiDirect(page);
 
-  // eslint-disable-next-line no-console
-  console.log("Login API status:", loginResp.status());
-
-  if (loginResp.status() !== 200) {
-    const body = await loginResp.text();
-    // eslint-disable-next-line no-console
-    console.log("Login error:", body);
-    throw new Error(`Login failed with status ${loginResp.status()}`);
+  const identities = await ensureE2EIdentities(request);
+  const adminIdentity = identities.users.find((user) => user.role === "super_admin");
+  if (!adminIdentity) {
+    throw new Error("E2E super_admin temp credential was not created");
   }
-
-  const data = await loginResp.json();
+  const session = await loginForSession(request, adminIdentity.username, adminIdentity.password);
 
   // Navigate to the app and inject auth state
   await page.goto("/login");
@@ -42,65 +36,14 @@ setup("authenticate as admin", async ({ page, request }) => {
         JSON.stringify({ state: { user }, version: 0 }),
       );
     },
-    data.user,
-  );
-
-  // Add cookies from the login response to the browser context
-  const setCookieHeader = loginResp.headersArray().filter(
-    (h) => h.name.toLowerCase() === "set-cookie",
+    session.user,
   );
 
   // eslint-disable-next-line no-console
-  console.log("Set-Cookie headers:", setCookieHeader.length);
+  console.log(`Created E2E temp users: ${identities.users.length} run=${identities.runId}`);
 
-  const browserCookies = setCookieHeader
-    .map((h) => {
-      const parts = h.value.split(";").map((p: string) => p.trim());
-      const [nameVal] = parts;
-      if (!nameVal) return null;
-      const eqIdx = nameVal.indexOf("=");
-      if (eqIdx < 0) return null;
-      const name = nameVal.slice(0, eqIdx);
-      const value = nameVal.slice(eqIdx + 1);
-
-      const httpOnly = parts.some(
-        (p: string) => p.toLowerCase() === "httponly",
-      );
-      const pathMatch = parts.find((p: string) =>
-        p.toLowerCase().startsWith("path="),
-      );
-      const path = pathMatch ? pathMatch.split("=")[1] : "/";
-
-      // Add the cookie under both hosts so request fixtures hitting either
-      // the direct backend host or localhost:5173 (Vite)
-      // see them. The browser strictly distinguishes 127.0.0.1 ≠ localhost.
-      return ["127.0.0.1", "localhost"].map((domain) => ({
-        name,
-        value,
-        domain,
-        path: path ?? "/",
-        httpOnly,
-        secure: false,
-        sameSite: "Lax" as const,
-      }));
-    })
-    .filter(Boolean)
-    .flat() as Array<{
-    name: string;
-    value: string;
-    domain: string;
-    path: string;
-    httpOnly: boolean;
-    secure: boolean;
-    sameSite: "Lax";
-  }>;
-
+  const browserCookies = browserCookiesFromLogin(session);
   if (browserCookies.length > 0) {
-    // eslint-disable-next-line no-console
-    console.log(
-      "Adding cookies:",
-      browserCookies.map((c) => `${c.name}@${c.domain}`),
-    );
     await page.context().addCookies(browserCookies);
   }
 
@@ -109,16 +52,16 @@ setup("authenticate as admin", async ({ page, request }) => {
   await expect(page).toHaveURL(/\/dashboard/, { timeout: 15_000 });
 
   // Persist authenticated state
-  await mkdir(path.dirname(authStatePath), { recursive: true });
   await page.context().storageState({ path: authStatePath });
 
   // Seed canonical fixtures so smoke + e2e tests hit real rows.
   // Idempotent — skips entities that already exist.
-  const csrfToken = data.csrf_token ?? "";
+  const csrfToken = session.csrf;
   if (csrfToken) {
     const seedResult = await seedAllFixtures({
       baseUrl: backendUrl,
       csrfToken,
+      cookieHeader: session.cookieHeader,
       request,
       verbose: process.env.E2E_SEED_VERBOSE === "1",
     });

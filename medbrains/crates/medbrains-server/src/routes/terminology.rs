@@ -1,0 +1,637 @@
+use axum::{
+    Extension, Json,
+    extract::{Query, State},
+};
+use medbrains_core::permissions;
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
+use uuid::Uuid;
+
+use crate::{
+    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
+    state::AppState,
+};
+
+const WHO_ICD_API_BASE_URL: &str = "https://medbrains-icd.localhost";
+const WHO_ICD_TOKEN_URL: &str = "https://icdaccessmanagement.who.int/connect/token";
+const WHO_ICD_DEFAULT_RELEASE: &str = "2026-01";
+const SNOMED_DISTRIBUTION_URL: &str = "https://www.snomed.org/get-snomed";
+
+#[derive(Debug, Deserialize)]
+pub struct TerminologySearchQuery {
+    pub system: String,
+    pub q: String,
+    pub limit: Option<i64>,
+    pub semantic_tag: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct TerminologyLookupQuery {
+    pub system: String,
+    pub code: String,
+}
+
+#[derive(Debug, Clone, Serialize, sqlx::FromRow)]
+pub struct TerminologySearchResult {
+    pub system: String,
+    pub code: String,
+    pub display: String,
+    pub semantic_tag: Option<String>,
+    pub source: String,
+    pub source_url: Option<String>,
+    pub source_version: Option<String>,
+    pub active: bool,
+    pub provider_mode: String,
+    pub corpus_entry_id: Option<Uuid>,
+}
+
+enum TerminologySystem {
+    Icd11,
+    Snomed,
+}
+
+fn terminology_system(value: &str) -> Result<TerminologySystem, AppError> {
+    match value.trim().to_lowercase().as_str() {
+        "icd11" => Ok(TerminologySystem::Icd11),
+        "snomed" => Ok(TerminologySystem::Snomed),
+        _ => Err(AppError::BadRequest(
+            "unsupported terminology system".to_owned(),
+        )),
+    }
+}
+
+fn bounded_limit(limit: Option<i64>) -> i64 {
+    limit.unwrap_or(20).clamp(1, 50)
+}
+
+fn normalized_optional_text(value: Option<&str>) -> Option<String> {
+    value
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_owned)
+}
+
+pub async fn search_terminology(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Query(q): Query<TerminologySearchQuery>,
+) -> Result<Json<Vec<TerminologySearchResult>>, AppError> {
+    require_permission(&claims, permissions::opd::queue::VIEW)?;
+
+    let needle = q.q.trim();
+    if needle.len() < 2 {
+        return Ok(Json(Vec::new()));
+    }
+
+    let semantic_tag = normalized_optional_text(q.semantic_tag.as_deref());
+    let rows = match terminology_system(&q.system)? {
+        TerminologySystem::Icd11 => {
+            let limit = bounded_limit(q.limit);
+            match search_icd11_official(needle, limit).await {
+                Ok(rows) => rows,
+                Err(error) => {
+                    tracing::warn!(error = %error, "WHO ICD-11 search failed");
+                    Vec::new()
+                }
+            }
+        }
+        TerminologySystem::Snomed => {
+            search_snomed_cache(
+                &state,
+                needle,
+                semantic_tag.as_deref(),
+                bounded_limit(q.limit),
+            )
+            .await?
+        }
+    };
+
+    Ok(Json(rows))
+}
+
+pub async fn lookup_terminology(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Query(q): Query<TerminologyLookupQuery>,
+) -> Result<Json<TerminologySearchResult>, AppError> {
+    require_permission(&claims, permissions::opd::queue::VIEW)?;
+
+    let code = q.code.trim();
+    if code.is_empty() {
+        return Err(AppError::BadRequest("code is required".to_owned()));
+    }
+
+    let row = match terminology_system(&q.system)? {
+        TerminologySystem::Icd11 => match lookup_icd11_official_code(code).await {
+            Ok(row) => row,
+            Err(error) => {
+                tracing::warn!(error = %error, "WHO ICD-11 lookup failed");
+                None
+            }
+        },
+        TerminologySystem::Snomed => lookup_snomed_cache(&state, code).await?,
+    };
+
+    row.map(Json).ok_or(AppError::NotFound)
+}
+
+async fn search_icd11_official(
+    needle: &str,
+    limit: i64,
+) -> Result<Vec<TerminologySearchResult>, AppError> {
+    let base_url =
+        std::env::var("WHO_ICD_API_BASE_URL").unwrap_or_else(|_| WHO_ICD_API_BASE_URL.to_owned());
+    let token = if who_icd_requires_auth(&base_url) {
+        match who_icd_access_token().await? {
+            Some(value) => Some(value),
+            None => return Ok(Vec::new()),
+        }
+    } else {
+        None
+    };
+    let release =
+        std::env::var("WHO_ICD_RELEASE_ID").unwrap_or_else(|_| WHO_ICD_DEFAULT_RELEASE.to_owned());
+    let provider_mode = who_icd_provider_mode(&base_url);
+    let client = reqwest::Client::new();
+    if is_likely_direct_icd11_code(needle) {
+        return lookup_icd11_official_code_with_context(
+            &client,
+            &base_url,
+            &release,
+            &provider_mode,
+            token.as_deref(),
+            needle,
+        )
+        .await
+        .map(|row| row.into_iter().collect());
+    }
+
+    let search_url = format!(
+        "{}/icd/release/11/{}/mms/search",
+        base_url.trim_end_matches('/'),
+        release
+    );
+
+    let mut request = client
+        .get(search_url)
+        .header("API-Version", "v2")
+        .header("Accept", "application/json")
+        .header("Accept-Language", "en")
+        .query(&[
+            ("q", needle),
+            ("useFlexisearch", "true"),
+            ("flatResults", "true"),
+        ]);
+    if let Some(token) = token {
+        request = request.bearer_auth(token);
+    }
+    let response = request.send().await.map_err(|error| {
+        AppError::Internal(format!("WHO ICD-11 search request failed: {error}"))
+    })?;
+
+    if !response.status().is_success() {
+        return Err(AppError::Internal(format!(
+            "WHO ICD-11 search returned status {}",
+            response.status()
+        )));
+    }
+
+    let payload = response
+        .json::<Value>()
+        .await
+        .map_err(|error| AppError::Internal(format!("WHO ICD-11 search JSON failed: {error}")))?;
+    Ok(parse_who_icd11_search_response(
+        &payload,
+        &release,
+        &provider_mode,
+        limit,
+    ))
+}
+
+async fn lookup_icd11_official_code(
+    code: &str,
+) -> Result<Option<TerminologySearchResult>, AppError> {
+    let base_url =
+        std::env::var("WHO_ICD_API_BASE_URL").unwrap_or_else(|_| WHO_ICD_API_BASE_URL.to_owned());
+    let token = if who_icd_requires_auth(&base_url) {
+        who_icd_access_token().await?
+    } else {
+        None
+    };
+    let release =
+        std::env::var("WHO_ICD_RELEASE_ID").unwrap_or_else(|_| WHO_ICD_DEFAULT_RELEASE.to_owned());
+    let provider_mode = who_icd_provider_mode(&base_url);
+    let client = reqwest::Client::new();
+    lookup_icd11_official_code_with_context(
+        &client,
+        &base_url,
+        &release,
+        &provider_mode,
+        token.as_deref(),
+        code,
+    )
+    .await
+}
+
+async fn lookup_icd11_official_code_with_context(
+    client: &reqwest::Client,
+    base_url: &str,
+    release: &str,
+    provider_mode: &str,
+    token: Option<&str>,
+    code: &str,
+) -> Result<Option<TerminologySearchResult>, AppError> {
+    let normalized_code = code.trim().to_uppercase();
+    if normalized_code.is_empty() {
+        return Ok(None);
+    }
+
+    let code_info_url = format!(
+        "{}/icd/release/11/{}/mms/codeinfo/{}",
+        base_url.trim_end_matches('/'),
+        release,
+        encode_path_segment(&normalized_code),
+    );
+    let Some(code_info) = who_icd_get_json(client, &code_info_url, token).await? else {
+        return Ok(None);
+    };
+
+    let Some(stem_id) = value_text(code_info.get("stemId")) else {
+        return Ok(None);
+    };
+    let Some(stem_entity) =
+        who_icd_get_json(client, &who_icd_entity_url(base_url, &stem_id), token).await?
+    else {
+        return Ok(None);
+    };
+    let Some(stem_title) = value_text(stem_entity.get("title")) else {
+        return Ok(None);
+    };
+    let stem_url = value_text(stem_entity.get("@id"))
+        .or_else(|| value_text(stem_entity.get("id")))
+        .unwrap_or(stem_id);
+
+    let mut display_parts = vec![stem_title];
+    let mut source_urls = vec![stem_url];
+    for extension_code in extension_codes_from_code_info(&code_info) {
+        let extension_info_url = format!(
+            "{}/icd/release/11/{}/mms/codeinfo/{}",
+            base_url.trim_end_matches('/'),
+            release,
+            encode_path_segment(&extension_code),
+        );
+        let Some(extension_info) = who_icd_get_json(client, &extension_info_url, token).await?
+        else {
+            continue;
+        };
+        let Some(extension_stem_id) = value_text(extension_info.get("stemId")) else {
+            continue;
+        };
+        let Some(extension_entity) = who_icd_get_json(
+            client,
+            &who_icd_entity_url(base_url, &extension_stem_id),
+            token,
+        )
+        .await?
+        else {
+            continue;
+        };
+        if let Some(title) = value_text(extension_entity.get("title")) {
+            display_parts.push(title);
+        }
+        if let Some(source_url) = value_text(extension_entity.get("@id"))
+            .or_else(|| value_text(extension_entity.get("id")))
+        {
+            source_urls.push(source_url);
+        }
+    }
+
+    Ok(Some(TerminologySearchResult {
+        system: "icd11".to_owned(),
+        code: normalized_code,
+        display: display_parts.join(", "),
+        semantic_tag: None,
+        source: "WHO ICD-11 MMS".to_owned(),
+        source_url: Some(source_urls.join(" & ")),
+        source_version: Some(release.to_owned()),
+        active: true,
+        provider_mode: provider_mode.to_owned(),
+        corpus_entry_id: None,
+    }))
+}
+
+async fn who_icd_get_json(
+    client: &reqwest::Client,
+    url: &str,
+    token: Option<&str>,
+) -> Result<Option<Value>, AppError> {
+    let mut request = client
+        .get(url)
+        .header("API-Version", "v2")
+        .header("Accept", "application/json")
+        .header("Accept-Language", "en");
+    if let Some(token) = token {
+        request = request.bearer_auth(token);
+    }
+    let response = request
+        .send()
+        .await
+        .map_err(|error| AppError::Internal(format!("WHO ICD-11 request failed: {error}")))?;
+    if response.status() == reqwest::StatusCode::NOT_FOUND {
+        return Ok(None);
+    }
+    if !response.status().is_success() {
+        return Err(AppError::Internal(format!(
+            "WHO ICD-11 request returned status {}",
+            response.status()
+        )));
+    }
+    let payload = response
+        .json::<Value>()
+        .await
+        .map_err(|error| AppError::Internal(format!("WHO ICD-11 JSON failed: {error}")))?;
+    Ok(Some(payload))
+}
+
+async fn who_icd_access_token() -> Result<Option<String>, AppError> {
+    let client_id = match std::env::var("WHO_ICD_CLIENT_ID") {
+        Ok(value) if !value.trim().is_empty() => value,
+        _ => return Ok(None),
+    };
+    let client_secret = match std::env::var("WHO_ICD_CLIENT_SECRET") {
+        Ok(value) if !value.trim().is_empty() => value,
+        _ => return Ok(None),
+    };
+    let token_url =
+        std::env::var("WHO_ICD_TOKEN_URL").unwrap_or_else(|_| WHO_ICD_TOKEN_URL.to_owned());
+
+    let client = reqwest::Client::new();
+    let response = client
+        .post(token_url)
+        .basic_auth(client_id, Some(client_secret))
+        .form(&[
+            ("grant_type", "client_credentials"),
+            ("scope", "icdapi_access"),
+        ])
+        .send()
+        .await
+        .map_err(|error| AppError::Internal(format!("WHO ICD token request failed: {error}")))?;
+
+    if !response.status().is_success() {
+        return Err(AppError::Internal(format!(
+            "WHO ICD token endpoint returned status {}",
+            response.status()
+        )));
+    }
+
+    let payload = response
+        .json::<Value>()
+        .await
+        .map_err(|error| AppError::Internal(format!("WHO ICD token JSON failed: {error}")))?;
+    Ok(payload
+        .get("access_token")
+        .and_then(Value::as_str)
+        .map(str::to_owned))
+}
+
+fn who_icd_requires_auth(base_url: &str) -> bool {
+    if let Ok(mode) = std::env::var("WHO_ICD_AUTH_MODE") {
+        return !matches!(
+            mode.trim().to_lowercase().as_str(),
+            "none" | "local" | "disabled"
+        );
+    }
+    base_url.contains("id.who.int")
+}
+
+fn who_icd_provider_mode(base_url: &str) -> String {
+    if who_icd_requires_auth(base_url) {
+        "official_api_cloud".to_owned()
+    } else {
+        "official_api_local".to_owned()
+    }
+}
+
+fn is_likely_direct_icd11_code(value: &str) -> bool {
+    let code = value.trim().to_uppercase();
+    let chars = code.chars().collect::<Vec<_>>();
+    if chars.len() < 4 {
+        return false;
+    }
+    if !chars
+        .iter()
+        .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '.' | '&' | '-'))
+    {
+        return false;
+    }
+    let starts_like_icd = (chars[0].is_ascii_digit() && chars[1].is_ascii_alphabetic())
+        || (chars[0].is_ascii_alphabetic() && chars[1].is_ascii_alphabetic());
+    starts_like_icd && chars.iter().any(char::is_ascii_digit)
+}
+
+fn extension_codes_from_code_info(payload: &Value) -> Vec<String> {
+    let mut codes = Vec::new();
+    let Some(map) = payload.as_object() else {
+        return codes;
+    };
+    for (key, value) in map {
+        if matches!(
+            key.as_str(),
+            "@context" | "@id" | "code" | "stemCode" | "stemId"
+        ) {
+            continue;
+        }
+        match value {
+            Value::String(text) if is_likely_direct_icd11_code(text) => {
+                codes.push(text.to_uppercase());
+            }
+            Value::Array(values) => {
+                for nested in values {
+                    if let Some(text) = nested.as_str()
+                        && is_likely_direct_icd11_code(text)
+                    {
+                        codes.push(text.to_uppercase());
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    codes.sort();
+    codes.dedup();
+    codes
+}
+
+fn encode_path_segment(value: &str) -> String {
+    url::form_urlencoded::byte_serialize(value.as_bytes()).collect()
+}
+
+fn who_icd_entity_url(base_url: &str, source_url: &str) -> String {
+    source_url
+        .replacen("http://id.who.int", base_url.trim_end_matches('/'), 1)
+        .replacen("https://id.who.int", base_url.trim_end_matches('/'), 1)
+}
+
+fn parse_who_icd11_search_response(
+    payload: &Value,
+    release: &str,
+    provider_mode: &str,
+    limit: i64,
+) -> Vec<TerminologySearchResult> {
+    let Some(entities) = payload
+        .get("destinationEntities")
+        .or_else(|| payload.get("DestinationEntities"))
+        .and_then(Value::as_array)
+    else {
+        return Vec::new();
+    };
+
+    entities
+        .iter()
+        .filter_map(|entity| parse_who_icd11_entity(entity, release, provider_mode))
+        .take(usize::try_from(limit).unwrap_or(50))
+        .collect()
+}
+
+fn parse_who_icd11_entity(
+    entity: &Value,
+    release: &str,
+    provider_mode: &str,
+) -> Option<TerminologySearchResult> {
+    let code = value_text(entity.get("theCode"))
+        .or_else(|| value_text(entity.get("code")))
+        .or_else(|| last_uri_segment(entity.get("id").or_else(|| entity.get("@id"))?))?;
+    let display = value_text(entity.get("title"))
+        .or_else(|| value_text(entity.get("label")))
+        .or_else(|| value_text(entity.get("bestMatchText")))?;
+    let source_url = value_text(entity.get("id"))
+        .or_else(|| value_text(entity.get("@id")))
+        .or_else(|| value_text(entity.get("foundationUri")));
+
+    Some(TerminologySearchResult {
+        system: "icd11".to_owned(),
+        code,
+        display,
+        semantic_tag: None,
+        source: "WHO ICD-11 MMS".to_owned(),
+        source_url,
+        source_version: Some(release.to_owned()),
+        active: true,
+        provider_mode: provider_mode.to_owned(),
+        corpus_entry_id: None,
+    })
+}
+
+fn value_text(value: Option<&Value>) -> Option<String> {
+    match value? {
+        Value::String(text) => normalized_text(text),
+        Value::Object(map) => map
+            .get("@value")
+            .or_else(|| map.get("label"))
+            .or_else(|| map.get("title"))
+            .and_then(|nested| value_text(Some(nested))),
+        Value::Array(values) => values.iter().find_map(|nested| value_text(Some(nested))),
+        _ => None,
+    }
+}
+
+fn last_uri_segment(value: &Value) -> Option<String> {
+    let text = value_text(Some(value))?;
+    text.rsplit('/').next().and_then(normalized_text)
+}
+
+fn normalized_text(value: &str) -> Option<String> {
+    let cleaned = strip_html(value)
+        .replace("&nbsp;", " ")
+        .replace("&amp;", "&")
+        .replace("&lt;", "<")
+        .replace("&gt;", ">")
+        .trim()
+        .to_owned();
+    if cleaned.is_empty() {
+        None
+    } else {
+        Some(cleaned)
+    }
+}
+
+fn strip_html(value: &str) -> String {
+    let mut output = String::with_capacity(value.len());
+    let mut in_tag = false;
+    for ch in value.chars() {
+        match ch {
+            '<' => in_tag = true,
+            '>' => in_tag = false,
+            _ if !in_tag => output.push(ch),
+            _ => {}
+        }
+    }
+    output
+}
+
+async fn search_snomed_cache(
+    state: &AppState,
+    needle: &str,
+    semantic_tag: Option<&str>,
+    limit: i64,
+) -> Result<Vec<TerminologySearchResult>, AppError> {
+    let contains = format!("%{needle}%");
+    let starts = format!("{needle}%");
+
+    let rows = sqlx::query_as::<_, TerminologySearchResult>(
+        "SELECT \
+            'snomed'::text AS system, \
+            code, \
+            display_name AS display, \
+            semantic_tag, \
+            'SNOMED CT official release cache'::text AS source, \
+            $3::text AS source_url, \
+            NULL::text AS source_version, \
+            is_active AS active, \
+            'official_release_cache'::text AS provider_mode, \
+            NULL::uuid AS corpus_entry_id \
+         FROM snomed_codes \
+         WHERE is_active = true \
+           AND ($4::text IS NULL OR semantic_tag = $4) \
+           AND (code ILIKE $1 OR display_name ILIKE $1) \
+         ORDER BY CASE WHEN code ILIKE $2 THEN 0 ELSE 1 END, display_name ASC \
+         LIMIT $5",
+    )
+    .bind(&contains)
+    .bind(&starts)
+    .bind(SNOMED_DISTRIBUTION_URL)
+    .bind(semantic_tag)
+    .bind(limit)
+    .fetch_all(&state.db)
+    .await?;
+
+    Ok(rows)
+}
+
+async fn lookup_snomed_cache(
+    state: &AppState,
+    code: &str,
+) -> Result<Option<TerminologySearchResult>, AppError> {
+    let row = sqlx::query_as::<_, TerminologySearchResult>(
+        "SELECT \
+            'snomed'::text AS system, \
+            code, \
+            display_name AS display, \
+            semantic_tag, \
+            'SNOMED CT official release cache'::text AS source, \
+            $2::text AS source_url, \
+            NULL::text AS source_version, \
+            is_active AS active, \
+            'official_release_cache'::text AS provider_mode, \
+            NULL::uuid AS corpus_entry_id \
+         FROM snomed_codes \
+         WHERE is_active = true AND code = $1 \
+         LIMIT 1",
+    )
+    .bind(code)
+    .bind(SNOMED_DISTRIBUTION_URL)
+    .fetch_optional(&state.db)
+    .await?;
+
+    Ok(row)
+}

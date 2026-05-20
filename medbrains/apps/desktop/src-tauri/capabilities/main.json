@@ -3,6 +3,14 @@
   "identifier": "main-capability",
   "description": "Default capability for the main window — narrowly scoped, deny-by-default.",
   "windows": ["main"],
+  "remote": {
+    "urls": [
+      "http://localhost:5173/*",
+      "http://127.0.0.1:5173/*",
+      "https://medbrains.localhost/*",
+      "https://medbrains-desktop.localhost/*"
+    ]
+  },
   "permissions": [
     "core:default",
     "core:window:default",
@@ -46,14 +54,6 @@
     "updater:default",
     "process:default",
     "os:default",
-    "deep-link:default",
-
-    {
-      "identifier": "http:default",
-      "allow": [
-        { "url": "https://hims.amh.org.in/**" },
-        { "url": "https://*.razorpay.com/**" }
-      ]
-    }
+    "deep-link:default"
   ]
 }

@@ -1,10 +1,10 @@
 import { Badge, Combobox, Group, InputBase, Text, useCombobox } from "@mantine/core";
 import { useDebouncedValue } from "@mantine/hooks";
-import { api } from "@medbrains/api";
 import type { PatientVisitRow } from "@medbrains/types";
 import { IconStethoscope } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
+import { lookupsService } from "../services/lookups.service";
 
 interface EncounterSelectProps {
   value: string;
@@ -47,7 +47,7 @@ export function EncounterSelect({
     queryKey: ["encounter-search", patientId],
     queryFn: () => {
       if (!patientId) return Promise.resolve([]);
-      return api.listPatientVisits(patientId);
+      return lookupsService.listPatientVisits(patientId);
     },
     enabled: Boolean(patientId),
     staleTime: 30_000,

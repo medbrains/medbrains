@@ -1,10 +1,10 @@
 import { Accordion, Badge, Button, Group, Select, Stack, Text, TextInput } from "@mantine/core";
-import { api } from "@medbrains/api";
 import type { EventRegistryRow } from "@medbrains/types";
 import { IconPlus, IconSearch } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router";
+import { integrationService } from "../../services/integration.service";
 
 const PHASE_COLORS: Record<string, string> = {
   before: "yellow",
@@ -31,7 +31,10 @@ export function EventsTab() {
 
   const { data } = useQuery({
     queryKey: ["orchestration", "events", moduleFilter],
-    queryFn: () => api.listOrchestrationEvents(moduleFilter ? { module: moduleFilter } : undefined),
+    queryFn: () =>
+      integrationService.listOrchestrationEvents(
+        moduleFilter ? { module: moduleFilter } : undefined,
+      ),
   });
 
   const events = data?.events ?? [];

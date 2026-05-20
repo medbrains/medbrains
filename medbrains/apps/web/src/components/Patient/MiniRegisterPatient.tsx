@@ -1,10 +1,14 @@
+import { zodResolver } from "@hookform/resolvers/zod";
 import { Alert, Button, Checkbox, Group, Select, Stack, Text, TextInput } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
-import type { CreatePatientRequest, Gender, Patient } from "@medbrains/types";
+import type { GenderFormValue, MiniRegisterPatientFormInput } from "@medbrains/schemas";
+import { miniRegisterPatientFormSchema, toGenderFormValue } from "@medbrains/schemas";
+import type { Patient } from "@medbrains/types";
 import { IconAlertTriangle, IconCheck, IconUserPlus } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
+import { Controller, useForm } from "react-hook-form";
+import { type CreatePatientInput, patientsService } from "../../services/patients.service";
 
 interface MiniRegisterPatientProps {
   searchText: string;
@@ -12,7 +16,7 @@ interface MiniRegisterPatientProps {
   onCancel: () => void;
 }
 
-const genderOptions: { value: Gender; label: string }[] = [
+const genderOptions: { value: GenderFormValue; label: string }[] = [
   { value: "unknown", label: "Unknown" },
   { value: "male", label: "Male" },
   { value: "female", label: "Female" },
@@ -56,17 +60,31 @@ function errorMessage(error: unknown): string {
 export function MiniRegisterPatient({ searchText, onCreated, onCancel }: MiniRegisterPatientProps) {
   const initialName = useMemo(() => splitSearchText(searchText), [searchText]);
   const queryClient = useQueryClient();
-  const [firstName, setFirstName] = useState(initialName.firstName);
-  const [lastName, setLastName] = useState(initialName.lastName);
-  const [phone, setPhone] = useState("");
-  const [dateOfBirth, setDateOfBirth] = useState("");
-  const [gender, setGender] = useState<Gender>("unknown");
-  const [duplicateChecked, setDuplicateChecked] = useState(false);
+  const {
+    control,
+    handleSubmit,
+    setValue,
+    watch,
+    formState: { errors },
+  } = useForm<MiniRegisterPatientFormInput>({
+    resolver: zodResolver(miniRegisterPatientFormSchema),
+    defaultValues: {
+      first_name: initialName.firstName,
+      last_name: initialName.lastName,
+      phone: "",
+      date_of_birth: "",
+      gender: "unknown",
+      duplicate_checked: false,
+    },
+    mode: "onTouched",
+  });
+  const values = watch();
 
-  const duplicateTerm = phone.trim() || `${firstName.trim()} ${lastName.trim()}`.trim();
+  const duplicateTerm =
+    values.phone.trim() || `${values.first_name.trim()} ${values.last_name.trim()}`.trim();
   const { data: duplicateData, isFetching: isCheckingDuplicates } = useQuery({
     queryKey: ["patient-inline-duplicate-check", duplicateTerm],
-    queryFn: () => api.listPatients({ search: duplicateTerm, per_page: 5 }),
+    queryFn: () => patientsService.listPatients({ search: duplicateTerm, per_page: 5 }),
     enabled: duplicateTerm.length >= 3,
     staleTime: 30_000,
   });
@@ -74,12 +92,12 @@ export function MiniRegisterPatient({ searchText, onCreated, onCancel }: MiniReg
   const duplicateCandidates = duplicateData?.patients ?? [];
   const hasDuplicateCandidates = duplicateCandidates.length > 0;
   const canSubmit =
-    firstName.trim().length > 0 &&
-    lastName.trim().length > 0 &&
-    (!hasDuplicateCandidates || duplicateChecked);
+    values.first_name.trim().length > 0 &&
+    values.last_name.trim().length > 0 &&
+    (!hasDuplicateCandidates || values.duplicate_checked);
 
   const mutation = useMutation({
-    mutationFn: (payload: CreatePatientRequest) => api.createPatient(payload),
+    mutationFn: (payload: CreatePatientInput) => patientsService.createPatient(payload),
     onSuccess: (patient) => {
       queryClient.invalidateQueries({ queryKey: ["patient-search"] });
       notifications.show({
@@ -99,17 +117,17 @@ export function MiniRegisterPatient({ searchText, onCreated, onCancel }: MiniReg
     },
   });
 
-  const handleSubmit = () => {
+  const submitPatient = handleSubmit((formValues) => {
     if (!canSubmit) {
       return;
     }
 
     mutation.mutate({
-      first_name: firstName.trim(),
-      last_name: lastName.trim(),
-      phone: phone.trim(),
-      date_of_birth: dateOfBirth || null,
-      gender,
+      first_name: formValues.first_name.trim(),
+      last_name: formValues.last_name.trim(),
+      phone: formValues.phone.trim(),
+      date_of_birth: formValues.date_of_birth || null,
+      gender: formValues.gender,
       category: "general",
       registration_type: "new",
       registration_source: "walk_in",
@@ -119,7 +137,7 @@ export function MiniRegisterPatient({ searchText, onCreated, onCancel }: MiniReg
         inline_registration_query: searchText,
       },
     });
-  };
+  });
 
   return (
     <Stack gap="sm">
@@ -143,61 +161,100 @@ export function MiniRegisterPatient({ searchText, onCreated, onCancel }: MiniReg
                 {formatPatientLabel(patient)}
               </Text>
             ))}
-            <Checkbox
-              checked={duplicateChecked}
-              label="I checked these records and still need a new patient"
-              mt={4}
-              onChange={(event) => setDuplicateChecked(event.currentTarget.checked)}
+            <Controller
+              control={control}
+              name="duplicate_checked"
+              render={({ field }) => (
+                <Checkbox
+                  checked={field.value}
+                  label="I checked these records and still need a new patient"
+                  mt={4}
+                  onChange={(event) => field.onChange(event.currentTarget.checked)}
+                />
+              )}
             />
           </Stack>
         </Alert>
       )}
 
       <Group grow align="flex-start">
-        <TextInput
-          label="First name"
-          required
-          value={firstName}
-          onChange={(event) => {
-            setFirstName(event.currentTarget.value);
-            setDuplicateChecked(false);
-          }}
+        <Controller
+          control={control}
+          name="first_name"
+          render={({ field }) => (
+            <TextInput
+              label="First name"
+              required
+              value={field.value}
+              onChange={(event) => {
+                field.onChange(event);
+                setValue("duplicate_checked", false, { shouldValidate: true });
+              }}
+              error={errors.first_name?.message}
+            />
+          )}
         />
-        <TextInput
-          label="Last name / initial"
-          required
-          value={lastName}
-          onChange={(event) => {
-            setLastName(event.currentTarget.value);
-            setDuplicateChecked(false);
-          }}
+        <Controller
+          control={control}
+          name="last_name"
+          render={({ field }) => (
+            <TextInput
+              label="Last name / initial"
+              required
+              value={field.value}
+              onChange={(event) => {
+                field.onChange(event);
+                setValue("duplicate_checked", false, { shouldValidate: true });
+              }}
+              error={errors.last_name?.message}
+            />
+          )}
         />
       </Group>
 
       <Group grow align="flex-start">
-        <TextInput
-          label="Phone"
-          inputMode="tel"
-          value={phone}
-          onChange={(event) => {
-            setPhone(event.currentTarget.value);
-            setDuplicateChecked(false);
-          }}
+        <Controller
+          control={control}
+          name="phone"
+          render={({ field }) => (
+            <TextInput
+              label="Phone"
+              inputMode="tel"
+              value={field.value}
+              onChange={(event) => {
+                field.onChange(event);
+                setValue("duplicate_checked", false, { shouldValidate: true });
+              }}
+              error={errors.phone?.message}
+            />
+          )}
         />
-        <TextInput
-          label="Date of birth"
-          type="date"
-          value={dateOfBirth}
-          onChange={(event) => setDateOfBirth(event.currentTarget.value)}
+        <Controller
+          control={control}
+          name="date_of_birth"
+          render={({ field }) => (
+            <TextInput
+              label="Date of birth"
+              type="date"
+              value={field.value}
+              onChange={field.onChange}
+            />
+          )}
         />
       </Group>
 
-      <Select
-        allowDeselect={false}
-        data={genderOptions}
-        label="Gender"
-        value={gender}
-        onChange={(value) => setGender((value as Gender | null) ?? "unknown")}
+      <Controller
+        control={control}
+        name="gender"
+        render={({ field }) => (
+          <Select
+            allowDeselect={false}
+            data={genderOptions}
+            label="Gender"
+            value={field.value}
+            onChange={(value) => field.onChange(toGenderFormValue(value))}
+          />
+        )}
       />
 
       <Group justify="flex-end">
@@ -208,7 +265,7 @@ export function MiniRegisterPatient({ searchText, onCreated, onCancel }: MiniReg
           leftSection={<IconUserPlus size={16} />}
           loading={mutation.isPending}
           disabled={!canSubmit || isCheckingDuplicates}
-          onClick={handleSubmit}
+          onClick={() => void submitPatient()}
         >
           Register & select
         </Button>

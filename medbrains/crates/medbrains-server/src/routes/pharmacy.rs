@@ -107,6 +107,20 @@ pub struct MedicationSafetyWarning {
     pub detail: serde_json::Value,
 }
 
+#[derive(Debug, sqlx::FromRow)]
+struct PharmacyStockGate {
+    current_stock: i32,
+    batch_tracking_required: bool,
+    is_controlled: bool,
+}
+
+#[derive(Debug, sqlx::FromRow)]
+struct BatchDispenseTrace {
+    id: Uuid,
+    batch_number: String,
+    expiry_date: NaiveDate,
+}
+
 #[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum MedicationSafetySeverity {
@@ -1025,6 +1039,23 @@ pub async fn create_order_in_tx(
         ));
     }
 
+    if let Some(encounter_id) = body.encounter_id {
+        let encounter_patient_id = sqlx::query_scalar::<_, Uuid>(
+            "SELECT patient_id FROM encounters WHERE id = $1 AND tenant_id = $2",
+        )
+        .bind(encounter_id)
+        .bind(claims.tenant_id)
+        .fetch_optional(&mut **tx)
+        .await?
+        .ok_or(AppError::NotFound)?;
+
+        if encounter_patient_id != body.patient_id {
+            return Err(AppError::BadRequest(
+                "encounter does not belong to patient".to_owned(),
+            ));
+        }
+    }
+
     let safety_items = body
         .items
         .iter()
@@ -1165,9 +1196,148 @@ pub async fn create_order_in_tx(
     };
     crate::events::queue_clinical_event_in_tx(tx, &event).await?;
 
+    ensure_order_items_stock_available_for_billing_in_tx(tx, &claims.tenant_id, &items).await?;
     ensure_pharmacy_billing_indent_for_order_in_tx(tx, &claims.tenant_id, &order, &items).await?;
 
     Ok(OrderDetailResponse { order, items })
+}
+
+async fn fetch_pharmacy_stock_gate_in_tx(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: &Uuid,
+    catalog_id: Uuid,
+    drug_name: &str,
+) -> Result<PharmacyStockGate, AppError> {
+    sqlx::query_as::<_, PharmacyStockGate>(
+        "SELECT current_stock, batch_tracking_required, is_controlled \
+         FROM pharmacy_catalog \
+         WHERE id = $1 AND tenant_id = $2 AND is_active = true",
+    )
+    .bind(catalog_id)
+    .bind(tenant_id)
+    .fetch_optional(&mut **tx)
+    .await?
+    .ok_or_else(|| AppError::Conflict(format!("Map \"{drug_name}\" to an active formulary item")))
+}
+
+async fn ensure_order_items_stock_available_for_billing_in_tx(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: &Uuid,
+    items: &[PharmacyOrderItem],
+) -> Result<(), AppError> {
+    for item in items {
+        if item.quantity <= 0 {
+            return Err(AppError::BadRequest(
+                "Pharmacy quantity must be greater than zero".to_owned(),
+            ));
+        }
+
+        if let Some(catalog_id) = item.catalog_item_id {
+            let stock =
+                fetch_pharmacy_stock_gate_in_tx(tx, tenant_id, catalog_id, &item.drug_name).await?;
+            if stock.current_stock < item.quantity {
+                return Err(AppError::Conflict(format!(
+                    "Insufficient stock for {}: requested {}, available {}. Billing is blocked until stock is received or quantity is reduced.",
+                    item.drug_name, item.quantity, stock.current_stock
+                )));
+            }
+        }
+    }
+
+    Ok(())
+}
+
+async fn decrement_catalog_stock_for_dispense_in_tx(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: &Uuid,
+    catalog_id: Uuid,
+    quantity: i32,
+    drug_name: &str,
+) -> Result<(), AppError> {
+    let updated = sqlx::query(
+        "UPDATE pharmacy_catalog SET \
+         current_stock = current_stock - $1, updated_at = now() \
+         WHERE id = $2 AND tenant_id = $3 AND current_stock >= $1",
+    )
+    .bind(quantity)
+    .bind(catalog_id)
+    .bind(tenant_id)
+    .execute(&mut **tx)
+    .await?;
+
+    if updated.rows_affected() == 0 {
+        return Err(AppError::Conflict(format!(
+            "Insufficient stock for {drug_name}. Dispense was not posted."
+        )));
+    }
+
+    Ok(())
+}
+
+async fn decrement_batch_stock_for_dispense_in_tx(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: &Uuid,
+    catalog_id: Uuid,
+    batch_id: Uuid,
+    quantity: i32,
+    drug_name: &str,
+) -> Result<BatchDispenseTrace, AppError> {
+    sqlx::query_as::<_, BatchDispenseTrace>(
+        "UPDATE pharmacy_batches SET \
+         quantity_dispensed = quantity_dispensed + $1, \
+         quantity_on_hand = quantity_on_hand - $1, \
+         updated_at = now() \
+         WHERE id = $2 AND tenant_id = $3 AND catalog_item_id = $4 \
+           AND quantity_on_hand >= $1 \
+           AND expiry_date > CURRENT_DATE \
+           AND quarantine_status = 'cleared' \
+         RETURNING id, batch_number, expiry_date",
+    )
+    .bind(quantity)
+    .bind(batch_id)
+    .bind(tenant_id)
+    .bind(catalog_id)
+    .fetch_optional(&mut **tx)
+    .await?
+    .ok_or_else(|| {
+        AppError::Conflict(format!(
+            "Insufficient usable batch stock for {drug_name}. Select another non-expired cleared batch."
+        ))
+    })
+}
+
+async fn try_decrement_fefo_batch_stock_for_dispense_in_tx(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: &Uuid,
+    catalog_id: Uuid,
+    store_location_id: Option<Uuid>,
+    quantity: i32,
+) -> Result<Option<BatchDispenseTrace>, AppError> {
+    sqlx::query_as::<_, BatchDispenseTrace>(
+        "UPDATE pharmacy_batches SET \
+         quantity_dispensed = quantity_dispensed + $1, \
+         quantity_on_hand = quantity_on_hand - $1, \
+         updated_at = now() \
+         WHERE id = ( \
+           SELECT id FROM pharmacy_batches \
+           WHERE tenant_id = $2 AND catalog_item_id = $3 \
+             AND quantity_on_hand >= $1 \
+             AND expiry_date > CURRENT_DATE \
+             AND quarantine_status = 'cleared' \
+             AND ($4::uuid IS NULL OR store_location_id = $4) \
+           ORDER BY expiry_date ASC, created_at ASC, id ASC \
+           LIMIT 1 \
+           FOR UPDATE SKIP LOCKED \
+         ) \
+         RETURNING id, batch_number, expiry_date",
+    )
+    .bind(quantity)
+    .bind(tenant_id)
+    .bind(catalog_id)
+    .bind(store_location_id)
+    .fetch_optional(&mut **tx)
+    .await
+    .map_err(AppError::from)
 }
 
 async fn ensure_pharmacy_billing_indent_for_order_in_tx(
@@ -1608,22 +1778,20 @@ pub async fn dispense_order(
     enforce_schedule_compliance(&mut tx, &claims.tenant_id, id, body.witnessed_by).await?;
 
     let order = sqlx::query_as::<_, PharmacyOrder>(
-        "UPDATE pharmacy_orders SET status = 'dispensed', \
-         dispensed_by = $3, dispensed_at = now(), updated_at = now() \
+        "SELECT * FROM pharmacy_orders \
          WHERE id = $1 AND tenant_id = $2 AND status = 'ordered' \
-         RETURNING *",
+         FOR UPDATE",
     )
     .bind(id)
     .bind(claims.tenant_id)
-    .bind(claims.sub)
     .fetch_optional(&mut *tx)
     .await?
     .ok_or(AppError::NotFound)?;
 
-    // Deduct stock for each item
     let items = sqlx::query_as::<_, PharmacyOrderItem>(
         "SELECT * FROM pharmacy_order_items \
-         WHERE order_id = $1 AND tenant_id = $2 AND removed_at IS NULL",
+         WHERE order_id = $1 AND tenant_id = $2 AND removed_at IS NULL \
+         FOR UPDATE",
     )
     .bind(id)
     .bind(claims.tenant_id)
@@ -1640,30 +1808,96 @@ pub async fn dispense_order(
         .collect();
 
     for item in &items {
+        if item.quantity <= 0 {
+            return Err(AppError::BadRequest(
+                "Pharmacy quantity must be greater than zero".to_owned(),
+            ));
+        }
+
         if let Some(catalog_id) = item.catalog_item_id {
-            // Update batch info on order item if provided
-            if let Some(dispense_input) = batch_map.get(&item.id) {
-                if dispense_input.batch_number.is_some() || dispense_input.batch_stock_id.is_some()
-                {
+            let stock = fetch_pharmacy_stock_gate_in_tx(
+                &mut tx,
+                &claims.tenant_id,
+                catalog_id,
+                &item.drug_name,
+            )
+            .await?;
+            if stock.current_stock < item.quantity {
+                return Err(AppError::Conflict(format!(
+                    "Insufficient stock for {}: requested {}, available {}. Dispense was not posted.",
+                    item.drug_name, item.quantity, stock.current_stock
+                )));
+            }
+
+            let selected_batch_id = batch_map
+                .get(&item.id)
+                .and_then(|dispense_input| dispense_input.batch_stock_id)
+                .or(item.batch_stock_id);
+
+            let batch_trace = if let Some(batch_stock_id) = selected_batch_id {
+                Some(decrement_batch_stock_for_dispense_in_tx(
+                    &mut tx,
+                    &claims.tenant_id,
+                    catalog_id,
+                    batch_stock_id,
+                    item.quantity,
+                    &item.drug_name,
+                )
+                .await?)
+            } else {
+                let trace = try_decrement_fefo_batch_stock_for_dispense_in_tx(
+                    &mut tx,
+                    &claims.tenant_id,
+                    catalog_id,
+                    order.store_location_id,
+                    item.quantity,
+                )
+                .await?;
+                if trace.is_none() && stock.batch_tracking_required {
+                    return Err(AppError::Conflict(format!(
+                        "No usable FEFO batch is available for {}. Receive stock or select another cleared non-expired batch.",
+                        item.drug_name
+                    )));
+                }
+                trace
+            };
+
+            if let Some(trace) = batch_trace {
+                sqlx::query(
+                    "UPDATE pharmacy_order_items SET \
+                     batch_number = $1, batch_stock_id = $2, expiry_date = $3 \
+                     WHERE id = $4 AND tenant_id = $5",
+                )
+                .bind(&trace.batch_number)
+                .bind(trace.id)
+                .bind(trace.expiry_date)
+                .bind(item.id)
+                .bind(claims.tenant_id)
+                .execute(&mut *tx)
+                .await?;
+            } else if let Some(dispense_input) = batch_map.get(&item.id) {
+                if dispense_input.batch_number.is_some() {
                     sqlx::query(
                         "UPDATE pharmacy_order_items SET \
-                         batch_number = COALESCE($1, batch_number), \
-                         batch_stock_id = COALESCE($2, batch_stock_id), \
-                         expiry_date = COALESCE(\
-                             (SELECT expiry_date FROM pharmacy_batches \
-                              WHERE id = $2 AND tenant_id = $4), \
-                             expiry_date\
-                         ) \
-                         WHERE id = $3 AND tenant_id = $4",
+                         batch_number = COALESCE($1, batch_number) \
+                         WHERE id = $2 AND tenant_id = $3",
                     )
                     .bind(&dispense_input.batch_number)
-                    .bind(dispense_input.batch_stock_id)
                     .bind(item.id)
                     .bind(claims.tenant_id)
                     .execute(&mut *tx)
                     .await?;
                 }
             }
+
+            decrement_catalog_stock_for_dispense_in_tx(
+                &mut tx,
+                &claims.tenant_id,
+                catalog_id,
+                item.quantity,
+                &item.drug_name,
+            )
+            .await?;
 
             // Create stock transaction
             sqlx::query(
@@ -1680,47 +1914,7 @@ pub async fn dispense_order(
             .execute(&mut *tx)
             .await?;
 
-            // Decrement stock
-            sqlx::query(
-                "UPDATE pharmacy_catalog SET current_stock = current_stock - $1, \
-                 updated_at = now() \
-                 WHERE id = $2 AND tenant_id = $3",
-            )
-            .bind(item.quantity)
-            .bind(catalog_id)
-            .bind(claims.tenant_id)
-            .execute(&mut *tx)
-            .await?;
-
-            // Deduct from pharmacy_batches if batch tracking
-            if let Some(dispense_input) = batch_map.get(&item.id) {
-                if let Some(batch_stock_id) = dispense_input.batch_stock_id {
-                    sqlx::query(
-                        "UPDATE pharmacy_batches SET \
-                         quantity_dispensed = quantity_dispensed + $1, \
-                         quantity_on_hand = quantity_on_hand - $1, \
-                         updated_at = now() \
-                         WHERE id = $2 AND tenant_id = $3",
-                    )
-                    .bind(item.quantity)
-                    .bind(batch_stock_id)
-                    .bind(claims.tenant_id)
-                    .execute(&mut *tx)
-                    .await?;
-                }
-            }
-
-            // Auto-create NDPS register entry for controlled drugs
-            let is_controlled = sqlx::query_scalar::<_, bool>(
-                "SELECT is_controlled FROM pharmacy_catalog WHERE id = $1 AND tenant_id = $2",
-            )
-            .bind(catalog_id)
-            .bind(claims.tenant_id)
-            .fetch_optional(&mut *tx)
-            .await?
-            .unwrap_or(false);
-
-            if is_controlled {
+            if stock.is_controlled {
                 // Get current balance
                 let current_balance = sqlx::query_scalar::<_, Option<i64>>(
                     "SELECT SUM(CASE WHEN action IN ('receipt', 'adjustment') THEN quantity \
@@ -1753,6 +1947,19 @@ pub async fn dispense_order(
             }
         }
     }
+
+    let order = sqlx::query_as::<_, PharmacyOrder>(
+        "UPDATE pharmacy_orders SET status = 'dispensed', \
+         dispensed_by = $3, dispensed_at = now(), updated_at = now() \
+         WHERE id = $1 AND tenant_id = $2 AND status = 'ordered' \
+         RETURNING *",
+    )
+    .bind(id)
+    .bind(claims.tenant_id)
+    .bind(claims.sub)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
 
     let billed_items = sqlx::query_as::<_, PharmacyOrderItem>(
         "SELECT * FROM pharmacy_order_items \
@@ -3602,6 +3809,7 @@ pub async fn get_rx_detail(
              LIMIT 1
          ) pc ON true
          WHERE pi.prescription_id = $1 AND pi.tenant_id = $2
+           AND pi.item_status = 'active'
          ORDER BY pi.created_at",
     )
     .bind(rx.prescription_id)
@@ -3707,7 +3915,8 @@ pub async fn review_prescription(
         // Get prescription items
         let items = sqlx::query_as::<_, PrescriptionItemRow>(
             "SELECT id, drug_name, dosage, frequency, duration, route, catalog_item_id \
-             FROM prescription_items WHERE prescription_id = $1 AND tenant_id = $2",
+             FROM prescription_items \
+             WHERE prescription_id = $1 AND tenant_id = $2 AND item_status = 'active'",
         )
         .bind(rx.prescription_id)
         .bind(claims.tenant_id)
@@ -3826,6 +4035,12 @@ pub async fn review_prescription(
             order_items.push(order_item);
         }
 
+        ensure_order_items_stock_available_for_billing_in_tx(
+            &mut tx,
+            &claims.tenant_id,
+            &order_items,
+        )
+        .await?;
         ensure_pharmacy_billing_indent_for_order_in_tx(
             &mut tx,
             &claims.tenant_id,
@@ -4052,16 +4267,98 @@ pub async fn create_pos_sale(
 
     // Create sale items + order items + deduct stock
     for item in &body.items {
+        if item.quantity <= 0 {
+            return Err(AppError::BadRequest(
+                "POS quantity must be greater than zero".to_owned(),
+            ));
+        }
+
         let line_gst =
             Decimal::from(item.quantity) * item.selling_price * item.gst_rate / Decimal::from(100);
         let half_gst = line_gst / Decimal::from(2);
         let line_total = Decimal::from(item.quantity) * item.selling_price + line_gst;
 
+        let batch_trace = if let Some(catalog_id) = item.catalog_item_id {
+            let stock =
+                fetch_pharmacy_stock_gate_in_tx(&mut tx, &claims.tenant_id, catalog_id, &item.drug_name)
+                    .await?;
+            if stock.current_stock < item.quantity {
+                return Err(AppError::Conflict(format!(
+                    "Insufficient stock for {}: requested {}, available {}. POS sale was not posted.",
+                    item.drug_name, item.quantity, stock.current_stock
+                )));
+            }
+
+            let trace = if let Some(batch_id) = item.batch_id {
+                Some(
+                    decrement_batch_stock_for_dispense_in_tx(
+                        &mut tx,
+                        &claims.tenant_id,
+                        catalog_id,
+                        batch_id,
+                        item.quantity,
+                        &item.drug_name,
+                    )
+                    .await?,
+                )
+            } else {
+                let trace = try_decrement_fefo_batch_stock_for_dispense_in_tx(
+                    &mut tx,
+                    &claims.tenant_id,
+                    catalog_id,
+                    body.store_location_id,
+                    item.quantity,
+                )
+                .await?;
+                if trace.is_none() && stock.batch_tracking_required {
+                    return Err(AppError::Conflict(format!(
+                        "No usable FEFO batch is available for {}. Receive stock or select another cleared non-expired batch.",
+                        item.drug_name
+                    )));
+                }
+                trace
+            };
+
+            decrement_catalog_stock_for_dispense_in_tx(
+                &mut tx,
+                &claims.tenant_id,
+                catalog_id,
+                item.quantity,
+                &item.drug_name,
+            )
+            .await?;
+
+            sqlx::query(
+                "INSERT INTO pharmacy_stock_transactions \
+                 (tenant_id, catalog_item_id, transaction_type, quantity, reference_id, notes, created_by) \
+                 VALUES ($1, $2, 'issue', $3, $4, $5, $6)",
+            )
+            .bind(claims.tenant_id)
+            .bind(catalog_id)
+            .bind(item.quantity)
+            .bind(order.id)
+            .bind("POS sale")
+            .bind(claims.sub)
+            .execute(&mut *tx)
+            .await?;
+
+            trace
+        } else {
+            None
+        };
+
+        let batch_id = batch_trace.as_ref().map(|trace| trace.id).or(item.batch_id);
+        let batch_number = batch_trace
+            .as_ref()
+            .map(|trace| trace.batch_number.clone())
+            .or_else(|| item.batch_number.clone());
+
         // Order item for stock tracking
         sqlx::query(
             "INSERT INTO pharmacy_order_items
-             (tenant_id, order_id, catalog_item_id, drug_name, quantity, unit_price, total_price)
-             VALUES ($1, $2, $3, $4, $5, $6, $7)",
+             (tenant_id, order_id, catalog_item_id, drug_name, quantity, unit_price, total_price,
+              batch_stock_id, batch_number, expiry_date)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)",
         )
         .bind(claims.tenant_id)
         .bind(order.id)
@@ -4070,6 +4367,9 @@ pub async fn create_pos_sale(
         .bind(item.quantity)
         .bind(item.selling_price)
         .bind(line_total)
+        .bind(batch_id)
+        .bind(&batch_number)
+        .bind(batch_trace.as_ref().map(|trace| trace.expiry_date))
         .execute(&mut *tx)
         .await?;
 
@@ -4085,8 +4385,8 @@ pub async fn create_pos_sale(
         .bind(sale.id)
         .bind(item.catalog_item_id)
         .bind(&item.drug_name)
-        .bind(item.batch_id)
-        .bind(&item.batch_number)
+        .bind(batch_id)
+        .bind(&batch_number)
         .bind(&item.hsn_code)
         .bind(item.quantity)
         .bind(item.mrp)
@@ -4097,26 +4397,6 @@ pub async fn create_pos_sale(
         .bind(line_total)
         .execute(&mut *tx)
         .await?;
-
-        // Deduct stock
-        if let Some(cid) = item.catalog_item_id {
-            sqlx::query(
-                "UPDATE pharmacy_catalog SET current_stock = current_stock - $1 WHERE id = $2",
-            )
-            .bind(item.quantity)
-            .bind(cid)
-            .execute(&mut *tx)
-            .await?;
-        }
-        if let Some(bid) = item.batch_id {
-            sqlx::query(
-                "UPDATE pharmacy_batches SET quantity_on_hand = quantity_on_hand - $1, quantity_dispensed = quantity_dispensed + $1 WHERE id = $2",
-            )
-            .bind(item.quantity)
-            .bind(bid)
-            .execute(&mut *tx)
-            .await?;
-        }
     }
 
     tx.commit().await?;

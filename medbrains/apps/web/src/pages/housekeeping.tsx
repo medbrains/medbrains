@@ -1,3 +1,4 @@
+import { zodResolver } from "@hookform/resolvers/zod";
 import {
   ActionIcon,
   Alert,
@@ -21,7 +22,10 @@ import {
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
+import {
+  type BmwTransportManifestFormInput,
+  bmwTransportManifestFormSchema,
+} from "@medbrains/schemas";
 import { useHasPermission } from "@medbrains/stores";
 import type {
   BiowasteRecord,
@@ -69,8 +73,13 @@ import {
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { Controller, useForm } from "react-hook-form";
 import { DataTable, PageHeader } from "../components";
 import { useRequirePermission } from "../hooks/useRequirePermission";
+import {
+  type CreateBiowasteRecordInput,
+  housekeepingService,
+} from "../services/housekeeping.service";
 
 // ── Constants ──────────────────────────────────────────
 
@@ -323,16 +332,16 @@ function RoomBedTab({
 
   const tasksQ = useQuery({
     queryKey: ["housekeeping", "tasks"],
-    queryFn: () => api.listCleaningTasks(),
+    queryFn: () => housekeepingService.listCleaningTasks(),
   });
   const turnaroundsQ = useQuery({
     queryKey: ["housekeeping", "turnarounds"],
-    queryFn: () => api.listTurnarounds(),
+    queryFn: () => housekeepingService.listTurnarounds(),
     enabled: canListTurnaround,
   });
 
   const createTaskM = useMutation({
-    mutationFn: (data: CreateCleaningTaskRequest) => api.createCleaningTask(data),
+    mutationFn: (data: CreateCleaningTaskRequest) => housekeepingService.createCleaningTask(data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["housekeeping", "tasks"] });
       taskDrawerH.close();
@@ -346,14 +355,14 @@ function RoomBedTab({
 
   const updateStatusM = useMutation({
     mutationFn: ({ id, status }: { id: string; status: string }) =>
-      api.updateCleaningTaskStatus(id, { status }),
+      housekeepingService.updateCleaningTaskStatus(id, { status }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["housekeeping", "tasks"] });
     },
   });
 
   const verifyM = useMutation({
-    mutationFn: (id: string) => api.verifyCleaningTask(id),
+    mutationFn: (id: string) => housekeepingService.verifyCleaningTask(id),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["housekeeping", "tasks"] });
       notifications.show({ title: "Verified", message: "Task verified", color: "teal" });
@@ -361,7 +370,7 @@ function RoomBedTab({
   });
 
   const createTurnaroundM = useMutation({
-    mutationFn: (data: CreateTurnaroundRequest) => api.createTurnaround(data),
+    mutationFn: (data: CreateTurnaroundRequest) => housekeepingService.createTurnaround(data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["housekeeping", "turnarounds"] });
       turnaroundDrawerH.close();
@@ -369,7 +378,7 @@ function RoomBedTab({
   });
 
   const completeTurnaroundM = useMutation({
-    mutationFn: (id: string) => api.completeTurnaround(id),
+    mutationFn: (id: string) => housekeepingService.completeTurnaround(id),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["housekeeping", "turnarounds"] });
       notifications.show({
@@ -634,21 +643,22 @@ function SchedulesTab({
 
   const schedulesQ = useQuery({
     queryKey: ["housekeeping", "schedules"],
-    queryFn: () => api.listCleaningSchedules(),
+    queryFn: () => housekeepingService.listCleaningSchedules(),
   });
   const pestSchedulesQ = useQuery({
     queryKey: ["housekeeping", "pest-schedules"],
-    queryFn: () => api.listPestControlSchedules(),
+    queryFn: () => housekeepingService.listPestControlSchedules(),
     enabled: canListPest,
   });
   const pestLogsQ = useQuery({
     queryKey: ["housekeeping", "pest-logs"],
-    queryFn: () => api.listPestControlLogs(),
+    queryFn: () => housekeepingService.listPestControlLogs(),
     enabled: canListPest,
   });
 
   const createSchedM = useMutation({
-    mutationFn: (data: CreateCleaningScheduleRequest) => api.createCleaningSchedule(data),
+    mutationFn: (data: CreateCleaningScheduleRequest) =>
+      housekeepingService.createCleaningSchedule(data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["housekeeping", "schedules"] });
       schedDrawerH.close();
@@ -661,7 +671,8 @@ function SchedulesTab({
   });
 
   const createPestM = useMutation({
-    mutationFn: (data: CreatePestControlScheduleRequest) => api.createPestControlSchedule(data),
+    mutationFn: (data: CreatePestControlScheduleRequest) =>
+      housekeepingService.createPestControlSchedule(data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["housekeeping", "pest-schedules"] });
       pestDrawerH.close();
@@ -669,7 +680,8 @@ function SchedulesTab({
   });
 
   const createPestLogM = useMutation({
-    mutationFn: (data: CreatePestControlLogRequest) => api.createPestControlLog(data),
+    mutationFn: (data: CreatePestControlLogRequest) =>
+      housekeepingService.createPestControlLog(data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["housekeeping", "pest-logs"] });
       pestLogDrawerH.close();
@@ -964,22 +976,22 @@ function LinenTab({
 
   const linenQ = useQuery({
     queryKey: ["housekeeping", "linen"],
-    queryFn: () => api.listLinenItems(),
+    queryFn: () => housekeepingService.listLinenItems(),
     enabled: canList,
   });
   const movementsQ = useQuery({
     queryKey: ["housekeeping", "movements"],
-    queryFn: () => api.listLinenMovements(),
+    queryFn: () => housekeepingService.listLinenMovements(),
     enabled: canList,
   });
   const batchesQ = useQuery({
     queryKey: ["housekeeping", "batches"],
-    queryFn: () => api.listLaundryBatches(),
+    queryFn: () => housekeepingService.listLaundryBatches(),
     enabled: canListLaundry,
   });
 
   const createLinenM = useMutation({
-    mutationFn: (data: CreateLinenItemRequest) => api.createLinenItem(data),
+    mutationFn: (data: CreateLinenItemRequest) => housekeepingService.createLinenItem(data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["housekeeping", "linen"] });
       linenDrawerH.close();
@@ -988,7 +1000,7 @@ function LinenTab({
   });
 
   const createMovementM = useMutation({
-    mutationFn: (data: CreateLinenMovementRequest) => api.createLinenMovement(data),
+    mutationFn: (data: CreateLinenMovementRequest) => housekeepingService.createLinenMovement(data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["housekeeping", "movements"] });
       movementDrawerH.close();
@@ -996,7 +1008,7 @@ function LinenTab({
   });
 
   const createBatchM = useMutation({
-    mutationFn: (data: CreateLaundryBatchRequest) => api.createLaundryBatch(data),
+    mutationFn: (data: CreateLaundryBatchRequest) => housekeepingService.createLaundryBatch(data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["housekeeping", "batches"] });
       batchDrawerH.close();
@@ -1004,7 +1016,7 @@ function LinenTab({
   });
 
   const completeBatchM = useMutation({
-    mutationFn: (id: string) => api.completeLaundryBatch(id),
+    mutationFn: (id: string) => housekeepingService.completeLaundryBatch(id),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["housekeeping", "batches"] });
       notifications.show({
@@ -1439,17 +1451,17 @@ function ParAuditTab({ canList, canManage }: { canList: boolean; canManage: bool
 
   const parQ = useQuery({
     queryKey: ["housekeeping", "par-levels"],
-    queryFn: () => api.listParLevels(),
+    queryFn: () => housekeepingService.listParLevels(),
     enabled: canList,
   });
   const condemnQ = useQuery({
     queryKey: ["housekeeping", "condemnations"],
-    queryFn: () => api.listLinenCondemnations(),
+    queryFn: () => housekeepingService.listLinenCondemnations(),
     enabled: canList,
   });
 
   const upsertParM = useMutation({
-    mutationFn: (data: UpsertParLevelRequest) => api.upsertParLevel(data),
+    mutationFn: (data: UpsertParLevelRequest) => housekeepingService.upsertParLevel(data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["housekeeping", "par-levels"] });
       parDrawerH.close();
@@ -1586,18 +1598,50 @@ function ParAuditTab({ canList, canManage }: { canList: boolean; canManage: bool
 //  Tab 5: Biomedical Waste (BMW)
 // ══════════════════════════════════════════════════════════
 
-interface TransportManifestForm {
-  department_id: string;
-  waste_category: WasteCategoryType;
-  weight_kg: number;
-  record_date: string;
-  container_count: number;
-  disposal_vendor: string;
-  manifest_number: string;
-  vehicle_number: string;
-  driver_name: string;
-  handover_person: string;
-  notes: string;
+function todayIsoDate(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function createEmptyBmwManifestForm(): BmwTransportManifestFormInput {
+  return {
+    department_id: "",
+    waste_category: "yellow",
+    weight_kg: 0,
+    record_date: todayIsoDate(),
+    container_count: 1,
+    disposal_vendor: "",
+    manifest_number: `BMW-${Date.now()}`,
+    vehicle_number: "",
+    driver_name: "",
+    handover_person: "",
+    notes: "",
+  };
+}
+
+function formNumber(value: string | number): number {
+  return typeof value === "number" ? value : Number(value);
+}
+
+function bmwManifestToPayload(form: BmwTransportManifestFormInput): CreateBiowasteRecordInput {
+  const notesWithTransport = [
+    form.notes,
+    `Vehicle: ${form.vehicle_number}`,
+    `Driver: ${form.driver_name}`,
+    `Handover: ${form.handover_person}`,
+  ]
+    .filter(Boolean)
+    .join(" | ");
+
+  return {
+    department_id: form.department_id.trim(),
+    waste_category: form.waste_category,
+    weight_kg: formNumber(form.weight_kg),
+    record_date: form.record_date,
+    container_count: formNumber(form.container_count),
+    disposal_vendor: form.disposal_vendor.trim(),
+    manifest_number: form.manifest_number.trim(),
+    notes: notesWithTransport,
+  };
 }
 
 function BmwTab({ canCreate }: { canCreate: boolean }) {
@@ -1614,27 +1658,26 @@ function BmwTab({ canCreate }: { canCreate: boolean }) {
     container_type: "",
     notes: "",
   });
-  const [manifestForm, setManifestForm] = useState<TransportManifestForm>({
-    department_id: "",
-    waste_category: "yellow",
-    weight_kg: 0,
-    record_date: new Date().toISOString().slice(0, 10),
-    container_count: 1,
-    disposal_vendor: "",
-    manifest_number: `BMW-${Date.now()}`,
-    vehicle_number: "",
-    driver_name: "",
-    handover_person: "",
-    notes: "",
+  const {
+    control: manifestControl,
+    formState: { errors: manifestErrors },
+    handleSubmit: handleManifestSubmit,
+    register: registerManifest,
+    reset: resetManifest,
+  } = useForm<BmwTransportManifestFormInput>({
+    resolver: zodResolver(bmwTransportManifestFormSchema),
+    defaultValues: createEmptyBmwManifestForm(),
   });
 
   const biowasteQ = useQuery({
     queryKey: ["housekeeping", "biowaste", catFilter],
-    queryFn: () => api.listBiowasteRecords({ waste_category: catFilter ?? undefined }),
+    queryFn: () =>
+      housekeepingService.listBiowasteRecords({ waste_category: catFilter ?? undefined }),
   });
 
   const createBiowasteMut = useMutation({
-    mutationFn: (data: CreateBiowasteRecordRequest) => api.createBiowasteRecord(data),
+    mutationFn: (data: CreateBiowasteRecordRequest) =>
+      housekeepingService.createBiowasteRecord(data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["housekeeping", "biowaste"] });
       void qc.invalidateQueries({ queryKey: ["housekeeping", "bmw-schedule"] });
@@ -1644,29 +1687,17 @@ function BmwTab({ canCreate }: { canCreate: boolean }) {
         message: "BMW record and NABH evidence updated",
         color: "success",
       });
-      setManifestForm({
-        department_id: "",
-        waste_category: "yellow",
-        weight_kg: 0,
-        record_date: new Date().toISOString().slice(0, 10),
-        container_count: 1,
-        disposal_vendor: "",
-        manifest_number: `BMW-${Date.now()}`,
-        vehicle_number: "",
-        driver_name: "",
-        handover_person: "",
-        notes: "",
-      });
+      resetManifest(createEmptyBmwManifestForm());
     },
   });
 
   const bmwScheduleQ = useQuery({
     queryKey: ["housekeeping", "bmw-schedule"],
-    queryFn: () => api.getBmwSchedule(),
+    queryFn: () => housekeepingService.getBmwSchedule(),
   });
 
   const sharpReplacementMut = useMutation({
-    mutationFn: (data: SharpReplacementRequest) => api.createSharpReplacement(data),
+    mutationFn: (data: SharpReplacementRequest) => housekeepingService.createSharpReplacement(data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["housekeeping", "bmw-schedule"] });
       sharpModalH.close();
@@ -1691,27 +1722,19 @@ function BmwTab({ canCreate }: { canCreate: boolean }) {
     return { cat, meta, count: catRecords.length, totalWeight, totalContainers, hasManifest };
   });
 
-  const handleSubmitManifest = () => {
-    const notesWithTransport = [
-      manifestForm.notes,
-      `Vehicle: ${manifestForm.vehicle_number}`,
-      `Driver: ${manifestForm.driver_name}`,
-      `Handover: ${manifestForm.handover_person}`,
-    ]
-      .filter(Boolean)
-      .join(" | ");
-
-    createBiowasteMut.mutate({
-      department_id: manifestForm.department_id,
-      waste_category: manifestForm.waste_category,
-      weight_kg: manifestForm.weight_kg,
-      record_date: manifestForm.record_date,
-      container_count: manifestForm.container_count,
-      disposal_vendor: manifestForm.disposal_vendor,
-      manifest_number: manifestForm.manifest_number,
-      notes: notesWithTransport,
-    });
+  const openManifestDrawer = () => {
+    resetManifest(createEmptyBmwManifestForm());
+    manifestDrawerH.open();
   };
+
+  const closeManifestDrawer = () => {
+    resetManifest(createEmptyBmwManifestForm());
+    manifestDrawerH.close();
+  };
+
+  const submitManifest = handleManifestSubmit((values) => {
+    createBiowasteMut.mutate(bmwManifestToPayload(values));
+  });
 
   return (
     <Stack gap="lg">
@@ -1804,7 +1827,7 @@ function BmwTab({ canCreate }: { canCreate: boolean }) {
           />
         </Group>
         {canCreate && (
-          <Button leftSection={<IconTruck size={16} />} size="xs" onClick={manifestDrawerH.open}>
+          <Button leftSection={<IconTruck size={16} />} size="xs" onClick={openManifestDrawer}>
             Transport Manifest
           </Button>
         )}
@@ -2010,12 +2033,12 @@ function BmwTab({ canCreate }: { canCreate: boolean }) {
       {/* Transport Manifest Drawer */}
       <Drawer
         opened={manifestDrawer}
-        onClose={manifestDrawerH.close}
+        onClose={closeManifestDrawer}
         title="BMW Transport Manifest"
         position="right"
         size="lg"
       >
-        <Stack>
+        <Stack component="form" onSubmit={submitManifest}>
           <Alert
             icon={<IconTruck size={16} />}
             color="primary"
@@ -2027,91 +2050,107 @@ function BmwTab({ canCreate }: { canCreate: boolean }) {
           </Alert>
           <TextInput
             label="Manifest Number"
-            value={manifestForm.manifest_number}
-            onChange={(e) => setManifestForm({ ...manifestForm, manifest_number: e.target.value })}
+            error={manifestErrors.manifest_number?.message}
+            {...registerManifest("manifest_number")}
             required
           />
           <TextInput
             label="Department ID"
-            value={manifestForm.department_id}
-            onChange={(e) => setManifestForm({ ...manifestForm, department_id: e.target.value })}
+            error={manifestErrors.department_id?.message}
+            {...registerManifest("department_id")}
             required
             placeholder="Source department"
           />
-          <Select
-            label="Waste Category"
-            data={BMW_CATEGORIES.map((c) => ({
-              value: c,
-              label: `${BMW_CATEGORY_META[c].label} - ${BMW_CATEGORY_META[c].description}`,
-            }))}
-            value={manifestForm.waste_category}
-            onChange={(v) =>
-              setManifestForm({
-                ...manifestForm,
-                waste_category: (v ?? "yellow") as WasteCategoryType,
-              })
-            }
-            required
+          <Controller
+            name="waste_category"
+            control={manifestControl}
+            render={({ field }) => (
+              <Select
+                label="Waste Category"
+                data={BMW_CATEGORIES.map((c) => ({
+                  value: c,
+                  label: `${BMW_CATEGORY_META[c].label} - ${BMW_CATEGORY_META[c].description}`,
+                }))}
+                value={field.value}
+                onChange={field.onChange}
+                error={manifestErrors.waste_category?.message}
+                required
+              />
+            )}
           />
           <Group grow>
-            <NumberInput
-              label="Weight (kg)"
-              value={manifestForm.weight_kg}
-              onChange={(v) => setManifestForm({ ...manifestForm, weight_kg: Number(v) })}
-              decimalScale={3}
-              min={0}
-              required
+            <Controller
+              name="weight_kg"
+              control={manifestControl}
+              render={({ field }) => (
+                <NumberInput
+                  label="Weight (kg)"
+                  value={field.value}
+                  onChange={field.onChange}
+                  error={manifestErrors.weight_kg?.message}
+                  decimalScale={3}
+                  min={0}
+                  required
+                />
+              )}
             />
-            <NumberInput
-              label="Container Count"
-              value={manifestForm.container_count}
-              onChange={(v) => setManifestForm({ ...manifestForm, container_count: Number(v) })}
-              min={1}
-              required
+            <Controller
+              name="container_count"
+              control={manifestControl}
+              render={({ field }) => (
+                <NumberInput
+                  label="Container Count"
+                  value={field.value}
+                  onChange={field.onChange}
+                  error={manifestErrors.container_count?.message}
+                  min={1}
+                  required
+                />
+              )}
             />
           </Group>
           <TextInput
             label="Pickup Date"
             type="date"
-            value={manifestForm.record_date}
-            onChange={(e) => setManifestForm({ ...manifestForm, record_date: e.target.value })}
+            error={manifestErrors.record_date?.message}
+            {...registerManifest("record_date")}
             required
           />
           <TextInput
             label="Vehicle Number"
-            value={manifestForm.vehicle_number}
-            onChange={(e) => setManifestForm({ ...manifestForm, vehicle_number: e.target.value })}
+            error={manifestErrors.vehicle_number?.message}
+            {...registerManifest("vehicle_number")}
             placeholder="e.g. KA-01-AB-1234"
             required
           />
           <TextInput
             label="Driver Name"
-            value={manifestForm.driver_name}
-            onChange={(e) => setManifestForm({ ...manifestForm, driver_name: e.target.value })}
+            error={manifestErrors.driver_name?.message}
+            {...registerManifest("driver_name")}
             required
           />
           <TextInput
             label="Disposal Vendor / CBWTF"
-            value={manifestForm.disposal_vendor}
-            onChange={(e) => setManifestForm({ ...manifestForm, disposal_vendor: e.target.value })}
+            error={manifestErrors.disposal_vendor?.message}
+            {...registerManifest("disposal_vendor")}
             placeholder="Common Bio-Medical Waste Treatment Facility"
             required
           />
           <TextInput
             label="Handover Person"
-            value={manifestForm.handover_person}
-            onChange={(e) => setManifestForm({ ...manifestForm, handover_person: e.target.value })}
+            error={manifestErrors.handover_person?.message}
+            {...registerManifest("handover_person")}
             placeholder="Person handing over waste"
             required
           />
           <Textarea
             label="Notes"
-            value={manifestForm.notes}
-            onChange={(e) => setManifestForm({ ...manifestForm, notes: e.target.value })}
+            error={manifestErrors.notes?.message}
+            {...registerManifest("notes")}
             placeholder="Additional transport notes"
           />
           <Button
-            onClick={handleSubmitManifest}
+            type="submit"
             loading={createBiowasteMut.isPending}
             leftSection={<IconTruck size={16} />}
           >

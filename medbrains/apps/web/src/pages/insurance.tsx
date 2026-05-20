@@ -19,7 +19,6 @@ import {
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
 import { useHasPermission } from "@medbrains/stores";
 import type {
   CreateAppealRequest,
@@ -52,6 +51,7 @@ import { useState } from "react";
 import { DataTable, PageHeader } from "../components";
 import { PatientNameCell } from "../components/PatientNameCell";
 import { useRequirePermission } from "../hooks/useRequirePermission";
+import { insuranceService } from "../services/insurance.service";
 
 // ── Color maps ─────────────────────────────────────────
 
@@ -145,7 +145,7 @@ function VerificationTab() {
 
   const { data = [], isLoading } = useQuery({
     queryKey: ["insurance-verifications", filterStatus],
-    queryFn: () => api.listVerifications({ status: filterStatus ?? undefined }),
+    queryFn: () => insuranceService.listVerifications({ status: filterStatus ?? undefined }),
   });
 
   const [form, setForm] = useState<RunVerificationRequest>({
@@ -155,7 +155,7 @@ function VerificationTab() {
   });
 
   const runMut = useMutation({
-    mutationFn: (d: RunVerificationRequest) => api.runVerification(d),
+    mutationFn: (d: RunVerificationRequest) => insuranceService.runVerification(d),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["insurance-verifications"] });
       notifications.show({
@@ -413,12 +413,12 @@ function PriorAuthTab() {
 
   const { data = [], isLoading } = useQuery({
     queryKey: ["insurance-prior-auths", filterStatus],
-    queryFn: () => api.listPriorAuths({ status: filterStatus ?? undefined }),
+    queryFn: () => insuranceService.listPriorAuths({ status: filterStatus ?? undefined }),
   });
 
   const detailQuery = useQuery({
     queryKey: ["insurance-prior-auth-detail", detailId],
-    queryFn: () => api.getPriorAuth(detailId!),
+    queryFn: () => (detailId ? insuranceService.getPriorAuth(detailId) : undefined),
     enabled: !!detailId,
   });
 
@@ -429,7 +429,7 @@ function PriorAuthTab() {
   });
 
   const createMut = useMutation({
-    mutationFn: (d: CreatePriorAuthRequestBody) => api.createPriorAuth(d),
+    mutationFn: (d: CreatePriorAuthRequestBody) => insuranceService.createPriorAuth(d),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["insurance-prior-auths"] });
       notifications.show({
@@ -444,7 +444,7 @@ function PriorAuthTab() {
   });
 
   const submitMut = useMutation({
-    mutationFn: (id: string) => api.submitPriorAuth(id),
+    mutationFn: (id: string) => insuranceService.submitPriorAuth(id),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["insurance-prior-auths"] });
       void qc.invalidateQueries({ queryKey: ["insurance-prior-auth-detail"] });
@@ -459,7 +459,7 @@ function PriorAuthTab() {
   });
 
   const cancelMut = useMutation({
-    mutationFn: (id: string) => api.cancelPriorAuth(id),
+    mutationFn: (id: string) => insuranceService.cancelPriorAuth(id),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["insurance-prior-auths"] });
       void qc.invalidateQueries({ queryKey: ["insurance-prior-auth-detail"] });
@@ -473,7 +473,7 @@ function PriorAuthTab() {
 
   const respondMut = useMutation({
     mutationFn: (d: { id: string; body: RespondPriorAuthRequest }) =>
-      api.respondPriorAuth(d.id, d.body),
+      insuranceService.respondPriorAuth(d.id, d.body),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["insurance-prior-auths"] });
       void qc.invalidateQueries({ queryKey: ["insurance-prior-auth-detail"] });
@@ -954,7 +954,7 @@ function AppealsTab() {
 
   const { data = [], isLoading } = useQuery({
     queryKey: ["insurance-appeals", filterStatus],
-    queryFn: () => api.listAppeals({ status: filterStatus ?? undefined }),
+    queryFn: () => insuranceService.listAppeals({ status: filterStatus ?? undefined }),
   });
 
   const [form, setForm] = useState<CreateAppealRequest>({
@@ -962,7 +962,7 @@ function AppealsTab() {
   });
 
   const createMut = useMutation({
-    mutationFn: (d: CreateAppealRequest) => api.createAppeal(d),
+    mutationFn: (d: CreateAppealRequest) => insuranceService.createAppeal(d),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["insurance-appeals"] });
       notifications.show({ title: "Appeal", message: "Created successfully", color: "success" });
@@ -973,7 +973,8 @@ function AppealsTab() {
   });
 
   const updateMut = useMutation({
-    mutationFn: (d: { id: string; body: UpdateAppealRequest }) => api.updateAppeal(d.id, d.body),
+    mutationFn: (d: { id: string; body: UpdateAppealRequest }) =>
+      insuranceService.updateAppeal(d.id, d.body),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["insurance-appeals"] });
       notifications.show({ title: "Appeal", message: "Updated", color: "success" });
@@ -1138,13 +1139,13 @@ function RulesTab() {
 
   const { data = [], isLoading } = useQuery({
     queryKey: ["insurance-rules"],
-    queryFn: () => api.listPaRules(),
+    queryFn: () => insuranceService.listPaRules(),
   });
 
   const [form, setForm] = useState<CreatePaRuleRequest>({ rule_name: "" });
 
   const createMut = useMutation({
-    mutationFn: (d: CreatePaRuleRequest) => api.createPaRule(d),
+    mutationFn: (d: CreatePaRuleRequest) => insuranceService.createPaRule(d),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["insurance-rules"] });
       notifications.show({ title: "PA Rule", message: "Created", color: "success" });
@@ -1156,7 +1157,7 @@ function RulesTab() {
 
   const toggleMut = useMutation({
     mutationFn: (d: { id: string; is_active: boolean }) =>
-      api.updatePaRule(d.id, { is_active: d.is_active }),
+      insuranceService.updatePaRule(d.id, { is_active: d.is_active }),
     onSuccess: () => void qc.invalidateQueries({ queryKey: ["insurance-rules"] }),
   });
 
@@ -1340,7 +1341,7 @@ function DashboardTab() {
   const canView = useHasPermission(P.INSURANCE.DASHBOARD_VIEW);
   const { data, isLoading } = useQuery({
     queryKey: ["insurance-dashboard"],
-    queryFn: () => api.getInsuranceDashboard(),
+    queryFn: () => insuranceService.getInsuranceDashboard(),
     enabled: canView,
   });
 

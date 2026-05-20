@@ -1,21 +1,37 @@
-import { api } from "@medbrains/api";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { type MobileLoginFormInput, mobileLoginFormSchema } from "@medbrains/schemas";
 import { useAuthStore } from "@medbrains/stores";
 import type { User } from "@medbrains/types";
 import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
+import { Controller, useForm } from "react-hook-form";
 import { KeyboardAvoidingView, Platform, StyleSheet, View } from "react-native";
 import { Button, HelperText, Surface, Text, TextInput, useTheme } from "react-native-paper";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { authService } from "../../services/auth.service";
 
 export function LoginScreen() {
   const theme = useTheme();
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const { setAuth } = useAuthStore();
+  const {
+    control,
+    handleSubmit,
+    watch,
+    formState: { errors },
+  } = useForm<MobileLoginFormInput>({
+    resolver: zodResolver(mobileLoginFormSchema),
+    defaultValues: {
+      username: "",
+      password: "",
+    },
+  });
+
+  const username = watch("username");
+  const password = watch("password");
 
   const loginMutation = useMutation({
-    mutationFn: () => api.login({ username, password }),
+    mutationFn: authService.login,
     onSuccess: (data) => {
       // Store user info - CSRF token is handled by httpOnly cookie
       setAuth({
@@ -33,11 +49,9 @@ export function LoginScreen() {
     },
   });
 
-  const handleLogin = () => {
-    if (username.trim() && password.trim()) {
-      loginMutation.mutate();
-    }
-  };
+  const handleLogin = handleSubmit((values) => {
+    loginMutation.mutate(values);
+  });
 
   const isValid = username.trim().length >= 3 && password.trim().length >= 4;
 
@@ -62,34 +76,58 @@ export function LoginScreen() {
             Sign In
           </Text>
 
-          <TextInput
-            label="Username"
-            value={username}
-            onChangeText={setUsername}
-            mode="outlined"
-            autoCapitalize="none"
-            autoCorrect={false}
-            left={<TextInput.Icon icon="account" />}
-            style={styles.input}
-          />
-
-          <TextInput
-            label="Password"
-            value={password}
-            onChangeText={setPassword}
-            mode="outlined"
-            secureTextEntry={!showPassword}
-            autoCapitalize="none"
-            autoCorrect={false}
-            left={<TextInput.Icon icon="lock" />}
-            right={
-              <TextInput.Icon
-                icon={showPassword ? "eye-off" : "eye"}
-                onPress={() => setShowPassword(!showPassword)}
+          <Controller
+            control={control}
+            name="username"
+            render={({ field }) => (
+              <TextInput
+                label="Username"
+                value={field.value}
+                onChangeText={field.onChange}
+                mode="outlined"
+                error={Boolean(errors.username)}
+                autoCapitalize="none"
+                autoCorrect={false}
+                left={<TextInput.Icon icon="account" />}
+                style={styles.input}
               />
-            }
-            style={styles.input}
+            )}
           />
+          {errors.username?.message && (
+            <HelperText type="error" visible>
+              {errors.username.message}
+            </HelperText>
+          )}
+
+          <Controller
+            control={control}
+            name="password"
+            render={({ field }) => (
+              <TextInput
+                label="Password"
+                value={field.value}
+                onChangeText={field.onChange}
+                mode="outlined"
+                error={Boolean(errors.password)}
+                secureTextEntry={!showPassword}
+                autoCapitalize="none"
+                autoCorrect={false}
+                left={<TextInput.Icon icon="lock" />}
+                right={
+                  <TextInput.Icon
+                    icon={showPassword ? "eye-off" : "eye"}
+                    onPress={() => setShowPassword(!showPassword)}
+                  />
+                }
+                style={styles.input}
+              />
+            )}
+          />
+          {errors.password?.message && (
+            <HelperText type="error" visible>
+              {errors.password.message}
+            </HelperText>
+          )}
 
           {loginMutation.isError && (
             <HelperText type="error" visible>
@@ -99,7 +137,7 @@ export function LoginScreen() {
 
           <Button
             mode="contained"
-            onPress={handleLogin}
+            onPress={() => void handleLogin()}
             loading={loginMutation.isPending}
             disabled={!isValid || loginMutation.isPending}
             style={styles.button}

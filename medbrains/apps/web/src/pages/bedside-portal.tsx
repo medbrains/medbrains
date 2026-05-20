@@ -15,7 +15,6 @@ import {
   Title,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
 import { useHasPermission } from "@medbrains/stores";
 import type {
   BedsideDailyScheduleItem,
@@ -44,6 +43,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { PageHeader } from "../components/PageHeader";
 import { useRequirePermission } from "../hooks/useRequirePermission";
+import { bedsideService } from "../services/bedside.service";
 
 // ── Helpers ──
 
@@ -117,38 +117,38 @@ export function BedsidePortalPage() {
   // ── Queries ──
   const scheduleQ = useQuery({
     queryKey: ["bedside", "schedule", admissionId],
-    queryFn: () => api.getBedsideDailySchedule(admissionId),
+    queryFn: () => bedsideService.getBedsideDailySchedule(admissionId),
     enabled: isReady,
   });
 
   const medsQ = useQuery({
     queryKey: ["bedside", "medications", admissionId],
-    queryFn: () => api.getBedsideMedications(admissionId),
+    queryFn: () => bedsideService.getBedsideMedications(admissionId),
     enabled: isReady,
   });
 
   const vitalsQ = useQuery({
     queryKey: ["bedside", "vitals", admissionId],
-    queryFn: () => api.getBedsideVitals(admissionId),
+    queryFn: () => bedsideService.getBedsideVitals(admissionId),
     enabled: isReady,
   });
 
   const videosQ = useQuery({
     queryKey: ["bedside", "videos"],
-    queryFn: () => api.listBedsideVideos(),
+    queryFn: () => bedsideService.listBedsideVideos(),
     enabled: isReady && canViewVideos,
   });
 
   useQuery({
     queryKey: ["bedside", "feedback", admissionId],
-    queryFn: () => api.listBedsideFeedback(admissionId),
+    queryFn: () => bedsideService.listBedsideFeedback(admissionId),
     enabled: isReady,
   });
 
   // ── Mutations ──
   const nurseRequestMut = useMutation({
     mutationFn: (requestType: BedsideRequestType) =>
-      api.createBedsideNurseRequest(admissionId, {
+      bedsideService.createBedsideNurseRequest(admissionId, {
         patient_id: patientId,
         request_type: requestType,
         notes: requestNote || undefined,
@@ -169,7 +169,7 @@ export function BedsidePortalPage() {
 
   const feedbackMut = useMutation({
     mutationFn: () =>
-      api.submitBedsideFeedback(admissionId, {
+      bedsideService.submitBedsideFeedback(admissionId, {
         patient_id: patientId,
         pain_level: painLevel,
         comfort_level: comfortLevel,
@@ -242,9 +242,9 @@ export function BedsidePortalPage() {
             )}
             {scheduleQ.data && scheduleQ.data.length > 0 && (
               <Timeline active={-1} bulletSize={28} lineWidth={2}>
-                {scheduleQ.data.map((item: BedsideDailyScheduleItem, idx: number) => (
+                {scheduleQ.data.map((item: BedsideDailyScheduleItem) => (
                   <Timeline.Item
-                    key={idx}
+                    key={`${item.event_type}-${item.scheduled_at ?? "unscheduled"}-${item.description}`}
                     bullet={
                       <ThemeIcon
                         size={28}
@@ -532,7 +532,7 @@ export function BedsidePortalPage() {
 function LabResultsSection({ admissionId }: { admissionId: string }) {
   const labQ = useQuery({
     queryKey: ["bedside", "lab-results", admissionId],
-    queryFn: () => api.getBedsideLabResults(admissionId),
+    queryFn: () => bedsideService.getBedsideLabResults(admissionId),
     enabled: admissionId.length > 0,
   });
 

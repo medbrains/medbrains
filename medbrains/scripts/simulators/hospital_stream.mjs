@@ -15,17 +15,28 @@ const DEFAULT_CONFIG = {
   seed: 7,
   modules: {
     opd: true,
+    ipd: true,
     vitals: true,
     lab: true,
     radiology: true,
     pharmacy: true,
+    nabh: true,
   },
   probabilities: {
+    ipd_admission: 0.22,
     lab_order: 0.65,
     lab_result: 0.9,
     radiology_order: 0.25,
     pharmacy_order: 0.35,
     queue_completed: 0.55,
+    nabh_fall_event: 0.025,
+    nabh_pressure_ulcer_assessment: 0.18,
+    nabh_sentinel_event: 0.006,
+    nabh_code_blue: 0.012,
+    nabh_equipment_downtime: 0.015,
+    nabh_fire_drill: 0.004,
+    nabh_bmw_record: 0.1,
+    nabh_bmw_breach: 0.01,
   },
   departments: ["GEN-MEDICINE", "PEDIATRICS", "ORTHOPEDICS", "ENT"],
   villages: [
@@ -335,10 +346,34 @@ function patientFlowSql(config, context, index, rng) {
   const shouldRadiology = config.modules.radiology && chance(rng, config.probabilities.radiology_order);
   const shouldPharmacy = config.modules.pharmacy && chance(rng, config.probabilities.pharmacy_order);
   const queueCompleted = chance(rng, config.probabilities.queue_completed);
+  const shouldNabh = config.modules.nabh === true;
+  const shouldFall = shouldNabh && chance(rng, config.probabilities.nabh_fall_event);
+  const shouldPressureUlcerAssessment =
+    shouldNabh && chance(rng, config.probabilities.nabh_pressure_ulcer_assessment);
+  const shouldSentinel = shouldNabh && chance(rng, config.probabilities.nabh_sentinel_event);
+  const shouldCodeBlue = shouldNabh && chance(rng, config.probabilities.nabh_code_blue);
+  const shouldAdmission =
+    config.modules.ipd === true &&
+    (chance(rng, config.probabilities.ipd_admission) ||
+      shouldFall ||
+      shouldPressureUlcerAssessment ||
+      shouldCodeBlue);
+  const shouldEquipmentDowntime =
+    shouldNabh && chance(rng, config.probabilities.nabh_equipment_downtime);
+  const shouldFireDrill = shouldNabh && chance(rng, config.probabilities.nabh_fire_drill);
+  const shouldBmwRecord = shouldNabh && chance(rng, config.probabilities.nabh_bmw_record);
+  const shouldBmwBreach = shouldBmwRecord && chance(rng, config.probabilities.nabh_bmw_breach);
   const runToken = config.run_id.replace(/[^A-Za-z0-9]/g, "").slice(0, 14).toUpperCase() || "SIM";
+  const runUidComponent = String(
+    Array.from(config.run_id).reduce(
+      (acc, char) => (acc * 31 + char.charCodeAt(0)) % 1_000_000_000,
+      543,
+    ),
+  );
   const uhid = `SIM-${runToken}-${String(index).padStart(7, "0")}`;
   const barcode = `SIMLAB-${runToken}-${String(index).padStart(7, "0")}`;
   const accession = `SIMRAD-${runToken}-${String(index).padStart(7, "0")}`;
+  const studyUid = `1.2.826.0.1.3680043.10.543.${runUidComponent}.${index}`;
   const tokenNumber = 500000 + index;
   const dob = dateOfBirth(index, rng);
   const phone = `9000${String(index).padStart(6, "0").slice(-6)}`;
@@ -364,6 +399,30 @@ function patientFlowSql(config, context, index, rng) {
     height: 145 + rng() * 38,
   };
   const bmi = vitals.weight / ((vitals.height / 100) ** 2);
+  const sourceModule = "hospital_stream_simulator";
+  const sourceKey = (kind) => `medbrains:${config.run_id}:${kind}:${index}`;
+  const queueCreatedMinutes = queueCompleted ? 16 + Math.floor(rng() * 28) : 2 + Math.floor(rng() * 10);
+  const queueCalledMinutes = queueCompleted ? 2 + Math.floor(rng() * 12) : null;
+  const admissionHoursAgo = 12 + Math.floor(rng() * 96);
+  const admissionDischarged = shouldAdmission && chance(rng, 0.65);
+  const dischargeType = chance(rng, 0.03) ? "death" : "normal";
+  const bradenScores = {
+    sensory: 2 + Math.floor(rng() * 3),
+    moisture: 2 + Math.floor(rng() * 3),
+    activity: 1 + Math.floor(rng() * 4),
+    mobility: 2 + Math.floor(rng() * 3),
+    nutrition: 2 + Math.floor(rng() * 3),
+    friction: 1 + Math.floor(rng() * 3),
+  };
+  const bradenTotal =
+    bradenScores.sensory +
+    bradenScores.moisture +
+    bradenScores.activity +
+    bradenScores.mobility +
+    bradenScores.nutrition +
+    bradenScores.friction;
+  const pressureInjuryPresent = shouldPressureUlcerAssessment && chance(rng, 0.08);
+  const pressureHospitalAcquired = pressureInjuryPresent && chance(rng, 0.35);
 
   return `
     WITH patient AS (
@@ -392,15 +451,34 @@ function patientFlowSql(config, context, index, rng) {
     queue_row AS (
       INSERT INTO opd_queues
         (tenant_id, encounter_id, department_id, doctor_id, token_number, status, queue_date,
-         called_at, completed_at, created_by)
+         called_at, completed_at, created_by, created_at)
       SELECT ${sql(context.tenant_id)}, id, ${sql(departmentId)}, ${sql(context.doctor_id)}, ${tokenNumber},
              ${sql(queueCompleted ? "completed" : "waiting")}::queue_status, CURRENT_DATE,
-             ${queueCompleted ? "now() - interval '8 minutes'" : "NULL"},
+             ${queueCompleted ? `now() - interval '${queueCalledMinutes} minutes'` : "NULL"},
              ${queueCompleted ? "now()" : "NULL"},
-             ${sql(context.user_id)}
+             ${sql(context.user_id)},
+             now() - interval '${queueCreatedMinutes} minutes'
       FROM encounter
       RETURNING id
     )
+    ${shouldAdmission ? `,
+    admission AS (
+      INSERT INTO admissions
+        (tenant_id, encounter_id, patient_id, admitting_doctor, status, admitted_at, discharged_at,
+         discharge_type, discharge_summary, created_by, provisional_diagnosis, admission_source,
+         admission_weight_kg, admission_height_cm, ip_type)
+      SELECT ${sql(context.tenant_id)}, id, patient_id, ${sql(context.doctor_id)},
+             ${sql(admissionDischarged ? "discharged" : "admitted")}::admission_status,
+             now() - interval '${admissionHoursAgo} hours',
+             ${admissionDischarged ? "now() - interval '1 hour'" : "NULL"},
+             ${admissionDischarged ? `${sql(dischargeType)}::discharge_type` : "NULL"},
+             ${admissionDischarged ? sql(`Simulator discharge summary. run_id=${config.run_id}`) : "NULL"},
+             ${sql(context.user_id)}, ${sql("Simulator inpatient observation")},
+             'opd'::admission_source, ${num(vitals.weight.toFixed(2))},
+             ${num(vitals.height.toFixed(1))}, 'general'::ip_type
+      FROM encounter
+      RETURNING id, patient_id
+    )` : ""}
     ${config.modules.vitals ? `,
     vital_row AS (
       INSERT INTO vitals
@@ -454,7 +532,7 @@ function patientFlowSql(config, context, index, rng) {
       SELECT ${sql(context.tenant_id)}, patient_id, id, ${sql(modality.id)}, ${sql(context.doctor_id)},
              ${sql(radio[1])}, ${sql(radio[2])}, 'routine'::radiology_priority,
              'completed'::radiology_order_status, now(), ${sql(`Simulator radiology order. run_id=${config.run_id}`)},
-             ${sql(`1.2.826.0.1.3680043.10.543.${index}`)}, ${sql(`sim-orthanc-${runToken}-${index}`)}
+             ${sql(studyUid)}, ${sql(`sim-orthanc-${runToken}-${index}`)}
       FROM encounter
       RETURNING id, patient_id
     ),
@@ -463,7 +541,7 @@ function patientFlowSql(config, context, index, rng) {
         (tenant_id, order_id, patient_id, study_instance_uid, accession_number, modality, study_date,
          study_description, referring_physician, instance_count, series_count, orthanc_id, pacs_url,
          viewer_url, file_size_bytes, dicom_metadata)
-      SELECT ${sql(context.tenant_id)}, id, patient_id, ${sql(`1.2.826.0.1.3680043.10.543.${index}`)},
+      SELECT ${sql(context.tenant_id)}, id, patient_id, ${sql(studyUid)},
              ${sql(accession)}, ${sql(radio[0])}, CURRENT_DATE, ${sql(`${radio[1]} - Simulator`)},
              'MedBrains Simulator', ${1 + Math.floor(rng() * 64)}, ${1 + Math.floor(rng() * 5)},
              ${sql(`sim-orthanc-${runToken}-${index}`)}, ${sql(radio[3])},
@@ -502,6 +580,179 @@ function patientFlowSql(config, context, index, rng) {
       SELECT ${sql(context.tenant_id)}, id, ${sql(drug.id)}, ${sql(drug.name)},
              ${1 + Math.floor(rng() * 5)}, ${num(drug.price ?? 0)}, ${num(drug.price ?? 0)}, ${1 + Math.floor(rng() * 5)}
       FROM pharmacy_order
+      RETURNING id
+    )` : ""}
+    ${shouldFall ? `,
+    nabh_fall AS (
+      INSERT INTO nabh_falls_register
+        (tenant_id, patient_id, admission_id, fall_at, location, location_detail, fall_type,
+         contributing_factors, risk_assessment_done, morse_score, injury_level,
+         injury_description, immediate_action, rca_required, reported_by, notes,
+         source_module, source_record_id)
+      SELECT ${sql(context.tenant_id)}, patient_id, id, now() - interval '${1 + Math.floor(rng() * 240)} minutes',
+             ${sql(pick(rng, ["ward", "bathroom", "corridor"]))}, ${sql(`Simulator ${village.name} ward`)},
+             ${sql(pick(rng, ["witnessed", "unwitnessed", "assisted"]))},
+             ARRAY[${sql(pick(rng, ["wet floor", "sedation", "poor footwear", "unassisted transfer"]))}],
+             true, ${35 + Math.floor(rng() * 55)}, ${sql(pick(rng, ["none", "minor", "moderate"]))},
+             ${sql("Synthetic fall event for NABH KPI testing")},
+             ${sql("Assessed, vitals checked, consultant informed.")},
+             false, ${sql(context.user_id)}, ${sql(`Simulator NABH fall evidence. run_id=${config.run_id}`)},
+             ${sql(sourceModule)}, uuid_generate_v5(uuid_ns_url(), ${sql(sourceKey("fall"))})
+      FROM admission
+      ON CONFLICT (tenant_id, source_module, source_record_id)
+      WHERE source_module IS NOT NULL AND source_record_id IS NOT NULL
+      DO NOTHING
+      RETURNING id
+    )` : ""}
+    ${shouldPressureUlcerAssessment ? `,
+    nabh_pressure_ulcer AS (
+      INSERT INTO nabh_pressure_ulcer_assessments
+        (tenant_id, patient_id, admission_id, assessed_at, assessed_by, sensory_perception,
+         moisture, activity, mobility, nutrition, friction_shear, risk_level, injury_present,
+         injury_stage, injury_location, injury_acquired, injury_description, repositioning_plan,
+         nutritional_plan, skin_care_plan, notes, source_module, source_record_id)
+      SELECT ${sql(context.tenant_id)}, patient_id, id, now() - interval '${1 + Math.floor(rng() * 480)} minutes',
+             ${sql(context.user_id)}, ${bradenScores.sensory}, ${bradenScores.moisture},
+             ${bradenScores.activity}, ${bradenScores.mobility}, ${bradenScores.nutrition},
+             ${bradenScores.friction},
+             ${sql(bradenTotal <= 12 ? "high" : bradenTotal <= 16 ? "moderate" : "mild")},
+             ${pressureInjuryPresent ? "true" : "false"},
+             ${pressureInjuryPresent ? sql(pick(rng, ["stage_1", "stage_2"])) : "NULL"},
+             ${pressureInjuryPresent ? sql(pick(rng, ["sacrum", "heel", "elbow"])) : "NULL"},
+             ${pressureInjuryPresent ? sql(pressureHospitalAcquired ? "hospital_acquired" : "present_on_admission") : "NULL"},
+             ${pressureInjuryPresent ? sql("Synthetic pressure injury finding.") : "NULL"},
+             ${sql("Two-hourly repositioning chart started.")},
+             ${sql("High-protein diet advice recorded where indicated.")},
+             ${sql("Skin barrier and moisture care documented.")},
+             ${sql(`Simulator Braden assessment. run_id=${config.run_id}`)},
+             ${sql(sourceModule)}, uuid_generate_v5(uuid_ns_url(), ${sql(sourceKey("pressure-ulcer"))})
+      FROM admission
+      ON CONFLICT (tenant_id, source_module, source_record_id)
+      WHERE source_module IS NOT NULL AND source_record_id IS NOT NULL
+      DO NOTHING
+      RETURNING id
+    )` : ""}
+    ${shouldSentinel ? `,
+    nabh_sentinel AS (
+      INSERT INTO nabh_sentinel_event_register
+        (tenant_id, event_at, event_category, severity, patient_id, admission_id, location,
+         description, immediate_actions, reportable_to_authority, reportable_to_nqf,
+         rca_required, rca_due_at, review_status, reported_by, notes, source_module, source_record_id)
+      SELECT ${sql(context.tenant_id)}, now() - interval '${1 + Math.floor(rng() * 1440)} minutes',
+             ${sql(pick(rng, ["medication_error", "wrong_patient_near_miss", "patient_safety_near_miss"]))},
+             ${sql(pick(rng, ["no_harm_near_miss", "temporary_harm"]))}, patient.id,
+             ${shouldAdmission ? "admission.id" : "NULL"},
+             ${sql(pick(rng, ["OPD", "ward", "pharmacy"]))},
+             ${sql("Synthetic sentinel/near-miss record for NABH testing.")},
+             ${sql("Immediate containment and department briefing completed.")},
+             false, true, true, now() + interval '72 hours', 'open',
+             ${sql(context.user_id)}, ${sql(`Simulator sentinel evidence. run_id=${config.run_id}`)},
+             ${sql(sourceModule)}, uuid_generate_v5(uuid_ns_url(), ${sql(sourceKey("sentinel"))})
+      FROM patient
+      ${shouldAdmission ? "CROSS JOIN admission" : ""}
+      ON CONFLICT (tenant_id, source_module, source_record_id)
+      WHERE source_module IS NOT NULL AND source_record_id IS NOT NULL
+      DO NOTHING
+      RETURNING id
+    )` : ""}
+    ${shouldCodeBlue ? `,
+    nabh_code_blue AS (
+      INSERT INTO nabh_code_blue_activations
+        (tenant_id, activated_at, activated_by, location, patient_id, admission_id, team_arrived_at,
+         reason, initial_rhythm, cpr_started_at, cpr_duration_minutes, defibrillation_count,
+         drugs_administered, rosc_achieved, rosc_at, outcome, transferred_to, debrief_completed,
+         debrief_at, learning_points, notes, source_module, source_record_id)
+      SELECT ${sql(context.tenant_id)}, now() - interval '${20 + Math.floor(rng() * 360)} minutes',
+             ${sql(context.user_id)}, ${sql("ward")}, patient_id, id,
+             now() - interval '${17 + Math.floor(rng() * 340)} minutes',
+             ${sql(pick(rng, ["cardiac_arrest", "respiratory_arrest", "severe_hypotension"]))},
+             ${sql(pick(rng, ["vfib", "pea", "asystole", "other"]))},
+             now() - interval '${16 + Math.floor(rng() * 330)} minutes',
+             ${8 + Math.floor(rng() * 18)}, ${Math.floor(rng() * 3)},
+             ${jsonSql([{ drug: "Adrenaline", dose: "1 mg", route: "IV" }])},
+             true, now() - interval '${5 + Math.floor(rng() * 120)} minutes',
+             ${sql(pick(rng, ["survived_intact", "transferred_icu"]))},
+             ${sql("ICU / higher care")}, true, now() - interval '5 minutes',
+             ${sql("Response time, crash-cart readiness, and documentation reviewed.")},
+             ${sql(`Simulator Code Blue evidence. run_id=${config.run_id}`)},
+             ${sql(sourceModule)}, uuid_generate_v5(uuid_ns_url(), ${sql(sourceKey("code-blue"))})
+      FROM admission
+      ON CONFLICT (tenant_id, source_module, source_record_id)
+      WHERE source_module IS NOT NULL AND source_record_id IS NOT NULL
+      DO NOTHING
+      RETURNING id
+    )` : ""}
+    ${shouldEquipmentDowntime ? `,
+    nabh_equipment_down AS (
+      INSERT INTO nabh_equipment_downtime_log
+        (tenant_id, equipment_name, equipment_serial, equipment_category, location,
+         downtime_start, downtime_end, reason, impact_level, impact_summary, reported_to_bme,
+         reported_to_bme_at, resolved_by, resolution_summary, qa_passed_at, notes,
+         source_module, source_record_id)
+      VALUES
+        (${sql(context.tenant_id)}, ${sql(pick(rng, ["Simulator CBC Analyzer", "Simulator PACS Gateway", "Simulator Monitor"]))},
+         ${sql(`SIM-EQ-${runToken}-${index}`)}, ${sql(pick(rng, ["lab_analyzer", "imaging", "monitor"]))},
+         ${sql(pick(rng, ["Pathology", "Radiology", "Ward"]))},
+         now() - interval '${60 + Math.floor(rng() * 720)} minutes',
+         ${chance(rng, 0.75) ? "now() - interval '15 minutes'" : "NULL"},
+         ${sql(pick(rng, ["breakdown", "calibration", "qa_failure"]))},
+         ${sql(pick(rng, ["low", "medium", "high"]))},
+         ${sql("Synthetic equipment downtime for NABH FMS testing.")}, true,
+         now() - interval '${40 + Math.floor(rng() * 360)} minutes',
+         ${sql(context.user_id)}, ${sql("Resolved and QC verified where applicable.")},
+         now() - interval '5 minutes', ${sql(`Simulator downtime evidence. run_id=${config.run_id}`)},
+         ${sql(sourceModule)}, uuid_generate_v5(uuid_ns_url(), ${sql(sourceKey("equipment"))}))
+      ON CONFLICT (tenant_id, source_module, source_record_id)
+      WHERE source_module IS NOT NULL AND source_record_id IS NOT NULL
+      DO NOTHING
+      RETURNING id
+    )` : ""}
+    ${shouldFireDrill ? `,
+    nabh_fire_drill AS (
+      INSERT INTO nabh_fire_safety_drills
+        (tenant_id, drill_at, drill_type, location, scenario, participants_count,
+         participating_departments, incident_commander, alarm_at, evacuation_started_at,
+         evacuation_completed_at, issues_observed, corrective_actions, corrective_action_owner,
+         corrective_action_due, corrective_actions_done, conducted_by, notes,
+         source_module, source_record_id)
+      VALUES
+        (${sql(context.tenant_id)}, now() - interval '${Math.floor(rng() * 90)} days',
+         ${sql(pick(rng, ["announced", "unannounced", "tabletop", "live"]))},
+         ${sql("Main block")}, ${sql("Synthetic smoke scenario in outpatient corridor.")},
+         ${12 + Math.floor(rng() * 45)}, ARRAY['OPD','Nursing','Security'],
+         ${sql(context.user_id)}, now() - interval '25 minutes', now() - interval '23 minutes',
+         now() - interval '18 minutes', ARRAY[${sql("minor signage delay")}],
+         ${sql("Update evacuation signage and repeat briefing.")}, ${sql(context.user_id)},
+         CURRENT_DATE + 14, false, ${sql(context.user_id)},
+         ${sql(`Simulator fire drill evidence. run_id=${config.run_id}`)},
+         ${sql(sourceModule)}, uuid_generate_v5(uuid_ns_url(), ${sql(sourceKey("fire-drill"))}))
+      ON CONFLICT (tenant_id, source_module, source_record_id)
+      WHERE source_module IS NOT NULL AND source_record_id IS NOT NULL
+      DO NOTHING
+      RETURNING id
+    )` : ""}
+    ${shouldBmwRecord ? `,
+    nabh_bmw AS (
+      INSERT INTO nabh_bmw_disposal_log
+        (tenant_id, disposal_date, waste_category, waste_subtype, quantity_kg, source_department,
+         bag_count, barcode_refs, stored_at, handed_over_at, disposal_agency,
+         disposal_agency_licence, disposal_method, handed_over_by, received_by_agency, notes,
+         source_module, source_record_id)
+      VALUES
+        (${sql(context.tenant_id)}, CURRENT_DATE,
+         ${sql(pick(rng, ["yellow", "red", "blue", "white"]))},
+         ${sql(pick(rng, ["contaminated_waste", "sharps", "glassware", "soiled_waste"]))},
+         ${num((0.5 + rng() * 8).toFixed(3))}, ${sql(pick(rng, ["OPD", "Pathology", "Radiology", "Ward"]))},
+         ${1 + Math.floor(rng() * 6)}, ARRAY[${sql(`BMW-${runToken}-${String(index).padStart(6, "0")}`)}],
+         now() - interval '${shouldBmwBreach ? 52 + Math.floor(rng() * 24) : 2 + Math.floor(rng() * 24)} hours',
+         now(), ${sql("Simulator CBWTF Agency")}, ${sql("TN-CBWTF-SIM-001")},
+         ${sql(pick(rng, ["incineration", "autoclave", "deep_burial"]))},
+         ${sql(context.user_id)}, ${sql("Simulator agency operator")},
+         ${sql(`Simulator BMW disposal evidence. run_id=${config.run_id}`)},
+         ${sql(sourceModule)}, uuid_generate_v5(uuid_ns_url(), ${sql(sourceKey("bmw"))}))
+      ON CONFLICT (tenant_id, source_module, source_record_id)
+      WHERE source_module IS NOT NULL AND source_record_id IS NOT NULL
+      DO NOTHING
       RETURNING id
     )` : ""}
     SELECT 1;
@@ -552,6 +803,36 @@ function cleanupSql(config, tenantCode) {
     DELETE FROM radiology_orders WHERE id IN (SELECT id FROM _sim_rad_orders);
     DELETE FROM pharmacy_order_items WHERE order_id IN (SELECT id FROM _sim_pharmacy_orders);
     DELETE FROM pharmacy_orders WHERE id IN (SELECT id FROM _sim_pharmacy_orders);
+    DELETE FROM nabh_bmw_disposal_log
+      WHERE tenant_id = (SELECT id FROM _sim_tenant)
+        AND source_module = 'hospital_stream_simulator'
+        AND notes LIKE ${sql(`%run_id=${run}%`)};
+    DELETE FROM nabh_fire_safety_drills
+      WHERE tenant_id = (SELECT id FROM _sim_tenant)
+        AND source_module = 'hospital_stream_simulator'
+        AND notes LIKE ${sql(`%run_id=${run}%`)};
+    DELETE FROM nabh_equipment_downtime_log
+      WHERE tenant_id = (SELECT id FROM _sim_tenant)
+        AND source_module = 'hospital_stream_simulator'
+        AND notes LIKE ${sql(`%run_id=${run}%`)};
+    DELETE FROM nabh_code_blue_activations
+      WHERE tenant_id = (SELECT id FROM _sim_tenant)
+        AND source_module = 'hospital_stream_simulator'
+        AND notes LIKE ${sql(`%run_id=${run}%`)};
+    DELETE FROM nabh_sentinel_event_register
+      WHERE tenant_id = (SELECT id FROM _sim_tenant)
+        AND source_module = 'hospital_stream_simulator'
+        AND notes LIKE ${sql(`%run_id=${run}%`)};
+    DELETE FROM nabh_pressure_ulcer_assessments
+      WHERE tenant_id = (SELECT id FROM _sim_tenant)
+        AND source_module = 'hospital_stream_simulator'
+        AND notes LIKE ${sql(`%run_id=${run}%`)};
+    DELETE FROM nabh_falls_register
+      WHERE tenant_id = (SELECT id FROM _sim_tenant)
+        AND source_module = 'hospital_stream_simulator'
+        AND notes LIKE ${sql(`%run_id=${run}%`)};
+    DELETE FROM admissions
+      WHERE encounter_id IN (SELECT id FROM _sim_encounters);
     DELETE FROM vitals WHERE encounter_id IN (SELECT id FROM _sim_encounters);
     DELETE FROM opd_queues WHERE encounter_id IN (SELECT id FROM _sim_encounters);
     DELETE FROM encounters WHERE id IN (SELECT id FROM _sim_encounters);

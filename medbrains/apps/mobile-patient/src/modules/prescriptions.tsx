@@ -12,6 +12,7 @@ function PrescriptionsScreen() {
       eyebrow="MODULE"
       title="Prescriptions"
       description="Active medications and renewal requests."
+      tags={["Mobile-Patient", "Rx", "renewal", "medications"]}
       summaries={[
         { eyebrow: "ACTIVE", count: "—", title: "Current Rx" },
         { eyebrow: "EXPIRING", count: "—", title: "Renewal due soon" },
@@ -48,4 +49,6 @@ export const prescriptionsModule: Module = {
   icon: () => null,
   requiredPermissions: [],
   navigator: PrescriptionsScreen,
+  appCodes: ["Mobile-Patient"],
+  tags: ["patient", "prescriptions", "medications", "renewal"],
 };

@@ -1,20 +1,21 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // --- Mock fetch globally before importing the module ---
 const mockFetch = vi.fn();
-vi.stubGlobal('fetch', mockFetch);
+vi.stubGlobal("fetch", mockFetch);
 
 // Stub sessionStorage for CSRF token logic
-vi.stubGlobal('sessionStorage', {
+vi.stubGlobal("sessionStorage", {
   getItem: () => null,
   setItem: () => {},
   removeItem: () => {},
 });
 
 // Stub document.cookie
-vi.stubGlobal("document", { cookie: "" });
+const documentStub = { cookie: "" };
+vi.stubGlobal("document", documentStub);
 
-import { api, setApiBase } from "./index.js";
+import { api, setApiBase, setCsrfToken } from "./index.js";
 
 // ---------- Helpers ----------
 
@@ -41,6 +42,8 @@ beforeEach(() => {
   mockFetch.mockReset();
   mockFetch.mockResolvedValue(jsonResponse(200));
   setApiBase("/api");
+  setCsrfToken(null);
+  documentStub.cookie = "";
 });
 
 describe("request() error handling", () => {
@@ -84,13 +87,24 @@ describe("request() error handling", () => {
     expect(headers["X-CSRF-Token"]).toBe("my-csrf");
   });
 
+  it("prefers current CSRF cookie over stored token", async () => {
+    mockOk({ token: "t", csrf_token: "old-csrf" });
+    await api.login({ email: "a@b.c", password: "p" });
+    documentStub.cookie = "csrf_token=fresh-csrf";
+    mockFetch.mockReset();
+
+    mockOk({ status: "ok" });
+    await api.logout();
+    const headers = mockFetch.mock.calls[0][1].headers;
+    expect(headers["X-CSRF-Token"]).toBe("fresh-csrf");
+  });
+
   it("sends credentials: include", async () => {
     mockOk({});
     await api.health();
     expect(mockFetch.mock.calls[0][1].credentials).toBe("include");
   });
 });
-
 
 describe("/analytics endpoints", () => {
   it("getDeptRevenue → GET /analytics/revenue/department", async () => {
@@ -180,7 +194,6 @@ describe("/analytics endpoints", () => {
     const [url, opts] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/analytics/export");
   });
-
 });
 
 describe("/api endpoints", () => {
@@ -239,7 +252,6 @@ describe("/api endpoints", () => {
     const [url, opts] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/api/facilities/fire-inspections");
   });
-
 });
 
 describe("/audit endpoints", () => {
@@ -348,7 +360,6 @@ describe("/audit endpoints", () => {
     const [url, opts] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/audit/timeline");
   });
-
 });
 
 describe("/auth endpoints", () => {
@@ -403,7 +414,6 @@ describe("/auth endpoints", () => {
     expect(opts.body).toBeDefined();
     expect(() => JSON.parse(opts.body)).not.toThrow();
   });
-
 });
 
 describe("/billing endpoints", () => {
@@ -1470,7 +1480,6 @@ describe("/billing endpoints", () => {
     expect(opts.body).toBeDefined();
     expect(() => JSON.parse(opts.body)).not.toThrow();
   });
-
 });
 
 describe("/blood-bank endpoints", () => {
@@ -1636,7 +1645,6 @@ describe("/blood-bank endpoints", () => {
     const [url, opts] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/blood-bank/hemovigilance");
   });
-
 });
 
 describe("/bme endpoints", () => {
@@ -1870,7 +1878,6 @@ describe("/bme endpoints", () => {
     const [url, opts] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/bme/analytics/uptime");
   });
-
 });
 
 describe("/camp endpoints", () => {
@@ -2129,7 +2136,6 @@ describe("/camp endpoints", () => {
     const [url, opts] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/camp/camps");
   });
-
 });
 
 describe("/case-mgmt endpoints", () => {
@@ -2273,7 +2279,6 @@ describe("/case-mgmt endpoints", () => {
     const [url, opts] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/case-mgmt/analytics/outcomes");
   });
-
 });
 
 describe("/cds endpoints", () => {
@@ -2489,7 +2494,6 @@ describe("/cds endpoints", () => {
     expect(opts.body).toBeDefined();
     expect(() => JSON.parse(opts.body)).not.toThrow();
   });
-
 });
 
 describe("/command-center endpoints", () => {
@@ -2669,7 +2673,6 @@ describe("/command-center endpoints", () => {
     const [url, opts] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/command-center/kpis");
   });
-
 });
 
 describe("/consent endpoints", () => {
@@ -2801,7 +2804,6 @@ describe("/consent endpoints", () => {
     expect(url).toContain("/api/consent/signatures");
     expect(opts.method).toBe("DELETE");
   });
-
 });
 
 describe("/cssd endpoints", () => {
@@ -3011,7 +3013,6 @@ describe("/cssd endpoints", () => {
     expect(opts.body).toBeDefined();
     expect(() => JSON.parse(opts.body)).not.toThrow();
   });
-
 });
 
 describe("/dashboard endpoints", () => {
@@ -3041,7 +3042,6 @@ describe("/dashboard endpoints", () => {
     expect(opts.body).toBeDefined();
     expect(() => JSON.parse(opts.body)).not.toThrow();
   });
-
 });
 
 describe("/dashboards endpoints", () => {
@@ -3079,7 +3079,6 @@ describe("/dashboards endpoints", () => {
     expect(opts.body).toBeDefined();
     expect(() => JSON.parse(opts.body)).not.toThrow();
   });
-
 });
 
 describe("/diet endpoints", () => {
@@ -3278,7 +3277,6 @@ describe("/diet endpoints", () => {
     expect(opts.body).toBeDefined();
     expect(() => JSON.parse(opts.body)).not.toThrow();
   });
-
 });
 
 describe("/emergency endpoints", () => {
@@ -3505,7 +3503,6 @@ describe("/emergency endpoints", () => {
     expect(opts.body).toBeDefined();
     expect(() => JSON.parse(opts.body)).not.toThrow();
   });
-
 });
 
 describe("/facilities endpoints", () => {
@@ -3780,9 +3777,7 @@ describe("/facilities endpoints", () => {
     const [url, opts] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/facilities/energy/analytics");
   });
-
 });
-
 
 describe("/front-office endpoints", () => {
   it("listVisitingHours → GET /front-office/visiting-hours", async () => {
@@ -3928,7 +3923,6 @@ describe("/front-office endpoints", () => {
     const [url, opts] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/front-office/queue/metrics");
   });
-
 });
 
 describe("/geo endpoints", () => {
@@ -3995,7 +3989,6 @@ describe("/geo endpoints", () => {
     const [url, opts] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/geo/regulators/auto-detect");
   });
-
 });
 
 describe("/health endpoints", () => {
@@ -4006,7 +3999,6 @@ describe("/health endpoints", () => {
     const [url, opts] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/health");
   });
-
 });
 
 describe("/housekeeping endpoints", () => {
@@ -4289,7 +4281,6 @@ describe("/housekeeping endpoints", () => {
     expect(opts.body).toBeDefined();
     expect(() => JSON.parse(opts.body)).not.toThrow();
   });
-
 });
 
 describe("/hr endpoints", () => {
@@ -4617,7 +4608,6 @@ describe("/hr endpoints", () => {
     const [url, opts] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/hr/training/compliance");
   });
-
 });
 
 describe("/icu endpoints", () => {
@@ -4778,7 +4768,6 @@ describe("/icu endpoints", () => {
     const [url, opts] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/icu/analytics/device-infections");
   });
-
 });
 
 describe("/indent endpoints", () => {
@@ -5116,7 +5105,6 @@ describe("/indent endpoints", () => {
     expect(url).toContain("/api/indent/reorder-alerts");
     expect(opts.method).toBe("PUT");
   });
-
 });
 
 describe("/infection-control endpoints", () => {
@@ -5428,7 +5416,6 @@ describe("/infection-control endpoints", () => {
     expect(opts.body).toBeDefined();
     expect(() => JSON.parse(opts.body)).not.toThrow();
   });
-
 });
 
 describe("/integration endpoints", () => {
@@ -5535,7 +5522,6 @@ describe("/integration endpoints", () => {
     expect(opts.body).toBeDefined();
     expect(() => JSON.parse(opts.body)).not.toThrow();
   });
-
 });
 
 describe("/ipd endpoints", () => {
@@ -6097,7 +6083,6 @@ describe("/ipd endpoints", () => {
     const [url, opts] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/ipd/discharges/expected");
   });
-
 });
 
 describe("/lab endpoints", () => {
@@ -6889,7 +6874,6 @@ describe("/lab endpoints", () => {
     const [url, opts] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/lab/orders");
   });
-
 });
 
 describe("/masters endpoints", () => {
@@ -6916,9 +6900,7 @@ describe("/masters endpoints", () => {
     const [url, opts] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/masters/relations");
   });
-
 });
-
 
 describe("/mrd endpoints", () => {
   it("listMrdRecords → GET /mrd/records", async () => {
@@ -7086,7 +7068,6 @@ describe("/mrd endpoints", () => {
     const [url, opts] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/mrd/stats/admission-discharge");
   });
-
 });
 
 describe("/occ-health endpoints", () => {
@@ -7279,7 +7260,6 @@ describe("/occ-health endpoints", () => {
     expect(opts.body).toBeDefined();
     expect(() => JSON.parse(opts.body)).not.toThrow();
   });
-
 });
 
 describe("/onboarding endpoints", () => {
@@ -7340,7 +7320,6 @@ describe("/onboarding endpoints", () => {
     expect(url).toBe("/api/onboarding/complete");
     expect(opts.method).toBe("POST");
   });
-
 });
 
 describe("/opd endpoints", () => {
@@ -7494,6 +7473,17 @@ describe("/opd endpoints", () => {
     expect(() => JSON.parse(opts.body)).not.toThrow();
   });
 
+  it("updateDiagnosis → PUT /opd/encounters/{param_1}/diagnoses/{param_2}", async () => {
+    mockOk({});
+    await api.updateDiagnosis(UUID, UUID, { notes: "Resolved after treatment" });
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    const [url, opts] = mockFetch.mock.calls[0];
+    expect(url).toContain("/api/opd/encounters");
+    expect(opts.method).toBe("PUT");
+    expect(opts.body).toBeDefined();
+    expect(() => JSON.parse(opts.body)).not.toThrow();
+  });
+
   it("deleteDiagnosis → DELETE /opd/encounters/{param_1}/diagnoses/{param_2}", async () => {
     mockOk({});
     await api.deleteDiagnosis(UUID, UUID);
@@ -7526,6 +7516,17 @@ describe("/opd endpoints", () => {
     const [url, opts] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/opd/encounters");
     expect(opts.method).toBe("POST");
+    expect(opts.body).toBeDefined();
+    expect(() => JSON.parse(opts.body)).not.toThrow();
+  });
+
+  it("updatePrescription → PUT /opd/prescriptions/{param_1}", async () => {
+    mockOk({});
+    await api.updatePrescription(UUID, { notes: "Edited before approval", items: [] });
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    const [url, opts] = mockFetch.mock.calls[0];
+    expect(url).toContain("/api/opd/prescriptions");
+    expect(opts.method).toBe("PUT");
     expect(opts.body).toBeDefined();
     expect(() => JSON.parse(opts.body)).not.toThrow();
   });
@@ -7672,12 +7673,88 @@ describe("/opd endpoints", () => {
     expect(url.split("?")[0]).toBe("/api/opd/icd10/search");
   });
 
+  it("searchIcd11 → GET /opd/icd11/search", async () => {
+    mockOk({});
+    await api.searchIcd11("diabetes", 10);
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    const [url] = mockFetch.mock.calls[0];
+    expect(url.split("?")[0]).toBe("/api/opd/icd11/search");
+    expect(url).toContain("q=diabetes");
+    expect(url).toContain("limit=10");
+  });
+
   it("listChiefComplaints → GET /opd/chief-complaints", async () => {
     mockOk({});
     await api.listChiefComplaints();
     expect(mockFetch).toHaveBeenCalledTimes(1);
     const [url, opts] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/opd/chief-complaints");
+  });
+
+  it("searchClinicalCorpus → GET /opd/clinical-corpus", async () => {
+    mockOk({});
+    await api.searchClinicalCorpus({
+      q: "hpi",
+      section: "chief_complaint",
+      corpus_type: "soap_phrase",
+      limit: 8,
+    });
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    const [url] = mockFetch.mock.calls[0];
+    expect(url.split("?")[0]).toBe("/api/opd/clinical-corpus");
+    expect(url).toContain("q=hpi");
+    expect(url).toContain("section=chief_complaint");
+    expect(url).toContain("corpus_type=soap_phrase");
+  });
+
+  it("createClinicalCorpusEntry → POST /opd/clinical-corpus", async () => {
+    mockOk({});
+    await api.createClinicalCorpusEntry({
+      corpus_type: "soap_phrase",
+      section: "plan",
+      term: "follow-up",
+    });
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    const [url, opts] = mockFetch.mock.calls[0];
+    expect(url).toBe("/api/opd/clinical-corpus");
+    expect(opts.method).toBe("POST");
+  });
+
+  it("updateClinicalCorpusEntry → PUT /opd/clinical-corpus/{param_1}", async () => {
+    mockOk({});
+    await api.updateClinicalCorpusEntry(UUID, { term: "follow-up updated" });
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    const [url, opts] = mockFetch.mock.calls[0];
+    expect(url).toBe(`/api/opd/clinical-corpus/${UUID}`);
+    expect(opts.method).toBe("PUT");
+  });
+
+  it("searchTerminology → GET /terminology/search", async () => {
+    mockOk({});
+    await api.searchTerminology({
+      system: "icd11",
+      q: "fever",
+      limit: 12,
+    });
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    const [url] = mockFetch.mock.calls[0];
+    expect(url.split("?")[0]).toBe("/api/terminology/search");
+    expect(url).toContain("system=icd11");
+    expect(url).toContain("q=fever");
+    expect(url).toContain("limit=12");
+  });
+
+  it("lookupTerminology → GET /terminology/lookup", async () => {
+    mockOk({});
+    await api.lookupTerminology({
+      system: "snomed",
+      code: "386661006",
+    });
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    const [url] = mockFetch.mock.calls[0];
+    expect(url.split("?")[0]).toBe("/api/terminology/lookup");
+    expect(url).toContain("system=snomed");
+    expect(url).toContain("code=386661006");
   });
 
   it("searchSnomed → GET /opd/snomed/search", async () => {
@@ -8029,7 +8106,6 @@ describe("/opd endpoints", () => {
     const [url, opts] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/opd/analytics/followup");
   });
-
 });
 
 describe("/ot endpoints", () => {
@@ -8319,7 +8395,6 @@ describe("/ot endpoints", () => {
     const [url, opts] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/ot/schedule");
   });
-
 });
 
 describe("/patients endpoints", () => {
@@ -8364,6 +8439,14 @@ describe("/patients endpoints", () => {
   it("listPatientVisits → GET /patients/{param_1}/visits", async () => {
     mockOk({});
     await api.listPatientVisits(UUID);
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    const [url, opts] = mockFetch.mock.calls[0];
+    expect(url).toContain("/api/patients");
+  });
+
+  it("listPatientConsultations → GET /patients/{param_1}/consultations", async () => {
+    mockOk({});
+    await api.listPatientConsultations(UUID);
     expect(mockFetch).toHaveBeenCalledTimes(1);
     const [url, opts] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/patients");
@@ -8732,7 +8815,6 @@ describe("/patients endpoints", () => {
     expect(opts.body).toBeDefined();
     expect(() => JSON.parse(opts.body)).not.toThrow();
   });
-
 });
 
 describe("/pharmacy endpoints", () => {
@@ -9061,7 +9143,6 @@ describe("/pharmacy endpoints", () => {
     expect(opts.body).toBeDefined();
     expect(() => JSON.parse(opts.body)).not.toThrow();
   });
-
 });
 
 describe("/print-data endpoints", () => {
@@ -9168,7 +9249,6 @@ describe("/print-data endpoints", () => {
     const [url, opts] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/print-data/gst-invoice");
   });
-
 });
 
 describe("/procurement endpoints", () => {
@@ -9431,7 +9511,6 @@ describe("/procurement endpoints", () => {
     expect(opts.body).toBeDefined();
     expect(() => JSON.parse(opts.body)).not.toThrow();
   });
-
 });
 
 describe("/quality endpoints", () => {
@@ -9850,7 +9929,6 @@ describe("/quality endpoints", () => {
     const [url, opts] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/quality/analytics/scorecard");
   });
-
 });
 
 describe("/radiology endpoints", () => {
@@ -9999,7 +10077,6 @@ describe("/radiology endpoints", () => {
     const [url, opts] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/radiology/analytics/tat");
   });
-
 });
 
 describe("/regulatory endpoints", () => {
@@ -10075,7 +10152,6 @@ describe("/regulatory endpoints", () => {
     const [url, opts] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/regulatory/nabl/documents");
   });
-
 });
 
 describe("/scheduling endpoints", () => {
@@ -10211,7 +10287,11 @@ describe("/scheduling endpoints", () => {
 
   it("getOverbookingRecommendation → GET /scheduling/overbooking/recommendation", async () => {
     mockOk({});
-    await api.getOverbookingRecommendation({ doctor_id: UUID, department_id: UUID, date: "2026-01-01" });
+    await api.getOverbookingRecommendation({
+      doctor_id: UUID,
+      department_id: UUID,
+      date: "2026-01-01",
+    });
     expect(mockFetch).toHaveBeenCalledTimes(1);
     const [url, opts] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/scheduling/overbooking/recommendation");
@@ -10289,7 +10369,6 @@ describe("/scheduling endpoints", () => {
     expect(opts.body).toBeDefined();
     expect(() => JSON.parse(opts.body)).not.toThrow();
   });
-
 });
 
 describe("/schema endpoints", () => {
@@ -10324,9 +10403,7 @@ describe("/schema endpoints", () => {
     const [url, opts] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/schema/events");
   });
-
 });
-
 
 describe("/security endpoints", () => {
   it("listSecurityZones → GET /security/zones", async () => {
@@ -10560,7 +10637,6 @@ describe("/security endpoints", () => {
     expect(opts.body).toBeDefined();
     expect(() => JSON.parse(opts.body)).not.toThrow();
   });
-
 });
 
 describe("/it-security endpoints", () => {
@@ -11546,9 +11622,7 @@ describe("/setup endpoints", () => {
     expect(opts.body).toBeDefined();
     expect(() => JSON.parse(opts.body)).not.toThrow();
   });
-
 });
-
 
 describe("/utilization-review endpoints", () => {
   it("listUrReviews → GET /utilization-review/reviews", async () => {
@@ -11678,7 +11752,6 @@ describe("/utilization-review endpoints", () => {
     const [url, opts] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/utilization-review/analytics/los-comparison");
   });
-
 });
 
 describe("/widget-templates endpoints", () => {
@@ -11689,13 +11762,12 @@ describe("/widget-templates endpoints", () => {
     const [url, opts] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/widget-templates");
   });
-
 });
 
 describe("API coverage summary", () => {
   it("has 1269 tested methods", () => {
     const methodCount = Object.keys(api).filter(
-      (k) => typeof (api as Record<string, unknown>)[k] === "function"
+      (k) => typeof (api as Record<string, unknown>)[k] === "function",
     ).length;
     expect(methodCount).toBeGreaterThanOrEqual(1269);
   });

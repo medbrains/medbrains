@@ -1,3 +1,4 @@
+import { zodResolver } from "@hookform/resolvers/zod";
 import {
   ActionIcon,
   Badge,
@@ -14,11 +15,13 @@ import {
   TextInput,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
+import { type ServiceSettingsFormInput, serviceSettingsFormSchema } from "@medbrains/schemas";
 import type { DepartmentRow, ServiceRow } from "@medbrains/types";
 import { IconCheck, IconPencil, IconPlus, IconTrash } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { Controller, useForm } from "react-hook-form";
+import { settingsSetupService } from "../../../services/settingsSetup.service";
 
 const SERVICE_TYPE_OPTIONS = [
   { value: "consultation", label: "Consultation" },
@@ -38,16 +41,7 @@ const SERVICE_TYPE_COLORS: Record<string, string> = {
   other: "slate",
 };
 
-type ServiceFormState = {
-  code: string;
-  name: string;
-  service_type: string;
-  base_price: number;
-  department_id: string | null;
-  description: string;
-};
-
-const EMPTY_FORM: ServiceFormState = {
+const EMPTY_FORM: ServiceSettingsFormInput = {
   code: "",
   name: "",
   service_type: "consultation",
@@ -68,11 +62,20 @@ function ServiceModal({
   const queryClient = useQueryClient();
   const isEdit = !!editingService;
 
-  const [form, setForm] = useState<ServiceFormState>(EMPTY_FORM);
+  const {
+    control,
+    handleSubmit,
+    reset,
+    register,
+    formState: { errors },
+  } = useForm<ServiceSettingsFormInput>({
+    resolver: zodResolver(serviceSettingsFormSchema),
+    defaultValues: EMPTY_FORM,
+  });
 
   const { data: departments } = useQuery({
     queryKey: ["setup-departments"],
-    queryFn: () => api.listDepartments(),
+    queryFn: settingsSetupService.listDepartments,
   });
 
   const departmentOptions = (departments ?? []).map((d: DepartmentRow) => ({
@@ -82,7 +85,7 @@ function ServiceModal({
 
   const handleOpen = () => {
     if (editingService) {
-      setForm({
+      reset({
         code: editingService.code,
         name: editingService.name,
         service_type: editingService.service_type,
@@ -91,23 +94,12 @@ function ServiceModal({
         description: editingService.description ?? "",
       });
     } else {
-      setForm(EMPTY_FORM);
+      reset(EMPTY_FORM);
     }
   };
 
-  const updateField = <K extends keyof ServiceFormState>(key: K, value: ServiceFormState[K]) => {
-    setForm((prev) => ({ ...prev, [key]: value }));
-  };
-
   const createMutation = useMutation({
-    mutationFn: (data: {
-      code: string;
-      name: string;
-      service_type: string;
-      base_price?: number;
-      department_id?: string | null;
-      description?: string;
-    }) => api.createService(data),
+    mutationFn: settingsSetupService.createService,
     onSuccess: () => {
       notifications.show({
         title: "Service created",
@@ -128,16 +120,9 @@ function ServiceModal({
   });
 
   const updateMutation = useMutation({
-    mutationFn: (data: {
-      code?: string;
-      name?: string;
-      service_type?: string;
-      base_price?: number;
-      department_id?: string | null;
-      description?: string;
-    }) => {
+    mutationFn: (data: Parameters<typeof settingsSetupService.updateService>[1]) => {
       if (!editingService) throw new Error("No service selected");
-      return api.updateService(editingService.id, data);
+      return settingsSetupService.updateService(editingService.id, data);
     },
     onSuccess: () => {
       notifications.show({
@@ -158,21 +143,12 @@ function ServiceModal({
     },
   });
 
-  const handleSubmit = () => {
-    if (!form.code.trim() || !form.name.trim()) {
-      notifications.show({
-        title: "Validation error",
-        message: "Code and Name are required.",
-        color: "danger",
-      });
-      return;
-    }
-
+  const submitService = handleSubmit((form) => {
     const payload = {
       code: form.code.trim(),
       name: form.name.trim(),
       service_type: form.service_type,
-      base_price: form.base_price,
+      base_price: Number(form.base_price),
       department_id: form.department_id || null,
       description: form.description.trim() || undefined,
     };
@@ -182,7 +158,7 @@ function ServiceModal({
     } else {
       createMutation.mutate(payload);
     }
-  };
+  });
 
   return (
     <Modal
@@ -196,50 +172,71 @@ function ServiceModal({
         <TextInput
           label="Code"
           placeholder="SVC-001"
-          value={form.code}
-          onChange={(e) => updateField("code", e.currentTarget.value)}
+          {...register("code")}
+          error={errors.code?.message}
           required
         />
         <TextInput
           label="Name"
           placeholder="General Consultation"
-          value={form.name}
-          onChange={(e) => updateField("name", e.currentTarget.value)}
+          {...register("name")}
+          error={errors.name?.message}
           required
         />
-        <Select
-          label="Service Type"
-          data={SERVICE_TYPE_OPTIONS}
-          value={form.service_type}
-          onChange={(value) => updateField("service_type", value ?? "consultation")}
-          allowDeselect={false}
-          required
+        <Controller
+          control={control}
+          name="service_type"
+          render={({ field }) => (
+            <Select
+              label="Service Type"
+              data={SERVICE_TYPE_OPTIONS}
+              value={field.value}
+              onChange={(value) => field.onChange(value ?? "consultation")}
+              error={errors.service_type?.message}
+              allowDeselect={false}
+              required
+            />
+          )}
         />
-        <NumberInput
-          label="Base Price"
-          placeholder="0.00"
-          value={form.base_price}
-          onChange={(value) => updateField("base_price", typeof value === "number" ? value : 0)}
-          min={0}
-          decimalScale={2}
-          fixedDecimalScale
-          thousandSeparator=","
-          prefix="₹ "
+        <Controller
+          control={control}
+          name="base_price"
+          render={({ field }) => (
+            <NumberInput
+              label="Base Price"
+              placeholder="0.00"
+              value={field.value}
+              onChange={(value) => field.onChange(typeof value === "number" ? value : 0)}
+              min={0}
+              decimalScale={2}
+              fixedDecimalScale
+              thousandSeparator=","
+              prefix="₹ "
+              error={errors.base_price?.message}
+            />
+          )}
         />
-        <Select
-          label="Department"
-          placeholder="Select department (optional)"
-          data={departmentOptions}
-          value={form.department_id}
-          onChange={(value) => updateField("department_id", value)}
-          clearable
-          searchable
+        <Controller
+          control={control}
+          name="department_id"
+          render={({ field }) => (
+            <Select
+              label="Department"
+              placeholder="Select department (optional)"
+              data={departmentOptions}
+              value={field.value}
+              onChange={field.onChange}
+              error={errors.department_id?.message}
+              clearable
+              searchable
+            />
+          )}
         />
         <Textarea
           label="Description"
           placeholder="Optional description of this service"
-          value={form.description}
-          onChange={(e) => updateField("description", e.currentTarget.value)}
+          {...register("description")}
+          error={errors.description?.message}
           minRows={3}
         />
         <Group justify="flex-end" mt="md">
@@ -247,7 +244,7 @@ function ServiceModal({
             Cancel
           </Button>
           <Button
-            onClick={handleSubmit}
+            onClick={() => void submitService()}
             loading={createMutation.isPending || updateMutation.isPending}
           >
             {isEdit ? "Save" : "Create"}
@@ -271,18 +268,18 @@ export function ServicesSettings() {
     error,
   } = useQuery({
     queryKey: ["setup-services"],
-    queryFn: () => api.listServices(),
+    queryFn: settingsSetupService.listServices,
   });
 
   const { data: departments } = useQuery({
     queryKey: ["setup-departments"],
-    queryFn: () => api.listDepartments(),
+    queryFn: settingsSetupService.listDepartments,
   });
 
   const deptMap = new Map((departments ?? []).map((d: DepartmentRow) => [d.id, d.name]));
 
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => api.deleteService(id),
+    mutationFn: settingsSetupService.deleteService,
     onSuccess: () => {
       notifications.show({
         title: "Service deleted",

@@ -19,7 +19,6 @@ import {
   Tooltip,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
-import { api } from "@medbrains/api";
 import { useHasPermission } from "@medbrains/stores";
 import {
   IconCheck,
@@ -34,6 +33,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { PageHeader } from "../../components/PageHeader";
 import { useRequirePermission } from "../../hooks/useRequirePermission";
+import { adminDevicesService } from "../../services/adminDevices.service";
 
 // Types inlined until @medbrains/types rebuild propagates
 interface DeviceAdapterCatalog {
@@ -142,6 +142,21 @@ interface CreateDeviceInstanceRequest {
   tags?: string[];
 }
 
+interface DeviceFieldMapping {
+  device_field: string;
+  target: string;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isDeviceFieldMapping(value: unknown): value is DeviceFieldMapping {
+  return (
+    isRecord(value) && typeof value.device_field === "string" && typeof value.target === "string"
+  );
+}
+
 // ── Status badge color map ──
 
 const STATUS_COLOR: Record<string, string> = {
@@ -209,7 +224,7 @@ export function DevicesPage() {
 function DeviceListTab() {
   const { data: devices, isLoading } = useQuery({
     queryKey: ["devices", "instances"],
-    queryFn: () => api.listDeviceInstances(),
+    queryFn: () => adminDevicesService.listDeviceInstances(),
   });
 
   if (isLoading) return <Loader />;
@@ -318,7 +333,7 @@ function CatalogTab() {
   const { data: adapters, isLoading } = useQuery({
     queryKey: ["devices", "catalog", search, category, protocol],
     queryFn: () =>
-      api.listAdapterCatalog({
+      adminDevicesService.listAdapterCatalog({
         q: search || undefined,
         category: category ?? undefined,
         protocol: protocol ?? undefined,
@@ -327,7 +342,7 @@ function CatalogTab() {
 
   const { data: manufacturers } = useQuery({
     queryKey: ["devices", "manufacturers"],
-    queryFn: () => api.listManufacturers(),
+    queryFn: () => adminDevicesService.listManufacturers(),
   });
 
   const categoryOptions = [
@@ -494,7 +509,7 @@ function CatalogTab() {
 function AgentsTab() {
   const { data: agents, isLoading } = useQuery({
     queryKey: ["devices", "agents"],
-    queryFn: () => api.listBridgeAgents(),
+    queryFn: () => adminDevicesService.listBridgeAgents(),
   });
 
   if (isLoading) return <Loader />;
@@ -626,11 +641,11 @@ function RoutingRulesTab() {
 
   const { data: rules, isLoading } = useQuery({
     queryKey: ["devices", "routing-rules"],
-    queryFn: () => api.listRoutingRules() as Promise<RoutingRule[]>,
+    queryFn: () => adminDevicesService.listRoutingRules(),
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => api.deleteRoutingRule(id),
+    mutationFn: (id: string) => adminDevicesService.deleteRoutingRule(id),
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["devices", "routing-rules"] }),
   });
 
@@ -789,7 +804,7 @@ function AddRoutingRuleModal({ opened, onClose }: { opened: boolean; onClose: ()
 
   const createMutation = useMutation({
     mutationFn: () =>
-      api.createRoutingRule({
+      adminDevicesService.createRoutingRule({
         name,
         adapter_code: adapterCode || undefined,
         target_module: targetModule,
@@ -901,13 +916,12 @@ function AddDeviceWizard({ opened, onClose }: { opened: boolean; onClose: () => 
 
   const { data: adapters } = useQuery({
     queryKey: ["devices", "catalog", search],
-    queryFn: () => api.listAdapterCatalog({ q: search || undefined }),
+    queryFn: () => adminDevicesService.listAdapterCatalog({ q: search || undefined }),
     enabled: opened,
   });
 
   const previewMutation = useMutation({
-    mutationFn: (adapterCode: string) =>
-      api.previewAdapterConfig(adapterCode) as Promise<GeneratedDeviceConfig>,
+    mutationFn: (adapterCode: string) => adminDevicesService.previewAdapterConfig(adapterCode),
     onSuccess: (config: GeneratedDeviceConfig) => {
       setAiConfig(config);
       setName(config.suggested_name);
@@ -918,7 +932,8 @@ function AddDeviceWizard({ opened, onClose }: { opened: boolean; onClose: () => 
   });
 
   const createMutation = useMutation({
-    mutationFn: (data: CreateDeviceInstanceRequest) => api.createDeviceInstance(data),
+    mutationFn: (data: CreateDeviceInstanceRequest) =>
+      adminDevicesService.createDeviceInstance(data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["devices"] });
       resetAndClose();
@@ -957,6 +972,8 @@ function AddDeviceWizard({ opened, onClose }: { opened: boolean; onClose: () => 
       notes: notes || undefined,
     });
   }
+
+  const aiFieldMappings = aiConfig?.field_mappings.filter(isDeviceFieldMapping) ?? [];
 
   return (
     <Modal
@@ -1046,8 +1063,8 @@ function AddDeviceWizard({ opened, onClose }: { opened: boolean; onClose: () => 
             </Badge>
           </Group>
 
-          {aiConfig.warnings.map((w: string, i: number) => (
-            <Text key={i} size="xs" c="warning">
+          {aiConfig.warnings.map((w: string) => (
+            <Text key={w} size="xs" c="warning">
               {w}
             </Text>
           ))}
@@ -1059,24 +1076,22 @@ function AddDeviceWizard({ opened, onClose }: { opened: boolean; onClose: () => 
           )}
 
           <Text size="xs" fw={600} mt="sm">
-            Field Mappings ({(aiConfig.field_mappings as unknown[]).length})
+            Field Mappings ({aiFieldMappings.length})
           </Text>
           <Card withBorder p="xs">
-            {(aiConfig.field_mappings as Array<{ device_field: string; target: string }>).map(
-              (m, i) => (
-                <Group key={i} gap="xs" py={2}>
-                  <Badge size="xs" variant="outline" ff="var(--font-mono)">
-                    {m.device_field}
-                  </Badge>
-                  <Text size="xs" c="dimmed">
-                    &rarr;
-                  </Text>
-                  <Badge size="xs" variant="light" color="primary" ff="var(--font-mono)">
-                    {m.target}
-                  </Badge>
-                </Group>
-              ),
-            )}
+            {aiFieldMappings.map((m) => (
+              <Group key={`${m.device_field}:${m.target}`} gap="xs" py={2}>
+                <Badge size="xs" variant="outline" ff="var(--font-mono)">
+                  {m.device_field}
+                </Badge>
+                <Text size="xs" c="dimmed">
+                  &rarr;
+                </Text>
+                <Badge size="xs" variant="light" color="primary" ff="var(--font-mono)">
+                  {m.target}
+                </Badge>
+              </Group>
+            ))}
           </Card>
 
           <Group justify="flex-end" mt="md">

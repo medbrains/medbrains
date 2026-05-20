@@ -1,7 +1,7 @@
 import { Checkbox, Group, SimpleGrid, Stack, Text, TextInput } from "@mantine/core";
-import { api } from "@medbrains/api";
 import type { ReviewOfSystems as ROSType, TenantSettingsRow } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
+import { clinicalSupportService } from "../../services/clinicalSupport.service";
 
 interface ReviewOfSystemsProps {
   data: ROSType;
@@ -31,7 +31,7 @@ const DEFAULT_ROS_SYSTEMS: { key: string; label: string }[] = [
 function useRosSystems(): { key: string; label: string }[] {
   const { data: settings = [] } = useQuery<TenantSettingsRow[]>({
     queryKey: ["tenant-settings", "clinical"],
-    queryFn: () => api.getTenantSettings("clinical"),
+    queryFn: () => clinicalSupportService.getTenantSettings("clinical"),
     staleTime: 600_000,
   });
 

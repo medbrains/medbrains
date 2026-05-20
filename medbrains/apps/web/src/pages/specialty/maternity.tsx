@@ -13,7 +13,6 @@ import {
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
 import { useHasPermission } from "@medbrains/stores";
 import type {
   AncRiskCategory,
@@ -32,6 +31,7 @@ import { DataTable, PageHeader } from "../../components";
 import type { Column } from "../../components/DataTable";
 import { PatientNameCell } from "../../components/PatientNameCell";
 import { useRequirePermission } from "../../hooks/useRequirePermission";
+import { specialtyService } from "../../services/specialty.service";
 
 const RISK_COLORS: Record<string, string> = {
   low: "success",
@@ -46,6 +46,18 @@ const RISK_CATEGORIES: { value: AncRiskCategory; label: string }[] = [
   { value: "very_high", label: "Very High" },
 ];
 
+function toAncRiskCategory(value: string | null): AncRiskCategory | undefined {
+  switch (value) {
+    case "low":
+    case "moderate":
+    case "high":
+    case "very_high":
+      return value;
+    default:
+      return undefined;
+  }
+}
+
 export function MaternityPage() {
   useRequirePermission(P.SPECIALTY.MATERNITY.REGISTRATIONS_LIST);
   const qc = useQueryClient();
@@ -58,26 +70,26 @@ export function MaternityPage() {
 
   const { data: registrations = [], isLoading } = useQuery({
     queryKey: ["maternity-regs"],
-    queryFn: () => api.listMaternityRegistrations(),
+    queryFn: () => specialtyService.listMaternityRegistrations(),
   });
   const { data: ancVisits = [] } = useQuery({
     queryKey: ["anc-visits", selectedRegId],
-    queryFn: () => api.listAncVisits(selectedRegId!),
+    queryFn: () => specialtyService.listAncVisits(selectedRegId ?? ""),
     enabled: !!selectedRegId,
   });
   const { data: laborRecords = [] } = useQuery({
     queryKey: ["labor-records", selectedRegId],
-    queryFn: () => api.listLaborRecords(selectedRegId!),
+    queryFn: () => specialtyService.listLaborRecords(selectedRegId ?? ""),
     enabled: !!selectedRegId,
   });
   const { data: newborns = [] } = useQuery({
     queryKey: ["newborns", selectedLaborId],
-    queryFn: () => api.listNewborns(selectedLaborId!),
+    queryFn: () => specialtyService.listNewborns(selectedLaborId ?? ""),
     enabled: !!selectedLaborId,
   });
   const { data: postnatal = [] } = useQuery({
     queryKey: ["postnatal", selectedRegId],
-    queryFn: () => api.listPostnatalRecords(selectedRegId!),
+    queryFn: () => specialtyService.listPostnatalRecords(selectedRegId ?? ""),
     enabled: !!selectedRegId,
   });
 
@@ -87,7 +99,8 @@ export function MaternityPage() {
   });
 
   const createReg = useMutation({
-    mutationFn: (data: CreateMaternityRegistrationRequest) => api.createMaternityRegistration(data),
+    mutationFn: (data: CreateMaternityRegistrationRequest) =>
+      specialtyService.createMaternityRegistration(data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["maternity-regs"] });
       regHandlers.close();
@@ -439,9 +452,7 @@ export function MaternityPage() {
             label="Risk Category"
             data={RISK_CATEGORIES}
             value={regForm.risk_category ?? null}
-            onChange={(v) =>
-              setRegForm((p) => ({ ...p, risk_category: (v as AncRiskCategory) ?? undefined }))
-            }
+            onChange={(v) => setRegForm((p) => ({ ...p, risk_category: toAncRiskCategory(v) }))}
           />
           <TextInput
             label="Blood Group"

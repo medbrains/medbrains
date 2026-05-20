@@ -1,3 +1,4 @@
+import { zodResolver } from "@hookform/resolvers/zod";
 import { BarChart } from "@mantine/charts";
 import {
   ActionIcon,
@@ -20,12 +21,16 @@ import {
 import { DateInput } from "@mantine/dates";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
+import {
+  type UrCommunicationFormInput,
+  type UrStatusConversionFormInput,
+  type UtilizationReviewFormInput,
+  urCommunicationFormSchema,
+  urStatusConversionFormSchema,
+  utilizationReviewFormSchema,
+} from "@medbrains/schemas";
 import { useHasPermission } from "@medbrains/stores";
 import type {
-  CreateUrCommunicationRequest,
-  CreateUrConversionRequest,
-  CreateUrReviewRequest,
   LosComparisonRow,
   UrAnalyticsSummary,
   UrPayerCommunication,
@@ -46,10 +51,17 @@ import {
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
+import { Controller, useForm } from "react-hook-form";
 import { DataTable, PageHeader } from "../components";
 import type { Column } from "../components/DataTable";
 import { PatientSearchSelect } from "../components/PatientSearchSelect";
 import { useRequirePermission } from "../hooks/useRequirePermission";
+import {
+  type CreateUrCommunicationInput,
+  type CreateUrConversionInput,
+  type CreateUrReviewInput,
+  utilizationReviewService,
+} from "../services/utilizationReview.service";
 
 // ── Color maps ─────────────────────────────────────────
 
@@ -76,6 +88,89 @@ const commTypeColors: Record<string, string> = {
   info_request: "warning",
   response: "success",
 };
+
+type ReviewViewMode = "list" | "timeline";
+
+const EMPTY_REVIEW_FORM: UtilizationReviewFormInput = {
+  admission_id: "",
+  patient_id: "",
+  review_type: "admission",
+  patient_status: "inpatient",
+  criteria_source: "",
+  clinical_summary: "",
+  expected_los_days: "",
+  approved_days: "",
+  next_review_date: null,
+};
+
+const EMPTY_COMMUNICATION_FORM: UrCommunicationFormInput = {
+  review_id: "",
+  communication_type: "initial_auth",
+  payer_name: "",
+  reference_number: "",
+  summary: "",
+};
+
+const EMPTY_CONVERSION_FORM: UrStatusConversionFormInput = {
+  admission_id: "",
+  from_status: "observation",
+  to_status: "inpatient",
+  reason: "",
+};
+
+function parseReviewViewMode(value: string): ReviewViewMode {
+  return value === "timeline" ? "timeline" : "list";
+}
+
+function optionalTrimmed(value: string): string | undefined {
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+}
+
+function optionalFormInteger(value: string | number): number | undefined {
+  if (typeof value === "string" && value.trim().length === 0) return undefined;
+  const parsed = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function dateToIsoDate(date: Date | string | null): string | null {
+  if (!date) return null;
+  if (typeof date === "string") return date;
+  return date.toISOString().slice(0, 10);
+}
+
+function formToReviewPayload(form: UtilizationReviewFormInput): CreateUrReviewInput {
+  return {
+    admission_id: form.admission_id.trim(),
+    patient_id: form.patient_id.trim(),
+    review_type: form.review_type,
+    patient_status: form.patient_status,
+    criteria_source: optionalTrimmed(form.criteria_source),
+    clinical_summary: optionalTrimmed(form.clinical_summary),
+    expected_los_days: optionalFormInteger(form.expected_los_days),
+    approved_days: optionalFormInteger(form.approved_days),
+    next_review_date: form.next_review_date ?? undefined,
+  };
+}
+
+function formToCommunicationPayload(form: UrCommunicationFormInput): CreateUrCommunicationInput {
+  return {
+    review_id: form.review_id.trim(),
+    communication_type: form.communication_type,
+    payer_name: form.payer_name.trim(),
+    reference_number: optionalTrimmed(form.reference_number),
+    summary: optionalTrimmed(form.summary),
+  };
+}
+
+function formToConversionPayload(form: UrStatusConversionFormInput): CreateUrConversionInput {
+  return {
+    admission_id: form.admission_id.trim(),
+    from_status: form.from_status,
+    to_status: form.to_status,
+    reason: optionalTrimmed(form.reason),
+  };
+}
 
 // ── Main page ──────────────────────────────────────────
 
@@ -124,30 +219,26 @@ function ReviewsTab() {
   const canCreate = useHasPermission(P.UR.REVIEWS_CREATE);
   const canUpdate = useHasPermission(P.UR.REVIEWS_UPDATE);
   const [opened, { open, close }] = useDisclosure(false);
-  const [viewMode, setViewMode] = useState<"list" | "timeline">("list");
+  const [viewMode, setViewMode] = useState<ReviewViewMode>("list");
   const [selectedAdmissionId, setSelectedAdmissionId] = useState<string>("");
+  const {
+    control,
+    formState: { errors },
+    handleSubmit,
+    register,
+    reset,
+  } = useForm<UtilizationReviewFormInput>({
+    resolver: zodResolver(utilizationReviewFormSchema),
+    defaultValues: EMPTY_REVIEW_FORM,
+  });
 
   const { data = [], isLoading } = useQuery({
     queryKey: ["ur-reviews"],
-    queryFn: () => api.listUrReviews(),
+    queryFn: () => utilizationReviewService.listReviews(),
   });
 
-  const emptyForm: CreateUrReviewRequest = {
-    admission_id: "",
-    patient_id: "",
-    review_type: "admission",
-    patient_status: "inpatient",
-    criteria_source: "",
-    clinical_summary: "",
-    expected_los_days: undefined,
-    approved_days: undefined,
-    next_review_date: undefined,
-  };
-
-  const [form, setForm] = useState<CreateUrReviewRequest>(emptyForm);
-
   const createMut = useMutation({
-    mutationFn: (d: CreateUrReviewRequest) => api.createUrReview(d),
+    mutationFn: (d: CreateUrReviewInput) => utilizationReviewService.createReview(d),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["ur-reviews"] });
       void qc.invalidateQueries({ queryKey: ["ur-analytics"] });
@@ -156,7 +247,7 @@ function ReviewsTab() {
         message: "Utilization review has been created",
         color: "success",
       });
-      setForm(emptyForm);
+      reset(EMPTY_REVIEW_FORM);
       close();
     },
     onError: () =>
@@ -164,7 +255,7 @@ function ReviewsTab() {
   });
 
   const aiMut = useMutation({
-    mutationFn: (id: string) => api.aiExtractStub(id),
+    mutationFn: (id: string) => utilizationReviewService.extractReview(id),
     onSuccess: (res) => {
       notifications.show({
         title: "AI Extract",
@@ -260,6 +351,15 @@ function ReviewsTab() {
     return ids.map((id) => ({ value: id, label: `${id.slice(0, 12)}...` }));
   }, [data]);
 
+  const openCreateReview = () => {
+    reset(EMPTY_REVIEW_FORM);
+    open();
+  };
+
+  const submitReview = handleSubmit((values) => {
+    createMut.mutate(formToReviewPayload(values));
+  });
+
   const getReviewIcon = (decision: string) => {
     switch (decision) {
       case "approved":
@@ -278,7 +378,7 @@ function ReviewsTab() {
         subtitle="Manage admission-level utilization reviews"
         actions={
           canCreate ? (
-            <Button leftSection={<IconPlus size={16} />} onClick={open}>
+            <Button leftSection={<IconPlus size={16} />} onClick={openCreateReview}>
               New Review
             </Button>
           ) : undefined
@@ -288,7 +388,7 @@ function ReviewsTab() {
       <Group justify="space-between">
         <SegmentedControl
           value={viewMode}
-          onChange={(v) => setViewMode(v as "list" | "timeline")}
+          onChange={(value) => setViewMode(parseReviewViewMode(value))}
           data={[
             { value: "list", label: "List View" },
             { value: "timeline", label: "Timeline View" },
@@ -385,84 +485,112 @@ function ReviewsTab() {
         position="right"
         size="xl"
       >
-        <Stack gap="sm">
+        <Stack component="form" gap="sm" onSubmit={submitReview}>
           <TextInput
             label="Admission ID"
             required
-            value={form.admission_id}
-            onChange={(e) => setForm({ ...form, admission_id: e.currentTarget.value })}
+            error={errors.admission_id?.message}
+            {...register("admission_id")}
           />
-          <PatientSearchSelect
-            value={form.patient_id}
-            onChange={(v) => setForm({ ...form, patient_id: v })}
-            required
+          <Controller
+            name="patient_id"
+            control={control}
+            render={({ field }) => (
+              <PatientSearchSelect
+                value={field.value}
+                onChange={field.onChange}
+                required
+                error={errors.patient_id?.message}
+              />
+            )}
           />
-          <Select
-            label="Review Type"
-            required
-            data={[
-              { value: "pre_admission", label: "Pre-Admission" },
-              { value: "admission", label: "Admission" },
-              { value: "continued_stay", label: "Continued Stay" },
-              { value: "retrospective", label: "Retrospective" },
-            ]}
-            value={form.review_type}
-            onChange={(v) =>
-              setForm({
-                ...form,
-                review_type: (v as CreateUrReviewRequest["review_type"]) ?? "admission",
-              })
-            }
+          <Controller
+            name="review_type"
+            control={control}
+            render={({ field }) => (
+              <Select
+                label="Review Type"
+                required
+                data={[
+                  { value: "pre_admission", label: "Pre-Admission" },
+                  { value: "admission", label: "Admission" },
+                  { value: "continued_stay", label: "Continued Stay" },
+                  { value: "retrospective", label: "Retrospective" },
+                ]}
+                value={field.value}
+                onChange={field.onChange}
+                error={errors.review_type?.message}
+              />
+            )}
           />
-          <Select
-            label="Patient Status"
-            data={[
-              { value: "inpatient", label: "Inpatient" },
-              { value: "observation", label: "Observation" },
-            ]}
-            value={form.patient_status ?? "inpatient"}
-            onChange={(v) => setForm({ ...form, patient_status: v ?? "inpatient" })}
+          <Controller
+            name="patient_status"
+            control={control}
+            render={({ field }) => (
+              <Select
+                label="Patient Status"
+                data={[
+                  { value: "inpatient", label: "Inpatient" },
+                  { value: "observation", label: "Observation" },
+                ]}
+                value={field.value}
+                onChange={field.onChange}
+                error={errors.patient_status?.message}
+              />
+            )}
           />
           <TextInput
             label="Criteria Source"
-            value={form.criteria_source ?? ""}
-            onChange={(e) => setForm({ ...form, criteria_source: e.currentTarget.value })}
+            error={errors.criteria_source?.message}
+            {...register("criteria_source")}
           />
           <Textarea
             label="Clinical Summary"
             autosize
             minRows={3}
-            value={form.clinical_summary ?? ""}
-            onChange={(e) => setForm({ ...form, clinical_summary: e.currentTarget.value })}
+            error={errors.clinical_summary?.message}
+            {...register("clinical_summary")}
           />
-          <NumberInput
-            label="Expected LOS (days)"
-            min={0}
-            value={form.expected_los_days ?? ""}
-            onChange={(v) =>
-              setForm({ ...form, expected_los_days: typeof v === "number" ? v : undefined })
-            }
+          <Controller
+            name="expected_los_days"
+            control={control}
+            render={({ field }) => (
+              <NumberInput
+                label="Expected LOS (days)"
+                min={0}
+                value={field.value}
+                onChange={field.onChange}
+                error={errors.expected_los_days?.message}
+              />
+            )}
           />
-          <NumberInput
-            label="Approved Days"
-            min={0}
-            value={form.approved_days ?? ""}
-            onChange={(v) =>
-              setForm({ ...form, approved_days: typeof v === "number" ? v : undefined })
-            }
+          <Controller
+            name="approved_days"
+            control={control}
+            render={({ field }) => (
+              <NumberInput
+                label="Approved Days"
+                min={0}
+                value={field.value}
+                onChange={field.onChange}
+                error={errors.approved_days?.message}
+              />
+            )}
           />
-          <DateInput
-            label="Next Review Date"
-            clearable
-            value={form.next_review_date ? new Date(form.next_review_date) : null}
-            onChange={(d) =>
-              setForm({
-                ...form,
-                next_review_date: d ? new Date(d).toISOString().split("T")[0] : undefined,
-              })
-            }
+          <Controller
+            name="next_review_date"
+            control={control}
+            render={({ field }) => (
+              <DateInput
+                label="Next Review Date"
+                clearable
+                value={field.value ? new Date(field.value) : null}
+                onChange={(date) => field.onChange(dateToIsoDate(date))}
+                error={errors.next_review_date?.message}
+              />
+            )}
           />
-          <Button loading={createMut.isPending} onClick={() => createMut.mutate(form)}>
+          <Button loading={createMut.isPending} type="submit">
             Create Review
           </Button>
         </Stack>
@@ -478,17 +606,17 @@ function ReviewsTab() {
 function LosMonitoringTab() {
   const { data: summary, isLoading: summaryLoading } = useQuery({
     queryKey: ["ur-analytics"],
-    queryFn: () => api.urAnalyticsSummary(),
+    queryFn: () => utilizationReviewService.analyticsSummary(),
   });
 
   const { data: outliers = [], isLoading: outliersLoading } = useQuery({
     queryKey: ["ur-outliers"],
-    queryFn: () => api.listUrOutliers(),
+    queryFn: () => utilizationReviewService.listOutliers(),
   });
 
   const { data: losComparison = [], isLoading: losLoading } = useQuery({
     queryKey: ["ur-los-comparison"],
-    queryFn: () => api.urLosComparison(),
+    queryFn: () => utilizationReviewService.losComparison(),
   });
 
   const outlierColumns: Column<UtilizationReview>[] = [
@@ -740,24 +868,25 @@ function PayerLogTab() {
   const canCreate = useHasPermission(P.UR.COMMUNICATIONS_CREATE);
   const [opened, { open, close }] = useDisclosure(false);
   const [filterReviewId, setFilterReviewId] = useState("");
+  const {
+    control,
+    formState: { errors },
+    handleSubmit,
+    register,
+    reset,
+  } = useForm<UrCommunicationFormInput>({
+    resolver: zodResolver(urCommunicationFormSchema),
+    defaultValues: EMPTY_COMMUNICATION_FORM,
+  });
 
   const { data = [], isLoading } = useQuery({
     queryKey: ["ur-communications", filterReviewId],
-    queryFn: () => api.listUrCommunications({ review_id: filterReviewId || undefined }),
+    queryFn: () =>
+      utilizationReviewService.listCommunications({ review_id: filterReviewId || undefined }),
   });
 
-  const emptyForm: CreateUrCommunicationRequest = {
-    review_id: "",
-    communication_type: "initial_auth",
-    payer_name: "",
-    reference_number: "",
-    summary: "",
-  };
-
-  const [form, setForm] = useState<CreateUrCommunicationRequest>(emptyForm);
-
   const createMut = useMutation({
-    mutationFn: (d: CreateUrCommunicationRequest) => api.createUrCommunication(d),
+    mutationFn: (d: CreateUrCommunicationInput) => utilizationReviewService.createCommunication(d),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["ur-communications"] });
       notifications.show({
@@ -765,7 +894,7 @@ function PayerLogTab() {
         message: "Payer communication recorded",
         color: "success",
       });
-      setForm(emptyForm);
+      reset(EMPTY_COMMUNICATION_FORM);
       close();
     },
     onError: () =>
@@ -817,6 +946,15 @@ function PayerLogTab() {
     },
   ];
 
+  const openCreateCommunication = () => {
+    reset(EMPTY_COMMUNICATION_FORM);
+    open();
+  };
+
+  const submitCommunication = handleSubmit((values) => {
+    createMut.mutate(formToCommunicationPayload(values));
+  });
+
   return (
     <Stack gap="md">
       <PageHeader
@@ -824,7 +962,7 @@ function PayerLogTab() {
         subtitle="Track communications with insurance payers"
         actions={
           canCreate ? (
-            <Button leftSection={<IconPlus size={16} />} onClick={open}>
+            <Button leftSection={<IconPlus size={16} />} onClick={openCreateCommunication}>
               Log Communication
             </Button>
           ) : undefined
@@ -854,46 +992,53 @@ function PayerLogTab() {
         position="right"
         size="xl"
       >
-        <Stack gap="sm">
+        <Stack component="form" gap="sm" onSubmit={submitCommunication}>
           <TextInput
             label="Review ID"
             required
-            value={form.review_id}
-            onChange={(e) => setForm({ ...form, review_id: e.currentTarget.value })}
+            error={errors.review_id?.message}
+            {...register("review_id")}
           />
-          <Select
-            label="Communication Type"
-            required
-            data={[
-              { value: "initial_auth", label: "Initial Authorization" },
-              { value: "continued_stay", label: "Continued Stay" },
-              { value: "denial_appeal", label: "Denial Appeal" },
-              { value: "peer_review", label: "Peer Review" },
-              { value: "info_request", label: "Information Request" },
-              { value: "response", label: "Response" },
-            ]}
-            value={form.communication_type}
-            onChange={(v) => setForm({ ...form, communication_type: v ?? "initial_auth" })}
+          <Controller
+            name="communication_type"
+            control={control}
+            render={({ field }) => (
+              <Select
+                label="Communication Type"
+                required
+                data={[
+                  { value: "initial_auth", label: "Initial Authorization" },
+                  { value: "continued_stay", label: "Continued Stay" },
+                  { value: "denial_appeal", label: "Denial Appeal" },
+                  { value: "peer_review", label: "Peer Review" },
+                  { value: "info_request", label: "Information Request" },
+                  { value: "response", label: "Response" },
+                ]}
+                value={field.value}
+                onChange={field.onChange}
+                error={errors.communication_type?.message}
+              />
+            )}
           />
           <TextInput
             label="Payer Name"
             required
-            value={form.payer_name}
-            onChange={(e) => setForm({ ...form, payer_name: e.currentTarget.value })}
+            error={errors.payer_name?.message}
+            {...register("payer_name")}
           />
           <TextInput
             label="Reference Number"
-            value={form.reference_number ?? ""}
-            onChange={(e) => setForm({ ...form, reference_number: e.currentTarget.value })}
+            error={errors.reference_number?.message}
+            {...register("reference_number")}
           />
           <Textarea
             label="Summary"
             autosize
             minRows={3}
-            value={form.summary ?? ""}
-            onChange={(e) => setForm({ ...form, summary: e.currentTarget.value })}
+            error={errors.summary?.message}
+            {...register("summary")}
           />
-          <Button loading={createMut.isPending} onClick={() => createMut.mutate(form)}>
+          <Button loading={createMut.isPending} type="submit">
             Log Communication
           </Button>
         </Stack>
@@ -910,23 +1055,24 @@ function StatusTrackingTab() {
   const qc = useQueryClient();
   const canCreate = useHasPermission(P.UR.CONVERSIONS_CREATE);
   const [opened, { open, close }] = useDisclosure(false);
+  const {
+    control,
+    formState: { errors },
+    handleSubmit,
+    register,
+    reset,
+  } = useForm<UrStatusConversionFormInput>({
+    resolver: zodResolver(urStatusConversionFormSchema),
+    defaultValues: EMPTY_CONVERSION_FORM,
+  });
 
   const { data = [], isLoading } = useQuery({
     queryKey: ["ur-conversions"],
-    queryFn: () => api.listUrConversions(),
+    queryFn: () => utilizationReviewService.listConversions(),
   });
 
-  const emptyForm: CreateUrConversionRequest = {
-    admission_id: "",
-    from_status: "observation",
-    to_status: "inpatient",
-    reason: "",
-  };
-
-  const [form, setForm] = useState<CreateUrConversionRequest>(emptyForm);
-
   const createMut = useMutation({
-    mutationFn: (d: CreateUrConversionRequest) => api.createUrConversion(d),
+    mutationFn: (d: CreateUrConversionInput) => utilizationReviewService.createConversion(d),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["ur-conversions"] });
       notifications.show({
@@ -934,7 +1080,7 @@ function StatusTrackingTab() {
         message: "Status conversion recorded",
         color: "success",
       });
-      setForm(emptyForm);
+      reset(EMPTY_CONVERSION_FORM);
       close();
     },
     onError: () =>
@@ -981,6 +1127,15 @@ function StatusTrackingTab() {
     },
   ];
 
+  const openCreateConversion = () => {
+    reset(EMPTY_CONVERSION_FORM);
+    open();
+  };
+
+  const submitConversion = handleSubmit((values) => {
+    createMut.mutate(formToConversionPayload(values));
+  });
+
   return (
     <Stack gap="md">
       <PageHeader
@@ -988,7 +1143,7 @@ function StatusTrackingTab() {
         subtitle="Observation to inpatient status conversions"
         actions={
           canCreate ? (
-            <Button leftSection={<IconPlus size={16} />} onClick={open}>
+            <Button leftSection={<IconPlus size={16} />} onClick={openCreateConversion}>
               New Conversion
             </Button>
           ) : undefined
@@ -1009,41 +1164,55 @@ function StatusTrackingTab() {
         position="right"
         size="xl"
       >
-        <Stack gap="sm">
+        <Stack component="form" gap="sm" onSubmit={submitConversion}>
           <TextInput
             label="Admission ID"
             required
-            value={form.admission_id}
-            onChange={(e) => setForm({ ...form, admission_id: e.currentTarget.value })}
+            error={errors.admission_id?.message}
+            {...register("admission_id")}
           />
-          <Select
-            label="From Status"
-            required
-            data={[
-              { value: "observation", label: "Observation" },
-              { value: "inpatient", label: "Inpatient" },
-            ]}
-            value={form.from_status}
-            onChange={(v) => setForm({ ...form, from_status: v ?? "observation" })}
+          <Controller
+            name="from_status"
+            control={control}
+            render={({ field }) => (
+              <Select
+                label="From Status"
+                required
+                data={[
+                  { value: "observation", label: "Observation" },
+                  { value: "inpatient", label: "Inpatient" },
+                ]}
+                value={field.value}
+                onChange={field.onChange}
+                error={errors.from_status?.message}
+              />
+            )}
           />
-          <Select
-            label="To Status"
-            required
-            data={[
-              { value: "observation", label: "Observation" },
-              { value: "inpatient", label: "Inpatient" },
-            ]}
-            value={form.to_status}
-            onChange={(v) => setForm({ ...form, to_status: v ?? "inpatient" })}
+          <Controller
+            name="to_status"
+            control={control}
+            render={({ field }) => (
+              <Select
+                label="To Status"
+                required
+                data={[
+                  { value: "observation", label: "Observation" },
+                  { value: "inpatient", label: "Inpatient" },
+                ]}
+                value={field.value}
+                onChange={field.onChange}
+                error={errors.to_status?.message}
+              />
+            )}
           />
           <Textarea
             label="Reason"
             autosize
             minRows={3}
-            value={form.reason ?? ""}
-            onChange={(e) => setForm({ ...form, reason: e.currentTarget.value })}
+            error={errors.reason?.message}
+            {...register("reason")}
           />
-          <Button loading={createMut.isPending} onClick={() => createMut.mutate(form)}>
+          <Button loading={createMut.isPending} type="submit">
             Create Conversion
           </Button>
         </Stack>

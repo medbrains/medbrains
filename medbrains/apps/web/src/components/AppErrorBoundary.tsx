@@ -1,9 +1,9 @@
 import { Alert, Button, Container, Group, Paper, Stack, Text, Title } from "@mantine/core";
-import { api } from "@medbrains/api";
 import { IconAlertTriangle, IconHome, IconRefresh } from "@tabler/icons-react";
 import type { ErrorInfo, ReactNode } from "react";
 import { Component } from "react";
 import { useLocation } from "react-router";
+import { sessionService } from "../services/session.service";
 
 type BoundaryState = {
   error: Error | null;
@@ -17,6 +17,10 @@ type BoundaryProps = {
 };
 
 function isIgnoredDevClientError(error: unknown): boolean {
+  if (isBenignBrowserRuntimeError(error)) {
+    return true;
+  }
+
   if (!import.meta.env.DEV) {
     return false;
   }
@@ -26,6 +30,14 @@ function isIgnoredDevClientError(error: unknown): boolean {
     message.includes("WebSocket closed without opened") ||
     message.includes("[vite] failed to connect to websocket") ||
     message.includes("@vitejs/plugin-react can't detect preamble")
+  );
+}
+
+function isBenignBrowserRuntimeError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  return (
+    message.includes("ResizeObserver loop limit exceeded") ||
+    message.includes("ResizeObserver loop completed with undelivered notifications")
   );
 }
 
@@ -65,6 +77,7 @@ class AppErrorBoundaryInner extends Component<BoundaryProps, BoundaryState> {
   handleWindowError = (event: ErrorEvent) => {
     const error = event.error instanceof Error ? event.error : new Error(event.message);
     if (isIgnoredDevClientError(error)) {
+      event.preventDefault();
       return;
     }
 
@@ -104,7 +117,7 @@ class AppErrorBoundaryInner extends Component<BoundaryProps, BoundaryState> {
     this.hasReported = true;
     this.setState({ reportStatus: "sending" });
 
-    void api
+    void sessionService
       .reportClientError({
         component_stack: errorInfo?.componentStack ?? undefined,
         message: error.message,

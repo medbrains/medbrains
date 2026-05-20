@@ -24,14 +24,16 @@ use uuid::Uuid;
 const PATIENT_ID: &str = "10000000-0000-4000-8000-000000000010";
 const ENCOUNTER_ID: &str = "10000000-0000-4000-8000-000000000020";
 const APPOINTMENT_ID: &str = "10000000-0000-4000-8000-000000000021";
+const LAB_ORDER_ID: &str = "10000000-0000-4000-8000-000000000030";
 const ADMISSION_ID: &str = "10000000-0000-4000-8000-000000000040";
 const INVOICE_ID: &str = "10000000-0000-4000-8000-000000000060";
+const PHARMACY_ORDER_ID: &str = "10000000-0000-4000-8000-000000000070";
 const EMERGENCY_CASE_ID: &str = "10000000-0000-4000-8000-000000000140";
 
 /// Seed canonical fixtures for the given tenant. Pulls a pre-existing
 /// demo department + doctor + admin user from the demo data already
 /// inserted by `demo_patients::seed_demo_patients`.
-pub(super) async fn seed_canonical_fixtures(
+pub(crate) async fn seed_canonical_fixtures(
     pool: &PgPool,
     tenant_id: Uuid,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -74,8 +76,10 @@ pub(super) async fn seed_canonical_fixtures(
     let patient_uuid = PATIENT_ID.parse::<Uuid>()?;
     let encounter_uuid = ENCOUNTER_ID.parse::<Uuid>()?;
     let appointment_uuid = APPOINTMENT_ID.parse::<Uuid>()?;
+    let lab_order_uuid = LAB_ORDER_ID.parse::<Uuid>()?;
     let admission_uuid = ADMISSION_ID.parse::<Uuid>()?;
     let invoice_uuid = INVOICE_ID.parse::<Uuid>()?;
+    let pharmacy_order_uuid = PHARMACY_ORDER_ID.parse::<Uuid>()?;
     let emergency_uuid = EMERGENCY_CASE_ID.parse::<Uuid>()?;
 
     // ── Patient (UH-CANONICAL-1) ─────────────────────────────
@@ -129,6 +133,35 @@ pub(super) async fn seed_canonical_fixtures(
     .execute(&mut *tx)
     .await?;
 
+    // ── Lab order ────────────────────────────────────────────
+    if let Some(test_id) = sqlx::query_scalar::<_, Uuid>(
+        "SELECT id FROM lab_test_catalog WHERE tenant_id = $1 AND is_active = true \
+         ORDER BY code LIMIT 1",
+    )
+    .bind(tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    {
+        sqlx::query(
+            "INSERT INTO lab_orders \
+             (id, tenant_id, encounter_id, patient_id, test_id, ordered_by, \
+              status, priority, notes, created_by) \
+             VALUES ($1, $2, $3, $4, $5, $6, 'ordered'::lab_order_status, \
+                     'routine'::lab_priority, 'Canonical fixture lab order', $6) \
+             ON CONFLICT (id) DO NOTHING",
+        )
+        .bind(lab_order_uuid)
+        .bind(tenant_id)
+        .bind(encounter_uuid)
+        .bind(patient_uuid)
+        .bind(test_id)
+        .bind(admin_id)
+        .execute(&mut *tx)
+        .await?;
+    } else {
+        tracing::warn!("canonical lab order skipped — no active lab test catalog row found");
+    }
+
     // ── IPD admission ────────────────────────────────────────
     sqlx::query(
         "INSERT INTO admissions \
@@ -144,6 +177,52 @@ pub(super) async fn seed_canonical_fixtures(
     .bind(admin_id)
     .execute(&mut *tx)
     .await?;
+
+    // ── Pharmacy order + item ────────────────────────────────
+    if let Some((catalog_item_id, drug_name, unit_price)) =
+        sqlx::query_as::<_, (Uuid, String, rust_decimal::Decimal)>(
+            "SELECT id, name, base_price FROM pharmacy_catalog \
+             WHERE tenant_id = $1 AND is_active = true \
+             ORDER BY code LIMIT 1",
+        )
+        .bind(tenant_id)
+        .fetch_optional(&mut *tx)
+        .await?
+    {
+        sqlx::query(
+            "INSERT INTO pharmacy_orders \
+             (id, tenant_id, patient_id, encounter_id, ordered_by, status, notes, dispensing_type) \
+             VALUES ($1, $2, $3, $4, $5, 'ordered', 'Canonical fixture pharmacy order', \
+                     'prescription'::pharmacy_dispensing_type) \
+             ON CONFLICT (id) DO NOTHING",
+        )
+        .bind(pharmacy_order_uuid)
+        .bind(tenant_id)
+        .bind(patient_uuid)
+        .bind(encounter_uuid)
+        .bind(admin_id)
+        .execute(&mut *tx)
+        .await?;
+
+        sqlx::query(
+            "INSERT INTO pharmacy_order_items \
+             (tenant_id, order_id, catalog_item_id, drug_name, quantity, unit_price, \
+              total_price, quantity_prescribed) \
+             SELECT $1, $2, $3, $4, 1, $5, $5, 1 \
+             WHERE NOT EXISTS ( \
+               SELECT 1 FROM pharmacy_order_items WHERE tenant_id = $1 AND order_id = $2 \
+             )",
+        )
+        .bind(tenant_id)
+        .bind(pharmacy_order_uuid)
+        .bind(catalog_item_id)
+        .bind(drug_name)
+        .bind(unit_price)
+        .execute(&mut *tx)
+        .await?;
+    } else {
+        tracing::warn!("canonical pharmacy order skipped — no active pharmacy catalog row found");
+    }
 
     // ── Invoice ──────────────────────────────────────────────
     // invoice_number is NOT NULL with no default — must be supplied.
@@ -169,6 +248,8 @@ pub(super) async fn seed_canonical_fixtures(
 
     tx.commit().await?;
 
-    tracing::info!("Seeded canonical fixtures (patient/encounter/appointment/admission/invoice)");
+    tracing::info!(
+        "Seeded canonical fixtures (patient/encounter/appointment/lab/admission/invoice/pharmacy)"
+    );
     Ok(())
 }

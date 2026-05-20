@@ -5,10 +5,13 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
 ORIGIN="${DEV_HTTPS_ORIGIN:-https://medbrains.localhost}"
+DESKTOP_ORIGIN="${DEV_DESKTOP_HTTPS_ORIGIN:-https://medbrains-desktop.localhost}"
+ICD_ORIGIN="${DEV_ICD_HTTPS_ORIGIN:-https://medbrains-icd.localhost}"
 DEV_HTTPS_DOMAIN="${DEV_HTTPS_DOMAIN:-${ORIGIN#http://}}"
 DEV_HTTPS_DOMAIN="${DEV_HTTPS_DOMAIN#https://}"
 DEV_HTTPS_DOMAIN="${DEV_HTTPS_DOMAIN%%/*}"
 export DEV_HTTPS_DOMAIN
+export DEV_HTTPS_ALT_DOMAINS="${DEV_HTTPS_ALT_DOMAINS:-medbrains-desktop.localhost,medbrains-icd.localhost}"
 PROXY_CONFIG="${DEV_PROXY_CONFIG:-infra/local/pingora-dev.toml}"
 SKIP_BACKEND_BUILD="${SKIP_BACKEND_BUILD:-false}"
 STOP_STALE_DEV_PORTS="${STOP_STALE_DEV_PORTS:-true}"
@@ -140,6 +143,8 @@ wait_for_port() {
 
 echo "MedBrains local HTTPS: $ORIGIN"
 echo "  web UI:  $ORIGIN"
+echo "  desktop: $DESKTOP_ORIGIN"
+echo "  ICD-API: $ICD_ORIGIN"
 echo "  API:     $ORIGIN/api"
 echo "  health:  $ORIGIN/api/health"
 echo

@@ -217,6 +217,13 @@ import type {
   CheckPaRequiredRequest,
   ChemoProtocol,
   ChiefComplaintMaster,
+  ClinicalCorpusEntry,
+  CreateClinicalCorpusEntryRequest,
+  LookupTerminologyParams,
+  SearchClinicalCorpusParams,
+  SearchTerminologyParams,
+  TerminologySearchResult,
+  UpdateClinicalCorpusEntryRequest,
   ChronicEnrollmentRow,
   ChronicProgram,
   // Housekeeping
@@ -1207,6 +1214,7 @@ import type {
   PatientConsumableIssue,
   PatientContact,
   PatientContext,
+  PatientConsultationHistoryRow,
   PatientDiagnosisRow,
   PatientDocument,
   PatientEducationPrintData,
@@ -1378,6 +1386,8 @@ import type {
   RehabSession,
   RejectSampleRequest,
   ReorderAlert,
+  ReportCatalogResponse,
+  ReportDataResponse,
   ReportToCertInRequest,
   RescheduleAppointmentRequest,
   ResearchConsentPrintData,
@@ -1582,6 +1592,7 @@ import type {
   UpdateCreditPatientRequest,
   UpdateCrossmatchRequestBody,
   UpdateCssdInstrumentRequest,
+  UpdateDiagnosisRequest,
   UpdateCssdLoadStatusRequest,
   UpdateCssdSterilizerRequest,
   UpdateDeathSummaryRequest,
@@ -1656,6 +1667,7 @@ import type {
   UpdatePostopRecordRequest,
   UpdatePreAuthRequest,
   UpdatePreopAssessmentRequest,
+  UpdatePrescriptionRequest,
   UpdatePrimaryNurseRequest,
   UpdatePriorAuthRequestBody,
   UpdateProgressNoteRequest,
@@ -1851,12 +1863,18 @@ export function validatePayload<T>(
 // Persisted to sessionStorage so it survives Vite HMR and page reloads.
 const CSRF_STORAGE_KEY = "csrf_token";
 
-// Platform-agnostic storage check
-const isBrowser = typeof window !== "undefined" && typeof window.sessionStorage !== "undefined";
-const hasDocument = typeof document !== "undefined";
+// Platform-agnostic storage checks must be runtime-based. Desktop webviews,
+// tests, and HMR can attach globals after this module is evaluated.
+function canUseBrowserStorage(): boolean {
+  return typeof window !== "undefined" && typeof window.sessionStorage !== "undefined";
+}
+
+function canReadDocumentCookie(): boolean {
+  return typeof document !== "undefined";
+}
 
 function loadCsrfToken(): string | null {
-  if (!isBrowser) return null;
+  if (!canUseBrowserStorage()) return null;
   try {
     return window.sessionStorage.getItem(CSRF_STORAGE_KEY);
   } catch {
@@ -1867,9 +1885,97 @@ function loadCsrfToken(): string | null {
 let _csrfToken: string | null = loadCsrfToken();
 let refreshInFlight: Promise<RefreshResponse | null> | null = null;
 
+const NATIVE_AUTH_STORAGE_KEY = "medbrains_native_auth";
+
+interface NativeAuthTokens {
+  accessToken: string | null;
+  refreshToken: string | null;
+  clientName: string | null;
+}
+
+let nativeClientName: string | null = null;
+let nativeAccessToken: string | null = null;
+let nativeRefreshToken: string | null = null;
+
+function loadNativeAuthTokens(clientName: string): NativeAuthTokens | null {
+  if (!canUseBrowserStorage()) return null;
+  try {
+    const raw = window.localStorage.getItem(NATIVE_AUTH_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<NativeAuthTokens>;
+    if (parsed.clientName !== clientName) return null;
+    return {
+      accessToken: parsed.accessToken ?? null,
+      refreshToken: parsed.refreshToken ?? null,
+      clientName: parsed.clientName ?? null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function persistNativeAuthTokens(): void {
+  if (!canUseBrowserStorage() || !nativeClientName || !nativeAccessToken || !nativeRefreshToken) {
+    return;
+  }
+  try {
+    window.localStorage.setItem(
+      NATIVE_AUTH_STORAGE_KEY,
+      JSON.stringify({
+        accessToken: nativeAccessToken,
+        refreshToken: nativeRefreshToken,
+        clientName: nativeClientName,
+      }),
+    );
+  } catch {
+    // Storage may be disabled in hardened webviews.
+  }
+}
+
+function setNativeAuthTokens(accessToken?: string | null, refreshToken?: string | null): void {
+  nativeAccessToken = accessToken ?? null;
+  nativeRefreshToken = refreshToken ?? null;
+
+  if (!nativeAccessToken || !nativeRefreshToken) {
+    clearNativeAuthTokens();
+    return;
+  }
+
+  persistNativeAuthTokens();
+}
+
+export function clearNativeAuthTokens(): void {
+  nativeAccessToken = null;
+  nativeRefreshToken = null;
+  if (!canUseBrowserStorage()) return;
+  try {
+    window.localStorage.removeItem(NATIVE_AUTH_STORAGE_KEY);
+  } catch {
+    // Storage may be disabled in hardened webviews.
+  }
+}
+
+export function configureNativeAuth(clientName: string | null): void {
+  nativeClientName = clientName;
+  nativeAccessToken = null;
+  nativeRefreshToken = null;
+
+  if (!clientName) {
+    return;
+  }
+
+  const stored = loadNativeAuthTokens(clientName);
+  nativeAccessToken = stored?.accessToken ?? null;
+  nativeRefreshToken = stored?.refreshToken ?? null;
+}
+
 export function setCsrfToken(token: string | null): void {
   _csrfToken = token;
-  if (!isBrowser) return;
+  persistCsrfToken(token);
+}
+
+function persistCsrfToken(token: string | null): void {
+  if (!canUseBrowserStorage()) return;
   try {
     if (token) {
       window.sessionStorage.setItem(CSRF_STORAGE_KEY, token);
@@ -1881,22 +1987,36 @@ export function setCsrfToken(token: string | null): void {
   }
 }
 
-function getCsrfToken(): string | null {
-  if (_csrfToken) return _csrfToken;
-  // Fall back to reading the csrf_token cookie (readable, not HttpOnly)
-  if (!hasDocument) return null;
+function readCsrfCookie(): string | null {
+  if (!canReadDocumentCookie()) return null;
   try {
     const match = document.cookie
       .split(";")
       .map((c: string) => c.trim())
       .find((c: string) => c.startsWith("csrf_token="));
     if (match) {
-      return match.split("=")[1] ?? null;
+      const value = match.slice("csrf_token=".length);
+      return value.length > 0 ? value : null;
     }
   } catch {
     // SSR or non-browser environment
   }
   return null;
+}
+
+function getCsrfToken(): string | null {
+  // The server validates the header against the current readable cookie.
+  // Prefer the cookie so browser reloads/server restarts cannot leave
+  // sessionStorage ahead of the cookie and cause valid-looking 403s.
+  const cookieToken = readCsrfCookie();
+  if (cookieToken) {
+    if (cookieToken !== _csrfToken) {
+      _csrfToken = cookieToken;
+      persistCsrfToken(cookieToken);
+    }
+    return cookieToken;
+  }
+  return _csrfToken;
 }
 
 /** Methods that require CSRF protection */
@@ -1930,6 +2050,14 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     ...(init?.headers as Record<string, string>),
   };
 
+  if (nativeClientName) {
+    headers["X-MedBrains-Client"] = nativeClientName;
+  }
+
+  if (nativeAccessToken && path !== "/auth/login" && path !== "/auth/refresh") {
+    headers.Authorization = `Bearer ${nativeAccessToken}`;
+  }
+
   // Add CSRF header for mutation requests
   if (MUTATION_METHODS.has(method)) {
     const csrf = getCsrfToken();
@@ -1945,19 +2073,23 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   });
 
   if (!response.ok) {
-    if (response.status === 401) {
+    if (response.status === 401 && path !== "/auth/login" && path !== "/auth/refresh") {
       const refreshed = await refreshSession();
       if (refreshed) {
         const refreshedCsrf = getCsrfToken();
+        const retryHeaders: Record<string, string> = {
+          ...headers,
+          // Update CSRF token after refresh.
+          ...(MUTATION_METHODS.has(method) && refreshedCsrf
+            ? { "X-CSRF-Token": refreshedCsrf }
+            : {}),
+        };
+        if (nativeAccessToken && path !== "/auth/login" && path !== "/auth/refresh") {
+          retryHeaders.Authorization = `Bearer ${nativeAccessToken}`;
+        }
         const retry = await fetch(url, {
           ...init,
-          headers: {
-            ...headers,
-            // Update CSRF token after refresh.
-            ...(MUTATION_METHODS.has(method) && refreshedCsrf
-              ? { "X-CSRF-Token": refreshedCsrf }
-              : {}),
-          },
+          headers: retryHeaders,
           credentials: "include",
         });
         if (retry.ok) {
@@ -1965,6 +2097,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
         }
       }
       setCsrfToken(null);
+      clearNativeAuthTokens();
       throw new Error("session_expired");
     }
     const body = await response.json().catch(() => ({}));
@@ -1983,7 +2116,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
         route: path,
         source: "api",
         status: response.status,
-        user_agent: isBrowser ? navigator.userAgent : undefined,
+        user_agent: canUseBrowserStorage() ? navigator.userAgent : undefined,
       });
     }
 
@@ -2007,17 +2140,25 @@ async function refreshSession(): Promise<RefreshResponse | null> {
   if (!refreshInFlight) {
     const current = (async (): Promise<RefreshResponse | null> => {
       try {
+        const headers: Record<string, string> = { "Content-Type": "application/json" };
+        if (nativeClientName) {
+          headers["X-MedBrains-Client"] = nativeClientName;
+        }
+
         const resp = await fetch(`${getApiBase()}/auth/refresh`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers,
           credentials: "include",
-          body: JSON.stringify({}),
+          body: JSON.stringify(nativeRefreshToken ? { refresh_token: nativeRefreshToken } : {}),
         });
 
         if (!resp.ok) return null;
 
         const data = (await resp.json()) as RefreshResponse;
         setCsrfToken(data.csrf_token);
+        if (nativeClientName) {
+          setNativeAuthTokens(data.token, data.refresh_token);
+        }
         return data;
       } catch {
         return null;
@@ -2069,6 +2210,8 @@ export interface MeResponse {
 }
 
 export interface RefreshResponse {
+  token?: string;
+  refresh_token?: string;
   user: LoginResponse["user"];
   csrf_token: string;
   permissions: string[];
@@ -2086,6 +2229,9 @@ export const api = {
     });
     // Store CSRF token from login response
     setCsrfToken(resp.csrf_token);
+    if (nativeClientName) {
+      setNativeAuthTokens(resp.token, resp.refresh_token);
+    }
     return resp;
   },
   me: () => request<MeResponse>("/auth/me"),
@@ -2102,11 +2248,17 @@ export const api = {
     }
     return resp;
   },
-  logout: () =>
-    request<{ status: string }>("/auth/logout", {
-      method: "POST",
-      body: JSON.stringify({}),
-    }),
+  logout: async () => {
+    try {
+      return await request<{ status: string }>("/auth/logout", {
+        method: "POST",
+        body: JSON.stringify(nativeRefreshToken ? { refresh_token: nativeRefreshToken } : {}),
+      });
+    } finally {
+      setCsrfToken(null);
+      clearNativeAuthTokens();
+    }
+  },
   /**
    * Revoke every active session for a user.
    * Self-logout when `user_id` is omitted; admin-initiated when set
@@ -2703,6 +2855,8 @@ export const api = {
   // Patient Visit History / Timeline
   listPatientVisits: (patientId: string) =>
     request<PatientVisitRow[]>(`/patients/${patientId}/visits`),
+  listPatientConsultations: (patientId: string) =>
+    request<PatientConsultationHistoryRow[]>(`/patients/${patientId}/consultations`),
   listPatientLabOrders: (patientId: string) =>
     request<PatientLabOrderRow[]>(`/patients/${patientId}/lab-orders`),
   listPatientInvoices: (patientId: string) =>
@@ -3166,6 +3320,11 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
+  updateDiagnosis: (encounterId: string, diagnosisId: string, data: UpdateDiagnosisRequest) =>
+    request<Diagnosis>(`/opd/encounters/${encounterId}/diagnoses/${diagnosisId}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
   deleteDiagnosis: (encounterId: string, diagnosisId: string) =>
     request<{ status: string }>(`/opd/encounters/${encounterId}/diagnoses/${diagnosisId}`, {
       method: "DELETE",
@@ -3177,6 +3336,11 @@ export const api = {
   createPrescription: (encounterId: string, data: CreatePrescriptionRequest) =>
     request<PrescriptionWithItems>(`/opd/encounters/${encounterId}/prescriptions`, {
       method: "POST",
+      body: JSON.stringify(data),
+    }),
+  updatePrescription: (prescriptionId: string, data: UpdatePrescriptionRequest) =>
+    request<PrescriptionWithItems>(`/opd/prescriptions/${prescriptionId}`, {
+      method: "PUT",
       body: JSON.stringify(data),
     }),
 
@@ -3252,7 +3416,47 @@ export const api = {
   // ── ICD-10 & Chief Complaints ─────────────────────────
   searchIcd10: (q: string, limit?: number) =>
     request<Icd10Code[]>(`/opd/icd10/search?q=${encodeURIComponent(q)}&limit=${limit ?? 20}`),
+  searchIcd11: (q: string, limit?: number) =>
+    request<ClinicalCorpusEntry[]>(
+      `/opd/icd11/search?q=${encodeURIComponent(q)}&limit=${limit ?? 20}`,
+    ),
   listChiefComplaints: () => request<ChiefComplaintMaster[]>("/opd/chief-complaints"),
+
+  // ── Clinical Corpus / Note Completion ─────────────────
+  searchClinicalCorpus: (params: SearchClinicalCorpusParams) => {
+    const qs = new URLSearchParams();
+    qs.set("q", params.q);
+    if (params.section) qs.set("section", params.section);
+    if (params.corpus_type) qs.set("corpus_type", params.corpus_type);
+    if (params.limit !== undefined) qs.set("limit", String(params.limit));
+    return request<ClinicalCorpusEntry[]>(`/opd/clinical-corpus?${qs}`);
+  },
+  createClinicalCorpusEntry: (data: CreateClinicalCorpusEntryRequest) =>
+    request<ClinicalCorpusEntry>("/opd/clinical-corpus", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  updateClinicalCorpusEntry: (id: string, data: UpdateClinicalCorpusEntryRequest) =>
+    request<ClinicalCorpusEntry>(`/opd/clinical-corpus/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+
+  // ── Terminology Service (official-source facade) ───────
+  searchTerminology: (params: SearchTerminologyParams) => {
+    const qs = new URLSearchParams();
+    qs.set("system", params.system);
+    qs.set("q", params.q);
+    if (params.limit !== undefined) qs.set("limit", String(params.limit));
+    if (params.semantic_tag) qs.set("semantic_tag", params.semantic_tag);
+    return request<TerminologySearchResult[]>(`/terminology/search?${qs}`);
+  },
+  lookupTerminology: (params: LookupTerminologyParams) => {
+    const qs = new URLSearchParams();
+    qs.set("system", params.system);
+    qs.set("code", params.code);
+    return request<TerminologySearchResult>(`/terminology/lookup?${qs}`);
+  },
 
   // ── SNOMED CT Search ──────────────────────────────────
   searchSnomed: (q: string, limit?: number) =>
@@ -10358,6 +10562,18 @@ export const api = {
     return request<string>(`/analytics/export?${sp.toString()}`);
   },
 
+  getReportCatalog: () => request<ReportCatalogResponse>("/reports/catalog"),
+
+  getReportData: <T = unknown>(reportId: string, params?: { from?: string; to?: string }) => {
+    const sp = new URLSearchParams();
+    if (params?.from) sp.set("from", params.from);
+    if (params?.to) sp.set("to", params.to);
+    const qs = sp.toString();
+    return request<ReportDataResponse<T>>(
+      `/reports/${encodeURIComponent(reportId)}/data${qs ? `?${qs}` : ""}`,
+    );
+  },
+
   // ══════════════════════════════════════════════════════════
   //  Print Data
   // ══════════════════════════════════════════════════════════
@@ -12943,6 +13159,10 @@ export const api = {
     request<unknown>("/webhooks/razorpay", {
       method: "POST",
       body: JSON.stringify(data),
+    }),
+  seedE2eCanonicalFixtures: () =>
+    request<unknown>("/debug/e2e/canonical-fixtures", {
+      method: "POST",
     }),
   updateItSecurityOnboardingProgress: (data: Record<string, unknown>) =>
     request<unknown>("/it-onboarding/progress", {

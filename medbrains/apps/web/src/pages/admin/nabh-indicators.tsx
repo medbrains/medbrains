@@ -1,12 +1,12 @@
 // NABH KPI dashboard: official 2025 KPI catalog with live values and
 // pending source-data gaps.
 import { Badge, Card, Group, Stack, Text, Title, Tooltip } from "@mantine/core";
-import { api } from "@medbrains/api";
 import type { NabhIndicator } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
 import { PageHeader } from "../../components";
 import { useRequirePermission } from "../../hooks/useRequirePermission";
+import { reportsService } from "../../services/reports.service";
 
 const CATEGORY_LABELS: Record<string, { label: string; tone: string }> = {
   access: { label: "Access & flow", tone: "primary" },
@@ -122,12 +122,13 @@ export default function NabhIndicatorsPage() {
 
   const { data, isLoading } = useQuery({
     queryKey: ["nabh-indicators"],
-    queryFn: () => api.getNabhIndicators(),
+    queryFn: () => reportsService.getNabhIndicators(),
   });
 
   const grouped = (data?.indicators ?? []).reduce<Record<string, NabhIndicator[]>>((acc, ind) => {
-    const bucket = acc[ind.category] ?? (acc[ind.category] = []);
+    const bucket = acc[ind.category] ?? [];
     bucket.push(ind);
+    acc[ind.category] = bucket;
     return acc;
   }, {});
 

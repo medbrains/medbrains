@@ -16,6 +16,7 @@
  */
 
 import { expect, test, type APIRequestContext } from "@playwright/test";
+import { getE2EIdentity } from "../helpers/e2e-identities";
 
 const BASE = process.env.E2E_BACKEND_URL ?? "http://127.0.0.1:3000";
 
@@ -42,6 +43,11 @@ async function login(
   return { csrf: body.csrf_token ?? "", cookieHeader };
 }
 
+async function loginRole(request: APIRequestContext, role: string): Promise<AuthSession> {
+  const identity = getE2EIdentity(role);
+  return login(request, identity.username, identity.password);
+}
+
 async function get(
   request: APIRequestContext,
   s: AuthSession,
@@ -63,7 +69,7 @@ async function get(
 
 test.describe("Layer 1 — Screen / claims", () => {
   test("auth/me returns role + permission set", async ({ request }) => {
-    const sess = await login(request, "dr_priya", "doctor123");
+    const sess = await loginRole(request, "doctor");
     const me = await get(request, sess, "/api/auth/me");
     expect(me.status).toBe(200);
     const body = me.body as { role: string; permissions: string[] };
@@ -74,7 +80,7 @@ test.describe("Layer 1 — Screen / claims", () => {
   });
 
   test("non-bypass role does not get hospital_admin codes", async ({ request }) => {
-    const sess = await login(request, "nurse_anita", "test123");
+    const sess = await loginRole(request, "nurse");
     const me = await get(request, sess, "/api/auth/me");
     const body = me.body as { permissions: string[] };
     // Hospital admin-only codes nurses must not hold
@@ -86,7 +92,7 @@ test.describe("Layer 1 — Screen / claims", () => {
 
 test.describe("Layer 4 — List scope (rebac)", () => {
   test("bypass admin sees all tenant patients (>0)", async ({ request }) => {
-    const sess = await login(request, "admin", "admin123");
+    const sess = await loginRole(request, "super_admin");
     const r = await get(request, sess, "/api/patients");
     expect(r.status).toBe(200);
     const body = r.body as { total: number; patients: unknown[] };
@@ -97,14 +103,14 @@ test.describe("Layer 4 — List scope (rebac)", () => {
   test("non-bypass clinician with no SpiceDB tuples sees 0 (or grants)", async ({
     request,
   }) => {
-    const sess = await login(request, "dr_priya", "doctor123");
+    const sess = await loginRole(request, "doctor");
     const r = await get(request, sess, "/api/patients");
     // 200 with empty list; rebac filters out everything they have no tuple to
     expect(r.status).toBe(200);
     const body = r.body as { total: number; patients: unknown[] };
     expect(body.total).toBeGreaterThanOrEqual(0);
     // Smaller-or-equal to admin's total (proves a filter happened)
-    const admin = await login(request, "admin", "admin123");
+    const admin = await loginRole(request, "super_admin");
     const adminResp = await get(request, admin, "/api/patients");
     const adminBody = adminResp.body as { total: number };
     expect(body.total).toBeLessThanOrEqual(adminBody.total);
@@ -113,7 +119,7 @@ test.describe("Layer 4 — List scope (rebac)", () => {
 
 test.describe("Layer 5 — Row perms (_perms block)", () => {
   test("every patient row carries _perms with 5 keys", async ({ request }) => {
-    const sess = await login(request, "admin", "admin123");
+    const sess = await loginRole(request, "super_admin");
     const r = await get(request, sess, "/api/patients");
     const body = r.body as {
       patients: Array<{
@@ -131,7 +137,7 @@ test.describe("Layer 5 — Row perms (_perms block)", () => {
   });
 
   test("bypass admin gets _perms all-true on every row", async ({ request }) => {
-    const sess = await login(request, "admin", "admin123");
+    const sess = await loginRole(request, "super_admin");
     const r = await get(request, sess, "/api/patients");
     const body = r.body as {
       patients: Array<{ _perms: Record<string, boolean> }>;
@@ -148,7 +154,7 @@ test.describe("Layer 5 — Row perms (_perms block)", () => {
 
 test.describe("Layer 6 — Field access shape", () => {
   test("/api/auth/me exposes field_access if present", async ({ request }) => {
-    const sess = await login(request, "nurse_anita", "test123");
+    const sess = await loginRole(request, "nurse");
     const me = await get(request, sess, "/api/auth/me");
     expect(me.status).toBe(200);
     // field_access is optional — but if present, must be an object map
@@ -163,7 +169,7 @@ test.describe("Cross-cutting — perm_version invalidation", () => {
   test("auth/me returns a perm_version (used for JWT cache busting)", async ({
     request,
   }) => {
-    const sess = await login(request, "admin", "admin123");
+    const sess = await loginRole(request, "super_admin");
     const me = await get(request, sess, "/api/auth/me");
     const body = me.body as { perm_version?: number };
     if (body.perm_version !== undefined) {

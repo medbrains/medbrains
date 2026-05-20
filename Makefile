@@ -1,4 +1,4 @@
-.PHONY: help dev dev-fast dev-backend dev-frontend local-https-cert dev-proxy dev-https db db-stop db-reset \
+.PHONY: help dev dev-fast dev-icd dev-backend dev-frontend local-https-cert dev-proxy dev-https db db-icd db-stop db-reset \
        build build-backend build-frontend \
        camp-mobile camp-mobile-ios camp-mobile-android \
        mobile-staff-start mobile-staff-start-lan \
@@ -9,6 +9,8 @@
        test-frontend test-frontend-coverage analyze \
        smoke-test e2e-test generate-smoke generate-e2e \
        loadtest loadtest-quick loadtest-stress loadtest-soak \
+       desktop desktop-dev desktop-reports-dev desktop-build desktop-build-macos desktop-build-windows desktop-build-linux \
+       icd-up icd-down icd-logs icd-open \
        clean logs db-shell seed \
        docs docs-build flamegraph profile-build miri watch watch-check
 
@@ -19,7 +21,16 @@ IOS_RUN_ARGS = -- --port 8082 $(if $(IOS_DEVICE),--device "$(IOS_DEVICE)",)
 ANDROID_RUN_ARGS = -- --port 8082 $(if $(ANDROID_DEVICE),--device "$(ANDROID_DEVICE)",)
 DEV_HTTPS_DOMAIN ?= medbrains.localhost
 DEV_HTTPS_ORIGIN ?= https://$(DEV_HTTPS_DOMAIN)
+DEV_DESKTOP_HTTPS_DOMAIN ?= medbrains-desktop.localhost
+DEV_DESKTOP_HTTPS_ORIGIN ?= https://$(DEV_DESKTOP_HTTPS_DOMAIN)
+DEV_ICD_HTTPS_DOMAIN ?= medbrains-icd.localhost
+DEV_ICD_HTTPS_ORIGIN ?= https://$(DEV_ICD_HTTPS_DOMAIN)
+DEV_HTTPS_ALT_DOMAINS ?= $(DEV_DESKTOP_HTTPS_DOMAIN),$(DEV_ICD_HTTPS_DOMAIN)
 DEV_PROXY_CONFIG ?= infra/local/pingora-dev.toml
+WHO_ICD_RELEASE_ID ?= 2026-01
+ICD_API_PORT ?= 8382
+ICD_API_INCLUDE ?= $(WHO_ICD_RELEASE_ID)_en
+ICD_API_SAVE_ANALYTICS ?= false
 
 # Default
 help: ## Show this help
@@ -29,10 +40,13 @@ help: ## Show this help
 # ── Development ──────────────────────────────────────────────
 
 dev: ## Start everything through the local HTTPS proxy
-	@$(MAKE) -C $(ROOT) dev DEV_HTTPS_DOMAIN=$(DEV_HTTPS_DOMAIN) DEV_HTTPS_ORIGIN=$(DEV_HTTPS_ORIGIN) DEV_PROXY_CONFIG=$(DEV_PROXY_CONFIG)
+	@$(MAKE) -C $(ROOT) dev DEV_HTTPS_DOMAIN=$(DEV_HTTPS_DOMAIN) DEV_HTTPS_ORIGIN=$(DEV_HTTPS_ORIGIN) DEV_DESKTOP_HTTPS_DOMAIN=$(DEV_DESKTOP_HTTPS_DOMAIN) DEV_DESKTOP_HTTPS_ORIGIN=$(DEV_DESKTOP_HTTPS_ORIGIN) DEV_ICD_HTTPS_DOMAIN=$(DEV_ICD_HTTPS_DOMAIN) DEV_ICD_HTTPS_ORIGIN=$(DEV_ICD_HTTPS_ORIGIN) DEV_HTTPS_ALT_DOMAINS=$(DEV_HTTPS_ALT_DOMAINS) DEV_PROXY_CONFIG=$(DEV_PROXY_CONFIG)
 
 dev-fast: ## Start everything through HTTPS, skipping unchanged backend rebuilds
-	@$(MAKE) -C $(ROOT) dev-fast DEV_HTTPS_DOMAIN=$(DEV_HTTPS_DOMAIN) DEV_HTTPS_ORIGIN=$(DEV_HTTPS_ORIGIN) DEV_PROXY_CONFIG=$(DEV_PROXY_CONFIG)
+	@$(MAKE) -C $(ROOT) dev-fast DEV_HTTPS_DOMAIN=$(DEV_HTTPS_DOMAIN) DEV_HTTPS_ORIGIN=$(DEV_HTTPS_ORIGIN) DEV_DESKTOP_HTTPS_DOMAIN=$(DEV_DESKTOP_HTTPS_DOMAIN) DEV_DESKTOP_HTTPS_ORIGIN=$(DEV_DESKTOP_HTTPS_ORIGIN) DEV_ICD_HTTPS_DOMAIN=$(DEV_ICD_HTTPS_DOMAIN) DEV_ICD_HTTPS_ORIGIN=$(DEV_ICD_HTTPS_ORIGIN) DEV_HTTPS_ALT_DOMAINS=$(DEV_HTTPS_ALT_DOMAINS) DEV_PROXY_CONFIG=$(DEV_PROXY_CONFIG)
+
+dev-icd: ## Start HTTPS dev stack using local WHO ICD-API Docker service
+	@$(MAKE) -C $(ROOT) dev-icd DEV_HTTPS_DOMAIN=$(DEV_HTTPS_DOMAIN) DEV_HTTPS_ORIGIN=$(DEV_HTTPS_ORIGIN) DEV_DESKTOP_HTTPS_DOMAIN=$(DEV_DESKTOP_HTTPS_DOMAIN) DEV_DESKTOP_HTTPS_ORIGIN=$(DEV_DESKTOP_HTTPS_ORIGIN) DEV_ICD_HTTPS_DOMAIN=$(DEV_ICD_HTTPS_DOMAIN) DEV_ICD_HTTPS_ORIGIN=$(DEV_ICD_HTTPS_ORIGIN) DEV_HTTPS_ALT_DOMAINS=$(DEV_HTTPS_ALT_DOMAINS) DEV_PROXY_CONFIG=$(DEV_PROXY_CONFIG) WHO_ICD_RELEASE_ID=$(WHO_ICD_RELEASE_ID) ICD_API_PORT=$(ICD_API_PORT) ICD_API_INCLUDE=$(ICD_API_INCLUDE) ICD_API_SAVE_ANALYTICS=$(ICD_API_SAVE_ANALYTICS)
 
 dev-backend: db ## Start database + backend only
 	cd $(ROOT) && cargo run --bin medbrains-server
@@ -40,8 +54,8 @@ dev-backend: db ## Start database + backend only
 dev-frontend: ## Start frontend only (assumes backend running)
 	cd $(ROOT) && pnpm dev:web
 
-local-https-cert: ## Generate local HTTPS certificate for medbrains.localhost
-	@$(MAKE) -C $(ROOT) local-https-cert DEV_HTTPS_DOMAIN=$(DEV_HTTPS_DOMAIN)
+local-https-cert: ## Generate local HTTPS certificate for MedBrains local domains
+	@$(MAKE) -C $(ROOT) local-https-cert DEV_HTTPS_DOMAIN=$(DEV_HTTPS_DOMAIN) DEV_HTTPS_ALT_DOMAINS=$(DEV_HTTPS_ALT_DOMAINS)
 
 dev-proxy: ## Start local Pingora HTTPS proxy on https://medbrains.localhost
 	@$(MAKE) -C $(ROOT) dev-proxy DEV_HTTPS_DOMAIN=$(DEV_HTTPS_DOMAIN) DEV_PROXY_CONFIG=$(DEV_PROXY_CONFIG)
@@ -99,6 +113,9 @@ watch-check: ## Auto-check on code changes (requires cargo-watch)
 db: ## Start PostgreSQL
 	cd $(ROOT) && docker compose up -d postgres
 
+db-icd: ## Start PostgreSQL, SpiceDB, and local WHO ICD-API
+	@$(MAKE) -C $(ROOT) db-icd WHO_ICD_RELEASE_ID=$(WHO_ICD_RELEASE_ID) ICD_API_PORT=$(ICD_API_PORT) ICD_API_INCLUDE=$(ICD_API_INCLUDE) ICD_API_SAVE_ANALYTICS=$(ICD_API_SAVE_ANALYTICS)
+
 db-stop: ## Stop all containers
 	cd $(ROOT) && docker compose down
 
@@ -115,6 +132,18 @@ db-shell: ## Open psql shell
 logs: ## Tail database logs
 	cd $(ROOT) && docker compose logs -f postgres
 
+icd-up: ## Start local WHO ICD-API container for ICD-11 search
+	@$(MAKE) -C $(ROOT) icd-up WHO_ICD_RELEASE_ID=$(WHO_ICD_RELEASE_ID) ICD_API_PORT=$(ICD_API_PORT) ICD_API_INCLUDE=$(ICD_API_INCLUDE) ICD_API_SAVE_ANALYTICS=$(ICD_API_SAVE_ANALYTICS)
+
+icd-down: ## Stop local WHO ICD-API container
+	@$(MAKE) -C $(ROOT) icd-down
+
+icd-logs: ## Tail local WHO ICD-API logs
+	@$(MAKE) -C $(ROOT) icd-logs
+
+icd-open: ## Print local WHO ICD-API browser/coding-tool URLs
+	@$(MAKE) -C $(ROOT) icd-open ICD_API_PORT=$(ICD_API_PORT) DEV_ICD_HTTPS_ORIGIN=$(DEV_ICD_HTTPS_ORIGIN)
+
 # ── Build ────────────────────────────────────────────────────
 
 build: build-backend build-frontend ## Build everything
@@ -127,6 +156,29 @@ build-frontend: ## Build web frontend
 
 profile-build: ## Build with profiling symbols (for flamegraph)
 	cd $(ROOT) && cargo build --profile profiling
+
+# ── Desktop (Tauri 2) ────────────────────────────────────────
+
+desktop: ## Start desktop app against the running make dev stack
+	@$(MAKE) -C $(ROOT) desktop DEV_HTTPS_ORIGIN=$(DEV_HTTPS_ORIGIN) DEV_DESKTOP_HTTPS_ORIGIN=$(DEV_DESKTOP_HTTPS_ORIGIN) ROUTE="$(ROUTE)"
+
+desktop-dev: ## Start desktop app against https://medbrains-desktop.localhost
+	@$(MAKE) -C $(ROOT) desktop-dev DEV_HTTPS_ORIGIN=$(DEV_HTTPS_ORIGIN) DEV_DESKTOP_HTTPS_ORIGIN=$(DEV_DESKTOP_HTTPS_ORIGIN) ROUTE="$(ROUTE)"
+
+desktop-reports-dev: ## Run desktop app directly on the reports command center
+	@$(MAKE) -C $(ROOT) desktop-reports-dev DEV_HTTPS_ORIGIN=$(DEV_HTTPS_ORIGIN) DEV_DESKTOP_HTTPS_ORIGIN=$(DEV_DESKTOP_HTTPS_ORIGIN)
+
+desktop-build: ## Build desktop bundle for current OS
+	@$(MAKE) -C $(ROOT) desktop-build
+
+desktop-build-macos: ## Build .dmg (macOS host required)
+	@$(MAKE) -C $(ROOT) desktop-build-macos
+
+desktop-build-windows: ## Build .msi (Windows host required)
+	@$(MAKE) -C $(ROOT) desktop-build-windows
+
+desktop-build-linux: ## Build .AppImage + .deb + .rpm (Linux host required)
+	@$(MAKE) -C $(ROOT) desktop-build-linux
 
 # ── Check / Lint ─────────────────────────────────────────────
 

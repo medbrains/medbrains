@@ -1,3 +1,4 @@
+import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Accordion,
   ActionIcon,
@@ -19,7 +20,8 @@ import {
   Tooltip,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
-import { api } from "@medbrains/api";
+import type { AdminCreateRoleFormInput, EditRoleFormInput } from "@medbrains/schemas";
+import { adminCreateRoleFormSchema, editRoleFormSchema } from "@medbrains/schemas";
 import { useHasPermission } from "@medbrains/stores";
 import type {
   CustomRole,
@@ -41,9 +43,12 @@ import {
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useMemo, useState } from "react";
+import { Controller, useForm } from "react-hook-form";
 import { PageHeader } from "../../components";
 import { OfflineWriteBanner } from "../../components/OfflineWriteBanner";
+import { usePacedQueryValue } from "../../hooks/usePacedQueryValue";
 import { useRequirePermission } from "../../hooks/useRequirePermission";
+import { adminAccessService } from "../../services/adminAccess.service";
 
 // ── Permission Tree Components ──────────────────────────────
 
@@ -67,6 +72,10 @@ function getAllCodes(group: PermissionGroup): string[] {
     codes.push(...getAllCodes(child));
   }
   return codes;
+}
+
+function getAllGroupKeys(groups: PermissionGroup[]): string[] {
+  return groups.flatMap((group) => [group.key, ...getAllGroupKeys(group.children)]);
 }
 
 function PermissionGroupNode({
@@ -185,17 +194,20 @@ function PermissionEditor({
   // Initialize selected from the role's permissions
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [filter, setFilter] = useState("");
+  const pacedFilter = usePacedQueryValue(filter, 200);
 
   // Field access defaults state
   const [fieldAccess, setFieldAccess] = useState<Record<string, FieldAccessLevel>>({});
   const [fieldFilter, setFieldFilter] = useState("");
+  const pacedFieldFilter = usePacedQueryValue(fieldFilter, 200);
 
   // Widget access defaults state
   const [widgetAccess, setWidgetAccess] = useState<Record<string, WidgetAccessLevel>>({});
   const [widgetFilter, setWidgetFilter] = useState("");
+  const pacedWidgetFilter = usePacedQueryValue(widgetFilter, 200);
 
-  const allFields: FieldMasterFull[] = [];
-  const widgetTemplates: WidgetTemplate[] = [];
+  const allFields = useMemo<FieldMasterFull[]>(() => [], []);
+  const widgetTemplates = useMemo<WidgetTemplate[]>(() => [], []);
 
   // Sync state when role changes
   const [loadedRoleId, setLoadedRoleId] = useState<string | null>(null);
@@ -257,8 +269,8 @@ function PermissionEditor({
 
   // Filter fields by search
   const filteredFieldsByModule = useMemo(() => {
-    if (!fieldFilter) return fieldsByModule;
-    const lower = fieldFilter.toLowerCase();
+    if (!pacedFieldFilter) return fieldsByModule;
+    const lower = pacedFieldFilter.toLowerCase();
     const result: Record<string, FieldMasterFull[]> = {};
     for (const [module, fields] of Object.entries(fieldsByModule)) {
       const matched = fields.filter(
@@ -272,7 +284,7 @@ function PermissionEditor({
       }
     }
     return result;
-  }, [fieldsByModule, fieldFilter]);
+  }, [fieldsByModule, pacedFieldFilter]);
 
   // Count overrides (fields not set to "edit")
   const overrideCount = useMemo(() => {
@@ -304,8 +316,8 @@ function PermissionEditor({
   }, [widgetTemplates]);
 
   const filteredTemplatesByCategory = useMemo(() => {
-    if (!widgetFilter) return templatesByCategory;
-    const lower = widgetFilter.toLowerCase();
+    if (!pacedWidgetFilter) return templatesByCategory;
+    const lower = pacedWidgetFilter.toLowerCase();
     const result: Record<string, WidgetTemplate[]> = {};
     for (const [cat, tmpls] of Object.entries(templatesByCategory)) {
       const matched = tmpls.filter(
@@ -314,7 +326,7 @@ function PermissionEditor({
       if (matched.length > 0) result[cat] = matched;
     }
     return result;
-  }, [templatesByCategory, widgetFilter]);
+  }, [templatesByCategory, pacedWidgetFilter]);
 
   const widgetOverrideCount = useMemo(() => {
     return Object.keys(widgetAccess).length;
@@ -337,9 +349,9 @@ function PermissionEditor({
     mutationFn: async () => {
       if (!role) return;
       await Promise.all([
-        api.updateRolePermissions(role.id, [...selected]),
-        api.updateRoleFieldAccess(role.id, fieldAccess),
-        api.updateRoleWidgetAccess(role.id, widgetAccess),
+        adminAccessService.updateRolePermissions(role.id, [...selected]),
+        adminAccessService.updateRoleFieldAccess(role.id, fieldAccess),
+        adminAccessService.updateRoleWidgetAccess(role.id, widgetAccess),
       ]);
     },
     onSuccess: () => {
@@ -352,7 +364,7 @@ function PermissionEditor({
   const someSelected = selected.size > 0 && !allSelected;
 
   // Build default open values for accordion
-  const accordionValues = useMemo(() => tree.map((g) => g.key), [tree]);
+  const accordionValues = useMemo(() => getAllGroupKeys(tree), [tree]);
 
   // Module accordion default values for field access
   const fieldModuleKeys = useMemo(
@@ -415,7 +427,7 @@ function PermissionEditor({
                 group={group}
                 selected={selected}
                 onToggle={handleToggle}
-                filter={filter}
+                filter={pacedFilter}
               />
             ))}
           </Accordion>
@@ -639,50 +651,66 @@ function EditRoleModal({
   role: CustomRole | null;
 }) {
   const queryClient = useQueryClient();
-
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
-  const [loadedId, setLoadedId] = useState<string | null>(null);
-
-  if (role && role.id !== loadedId) {
-    setLoadedId(role.id);
-    setName(role.name);
-    setDescription(role.description ?? "");
-  }
+  const {
+    control,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<EditRoleFormInput>({
+    resolver: zodResolver(editRoleFormSchema),
+    defaultValues: {
+      name: role?.name ?? "",
+      description: role?.description ?? "",
+    },
+    mode: "onTouched",
+  });
 
   const updateMutation = useMutation({
     mutationFn: (data: { name?: string; description?: string }) => {
       if (!role) throw new Error("No role selected");
-      return api.updateRole(role.id, data);
+      return adminAccessService.updateRole(role.id, data);
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["roles"] });
-      setLoadedId(null);
       onClose();
     },
   });
 
-  const handleClose = () => {
-    setLoadedId(null);
-    onClose();
-  };
+  const submitRole = handleSubmit((values) => {
+    updateMutation.mutate({
+      name: values.name.trim(),
+      description: values.description.trim() || undefined,
+    });
+  });
 
   return (
-    <Modal opened={opened} onClose={handleClose} title="Edit Role" size="md">
+    <Modal opened={opened} onClose={onClose} title="Edit Role" size="md">
       <Stack gap="sm">
         <TextInput label="Code" value={role?.code ?? ""} disabled />
-        <TextInput
-          label="Name"
-          placeholder="Role name"
-          value={name}
-          onChange={(e) => setName(e.currentTarget.value)}
-          required
+        <Controller
+          control={control}
+          name="name"
+          render={({ field }) => (
+            <TextInput
+              label="Name"
+              placeholder="Role name"
+              value={field.value}
+              onChange={field.onChange}
+              error={errors.name?.message}
+              required
+            />
+          )}
         />
-        <TextInput
-          label="Description"
-          placeholder="Optional description"
-          value={description}
-          onChange={(e) => setDescription(e.currentTarget.value)}
+        <Controller
+          control={control}
+          name="description"
+          render={({ field }) => (
+            <TextInput
+              label="Description"
+              placeholder="Optional description"
+              value={field.value}
+              onChange={field.onChange}
+            />
+          )}
         />
 
         {updateMutation.isError && (
@@ -692,19 +720,10 @@ function EditRoleModal({
         )}
 
         <Group justify="flex-end" gap="sm" mt="md">
-          <Button variant="default" onClick={handleClose}>
+          <Button variant="default" onClick={onClose}>
             Cancel
           </Button>
-          <Button
-            onClick={() =>
-              updateMutation.mutate({
-                name: name || undefined,
-                description: description || undefined,
-              })
-            }
-            loading={updateMutation.isPending}
-            disabled={!name.trim()}
-          >
+          <Button onClick={() => void submitRole()} loading={updateMutation.isPending}>
             Save
           </Button>
         </Group>
@@ -717,33 +736,48 @@ function EditRoleModal({
 
 function CreateRoleModal({ opened, onClose }: { opened: boolean; onClose: () => void }) {
   const queryClient = useQueryClient();
-  const [code, setCode] = useState("");
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
-  const [template, setTemplate] = useState<string | null>(null);
+  const {
+    control,
+    handleSubmit,
+    reset,
+    formState: { errors },
+  } = useForm<AdminCreateRoleFormInput>({
+    resolver: zodResolver(adminCreateRoleFormSchema),
+    defaultValues: {
+      code: "",
+      name: "",
+      description: "",
+      template: null,
+    },
+    mode: "onTouched",
+  });
 
   const createMutation = useMutation({
-    mutationFn: () => {
-      const templatePerms = template ? ROLE_TEMPLATES[template]?.permissions : undefined;
+    mutationFn: (values: AdminCreateRoleFormInput) => {
+      const templatePerms = values.template
+        ? ROLE_TEMPLATES[values.template]?.permissions
+        : undefined;
       const permissions = templatePerms
         ? templatePerms.reduce<Record<string, unknown>>((acc, p) => {
             acc[p] = true;
             return acc;
           }, {})
         : {};
-      return api.createRole({ code, name, description: description || undefined, permissions });
+      return adminAccessService.createRole({
+        code: values.code.trim(),
+        name: values.name.trim(),
+        description: values.description.trim() || undefined,
+        permissions,
+      });
     },
-    onSuccess: async (newRole) => {
+    onSuccess: async (newRole, values) => {
       // If a template was selected, also update the permissions as an array
-      if (template) {
-        const templatePerms = ROLE_TEMPLATES[template]?.permissions ?? [];
-        await api.updateRolePermissions(newRole.id, templatePerms);
+      if (values.template) {
+        const templatePerms = ROLE_TEMPLATES[values.template]?.permissions ?? [];
+        await adminAccessService.updateRolePermissions(newRole.id, templatePerms);
       }
       void queryClient.invalidateQueries({ queryKey: ["roles"] });
-      setCode("");
-      setName("");
-      setDescription("");
-      setTemplate(null);
+      reset();
       onClose();
     },
   });
@@ -753,36 +787,66 @@ function CreateRoleModal({ opened, onClose }: { opened: boolean; onClose: () => 
     label: `${val.label} (${val.permissions.length} permissions)`,
   }));
 
+  const submitRole = handleSubmit((values) => {
+    createMutation.mutate(values);
+  });
+
   return (
     <Modal opened={opened} onClose={onClose} title="Create Role" size="md">
       <Stack gap="md">
-        <TextInput
-          label="Role Code"
-          placeholder="e.g. senior_nurse"
-          value={code}
-          onChange={(e) => setCode(e.currentTarget.value)}
-          required
+        <Controller
+          control={control}
+          name="code"
+          render={({ field }) => (
+            <TextInput
+              label="Role Code"
+              placeholder="e.g. senior_nurse"
+              value={field.value}
+              onChange={field.onChange}
+              error={errors.code?.message}
+              required
+            />
+          )}
         />
-        <TextInput
-          label="Role Name"
-          placeholder="e.g. Senior Nurse"
-          value={name}
-          onChange={(e) => setName(e.currentTarget.value)}
-          required
+        <Controller
+          control={control}
+          name="name"
+          render={({ field }) => (
+            <TextInput
+              label="Role Name"
+              placeholder="e.g. Senior Nurse"
+              value={field.value}
+              onChange={field.onChange}
+              error={errors.name?.message}
+              required
+            />
+          )}
         />
-        <TextInput
-          label="Description"
-          placeholder="Optional description"
-          value={description}
-          onChange={(e) => setDescription(e.currentTarget.value)}
+        <Controller
+          control={control}
+          name="description"
+          render={({ field }) => (
+            <TextInput
+              label="Description"
+              placeholder="Optional description"
+              value={field.value}
+              onChange={field.onChange}
+            />
+          )}
         />
-        <Select
-          label="Permission Template"
-          placeholder="Start with a template (optional)"
-          data={templateOptions}
-          value={template}
-          onChange={setTemplate}
-          clearable
+        <Controller
+          control={control}
+          name="template"
+          render={({ field }) => (
+            <Select
+              label="Permission Template"
+              placeholder="Start with a template (optional)"
+              data={templateOptions}
+              value={field.value}
+              onChange={field.onChange}
+              clearable
+            />
+          )}
         />
 
         {createMutation.isError && (
@@ -795,11 +859,7 @@ function CreateRoleModal({ opened, onClose }: { opened: boolean; onClose: () => 
           <Button variant="default" onClick={onClose}>
             Cancel
           </Button>
-          <Button
-            onClick={() => createMutation.mutate()}
-            loading={createMutation.isPending}
-            disabled={!code.trim() || !name.trim()}
-          >
+          <Button onClick={() => void submitRole()} loading={createMutation.isPending}>
             Create
           </Button>
         </Group>
@@ -826,11 +886,11 @@ export function RolesPage() {
 
   const { data: roles = [], isLoading } = useQuery({
     queryKey: ["roles"],
-    queryFn: () => api.listRoles(),
+    queryFn: () => adminAccessService.listRoles(),
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => api.deleteRole(id),
+    mutationFn: (id: string) => adminAccessService.deleteRole(id),
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["roles"] }),
   });
 
@@ -974,7 +1034,14 @@ export function RolesPage() {
       </Table>
 
       <CreateRoleModal opened={createOpened} onClose={closeCreate} />
-      <EditRoleModal opened={editModalOpened} onClose={closeEditModal} role={editingRole} />
+      {editModalOpened && (
+        <EditRoleModal
+          key={editingRole?.id ?? "edit-role"}
+          opened={editModalOpened}
+          onClose={closeEditModal}
+          role={editingRole}
+        />
+      )}
       <PermissionEditor role={selectedRole} opened={editorOpened} onClose={closeEditor} />
     </div>
   );

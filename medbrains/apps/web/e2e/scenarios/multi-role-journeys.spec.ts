@@ -14,10 +14,9 @@
 
 import { test, expect, type Page } from "@playwright/test";
 import { loginAsRole, routeApiDirect } from "../helpers";
+import { getE2EIdentity } from "../helpers/e2e-identities";
 
 interface RoleJourney {
-  username: string;
-  password: string;
   role: string;
   /** Pages this role should reach (module landing). */
   allowed: string[];
@@ -25,83 +24,58 @@ interface RoleJourney {
   forbidden: string[];
 }
 
-const PASS_DOC = "doctor123";
-const PASS_ROLE = "test123";
-
 const JOURNEYS: RoleJourney[] = [
   {
-    username: "dr_priya",
-    password: PASS_DOC,
     role: "doctor",
     allowed: ["/dashboard", "/patients", "/opd", "/lab", "/pharmacy"],
     forbidden: ["/admin/users", "/hr", "/procurement", "/bme"],
   },
   {
-    username: "nurse_anita",
-    password: PASS_ROLE,
     role: "nurse",
     allowed: ["/dashboard", "/patients", "/ipd"],
     forbidden: ["/admin/users", "/billing", "/procurement"],
   },
   {
-    username: "lab_suresh",
-    password: PASS_ROLE,
     role: "lab_technician",
     allowed: ["/dashboard", "/lab"],
     forbidden: ["/admin/users", "/billing", "/pharmacy", "/hr"],
   },
   {
-    username: "pharm_kavita",
-    password: PASS_ROLE,
     role: "pharmacist",
     allowed: ["/dashboard", "/pharmacy"],
     forbidden: ["/admin/users", "/lab", "/billing", "/hr"],
   },
   {
-    username: "billing_raj",
-    password: PASS_ROLE,
     role: "billing_clerk",
     allowed: ["/dashboard", "/billing"],
     forbidden: ["/lab", "/pharmacy", "/admin/users"],
   },
   {
-    username: "recept_meera",
-    password: PASS_ROLE,
     role: "receptionist",
-    allowed: ["/dashboard", "/patients"],
-    forbidden: ["/admin/users", "/lab", "/pharmacy", "/hr", "/billing"],
+    allowed: ["/dashboard", "/patients", "/billing"],
+    forbidden: ["/admin/users", "/lab", "/pharmacy", "/hr"],
   },
   {
-    username: "hr_deepika",
-    password: PASS_ROLE,
     role: "hr_officer",
     allowed: ["/dashboard", "/hr"],
     forbidden: ["/patients", "/lab", "/pharmacy", "/billing"],
   },
   {
-    username: "biomed_arvind",
-    password: PASS_ROLE,
     role: "biomed_engineer",
     allowed: ["/dashboard", "/bme"],
     forbidden: ["/patients", "/lab", "/pharmacy", "/admin/users"],
   },
   {
-    username: "proc_amit",
-    password: PASS_ROLE,
     role: "procurement_officer",
     allowed: ["/dashboard", "/procurement"],
     forbidden: ["/patients", "/lab", "/pharmacy", "/hr"],
   },
   {
-    username: "bb_tech_divya",
-    password: PASS_ROLE,
     role: "blood_bank_tech",
     allowed: ["/dashboard", "/blood-bank"],
     forbidden: ["/patients", "/lab", "/pharmacy", "/admin/users"],
   },
   {
-    username: "admin",
-    password: "admin123",
     role: "super_admin",
     // bypass — every gated page reachable
     allowed: ["/dashboard", "/patients", "/opd", "/lab", "/pharmacy", "/billing", "/hr", "/admin/users"],
@@ -126,10 +100,11 @@ async function expectRedirectedFrom(page: Page, blockedPath: string) {
 }
 
 for (const j of JOURNEYS) {
-  test.describe(`UI journey — ${j.role} (${j.username})`, () => {
+  test.describe(`UI journey — ${j.role}`, () => {
     test.beforeEach(async ({ page }) => {
       await routeApiDirect(page);
-      await loginAsRole(page, j.username, j.password);
+      const identity = getE2EIdentity(j.role);
+      await loginAsRole(page, identity.username, identity.password);
     });
 
     test(`lands on /dashboard after login`, async ({ page }) => {

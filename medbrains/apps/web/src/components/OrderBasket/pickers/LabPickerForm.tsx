@@ -1,6 +1,11 @@
+import { zodResolver } from "@hookform/resolvers/zod";
 import { Button, Group, Select, Stack, TextInput } from "@mantine/core";
+import type { OrderBasketLabFormInput } from "@medbrains/schemas";
+import { orderBasketLabFormSchema } from "@medbrains/schemas";
 import type { BasketItem, BasketLabItem, LabTestCatalog } from "@medbrains/types";
 import { useState } from "react";
+import { Controller, useForm } from "react-hook-form";
+import { labPriorityOptions } from "../../../forms/orderBasket.form";
 import { LabTestSearchSelect } from "../../LabTestSearchSelect";
 
 interface LabPickerFormProps {
@@ -8,64 +13,73 @@ interface LabPickerFormProps {
 }
 
 export function LabPickerForm({ onAdd }: LabPickerFormProps) {
-  const [testId, setTestId] = useState("");
   const [test, setTest] = useState<LabTestCatalog | undefined>();
-  const [priority, setPriority] = useState<string | null>("routine");
-  const [indication, setIndication] = useState("");
-  const [notes, setNotes] = useState("");
+  const { control, register, reset, handleSubmit } = useForm<OrderBasketLabFormInput>({
+    resolver: zodResolver(orderBasketLabFormSchema),
+    defaultValues: {
+      test_id: "",
+      priority: "routine",
+      indication: "",
+      notes: "",
+    },
+  });
 
-  const reset = () => {
-    setTestId("");
+  const resetForm = () => {
     setTest(undefined);
-    setPriority("routine");
-    setIndication("");
-    setNotes("");
+    reset({
+      test_id: "",
+      priority: "routine",
+      indication: "",
+      notes: "",
+    });
   };
 
-  const handleAdd = () => {
+  const handleAdd = (values: OrderBasketLabFormInput) => {
     if (!test) return;
     const item: BasketLabItem = {
       kind: "lab",
       test_id: test.id,
-      priority,
-      indication: indication.trim() || null,
-      notes: notes.trim() || null,
+      priority: values.priority,
+      indication: values.indication.trim() || null,
+      notes: values.notes.trim() || null,
     };
     onAdd(item);
-    reset();
+    resetForm();
   };
 
   return (
-    <Stack gap="xs">
-      <LabTestSearchSelect
-        value={testId}
-        onChange={(id, t) => {
-          setTestId(id);
-          setTest(t);
-        }}
+    <Stack component="form" gap="xs" onSubmit={handleSubmit(handleAdd)}>
+      <Controller
+        control={control}
+        name="test_id"
+        render={({ field }) => (
+          <LabTestSearchSelect
+            value={field.value}
+            onChange={(id, selectedTest) => {
+              field.onChange(id);
+              setTest(selectedTest);
+            }}
+          />
+        )}
       />
       <Group grow>
-        <Select
-          label="Priority"
-          data={["routine", "stat"]}
-          value={priority}
-          onChange={setPriority}
+        <Controller
+          control={control}
+          name="priority"
+          render={({ field }) => (
+            <Select
+              label="Priority"
+              data={labPriorityOptions}
+              value={field.value}
+              onChange={(value) => value && field.onChange(value)}
+            />
+          )}
         />
-        <TextInput
-          label="Indication"
-          placeholder="optional"
-          value={indication}
-          onChange={(e) => setIndication(e.currentTarget.value)}
-        />
+        <TextInput label="Indication" placeholder="optional" {...register("indication")} />
       </Group>
-      <TextInput
-        label="Notes"
-        placeholder="optional"
-        value={notes}
-        onChange={(e) => setNotes(e.currentTarget.value)}
-      />
+      <TextInput label="Notes" placeholder="optional" {...register("notes")} />
       <Group justify="flex-end">
-        <Button onClick={handleAdd} disabled={!test}>
+        <Button type="submit" disabled={!test}>
           Add to basket
         </Button>
       </Group>

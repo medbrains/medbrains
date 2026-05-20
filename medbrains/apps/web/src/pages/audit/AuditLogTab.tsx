@@ -13,7 +13,6 @@ import {
 import { DateInput } from "@mantine/dates";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
 import { useHasPermission } from "@medbrains/stores";
 import type { AuditLogEntry, AuditLogQuery, AuditLogSummary } from "@medbrains/types";
 import { P } from "@medbrains/types";
@@ -22,6 +21,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { DataTable } from "../../components";
 import type { Column } from "../../components/DataTable";
+import { auditService } from "../../services/audit.service";
 
 // ── Constants ──────────────────────────────────────────
 
@@ -74,29 +74,29 @@ export function AuditLogTab() {
   // Queries
   const { data: modules } = useQuery({
     queryKey: ["audit-modules"],
-    queryFn: () => api.listAuditModules(),
+    queryFn: () => auditService.listModules(),
   });
 
   const { data: entityTypes } = useQuery({
     queryKey: ["audit-entity-types"],
-    queryFn: () => api.listAuditEntityTypes(),
+    queryFn: () => auditService.listEntityTypes(),
   });
 
   const { data: logEntries, isLoading } = useQuery({
     queryKey: ["audit-log", filters],
-    queryFn: () => api.listAuditLog(filters),
+    queryFn: () => auditService.listAuditLog(filters),
     refetchInterval: 60_000,
   });
 
   const { data: detailEntry } = useQuery({
     queryKey: ["audit-entry", selectedId],
-    queryFn: () => api.getAuditEntry(selectedId as string),
+    queryFn: () => (selectedId ? auditService.getAuditEntry(selectedId) : Promise.resolve(null)),
     enabled: !!selectedId,
   });
 
   // Integrity check mutation
   const integrityMutation = useMutation({
-    mutationFn: () => api.verifyAuditIntegrity(),
+    mutationFn: () => auditService.verifyIntegrity(),
     onSuccess: (result) => {
       if (result.valid) {
         notifications.show({
@@ -130,7 +130,7 @@ export function AuditLogTab() {
 
   const handleExport = () => {
     const q = buildQuery();
-    const url = api.exportAuditLogUrl({ ...q, format: "csv" });
+    const url = auditService.exportAuditLogUrl({ ...q, format: "csv" });
     window.open(url, "_blank");
   };
 
@@ -280,30 +280,20 @@ export function AuditLogTab() {
       </Group>
 
       {/* Table */}
-      <div
-        style={{ cursor: "pointer" }}
-        onClick={(e) => {
-          const row = (e.target as HTMLElement).closest("tr");
-          if (!row) return;
-          const idx = row.rowIndex - 1; // header is row 0
-          const entry = logEntries?.[idx];
-          if (entry) handleRowClick(entry);
-        }}
-      >
-        <DataTable
-          columns={columns}
-          data={logEntries ?? []}
-          loading={isLoading}
-          rowKey={(r) => r.id}
-          page={page}
-          totalPages={totalPages}
-          perPage={PER_PAGE}
-          onPageChange={setPage}
-          total={logEntries?.length}
-          emptyTitle="No audit entries found"
-          emptyDescription="Adjust your filters or wait for new activity."
-        />
-      </div>
+      <DataTable
+        columns={columns}
+        data={logEntries ?? []}
+        loading={isLoading}
+        rowKey={(r) => r.id}
+        page={page}
+        totalPages={totalPages}
+        perPage={PER_PAGE}
+        onPageChange={setPage}
+        total={logEntries?.length}
+        emptyTitle="No audit entries found"
+        emptyDescription="Adjust your filters or wait for new activity."
+        onRowClick={handleRowClick}
+      />
 
       {/* Detail Drawer */}
       <AuditDetailDrawer entry={detailEntry ?? null} opened={detailOpened} onClose={closeDetail} />

@@ -1,9 +1,9 @@
 import { Button, Checkbox, Loader, Select, Stack, Text, Title } from "@mantine/core";
-import { api } from "@medbrains/api";
 import { useOnboardingStore } from "@medbrains/stores";
 import type { RegulatoryBody } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
+import { onboardingService } from "../../services/onboarding.service";
 import classes from "./onboarding.module.scss";
 
 interface Props {
@@ -23,25 +23,25 @@ export function GeoRegulatoryStep({ onNext, onBack }: Props) {
 
   const { data: countries } = useQuery({
     queryKey: ["geo-countries"],
-    queryFn: () => api.geoCountries(),
+    queryFn: () => onboardingService.geoCountries(),
   });
 
   const { data: states } = useQuery({
     queryKey: ["geo-states", countryId],
-    queryFn: () => api.geoStates(countryId as string),
+    queryFn: () => onboardingService.geoStates(countryId as string),
     enabled: !!countryId,
   });
 
   const { data: districts } = useQuery({
     queryKey: ["geo-districts", stateId],
-    queryFn: () => api.geoDistricts(stateId as string),
+    queryFn: () => onboardingService.geoDistricts(stateId as string),
     enabled: !!stateId,
   });
 
   const { data: autoDetected, isLoading: detectingRegulators } = useQuery({
     queryKey: ["geo-regulators-auto", countryId, stateId],
     queryFn: () =>
-      api.geoAutoDetectRegulators({
+      onboardingService.geoAutoDetectRegulators({
         country_id: countryId ?? undefined,
         state_id: stateId ?? undefined,
       }),

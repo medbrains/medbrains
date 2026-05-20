@@ -10,8 +10,9 @@ import {
   Text,
   Title,
 } from "@mantine/core";
-import { api } from "@medbrains/api";
+import type { HealthResponse } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
+import { sessionService } from "../services/session.service";
 
 function StatusBadge({ label, status }: { label: string; status: string }) {
   const isConnected = status === "connected" || status === "ok";
@@ -28,9 +29,9 @@ function StatusBadge({ label, status }: { label: string; status: string }) {
 }
 
 export function IndexPage() {
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error } = useQuery<HealthResponse>({
     queryKey: ["health"],
-    queryFn: api.health,
+    queryFn: sessionService.health,
     refetchInterval: 10_000,
   });
 

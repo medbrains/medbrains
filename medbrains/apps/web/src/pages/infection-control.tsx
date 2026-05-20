@@ -25,7 +25,6 @@ import {
 import { DateInput } from "@mantine/dates";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
 import { useHasPermission } from "@medbrains/stores";
 import type {
   AntibioticRequestStatusType,
@@ -73,6 +72,7 @@ import { DepartmentSelect } from "../components/DepartmentSelect";
 import { EmployeeSearchSelect } from "../components/EmployeeSearchSelect";
 import { PatientSearchSelect } from "../components/PatientSearchSelect";
 import { useRequirePermission } from "../hooks/useRequirePermission";
+import { infectionControlService } from "../services/infectionControl.service";
 
 // ── Color Maps ──────────────────────────────────────────
 
@@ -150,7 +150,8 @@ function SurveillanceTab() {
 
   const { data: events = [], isLoading } = useQuery({
     queryKey: ["ic-surveillance", haiFilter],
-    queryFn: () => api.listSurveillanceEvents({ hai_type: haiFilter ?? undefined }),
+    queryFn: () =>
+      infectionControlService.listSurveillanceEvents({ hai_type: haiFilter ?? undefined }),
   });
 
   // Feature 1: SSI-specific tracking
@@ -168,7 +169,7 @@ function SurveillanceTab() {
 
   const createMut = useMutation({
     mutationFn: () =>
-      api.createSurveillanceEvent({
+      infectionControlService.createSurveillanceEvent({
         patient_id: form.patient_id,
         hai_type: form.hai_type,
         infection_date: form.infection_date,
@@ -378,13 +379,16 @@ function StewardshipTab() {
 
   const { data: requests = [], isLoading } = useQuery({
     queryKey: ["ic-stewardship", statusFilter],
-    queryFn: () => api.listStewardshipRequests({ request_status: statusFilter ?? undefined }),
+    queryFn: () =>
+      infectionControlService.listStewardshipRequests({
+        request_status: statusFilter ?? undefined,
+      }),
   });
 
   // Feature 4: Antibiogram display
   const { data: cultures = [] } = useQuery({
     queryKey: ["ic-cultures"],
-    queryFn: () => api.listCultureSurveillance(),
+    queryFn: () => infectionControlService.listCultureSurveillance(),
   });
 
   // Build antibiogram matrix
@@ -427,7 +431,7 @@ function StewardshipTab() {
 
   const createMut = useMutation({
     mutationFn: () =>
-      api.createStewardshipRequest({
+      infectionControlService.createStewardshipRequest({
         patient_id: form.patient_id,
         antibiotic_name: form.antibiotic_name,
         dose: form.dose || undefined,
@@ -445,7 +449,7 @@ function StewardshipTab() {
 
   const reviewMut = useMutation({
     mutationFn: ({ id, status }: { id: string; status: string }) =>
-      api.reviewStewardshipRequest(id, {
+      infectionControlService.reviewStewardshipRequest(id, {
         request_status: status as AntibioticRequestStatusType,
         review_notes: undefined,
       }),
@@ -694,7 +698,8 @@ function BiowasteTab() {
 
   const { data: records = [], isLoading } = useQuery({
     queryKey: ["ic-biowaste", catFilter],
-    queryFn: () => api.listBiowasteRecords({ waste_category: catFilter ?? undefined }),
+    queryFn: () =>
+      infectionControlService.listBiowasteRecords({ waste_category: catFilter ?? undefined }),
   });
 
   // Feature 7: BMW monthly report
@@ -735,7 +740,8 @@ function BiowasteTab() {
   });
 
   const createMut = useMutation({
-    mutationFn: (data: CreateBiowasteRecordRequest) => api.createBiowasteRecord(data),
+    mutationFn: (data: CreateBiowasteRecordRequest) =>
+      infectionControlService.createBiowasteRecord(data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["ic-biowaste"] });
       notifications.show({ title: "Record added", message: "", color: "success" });
@@ -967,18 +973,18 @@ function HygieneTab() {
 
   const { data: audits = [], isLoading } = useQuery({
     queryKey: ["ic-hygiene"],
-    queryFn: () => api.listHygieneAudits(),
+    queryFn: () => infectionControlService.listHygieneAudits(),
   });
 
   const { data: cultures = [], isLoading: culturesLoading } = useQuery({
     queryKey: ["ic-cultures"],
-    queryFn: () => api.listCultureSurveillance(),
+    queryFn: () => infectionControlService.listCultureSurveillance(),
   });
 
   // Feature 2: Bundle compliance stats
   const { data: deviceDays = [] } = useQuery({
     queryKey: ["ic-device-days"],
-    queryFn: () => api.listDeviceDays(),
+    queryFn: () => infectionControlService.listDeviceDays(),
   });
 
   // Feature 3: Hand hygiene audit bar chart by department
@@ -1027,7 +1033,8 @@ function HygieneTab() {
   });
 
   const createMut = useMutation({
-    mutationFn: (data: CreateHygieneAuditRequest) => api.createHygieneAudit(data),
+    mutationFn: (data: CreateHygieneAuditRequest) =>
+      infectionControlService.createHygieneAudit(data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["ic-hygiene"] });
       notifications.show({ title: "Audit recorded", message: "", color: "success" });
@@ -1336,12 +1343,14 @@ function OutbreakTab() {
 
   const { data: outbreaks = [], isLoading } = useQuery({
     queryKey: ["ic-outbreaks", statusFilter],
-    queryFn: () => api.listOutbreaks({ outbreak_status: statusFilter ?? undefined }),
+    queryFn: () =>
+      infectionControlService.listOutbreaks({ outbreak_status: statusFilter ?? undefined }),
   });
 
   const { data: contacts = [] } = useQuery({
     queryKey: ["ic-outbreak-contacts", selected?.id],
-    queryFn: () => (selected ? api.listOutbreakContacts(selected.id) : Promise.resolve([])),
+    queryFn: () =>
+      selected ? infectionControlService.listOutbreakContacts(selected.id) : Promise.resolve([]),
     enabled: !!selected,
   });
 
@@ -1369,7 +1378,7 @@ function OutbreakTab() {
   });
 
   const createMut = useMutation({
-    mutationFn: (data: CreateOutbreakRequest) => api.createOutbreak(data),
+    mutationFn: (data: CreateOutbreakRequest) => infectionControlService.createOutbreak(data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["ic-outbreaks"] });
       notifications.show({ title: "Outbreak reported", message: "", color: "success" });
@@ -1379,7 +1388,7 @@ function OutbreakTab() {
 
   const updateMut = useMutation({
     mutationFn: ({ id, data }: { id: string; data: UpdateOutbreakRequest }) =>
-      api.updateOutbreak(id, data),
+      infectionControlService.updateOutbreak(id, data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["ic-outbreaks"] });
       notifications.show({ title: "Outbreak updated", message: "", color: "success" });
@@ -1618,7 +1627,7 @@ function SharpsSafetyTab() {
   const canCreate = useHasPermission(P.INFECTION_CONTROL.SURVEILLANCE_CREATE);
   const { data: incidents = [], isLoading } = useQuery({
     queryKey: ["ic-needlestick"],
-    queryFn: () => api.listNeedleStickIncidents(),
+    queryFn: () => infectionControlService.listNeedleStickIncidents(),
   });
 
   const columns = [
@@ -1712,37 +1721,37 @@ function AnalyticsTab() {
 
   const { data: haiRates = [], isLoading: haiLoading } = useQuery({
     queryKey: ["ic-hai-rates", dateParams],
-    queryFn: () => api.icHaiRates(dateParams),
+    queryFn: () => infectionControlService.icHaiRates(dateParams),
     enabled: subView === "hai-rates",
   });
 
   const { data: deviceUtil = [], isLoading: deviceLoading } = useQuery({
     queryKey: ["ic-device-util", dateParams],
-    queryFn: () => api.icDeviceUtilization(dateParams),
+    queryFn: () => infectionControlService.icDeviceUtilization(dateParams),
     enabled: subView === "device-util",
   });
 
   const { data: amConsumption = [], isLoading: amLoading } = useQuery({
     queryKey: ["ic-am-consumption", dateParams],
-    queryFn: () => api.icAntimicrobialConsumption(dateParams),
+    queryFn: () => infectionControlService.icAntimicrobialConsumption(dateParams),
     enabled: subView === "am-consumption",
   });
 
   const { data: prophylaxis = [], isLoading: prophLoading } = useQuery({
     queryKey: ["ic-prophylaxis", dateParams],
-    queryFn: () => api.icSurgicalProphylaxis(dateParams),
+    queryFn: () => infectionControlService.icSurgicalProphylaxis(dateParams),
     enabled: subView === "prophylaxis",
   });
 
   const { data: cultureSens = [], isLoading: csLoading } = useQuery({
     queryKey: ["ic-culture-sens", dateParams],
-    queryFn: () => api.icCultureSensitivityReport(dateParams),
+    queryFn: () => infectionControlService.icCultureSensitivityReport(dateParams),
     enabled: subView === "culture-sens",
   });
 
   const { data: mdro = [], isLoading: mdroLoading } = useQuery({
     queryKey: ["ic-mdro", dateParams],
-    queryFn: () => api.icMdroTracking(dateParams),
+    queryFn: () => infectionControlService.icMdroTracking(dateParams),
     enabled: subView === "mdro",
   });
 
@@ -2039,13 +2048,13 @@ function MeetingsTab() {
 
   const { data: meetings = [], isLoading: meetingsLoading } = useQuery({
     queryKey: ["ic-meetings"],
-    queryFn: () => api.listIcMeetings(),
+    queryFn: () => infectionControlService.listIcMeetings(),
     enabled: subView === "meetings",
   });
 
   const { data: monthlyReport, isLoading: reportLoading } = useQuery({
     queryKey: ["ic-monthly-report", monthParam],
-    queryFn: () => api.icMonthlySurveillance({ month: monthParam }),
+    queryFn: () => infectionControlService.icMonthlySurveillance({ month: monthParam }),
     enabled: subView === "monthly",
   });
 
@@ -2055,7 +2064,7 @@ function MeetingsTab() {
   });
 
   const createMeetingMut = useMutation({
-    mutationFn: (data: CreateIcMeetingRequest) => api.createIcMeeting(data),
+    mutationFn: (data: CreateIcMeetingRequest) => infectionControlService.createIcMeeting(data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["ic-meetings"] });
       notifications.show({ title: "Meeting created", message: "", color: "success" });
@@ -2072,7 +2081,7 @@ function MeetingsTab() {
   });
 
   const createExposureMut = useMutation({
-    mutationFn: (data: CreateExposureRequest) => api.createIcExposure(data),
+    mutationFn: (data: CreateExposureRequest) => infectionControlService.createIcExposure(data),
     onSuccess: () => {
       notifications.show({ title: "Exposure recorded", message: "", color: "success" });
       closeExposure();

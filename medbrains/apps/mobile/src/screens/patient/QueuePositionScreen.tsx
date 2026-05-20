@@ -1,4 +1,3 @@
-import { api } from "@medbrains/api";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { StyleSheet, View } from "react-native";
@@ -14,6 +13,7 @@ import {
   useTheme,
 } from "react-native-paper";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { patientService } from "../../services/patient.service";
 
 interface QueuePositionScreenProps {
   route: {
@@ -34,14 +34,14 @@ export function QueuePositionScreen({ route, navigation }: QueuePositionScreenPr
 
   const { data: appointment, isLoading } = useQuery({
     queryKey: ["appointment", appointmentId, refreshKey],
-    queryFn: () => api.getAppointment(appointmentId),
-    refetchInterval: 15000, // Refresh every 15 seconds
+    queryFn: () => patientService.getAppointment(appointmentId),
+    refetchInterval: 15000,
   });
 
   const { data: waitEstimate } = useQuery({
     queryKey: ["waitEstimate", appointment?.department_id, refreshKey],
     queryFn: () =>
-      api.getWaitEstimate({
+      patientService.getWaitEstimate({
         department_id: appointment?.department_id,
         doctor_id: appointment?.doctor_id,
       }),

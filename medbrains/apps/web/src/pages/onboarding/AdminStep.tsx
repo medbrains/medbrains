@@ -10,7 +10,6 @@ import {
   TextInput,
   Title,
 } from "@mantine/core";
-import { api, setCsrfToken } from "@medbrains/api";
 import type { OnboardingInitInput } from "@medbrains/schemas";
 import { onboardingInitSchema } from "@medbrains/schemas";
 import { useAuthStore, useOnboardingStore } from "@medbrains/stores";
@@ -21,6 +20,7 @@ import { useMutation } from "@tanstack/react-query";
 import type { MutableRefObject } from "react";
 import { useEffect, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
+import { onboardingService } from "../../services/onboarding.service";
 import classes from "./onboarding.module.scss";
 
 interface Props {
@@ -71,7 +71,15 @@ export function AdminStep({ onNext, onBack, draftRef }: Props) {
   // Sync form values back to the parent ref so they survive unmount
   useEffect(() => {
     const sub = form.watch((values) => {
-      draftRef.current = values as Partial<OnboardingInitInput>;
+      draftRef.current = {
+        hospital_name: values.hospital_name,
+        hospital_code: values.hospital_code,
+        hospital_type: values.hospital_type,
+        admin_full_name: values.admin_full_name,
+        admin_username: values.admin_username,
+        admin_email: values.admin_email,
+        admin_password: values.admin_password,
+      };
     });
     return () => sub.unsubscribe();
   }, [form, draftRef]);
@@ -80,10 +88,10 @@ export function AdminStep({ onNext, onBack, draftRef }: Props) {
   const setSequences = useOnboardingStore((s) => s.setSequences);
 
   const initMutation = useMutation({
-    mutationFn: (data: OnboardingInitInput) => api.onboardingInit(data),
+    mutationFn: (data: OnboardingInitInput) => onboardingService.onboardingInit(data),
     onSuccess: (data) => {
       const values = form.getValues();
-      setCsrfToken(data.csrf_token);
+      onboardingService.setCsrfToken(data.csrf_token);
       setAuth({
         id: data.user_id,
         tenant_id: data.tenant_id,
@@ -91,7 +99,11 @@ export function AdminStep({ onNext, onBack, draftRef }: Props) {
         email: values.admin_email,
         full_name: values.admin_full_name,
         role: "super_admin",
-      } as never);
+        access_matrix: {},
+        is_active: true,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      });
       // Initialize store defaults based on hospital code
       setSequences({
         uhid_prefix: `${values.hospital_code}-`,

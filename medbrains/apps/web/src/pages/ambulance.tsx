@@ -1,3 +1,4 @@
+import { zodResolver } from "@hookform/resolvers/zod";
 import {
   ActionIcon,
   Badge,
@@ -19,20 +20,31 @@ import {
 import { DateInput } from "@mantine/dates";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
+import type {
+  AmbulanceDriverFormInput,
+  AmbulanceFleetFormInput,
+  AmbulanceMaintenanceFormInput,
+  AmbulanceTripFormInput,
+} from "@medbrains/schemas";
+import {
+  ambulanceDriverFormSchema,
+  ambulanceFleetFormSchema,
+  ambulanceMaintenanceFormSchema,
+  ambulanceTripFormSchema,
+} from "@medbrains/schemas";
 import { useHasPermission } from "@medbrains/stores";
 import type {
   AmbulanceDriverRow,
   AmbulanceMaintenanceRow,
+  AmbulanceMaintenanceStatus,
   AmbulanceRow,
-  AmbulanceTripPriority,
   AmbulanceTripRow,
-  AmbulanceTripType,
-  AmbulanceType,
+  AmbulanceTripStatus,
   CreateAmbulanceDriverRequest,
   CreateAmbulanceMaintenanceRequest,
   CreateAmbulanceRequest,
   CreateAmbulanceTripRequest,
+  UpdateAmbulanceRequest,
 } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import {
@@ -49,19 +61,26 @@ import {
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { Controller, useForm } from "react-hook-form";
 import { DataTable, PageHeader } from "../components";
 import type { Column } from "../components/DataTable";
+import {
+  ambulanceFuelTypeOptions,
+  ambulanceLicenseTypeOptions,
+  ambulanceMaintenanceTypeOptions,
+  ambulanceOptionalInteger,
+  ambulanceOptionalNumber,
+  ambulanceOptionalText,
+  ambulanceShiftPatternOptions,
+  ambulanceTripPriorityOptions,
+  ambulanceTripTypeOptions,
+  ambulanceTypeOptions,
+  normalizeAmbulanceFuelType,
+} from "../forms/ambulance.form";
 import { useRequirePermission } from "../hooks/useRequirePermission";
+import { ambulanceService } from "../services/ambulance.service";
 
 // ── Constants ───────────────────────────────────────────
-
-const AMB_TYPES: { value: AmbulanceType; label: string }[] = [
-  { value: "bls", label: "BLS" },
-  { value: "als", label: "ALS" },
-  { value: "patient_transport", label: "Patient Transport" },
-  { value: "mortuary", label: "Mortuary" },
-  { value: "neonatal", label: "Neonatal" },
-];
 
 const AMB_STATUS_COLORS: Record<string, string> = {
   available: "green",
@@ -84,7 +103,7 @@ const PRIORITY_COLORS: Record<string, string> = {
   routine: "blue",
 };
 
-const TRIP_STATUS_COLORS: Record<string, string> = {
+const TRIP_STATUS_COLORS: Record<AmbulanceTripStatus, string> = {
   requested: "gray",
   dispatched: "blue",
   en_route_pickup: "cyan",
@@ -95,7 +114,7 @@ const TRIP_STATUS_COLORS: Record<string, string> = {
   cancelled: "red",
 };
 
-const MAINT_STATUS_COLORS: Record<string, string> = {
+const MAINT_STATUS_COLORS: Record<AmbulanceMaintenanceStatus, string> = {
   scheduled: "blue",
   in_progress: "orange",
   completed: "green",
@@ -116,6 +135,79 @@ function isExpired(dateStr: string | null): boolean {
   return new Date(dateStr) < new Date();
 }
 
+const emptyFleetForm: AmbulanceFleetFormInput = {
+  vehicle_number: "",
+  ambulance_type: "bls",
+  make: "",
+  model: "",
+  year_of_manufacture: "",
+  chassis_number: "",
+  engine_number: "",
+  fuel_type: "",
+  has_ventilator: false,
+  has_defibrillator: false,
+  has_oxygen: true,
+  gps_device_id: "",
+  notes: "",
+};
+
+const emptyTripForm: AmbulanceTripFormInput = {
+  trip_type: "emergency",
+  priority: "routine",
+  ambulance_id: "",
+  driver_id: "",
+  patient_name: "",
+  patient_phone: "",
+  pickup_address: "",
+  drop_address: "",
+};
+
+const emptyDriverForm: AmbulanceDriverFormInput = {
+  employee_id: "",
+  license_number: "",
+  license_type: "LMV",
+  license_expiry: "",
+  bls_certified: false,
+  defensive_driving: false,
+  shift_pattern: "",
+  phone: "",
+};
+
+const emptyMaintenanceForm: AmbulanceMaintenanceFormInput = {
+  ambulance_id: "",
+  maintenance_type: "routine_service",
+  scheduled_date: "",
+  description: "",
+  vendor_name: "",
+  cost: "",
+};
+
+function toDateInputValue(value: string): Date | null {
+  return value ? new Date(value) : null;
+}
+
+function toIsoDateInputValue(date: Date | string | null): string {
+  return date ? new Date(date).toISOString().slice(0, 10) : "";
+}
+
+function toFleetForm(row: AmbulanceRow): AmbulanceFleetFormInput {
+  return {
+    vehicle_number: row.vehicle_number,
+    ambulance_type: row.ambulance_type,
+    make: row.make ?? "",
+    model: row.model ?? "",
+    year_of_manufacture: row.year_of_manufacture ?? "",
+    chassis_number: row.chassis_number ?? "",
+    engine_number: row.engine_number ?? "",
+    fuel_type: normalizeAmbulanceFuelType(row.fuel_type),
+    has_ventilator: row.has_ventilator,
+    has_defibrillator: row.has_defibrillator,
+    has_oxygen: row.has_oxygen,
+    gps_device_id: row.gps_device_id ?? "",
+    notes: row.notes ?? "",
+  };
+}
+
 // ── Fleet Tab ───────────────────────────────────────────
 
 function FleetTab() {
@@ -125,16 +217,23 @@ function FleetTab() {
   const [opened, { open, close }] = useDisclosure(false);
   const [editing, setEditing] = useState<AmbulanceRow | null>(null);
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [form, setForm] = useState<any>({});
+  const {
+    control,
+    handleSubmit,
+    reset,
+    formState: { errors },
+  } = useForm<AmbulanceFleetFormInput>({
+    resolver: zodResolver(ambulanceFleetFormSchema),
+    defaultValues: emptyFleetForm,
+  });
 
   const { data = [], isLoading } = useQuery({
     queryKey: ["ambulances", statusFilter],
-    queryFn: () => api.listAmbulances({ status: statusFilter ?? undefined }),
+    queryFn: () => ambulanceService.listAmbulances({ status: statusFilter ?? undefined }),
   });
 
   const createMut = useMutation({
-    mutationFn: (d: CreateAmbulanceRequest) => api.createAmbulance(d),
+    mutationFn: (d: CreateAmbulanceRequest) => ambulanceService.createAmbulance(d),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["ambulances"] });
       close();
@@ -143,8 +242,8 @@ function FleetTab() {
   });
 
   const updateMut = useMutation({
-    mutationFn: ({ id, ...d }: { id: string } & Record<string, unknown>) =>
-      api.updateAmbulance(id, d),
+    mutationFn: ({ id, data }: { id: string; data: UpdateAmbulanceRequest }) =>
+      ambulanceService.updateAmbulance(id, data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["ambulances"] });
       close();
@@ -234,7 +333,7 @@ function FleetTab() {
             size="sm"
             onClick={() => {
               setEditing(r);
-              setForm(r);
+              reset(toFleetForm(r));
               open();
             }}
             aria-label="Edit"
@@ -245,12 +344,26 @@ function FleetTab() {
     },
   ];
 
-  const handleSave = () => {
+  const submitFleet = (values: AmbulanceFleetFormInput) => {
+    const payload: CreateAmbulanceRequest = {
+      vehicle_number: values.vehicle_number.trim(),
+      ambulance_type: values.ambulance_type,
+      make: ambulanceOptionalText(values.make),
+      model: ambulanceOptionalText(values.model),
+      year_of_manufacture: ambulanceOptionalInteger(values.year_of_manufacture),
+      chassis_number: ambulanceOptionalText(values.chassis_number),
+      engine_number: ambulanceOptionalText(values.engine_number),
+      fuel_type: values.fuel_type || undefined,
+      has_ventilator: values.has_ventilator,
+      has_defibrillator: values.has_defibrillator,
+      has_oxygen: values.has_oxygen,
+      gps_device_id: ambulanceOptionalText(values.gps_device_id),
+      notes: ambulanceOptionalText(values.notes),
+    };
     if (editing) {
-      updateMut.mutate({ id: editing.id, ...form });
+      updateMut.mutate({ id: editing.id, data: payload });
     } else {
-      if (!form.vehicle_number || !form.ambulance_type) return;
-      createMut.mutate(form as CreateAmbulanceRequest);
+      createMut.mutate(payload);
     }
   };
 
@@ -273,7 +386,7 @@ function FleetTab() {
             leftSection={<IconPlus size={16} />}
             onClick={() => {
               setEditing(null);
-              setForm({});
+              reset(emptyFleetForm);
               open();
             }}
           >
@@ -292,81 +405,127 @@ function FleetTab() {
         position="right"
         size="md"
       >
-        <Stack>
-          <TextInput
-            label="Vehicle Number"
-            required
-            value={form.vehicle_number ?? ""}
-            onChange={(e) => setForm({ ...form, vehicle_number: e.currentTarget.value })}
+        <Stack component="form" onSubmit={handleSubmit(submitFleet)}>
+          <Controller
+            name="vehicle_number"
+            control={control}
+            render={({ field }) => (
+              <TextInput
+                label="Vehicle Number"
+                required
+                {...field}
+                error={errors.vehicle_number?.message}
+              />
+            )}
           />
-          <Select
-            label="Type"
-            required
-            data={AMB_TYPES}
-            value={form.ambulance_type ?? null}
-            onChange={(v) => setForm({ ...form, ambulance_type: v as AmbulanceType })}
-          />
-          <Group grow>
-            <TextInput
-              label="Make"
-              value={form.make ?? ""}
-              onChange={(e) => setForm({ ...form, make: e.currentTarget.value })}
-            />
-            <TextInput
-              label="Model"
-              value={form.model ?? ""}
-              onChange={(e) => setForm({ ...form, model: e.currentTarget.value })}
-            />
-          </Group>
-          <NumberInput
-            label="Year"
-            value={form.year_of_manufacture ?? ""}
-            onChange={(v) => setForm({ ...form, year_of_manufacture: v as number })}
-          />
-          <TextInput
-            label="Chassis #"
-            value={form.chassis_number ?? ""}
-            onChange={(e) => setForm({ ...form, chassis_number: e.currentTarget.value })}
-          />
-          <TextInput
-            label="Engine #"
-            value={form.engine_number ?? ""}
-            onChange={(e) => setForm({ ...form, engine_number: e.currentTarget.value })}
-          />
-          <Select
-            label="Fuel Type"
-            data={["diesel", "petrol", "cng", "electric"]}
-            value={((form as Record<string, unknown>).fuel_type as string) ?? null}
-            onChange={(v) => setForm({ ...form, fuel_type: v ?? undefined })}
+          <Controller
+            name="ambulance_type"
+            control={control}
+            render={({ field }) => (
+              <Select
+                label="Type"
+                required
+                data={ambulanceTypeOptions}
+                value={field.value}
+                onChange={(value) => field.onChange(value ?? "bls")}
+                error={errors.ambulance_type?.message}
+              />
+            )}
           />
           <Group grow>
-            <Switch
-              label="Ventilator"
-              checked={form.has_ventilator ?? false}
-              onChange={(e) => setForm({ ...form, has_ventilator: e.currentTarget.checked })}
+            <Controller
+              name="make"
+              control={control}
+              render={({ field }) => <TextInput label="Make" {...field} />}
             />
-            <Switch
-              label="Defibrillator"
-              checked={form.has_defibrillator ?? false}
-              onChange={(e) => setForm({ ...form, has_defibrillator: e.currentTarget.checked })}
-            />
-            <Switch
-              label="Oxygen"
-              checked={form.has_oxygen ?? true}
-              onChange={(e) => setForm({ ...form, has_oxygen: e.currentTarget.checked })}
+            <Controller
+              name="model"
+              control={control}
+              render={({ field }) => <TextInput label="Model" {...field} />}
             />
           </Group>
-          <TextInput
-            label="GPS Device ID"
-            value={form.gps_device_id ?? ""}
-            onChange={(e) => setForm({ ...form, gps_device_id: e.currentTarget.value })}
+          <Controller
+            name="year_of_manufacture"
+            control={control}
+            render={({ field }) => (
+              <NumberInput
+                label="Year"
+                value={field.value}
+                onChange={field.onChange}
+                error={errors.year_of_manufacture?.message}
+              />
+            )}
           />
-          <Textarea
-            label="Notes"
-            value={form.notes ?? ""}
-            onChange={(e) => setForm({ ...form, notes: e.currentTarget.value })}
+          <Controller
+            name="chassis_number"
+            control={control}
+            render={({ field }) => <TextInput label="Chassis #" {...field} />}
           />
-          <Button onClick={handleSave} loading={createMut.isPending || updateMut.isPending}>
+          <Controller
+            name="engine_number"
+            control={control}
+            render={({ field }) => <TextInput label="Engine #" {...field} />}
+          />
+          <Controller
+            name="fuel_type"
+            control={control}
+            render={({ field }) => (
+              <Select
+                label="Fuel Type"
+                data={ambulanceFuelTypeOptions}
+                value={field.value || null}
+                onChange={(value) => field.onChange(value ?? "")}
+                clearable
+                error={errors.fuel_type?.message}
+              />
+            )}
+          />
+          <Group grow>
+            <Controller
+              name="has_ventilator"
+              control={control}
+              render={({ field }) => (
+                <Switch
+                  label="Ventilator"
+                  checked={field.value}
+                  onChange={(event) => field.onChange(event.currentTarget.checked)}
+                />
+              )}
+            />
+            <Controller
+              name="has_defibrillator"
+              control={control}
+              render={({ field }) => (
+                <Switch
+                  label="Defibrillator"
+                  checked={field.value}
+                  onChange={(event) => field.onChange(event.currentTarget.checked)}
+                />
+              )}
+            />
+            <Controller
+              name="has_oxygen"
+              control={control}
+              render={({ field }) => (
+                <Switch
+                  label="Oxygen"
+                  checked={field.value}
+                  onChange={(event) => field.onChange(event.currentTarget.checked)}
+                />
+              )}
+            />
+          </Group>
+          <Controller
+            name="gps_device_id"
+            control={control}
+            render={({ field }) => <TextInput label="GPS Device ID" {...field} />}
+          />
+          <Controller
+            name="notes"
+            control={control}
+            render={({ field }) => <Textarea label="Notes" {...field} />}
+          />
+          <Button type="submit" loading={createMut.isPending || updateMut.isPending}>
             {editing ? "Update" : "Create"}
           </Button>
         </Stack>
@@ -384,30 +543,37 @@ function TripsTab() {
   const [opened, { open, close }] = useDisclosure(false);
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
   const [typeFilter, setTypeFilter] = useState<string | null>(null);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [form, setForm] = useState<any>({});
+  const {
+    control,
+    handleSubmit,
+    reset,
+    formState: { errors },
+  } = useForm<AmbulanceTripFormInput>({
+    resolver: zodResolver(ambulanceTripFormSchema),
+    defaultValues: emptyTripForm,
+  });
 
   const { data: ambulances = [] } = useQuery({
     queryKey: ["ambulances"],
-    queryFn: () => api.listAmbulances({ status: "available" }),
+    queryFn: () => ambulanceService.listAmbulances({ status: "available" }),
   });
 
   const { data: drivers = [] } = useQuery({
     queryKey: ["ambulance-drivers-active"],
-    queryFn: () => api.listAmbulanceDrivers({ is_active: true }),
+    queryFn: () => ambulanceService.listAmbulanceDrivers({ is_active: true }),
   });
 
   const { data = [], isLoading } = useQuery({
     queryKey: ["ambulance-trips", statusFilter, typeFilter],
     queryFn: () =>
-      api.listAmbulanceTrips({
+      ambulanceService.listAmbulanceTrips({
         status: statusFilter ?? undefined,
         trip_type: typeFilter ?? undefined,
       }),
   });
 
   const createMut = useMutation({
-    mutationFn: (d: CreateAmbulanceTripRequest) => api.createAmbulanceTrip(d),
+    mutationFn: (d: CreateAmbulanceTripRequest) => ambulanceService.createAmbulanceTrip(d),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["ambulance-trips"] });
       void qc.invalidateQueries({ queryKey: ["ambulances"] });
@@ -417,8 +583,8 @@ function TripsTab() {
   });
 
   const statusMut = useMutation({
-    mutationFn: ({ id, status }: { id: string; status: string }) =>
-      api.updateAmbulanceTripStatus(id, { status: status as AmbulanceTripRow["status"] }),
+    mutationFn: ({ id, status }: { id: string; status: AmbulanceTripStatus }) =>
+      ambulanceService.updateAmbulanceTripStatus(id, status),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["ambulance-trips"] });
       void qc.invalidateQueries({ queryKey: ["ambulances"] });
@@ -430,8 +596,8 @@ function TripsTab() {
     },
   });
 
-  const getNextStatus = (current: string): string | null => {
-    const flow: Record<string, string> = {
+  const getNextStatus = (current: AmbulanceTripStatus): AmbulanceTripStatus | null => {
+    const flow: Partial<Record<AmbulanceTripStatus, AmbulanceTripStatus>> = {
       requested: "dispatched",
       dispatched: "en_route_pickup",
       en_route_pickup: "at_pickup",
@@ -587,7 +753,7 @@ function TripsTab() {
           <Button
             leftSection={<IconPlus size={16} />}
             onClick={() => {
-              setForm({});
+              reset(emptyTripForm);
               open();
             }}
           >
@@ -603,79 +769,112 @@ function TripsTab() {
         position="right"
         size="xl"
       >
-        <Stack>
-          <Select
-            label="Trip Type"
-            required
-            data={[
-              { value: "emergency", label: "Emergency" },
-              { value: "scheduled", label: "Scheduled" },
-              { value: "inter_facility", label: "Inter-Facility" },
-              { value: "discharge", label: "Discharge" },
-            ]}
-            value={form.trip_type ?? null}
-            onChange={(v) => setForm({ ...form, trip_type: v as AmbulanceTripType })}
+        <Stack
+          component="form"
+          onSubmit={handleSubmit((values) =>
+            createMut.mutate({
+              trip_type: values.trip_type,
+              priority: values.priority,
+              ambulance_id: ambulanceOptionalText(values.ambulance_id),
+              driver_id: ambulanceOptionalText(values.driver_id),
+              patient_name: ambulanceOptionalText(values.patient_name),
+              patient_phone: ambulanceOptionalText(values.patient_phone),
+              pickup_address: values.pickup_address.trim(),
+              drop_address: ambulanceOptionalText(values.drop_address),
+            }),
+          )}
+        >
+          <Controller
+            name="trip_type"
+            control={control}
+            render={({ field }) => (
+              <Select
+                label="Trip Type"
+                required
+                data={ambulanceTripTypeOptions}
+                value={field.value}
+                onChange={(value) => field.onChange(value ?? "emergency")}
+                error={errors.trip_type?.message}
+              />
+            )}
           />
-          <Select
-            label="Priority"
-            data={[
-              { value: "critical", label: "Critical" },
-              { value: "urgent", label: "Urgent" },
-              { value: "routine", label: "Routine" },
-            ]}
-            value={form.priority ?? null}
-            onChange={(v) => setForm({ ...form, priority: v as AmbulanceTripPriority })}
+          <Controller
+            name="priority"
+            control={control}
+            render={({ field }) => (
+              <Select
+                label="Priority"
+                data={ambulanceTripPriorityOptions}
+                value={field.value}
+                onChange={(value) => field.onChange(value ?? "routine")}
+                error={errors.priority?.message}
+              />
+            )}
           />
-          <Select
-            label="Ambulance"
-            clearable
-            searchable
-            data={ambulances.map((a: AmbulanceRow) => ({
-              value: a.id,
-              label: `${a.ambulance_code} (${a.ambulance_type.toUpperCase()})`,
-            }))}
-            value={(form.ambulance_id as string) ?? null}
-            onChange={(v) => setForm({ ...form, ambulance_id: v ?? undefined })}
+          <Controller
+            name="ambulance_id"
+            control={control}
+            render={({ field }) => (
+              <Select
+                label="Ambulance"
+                clearable
+                searchable
+                data={ambulances.map((a: AmbulanceRow) => ({
+                  value: a.id,
+                  label: `${a.ambulance_code} (${a.ambulance_type.toUpperCase()})`,
+                }))}
+                value={field.value || null}
+                onChange={(value) => field.onChange(value ?? "")}
+              />
+            )}
           />
-          <Select
-            label="Driver"
-            clearable
-            searchable
-            data={drivers.map((d: AmbulanceDriverRow) => ({
-              value: d.employee_id,
-              label: `${d.license_number} (${d.license_type})`,
-            }))}
-            value={(form.driver_id as string) ?? null}
-            onChange={(v) => setForm({ ...form, driver_id: v ?? undefined })}
+          <Controller
+            name="driver_id"
+            control={control}
+            render={({ field }) => (
+              <Select
+                label="Driver"
+                clearable
+                searchable
+                data={drivers.map((d: AmbulanceDriverRow) => ({
+                  value: d.employee_id,
+                  label: `${d.license_number} (${d.license_type})`,
+                }))}
+                value={field.value || null}
+                onChange={(value) => field.onChange(value ?? "")}
+              />
+            )}
           />
-          <TextInput
-            label="Patient Name"
-            value={form.patient_name ?? ""}
-            onChange={(e) => setForm({ ...form, patient_name: e.currentTarget.value })}
+          <Controller
+            name="patient_name"
+            control={control}
+            render={({ field }) => <TextInput label="Patient Name" {...field} />}
           />
-          <TextInput
-            label="Patient Phone"
-            value={form.patient_phone ?? ""}
-            onChange={(e) => setForm({ ...form, patient_phone: e.currentTarget.value })}
+          <Controller
+            name="patient_phone"
+            control={control}
+            render={({ field }) => (
+              <TextInput label="Patient Phone" {...field} error={errors.patient_phone?.message} />
+            )}
           />
-          <Textarea
-            label="Pickup Address"
-            required
-            value={form.pickup_address ?? ""}
-            onChange={(e) => setForm({ ...form, pickup_address: e.currentTarget.value })}
+          <Controller
+            name="pickup_address"
+            control={control}
+            render={({ field }) => (
+              <Textarea
+                label="Pickup Address"
+                required
+                {...field}
+                error={errors.pickup_address?.message}
+              />
+            )}
           />
-          <Textarea
-            label="Drop Address"
-            value={form.drop_address ?? ""}
-            onChange={(e) => setForm({ ...form, drop_address: e.currentTarget.value })}
+          <Controller
+            name="drop_address"
+            control={control}
+            render={({ field }) => <Textarea label="Drop Address" {...field} />}
           />
-          <Button
-            onClick={() => {
-              if (!form.trip_type || !form.pickup_address) return;
-              createMut.mutate(form as CreateAmbulanceTripRequest);
-            }}
-            loading={createMut.isPending}
-          >
+          <Button type="submit" loading={createMut.isPending}>
             Book Trip
           </Button>
         </Stack>
@@ -690,16 +889,23 @@ function DriversTab() {
   const qc = useQueryClient();
   const canManage = useHasPermission(P.AMBULANCE.DRIVERS_MANAGE);
   const [opened, { open, close }] = useDisclosure(false);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [form, setForm] = useState<any>({});
+  const {
+    control,
+    handleSubmit,
+    reset,
+    formState: { errors },
+  } = useForm<AmbulanceDriverFormInput>({
+    resolver: zodResolver(ambulanceDriverFormSchema),
+    defaultValues: emptyDriverForm,
+  });
 
   const { data = [], isLoading } = useQuery({
     queryKey: ["ambulance-drivers"],
-    queryFn: () => api.listAmbulanceDrivers(),
+    queryFn: () => ambulanceService.listAmbulanceDrivers(),
   });
 
   const createMut = useMutation({
-    mutationFn: (d: CreateAmbulanceDriverRequest) => api.createAmbulanceDriver(d),
+    mutationFn: (d: CreateAmbulanceDriverRequest) => ambulanceService.createAmbulanceDriver(d),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["ambulance-drivers"] });
       close();
@@ -781,7 +987,7 @@ function DriversTab() {
           <Button
             leftSection={<IconPlus size={16} />}
             onClick={() => {
-              setForm({});
+              reset(emptyDriverForm);
               open();
             }}
           >
@@ -791,73 +997,116 @@ function DriversTab() {
       </Group>
       <DataTable columns={columns} data={data} loading={isLoading} rowKey={(r) => r.id} />
       <Drawer opened={opened} onClose={close} title="Add Driver" position="right" size="xl">
-        <Stack>
-          <TextInput
-            label="Employee ID"
-            required
-            value={form.employee_id ?? ""}
-            onChange={(e) => setForm({ ...form, employee_id: e.currentTarget.value })}
+        <Stack
+          component="form"
+          onSubmit={handleSubmit((values) =>
+            createMut.mutate({
+              employee_id: values.employee_id.trim(),
+              license_number: values.license_number.trim(),
+              license_type: values.license_type,
+              license_expiry: values.license_expiry,
+              bls_certified: values.bls_certified,
+              defensive_driving: values.defensive_driving,
+              shift_pattern: values.shift_pattern || undefined,
+              phone: ambulanceOptionalText(values.phone),
+            }),
+          )}
+        >
+          <Controller
+            name="employee_id"
+            control={control}
+            render={({ field }) => (
+              <TextInput
+                label="Employee ID"
+                required
+                {...field}
+                error={errors.employee_id?.message}
+              />
+            )}
           />
-          <TextInput
-            label="License Number"
-            required
-            value={form.license_number ?? ""}
-            onChange={(e) => setForm({ ...form, license_number: e.currentTarget.value })}
+          <Controller
+            name="license_number"
+            control={control}
+            render={({ field }) => (
+              <TextInput
+                label="License Number"
+                required
+                {...field}
+                error={errors.license_number?.message}
+              />
+            )}
           />
-          <Select
-            label="License Type"
-            required
-            data={["HMV", "LMV", "HPMV"]}
-            value={form.license_type ?? null}
-            onChange={(v) => setForm({ ...form, license_type: v ?? "" })}
+          <Controller
+            name="license_type"
+            control={control}
+            render={({ field }) => (
+              <Select
+                label="License Type"
+                required
+                data={ambulanceLicenseTypeOptions}
+                value={field.value}
+                onChange={(value) => field.onChange(value ?? "LMV")}
+                error={errors.license_type?.message}
+              />
+            )}
           />
-          <DateInput
-            label="License Expiry"
-            required
-            value={form.license_expiry ? new Date(form.license_expiry as string) : null}
-            onChange={(d) =>
-              setForm({
-                ...form,
-                license_expiry: d
-                  ? new Date(d as unknown as string).toISOString().split("T")[0]
-                  : undefined,
-              })
-            }
+          <Controller
+            name="license_expiry"
+            control={control}
+            render={({ field }) => (
+              <DateInput
+                label="License Expiry"
+                required
+                value={toDateInputValue(field.value)}
+                onChange={(date) => field.onChange(toIsoDateInputValue(date))}
+                error={errors.license_expiry?.message}
+              />
+            )}
           />
-          <Switch
-            label="BLS Certified"
-            checked={form.bls_certified ?? false}
-            onChange={(e) => setForm({ ...form, bls_certified: e.currentTarget.checked })}
+          <Controller
+            name="bls_certified"
+            control={control}
+            render={({ field }) => (
+              <Switch
+                label="BLS Certified"
+                checked={field.value}
+                onChange={(event) => field.onChange(event.currentTarget.checked)}
+              />
+            )}
           />
-          <Switch
-            label="Defensive Driving Trained"
-            checked={form.defensive_driving ?? false}
-            onChange={(e) => setForm({ ...form, defensive_driving: e.currentTarget.checked })}
+          <Controller
+            name="defensive_driving"
+            control={control}
+            render={({ field }) => (
+              <Switch
+                label="Defensive Driving Trained"
+                checked={field.value}
+                onChange={(event) => field.onChange(event.currentTarget.checked)}
+              />
+            )}
           />
-          <Select
-            label="Shift Pattern"
-            data={["day", "night", "rotating"]}
-            value={form.shift_pattern ?? null}
-            onChange={(v) => setForm({ ...form, shift_pattern: v ?? undefined })}
+          <Controller
+            name="shift_pattern"
+            control={control}
+            render={({ field }) => (
+              <Select
+                label="Shift Pattern"
+                data={ambulanceShiftPatternOptions}
+                value={field.value || null}
+                onChange={(value) => field.onChange(value ?? "")}
+                clearable
+                error={errors.shift_pattern?.message}
+              />
+            )}
           />
-          <TextInput
-            label="Phone"
-            value={form.phone ?? ""}
-            onChange={(e) => setForm({ ...form, phone: e.currentTarget.value })}
+          <Controller
+            name="phone"
+            control={control}
+            render={({ field }) => (
+              <TextInput label="Phone" {...field} error={errors.phone?.message} />
+            )}
           />
-          <Button
-            onClick={() => {
-              if (
-                !form.employee_id ||
-                !form.license_number ||
-                !form.license_type ||
-                !form.license_expiry
-              )
-                return;
-              createMut.mutate(form as CreateAmbulanceDriverRequest);
-            }}
-            loading={createMut.isPending}
-          >
+          <Button type="submit" loading={createMut.isPending}>
             Add Driver
           </Button>
         </Stack>
@@ -873,21 +1122,29 @@ function MaintenanceTab() {
   const canManage = useHasPermission(P.AMBULANCE.MAINTENANCE_MANAGE);
   const [opened, { open, close }] = useDisclosure(false);
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [form, setForm] = useState<any>({});
+  const {
+    control,
+    handleSubmit,
+    reset,
+    formState: { errors },
+  } = useForm<AmbulanceMaintenanceFormInput>({
+    resolver: zodResolver(ambulanceMaintenanceFormSchema),
+    defaultValues: emptyMaintenanceForm,
+  });
 
   const { data: ambulances = [] } = useQuery({
     queryKey: ["ambulances"],
-    queryFn: () => api.listAmbulances(),
+    queryFn: () => ambulanceService.listAmbulances(),
   });
 
   const { data = [], isLoading } = useQuery({
     queryKey: ["ambulance-maintenance", statusFilter],
-    queryFn: () => api.listAmbulanceMaintenance({ status: statusFilter ?? undefined }),
+    queryFn: () => ambulanceService.listAmbulanceMaintenance({ status: statusFilter ?? undefined }),
   });
 
   const createMut = useMutation({
-    mutationFn: (d: CreateAmbulanceMaintenanceRequest) => api.createAmbulanceMaintenance(d),
+    mutationFn: (d: CreateAmbulanceMaintenanceRequest) =>
+      ambulanceService.createAmbulanceMaintenance(d),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["ambulance-maintenance"] });
       close();
@@ -896,8 +1153,8 @@ function MaintenanceTab() {
   });
 
   const updateStatusMut = useMutation({
-    mutationFn: ({ id, status }: { id: string; status: string }) =>
-      api.updateAmbulanceMaintenance(id, { status: status as AmbulanceMaintenanceRow["status"] }),
+    mutationFn: ({ id, status }: { id: string; status: AmbulanceMaintenanceStatus }) =>
+      ambulanceService.updateAmbulanceMaintenanceStatus(id, status),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["ambulance-maintenance"] });
       notifications.show({ title: "Updated", message: "Maintenance updated", color: "blue" });
@@ -988,7 +1245,7 @@ function MaintenanceTab() {
           <Button
             leftSection={<IconPlus size={16} />}
             onClick={() => {
-              setForm({});
+              reset(emptyMaintenanceForm);
               open();
             }}
           >
@@ -1004,64 +1261,88 @@ function MaintenanceTab() {
         position="right"
         size="xl"
       >
-        <Stack>
-          <Select
-            label="Ambulance"
-            required
-            searchable
-            data={ambulances.map((a: AmbulanceRow) => ({ value: a.id, label: a.ambulance_code }))}
-            value={(form.ambulance_id as string) ?? null}
-            onChange={(v) => setForm({ ...form, ambulance_id: v ?? "" })}
+        <Stack
+          component="form"
+          onSubmit={handleSubmit((values) =>
+            createMut.mutate({
+              ambulance_id: values.ambulance_id,
+              maintenance_type: values.maintenance_type,
+              scheduled_date: values.scheduled_date,
+              description: ambulanceOptionalText(values.description),
+              vendor_name: ambulanceOptionalText(values.vendor_name),
+              cost: ambulanceOptionalNumber(values.cost),
+            }),
+          )}
+        >
+          <Controller
+            name="ambulance_id"
+            control={control}
+            render={({ field }) => (
+              <Select
+                label="Ambulance"
+                required
+                searchable
+                data={ambulances.map((a: AmbulanceRow) => ({
+                  value: a.id,
+                  label: a.ambulance_code,
+                }))}
+                value={field.value || null}
+                onChange={(value) => field.onChange(value ?? "")}
+                error={errors.ambulance_id?.message}
+              />
+            )}
           />
-          <Select
-            label="Type"
-            required
-            data={[
-              "routine_service",
-              "repair",
-              "inspection",
-              "fitness_renewal",
-              "insurance_renewal",
-            ]}
-            value={form.maintenance_type ?? null}
-            onChange={(v) => setForm({ ...form, maintenance_type: v ?? "" })}
+          <Controller
+            name="maintenance_type"
+            control={control}
+            render={({ field }) => (
+              <Select
+                label="Type"
+                required
+                data={ambulanceMaintenanceTypeOptions}
+                value={field.value}
+                onChange={(value) => field.onChange(value ?? "routine_service")}
+                error={errors.maintenance_type?.message}
+              />
+            )}
           />
-          <DateInput
-            label="Scheduled Date"
-            required
-            value={form.scheduled_date ? new Date(form.scheduled_date as string) : null}
-            onChange={(d) =>
-              setForm({
-                ...form,
-                scheduled_date: d
-                  ? new Date(d as unknown as string).toISOString().split("T")[0]
-                  : undefined,
-              })
-            }
+          <Controller
+            name="scheduled_date"
+            control={control}
+            render={({ field }) => (
+              <DateInput
+                label="Scheduled Date"
+                required
+                value={toDateInputValue(field.value)}
+                onChange={(date) => field.onChange(toIsoDateInputValue(date))}
+                error={errors.scheduled_date?.message}
+              />
+            )}
           />
-          <Textarea
-            label="Description"
-            value={form.description ?? ""}
-            onChange={(e) => setForm({ ...form, description: e.currentTarget.value })}
+          <Controller
+            name="description"
+            control={control}
+            render={({ field }) => <Textarea label="Description" {...field} />}
           />
-          <TextInput
-            label="Vendor"
-            value={form.vendor_name ?? ""}
-            onChange={(e) => setForm({ ...form, vendor_name: e.currentTarget.value })}
+          <Controller
+            name="vendor_name"
+            control={control}
+            render={({ field }) => <TextInput label="Vendor" {...field} />}
           />
-          <NumberInput
-            label="Estimated Cost"
-            prefix="₹"
-            value={form.cost ?? ""}
-            onChange={(v) => setForm({ ...form, cost: v as number })}
+          <Controller
+            name="cost"
+            control={control}
+            render={({ field }) => (
+              <NumberInput
+                label="Estimated Cost"
+                prefix="₹"
+                value={field.value}
+                onChange={field.onChange}
+                error={errors.cost?.message}
+              />
+            )}
           />
-          <Button
-            onClick={() => {
-              if (!form.ambulance_id || !form.maintenance_type || !form.scheduled_date) return;
-              createMut.mutate(form as CreateAmbulanceMaintenanceRequest);
-            }}
-            loading={createMut.isPending}
-          >
+          <Button type="submit" loading={createMut.isPending}>
             Schedule
           </Button>
         </Stack>
@@ -1075,12 +1356,12 @@ function MaintenanceTab() {
 function ReportsTab() {
   const { data: trips = [] } = useQuery({
     queryKey: ["ambulance-trips"],
-    queryFn: () => api.listAmbulanceTrips(),
+    queryFn: () => ambulanceService.listAmbulanceTrips(),
   });
 
   const { data: ambulances = [] } = useQuery({
     queryKey: ["ambulances"],
-    queryFn: () => api.listAmbulances(),
+    queryFn: () => ambulanceService.listAmbulances(),
   });
 
   const today = new Date().toISOString().split("T")[0] ?? "";
@@ -1092,13 +1373,15 @@ function ReportsTab() {
   const avgResponseMin =
     completedTrips.length > 0
       ? Math.round(
-          completedTrips.reduce(
-            (sum, t) =>
+          completedTrips.reduce((sum, trip) => {
+            if (!trip.pickup_arrived_at || !trip.dispatched_at) return sum;
+            return (
               sum +
-              (new Date(t.pickup_arrived_at!).getTime() - new Date(t.dispatched_at!).getTime()) /
-                60000,
-            0,
-          ) / completedTrips.length,
+              (new Date(trip.pickup_arrived_at).getTime() -
+                new Date(trip.dispatched_at).getTime()) /
+                60000
+            );
+          }, 0) / completedTrips.length,
         )
       : 0;
   const fleetUtil =

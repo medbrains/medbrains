@@ -1,3 +1,4 @@
+import { zodResolver } from "@hookform/resolvers/zod";
 import {
   ActionIcon,
   Badge,
@@ -19,7 +20,20 @@ import {
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
+import {
+  type ProcurementGrnFormInput,
+  type ProcurementPurchaseOrderFormInput,
+  type ProcurementRateContractFormInput,
+  type ProcurementStoreLocationFormInput,
+  type ProcurementSupplierPaymentFormInput,
+  type ProcurementVendorFormInput,
+  procurementGrnFormSchema,
+  procurementPurchaseOrderFormSchema,
+  procurementRateContractFormSchema,
+  procurementStoreLocationFormSchema,
+  procurementSupplierPaymentFormSchema,
+  procurementVendorFormSchema,
+} from "@medbrains/schemas";
 import { useHasPermission } from "@medbrains/stores";
 import type {
   BatchStock,
@@ -52,8 +66,10 @@ import {
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { Controller, useFieldArray, useForm, useWatch } from "react-hook-form";
 import { DataTable, PageHeader, VendorSearchSelect } from "../components";
 import { useRequirePermission } from "../hooks/useRequirePermission";
+import { procurementService } from "../services/procurement.service";
 
 // ── Status colors ────────────────────────────────────────────
 
@@ -93,67 +109,91 @@ const rcStatusColors: Record<string, string> = {
 
 const poLinkableIndentStatuses = new Set(["approved", "partially_approved", "partially_issued"]);
 
-const createFormRowId = () =>
-  globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+const optionalText = (value?: string | null) => {
+  const trimmed = value?.trim() ?? "";
+  return trimmed.length > 0 ? trimmed : undefined;
+};
 
-type CreatePoFormItem = CreatePoItemInput & { rowId: string };
-type CreateGrnFormItem = CreateGrnItemInput & { rowId: string };
-type CreateRcFormItem = CreateRcItemInput & { rowId: string };
+const formNumber = (value: string | number | undefined | null) => {
+  if (value == null || (typeof value === "string" && value.trim().length === 0)) return undefined;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
+};
 
-const emptyPoItem = (): CreatePoFormItem => ({
-  rowId: createFormRowId(),
+const requiredFormNumber = (value: string | number) => Number(value);
+
+const emptyPoItem = (): ProcurementPurchaseOrderFormInput["items"][number] => ({
+  catalog_item_id: null,
   item_name: "",
+  item_code: "",
+  unit: "",
   quantity_ordered: 1,
   unit_price: 0,
+  tax_percent: "",
+  discount_percent: "",
+  indent_item_id: null,
+  notes: "",
 });
 
-const emptyGrnItem = (): CreateGrnFormItem => ({
-  rowId: createFormRowId(),
+const emptyGrnItem = (): ProcurementGrnFormInput["items"][number] => ({
+  po_item_id: null,
+  catalog_item_id: null,
   item_name: "",
   quantity_received: 1,
   quantity_accepted: 1,
+  quantity_rejected: 0,
+  batch_number: "",
+  expiry_date: "",
+  manufacture_date: "",
   unit_price: 0,
+  rejection_reason: "",
+  notes: "",
 });
 
-const emptyRcItem = (): CreateRcFormItem => ({
-  rowId: createFormRowId(),
+const emptyRcItem = (): ProcurementRateContractFormInput["items"][number] => ({
   catalog_item_id: "",
   contracted_price: 0,
+  max_quantity: "",
+  notes: "",
 });
 
-const toPoItemInput = (item: CreatePoFormItem): CreatePoItemInput => ({
-  catalog_item_id: item.catalog_item_id,
-  item_name: item.item_name,
-  item_code: item.item_code,
-  unit: item.unit,
-  quantity_ordered: item.quantity_ordered,
-  unit_price: item.unit_price,
-  tax_percent: item.tax_percent,
-  discount_percent: item.discount_percent,
-  indent_item_id: item.indent_item_id,
-  notes: item.notes,
+const toPoItemInput = (
+  item: ProcurementPurchaseOrderFormInput["items"][number],
+): CreatePoItemInput => ({
+  catalog_item_id: optionalText(item.catalog_item_id),
+  item_name: item.item_name.trim(),
+  item_code: optionalText(item.item_code),
+  unit: optionalText(item.unit),
+  quantity_ordered: requiredFormNumber(item.quantity_ordered),
+  unit_price: requiredFormNumber(item.unit_price),
+  tax_percent: formNumber(item.tax_percent),
+  discount_percent: formNumber(item.discount_percent),
+  indent_item_id: optionalText(item.indent_item_id),
+  notes: optionalText(item.notes),
 });
 
-const toGrnItemInput = (item: CreateGrnFormItem): CreateGrnItemInput => ({
-  po_item_id: item.po_item_id,
-  catalog_item_id: item.catalog_item_id,
-  item_name: item.item_name,
-  quantity_received: item.quantity_received,
-  quantity_accepted: item.quantity_accepted,
-  quantity_rejected: item.quantity_rejected,
-  batch_number: item.batch_number,
-  expiry_date: item.expiry_date,
-  manufacture_date: item.manufacture_date,
-  unit_price: item.unit_price,
-  rejection_reason: item.rejection_reason,
-  notes: item.notes,
+const toGrnItemInput = (item: ProcurementGrnFormInput["items"][number]): CreateGrnItemInput => ({
+  po_item_id: optionalText(item.po_item_id),
+  catalog_item_id: optionalText(item.catalog_item_id),
+  item_name: item.item_name.trim(),
+  quantity_received: requiredFormNumber(item.quantity_received),
+  quantity_accepted: requiredFormNumber(item.quantity_accepted),
+  quantity_rejected: requiredFormNumber(item.quantity_rejected),
+  batch_number: optionalText(item.batch_number),
+  expiry_date: optionalText(item.expiry_date),
+  manufacture_date: optionalText(item.manufacture_date),
+  unit_price: requiredFormNumber(item.unit_price),
+  rejection_reason: optionalText(item.rejection_reason),
+  notes: optionalText(item.notes),
 });
 
-const toRcItemInput = (item: CreateRcFormItem): CreateRcItemInput => ({
+const toRcItemInput = (
+  item: ProcurementRateContractFormInput["items"][number],
+): CreateRcItemInput => ({
   catalog_item_id: item.catalog_item_id,
-  contracted_price: item.contracted_price,
-  max_quantity: item.max_quantity,
-  notes: item.notes,
+  contracted_price: requiredFormNumber(item.contracted_price),
+  max_quantity: formNumber(item.max_quantity),
+  notes: optionalText(item.notes),
 });
 
 function formatLinkedIndentLabel(requisition: IndentRequisition) {
@@ -267,7 +307,7 @@ function VendorPanel({ canCreate }: { canCreate: boolean }) {
 
   const { data: vendors, isLoading } = useQuery({
     queryKey: ["vendors"],
-    queryFn: () => api.listVendors(),
+    queryFn: () => procurementService.listVendors(),
   });
 
   const columns = [
@@ -404,36 +444,49 @@ const SUPPLY_CATEGORIES = [
 ];
 
 function VendorForm({ onSuccess }: { onSuccess: () => void }) {
-  const [code, setCode] = useState("");
-  const [name, setName] = useState("");
-  const [vendorType, setVendorType] = useState("supplier");
-  const [contactPerson, setContactPerson] = useState("");
-  const [phone, setPhone] = useState("");
-  const [email, setEmail] = useState("");
-  const [city, setCity] = useState("");
-  const [gstNumber, setGstNumber] = useState("");
-  const [paymentTerms, setPaymentTerms] = useState("net_30");
-  const [supplyCategories, setSupplyCategories] = useState<string[]>([]);
-  const [drugLicenseNumber, setDrugLicenseNumber] = useState("");
-  const [isPharmacyVendor, setIsPharmacyVendor] = useState(false);
-  const [productLines, setProductLines] = useState("");
+  const {
+    control,
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<ProcurementVendorFormInput>({
+    resolver: zodResolver(procurementVendorFormSchema),
+    defaultValues: {
+      code: "",
+      name: "",
+      vendor_type: "supplier",
+      contact_person: "",
+      phone: "",
+      email: "",
+      city: "",
+      gst_number: "",
+      payment_terms: "net_30",
+      supply_categories: [],
+      drug_license_number: "",
+      is_pharmacy_vendor: false,
+      product_lines: "",
+    },
+  });
+
+  const supplyCategories = useWatch({ control, name: "supply_categories" });
 
   const mutation = useMutation({
-    mutationFn: () =>
-      api.createVendor({
-        code,
-        name,
-        vendor_type: vendorType,
-        contact_person: contactPerson || undefined,
-        phone: phone || undefined,
-        email: email || undefined,
-        city: city || undefined,
-        gst_number: gstNumber || undefined,
-        payment_terms: paymentTerms,
-        supply_categories: supplyCategories.length > 0 ? supplyCategories : undefined,
-        drug_license_number: drugLicenseNumber || undefined,
-        is_pharmacy_vendor: isPharmacyVendor || undefined,
-        product_lines: productLines || undefined,
+    mutationFn: (values: ProcurementVendorFormInput) =>
+      procurementService.createVendor({
+        code: values.code.trim(),
+        name: values.name.trim(),
+        vendor_type: values.vendor_type,
+        contact_person: optionalText(values.contact_person),
+        phone: optionalText(values.phone),
+        email: optionalText(values.email),
+        city: optionalText(values.city),
+        gst_number: optionalText(values.gst_number),
+        payment_terms: values.payment_terms,
+        supply_categories:
+          values.supply_categories.length > 0 ? values.supply_categories : undefined,
+        drug_license_number: optionalText(values.drug_license_number),
+        is_pharmacy_vendor: values.is_pharmacy_vendor || undefined,
+        product_lines: optionalText(values.product_lines),
       }),
     onSuccess: () => {
       notifications.show({ title: "Created", message: "Vendor registered", color: "success" });
@@ -445,89 +498,102 @@ function VendorForm({ onSuccess }: { onSuccess: () => void }) {
   });
 
   return (
-    <Stack>
-      <TextInput
-        label="Vendor Code"
-        value={code}
-        onChange={(e) => setCode(e.currentTarget.value)}
-        required
-      />
-      <TextInput
-        label="Name"
-        value={name}
-        onChange={(e) => setName(e.currentTarget.value)}
-        required
-      />
-      <Select
-        label="Type"
-        data={[
-          { value: "supplier", label: "Supplier" },
-          { value: "manufacturer", label: "Manufacturer" },
-          { value: "distributor", label: "Distributor" },
-          { value: "importer", label: "Importer" },
-        ]}
-        value={vendorType}
-        onChange={(v) => setVendorType(v ?? "supplier")}
+    <Stack component="form" onSubmit={handleSubmit((values) => mutation.mutate(values))}>
+      <TextInput label="Vendor Code" required error={errors.code?.message} {...register("code")} />
+      <TextInput label="Name" required error={errors.name?.message} {...register("name")} />
+      <Controller
+        control={control}
+        name="vendor_type"
+        render={({ field }) => (
+          <Select
+            label="Type"
+            data={[
+              { value: "supplier", label: "Supplier" },
+              { value: "manufacturer", label: "Manufacturer" },
+              { value: "distributor", label: "Distributor" },
+              { value: "importer", label: "Importer" },
+            ]}
+            value={field.value}
+            onChange={(value) => field.onChange(value ?? "supplier")}
+            error={errors.vendor_type?.message}
+          />
+        )}
       />
       <TextInput
         label="Contact Person"
-        value={contactPerson}
-        onChange={(e) => setContactPerson(e.currentTarget.value)}
+        error={errors.contact_person?.message}
+        {...register("contact_person")}
       />
-      <TextInput label="Phone" value={phone} onChange={(e) => setPhone(e.currentTarget.value)} />
-      <TextInput label="Email" value={email} onChange={(e) => setEmail(e.currentTarget.value)} />
-      <TextInput label="City" value={city} onChange={(e) => setCity(e.currentTarget.value)} />
+      <TextInput label="Phone" error={errors.phone?.message} {...register("phone")} />
+      <TextInput label="Email" error={errors.email?.message} {...register("email")} />
+      <TextInput label="City" error={errors.city?.message} {...register("city")} />
       <TextInput
         label="GST Number"
-        value={gstNumber}
-        onChange={(e) => setGstNumber(e.currentTarget.value)}
+        error={errors.gst_number?.message}
+        {...register("gst_number")}
       />
-      <Select
-        label="Payment Terms"
-        data={[
-          { value: "net_30", label: "Net 30 Days" },
-          { value: "net_60", label: "Net 60 Days" },
-          { value: "net_90", label: "Net 90 Days" },
-          { value: "advance", label: "Advance Payment" },
-          { value: "cod", label: "Cash on Delivery" },
-        ]}
-        value={paymentTerms}
-        onChange={(v) => setPaymentTerms(v ?? "net_30")}
+      <Controller
+        control={control}
+        name="payment_terms"
+        render={({ field }) => (
+          <Select
+            label="Payment Terms"
+            data={[
+              { value: "net_30", label: "Net 30 Days" },
+              { value: "net_60", label: "Net 60 Days" },
+              { value: "net_90", label: "Net 90 Days" },
+              { value: "advance", label: "Advance Payment" },
+              { value: "cod", label: "Cash on Delivery" },
+            ]}
+            value={field.value}
+            onChange={(value) => field.onChange(value ?? "net_30")}
+            error={errors.payment_terms?.message}
+          />
+        )}
       />
-      <MultiSelect
-        label="Supply Categories"
-        placeholder="Select categories this vendor supplies"
-        data={SUPPLY_CATEGORIES}
-        value={supplyCategories}
-        onChange={setSupplyCategories}
-        searchable
-        clearable
+      <Controller
+        control={control}
+        name="supply_categories"
+        render={({ field }) => (
+          <MultiSelect
+            label="Supply Categories"
+            placeholder="Select categories this vendor supplies"
+            data={SUPPLY_CATEGORIES}
+            value={field.value}
+            onChange={field.onChange}
+            searchable
+            clearable
+            error={errors.supply_categories?.message}
+          />
+        )}
       />
-      {supplyCategories.includes("pharmacy") && (
+      {(supplyCategories ?? []).includes("pharmacy") && (
         <TextInput
           label="Drug License Number"
           placeholder="DL-XX-XXXXXXX"
-          value={drugLicenseNumber}
-          onChange={(e) => setDrugLicenseNumber(e.currentTarget.value)}
+          error={errors.drug_license_number?.message}
+          {...register("drug_license_number")}
         />
       )}
-      <Switch
-        label="Pharmacy Vendor"
-        description="Mark if this vendor supplies pharmaceutical products"
-        checked={isPharmacyVendor}
-        onChange={(e) => setIsPharmacyVendor(e.currentTarget.checked)}
+      <Controller
+        control={control}
+        name="is_pharmacy_vendor"
+        render={({ field }) => (
+          <Switch
+            label="Pharmacy Vendor"
+            description="Mark if this vendor supplies pharmaceutical products"
+            checked={field.value}
+            onChange={(event) => field.onChange(event.currentTarget.checked)}
+          />
+        )}
       />
       <TextInput
         label="Product Lines"
         placeholder="e.g. Antibiotics, Surgical Sutures, Lab Reagents"
-        value={productLines}
-        onChange={(e) => setProductLines(e.currentTarget.value)}
+        error={errors.product_lines?.message}
+        {...register("product_lines")}
       />
-      <Button
-        loading={mutation.isPending}
-        onClick={() => mutation.mutate()}
-        disabled={!code || !name}
-      >
+      <Button loading={mutation.isPending} type="submit">
         Register Vendor
       </Button>
     </Stack>
@@ -548,11 +614,11 @@ function PurchaseOrderPanel({ canCreate }: { canCreate: boolean }) {
 
   const { data, isLoading } = useQuery({
     queryKey: ["purchase-orders", page],
-    queryFn: () => api.listPurchaseOrders({ page: String(page), per_page: "20" }),
+    queryFn: () => procurementService.listPurchaseOrders({ page: String(page), per_page: "20" }),
   });
 
   const approveMutation = useMutation({
-    mutationFn: (id: string) => api.approvePurchaseOrder(id),
+    mutationFn: (id: string) => procurementService.approvePurchaseOrder(id),
     onSuccess: () => {
       notifications.show({
         title: "Approved",
@@ -564,7 +630,7 @@ function PurchaseOrderPanel({ canCreate }: { canCreate: boolean }) {
   });
 
   const sendMutation = useMutation({
-    mutationFn: (id: string) => api.sendPurchaseOrder(id),
+    mutationFn: (id: string) => procurementService.sendPurchaseOrder(id),
     onSuccess: () => {
       notifications.show({ title: "Sent", message: "PO sent to vendor", color: "success" });
       void queryClient.invalidateQueries({ queryKey: ["purchase-orders"] });
@@ -693,7 +759,7 @@ function PurchaseOrderPanel({ canCreate }: { canCreate: boolean }) {
 function PoDetailView({ id }: { id: string }) {
   const { data, isLoading } = useQuery({
     queryKey: ["purchase-order", id],
-    queryFn: () => api.getPurchaseOrder(id),
+    queryFn: () => procurementService.getPurchaseOrder(id),
   });
 
   const linkedIndentId = data?.purchase_order.indent_requisition_id ?? null;
@@ -703,7 +769,7 @@ function PoDetailView({ id }: { id: string }) {
       if (!linkedIndentId) {
         throw new Error("Missing linked indent");
       }
-      return api.getIndentRequisition(linkedIndentId);
+      return procurementService.getIndentRequisition(linkedIndentId);
     },
     enabled: Boolean(linkedIndentId),
   });
@@ -776,24 +842,50 @@ function PoDetailView({ id }: { id: string }) {
 }
 
 function CreatePoForm({ onSuccess }: { onSuccess: () => void }) {
-  const [vendorId, setVendorId] = useState("");
-  const [linkedIndentId, setLinkedIndentId] = useState<string | null>(null);
   const [isSyncingIndent, setIsSyncingIndent] = useState(false);
-  const [notes, setNotes] = useState("");
-  const [items, setItems] = useState<CreatePoFormItem[]>([emptyPoItem()]);
+  const {
+    control,
+    register,
+    handleSubmit,
+    setValue,
+    getValues,
+    formState: { errors },
+  } = useForm<ProcurementPurchaseOrderFormInput>({
+    resolver: zodResolver(procurementPurchaseOrderFormSchema),
+    defaultValues: {
+      vendor_id: "",
+      indent_requisition_id: null,
+      notes: "",
+      items: [emptyPoItem()],
+    },
+  });
+  const { fields, append, remove } = useFieldArray({ control, name: "items" });
+  const linkedIndentId = useWatch({ control, name: "indent_requisition_id" });
 
   const { data: catalog } = useQuery({
     queryKey: ["store-catalog"],
-    queryFn: () => api.listStoreCatalog({ active_only: "true" }),
+    queryFn: () => procurementService.listStoreCatalog({ active_only: "true" }),
   });
 
   const { data: linkableIndents } = useQuery({
     queryKey: ["indent-requisitions", "procurement-linkable"],
     queryFn: async () => {
       const [approved, partiallyApproved, partiallyIssued] = await Promise.all([
-        api.listIndentRequisitions({ status: "approved", page: "1", per_page: "50" }),
-        api.listIndentRequisitions({ status: "partially_approved", page: "1", per_page: "50" }),
-        api.listIndentRequisitions({ status: "partially_issued", page: "1", per_page: "50" }),
+        procurementService.listIndentRequisitions({
+          status: "approved",
+          page: "1",
+          per_page: "50",
+        }),
+        procurementService.listIndentRequisitions({
+          status: "partially_approved",
+          page: "1",
+          per_page: "50",
+        }),
+        procurementService.listIndentRequisitions({
+          status: "partially_issued",
+          page: "1",
+          per_page: "50",
+        }),
       ]);
 
       const merged = [
@@ -815,12 +907,12 @@ function CreatePoForm({ onSuccess }: { onSuccess: () => void }) {
   });
 
   const mutation = useMutation({
-    mutationFn: () =>
-      api.createPurchaseOrder({
-        vendor_id: vendorId,
-        indent_requisition_id: linkedIndentId ?? undefined,
-        notes: notes || undefined,
-        items: items.map(toPoItemInput),
+    mutationFn: (values: ProcurementPurchaseOrderFormInput) =>
+      procurementService.createPurchaseOrder({
+        vendor_id: values.vendor_id,
+        indent_requisition_id: optionalText(values.indent_requisition_id),
+        notes: optionalText(values.notes),
+        items: values.items.map(toPoItemInput),
       }),
     onSuccess: () => {
       notifications.show({ title: "Created", message: "Purchase order created", color: "success" });
@@ -831,16 +923,13 @@ function CreatePoForm({ onSuccess }: { onSuccess: () => void }) {
     },
   });
 
-  const addItem = () => setItems((prev) => [...prev, emptyPoItem()]);
-  const removeItem = (idx: number) => {
-    if (items.length > 1) setItems(items.filter((_, i) => i !== idx));
-  };
-  const updateItem = (idx: number, field: string, value: unknown) => {
-    setItems(items.map((item, i) => (i === idx ? { ...item, [field]: value } : item)));
+  const addItem = () => append(emptyPoItem());
+  const removeItem = (index: number) => {
+    if (fields.length > 1) remove(index);
   };
 
   const syncLinkedIndent = async (value: string | null) => {
-    setLinkedIndentId(value);
+    setValue("indent_requisition_id", value, { shouldDirty: true, shouldValidate: true });
 
     if (!value) {
       return;
@@ -848,24 +937,31 @@ function CreatePoForm({ onSuccess }: { onSuccess: () => void }) {
 
     setIsSyncingIndent(true);
     try {
-      const detail = await api.getIndentRequisition(value);
+      const detail = await procurementService.getIndentRequisition(value);
       const syncedItems = detail.items
         .map((item) => ({
-          rowId: createFormRowId(),
-          catalog_item_id: item.catalog_item_id ?? undefined,
+          catalog_item_id: item.catalog_item_id ?? null,
           item_name: item.item_name,
-          item_code: undefined,
-          unit: undefined,
+          item_code: "",
+          unit: "",
           quantity_ordered: item.quantity_approved - item.quantity_issued,
           unit_price: Number(item.unit_price ?? 0),
+          tax_percent: "",
+          discount_percent: "",
           indent_item_id: item.id,
-          notes: item.notes ?? undefined,
+          notes: item.notes ?? "",
         }))
         .filter((item) => item.quantity_ordered > 0);
 
-      setItems(syncedItems.length > 0 ? syncedItems : [emptyPoItem()]);
-      if (!notes.trim()) {
-        setNotes(`Linked to indent ${detail.requisition.indent_number}`);
+      setValue("items", syncedItems.length > 0 ? syncedItems : [emptyPoItem()], {
+        shouldDirty: true,
+        shouldValidate: true,
+      });
+      if (!getValues("notes").trim()) {
+        setValue("notes", `Linked to indent ${detail.requisition.indent_number}`, {
+          shouldDirty: true,
+          shouldValidate: true,
+        });
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to load linked indent";
@@ -880,13 +976,20 @@ function CreatePoForm({ onSuccess }: { onSuccess: () => void }) {
   };
 
   return (
-    <Stack>
-      <VendorSearchSelect
-        label="Vendor"
-        placeholder="Select vendor"
-        value={vendorId}
-        onChange={setVendorId}
-        required
+    <Stack component="form" onSubmit={handleSubmit((values) => mutation.mutate(values))}>
+      <Controller
+        control={control}
+        name="vendor_id"
+        render={({ field }) => (
+          <VendorSearchSelect
+            label="Vendor"
+            placeholder="Select vendor"
+            value={field.value}
+            onChange={field.onChange}
+            required
+            error={errors.vendor_id?.message}
+          />
+        )}
       />
       <Select
         label="Linked Indent"
@@ -902,6 +1005,7 @@ function CreatePoForm({ onSuccess }: { onSuccess: () => void }) {
         }}
         searchable
         clearable
+        error={errors.indent_requisition_id?.message}
       />
       {linkedIndentId && (
         <Text size="xs" c="dimmed">
@@ -910,9 +1014,14 @@ function CreatePoForm({ onSuccess }: { onSuccess: () => void }) {
             : "PO items are linked back to the indent requisition for downstream tracking."}
         </Text>
       )}
-      <Textarea label="Notes" value={notes} onChange={(e) => setNotes(e.currentTarget.value)} />
+      <Textarea label="Notes" error={errors.notes?.message} {...register("notes")} />
 
       <Text fw={600}>Items</Text>
+      {errors.items?.message && (
+        <Text c="danger" size="sm">
+          {errors.items.message}
+        </Text>
+      )}
       <Table>
         <Table.Thead>
           <Table.Tr>
@@ -924,54 +1033,87 @@ function CreatePoForm({ onSuccess }: { onSuccess: () => void }) {
           </Table.Tr>
         </Table.Thead>
         <Table.Tbody>
-          {items.map((item, idx) => (
-            <Table.Tr key={item.rowId}>
+          {fields.map((field, idx) => (
+            <Table.Tr key={field.id}>
               <Table.Td>
-                <TextInput
-                  size="xs"
-                  value={item.item_name}
-                  onChange={(e) => updateItem(idx, "item_name", e.currentTarget.value)}
-                  required
+                <Controller
+                  control={control}
+                  name={`items.${idx}.item_name`}
+                  render={({ field: itemField }) => (
+                    <TextInput
+                      size="xs"
+                      value={itemField.value}
+                      onChange={itemField.onChange}
+                      error={errors.items?.[idx]?.item_name?.message}
+                      required
+                    />
+                  )}
                 />
               </Table.Td>
               <Table.Td>
-                <Select
-                  size="xs"
-                  placeholder="From catalog"
-                  data={(catalog ?? []).map((c) => ({
-                    value: c.id,
-                    label: `${c.code} - ${c.name}`,
-                  }))}
-                  value={item.catalog_item_id ?? null}
-                  onChange={(v) => {
-                    const cat = catalog?.find((c) => c.id === v);
-                    if (cat) {
-                      updateItem(idx, "catalog_item_id", v);
-                      updateItem(idx, "item_name", cat.name);
-                      updateItem(idx, "unit_price", Number(cat.base_price));
-                    }
-                  }}
-                  searchable
-                  clearable
+                <Controller
+                  control={control}
+                  name={`items.${idx}.catalog_item_id`}
+                  render={({ field: itemField }) => (
+                    <Select
+                      size="xs"
+                      placeholder="From catalog"
+                      data={(catalog ?? []).map((c) => ({
+                        value: c.id,
+                        label: `${c.code} - ${c.name}`,
+                      }))}
+                      value={itemField.value}
+                      onChange={(value) => {
+                        itemField.onChange(value);
+                        const cat = catalog?.find((candidate) => candidate.id === value);
+                        if (cat) {
+                          setValue(`items.${idx}.item_name`, cat.name, {
+                            shouldDirty: true,
+                            shouldValidate: true,
+                          });
+                          setValue(`items.${idx}.unit_price`, Number(cat.base_price), {
+                            shouldDirty: true,
+                            shouldValidate: true,
+                          });
+                        }
+                      }}
+                      searchable
+                      clearable
+                    />
+                  )}
                 />
               </Table.Td>
               <Table.Td>
-                <NumberInput
-                  size="xs"
-                  w={80}
-                  min={1}
-                  value={item.quantity_ordered}
-                  onChange={(v) => updateItem(idx, "quantity_ordered", Number(v))}
+                <Controller
+                  control={control}
+                  name={`items.${idx}.quantity_ordered`}
+                  render={({ field: itemField }) => (
+                    <NumberInput
+                      size="xs"
+                      w={80}
+                      min={1}
+                      value={itemField.value}
+                      onChange={itemField.onChange}
+                      error={errors.items?.[idx]?.quantity_ordered?.message}
+                    />
+                  )}
                 />
               </Table.Td>
               <Table.Td>
-                <NumberInput
-                  size="xs"
-                  w={100}
-                  min={0}
-                  decimalScale={2}
-                  value={item.unit_price}
-                  onChange={(v) => updateItem(idx, "unit_price", Number(v))}
+                <Controller
+                  control={control}
+                  name={`items.${idx}.unit_price`}
+                  render={({ field: itemField }) => (
+                    <NumberInput
+                      size="xs"
+                      w={100}
+                      min={0}
+                      decimalScale={2}
+                      value={itemField.value}
+                      onChange={itemField.onChange}
+                      error={errors.items?.[idx]?.unit_price?.message}
+                    />
+                  )}
                 />
               </Table.Td>
               <Table.Td>
@@ -999,11 +1141,7 @@ function CreatePoForm({ onSuccess }: { onSuccess: () => void }) {
         Add Item
       </Button>
 
-      <Button
-        loading={mutation.isPending}
-        onClick={() => mutation.mutate()}
-        disabled={!vendorId || items.every((i) => !i.item_name)}
-      >
+      <Button loading={mutation.isPending} type="submit">
         Create PO
       </Button>
     </Stack>
@@ -1023,7 +1161,7 @@ function GrnPanel({ canCreate }: { canCreate: boolean }) {
 
   const { data, isLoading } = useQuery({
     queryKey: ["grns", page],
-    queryFn: () => api.listGrns({ page: String(page), per_page: "20" }),
+    queryFn: () => procurementService.listGrns({ page: String(page), per_page: "20" }),
   });
 
   const columns = [
@@ -1129,7 +1267,7 @@ function GrnPanel({ canCreate }: { canCreate: boolean }) {
 function GrnDetailView({ id }: { id: string }) {
   const { data, isLoading } = useQuery({
     queryKey: ["grn", id],
-    queryFn: () => api.getGrn(id),
+    queryFn: () => procurementService.getGrn(id),
   });
 
   if (isLoading || !data) return <Text>Loading...</Text>;
@@ -1186,29 +1324,37 @@ function GrnDetailView({ id }: { id: string }) {
 }
 
 function CreateGrnForm({ onSuccess }: { onSuccess: () => void }) {
-  const [poId, setPoId] = useState("");
-  const [invoiceNumber, setInvoiceNumber] = useState("");
-  const [notes, setNotes] = useState("");
-  const [items, setItems] = useState<CreateGrnFormItem[]>([emptyGrnItem()]);
+  const {
+    control,
+    register,
+    handleSubmit,
+    setValue,
+    formState: { errors },
+  } = useForm<ProcurementGrnFormInput>({
+    resolver: zodResolver(procurementGrnFormSchema),
+    defaultValues: {
+      po_id: "",
+      invoice_number: "",
+      notes: "",
+      items: [emptyGrnItem()],
+    },
+  });
+  const { fields } = useFieldArray({ control, name: "items" });
+  const items = useWatch({ control, name: "items" });
 
   const { data: poData } = useQuery({
     queryKey: ["purchase-orders", "receivable"],
-    queryFn: () => api.listPurchaseOrders({ status: "sent_to_vendor", per_page: "100" }),
-  });
-
-  const poDetailQuery = useQuery({
-    queryKey: ["purchase-order", poId],
-    queryFn: () => api.getPurchaseOrder(poId),
-    enabled: !!poId,
+    queryFn: () =>
+      procurementService.listPurchaseOrders({ status: "sent_to_vendor", per_page: "100" }),
   });
 
   const mutation = useMutation({
-    mutationFn: () =>
-      api.createGrn({
-        po_id: poId,
-        invoice_number: invoiceNumber || undefined,
-        notes: notes || undefined,
-        items: items.map(toGrnItemInput),
+    mutationFn: (values: ProcurementGrnFormInput) =>
+      procurementService.createGrn({
+        po_id: values.po_id,
+        invoice_number: optionalText(values.invoice_number),
+        notes: optionalText(values.notes),
+        items: values.items.map(toGrnItemInput),
       }),
     onSuccess: () => {
       notifications.show({
@@ -1223,48 +1369,74 @@ function CreateGrnForm({ onSuccess }: { onSuccess: () => void }) {
     },
   });
 
-  const updateItem = (idx: number, field: string, value: unknown) => {
-    setItems(items.map((item, i) => (i === idx ? { ...item, [field]: value } : item)));
-  };
+  const handlePoSelect = async (value: string | null) => {
+    setValue("po_id", value ?? "", { shouldDirty: true, shouldValidate: true });
+    if (!value) {
+      setValue("items", [emptyGrnItem()], { shouldDirty: true, shouldValidate: true });
+      return;
+    }
 
-  // Auto-populate items when PO is selected
-  const handlePoSelect = (v: string | null) => {
-    setPoId(v ?? "");
-    if (v && poDetailQuery.data) {
-      setItems(
-        poDetailQuery.data.items.map((pi) => ({
-          rowId: createFormRowId(),
-          po_item_id: pi.id,
-          catalog_item_id: pi.catalog_item_id ?? undefined,
-          item_name: pi.item_name,
-          quantity_received: pi.quantity_ordered - pi.quantity_received,
-          quantity_accepted: pi.quantity_ordered - pi.quantity_received,
-          unit_price: pi.unit_price as unknown as number,
-        })),
-      );
+    try {
+      const detail = await procurementService.getPurchaseOrder(value);
+      const receivableItems = detail.items
+        .map((item) => {
+          const remaining = item.quantity_ordered - item.quantity_received;
+          return {
+            po_item_id: item.id,
+            catalog_item_id: item.catalog_item_id ?? null,
+            item_name: item.item_name,
+            quantity_received: remaining,
+            quantity_accepted: remaining,
+            quantity_rejected: 0,
+            batch_number: "",
+            expiry_date: "",
+            manufacture_date: "",
+            unit_price: Number(item.unit_price),
+            rejection_reason: "",
+            notes: "",
+          };
+        })
+        .filter((item) => item.quantity_received > 0);
+
+      setValue("items", receivableItems.length > 0 ? receivableItems : [emptyGrnItem()], {
+        shouldDirty: true,
+        shouldValidate: true,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to load purchase order";
+      notifications.show({ title: "PO load failed", message, color: "danger" });
     }
   };
 
   return (
-    <Stack>
-      <Select
-        label="Purchase Order"
-        placeholder="Select PO to receive against"
-        data={(poData?.purchase_orders ?? []).map((po) => ({
-          value: po.id,
-          label: `${po.po_number} - ₹${po.total_amount}`,
-        }))}
-        value={poId}
-        onChange={handlePoSelect}
-        searchable
-        required
+    <Stack component="form" onSubmit={handleSubmit((values) => mutation.mutate(values))}>
+      <Controller
+        control={control}
+        name="po_id"
+        render={({ field }) => (
+          <Select
+            label="Purchase Order"
+            placeholder="Select PO to receive against"
+            data={(poData?.purchase_orders ?? []).map((po) => ({
+              value: po.id,
+              label: `${po.po_number} - ₹${po.total_amount}`,
+            }))}
+            value={field.value}
+            onChange={(value) => {
+              void handlePoSelect(value);
+            }}
+            searchable
+            required
+            error={errors.po_id?.message}
+          />
+        )}
       />
       <TextInput
         label="Invoice Number"
-        value={invoiceNumber}
-        onChange={(e) => setInvoiceNumber(e.currentTarget.value)}
+        error={errors.invoice_number?.message}
+        {...register("invoice_number")}
       />
-      <Textarea label="Notes" value={notes} onChange={(e) => setNotes(e.currentTarget.value)} />
+      <Textarea label="Notes" error={errors.notes?.message} {...register("notes")} />
 
       <Text fw={600}>Items</Text>
       <Table>
@@ -1278,28 +1450,42 @@ function CreateGrnForm({ onSuccess }: { onSuccess: () => void }) {
           </Table.Tr>
         </Table.Thead>
         <Table.Tbody>
-          {items.map((item, idx) => (
-            <Table.Tr key={item.rowId}>
+          {fields.map((field, idx) => (
+            <Table.Tr key={field.id}>
               <Table.Td>
-                <Text size="sm">{item.item_name || "-"}</Text>
+                <Text size="sm">{items?.[idx]?.item_name || "-"}</Text>
               </Table.Td>
               <Table.Td>
-                <NumberInput
-                  size="xs"
-                  w={80}
-                  min={0}
-                  value={item.quantity_received}
-                  onChange={(v) => updateItem(idx, "quantity_received", Number(v))}
+                <Controller
+                  control={control}
+                  name={`items.${idx}.quantity_received`}
+                  render={({ field: itemField }) => (
+                    <NumberInput
+                      size="xs"
+                      w={80}
+                      min={1}
+                      value={itemField.value}
+                      onChange={itemField.onChange}
+                      error={errors.items?.[idx]?.quantity_received?.message}
+                    />
+                  )}
                 />
               </Table.Td>
               <Table.Td>
-                <NumberInput
-                  size="xs"
-                  w={80}
-                  min={0}
-                  max={item.quantity_received}
-                  value={item.quantity_accepted}
-                  onChange={(v) => updateItem(idx, "quantity_accepted", Number(v))}
+                <Controller
+                  control={control}
+                  name={`items.${idx}.quantity_accepted`}
+                  render={({ field: itemField }) => (
+                    <NumberInput
+                      size="xs"
+                      w={80}
+                      min={0}
+                      max={Number(items?.[idx]?.quantity_received ?? 0)}
+                      value={itemField.value}
+                      onChange={itemField.onChange}
+                      error={errors.items?.[idx]?.quantity_accepted?.message}
+                    />
+                  )}
                 />
               </Table.Td>
               <Table.Td>
@@ -1307,8 +1493,8 @@ function CreateGrnForm({ onSuccess }: { onSuccess: () => void }) {
                   size="xs"
                   w={100}
                   placeholder="Batch #"
-                  value={item.batch_number ?? ""}
-                  onChange={(e) => updateItem(idx, "batch_number", e.currentTarget.value)}
+                  error={errors.items?.[idx]?.batch_number?.message}
+                  {...register(`items.${idx}.batch_number`)}
                 />
               </Table.Td>
               <Table.Td>
@@ -1316,8 +1502,8 @@ function CreateGrnForm({ onSuccess }: { onSuccess: () => void }) {
                   size="xs"
                   w={120}
                   placeholder="YYYY-MM-DD"
-                  value={item.expiry_date ?? ""}
-                  onChange={(e) => updateItem(idx, "expiry_date", e.currentTarget.value)}
+                  error={errors.items?.[idx]?.expiry_date?.message}
+                  {...register(`items.${idx}.expiry_date`)}
                 />
               </Table.Td>
             </Table.Tr>
@@ -1325,7 +1511,7 @@ function CreateGrnForm({ onSuccess }: { onSuccess: () => void }) {
         </Table.Tbody>
       </Table>
 
-      <Button loading={mutation.isPending} onClick={() => mutation.mutate()} disabled={!poId}>
+      <Button loading={mutation.isPending} type="submit">
         Create GRN
       </Button>
     </Stack>
@@ -1342,7 +1528,7 @@ function RateContractPanel({ canManage }: { canManage: boolean }) {
 
   const { data: contracts, isLoading } = useQuery({
     queryKey: ["rate-contracts"],
-    queryFn: () => api.listRateContracts(),
+    queryFn: () => procurementService.listRateContracts(),
   });
 
   const columns = [
@@ -1402,25 +1588,36 @@ function RateContractPanel({ canManage }: { canManage: boolean }) {
 }
 
 function CreateRcForm({ onSuccess }: { onSuccess: () => void }) {
-  const [vendorId, setVendorId] = useState("");
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
-  const [notes, setNotes] = useState("");
-  const [items, setItems] = useState<CreateRcFormItem[]>([emptyRcItem()]);
+  const {
+    control,
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<ProcurementRateContractFormInput>({
+    resolver: zodResolver(procurementRateContractFormSchema),
+    defaultValues: {
+      vendor_id: "",
+      start_date: "",
+      end_date: "",
+      notes: "",
+      items: [emptyRcItem()],
+    },
+  });
+  const { fields, append, remove } = useFieldArray({ control, name: "items" });
 
   const { data: catalog } = useQuery({
     queryKey: ["store-catalog"],
-    queryFn: () => api.listStoreCatalog({ active_only: "true" }),
+    queryFn: () => procurementService.listStoreCatalog({ active_only: "true" }),
   });
 
   const mutation = useMutation({
-    mutationFn: () =>
-      api.createRateContract({
-        vendor_id: vendorId,
-        start_date: startDate,
-        end_date: endDate,
-        notes: notes || undefined,
-        items: items.map(toRcItemInput),
+    mutationFn: (values: ProcurementRateContractFormInput) =>
+      procurementService.createRateContract({
+        vendor_id: values.vendor_id,
+        start_date: values.start_date,
+        end_date: values.end_date,
+        notes: optionalText(values.notes),
+        items: values.items.map(toRcItemInput),
       }),
     onSuccess: () => {
       notifications.show({ title: "Created", message: "Rate contract created", color: "success" });
@@ -1432,69 +1629,92 @@ function CreateRcForm({ onSuccess }: { onSuccess: () => void }) {
   });
 
   return (
-    <Stack>
-      <VendorSearchSelect label="Vendor" value={vendorId} onChange={setVendorId} required />
+    <Stack component="form" onSubmit={handleSubmit((values) => mutation.mutate(values))}>
+      <Controller
+        control={control}
+        name="vendor_id"
+        render={({ field }) => (
+          <VendorSearchSelect
+            label="Vendor"
+            value={field.value}
+            onChange={field.onChange}
+            required
+            error={errors.vendor_id?.message}
+          />
+        )}
+      />
       <TextInput
         label="Start Date"
         placeholder="YYYY-MM-DD"
-        value={startDate}
-        onChange={(e) => setStartDate(e.currentTarget.value)}
         required
+        error={errors.start_date?.message}
+        {...register("start_date")}
       />
       <TextInput
         label="End Date"
         placeholder="YYYY-MM-DD"
-        value={endDate}
-        onChange={(e) => setEndDate(e.currentTarget.value)}
         required
+        error={errors.end_date?.message}
+        {...register("end_date")}
       />
-      <Textarea label="Notes" value={notes} onChange={(e) => setNotes(e.currentTarget.value)} />
+      <Textarea label="Notes" error={errors.notes?.message} {...register("notes")} />
 
       <Text fw={600}>Contract Items</Text>
-      {items.map((item, idx) => (
-        <Group key={item.rowId}>
-          <Select
-            size="xs"
-            placeholder="Catalog item"
-            data={(catalog ?? []).map((c) => ({ value: c.id, label: `${c.code} - ${c.name}` }))}
-            value={item.catalog_item_id}
-            onChange={(v) => {
-              setItems((prev) =>
-                prev.map((it, i) => (i === idx ? { ...it, catalog_item_id: v ?? "" } : it)),
-              );
-            }}
-            searchable
-            style={{ flex: 1 }}
+      {fields.map((field, idx) => (
+        <Group key={field.id} align="flex-start">
+          <Controller
+            control={control}
+            name={`items.${idx}.catalog_item_id`}
+            render={({ field: itemField }) => (
+              <Select
+                size="xs"
+                placeholder="Catalog item"
+                data={(catalog ?? []).map((c) => ({
+                  value: c.id,
+                  label: `${c.code} - ${c.name}`,
+                }))}
+                value={itemField.value}
+                onChange={(value) => itemField.onChange(value ?? "")}
+                searchable
+                error={errors.items?.[idx]?.catalog_item_id?.message}
+                style={{ flex: 1 }}
+              />
+            )}
           />
-          <NumberInput
-            size="xs"
-            w={100}
-            label="Price"
-            min={0}
-            decimalScale={2}
-            value={item.contracted_price}
-            onChange={(v) => {
-              setItems((prev) =>
-                prev.map((it, i) => (i === idx ? { ...it, contracted_price: Number(v) } : it)),
-              );
-            }}
+          <Controller
+            control={control}
+            name={`items.${idx}.contracted_price`}
+            render={({ field: itemField }) => (
+              <NumberInput
+                size="xs"
+                w={120}
+                label="Price"
+                min={0}
+                decimalScale={2}
+                value={itemField.value}
+                onChange={itemField.onChange}
+                error={errors.items?.[idx]?.contracted_price?.message}
+              />
+            )}
           />
+          <ActionIcon
+            variant="subtle"
+            color="danger"
+            size="sm"
+            mt={24}
+            onClick={() => {
+              if (fields.length > 1) remove(idx);
+            }}
+          >
+            ×
+          </ActionIcon>
         </Group>
       ))}
-      <Button
-        variant="outline"
-        size="xs"
-        onClick={() => setItems((prev) => [...prev, emptyRcItem()])}
-        w="fit-content"
-      >
+      <Button variant="outline" size="xs" onClick={() => append(emptyRcItem())} w="fit-content">
         Add Item
       </Button>
 
-      <Button
-        loading={mutation.isPending}
-        onClick={() => mutation.mutate()}
-        disabled={!vendorId || !startDate || !endDate}
-      >
+      <Button loading={mutation.isPending} type="submit">
         Create Contract
       </Button>
     </Stack>
@@ -1508,7 +1728,7 @@ function CreateRcForm({ onSuccess }: { onSuccess: () => void }) {
 function BatchStockPanel() {
   const { data: batches, isLoading } = useQuery({
     queryKey: ["batch-stock"],
-    queryFn: () => api.listBatchStock(),
+    queryFn: () => procurementService.listBatchStock(),
   });
 
   const columns = [
@@ -1578,7 +1798,7 @@ function StoreLocationPanel() {
 
   const { data: locations, isLoading } = useQuery({
     queryKey: ["store-locations"],
-    queryFn: () => api.listStoreLocations(),
+    queryFn: () => procurementService.listStoreLocations(),
   });
 
   const columns = [
@@ -1644,18 +1864,28 @@ function StoreLocationPanel() {
 }
 
 function StoreLocationForm({ onSuccess }: { onSuccess: () => void }) {
-  const [code, setCode] = useState("");
-  const [name, setName] = useState("");
-  const [locationType, setLocationType] = useState("main_store");
-  const [address, setAddress] = useState("");
+  const {
+    control,
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<ProcurementStoreLocationFormInput>({
+    resolver: zodResolver(procurementStoreLocationFormSchema),
+    defaultValues: {
+      code: "",
+      name: "",
+      location_type: "main_store",
+      address: "",
+    },
+  });
 
   const mutation = useMutation({
-    mutationFn: () =>
-      api.createStoreLocation({
-        code,
-        name,
-        location_type: locationType,
-        address: address || undefined,
+    mutationFn: (values: ProcurementStoreLocationFormInput) =>
+      procurementService.createStoreLocation({
+        code: values.code.trim(),
+        name: values.name.trim(),
+        location_type: values.location_type,
+        address: optionalText(values.address),
       }),
     onSuccess: () => {
       notifications.show({ title: "Created", message: "Store location created", color: "success" });
@@ -1667,41 +1897,30 @@ function StoreLocationForm({ onSuccess }: { onSuccess: () => void }) {
   });
 
   return (
-    <Stack>
-      <TextInput
-        label="Code"
-        value={code}
-        onChange={(e) => setCode(e.currentTarget.value)}
-        required
+    <Stack component="form" onSubmit={handleSubmit((values) => mutation.mutate(values))}>
+      <TextInput label="Code" required error={errors.code?.message} {...register("code")} />
+      <TextInput label="Name" required error={errors.name?.message} {...register("name")} />
+      <Controller
+        control={control}
+        name="location_type"
+        render={({ field }) => (
+          <Select
+            label="Type"
+            data={[
+              { value: "main_store", label: "Main Store" },
+              { value: "sub_store", label: "Sub Store" },
+              { value: "department_store", label: "Department Store" },
+              { value: "pharmacy_store", label: "Pharmacy Store" },
+              { value: "warehouse", label: "Warehouse" },
+            ]}
+            value={field.value}
+            onChange={(value) => field.onChange(value ?? "main_store")}
+            error={errors.location_type?.message}
+          />
+        )}
       />
-      <TextInput
-        label="Name"
-        value={name}
-        onChange={(e) => setName(e.currentTarget.value)}
-        required
-      />
-      <Select
-        label="Type"
-        data={[
-          { value: "main_store", label: "Main Store" },
-          { value: "sub_store", label: "Sub Store" },
-          { value: "department_store", label: "Department Store" },
-          { value: "pharmacy_store", label: "Pharmacy Store" },
-          { value: "warehouse", label: "Warehouse" },
-        ]}
-        value={locationType}
-        onChange={(v) => setLocationType(v ?? "main_store")}
-      />
-      <Textarea
-        label="Address"
-        value={address}
-        onChange={(e) => setAddress(e.currentTarget.value)}
-      />
-      <Button
-        loading={mutation.isPending}
-        onClick={() => mutation.mutate()}
-        disabled={!code || !name}
-      >
+      <Textarea label="Address" error={errors.address?.message} {...register("address")} />
+      <Button loading={mutation.isPending} type="submit">
         Create Location
       </Button>
     </Stack>
@@ -1718,7 +1937,7 @@ function VendorPerformancePanel() {
 
   const { data, isLoading } = useQuery({
     queryKey: ["vendor-performance"],
-    queryFn: () => api.getVendorPerformance(),
+    queryFn: () => procurementService.getVendorPerformance(),
   });
 
   const columns = [
@@ -1802,12 +2021,12 @@ function VendorComparisonView({
 }) {
   const { data: catalog } = useQuery({
     queryKey: ["store-catalog"],
-    queryFn: () => api.listStoreCatalog({ active_only: "true" }),
+    queryFn: () => procurementService.listStoreCatalog({ active_only: "true" }),
   });
 
   const { data: comparison, isLoading } = useQuery({
     queryKey: ["vendor-comparison", itemId],
-    queryFn: () => api.getVendorComparison(itemId),
+    queryFn: () => procurementService.getVendorComparison(itemId),
     enabled: !!itemId,
   });
 
@@ -1891,7 +2110,7 @@ function SupplierPaymentsPanel() {
 
   const { data, isLoading } = useQuery({
     queryKey: ["supplier-payments"],
-    queryFn: () => api.listSupplierPayments(),
+    queryFn: () => procurementService.listSupplierPayments(),
   });
 
   const columns = [
@@ -1981,32 +2200,44 @@ function SupplierPaymentsPanel() {
 }
 
 function CreatePaymentForm({ onSuccess }: { onSuccess: () => void }) {
-  const [vendorId, setVendorId] = useState("");
-  const [poId, setPoId] = useState("");
-  const [invoiceAmount, setInvoiceAmount] = useState<number>(0);
-  const [paidAmount, setPaidAmount] = useState<number>(0);
-  const [dueDate, setDueDate] = useState("");
-  const [paymentMethod, setPaymentMethod] = useState("");
-  const [referenceNumber, setReferenceNumber] = useState("");
-  const [notes, setNotes] = useState("");
+  const {
+    control,
+    register,
+    handleSubmit,
+    setValue,
+    formState: { errors },
+  } = useForm<ProcurementSupplierPaymentFormInput>({
+    resolver: zodResolver(procurementSupplierPaymentFormSchema),
+    defaultValues: {
+      vendor_id: "",
+      po_id: null,
+      invoice_amount: 0,
+      paid_amount: 0,
+      due_date: "",
+      payment_method: null,
+      reference_number: "",
+      notes: "",
+    },
+  });
+  const vendorId = useWatch({ control, name: "vendor_id" });
 
   const { data: poData } = useQuery({
     queryKey: ["purchase-orders", "for-vendor", vendorId],
-    queryFn: () => api.listPurchaseOrders({ vendor_id: vendorId, per_page: "100" }),
+    queryFn: () => procurementService.listPurchaseOrders({ vendor_id: vendorId, per_page: "100" }),
     enabled: !!vendorId,
   });
 
   const mutation = useMutation({
-    mutationFn: () =>
-      api.createSupplierPayment({
-        vendor_id: vendorId,
-        po_id: poId || undefined,
-        invoice_amount: invoiceAmount,
-        paid_amount: paidAmount || undefined,
-        due_date: dueDate || undefined,
-        payment_method: paymentMethod || undefined,
-        reference_number: referenceNumber || undefined,
-        notes: notes || undefined,
+    mutationFn: (values: ProcurementSupplierPaymentFormInput) =>
+      procurementService.createSupplierPayment({
+        vendor_id: values.vendor_id,
+        po_id: optionalText(values.po_id),
+        invoice_amount: requiredFormNumber(values.invoice_amount),
+        paid_amount: formNumber(values.paid_amount),
+        due_date: optionalText(values.due_date),
+        payment_method: values.payment_method ?? undefined,
+        reference_number: optionalText(values.reference_number),
+        notes: optionalText(values.notes),
       }),
     onSuccess: () => {
       notifications.show({ title: "Created", message: "Payment recorded", color: "success" });
@@ -2018,77 +2249,108 @@ function CreatePaymentForm({ onSuccess }: { onSuccess: () => void }) {
   });
 
   return (
-    <Stack>
-      <VendorSearchSelect
-        label="Vendor"
-        placeholder="Select vendor"
-        value={vendorId}
-        onChange={(value) => {
-          setVendorId(value);
-          setPoId("");
-        }}
-        required
+    <Stack component="form" onSubmit={handleSubmit((values) => mutation.mutate(values))}>
+      <Controller
+        control={control}
+        name="vendor_id"
+        render={({ field }) => (
+          <VendorSearchSelect
+            label="Vendor"
+            placeholder="Select vendor"
+            value={field.value}
+            onChange={(value) => {
+              field.onChange(value);
+              setValue("po_id", null, { shouldDirty: true, shouldValidate: true });
+            }}
+            required
+            error={errors.vendor_id?.message}
+          />
+        )}
       />
-      <Select
-        label="Purchase Order (optional)"
-        placeholder="Link to PO"
-        data={(poData?.purchase_orders ?? []).map((po) => ({
-          value: po.id,
-          label: `${po.po_number} - ₹${po.total_amount}`,
-        }))}
-        value={poId || null}
-        onChange={(v) => setPoId(v ?? "")}
-        searchable
-        clearable
-        disabled={!vendorId}
+      <Controller
+        control={control}
+        name="po_id"
+        render={({ field }) => (
+          <Select
+            label="Purchase Order (optional)"
+            placeholder="Link to PO"
+            data={(poData?.purchase_orders ?? []).map((po) => ({
+              value: po.id,
+              label: `${po.po_number} - ₹${po.total_amount}`,
+            }))}
+            value={field.value}
+            onChange={field.onChange}
+            searchable
+            clearable
+            disabled={!vendorId}
+            error={errors.po_id?.message}
+          />
+        )}
       />
-      <NumberInput
-        label="Invoice Amount"
-        min={0}
-        decimalScale={2}
-        value={invoiceAmount}
-        onChange={(v) => setInvoiceAmount(Number(v))}
-        required
+      <Controller
+        control={control}
+        name="invoice_amount"
+        render={({ field }) => (
+          <NumberInput
+            label="Invoice Amount"
+            min={0}
+            decimalScale={2}
+            value={field.value}
+            onChange={field.onChange}
+            error={errors.invoice_amount?.message}
+            required
+          />
+        )}
       />
-      <NumberInput
-        label="Paid Amount"
-        min={0}
-        decimalScale={2}
-        value={paidAmount}
-        onChange={(v) => setPaidAmount(Number(v))}
+      <Controller
+        control={control}
+        name="paid_amount"
+        render={({ field }) => (
+          <NumberInput
+            label="Paid Amount"
+            min={0}
+            decimalScale={2}
+            value={field.value}
+            onChange={field.onChange}
+            error={errors.paid_amount?.message}
+          />
+        )}
       />
       <TextInput
         label="Due Date"
         placeholder="YYYY-MM-DD"
-        value={dueDate}
-        onChange={(e) => setDueDate(e.currentTarget.value)}
+        error={errors.due_date?.message}
+        {...register("due_date")}
       />
-      <Select
-        label="Payment Method"
-        placeholder="Select method"
-        data={[
-          { value: "bank_transfer", label: "Bank Transfer" },
-          { value: "cheque", label: "Cheque" },
-          { value: "cash", label: "Cash" },
-          { value: "upi", label: "UPI" },
-          { value: "demand_draft", label: "Demand Draft" },
-        ]}
-        value={paymentMethod || null}
-        onChange={(v) => setPaymentMethod(v ?? "")}
-        clearable
+      <Controller
+        control={control}
+        name="payment_method"
+        render={({ field }) => (
+          <Select
+            label="Payment Method"
+            placeholder="Select method"
+            data={[
+              { value: "bank_transfer", label: "Bank Transfer" },
+              { value: "cheque", label: "Cheque" },
+              { value: "cash", label: "Cash" },
+              { value: "upi", label: "UPI" },
+              { value: "demand_draft", label: "Demand Draft" },
+            ]}
+            value={field.value}
+            onChange={field.onChange}
+            clearable
+            error={errors.payment_method?.message}
+          />
+        )}
       />
       <TextInput
         label="Reference Number"
         placeholder="Txn / Cheque number"
-        value={referenceNumber}
-        onChange={(e) => setReferenceNumber(e.currentTarget.value)}
+        error={errors.reference_number?.message}
+        {...register("reference_number")}
       />
-      <Textarea label="Notes" value={notes} onChange={(e) => setNotes(e.currentTarget.value)} />
-      <Button
-        loading={mutation.isPending}
-        onClick={() => mutation.mutate()}
-        disabled={!vendorId || invoiceAmount <= 0}
-      >
+      <Textarea label="Notes" error={errors.notes?.message} {...register("notes")} />
+      <Button loading={mutation.isPending} type="submit">
         Record Payment
       </Button>
     </Stack>

@@ -1,11 +1,6 @@
 import type { LoroDoc } from "loro-crdt";
 
-export type CrdtConnectionStatus =
-  | "connecting"
-  | "online"
-  | "offline"
-  | "syncing"
-  | "error";
+export type CrdtConnectionStatus = "connecting" | "online" | "offline" | "syncing" | "error";
 
 export interface CrdtStoreOptions {
   /** WebSocket URL of the medbrains-edge sync hub on the hospital LAN. */
@@ -17,6 +12,8 @@ export interface CrdtStoreOptions {
 }
 
 export interface UseCrdtDocOptions extends CrdtStoreOptions {
+  /** Disable storage and WebSocket work while still preserving hook call order. */
+  enabled?: boolean;
   /**
    * Throttle persistence writes. If a page is mutating the doc many
    * times per second (e.g. typing), batching cuts IndexedDB churn.

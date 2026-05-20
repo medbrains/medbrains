@@ -12,3 +12,133 @@
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
   }
 }
+
+.noteShell {
+  background: var(--mb-card-bg);
+}
+
+.sectionSummary {
+  min-height: 150px;
+  padding: 12px;
+  border-top: 3px solid transparent;
+  border-radius: var(--mantine-radius-md);
+  background: var(--fc-panel, #f7f8f6);
+  border-right: 1px solid var(--mb-border-subtle);
+  border-bottom: 1px solid var(--mb-border-subtle);
+  border-left: 1px solid var(--mb-border-subtle);
+}
+
+.formatTile {
+  padding: 10px 12px;
+  border-left: 3px solid transparent;
+  border-radius: 0 var(--mantine-radius-md) var(--mantine-radius-md) 0;
+  background: var(--fc-panel, #f7f8f6);
+  border-top: 1px solid var(--mb-border-subtle);
+  border-right: 1px solid var(--mb-border-subtle);
+  border-bottom: 1px solid var(--mb-border-subtle);
+}
+
+.combinedNote {
+  padding: 10px 12px;
+  border-radius: var(--mantine-radius-md);
+  background: var(--fc-panel, #f7f8f6);
+}
+
+.noteText {
+  white-space: pre-wrap;
+}
+
+.drawerBody {
+  height: calc(100vh - 64px);
+  overflow: hidden;
+}
+
+.editorGrid {
+  display: grid;
+  grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
+  gap: 16px;
+  height: calc(100vh - 96px);
+  min-height: 0;
+}
+
+.editorSide,
+.editorMain {
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.editorSide {
+  border-right: 1px solid var(--mb-border-subtle);
+  padding-right: 14px;
+}
+
+.historyPanel {
+  padding: 12px;
+  border: 1px solid var(--mb-border-subtle);
+  border-radius: var(--mantine-radius-md);
+  background: var(--mb-card-bg);
+}
+
+.historyItem {
+  padding: 10px 12px;
+  border: 1px solid var(--mb-border-subtle);
+  border-radius: var(--mantine-radius-md);
+  background: var(--fc-panel, #f7f8f6);
+}
+
+.keywordSuggestions {
+  display: grid;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.keywordSuggestion {
+  display: block;
+  width: 100%;
+  text-align: left;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--mb-border-subtle);
+  border-radius: var(--mantine-radius-sm);
+  background: var(--mb-card-bg);
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease;
+
+  &:hover {
+    border-color: var(--mantine-color-blue-4);
+    background: var(--mantine-color-blue-0);
+  }
+}
+
+.editorActions {
+  position: sticky;
+  bottom: 0;
+  padding: 12px 0 2px;
+  background: var(--mb-card-bg);
+}
+
+@media (max-width: 900px) {
+  .drawerBody {
+    height: auto;
+    overflow: auto;
+  }
+
+  .editorGrid {
+    display: block;
+    height: auto;
+  }
+
+  .editorSide,
+  .editorMain {
+    overflow: visible;
+    padding-right: 0;
+  }
+
+  .editorSide {
+    border-right: none;
+    padding-right: 0;
+    margin-bottom: 16px;
+  }
+}

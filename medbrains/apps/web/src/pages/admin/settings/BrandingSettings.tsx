@@ -1,10 +1,13 @@
+import { zodResolver } from "@hookform/resolvers/zod";
 import { Button, ColorInput, Group, Loader, Stack, Text, TextInput } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
+import { type BrandingSettingsFormInput, brandingSettingsFormSchema } from "@medbrains/schemas";
 import type { TenantSettingsRow } from "@medbrains/types";
 import { IconCheck, IconDeviceFloppy } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useMemo } from "react";
+import { Controller, useForm } from "react-hook-form";
+import { tenantSettingsService } from "../../../services/tenantSettings.service";
 
 // ── Constants ──────────────────────────────────────────────
 
@@ -30,17 +33,15 @@ const COLOR_SWATCHES = [
 const DEFAULT_PRIMARY = "#0D9488";
 const DEFAULT_SECONDARY = "#1E293B";
 
-// ── Types ──────────────────────────────────────────────────
-
-type BrandingForm = {
-  primary_color: string;
-  secondary_color: string;
-  logo_url: string;
+const EMPTY_FORM: BrandingSettingsFormInput = {
+  primary_color: DEFAULT_PRIMARY,
+  secondary_color: DEFAULT_SECONDARY,
+  logo_url: "",
 };
 
 // ── Helpers ────────────────────────────────────────────────
 
-function parseBrandingSettings(rows: TenantSettingsRow[]): BrandingForm {
+function parseBrandingSettings(rows: TenantSettingsRow[]): BrandingSettingsFormInput {
   const find = (key: string): string => {
     const row = rows.find((r) => r.key === key);
     return typeof row?.value === "string" ? row.value : "";
@@ -57,7 +58,6 @@ function parseBrandingSettings(rows: TenantSettingsRow[]): BrandingForm {
 
 export function BrandingSettings() {
   const queryClient = useQueryClient();
-  const [form, setForm] = useState<BrandingForm | null>(null);
 
   const {
     data: settings,
@@ -66,17 +66,26 @@ export function BrandingSettings() {
     error,
   } = useQuery({
     queryKey: ["setup-branding"],
-    queryFn: () => api.getBranding(),
-    select: (data: TenantSettingsRow[]) => {
-      if (form === null) {
-        setForm(parseBrandingSettings(data));
-      }
-      return data;
-    },
+    queryFn: () => tenantSettingsService.getBranding(),
+  });
+  const formValues = useMemo(
+    () => (settings ? parseBrandingSettings(settings) : EMPTY_FORM),
+    [settings],
+  );
+  const {
+    control,
+    formState: { errors },
+    handleSubmit,
+    register,
+    watch,
+  } = useForm<BrandingSettingsFormInput>({
+    resolver: zodResolver(brandingSettingsFormSchema),
+    defaultValues: EMPTY_FORM,
+    values: formValues,
   });
 
   const mutation = useMutation({
-    mutationFn: async (formData: BrandingForm) => {
+    mutationFn: async (formData: BrandingSettingsFormInput) => {
       const original = parseBrandingSettings(settings ?? []);
       const entries: { key: string; value: string }[] = [];
 
@@ -94,7 +103,7 @@ export function BrandingSettings() {
       }
 
       for (const entry of entries) {
-        await api.updateBranding(entry);
+        await tenantSettingsService.updateBranding(entry);
       }
     },
     onSuccess: () => {
@@ -115,14 +124,15 @@ export function BrandingSettings() {
     },
   });
 
-  const handleSave = () => {
-    if (!form) return;
-    mutation.mutate(form);
-  };
-
-  const updateField = <K extends keyof BrandingForm>(key: K, value: BrandingForm[K]) => {
-    setForm((prev) => (prev ? { ...prev, [key]: value } : prev));
-  };
+  const submitBranding = handleSubmit((form) => {
+    mutation.mutate({
+      primary_color: form.primary_color.trim(),
+      secondary_color: form.secondary_color.trim(),
+      logo_url: form.logo_url.trim(),
+    });
+  });
+  const primaryColor = watch("primary_color");
+  const secondaryColor = watch("secondary_color");
 
   // ── Loading / Error states ─────────────────────────────
 
@@ -146,7 +156,7 @@ export function BrandingSettings() {
     );
   }
 
-  if (!form) {
+  if (!settings) {
     return null;
   }
 
@@ -159,21 +169,35 @@ export function BrandingSettings() {
       </Text>
 
       <Group grow align="flex-start">
-        <ColorInput
-          label="Primary Color"
-          description="Main brand color used for headers, buttons, and accents."
-          format="hex"
-          swatches={COLOR_SWATCHES}
-          value={form.primary_color}
-          onChange={(value) => updateField("primary_color", value)}
+        <Controller
+          control={control}
+          name="primary_color"
+          render={({ field }) => (
+            <ColorInput
+              label="Primary Color"
+              description="Main brand color used for headers, buttons, and accents."
+              format="hex"
+              swatches={COLOR_SWATCHES}
+              value={field.value}
+              onChange={field.onChange}
+              error={errors.primary_color?.message}
+            />
+          )}
         />
-        <ColorInput
-          label="Secondary Color"
-          description="Secondary color used for text, borders, and supporting elements."
-          format="hex"
-          swatches={COLOR_SWATCHES}
-          value={form.secondary_color}
-          onChange={(value) => updateField("secondary_color", value)}
+        <Controller
+          control={control}
+          name="secondary_color"
+          render={({ field }) => (
+            <ColorInput
+              label="Secondary Color"
+              description="Secondary color used for text, borders, and supporting elements."
+              format="hex"
+              swatches={COLOR_SWATCHES}
+              value={field.value}
+              onChange={field.onChange}
+              error={errors.secondary_color?.message}
+            />
+          )}
         />
       </Group>
 
@@ -185,8 +209,8 @@ export function BrandingSettings() {
         label="Logo URL"
         description="URL to your hospital logo image. Leave empty to use the default."
         placeholder="https://..."
-        value={form.logo_url}
-        onChange={(e) => updateField("logo_url", e.currentTarget.value)}
+        error={errors.logo_url?.message}
+        {...register("logo_url")}
         maw={480}
       />
 
@@ -196,8 +220,8 @@ export function BrandingSettings() {
 
       <div
         style={{
-          backgroundColor: form.primary_color,
-          color: form.secondary_color,
+          backgroundColor: primaryColor,
+          color: secondaryColor,
           padding: "24px 32px",
           borderRadius: 8,
           maxWidth: 480,
@@ -214,7 +238,7 @@ export function BrandingSettings() {
       <Group mt="md">
         <Button
           leftSection={<IconDeviceFloppy size={16} />}
-          onClick={handleSave}
+          onClick={() => void submitBranding()}
           loading={mutation.isPending}
         >
           Save Branding

@@ -23,6 +23,8 @@ TIER := $(if $(TIER),$(TIER),starter)
 
 GHCR_IMAGE ?= ghcr.io/domnicamalan/medbrains
 GHCR_TAG   ?= latest
+PLAN_FILE  ?= plan.tfplan
+APPLY_CONFIRMATION ?= deploy-$(TF_VAR_domain)
 
 # Starter target: cross-compile from operator's mac (apple-darwin)
 # to the Linux EC2 host via cargo-zigbuild. No docker, no QEMU.
@@ -134,10 +136,20 @@ init:
 	terraform init
 
 plan: check init
-	terraform plan
+	terraform plan -out=$(PLAN_FILE)
+	terraform show -no-color $(PLAN_FILE)
 
 apply: check init build pre-apply-backup
-	terraform apply -auto-approve
+	terraform plan -out=$(PLAN_FILE)
+	terraform show -no-color $(PLAN_FILE)
+	@if [ "$${CONFIRM_APPLY:-}" != "$(APPLY_CONFIRMATION)" ]; then \
+		echo; \
+		echo "Refusing to apply without reviewed-plan confirmation."; \
+		echo "Review the plan above, then run:"; \
+		echo "  CONFIRM_APPLY=$(APPLY_CONFIRMATION) make apply"; \
+		exit 1; \
+	fi
+	terraform apply $(PLAN_FILE)
 	@echo
 	@echo "==> deploy complete (tier=$(TIER))"
 	@$(MAKE) -s outputs

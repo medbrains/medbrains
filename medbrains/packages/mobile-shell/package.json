@@ -22,9 +22,12 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@hookform/resolvers": "^5.2.2",
     "@medbrains/edge-rn-bindings": "workspace:*",
+    "@medbrains/schemas": "workspace:*",
     "@medbrains/types": "workspace:*",
     "@medbrains/ui-mobile": "workspace:*",
+    "react-hook-form": "^7.71.2",
     "zustand": "^5.0.11"
   },
   "peerDependencies": {

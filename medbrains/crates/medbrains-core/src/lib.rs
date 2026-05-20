@@ -86,6 +86,7 @@ pub mod quality;
 pub mod queue;
 pub mod radiology;
 pub mod regulatory;
+pub mod reports;
 pub mod retrospective;
 pub mod scheduling;
 pub mod screen;

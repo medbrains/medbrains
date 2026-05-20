@@ -91,7 +91,7 @@ function parseSeedMap() {
   const parentRules = [];
   const parentBlock = src.match(/PARENT_SEGMENT_TO_SEED[\s\S]*?=\s*\[([\s\S]*?)\];/);
   if (parentBlock) {
-    const entries = parentBlock[1].matchAll(/\[\s*\/(.+?)\/,\s*"(\w+)"\s*\]/g);
+    const entries = parentBlock[1].matchAll(/\[\s*\/((?:\\\/|[^/])+?)\/,\s*"(\w+)"\s*\]/g);
     for (const [, pattern, key] of entries) {
       parentRules.push({ regex: new RegExp(pattern), key });
     }
@@ -105,7 +105,7 @@ function substituteParams(path, seedData) {
 
   return path.replace(/\{(\w+)\}/g, (match, name) => {
     // 1. Direct param match
-    if (paramMap[name] && seed[paramMap[name]]) {
+    if (paramMap[name] && paramMap[name] !== "generic" && seed[paramMap[name]]) {
       return seed[paramMap[name]];
     }
 
@@ -209,7 +209,7 @@ test.describe("smoke ${moduleName}", () => {
   let ctx: AuthContext;
 
   test.beforeAll(async ({ playwright }) => {
-    const request = await playwright.request.newContext();
+    const request = await playwright.request.newContext({ ignoreHTTPSErrors: true });
     ctx = await loginAsAdmin(request);
   });
 
@@ -227,7 +227,7 @@ test.describe("smoke ${moduleName}", () => {
 
       const init: { method: string; headers: Record<string, string>; data?: string } = {
         method,
-        headers: { "x-csrf-token": ctx.csrfToken },
+        headers: { cookie: ctx.cookieHeader, "x-csrf-token": ctx.csrfToken },
       };
       if (method !== "GET" && method !== "DELETE") {
         const body = SMOKE_BODIES[\`\${method} \${pattern}\`] ?? {};
@@ -260,6 +260,8 @@ test.describe("smoke ${moduleName}", () => {
           });
       }
 
+      expect(status, \`authenticated smoke must not be unauthorized for \${method} \${path}\`).not.toBe(401);
+      expect(status, \`authenticated smoke must not be forbidden for \${method} \${path}\`).not.toBe(403);
       expect.soft(status, \`status for \${method} \${path}\`).toBeGreaterThanOrEqual(200);
       expect.soft(status, \`status for \${method} \${path}\`).toBeLessThan(500);
 

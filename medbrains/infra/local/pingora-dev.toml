@@ -1,12 +1,15 @@
 # MedBrains local HTTPS proxy.
 #
-# Local browser/simulator URL:
+# Local browser/simulator URLs:
 #   https://medbrains.localhost
+#   https://medbrains-desktop.localhost
+#   https://medbrains-icd.localhost
 #
 # Upstreams:
 #   /api/* -> Rust backend on 3000
 #   /ws*   -> edge sync hub on 7811
 #   /*     -> Vite web UI on 5173
+#   medbrains-icd.localhost -> WHO ICD-API on 8382
 
 http_port = 80
 https_port = 443
@@ -129,3 +132,19 @@ domain = "medbrains.localhost"
 upstream = "127.0.0.1:5173"
 cert_path = "var/local-https/medbrains.localhost.pem"
 key_path = "var/local-https/medbrains.localhost-key.pem"
+
+[[routes]]
+domain = "medbrains-desktop.localhost"
+upstream = "127.0.0.1:5173"
+cert_path = "var/local-https/medbrains.localhost.pem"
+key_path = "var/local-https/medbrains.localhost-key.pem"
+
+[[routes]]
+domain = "medbrains-icd.localhost"
+upstream = "127.0.0.1:8382"
+cert_path = "var/local-https/medbrains.localhost.pem"
+key_path = "var/local-https/medbrains.localhost-key.pem"
+cors_allowed_origins = [
+  "https://medbrains.localhost",
+  "https://medbrains-desktop.localhost",
+]

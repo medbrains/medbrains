@@ -1,3 +1,4 @@
+import { zodResolver } from "@hookform/resolvers/zod";
 import {
   ActionIcon,
   Badge,
@@ -18,7 +19,22 @@ import {
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
+import type {
+  DietOrderFormInput,
+  DietTemplateFormInput,
+  KitchenAuditFormInput,
+  KitchenInventoryFormInput,
+  KitchenMenuFormInput,
+  MealPrepFormInput,
+} from "@medbrains/schemas";
+import {
+  dietOrderFormSchema,
+  dietTemplateFormSchema,
+  kitchenAuditFormSchema,
+  kitchenInventoryFormSchema,
+  kitchenMenuFormSchema,
+  mealPrepFormSchema,
+} from "@medbrains/schemas";
 import { useHasPermission } from "@medbrains/stores";
 import type {
   AdmissionRow,
@@ -50,33 +66,21 @@ import {
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
+import { Controller, useForm } from "react-hook-form";
 import { DataTable, PageHeader } from "../components";
 import { PatientContextBanner } from "../components/Patient/PatientContextBanner";
 import { PatientSearchSelect } from "../components/PatientSearchSelect";
+import {
+  dietOptionalInteger,
+  dietOptionalNumber,
+  dietOptionalText,
+  dietTypeOptions,
+  kitchenAuditTypeOptions,
+  mealTypeOptions,
+} from "../forms/diet-kitchen.form";
 import { usePatientContext } from "../hooks/usePatientContext";
 import { useRequirePermission } from "../hooks/useRequirePermission";
-
-const DIET_TYPES = [
-  { value: "regular", label: "Regular" },
-  { value: "diabetic", label: "Diabetic" },
-  { value: "renal", label: "Renal" },
-  { value: "cardiac", label: "Cardiac" },
-  { value: "liquid", label: "Liquid" },
-  { value: "soft", label: "Soft" },
-  { value: "high_protein", label: "High Protein" },
-  { value: "low_sodium", label: "Low Sodium" },
-  { value: "npo", label: "NPO" },
-  { value: "custom", label: "Custom" },
-];
-
-const MEAL_TYPES = [
-  { value: "breakfast", label: "Breakfast" },
-  { value: "morning_snack", label: "Morning Snack" },
-  { value: "lunch", label: "Lunch" },
-  { value: "afternoon_snack", label: "Afternoon Snack" },
-  { value: "dinner", label: "Dinner" },
-  { value: "bedtime_snack", label: "Bedtime Snack" },
-];
+import { dietKitchenService } from "../services/diet-kitchen.service";
 
 const ORDER_STATUS_COLORS: Record<string, string> = {
   active: "success",
@@ -160,13 +164,13 @@ function DietOrdersTab() {
 
   const { data: ordersData, isLoading } = useQuery({
     queryKey: ["diet-orders"],
-    queryFn: api.listDietOrders,
+    queryFn: dietKitchenService.listDietOrders,
   });
   const orders = rowsOrEmpty(ordersData);
 
   const { data: admissionsData, isLoading: admissionsLoading } = useQuery({
     queryKey: ["diet-active-admissions"],
-    queryFn: () => api.listAdmissions({ status: "admitted", per_page: "200" }),
+    queryFn: () => dietKitchenService.listAdmissions({ status: "admitted", per_page: "200" }),
     staleTime: 30_000,
   });
   const activeAdmissions = rowsOrEmpty(admissionsData?.admissions);
@@ -185,7 +189,7 @@ function DietOrdersTab() {
 
   const { data: templatesData } = useQuery({
     queryKey: ["diet-templates"],
-    queryFn: api.listDietTemplates,
+    queryFn: dietKitchenService.listDietTemplates,
   });
   const templates = rowsOrEmpty(templatesData);
   const templateOptions = useMemo(
@@ -199,9 +203,29 @@ function DietOrdersTab() {
     [templates],
   );
 
-  const [form, setForm] = useState<Partial<CreateDietOrderRequest>>({});
-  const selectedAdmission = form.admission_id ? admissionById.get(form.admission_id) : undefined;
-  const contextPatientId = form.patient_id || selectedAdmission?.patient_id;
+  const orderForm = useForm<DietOrderFormInput>({
+    resolver: zodResolver(dietOrderFormSchema),
+    defaultValues: {
+      admission_id: "",
+      patient_id: "",
+      template_id: "",
+      diet_type: "regular",
+      special_instructions: "",
+      calories_target: "",
+    },
+  });
+  const {
+    control,
+    handleSubmit,
+    reset,
+    setValue,
+    watch,
+    formState: { errors, dirtyFields },
+  } = orderForm;
+  const watchedAdmissionId = watch("admission_id");
+  const watchedPatientId = watch("patient_id");
+  const selectedAdmission = watchedAdmissionId ? admissionById.get(watchedAdmissionId) : undefined;
+  const contextPatientId = watchedPatientId || selectedAdmission?.patient_id;
   const { data: patientContext } = usePatientContext(contextPatientId);
   const contextDietType = dietTypeFromPreference(patientContext?.dietary_preference);
   const contextInstructions = [
@@ -219,34 +243,35 @@ function DietOrdersTab() {
     .join("\n");
 
   const createMut = useMutation({
-    mutationFn: (data: CreateDietOrderRequest) => api.createDietOrder(data),
+    mutationFn: (data: CreateDietOrderRequest) => dietKitchenService.createDietOrder(data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["diet-orders"] });
       notifications.show({ title: "Success", message: "Diet order created", color: "success" });
       close();
-      setForm({});
+      reset();
     },
     onError: notifyMutationError("Could not create diet order"),
   });
 
-  const submitOrder = () => {
-    const patientId = form.patient_id || selectedAdmission?.patient_id;
+  const submitOrder = (values: DietOrderFormInput) => {
+    const patientId = values.patient_id || selectedAdmission?.patient_id;
     if (!patientId) {
       notifyFormError("Select a patient before creating a diet order.");
       return;
     }
 
-    const admissionId = optionalUuid(form.admission_id, "Admission ID");
+    const admissionId = optionalUuid(values.admission_id, "Admission ID");
     if (admissionId === null) {
       return;
     }
 
     createMut.mutate({
-      ...form,
       admission_id: admissionId,
-      diet_type: form.diet_type ?? contextDietType ?? "regular",
+      template_id: dietOptionalText(values.template_id),
+      diet_type: dirtyFields.diet_type ? values.diet_type : (contextDietType ?? values.diet_type),
       patient_id: patientId,
-      special_instructions: form.special_instructions?.trim() || contextInstructions || undefined,
+      special_instructions: dietOptionalText(values.special_instructions) ?? contextInstructions,
+      calories_target: dietOptionalNumber(values.calories_target),
     });
   };
 
@@ -338,65 +363,105 @@ function DietOrdersTab() {
         emptyTitle="No diet orders"
       />
       <Drawer opened={opened} onClose={close} title="New Diet Order" position="right" size="xl">
-        <Stack>
-          <Select
-            label="Active IPD patient / bed"
-            placeholder="Search active admission, UHID, ward"
-            data={admissionOptions}
-            value={form.admission_id ?? null}
-            onChange={(value) => {
-              const admission = value ? admissionById.get(value) : undefined;
-              setForm((previous) => ({
-                ...previous,
-                admission_id: value ?? undefined,
-                patient_id: admission?.patient_id ?? previous.patient_id,
-              }));
-            }}
-            searchable
-            clearable
-            nothingFoundMessage="No active IPD patients found"
-            disabled={admissionsLoading}
+        <Stack component="form" onSubmit={handleSubmit(submitOrder)}>
+          <Controller
+            name="admission_id"
+            control={control}
+            render={({ field }) => (
+              <Select
+                label="Active IPD patient / bed"
+                placeholder="Search active admission, UHID, ward"
+                data={admissionOptions}
+                value={field.value || null}
+                onChange={(value) => {
+                  const admission = value ? admissionById.get(value) : undefined;
+                  field.onChange(value ?? "");
+                  if (admission?.patient_id) {
+                    setValue("patient_id", admission.patient_id, { shouldValidate: true });
+                  }
+                }}
+                searchable
+                clearable
+                nothingFoundMessage="No active IPD patients found"
+                disabled={admissionsLoading}
+                error={errors.admission_id?.message}
+              />
+            )}
           />
           {contextPatientId && (
             <PatientContextBanner patientId={contextPatientId} hideLoadingState />
           )}
-          <PatientSearchSelect
-            value={form.patient_id ?? ""}
-            onChange={(id) => setForm((p) => ({ ...p, patient_id: id, admission_id: undefined }))}
-            required={!form.admission_id}
+          <Controller
+            name="patient_id"
+            control={control}
+            render={({ field }) => (
+              <PatientSearchSelect
+                value={field.value}
+                onChange={(id) => {
+                  field.onChange(id);
+                  setValue("admission_id", "", { shouldValidate: true });
+                }}
+                required={!watchedAdmissionId}
+              />
+            )}
           />
-          <Select
-            label="Template"
-            data={templateOptions}
-            clearable
-            onChange={(v) => setForm((p) => ({ ...p, template_id: v ?? undefined }))}
+          {errors.patient_id?.message && (
+            <Text size="xs" c="danger">
+              {errors.patient_id.message}
+            </Text>
+          )}
+          <Controller
+            name="template_id"
+            control={control}
+            render={({ field }) => (
+              <Select
+                label="Template"
+                data={templateOptions}
+                value={field.value || null}
+                clearable
+                onChange={(value) => field.onChange(value ?? "")}
+                error={errors.template_id?.message}
+              />
+            )}
           />
-          <Select
-            label="Diet Type"
-            data={DIET_TYPES}
-            value={form.diet_type ?? contextDietType ?? "regular"}
-            onChange={(v) =>
-              setForm((p) => ({
-                ...p,
-                diet_type: (v as CreateDietOrderRequest["diet_type"]) ?? undefined,
-              }))
-            }
+          <Controller
+            name="diet_type"
+            control={control}
+            render={({ field }) => (
+              <Select
+                label="Diet Type"
+                data={dietTypeOptions}
+                value={!dirtyFields.diet_type && contextDietType ? contextDietType : field.value}
+                onChange={(value) => field.onChange(value ?? "regular")}
+                error={errors.diet_type?.message}
+              />
+            )}
           />
-          <Textarea
-            label="Special Instructions"
-            value={form.special_instructions ?? contextInstructions}
-            onChange={(e) =>
-              setForm((p) => ({ ...p, special_instructions: e.currentTarget.value }))
-            }
+          <Controller
+            name="special_instructions"
+            control={control}
+            render={({ field }) => (
+              <Textarea
+                label="Special Instructions"
+                value={field.value || contextInstructions}
+                onChange={(event) => field.onChange(event.currentTarget.value)}
+                error={errors.special_instructions?.message}
+              />
+            )}
           />
-          <NumberInput
-            label="Calories Target"
-            value={form.calories_target ?? ""}
-            onChange={(v) =>
-              setForm((p) => ({ ...p, calories_target: typeof v === "number" ? v : undefined }))
-            }
+          <Controller
+            name="calories_target"
+            control={control}
+            render={({ field }) => (
+              <NumberInput
+                label="Calories Target"
+                value={field.value}
+                onChange={field.onChange}
+                error={errors.calories_target?.message}
+              />
+            )}
           />
-          <Button loading={createMut.isPending} onClick={submitOrder}>
+          <Button loading={createMut.isPending} type="submit">
             Create Order
           </Button>
         </Stack>
@@ -416,34 +481,49 @@ function DietTemplatesTab() {
 
   const { data: templatesData, isLoading } = useQuery({
     queryKey: ["diet-templates"],
-    queryFn: api.listDietTemplates,
+    queryFn: dietKitchenService.listDietTemplates,
   });
   const templates = rowsOrEmpty(templatesData);
 
-  const [form, setForm] = useState<Partial<CreateDietTemplateRequest>>({});
+  const templateForm = useForm<DietTemplateFormInput>({
+    resolver: zodResolver(dietTemplateFormSchema),
+    defaultValues: {
+      name: "",
+      diet_type: "custom",
+      description: "",
+      calories_target: "",
+      protein_g: "",
+      carbs_g: "",
+      fat_g: "",
+    },
+  });
+  const {
+    control,
+    handleSubmit,
+    reset,
+    formState: { errors },
+  } = templateForm;
 
   const createMut = useMutation({
-    mutationFn: (data: CreateDietTemplateRequest) => api.createDietTemplate(data),
+    mutationFn: (data: CreateDietTemplateRequest) => dietKitchenService.createDietTemplate(data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["diet-templates"] });
       notifications.show({ title: "Success", message: "Template created", color: "success" });
       close();
-      setForm({});
+      reset();
     },
     onError: notifyMutationError("Could not create template"),
   });
 
-  const submitTemplate = () => {
-    const name = form.name?.trim();
-    if (!name) {
-      notifyFormError("Enter a template name.");
-      return;
-    }
-
+  const submitTemplate = (values: DietTemplateFormInput) => {
     createMut.mutate({
-      ...form,
-      name,
-      diet_type: form.diet_type ?? "custom",
+      name: values.name.trim(),
+      diet_type: values.diet_type,
+      description: dietOptionalText(values.description),
+      calories_target: dietOptionalNumber(values.calories_target),
+      protein_g: dietOptionalNumber(values.protein_g),
+      carbs_g: dietOptionalNumber(values.carbs_g),
+      fat_g: dietOptionalNumber(values.fat_g),
     });
   };
 
@@ -526,60 +606,85 @@ function DietTemplatesTab() {
         emptyTitle="No diet templates"
       />
       <Drawer opened={opened} onClose={close} title="New Diet Template" position="right" size="xl">
-        <Stack>
-          <TextInput
-            label="Name"
-            required
-            value={form.name ?? ""}
-            onChange={(e) => setForm((p) => ({ ...p, name: e.currentTarget.value }))}
+        <Stack component="form" onSubmit={handleSubmit(submitTemplate)}>
+          <Controller
+            name="name"
+            control={control}
+            render={({ field }) => (
+              <TextInput label="Name" required {...field} error={errors.name?.message} />
+            )}
           />
-          <Select
-            label="Diet Type"
-            data={DIET_TYPES}
-            value={form.diet_type ?? "custom"}
-            onChange={(v) =>
-              setForm((p) => ({
-                ...p,
-                diet_type: (v as CreateDietTemplateRequest["diet_type"]) ?? undefined,
-              }))
-            }
+          <Controller
+            name="diet_type"
+            control={control}
+            render={({ field }) => (
+              <Select
+                label="Diet Type"
+                data={dietTypeOptions}
+                value={field.value}
+                onChange={(value) => field.onChange(value ?? "custom")}
+                error={errors.diet_type?.message}
+              />
+            )}
           />
-          <Textarea
-            label="Description"
-            value={form.description ?? ""}
-            onChange={(e) => setForm((p) => ({ ...p, description: e.currentTarget.value }))}
+          <Controller
+            name="description"
+            control={control}
+            render={({ field }) => (
+              <Textarea label="Description" {...field} error={errors.description?.message} />
+            )}
           />
-          <NumberInput
-            label="Calories Target"
-            value={form.calories_target ?? ""}
-            onChange={(v) =>
-              setForm((p) => ({ ...p, calories_target: typeof v === "number" ? v : undefined }))
-            }
+          <Controller
+            name="calories_target"
+            control={control}
+            render={({ field }) => (
+              <NumberInput
+                label="Calories Target"
+                value={field.value}
+                onChange={field.onChange}
+                error={errors.calories_target?.message}
+              />
+            )}
           />
           <Group grow>
-            <NumberInput
-              label="Protein (g)"
-              value={form.protein_g ?? ""}
-              onChange={(v) =>
-                setForm((p) => ({ ...p, protein_g: typeof v === "number" ? v : undefined }))
-              }
+            <Controller
+              name="protein_g"
+              control={control}
+              render={({ field }) => (
+                <NumberInput
+                  label="Protein (g)"
+                  value={field.value}
+                  onChange={field.onChange}
+                  error={errors.protein_g?.message}
+                />
+              )}
             />
-            <NumberInput
-              label="Carbs (g)"
-              value={form.carbs_g ?? ""}
-              onChange={(v) =>
-                setForm((p) => ({ ...p, carbs_g: typeof v === "number" ? v : undefined }))
-              }
+            <Controller
+              name="carbs_g"
+              control={control}
+              render={({ field }) => (
+                <NumberInput
+                  label="Carbs (g)"
+                  value={field.value}
+                  onChange={field.onChange}
+                  error={errors.carbs_g?.message}
+                />
+              )}
             />
-            <NumberInput
-              label="Fat (g)"
-              value={form.fat_g ?? ""}
-              onChange={(v) =>
-                setForm((p) => ({ ...p, fat_g: typeof v === "number" ? v : undefined }))
-              }
+            <Controller
+              name="fat_g"
+              control={control}
+              render={({ field }) => (
+                <NumberInput
+                  label="Fat (g)"
+                  value={field.value}
+                  onChange={field.onChange}
+                  error={errors.fat_g?.message}
+                />
+              )}
             />
           </Group>
-          <Button loading={createMut.isPending} onClick={submitTemplate}>
+          <Button loading={createMut.isPending} type="submit">
             Create Template
           </Button>
         </Stack>
@@ -601,25 +706,25 @@ function KitchenTab() {
 
   const { data: menusData, isLoading: menusLoading } = useQuery({
     queryKey: ["kitchen-menus"],
-    queryFn: api.listKitchenMenus,
+    queryFn: dietKitchenService.listKitchenMenus,
   });
   const menus = rowsOrEmpty(menusData);
 
   const { data: prepsData, isLoading: prepsLoading } = useQuery({
     queryKey: ["meal-preps"],
-    queryFn: api.listMealPreps,
+    queryFn: dietKitchenService.listMealPreps,
   });
   const preps = rowsOrEmpty(prepsData);
 
   const { data: countsData, isLoading: countsLoading } = useQuery({
     queryKey: ["meal-counts"],
-    queryFn: api.listMealCounts,
+    queryFn: dietKitchenService.listMealCounts,
   });
   const counts = rowsOrEmpty(countsData);
 
   const { data: ordersData } = useQuery({
     queryKey: ["diet-orders-for-prep"],
-    queryFn: api.listDietOrders,
+    queryFn: dietKitchenService.listDietOrders,
     staleTime: 30_000,
   });
   const prepOrders = rowsOrEmpty(ordersData);
@@ -634,34 +739,59 @@ function KitchenTab() {
     [prepOrders],
   );
 
-  const [menuForm, setMenuForm] = useState<Partial<CreateKitchenMenuRequest>>({});
-  const [prepForm, setPrepForm] = useState<Partial<CreateMealPrepRequest>>({});
+  const menuForm = useForm<KitchenMenuFormInput>({
+    resolver: zodResolver(kitchenMenuFormSchema),
+    defaultValues: {
+      name: "",
+      week_number: "",
+      season: "",
+    },
+  });
+  const {
+    control: menuControl,
+    handleSubmit: handleMenuSubmit,
+    reset: resetMenu,
+    formState: { errors: menuErrors },
+  } = menuForm;
+  const prepForm = useForm<MealPrepFormInput>({
+    resolver: zodResolver(mealPrepFormSchema),
+    defaultValues: {
+      diet_order_id: "",
+      meal_type: "breakfast",
+    },
+  });
+  const {
+    control: prepControl,
+    handleSubmit: handlePrepSubmit,
+    reset: resetPrep,
+    formState: { errors: prepErrors },
+  } = prepForm;
 
   const createMenuMut = useMutation({
-    mutationFn: (data: CreateKitchenMenuRequest) => api.createKitchenMenu(data),
+    mutationFn: (data: CreateKitchenMenuRequest) => dietKitchenService.createKitchenMenu(data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["kitchen-menus"] });
       notifications.show({ title: "Success", message: "Menu created", color: "success" });
       closeMenu();
-      setMenuForm({});
+      resetMenu();
     },
     onError: notifyMutationError("Could not create menu"),
   });
 
   const createPrepMut = useMutation({
-    mutationFn: (data: CreateMealPrepRequest) => api.createMealPrep(data),
+    mutationFn: (data: CreateMealPrepRequest) => dietKitchenService.createMealPrep(data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["meal-preps"] });
       notifications.show({ title: "Success", message: "Meal prep created", color: "success" });
       closePrep();
-      setPrepForm({});
+      resetPrep();
     },
     onError: notifyMutationError("Could not create meal prep"),
   });
 
   const updatePrepMut = useMutation({
     mutationFn: ({ id, data }: { id: string; data: UpdateMealPrepStatusRequest }) =>
-      api.updateMealPrepStatus(id, data),
+      dietKitchenService.updateMealPrepStatus(id, data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["meal-preps"] });
       notifications.show({ title: "Success", message: "Status updated", color: "success" });
@@ -669,31 +799,28 @@ function KitchenTab() {
     onError: notifyMutationError("Could not update meal status"),
   });
 
-  const submitMenu = () => {
-    const name = menuForm.name?.trim();
-    if (!name) {
-      notifyFormError("Enter a menu name.");
-      return;
-    }
-
-    createMenuMut.mutate({ ...menuForm, name });
+  const submitMenu = (values: KitchenMenuFormInput) => {
+    createMenuMut.mutate({
+      name: values.name.trim(),
+      week_number: dietOptionalInteger(values.week_number),
+      season: dietOptionalText(values.season),
+    });
   };
 
-  const submitPrep = () => {
-    const dietOrderId = optionalUuid(prepForm.diet_order_id, "Diet Order ID");
+  const submitPrep = (values: MealPrepFormInput) => {
+    const dietOrderId = optionalUuid(values.diet_order_id, "Diet Order ID");
     if (dietOrderId === null) {
       return;
     }
 
-    if (!dietOrderId || !prepForm.meal_type) {
+    if (!dietOrderId) {
       notifyFormError("Enter a diet order ID and select a meal type.");
       return;
     }
 
     createPrepMut.mutate({
-      ...prepForm,
       diet_order_id: dietOrderId,
-      meal_type: prepForm.meal_type,
+      meal_type: values.meal_type,
     });
   };
 
@@ -763,7 +890,9 @@ function KitchenTab() {
       label: "Actions",
       render: (r: MealPreparation) => {
         if (!canManage) return <Text size="sm">-</Text>;
-        const next: Record<string, string> = {
+        const next: Partial<
+          Record<MealPreparation["status"], UpdateMealPrepStatusRequest["status"]>
+        > = {
           pending: "preparing",
           preparing: "ready",
           ready: "dispatched",
@@ -780,7 +909,7 @@ function KitchenTab() {
               onClick={() =>
                 updatePrepMut.mutate({
                   id: r.id,
-                  data: { status: nextStatus as UpdateMealPrepStatusRequest["status"] },
+                  data: { status: nextStatus },
                 })
               }
               aria-label="Edit"
@@ -1018,26 +1147,34 @@ function KitchenTab() {
         position="right"
         size="xl"
       >
-        <Stack>
-          <TextInput
-            label="Menu Name"
-            required
-            value={menuForm.name ?? ""}
-            onChange={(e) => setMenuForm((p) => ({ ...p, name: e.currentTarget.value }))}
+        <Stack component="form" onSubmit={handleMenuSubmit(submitMenu)}>
+          <Controller
+            name="name"
+            control={menuControl}
+            render={({ field }) => (
+              <TextInput label="Menu Name" required {...field} error={menuErrors.name?.message} />
+            )}
           />
-          <NumberInput
-            label="Week Number"
-            value={menuForm.week_number ?? ""}
-            onChange={(v) =>
-              setMenuForm((p) => ({ ...p, week_number: typeof v === "number" ? v : undefined }))
-            }
+          <Controller
+            name="week_number"
+            control={menuControl}
+            render={({ field }) => (
+              <NumberInput
+                label="Week Number"
+                value={field.value}
+                onChange={field.onChange}
+                error={menuErrors.week_number?.message}
+              />
+            )}
           />
-          <TextInput
-            label="Season"
-            value={menuForm.season ?? ""}
-            onChange={(e) => setMenuForm((p) => ({ ...p, season: e.currentTarget.value }))}
+          <Controller
+            name="season"
+            control={menuControl}
+            render={({ field }) => (
+              <TextInput label="Season" {...field} error={menuErrors.season?.message} />
+            )}
           />
-          <Button loading={createMenuMut.isPending} onClick={submitMenu}>
+          <Button loading={createMenuMut.isPending} type="submit">
             Create Menu
           </Button>
         </Stack>
@@ -1050,28 +1187,38 @@ function KitchenTab() {
         position="right"
         size="xl"
       >
-        <Stack>
-          <Select
-            label="Diet Order"
-            required
-            searchable
-            data={prepOrderOptions}
-            value={prepForm.diet_order_id ?? null}
-            onChange={(value) => setPrepForm((p) => ({ ...p, diet_order_id: value ?? undefined }))}
-            nothingFoundMessage="No active diet orders"
+        <Stack component="form" onSubmit={handlePrepSubmit(submitPrep)}>
+          <Controller
+            name="diet_order_id"
+            control={prepControl}
+            render={({ field }) => (
+              <Select
+                label="Diet Order"
+                required
+                searchable
+                data={prepOrderOptions}
+                value={field.value || null}
+                onChange={(value) => field.onChange(value ?? "")}
+                nothingFoundMessage="No active diet orders"
+                error={prepErrors.diet_order_id?.message}
+              />
+            )}
           />
-          <Select
-            label="Meal Type"
-            data={MEAL_TYPES}
-            required
-            onChange={(v) =>
-              setPrepForm((p) => ({
-                ...p,
-                meal_type: (v as CreateMealPrepRequest["meal_type"]) ?? undefined,
-              }))
-            }
+          <Controller
+            name="meal_type"
+            control={prepControl}
+            render={({ field }) => (
+              <Select
+                label="Meal Type"
+                data={mealTypeOptions}
+                required
+                value={field.value}
+                onChange={(value) => field.onChange(value ?? "breakfast")}
+                error={prepErrors.meal_type?.message}
+              />
+            )}
           />
-          <Button loading={createPrepMut.isPending} onClick={submitPrep}>
+          <Button loading={createPrepMut.isPending} type="submit">
             Create Meal Prep
           </Button>
         </Stack>
@@ -1091,31 +1238,49 @@ function InventoryTab() {
 
   const { data: itemsData, isLoading } = useQuery({
     queryKey: ["kitchen-inventory"],
-    queryFn: api.listKitchenInventory,
+    queryFn: dietKitchenService.listKitchenInventory,
   });
   const items = rowsOrEmpty(itemsData);
 
-  const [form, setForm] = useState<Partial<CreateKitchenInventoryRequest>>({});
+  const inventoryForm = useForm<KitchenInventoryFormInput>({
+    resolver: zodResolver(kitchenInventoryFormSchema),
+    defaultValues: {
+      item_name: "",
+      category: "",
+      unit: "",
+      current_stock: "",
+      reorder_level: "",
+      supplier: "",
+    },
+  });
+  const {
+    control,
+    handleSubmit,
+    reset,
+    formState: { errors },
+  } = inventoryForm;
 
   const createMut = useMutation({
-    mutationFn: (data: CreateKitchenInventoryRequest) => api.createKitchenInventoryItem(data),
+    mutationFn: (data: CreateKitchenInventoryRequest) =>
+      dietKitchenService.createKitchenInventoryItem(data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["kitchen-inventory"] });
       notifications.show({ title: "Success", message: "Item added", color: "success" });
       close();
-      setForm({});
+      reset();
     },
     onError: notifyMutationError("Could not add inventory item"),
   });
 
-  const submitInventoryItem = () => {
-    const itemName = form.item_name?.trim();
-    if (!itemName) {
-      notifyFormError("Enter an item name.");
-      return;
-    }
-
-    createMut.mutate({ ...form, item_name: itemName });
+  const submitInventoryItem = (values: KitchenInventoryFormInput) => {
+    createMut.mutate({
+      item_name: values.item_name.trim(),
+      category: dietOptionalText(values.category),
+      unit: dietOptionalText(values.unit),
+      current_stock: dietOptionalNumber(values.current_stock),
+      reorder_level: dietOptionalNumber(values.reorder_level),
+      supplier: dietOptionalText(values.supplier),
+    });
   };
 
   const columns = [
@@ -1186,44 +1351,60 @@ function InventoryTab() {
         emptyTitle="No inventory items"
       />
       <Drawer opened={opened} onClose={close} title="Add Inventory Item" position="right" size="xl">
-        <Stack>
-          <TextInput
-            label="Item Name"
-            required
-            value={form.item_name ?? ""}
-            onChange={(e) => setForm((p) => ({ ...p, item_name: e.currentTarget.value }))}
+        <Stack component="form" onSubmit={handleSubmit(submitInventoryItem)}>
+          <Controller
+            name="item_name"
+            control={control}
+            render={({ field }) => (
+              <TextInput label="Item Name" required {...field} error={errors.item_name?.message} />
+            )}
           />
-          <TextInput
-            label="Category"
-            value={form.category ?? ""}
-            onChange={(e) => setForm((p) => ({ ...p, category: e.currentTarget.value }))}
+          <Controller
+            name="category"
+            control={control}
+            render={({ field }) => (
+              <TextInput label="Category" {...field} error={errors.category?.message} />
+            )}
           />
-          <TextInput
-            label="Unit"
-            placeholder="kg"
-            value={form.unit ?? ""}
-            onChange={(e) => setForm((p) => ({ ...p, unit: e.currentTarget.value }))}
+          <Controller
+            name="unit"
+            control={control}
+            render={({ field }) => (
+              <TextInput label="Unit" placeholder="kg" {...field} error={errors.unit?.message} />
+            )}
           />
-          <NumberInput
-            label="Current Stock"
-            value={form.current_stock ?? ""}
-            onChange={(v) =>
-              setForm((p) => ({ ...p, current_stock: typeof v === "number" ? v : undefined }))
-            }
+          <Controller
+            name="current_stock"
+            control={control}
+            render={({ field }) => (
+              <NumberInput
+                label="Current Stock"
+                value={field.value}
+                onChange={field.onChange}
+                error={errors.current_stock?.message}
+              />
+            )}
           />
-          <NumberInput
-            label="Reorder Level"
-            value={form.reorder_level ?? ""}
-            onChange={(v) =>
-              setForm((p) => ({ ...p, reorder_level: typeof v === "number" ? v : undefined }))
-            }
+          <Controller
+            name="reorder_level"
+            control={control}
+            render={({ field }) => (
+              <NumberInput
+                label="Reorder Level"
+                value={field.value}
+                onChange={field.onChange}
+                error={errors.reorder_level?.message}
+              />
+            )}
           />
-          <TextInput
-            label="Supplier"
-            value={form.supplier ?? ""}
-            onChange={(e) => setForm((p) => ({ ...p, supplier: e.currentTarget.value }))}
+          <Controller
+            name="supplier"
+            control={control}
+            render={({ field }) => (
+              <TextInput label="Supplier" {...field} error={errors.supplier?.message} />
+            )}
           />
-          <Button loading={createMut.isPending} onClick={submitInventoryItem}>
+          <Button loading={createMut.isPending} type="submit">
             Add Item
           </Button>
         </Stack>
@@ -1243,34 +1424,45 @@ function AuditsTab() {
 
   const { data: auditsData, isLoading } = useQuery({
     queryKey: ["kitchen-audits"],
-    queryFn: api.listKitchenAudits,
+    queryFn: dietKitchenService.listKitchenAudits,
   });
   const audits = rowsOrEmpty(auditsData);
 
-  const [form, setForm] = useState<Partial<CreateKitchenAuditRequest>>({});
+  const auditForm = useForm<KitchenAuditFormInput>({
+    resolver: zodResolver(kitchenAuditFormSchema),
+    defaultValues: {
+      auditor_name: "",
+      audit_type: "routine",
+      hygiene_score: "",
+      findings: "",
+      corrective_actions: "",
+    },
+  });
+  const {
+    control,
+    handleSubmit,
+    reset,
+    formState: { errors },
+  } = auditForm;
 
   const createMut = useMutation({
-    mutationFn: (data: CreateKitchenAuditRequest) => api.createKitchenAudit(data),
+    mutationFn: (data: CreateKitchenAuditRequest) => dietKitchenService.createKitchenAudit(data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["kitchen-audits"] });
       notifications.show({ title: "Success", message: "Audit recorded", color: "success" });
       close();
-      setForm({});
+      reset();
     },
     onError: notifyMutationError("Could not record audit"),
   });
 
-  const submitAudit = () => {
-    const auditorName = form.auditor_name?.trim();
-    if (!auditorName) {
-      notifyFormError("Enter the auditor name.");
-      return;
-    }
-
+  const submitAudit = (values: KitchenAuditFormInput) => {
     createMut.mutate({
-      ...form,
-      audit_type: form.audit_type ?? "routine",
-      auditor_name: auditorName,
+      auditor_name: values.auditor_name.trim(),
+      audit_type: values.audit_type,
+      hygiene_score: dietOptionalNumber(values.hygiene_score),
+      findings: dietOptionalText(values.findings),
+      corrective_actions: dietOptionalText(values.corrective_actions),
     });
   };
 
@@ -1340,39 +1532,65 @@ function AuditsTab() {
         emptyTitle="No audits recorded"
       />
       <Drawer opened={opened} onClose={close} title="Record FSSAI Audit" position="right" size="xl">
-        <Stack>
-          <TextInput
-            label="Auditor Name"
-            required
-            value={form.auditor_name ?? ""}
-            onChange={(e) => setForm((p) => ({ ...p, auditor_name: e.currentTarget.value }))}
+        <Stack component="form" onSubmit={handleSubmit(submitAudit)}>
+          <Controller
+            name="auditor_name"
+            control={control}
+            render={({ field }) => (
+              <TextInput
+                label="Auditor Name"
+                required
+                {...field}
+                error={errors.auditor_name?.message}
+              />
+            )}
           />
-          <Select
-            label="Audit Type"
-            data={["routine", "surprise", "external"]}
-            value={form.audit_type ?? "routine"}
-            onChange={(v) => setForm((p) => ({ ...p, audit_type: v ?? undefined }))}
+          <Controller
+            name="audit_type"
+            control={control}
+            render={({ field }) => (
+              <Select
+                label="Audit Type"
+                data={kitchenAuditTypeOptions}
+                value={field.value}
+                onChange={(value) => field.onChange(value ?? "routine")}
+                error={errors.audit_type?.message}
+              />
+            )}
           />
-          <NumberInput
-            label="Hygiene Score (0-100)"
-            min={0}
-            max={100}
-            value={form.hygiene_score ?? ""}
-            onChange={(v) =>
-              setForm((p) => ({ ...p, hygiene_score: typeof v === "number" ? v : undefined }))
-            }
+          <Controller
+            name="hygiene_score"
+            control={control}
+            render={({ field }) => (
+              <NumberInput
+                label="Hygiene Score (0-100)"
+                min={0}
+                max={100}
+                value={field.value}
+                onChange={field.onChange}
+                error={errors.hygiene_score?.message}
+              />
+            )}
           />
-          <Textarea
-            label="Findings"
-            value={form.findings ?? ""}
-            onChange={(e) => setForm((p) => ({ ...p, findings: e.currentTarget.value }))}
+          <Controller
+            name="findings"
+            control={control}
+            render={({ field }) => (
+              <Textarea label="Findings" {...field} error={errors.findings?.message} />
+            )}
           />
-          <Textarea
-            label="Corrective Actions"
-            value={form.corrective_actions ?? ""}
-            onChange={(e) => setForm((p) => ({ ...p, corrective_actions: e.currentTarget.value }))}
+          <Controller
+            name="corrective_actions"
+            control={control}
+            render={({ field }) => (
+              <Textarea
+                label="Corrective Actions"
+                {...field}
+                error={errors.corrective_actions?.message}
+              />
+            )}
           />
-          <Button loading={createMut.isPending} onClick={submitAudit}>
+          <Button loading={createMut.isPending} type="submit">
             Record Audit
           </Button>
         </Stack>

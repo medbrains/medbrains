@@ -1,3 +1,4 @@
+import { zodResolver } from "@hookform/resolvers/zod";
 import { LineChart } from "@mantine/charts";
 import {
   ActionIcon,
@@ -21,7 +22,16 @@ import {
 import { DateInput } from "@mantine/dates";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
+import type {
+  ChronicEnrollmentFormInput,
+  ChronicProgramFormInput,
+  ChronicProgramTypeFormValue,
+} from "@medbrains/schemas";
+import {
+  chronicEnrollmentFormSchema,
+  chronicProgramFormSchema,
+  toChronicProgramTypeFormValue,
+} from "@medbrains/schemas";
 import { useHasPermission } from "@medbrains/stores";
 import type {
   AdherenceSummaryResponse,
@@ -53,14 +63,17 @@ import {
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
+import { Controller, useForm } from "react-hook-form";
 import { DataTable, PageHeader } from "../components";
+import { Icd11CodeSelect } from "../components/Clinical/Icd11CodeSelect";
 import type { Column } from "../components/DataTable";
 import { PatientSearchSelect } from "../components/PatientSearchSelect";
 import { useRequirePermission } from "../hooks/useRequirePermission";
+import { chronicCareService } from "../services/chronicCare.service";
 
 // ── Constants ──────────────────────────────────────────
 
-const PROGRAM_TYPES = [
+const PROGRAM_TYPES: Array<{ value: ChronicProgramTypeFormValue; label: string }> = [
   { value: "tb_dots", label: "TB DOTS" },
   { value: "hiv_art", label: "HIV/ART" },
   { value: "diabetes", label: "Diabetes" },
@@ -188,14 +201,15 @@ function ProgramsTab({ canCreate }: { canCreate: boolean }) {
   const { data: programs = [], isLoading } = useQuery({
     queryKey: ["chronic-programs", typeFilter, search],
     queryFn: () =>
-      api.listChronicPrograms({
+      chronicCareService.listChronicPrograms({
         program_type: typeFilter ?? undefined,
         search: search || undefined,
       }),
   });
 
   const createMut = useMutation({
-    mutationFn: (data: CreateChronicProgramRequest) => api.createChronicProgram(data),
+    mutationFn: (data: CreateChronicProgramRequest) =>
+      chronicCareService.createChronicProgram(data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["chronic-programs"] });
       close();
@@ -209,7 +223,7 @@ function ProgramsTab({ canCreate }: { canCreate: boolean }) {
   });
 
   const deleteMut = useMutation({
-    mutationFn: (id: string) => api.deleteChronicProgram(id),
+    mutationFn: (id: string) => chronicCareService.deleteChronicProgram(id),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["chronic-programs"] });
       notifications.show({ title: "Deleted", message: "Program removed", color: "orange" });
@@ -323,13 +337,13 @@ function ProgramsTab({ canCreate }: { canCreate: boolean }) {
         editing={editing}
         onSave={(data) => {
           if (editing) {
-            api.updateChronicProgram(editing.id, data).then(() => {
+            chronicCareService.updateChronicProgram(editing.id, data).then(() => {
               void qc.invalidateQueries({ queryKey: ["chronic-programs"] });
               close();
               setEditing(null);
             });
           } else {
-            createMut.mutate(data as CreateChronicProgramRequest);
+            createMut.mutate(data);
           }
         }}
         loading={createMut.isPending}
@@ -348,67 +362,110 @@ function ProgramDrawer({
   opened: boolean;
   onClose: () => void;
   editing: ChronicProgram | null;
-  onSave: (data: Partial<CreateChronicProgramRequest>) => void;
+  onSave: (data: CreateChronicProgramRequest) => void;
   loading: boolean;
 }) {
-  const [name, setName] = useState(editing?.name ?? "");
-  const [code, setCode] = useState(editing?.code ?? "");
-  const [programType, setProgramType] = useState<string | null>(editing?.program_type ?? null);
-  const [description, setDescription] = useState(editing?.description ?? "");
-  const [duration, setDuration] = useState<number | string>(editing?.default_duration_months ?? "");
+  const {
+    control,
+    handleSubmit,
+    reset,
+    formState: { errors },
+  } = useForm<ChronicProgramFormInput>({
+    resolver: zodResolver(chronicProgramFormSchema),
+    defaultValues: {
+      name: editing?.name ?? "",
+      code: editing?.code ?? "",
+      program_type: editing?.program_type ?? "other",
+      description: editing?.description ?? "",
+      default_duration_months: editing?.default_duration_months ?? "",
+    },
+    mode: "onTouched",
+  });
+  const closeAndReset = () => {
+    reset();
+    onClose();
+  };
+  const submitProgram = handleSubmit((values) => {
+    const defaultDuration =
+      values.default_duration_months === "" ? undefined : Number(values.default_duration_months);
+    onSave({
+      name: values.name.trim(),
+      code: values.code.trim(),
+      program_type: values.program_type,
+      description: values.description || undefined,
+      default_duration_months: Number.isFinite(defaultDuration) ? defaultDuration : undefined,
+    });
+  });
 
   return (
     <Drawer
       opened={opened}
-      onClose={onClose}
+      onClose={closeAndReset}
       title={editing ? "Edit Program" : "New Program"}
       position="right"
       size="md"
     >
       <Stack gap="sm">
-        <TextInput
-          label="Program Name"
-          required
-          value={name}
-          onChange={(e) => setName(e.currentTarget.value)}
+        <Controller
+          control={control}
+          name="name"
+          render={({ field }) => (
+            <TextInput
+              label="Program Name"
+              required
+              value={field.value}
+              onChange={field.onChange}
+              error={errors.name?.message}
+            />
+          )}
         />
-        <TextInput
-          label="Code"
-          required
-          value={code}
-          onChange={(e) => setCode(e.currentTarget.value)}
-          disabled={!!editing}
+        <Controller
+          control={control}
+          name="code"
+          render={({ field }) => (
+            <TextInput
+              label="Code"
+              required
+              value={field.value}
+              onChange={field.onChange}
+              error={errors.code?.message}
+              disabled={!!editing}
+            />
+          )}
         />
-        <Select
-          label="Program Type"
-          required
-          data={PROGRAM_TYPES}
-          value={programType}
-          onChange={setProgramType}
+        <Controller
+          control={control}
+          name="program_type"
+          render={({ field }) => (
+            <Select
+              label="Program Type"
+              required
+              data={PROGRAM_TYPES}
+              value={field.value}
+              onChange={(value) => field.onChange(toChronicProgramTypeFormValue(value))}
+            />
+          )}
         />
-        <Textarea
-          label="Description"
-          value={description}
-          onChange={(e) => setDescription(e.currentTarget.value)}
+        <Controller
+          control={control}
+          name="description"
+          render={({ field }) => (
+            <Textarea label="Description" value={field.value} onChange={field.onChange} />
+          )}
         />
-        <NumberInput
-          label="Default Duration (months)"
-          value={duration}
-          onChange={setDuration}
-          min={1}
+        <Controller
+          control={control}
+          name="default_duration_months"
+          render={({ field }) => (
+            <NumberInput
+              label="Default Duration (months)"
+              value={field.value}
+              onChange={field.onChange}
+              min={1}
+            />
+          )}
         />
-        <Button
-          onClick={() =>
-            onSave({
-              name,
-              code,
-              program_type: programType as CreateChronicProgramRequest["program_type"],
-              description: description || undefined,
-              default_duration_months: typeof duration === "number" ? duration : undefined,
-            })
-          }
-          loading={loading}
-        >
+        <Button onClick={() => void submitProgram()} loading={loading}>
           {editing ? "Update" : "Create"}
         </Button>
       </Stack>
@@ -430,7 +487,7 @@ function EnrollmentsTab({ canCreate }: { canCreate: boolean }) {
   const { data: enrollments = [], isLoading } = useQuery({
     queryKey: ["chronic-enrollments", typeFilter, statusFilter, search],
     queryFn: () =>
-      api.listChronicEnrollments({
+      chronicCareService.listChronicEnrollments({
         program_type: typeFilter ?? undefined,
         status: statusFilter ?? undefined,
         search: search || undefined,
@@ -549,22 +606,37 @@ function EnrollDrawer({
   onClose: () => void;
   qc: ReturnType<typeof useQueryClient>;
 }) {
-  const [patientId, setPatientId] = useState("");
-  const [programId, setProgramId] = useState<string | null>(null);
-  const [icdCode, setIcdCode] = useState("");
-  const [notes, setNotes] = useState("");
-  const [enrollDate, setEnrollDate] = useState<string | null>(null);
+  const {
+    control,
+    handleSubmit,
+    reset,
+    formState: { errors },
+  } = useForm<ChronicEnrollmentFormInput>({
+    resolver: zodResolver(chronicEnrollmentFormSchema),
+    defaultValues: {
+      patient_id: "",
+      program_id: "",
+      icd_code: "",
+      enrollment_date: undefined,
+      notes: "",
+    },
+    mode: "onTouched",
+  });
+  const closeAndReset = () => {
+    reset();
+    onClose();
+  };
 
   const { data: programs = [] } = useQuery({
     queryKey: ["chronic-programs-active"],
-    queryFn: () => api.listChronicPrograms({ is_active: true }),
+    queryFn: () => chronicCareService.listChronicPrograms({ is_active: true }),
   });
 
   const createMut = useMutation({
-    mutationFn: (data: CreateChronicEnrollmentRequest) => api.createEnrollment(data),
+    mutationFn: (data: CreateChronicEnrollmentRequest) => chronicCareService.createEnrollment(data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["chronic-enrollments"] });
-      onClose();
+      closeAndReset();
       notifications.show({
         title: "Enrolled",
         message: "Patient enrolled in program",
@@ -572,38 +644,82 @@ function EnrollDrawer({
       });
     },
   });
+  const submitEnrollment = handleSubmit((values) =>
+    createMut.mutate({
+      patient_id: values.patient_id,
+      program_id: values.program_id,
+      icd_code: values.icd_code || undefined,
+      enrollment_date: values.enrollment_date || undefined,
+      notes: values.notes || undefined,
+    }),
+  );
 
   return (
-    <Drawer opened={opened} onClose={onClose} title="Enroll Patient" position="right" size="xl">
+    <Drawer
+      opened={opened}
+      onClose={closeAndReset}
+      title="Enroll Patient"
+      position="right"
+      size="xl"
+    >
       <Stack gap="sm">
-        <PatientSearchSelect value={patientId} onChange={setPatientId} required />
-        <Select
-          label="Program"
-          required
-          data={programs.map((p) => ({ value: p.id, label: `${p.name} (${p.code})` }))}
-          value={programId}
-          onChange={setProgramId}
-          searchable
+        <Controller
+          control={control}
+          name="patient_id"
+          render={({ field }) => (
+            <PatientSearchSelect
+              value={field.value}
+              onChange={field.onChange}
+              error={errors.patient_id?.message}
+              required
+            />
+          )}
         />
-        <TextInput
-          label="ICD Code"
-          value={icdCode}
-          onChange={(e) => setIcdCode(e.currentTarget.value)}
+        <Controller
+          control={control}
+          name="program_id"
+          render={({ field }) => (
+            <Select
+              label="Program"
+              required
+              data={programs.map((p) => ({ value: p.id, label: `${p.name} (${p.code})` }))}
+              value={field.value}
+              onChange={(value) => field.onChange(value ?? "")}
+              error={errors.program_id?.message}
+              searchable
+            />
+          )}
         />
-        <DateInput label="Enrollment Date" value={enrollDate} onChange={setEnrollDate} />
-        <Textarea label="Notes" value={notes} onChange={(e) => setNotes(e.currentTarget.value)} />
-        <Button
-          onClick={() =>
-            createMut.mutate({
-              patient_id: patientId,
-              program_id: programId ?? "",
-              icd_code: icdCode || undefined,
-              enrollment_date: enrollDate ?? undefined,
-              notes: notes || undefined,
-            })
-          }
-          loading={createMut.isPending}
-        >
+        <Controller
+          control={control}
+          name="icd_code"
+          render={({ field }) => (
+            <Icd11CodeSelect
+              label="ICD-11 diagnosis"
+              value={field.value || null}
+              onChange={(value) => field.onChange(value ?? "")}
+            />
+          )}
+        />
+        <Controller
+          control={control}
+          name="enrollment_date"
+          render={({ field }) => (
+            <DateInput
+              label="Enrollment Date"
+              value={field.value ?? null}
+              onChange={(value) => field.onChange(value ?? undefined)}
+            />
+          )}
+        />
+        <Controller
+          control={control}
+          name="notes"
+          render={({ field }) => (
+            <Textarea label="Notes" value={field.value ?? ""} onChange={field.onChange} />
+          )}
+        />
+        <Button onClick={() => void submitEnrollment()} loading={createMut.isPending}>
           Enroll
         </Button>
       </Stack>
@@ -618,14 +734,14 @@ function EnrollDrawer({
 function AdherenceTab() {
   const { data: enrollments = [] } = useQuery({
     queryKey: ["chronic-enrollments-active"],
-    queryFn: () => api.listChronicEnrollments({ status: "active" }),
+    queryFn: () => chronicCareService.listChronicEnrollments({ status: "active" }),
   });
 
   const [selectedEnrollment, setSelectedEnrollment] = useState<string | null>(null);
 
   const { data: summary } = useQuery({
     queryKey: ["adherence-summary", selectedEnrollment],
-    queryFn: () => api.adherenceSummary(selectedEnrollment ?? ""),
+    queryFn: () => chronicCareService.adherenceSummary(selectedEnrollment ?? ""),
     enabled: !!selectedEnrollment,
   });
 
@@ -751,14 +867,14 @@ function AdherenceSummaryCards({ summary }: { summary: AdherenceSummaryResponse 
 function OutcomesTab() {
   const { data: enrollments = [] } = useQuery({
     queryKey: ["chronic-enrollments-active-outcomes"],
-    queryFn: () => api.listChronicEnrollments({ status: "active" }),
+    queryFn: () => chronicCareService.listChronicEnrollments({ status: "active" }),
   });
 
   const [selectedPatient, setSelectedPatient] = useState<string | null>(null);
 
   const { data: dashboard } = useQuery({
     queryKey: ["outcome-dashboard", selectedPatient],
-    queryFn: () => api.outcomeDashboard(selectedPatient ?? ""),
+    queryFn: () => chronicCareService.outcomeDashboard(selectedPatient ?? ""),
     enabled: !!selectedPatient,
   });
 
@@ -898,14 +1014,14 @@ function OutcomeDetailCards({ dashboard }: { dashboard: OutcomeDashboardResponse
 function DrugOgramTab() {
   const { data: enrollments = [] } = useQuery({
     queryKey: ["chronic-enrollments-all-drugogram"],
-    queryFn: () => api.listChronicEnrollments({ status: "active" }),
+    queryFn: () => chronicCareService.listChronicEnrollments({ status: "active" }),
   });
 
   const [selectedPatient, setSelectedPatient] = useState<string | null>(null);
 
   const { data: timeline, isLoading } = useQuery({
     queryKey: ["drug-timeline-labs", selectedPatient],
-    queryFn: () => api.drugTimelineWithLabs(selectedPatient ?? ""),
+    queryFn: () => chronicCareService.drugTimelineWithLabs(selectedPatient ?? ""),
     enabled: !!selectedPatient,
   });
 
@@ -969,7 +1085,11 @@ function DrugOgramView({ data }: { data: DrugTimelineWithLabsResponse }) {
     const groups: Record<string, { date: string; value: number }[]> = {};
     for (const v of data.vitals_series) {
       if (v.numeric_value === null) continue;
-      const arr = groups[v.parameter] ?? (groups[v.parameter] = []);
+      if (!groups[v.parameter]) {
+        groups[v.parameter] = [];
+      }
+      const arr = groups[v.parameter] ?? [];
+      groups[v.parameter] = arr;
       arr.push({
         date: new Date(v.recorded_at).toLocaleDateString(),
         value: v.numeric_value,
@@ -1090,14 +1210,14 @@ function DrugOgramView({ data }: { data: DrugTimelineWithLabsResponse }) {
 function TreatmentSummaryTab() {
   const { data: enrollments = [] } = useQuery({
     queryKey: ["chronic-enrollments-all-summary"],
-    queryFn: () => api.listChronicEnrollments({ status: "active" }),
+    queryFn: () => chronicCareService.listChronicEnrollments({ status: "active" }),
   });
 
   const [selectedPatient, setSelectedPatient] = useState<string | null>(null);
 
   const { data: summary, isLoading } = useQuery({
     queryKey: ["treatment-summary", selectedPatient],
-    queryFn: () => api.treatmentSummary(selectedPatient ?? ""),
+    queryFn: () => chronicCareService.treatmentSummary(selectedPatient ?? ""),
     enabled: !!selectedPatient,
   });
 
@@ -1174,8 +1294,8 @@ function TreatmentSummaryView({ summary }: { summary: TreatmentSummaryResponse }
             Active Diagnoses
           </Text>
           <Stack gap={4}>
-            {summary.active_diagnoses.map((d, i) => (
-              <Group key={i} gap="xs">
+            {summary.active_diagnoses.map((d) => (
+              <Group key={`${d.diagnosis_name}-${d.icd_code ?? "uncoded"}`} gap="xs">
                 <Text size="sm">{d.diagnosis_name}</Text>
                 {d.icd_code && (
                   <Badge variant="light" size="xs">
@@ -1304,8 +1424,8 @@ function TreatmentSummaryView({ summary }: { summary: TreatmentSummaryResponse }
             Enrollment History
           </Text>
           <Stack gap={4}>
-            {summary.enrollments.map((e, i) => (
-              <Group key={i} gap="xs">
+            {summary.enrollments.map((e) => (
+              <Group key={`${e.program_name}-${e.enrollment_date}-${e.status}`} gap="xs">
                 <Text size="sm">{e.program_name}</Text>
                 <Text size="xs" c="dimmed">
                   Enrolled: {e.enrollment_date}

@@ -1,3 +1,4 @@
+import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Badge,
   Button,
@@ -13,20 +14,29 @@ import {
   Textarea,
   Title,
 } from "@mantine/core";
-import { api } from "@medbrains/api";
+import { useDisclosure } from "@mantine/hooks";
 import { useHasPermission } from "@medbrains/stores";
-import type {
-  ApproveRejectRequest,
-  RetrospectiveEntry,
-  RetrospectiveSettings,
-} from "@medbrains/types";
+import type { RetrospectiveEntry, RetrospectiveSettings } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import { IconCheck, IconHistory, IconList, IconSettings, IconX } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { Controller, useForm } from "react-hook-form";
 import { type Column, DataTable } from "../components/DataTable";
 import { PageHeader } from "../components/PageHeader";
+import {
+  DEFAULT_RETROSPECTIVE_REVIEW_FORM_VALUES,
+  DEFAULT_RETROSPECTIVE_SETTINGS_FORM_VALUES,
+  type RetrospectiveReviewFormInput,
+  type RetrospectiveSettingsFormInput,
+  retrospectiveReviewFormSchema,
+  retrospectiveSettingsFormSchema,
+  toRetrospectiveReviewRequest,
+  toRetrospectiveSettingsFormValues,
+  toRetrospectiveSettingsRequest,
+} from "../forms/retrospective.form";
 import { useRequirePermission } from "../hooks/useRequirePermission";
+import { retrospectiveService } from "../services/retrospective.service";
 
 // ── Status badge helpers ──
 
@@ -34,6 +44,13 @@ const STATUS_COLORS: Record<string, string> = {
   pending: "warning",
   approved: "success",
   rejected: "danger",
+};
+
+type ReviewAction = "approve" | "reject";
+
+type ReviewTarget = {
+  id: string;
+  action: ReviewAction;
 };
 
 function StatusBadge({ status }: { status: string }) {
@@ -49,42 +66,54 @@ function StatusBadge({ status }: { status: string }) {
 function ApprovalQueueTab() {
   const canApprove = useHasPermission(P.RETROSPECTIVE.APPROVE);
   const queryClient = useQueryClient();
-  const [reviewId, setReviewId] = useState<string | null>(null);
-  const [reviewAction, setReviewAction] = useState<"approve" | "reject">("approve");
-  const [reviewNotes, setReviewNotes] = useState("");
+  const [reviewOpened, reviewDisclosure] = useDisclosure(false);
+  const [reviewTarget, setReviewTarget] = useState<ReviewTarget | null>(null);
+  const reviewForm = useForm<RetrospectiveReviewFormInput>({
+    resolver: zodResolver(retrospectiveReviewFormSchema),
+    defaultValues: DEFAULT_RETROSPECTIVE_REVIEW_FORM_VALUES,
+  });
 
-  const { data = [], isLoading } = useQuery({
+  const { data = [], isLoading } = useQuery<RetrospectiveEntry[]>({
     queryKey: ["retro-entries", "pending"],
-    queryFn: () => api.listRetroEntries({ status: "pending" }),
+    queryFn: () => retrospectiveService.listEntries({ status: "pending" }),
   });
 
   const approveMut = useMutation({
-    mutationFn: (params: { id: string; data?: ApproveRejectRequest }) =>
-      api.approveRetroEntry(params.id, params.data),
+    mutationFn: (params: { id: string; data: RetrospectiveReviewFormInput }) =>
+      retrospectiveService.approveEntry(params.id, toRetrospectiveReviewRequest(params.data)),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["retro-entries"] });
-      setReviewId(null);
-      setReviewNotes("");
+      closeReview();
     },
   });
 
   const rejectMut = useMutation({
-    mutationFn: (params: { id: string; data?: ApproveRejectRequest }) =>
-      api.rejectRetroEntry(params.id, params.data),
+    mutationFn: (params: { id: string; data: RetrospectiveReviewFormInput }) =>
+      retrospectiveService.rejectEntry(params.id, toRetrospectiveReviewRequest(params.data)),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["retro-entries"] });
-      setReviewId(null);
-      setReviewNotes("");
+      closeReview();
     },
   });
 
-  function handleConfirm() {
-    if (!reviewId) return;
-    const payload: ApproveRejectRequest = { review_notes: reviewNotes || undefined };
-    if (reviewAction === "approve") {
-      approveMut.mutate({ id: reviewId, data: payload });
+  function openReview(id: string, action: ReviewAction) {
+    setReviewTarget({ id, action });
+    reviewForm.reset(DEFAULT_RETROSPECTIVE_REVIEW_FORM_VALUES);
+    reviewDisclosure.open();
+  }
+
+  function closeReview() {
+    reviewDisclosure.close();
+    setReviewTarget(null);
+    reviewForm.reset(DEFAULT_RETROSPECTIVE_REVIEW_FORM_VALUES);
+  }
+
+  function handleConfirm(values: RetrospectiveReviewFormInput) {
+    if (!reviewTarget) return;
+    if (reviewTarget.action === "approve") {
+      approveMut.mutate({ id: reviewTarget.id, data: values });
     } else {
-      rejectMut.mutate({ id: reviewId, data: payload });
+      rejectMut.mutate({ id: reviewTarget.id, data: values });
     }
   }
 
@@ -128,10 +157,7 @@ function ApprovalQueueTab() {
               size="xs"
               color="success"
               leftSection={<IconCheck size={14} />}
-              onClick={() => {
-                setReviewId(r.id);
-                setReviewAction("approve");
-              }}
+              onClick={() => openReview(r.id, "approve")}
             >
               Approve
             </Button>
@@ -140,10 +166,7 @@ function ApprovalQueueTab() {
               color="danger"
               variant="outline"
               leftSection={<IconX size={14} />}
-              onClick={() => {
-                setReviewId(r.id);
-                setReviewAction("reject");
-              }}
+              onClick={() => openReview(r.id, "reject")}
             >
               Reject
             </Button>
@@ -161,30 +184,27 @@ function ApprovalQueueTab() {
       <DataTable columns={columns} data={data} loading={isLoading} rowKey={(r) => r.id} />
 
       <Modal
-        opened={reviewId !== null}
-        onClose={() => {
-          setReviewId(null);
-          setReviewNotes("");
-        }}
-        title={reviewAction === "approve" ? "Approve Entry" : "Reject Entry"}
+        opened={reviewOpened}
+        onClose={closeReview}
+        title={reviewTarget?.action === "approve" ? "Approve Entry" : "Reject Entry"}
       >
-        <Stack>
+        <Stack component="form" onSubmit={reviewForm.handleSubmit(handleConfirm)}>
           <Textarea
             label="Review Notes (optional)"
-            value={reviewNotes}
-            onChange={(e) => setReviewNotes(e.currentTarget.value)}
             minRows={3}
+            error={reviewForm.formState.errors.review_notes?.message}
+            {...reviewForm.register("review_notes")}
           />
           <Group justify="flex-end">
-            <Button variant="default" onClick={() => setReviewId(null)}>
+            <Button variant="default" onClick={closeReview}>
               Cancel
             </Button>
             <Button
-              color={reviewAction === "approve" ? "success" : "danger"}
-              onClick={handleConfirm}
+              type="submit"
+              color={reviewTarget?.action === "approve" ? "success" : "danger"}
               loading={approveMut.isPending || rejectMut.isPending}
             >
-              {reviewAction === "approve" ? "Approve" : "Reject"}
+              {reviewTarget?.action === "approve" ? "Approve" : "Reject"}
             </Button>
           </Group>
         </Stack>
@@ -199,10 +219,10 @@ function AllEntriesTab() {
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
   const [sourceFilter, setSourceFilter] = useState<string | null>(null);
 
-  const { data = [], isLoading } = useQuery({
+  const { data = [], isLoading } = useQuery<RetrospectiveEntry[]>({
     queryKey: ["retro-entries", statusFilter, sourceFilter],
     queryFn: () =>
-      api.listRetroEntries({
+      retrospectiveService.listEntries({
         status: statusFilter ?? undefined,
         source_table: sourceFilter ?? undefined,
       }),
@@ -301,56 +321,68 @@ function AllEntriesTab() {
 
 function SettingsTab() {
   const queryClient = useQueryClient();
-  const [hours, setHours] = useState<number | string>(72);
-  const [approval, setApproval] = useState(true);
-  const [loaded, setLoaded] = useState(false);
-
-  const { isLoading } = useQuery({
+  const { data: settings, isLoading } = useQuery<RetrospectiveSettings>({
     queryKey: ["retro-settings"],
-    queryFn: () => api.getRetroSettings(),
-    select: (data: RetrospectiveSettings) => {
-      if (!loaded) {
-        setHours(data.max_backdate_hours);
-        setApproval(data.requires_approval);
-        setLoaded(true);
-      }
-      return data;
-    },
+    queryFn: () => retrospectiveService.getSettings(),
   });
 
+  const settingsForm = useForm<RetrospectiveSettingsFormInput>({
+    resolver: zodResolver(retrospectiveSettingsFormSchema),
+    defaultValues: DEFAULT_RETROSPECTIVE_SETTINGS_FORM_VALUES,
+    values: toRetrospectiveSettingsFormValues(settings),
+  });
+
+  const settingsErrors = settingsForm.formState.errors;
+
   const saveMut = useMutation({
-    mutationFn: () =>
-      api.updateRetroSettings({
-        max_backdate_hours: typeof hours === "number" ? hours : 72,
-        requires_approval: approval,
-      }),
+    mutationFn: (values: RetrospectiveSettingsFormInput) =>
+      retrospectiveService.updateSettings(toRetrospectiveSettingsRequest(values)),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["retro-settings"] });
     },
   });
 
   return (
-    <Paper p="lg" withBorder maw={500}>
+    <Paper
+      component="form"
+      p="lg"
+      withBorder
+      maw={500}
+      onSubmit={settingsForm.handleSubmit((values) => saveMut.mutate(values))}
+    >
       <Stack>
         <Title order={4}>Retrospective Entry Settings</Title>
-        <NumberInput
-          label="Maximum Backdate Window (hours)"
-          description="How far back users can create retrospective entries"
-          value={hours}
-          onChange={setHours}
-          min={1}
-          max={720}
-          disabled={isLoading}
+        <Controller
+          control={settingsForm.control}
+          name="max_backdate_hours"
+          render={({ field }) => (
+            <NumberInput
+              label="Maximum Backdate Window (hours)"
+              description="How far back users can create retrospective entries"
+              value={field.value}
+              onChange={field.onChange}
+              error={settingsErrors.max_backdate_hours?.message}
+              min={1}
+              max={720}
+              disabled={isLoading}
+            />
+          )}
         />
-        <Switch
-          label="Require Approval"
-          description="Retrospective entries must be approved by a reviewer"
-          checked={approval}
-          onChange={(e) => setApproval(e.currentTarget.checked)}
-          disabled={isLoading}
+        <Controller
+          control={settingsForm.control}
+          name="requires_approval"
+          render={({ field }) => (
+            <Switch
+              label="Require Approval"
+              description="Retrospective entries must be approved by a reviewer"
+              checked={field.value}
+              onChange={(event) => field.onChange(event.currentTarget.checked)}
+              disabled={isLoading}
+            />
+          )}
         />
         <Group justify="flex-end">
-          <Button onClick={() => saveMut.mutate()} loading={saveMut.isPending}>
+          <Button type="submit" loading={saveMut.isPending}>
             Save Settings
           </Button>
         </Group>

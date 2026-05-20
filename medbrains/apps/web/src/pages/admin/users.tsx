@@ -1,3 +1,4 @@
+import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Accordion,
   ActionIcon,
@@ -22,7 +23,8 @@ import {
   Tooltip,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
+import type { AdminUserFormInput, BulkImportUsersFormInput } from "@medbrains/schemas";
+import { bulkImportUsersFormSchema, createAdminUserFormSchema } from "@medbrains/schemas";
 import { useHasPermission } from "@medbrains/stores";
 import type {
   BulkCreateUsersRequest,
@@ -51,6 +53,7 @@ import {
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { Controller, useForm } from "react-hook-form";
 import {
   CreateDepartmentModal,
   CreateRoleModal,
@@ -62,7 +65,9 @@ import {
 import { UserCreateDrawer } from "../../components/admin/UserCreateDrawer";
 import { OfflineWriteBanner } from "../../components/OfflineWriteBanner";
 import { useCreateInline } from "../../hooks/useCreateInline";
+import { usePacedQueryValue } from "../../hooks/usePacedQueryValue";
 import { useRequirePermission } from "../../hooks/useRequirePermission";
+import { adminAccessService, type CreateSetupUserInput } from "../../services/adminAccess.service";
 
 // ── Constants ─────────────────────────────────────────────
 
@@ -116,6 +121,10 @@ function getAllCodes(group: PermissionGroup): string[] {
     codes.push(...getAllCodes(child));
   }
   return codes;
+}
+
+function getAllGroupKeys(groups: PermissionGroup[]): string[] {
+  return groups.flatMap((group) => [group.key, ...getAllGroupKeys(group.children)]);
 }
 
 function PermissionGroupNode({
@@ -232,45 +241,65 @@ function UserModal({
   const canCreateRole = useHasPermission(P.ADMIN.ROLES.CREATE);
   const canCreateDept = useHasPermission(P.ADMIN.SETTINGS.DEPARTMENTS.CREATE);
 
-  const [fullName, setFullName] = useState("");
-  const [username, setUsername] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [role, setRole] = useState<string | null>(null);
-  const [isActive, setIsActive] = useState(true);
-  const [specialization, setSpecialization] = useState("");
-  const [medRegNumber, setMedRegNumber] = useState("");
-  const [qualification, setQualification] = useState("");
-  const [consultationFee, setConsultationFee] = useState<number | string>("");
-  const [departmentIds, setDepartmentIds] = useState<string[]>([]);
+  const {
+    control,
+    handleSubmit,
+    setValue,
+    watch,
+    formState: { errors },
+  } = useForm<AdminUserFormInput>({
+    resolver: zodResolver(createAdminUserFormSchema(isEdit)),
+    defaultValues: {
+      full_name: editingUser?.full_name ?? "",
+      username: editingUser?.username ?? "",
+      email: editingUser?.email ?? "",
+      password: "",
+      role: editingUser?.role ?? null,
+      is_active: editingUser?.is_active ?? true,
+      specialization: editingUser?.specialization ?? "",
+      medical_registration_number: editingUser?.medical_registration_number ?? "",
+      qualification: editingUser?.qualification ?? "",
+      consultation_fee: editingUser?.consultation_fee ?? "",
+      department_ids: editingUser?.department_ids ?? [],
+    },
+  });
+
+  const role = watch("role");
+  const departmentIds = watch("department_ids");
 
   const roleInline = useCreateInline<CustomRole>({ queryKey: ["setup-roles"] });
   const deptInline = useCreateInline<DepartmentRow>({ queryKey: ["setup-departments"] });
 
   useEffect(() => {
     if (roleInline.pendingSelect) {
-      setRole(roleInline.pendingSelect.code);
+      setValue("role", roleInline.pendingSelect.code, { shouldDirty: true, shouldValidate: true });
       roleInline.clearPendingSelect();
     }
-  }, [roleInline.pendingSelect, roleInline.clearPendingSelect]);
+  }, [roleInline.pendingSelect, roleInline.clearPendingSelect, setValue]);
 
   useEffect(() => {
     if (deptInline.pendingSelect) {
-      setDepartmentIds((prev) => [...prev, deptInline.pendingSelect?.id ?? ""]);
+      const next = deptInline.pendingSelect?.id;
+      if (next) {
+        setValue("department_ids", [...departmentIds, next], {
+          shouldDirty: true,
+          shouldValidate: true,
+        });
+      }
       deptInline.clearPendingSelect();
     }
-  }, [deptInline.pendingSelect, deptInline.clearPendingSelect]);
+  }, [deptInline.pendingSelect, deptInline.clearPendingSelect, departmentIds, setValue]);
 
   const { data: customRoles } = useQuery({
     queryKey: ["setup-roles"],
-    queryFn: () => api.listRoles(),
+    queryFn: () => adminAccessService.listRoles(),
     staleTime: 60_000,
     enabled: opened,
   });
 
   const { data: departments, isLoading: depsLoading } = useQuery({
     queryKey: ["setup-departments"],
-    queryFn: () => api.listDepartments(),
+    queryFn: () => adminAccessService.listDepartments(),
     staleTime: 60_000,
     enabled: opened && role === "doctor",
   });
@@ -287,36 +316,8 @@ function UserModal({
     label: `${d.name} (${d.code})`,
   }));
 
-  const handleOpen = () => {
-    if (editingUser) {
-      setFullName(editingUser.full_name);
-      setUsername(editingUser.username);
-      setEmail(editingUser.email);
-      setPassword("");
-      setRole(editingUser.role);
-      setIsActive(editingUser.is_active);
-      setSpecialization(editingUser.specialization ?? "");
-      setMedRegNumber(editingUser.medical_registration_number ?? "");
-      setQualification(editingUser.qualification ?? "");
-      setConsultationFee(editingUser.consultation_fee ?? "");
-      setDepartmentIds(editingUser.department_ids ?? []);
-    } else {
-      setFullName("");
-      setUsername("");
-      setEmail("");
-      setPassword("");
-      setRole(null);
-      setIsActive(true);
-      setSpecialization("");
-      setMedRegNumber("");
-      setQualification("");
-      setConsultationFee("");
-      setDepartmentIds([]);
-    }
-  };
-
   const createMutation = useMutation({
-    mutationFn: (data: Parameters<typeof api.createSetupUser>[0]) => api.createSetupUser(data),
+    mutationFn: (data: CreateSetupUserInput) => adminAccessService.createUser(data),
     onSuccess: () => {
       notifications.show({
         title: "User created",
@@ -339,7 +340,7 @@ function UserModal({
   const updateMutation = useMutation({
     mutationFn: (data: Record<string, unknown>) => {
       if (!editingUser) throw new Error("No user selected");
-      return api.updateSetupUser(editingUser.id, data);
+      return adminAccessService.updateUser(editingUser.id, data);
     },
     onSuccess: () => {
       notifications.show({
@@ -360,164 +361,214 @@ function UserModal({
     },
   });
 
-  const handleSubmit = () => {
-    if (!role) {
-      notifications.show({
-        title: "Missing role",
-        message: "Please select a role for the user",
-        color: "danger",
-      });
-      return;
-    }
-
+  const submitUser = handleSubmit((values) => {
     const doctorFields =
-      role === "doctor"
+      values.role === "doctor"
         ? {
-            specialization: specialization || undefined,
-            medical_registration_number: medRegNumber || undefined,
-            qualification: qualification || undefined,
-            consultation_fee: consultationFee !== "" ? Number(consultationFee) : undefined,
-            department_ids: departmentIds.length > 0 ? departmentIds : undefined,
+            specialization: values.specialization || undefined,
+            medical_registration_number: values.medical_registration_number || undefined,
+            qualification: values.qualification || undefined,
+            consultation_fee:
+              values.consultation_fee !== "" ? Number(values.consultation_fee) : undefined,
+            department_ids: values.department_ids.length > 0 ? values.department_ids : undefined,
           }
         : {};
 
     if (isEdit) {
       updateMutation.mutate({
-        full_name: fullName,
-        email,
-        role,
-        is_active: isActive,
+        full_name: values.full_name,
+        email: values.email,
+        role: values.role,
+        is_active: values.is_active,
         ...doctorFields,
       });
     } else {
-      if (!password) {
-        notifications.show({
-          title: "Missing password",
-          message: "Please enter a password for the new user",
-          color: "danger",
-        });
-        return;
-      }
       createMutation.mutate({
-        full_name: fullName,
-        username,
-        email,
-        password,
-        role,
+        full_name: values.full_name,
+        username: values.username,
+        email: values.email,
+        password: values.password,
+        role: values.role ?? "",
         ...doctorFields,
       });
     }
-  };
+  });
 
   return (
-    <Modal
-      opened={opened}
-      onClose={onClose}
-      title={isEdit ? "Edit User" : "Add User"}
-      size="lg"
-      onTransitionEnd={handleOpen}
-    >
+    <Modal opened={opened} onClose={onClose} title={isEdit ? "Edit User" : "Add User"} size="lg">
       <Stack gap="sm">
-        <TextInput
-          label="Full Name"
-          placeholder="Dr. John Smith"
-          value={fullName}
-          onChange={(e) => setFullName(e.currentTarget.value)}
-          required
+        <Controller
+          control={control}
+          name="full_name"
+          render={({ field }) => (
+            <TextInput
+              label="Full Name"
+              placeholder="Dr. John Smith"
+              value={field.value}
+              onChange={field.onChange}
+              error={errors.full_name?.message}
+              required
+            />
+          )}
         />
-        <TextInput
-          label="Username"
-          placeholder="john.smith"
-          value={username}
-          onChange={(e) => setUsername(e.currentTarget.value)}
-          disabled={isEdit}
-          required
+        <Controller
+          control={control}
+          name="username"
+          render={({ field }) => (
+            <TextInput
+              label="Username"
+              placeholder="john.smith"
+              value={field.value}
+              onChange={field.onChange}
+              error={errors.username?.message}
+              disabled={isEdit}
+              required
+            />
+          )}
         />
-        <TextInput
-          label="Email"
-          placeholder="john.smith@hospital.com"
-          value={email}
-          onChange={(e) => setEmail(e.currentTarget.value)}
-          required
+        <Controller
+          control={control}
+          name="email"
+          render={({ field }) => (
+            <TextInput
+              label="Email"
+              placeholder="john.smith@hospital.com"
+              value={field.value}
+              onChange={field.onChange}
+              error={errors.email?.message}
+              required
+            />
+          )}
         />
         {!isEdit && (
-          <TextInput
-            label="Password"
-            placeholder="Enter password"
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.currentTarget.value)}
-            required
+          <Controller
+            control={control}
+            name="password"
+            render={({ field }) => (
+              <TextInput
+                label="Password"
+                placeholder="Enter password"
+                type="password"
+                value={field.value}
+                onChange={field.onChange}
+                error={errors.password?.message}
+                required
+              />
+            )}
           />
         )}
-        <Select
-          label={
-            <SelectLabel
-              label="Role"
-              onCreate={canCreateRole ? roleInline.openCreateModal : undefined}
+        <Controller
+          control={control}
+          name="role"
+          render={({ field }) => (
+            <Select
+              label={
+                <SelectLabel
+                  label="Role"
+                  onCreate={canCreateRole ? roleInline.openCreateModal : undefined}
+                />
+              }
+              placeholder="Select role"
+              data={roleOptions}
+              value={field.value}
+              onChange={field.onChange}
+              error={errors.role?.message}
+              searchable
+              required
             />
-          }
-          placeholder="Select role"
-          data={roleOptions}
-          value={role}
-          onChange={setRole}
-          searchable
-          required
+          )}
         />
 
         {isEdit && (
-          <Switch
-            label="Active"
-            description="Inactive users cannot log in"
-            checked={isActive}
-            onChange={(e) => setIsActive(e.currentTarget.checked)}
+          <Controller
+            control={control}
+            name="is_active"
+            render={({ field }) => (
+              <Switch
+                label="Active"
+                description="Inactive users cannot log in"
+                checked={field.value}
+                onChange={(e) => field.onChange(e.currentTarget.checked)}
+              />
+            )}
           />
         )}
 
         {role === "doctor" && (
           <>
-            <TextInput
-              label="Specialization"
-              placeholder="Cardiology"
-              value={specialization}
-              onChange={(e) => setSpecialization(e.currentTarget.value)}
-            />
-            <TextInput
-              label="Medical Registration Number"
-              placeholder="MCI-12345"
-              value={medRegNumber}
-              onChange={(e) => setMedRegNumber(e.currentTarget.value)}
-            />
-            <TextInput
-              label="Qualification"
-              placeholder="MBBS, MD"
-              value={qualification}
-              onChange={(e) => setQualification(e.currentTarget.value)}
-            />
-            <NumberInput
-              label="Consultation Fee"
-              placeholder="500"
-              prefix={"\u20B9"}
-              value={consultationFee}
-              onChange={setConsultationFee}
-              min={0}
-              decimalScale={2}
-            />
-            <MultiSelect
-              label={
-                <SelectLabel
-                  label="Departments"
-                  onCreate={canCreateDept ? deptInline.openCreateModal : undefined}
+            <Controller
+              control={control}
+              name="specialization"
+              render={({ field }) => (
+                <TextInput
+                  label="Specialization"
+                  placeholder="Cardiology"
+                  value={field.value}
+                  onChange={field.onChange}
                 />
-              }
-              placeholder="Select departments"
-              data={departmentOptions}
-              value={departmentIds}
-              onChange={setDepartmentIds}
-              searchable
-              clearable
-              rightSection={depsLoading ? <Loader size={16} /> : undefined}
-              nothingFoundMessage="No departments found"
+              )}
+            />
+            <Controller
+              control={control}
+              name="medical_registration_number"
+              render={({ field }) => (
+                <TextInput
+                  label="Medical Registration Number"
+                  placeholder="MCI-12345"
+                  value={field.value}
+                  onChange={field.onChange}
+                />
+              )}
+            />
+            <Controller
+              control={control}
+              name="qualification"
+              render={({ field }) => (
+                <TextInput
+                  label="Qualification"
+                  placeholder="MBBS, MD"
+                  value={field.value}
+                  onChange={field.onChange}
+                />
+              )}
+            />
+            <Controller
+              control={control}
+              name="consultation_fee"
+              render={({ field }) => (
+                <NumberInput
+                  label="Consultation Fee"
+                  placeholder="500"
+                  prefix={"\u20B9"}
+                  value={field.value}
+                  onChange={field.onChange}
+                  error={errors.consultation_fee?.message}
+                  min={0}
+                  decimalScale={2}
+                />
+              )}
+            />
+            <Controller
+              control={control}
+              name="department_ids"
+              render={({ field }) => (
+                <MultiSelect
+                  label={
+                    <SelectLabel
+                      label="Departments"
+                      onCreate={canCreateDept ? deptInline.openCreateModal : undefined}
+                    />
+                  }
+                  placeholder="Select departments"
+                  data={departmentOptions}
+                  value={field.value}
+                  onChange={field.onChange}
+                  searchable
+                  clearable
+                  rightSection={depsLoading ? <Loader size={16} /> : undefined}
+                  nothingFoundMessage="No departments found"
+                />
+              )}
             />
           </>
         )}
@@ -527,7 +578,7 @@ function UserModal({
             Cancel
           </Button>
           <Button
-            onClick={handleSubmit}
+            onClick={() => void submitUser()}
             loading={createMutation.isPending || updateMutation.isPending}
           >
             {isEdit ? "Save" : "Create"}
@@ -566,7 +617,7 @@ function DeleteUserModal({
   const deleteMutation = useMutation({
     mutationFn: () => {
       if (!user) throw new Error("No user selected");
-      return api.deleteSetupUser(user.id);
+      return adminAccessService.deleteUser(user.id);
     },
     onSuccess: () => {
       notifications.show({
@@ -641,6 +692,10 @@ function UserPermissionOverrideDrawer({
   const [deniedFilter, setDeniedFilter] = useState("");
   const [fieldFilter, setFieldFilter] = useState("");
   const [widgetFilter, setWidgetFilter] = useState("");
+  const pacedExtraFilter = usePacedQueryValue(extraFilter, 200);
+  const pacedDeniedFilter = usePacedQueryValue(deniedFilter, 200);
+  const pacedFieldFilter = usePacedQueryValue(fieldFilter, 200);
+  const pacedWidgetFilter = usePacedQueryValue(widgetFilter, 200);
   const [loadedUserId, setLoadedUserId] = useState<string | null>(null);
 
   // Sync state when user changes
@@ -661,12 +716,12 @@ function UserPermissionOverrideDrawer({
     setWidgetFilter("");
   }
 
-  const allFields: FieldMasterFull[] = [];
+  const allFields = useMemo<FieldMasterFull[]>(() => [], []);
   const fieldsLoading = false;
-  const widgetTemplates: WidgetTemplate[] = [];
+  const widgetTemplates = useMemo<WidgetTemplate[]>(() => [], []);
 
   const tree = useMemo(() => buildPermissionTree(PERMISSIONS), []);
-  const accordionValues = useMemo(() => tree.map((g) => g.key), [tree]);
+  const accordionValues = useMemo(() => getAllGroupKeys(tree), [tree]);
 
   // Get the user's role permissions for display
   const rolePerms = useMemo(() => {
@@ -708,8 +763,8 @@ function UserPermissionOverrideDrawer({
 
   // Filter fields by module for accordion display
   const filteredFieldsByModule = useMemo(() => {
-    if (!fieldFilter) return fieldsByModule;
-    const lower = fieldFilter.toLowerCase();
+    if (!pacedFieldFilter) return fieldsByModule;
+    const lower = pacedFieldFilter.toLowerCase();
     const filtered = new Map<string, FieldMasterFull[]>();
     for (const [module, fields] of fieldsByModule) {
       const matching = fields.filter(
@@ -723,7 +778,7 @@ function UserPermissionOverrideDrawer({
       }
     }
     return filtered;
-  }, [fieldsByModule, fieldFilter]);
+  }, [fieldsByModule, pacedFieldFilter]);
 
   const fieldAccordionValues = useMemo(() => [...fieldsByModule.keys()], [fieldsByModule]);
 
@@ -800,8 +855,8 @@ function UserPermissionOverrideDrawer({
   }, [widgetTemplates]);
 
   const filteredTemplatesByCategory = useMemo(() => {
-    if (!widgetFilter) return templatesByCategory;
-    const lower = widgetFilter.toLowerCase();
+    if (!pacedWidgetFilter) return templatesByCategory;
+    const lower = pacedWidgetFilter.toLowerCase();
     const result: Record<string, WidgetTemplate[]> = {};
     for (const [cat, tmpls] of Object.entries(templatesByCategory)) {
       const matched = tmpls.filter(
@@ -810,7 +865,7 @@ function UserPermissionOverrideDrawer({
       if (matched.length > 0) result[cat] = matched;
     }
     return result;
-  }, [templatesByCategory, widgetFilter]);
+  }, [templatesByCategory, pacedWidgetFilter]);
 
   const widgetOverrideCount = useMemo(() => {
     return Object.keys(widgetAccessOverrides).length;
@@ -843,7 +898,7 @@ function UserPermissionOverrideDrawer({
           fieldAccess[key] = level;
         }
       }
-      await api.updateUserAccessMatrix(user.id, {
+      await adminAccessService.updateUserAccessMatrix(user.id, {
         extra_permissions: [...extraPerms],
         denied_permissions: [...deniedPerms],
         field_access: Object.keys(fieldAccess).length > 0 ? fieldAccess : undefined,
@@ -959,7 +1014,7 @@ function UserPermissionOverrideDrawer({
                     group={group}
                     selected={extraPerms}
                     onToggle={handleExtraToggle}
-                    filter={extraFilter}
+                    filter={pacedExtraFilter}
                   />
                 ))}
               </Accordion>
@@ -1006,7 +1061,7 @@ function UserPermissionOverrideDrawer({
                     group={group}
                     selected={deniedPerms}
                     onToggle={handleDeniedToggle}
-                    filter={deniedFilter}
+                    filter={pacedDeniedFilter}
                   />
                 ))}
               </Accordion>
@@ -1230,11 +1285,22 @@ function UserPermissionOverrideDrawer({
 
 function BulkImportModal({ opened, onClose }: { opened: boolean; onClose: () => void }) {
   const queryClient = useQueryClient();
-  const [jsonInput, setJsonInput] = useState("");
-  const [parseError, setParseError] = useState<string | null>(null);
+  const {
+    control,
+    handleSubmit,
+    reset,
+    setError,
+    watch,
+    formState: { errors },
+  } = useForm<BulkImportUsersFormInput>({
+    resolver: zodResolver(bulkImportUsersFormSchema),
+    defaultValues: { usersJson: "" },
+    mode: "onTouched",
+  });
+  const usersJson = watch("usersJson");
 
   const bulkMutation = useMutation({
-    mutationFn: (data: BulkCreateUsersRequest) => api.bulkCreateUsers(data),
+    mutationFn: (data: BulkCreateUsersRequest) => adminAccessService.bulkCreateUsers(data),
     onSuccess: (result) => {
       notifications.show({
         title: "Bulk Import Complete",
@@ -1243,8 +1309,7 @@ function BulkImportModal({ opened, onClose }: { opened: boolean; onClose: () => 
         icon: <IconCheck size={16} />,
       });
       void queryClient.invalidateQueries({ queryKey: ["setup-users"] });
-      setJsonInput("");
-      setParseError(null);
+      reset();
       onClose();
     },
     onError: (err: Error) => {
@@ -1256,36 +1321,37 @@ function BulkImportModal({ opened, onClose }: { opened: boolean; onClose: () => 
     },
   });
 
-  const handleSubmit = () => {
-    setParseError(null);
+  const submitImport = handleSubmit((values) => {
     try {
-      const parsed = JSON.parse(jsonInput);
+      const parsed = JSON.parse(values.usersJson);
       const users = Array.isArray(parsed) ? parsed : parsed.users;
       if (!Array.isArray(users) || users.length === 0) {
-        setParseError("JSON must be an array of user objects or { users: [...] }");
+        setError("usersJson", {
+          message: "JSON must be an array of user objects or { users: [...] }",
+        });
         return;
       }
       for (let i = 0; i < users.length; i++) {
         const u = users[i];
         if (!u.username || !u.email || !u.password || !u.full_name || !u.role_id) {
-          setParseError(
-            `User at index ${i} is missing required fields (username, email, password, full_name, role_id)`,
-          );
+          setError("usersJson", {
+            message: `User at index ${i} is missing required fields (username, email, password, full_name, role_id)`,
+          });
           return;
         }
       }
       bulkMutation.mutate({ users });
     } catch {
-      setParseError("Invalid JSON. Please check the format.");
+      setError("usersJson", { message: "Invalid JSON. Please check the format." });
     }
-  };
+  });
 
   const sampleJson = JSON.stringify(
     [
       {
         username: "john.doe",
         email: "john@hospital.com",
-        password: "SecurePass123",
+        password: "SecurePass123!",
         full_name: "Dr. John Doe",
         role_id: "doctor",
       },
@@ -1322,33 +1388,32 @@ function BulkImportModal({ opened, onClose }: { opened: boolean; onClose: () => 
             .
           </Text>
         </Alert>
-        <Textarea
-          label="User Data (JSON)"
-          placeholder={sampleJson}
-          value={jsonInput}
-          onChange={(e) => {
-            setJsonInput(e.currentTarget.value);
-            setParseError(null);
-          }}
-          minRows={10}
-          maxRows={20}
-          autosize
-          styles={{ input: { fontFamily: "monospace", fontSize: 12 } }}
+        <Controller
+          control={control}
+          name="usersJson"
+          render={({ field }) => (
+            <Textarea
+              label="User Data (JSON)"
+              placeholder={sampleJson}
+              value={field.value}
+              onChange={field.onChange}
+              error={errors.usersJson?.message}
+              minRows={10}
+              maxRows={20}
+              autosize
+              styles={{ input: { fontFamily: "monospace", fontSize: 12 } }}
+            />
+          )}
         />
-        {parseError && (
-          <Alert color="danger" variant="light">
-            <Text size="sm">{parseError}</Text>
-          </Alert>
-        )}
         <Group justify="flex-end">
           <Button variant="light" onClick={onClose}>
             Cancel
           </Button>
           <Button
             leftSection={<IconUpload size={16} />}
-            onClick={handleSubmit}
+            onClick={() => void submitImport()}
             loading={bulkMutation.isPending}
-            disabled={!jsonInput.trim()}
+            disabled={!usersJson.trim()}
           >
             Import Users
           </Button>
@@ -1376,12 +1441,12 @@ export function UsersPage() {
 
   const { data: users, isLoading } = useQuery({
     queryKey: ["setup-users"],
-    queryFn: () => api.listSetupUsers(),
+    queryFn: () => adminAccessService.listUsers(),
   });
 
   const { data: roles } = useQuery({
     queryKey: ["roles"],
-    queryFn: () => api.listRoles(),
+    queryFn: () => adminAccessService.listRoles(),
     staleTime: 60_000,
   });
 
@@ -1540,7 +1605,14 @@ export function UsersPage() {
         emptyAction={canCreate ? { label: "Add User", onClick: openCreate } : undefined}
       />
 
-      <UserModal opened={modalOpen} onClose={() => setModalOpen(false)} editingUser={editingUser} />
+      {modalOpen && (
+        <UserModal
+          key={editingUser?.id ?? "create"}
+          opened={modalOpen}
+          onClose={() => setModalOpen(false)}
+          editingUser={editingUser}
+        />
+      )}
 
       <UserCreateDrawer opened={createDrawerOpen} onClose={() => setCreateDrawerOpen(false)} />
 

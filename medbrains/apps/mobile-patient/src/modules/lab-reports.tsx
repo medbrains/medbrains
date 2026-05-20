@@ -12,6 +12,7 @@ function LabReportsScreen() {
       eyebrow="MODULE"
       title="Lab reports"
       description="Your test results, with critical-value alerts highlighted."
+      tags={["Mobile-Patient", "lab", "reports", "critical-values"]}
       summaries={[
         { eyebrow: "PENDING", count: "—", title: "Awaiting results" },
         { eyebrow: "FINAL", count: "—", title: "Reports available" },
@@ -48,4 +49,6 @@ export const labReportsModule: Module = {
   icon: () => null,
   requiredPermissions: [],
   navigator: LabReportsScreen,
+  appCodes: ["Mobile-Patient"],
+  tags: ["patient", "lab", "reports", "critical-values"],
 };

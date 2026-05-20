@@ -14,6 +14,7 @@ export interface EntityRowProps {
   subtitle?: string;
   badge?: { label: string; tone?: IntentTone };
   accent?: boolean;
+  trailing?: ReactNode;
   onPress?: () => void;
 }
 
@@ -22,6 +23,7 @@ export function EntityRow({
   subtitle,
   badge,
   accent = false,
+  trailing,
   onPress,
 }: EntityRowProps): ReactNode {
   return (
@@ -56,7 +58,10 @@ export function EntityRow({
           </Text>
         )}
       </View>
-      {badge && <Badge label={badge.label} tone={badge.tone} />}
+      <View style={{ alignItems: "flex-end", gap: SPACING.xs }}>
+        {badge && <Badge label={badge.label} tone={badge.tone} />}
+        {trailing}
+      </View>
     </View>
   );
 }

@@ -39,6 +39,8 @@ pub struct EdgePolicyConfig {
 pub struct RouteConfig {
     pub domain: String,
     pub upstream: String,
+    #[serde(default)]
+    pub cors_allowed_origins: Vec<String>,
     #[serde(rename = "gzip")]
     pub _gzip: Option<bool>,
     /// Per-domain TLS cert (for SNI)
@@ -130,6 +132,22 @@ impl ProxyConfig {
                     "route {} must set cert_path and key_path together",
                     route.domain
                 );
+            }
+
+            for origin in &route.cors_allowed_origins {
+                if origin.trim().is_empty() {
+                    anyhow::bail!("route {} has an empty CORS origin", route.domain);
+                }
+                if origin == "*" {
+                    anyhow::bail!("route {} must not use wildcard CORS", route.domain);
+                }
+                if !origin.starts_with("https://") {
+                    anyhow::bail!(
+                        "route {} CORS origin must be an HTTPS MedBrains-controlled domain: {}",
+                        route.domain,
+                        origin
+                    );
+                }
             }
         }
 

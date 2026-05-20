@@ -12,7 +12,6 @@ import {
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
 import { useHasPermission } from "@medbrains/stores";
 import type {
   CreateEndoscopyProcedureRequest,
@@ -29,6 +28,7 @@ import { DataTable, PageHeader } from "../../components";
 import type { Column } from "../../components/DataTable";
 import { PatientNameCell } from "../../components/PatientNameCell";
 import { useRequirePermission } from "../../hooks/useRequirePermission";
+import { specialtyService } from "../../services/specialty.service";
 
 const SCOPE_STATUS_COLORS: Record<string, string> = {
   available: "success",
@@ -52,17 +52,17 @@ export function EndoscopyPage() {
 
   const { data: procedures = [], isLoading } = useQuery({
     queryKey: ["endo-procedures"],
-    queryFn: () => api.listEndoscopyProcedures(),
+    queryFn: () => specialtyService.listEndoscopyProcedures(),
   });
 
   const { data: scopes = [], isLoading: scopesLoading } = useQuery({
     queryKey: ["endo-scopes"],
-    queryFn: () => api.listEndoscopyScopes(),
+    queryFn: () => specialtyService.listEndoscopyScopes(),
   });
 
   const { data: reprocessing = [] } = useQuery({
     queryKey: ["endo-reprocessing"],
-    queryFn: () => api.listEndoscopyReprocessing(),
+    queryFn: () => specialtyService.listEndoscopyReprocessing(),
   });
 
   // ── Create Procedure ──
@@ -72,7 +72,8 @@ export function EndoscopyPage() {
   });
 
   const createProc = useMutation({
-    mutationFn: (data: CreateEndoscopyProcedureRequest) => api.createEndoscopyProcedure(data),
+    mutationFn: (data: CreateEndoscopyProcedureRequest) =>
+      specialtyService.createEndoscopyProcedure(data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["endo-procedures"] });
       procHandlers.close();
@@ -84,7 +85,7 @@ export function EndoscopyPage() {
   const [scopeForm, setScopeForm] = useState<CreateEndoscopyScopeRequest>({ serial_number: "" });
 
   const createScope = useMutation({
-    mutationFn: (data: CreateEndoscopyScopeRequest) => api.createEndoscopyScope(data),
+    mutationFn: (data: CreateEndoscopyScopeRequest) => specialtyService.createEndoscopyScope(data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["endo-scopes"] });
       scopeHandlers.close();

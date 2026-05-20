@@ -5,11 +5,16 @@
  * persists the JWT via the configured SecretStore on success.
  */
 
-import { useState } from "react";
 import type { ReactNode } from "react";
 import { Image, View } from "react-native";
 import type { ImageSourcePropType } from "react-native";
+import { zodResolver } from "@hookform/resolvers/zod";
+import {
+  mobileShellLoginFormSchema,
+  type MobileShellLoginFormInput,
+} from "@medbrains/schemas";
 import { MobileTextField } from "@medbrains/ui-mobile";
+import { Controller, useForm } from "react-hook-form";
 import { Button, HelperText, Surface, Text } from "react-native-paper";
 import { FOREST_COPPER_PALETTE } from "../theme/forest-copper.js";
 import type { TenantIdentity } from "../types.js";
@@ -40,26 +45,35 @@ export function LoginScreen(props: LoginScreenProps): ReactNode {
     footer,
   } = props;
 
-  const [identifier, setIdentifier] = useState("");
-  const [password, setPassword] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
   const secretStore = useSecretStore();
   const signIn = useAuthStore((s) => s.signIn);
+  const {
+    control,
+    handleSubmit,
+    setError,
+    watch,
+    formState: { errors, isSubmitting },
+  } = useForm<MobileShellLoginFormInput>({
+    resolver: zodResolver(mobileShellLoginFormSchema),
+    defaultValues: {
+      identifier: "",
+      password: "",
+    },
+  });
 
-  const handleSubmit = async () => {
-    setError(null);
-    setSubmitting(true);
+  const identifier = watch("identifier");
+  const password = watch("password");
+
+  const submit = handleSubmit(async (values) => {
     try {
-      const result = await onSubmit(identifier, password);
+      const result = await onSubmit(values.identifier, values.password);
       await signIn(secretStore, result.identity, result.refreshToken);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Sign in failed");
-    } finally {
-      setSubmitting(false);
+      setError("root", {
+        message: err instanceof Error ? err.message : "Sign in failed",
+      });
     }
-  };
+  });
 
   return (
     <Surface
@@ -112,31 +126,47 @@ export function LoginScreen(props: LoginScreenProps): ReactNode {
           {subtitle}
         </Text>
       </View>
-      <MobileTextField
-        label={identifierLabel}
-        value={identifier}
-        onChangeText={setIdentifier}
-        autoCapitalize="none"
-        autoCorrect={false}
-        containerStyle={{ marginBottom: 12 }}
+      <Controller
+        control={control}
+        name="identifier"
+        render={({ field }) => (
+          <MobileTextField
+            label={identifierLabel}
+            value={field.value}
+            onChangeText={field.onChange}
+            autoCapitalize="none"
+            autoCorrect={false}
+            containerStyle={{ marginBottom: 12 }}
+            errorText={errors.identifier?.message}
+            required
+          />
+        )}
       />
-      <MobileTextField
-        label={passwordLabel}
-        value={password}
-        onChangeText={setPassword}
-        secureTextEntry
-        containerStyle={{ marginBottom: 8 }}
+      <Controller
+        control={control}
+        name="password"
+        render={({ field }) => (
+          <MobileTextField
+            label={passwordLabel}
+            value={field.value}
+            onChangeText={field.onChange}
+            secureTextEntry
+            containerStyle={{ marginBottom: 8 }}
+            errorText={errors.password?.message}
+            required
+          />
+        )}
       />
-      {error && (
+      {errors.root?.message && (
         <HelperText type="error" visible style={{ marginBottom: 8 }}>
-          {error}
+          {errors.root.message}
         </HelperText>
       )}
       <Button
         mode="contained"
-        loading={submitting}
-        disabled={submitting || !identifier || !password}
-        onPress={handleSubmit}
+        loading={isSubmitting}
+        disabled={isSubmitting || !identifier || !password}
+        onPress={() => void submit()}
         style={{ marginTop: 8 }}
       >
         Sign in

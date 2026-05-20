@@ -1,4 +1,3 @@
-import { api } from "@medbrains/api";
 import type { LabOrder, LabResult } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
@@ -16,6 +15,7 @@ import {
   useTheme,
 } from "react-native-paper";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { clinicalService } from "../../services/clinical.service";
 
 interface LabResultsViewScreenProps {
   route: {
@@ -77,16 +77,16 @@ export function LabResultsViewScreen({ route }: LabResultsViewScreenProps) {
 
   const [viewMode, setViewMode] = useState<ViewMode>("latest");
 
-  // getLabOrder returns LabOrderDetailResponse with { order, results }
   const { data: orderDetail, isLoading: orderLoading } = useQuery({
     queryKey: ["lab", "order", orderId],
-    queryFn: () => api.getLabOrder(orderId || ""),
+    queryFn: () => clinicalService.getLabOrder(orderId || ""),
     enabled: Boolean(orderId),
   });
 
   const { data: patientOrders } = useQuery({
     queryKey: ["lab", "orders", patientId, "history"],
-    queryFn: () => api.listLabOrders({ patient_id: patientId || "", page: "1", per_page: "10" }),
+    queryFn: () =>
+      clinicalService.listLabOrders({ patient_id: patientId || "", page: "1", per_page: "10" }),
     enabled: Boolean(patientId) && viewMode === "history",
   });
 

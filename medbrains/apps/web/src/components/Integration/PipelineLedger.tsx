@@ -1,5 +1,4 @@
 import { ActionIcon, SegmentedControl, TextInput, Tooltip } from "@mantine/core";
-import { api } from "@medbrains/api";
 import { useHasPermission } from "@medbrains/stores";
 import type { PipelineSummary } from "@medbrains/types";
 import { P } from "@medbrains/types";
@@ -15,6 +14,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useNavigate } from "react-router";
+import { integrationService } from "../../services/integration.service";
 import s from "./PipelineLedger.module.scss";
 import { Sparkline } from "./Sparkline";
 
@@ -53,24 +53,24 @@ export function PipelineLedger({ onOpenExecution }: PipelineLedgerProps) {
 
   const { data } = useQuery({
     queryKey: ["integration", "pipelines", params],
-    queryFn: () => api.listPipelines(params),
+    queryFn: () => integrationService.listPipelines(params),
   });
 
   const toggleStatus = useMutation({
     mutationFn: (p: PipelineSummary) => {
       const next = p.status === "active" ? "paused" : "active";
-      return api.updatePipelineStatus(p.id, { status: next });
+      return integrationService.updatePipelineStatus(p.id, { status: next });
     },
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["integration", "pipelines"] }),
   });
 
   const deletePipeline = useMutation({
-    mutationFn: (id: string) => api.deletePipeline(id),
+    mutationFn: (id: string) => integrationService.deletePipeline(id),
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["integration", "pipelines"] }),
   });
 
   const triggerPipeline = useMutation({
-    mutationFn: (id: string) => api.triggerPipeline(id),
+    mutationFn: (id: string) => integrationService.triggerPipeline(id),
   });
 
   const pipelines = data?.pipelines ?? [];

@@ -18,15 +18,24 @@ import {
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
 import { useHasPermission } from "@medbrains/stores";
 import type {
+  CommChannel,
   CommClinicalMessageRow,
+  CommClinicalPriority,
   CommComplaintRow,
+  CommComplaintSource,
   CommCriticalAlertRow,
   CommFeedbackSurveyRow,
+  CommFeedbackType,
   CommMessageRow,
   CommTemplateRow,
+  CommTemplateType,
+  CreateCommClinicalRequest,
+  CreateCommComplaintRequest,
+  CreateCommFeedbackRequest,
+  CreateCommMessageRequest,
+  CreateCommTemplateRequest,
   CreateDltTemplateRequest,
   DltTemplate,
 } from "@medbrains/types";
@@ -50,6 +59,7 @@ import { DataTable, PageHeader } from "../components";
 import type { Column } from "../components/DataTable";
 import { EmployeeSearchSelect } from "../components/EmployeeSearchSelect";
 import { useRequirePermission } from "../hooks/useRequirePermission";
+import { communicationsService } from "../services/communications.service";
 
 const CHANNEL_COLORS: Record<string, string> = {
   sms: "blue",
@@ -102,6 +112,292 @@ const FEEDBACK_COLORS: Record<string, string> = {
   kiosk: "cyan",
 };
 
+type MessageForm = {
+  channel: string | null;
+  recipient_name: string;
+  recipient_contact: string;
+  subject: string;
+  body: string;
+};
+
+type ClinicalMessageForm = {
+  recipient_id: string | null;
+  message_type: string | null;
+  priority: string | null;
+  subject: string;
+  body: string;
+  is_urgent: boolean;
+};
+
+type ComplaintForm = {
+  source: string | null;
+  complainant_name: string;
+  complainant_phone: string;
+  complainant_email: string;
+  category: string | null;
+  severity: string | null;
+  subject: string;
+  description: string;
+  sla_hours: number | string;
+};
+
+type FeedbackForm = {
+  feedback_type: string | null;
+  overall_rating: number | string;
+  nps_score: number | string;
+  staff_rating: number | string;
+  cleanliness_rating: number | string;
+  would_recommend: boolean;
+  comments: string;
+  suggestions: string;
+  is_anonymous: boolean;
+};
+
+type TemplateForm = {
+  template_name: string;
+  template_code: string;
+  channel: string | null;
+  template_type: string | null;
+  subject: string;
+  body_template: string;
+};
+
+const emptyMessageForm: MessageForm = {
+  channel: null,
+  recipient_name: "",
+  recipient_contact: "",
+  subject: "",
+  body: "",
+};
+
+const emptyClinicalMessageForm: ClinicalMessageForm = {
+  recipient_id: null,
+  message_type: null,
+  priority: null,
+  subject: "",
+  body: "",
+  is_urgent: false,
+};
+
+const emptyComplaintForm: ComplaintForm = {
+  source: null,
+  complainant_name: "",
+  complainant_phone: "",
+  complainant_email: "",
+  category: null,
+  severity: null,
+  subject: "",
+  description: "",
+  sla_hours: 48,
+};
+
+const emptyFeedbackForm: FeedbackForm = {
+  feedback_type: null,
+  overall_rating: "",
+  nps_score: "",
+  staff_rating: "",
+  cleanliness_rating: "",
+  would_recommend: false,
+  comments: "",
+  suggestions: "",
+  is_anonymous: false,
+};
+
+const emptyTemplateForm: TemplateForm = {
+  template_name: "",
+  template_code: "",
+  channel: null,
+  template_type: null,
+  subject: "",
+  body_template: "",
+};
+
+function optionalText(value: string | null | undefined) {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : undefined;
+}
+
+function requiredText(value: string | null | undefined) {
+  return optionalText(value) ?? null;
+}
+
+function numberValue(value: number | string) {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function commChannel(value: string | null | undefined): CommChannel | null {
+  if (
+    value === "sms" ||
+    value === "whatsapp" ||
+    value === "email" ||
+    value === "push" ||
+    value === "ivr" ||
+    value === "portal"
+  ) {
+    return value;
+  }
+  return null;
+}
+
+function clinicalPriority(value: string | null | undefined): CommClinicalPriority | undefined {
+  if (value === "routine" || value === "urgent" || value === "critical" || value === "stat") {
+    return value;
+  }
+  return undefined;
+}
+
+function complaintSource(value: string | null | undefined): CommComplaintSource | null {
+  if (
+    value === "walk_in" ||
+    value === "phone" ||
+    value === "email" ||
+    value === "portal" ||
+    value === "kiosk" ||
+    value === "social_media" ||
+    value === "google_review"
+  ) {
+    return value;
+  }
+  return null;
+}
+
+function feedbackType(value: string | null | undefined): CommFeedbackType | null {
+  if (
+    value === "bedside" ||
+    value === "post_discharge" ||
+    value === "nps" ||
+    value === "department" ||
+    value === "kiosk"
+  ) {
+    return value;
+  }
+  return null;
+}
+
+function templateType(value: string | null | undefined): CommTemplateType | null {
+  if (
+    value === "appointment_reminder" ||
+    value === "lab_result" ||
+    value === "discharge_summary" ||
+    value === "billing" ||
+    value === "medication_reminder" ||
+    value === "follow_up" ||
+    value === "generic" ||
+    value === "marketing"
+  ) {
+    return value;
+  }
+  return null;
+}
+
+function messagePayload(form: MessageForm): CreateCommMessageRequest | null {
+  const channel = commChannel(form.channel);
+  const recipient_contact = requiredText(form.recipient_contact);
+  const body = requiredText(form.body);
+  if (!channel || !recipient_contact || !body) return null;
+  return {
+    channel,
+    recipient_contact,
+    body,
+    recipient_name: optionalText(form.recipient_name),
+    subject: optionalText(form.subject),
+  };
+}
+
+function clinicalPayload(form: ClinicalMessageForm): CreateCommClinicalRequest | null {
+  const recipient_id = requiredText(form.recipient_id);
+  const message_type = requiredText(form.message_type);
+  const body = requiredText(form.body);
+  if (!recipient_id || !message_type || !body) return null;
+  return {
+    recipient_id,
+    message_type,
+    body,
+    priority: clinicalPriority(form.priority),
+    subject: optionalText(form.subject),
+    is_urgent: form.is_urgent,
+  };
+}
+
+function complaintPayload(form: ComplaintForm): CreateCommComplaintRequest | null {
+  const source = complaintSource(form.source);
+  const complainant_name = requiredText(form.complainant_name);
+  const subject = requiredText(form.subject);
+  const description = requiredText(form.description);
+  if (!source || !complainant_name || !subject || !description) return null;
+  return {
+    source,
+    complainant_name,
+    subject,
+    description,
+    complainant_phone: optionalText(form.complainant_phone),
+    complainant_email: optionalText(form.complainant_email),
+    category: optionalText(form.category),
+    severity: optionalText(form.severity),
+    sla_hours: numberValue(form.sla_hours),
+  };
+}
+
+function feedbackPayload(form: FeedbackForm): CreateCommFeedbackRequest | null {
+  const selectedFeedbackType = feedbackType(form.feedback_type);
+  if (!selectedFeedbackType) return null;
+  return {
+    feedback_type: selectedFeedbackType,
+    overall_rating: numberValue(form.overall_rating),
+    nps_score: numberValue(form.nps_score),
+    staff_rating: numberValue(form.staff_rating),
+    cleanliness_rating: numberValue(form.cleanliness_rating),
+    would_recommend: form.would_recommend,
+    comments: optionalText(form.comments),
+    suggestions: optionalText(form.suggestions),
+    is_anonymous: form.is_anonymous,
+  };
+}
+
+function templatePayload(form: TemplateForm): CreateCommTemplateRequest | null {
+  const template_name = requiredText(form.template_name);
+  const template_code = requiredText(form.template_code);
+  const channel = commChannel(form.channel);
+  const selectedTemplateType = templateType(form.template_type);
+  const body_template = requiredText(form.body_template);
+  if (!template_name || !template_code || !channel || !selectedTemplateType || !body_template) {
+    return null;
+  }
+  return {
+    template_name,
+    template_code,
+    channel,
+    template_type: selectedTemplateType,
+    body_template,
+    subject: optionalText(form.subject),
+  };
+}
+
+function dltPayload(form: Partial<CreateDltTemplateRequest>): CreateDltTemplateRequest | null {
+  const template_id = requiredText(form.template_id);
+  const template_name = requiredText(form.template_name);
+  const sender_id = requiredText(form.sender_id);
+  const entity_id = requiredText(form.entity_id);
+  const body_pattern = requiredText(form.body_pattern);
+  if (!template_id || !template_name || !sender_id || !entity_id || !body_pattern) return null;
+  return {
+    template_id,
+    template_name,
+    sender_id,
+    entity_id,
+    body_pattern,
+    category: form.category ?? "transactional",
+    variable_count: form.variable_count,
+    scope: optionalText(form.scope),
+    language: form.language ?? "en",
+    registered_at: optionalText(form.registered_at),
+    expires_at: optionalText(form.expires_at),
+    notes: optionalText(form.notes),
+  };
+}
+
 // ── Messages Tab ────────────────────────────────────────
 function MessagesTab() {
   const qc = useQueryClient();
@@ -109,20 +405,19 @@ function MessagesTab() {
   const [opened, { open, close }] = useDisclosure(false);
   const [channelFilter, setChannelFilter] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [form, setForm] = useState<any>({});
+  const [form, setForm] = useState<MessageForm>(emptyMessageForm);
 
   const { data = [], isLoading } = useQuery({
     queryKey: ["comm-messages", channelFilter, statusFilter],
     queryFn: () =>
-      api.listCommMessages({
+      communicationsService.listCommMessages({
         channel: channelFilter ?? undefined,
         status: statusFilter ?? undefined,
       }),
   });
 
   const createMut = useMutation({
-    mutationFn: (d: any) => api.createCommMessage(d),
+    mutationFn: (d: CreateCommMessageRequest) => communicationsService.createCommMessage(d),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["comm-messages"] });
       close();
@@ -204,7 +499,7 @@ function MessagesTab() {
           <Button
             leftSection={<IconPlus size={16} />}
             onClick={() => {
-              setForm({});
+              setForm(emptyMessageForm);
               open();
             }}
           >
@@ -247,8 +542,9 @@ function MessagesTab() {
           />
           <Button
             onClick={() => {
-              if (!form.channel || !form.recipient_contact || !form.body) return;
-              createMut.mutate(form);
+              const payload = messagePayload(form);
+              if (!payload) return;
+              createMut.mutate(payload);
             }}
             loading={createMut.isPending}
           >
@@ -267,16 +563,16 @@ function ClinicalTab() {
   const canAck = useHasPermission(P.COMMUNICATIONS.CLINICAL_ACKNOWLEDGE);
   const [opened, { open, close }] = useDisclosure(false);
   const [priorityFilter, setPriorityFilter] = useState<string | null>(null);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [form, setForm] = useState<any>({});
+  const [form, setForm] = useState<ClinicalMessageForm>(emptyClinicalMessageForm);
 
   const { data = [], isLoading } = useQuery({
     queryKey: ["comm-clinical", priorityFilter],
-    queryFn: () => api.listClinicalMessages({ priority: priorityFilter ?? undefined }),
+    queryFn: () =>
+      communicationsService.listClinicalMessages({ priority: priorityFilter ?? undefined }),
   });
 
   const createMut = useMutation({
-    mutationFn: (d: any) => api.createClinicalMessage(d),
+    mutationFn: (d: CreateCommClinicalRequest) => communicationsService.createClinicalMessage(d),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["comm-clinical"] });
       close();
@@ -285,7 +581,7 @@ function ClinicalTab() {
   });
 
   const ackMut = useMutation({
-    mutationFn: (id: string) => api.acknowledgeClinicalMessage(id),
+    mutationFn: (id: string) => communicationsService.acknowledgeClinicalMessage(id),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["comm-clinical"] });
       notifications.show({ title: "Acknowledged", message: "Message acknowledged", color: "blue" });
@@ -372,7 +668,7 @@ function ClinicalTab() {
           <Button
             leftSection={<IconPlus size={16} />}
             onClick={() => {
-              setForm({});
+              setForm(emptyClinicalMessageForm);
               open();
             }}
           >
@@ -421,8 +717,9 @@ function ClinicalTab() {
           />
           <Button
             onClick={() => {
-              if (!form.recipient_id || !form.message_type || !form.body) return;
-              createMut.mutate(form);
+              const payload = clinicalPayload(form);
+              if (!payload) return;
+              createMut.mutate(payload);
             }}
             loading={createMut.isPending}
           >
@@ -442,11 +739,11 @@ function AlertsTab() {
 
   const { data = [], isLoading } = useQuery({
     queryKey: ["comm-alerts", statusFilter],
-    queryFn: () => api.listCommAlerts({ status: statusFilter ?? undefined }),
+    queryFn: () => communicationsService.listCommAlerts({ status: statusFilter ?? undefined }),
   });
 
   const ackMut = useMutation({
-    mutationFn: (id: string) => api.acknowledgeCommAlert(id),
+    mutationFn: (id: string) => communicationsService.acknowledgeCommAlert(id),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["comm-alerts"] });
       notifications.show({ title: "Acknowledged", message: "Alert acknowledged", color: "blue" });
@@ -454,7 +751,7 @@ function AlertsTab() {
   });
 
   const resolveMut = useMutation({
-    mutationFn: (id: string) => api.resolveCommAlert(id, {}),
+    mutationFn: (id: string) => communicationsService.resolveCommAlert(id, {}),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["comm-alerts"] });
       notifications.show({ title: "Resolved", message: "Alert resolved", color: "green" });
@@ -608,16 +905,15 @@ function ComplaintsTab() {
   const canManage = useHasPermission(P.COMMUNICATIONS.COMPLAINTS_MANAGE);
   const [opened, { open, close }] = useDisclosure(false);
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [form, setForm] = useState<any>({});
+  const [form, setForm] = useState<ComplaintForm>(emptyComplaintForm);
 
   const { data = [], isLoading } = useQuery({
     queryKey: ["comm-complaints", statusFilter],
-    queryFn: () => api.listComplaints({ status: statusFilter ?? undefined }),
+    queryFn: () => communicationsService.listComplaints({ status: statusFilter ?? undefined }),
   });
 
   const createMut = useMutation({
-    mutationFn: (d: any) => api.createComplaint(d),
+    mutationFn: (d: CreateCommComplaintRequest) => communicationsService.createComplaint(d),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["comm-complaints"] });
       close();
@@ -626,7 +922,7 @@ function ComplaintsTab() {
   });
 
   const resolveMut = useMutation({
-    mutationFn: (id: string) => api.resolveComplaint(id, {}),
+    mutationFn: (id: string) => communicationsService.resolveComplaint(id, {}),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["comm-complaints"] });
       notifications.show({ title: "Resolved", message: "Complaint resolved", color: "green" });
@@ -735,7 +1031,7 @@ function ComplaintsTab() {
           <Button
             leftSection={<IconPlus size={16} />}
             onClick={() => {
-              setForm({});
+              setForm(emptyComplaintForm);
               open();
             }}
           >
@@ -809,9 +1105,9 @@ function ComplaintsTab() {
           />
           <Button
             onClick={() => {
-              if (!form.source || !form.complainant_name || !form.subject || !form.description)
-                return;
-              createMut.mutate(form);
+              const payload = complaintPayload(form);
+              if (!payload) return;
+              createMut.mutate(payload);
             }}
             loading={createMut.isPending}
           >
@@ -829,21 +1125,22 @@ function FeedbackTab() {
   const canCreate = useHasPermission(P.COMMUNICATIONS.FEEDBACK_CREATE);
   const [opened, { open, close }] = useDisclosure(false);
   const [typeFilter, setTypeFilter] = useState<string | null>(null);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [form, setForm] = useState<any>({});
+  const [form, setForm] = useState<FeedbackForm>(emptyFeedbackForm);
 
   const { data = [], isLoading } = useQuery({
     queryKey: ["comm-feedback", typeFilter],
-    queryFn: () => api.listCommFeedback({ feedback_type: typeFilter ?? undefined }),
+    queryFn: () =>
+      communicationsService.listCommFeedback({ feedback_type: typeFilter ?? undefined }),
   });
 
   const { data: stats } = useQuery({
     queryKey: ["comm-feedback-stats", typeFilter],
-    queryFn: () => api.getCommFeedbackStats({ feedback_type: typeFilter ?? undefined }),
+    queryFn: () =>
+      communicationsService.getCommFeedbackStats({ feedback_type: typeFilter ?? undefined }),
   });
 
   const createMut = useMutation({
-    mutationFn: (d: any) => api.createCommFeedback(d),
+    mutationFn: (d: CreateCommFeedbackRequest) => communicationsService.createCommFeedback(d),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["comm-feedback"] });
       void qc.invalidateQueries({ queryKey: ["comm-feedback-stats"] });
@@ -965,7 +1262,7 @@ function FeedbackTab() {
           <Button
             leftSection={<IconPlus size={16} />}
             onClick={() => {
-              setForm({});
+              setForm(emptyFeedbackForm);
               open();
             }}
           >
@@ -1033,8 +1330,9 @@ function FeedbackTab() {
           />
           <Button
             onClick={() => {
-              if (!form.feedback_type) return;
-              createMut.mutate(form);
+              const payload = feedbackPayload(form);
+              if (!payload) return;
+              createMut.mutate(payload);
             }}
             loading={createMut.isPending}
           >
@@ -1050,16 +1348,15 @@ function FeedbackTab() {
 function ConfigTab() {
   const qc = useQueryClient();
   const [opened, { open, close }] = useDisclosure(false);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [form, setForm] = useState<any>({});
+  const [form, setForm] = useState<TemplateForm>(emptyTemplateForm);
 
   const { data = [], isLoading } = useQuery({
     queryKey: ["comm-templates"],
-    queryFn: () => api.listCommTemplates(),
+    queryFn: () => communicationsService.listCommTemplates(),
   });
 
   const createMut = useMutation({
-    mutationFn: (d: any) => api.createCommTemplate(d),
+    mutationFn: (d: CreateCommTemplateRequest) => communicationsService.createCommTemplate(d),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["comm-templates"] });
       close();
@@ -1122,7 +1419,7 @@ function ConfigTab() {
         <Button
           leftSection={<IconPlus size={16} />}
           onClick={() => {
-            setForm({});
+            setForm(emptyTemplateForm);
             open();
           }}
         >
@@ -1181,15 +1478,9 @@ function ConfigTab() {
           />
           <Button
             onClick={() => {
-              if (
-                !form.template_name ||
-                !form.template_code ||
-                !form.channel ||
-                !form.template_type ||
-                !form.body_template
-              )
-                return;
-              createMut.mutate(form);
+              const payload = templatePayload(form);
+              if (!payload) return;
+              createMut.mutate(payload);
             }}
             loading={createMut.isPending}
           >
@@ -1273,11 +1564,11 @@ function DltTab() {
 
   const { data: rows = [], isLoading } = useQuery({
     queryKey: ["dlt-templates"],
-    queryFn: () => api.listDltTemplates(),
+    queryFn: () => communicationsService.listDltTemplates(),
   });
 
   const createMut = useMutation({
-    mutationFn: (data: CreateDltTemplateRequest) => api.createDltTemplate(data),
+    mutationFn: (data: CreateDltTemplateRequest) => communicationsService.createDltTemplate(data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["dlt-templates"] });
       close();
@@ -1288,12 +1579,12 @@ function DltTab() {
 
   const toggleMut = useMutation({
     mutationFn: ({ id, is_active }: { id: string; is_active: boolean }) =>
-      api.updateDltTemplate(id, { is_active }),
+      communicationsService.updateDltTemplate(id, { is_active }),
     onSuccess: () => void qc.invalidateQueries({ queryKey: ["dlt-templates"] }),
   });
 
   const deleteMut = useMutation({
-    mutationFn: (id: string) => api.deleteDltTemplate(id),
+    mutationFn: (id: string) => communicationsService.deleteDltTemplate(id),
     onSuccess: () => void qc.invalidateQueries({ queryKey: ["dlt-templates"] }),
   });
 
@@ -1520,7 +1811,11 @@ function DltTab() {
                 !form.sender_id ||
                 !form.entity_id
               }
-              onClick={() => createMut.mutate(form as CreateDltTemplateRequest)}
+              onClick={() => {
+                const payload = dltPayload(form);
+                if (!payload) return;
+                createMut.mutate(payload);
+              }}
             >
               Register
             </Button>

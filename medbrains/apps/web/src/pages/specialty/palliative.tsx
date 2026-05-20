@@ -13,7 +13,6 @@ import {
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
 import { useHasPermission } from "@medbrains/stores";
 import type {
   CreateDnrOrderRequest,
@@ -32,6 +31,7 @@ import { DataTable, PageHeader } from "../../components";
 import type { Column } from "../../components/DataTable";
 import { PatientNameCell } from "../../components/PatientNameCell";
 import { useRequirePermission } from "../../hooks/useRequirePermission";
+import { specialtyService } from "../../services/specialty.service";
 
 const DNR_COLORS: Record<string, string> = {
   active: "danger",
@@ -63,19 +63,19 @@ export function PalliativePage() {
 
   const { data: dnrOrders = [], isLoading: dnrLoading } = useQuery({
     queryKey: ["dnr-orders"],
-    queryFn: () => api.listDnrOrders(),
+    queryFn: () => specialtyService.listDnrOrders(),
   });
   const { data: painRecords = [] } = useQuery({
     queryKey: ["pain-assessments"],
-    queryFn: () => api.listPainAssessments(),
+    queryFn: () => specialtyService.listPainAssessments(),
   });
   const { data: mortuaryRecords = [] } = useQuery({
     queryKey: ["mortuary-records"],
-    queryFn: () => api.listMortuaryRecords(),
+    queryFn: () => specialtyService.listMortuaryRecords(),
   });
   const { data: nucSources = [] } = useQuery({
     queryKey: ["nuclear-sources"],
-    queryFn: () => api.listNuclearSources(),
+    queryFn: () => specialtyService.listNuclearSources(),
   });
 
   const [dnrForm, setDnrForm] = useState<CreateDnrOrderRequest>({ patient_id: "" });
@@ -89,7 +89,7 @@ export function PalliativePage() {
   });
 
   const createDnr = useMutation({
-    mutationFn: (data: CreateDnrOrderRequest) => api.createDnrOrder(data),
+    mutationFn: (data: CreateDnrOrderRequest) => specialtyService.createDnrOrder(data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["dnr-orders"] });
       dnrHandlers.close();
@@ -102,7 +102,7 @@ export function PalliativePage() {
   });
 
   const revokeDnr = useMutation({
-    mutationFn: (id: string) => api.revokeDnrOrder(id),
+    mutationFn: (id: string) => specialtyService.revokeDnrOrder(id),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["dnr-orders"] });
       notifications.show({ title: "Revoked", message: "DNR order revoked", color: "warning" });
@@ -110,7 +110,7 @@ export function PalliativePage() {
   });
 
   const createPain = useMutation({
-    mutationFn: (data: CreatePainAssessmentRequest) => api.createPainAssessment(data),
+    mutationFn: (data: CreatePainAssessmentRequest) => specialtyService.createPainAssessment(data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["pain-assessments"] });
       painHandlers.close();
@@ -123,7 +123,7 @@ export function PalliativePage() {
   });
 
   const createMort = useMutation({
-    mutationFn: (data: CreateMortuaryRecordRequest) => api.createMortuaryRecord(data),
+    mutationFn: (data: CreateMortuaryRecordRequest) => specialtyService.createMortuaryRecord(data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["mortuary-records"] });
       mortuaryHandlers.close();

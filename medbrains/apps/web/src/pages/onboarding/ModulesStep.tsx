@@ -1,9 +1,9 @@
 import { Badge, Button, Stack, Switch, Text, Title } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
 import { useOnboardingStore } from "@medbrains/stores";
 import { IconCheck, IconDatabase } from "@tabler/icons-react";
 import { useState } from "react";
+import { onboardingService } from "../../services/onboarding.service";
 import classes from "./onboarding.module.scss";
 
 interface Props {
@@ -173,7 +173,7 @@ export function ModulesStep({ onNext, onBack }: Props) {
   const handleSeedMasters = async (moduleCode: string) => {
     setSeeding(moduleCode);
     try {
-      const result = await api.seedModuleMasters({ module_code: moduleCode });
+      const result = await onboardingService.seedModuleMasters({ module_code: moduleCode });
       if (result.seeded.length > 0) {
         setSeeded((prev) => new Set([...prev, moduleCode]));
         notifications.show({

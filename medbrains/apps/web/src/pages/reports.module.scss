@@ -1,0 +1,86 @@
+.layout {
+  display: grid;
+  grid-template-columns: minmax(230px, 280px) minmax(0, 1fr);
+  gap: var(--mantine-spacing-md);
+  align-items: start;
+}
+
+.sidebar {
+  position: sticky;
+  top: calc(var(--app-shell-header-height, 72px) + var(--mantine-spacing-md));
+  max-height: calc(100dvh - var(--app-shell-header-height, 72px) - (var(--mantine-spacing-md) * 2));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+.navCard {
+  border-color: light-dark(var(--mantine-color-gray-3), var(--mantine-color-dark-4));
+  background:
+    linear-gradient(180deg, light-dark(#ffffff, var(--mantine-color-dark-7)), light-dark(#f7f9fc, var(--mantine-color-dark-8)));
+}
+
+.familyButton {
+  width: 100%;
+  border-radius: var(--mantine-radius-md);
+}
+
+.familyButtonActive {
+  background: linear-gradient(135deg, var(--mantine-color-teal-0), var(--mantine-color-blue-0));
+  border: 1px solid var(--mantine-color-teal-2);
+}
+
+.searchPanel {
+  border-color: light-dark(var(--mantine-color-blue-2), var(--mantine-color-dark-4));
+  background:
+    linear-gradient(135deg, light-dark(#ffffff, var(--mantine-color-dark-7)), light-dark(#f8fbff, var(--mantine-color-dark-8)));
+}
+
+.searchInput {
+  flex: 1 1 520px;
+  min-width: min(100%, 280px);
+}
+
+.fullWidth {
+  grid-column: 1 / -1;
+}
+
+.dashboardPanel {
+  overflow: hidden;
+  border-color: light-dark(var(--mantine-color-blue-2), var(--mantine-color-dark-4));
+  background:
+    radial-gradient(circle at top left, light-dark(rgba(18, 184, 134, 0.14), rgba(18, 184, 134, 0.12)), transparent 34%),
+    linear-gradient(135deg, light-dark(#f8fbff, var(--mantine-color-dark-7)), light-dark(#ffffff, var(--mantine-color-dark-8)));
+}
+
+.reportCard {
+  height: 100%;
+  transition:
+    transform 140ms ease,
+    box-shadow 140ms ease,
+    border-color 140ms ease;
+}
+
+.reportCard:hover {
+  transform: translateY(-2px);
+  border-color: var(--mantine-color-blue-3);
+  box-shadow: var(--mantine-shadow-sm);
+}
+
+.detectorCard {
+  height: 100%;
+  background:
+    linear-gradient(135deg, light-dark(rgba(255, 236, 153, 0.5), rgba(230, 119, 0, 0.12)), transparent),
+    light-dark(#ffffff, var(--mantine-color-dark-7));
+}
+
+@media (max-width: 900px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+
+  .sidebar {
+    position: static;
+    max-height: 42dvh;
+  }
+}

@@ -1,10 +1,22 @@
+import { zodResolver } from "@hookform/resolvers/zod";
 import { Button, Checkbox, Group, MultiSelect, Select, Stack, TextInput } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
+import type {
+  MiniAddVendorFormInput,
+  SupplyCategoryFormValue,
+  VendorTypeFormValue,
+} from "@medbrains/schemas";
+import {
+  miniAddVendorFormSchema,
+  toSupplyCategoryFormValues,
+  toVendorTypeFormValue,
+} from "@medbrains/schemas";
 import type { Vendor } from "@medbrains/types";
 import { IconCheck, IconTruck } from "@tabler/icons-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
+import { Controller, useForm } from "react-hook-form";
+import { procurementService } from "../../services/procurement.service";
 
 interface MiniAddVendorProps {
   searchText: string;
@@ -12,7 +24,7 @@ interface MiniAddVendorProps {
   onCancel: () => void;
 }
 
-const supplyCategories = [
+const supplyCategories: Array<{ value: SupplyCategoryFormValue; label: string }> = [
   { value: "pharmacy", label: "Pharmacy" },
   { value: "surgical", label: "Surgical" },
   { value: "lab", label: "Laboratory" },
@@ -21,6 +33,13 @@ const supplyCategories = [
   { value: "dietary", label: "Dietary / F&B" },
   { value: "it", label: "IT equipment" },
   { value: "housekeeping", label: "Housekeeping" },
+];
+
+const VENDOR_TYPE_OPTIONS: Array<{ value: VendorTypeFormValue; label: string }> = [
+  { value: "supplier", label: "Supplier" },
+  { value: "manufacturer", label: "Manufacturer" },
+  { value: "distributor", label: "Distributor" },
+  { value: "importer", label: "Importer" },
 ];
 
 function inferName(searchText: string): string {
@@ -43,32 +62,54 @@ function errorMessage(error: unknown): string {
 export function MiniAddVendor({ searchText, onCreated, onCancel }: MiniAddVendorProps) {
   const initialName = useMemo(() => inferName(searchText), [searchText]);
   const queryClient = useQueryClient();
-  const [name, setName] = useState(initialName);
-  const [code, setCode] = useState(() => inferCode(initialName));
-  const [vendorType, setVendorType] = useState("supplier");
-  const [contactPerson, setContactPerson] = useState("");
-  const [phone, setPhone] = useState("");
-  const [email, setEmail] = useState("");
-  const [gstNumber, setGstNumber] = useState("");
-  const [categories, setCategories] = useState<string[]>([]);
-  const [isPharmacyVendor, setIsPharmacyVendor] = useState(false);
-  const [drugLicenseNumber, setDrugLicenseNumber] = useState("");
+  const {
+    control,
+    getValues,
+    handleSubmit,
+    setValue,
+    trigger,
+    watch,
+    formState: { errors },
+  } = useForm<MiniAddVendorFormInput>({
+    resolver: zodResolver(miniAddVendorFormSchema),
+    defaultValues: {
+      name: initialName,
+      code: inferCode(initialName),
+      vendor_type: "supplier",
+      contact_person: "",
+      phone: "",
+      email: "",
+      gst_number: "",
+      supply_categories: [],
+      is_pharmacy_vendor: false,
+      drug_license_number: "",
+    },
+    mode: "onTouched",
+  });
 
-  const requiresDrugLicense = isPharmacyVendor || categories.includes("pharmacy");
+  const values = watch();
+  const requiresDrugLicense =
+    values.is_pharmacy_vendor || values.supply_categories.includes("pharmacy");
 
   const mutation = useMutation({
-    mutationFn: () =>
-      api.createVendor({
-        code: code.trim(),
-        name: name.trim(),
-        vendor_type: vendorType,
-        contact_person: contactPerson.trim() || undefined,
-        phone: phone.trim() || undefined,
-        email: email.trim() || undefined,
-        gst_number: gstNumber.trim() || undefined,
-        supply_categories: categories.length > 0 ? categories : undefined,
-        is_pharmacy_vendor: isPharmacyVendor || undefined,
-        drug_license_number: drugLicenseNumber.trim() || undefined,
+    mutationFn: (formValues: MiniAddVendorFormInput) =>
+      procurementService.createVendor({
+        code: formValues.code.trim(),
+        name: formValues.name.trim(),
+        vendor_type: formValues.vendor_type,
+        contact_person: formValues.contact_person.trim() || undefined,
+        phone: formValues.phone.trim() || undefined,
+        email: formValues.email.trim() || undefined,
+        gst_number: formValues.gst_number.trim() || undefined,
+        categories:
+          formValues.supply_categories.length > 0 ? formValues.supply_categories : undefined,
+        supply_categories:
+          formValues.supply_categories.length > 0 ? formValues.supply_categories : undefined,
+        is_pharmacy_vendor:
+          formValues.is_pharmacy_vendor || formValues.supply_categories.includes("pharmacy")
+            ? true
+            : undefined,
+        drug_license_number: formValues.drug_license_number.trim() || undefined,
       }),
     onSuccess: (vendor) => {
       void queryClient.invalidateQueries({ queryKey: ["vendors"] });
@@ -91,88 +132,138 @@ export function MiniAddVendor({ searchText, onCreated, onCancel }: MiniAddVendor
   });
 
   const canSubmit =
-    name.trim().length >= 2 &&
-    code.trim().length >= 2 &&
-    (!requiresDrugLicense || drugLicenseNumber.trim().length > 0);
+    values.name.trim().length >= 2 &&
+    values.code.trim().length >= 2 &&
+    (!requiresDrugLicense || values.drug_license_number.trim().length > 0);
+  const submitVendor = handleSubmit((formValues) => mutation.mutate(formValues));
 
   return (
     <Stack gap="sm">
-      <TextInput
-        label="Vendor name"
-        required
-        value={name}
-        onChange={(event) => {
-          const next = event.currentTarget.value;
-          setName(next);
-          if (!code || code === inferCode(name)) {
-            setCode(inferCode(next));
-          }
-        }}
+      <Controller
+        control={control}
+        name="name"
+        render={({ field }) => (
+          <TextInput
+            label="Vendor name"
+            required
+            value={field.value}
+            onChange={(event) => {
+              const next = event.currentTarget.value;
+              const currentCode = getValues("code");
+              if (!currentCode || currentCode === inferCode(field.value)) {
+                setValue("code", inferCode(next), { shouldValidate: true });
+                void trigger("code");
+              }
+              field.onChange(next);
+            }}
+            error={errors.name?.message}
+          />
+        )}
       />
       <Group grow align="flex-start">
-        <TextInput
-          label="Code"
-          required
-          value={code}
-          onChange={(event) => setCode(event.currentTarget.value.toUpperCase())}
+        <Controller
+          control={control}
+          name="code"
+          render={({ field }) => (
+            <TextInput
+              label="Code"
+              required
+              value={field.value}
+              onChange={(event) => field.onChange(event.currentTarget.value.toUpperCase())}
+              error={errors.code?.message}
+            />
+          )}
         />
-        <Select
-          allowDeselect={false}
-          data={[
-            { value: "supplier", label: "Supplier" },
-            { value: "manufacturer", label: "Manufacturer" },
-            { value: "distributor", label: "Distributor" },
-            { value: "importer", label: "Importer" },
-          ]}
-          label="Type"
-          value={vendorType}
-          onChange={(value) => setVendorType(value ?? "supplier")}
-        />
-      </Group>
-      <Group grow align="flex-start">
-        <TextInput
-          label="Contact person"
-          value={contactPerson}
-          onChange={(event) => setContactPerson(event.currentTarget.value)}
-        />
-        <TextInput
-          label="Phone"
-          value={phone}
-          onChange={(event) => setPhone(event.currentTarget.value)}
+        <Controller
+          control={control}
+          name="vendor_type"
+          render={({ field }) => (
+            <Select
+              allowDeselect={false}
+              data={VENDOR_TYPE_OPTIONS}
+              label="Type"
+              value={field.value}
+              onChange={(value) => field.onChange(toVendorTypeFormValue(value))}
+            />
+          )}
         />
       </Group>
       <Group grow align="flex-start">
-        <TextInput
-          label="Email"
-          type="email"
-          value={email}
-          onChange={(event) => setEmail(event.currentTarget.value)}
+        <Controller
+          control={control}
+          name="contact_person"
+          render={({ field }) => (
+            <TextInput label="Contact person" value={field.value} onChange={field.onChange} />
+          )}
         />
-        <TextInput
-          label="GST number"
-          value={gstNumber}
-          onChange={(event) => setGstNumber(event.currentTarget.value)}
+        <Controller
+          control={control}
+          name="phone"
+          render={({ field }) => (
+            <TextInput label="Phone" value={field.value} onChange={field.onChange} />
+          )}
         />
       </Group>
-      <MultiSelect
-        clearable
-        data={supplyCategories}
-        label="Supply categories"
-        searchable
-        value={categories}
-        onChange={setCategories}
+      <Group grow align="flex-start">
+        <Controller
+          control={control}
+          name="email"
+          render={({ field }) => (
+            <TextInput label="Email" type="email" value={field.value} onChange={field.onChange} />
+          )}
+        />
+        <Controller
+          control={control}
+          name="gst_number"
+          render={({ field }) => (
+            <TextInput label="GST number" value={field.value} onChange={field.onChange} />
+          )}
+        />
+      </Group>
+      <Controller
+        control={control}
+        name="supply_categories"
+        render={({ field }) => (
+          <MultiSelect
+            clearable
+            data={supplyCategories}
+            label="Supply categories"
+            searchable
+            value={field.value}
+            onChange={(nextValues) => {
+              field.onChange(toSupplyCategoryFormValues(nextValues));
+              void trigger("drug_license_number");
+            }}
+          />
+        )}
       />
-      <Checkbox
-        checked={isPharmacyVendor}
-        label="Pharmacy vendor"
-        onChange={(event) => setIsPharmacyVendor(event.currentTarget.checked)}
+      <Controller
+        control={control}
+        name="is_pharmacy_vendor"
+        render={({ field }) => (
+          <Checkbox
+            checked={field.value}
+            label="Pharmacy vendor"
+            onChange={(event) => {
+              field.onChange(event.currentTarget.checked);
+              void trigger("drug_license_number");
+            }}
+          />
+        )}
       />
       {requiresDrugLicense && (
-        <TextInput
-          label="Drug license number"
-          required
-          value={drugLicenseNumber}
-          onChange={(event) => setDrugLicenseNumber(event.currentTarget.value)}
+        <Controller
+          control={control}
+          name="drug_license_number"
+          render={({ field }) => (
+            <TextInput
+              label="Drug license number"
+              required
+              value={field.value}
+              onChange={field.onChange}
+              error={errors.drug_license_number?.message}
+            />
+          )}
         />
       )}
       <Group justify="flex-end">
@@ -183,7 +274,7 @@ export function MiniAddVendor({ searchText, onCreated, onCancel }: MiniAddVendor
           leftSection={<IconTruck size={16} />}
           loading={mutation.isPending}
           disabled={!canSubmit}
-          onClick={() => mutation.mutate()}
+          onClick={() => void submitVendor()}
         >
           Add & select
         </Button>

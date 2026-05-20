@@ -1,12 +1,12 @@
 import { AreaChart } from "@mantine/charts";
 import { Card, Group, SimpleGrid, Stack, Text } from "@mantine/core";
 import { DateInput } from "@mantine/dates";
-import { api } from "@medbrains/api";
 import type { IpdCensusRow } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { DataTable } from "../../components";
 import type { Column } from "../../components/DataTable";
+import { analyticsService } from "../../services/analytics.service";
 
 // ── Helpers ──────────────────────────────────────────────
 
@@ -26,9 +26,9 @@ export function IpdCensusTab() {
 
   const params = useMemo(() => ({ from: toIso(from), to: toIso(to) }), [from, to]);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading } = useQuery<IpdCensusRow[]>({
     queryKey: ["analytics", "ipd-census", params],
-    queryFn: () => api.getIpdCensus(params),
+    queryFn: () => analyticsService.getIpdCensus(params),
   });
 
   const rows = toRows(data);

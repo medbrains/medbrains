@@ -1,3 +1,4 @@
+import { zodResolver } from "@hookform/resolvers/zod";
 import {
   ActionIcon,
   Badge,
@@ -18,7 +19,8 @@ import {
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
+import type { RadiologyAppointmentFormInput, RadiologyOrderFormInput } from "@medbrains/schemas";
+import { radiologyAppointmentFormSchema, radiologyOrderFormSchema } from "@medbrains/schemas";
 import { useHasPermission } from "@medbrains/stores";
 import type {
   CreateRadiologyAppointmentRequest,
@@ -39,6 +41,7 @@ import {
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { Controller, useForm } from "react-hook-form";
 import {
   ClinicalEventProvider,
   DataTable,
@@ -49,7 +52,9 @@ import {
 import { PatientContextBanner } from "../components/Patient/PatientContextBanner";
 import { PatientNameCell } from "../components/PatientNameCell";
 import { PatientSearchSelect } from "../components/PatientSearchSelect";
+import { radiologyOptionalText, radiologyPriorityOptions } from "../forms/radiology.form";
 import { useRequirePermission } from "../hooks/useRequirePermission";
+import { radiologyService } from "../services/radiology.service";
 
 const statusColors: Record<string, string> = {
   ordered: "primary",
@@ -134,12 +139,12 @@ function RadiologyOrdersTab() {
 
   const { data, isLoading } = useQuery({
     queryKey: ["radiology-orders", params],
-    queryFn: () => api.listRadiologyOrders(params),
+    queryFn: () => radiologyService.listRadiologyOrders(params),
   });
 
   const cancelMutation = useMutation({
     mutationFn: (id: string) =>
-      api.cancelRadiologyOrder(id, { cancellation_reason: "Cancelled by user" }),
+      radiologyService.cancelRadiologyOrder(id, { cancellation_reason: "Cancelled by user" }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["radiology-orders"] });
       notifications.show({ title: "Order cancelled", message: "", color: "danger" });
@@ -148,7 +153,7 @@ function RadiologyOrdersTab() {
 
   const statusTransitionMutation = useMutation({
     mutationFn: ({ id, status }: { id: string; status: string }) =>
-      api.updateRadiologyOrderStatus(id, status),
+      radiologyService.updateRadiologyOrderStatus(id, status),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["radiology-orders"] });
     },
@@ -329,24 +334,40 @@ function CreateOrderDrawer({ opened, onClose }: { opened: boolean; onClose: () =
 
   const { data: modalities } = useQuery({
     queryKey: ["radiology-modalities"],
-    queryFn: () => api.listRadiologyModalities(),
+    queryFn: () => radiologyService.listRadiologyModalities(),
   });
 
-  const [form, setForm] = useState<Partial<CreateRadiologyOrderRequest>>({});
-  const [contrast, setContrast] = useState(false);
-  const [pregnancyChecked, setPregnancyChecked] = useState(false);
-  const [allergyFlagged, setAllergyFlagged] = useState(false);
+  const orderDefaults: RadiologyOrderFormInput = {
+    patient_id: "",
+    modality_id: "",
+    body_part: "",
+    clinical_indication: "",
+    priority: "routine",
+    contrast_required: false,
+    pregnancy_checked: false,
+    allergy_flagged: false,
+    notes: "",
+  };
+  const {
+    control,
+    register,
+    reset,
+    handleSubmit,
+    watch,
+    formState: { errors },
+  } = useForm<RadiologyOrderFormInput>({
+    resolver: zodResolver(radiologyOrderFormSchema),
+    defaultValues: orderDefaults,
+  });
+  const patientId = watch("patient_id");
 
   const createMutation = useMutation({
-    mutationFn: (data: CreateRadiologyOrderRequest) => api.createRadiologyOrder(data),
+    mutationFn: (data: CreateRadiologyOrderRequest) => radiologyService.createRadiologyOrder(data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["radiology-orders"] });
       notifications.show({ title: "Order created", message: "", color: "success" });
       emit("radiology.order.created", {});
-      setForm({});
-      setContrast(false);
-      setPregnancyChecked(false);
-      setAllergyFlagged(false);
+      reset(orderDefaults);
       onClose();
     },
   });
@@ -354,6 +375,20 @@ function CreateOrderDrawer({ opened, onClose }: { opened: boolean; onClose: () =
   const modalityOptions = (modalities ?? [])
     .filter((m: RadiologyModality) => m.is_active)
     .map((m: RadiologyModality) => ({ value: m.id, label: `${m.code} — ${m.name}` }));
+
+  const handleCreateOrder = (values: RadiologyOrderFormInput) => {
+    createMutation.mutate({
+      patient_id: values.patient_id.trim(),
+      modality_id: values.modality_id.trim(),
+      body_part: radiologyOptionalText(values.body_part),
+      clinical_indication: radiologyOptionalText(values.clinical_indication),
+      priority: values.priority,
+      notes: radiologyOptionalText(values.notes),
+      contrast_required: values.contrast_required,
+      pregnancy_checked: values.pregnancy_checked,
+      allergy_flagged: values.allergy_flagged,
+    });
+  };
 
   return (
     <Drawer
@@ -363,78 +398,92 @@ function CreateOrderDrawer({ opened, onClose }: { opened: boolean; onClose: () =
       position="right"
       size="xl"
     >
-      <Stack>
-        <PatientSearchSelect
-          value={form.patient_id ?? ""}
-          onChange={(v) => setForm({ ...form, patient_id: v })}
-          required
+      <Stack component="form" onSubmit={handleSubmit(handleCreateOrder)}>
+        <Controller
+          control={control}
+          name="patient_id"
+          render={({ field }) => (
+            <PatientSearchSelect
+              value={field.value}
+              onChange={field.onChange}
+              error={errors.patient_id?.message}
+              required
+            />
+          )}
         />
-        <PatientContextBanner patientId={form.patient_id} hideLoadingState />
-        <Select
-          label="Modality"
-          required
-          data={modalityOptions}
-          value={form.modality_id ?? null}
-          onChange={(v) => setForm({ ...form, modality_id: v ?? undefined })}
-          searchable
+        <PatientContextBanner patientId={patientId} hideLoadingState />
+        <Controller
+          control={control}
+          name="modality_id"
+          render={({ field }) => (
+            <Select
+              label="Modality"
+              required
+              data={modalityOptions}
+              value={field.value || null}
+              onChange={(value) => field.onChange(value ?? "")}
+              error={errors.modality_id?.message}
+              searchable
+            />
+          )}
         />
-        <TextInput
-          label="Body Part"
-          value={form.body_part ?? ""}
-          onChange={(e) => setForm({ ...form, body_part: e.currentTarget.value })}
-        />
+        <TextInput label="Body Part" error={errors.body_part?.message} {...register("body_part")} />
         <Textarea
           label="Clinical Indication"
-          value={form.clinical_indication ?? ""}
-          onChange={(e) => setForm({ ...form, clinical_indication: e.currentTarget.value })}
+          error={errors.clinical_indication?.message}
+          {...register("clinical_indication")}
         />
-        <Select
-          label="Priority"
-          data={[
-            { value: "routine", label: "Routine" },
-            { value: "urgent", label: "Urgent" },
-            { value: "stat", label: "STAT" },
-          ]}
-          value={form.priority ?? "routine"}
-          onChange={(v) => setForm({ ...form, priority: v ?? "routine" })}
+        <Controller
+          control={control}
+          name="priority"
+          render={({ field }) => (
+            <Select
+              label="Priority"
+              data={radiologyPriorityOptions}
+              value={field.value}
+              onChange={(value) => field.onChange(value ?? "routine")}
+              error={errors.priority?.message}
+            />
+          )}
         />
-        <Switch
-          label="Contrast Required"
-          checked={contrast}
-          onChange={(e) => setContrast(e.currentTarget.checked)}
+        <Controller
+          control={control}
+          name="contrast_required"
+          render={({ field }) => (
+            <Switch
+              label="Contrast Required"
+              checked={field.value}
+              onChange={(event) => field.onChange(event.currentTarget.checked)}
+              error={errors.contrast_required?.message}
+            />
+          )}
         />
-        <Checkbox
-          label="Pregnancy Verified"
-          checked={pregnancyChecked}
-          onChange={(e) => setPregnancyChecked(e.currentTarget.checked)}
+        <Controller
+          control={control}
+          name="pregnancy_checked"
+          render={({ field }) => (
+            <Checkbox
+              label="Pregnancy Verified"
+              checked={field.value}
+              onChange={(event) => field.onChange(event.currentTarget.checked)}
+              error={errors.pregnancy_checked?.message}
+            />
+          )}
         />
-        <Checkbox
-          label="Allergy Flagged"
-          checked={allergyFlagged}
-          onChange={(e) => setAllergyFlagged(e.currentTarget.checked)}
+        <Controller
+          control={control}
+          name="allergy_flagged"
+          render={({ field }) => (
+            <Checkbox
+              label="Allergy Flagged"
+              checked={field.value}
+              onChange={(event) => field.onChange(event.currentTarget.checked)}
+              error={errors.allergy_flagged?.message}
+            />
+          )}
         />
-        <Textarea
-          label="Notes"
-          value={form.notes ?? ""}
-          onChange={(e) => setForm({ ...form, notes: e.currentTarget.value })}
-        />
-        <Button
-          onClick={() => {
-            if (!form.patient_id || !form.modality_id) return;
-            createMutation.mutate({
-              patient_id: form.patient_id,
-              modality_id: form.modality_id,
-              body_part: form.body_part,
-              clinical_indication: form.clinical_indication,
-              priority: form.priority,
-              notes: form.notes,
-              contrast_required: contrast,
-              pregnancy_checked: pregnancyChecked,
-              allergy_flagged: allergyFlagged,
-            });
-          }}
-          loading={createMutation.isPending}
-        >
+        <Textarea label="Notes" error={errors.notes?.message} {...register("notes")} />
+        <Button type="submit" loading={createMutation.isPending}>
           Create Order
         </Button>
       </Stack>
@@ -462,7 +511,7 @@ function OrderDetailDrawer({
 
   const { data } = useQuery({
     queryKey: ["radiology-order", id],
-    queryFn: () => api.getRadiologyOrder(id),
+    queryFn: () => radiologyService.getRadiologyOrder(id),
   });
 
   const [reportTab, setReportTab] = useState<string | null>("details");
@@ -473,7 +522,7 @@ function OrderDetailDrawer({
 
   const reportMutation = useMutation({
     mutationFn: () =>
-      api.createRadiologyReport(id, {
+      radiologyService.createRadiologyReport(id, {
         findings,
         impression: impression || undefined,
         recommendations: recommendations || undefined,
@@ -493,7 +542,7 @@ function OrderDetailDrawer({
   });
 
   const verifyMutation = useMutation({
-    mutationFn: (reportId: string) => api.verifyRadiologyReport(reportId),
+    mutationFn: (reportId: string) => radiologyService.verifyRadiologyReport(reportId),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["radiology-order", id] });
       void qc.invalidateQueries({ queryKey: ["radiology-orders"] });
@@ -682,31 +731,35 @@ function OrderDetailDrawer({
 function ModalitiesTab() {
   const canManage = useHasPermission(P.RADIOLOGY.MODALITIES_MANAGE);
   const qc = useQueryClient();
-  const [showForm, setShowForm] = useState(false);
+  const [formOpened, formHandlers] = useDisclosure(false);
   const [code, setCode] = useState("");
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
 
   const { data: modalities, isLoading } = useQuery({
     queryKey: ["radiology-modalities"],
-    queryFn: () => api.listRadiologyModalities(),
+    queryFn: () => radiologyService.listRadiologyModalities(),
   });
 
   const createMutation = useMutation({
     mutationFn: () =>
-      api.createRadiologyModality({ code, name, description: description || undefined }),
+      radiologyService.createRadiologyModality({
+        code,
+        name,
+        description: description || undefined,
+      }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["radiology-modalities"] });
       notifications.show({ title: "Modality created", message: "", color: "success" });
       setCode("");
       setName("");
       setDescription("");
-      setShowForm(false);
+      formHandlers.close();
     },
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => api.deleteRadiologyModality(id),
+    mutationFn: (id: string) => radiologyService.deleteRadiologyModality(id),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["radiology-modalities"] });
       notifications.show({ title: "Modality deleted", message: "", color: "danger" });
@@ -720,18 +773,14 @@ function ModalitiesTab() {
         subtitle="Master list of imaging types"
         actions={
           canManage ? (
-            <Button
-              leftSection={<IconPlus size={16} />}
-              size="xs"
-              onClick={() => setShowForm(true)}
-            >
+            <Button leftSection={<IconPlus size={16} />} size="xs" onClick={formHandlers.open}>
               Add Modality
             </Button>
           ) : undefined
         }
       />
 
-      {showForm && (
+      {formOpened && (
         <Stack
           mb="md"
           p="md"
@@ -766,7 +815,7 @@ function ModalitiesTab() {
             >
               Save
             </Button>
-            <Button variant="subtle" onClick={() => setShowForm(false)}>
+            <Button variant="subtle" onClick={formHandlers.close}>
               Cancel
             </Button>
           </Group>
@@ -839,22 +888,39 @@ function AppointmentsTab() {
 
   const { data: appointments = [], isLoading } = useQuery({
     queryKey: ["radiology-appointments"],
-    queryFn: () => api.listRadiologyAppointments(),
+    queryFn: () => radiologyService.listRadiologyAppointments(),
   });
 
   const { data: modalities } = useQuery({
     queryKey: ["radiology-modalities"],
-    queryFn: () => api.listRadiologyModalities(),
+    queryFn: () => radiologyService.listRadiologyModalities(),
   });
 
-  const [form, setForm] = useState<Partial<CreateRadiologyAppointmentRequest>>({});
+  const appointmentDefaults: RadiologyAppointmentFormInput = {
+    patient_id: "",
+    modality_id: "",
+    encounter_id: "",
+    priority: "routine",
+    notes: "",
+  };
+  const {
+    control,
+    register,
+    reset,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<RadiologyAppointmentFormInput>({
+    resolver: zodResolver(radiologyAppointmentFormSchema),
+    defaultValues: appointmentDefaults,
+  });
 
   const createMutation = useMutation({
-    mutationFn: (data: CreateRadiologyAppointmentRequest) => api.createRadiologyAppointment(data),
+    mutationFn: (data: CreateRadiologyAppointmentRequest) =>
+      radiologyService.createRadiologyAppointment(data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["radiology-appointments"] });
       notifications.show({ title: "Appointment created", message: "", color: "success" });
-      setForm({});
+      reset(appointmentDefaults);
       createHandlers.close();
     },
   });
@@ -862,6 +928,16 @@ function AppointmentsTab() {
   const modalityOptions = (modalities ?? [])
     .filter((m: RadiologyModality) => m.is_active)
     .map((m: RadiologyModality) => ({ value: m.id, label: `${m.code} — ${m.name}` }));
+
+  const handleCreateAppointment = (values: RadiologyAppointmentFormInput) => {
+    createMutation.mutate({
+      patient_id: values.patient_id.trim(),
+      modality_id: values.modality_id.trim(),
+      encounter_id: values.encounter_id.trim(),
+      priority: values.priority,
+      notes: radiologyOptionalText(values.notes),
+    });
+  };
 
   const columns = [
     {
@@ -939,54 +1015,55 @@ function AppointmentsTab() {
         title="Create Radiology Appointment"
         size="md"
       >
-        <Stack>
-          <PatientSearchSelect
-            value={form.patient_id ?? ""}
-            onChange={(v) => setForm({ ...form, patient_id: v })}
-            required
+        <Stack component="form" onSubmit={handleSubmit(handleCreateAppointment)}>
+          <Controller
+            control={control}
+            name="patient_id"
+            render={({ field }) => (
+              <PatientSearchSelect
+                value={field.value}
+                onChange={field.onChange}
+                error={errors.patient_id?.message}
+                required
+              />
+            )}
           />
-          <Select
-            label="Modality"
-            required
-            data={modalityOptions}
-            value={form.modality_id ?? null}
-            onChange={(v) => setForm({ ...form, modality_id: v ?? undefined })}
-            searchable
+          <Controller
+            control={control}
+            name="modality_id"
+            render={({ field }) => (
+              <Select
+                label="Modality"
+                required
+                data={modalityOptions}
+                value={field.value || null}
+                onChange={(value) => field.onChange(value ?? "")}
+                error={errors.modality_id?.message}
+                searchable
+              />
+            )}
           />
           <TextInput
             label="Encounter ID"
             required
-            value={form.encounter_id ?? ""}
-            onChange={(e) => setForm({ ...form, encounter_id: e.currentTarget.value })}
+            error={errors.encounter_id?.message}
+            {...register("encounter_id")}
           />
-          <Select
-            label="Priority"
-            data={[
-              { value: "routine", label: "Routine" },
-              { value: "urgent", label: "Urgent" },
-              { value: "stat", label: "STAT" },
-            ]}
-            value={form.priority ?? "routine"}
-            onChange={(v) => setForm({ ...form, priority: v ?? "routine" })}
+          <Controller
+            control={control}
+            name="priority"
+            render={({ field }) => (
+              <Select
+                label="Priority"
+                data={radiologyPriorityOptions}
+                value={field.value}
+                onChange={(value) => field.onChange(value ?? "routine")}
+                error={errors.priority?.message}
+              />
+            )}
           />
-          <Textarea
-            label="Notes"
-            value={form.notes ?? ""}
-            onChange={(e) => setForm({ ...form, notes: e.currentTarget.value })}
-          />
-          <Button
-            onClick={() => {
-              if (!form.patient_id || !form.modality_id || !form.encounter_id) return;
-              createMutation.mutate({
-                patient_id: form.patient_id,
-                modality_id: form.modality_id,
-                encounter_id: form.encounter_id,
-                priority: form.priority,
-                notes: form.notes,
-              });
-            }}
-            loading={createMutation.isPending}
-          >
+          <Textarea label="Notes" error={errors.notes?.message} {...register("notes")} />
+          <Button type="submit" loading={createMutation.isPending}>
             Create Appointment
           </Button>
         </Stack>
@@ -1004,7 +1081,8 @@ function DicomStudiesTab() {
 
   const { data: studies = [], isLoading } = useQuery({
     queryKey: ["radiology-dicom-studies", patientId],
-    queryFn: () => api.listRadiologyDicomStudies(patientId ? { patient_id: patientId } : undefined),
+    queryFn: () =>
+      radiologyService.listRadiologyDicomStudies(patientId ? { patient_id: patientId } : undefined),
   });
 
   const columns = [
@@ -1124,7 +1202,7 @@ function DicomStudiesTab() {
 function TatAnalyticsTab() {
   const { data: tatData = [], isLoading } = useQuery({
     queryKey: ["radiology-tat"],
-    queryFn: () => api.getRadiologyTat(),
+    queryFn: () => radiologyService.getRadiologyTat(),
   });
 
   const columns = [

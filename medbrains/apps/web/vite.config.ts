@@ -7,6 +7,7 @@ import path from "path";
 export default defineConfig(async () => {
   const plugins: PluginOption[] = [react(), wasm(), topLevelAwait()];
   const devHttpsDomain = process.env.DEV_HTTPS_DOMAIN ?? "medbrains.localhost";
+  const workspaceRoot = path.resolve(__dirname, "../..");
 
   if (process.env.ANALYZE === "true") {
     const { visualizer } = await import("rollup-plugin-visualizer");
@@ -23,8 +24,11 @@ export default defineConfig(async () => {
   return {
     plugins,
     resolve: {
+      dedupe: ["react", "react-dom", "react-hook-form"],
       alias: {
         "@": path.resolve(__dirname, "./src"),
+        react: path.resolve(workspaceRoot, "node_modules/react"),
+        "react-dom": path.resolve(workspaceRoot, "node_modules/react-dom"),
       },
     },
     css: {

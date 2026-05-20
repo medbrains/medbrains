@@ -6,9 +6,9 @@
 // Steps map 1:1 to the DB columns: each click stamps `<step>_at` and
 // `<step>_by`. Idempotent on the server — re-clicking is harmless.
 import { Badge, Button, Card, Group, Stack, Text } from "@mantine/core";
-import { api } from "@medbrains/api";
 import type { IpdDischargeStep, IpdDischargeWorkflow } from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { ipdService } from "../../services/ipd.service";
 
 const STEPS: { key: IpdDischargeStep; label: string; description: string }[] = [
   {
@@ -73,11 +73,12 @@ export function DischargeWorkflowWizard({ admissionId }: DischargeWorkflowWizard
   const queryClient = useQueryClient();
   const { data: workflow } = useQuery({
     queryKey: ["ipd-discharge-workflow", admissionId],
-    queryFn: () => api.getIpdDischargeWorkflow(admissionId),
+    queryFn: () => ipdService.getIpdDischargeWorkflow(admissionId),
   });
 
   const stepMutation = useMutation({
-    mutationFn: (step: IpdDischargeStep) => api.updateIpdDischargeStep(admissionId, { step }),
+    mutationFn: (step: IpdDischargeStep) =>
+      ipdService.updateIpdDischargeStep(admissionId, { step }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["ipd-discharge-workflow", admissionId] });
     },

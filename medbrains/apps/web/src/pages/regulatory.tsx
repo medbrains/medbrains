@@ -25,7 +25,6 @@ import {
 import { DateInput } from "@mantine/dates";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
 import { useHasPermission } from "@medbrains/stores";
 import type {
   AdrReport,
@@ -44,6 +43,8 @@ import type {
   MateriovigilanceReport,
   NablDocumentSummary,
   PcpndtForm,
+  QualityAccreditationCompliance,
+  QualityAccreditationStandard,
   RegulatorySubmission,
   StaffCredentialSummary,
 } from "@medbrains/types";
@@ -68,6 +69,7 @@ import { DataTable, PageHeader } from "../components";
 import { DoctorSearchSelect } from "../components/DoctorSearchSelect";
 import { PatientSearchSelect } from "../components/PatientSearchSelect";
 import { useRequirePermission } from "../hooks/useRequirePermission";
+import { regulatoryService } from "../services/regulatory.service";
 
 const severityColors: Record<string, string> = {
   mild: "primary",
@@ -179,12 +181,12 @@ function DashboardTab() {
   const [dashboardView, setDashboardView] = useState("overview");
   const { data: dashboard, isLoading } = useQuery<ComplianceDashboard>({
     queryKey: ["regulatory-dashboard"],
-    queryFn: () => api.getRegulatoryDashboard(),
+    queryFn: () => regulatoryService.getRegulatoryDashboard(),
   });
 
   const { data: gaps = [] } = useQuery<ComplianceGap[]>({
     queryKey: ["regulatory-gaps"],
-    queryFn: () => api.getComplianceGaps(),
+    queryFn: () => regulatoryService.getComplianceGaps(),
   });
 
   if (isLoading || !dashboard) {
@@ -400,12 +402,12 @@ function SelfAssessmentView() {
 
   const { data: standards = [], isLoading: standardsLoading } = useQuery({
     queryKey: ["accreditation-standards"],
-    queryFn: () => api.listAccreditationStandards(),
+    queryFn: () => regulatoryService.listAccreditationStandards(),
   });
 
   const { data: compliance = [], isLoading: complianceLoading } = useQuery({
     queryKey: ["accreditation-compliance"],
-    queryFn: () => api.listAccreditationCompliance(),
+    queryFn: () => regulatoryService.listAccreditationCompliance(),
   });
 
   const [scores, setScores] = useState<Record<string, { score: number; notes: string }>>({});
@@ -415,7 +417,7 @@ function SelfAssessmentView() {
       standard_id: string;
       compliance: ComplianceStatusType;
       evidence_summary?: string;
-    }) => api.updateAccreditationCompliance(data),
+    }) => regulatoryService.updateAccreditationCompliance(data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["accreditation-compliance"] });
       void qc.invalidateQueries({ queryKey: ["regulatory-dashboard"] });
@@ -439,9 +441,11 @@ function SelfAssessmentView() {
   const chapterScores = useMemo(() => {
     const byChapter: Record<string, { total: number; sum: number; count: number }> = {};
 
-    standards.forEach((std: any) => {
+    standards.forEach((std: QualityAccreditationStandard) => {
       const chapter = std.chapter || "General";
-      const currentCompliance = compliance.find((c: any) => c.standard_id === std.id);
+      const currentCompliance = compliance.find(
+        (c: QualityAccreditationCompliance) => c.standard_id === std.id,
+      );
       const score =
         scores[std.id]?.score ??
         (currentCompliance ? getScoreFromCompliance(currentCompliance.compliance) : 0);
@@ -495,8 +499,10 @@ function SelfAssessmentView() {
           Standard-wise Self Assessment
         </Text>
         <Stack gap="md">
-          {standards.map((std: any) => {
-            const currentCompliance = compliance.find((c: any) => c.standard_id === std.id);
+          {standards.map((std: QualityAccreditationStandard) => {
+            const currentCompliance = compliance.find(
+              (c: QualityAccreditationCompliance) => c.standard_id === std.id,
+            );
             const currentScore =
               scores[std.id]?.score ??
               (currentCompliance ? getScoreFromCompliance(currentCompliance.compliance) : 0);
@@ -508,7 +514,7 @@ function SelfAssessmentView() {
                 <Group justify="space-between" mb="sm">
                   <div>
                     <Text size="sm" fw={600}>
-                      {std.standard_code}: {std.name}
+                      {std.standard_code}: {std.standard_name}
                     </Text>
                     <Text size="xs" c="dimmed">
                       {std.chapter || "General"}
@@ -608,7 +614,8 @@ function ChecklistsTab() {
 
   const { data: checklists = [], isLoading } = useQuery<ComplianceChecklist[]>({
     queryKey: ["regulatory-checklists", bodyFilter],
-    queryFn: () => api.listChecklists(bodyFilter ? { accreditation_body: bodyFilter } : undefined),
+    queryFn: () =>
+      regulatoryService.listChecklists(bodyFilter ? { accreditation_body: bodyFilter } : undefined),
   });
 
   const [form, setForm] = useState<CreateChecklistRequest>({
@@ -620,7 +627,7 @@ function ChecklistsTab() {
   });
 
   const createMut = useMutation({
-    mutationFn: (data: CreateChecklistRequest) => api.createChecklist(data),
+    mutationFn: (data: CreateChecklistRequest) => regulatoryService.createChecklist(data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["regulatory-checklists"] });
       notifications.show({ title: "Checklist created", message: "", color: "success" });
@@ -747,7 +754,7 @@ function ChecklistListView({
   const qc = useQueryClient();
 
   const autoPopulateMut = useMutation({
-    mutationFn: (id: string) => api.autoPopulateChecklist(id),
+    mutationFn: (id: string) => regulatoryService.autoPopulateChecklist(id),
     onSuccess: (result) => {
       void qc.invalidateQueries({ queryKey: ["regulatory-checklists"] });
       notifications.show({
@@ -1062,12 +1069,14 @@ function AdrTab() {
 
   const { data: adrReports = [], isLoading: adrLoading } = useQuery<AdrReport[]>({
     queryKey: ["regulatory-adr", statusFilter],
-    queryFn: () => api.listAdrReports(statusFilter ? { status: statusFilter } : undefined),
+    queryFn: () =>
+      regulatoryService.listAdrReports(statusFilter ? { status: statusFilter } : undefined),
   });
 
   const { data: mvReports = [], isLoading: mvLoading } = useQuery<MateriovigilanceReport[]>({
     queryKey: ["regulatory-mv", statusFilter],
-    queryFn: () => api.listMvReports(statusFilter ? { status: statusFilter } : undefined),
+    queryFn: () =>
+      regulatoryService.listMvReports(statusFilter ? { status: statusFilter } : undefined),
   });
 
   const [adrForm, setAdrForm] = useState<CreateAdrRequest>({
@@ -1085,7 +1094,7 @@ function AdrTab() {
   });
 
   const createAdrMut = useMutation({
-    mutationFn: (data: CreateAdrRequest) => api.createAdrReport(data),
+    mutationFn: (data: CreateAdrRequest) => regulatoryService.createAdrReport(data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["regulatory-adr"] });
       notifications.show({ title: "ADR Report created", message: "", color: "success" });
@@ -1094,7 +1103,7 @@ function AdrTab() {
   });
 
   const createMvMut = useMutation({
-    mutationFn: (data: CreateMvRequest) => api.createMvReport(data),
+    mutationFn: (data: CreateMvRequest) => regulatoryService.createMvReport(data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["regulatory-mv"] });
       notifications.show({
@@ -1107,7 +1116,7 @@ function AdrTab() {
   });
 
   const submitAdrMut = useMutation({
-    mutationFn: (id: string) => api.submitAdrToPvpi(id),
+    mutationFn: (id: string) => regulatoryService.submitAdrToPvpi(id),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["regulatory-adr"] });
       notifications.show({ title: "Submitted to PvPI", message: "", color: "primary" });
@@ -1115,7 +1124,7 @@ function AdrTab() {
   });
 
   const submitMvMut = useMutation({
-    mutationFn: (id: string) => api.submitMvToCdsco(id),
+    mutationFn: (id: string) => regulatoryService.submitMvToCdsco(id),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["regulatory-mv"] });
       notifications.show({ title: "Submitted to CDSCO", message: "", color: "primary" });
@@ -1465,7 +1474,7 @@ function PcpndtTab() {
 
   const { data: forms = [], isLoading } = useQuery<PcpndtForm[]>({
     queryKey: ["regulatory-pcpndt"],
-    queryFn: () => api.listPcpndtForms(),
+    queryFn: () => regulatoryService.listPcpndtForms(),
   });
 
   const pcpndtStatusColors: Record<string, string> = {
@@ -1483,7 +1492,7 @@ function PcpndtTab() {
   });
 
   const createMut = useMutation({
-    mutationFn: (data: CreatePcpndtRequest) => api.createPcpndtForm(data),
+    mutationFn: (data: CreatePcpndtRequest) => regulatoryService.createPcpndtForm(data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["regulatory-pcpndt"] });
       notifications.show({
@@ -1663,17 +1672,18 @@ function CalendarTab() {
 
   const { data: events = [], isLoading } = useQuery<ComplianceCalendarEvent[]>({
     queryKey: ["regulatory-calendar", statusFilter],
-    queryFn: () => api.listCalendarEvents(statusFilter ? { status: statusFilter } : undefined),
+    queryFn: () =>
+      regulatoryService.listCalendarEvents(statusFilter ? { status: statusFilter } : undefined),
   });
 
   const { data: overdue = [] } = useQuery<ComplianceCalendarEvent[]>({
     queryKey: ["regulatory-calendar-overdue"],
-    queryFn: () => api.getOverdueCalendarEvents(),
+    queryFn: () => regulatoryService.getOverdueCalendarEvents(),
   });
 
   const { data: dashboard } = useQuery<ComplianceDashboard>({
     queryKey: ["regulatory-dashboard"],
-    queryFn: () => api.getRegulatoryDashboard(),
+    queryFn: () => regulatoryService.getRegulatoryDashboard(),
   });
 
   const [form, setForm] = useState<CreateCalendarEventRequest>({
@@ -1683,7 +1693,7 @@ function CalendarTab() {
   });
 
   const createMut = useMutation({
-    mutationFn: (data: CreateCalendarEventRequest) => api.createCalendarEvent(data),
+    mutationFn: (data: CreateCalendarEventRequest) => regulatoryService.createCalendarEvent(data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["regulatory-calendar"] });
       notifications.show({ title: "Calendar event created", message: "", color: "success" });
@@ -1692,7 +1702,7 @@ function CalendarTab() {
   });
 
   const completeMut = useMutation({
-    mutationFn: (id: string) => api.updateCalendarEvent(id, { status: "completed" }),
+    mutationFn: (id: string) => regulatoryService.updateCalendarEvent(id, { status: "completed" }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["regulatory-calendar"] });
       notifications.show({ title: "Marked complete", message: "", color: "success" });
@@ -1810,7 +1820,7 @@ function CalendarListView({
   isLoading: boolean;
   statusFilter: string | null;
   setStatusFilter: (v: string | null) => void;
-  completeMut: any;
+  completeMut: { mutate: (id: string) => void };
   canManage: boolean;
 }) {
   return (
@@ -2220,7 +2230,7 @@ function SubmissionsTab() {
 
   const { data: submissions = [], isLoading } = useQuery({
     queryKey: ["regulatory-submissions"],
-    queryFn: () => api.listRegulatorySubmissions(),
+    queryFn: () => regulatoryService.listRegulatorySubmissions(),
   });
 
   const [form, setForm] = useState<CreateRegulatorySubmissionRequest>({
@@ -2230,7 +2240,8 @@ function SubmissionsTab() {
   });
 
   const createMut = useMutation({
-    mutationFn: (data: CreateRegulatorySubmissionRequest) => api.createRegulatorySubmission(data),
+    mutationFn: (data: CreateRegulatorySubmissionRequest) =>
+      regulatoryService.createRegulatorySubmission(data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["regulatory-submissions"] });
       notifications.show({ title: "Submission recorded", message: "", color: "success" });
@@ -2392,7 +2403,7 @@ function MockSurveysTab() {
 
   const { data: surveys = [], isLoading } = useQuery({
     queryKey: ["regulatory-mock-surveys"],
-    queryFn: () => api.listMockSurveys(),
+    queryFn: () => regulatoryService.listMockSurveys(),
   });
 
   const [form, setForm] = useState<CreateChecklistRequest>({
@@ -2404,7 +2415,7 @@ function MockSurveysTab() {
   });
 
   const createMut = useMutation({
-    mutationFn: (data: CreateChecklistRequest) => api.createMockSurvey(data),
+    mutationFn: (data: CreateChecklistRequest) => regulatoryService.createMockSurvey(data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["regulatory-mock-surveys"] });
       notifications.show({ title: "Mock survey created", message: "", color: "success" });
@@ -2572,7 +2583,7 @@ function MockSurveysTab() {
 function StaffCredentialsTab() {
   const { data: credentials = [], isLoading } = useQuery({
     queryKey: ["regulatory-staff-credentials"],
-    queryFn: () => api.staffCredentials(),
+    queryFn: () => regulatoryService.staffCredentials(),
   });
 
   const credentialStatusColors: Record<string, string> = {
@@ -2671,7 +2682,7 @@ function StaffCredentialsTab() {
 function LicenseDashboardTab() {
   const { data: licenses = [], isLoading } = useQuery({
     queryKey: ["regulatory-license-dashboard"],
-    queryFn: () => api.licenseDashboard(),
+    queryFn: () => regulatoryService.licenseDashboard(),
   });
 
   const renewalStatusColors: Record<string, string> = {
@@ -2829,7 +2840,7 @@ function LicenseDashboardTab() {
 function NablDocumentsTab() {
   const { data: documents = [], isLoading } = useQuery({
     queryKey: ["regulatory-nabl-documents"],
-    queryFn: () => api.nablDocumentTracking(),
+    queryFn: () => regulatoryService.nablDocumentTracking(),
   });
 
   const totalRequired = documents.reduce((sum, d) => sum + d.total_required, 0);

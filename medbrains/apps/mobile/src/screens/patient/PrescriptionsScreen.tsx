@@ -1,4 +1,3 @@
-import { api } from "@medbrains/api";
 import { useAuthStore } from "@medbrains/stores";
 import type { PrescriptionHistoryItem, PrescriptionItem } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
@@ -21,6 +20,7 @@ import {
   useTheme,
 } from "react-native-paper";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { patientService } from "../../services/patient.service";
 
 type FilterType = "recent" | "all";
 
@@ -35,7 +35,7 @@ export function PrescriptionsScreen() {
 
   const { data, isLoading, refetch } = useQuery({
     queryKey: ["patient", "prescriptions", user?.id],
-    queryFn: () => api.listPatientPrescriptions(user?.id || ""),
+    queryFn: () => patientService.listPatientPrescriptions(user?.id || ""),
     enabled: Boolean(user?.id),
   });
 

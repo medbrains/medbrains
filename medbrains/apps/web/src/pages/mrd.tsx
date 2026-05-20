@@ -18,7 +18,6 @@ import {
 import { DateInput } from "@mantine/dates";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
 import { useHasPermission } from "@medbrains/stores";
 import type {
   CreateMrdBirthRequest,
@@ -54,6 +53,7 @@ import { EmployeeSearchSelect } from "../components/EmployeeSearchSelect";
 import { PatientContextBanner } from "../components/Patient/PatientContextBanner";
 import { PatientSearchSelect } from "../components/PatientSearchSelect";
 import { useRequirePermission } from "../hooks/useRequirePermission";
+import { mrdService } from "../services/mrd.service";
 
 // ── Helpers ──────────────────────────────────────────────
 
@@ -159,13 +159,13 @@ function RecordsTab() {
 
   const { data: records = [], isLoading } = useQuery({
     queryKey: ["mrd-records", statusFilter],
-    queryFn: () => api.listMrdRecords({ status: statusFilter ?? undefined }),
+    queryFn: () => mrdService.listMrdRecords({ status: statusFilter ?? undefined }),
   });
 
   // Create
   const [createForm, setCreateForm] = useState<CreateMrdRecordRequest>({ patient_id: "" });
   const createMut = useMutation({
-    mutationFn: (body: CreateMrdRecordRequest) => api.createMrdRecord(body),
+    mutationFn: (body: CreateMrdRecordRequest) => mrdService.createMrdRecord(body),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["mrd-records"] });
       closeCreate();
@@ -176,7 +176,8 @@ function RecordsTab() {
   // Issue
   const [issueForm, setIssueForm] = useState<IssueMrdRecordRequest>({});
   const issueMut = useMutation({
-    mutationFn: (body: IssueMrdRecordRequest) => api.issueMrdRecord(selectedRecord?.id ?? "", body),
+    mutationFn: (body: IssueMrdRecordRequest) =>
+      mrdService.issueMrdRecord(selectedRecord?.id ?? "", body),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["mrd-records"] });
       closeIssue();
@@ -187,12 +188,13 @@ function RecordsTab() {
   // Movements
   const { data: movements = [] } = useQuery({
     queryKey: ["mrd-movements", selectedRecord?.id],
-    queryFn: () => api.listMrdMovements(selectedRecord?.id ?? ""),
+    queryFn: () => mrdService.listMrdMovements(selectedRecord?.id ?? ""),
     enabled: movementsOpen && !!selectedRecord,
   });
 
   const returnMut = useMutation({
-    mutationFn: (movementId: string) => api.returnMrdRecord(selectedRecord?.id ?? "", movementId),
+    mutationFn: (movementId: string) =>
+      mrdService.returnMrdRecord(selectedRecord?.id ?? "", movementId),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["mrd-movements"] });
       void qc.invalidateQueries({ queryKey: ["mrd-records"] });
@@ -462,7 +464,7 @@ function BirthsTab() {
 
   const { data: births = [], isLoading } = useQuery({
     queryKey: ["mrd-births"],
-    queryFn: () => api.listMrdBirths(),
+    queryFn: () => mrdService.listMrdBirths(),
   });
 
   const [form, setForm] = useState<CreateMrdBirthRequest>({
@@ -472,7 +474,7 @@ function BirthsTab() {
   });
 
   const createMut = useMutation({
-    mutationFn: (body: CreateMrdBirthRequest) => api.createMrdBirth(body),
+    mutationFn: (body: CreateMrdBirthRequest) => mrdService.createMrdBirth(body),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["mrd-births"] });
       closeCreate();
@@ -617,7 +619,7 @@ function DeathsTab() {
 
   const { data: deaths = [], isLoading } = useQuery({
     queryKey: ["mrd-deaths"],
-    queryFn: () => api.listMrdDeaths(),
+    queryFn: () => mrdService.listMrdDeaths(),
   });
 
   const [form, setForm] = useState<CreateMrdDeathRequest>({
@@ -626,7 +628,7 @@ function DeathsTab() {
   });
 
   const createMut = useMutation({
-    mutationFn: (body: CreateMrdDeathRequest) => api.createMrdDeath(body),
+    mutationFn: (body: CreateMrdDeathRequest) => mrdService.createMrdDeath(body),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["mrd-deaths"] });
       closeCreate();
@@ -781,12 +783,12 @@ function StatsTab() {
 
   const { data: morbMort } = useQuery({
     queryKey: ["mrd-morbidity-mortality", dateParams],
-    queryFn: () => api.getMrdMorbidityMortality(dateParams),
+    queryFn: () => mrdService.getMrdMorbidityMortality(dateParams),
   });
 
   const { data: admDisch } = useQuery({
     queryKey: ["mrd-admission-discharge", dateParams],
-    queryFn: () => api.getMrdAdmissionDischarge(dateParams),
+    queryFn: () => mrdService.getMrdAdmissionDischarge(dateParams),
   });
 
   return (
@@ -836,13 +838,13 @@ function StatsTab() {
 
       {/* Morbidity */}
       <Text fw={600} mt="md">
-        Top Morbidity (by ICD-10)
+        Top Morbidity (by ICD-11)
       </Text>
       <DataTable
         columns={[
           {
             key: "icd_code",
-            label: "ICD Code",
+            label: "ICD-11 Code",
             render: (r: NonNullable<MrdMorbidityMortalityResponse>["morbidity"][number]) => (
               <Text>{r.icd_code ?? "—"}</Text>
             ),
@@ -963,7 +965,7 @@ function RetentionTab() {
 
   const { data: policies = [], isLoading } = useQuery({
     queryKey: ["mrd-retention"],
-    queryFn: () => api.listMrdRetentionPolicies(),
+    queryFn: () => mrdService.listMrdRetentionPolicies(),
   });
 
   const [form, setForm] = useState<CreateMrdRetentionPolicyRequest>({
@@ -973,7 +975,8 @@ function RetentionTab() {
   });
 
   const createMut = useMutation({
-    mutationFn: (body: CreateMrdRetentionPolicyRequest) => api.createMrdRetentionPolicy(body),
+    mutationFn: (body: CreateMrdRetentionPolicyRequest) =>
+      mrdService.createMrdRetentionPolicy(body),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["mrd-retention"] });
       closeCreate();

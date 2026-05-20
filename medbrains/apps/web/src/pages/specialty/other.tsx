@@ -14,7 +14,6 @@ import {
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
 import { useHasPermission } from "@medbrains/stores";
 import type {
   ChemoProtocol,
@@ -35,6 +34,7 @@ import type { Column } from "../../components/DataTable";
 import { PatientNameCell } from "../../components/PatientNameCell";
 import { PatientSearchSelect } from "../../components/PatientSearchSelect";
 import { useRequirePermission } from "../../hooks/useRequirePermission";
+import { specialtyService } from "../../services/specialty.service";
 
 export function OtherSpecialtiesPage() {
   useRequirePermission(P.SPECIALTY.OTHER.RECORDS_LIST);
@@ -52,19 +52,19 @@ export function OtherSpecialtiesPage() {
 
   const { data: templates = [], isLoading: tmplLoading } = useQuery({
     queryKey: ["specialty-templates"],
-    queryFn: () => api.listSpecialtyTemplates(),
+    queryFn: () => specialtyService.listSpecialtyTemplates(),
   });
   const { data: records = [] } = useQuery({
     queryKey: ["specialty-records"],
-    queryFn: () => api.listSpecialtyRecords(),
+    queryFn: () => specialtyService.listSpecialtyRecords(),
   });
   const { data: dialysis = [] } = useQuery({
     queryKey: ["dialysis-sessions"],
-    queryFn: () => api.listDialysisSessions(),
+    queryFn: () => specialtyService.listDialysisSessions(),
   });
   const { data: chemo = [] } = useQuery({
     queryKey: ["chemo-protocols"],
-    queryFn: () => api.listChemoProtocols(),
+    queryFn: () => specialtyService.listChemoProtocols(),
   });
 
   const [tmplForm, setTmplForm] = useState<CreateSpecialtyTemplateRequest>({
@@ -85,7 +85,8 @@ export function OtherSpecialtiesPage() {
   });
 
   const createTmpl = useMutation({
-    mutationFn: (data: CreateSpecialtyTemplateRequest) => api.createSpecialtyTemplate(data),
+    mutationFn: (data: CreateSpecialtyTemplateRequest) =>
+      specialtyService.createSpecialtyTemplate(data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["specialty-templates"] });
       tmplHandlers.close();
@@ -94,7 +95,8 @@ export function OtherSpecialtiesPage() {
   });
 
   const createRec = useMutation({
-    mutationFn: (data: CreateSpecialtyRecordRequest) => api.createSpecialtyRecord(data),
+    mutationFn: (data: CreateSpecialtyRecordRequest) =>
+      specialtyService.createSpecialtyRecord(data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["specialty-records"] });
       recHandlers.close();
@@ -103,7 +105,8 @@ export function OtherSpecialtiesPage() {
   });
 
   const createDial = useMutation({
-    mutationFn: (data: CreateDialysisSessionRequest) => api.createDialysisSession(data),
+    mutationFn: (data: CreateDialysisSessionRequest) =>
+      specialtyService.createDialysisSession(data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["dialysis-sessions"] });
       dialHandlers.close();
@@ -112,7 +115,7 @@ export function OtherSpecialtiesPage() {
   });
 
   const createChemo = useMutation({
-    mutationFn: (data: CreateChemoProtocolRequest) => api.createChemoProtocol(data),
+    mutationFn: (data: CreateChemoProtocolRequest) => specialtyService.createChemoProtocol(data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["chemo-protocols"] });
       chemoHandlers.close();

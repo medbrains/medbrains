@@ -10,17 +10,28 @@
   "seed": 42,
   "modules": {
     "opd": true,
+    "ipd": true,
     "vitals": true,
     "lab": true,
     "radiology": true,
-    "pharmacy": true
+    "pharmacy": true,
+    "nabh": true
   },
   "probabilities": {
+    "ipd_admission": 0.3,
     "lab_order": 0.72,
     "lab_result": 0.9,
     "radiology_order": 0.28,
     "pharmacy_order": 0.38,
-    "queue_completed": 0.55
+    "queue_completed": 0.55,
+    "nabh_fall_event": 0.06,
+    "nabh_pressure_ulcer_assessment": 0.3,
+    "nabh_sentinel_event": 0.025,
+    "nabh_code_blue": 0.035,
+    "nabh_equipment_downtime": 0.05,
+    "nabh_fire_drill": 0.04,
+    "nabh_bmw_record": 0.28,
+    "nabh_bmw_breach": 0.04
   },
   "departments": [
     "GEN-MEDICINE",

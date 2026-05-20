@@ -1,13 +1,13 @@
 import { Button, Drawer, Group, Select, Stack, Text, TextInput } from "@mantine/core";
 import { DateInput } from "@mantine/dates";
 import { useDisclosure } from "@mantine/hooks";
-import { api } from "@medbrains/api";
 import type { AccessLogEntry, AccessLogQuery } from "@medbrains/types";
 import { IconSearch } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { DataTable } from "../../components";
 import type { Column } from "../../components/DataTable";
+import { auditService } from "../../services/audit.service";
 
 // ── Constants ──────────────────────────────────────────
 
@@ -44,18 +44,19 @@ export function AccessLogTab() {
   // Queries
   const { data: modules } = useQuery({
     queryKey: ["audit-modules"],
-    queryFn: () => api.listAuditModules(),
+    queryFn: () => auditService.listModules(),
   });
 
   const { data: accessEntries, isLoading } = useQuery({
     queryKey: ["access-log", filters],
-    queryFn: () => api.listAccessLog(filters),
+    queryFn: () => auditService.listAccessLog(filters),
     refetchInterval: 60_000,
   });
 
-  const { data: patientAccessLog } = useQuery({
+  const { data: patientAccessLog } = useQuery<AccessLogEntry[]>({
     queryKey: ["patient-access-log", selectedPatientId],
-    queryFn: () => api.getPatientAccessLog(selectedPatientId as string),
+    queryFn: () =>
+      selectedPatientId ? auditService.getPatientAccessLog(selectedPatientId) : Promise.resolve([]),
     enabled: !!selectedPatientId,
   });
 
@@ -116,7 +117,9 @@ export function AccessLogTab() {
             style={{ cursor: "pointer", textDecoration: "underline" }}
             onClick={(e) => {
               e.stopPropagation();
-              handlePatientClick(r.patient_id as string);
+              if (r.patient_id) {
+                handlePatientClick(r.patient_id);
+              }
             }}
           >
             {r.patient_name ?? r.patient_id.substring(0, 8)}

@@ -18,7 +18,6 @@ import {
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { spotlight } from "@mantine/spotlight";
-import { api } from "@medbrains/api";
 import { useAuthStore, usePermissionStore } from "@medbrains/stores";
 import {
   Bell,
@@ -32,12 +31,13 @@ import {
   User,
 } from "lucide-react";
 import type { ReactNode } from "react";
-import { Suspense, useCallback, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Outlet, useLocation, useNavigate } from "react-router";
 import { AnimatedIcon } from "../components/AnimatedIcon";
 import { PageSkeleton } from "../components/PageSkeleton";
 import { buildPathLabels, NAV_GROUPS, type NavItemConfig, resolveIcon } from "../config/navigation";
+import { sessionService } from "../services/session.service";
 import classes from "./AppLayout.module.scss";
 
 // ── Resolved nav item (with ReactNode icon + label string) ──
@@ -67,9 +67,15 @@ export function AppLayout() {
   const isExpanded = sidebarOpen;
   const navbarWidth = isExpanded ? EXPANDED_WIDTH : RAIL_WIDTH;
 
+  useEffect(() => {
+    if (location.pathname.startsWith("/reports")) {
+      setSidebarOpen(false);
+    }
+  }, [location.pathname]);
+
   const handleLogout = async () => {
     try {
-      await api.logout();
+      await sessionService.logout();
     } catch {
       // ignore
     }

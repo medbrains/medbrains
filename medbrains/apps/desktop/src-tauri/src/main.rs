@@ -1,11 +1,59 @@
 // Prevents additional console window on Windows in release builds.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
+use tauri::{Manager, Url, WebviewUrl, WebviewWindowBuilder};
 
 mod commands;
 
-fn main() {
+fn start_route() -> String {
+    let route = std::env::var("MEDBRAINS_DESKTOP_START_ROUTE").unwrap_or_else(|_| "/".into());
+    if route.starts_with('/') {
+        route
+    } else {
+        format!("/{route}")
+    }
+}
+
+fn dev_url() -> Result<Url, url::ParseError> {
+    let base = std::env::var("MEDBRAINS_DESKTOP_DEV_URL")
+        .unwrap_or_else(|_| "https://medbrains-desktop.localhost".into());
+    let base = base.trim_end_matches('/');
+    let mut url: Url = format!("{base}{}", start_route()).parse()?;
+    if let Some(api_base) = desktop_api_base() {
+        url.query_pairs_mut()
+            .append_pair("desktopApiBase", &api_base);
+    }
+    Ok(url)
+}
+
+fn desktop_api_base() -> Option<String> {
+    let value = std::env::var("MEDBRAINS_DESKTOP_API_BASE").ok()?;
+    let value = value.trim().trim_end_matches('/');
+    if value.is_empty() {
+        None
+    } else {
+        Some(value.into())
+    }
+}
+
+fn app_index_path() -> String {
+    let route = start_route();
+    let api_base = desktop_api_base();
+    if route == "/" && api_base.is_none() {
+        return "index.html".into();
+    }
+
+    let mut query = url::form_urlencoded::Serializer::new(String::new());
+    if route != "/" {
+        query.append_pair("desktopStartRoute", &route);
+    }
+    if let Some(api_base) = api_base {
+        query.append_pair("desktopApiBase", &api_base);
+    }
+    format!("index.html?{}", query.finish())
+}
+
+fn main() -> tauri::Result<()> {
     let subscriber = tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env()
@@ -43,9 +91,9 @@ fn main() {
             // installs ship the dist/ bundle bundled in the binary;
             // dev points at the running Vite server.
             let url = if cfg!(debug_assertions) {
-                WebviewUrl::External("http://localhost:5173".parse().unwrap())
+                WebviewUrl::External(dev_url()?)
             } else {
-                WebviewUrl::App("index.html".into())
+                WebviewUrl::App(app_index_path().into())
             };
 
             WebviewWindowBuilder::new(app, "main", url)
@@ -60,5 +108,4 @@ fn main() {
             Ok(())
         })
         .run(tauri::generate_context!())
-        .expect("error while running tauri application");
 }

@@ -1,9 +1,11 @@
 import { z } from "zod";
 
-export * from "./onboarding.js";
 export { buildFormSchema, evaluateCondition } from "./dynamic-form.js";
+export * from "./form-primitives.js";
 // primitives.ts is re-exported through guards.ts
 export * from "./guards.js";
+export * from "./hms-forms.js";
+export * from "./onboarding.js";
 
 // Note: Zod schemas below are kept for form validation (buildFormSchema).
 // For runtime type guards, use the native guards from ./guards.js
@@ -71,16 +73,7 @@ export const patientSchema = z.object({
   phone: z.string(),
   email: z.string().email().nullable(),
   address: z.record(z.unknown()),
-  category: z.enum([
-    "general",
-    "private",
-    "insurance",
-    "pmjay",
-    "cghs",
-    "staff",
-    "vip",
-    "mlc",
-  ]),
+  category: z.enum(["general", "private", "insurance", "pmjay", "cghs", "staff", "vip", "mlc"]),
   attributes: z.record(z.unknown()),
   is_active: z.boolean(),
   created_at: z.string(),
@@ -252,7 +245,14 @@ export const labOrderSchema = z.object({
   patient_id: z.string().uuid(),
   test_id: z.string().uuid(),
   ordered_by: z.string().uuid(),
-  status: z.enum(["ordered", "sample_collected", "processing", "completed", "verified", "cancelled"]),
+  status: z.enum([
+    "ordered",
+    "sample_collected",
+    "processing",
+    "completed",
+    "verified",
+    "cancelled",
+  ]),
   priority: z.enum(["routine", "urgent", "stat"]),
   notes: z.string().nullable(),
   collected_at: z.string().nullable(),
@@ -337,9 +337,19 @@ export const admissionSchema = z.object({
   patient_id: z.string().uuid(),
   bed_id: z.string().uuid().nullable(),
   admitting_doctor_id: z.string().uuid(),
-  status: z.enum(["admitted", "transferred", "discharged", "deceased", "lama", "dama", "absconded"]),
+  status: z.enum([
+    "admitted",
+    "transferred",
+    "discharged",
+    "deceased",
+    "lama",
+    "dama",
+    "absconded",
+  ]),
   admitted_at: z.string(),
-  discharge_type: z.enum(["normal", "lama", "dama", "absconded", "referred", "deceased"]).nullable(),
+  discharge_type: z
+    .enum(["normal", "lama", "dama", "absconded", "referred", "deceased"])
+    .nullable(),
   discharge_summary: z.string().nullable(),
   discharged_at: z.string().nullable(),
   created_at: z.string(),

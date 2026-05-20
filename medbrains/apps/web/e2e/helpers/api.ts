@@ -9,25 +9,25 @@
  */
 
 import { expect, type APIRequestContext } from "@playwright/test";
+import { getE2EIdentity } from "./e2e-identities";
 import type { ApiCallOptions, AuthContext } from "./types";
 
 export const E2E_BACKEND_URL =
   process.env.E2E_BACKEND_URL ?? "http://127.0.0.1:3000";
 
-export const ADMIN_USERNAME = process.env.E2E_ADMIN_USER ?? "admin";
-export const ADMIN_PASSWORD = process.env.E2E_ADMIN_PASS ?? "admin123";
-
 /** Login as admin and capture auth context (CSRF + user metadata). */
 export async function loginAsAdmin(
   request: APIRequestContext,
 ): Promise<AuthContext> {
+  const admin = getE2EIdentity("super_admin");
   const resp = await request.post(`${E2E_BACKEND_URL}/api/auth/login`, {
-    data: { username: ADMIN_USERNAME, password: ADMIN_PASSWORD },
+    data: { username: admin.username, password: admin.password },
   });
   expect(resp.status(), `login expected 200, got ${resp.status()}`).toBe(200);
   const body = await resp.json();
   return {
     csrfToken: body.csrf_token ?? "",
+    cookieHeader: cookieHeaderFromResponse(resp),
     request,
     userId: body.user?.id ?? "",
     tenantId: body.user?.tenant_id ?? "",
@@ -48,7 +48,13 @@ export async function getAuthContextFromCookies(
   const state = await request.storageState();
   const csrf = state.cookies.find((c) => c.name === "csrf_token")?.value ?? "";
   if (!csrf) return loginAsAdmin(request);
-  const ctx = { csrfToken: csrf, request, userId: "", tenantId: "" };
+  const ctx = {
+    csrfToken: csrf,
+    cookieHeader: cookieHeaderFromStorageState(state.cookies),
+    request,
+    userId: "",
+    tenantId: "",
+  };
   const me = await request.get(`${E2E_BACKEND_URL}/api/auth/me`, {
     headers: { "x-csrf-token": csrf },
   });
@@ -105,6 +111,7 @@ async function tryApi<T>(
   options: ApiCallOptions,
 ): Promise<{ ok: true; data: T } | { ok: false; status: number; bodyText: string }> {
   const headers: Record<string, string> = {};
+  if (ctx.cookieHeader) headers.cookie = ctx.cookieHeader;
   if (!options.skipCsrf) headers["x-csrf-token"] = ctx.csrfToken;
   if (body !== undefined) headers["content-type"] = "application/json";
 
@@ -126,6 +133,24 @@ async function tryApi<T>(
   } catch {
     return { ok: true, data: text as unknown as T };
   }
+}
+
+function cookieHeaderFromResponse(resp: {
+  headersArray: () => Array<{ name: string; value: string }>;
+}): string {
+  return resp
+    .headersArray()
+    .filter((h) => h.name.toLowerCase() === "set-cookie")
+    .map((h) => h.value.split(";")[0])
+    .filter(Boolean)
+    .join("; ");
+}
+
+function cookieHeaderFromStorageState(cookies: Array<{ name: string; value: string }>): string {
+  return cookies
+    .map((cookie) => `${cookie.name}=${cookie.value}`)
+    .filter(Boolean)
+    .join("; ");
 }
 
 /** Build a query string from an object, dropping undefined/null. */

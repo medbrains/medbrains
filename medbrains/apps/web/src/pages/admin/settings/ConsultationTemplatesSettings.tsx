@@ -1,3 +1,4 @@
+import { zodResolver } from "@hookform/resolvers/zod";
 import {
   ActionIcon,
   Badge,
@@ -13,39 +14,50 @@ import {
   TextInput,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
+import {
+  type ConsultationTemplateSettingsFormInput,
+  consultationTemplateSettingsFormSchema,
+} from "@medbrains/schemas";
 import { useHasPermission } from "@medbrains/stores";
-import type {
-  ConsultationTemplate,
-  CreateConsultationTemplateRequest,
-  DepartmentRow,
-} from "@medbrains/types";
 import { P } from "@medbrains/types";
 import { IconPlus, IconTrash } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { Controller, useForm } from "react-hook-form";
+import { clinicalTemplatesService } from "../../../services/clinicalTemplates.service";
+import { settingsSetupService } from "../../../services/settingsSetup.service";
 
-type FormState = {
-  name: string;
-  description: string;
-  specialty: string;
-  department_id: string;
-  is_shared: boolean;
-  chief_complaints: string;
-  default_plan: string;
-  common_diagnoses: string;
-};
-
-const EMPTY_FORM: FormState = {
+const EMPTY_FORM: ConsultationTemplateSettingsFormInput = {
   name: "",
   description: "",
   specialty: "",
-  department_id: "",
+  department_id: null,
   is_shared: false,
   chief_complaints: "",
   default_plan: "",
   common_diagnoses: "",
 };
+
+function splitCommaList(value: string): string[] | undefined {
+  const values = value
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+  return values.length > 0 ? values : undefined;
+}
+
+function formToPayload(form: ConsultationTemplateSettingsFormInput) {
+  return {
+    name: form.name.trim(),
+    description: form.description.trim() || undefined,
+    specialty: form.specialty.trim() || undefined,
+    department_id: form.department_id || undefined,
+    is_shared: form.is_shared,
+    chief_complaints: splitCommaList(form.chief_complaints),
+    default_plan: form.default_plan.trim() || undefined,
+    common_diagnoses: splitCommaList(form.common_diagnoses),
+  };
+}
 
 export function ConsultationTemplatesSettings() {
   const queryClient = useQueryClient();
@@ -53,26 +65,36 @@ export function ConsultationTemplatesSettings() {
   const canDelete = useHasPermission(P.OPD.VISIT_UPDATE);
 
   const [modalOpen, setModalOpen] = useState(false);
-  const [form, setForm] = useState<FormState>(EMPTY_FORM);
+  const {
+    control,
+    formState: { errors },
+    handleSubmit,
+    register,
+    reset,
+  } = useForm<ConsultationTemplateSettingsFormInput>({
+    resolver: zodResolver(consultationTemplateSettingsFormSchema),
+    defaultValues: EMPTY_FORM,
+  });
 
   const { data: templates = [], isLoading } = useQuery({
     queryKey: ["consultation-templates"],
-    queryFn: () => api.listConsultationTemplates(),
+    queryFn: () => clinicalTemplatesService.listConsultationTemplates(),
   });
 
   const { data: departments = [] } = useQuery({
     queryKey: ["departments"],
-    queryFn: () => api.listDepartments(),
+    queryFn: () => settingsSetupService.listDepartments(),
     staleTime: 600_000,
   });
 
-  const deptOptions = (departments as DepartmentRow[]).map((d) => ({
+  const deptOptions = departments.map((d) => ({
     value: d.id,
     label: d.name,
   }));
 
   const createMutation = useMutation({
-    mutationFn: (data: CreateConsultationTemplateRequest) => api.createConsultationTemplate(data),
+    mutationFn: (data: ReturnType<typeof formToPayload>) =>
+      clinicalTemplatesService.createConsultationTemplate(data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["consultation-templates"] });
       notifications.show({
@@ -81,7 +103,7 @@ export function ConsultationTemplatesSettings() {
         color: "success",
       });
       setModalOpen(false);
-      setForm(EMPTY_FORM);
+      reset(EMPTY_FORM);
     },
     onError: (err: Error) => {
       notifications.show({
@@ -93,7 +115,7 @@ export function ConsultationTemplatesSettings() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => api.deleteConsultationTemplate(id),
+    mutationFn: (id: string) => clinicalTemplatesService.deleteConsultationTemplate(id),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["consultation-templates"] });
       notifications.show({
@@ -104,34 +126,24 @@ export function ConsultationTemplatesSettings() {
     },
   });
 
-  const handleSubmit = () => {
-    const data: CreateConsultationTemplateRequest = {
-      name: form.name,
-      description: form.description || undefined,
-      specialty: form.specialty || undefined,
-      department_id: form.department_id || undefined,
-      is_shared: form.is_shared,
-      chief_complaints: form.chief_complaints
-        ? form.chief_complaints
-            .split(",")
-            .map((s) => s.trim())
-            .filter(Boolean)
-        : undefined,
-      default_plan: form.default_plan || undefined,
-      common_diagnoses: form.common_diagnoses
-        ? form.common_diagnoses
-            .split(",")
-            .map((s) => s.trim())
-            .filter(Boolean)
-        : undefined,
-    };
-    createMutation.mutate(data);
-  };
+  const submitTemplate = handleSubmit((form) => {
+    createMutation.mutate(formToPayload(form));
+  });
 
   const getDeptName = (id: string | null) => {
     if (!id) return "—";
-    const d = (departments as DepartmentRow[]).find((dept) => dept.id === id);
+    const d = departments.find((dept) => dept.id === id);
     return d?.name ?? "—";
+  };
+
+  const openCreateModal = () => {
+    reset(EMPTY_FORM);
+    setModalOpen(true);
+  };
+
+  const closeCreateModal = () => {
+    reset(EMPTY_FORM);
+    setModalOpen(false);
   };
 
   return (
@@ -139,14 +151,7 @@ export function ConsultationTemplatesSettings() {
       <Group justify="space-between">
         <Text fw={600}>Consultation Templates</Text>
         {canCreate && (
-          <Button
-            size="xs"
-            leftSection={<IconPlus size={14} />}
-            onClick={() => {
-              setForm(EMPTY_FORM);
-              setModalOpen(true);
-            }}
-          >
+          <Button size="xs" leftSection={<IconPlus size={14} />} onClick={openCreateModal}>
             Add Template
           </Button>
         )}
@@ -156,7 +161,7 @@ export function ConsultationTemplatesSettings() {
         <Text size="sm" c="dimmed">
           Loading...
         </Text>
-      ) : (templates as ConsultationTemplate[]).length === 0 ? (
+      ) : templates.length === 0 ? (
         <Text size="sm" c="dimmed" ta="center" py="lg">
           No consultation templates configured yet.
         </Text>
@@ -173,7 +178,7 @@ export function ConsultationTemplatesSettings() {
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
-            {(templates as ConsultationTemplate[]).map((tmpl) => (
+            {templates.map((tmpl) => (
               <Table.Tr key={tmpl.id}>
                 <Table.Td>
                   <Text size="sm" fw={500}>
@@ -233,7 +238,7 @@ export function ConsultationTemplatesSettings() {
 
       <Modal
         opened={modalOpen}
-        onClose={() => setModalOpen(false)}
+        onClose={closeCreateModal}
         title="Create Consultation Template"
         size="lg"
       >
@@ -241,63 +246,75 @@ export function ConsultationTemplatesSettings() {
           <TextInput
             label="Template Name"
             placeholder="e.g., General Medicine OPD"
-            value={form.name}
-            onChange={(e) => setForm({ ...form, name: e.currentTarget.value })}
+            error={errors.name?.message}
+            {...register("name")}
             required
           />
           <Textarea
             label="Description"
             placeholder="Optional description"
-            value={form.description}
-            onChange={(e) => setForm({ ...form, description: e.currentTarget.value })}
+            error={errors.description?.message}
+            {...register("description")}
             minRows={2}
           />
           <Group grow>
             <TextInput
               label="Specialty"
               placeholder="e.g., Cardiology"
-              value={form.specialty}
-              onChange={(e) => setForm({ ...form, specialty: e.currentTarget.value })}
+              error={errors.specialty?.message}
+              {...register("specialty")}
             />
-            <Select
-              label="Department"
-              placeholder="Select department"
-              data={deptOptions}
-              value={form.department_id || null}
-              onChange={(v) => setForm({ ...form, department_id: v ?? "" })}
-              clearable
-              searchable
+            <Controller
+              control={control}
+              name="department_id"
+              render={({ field }) => (
+                <Select
+                  label="Department"
+                  placeholder="Select department"
+                  data={deptOptions}
+                  value={field.value}
+                  onChange={field.onChange}
+                  clearable
+                  searchable
+                />
+              )}
             />
           </Group>
-          <Switch
-            label="Share with all doctors"
-            checked={form.is_shared}
-            onChange={(e) => setForm({ ...form, is_shared: e.currentTarget.checked })}
+          <Controller
+            control={control}
+            name="is_shared"
+            render={({ field }) => (
+              <Switch
+                label="Share with all doctors"
+                checked={field.value}
+                onChange={(event) => field.onChange(event.currentTarget.checked)}
+              />
+            )}
           />
           <TextInput
             label="Chief Complaints (comma-separated)"
             placeholder="Fever, Headache, Cough"
-            value={form.chief_complaints}
-            onChange={(e) => setForm({ ...form, chief_complaints: e.currentTarget.value })}
+            error={errors.chief_complaints?.message}
+            {...register("chief_complaints")}
           />
           <Textarea
             label="Default Plan"
             placeholder="Treatment plan template"
-            value={form.default_plan}
-            onChange={(e) => setForm({ ...form, default_plan: e.currentTarget.value })}
+            error={errors.default_plan?.message}
+            {...register("default_plan")}
             minRows={2}
           />
           <TextInput
             label="Common Diagnoses (comma-separated)"
             placeholder="J06.9, J18.9"
-            value={form.common_diagnoses}
-            onChange={(e) => setForm({ ...form, common_diagnoses: e.currentTarget.value })}
+            error={errors.common_diagnoses?.message}
+            {...register("common_diagnoses")}
           />
           <Group justify="flex-end" mt="md">
-            <Button variant="light" onClick={() => setModalOpen(false)}>
+            <Button variant="light" onClick={closeCreateModal}>
               Cancel
             </Button>
-            <Button onClick={handleSubmit} loading={createMutation.isPending} disabled={!form.name}>
+            <Button onClick={() => void submitTemplate()} loading={createMutation.isPending}>
               Create Template
             </Button>
           </Group>

@@ -12,6 +12,7 @@ function BillsScreen() {
       eyebrow="MODULE"
       title="Bills"
       description="Invoices, payments, and receipts."
+      tags={["Mobile-Patient", "billing", "payments", "receipts"]}
       summaries={[
         { eyebrow: "DUE", count: "—", title: "Outstanding balance" },
         { eyebrow: "PAID", count: "—", title: "Last 12 months" },
@@ -48,4 +49,6 @@ export const billsModule: Module = {
   icon: () => null,
   requiredPermissions: [],
   navigator: BillsScreen,
+  appCodes: ["Mobile-Patient", "Desktop-Kiosk"],
+  tags: ["patient", "billing", "payments", "receipts"],
 };

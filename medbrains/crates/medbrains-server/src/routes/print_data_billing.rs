@@ -325,7 +325,7 @@ pub async fn get_opd_bill_print_data(
            inv.created_at, \
            (p.first_name || ' ' || p.last_name) AS patient_name, \
            p.uhid, \
-           EXTRACT(YEAR FROM age(current_date, p.date_of_birth)) AS age, \
+           EXTRACT(YEAR FROM age(current_date, p.date_of_birth))::float8 AS age, \
            p.gender::text AS gender, \
            p.phone, \
            u.full_name AS doctor_name, \
@@ -452,7 +452,7 @@ pub async fn get_ipd_interim_bill_print_data(
         "SELECT \
            (p.first_name || ' ' || p.last_name) AS patient_name, \
            p.uhid, \
-           EXTRACT(YEAR FROM age(current_date, p.date_of_birth)) AS age, \
+           EXTRACT(YEAR FROM age(current_date, p.date_of_birth))::float8 AS age, \
            p.gender::text AS gender, \
            adm.admitted_at AS admission_date, \
            b.bed_number, \
@@ -650,7 +650,7 @@ pub async fn get_ipd_final_bill_print_data(
            inv.created_at, \
            (p.first_name || ' ' || p.last_name) AS patient_name, \
            p.uhid, \
-           EXTRACT(YEAR FROM age(current_date, p.date_of_birth)) AS age, \
+           EXTRACT(YEAR FROM age(current_date, p.date_of_birth))::float8 AS age, \
            p.gender::text AS gender, \
            adm.admitted_at AS admission_date, \
            adm.discharged_at AS discharge_date, \
@@ -982,7 +982,7 @@ pub async fn get_insurance_preauth_print_data(
            pa.created_at, \
            (p.first_name || ' ' || p.last_name) AS patient_name, \
            p.uhid, \
-           EXTRACT(YEAR FROM age(current_date, p.date_of_birth)) AS age, \
+           EXTRACT(YEAR FROM age(current_date, p.date_of_birth))::float8 AS age, \
            p.gender::text AS gender, \
            ins.policy_number, \
            ic.name AS insurance_company, \
@@ -999,7 +999,7 @@ pub async fn get_insurance_preauth_print_data(
          JOIN patients p ON p.id = pa.patient_id AND p.tenant_id = pa.tenant_id \
          JOIN patient_insurance ins ON ins.id = pa.insurance_id AND ins.tenant_id = pa.tenant_id \
          JOIN insurance_companies ic ON ic.id = ins.company_id AND ic.tenant_id = ins.tenant_id \
-         LEFT JOIN tpa_companies tpa ON tpa.id = ins.tpa_id AND tpa.tenant_id = ins.tenant_id \
+         LEFT JOIN tpa_companies tpa ON tpa.id::text = ins.tpa_id AND tpa.tenant_id = ins.tenant_id \
          LEFT JOIN users u ON u.id = pa.treating_doctor_id \
          WHERE pa.id = $1 AND pa.tenant_id = $2",
     )
@@ -1123,7 +1123,7 @@ pub async fn get_cashless_claim_print_data(
          JOIN admissions adm ON adm.id = cl.admission_id AND adm.tenant_id = cl.tenant_id \
          JOIN patient_insurance ins ON ins.id = cl.insurance_id AND ins.tenant_id = cl.tenant_id \
          JOIN insurance_companies ic ON ic.id = ins.company_id AND ic.tenant_id = ins.tenant_id \
-         LEFT JOIN tpa_companies tpa ON tpa.id = ins.tpa_id AND tpa.tenant_id = ins.tenant_id \
+         LEFT JOIN tpa_companies tpa ON tpa.id::text = ins.tpa_id AND tpa.tenant_id = ins.tenant_id \
          LEFT JOIN users u ON u.id = adm.attending_doctor_id \
          WHERE cl.id = $1 AND cl.tenant_id = $2",
     )

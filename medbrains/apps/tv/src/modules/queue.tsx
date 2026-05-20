@@ -17,6 +17,7 @@ function QueueScreen() {
       title="Queue board"
       subtitle="Live token call — please proceed when your token blinks."
       legend="Updates every 5 seconds · medbrains://tv/queue"
+      tags={["TV-Queue", "TV-DoctorRoom", "Desktop-Kiosk", "OPD"]}
     >
       <TvSummaryRow
         items={[
@@ -35,4 +36,6 @@ export const queueModule: Module = {
   icon: () => null,
   requiredPermissions: [],
   navigator: QueueScreen,
+  appCodes: ["TV-Queue", "TV-DoctorRoom", "Desktop-Kiosk"],
+  tags: ["tv", "queue", "opd", "tokens", "kiosk"],
 };

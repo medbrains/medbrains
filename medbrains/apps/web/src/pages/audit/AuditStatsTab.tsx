@@ -1,7 +1,7 @@
 import { Badge, Card, SimpleGrid, Stack, Table, Text } from "@mantine/core";
-import { api } from "@medbrains/api";
 import type { ActionCount, ModuleCount, UserActionCount } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
+import { auditService } from "../../services/audit.service";
 
 // ── Constants ──────────────────────────────────────────
 
@@ -16,7 +16,7 @@ const ACTION_COLORS: Record<string, string> = {
 export function AuditStatsTab() {
   const { data: stats, isLoading } = useQuery({
     queryKey: ["audit-stats"],
-    queryFn: () => api.getAuditStats(),
+    queryFn: () => auditService.getStats(),
     refetchInterval: 60_000,
   });
 

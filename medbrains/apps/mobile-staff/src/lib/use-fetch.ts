@@ -23,6 +23,7 @@ export function useFetch<T>(
   const [error, setError] = useState<string | null>(null);
   const [tick, setTick] = useState(0);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: callers own deps; fn is commonly inline and must not force a fetch loop.
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
@@ -42,8 +43,6 @@ export function useFetch<T>(
     return () => {
       cancelled = true;
     };
-    // The caller owns `deps`; `fn` is often inline and must not force a render loop.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tick, ...deps]);
 
   return {

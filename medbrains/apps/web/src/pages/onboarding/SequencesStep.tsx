@@ -64,7 +64,9 @@ export function SequencesStep({ onNext, onBack }: Props) {
 
   const updateSeq = (index: number, field: "prefix" | "pad_width", value: string | number) => {
     const updated = [...seqs];
-    const item = { ...updated[index]! };
+    const existing = updated[index];
+    if (!existing) return;
+    const item = { ...existing };
     if (field === "prefix") {
       item.prefix = String(value);
     } else {

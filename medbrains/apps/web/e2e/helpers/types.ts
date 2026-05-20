@@ -2,6 +2,7 @@ import type { APIRequestContext } from "@playwright/test";
 
 export interface AuthContext {
   csrfToken: string;
+  cookieHeader: string;
   request: APIRequestContext;
   userId: string;
   tenantId: string;

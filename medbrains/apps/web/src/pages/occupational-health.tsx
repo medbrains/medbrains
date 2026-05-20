@@ -23,7 +23,6 @@ import {
 import { DateInput } from "@mantine/dates";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
 import { useHasPermission } from "@medbrains/stores";
 import type {
   CreateDrugScreenRequest,
@@ -59,6 +58,7 @@ import { useMemo, useState } from "react";
 import { DataTable, PageHeader } from "../components";
 import type { Column } from "../components/DataTable";
 import { useRequirePermission } from "../hooks/useRequirePermission";
+import { occupationalHealthService } from "../services/occupationalHealth.service";
 
 // ── Constants ──────────────────────────────────────────
 
@@ -223,13 +223,16 @@ function ScreeningsPanel() {
 
   const { data: screenings = [], isLoading } = useQuery({
     queryKey: ["occ-screenings", typeFilter],
-    queryFn: () => api.listOccScreenings(typeFilter ? { screening_type: typeFilter } : undefined),
+    queryFn: () =>
+      occupationalHealthService.listOccScreenings(
+        typeFilter ? { screening_type: typeFilter } : undefined,
+      ),
     enabled: !showDue,
   });
 
   const { data: dueScreenings = [], isLoading: dueLoading } = useQuery({
     queryKey: ["occ-screenings-due"],
-    queryFn: () => api.listDueScreenings(),
+    queryFn: () => occupationalHealthService.listDueScreenings(),
     enabled: showDue,
   });
 
@@ -268,7 +271,7 @@ function ScreeningsPanel() {
       if (form.screening_type === "pre_employment") {
         payload.findings = preEmpForm as unknown as Record<string, unknown>;
       }
-      return api.createOccScreening(payload);
+      return occupationalHealthService.createOccScreening(payload);
     },
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["occ-screenings"] });
@@ -297,7 +300,7 @@ function ScreeningsPanel() {
   const updateMut = useMutation({
     mutationFn: () => {
       if (!selected) return Promise.reject(new Error("No screening selected"));
-      return api.updateOccScreening(selected.id, editForm);
+      return occupationalHealthService.updateOccScreening(selected.id, editForm);
     },
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["occ-screenings"] });
@@ -505,8 +508,8 @@ function ScreeningsPanel() {
                     {dept}
                   </Text>
                   <Stack gap="xs">
-                    {items.map((item, idx) => (
-                      <Group key={idx} justify="space-between">
+                    {items.map((item) => (
+                      <Group key={`${item.type}-${item.due_date}`} justify="space-between">
                         <Text size="sm">
                           {SCREENING_TYPES.find((t) => t.value === item.type)?.label}
                         </Text>
@@ -830,7 +833,10 @@ function DrugScreensPanel() {
 
   const { data: screens = [], isLoading } = useQuery({
     queryKey: ["occ-drug-screens", statusFilter],
-    queryFn: () => api.listDrugScreens(statusFilter ? { status: statusFilter } : undefined),
+    queryFn: () =>
+      occupationalHealthService.listDrugScreens(
+        statusFilter ? { status: statusFilter } : undefined,
+      ),
   });
 
   const [form, setForm] = useState<CreateDrugScreenRequest>({
@@ -843,7 +849,7 @@ function DrugScreensPanel() {
   }>({});
 
   const createMut = useMutation({
-    mutationFn: () => api.createDrugScreen(form),
+    mutationFn: () => occupationalHealthService.createDrugScreen(form),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["occ-drug-screens"] });
       createHandlers.close();
@@ -859,7 +865,7 @@ function DrugScreensPanel() {
   const updateMut = useMutation({
     mutationFn: () => {
       if (!selected) return Promise.reject(new Error("No drug screen selected"));
-      return api.updateDrugScreen(selected.id, {
+      return occupationalHealthService.updateDrugScreen(selected.id, {
         status: editForm.status as OccHealthDrugScreen["status"],
         mro_decision: editForm.mro_decision,
       });
@@ -1041,12 +1047,12 @@ function VaccinationsPanel() {
 
   const { data: vaccinations = [], isLoading } = useQuery({
     queryKey: ["occ-vaccinations"],
-    queryFn: () => api.listVaccinations(),
+    queryFn: () => occupationalHealthService.listVaccinations(),
   });
 
   const { data: compliance = [] } = useQuery<VaccinationComplianceRow[]>({
     queryKey: ["occ-vaccination-compliance"],
-    queryFn: () => api.vaccinationCompliance(),
+    queryFn: () => occupationalHealthService.vaccinationCompliance(),
   });
 
   const [form, setForm] = useState<CreateVaccinationRequest>({
@@ -1058,7 +1064,7 @@ function VaccinationsPanel() {
 
   const createMut = useMutation({
     mutationFn: () =>
-      api.createVaccination({
+      occupationalHealthService.createVaccination({
         ...form,
         is_compliant: formCompliant,
       }),
@@ -1272,7 +1278,8 @@ function InjuriesPanel() {
 
   const { data: injuries = [], isLoading } = useQuery({
     queryKey: ["occ-injuries", rtwFilter],
-    queryFn: () => api.listInjuries(rtwFilter ? { rtw_status: rtwFilter } : undefined),
+    queryFn: () =>
+      occupationalHealthService.listInjuries(rtwFilter ? { rtw_status: rtwFilter } : undefined),
   });
 
   const [form, setForm] = useState<CreateInjuryRequest>({
@@ -1286,7 +1293,7 @@ function InjuriesPanel() {
 
   const createMut = useMutation({
     mutationFn: () =>
-      api.createInjury({
+      occupationalHealthService.createInjury({
         ...form,
         is_osha_recordable: formOsha,
       }),
@@ -1306,7 +1313,7 @@ function InjuriesPanel() {
   const updateMut = useMutation({
     mutationFn: () => {
       if (!selected) return Promise.reject(new Error("No injury selected"));
-      return api.updateInjury(selected.id, editForm);
+      return occupationalHealthService.updateInjury(selected.id, editForm);
     },
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["occ-injuries"] });
@@ -1614,7 +1621,7 @@ function HazardRegistryPanel() {
 
   const { data: hazards = [], isLoading } = useQuery({
     queryKey: ["occ-health-hazards"],
-    queryFn: () => api.listOccHealthHazards(),
+    queryFn: () => occupationalHealthService.listOccHealthHazards(),
   });
 
   const [form, setForm] = useState<CreateOccHealthHazardRequest>({
@@ -1625,7 +1632,7 @@ function HazardRegistryPanel() {
   });
 
   const createMut = useMutation({
-    mutationFn: () => api.createOccHealthHazard(form),
+    mutationFn: () => occupationalHealthService.createOccHealthHazard(form),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["occ-health-hazards"] });
       createHandlers.close();
@@ -1786,7 +1793,7 @@ function HazardRegistryPanel() {
 function OccHealthAnalyticsPanel() {
   const { data: analytics, isLoading } = useQuery({
     queryKey: ["occ-health-analytics"],
-    queryFn: () => api.occHealthAnalytics(),
+    queryFn: () => occupationalHealthService.occHealthAnalytics(),
   });
 
   if (isLoading) {
@@ -1922,7 +1929,7 @@ function ReturnToWorkPanel() {
   });
 
   const clearanceMut = useMutation({
-    mutationFn: () => api.returnToWorkClearance(form),
+    mutationFn: () => occupationalHealthService.returnToWorkClearance(form),
     onSuccess: () => {
       notifications.show({
         title: "Clearance Issued",

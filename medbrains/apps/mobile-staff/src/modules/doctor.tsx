@@ -22,6 +22,7 @@ function DoctorHome(): ReactNode {
       eyebrow="MODULE"
       title="Doctor"
       description="Consultations, prescriptions, clinical notes."
+      tags={["Mobile-Doctor", "OPD", "IPD", "offline-ready"]}
       summaries={[
         { eyebrow: "QUEUE", count: "—", title: "OPD queue (today)" },
         { eyebrow: "VITALS", count: "—", title: "Pending review" },
@@ -96,5 +97,7 @@ export const doctorModule: Module = {
   icon: () => null,
   requiredPermissions: [P.OPD.QUEUE_LIST],
   navigator: DoctorScreen,
+  appCodes: ["Mobile-Doctor"],
+  tags: ["clinical", "opd", "ipd-rounds", "prescription", "offline-ready"],
   offlineDocTypes: ["opd_visit", "prescription"],
 };

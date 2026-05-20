@@ -23,6 +23,7 @@
  * compliance review.
  */
 
+import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Badge,
   Button,
@@ -38,10 +39,22 @@ import {
 } from "@mantine/core";
 import { DateTimePicker } from "@mantine/dates";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
+import type {
+  ShareGrantFormInput,
+  ShareRelationFormValue,
+  SharingSubjectTypeFormValue,
+} from "@medbrains/schemas";
+import {
+  parseSharingSubjectTypeFormValue,
+  shareGrantFormSchema,
+  toShareRelationFormValue,
+  toSharingSubjectTypeFormValue,
+} from "@medbrains/schemas";
 import { IconShare, IconShieldLock, IconUserCheck, IconUsersGroup } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
+import { Controller, useForm } from "react-hook-form";
+import { type SharingSubjects, sharingService } from "../../services/sharing.service";
 
 interface Props {
   opened: boolean;
@@ -51,71 +64,93 @@ interface Props {
   objectLabel?: string;
 }
 
-type SubjectType = "user" | "role" | "department" | "group";
+const DEFAULT_SHARE_GRANT_VALUES: ShareGrantFormInput = {
+  subject_type: "user",
+  subject_id: "",
+  relation: "viewer",
+  expires_at: null,
+  reason: "",
+};
 
-const RELATIONS: { value: string; label: string }[] = [
+const RELATIONS: Array<{ value: ShareRelationFormValue; label: string }> = [
   { value: "viewer", label: "Viewer (read-only)" },
   { value: "editor", label: "Editor (can modify)" },
   { value: "consultant", label: "Consultant (read + comment)" },
 ];
 
-const SUBJECT_TYPES: { value: SubjectType; label: string }[] = [
+const SUBJECT_TYPES: Array<{ value: SharingSubjectTypeFormValue; label: string }> = [
   { value: "user", label: "User (single person)" },
   { value: "role", label: "Role (everyone with that role)" },
   { value: "department", label: "Department (all members)" },
   { value: "group", label: "Group (e.g. lab_seniors)" },
 ];
 
+function subjectsForType(subjects: SharingSubjects, subjectType: SharingSubjectTypeFormValue) {
+  switch (subjectType) {
+    case "role":
+      return subjects.roles;
+    case "department":
+      return subjects.departments;
+    case "group":
+      return subjects.groups;
+    default:
+      return subjects.users;
+  }
+}
+
 export function ShareDrawer({ opened, onClose, objectType, objectId, objectLabel }: Props) {
   const qc = useQueryClient();
-
-  const [subjectType, setSubjectType] = useState<SubjectType>("user");
-  const [subjectId, setSubjectId] = useState("");
-  const [relation, setRelation] = useState("viewer");
-  const [expiresAt, setExpiresAt] = useState<Date | null>(null);
-  const [reason, setReason] = useState("");
+  const {
+    control,
+    handleSubmit,
+    reset,
+    setValue,
+    watch,
+    formState: { errors },
+  } = useForm<ShareGrantFormInput>({
+    resolver: zodResolver(shareGrantFormSchema),
+    defaultValues: DEFAULT_SHARE_GRANT_VALUES,
+    mode: "onTouched",
+  });
+  const values = watch();
 
   const grantsQuery = useQuery({
     queryKey: ["sharing", "grants", objectType, objectId],
-    queryFn: () => api.listSharingGrants(objectType, objectId),
+    queryFn: () => sharingService.listSharingGrants(objectType, objectId),
     enabled: opened,
   });
 
   const subjectsQuery = useQuery({
     queryKey: ["sharing", "subjects"],
-    queryFn: () => api.listSharingSubjects(),
+    queryFn: () => sharingService.listSharingSubjects(),
     enabled: opened,
   });
 
   const subjectOptions = useMemo(() => {
     const subjects = subjectsQuery.data;
     if (!subjects) return [];
-    const byType = subjects[`${subjectType}s` as "users" | "roles" | "departments" | "groups"];
-    if (!byType) return [];
-    return byType.map((item) => ({
+    return subjectsForType(subjects, values.subject_type).map((item) => ({
       value: item.id,
       label: item.subtitle ? `${item.label} (${item.subtitle})` : item.label,
     }));
-  }, [subjectsQuery.data, subjectType]);
+  }, [subjectsQuery.data, values.subject_type]);
 
   const createMutation = useMutation({
-    mutationFn: () =>
-      api.createSharingGrant({
+    mutationFn: (formValues: ShareGrantFormInput) =>
+      sharingService.createSharingGrant({
         object_type: objectType,
         object_id: objectId,
-        relation,
-        subject: { type: subjectType, id: subjectId.trim() },
-        expires_at: expiresAt ? expiresAt.toISOString() : undefined,
-        reason: reason.trim() || undefined,
+        relation: formValues.relation,
+        subject: { type: formValues.subject_type, id: formValues.subject_id.trim() },
+        expires_at: formValues.expires_at ? formValues.expires_at.toISOString() : undefined,
+        reason: formValues.reason.trim() || undefined,
       }),
     onSuccess: () => {
       notifications.show({ message: "Grant created", color: "green" });
       qc.invalidateQueries({
         queryKey: ["sharing", "grants", objectType, objectId],
       });
-      setSubjectId("");
-      setReason("");
-      setExpiresAt(null);
+      reset(DEFAULT_SHARE_GRANT_VALUES);
     },
     onError: (err: Error) => {
       notifications.show({ message: err.message, color: "red" });
@@ -123,16 +158,19 @@ export function ShareDrawer({ opened, onClose, objectType, objectId, objectLabel
   });
 
   const revokeMutation = useMutation({
-    mutationFn: (g: { relation: string; subject_type: string; subject_id: string }) =>
-      api.revokeSharingGrant({
+    mutationFn: (g: { relation: string; subject_type: string; subject_id: string }) => {
+      const subjectType = parseSharingSubjectTypeFormValue(g.subject_type);
+      if (!subjectType) throw new Error(`Unsupported subject type: ${g.subject_type}`);
+      return sharingService.revokeSharingGrant({
         object_type: objectType,
         object_id: objectId,
         relation: g.relation,
         subject: {
-          type: g.subject_type as SubjectType,
+          type: subjectType,
           id: g.subject_id,
         },
-      }),
+      });
+    },
     onSuccess: () => {
       notifications.show({ message: "Grant revoked", color: "green" });
       qc.invalidateQueries({
@@ -143,6 +181,7 @@ export function ShareDrawer({ opened, onClose, objectType, objectId, objectLabel
       notifications.show({ message: err.message, color: "red" });
     },
   });
+  const submitGrant = handleSubmit((formValues) => createMutation.mutate(formValues));
 
   return (
     <Drawer
@@ -174,58 +213,83 @@ export function ShareDrawer({ opened, onClose, objectType, objectId, objectLabel
           <Select
             label="Subject type"
             data={SUBJECT_TYPES}
-            value={subjectType}
+            value={values.subject_type}
             leftSection={
-              subjectType === "user" ? (
+              values.subject_type === "user" ? (
                 <IconUserCheck size={16} />
-              ) : subjectType === "role" ? (
+              ) : values.subject_type === "role" ? (
                 <IconShieldLock size={16} />
               ) : (
                 <IconUsersGroup size={16} />
               )
             }
-            onChange={(v) => {
-              setSubjectType((v as SubjectType) ?? "user");
-              setSubjectId("");
+            onChange={(value) => {
+              setValue("subject_type", toSharingSubjectTypeFormValue(value));
+              setValue("subject_id", "");
             }}
           />
-          <Select
-            label={subjectType === "user" ? "Staff member" : subjectType}
-            description="Select who should receive this resource relationship"
-            data={subjectOptions}
-            value={subjectId}
-            onChange={(v) => setSubjectId(v ?? "")}
-            placeholder={subjectsQuery.isLoading ? "Loading..." : "Search and select"}
-            searchable
-            clearable
-            disabled={subjectsQuery.isLoading}
-            nothingFoundMessage="No matching subject"
+          <Controller
+            control={control}
+            name="subject_id"
+            render={({ field }) => (
+              <Select
+                label={values.subject_type === "user" ? "Staff member" : values.subject_type}
+                description="Select who should receive this resource relationship"
+                data={subjectOptions}
+                value={field.value}
+                onChange={(value) => field.onChange(value ?? "")}
+                error={errors.subject_id?.message}
+                placeholder={subjectsQuery.isLoading ? "Loading..." : "Search and select"}
+                searchable
+                clearable
+                disabled={subjectsQuery.isLoading}
+                nothingFoundMessage="No matching subject"
+              />
+            )}
           />
-          <Select
-            label="Relation"
-            data={RELATIONS}
-            value={relation}
-            onChange={(v) => setRelation(v ?? "viewer")}
+          <Controller
+            control={control}
+            name="relation"
+            render={({ field }) => (
+              <Select
+                label="Relation"
+                data={RELATIONS}
+                value={field.value}
+                onChange={(value) => field.onChange(toShareRelationFormValue(value))}
+              />
+            )}
           />
-          <DateTimePicker
-            label="Expires at (optional)"
-            description="Set a time limit for temporary consults. Expired grants stop resolving automatically."
-            value={expiresAt}
-            onChange={(v) => setExpiresAt(v ? new Date(v) : null)}
-            clearable
+          <Controller
+            control={control}
+            name="expires_at"
+            render={({ field }) => (
+              <DateTimePicker
+                label="Expires at (optional)"
+                description="Set a time limit for temporary consults. Expired grants stop resolving automatically."
+                value={field.value}
+                onChange={(value) => field.onChange(value ? new Date(value) : null)}
+                clearable
+              />
+            )}
           />
-          <TextInput
-            label="Reason (optional)"
-            description="Captured in audit log for compliance review."
-            value={reason}
-            onChange={(e) => setReason(e.currentTarget.value)}
-            placeholder="Second opinion consult, covering duty, emergency handover"
+          <Controller
+            control={control}
+            name="reason"
+            render={({ field }) => (
+              <TextInput
+                label="Reason (optional)"
+                description="Captured in audit log for compliance review."
+                value={field.value}
+                onChange={field.onChange}
+                placeholder="Second opinion consult, covering duty, emergency handover"
+              />
+            )}
           />
           <Group justify="flex-end">
             <Button
-              onClick={() => createMutation.mutate()}
+              onClick={() => void submitGrant()}
               loading={createMutation.isPending}
-              disabled={!subjectId.trim()}
+              disabled={!values.subject_id.trim()}
             >
               Grant
             </Button>

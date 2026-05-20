@@ -1,19 +1,19 @@
 import { ActionIcon, Badge, Group, SegmentedControl, Text, Tooltip } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
-import type { MedAdminItem, NurseTaskItem } from "@medbrains/types";
+import type { MedAdminItem, MyTasksResponse, NurseTaskItem } from "@medbrains/types";
 import { IconCheck } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { DataTable } from "../../components";
 import type { Column } from "../../components/DataTable";
+import { careViewService } from "../../services/careView.service";
 
 export function MyTasksTab({ wardId, canManage }: { wardId: string | null; canManage: boolean }) {
   const [segment, setSegment] = useState("medications");
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading } = useQuery<MyTasksResponse>({
     queryKey: ["care-view", "my-tasks", wardId],
-    queryFn: () => api.careViewMyTasks({ ward_id: wardId ?? undefined }),
+    queryFn: () => careViewService.myTasks({ ward_id: wardId ?? undefined }),
     refetchInterval: 30_000,
   });
 
@@ -104,7 +104,7 @@ function NursingTasksTable({
 }) {
   const queryClient = useQueryClient();
   const completeMutation = useMutation({
-    mutationFn: (taskId: string) => api.completeCareViewTask(taskId),
+    mutationFn: (taskId: string) => careViewService.completeTask(taskId),
     onSuccess: () => {
       notifications.show({ title: "Task completed", message: "", color: "success" });
       void queryClient.invalidateQueries({ queryKey: ["care-view", "my-tasks"] });

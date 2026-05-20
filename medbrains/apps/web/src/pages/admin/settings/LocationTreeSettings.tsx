@@ -1,9 +1,9 @@
 import { Accordion, Badge, Group, Loader, Stack, Text } from "@mantine/core";
-import { api } from "@medbrains/api";
 import type { LocationRow } from "@medbrains/types";
 import { IconMapPin } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
+import { settingsSetupService } from "../../../services/settingsSetup.service";
 
 interface LocationNode extends LocationRow {
   children: LocationNode[];
@@ -110,7 +110,7 @@ function LocationNodeItem({ node, depth }: LocationNodeItemProps) {
   );
 }
 
-const QUERY_KEY = ["setup-locations"] as const;
+const QUERY_KEY = ["setup-locations"];
 
 export function LocationTreeSettings() {
   const {
@@ -120,7 +120,7 @@ export function LocationTreeSettings() {
     error,
   } = useQuery({
     queryKey: QUERY_KEY,
-    queryFn: () => api.listLocations(),
+    queryFn: () => settingsSetupService.listLocations(),
   });
 
   const tree = useMemo(() => {

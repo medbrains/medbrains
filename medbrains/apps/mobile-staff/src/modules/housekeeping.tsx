@@ -27,6 +27,7 @@ function HousekeepingHome(): ReactNode {
       eyebrow="MODULE"
       title="Housekeeping"
       description="Cleaning, turnaround, linen, laundry."
+      tags={["Mobile-Housekeeping", "TV-Ward", "infection-control", "turnaround"]}
       summaries={[
         { eyebrow: "CLEAN", count: "—", title: "Pending bed turnaround" },
         { eyebrow: "LINEN", count: "—", title: "Soiled awaiting laundry" },
@@ -102,5 +103,7 @@ export const housekeepingModule: Module = {
   icon: () => null,
   requiredPermissions: [P.HOUSEKEEPING.CLEANING_LIST],
   navigator: HousekeepingScreen,
+  appCodes: ["Mobile-Housekeeping", "TV-Ward"],
+  tags: ["housekeeping", "bed-turnaround", "linen", "infection-control"],
   offlineDocTypes: ["hk_task_complete", "hk_turnaround"],
 };

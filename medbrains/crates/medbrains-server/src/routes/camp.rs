@@ -218,6 +218,100 @@ struct UpdateSupplySyncPayload {
     shortage_notes: Option<String>,
 }
 
+#[derive(Debug, Deserialize)]
+struct CampOpdEncounterSyncPayload {
+    patient_id: Uuid,
+    department_id: Option<Uuid>,
+    doctor_id: Option<Uuid>,
+    notes: Option<String>,
+    registration_id: Option<Uuid>,
+}
+
+#[derive(Debug, Deserialize)]
+struct CampVitalSyncPayload {
+    encounter_id: Option<Uuid>,
+    registration_id: Option<Uuid>,
+    patient_id: Option<Uuid>,
+    temperature: Option<Decimal>,
+    pulse: Option<i32>,
+    systolic_bp: Option<i32>,
+    diastolic_bp: Option<i32>,
+    respiratory_rate: Option<i32>,
+    spo2: Option<i32>,
+    weight_kg: Option<Decimal>,
+    height_cm: Option<Decimal>,
+    notes: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct CampLabOrderSyncPayload {
+    patient_id: Option<Uuid>,
+    encounter_id: Option<Uuid>,
+    registration_id: Option<Uuid>,
+    test_id: Uuid,
+    priority: Option<String>,
+    notes: Option<String>,
+    sample_barcode: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct CampPrescriptionSyncPayload {
+    encounter_id: Option<Uuid>,
+    patient_id: Option<Uuid>,
+    registration_id: Option<Uuid>,
+    department_id: Option<Uuid>,
+    doctor_id: Option<Uuid>,
+    notes: Option<String>,
+    items: Vec<CampPrescriptionItemSyncPayload>,
+}
+
+#[derive(Debug, Deserialize)]
+struct CampPrescriptionItemSyncPayload {
+    drug_name: String,
+    dosage: String,
+    frequency: String,
+    duration: String,
+    route: Option<String>,
+    instructions: Option<String>,
+    catalog_item_id: Option<Uuid>,
+}
+
+#[derive(Debug, Deserialize)]
+struct CampPharmacyDispenseSyncPayload {
+    patient_id: Option<Uuid>,
+    encounter_id: Option<Uuid>,
+    registration_id: Option<Uuid>,
+    prescription_id: Option<Uuid>,
+    notes: Option<String>,
+    restricted_approval_reason: Option<String>,
+    items: Vec<CampPharmacyDispenseItemSyncPayload>,
+}
+
+#[derive(Debug, Deserialize)]
+struct CampPharmacyDispenseItemSyncPayload {
+    catalog_item_id: Option<Uuid>,
+    drug_name: String,
+    quantity: i32,
+    unit_price: Decimal,
+    batch_stock_id: Option<Uuid>,
+    batch_number: Option<String>,
+    expiry_date: Option<NaiveDate>,
+}
+
+#[derive(Debug, Deserialize)]
+struct CampBillingRecordSyncPayload {
+    patient_id: Option<Uuid>,
+    encounter_id: Option<Uuid>,
+    registration_id: Option<Uuid>,
+    service_description: String,
+    charge_code: Option<String>,
+    quantity: Option<i32>,
+    unit_price: Decimal,
+    tax_percent: Option<Decimal>,
+    discount_amount: Option<Decimal>,
+    notes: Option<String>,
+}
+
 // ── Team Members ─────────────────────────────────────────
 
 #[derive(Debug, Deserialize)]
@@ -487,6 +581,58 @@ pub struct CampPacketMedicationHistory {
     pub prescribed_at: DateTime<Utc>,
 }
 
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct CampPacketDepartmentRef {
+    pub id: Uuid,
+    pub code: String,
+    pub name: String,
+    pub department_type: String,
+}
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct CampPacketDoctorRef {
+    pub id: Uuid,
+    pub full_name: String,
+    pub specialization: Option<String>,
+    pub medical_registration_number: Option<String>,
+    pub department_ids: Vec<Uuid>,
+}
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct CampPacketLabTestRef {
+    pub id: Uuid,
+    pub code: String,
+    pub name: String,
+    pub department_id: Option<Uuid>,
+    pub sample_type: Option<String>,
+    pub price: Decimal,
+    pub loinc_code: Option<String>,
+}
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct CampPacketPharmacyStockRef {
+    pub catalog_item_id: Uuid,
+    pub code: String,
+    pub name: String,
+    pub generic_name: Option<String>,
+    pub category: Option<String>,
+    pub unit: Option<String>,
+    pub base_price: Decimal,
+    pub tax_percent: Decimal,
+    pub current_stock: i32,
+    pub drug_schedule: Option<String>,
+    pub is_controlled: bool,
+    pub is_lasa: bool,
+    pub aware_category: Option<String>,
+    pub prescription_only: Option<bool>,
+    pub batch_id: Option<Uuid>,
+    pub batch_number: Option<String>,
+    pub expiry_date: Option<NaiveDate>,
+    pub quantity_on_hand: Option<i32>,
+    pub store_location_id: Option<Uuid>,
+    pub selling_rate: Option<Decimal>,
+}
+
 #[derive(Debug, Serialize)]
 pub struct CampPacketResponse {
     pub camp: Camp,
@@ -504,6 +650,10 @@ pub struct CampPacketResponse {
     pub visit_history: Vec<CampPacketVisitHistory>,
     pub diagnosis_history: Vec<CampPacketDiagnosisHistory>,
     pub medication_history: Vec<CampPacketMedicationHistory>,
+    pub department_refs: Vec<CampPacketDepartmentRef>,
+    pub doctor_refs: Vec<CampPacketDoctorRef>,
+    pub lab_test_refs: Vec<CampPacketLabTestRef>,
+    pub pharmacy_stock_refs: Vec<CampPacketPharmacyStockRef>,
     pub downloaded_at: DateTime<Utc>,
     pub expires_at: DateTime<Utc>,
     pub packet_revision: String,
@@ -648,6 +798,7 @@ pub struct CampSyncEventResult {
     pub status: String,
     pub server_entity_type: Option<String>,
     pub server_entity_id: Option<Uuid>,
+    pub server_entities: Option<serde_json::Value>,
     pub message: Option<String>,
 }
 
@@ -666,6 +817,7 @@ pub struct CampSyncInboundResponse {
 struct AppliedSyncEvent {
     server_entity_type: String,
     server_entity_id: Uuid,
+    server_entities: serde_json::Value,
 }
 
 #[derive(Debug, sqlx::FromRow)]
@@ -902,6 +1054,341 @@ async fn ensure_registration_belongs_to_camp(
     }
 }
 
+#[derive(Debug, sqlx::FromRow)]
+struct CampSyncCampContext {
+    camp_code: String,
+    name: String,
+    organizing_department_id: Option<Uuid>,
+}
+
+#[derive(Debug, sqlx::FromRow)]
+struct SequenceCodeResult {
+    current_val: i64,
+    prefix: String,
+    pad_width: i32,
+}
+
+#[derive(Debug, sqlx::FromRow)]
+struct SequenceNumberResult {
+    current_val: i64,
+}
+
+#[derive(Debug)]
+struct CampEncounterLink {
+    encounter_id: Uuid,
+    queue_id: Option<Uuid>,
+}
+
+#[derive(Debug, sqlx::FromRow)]
+struct PharmacySafetyRow {
+    current_stock: i32,
+    drug_schedule: Option<String>,
+    is_controlled: bool,
+    prescription_only: Option<bool>,
+    narcotic_class: Option<String>,
+}
+
+fn normalize_camp_gender(value: Option<&str>) -> String {
+    match value.unwrap_or("unknown").trim().to_lowercase().as_str() {
+        "m" | "male" => "male".to_owned(),
+        "f" | "female" => "female".to_owned(),
+        "other" | "o" => "other".to_owned(),
+        _ => "unknown".to_owned(),
+    }
+}
+
+fn split_person_name(person_name: &str) -> (String, String) {
+    let parts: Vec<&str> = person_name.split_whitespace().collect();
+    match parts.as_slice() {
+        [] => ("Camp".to_owned(), "Patient".to_owned()),
+        [first] => ((*first).to_owned(), "Patient".to_owned()),
+        [first, rest @ ..] => ((*first).to_owned(), rest.join(" ")),
+    }
+}
+
+fn estimated_dob_from_age(age: Option<i32>) -> Option<NaiveDate> {
+    let years = age.filter(|value| (0..=125).contains(value))?;
+    Utc::now()
+        .date_naive()
+        .checked_sub_signed(Duration::days(i64::from(years) * 365))
+}
+
+async fn generate_sequence_code(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: &Uuid,
+    seq_type: &str,
+) -> Result<String, AppError> {
+    let seq = sqlx::query_as::<_, SequenceCodeResult>(
+        "UPDATE sequences SET current_val = current_val + 1 \
+         WHERE tenant_id = $1 AND seq_type = $2 \
+         RETURNING current_val, prefix, pad_width",
+    )
+    .bind(tenant_id)
+    .bind(seq_type)
+    .fetch_optional(&mut **tx)
+    .await?
+    .ok_or_else(|| AppError::Internal(format!("{seq_type} sequence not configured")))?;
+
+    let pad = usize::try_from(seq.pad_width).unwrap_or(6);
+    Ok(format!("{}{:0>pad$}", seq.prefix, seq.current_val))
+}
+
+async fn generate_sequence_number(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: &Uuid,
+    seq_type: &str,
+) -> Result<i32, AppError> {
+    let seq = sqlx::query_as::<_, SequenceNumberResult>(
+        "UPDATE sequences SET current_val = current_val + 1 \
+         WHERE tenant_id = $1 AND seq_type = $2 \
+         RETURNING current_val",
+    )
+    .bind(tenant_id)
+    .bind(seq_type)
+    .fetch_optional(&mut **tx)
+    .await?
+    .ok_or_else(|| AppError::Internal(format!("{seq_type} sequence not configured")))?;
+
+    i32::try_from(seq.current_val)
+        .map_err(|err| AppError::Internal(format!("sequence overflow: {err}")))
+}
+
+async fn camp_context(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: Uuid,
+    camp_id: Uuid,
+) -> Result<CampSyncCampContext, AppError> {
+    sqlx::query_as::<_, CampSyncCampContext>(
+        "SELECT camp_code, name, organizing_department_id \
+         FROM camps \
+         WHERE tenant_id = $1 AND id = $2",
+    )
+    .bind(tenant_id)
+    .bind(camp_id)
+    .fetch_optional(&mut **tx)
+    .await?
+    .ok_or(AppError::NotFound)
+}
+
+async fn patient_for_registration(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: Uuid,
+    registration_id: Uuid,
+) -> Result<Option<Uuid>, AppError> {
+    Ok(sqlx::query_scalar::<_, Option<Uuid>>(
+        "SELECT patient_id FROM camp_registrations \
+         WHERE tenant_id = $1 AND id = $2",
+    )
+    .bind(tenant_id)
+    .bind(registration_id)
+    .fetch_optional(&mut **tx)
+    .await?
+    .flatten())
+}
+
+async fn resolve_camp_patient_id(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: Uuid,
+    patient_id: Option<Uuid>,
+    registration_id: Option<Uuid>,
+) -> Result<Uuid, AppError> {
+    if let Some(id) = patient_id {
+        return Ok(id);
+    }
+    if let Some(id) = registration_id {
+        if let Some(pid) = patient_for_registration(tx, tenant_id, id).await? {
+            return Ok(pid);
+        }
+    }
+    Err(AppError::BadRequest(
+        "camp sync event requires patient_id or a registration linked to a patient".to_owned(),
+    ))
+}
+
+async fn create_or_link_patient_for_camp_registration(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    claims: &Claims,
+    camp_id: Uuid,
+    camp: &CampSyncCampContext,
+    body: &CreateRegistrationRequest,
+) -> Result<Uuid, AppError> {
+    if let Some(patient_id) = body.patient_id {
+        return Ok(patient_id);
+    }
+
+    let (first_name, last_name) = split_person_name(&body.person_name);
+    let phone = body.phone.clone().unwrap_or_default();
+
+    if !phone.trim().is_empty() {
+        if let Some(existing_id) = sqlx::query_scalar::<_, Uuid>(
+            "SELECT id FROM patients \
+             WHERE tenant_id = $1 \
+               AND is_active = true \
+               AND phone = $2 \
+               AND lower(first_name) = lower($3) \
+               AND lower(last_name) = lower($4) \
+             ORDER BY updated_at DESC \
+             LIMIT 1",
+        )
+        .bind(claims.tenant_id)
+        .bind(&phone)
+        .bind(&first_name)
+        .bind(&last_name)
+        .fetch_optional(&mut **tx)
+        .await?
+        {
+            return Ok(existing_id);
+        }
+    }
+
+    let uhid = generate_sequence_code(tx, &claims.tenant_id, "UHID").await?;
+    let gender = normalize_camp_gender(body.gender.as_deref());
+    let dob = estimated_dob_from_age(body.age);
+    let attributes = serde_json::json!({
+        "registration_context": {
+            "camp_id": camp_id,
+            "camp_name": camp.name,
+            "camp_code": camp.camp_code,
+            "chief_complaint": body.chief_complaint,
+            "source": "mobile_camp_sync"
+        },
+        "camp_registration": {
+            "age_years": body.age,
+            "id_proof_type": body.id_proof_type,
+            "has_id_proof": body.id_proof_number.as_ref().is_some_and(|value| !value.trim().is_empty())
+        }
+    });
+    let address = body.address.as_ref().map(|address| {
+        serde_json::json!({
+            "line1": address,
+            "camp_id": camp_id,
+            "camp_name": camp.name,
+        })
+    });
+
+    let patient_id = sqlx::query_scalar::<_, Uuid>(
+        "INSERT INTO patients \
+         (tenant_id, uhid, first_name, last_name, date_of_birth, is_dob_estimated, gender, \
+          phone, address, category, registration_type, registration_source, financial_class, \
+          attributes, created_by, registered_by) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7::gender, \
+                 $8, $9, 'general'::patient_category, 'camp'::registration_type, \
+                 'camp'::registration_source, 'self_pay'::financial_class, \
+                 $10, $11, $11) \
+         RETURNING id",
+    )
+    .bind(claims.tenant_id)
+    .bind(&uhid)
+    .bind(&first_name)
+    .bind(&last_name)
+    .bind(dob)
+    .bind(body.age.is_some())
+    .bind(&gender)
+    .bind(&phone)
+    .bind(address)
+    .bind(attributes)
+    .bind(claims.sub)
+    .fetch_one(&mut **tx)
+    .await?;
+
+    Ok(patient_id)
+}
+
+async fn find_or_create_camp_encounter(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    claims: &Claims,
+    camp_id: Uuid,
+    patient_id: Uuid,
+    department_id: Option<Uuid>,
+    doctor_id: Option<Uuid>,
+    notes: Option<&str>,
+) -> Result<CampEncounterLink, AppError> {
+    if let Some(existing_id) = sqlx::query_scalar::<_, Uuid>(
+        "SELECT id FROM encounters \
+         WHERE tenant_id = $1 \
+           AND patient_id = $2 \
+           AND encounter_type = 'opd'::encounter_type \
+           AND attributes->>'camp_id' = $3 \
+           AND status = 'open'::encounter_status \
+         ORDER BY created_at DESC \
+         LIMIT 1",
+    )
+    .bind(claims.tenant_id)
+    .bind(patient_id)
+    .bind(camp_id.to_string())
+    .fetch_optional(&mut **tx)
+    .await?
+    {
+        return Ok(CampEncounterLink {
+            encounter_id: existing_id,
+            queue_id: None,
+        });
+    }
+
+    let department_id = department_id.ok_or_else(|| {
+        AppError::BadRequest(
+            "camp OPD encounter requires department_id or organizing department".to_owned(),
+        )
+    })?;
+    let today = Utc::now().date_naive();
+    let encounter_id = Uuid::new_v4();
+    let attributes = serde_json::json!({
+        "camp_id": camp_id,
+        "source": "mobile_camp_sync",
+    });
+
+    sqlx::query(
+        "INSERT INTO encounters \
+         (id, tenant_id, patient_id, encounter_type, status, department_id, doctor_id, \
+          encounter_date, notes, attributes, visit_type, created_by) \
+         VALUES ($1, $2, $3, 'opd'::encounter_type, 'open'::encounter_status, \
+                 $4, $5, $6, $7, $8, 'walk_in', $9)",
+    )
+    .bind(encounter_id)
+    .bind(claims.tenant_id)
+    .bind(patient_id)
+    .bind(department_id)
+    .bind(doctor_id)
+    .bind(today)
+    .bind(notes)
+    .bind(attributes)
+    .bind(claims.sub)
+    .execute(&mut **tx)
+    .await?;
+
+    let token = generate_sequence_number(tx, &claims.tenant_id, "OPD_TOKEN").await?;
+    let queue_id = sqlx::query_scalar::<_, Uuid>(
+        "INSERT INTO opd_queues \
+         (tenant_id, encounter_id, department_id, doctor_id, token_number, status, queue_date, created_by) \
+         VALUES ($1, $2, $3, $4, $5, 'waiting'::queue_status, $6, $7) \
+         RETURNING id",
+    )
+    .bind(claims.tenant_id)
+    .bind(encounter_id)
+    .bind(department_id)
+    .bind(doctor_id)
+    .bind(token)
+    .bind(today)
+    .bind(claims.sub)
+    .fetch_one(&mut **tx)
+    .await?;
+
+    Ok(CampEncounterLink {
+        encounter_id,
+        queue_id: Some(queue_id),
+    })
+}
+
+fn calculate_bmi(weight_kg: Option<Decimal>, height_cm: Option<Decimal>) -> Option<Decimal> {
+    match (weight_kg, height_cm) {
+        (Some(weight), Some(height)) if height > Decimal::ZERO => {
+            let stature_metres = height / Decimal::from(100);
+            Some(weight / (stature_metres * stature_metres))
+        }
+        _ => None,
+    }
+}
+
 async fn apply_camp_sync_event(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     claims: &Claims,
@@ -909,6 +1396,504 @@ async fn apply_camp_sync_event(
     event: &CampSyncInboundEvent,
 ) -> Result<AppliedSyncEvent, AppError> {
     match event.event_type.as_str() {
+        "camp.patient.upsert" => {
+            require_permission(claims, permissions::patients::CREATE)?;
+            let body: CreateRegistrationRequest = parse_sync_payload(event)?;
+            if body.camp_id != camp_id {
+                return Err(AppError::BadRequest(
+                    "patient payload camp_id does not match sync camp_id".to_owned(),
+                ));
+            }
+            let camp = camp_context(tx, claims.tenant_id, camp_id).await?;
+            let patient_id =
+                create_or_link_patient_for_camp_registration(tx, claims, camp_id, &camp, &body)
+                    .await?;
+
+            Ok(AppliedSyncEvent {
+                server_entity_type: "patient".to_owned(),
+                server_entity_id: patient_id,
+                server_entities: serde_json::json!({ "patient_id": patient_id }),
+            })
+        }
+        "camp.opd.encounter.create" => {
+            require_permission(claims, permissions::opd::visit::CREATE)?;
+            let body: CampOpdEncounterSyncPayload = parse_sync_payload(event)?;
+            if let Some(registration_id) = body.registration_id {
+                ensure_registration_belongs_to_camp(tx, claims.tenant_id, camp_id, registration_id)
+                    .await?;
+            }
+            let camp = camp_context(tx, claims.tenant_id, camp_id).await?;
+            let link = find_or_create_camp_encounter(
+                tx,
+                claims,
+                camp_id,
+                body.patient_id,
+                body.department_id.or(camp.organizing_department_id),
+                body.doctor_id,
+                body.notes.as_deref(),
+            )
+            .await?;
+
+            Ok(AppliedSyncEvent {
+                server_entity_type: "opd_encounter".to_owned(),
+                server_entity_id: link.encounter_id,
+                server_entities: serde_json::json!({
+                    "patient_id": body.patient_id,
+                    "encounter_id": link.encounter_id,
+                    "queue_id": link.queue_id,
+                }),
+            })
+        }
+        "camp.vitals.record" => {
+            require_permission(claims, permissions::opd::visit::UPDATE)?;
+            let body: CampVitalSyncPayload = parse_sync_payload(event)?;
+            if let Some(registration_id) = body.registration_id {
+                ensure_registration_belongs_to_camp(tx, claims.tenant_id, camp_id, registration_id)
+                    .await?;
+            }
+            let encounter_id = if let Some(encounter_id) = body.encounter_id {
+                encounter_id
+            } else {
+                let patient_id = resolve_camp_patient_id(
+                    tx,
+                    claims.tenant_id,
+                    body.patient_id,
+                    body.registration_id,
+                )
+                .await?;
+                let camp = camp_context(tx, claims.tenant_id, camp_id).await?;
+                find_or_create_camp_encounter(
+                    tx,
+                    claims,
+                    camp_id,
+                    patient_id,
+                    camp.organizing_department_id,
+                    None,
+                    body.notes.as_deref(),
+                )
+                .await?
+                .encounter_id
+            };
+            let bmi = calculate_bmi(body.weight_kg, body.height_cm);
+            let vital_id = sqlx::query_scalar::<_, Uuid>(
+                "INSERT INTO vitals \
+                 (tenant_id, encounter_id, recorded_by, temperature, pulse, \
+                  systolic_bp, diastolic_bp, respiratory_rate, spo2, \
+                  weight_kg, height_cm, bmi, notes, recorded_at) \
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, now()) \
+                 RETURNING id",
+            )
+            .bind(claims.tenant_id)
+            .bind(encounter_id)
+            .bind(claims.sub)
+            .bind(body.temperature)
+            .bind(body.pulse)
+            .bind(body.systolic_bp)
+            .bind(body.diastolic_bp)
+            .bind(body.respiratory_rate)
+            .bind(body.spo2)
+            .bind(body.weight_kg)
+            .bind(body.height_cm)
+            .bind(bmi)
+            .bind(body.notes)
+            .fetch_one(&mut **tx)
+            .await?;
+
+            Ok(AppliedSyncEvent {
+                server_entity_type: "vital".to_owned(),
+                server_entity_id: vital_id,
+                server_entities: serde_json::json!({
+                    "vital_id": vital_id,
+                    "encounter_id": encounter_id,
+                }),
+            })
+        }
+        "camp.lab.order.create" | "camp.lab.sample.collect" => {
+            require_permission(claims, permissions::lab::orders::CREATE)?;
+            let body: CampLabOrderSyncPayload = parse_sync_payload(event)?;
+            if let Some(registration_id) = body.registration_id {
+                ensure_registration_belongs_to_camp(tx, claims.tenant_id, camp_id, registration_id)
+                    .await?;
+            }
+            let patient_id = resolve_camp_patient_id(
+                tx,
+                claims.tenant_id,
+                body.patient_id,
+                body.registration_id,
+            )
+            .await?;
+            let encounter_id = if let Some(encounter_id) = body.encounter_id {
+                encounter_id
+            } else {
+                let camp = camp_context(tx, claims.tenant_id, camp_id).await?;
+                find_or_create_camp_encounter(
+                    tx,
+                    claims,
+                    camp_id,
+                    patient_id,
+                    camp.organizing_department_id,
+                    None,
+                    body.notes.as_deref(),
+                )
+                .await?
+                .encounter_id
+            };
+            let priority = body.priority.unwrap_or_else(|| "routine".to_owned());
+            let lab_order_id = sqlx::query_scalar::<_, Uuid>(
+                "INSERT INTO lab_orders \
+                 (tenant_id, encounter_id, patient_id, test_id, ordered_by, priority, notes, \
+                  sample_barcode, camp_id, created_by) \
+                 VALUES ($1, $2, $3, $4, $5, $6::lab_priority, $7, $8, $9, $5) \
+                 RETURNING id",
+            )
+            .bind(claims.tenant_id)
+            .bind(encounter_id)
+            .bind(patient_id)
+            .bind(body.test_id)
+            .bind(claims.sub)
+            .bind(priority)
+            .bind(body.notes)
+            .bind(body.sample_barcode)
+            .bind(camp_id)
+            .fetch_one(&mut **tx)
+            .await?;
+
+            Ok(AppliedSyncEvent {
+                server_entity_type: "lab_order".to_owned(),
+                server_entity_id: lab_order_id,
+                server_entities: serde_json::json!({
+                    "patient_id": patient_id,
+                    "encounter_id": encounter_id,
+                    "lab_order_id": lab_order_id,
+                }),
+            })
+        }
+        "camp.prescription.create" => {
+            require_permission(claims, permissions::opd::visit::UPDATE)?;
+            let body: CampPrescriptionSyncPayload = parse_sync_payload(event)?;
+            if body.items.is_empty() {
+                return Err(AppError::BadRequest(
+                    "prescription sync requires at least one item".to_owned(),
+                ));
+            }
+            if let Some(registration_id) = body.registration_id {
+                ensure_registration_belongs_to_camp(tx, claims.tenant_id, camp_id, registration_id)
+                    .await?;
+            }
+            let patient_id = resolve_camp_patient_id(
+                tx,
+                claims.tenant_id,
+                body.patient_id,
+                body.registration_id,
+            )
+            .await?;
+            let encounter_id = if let Some(encounter_id) = body.encounter_id {
+                encounter_id
+            } else {
+                let camp = camp_context(tx, claims.tenant_id, camp_id).await?;
+                find_or_create_camp_encounter(
+                    tx,
+                    claims,
+                    camp_id,
+                    patient_id,
+                    body.department_id.or(camp.organizing_department_id),
+                    body.doctor_id,
+                    body.notes.as_deref(),
+                )
+                .await?
+                .encounter_id
+            };
+            let prescription_id = sqlx::query_scalar::<_, Uuid>(
+                "INSERT INTO prescriptions (tenant_id, encounter_id, doctor_id, notes) \
+                 VALUES ($1, $2, $3, $4) \
+                 RETURNING id",
+            )
+            .bind(claims.tenant_id)
+            .bind(encounter_id)
+            .bind(body.doctor_id.unwrap_or(claims.sub))
+            .bind(&body.notes)
+            .fetch_one(&mut **tx)
+            .await?;
+
+            for item in &body.items {
+                sqlx::query(
+                    "INSERT INTO prescription_items \
+                     (tenant_id, prescription_id, drug_name, dosage, frequency, duration, \
+                      route, instructions, catalog_item_id) \
+                     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
+                )
+                .bind(claims.tenant_id)
+                .bind(prescription_id)
+                .bind(&item.drug_name)
+                .bind(&item.dosage)
+                .bind(&item.frequency)
+                .bind(&item.duration)
+                .bind(&item.route)
+                .bind(&item.instructions)
+                .bind(item.catalog_item_id)
+                .execute(&mut **tx)
+                .await?;
+            }
+
+            let _ = sqlx::query(
+                "INSERT INTO pharmacy_prescriptions \
+                 (tenant_id, prescription_id, patient_id, encounter_id, doctor_id, source, status, priority) \
+                 VALUES ($1, $2, $3, $4, $5, 'opd', 'pending_review', 'normal') \
+                 ON CONFLICT DO NOTHING",
+            )
+            .bind(claims.tenant_id)
+            .bind(prescription_id)
+            .bind(patient_id)
+            .bind(encounter_id)
+            .bind(body.doctor_id.unwrap_or(claims.sub))
+            .execute(&mut **tx)
+            .await;
+
+            Ok(AppliedSyncEvent {
+                server_entity_type: "prescription".to_owned(),
+                server_entity_id: prescription_id,
+                server_entities: serde_json::json!({
+                    "patient_id": patient_id,
+                    "encounter_id": encounter_id,
+                    "prescription_id": prescription_id,
+                }),
+            })
+        }
+        "camp.pharmacy.dispense" => {
+            require_permission(claims, permissions::pharmacy::dispensing::CREATE)?;
+            let body: CampPharmacyDispenseSyncPayload = parse_sync_payload(event)?;
+            if body.items.is_empty() {
+                return Err(AppError::BadRequest(
+                    "pharmacy dispense sync requires at least one item".to_owned(),
+                ));
+            }
+            if let Some(registration_id) = body.registration_id {
+                ensure_registration_belongs_to_camp(tx, claims.tenant_id, camp_id, registration_id)
+                    .await?;
+            }
+            let patient_id = resolve_camp_patient_id(
+                tx,
+                claims.tenant_id,
+                body.patient_id,
+                body.registration_id,
+            )
+            .await?;
+            let order_id = sqlx::query_scalar::<_, Uuid>(
+                "INSERT INTO pharmacy_orders \
+                 (tenant_id, prescription_id, patient_id, encounter_id, ordered_by, status, notes, \
+                  dispensing_type, dispensed_by, dispensed_at, reviewed_at, review_notes) \
+                 VALUES ($1, $2, $3, $4, $5, 'dispensed', $6, \
+                         'prescription'::pharmacy_dispensing_type, $5, now(), now(), 'Camp offline sync') \
+                 RETURNING id",
+            )
+            .bind(claims.tenant_id)
+            .bind(body.prescription_id)
+            .bind(patient_id)
+            .bind(body.encounter_id)
+            .bind(claims.sub)
+            .bind(&body.notes)
+            .fetch_one(&mut **tx)
+            .await?;
+
+            for item in &body.items {
+                if item.quantity <= 0 {
+                    return Err(AppError::BadRequest(
+                        "dispense quantity must be greater than zero".to_owned(),
+                    ));
+                }
+                if let Some(catalog_item_id) = item.catalog_item_id {
+                    let safety = sqlx::query_as::<_, PharmacySafetyRow>(
+                        "SELECT current_stock, drug_schedule, is_controlled, prescription_only, narcotic_class \
+                         FROM pharmacy_catalog \
+                         WHERE tenant_id = $1 AND id = $2 AND is_active = true",
+                    )
+                    .bind(claims.tenant_id)
+                    .bind(catalog_item_id)
+                    .fetch_optional(&mut **tx)
+                    .await?
+                    .ok_or(AppError::NotFound)?;
+
+                    let schedule = safety.drug_schedule.as_deref().unwrap_or_default();
+                    let restricted = safety.is_controlled
+                        || safety.narcotic_class.is_some()
+                        || matches!(schedule, "NDPS" | "X");
+                    if restricted {
+                        require_permission(claims, permissions::pharmacy::ndps::MANAGE)?;
+                        if body
+                            .restricted_approval_reason
+                            .as_deref()
+                            .unwrap_or("")
+                            .trim()
+                            .is_empty()
+                        {
+                            return Err(AppError::BadRequest(
+                                "restricted camp pharmacy item requires approval reason".to_owned(),
+                            ));
+                        }
+                    }
+                    if safety.prescription_only.unwrap_or(false)
+                        && body.prescription_id.is_none()
+                        && matches!(schedule, "H" | "H1" | "X" | "NDPS")
+                    {
+                        return Err(AppError::BadRequest(
+                            "prescription-only camp medicine requires prescription_id".to_owned(),
+                        ));
+                    }
+                    if safety.current_stock < item.quantity {
+                        return Err(AppError::BadRequest(format!(
+                            "insufficient stock for {}",
+                            item.drug_name
+                        )));
+                    }
+
+                    if let Some(batch_id) = item.batch_stock_id {
+                        let updated = sqlx::query_scalar::<_, Uuid>(
+                            "UPDATE pharmacy_batches \
+                             SET quantity_on_hand = quantity_on_hand - $3, \
+                                 quantity_dispensed = quantity_dispensed + $3, \
+                                 updated_at = now() \
+                             WHERE tenant_id = $1 \
+                               AND id = $2 \
+                               AND catalog_item_id = $4 \
+                               AND quantity_on_hand >= $3 \
+                               AND expiry_date >= CURRENT_DATE \
+                               AND quarantine_status = 'cleared' \
+                             RETURNING id",
+                        )
+                        .bind(claims.tenant_id)
+                        .bind(batch_id)
+                        .bind(item.quantity)
+                        .bind(catalog_item_id)
+                        .fetch_optional(&mut **tx)
+                        .await?;
+                        if updated.is_none() {
+                            return Err(AppError::BadRequest(format!(
+                                "batch unavailable or expired for {}",
+                                item.drug_name
+                            )));
+                        }
+                    }
+
+                    let updated = sqlx::query_scalar::<_, Uuid>(
+                        "UPDATE pharmacy_catalog \
+                         SET current_stock = current_stock - $3, updated_at = now() \
+                         WHERE tenant_id = $1 AND id = $2 AND current_stock >= $3 \
+                         RETURNING id",
+                    )
+                    .bind(claims.tenant_id)
+                    .bind(catalog_item_id)
+                    .bind(item.quantity)
+                    .fetch_optional(&mut **tx)
+                    .await?;
+                    if updated.is_none() {
+                        return Err(AppError::BadRequest(format!(
+                            "insufficient stock for {}",
+                            item.drug_name
+                        )));
+                    }
+                }
+
+                let total_price = item.unit_price * Decimal::from(item.quantity);
+                sqlx::query(
+                    "INSERT INTO pharmacy_order_items \
+                     (tenant_id, order_id, catalog_item_id, drug_name, quantity, unit_price, \
+                      total_price, batch_number, expiry_date, batch_stock_id) \
+                     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)",
+                )
+                .bind(claims.tenant_id)
+                .bind(order_id)
+                .bind(item.catalog_item_id)
+                .bind(&item.drug_name)
+                .bind(item.quantity)
+                .bind(item.unit_price)
+                .bind(total_price)
+                .bind(&item.batch_number)
+                .bind(item.expiry_date)
+                .bind(item.batch_stock_id)
+                .execute(&mut **tx)
+                .await?;
+            }
+
+            Ok(AppliedSyncEvent {
+                server_entity_type: "pharmacy_order".to_owned(),
+                server_entity_id: order_id,
+                server_entities: serde_json::json!({
+                    "patient_id": patient_id,
+                    "encounter_id": body.encounter_id,
+                    "pharmacy_order_id": order_id,
+                }),
+            })
+        }
+        "camp.billing.record" => {
+            require_permission(claims, permissions::billing::invoices::CREATE)?;
+            let body: CampBillingRecordSyncPayload = parse_sync_payload(event)?;
+            if let Some(registration_id) = body.registration_id {
+                ensure_registration_belongs_to_camp(tx, claims.tenant_id, camp_id, registration_id)
+                    .await?;
+            }
+            let patient_id = resolve_camp_patient_id(
+                tx,
+                claims.tenant_id,
+                body.patient_id,
+                body.registration_id,
+            )
+            .await?;
+            let quantity = body.quantity.unwrap_or(1).max(1);
+            let subtotal = body.unit_price * Decimal::from(quantity);
+            let tax_percent = body.tax_percent.unwrap_or(Decimal::ZERO);
+            let tax_amount = subtotal * tax_percent / Decimal::from(100);
+            let discount_amount = body.discount_amount.unwrap_or(Decimal::ZERO);
+            let total_amount = subtotal + tax_amount - discount_amount;
+            let invoice_number = generate_sequence_code(tx, &claims.tenant_id, "INVOICE").await?;
+            let invoice_id = sqlx::query_scalar::<_, Uuid>(
+                "INSERT INTO invoices \
+                 (tenant_id, invoice_number, patient_id, encounter_id, status, subtotal, \
+                  tax_amount, discount_amount, total_amount, paid_amount, notes, issued_at, created_by) \
+                 VALUES ($1, $2, $3, $4, 'issued'::invoice_status, $5, $6, $7, $8, 0, $9, now(), $10) \
+                 RETURNING id",
+            )
+            .bind(claims.tenant_id)
+            .bind(&invoice_number)
+            .bind(patient_id)
+            .bind(body.encounter_id)
+            .bind(subtotal)
+            .bind(tax_amount)
+            .bind(discount_amount)
+            .bind(total_amount)
+            .bind(&body.notes)
+            .bind(claims.sub)
+            .fetch_one(&mut **tx)
+            .await?;
+
+            sqlx::query(
+                "INSERT INTO invoice_items \
+                 (tenant_id, invoice_id, charge_code, description, source, source_id, quantity, \
+                  unit_price, tax_percent, total_price, source_module) \
+                 VALUES ($1, $2, $3, $4, 'manual'::charge_source, $5, $6, $7, $8, $9, 'camp')",
+            )
+            .bind(claims.tenant_id)
+            .bind(invoice_id)
+            .bind(body.charge_code.unwrap_or_else(|| "CAMP".to_owned()))
+            .bind(body.service_description)
+            .bind(camp_id)
+            .bind(quantity)
+            .bind(body.unit_price)
+            .bind(tax_percent)
+            .bind(total_amount)
+            .execute(&mut **tx)
+            .await?;
+
+            Ok(AppliedSyncEvent {
+                server_entity_type: "invoice".to_owned(),
+                server_entity_id: invoice_id,
+                server_entities: serde_json::json!({
+                    "patient_id": patient_id,
+                    "encounter_id": body.encounter_id,
+                    "invoice_id": invoice_id,
+                    "invoice_number": invoice_number,
+                }),
+            })
+        }
         "camp.registration.create" => {
             require_permission(claims, permissions::camp::registrations::CREATE)?;
             let body: CreateRegistrationRequest = parse_sync_payload(event)?;
@@ -925,6 +1910,14 @@ async fn apply_camp_sync_event(
                     .fetch_optional(&mut **tx)
                     .await?
                     .ok_or(AppError::NotFound)?;
+            let camp_ctx = CampSyncCampContext {
+                camp_code: camp.camp_code.clone(),
+                name: camp.name.clone(),
+                organizing_department_id: camp.organizing_department_id,
+            };
+            let patient_id =
+                create_or_link_patient_for_camp_registration(tx, claims, camp_id, &camp_ctx, &body)
+                    .await?;
 
             let count_row = sqlx::query_as::<_, CountRow>(
                 "SELECT COUNT(*)::bigint AS count FROM camp_registrations WHERE camp_id = $1",
@@ -950,23 +1943,46 @@ async fn apply_camp_sync_event(
             .bind(claims.tenant_id)
             .bind(camp_id)
             .bind(&reg_number)
-            .bind(body.person_name)
+            .bind(&body.person_name)
             .bind(body.age)
-            .bind(body.gender)
-            .bind(body.phone)
-            .bind(body.address)
-            .bind(body.id_proof_type)
-            .bind(body.id_proof_number)
-            .bind(body.patient_id)
-            .bind(body.chief_complaint)
+            .bind(&body.gender)
+            .bind(&body.phone)
+            .bind(&body.address)
+            .bind(&body.id_proof_type)
+            .bind(&body.id_proof_number)
+            .bind(patient_id)
+            .bind(&body.chief_complaint)
             .bind(body.is_walk_in)
             .bind(claims.sub)
             .fetch_one(&mut **tx)
             .await?;
 
+            let encounter_link = if camp_ctx.organizing_department_id.is_some() {
+                Some(
+                    find_or_create_camp_encounter(
+                        tx,
+                        claims,
+                        camp_id,
+                        patient_id,
+                        camp_ctx.organizing_department_id,
+                        camp.coordinator_id,
+                        body.chief_complaint.as_deref(),
+                    )
+                    .await?,
+                )
+            } else {
+                None
+            };
+
             Ok(AppliedSyncEvent {
                 server_entity_type: "camp_registration".to_owned(),
                 server_entity_id: server_id,
+                server_entities: serde_json::json!({
+                    "camp_registration_id": server_id,
+                    "patient_id": patient_id,
+                    "encounter_id": encounter_link.as_ref().map(|link| link.encounter_id),
+                    "queue_id": encounter_link.as_ref().and_then(|link| link.queue_id),
+                }),
             })
         }
         "camp.screening.create" => {
@@ -1007,9 +2023,9 @@ async fn apply_camp_sync_event(
             .bind(body.weight_kg)
             .bind(body.visual_acuity_left)
             .bind(body.visual_acuity_right)
-            .bind(body.findings)
-            .bind(body.diagnosis)
-            .bind(body.advice)
+            .bind(&body.findings)
+            .bind(&body.diagnosis)
+            .bind(&body.advice)
             .bind(body.referred_to_hospital)
             .bind(body.referral_department)
             .bind(body.referral_urgency)
@@ -1028,9 +2044,60 @@ async fn apply_camp_sync_event(
             .execute(&mut **tx)
             .await?;
 
+            let patient_id =
+                patient_for_registration(tx, claims.tenant_id, body.registration_id).await?;
+            let camp_ctx = camp_context(tx, claims.tenant_id, camp_id).await?;
+            let encounter_link = if let (Some(pid), Some(department_id)) =
+                (patient_id, camp_ctx.organizing_department_id)
+            {
+                Some(
+                    find_or_create_camp_encounter(
+                        tx,
+                        claims,
+                        camp_id,
+                        pid,
+                        Some(department_id),
+                        None,
+                        body.findings.as_deref(),
+                    )
+                    .await?,
+                )
+            } else {
+                None
+            };
+
+            if let Some(link) = &encounter_link {
+                let bmi = calculate_bmi(body.weight_kg, body.height_cm).or(body.bmi);
+                sqlx::query(
+                    "INSERT INTO vitals \
+                     (tenant_id, encounter_id, recorded_by, temperature, pulse, \
+                      systolic_bp, diastolic_bp, spo2, weight_kg, height_cm, bmi, notes, recorded_at) \
+                     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, now())",
+                )
+                .bind(claims.tenant_id)
+                .bind(link.encounter_id)
+                .bind(claims.sub)
+                .bind(body.temperature)
+                .bind(body.pulse_rate)
+                .bind(body.bp_systolic)
+                .bind(body.bp_diastolic)
+                .bind(body.spo2)
+                .bind(body.weight_kg)
+                .bind(body.height_cm)
+                .bind(bmi)
+                .bind(body.findings.as_deref().or(body.advice.as_deref()))
+                .execute(&mut **tx)
+                .await?;
+            }
+
             Ok(AppliedSyncEvent {
                 server_entity_type: "camp_screening".to_owned(),
                 server_entity_id: server_id,
+                server_entities: serde_json::json!({
+                    "camp_screening_id": server_id,
+                    "patient_id": patient_id,
+                    "encounter_id": encounter_link.as_ref().map(|link| link.encounter_id),
+                }),
             })
         }
         "camp.lab_sample.create" => {
@@ -1065,6 +2132,7 @@ async fn apply_camp_sync_event(
             Ok(AppliedSyncEvent {
                 server_entity_type: "camp_lab_sample".to_owned(),
                 server_entity_id: server_id,
+                server_entities: serde_json::json!({ "camp_lab_sample_id": server_id }),
             })
         }
         "camp.referral.create" => {
@@ -1104,6 +2172,7 @@ async fn apply_camp_sync_event(
             Ok(AppliedSyncEvent {
                 server_entity_type: "camp_referral".to_owned(),
                 server_entity_id: server_id,
+                server_entities: serde_json::json!({ "camp_referral_id": server_id }),
             })
         }
         "camp.incident.create" => {
@@ -1137,6 +2206,7 @@ async fn apply_camp_sync_event(
             Ok(AppliedSyncEvent {
                 server_entity_type: "camp_incident".to_owned(),
                 server_entity_id: server_id,
+                server_entities: serde_json::json!({ "camp_incident_id": server_id }),
             })
         }
         "camp.checklist.update" => {
@@ -1203,6 +2273,7 @@ async fn apply_camp_sync_event(
             Ok(AppliedSyncEvent {
                 server_entity_type: "camp_remote_checklist_item".to_owned(),
                 server_entity_id: item.id,
+                server_entities: serde_json::json!({ "camp_checklist_item_id": item.id }),
             })
         }
         "camp.supply.create" => {
@@ -1236,9 +2307,10 @@ async fn apply_camp_sync_event(
             Ok(AppliedSyncEvent {
                 server_entity_type: "camp_supply_item".to_owned(),
                 server_entity_id: server_id,
+                server_entities: serde_json::json!({ "camp_supply_item_id": server_id }),
             })
         }
-        "camp.supply.update" => {
+        "camp.supply.update" | "camp.stock.adjust" => {
             require_permission(claims, permissions::camp::UPDATE)?;
             let body: UpdateSupplySyncPayload = parse_sync_payload(event)?;
 
@@ -1265,6 +2337,7 @@ async fn apply_camp_sync_event(
             Ok(AppliedSyncEvent {
                 server_entity_type: "camp_supply_item".to_owned(),
                 server_entity_id: server_id,
+                server_entities: serde_json::json!({ "camp_supply_item_id": server_id }),
             })
         }
         other => Err(AppError::BadRequest(format!(
@@ -1663,6 +2736,83 @@ pub async fn get_camp_packet(
     .fetch_all(&mut *tx)
     .await?;
 
+    let department_refs = sqlx::query_as::<_, CampPacketDepartmentRef>(
+        "SELECT id, code, name, department_type::text AS department_type \
+         FROM departments \
+         WHERE tenant_id = $1 AND is_active = true \
+         ORDER BY name",
+    )
+    .bind(claims.tenant_id)
+    .fetch_all(&mut *tx)
+    .await?;
+
+    let doctor_refs = sqlx::query_as::<_, CampPacketDoctorRef>(
+        "SELECT id, full_name, specialization, medical_registration_number, department_ids \
+         FROM users \
+         WHERE tenant_id = $1 \
+           AND is_active = true \
+           AND (role::text ILIKE '%doctor%' OR medical_registration_number IS NOT NULL) \
+         ORDER BY full_name",
+    )
+    .bind(claims.tenant_id)
+    .fetch_all(&mut *tx)
+    .await?;
+
+    let lab_test_refs = sqlx::query_as::<_, CampPacketLabTestRef>(
+        "SELECT id, code, name, department_id, sample_type, price, loinc_code \
+         FROM lab_test_catalog \
+         WHERE tenant_id = $1 AND is_active = true \
+         ORDER BY name \
+         LIMIT 500",
+    )
+    .bind(claims.tenant_id)
+    .fetch_all(&mut *tx)
+    .await?;
+
+    let pharmacy_stock_refs = sqlx::query_as::<_, CampPacketPharmacyStockRef>(
+        "SELECT \
+            pc.id AS catalog_item_id, \
+            pc.code, \
+            pc.name, \
+            pc.generic_name, \
+            pc.category, \
+            pc.unit, \
+            pc.base_price, \
+            pc.tax_percent, \
+            pc.current_stock, \
+            pc.drug_schedule, \
+            pc.is_controlled, \
+            pc.is_lasa, \
+            pc.aware_category, \
+            pc.prescription_only, \
+            pb.id AS batch_id, \
+            pb.batch_number, \
+            pb.expiry_date, \
+            pb.quantity_on_hand, \
+            pb.store_location_id, \
+            pb.selling_rate \
+         FROM pharmacy_catalog pc \
+         LEFT JOIN LATERAL ( \
+            SELECT id, batch_number, expiry_date, quantity_on_hand, store_location_id, selling_rate \
+            FROM pharmacy_batches \
+            WHERE tenant_id = pc.tenant_id \
+              AND catalog_item_id = pc.id \
+              AND quantity_on_hand > 0 \
+              AND expiry_date >= CURRENT_DATE \
+              AND quarantine_status = 'cleared' \
+            ORDER BY expiry_date ASC, created_at ASC \
+            LIMIT 1 \
+         ) pb ON true \
+         WHERE pc.tenant_id = $1 \
+           AND pc.is_active = true \
+           AND pc.current_stock > 0 \
+         ORDER BY pc.name \
+         LIMIT 500",
+    )
+    .bind(claims.tenant_id)
+    .fetch_all(&mut *tx)
+    .await?;
+
     let downloaded_at = Utc::now();
     let expires_naive = camp
         .scheduled_date
@@ -1693,6 +2843,10 @@ pub async fn get_camp_packet(
         "visit_history_count": visit_history.len(),
         "diagnosis_history_count": diagnosis_history.len(),
         "medication_history_count": medication_history.len(),
+        "department_ref_count": department_refs.len(),
+        "doctor_ref_count": doctor_refs.len(),
+        "lab_test_ref_count": lab_test_refs.len(),
+        "pharmacy_stock_ref_count": pharmacy_stock_refs.len(),
         "expires_at": expires_at,
     }))
     .bind("Camp offline packet downloaded")
@@ -1717,6 +2871,10 @@ pub async fn get_camp_packet(
         visit_history,
         diagnosis_history,
         medication_history,
+        department_refs,
+        doctor_refs,
+        lab_test_refs,
+        pharmacy_stock_refs,
         downloaded_at,
         expires_at,
         packet_revision,
@@ -1795,6 +2953,7 @@ pub async fn sync_camp_inbound(
                 status: "duplicate".to_owned(),
                 server_entity_type: existing.server_entity_type,
                 server_entity_id: existing.server_entity_id,
+                server_entities: None,
                 message: existing
                     .error
                     .or(Some(format!("already processed as {}", existing.status))),
@@ -1822,6 +2981,11 @@ pub async fn sync_camp_inbound(
 
         match apply_camp_sync_event(&mut tx, &claims, body.camp_id, event).await {
             Ok(applied_event) => {
+                let patient_grant_id = applied_event
+                    .server_entities
+                    .get("patient_id")
+                    .and_then(serde_json::Value::as_str)
+                    .and_then(|value| Uuid::parse_str(value).ok());
                 sqlx::query(
                     "UPDATE camp_sync_events SET \
                      status = 'applied', server_entity_type = $3, server_entity_id = $4, \
@@ -1836,15 +3000,40 @@ pub async fn sync_camp_inbound(
                 .await?;
 
                 applied += 1;
+                tx.commit().await?;
+
+                if let Some(patient_id) = patient_grant_id {
+                    let authz_ctx = crate::middleware::authorization::authz_context(&claims);
+                    if let Err(err) = state
+                        .authz
+                        .write_tuple(
+                            &authz_ctx,
+                            "patient",
+                            patient_id,
+                            medbrains_authz::Relation::Owner,
+                            medbrains_authz::Subject::User(claims.sub),
+                            None,
+                            Some("camp_sync_patient_owner".to_owned()),
+                        )
+                        .await
+                    {
+                        tracing::warn!(
+                            error = %err,
+                            patient_id = %patient_id,
+                            "camp sync patient authz grant failed"
+                        );
+                    }
+                }
+
                 results.push(CampSyncEventResult {
                     idempotency_key: event.idempotency_key.clone(),
                     event_type: event.event_type.clone(),
                     status: "applied".to_owned(),
                     server_entity_type: Some(applied_event.server_entity_type),
                     server_entity_id: Some(applied_event.server_entity_id),
+                    server_entities: Some(applied_event.server_entities),
                     message: None,
                 });
-                tx.commit().await?;
             }
             Err(err)
                 if matches!(
@@ -1870,6 +3059,7 @@ pub async fn sync_camp_inbound(
                     status: "failed".to_owned(),
                     server_entity_type: None,
                     server_entity_id: None,
+                    server_entities: None,
                     message: Some(message),
                 });
                 tx.commit().await?;

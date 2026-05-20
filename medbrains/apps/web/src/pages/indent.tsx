@@ -20,7 +20,6 @@ import {
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
 import { useAuthStore, useHasPermission } from "@medbrains/stores";
 import type {
   AbcAnalysisRow,
@@ -35,6 +34,7 @@ import type {
   EquipmentCondemnation,
   FsnAnalysisRow,
   ImplantRegistryEntry,
+  IndentPriority,
   IndentRequisition,
   IndentRequisitionDetailResponse,
   IndentType,
@@ -77,6 +77,38 @@ import {
 import { PatientNameCell } from "../components/PatientNameCell";
 import { PatientSearchSelect } from "../components/PatientSearchSelect";
 import { useRequirePermission } from "../hooks/useRequirePermission";
+import { indentService } from "../services/indent.service";
+
+type CreateIndentFormItem = CreateIndentItemInput & { row_key: string };
+
+function createIndentFormItem(): CreateIndentFormItem {
+  return {
+    row_key: crypto.randomUUID(),
+    item_name: "",
+    quantity_requested: 1,
+  };
+}
+
+function toIndentType(value: string): IndentType {
+  if (
+    value === "general" ||
+    value === "pharmacy" ||
+    value === "lab" ||
+    value === "surgical" ||
+    value === "housekeeping" ||
+    value === "emergency"
+  ) {
+    return value;
+  }
+  return "general";
+}
+
+function toIndentPriority(value: string): IndentPriority {
+  if (value === "normal" || value === "urgent" || value === "emergency") {
+    return value;
+  }
+  return "normal";
+}
 
 // ── Status colors ─────────────────────────────────────────
 
@@ -289,7 +321,7 @@ function IndentListPanel({ status, requestedBy }: { status?: string; requestedBy
 
   const { data, isLoading } = useQuery({
     queryKey: ["indent-requisitions", params],
-    queryFn: () => api.listIndentRequisitions(params),
+    queryFn: () => indentService.listIndentRequisitions(params),
   });
 
   const columns = [
@@ -391,13 +423,13 @@ function IndentDetailView({ id, onClose }: { id: string; onClose: () => void }) 
 
   const { data, isLoading } = useQuery({
     queryKey: ["indent-requisition", id],
-    queryFn: () => api.getIndentRequisition(id),
+    queryFn: () => indentService.getIndentRequisition(id),
   });
 
   const emit = useClinicalEmit();
 
   const submitMutation = useMutation({
-    mutationFn: () => api.submitIndentRequisition(id),
+    mutationFn: () => indentService.submitIndentRequisition(id),
     onSuccess: () => {
       notifications.show({
         title: "Submitted",
@@ -411,7 +443,7 @@ function IndentDetailView({ id, onClose }: { id: string; onClose: () => void }) 
   });
 
   const rejectMutation = useMutation({
-    mutationFn: () => api.rejectIndentRequisition(id),
+    mutationFn: () => indentService.rejectIndentRequisition(id),
     onSuccess: () => {
       notifications.show({ title: "Rejected", message: "Indent rejected", color: "danger" });
       void queryClient.invalidateQueries({ queryKey: ["indent-requisition"] });
@@ -420,7 +452,7 @@ function IndentDetailView({ id, onClose }: { id: string; onClose: () => void }) 
   });
 
   const cancelMutation = useMutation({
-    mutationFn: () => api.cancelIndentRequisition(id),
+    mutationFn: () => indentService.cancelIndentRequisition(id),
     onSuccess: () => {
       notifications.show({ title: "Cancelled", message: "Indent cancelled", color: "orange" });
       void queryClient.invalidateQueries({ queryKey: ["indent-requisition"] });
@@ -552,7 +584,7 @@ function ApproveButton({
         item_id: i.id,
         quantity_approved: approvals[i.id] ?? i.quantity_requested,
       }));
-      return api.approveIndentRequisition(requisitionId, { items: approveItems });
+      return indentService.approveIndentRequisition(requisitionId, { items: approveItems });
     },
     onSuccess: () => {
       notifications.show({ title: "Approved", message: "Indent approved", color: "success" });
@@ -625,7 +657,7 @@ function IssueButton({
         item_id: i.id,
         quantity_issued: issues[i.id] ?? 0,
       }));
-      return api.issueIndentRequisition(requisitionId, { items: issueItems });
+      return indentService.issueIndentRequisition(requisitionId, { items: issueItems });
     },
     onSuccess: () => {
       notifications.show({
@@ -687,7 +719,7 @@ function FlowTrackerPanel() {
 
   const detailQuery = useQuery({
     queryKey: ["indent-requisition", selectedId],
-    queryFn: () => api.getIndentRequisition(selectedId!),
+    queryFn: () => (selectedId ? indentService.getIndentRequisition(selectedId) : undefined),
     enabled: !!selectedId,
   });
 
@@ -719,7 +751,7 @@ function RecentIndentsList({
 }) {
   const { data } = useQuery({
     queryKey: ["indent-requisitions", { page: "1", per_page: "10" }],
-    queryFn: () => api.listIndentRequisitions({ page: "1", per_page: "10" }),
+    queryFn: () => indentService.listIndentRequisitions({ page: "1", per_page: "10" }),
   });
 
   const filtered = (data?.requisitions ?? []).filter((req) =>
@@ -783,7 +815,11 @@ function IndentTimeline({ data }: { data: IndentRequisitionDetailResponse }) {
   const relatedPurchaseOrdersQuery = useQuery({
     queryKey: ["purchase-orders", "indent-link", requisition.id],
     queryFn: () =>
-      api.listPurchaseOrders({ indent_requisition_id: requisition.id, page: "1", per_page: "10" }),
+      indentService.listPurchaseOrders({
+        indent_requisition_id: requisition.id,
+        page: "1",
+        per_page: "10",
+      }),
     staleTime: 30_000,
   });
   const sidecarsQuery = { data: [] as ResolvedSidecar[] };
@@ -851,8 +887,8 @@ function IndentTimeline({ data }: { data: IndentRequisitionDetailResponse }) {
       </Stepper>
 
       <Timeline active={timelineItems.length - 1} bulletSize={24} lineWidth={2}>
-        {timelineItems.map((item, idx) => (
-          <Timeline.Item key={idx} title={item.title}>
+        {timelineItems.map((item) => (
+          <Timeline.Item key={`${item.title}-${item.date}`} title={item.title}>
             <Text c="dimmed" size="sm">
               {item.description}
             </Text>
@@ -1024,28 +1060,33 @@ function CreateIndentPanel({ onDone }: { onDone: () => void }) {
   const [priority, setPriority] = useState<string>("normal");
   const [departmentId, setDepartmentId] = useState("");
   const [notes, setNotes] = useState("");
-  const [items, setItems] = useState<CreateIndentItemInput[]>([
-    { item_name: "", quantity_requested: 1 },
-  ]);
+  const [items, setItems] = useState<CreateIndentFormItem[]>([createIndentFormItem()]);
 
   const { data: departments } = useQuery({
     queryKey: ["departments"],
-    queryFn: () => api.listDepartments(),
+    queryFn: () => indentService.listDepartments(),
   });
 
   const { data: catalog } = useQuery({
     queryKey: ["store-catalog"],
-    queryFn: () => api.listStoreCatalog({ active_only: "true" }),
+    queryFn: () => indentService.listStoreCatalog({ active_only: "true" }),
   });
 
   const mutation = useMutation({
     mutationFn: () =>
-      api.createIndentRequisition({
+      indentService.createIndentRequisition({
         department_id: departmentId,
-        indent_type: indentType as IndentType,
-        priority: priority as "normal" | "urgent" | "emergency",
+        indent_type: toIndentType(indentType),
+        priority: toIndentPriority(priority),
         notes: notes || undefined,
-        items,
+        items: items.map((item) => ({
+          catalog_item_id: item.catalog_item_id,
+          item_name: item.item_name,
+          quantity_requested: item.quantity_requested,
+          unit_price: item.unit_price,
+          item_context: item.item_context,
+          notes: item.notes,
+        })),
       }),
     onSuccess: () => {
       notifications.show({
@@ -1061,7 +1102,7 @@ function CreateIndentPanel({ onDone }: { onDone: () => void }) {
     },
   });
 
-  const addItem = () => setItems([...items, { item_name: "", quantity_requested: 1 }]);
+  const addItem = () => setItems([...items, createIndentFormItem()]);
 
   const removeItem = (idx: number) => {
     if (items.length > 1) {
@@ -1127,7 +1168,7 @@ function CreateIndentPanel({ onDone }: { onDone: () => void }) {
         </Table.Thead>
         <Table.Tbody>
           {items.map((item, idx) => (
-            <Table.Tr key={idx}>
+            <Table.Tr key={item.row_key}>
               <Table.Td>
                 <TextInput
                   size="xs"
@@ -1230,7 +1271,7 @@ function CatalogPanel() {
 
   const { data: catalog, isLoading } = useQuery({
     queryKey: ["store-catalog"],
-    queryFn: () => api.listStoreCatalog(),
+    queryFn: () => indentService.listStoreCatalog(),
   });
 
   const columns = [
@@ -1336,7 +1377,7 @@ function CatalogForm({ initial, onSuccess }: { initial?: StoreCatalog; onSuccess
 
   const createMutation = useMutation({
     mutationFn: () =>
-      api.createStoreCatalogItem({
+      indentService.createStoreCatalogItem({
         code,
         name,
         category: category || undefined,
@@ -1356,7 +1397,7 @@ function CatalogForm({ initial, onSuccess }: { initial?: StoreCatalog; onSuccess
   const updateMutation = useMutation({
     mutationFn: () => {
       if (!initial) throw new Error("No catalog item selected");
-      return api.updateStoreCatalogItem(initial.id, {
+      return indentService.updateStoreCatalogItem(initial.id, {
         name,
         category: category || undefined,
         unit: unit || undefined,
@@ -1428,7 +1469,7 @@ function StockPanel() {
 
   const { data, isLoading } = useQuery({
     queryKey: ["stock-movements", page],
-    queryFn: () => api.listStoreStockMovements({ page: String(page), per_page: "50" }),
+    queryFn: () => indentService.listStoreStockMovements({ page: String(page), per_page: "50" }),
   });
 
   const columns = [
@@ -1507,12 +1548,12 @@ function StockMovementForm({ onSuccess }: { onSuccess: () => void }) {
 
   const { data: catalog } = useQuery({
     queryKey: ["store-catalog"],
-    queryFn: () => api.listStoreCatalog({ active_only: "true" }),
+    queryFn: () => indentService.listStoreCatalog({ active_only: "true" }),
   });
 
   const mutation = useMutation({
     mutationFn: () =>
-      api.createStoreStockMovement({
+      indentService.createStoreStockMovement({
         catalog_item_id: catalogItemId,
         movement_type: movementType as "receipt" | "issue" | "return" | "adjustment" | "transfer",
         quantity,
@@ -1620,7 +1661,7 @@ function ConsumptionView() {
 
   const { data: departments } = useQuery({
     queryKey: ["departments"],
-    queryFn: () => api.listDepartments(),
+    queryFn: () => indentService.listDepartments(),
   });
 
   const params: Record<string, string> = {};
@@ -1630,7 +1671,7 @@ function ConsumptionView() {
 
   const { data, isLoading } = useQuery({
     queryKey: ["indent-analytics-consumption", params],
-    queryFn: () => api.getConsumptionAnalysis(params),
+    queryFn: () => indentService.getConsumptionAnalysis(params),
   });
 
   const columns = [
@@ -1672,7 +1713,7 @@ function ConsumptionView() {
           w={160}
         />
         <Select
-          label="Department"
+          label="Department filter"
           placeholder="All departments"
           data={departmentOptions}
           value={department}
@@ -1698,7 +1739,7 @@ function ConsumptionView() {
 function AbcView() {
   const { data, isLoading } = useQuery({
     queryKey: ["indent-analytics-abc"],
-    queryFn: () => api.getAbcAnalysis(),
+    queryFn: () => indentService.getAbcAnalysis(),
   });
 
   const abcColors: Record<string, string> = { A: "danger", B: "orange", C: "success" };
@@ -1742,7 +1783,7 @@ function AbcView() {
 function VedView() {
   const { data, isLoading } = useQuery({
     queryKey: ["indent-analytics-ved"],
-    queryFn: () => api.getVedAnalysis(),
+    queryFn: () => indentService.getVedAnalysis(),
   });
 
   const vedColors: Record<string, string> = {
@@ -1819,7 +1860,7 @@ function FsnView() {
 
   const { data, isLoading } = useQuery({
     queryKey: ["indent-analytics-fsn", params],
-    queryFn: () => api.getFsnAnalysis(params),
+    queryFn: () => indentService.getFsnAnalysis(params),
   });
 
   const fsnColors: Record<string, string> = {
@@ -1889,7 +1930,7 @@ function DeadStockView() {
 
   const { data, isLoading } = useQuery({
     queryKey: ["indent-analytics-dead-stock", params],
-    queryFn: () => api.getDeadStockReport(params),
+    queryFn: () => indentService.getDeadStockReport(params),
   });
 
   const columns = [
@@ -1940,7 +1981,7 @@ function DeadStockView() {
 function PurchaseConsumptionView() {
   const { data, isLoading } = useQuery({
     queryKey: ["indent-analytics-pvc"],
-    queryFn: () => api.getPurchaseConsumptionTrend(),
+    queryFn: () => indentService.getPurchaseConsumptionTrend(),
   });
 
   const columns = [
@@ -1983,7 +2024,7 @@ function PurchaseConsumptionView() {
 function ValuationView() {
   const { data, isLoading } = useQuery({
     queryKey: ["indent-analytics-valuation"],
-    queryFn: () => api.getInventoryValuation(),
+    queryFn: () => indentService.getInventoryValuation(),
   });
 
   const grandTotal = (data ?? []).reduce((sum, r) => sum + Number(r.total_value), 0);
@@ -2038,7 +2079,7 @@ function ValuationView() {
 function ComplianceView() {
   const { data, isLoading } = useQuery({
     queryKey: ["indent-analytics-compliance"],
-    queryFn: () => api.getComplianceReport(),
+    queryFn: () => indentService.getComplianceReport(),
   });
 
   const columns = [
@@ -2077,7 +2118,7 @@ function PatientConsumablesPanel() {
 
   const { data, isLoading } = useQuery({
     queryKey: ["patient-consumables"],
-    queryFn: () => api.listPatientConsumables(),
+    queryFn: () => indentService.listPatientConsumables(),
   });
 
   const columns = [
@@ -2187,7 +2228,7 @@ function IssueToPatientForm({ onSuccess }: { onSuccess: () => void }) {
 
   const { data: catalog } = useQuery({
     queryKey: ["store-catalog"],
-    queryFn: () => api.listStoreCatalog({ active_only: "true" }),
+    queryFn: () => indentService.listStoreCatalog({ active_only: "true" }),
   });
 
   const mutation = useMutation({
@@ -2199,7 +2240,7 @@ function IssueToPatientForm({ onSuccess }: { onSuccess: () => void }) {
         is_chargeable: isChargeable,
         notes: notes || undefined,
       };
-      return api.issueToPatient(payload);
+      return indentService.issueToPatient(payload);
     },
     onSuccess: () => {
       notifications.show({
@@ -2285,7 +2326,7 @@ function ImplantRegistryView() {
 
   const { data, isLoading } = useQuery({
     queryKey: ["implant-registry"],
-    queryFn: () => api.listImplantRegistry(),
+    queryFn: () => indentService.listImplantRegistry(),
   });
 
   const columns = [
@@ -2386,7 +2427,7 @@ function CreateImplantForm({ onSuccess }: { onSuccess: () => void }) {
 
   const { data: catalog } = useQuery({
     queryKey: ["store-catalog"],
-    queryFn: () => api.listStoreCatalog({ active_only: "true" }),
+    queryFn: () => indentService.listStoreCatalog({ active_only: "true" }),
   });
 
   const mutation = useMutation({
@@ -2403,7 +2444,7 @@ function CreateImplantForm({ onSuccess }: { onSuccess: () => void }) {
         warranty_expiry: warrantyExpiry || undefined,
         notes: notes || undefined,
       };
-      return api.createImplantEntry(payload);
+      return indentService.createImplantEntry(payload);
     },
     onSuccess: () => {
       notifications.show({
@@ -2492,7 +2533,7 @@ function CondemnationsView() {
 
   const { data, isLoading } = useQuery({
     queryKey: ["condemnations"],
-    queryFn: () => api.listCondemnations(),
+    queryFn: () => indentService.listCondemnations(),
   });
 
   const condemnationStatusColors: Record<string, string> = {
@@ -2634,7 +2675,7 @@ function CreateCondemnationForm({ onSuccess }: { onSuccess: () => void }) {
 
   const { data: catalog } = useQuery({
     queryKey: ["store-catalog"],
-    queryFn: () => api.listStoreCatalog({ active_only: "true" }),
+    queryFn: () => indentService.listStoreCatalog({ active_only: "true" }),
   });
 
   const mutation = useMutation({
@@ -2646,7 +2687,7 @@ function CreateCondemnationForm({ onSuccess }: { onSuccess: () => void }) {
         purchase_value: purchaseValue,
         notes: notes || undefined,
       };
-      return api.createCondemnation(payload);
+      return indentService.createCondemnation(payload);
     },
     onSuccess: () => {
       notifications.show({ title: "Created", message: "Condemnation initiated", color: "success" });
@@ -2728,7 +2769,7 @@ function UpdateCondemnationStatusForm({
         committee_remarks: committeeRemarks || undefined,
         disposal_method: disposalMethod || undefined,
       };
-      return api.updateCondemnationStatus(item.id, payload);
+      return indentService.updateCondemnationStatus(item.id, payload);
     },
     onSuccess: () => {
       notifications.show({

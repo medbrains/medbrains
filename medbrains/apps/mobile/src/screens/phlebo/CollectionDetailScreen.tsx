@@ -1,4 +1,3 @@
-import { api } from "@medbrains/api";
 import type { LabHomeCollection } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
 import { Linking, ScrollView, StyleSheet, View } from "react-native";
@@ -13,6 +12,7 @@ import {
   useTheme,
 } from "react-native-paper";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { phlebotomyService } from "../../services/phlebotomy.service";
 
 interface CollectionDetailScreenProps {
   route: {
@@ -51,7 +51,7 @@ export function CollectionDetailScreen({ route, navigation }: CollectionDetailSc
   const { data: collection, isLoading } = useQuery({
     queryKey: ["homeCollection", orderId],
     queryFn: async () => {
-      const collections = await api.listHomeCollections({});
+      const collections = await phlebotomyService.listHomeCollections({});
       return collections.find((c: LabHomeCollection) => c.id === orderId);
     },
     enabled: Boolean(orderId),

@@ -9,7 +9,6 @@ import {
   ThemeIcon,
   UnstyledButton,
 } from "@mantine/core";
-import { api } from "@medbrains/api";
 import type { IntegrationNodeTemplate, PipelineNodeType } from "@medbrains/types";
 import {
   IconBolt,
@@ -22,6 +21,7 @@ import {
 } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { type DragEvent, useMemo, useState } from "react";
+import { integrationService } from "../../services/integration.service";
 
 const NODE_TYPE_ICONS: Record<PipelineNodeType, typeof IconBolt> = {
   trigger: IconBolt,
@@ -51,7 +51,7 @@ export function NodePalette() {
 
   const { data: templates, isLoading } = useQuery({
     queryKey: ["integration", "node-templates"],
-    queryFn: () => api.listNodeTemplates(),
+    queryFn: () => integrationService.listNodeTemplates(),
   });
 
   const grouped = useMemo(() => {

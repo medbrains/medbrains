@@ -61,8 +61,17 @@ pub struct PatientListResponse {
 pub struct PatientWithPerms {
     #[serde(flatten)]
     pub patient: Patient,
+    pub outstanding_balance: Decimal,
+    pub pending_invoice_count: i64,
     #[serde(rename = "_perms")]
     pub perms: medbrains_core::perms_block::PermsBlock,
+}
+
+#[derive(Debug, sqlx::FromRow)]
+struct PatientPaymentStatusRow {
+    patient_id: Uuid,
+    outstanding_balance: Decimal,
+    pending_invoice_count: i64,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -125,6 +134,10 @@ pub struct CreatePatientRequest {
     pub initial_diagnosis_text: Option<String>,
     pub icd10_code: Option<String>,
     pub icd11_code: Option<String>,
+    pub icd11_display: Option<String>,
+    pub icd11_source_url: Option<String>,
+    pub icd11_source_version: Option<String>,
+    pub icd11_provider_mode: Option<String>,
 
     // ── MLC ──
     pub is_medico_legal: Option<bool>,
@@ -493,6 +506,10 @@ fn add_trimmed_attr(map: &mut serde_json::Map<String, serde_json::Value>, key: &
     }
 }
 
+fn has_text(value: &Option<String>) -> bool {
+    value.as_ref().is_some_and(|text| !text.trim().is_empty())
+}
+
 fn build_patient_registration_attributes(
     attributes: Option<serde_json::Value>,
     body: &CreatePatientRequest,
@@ -585,6 +602,18 @@ fn build_patient_registration_attributes(
     }
     if let Some(value) = body.icd11_code.as_deref() {
         add_trimmed_attr(&mut diagnosis, "icd11_code", value);
+    }
+    if let Some(value) = body.icd11_display.as_deref() {
+        add_trimmed_attr(&mut diagnosis, "icd11_display", value);
+    }
+    if let Some(value) = body.icd11_source_url.as_deref() {
+        add_trimmed_attr(&mut diagnosis, "icd11_source_url", value);
+    }
+    if let Some(value) = body.icd11_source_version.as_deref() {
+        add_trimmed_attr(&mut diagnosis, "icd11_source_version", value);
+    }
+    if let Some(value) = body.icd11_provider_mode.as_deref() {
+        add_trimmed_attr(&mut diagnosis, "icd11_provider_mode", value);
     }
     if !diagnosis.is_empty() {
         base.insert(
@@ -883,6 +912,9 @@ pub async fn list_patients(
     // Count query
     let count_sql = format!("SELECT COUNT(*) FROM patients WHERE {where_clause}");
     let mut count_query = sqlx::query_scalar::<_, i64>(&count_sql).bind(claims.tenant_id);
+    if let Some(ref ids) = visible_ids {
+        count_query = count_query.bind(ids.clone());
+    }
     for b in &binds {
         if let Some(ref s) = b.string_val {
             count_query = count_query.bind(s.clone());
@@ -890,9 +922,6 @@ pub async fn list_patients(
         if let Some(bv) = b.bool_val {
             count_query = count_query.bind(bv);
         }
-    }
-    if let Some(ref ids) = visible_ids {
-        count_query = count_query.bind(ids.clone());
     }
     let total: i64 = count_query.fetch_one(&mut *tx).await?;
 
@@ -903,6 +932,9 @@ pub async fn list_patients(
         bind_idx + 1
     );
     let mut data_query = sqlx::query_as::<_, Patient>(&data_sql).bind(claims.tenant_id);
+    if let Some(ref ids) = visible_ids {
+        data_query = data_query.bind(ids.clone());
+    }
     for b in &binds {
         if let Some(ref s) = b.string_val {
             data_query = data_query.bind(s.clone());
@@ -911,14 +943,37 @@ pub async fn list_patients(
             data_query = data_query.bind(bv);
         }
     }
-    if let Some(ref ids) = visible_ids {
-        data_query = data_query.bind(ids.clone());
-    }
     let patients_raw = data_query
         .bind(per_page)
         .bind(offset)
         .fetch_all(&mut *tx)
         .await?;
+
+    let patient_ids = patients_raw.iter().map(|p| p.id).collect::<Vec<_>>();
+    let payment_status_rows = if patient_ids.is_empty() {
+        Vec::new()
+    } else {
+        sqlx::query_as::<_, PatientPaymentStatusRow>(
+            "SELECT patient_id, \
+                    COALESCE(SUM(GREATEST(total_amount - paid_amount, 0)), 0)::numeric \
+                      AS outstanding_balance, \
+                    COUNT(*) FILTER (WHERE GREATEST(total_amount - paid_amount, 0) > 0)::bigint \
+                      AS pending_invoice_count \
+             FROM invoices \
+             WHERE tenant_id = $1 \
+               AND patient_id = ANY($2::uuid[]) \
+               AND status::text NOT IN ('cancelled', 'void', 'refunded') \
+             GROUP BY patient_id",
+        )
+        .bind(claims.tenant_id)
+        .bind(&patient_ids)
+        .fetch_all(&mut *tx)
+        .await?
+    };
+    let payment_status = payment_status_rows
+        .into_iter()
+        .map(|row| (row.patient_id, row))
+        .collect::<std::collections::HashMap<_, _>>();
 
     tx.commit().await?;
 
@@ -950,6 +1005,7 @@ pub async fn list_patients(
         .into_iter()
         .map(|p| {
             let id = p.id;
+            let billing = payment_status.get(&id);
             let perms = if authz_ctx.is_bypass {
                 medbrains_core::perms_block::PermsBlock::all()
             } else {
@@ -974,7 +1030,16 @@ pub async fn list_patients(
                     approve: false,
                 }
             };
-            PatientWithPerms { patient: p, perms }
+            PatientWithPerms {
+                patient: p,
+                outstanding_balance: billing
+                    .map(|row| row.outstanding_balance)
+                    .unwrap_or(Decimal::ZERO),
+                pending_invoice_count: billing
+                    .map(|row| row.pending_invoice_count)
+                    .unwrap_or(0),
+                perms,
+            }
         })
         .collect();
 
@@ -1021,6 +1086,29 @@ pub async fn create_patient(
     }
     if let Some(ref phone) = body.referred_by_phone {
         validation::validate_optional_phone(&mut errors, "referred_by_phone", phone);
+    }
+    let is_camp_registration = matches!(body.registration_type, Some(RegistrationType::Camp))
+        || matches!(body.registration_source, Some(RegistrationSource::Camp));
+    if is_camp_registration && body.camp_id.is_none() && !has_text(&body.camp_name) {
+        errors.add(
+            "camp_id",
+            "Camp reference or village / school camp name is required",
+        );
+    }
+    let is_referral_registration =
+        matches!(body.registration_type, Some(RegistrationType::Referral))
+            || matches!(body.registration_source, Some(RegistrationSource::Referral));
+    if is_referral_registration
+        && !has_text(&body.referred_by_name)
+        && !has_text(&body.referred_by_facility)
+    {
+        errors.add("referred_by_name", "Referral source is required");
+    }
+    if body.is_medico_legal.unwrap_or(false) && !has_text(&body.mlc_number) {
+        errors.add(
+            "mlc_number",
+            "MLC number is required for medico-legal patients",
+        );
     }
     let aadhaar_digits = body
         .aadhaar_number
@@ -2539,6 +2627,11 @@ pub async fn match_patients(
     .fetch_all(&mut *tx)
     .await?;
 
+    let matches = matches
+        .into_iter()
+        .filter(|m| m.score >= 0.55 || (!phone.is_empty() && m.phone == phone))
+        .collect();
+
     tx.commit().await?;
     Ok(Json(matches))
 }
@@ -2636,6 +2729,27 @@ pub struct PatientVisitRow {
     pub created_at: DateTime<Utc>,
 }
 
+/// Consultation history row for patient-level SOAP timeline review.
+#[derive(Debug, sqlx::FromRow, Serialize)]
+pub struct PatientConsultationHistoryRow {
+    pub id: Uuid,
+    pub encounter_id: Uuid,
+    pub encounter_type: EncounterType,
+    pub status: EncounterStatus,
+    pub encounter_date: NaiveDate,
+    pub doctor_name: Option<String>,
+    pub department_name: Option<String>,
+    pub chief_complaint: Option<String>,
+    pub history: Option<String>,
+    pub examination: Option<String>,
+    pub plan: Option<String>,
+    pub notes: Option<String>,
+    pub hpi: Option<String>,
+    pub general_appearance: Option<String>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
 /// GET /api/patients/{id}/visits — list encounters for a patient.
 pub async fn list_patient_visits(
     Extension(claims): Extension<Claims>,
@@ -2669,6 +2783,52 @@ pub async fn list_patient_visits(
          ORDER BY e.encounter_date DESC, e.created_at DESC",
         patient_id,
     )
+    .fetch_all(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+    Ok(Json(rows))
+}
+
+/// GET /api/patients/{id}/consultations — list SOAP consultation history for a patient.
+pub async fn list_patient_consultations(
+    Extension(claims): Extension<Claims>,
+    State(state): State<AppState>,
+    Path(patient_id): Path<Uuid>,
+) -> Result<Json<Vec<PatientConsultationHistoryRow>>, AppError> {
+    require_permission(&claims, permissions::patients::VIEW)?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
+
+    let rows = sqlx::query_as::<_, PatientConsultationHistoryRow>(
+        "SELECT
+            c.id,
+            c.encounter_id,
+            e.encounter_type,
+            e.status,
+            e.encounter_date,
+            u.full_name AS doctor_name,
+            d.name AS department_name,
+            c.chief_complaint,
+            c.history,
+            c.examination,
+            c.plan,
+            c.notes,
+            c.hpi,
+            c.general_appearance,
+            c.created_at,
+            c.updated_at
+         FROM consultations c
+         JOIN encounters e ON e.id = c.encounter_id AND e.tenant_id = c.tenant_id
+         LEFT JOIN users u ON u.id = c.doctor_id
+         LEFT JOIN departments d ON d.id = e.department_id
+         WHERE e.patient_id = $1 AND c.tenant_id = $2
+         ORDER BY e.encounter_date DESC, c.updated_at DESC",
+    )
+    .bind(patient_id)
+    .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
     .await?;
 

@@ -492,7 +492,8 @@ pub struct RevocationCacheHandle {
 
 impl fmt::Debug for RevocationCacheHandle {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("RevocationCacheHandle").finish_non_exhaustive()
+        f.debug_struct("RevocationCacheHandle")
+            .finish_non_exhaustive()
     }
 }
 

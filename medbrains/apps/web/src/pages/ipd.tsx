@@ -1,3 +1,4 @@
+import { zodResolver } from "@hookform/resolvers/zod";
 import {
   ActionIcon,
   Alert,
@@ -23,7 +24,20 @@ import {
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
+import type {
+  IpdAdmissionFormInput,
+  IpdAttenderFormInput,
+  IpdClinicalAssessmentFormInput,
+  IpdNursingTaskFormInput,
+  IpdProgressNoteFormInput,
+} from "@medbrains/schemas";
+import {
+  ipdAdmissionFormSchema,
+  ipdAttenderFormSchema,
+  ipdClinicalAssessmentFormSchema,
+  ipdNursingTaskFormSchema,
+  ipdProgressNoteFormSchema,
+} from "@medbrains/schemas";
 import { useHasPermission } from "@medbrains/stores";
 import type {
   AdmissionAttender,
@@ -31,7 +45,6 @@ import type {
   AdmissionDetailResponse,
   AdmissionPrintData,
   AdmissionRow,
-  AdmissionSource,
   AnesthesiaComplicationEntry,
   BedDashboardRow,
   BedDashboardSummary,
@@ -39,9 +52,6 @@ import type {
   BedTurnaroundLog,
   BillingSummaryResponse,
   CensusWardRow,
-  ClinicalAssessmentType,
-  CreateAdmissionRequest,
-  CreateAttenderRequest,
   CreateBirthRecordRequest,
   CreateClinicalDocRequest,
   CreateDeathSummaryRequest,
@@ -77,7 +87,6 @@ import type {
   PrescriptionWithItems,
   PriorAuthRequestRow,
   ProcedureConsent,
-  ProgressNoteType,
   Receipt,
   RestraintCheckStatus,
   RestraintMonitoringLog,
@@ -113,6 +122,7 @@ import {
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { Controller, useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import {
   ClinicalEventProvider,
@@ -130,11 +140,38 @@ import { DischargeWorkflowWizard } from "../components/Ipd/DischargeWorkflowWiza
 import { MarkDeathModal } from "../components/Ipd/MarkDeathModal";
 import { TransferOutModal } from "../components/Ipd/TransferOutModal";
 import { WristbandPrintModal } from "../components/Ipd/WristbandPrintModal";
+import { OrderBasketChip } from "../components/OrderBasket/OrderBasketChip";
+import { OrderBasketWorkspace } from "../components/OrderBasket/OrderBasketWorkspace";
 import { PatientContextBanner } from "../components/Patient/PatientContextBanner";
 import { PatientSearchSelect } from "../components/PatientSearchSelect";
 import { WardSelect } from "../components/WardSelect";
 import { ALL_TEMPLATES, type ChecklistTemplate } from "../data/checklist-templates";
+import {
+  bradenRiskLevel,
+  calculateBradenTotal,
+  DEFAULT_IPD_ADMISSION_VALUES,
+  DEFAULT_IPD_ATTENDER_VALUES,
+  DEFAULT_IPD_CLINICAL_ASSESSMENT_VALUES,
+  DEFAULT_IPD_NURSING_TASK_VALUES,
+  DEFAULT_IPD_PROGRESS_NOTE_VALUES,
+  IPD_ADMISSION_SOURCE_OPTIONS,
+  IPD_ASSESSMENT_TYPE_OPTIONS,
+  IPD_BRADEN_INJURY_ACQUIRED_OPTIONS,
+  IPD_BRADEN_INJURY_STAGE_OPTIONS,
+  IPD_ID_PROOF_TYPE_OPTIONS,
+  IPD_RISK_LEVEL_OPTIONS,
+  ipdOptionalText,
+  normalizeIpdAdmissionSource,
+  normalizeIpdAssessmentType,
+  nursingTaskTypeOptions,
+  progressNoteTypeOptions,
+  toCreateAdmissionRequest,
+  toCreateAssessmentRequest,
+  toCreateAttenderRequest,
+  toCreateProgressNoteRequest,
+} from "../forms/ipd.form";
 import { useRequirePermission } from "../hooks/useRequirePermission";
+import { ipdService } from "../services/ipd.service";
 
 const statusColors: Record<string, string> = {
   admitted: "success",
@@ -152,32 +189,6 @@ const bedStatusColors: Record<string, string> = {
   maintenance: "slate",
   blocked: "danger",
 };
-
-// Dropdown options for categorical fields
-const NURSING_TASK_TYPES = [
-  { value: "medication", label: "Medication Administration" },
-  { value: "vitals", label: "Vitals Monitoring" },
-  { value: "wound_care", label: "Wound Care/Dressing" },
-  { value: "catheter_care", label: "Catheter Care" },
-  { value: "hygiene", label: "Patient Hygiene" },
-  { value: "feeding", label: "Feeding/Nutrition" },
-  { value: "mobilization", label: "Mobilization/PT" },
-  { value: "specimen", label: "Specimen Collection" },
-  { value: "documentation", label: "Documentation" },
-  { value: "discharge_prep", label: "Discharge Preparation" },
-  { value: "other", label: "Other" },
-];
-
-const ID_PROOF_TYPES = [
-  { value: "aadhar", label: "Aadhaar Card" },
-  { value: "pan", label: "PAN Card" },
-  { value: "passport", label: "Passport" },
-  { value: "voter_id", label: "Voter ID" },
-  { value: "driving_license", label: "Driving License" },
-  { value: "ration_card", label: "Ration Card" },
-  { value: "employee_id", label: "Employee ID" },
-  { value: "other", label: "Other" },
-];
 
 export function IpdPage() {
   useRequirePermission(P.IPD.ADMISSIONS_LIST);
@@ -269,7 +280,7 @@ function AdmissionsTab() {
 
   const { data, isLoading } = useQuery({
     queryKey: ["admissions", params],
-    queryFn: () => api.listAdmissions(params),
+    queryFn: () => ipdService.listAdmissions(params),
   });
 
   const columns = [
@@ -384,22 +395,27 @@ function AdmissionsTab() {
 function CreateAdmissionDrawer({ opened, onClose }: { opened: boolean; onClose: () => void }) {
   const emit = useClinicalEmit();
   const queryClient = useQueryClient();
-  const [patientId, setPatientId] = useState("");
-  const [departmentId, setDepartmentId] = useState("");
-  const [doctorId, setDoctorId] = useState("");
-  const [bedId, setBedId] = useState("");
-  const [notes, setNotes] = useState("");
-  const [admissionSource, setAdmissionSource] = useState<string | null>(null);
-  const [referralFrom, setReferralFrom] = useState("");
-  const [referralDoctor, setReferralDoctor] = useState("");
-  const [referralNotes, setReferralNotes] = useState("");
-  const [weightKg, setWeightKg] = useState<number | string>("");
-  const [heightCm, setHeightCm] = useState<number | string>("");
-  const [expectedDischargeDate, setExpectedDischargeDate] = useState("");
-  const [wardId, setWardId] = useState("");
+  const {
+    control,
+    handleSubmit,
+    reset,
+    watch,
+    formState: { errors },
+  } = useForm<IpdAdmissionFormInput>({
+    resolver: zodResolver(ipdAdmissionFormSchema),
+    defaultValues: DEFAULT_IPD_ADMISSION_VALUES,
+  });
+  const admissionSource = watch("admission_source");
+  const wardId = watch("ward_id");
+
+  const closeAdmissionDrawer = () => {
+    onClose();
+    reset(DEFAULT_IPD_ADMISSION_VALUES);
+  };
 
   const createMutation = useMutation({
-    mutationFn: (data: CreateAdmissionRequest) => api.createAdmission(data),
+    mutationFn: (values: IpdAdmissionFormInput) =>
+      ipdService.createAdmission(toCreateAdmissionRequest(values)),
     onSuccess: (_result, variables) => {
       void queryClient.invalidateQueries({ queryKey: ["admissions"] });
       notifications.show({
@@ -411,20 +427,7 @@ function CreateAdmissionDrawer({ opened, onClose }: { opened: boolean; onClose: 
         patient_id: variables.patient_id,
         department_id: variables.department_id,
       });
-      onClose();
-      setPatientId("");
-      setDepartmentId("");
-      setDoctorId("");
-      setBedId("");
-      setNotes("");
-      setAdmissionSource(null);
-      setReferralFrom("");
-      setReferralDoctor("");
-      setReferralNotes("");
-      setWeightKg("");
-      setHeightCm("");
-      setExpectedDischargeDate("");
-      setWardId("");
+      closeAdmissionDrawer();
     },
     onError: () => {
       notifications.show({
@@ -436,95 +439,136 @@ function CreateAdmissionDrawer({ opened, onClose }: { opened: boolean; onClose: 
   });
 
   return (
-    <Drawer opened={opened} onClose={onClose} title="New Admission" position="right" size="xl">
-      <Stack>
-        <PatientSearchSelect value={patientId} onChange={(id) => setPatientId(id)} required />
-        <DepartmentSelect
-          departmentType="clinical"
-          value={departmentId}
-          onChange={(id) => setDepartmentId(id)}
-          required
+    <Drawer
+      opened={opened}
+      onClose={closeAdmissionDrawer}
+      title="New Admission"
+      position="right"
+      size="xl"
+    >
+      <Stack component="form" onSubmit={handleSubmit((values) => createMutation.mutate(values))}>
+        <Controller
+          control={control}
+          name="patient_id"
+          render={({ field }) => (
+            <PatientSearchSelect
+              value={field.value}
+              onChange={field.onChange}
+              error={errors.patient_id?.message}
+              required
+            />
+          )}
         />
-        <DoctorSearchSelect value={doctorId} onChange={(id) => setDoctorId(id)} />
-        <BedSelect value={bedId} onChange={(id) => setBedId(id)} wardId={wardId || undefined} />
-        <WardSelect value={wardId} onChange={(id) => setWardId(id)} />
-        <Select
-          label="Admission Source"
-          data={[
-            { value: "er", label: "Emergency" },
-            { value: "opd", label: "OPD" },
-            { value: "direct", label: "Direct" },
-            { value: "referral", label: "Referral" },
-            { value: "transfer_in", label: "Transfer In" },
-          ]}
-          value={admissionSource}
-          onChange={setAdmissionSource}
-          clearable
+        <Controller
+          control={control}
+          name="department_id"
+          render={({ field }) => (
+            <DepartmentSelect
+              departmentType="clinical"
+              value={field.value}
+              onChange={field.onChange}
+              error={errors.department_id?.message}
+              required
+            />
+          )}
+        />
+        <Controller
+          control={control}
+          name="doctor_id"
+          render={({ field }) => (
+            <DoctorSearchSelect value={field.value} onChange={field.onChange} />
+          )}
+        />
+        <Controller
+          control={control}
+          name="ward_id"
+          render={({ field }) => <WardSelect value={field.value} onChange={field.onChange} />}
+        />
+        <Controller
+          control={control}
+          name="bed_id"
+          render={({ field }) => (
+            <BedSelect value={field.value} onChange={field.onChange} wardId={wardId || undefined} />
+          )}
+        />
+        <Controller
+          control={control}
+          name="admission_source"
+          render={({ field }) => (
+            <Select
+              label="Admission Source"
+              data={IPD_ADMISSION_SOURCE_OPTIONS}
+              value={field.value}
+              onChange={(value) => field.onChange(normalizeIpdAdmissionSource(value))}
+              error={errors.admission_source?.message}
+              clearable
+            />
+          )}
         />
         {admissionSource === "referral" && (
           <>
-            <TextInput
-              label="Referral From"
-              value={referralFrom}
-              onChange={(e) => setReferralFrom(e.currentTarget.value)}
+            <Controller
+              control={control}
+              name="referral_from"
+              render={({ field }) => <TextInput label="Referral From" {...field} />}
             />
-            <TextInput
-              label="Referral Doctor"
-              value={referralDoctor}
-              onChange={(e) => setReferralDoctor(e.currentTarget.value)}
+            <Controller
+              control={control}
+              name="referral_doctor"
+              render={({ field }) => <TextInput label="Referral Doctor" {...field} />}
             />
-            <Textarea
-              label="Referral Notes"
-              value={referralNotes}
-              onChange={(e) => setReferralNotes(e.currentTarget.value)}
+            <Controller
+              control={control}
+              name="referral_notes"
+              render={({ field }) => <Textarea label="Referral Notes" {...field} />}
             />
           </>
         )}
         <Group grow>
-          <NumberInput
-            label="Weight (kg)"
-            value={weightKg}
-            onChange={setWeightKg}
-            min={0}
-            max={500}
-            decimalScale={2}
+          <Controller
+            control={control}
+            name="admission_weight_kg"
+            render={({ field }) => (
+              <NumberInput
+                label="Weight (kg)"
+                value={field.value}
+                onChange={field.onChange}
+                error={errors.admission_weight_kg?.message}
+                min={0}
+                max={500}
+                decimalScale={2}
+              />
+            )}
           />
-          <NumberInput
-            label="Height (cm)"
-            value={heightCm}
-            onChange={setHeightCm}
-            min={0}
-            max={300}
-            decimalScale={2}
+          <Controller
+            control={control}
+            name="admission_height_cm"
+            render={({ field }) => (
+              <NumberInput
+                label="Height (cm)"
+                value={field.value}
+                onChange={field.onChange}
+                error={errors.admission_height_cm?.message}
+                min={0}
+                max={300}
+                decimalScale={2}
+              />
+            )}
           />
         </Group>
-        <TextInput
-          label="Expected Discharge Date"
-          type="date"
-          value={expectedDischargeDate}
-          onChange={(e) => setExpectedDischargeDate(e.currentTarget.value)}
+        <Controller
+          control={control}
+          name="expected_discharge_date"
+          render={({ field }) => (
+            <TextInput label="Expected Discharge Date" type="date" {...field} />
+          )}
         />
-        <Textarea label="Notes" value={notes} onChange={(e) => setNotes(e.currentTarget.value)} />
-        <Button
-          onClick={() =>
-            createMutation.mutate({
-              patient_id: patientId,
-              department_id: departmentId,
-              doctor_id: doctorId || undefined,
-              bed_id: bedId || undefined,
-              notes: notes || undefined,
-              admission_source: (admissionSource as AdmissionSource) || undefined,
-              referral_from: referralFrom || undefined,
-              referral_doctor: referralDoctor || undefined,
-              referral_notes: referralNotes || undefined,
-              admission_weight_kg: weightKg ? Number(weightKg) : undefined,
-              admission_height_cm: heightCm ? Number(heightCm) : undefined,
-              expected_discharge_date: expectedDischargeDate || undefined,
-              ward_id: wardId || undefined,
-            })
-          }
-          loading={createMutation.isPending}
-        >
+        <Controller
+          control={control}
+          name="notes"
+          render={({ field }) => <Textarea label="Notes" {...field} />}
+        />
+        <Button type="submit" loading={createMutation.isPending}>
           Admit Patient
         </Button>
       </Stack>
@@ -548,6 +592,8 @@ function AdmissionDetail({
   canDischarge: boolean;
 }) {
   const canCreateDischargeSummary = useHasPermission(P.IPD.DISCHARGE_SUMMARY_CREATE);
+  const canOrder = useHasPermission(P.ORDER_BASKET.SIGN);
+  const queryClient = useQueryClient();
   const [dischargeSummaryOpened, { open: openDischargeSummary, close: closeDischargeSummary }] =
     useDisclosure(false);
   const [bedTransferOpened, { open: openBedTransfer, close: closeBedTransfer }] =
@@ -557,10 +603,11 @@ function AdmissionDetail({
   const [wristbandOpened, { open: openWristband, close: closeWristband }] = useDisclosure(false);
   const [transferOutOpened, { open: openTransferOut, close: closeTransferOut }] =
     useDisclosure(false);
+  const [basketOpened, { open: openBasket, close: closeBasket }] = useDisclosure(false);
 
   const { data } = useQuery({
     queryKey: ["admission-detail", admissionId],
-    queryFn: () => api.getAdmission(admissionId),
+    queryFn: () => ipdService.getAdmission(admissionId),
   });
 
   if (!data) return <Text c="dimmed">Loading...</Text>;
@@ -589,6 +636,19 @@ function AdmissionDetail({
           <Badge color={statusColors[adm.status] ?? "slate"} variant="light" size="lg">
             {adm.status}
           </Badge>
+          {canOrder && adm.status === "admitted" && <OrderBasketChip onClick={openBasket} />}
+          {canOrder && adm.status !== "admitted" && (
+            <Tooltip label="Orders are available only for active admissions">
+              <Button
+                size="xs"
+                variant="subtle"
+                leftSection={<IconHeartRateMonitor size={14} />}
+                disabled
+              >
+                Orders
+              </Button>
+            </Tooltip>
+          )}
           <PrintAdmissionButton admissionId={admissionId} />
           {canCreateDischargeSummary && adm.status === "admitted" && (
             <Tooltip label="Generate Discharge Summary">
@@ -648,14 +708,7 @@ function AdmissionDetail({
               <Menu.Item
                 leftSection={<IconHeartRateMonitor size={14} />}
                 disabled={adm.status !== "admitted"}
-                onClick={() => {
-                  notifications.show({
-                    title: "Quick orders",
-                    message:
-                      "Use the Prescriptions / Investigations tabs — header shortcut coming in Phase B",
-                    color: "primary",
-                  });
-                }}
+                onClick={openBasket}
               >
                 Quick Rx / Lab / Imaging
               </Menu.Item>
@@ -697,6 +750,18 @@ function AdmissionDetail({
         admissionId={admissionId}
         opened={transferOutOpened}
         onClose={closeTransferOut}
+      />
+      <OrderBasketWorkspace
+        opened={basketOpened}
+        onClose={closeBasket}
+        encounterId={adm.encounter_id}
+        patientId={adm.patient_id}
+        onSigned={() => {
+          void queryClient.invalidateQueries({ queryKey: ["admission-detail", admissionId] });
+          void queryClient.invalidateQueries({ queryKey: ["ipd-estimated-cost", admissionId] });
+          void queryClient.invalidateQueries({ queryKey: ["ipd-billing-summary", admissionId] });
+          void queryClient.invalidateQueries({ queryKey: ["patient-invoices", adm.patient_id] });
+        }}
       />
       <Text size="sm">Admitted: {new Date(adm.admitted_at).toLocaleString()}</Text>
       {adm.discharged_at && (
@@ -820,65 +885,82 @@ function OverviewTab({
   canCreate: boolean;
 }) {
   const queryClient = useQueryClient();
-  const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState<Partial<CreateNursingTaskRequest>>({});
+  const [formOpened, formHandlers] = useDisclosure(false);
+  const {
+    control,
+    register,
+    reset,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<IpdNursingTaskFormInput>({
+    resolver: zodResolver(ipdNursingTaskFormSchema),
+    defaultValues: DEFAULT_IPD_NURSING_TASK_VALUES,
+  });
 
   const createMutation = useMutation({
-    mutationFn: (data: CreateNursingTaskRequest) => api.createNursingTask(admissionId, data),
+    mutationFn: (data: CreateNursingTaskRequest) => ipdService.createNursingTask(admissionId, data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["admission-detail", admissionId] });
-      setShowForm(false);
-      setForm({});
+      formHandlers.close();
+      reset(DEFAULT_IPD_NURSING_TASK_VALUES);
     },
   });
 
   const toggleMutation = useMutation({
     mutationFn: ({ taskId, completed }: { taskId: string; completed: boolean }) =>
-      api.updateNursingTask(admissionId, taskId, { is_completed: completed }),
+      ipdService.updateNursingTask(admissionId, taskId, { is_completed: completed }),
     onSuccess: () =>
       void queryClient.invalidateQueries({ queryKey: ["admission-detail", admissionId] }),
   });
+
+  const handleCreateTask = (values: IpdNursingTaskFormInput) => {
+    createMutation.mutate({
+      task_type: values.task_type,
+      description: values.description.trim(),
+      assigned_to: ipdOptionalText(values.assigned_to),
+      notes: ipdOptionalText(values.notes),
+    });
+  };
 
   return (
     <Stack>
       {canCreate && (
         <Group>
-          <Button
-            size="xs"
-            leftSection={<IconPlus size={14} />}
-            onClick={() => setShowForm(!showForm)}
-          >
+          <Button size="xs" leftSection={<IconPlus size={14} />} onClick={formHandlers.toggle}>
             Add Task
           </Button>
         </Group>
       )}
-      {showForm && (
-        <Stack gap="xs">
-          <Select
-            label="Task Type"
-            required
-            data={NURSING_TASK_TYPES}
-            onChange={(v) => setForm({ ...form, task_type: v ?? "" })}
-            searchable
+      {formOpened && (
+        <Stack component="form" gap="xs" onSubmit={handleSubmit(handleCreateTask)}>
+          <Controller
+            control={control}
+            name="task_type"
+            render={({ field }) => (
+              <Select
+                label="Task Type"
+                required
+                data={nursingTaskTypeOptions}
+                value={field.value}
+                onChange={(value) => field.onChange(value ?? "vitals")}
+                error={errors.task_type?.message}
+                searchable
+              />
+            )}
           />
           <TextInput
             label="Description"
             required
-            onChange={(e) => setForm({ ...form, description: e.currentTarget.value })}
+            error={errors.description?.message}
+            {...register("description")}
           />
           <TextInput
             label="Assigned To (User ID)"
-            onChange={(e) => setForm({ ...form, assigned_to: e.currentTarget.value || undefined })}
+            error={errors.assigned_to?.message}
+            {...register("assigned_to")}
           />
-          <TextInput
-            label="Notes"
-            onChange={(e) => setForm({ ...form, notes: e.currentTarget.value || undefined })}
-          />
-          <Button
-            size="xs"
-            onClick={() => createMutation.mutate(form as CreateNursingTaskRequest)}
-            loading={createMutation.isPending}
-          >
+          <TextInput label="Notes" error={errors.notes?.message} {...register("notes")} />
+          <Button size="xs" type="submit" loading={createMutation.isPending}>
             Save Task
           </Button>
         </Stack>
@@ -922,85 +1004,89 @@ function OverviewTab({
 function ProgressNotesTab({ admissionId }: { admissionId: string }) {
   const canCreate = useHasPermission(P.IPD.PROGRESS_NOTES_CREATE);
   const queryClient = useQueryClient();
-  const [showForm, setShowForm] = useState(false);
-  const [noteType, setNoteType] = useState("doctor_round");
-  const [subjective, setSubjective] = useState("");
-  const [objective, setObjective] = useState("");
-  const [assessment, setAssessment] = useState("");
-  const [plan, setPlan] = useState("");
+  const [formOpened, formHandlers] = useDisclosure(false);
+  const {
+    control,
+    handleSubmit,
+    reset,
+    formState: { errors },
+  } = useForm<IpdProgressNoteFormInput>({
+    resolver: zodResolver(ipdProgressNoteFormSchema),
+    defaultValues: DEFAULT_IPD_PROGRESS_NOTE_VALUES,
+    mode: "onTouched",
+  });
 
-  const { data } = useQuery({
+  const { data: notes = [] } = useQuery<IpdProgressNote[]>({
     queryKey: ["ipd-progress-notes", admissionId],
-    queryFn: () => api.listProgressNotes(admissionId),
+    queryFn: () => ipdService.listProgressNotes(admissionId),
   });
 
   const mutation = useMutation({
-    mutationFn: () =>
-      api.createProgressNote(admissionId, {
-        note_type: noteType as ProgressNoteType,
-        note_date: new Date().toISOString().split("T")[0],
-        subjective: subjective || undefined,
-        objective: objective || undefined,
-        assessment: assessment || undefined,
-        plan: plan || undefined,
-      }),
+    mutationFn: (values: IpdProgressNoteFormInput) =>
+      ipdService.createProgressNote(admissionId, toCreateProgressNoteRequest(values)),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["ipd-progress-notes", admissionId] });
-      setShowForm(false);
-      setSubjective("");
-      setObjective("");
-      setAssessment("");
-      setPlan("");
+      formHandlers.close();
+      reset(DEFAULT_IPD_PROGRESS_NOTE_VALUES);
     },
   });
 
-  const notes = (data ?? []) as IpdProgressNote[];
+  const handleCreate = handleSubmit((values) => mutation.mutate(values));
+  const closeForm = () => {
+    formHandlers.close();
+    reset(DEFAULT_IPD_PROGRESS_NOTE_VALUES);
+  };
 
   return (
     <Stack>
       {canCreate && (
-        <Button
-          size="xs"
-          leftSection={<IconPlus size={14} />}
-          onClick={() => setShowForm(!showForm)}
-        >
+        <Button size="xs" leftSection={<IconPlus size={14} />} onClick={formHandlers.toggle}>
           Add Note
         </Button>
       )}
-      {showForm && (
-        <Stack gap="xs">
-          <Select
-            label="Note Type"
-            data={[
-              { value: "doctor_round", label: "Doctor Round" },
-              { value: "nursing_note", label: "Nursing Note" },
-              { value: "specialist_opinion", label: "Specialist Opinion" },
-              { value: "dietitian_note", label: "Dietitian Note" },
-              { value: "physiotherapy_note", label: "Physiotherapy" },
-              { value: "discharge_note", label: "Discharge Note" },
-            ]}
-            value={noteType}
-            onChange={(v) => setNoteType(v ?? "doctor_round")}
+      {formOpened && (
+        <Stack component="form" gap="xs" onSubmit={handleCreate}>
+          <Controller
+            control={control}
+            name="note_type"
+            render={({ field }) => (
+              <Select
+                label="Note Type"
+                data={progressNoteTypeOptions}
+                value={field.value}
+                onChange={(value) => field.onChange(value ?? "doctor_round")}
+                error={errors.note_type?.message}
+              />
+            )}
           />
-          <Textarea
-            label="Subjective"
-            value={subjective}
-            onChange={(e) => setSubjective(e.currentTarget.value)}
+          <Controller
+            control={control}
+            name="subjective"
+            render={({ field }) => <Textarea label="Subjective" {...field} />}
           />
-          <Textarea
-            label="Objective"
-            value={objective}
-            onChange={(e) => setObjective(e.currentTarget.value)}
+          <Controller
+            control={control}
+            name="objective"
+            render={({ field }) => <Textarea label="Objective" {...field} />}
           />
-          <Textarea
-            label="Assessment"
-            value={assessment}
-            onChange={(e) => setAssessment(e.currentTarget.value)}
+          <Controller
+            control={control}
+            name="assessment"
+            render={({ field }) => <Textarea label="Assessment" {...field} />}
           />
-          <Textarea label="Plan" value={plan} onChange={(e) => setPlan(e.currentTarget.value)} />
-          <Button size="xs" onClick={() => mutation.mutate()} loading={mutation.isPending}>
-            Save
-          </Button>
+          <Controller
+            control={control}
+            name="plan"
+            render={({ field }) => <Textarea label="Plan" {...field} />}
+          />
+          <Group>
+            <Button size="xs" type="submit" loading={mutation.isPending}>
+              Save
+            </Button>
+            <Button size="xs" variant="subtle" onClick={closeForm}>
+              Cancel
+            </Button>
+          </Group>
         </Stack>
       )}
       {(() => {
@@ -1099,95 +1185,38 @@ function ProgressNotesTab({ admissionId }: { admissionId: string }) {
 function AssessmentsTab({ admissionId }: { admissionId: string }) {
   const canCreate = useHasPermission(P.IPD.ASSESSMENTS_CREATE);
   const queryClient = useQueryClient();
-  const [showForm, setShowForm] = useState(false);
-  const [assessmentType, setAssessmentType] = useState("morse_fall_scale");
-  const [scoreValue, setScoreValue] = useState("");
-  const [riskLevel, setRiskLevel] = useState("");
-  const [bradenScores, setBradenScores] = useState({
-    sensory_perception: 4,
-    moisture: 4,
-    activity: 4,
-    mobility: 4,
-    nutrition: 4,
-    friction_shear: 3,
+  const [formOpened, formHandlers] = useDisclosure(false);
+  const {
+    control,
+    handleSubmit,
+    reset,
+    watch,
+    formState: { errors },
+  } = useForm<IpdClinicalAssessmentFormInput>({
+    resolver: zodResolver(ipdClinicalAssessmentFormSchema),
+    defaultValues: DEFAULT_IPD_CLINICAL_ASSESSMENT_VALUES,
   });
-  const [injuryPresent, setInjuryPresent] = useState(false);
-  const [injuryStage, setInjuryStage] = useState("");
-  const [injuryLocation, setInjuryLocation] = useState("");
-  const [injuryAcquired, setInjuryAcquired] = useState("");
-  const [repositioningPlan, setRepositioningPlan] = useState("");
-  const [nutritionalPlan, setNutritionalPlan] = useState("");
-  const [skinCarePlan, setSkinCarePlan] = useState("");
-  const [bradenNotes, setBradenNotes] = useState("");
+  const assessmentValues = watch();
+  const assessmentType = assessmentValues.assessment_type;
+  const injuryPresent = assessmentValues.injury_present;
 
-  const { data } = useQuery({
+  const { data: assessments = [] } = useQuery<IpdClinicalAssessment[]>({
     queryKey: ["ipd-assessments", admissionId],
-    queryFn: () => api.listAssessments(admissionId),
+    queryFn: () => ipdService.listAssessments(admissionId),
   });
 
-  const bradenTotal =
-    bradenScores.sensory_perception +
-    bradenScores.moisture +
-    bradenScores.activity +
-    bradenScores.mobility +
-    bradenScores.nutrition +
-    bradenScores.friction_shear;
-  const bradenRisk =
-    bradenTotal <= 9
-      ? "severe"
-      : bradenTotal <= 12
-        ? "high"
-        : bradenTotal <= 14
-          ? "moderate"
-          : bradenTotal <= 18
-            ? "mild"
-            : "no risk";
-
-  const updateBradenScore = (key: keyof typeof bradenScores, value: number | string) => {
-    const max = key === "friction_shear" ? 3 : 4;
-    const numeric = Math.max(1, Math.min(max, Number(value) || 1));
-    setBradenScores((current) => ({ ...current, [key]: numeric }));
-  };
+  const bradenTotal = calculateBradenTotal(assessmentValues);
+  const bradenRisk = bradenRiskLevel(bradenTotal);
 
   const mutation = useMutation({
-    mutationFn: () => {
-      const isBraden = assessmentType === "braden_scale";
-      return api.createAssessment(admissionId, {
-        assessment_type: assessmentType as ClinicalAssessmentType,
-        score_value: isBraden ? bradenTotal : scoreValue ? Number(scoreValue) : undefined,
-        risk_level: isBraden ? bradenRisk : riskLevel || undefined,
-        score_details: isBraden
-          ? {
-              ...bradenScores,
-              injury_present: injuryPresent,
-              injury_stage: injuryStage || undefined,
-              injury_location: injuryLocation || undefined,
-              injury_acquired: injuryAcquired || undefined,
-              repositioning_plan: repositioningPlan || undefined,
-              nutritional_plan: nutritionalPlan || undefined,
-              skin_care_plan: skinCarePlan || undefined,
-              notes: bradenNotes || undefined,
-            }
-          : undefined,
-      });
-    },
+    mutationFn: (values: IpdClinicalAssessmentFormInput) =>
+      ipdService.createAssessment(admissionId, toCreateAssessmentRequest(values)),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["ipd-assessments", admissionId] });
-      setShowForm(false);
-      setScoreValue("");
-      setRiskLevel("");
-      setInjuryPresent(false);
-      setInjuryStage("");
-      setInjuryLocation("");
-      setInjuryAcquired("");
-      setRepositioningPlan("");
-      setNutritionalPlan("");
-      setSkinCarePlan("");
-      setBradenNotes("");
+      formHandlers.close();
+      reset(DEFAULT_IPD_CLINICAL_ASSESSMENT_VALUES);
     },
   });
-
-  const assessments = (data ?? []) as IpdClinicalAssessment[];
 
   const riskColors: Record<string, string> = {
     "no risk": "success",
@@ -1205,26 +1234,29 @@ function AssessmentsTab({ admissionId }: { admissionId: string }) {
         <Button
           size="xs"
           leftSection={<IconPlus size={14} />}
-          onClick={() => setShowForm(!showForm)}
+          onClick={() => formHandlers.toggle()}
         >
           Add Assessment
         </Button>
       )}
-      {showForm && (
-        <Stack gap="xs">
-          <Select
-            label="Assessment Type"
-            data={[
-              { value: "morse_fall_scale", label: "Morse Fall Scale" },
-              { value: "braden_scale", label: "Braden Scale" },
-              { value: "gcs", label: "GCS" },
-              { value: "pain_vas", label: "Pain (VAS)" },
-              { value: "pain_nrs", label: "Pain (NRS)" },
-              { value: "news2", label: "NEWS2" },
-              { value: "mews", label: "MEWS" },
-            ]}
-            value={assessmentType}
-            onChange={(v) => setAssessmentType(v ?? "morse_fall_scale")}
+      {formOpened && (
+        <Stack
+          component="form"
+          gap="xs"
+          onSubmit={handleSubmit((values) => mutation.mutate(values))}
+        >
+          <Controller
+            control={control}
+            name="assessment_type"
+            render={({ field }) => (
+              <Select
+                label="Assessment Type"
+                data={IPD_ASSESSMENT_TYPE_OPTIONS}
+                value={field.value}
+                onChange={(value) => field.onChange(normalizeIpdAssessmentType(value))}
+                error={errors.assessment_type?.message}
+              />
+            )}
           />
           {assessmentType === "braden_scale" ? (
             <>
@@ -1238,47 +1270,47 @@ function AssessmentsTab({ admissionId }: { admissionId: string }) {
                 register. Record all six subscores and any observed injury here.
               </Alert>
               <SimpleGrid cols={{ base: 1, sm: 2, md: 3 }}>
-                <NumberInput
-                  label="Sensory perception"
-                  min={1}
-                  max={4}
-                  value={bradenScores.sensory_perception}
-                  onChange={(v) => updateBradenScore("sensory_perception", v)}
+                <Controller
+                  control={control}
+                  name="sensory_perception"
+                  render={({ field }) => (
+                    <NumberInput label="Sensory perception" min={1} max={4} {...field} />
+                  )}
                 />
-                <NumberInput
-                  label="Moisture"
-                  min={1}
-                  max={4}
-                  value={bradenScores.moisture}
-                  onChange={(v) => updateBradenScore("moisture", v)}
+                <Controller
+                  control={control}
+                  name="moisture"
+                  render={({ field }) => (
+                    <NumberInput label="Moisture" min={1} max={4} {...field} />
+                  )}
                 />
-                <NumberInput
-                  label="Activity"
-                  min={1}
-                  max={4}
-                  value={bradenScores.activity}
-                  onChange={(v) => updateBradenScore("activity", v)}
+                <Controller
+                  control={control}
+                  name="activity"
+                  render={({ field }) => (
+                    <NumberInput label="Activity" min={1} max={4} {...field} />
+                  )}
                 />
-                <NumberInput
-                  label="Mobility"
-                  min={1}
-                  max={4}
-                  value={bradenScores.mobility}
-                  onChange={(v) => updateBradenScore("mobility", v)}
+                <Controller
+                  control={control}
+                  name="mobility"
+                  render={({ field }) => (
+                    <NumberInput label="Mobility" min={1} max={4} {...field} />
+                  )}
                 />
-                <NumberInput
-                  label="Nutrition"
-                  min={1}
-                  max={4}
-                  value={bradenScores.nutrition}
-                  onChange={(v) => updateBradenScore("nutrition", v)}
+                <Controller
+                  control={control}
+                  name="nutrition"
+                  render={({ field }) => (
+                    <NumberInput label="Nutrition" min={1} max={4} {...field} />
+                  )}
                 />
-                <NumberInput
-                  label="Friction / shear"
-                  min={1}
-                  max={3}
-                  value={bradenScores.friction_shear}
-                  onChange={(v) => updateBradenScore("friction_shear", v)}
+                <Controller
+                  control={control}
+                  name="friction_shear"
+                  render={({ field }) => (
+                    <NumberInput label="Friction / shear" min={1} max={3} {...field} />
+                  )}
                 />
               </SimpleGrid>
               <Group>
@@ -1289,64 +1321,71 @@ function AssessmentsTab({ admissionId }: { admissionId: string }) {
                   Lower score means higher pressure-injury risk.
                 </Text>
               </Group>
-              <Checkbox
-                label="Pressure injury observed during this assessment"
-                checked={injuryPresent}
-                onChange={(event) => setInjuryPresent(event.currentTarget.checked)}
+              <Controller
+                control={control}
+                name="injury_present"
+                render={({ field }) => (
+                  <Checkbox
+                    label="Pressure injury observed during this assessment"
+                    checked={field.value}
+                    onChange={(event) => field.onChange(event.currentTarget.checked)}
+                  />
+                )}
               />
               {injuryPresent && (
                 <SimpleGrid cols={{ base: 1, sm: 2 }}>
-                  <Select
-                    label="Injury stage"
-                    data={[
-                      "stage_1",
-                      "stage_2",
-                      "stage_3",
-                      "stage_4",
-                      "unstageable",
-                      "deep_tissue",
-                    ]}
-                    value={injuryStage}
-                    onChange={(v) => setInjuryStage(v ?? "")}
-                    clearable
+                  <Controller
+                    control={control}
+                    name="injury_stage"
+                    render={({ field }) => (
+                      <Select
+                        label="Injury stage"
+                        data={IPD_BRADEN_INJURY_STAGE_OPTIONS}
+                        value={field.value}
+                        onChange={(value) => field.onChange(value ?? "")}
+                        clearable
+                      />
+                    )}
                   />
-                  <TextInput
-                    label="Injury location"
-                    value={injuryLocation}
-                    onChange={(e) => setInjuryLocation(e.currentTarget.value)}
+                  <Controller
+                    control={control}
+                    name="injury_location"
+                    render={({ field }) => <TextInput label="Injury location" {...field} />}
                   />
-                  <Select
-                    label="Acquired"
-                    data={[
-                      { value: "present_on_admission", label: "Present on admission" },
-                      { value: "hospital_acquired", label: "Hospital acquired" },
-                    ]}
-                    value={injuryAcquired}
-                    onChange={(v) => setInjuryAcquired(v ?? "")}
-                    clearable
+                  <Controller
+                    control={control}
+                    name="injury_acquired"
+                    render={({ field }) => (
+                      <Select
+                        label="Acquired"
+                        data={IPD_BRADEN_INJURY_ACQUIRED_OPTIONS}
+                        value={field.value}
+                        onChange={(value) => field.onChange(value ?? "")}
+                        clearable
+                      />
+                    )}
                   />
-                  <TextInput
-                    label="Repositioning plan"
-                    value={repositioningPlan}
-                    onChange={(e) => setRepositioningPlan(e.currentTarget.value)}
+                  <Controller
+                    control={control}
+                    name="repositioning_plan"
+                    render={({ field }) => <TextInput label="Repositioning plan" {...field} />}
                   />
-                  <TextInput
-                    label="Nutritional plan"
-                    value={nutritionalPlan}
-                    onChange={(e) => setNutritionalPlan(e.currentTarget.value)}
+                  <Controller
+                    control={control}
+                    name="nutritional_plan"
+                    render={({ field }) => <TextInput label="Nutritional plan" {...field} />}
                   />
-                  <TextInput
-                    label="Skin care plan"
-                    value={skinCarePlan}
-                    onChange={(e) => setSkinCarePlan(e.currentTarget.value)}
+                  <Controller
+                    control={control}
+                    name="skin_care_plan"
+                    render={({ field }) => <TextInput label="Skin care plan" {...field} />}
                   />
                 </SimpleGrid>
               )}
-              <Textarea
-                label="Assessment notes"
-                value={bradenNotes}
-                onChange={(e) => setBradenNotes(e.currentTarget.value)}
-                minRows={2}
+              <Controller
+                control={control}
+                name="notes"
+                render={({ field }) => <Textarea label="Assessment notes" minRows={2} {...field} />}
               />
             </>
           ) : (
@@ -1362,21 +1401,29 @@ function AssessmentsTab({ admissionId }: { admissionId: string }) {
                   assessment was completed before the fall.
                 </Alert>
               )}
-              <TextInput
-                label="Score"
-                value={scoreValue}
-                onChange={(e) => setScoreValue(e.currentTarget.value)}
+              <Controller
+                control={control}
+                name="score_value"
+                render={({ field }) => (
+                  <TextInput label="Score" error={errors.score_value?.message} {...field} />
+                )}
               />
-              <Select
-                label="Risk Level"
-                data={["low", "moderate", "high", "critical"]}
-                value={riskLevel}
-                onChange={(v) => setRiskLevel(v ?? "")}
-                clearable
+              <Controller
+                control={control}
+                name="risk_level"
+                render={({ field }) => (
+                  <Select
+                    label="Risk Level"
+                    data={IPD_RISK_LEVEL_OPTIONS}
+                    value={field.value}
+                    onChange={(value) => field.onChange(value ?? "")}
+                    clearable
+                  />
+                )}
               />
             </>
           )}
-          <Button size="xs" onClick={() => mutation.mutate()} loading={mutation.isPending}>
+          <Button size="xs" type="submit" loading={mutation.isPending}>
             Save
           </Button>
         </Stack>
@@ -1422,7 +1469,7 @@ function AssessmentsTab({ admissionId }: { admissionId: string }) {
 function MarTab({ admissionId }: { admissionId: string }) {
   const { data } = useQuery({
     queryKey: ["ipd-mar", admissionId],
-    queryFn: () => api.listMar(admissionId),
+    queryFn: () => ipdService.listMar(admissionId),
   });
 
   const marStatusColors: Record<string, string> = {
@@ -1520,12 +1567,12 @@ function AdmissionPrescriptionsTab({
 }) {
   const { data: prescriptions = [] } = useQuery<PrescriptionWithItems[]>({
     queryKey: ["encounter-prescriptions", encounterId],
-    queryFn: () => api.listPrescriptions(encounterId),
+    queryFn: () => ipdService.listPrescriptions(encounterId),
   });
 
   const { data: patient } = useQuery({
     queryKey: ["patient-detail", patientId],
-    queryFn: () => api.getPatient(patientId),
+    queryFn: () => ipdService.getPatient(patientId),
   });
 
   if (prescriptions.length === 0) {
@@ -1556,11 +1603,11 @@ function AdmissionPrescriptionsTab({
 function IoChartTab({ admissionId }: { admissionId: string }) {
   const { data: ioData } = useQuery({
     queryKey: ["ipd-io", admissionId],
-    queryFn: () => api.listIntakeOutput(admissionId),
+    queryFn: () => ipdService.listIntakeOutput(admissionId),
   });
   const { data: balance } = useQuery({
     queryKey: ["ipd-io-balance", admissionId],
-    queryFn: () => api.getIoBalance(admissionId),
+    queryFn: () => ipdService.getIoBalance(admissionId),
   });
 
   const rows = (ioData ?? []) as IpdIntakeOutput[];
@@ -1628,11 +1675,11 @@ function IoChartTab({ admissionId }: { admissionId: string }) {
 function NursingTab({ admissionId }: { admissionId: string }) {
   const { data: carePlans } = useQuery({
     queryKey: ["ipd-care-plans", admissionId],
-    queryFn: () => api.listCarePlans(admissionId),
+    queryFn: () => ipdService.listCarePlans(admissionId),
   });
   const { data: handovers } = useQuery({
     queryKey: ["ipd-handovers", admissionId],
-    queryFn: () => api.listHandovers(admissionId),
+    queryFn: () => ipdService.listHandovers(admissionId),
   });
 
   const plans = (carePlans ?? []) as IpdCarePlan[];
@@ -1743,44 +1790,37 @@ function NursingTab({ admissionId }: { admissionId: string }) {
 
 function AttendersTab({ admissionId, canCreate }: { admissionId: string; canCreate: boolean }) {
   const queryClient = useQueryClient();
-  const [showForm, setShowForm] = useState(false);
-  const [name, setName] = useState("");
-  const [relationship, setRelationship] = useState("");
-  const [phone, setPhone] = useState("");
-  const [altPhone, setAltPhone] = useState("");
-  const [address, setAddress] = useState("");
-  const [idProofType, setIdProofType] = useState("");
-  const [idProofNumber, setIdProofNumber] = useState("");
-  const [isPrimary, setIsPrimary] = useState(false);
+  const [formOpened, formHandlers] = useDisclosure(false);
+  const {
+    control,
+    handleSubmit,
+    reset,
+    formState: { errors },
+  } = useForm<IpdAttenderFormInput>({
+    resolver: zodResolver(ipdAttenderFormSchema),
+    defaultValues: DEFAULT_IPD_ATTENDER_VALUES,
+  });
 
-  const { data } = useQuery({
+  const { data: attenders = [] } = useQuery<AdmissionAttender[]>({
     queryKey: ["ipd-attenders", admissionId],
-    queryFn: () => api.listAttenders(admissionId),
+    queryFn: () => ipdService.listAttenders(admissionId),
   });
 
   const createMutation = useMutation({
-    mutationFn: (d: CreateAttenderRequest) => api.createAttender(admissionId, d),
+    mutationFn: (values: IpdAttenderFormInput) =>
+      ipdService.createAttender(admissionId, toCreateAttenderRequest(values)),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["ipd-attenders", admissionId] });
-      setShowForm(false);
-      setName("");
-      setRelationship("");
-      setPhone("");
-      setAltPhone("");
-      setAddress("");
-      setIdProofType("");
-      setIdProofNumber("");
-      setIsPrimary(false);
+      formHandlers.close();
+      reset(DEFAULT_IPD_ATTENDER_VALUES);
     },
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (attenderId: string) => api.deleteAttender(admissionId, attenderId),
+    mutationFn: (attenderId: string) => ipdService.deleteAttender(admissionId, attenderId),
     onSuccess: () =>
       void queryClient.invalidateQueries({ queryKey: ["ipd-attenders", admissionId] }),
   });
-
-  const attenders = (data ?? []) as AdmissionAttender[];
 
   return (
     <Stack>
@@ -1788,78 +1828,86 @@ function AttendersTab({ admissionId, canCreate }: { admissionId: string; canCrea
         <Button
           size="xs"
           leftSection={<IconPlus size={14} />}
-          onClick={() => setShowForm(!showForm)}
+          onClick={() => formHandlers.toggle()}
         >
           Add Attender
         </Button>
       )}
-      {showForm && (
-        <Stack gap="xs">
-          <TextInput
-            label="Name"
-            required
-            value={name}
-            onChange={(e) => setName(e.currentTarget.value)}
+      {formOpened && (
+        <Stack
+          component="form"
+          gap="xs"
+          onSubmit={handleSubmit((values) => createMutation.mutate(values))}
+        >
+          <Controller
+            control={control}
+            name="name"
+            render={({ field }) => (
+              <TextInput label="Name" required error={errors.name?.message} {...field} />
+            )}
           />
-          <TextInput
-            label="Relationship"
-            required
-            value={relationship}
-            onChange={(e) => setRelationship(e.currentTarget.value)}
-          />
-          <Group grow>
-            <TextInput
-              label="Phone"
-              value={phone}
-              onChange={(e) => setPhone(e.currentTarget.value)}
-            />
-            <TextInput
-              label="Alt Phone"
-              value={altPhone}
-              onChange={(e) => setAltPhone(e.currentTarget.value)}
-            />
-          </Group>
-          <Textarea
-            label="Address"
-            value={address}
-            onChange={(e) => setAddress(e.currentTarget.value)}
+          <Controller
+            control={control}
+            name="relationship"
+            render={({ field }) => (
+              <TextInput
+                label="Relationship"
+                required
+                error={errors.relationship?.message}
+                {...field}
+              />
+            )}
           />
           <Group grow>
-            <Select
-              label="ID Proof Type"
-              data={ID_PROOF_TYPES}
-              value={idProofType || null}
-              onChange={(v) => setIdProofType(v ?? "")}
-              clearable
-              searchable
+            <Controller
+              control={control}
+              name="phone"
+              render={({ field }) => <TextInput label="Phone" {...field} />}
             />
-            <TextInput
-              label="ID Proof Number"
-              value={idProofNumber}
-              onChange={(e) => setIdProofNumber(e.currentTarget.value)}
+            <Controller
+              control={control}
+              name="alt_phone"
+              render={({ field }) => <TextInput label="Alt Phone" {...field} />}
             />
           </Group>
-          <Checkbox
-            label="Primary attender"
-            checked={isPrimary}
-            onChange={(e) => setIsPrimary(e.currentTarget.checked)}
+          <Controller
+            control={control}
+            name="address"
+            render={({ field }) => <Textarea label="Address" {...field} />}
           />
-          <Button
-            size="xs"
-            onClick={() =>
-              createMutation.mutate({
-                name,
-                relationship,
-                phone: phone || undefined,
-                alt_phone: altPhone || undefined,
-                address: address || undefined,
-                id_proof_type: idProofType || undefined,
-                id_proof_number: idProofNumber || undefined,
-                is_primary: isPrimary || undefined,
-              })
-            }
-            loading={createMutation.isPending}
-          >
+          <Group grow>
+            <Controller
+              control={control}
+              name="id_proof_type"
+              render={({ field }) => (
+                <Select
+                  label="ID Proof Type"
+                  data={IPD_ID_PROOF_TYPE_OPTIONS}
+                  value={field.value || null}
+                  onChange={(value) => field.onChange(value ?? "")}
+                  clearable
+                  searchable
+                />
+              )}
+            />
+            <Controller
+              control={control}
+              name="id_proof_number"
+              render={({ field }) => <TextInput label="ID Proof Number" {...field} />}
+            />
+          </Group>
+          <Controller
+            control={control}
+            name="is_primary"
+            render={({ field }) => (
+              <Checkbox
+                label="Primary attender"
+                checked={field.value}
+                onChange={(event) => field.onChange(event.currentTarget.checked)}
+              />
+            )}
+          />
+          <Button size="xs" type="submit" loading={createMutation.isPending}>
             Save
           </Button>
         </Stack>
@@ -1931,7 +1979,7 @@ function DischargeSummaryTab({
 
   const { data: existing } = useQuery({
     queryKey: ["ipd-discharge-summary", admissionId],
-    queryFn: () => api.getDischargeSummary(admissionId).catch(() => null),
+    queryFn: () => ipdService.getDischargeSummary(admissionId).catch(() => null),
   });
 
   const [finalDiagnosis, setFinalDiagnosis] = useState("");
@@ -1949,7 +1997,8 @@ function DischargeSummaryTab({
   const summary = existing as IpdDischargeSummary | null;
 
   const createMutation = useMutation({
-    mutationFn: (d: CreateDischargeSummaryRequest) => api.createDischargeSummary(admissionId, d),
+    mutationFn: (d: CreateDischargeSummaryRequest) =>
+      ipdService.createDischargeSummary(admissionId, d),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["ipd-discharge-summary", admissionId] });
       setEditing(false);
@@ -1957,7 +2006,8 @@ function DischargeSummaryTab({
   });
 
   const updateMutation = useMutation({
-    mutationFn: (d: UpdateDischargeSummaryRequest) => api.updateDischargeSummary(admissionId, d),
+    mutationFn: (d: UpdateDischargeSummaryRequest) =>
+      ipdService.updateDischargeSummary(admissionId, d),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["ipd-discharge-summary", admissionId] });
       setEditing(false);
@@ -1965,7 +2015,7 @@ function DischargeSummaryTab({
   });
 
   const finalizeMutation = useMutation({
-    mutationFn: () => api.finalizeDischargeSummary(admissionId),
+    mutationFn: () => ipdService.finalizeDischargeSummary(admissionId),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["ipd-discharge-summary", admissionId] });
       notifications.show({
@@ -2198,7 +2248,8 @@ function TransferTab({
   const emit = useClinicalEmit();
 
   const transferMutation = useMutation({
-    mutationFn: () => api.transferBed(admissionId, { bed_id: bedId, notes: notes || undefined }),
+    mutationFn: () =>
+      ipdService.transferBed(admissionId, { bed_id: bedId, notes: notes || undefined }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["admission-detail", admissionId] });
       void queryClient.invalidateQueries({ queryKey: ["admissions"] });
@@ -2266,12 +2317,12 @@ function DischargeTab({
 
   const { data: checklist } = useQuery({
     queryKey: ["ipd-discharge-checklist", admissionId],
-    queryFn: () => api.listDischargeChecklist(admissionId),
+    queryFn: () => ipdService.listDischargeChecklist(admissionId),
   });
 
   const dischargeMutation = useMutation({
     mutationFn: () =>
-      api.dischargePatient(admissionId, {
+      ipdService.dischargePatient(admissionId, {
         discharge_type: dischargeType as DischargeType,
         discharge_summary: summary || undefined,
       }),
@@ -2373,7 +2424,7 @@ function WardsTab() {
 
   const { data, isLoading } = useQuery({
     queryKey: ["ipd-wards"],
-    queryFn: () => api.listWards(),
+    queryFn: () => ipdService.listWards(),
   });
 
   const wards = (data ?? []) as WardListRow[];
@@ -2482,7 +2533,7 @@ function CreateWardDrawer({ opened, onClose }: { opened: boolean; onClose: () =>
   const [genderRestriction, setGenderRestriction] = useState("any");
 
   const mutation = useMutation({
-    mutationFn: (d: CreateWardRequest) => api.createWard(d),
+    mutationFn: (d: CreateWardRequest) => ipdService.createWard(d),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["ipd-wards"] });
       onClose();
@@ -2553,7 +2604,7 @@ function EditWardDrawer({ ward, onClose }: { ward: WardListRow | null; onClose: 
   const [isActive, setIsActive] = useState(ward?.is_active ?? true);
 
   const mutation = useMutation({
-    mutationFn: (d: UpdateWardRequest) => api.updateWard(ward?.id ?? "", d),
+    mutationFn: (d: UpdateWardRequest) => ipdService.updateWard(ward?.id ?? "", d),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["ipd-wards"] });
       onClose();
@@ -2618,12 +2669,12 @@ function WardBedsPanel({ wardId, canManage }: { wardId: string; canManage: boole
 
   const { data } = useQuery({
     queryKey: ["ipd-ward-beds", wardId],
-    queryFn: () => api.listWardBeds(wardId),
+    queryFn: () => ipdService.listWardBeds(wardId),
   });
 
   const assignMutation = useMutation({
     mutationFn: () =>
-      api.assignBedToWard(wardId, {
+      ipdService.assignBedToWard(wardId, {
         bed_location_id: bedLocationId,
         bed_type_id: bedTypeId || undefined,
       }),
@@ -2636,7 +2687,7 @@ function WardBedsPanel({ wardId, canManage }: { wardId: string; canManage: boole
   });
 
   const removeMutation = useMutation({
-    mutationFn: (mappingId: string) => api.removeBedFromWard(wardId, mappingId),
+    mutationFn: (mappingId: string) => ipdService.removeBedFromWard(wardId, mappingId),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["ipd-ward-beds", wardId] });
       void queryClient.invalidateQueries({ queryKey: ["ipd-wards"] });
@@ -2744,7 +2795,7 @@ function IpTypeConfigSection() {
 
   const { data, isLoading } = useQuery({
     queryKey: ["ipd-ip-types"],
-    queryFn: () => api.listIpTypes(),
+    queryFn: () => ipdService.listIpTypes(),
     enabled: expanded,
   });
 
@@ -2756,7 +2807,7 @@ function IpTypeConfigSection() {
       id: string;
       billing_alert_threshold?: number;
       auto_billing_enabled?: boolean;
-    }) => api.updateIpType(id, rest),
+    }) => ipdService.updateIpType(id, rest),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["ipd-ip-types"] });
       notifications.show({
@@ -2908,7 +2959,7 @@ function BedDashboardTab() {
 
   const { data: summaryData } = useQuery({
     queryKey: ["ipd-bed-dashboard-summary"],
-    queryFn: () => api.bedDashboardSummary(),
+    queryFn: () => ipdService.bedDashboardSummary(),
   });
 
   const bedParams: Record<string, string> = {};
@@ -2917,12 +2968,13 @@ function BedDashboardTab() {
 
   const { data: bedsData, isLoading } = useQuery({
     queryKey: ["ipd-bed-dashboard-beds", bedParams],
-    queryFn: () => api.bedDashboardBeds(Object.keys(bedParams).length > 0 ? bedParams : undefined),
+    queryFn: () =>
+      ipdService.bedDashboardBeds(Object.keys(bedParams).length > 0 ? bedParams : undefined),
   });
 
   const updateStatusMutation = useMutation({
     mutationFn: ({ bedId, status }: { bedId: string; status: string }) =>
-      api.updateBedStatus(bedId, { status }),
+      ipdService.updateBedStatus(bedId, { status }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["ipd-bed-dashboard-summary"] });
       void queryClient.invalidateQueries({ queryKey: ["ipd-bed-dashboard-beds"] });
@@ -3176,7 +3228,7 @@ function ReportsTab() {
 function CensusReport() {
   const { data, isLoading } = useQuery({
     queryKey: ["ipd-report-census"],
-    queryFn: () => api.reportCensus(),
+    queryFn: () => ipdService.reportCensus(),
   });
 
   const rows = (data ?? []) as CensusWardRow[];
@@ -3224,7 +3276,7 @@ function CensusReport() {
 function OccupancyReport({ from, to }: { from: string; to: string }) {
   const { data, isLoading } = useQuery({
     queryKey: ["ipd-report-occupancy", from, to],
-    queryFn: () => api.reportOccupancy({ from, to }),
+    queryFn: () => ipdService.reportOccupancy({ from, to }),
     enabled: !!from && !!to,
   });
 
@@ -3277,7 +3329,7 @@ function OccupancyReport({ from, to }: { from: string; to: string }) {
 function AlosReport({ from, to }: { from: string; to: string }) {
   const { data, isLoading } = useQuery({
     queryKey: ["ipd-report-alos", from, to],
-    queryFn: () => api.reportAlos({ from, to }),
+    queryFn: () => ipdService.reportAlos({ from, to }),
     enabled: !!from && !!to,
   });
 
@@ -3313,8 +3365,10 @@ function AlosReport({ from, to }: { from: string; to: string }) {
             </Table.Td>
           </Table.Tr>
         ) : (
-          rows.map((r, i) => (
-            <Table.Tr key={`${r.department_name}-${r.discharge_type}-${i}`}>
+          rows.map((r) => (
+            <Table.Tr
+              key={`${r.department_name ?? "unknown"}-${r.discharge_type}-${r.count}-${r.avg_los_days}`}
+            >
               <Table.Td>
                 <Text size="sm">{r.department_name ?? "—"}</Text>
               </Table.Td>
@@ -3340,7 +3394,7 @@ function AlosReport({ from, to }: { from: string; to: string }) {
 function DischargeStatsReport({ from, to }: { from: string; to: string }) {
   const { data, isLoading } = useQuery({
     queryKey: ["ipd-report-discharge-stats", from, to],
-    queryFn: () => api.reportDischargeStats({ from, to }),
+    queryFn: () => ipdService.reportDischargeStats({ from, to }),
     enabled: !!from && !!to,
   });
 
@@ -3417,22 +3471,22 @@ function ClinicalDocsTab({ admissionId }: { admissionId: string }) {
   const canCreate = useHasPermission(P.IPD.CLINICAL_DOCS_CREATE);
   const queryClient = useQueryClient();
   const [filterType, setFilterType] = useState<string | null>(null);
-  const [showForm, setShowForm] = useState(false);
+  const [formOpened, formHandlers] = useDisclosure(false);
   const [docType, setDocType] = useState<string | null>(null);
   const [title, setTitle] = useState("");
   const [notes, setNotes] = useState("");
-  const [showRestraintForm, setShowRestraintForm] = useState<string | null>(null);
+  const [restraintDocId, setRestraintDocId] = useState<string | null>(null);
   const [restraintStatus, setRestraintStatus] = useState<string | null>(null);
   const [restraintNotes, setRestraintNotes] = useState("");
 
   const { data: docs, isLoading } = useQuery({
     queryKey: ["ipd-clinical-docs", admissionId, filterType],
     queryFn: () =>
-      api.listClinicalDocs(admissionId, filterType ? { doc_type: filterType } : undefined),
+      ipdService.listClinicalDocs(admissionId, filterType ? { doc_type: filterType } : undefined),
   });
 
   const createMutation = useMutation({
-    mutationFn: (data: CreateClinicalDocRequest) => api.createClinicalDoc(admissionId, data),
+    mutationFn: (data: CreateClinicalDocRequest) => ipdService.createClinicalDoc(admissionId, data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["ipd-clinical-docs", admissionId] });
       notifications.show({
@@ -3440,7 +3494,7 @@ function ClinicalDocsTab({ admissionId }: { admissionId: string }) {
         message: "Clinical documentation saved",
         color: "success",
       });
-      setShowForm(false);
+      formHandlers.close();
       setDocType(null);
       setTitle("");
       setNotes("");
@@ -3448,7 +3502,7 @@ function ClinicalDocsTab({ admissionId }: { admissionId: string }) {
   });
 
   const resolveMutation = useMutation({
-    mutationFn: (docId: string) => api.resolveClinicalDoc(admissionId, docId),
+    mutationFn: (docId: string) => ipdService.resolveClinicalDoc(admissionId, docId),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["ipd-clinical-docs", admissionId] });
       notifications.show({
@@ -3460,7 +3514,8 @@ function ClinicalDocsTab({ admissionId }: { admissionId: string }) {
   });
 
   const restraintMutation = useMutation({
-    mutationFn: (data: CreateRestraintCheckRequest) => api.createRestraintCheck(admissionId, data),
+    mutationFn: (data: CreateRestraintCheckRequest) =>
+      ipdService.createRestraintCheck(admissionId, data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["ipd-clinical-docs", admissionId] });
       notifications.show({
@@ -3468,7 +3523,7 @@ function ClinicalDocsTab({ admissionId }: { admissionId: string }) {
         message: "Restraint check logged",
         color: "success",
       });
-      setShowRestraintForm(null);
+      setRestraintDocId(null);
       setRestraintStatus(null);
       setRestraintNotes("");
     },
@@ -3488,13 +3543,17 @@ function ClinicalDocsTab({ admissionId }: { admissionId: string }) {
           w={200}
         />
         {canCreate && (
-          <Button leftSection={<IconPlus size={16} />} size="sm" onClick={() => setShowForm(true)}>
+          <Button
+            leftSection={<IconPlus size={16} />}
+            size="sm"
+            onClick={() => formHandlers.open()}
+          >
             Add Documentation
           </Button>
         )}
       </Group>
 
-      {showForm && (
+      {formOpened && (
         <Card withBorder p="sm">
           <Stack gap="xs">
             <Select
@@ -3642,7 +3701,7 @@ function ClinicalDocsTab({ admissionId }: { admissionId: string }) {
               >
                 Save
               </Button>
-              <Button size="sm" variant="subtle" onClick={() => setShowForm(false)}>
+              <Button size="sm" variant="subtle" onClick={() => formHandlers.close()}>
                 Cancel
               </Button>
             </Group>
@@ -3706,11 +3765,7 @@ function ClinicalDocsTab({ admissionId }: { admissionId: string }) {
                     )}
                     {doc.doc_type === "restraint" && !doc.is_resolved && (
                       <>
-                        <Button
-                          size="xs"
-                          variant="light"
-                          onClick={() => setShowRestraintForm(doc.id)}
-                        >
+                        <Button size="xs" variant="light" onClick={() => setRestraintDocId(doc.id)}>
                           Log Check
                         </Button>
                         <RestraintChecksSummary admissionId={admissionId} docId={doc.id} />
@@ -3724,7 +3779,7 @@ function ClinicalDocsTab({ admissionId }: { admissionId: string }) {
         </Table>
       )}
 
-      {showRestraintForm && (
+      {restraintDocId && (
         <Card withBorder p="sm">
           <Text fw={500} size="sm" mb="xs">
             30-Minute Restraint Check
@@ -3747,7 +3802,7 @@ function ClinicalDocsTab({ admissionId }: { admissionId: string }) {
                 size="sm"
                 onClick={() =>
                   restraintMutation.mutate({
-                    clinical_doc_id: showRestraintForm,
+                    clinical_doc_id: restraintDocId,
                     status: restraintStatus as RestraintCheckStatus,
                     notes: restraintNotes || undefined,
                   })
@@ -3757,7 +3812,7 @@ function ClinicalDocsTab({ admissionId }: { admissionId: string }) {
               >
                 Record Check
               </Button>
-              <Button size="sm" variant="subtle" onClick={() => setShowRestraintForm(null)}>
+              <Button size="sm" variant="subtle" onClick={() => setRestraintDocId(null)}>
                 Cancel
               </Button>
             </Group>
@@ -3780,12 +3835,12 @@ function ChecklistTab({ admissionId }: { admissionId: string }) {
 
   const { data: items, isLoading } = useQuery({
     queryKey: ["ipd-checklist", admissionId],
-    queryFn: () => api.listAdmissionChecklist(admissionId),
+    queryFn: () => ipdService.listAdmissionChecklist(admissionId),
   });
 
   const createMutation = useMutation({
     mutationFn: () =>
-      api.createAdmissionChecklist(admissionId, {
+      ipdService.createAdmissionChecklist(admissionId, {
         items: [{ item_label: newLabel, category: newCategory || undefined }],
       }),
     onSuccess: () => {
@@ -3798,7 +3853,7 @@ function ChecklistTab({ admissionId }: { admissionId: string }) {
 
   const seedTemplateMutation = useMutation({
     mutationFn: (template: ChecklistTemplate) =>
-      api.createAdmissionChecklist(admissionId, { items: template.items }),
+      ipdService.createAdmissionChecklist(admissionId, { items: template.items }),
     onSuccess: (_data, template) => {
       void queryClient.invalidateQueries({ queryKey: ["ipd-checklist", admissionId] });
       notifications.show({
@@ -3811,7 +3866,7 @@ function ChecklistTab({ admissionId }: { admissionId: string }) {
 
   const toggleMutation = useMutation({
     mutationFn: ({ itemId, completed }: { itemId: string; completed: boolean }) =>
-      api.toggleChecklistItem(admissionId, itemId, { is_completed: completed }),
+      ipdService.toggleChecklistItem(admissionId, itemId, { is_completed: completed }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["ipd-checklist", admissionId] });
     },
@@ -3948,22 +4003,22 @@ const TRANSFER_TYPE_OPTIONS: { value: TransferType; label: string }[] = [
 function TransferLogTab({ admissionId }: { admissionId: string }) {
   const canCreate = useHasPermission(P.IPD.TRANSFERS_CREATE);
   const queryClient = useQueryClient();
-  const [showForm, setShowForm] = useState(false);
+  const [formOpened, formHandlers] = useDisclosure(false);
   const [transferType, setTransferType] = useState<string | null>(null);
   const [reason, setReason] = useState("");
   const [clinicalSummary, setClinicalSummary] = useState("");
 
   const { data: transfers, isLoading } = useQuery({
     queryKey: ["ipd-transfers", admissionId],
-    queryFn: () => api.listTransfers(admissionId),
+    queryFn: () => ipdService.listTransfers(admissionId),
   });
 
   const createMutation = useMutation({
-    mutationFn: (data: CreateTransferRequest) => api.createTransfer(admissionId, data),
+    mutationFn: (data: CreateTransferRequest) => ipdService.createTransfer(admissionId, data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["ipd-transfers", admissionId] });
       notifications.show({ title: "Recorded", message: "Transfer logged", color: "success" });
-      setShowForm(false);
+      formHandlers.close();
       setTransferType(null);
       setReason("");
       setClinicalSummary("");
@@ -3977,13 +4032,17 @@ function TransferLogTab({ admissionId }: { admissionId: string }) {
       <Group justify="space-between">
         <Text fw={500}>Transfer History</Text>
         {canCreate && (
-          <Button size="sm" leftSection={<IconPlus size={16} />} onClick={() => setShowForm(true)}>
+          <Button
+            size="sm"
+            leftSection={<IconPlus size={16} />}
+            onClick={() => formHandlers.open()}
+          >
             Log Transfer
           </Button>
         )}
       </Group>
 
-      {showForm && (
+      {formOpened && (
         <Card withBorder p="sm">
           <Stack gap="xs">
             <Select
@@ -4018,7 +4077,7 @@ function TransferLogTab({ admissionId }: { admissionId: string }) {
               >
                 Save
               </Button>
-              <Button size="sm" variant="subtle" onClick={() => setShowForm(false)}>
+              <Button size="sm" variant="subtle" onClick={() => formHandlers.close()}>
                 Cancel
               </Button>
             </Group>
@@ -4078,12 +4137,12 @@ function DischargeTatTab({ admissionId }: { admissionId: string }) {
 
   const { data: tat, isLoading } = useQuery({
     queryKey: ["ipd-discharge-tat", admissionId],
-    queryFn: () => api.getDischargeTat(admissionId),
+    queryFn: () => ipdService.getDischargeTat(admissionId),
     enabled: canView,
   });
 
   const initMutation = useMutation({
-    mutationFn: () => api.initiateDischargeTat(admissionId),
+    mutationFn: () => ipdService.initiateDischargeTat(admissionId),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["ipd-discharge-tat", admissionId] });
       notifications.show({
@@ -4095,7 +4154,7 @@ function DischargeTatTab({ admissionId }: { admissionId: string }) {
   });
 
   const updateMutation = useMutation({
-    mutationFn: (data: Record<string, string>) => api.updateDischargeTat(admissionId, data),
+    mutationFn: (data: Record<string, string>) => ipdService.updateDischargeTat(admissionId, data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["ipd-discharge-tat", admissionId] });
       notifications.show({
@@ -4202,7 +4261,7 @@ function DischargeTatTab({ admissionId }: { admissionId: string }) {
 function InvestigationsTab({ admissionId }: { admissionId: string }) {
   const { data, isLoading } = useQuery({
     queryKey: ["ipd-investigations", admissionId],
-    queryFn: () => api.getAdmissionInvestigations(admissionId),
+    queryFn: () => ipdService.getAdmissionInvestigations(admissionId),
   });
 
   if (isLoading) return <Text c="dimmed">Loading...</Text>;
@@ -4333,19 +4392,19 @@ function InvestigationsTab({ admissionId }: { admissionId: string }) {
 function BillingTab({ admissionId }: { admissionId: string }) {
   const { data: costData } = useQuery({
     queryKey: ["ipd-estimated-cost", admissionId],
-    queryFn: () => api.getEstimatedCost(admissionId),
+    queryFn: () => ipdService.getEstimatedCost(admissionId),
   });
   const { data: summaryData } = useQuery({
     queryKey: ["ipd-billing-summary", admissionId],
-    queryFn: () => api.getAdmissionBillingSummary(admissionId),
+    queryFn: () => ipdService.getAdmissionBillingSummary(admissionId),
   });
   const { data: advances } = useQuery({
     queryKey: ["ipd-advances", admissionId],
-    queryFn: () => api.getAdmissionAdvances(admissionId),
+    queryFn: () => ipdService.getAdmissionAdvances(admissionId),
   });
   const { data: ipTypes } = useQuery({
     queryKey: ["ipd-ip-types"],
-    queryFn: () => api.listIpTypes(),
+    queryFn: () => ipdService.listIpTypes(),
   });
 
   const cost = costData as EstimatedCostResponse | undefined;
@@ -4354,10 +4413,9 @@ function BillingTab({ admissionId }: { admissionId: string }) {
   const configWithThreshold = ipTypeConfigs.find(
     (c) => c.billing_alert_threshold != null && c.billing_alert_threshold > 0,
   );
+  const alertThreshold = configWithThreshold?.billing_alert_threshold;
   const thresholdExceeded =
-    billing && configWithThreshold
-      ? billing.total_charges > configWithThreshold.billing_alert_threshold!
-      : false;
+    billing && alertThreshold != null ? billing.total_charges > alertThreshold : false;
 
   return (
     <Stack>
@@ -4509,7 +4567,7 @@ function BillingTab({ admissionId }: { admissionId: string }) {
 function InsurancePaTab({ admissionId }: { admissionId: string }) {
   const { data, isLoading } = useQuery({
     queryKey: ["ipd-prior-auth", admissionId],
-    queryFn: () => api.getAdmissionPriorAuth(admissionId),
+    queryFn: () => ipdService.getAdmissionPriorAuth(admissionId),
   });
 
   const paStatusColors: Record<string, string> = {
@@ -4585,11 +4643,11 @@ function MlcTab({ admissionId, canCreate }: { admissionId: string; canCreate: bo
 
   const { data: mlcData, isLoading } = useQuery({
     queryKey: ["ipd-mlc", admissionId],
-    queryFn: () => api.getAdmissionMlc(admissionId),
+    queryFn: () => ipdService.getAdmissionMlc(admissionId),
   });
 
   const linkMutation = useMutation({
-    mutationFn: (mlcCaseId: string) => api.linkMlc(admissionId, { mlc_case_id: mlcCaseId }),
+    mutationFn: (mlcCaseId: string) => ipdService.linkMlc(admissionId, { mlc_case_id: mlcCaseId }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["ipd-mlc", admissionId] });
       void queryClient.invalidateQueries({ queryKey: ["admission-detail", admissionId] });
@@ -4691,7 +4749,7 @@ function MlcTab({ admissionId, canCreate }: { admissionId: string; canCreate: bo
 function DietTab({ admissionId }: { admissionId: string }) {
   const { data, isLoading } = useQuery({
     queryKey: ["ipd-diet-orders", admissionId],
-    queryFn: () => api.getAdmissionDietOrders(admissionId),
+    queryFn: () => ipdService.getAdmissionDietOrders(admissionId),
   });
 
   const rows = (data ?? []) as DietOrder[];
@@ -4766,7 +4824,7 @@ function DietTab({ admissionId }: { admissionId: string }) {
 function ConsentsTab({ admissionId }: { admissionId: string }) {
   const { data, isLoading } = useQuery({
     queryKey: ["ipd-consents", admissionId],
-    queryFn: () => api.getAdmissionConsents(admissionId),
+    queryFn: () => ipdService.getAdmissionConsents(admissionId),
   });
 
   const rows = (data ?? []) as ProcedureConsent[];
@@ -4839,7 +4897,7 @@ function PrintAdmissionButton({ admissionId }: { admissionId: string }) {
   const [printing, setPrinting] = useState(false);
   const { data } = useQuery({
     queryKey: ["ipd-print", admissionId],
-    queryFn: () => api.getAdmissionPrintData(admissionId),
+    queryFn: () => ipdService.getAdmissionPrintData(admissionId),
     enabled: printing,
   });
 
@@ -4954,7 +5012,7 @@ function PrintAdmissionButton({ admissionId }: { admissionId: string }) {
 function BedTurnaroundView() {
   const { data, isLoading } = useQuery({
     queryKey: ["ipd-bed-turnaround-recent"],
-    queryFn: () => api.listBedTurnaround(),
+    queryFn: () => ipdService.listBedTurnaround(),
   });
 
   const rows = (data ?? []) as BedTurnaroundLog[];
@@ -5045,7 +5103,7 @@ function BedTurnaroundView() {
 function RestraintChecksSummary({ admissionId, docId }: { admissionId: string; docId: string }) {
   const { data } = useQuery({
     queryKey: ["restraint-checks", admissionId, docId],
-    queryFn: () => api.listRestraintChecks(admissionId, docId),
+    queryFn: () => ipdService.listRestraintChecks(admissionId, docId),
     refetchInterval: 60_000,
   });
 
@@ -5093,7 +5151,7 @@ function DeathSummaryTab({
 }) {
   const canCreate = useHasPermission(P.IPD.CLINICAL_DOCS_CREATE);
   const queryClient = useQueryClient();
-  const [showForm, setShowForm] = useState(false);
+  const [formOpened, formHandlers] = useDisclosure(false);
   const [dateOfDeath, setDateOfDeath] = useState("");
   const [timeOfDeath, setTimeOfDeath] = useState("");
   const [causePrimary, setCausePrimary] = useState("");
@@ -5108,15 +5166,15 @@ function DeathSummaryTab({
 
   const { data, isLoading } = useQuery({
     queryKey: ["ipd-death-summary", admissionId],
-    queryFn: () => api.getDeathSummary(admissionId),
+    queryFn: () => ipdService.getDeathSummary(admissionId),
   });
 
   const createMutation = useMutation({
-    mutationFn: (d: CreateDeathSummaryRequest) => api.createDeathSummary(admissionId, d),
+    mutationFn: (d: CreateDeathSummaryRequest) => ipdService.createDeathSummary(admissionId, d),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["ipd-death-summary", admissionId] });
       notifications.show({ title: "Created", message: "Death summary recorded", color: "success" });
-      setShowForm(false);
+      formHandlers.close();
     },
   });
 
@@ -5211,8 +5269,12 @@ function DeathSummaryTab({
     <Stack>
       <Group justify="space-between">
         <Text fw={600}>Death Summary</Text>
-        {canCreate && status === "deceased" && !showForm && (
-          <Button size="sm" leftSection={<IconPlus size={16} />} onClick={() => setShowForm(true)}>
+        {canCreate && status === "deceased" && !formOpened && (
+          <Button
+            size="sm"
+            leftSection={<IconPlus size={16} />}
+            onClick={() => formHandlers.open()}
+          >
             Create Death Summary
           </Button>
         )}
@@ -5224,7 +5286,7 @@ function DeathSummaryTab({
         </Text>
       )}
 
-      {showForm && (
+      {formOpened && (
         <Card withBorder p="sm">
           <Stack gap="xs">
             <SimpleGrid cols={{ base: 1, sm: 2 }}>
@@ -5320,7 +5382,7 @@ function DeathSummaryTab({
               >
                 Save Death Summary
               </Button>
-              <Button size="sm" variant="subtle" onClick={() => setShowForm(false)}>
+              <Button size="sm" variant="subtle" onClick={() => formHandlers.close()}>
                 Cancel
               </Button>
             </Group>
@@ -5344,7 +5406,7 @@ function BirthRecordsTab({
 }) {
   const canCreate = useHasPermission(P.IPD.CLINICAL_DOCS_CREATE);
   const queryClient = useQueryClient();
-  const [showForm, setShowForm] = useState(false);
+  const [formOpened, formHandlers] = useDisclosure(false);
   const [dob, setDob] = useState("");
   const [tob, setTob] = useState("");
   const [gender, setGender] = useState<string | null>(null);
@@ -5361,15 +5423,15 @@ function BirthRecordsTab({
 
   const { data, isLoading } = useQuery({
     queryKey: ["ipd-birth-records", admissionId],
-    queryFn: () => api.listBirthRecords(admissionId),
+    queryFn: () => ipdService.listBirthRecords(admissionId),
   });
 
   const createMutation = useMutation({
-    mutationFn: (d: CreateBirthRecordRequest) => api.createBirthRecord(admissionId, d),
+    mutationFn: (d: CreateBirthRecordRequest) => ipdService.createBirthRecord(admissionId, d),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["ipd-birth-records", admissionId] });
       notifications.show({ title: "Created", message: "Birth record saved", color: "success" });
-      setShowForm(false);
+      formHandlers.close();
       setDob("");
       setTob("");
       setGender(null);
@@ -5392,13 +5454,17 @@ function BirthRecordsTab({
       <Group justify="space-between">
         <Text fw={600}>Birth Records</Text>
         {canCreate && (
-          <Button size="sm" leftSection={<IconPlus size={16} />} onClick={() => setShowForm(true)}>
+          <Button
+            size="sm"
+            leftSection={<IconPlus size={16} />}
+            onClick={() => formHandlers.open()}
+          >
             Add Birth Record
           </Button>
         )}
       </Group>
 
-      {showForm && (
+      {formOpened && (
         <Card withBorder p="sm">
           <Stack gap="xs">
             <SimpleGrid cols={{ base: 1, sm: 2 }}>
@@ -5515,7 +5581,7 @@ function BirthRecordsTab({
               >
                 Save
               </Button>
-              <Button size="sm" variant="subtle" onClick={() => setShowForm(false)}>
+              <Button size="sm" variant="subtle" onClick={() => formHandlers.close()}>
                 Cancel
               </Button>
             </Group>
@@ -5601,7 +5667,7 @@ function BirthRecordsTab({
 function SurgeonCaseloadReport({ from, to }: { from: string; to: string }) {
   const { data, isLoading } = useQuery({
     queryKey: ["ot-surgeon-caseload", from, to],
-    queryFn: () => api.getSurgeonCaseload({ from: from || undefined, to: to || undefined }),
+    queryFn: () => ipdService.getSurgeonCaseload({ from: from || undefined, to: to || undefined }),
   });
 
   const rows = (data ?? []) as SurgeonCaseloadEntry[];
@@ -5686,12 +5752,12 @@ function GenerateDischargeSummaryModal({
 }) {
   const { data, isLoading, refetch } = useQuery({
     queryKey: ["generated-discharge-summary", admissionId],
-    queryFn: () => api.generateDischargeSummary(admissionId),
+    queryFn: () => ipdService.generateDischargeSummary(admissionId),
     enabled: false,
   });
 
   const generateMutation = useMutation({
-    mutationFn: () => api.generateDischargeSummary(admissionId),
+    mutationFn: () => ipdService.generateDischargeSummary(admissionId),
     onSuccess: () => {
       refetch();
       notifications.show({
@@ -5739,8 +5805,8 @@ function GenerateDischargeSummaryModal({
             {summary.diagnoses.length > 0 && (
               <Stack gap={2}>
                 <Text fw={600}>Diagnoses:</Text>
-                {summary.diagnoses.map((d, i) => (
-                  <Badge key={i} variant="light" size="sm">
+                {summary.diagnoses.map((d) => (
+                  <Badge key={d} variant="light" size="sm">
                     {d}
                   </Badge>
                 ))}
@@ -5749,8 +5815,8 @@ function GenerateDischargeSummaryModal({
             {summary.procedures.length > 0 && (
               <Stack gap={2}>
                 <Text fw={600}>Procedures:</Text>
-                {summary.procedures.map((p, i) => (
-                  <Badge key={i} variant="light" color="primary" size="sm">
+                {summary.procedures.map((p) => (
+                  <Badge key={p} variant="light" color="primary" size="sm">
                     {p}
                   </Badge>
                 ))}
@@ -5759,8 +5825,8 @@ function GenerateDischargeSummaryModal({
             {summary.medications.length > 0 && (
               <Stack gap={2}>
                 <Text fw={600}>Medications at Discharge:</Text>
-                {summary.medications.map((m, i) => (
-                  <Badge key={i} variant="light" color="success" size="sm">
+                {summary.medications.map((m) => (
+                  <Badge key={m} variant="light" color="success" size="sm">
                     {m}
                   </Badge>
                 ))}
@@ -5804,7 +5870,7 @@ function BedTransferModal({
   const [notes, setNotes] = useState("");
 
   const transferMutation = useMutation({
-    mutationFn: (data: BedTransferRequest) => api.bedTransfer(admissionId, data),
+    mutationFn: (data: BedTransferRequest) => ipdService.bedTransfer(admissionId, data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["admission-detail", admissionId] });
       void queryClient.invalidateQueries({ queryKey: ["admissions"] });
@@ -5864,7 +5930,7 @@ function ExpectedDischargesTab() {
 
   const { data: rows = [], isLoading } = useQuery({
     queryKey: ["expected-discharges", hours],
-    queryFn: () => api.expectedDischarges({ hours: typeof hours === "number" ? hours : 48 }),
+    queryFn: () => ipdService.expectedDischarges({ hours: typeof hours === "number" ? hours : 48 }),
   });
 
   const columns = [
@@ -5945,7 +6011,7 @@ function AnesthesiaComplicationsReport({ from, to }: { from: string; to: string 
   const { data, isLoading } = useQuery({
     queryKey: ["ot-anesthesia-complications", from, to],
     queryFn: () =>
-      api.listAnesthesiaComplications({ from: from || undefined, to: to || undefined }),
+      ipdService.listAnesthesiaComplications({ from: from || undefined, to: to || undefined }),
   });
 
   const rows = (data ?? []) as AnesthesiaComplicationEntry[];

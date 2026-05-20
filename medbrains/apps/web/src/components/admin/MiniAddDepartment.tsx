@@ -1,10 +1,14 @@
+import { zodResolver } from "@hookform/resolvers/zod";
 import { Button, Group, Select, Stack, TextInput } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
+import type { MiniDepartmentFormInput } from "@medbrains/schemas";
+import { miniDepartmentFormSchema } from "@medbrains/schemas";
 import type { DepartmentRow } from "@medbrains/types";
 import { IconBuilding, IconCheck } from "@tabler/icons-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
+import { Controller, useForm } from "react-hook-form";
+import { adminAccessService } from "../../services/adminAccess.service";
 
 interface MiniAddDepartmentProps {
   searchText: string;
@@ -46,16 +50,30 @@ export function MiniAddDepartment({
 }: MiniAddDepartmentProps) {
   const initialName = useMemo(() => inferName(searchText), [searchText]);
   const queryClient = useQueryClient();
-  const [name, setName] = useState(initialName);
-  const [code, setCode] = useState(() => inferCode(initialName));
-  const [type, setType] = useState<string>(departmentType ?? "clinical");
+  const {
+    control,
+    getValues,
+    handleSubmit,
+    setValue,
+    watch,
+    formState: { errors },
+  } = useForm<MiniDepartmentFormInput>({
+    resolver: zodResolver(miniDepartmentFormSchema),
+    defaultValues: {
+      name: initialName,
+      code: inferCode(initialName),
+      department_type: departmentType ?? "clinical",
+    },
+    mode: "onTouched",
+  });
+  const formValues = watch();
 
   const mutation = useMutation({
-    mutationFn: () =>
-      api.createDepartment({
-        code: code.trim(),
-        name: name.trim(),
-        department_type: type,
+    mutationFn: (values: MiniDepartmentFormInput) =>
+      adminAccessService.createDepartment({
+        code: values.code.trim(),
+        name: values.name.trim(),
+        department_type: values.department_type,
       }),
     onSuccess: (department) => {
       void queryClient.invalidateQueries({ queryKey: ["departments-list"] });
@@ -78,36 +96,58 @@ export function MiniAddDepartment({
     },
   });
 
-  const canSubmit = name.trim().length >= 2 && code.trim().length >= 2;
+  const submitDepartment = handleSubmit((values) => mutation.mutate(values));
+  const canSubmit = formValues.name.trim().length >= 2 && formValues.code.trim().length >= 2;
 
   return (
     <Stack gap="sm">
-      <TextInput
-        label="Department name"
-        required
-        value={name}
-        onChange={(event) => {
-          const next = event.currentTarget.value;
-          setName(next);
-          if (!code || code === inferCode(name)) {
-            setCode(inferCode(next));
-          }
-        }}
+      <Controller
+        control={control}
+        name="name"
+        render={({ field }) => (
+          <TextInput
+            label="Department name"
+            required
+            value={field.value}
+            onChange={(event) => {
+              const next = event.currentTarget.value;
+              const currentCode = getValues("code");
+              field.onChange(next);
+              if (!currentCode || currentCode === inferCode(field.value)) {
+                setValue("code", inferCode(next), { shouldDirty: true, shouldValidate: true });
+              }
+            }}
+            error={errors.name?.message}
+          />
+        )}
       />
       <Group grow align="flex-start">
-        <TextInput
-          label="Code"
-          required
-          value={code}
-          onChange={(event) => setCode(event.currentTarget.value.toUpperCase())}
+        <Controller
+          control={control}
+          name="code"
+          render={({ field }) => (
+            <TextInput
+              label="Code"
+              required
+              value={field.value}
+              onChange={(event) => field.onChange(event.currentTarget.value.toUpperCase())}
+              error={errors.code?.message}
+            />
+          )}
         />
-        <Select
-          allowDeselect={false}
-          data={departmentTypeOptions}
-          disabled={Boolean(departmentType)}
-          label="Type"
-          value={type}
-          onChange={(value) => setType(value ?? "clinical")}
+        <Controller
+          control={control}
+          name="department_type"
+          render={({ field }) => (
+            <Select
+              allowDeselect={false}
+              data={departmentTypeOptions}
+              disabled={Boolean(departmentType)}
+              label="Type"
+              value={field.value}
+              onChange={(value) => field.onChange(value ?? "clinical")}
+            />
+          )}
         />
       </Group>
       <Group justify="flex-end">
@@ -118,7 +158,7 @@ export function MiniAddDepartment({
           leftSection={<IconBuilding size={16} />}
           loading={mutation.isPending}
           disabled={!canSubmit}
-          onClick={() => mutation.mutate()}
+          onClick={() => void submitDepartment()}
         >
           Add & select
         </Button>

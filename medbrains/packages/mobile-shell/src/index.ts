@@ -13,23 +13,25 @@
  *   - Forest+Copper theme tokens for React Native Paper v5
  */
 
+export * from "./app-surfaces.js";
 export * from "./auth/index.js";
 export * from "./biometric/index.js";
 export * from "./nav/index.js";
 export * from "./offline/index.js";
 export * from "./pairing/index.js";
 export * from "./secret-store/index.js";
-export * from "./theme/index.js";
-export { Shell } from "./shell.js";
 export type { ShellProps } from "./shell.js";
-export {
-  filterAccessibleModules,
-  userHasModuleAccess,
-} from "./types.js";
+export { Shell } from "./shell.js";
+export * from "./theme/index.js";
 export type {
   Module,
   ModuleBadge,
   ModuleList,
   ShellVariant,
   TenantIdentity,
+} from "./types.js";
+export {
+  filterAccessibleModules,
+  filterModulesForApp,
+  userHasModuleAccess,
 } from "./types.js";

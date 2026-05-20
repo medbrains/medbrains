@@ -21,7 +21,6 @@ import {
   Tooltip,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
-import { api } from "@medbrains/api";
 import { useHasPermission } from "@medbrains/stores";
 import { P } from "@medbrains/types";
 import { IconArchive, IconChartDonut, IconHistory, IconSettings } from "@tabler/icons-react";
@@ -29,9 +28,11 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { DataTable, PageHeader } from "../../components";
 import { useRequirePermission } from "../../hooks/useRequirePermission";
-
-type Policy = Awaited<ReturnType<typeof api.listStoragePolicies>>[number];
-type Transition = Awaited<ReturnType<typeof api.listStorageTransitions>>[number];
+import {
+  type StoragePolicy as Policy,
+  storageService,
+  type StorageTransition as Transition,
+} from "../../services/storage.service";
 
 const TIER_TONE: Record<string, string> = {
   hot: "green",
@@ -57,7 +58,7 @@ export function StoragePage() {
   const [tab, setTab] = useState<string | null>("policies");
 
   const sweepMutation = useMutation({
-    mutationFn: () => api.triggerStorageSweep(),
+    mutationFn: () => storageService.triggerStorageSweep(),
   });
 
   return (
@@ -115,7 +116,7 @@ function PoliciesTab() {
   const qc = useQueryClient();
   const { data, isLoading } = useQuery({
     queryKey: ["storage-policies"],
-    queryFn: () => api.listStoragePolicies(),
+    queryFn: () => storageService.listStoragePolicies(),
   });
 
   const [opened, { open, close }] = useDisclosure(false);
@@ -239,7 +240,7 @@ function PolicyEditForm({ policy, onSaved }: { policy: Policy; onSaved: () => vo
 
   const update = useMutation({
     mutationFn: () =>
-      api.updateStoragePolicy(policy.document_category, {
+      storageService.updateStoragePolicy(policy.document_category, {
         hot_to_cold_days: hotToCold === "" ? null : hotToCold,
         cold_to_archive_days: coldToArchive === "" ? null : coldToArchive,
         archive_to_delete_days: archiveToDelete === "" ? null : archiveToDelete,
@@ -300,24 +301,15 @@ function PolicyEditForm({ policy, onSaved }: { policy: Policy; onSaved: () => vo
 function UsageTab() {
   const { data, isLoading } = useQuery({
     queryKey: ["storage-usage"],
-    queryFn: () => api.getStorageUsage(),
+    queryFn: () => storageService.getStorageUsage(),
   });
 
   if (isLoading || !data) {
     return <Text c="dimmed">Loading usage…</Text>;
   }
 
-  const usage = data as {
-    tiers: Array<{ tier: string; record_count: number; byte_total: number }>;
-    breakdown: Array<{
-      category: string;
-      tier: string;
-      record_count: number;
-      byte_total: number;
-    }>;
-  };
-  const tiers = usage.tiers;
-  const breakdown = usage.breakdown;
+  const tiers = data.tiers;
+  const breakdown = data.breakdown;
   const totalBytes = tiers.reduce((sum: number, t) => sum + t.byte_total, 0);
   const totalRecords = tiers.reduce((sum: number, t) => sum + t.record_count, 0);
 
@@ -405,7 +397,7 @@ function UsageTab() {
 function TransitionsTab() {
   const { data, isLoading } = useQuery({
     queryKey: ["storage-transitions"],
-    queryFn: () => api.listStorageTransitions({ limit: 100 }),
+    queryFn: () => storageService.listStorageTransitions({ limit: 100 }),
   });
 
   return (

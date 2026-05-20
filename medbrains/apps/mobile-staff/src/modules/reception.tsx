@@ -22,6 +22,7 @@ function ReceptionHome(): ReactNode {
       eyebrow="MODULE"
       title="Reception"
       description="Registration, queue, appointments, visitor passes."
+      tags={["Desktop-Kiosk", "Desktop-Workstation", "OPD", "ABHA"]}
       summaries={[
         { eyebrow: "WAIT", count: "—", title: "OPD queue length" },
         { eyebrow: "TODAY", count: "—", title: "Registrations so far" },
@@ -90,5 +91,7 @@ export const receptionModule: Module = {
   icon: () => null,
   requiredPermissions: [P.PATIENTS.LIST],
   navigator: ReceptionScreen,
+  appCodes: ["Desktop-Kiosk", "Desktop-Workstation", "Mobile-Admin", "Mobile-Security"],
+  tags: ["front-office", "registration", "queue", "appointments", "visitor-pass"],
   offlineDocTypes: ["patient_registration", "visitor_pass"],
 };

@@ -28,6 +28,7 @@ function BmeHome(): ReactNode {
       eyebrow="MODULE"
       title="BME / CMMS"
       description="Equipment register, PM, calibrations, AMC."
+      tags={["Mobile-BME", "Desktop-DeviceBridge", "assets", "calibration"]}
       summaries={[
         { eyebrow: "PM DUE", count: "—", title: "PMs due this week" },
         { eyebrow: "CAL", count: "—", title: "Calibrations expiring" },
@@ -102,5 +103,7 @@ export const bmeModule: Module = {
   icon: () => null,
   requiredPermissions: [P.BME.EQUIPMENT_LIST],
   navigator: BmeScreen,
+  appCodes: ["Mobile-BME", "Desktop-DeviceBridge", "Mobile-Vendor"],
+  tags: ["bme", "cmms", "assets", "pm", "calibration", "vendor"],
   offlineDocTypes: ["bme_breakdown", "bme_pm_log", "bme_calibration"],
 };

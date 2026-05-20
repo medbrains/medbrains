@@ -1,10 +1,10 @@
 import { Button } from "@mantine/core";
-import { api } from "@medbrains/api";
 import type { PipelineSummary } from "@medbrains/types";
 import { IconArrowRight, IconCopy, IconPencil, IconPlus } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { useNavigate } from "react-router";
+import { integrationService } from "../../services/integration.service";
 import s from "./RecipeShelf.module.scss";
 
 /** Group definitions — maps pipeline trigger events to clinical domains. */
@@ -33,13 +33,13 @@ export function RecipeShelf() {
 
   const { data } = useQuery({
     queryKey: ["integration", "pipelines", { per_page: "100" }],
-    queryFn: () => api.listPipelines({ per_page: "100" }),
+    queryFn: () => integrationService.listPipelines({ per_page: "100" }),
   });
 
   const toggleStatus = useMutation({
     mutationFn: (p: PipelineSummary) => {
       const next = p.status === "active" ? "paused" : "active";
-      return api.updatePipelineStatus(p.id, { status: next });
+      return integrationService.updatePipelineStatus(p.id, { status: next });
     },
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["integration", "pipelines"] }),
   });

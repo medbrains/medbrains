@@ -1,4 +1,3 @@
-import { api } from "@medbrains/api";
 import type { PatientVisitRow } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
 import { ScrollView, StyleSheet, View } from "react-native";
@@ -15,6 +14,7 @@ import {
   useTheme,
 } from "react-native-paper";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { patientService } from "../../services/patient.service";
 
 interface PatientDetailScreenProps {
   route: {
@@ -45,18 +45,18 @@ export function PatientDetailScreen({ route, navigation }: PatientDetailScreenPr
 
   const { data: patient, isLoading } = useQuery({
     queryKey: ["patient", patientId],
-    queryFn: () => api.getPatient(patientId),
+    queryFn: () => patientService.getPatient(patientId),
   });
 
   const { data: visits } = useQuery({
     queryKey: ["patient", patientId, "visits"],
-    queryFn: () => api.listPatientVisits(patientId),
+    queryFn: () => patientService.listPatientVisits(patientId),
     enabled: Boolean(patientId),
   });
 
   const { data: allergies } = useQuery({
     queryKey: ["patient", patientId, "allergies"],
-    queryFn: () => api.listPatientAllergies(patientId),
+    queryFn: () => patientService.listPatientAllergies(patientId),
     enabled: Boolean(patientId),
   });
 

@@ -4,6 +4,8 @@
  *
  * Per RFCs/sprints/SPRINT-doctor-activities.md §5.4.
  */
+
+import { zodResolver } from "@hookform/resolvers/zod";
 import {
   ActionIcon,
   Badge,
@@ -22,11 +24,14 @@ import {
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
+import type { SubscribePackageFormInput } from "@medbrains/schemas";
+import { subscribePackageFormSchema } from "@medbrains/schemas";
 import type { InclusionBalance, SubscriptionWithBalance } from "@medbrains/types";
 import { IconPackage, IconPlus, IconRefresh, IconShoppingBag } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { Controller, useForm } from "react-hook-form";
+import { patientPackagesService } from "../../services/patientPackages.service";
 
 interface ActivePackagesSectionProps {
   patientId: string;
@@ -38,11 +43,11 @@ export function ActivePackagesSection({ patientId }: ActivePackagesSectionProps)
 
   const { data: subs = [], isLoading } = useQuery({
     queryKey: ["patient-packages", patientId],
-    queryFn: () => api.listPatientPackages(patientId),
+    queryFn: () => patientPackagesService.listPatientPackages(patientId),
   });
 
   const refund = useMutation({
-    mutationFn: (subId: string) => api.refundPackage(subId),
+    mutationFn: (subId: string) => patientPackagesService.refundPackage(subId),
     onSuccess: () => {
       notifications.show({
         title: "Refunded",
@@ -159,7 +164,7 @@ function SubscriptionCard({
 
   const consume = useMutation({
     mutationFn: ({ inclusion_type }: { inclusion_type: string }) =>
-      api.consumePackage(sub.id, { inclusion_type, consumed_quantity: 1 }),
+      patientPackagesService.consumePackage(sub.id, { inclusion_type, consumed_quantity: 1 }),
     onSuccess: (data) => {
       notifications.show({
         title: "Consumed",
@@ -282,22 +287,35 @@ function SubscribeModal({
   onClose: () => void;
   onSubscribed: () => void;
 }) {
-  const [packageId, setPackageId] = useState<string | null>(null);
-  const [totalPaid, setTotalPaid] = useState<number | string>("");
-  const [notes, setNotes] = useState("");
+  const {
+    control,
+    handleSubmit,
+    setValue,
+    watch,
+    formState: { errors },
+  } = useForm<SubscribePackageFormInput>({
+    resolver: zodResolver(subscribePackageFormSchema),
+    defaultValues: {
+      package_id: null,
+      total_paid: "",
+      notes: "",
+    },
+    mode: "onTouched",
+  });
+  const values = watch();
 
   const { data: packages = [] } = useQuery({
     queryKey: ["doctor-packages-active"],
-    queryFn: () => api.adminListDoctorPackages({ is_active: true }),
+    queryFn: () => patientPackagesService.listActiveDoctorPackages(),
   });
 
   const subscribe = useMutation({
-    mutationFn: () =>
-      api.subscribeToPackage({
-        package_id: packageId!,
+    mutationFn: (formValues: SubscribePackageFormInput) =>
+      patientPackagesService.subscribeToPackage({
+        package_id: formValues.package_id ?? "",
         patient_id: patientId,
-        total_paid: String(totalPaid || 0),
-        notes: notes || null,
+        total_paid: String(formValues.total_paid || 0),
+        notes: formValues.notes || null,
       }),
     onSuccess: () => {
       notifications.show({
@@ -311,43 +329,60 @@ function SubscribeModal({
       notifications.show({ title: "Subscribe failed", message: err.message, color: "danger" }),
   });
 
-  const selectedPackage = packages.find((p) => p.id === packageId);
+  const selectedPackage = packages.find((p) => p.id === values.package_id);
+  const submitSubscription = handleSubmit((formValues) => subscribe.mutate(formValues));
 
   return (
     <Modal opened onClose={onClose} title="Subscribe to package" size="md">
       <Stack gap="sm">
-        <Select
-          label="Package"
-          placeholder="Choose a package…"
-          data={packages.map((p) => ({
-            value: p.id,
-            label: `${p.name} — ₹${p.total_price} (${p.validity_days}d)`,
-          }))}
-          value={packageId}
-          onChange={(v) => {
-            setPackageId(v);
-            const pkg = packages.find((p) => p.id === v);
-            if (pkg) setTotalPaid(pkg.total_price);
-          }}
-          searchable
-          required
+        <Controller
+          control={control}
+          name="package_id"
+          render={({ field }) => (
+            <Select
+              label="Package"
+              placeholder="Choose a package…"
+              data={packages.map((p) => ({
+                value: p.id,
+                label: `${p.name} — ₹${p.total_price} (${p.validity_days}d)`,
+              }))}
+              value={field.value}
+              onChange={(v) => {
+                field.onChange(v);
+                const pkg = packages.find((p) => p.id === v);
+                if (pkg) setValue("total_paid", pkg.total_price, { shouldValidate: true });
+              }}
+              error={errors.package_id?.message}
+              searchable
+              required
+            />
+          )}
         />
-        <NumberInput
-          label="Amount paid (₹)"
-          value={totalPaid}
-          onChange={(v) => setTotalPaid(v)}
-          min={0}
-          required
+        <Controller
+          control={control}
+          name="total_paid"
+          render={({ field }) => (
+            <NumberInput
+              label="Amount paid (₹)"
+              value={field.value}
+              onChange={field.onChange}
+              error={errors.total_paid?.message}
+              min={0}
+              required
+            />
+          )}
         />
         {selectedPackage?.description && (
           <Text size="xs" c="dimmed">
             {selectedPackage.description}
           </Text>
         )}
-        <TextInput
-          label="Notes (optional)"
-          value={notes}
-          onChange={(e) => setNotes(e.currentTarget.value)}
+        <Controller
+          control={control}
+          name="notes"
+          render={({ field }) => (
+            <TextInput label="Notes (optional)" value={field.value} onChange={field.onChange} />
+          )}
         />
         <Group justify="flex-end">
           <Button variant="subtle" onClick={onClose}>
@@ -355,9 +390,9 @@ function SubscribeModal({
           </Button>
           <Button
             loading={subscribe.isPending}
-            disabled={!packageId || totalPaid === ""}
+            disabled={!values.package_id || values.total_paid === ""}
             leftSection={<IconShoppingBag size={14} />}
-            onClick={() => subscribe.mutate()}
+            onClick={() => void submitSubscription()}
           >
             Subscribe
           </Button>

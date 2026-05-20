@@ -1,3 +1,4 @@
+import { zodResolver } from "@hookform/resolvers/zod";
 import {
   ActionIcon,
   Alert,
@@ -23,18 +24,23 @@ import {
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
+import type {
+  PatientDetailAllergyFormInput,
+  PatientDetailDocumentFormInput,
+  PatientDetailFamilyLinkFormInput,
+  PatientMergeFormInput,
+} from "@medbrains/schemas";
+import {
+  patientDetailAllergyFormSchema,
+  patientDetailDocumentFormSchema,
+  patientDetailFamilyLinkFormSchema,
+  patientMergeFormSchema,
+} from "@medbrains/schemas";
 import { useHasPermission } from "@medbrains/stores";
 import type {
-  AllergySeverity,
-  AllergyType,
-  CreateDocumentRequest,
-  CreateFamilyLinkRequest,
-  CreatePatientAllergyRequest,
   DrugTimelineWithLabsResponse,
   FamilyLinkRow,
   MedicationTimelineEvent,
-  MergePatientRequest,
   Patient,
   PatientAllergy,
   PatientAppointmentRow,
@@ -71,6 +77,7 @@ import {
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
+import { Controller, useForm } from "react-hook-form";
 import { useNavigate, useParams } from "react-router";
 import { PrescriptionViews } from "../components/Clinical";
 import { NotesPanel } from "../components/crdt/NotesPanel";
@@ -84,7 +91,22 @@ import { StartOpdVisitModal } from "../components/Patient/StartOpdVisitModal";
 import { PatientNameCell } from "../components/PatientNameCell";
 import { PatientSearchSelect } from "../components/PatientSearchSelect";
 import { ShareDrawer } from "../components/Sharing/ShareDrawer";
+import {
+  DEFAULT_PATIENT_ALLERGY_FORM_VALUES,
+  DEFAULT_PATIENT_DOCUMENT_FORM_VALUES,
+  DEFAULT_PATIENT_FAMILY_LINK_FORM_VALUES,
+  DEFAULT_PATIENT_MERGE_FORM_VALUES,
+  PATIENT_ALLERGY_SEVERITY_OPTIONS,
+  PATIENT_ALLERGY_TYPE_OPTIONS,
+  PATIENT_DOCUMENT_TYPE_OPTIONS,
+  PATIENT_RELATIONSHIP_OPTIONS,
+  toCreateFamilyLinkRequest,
+  toCreatePatientAllergyRequest,
+  toCreatePatientDocumentRequest,
+  toMergePatientRequest,
+} from "../forms/patient-detail.form";
 import { useRequirePermission } from "../hooks/useRequirePermission";
+import { patientDetailService } from "../services/patientDetail.service";
 
 // ── Helpers ────────────────────────────────────────────────
 
@@ -151,7 +173,7 @@ function age(dob: string | null): string {
 function OverviewTab({ patient }: { patient: Patient }) {
   const { data: allergies } = useQuery({
     queryKey: ["patient-allergies", patient.id],
-    queryFn: () => api.listPatientAllergies(patient.id),
+    queryFn: () => patientDetailService.listPatientAllergies(patient.id),
   });
 
   return (
@@ -286,39 +308,31 @@ const SEVERITY_COLORS: Record<string, string> = {
   life_threatening: "danger",
 };
 
-const ALLERGY_TYPE_OPTIONS = [
-  { value: "drug", label: "Drug" },
-  { value: "food", label: "Food" },
-  { value: "environmental", label: "Environmental" },
-  { value: "latex", label: "Latex" },
-  { value: "contrast_dye", label: "Contrast Dye" },
-  { value: "biological", label: "Biological" },
-  { value: "other", label: "Other" },
-];
-
-const SEVERITY_OPTIONS = [
-  { value: "mild", label: "Mild" },
-  { value: "moderate", label: "Moderate" },
-  { value: "severe", label: "Severe" },
-  { value: "life_threatening", label: "Life Threatening" },
-];
-
 function AllergiesTab({ patient }: { patient: Patient }) {
   const canUpdate = useHasPermission(P.PATIENTS.UPDATE);
   const queryClient = useQueryClient();
   const [opened, { open, close }] = useDisclosure(false);
-  const [allergyType, setAllergyType] = useState<string | null>("drug");
-  const [allergenName, setAllergenName] = useState("");
-  const [severity, setSeverity] = useState<string | null>(null);
-  const [reaction, setReaction] = useState("");
+  const {
+    control,
+    handleSubmit,
+    reset,
+    setValue,
+    watch,
+    formState: { errors },
+  } = useForm<PatientDetailAllergyFormInput>({
+    resolver: zodResolver(patientDetailAllergyFormSchema),
+    defaultValues: DEFAULT_PATIENT_ALLERGY_FORM_VALUES,
+  });
+  const allergyType = watch("allergy_type");
 
   const { data: allergies = [], isLoading } = useQuery({
     queryKey: ["patient-allergies", patient.id],
-    queryFn: () => api.listPatientAllergies(patient.id),
+    queryFn: () => patientDetailService.listPatientAllergies(patient.id),
   });
 
   const createMutation = useMutation({
-    mutationFn: (data: CreatePatientAllergyRequest) => api.createPatientAllergy(patient.id, data),
+    mutationFn: (values: PatientDetailAllergyFormInput) =>
+      patientDetailService.createPatientAllergy(patient.id, toCreatePatientAllergyRequest(values)),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["patient-allergies", patient.id] });
       notifications.show({ title: "Allergy added", message: "Allergy recorded", color: "success" });
@@ -330,7 +344,8 @@ function AllergiesTab({ patient }: { patient: Patient }) {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (allergyId: string) => api.deletePatientAllergy(patient.id, allergyId),
+    mutationFn: (allergyId: string) =>
+      patientDetailService.deletePatientAllergy(patient.id, allergyId),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["patient-allergies", patient.id] });
       notifications.show({ title: "Removed", message: "Allergy removed", color: "success" });
@@ -342,20 +357,7 @@ function AllergiesTab({ patient }: { patient: Patient }) {
 
   const handleClose = () => {
     close();
-    setAllergyType("drug");
-    setAllergenName("");
-    setSeverity(null);
-    setReaction("");
-  };
-
-  const handleSubmit = () => {
-    if (!allergyType || !allergenName.trim()) return;
-    createMutation.mutate({
-      allergy_type: allergyType as AllergyType,
-      allergen_name: allergenName.trim(),
-      severity: (severity as AllergySeverity) || undefined,
-      reaction: reaction.trim() || undefined,
-    });
+    reset(DEFAULT_PATIENT_ALLERGY_FORM_VALUES);
   };
 
   if (isLoading) return <Loader size="sm" />;
@@ -439,55 +441,94 @@ function AllergiesTab({ patient }: { patient: Patient }) {
       )}
 
       <Modal opened={opened} onClose={handleClose} title="Add Allergy" size="md">
-        <Stack gap="sm">
-          <Select
-            label="Allergy Type"
-            data={ALLERGY_TYPE_OPTIONS}
-            value={allergyType}
-            onChange={(val) => {
-              setAllergyType(val);
-              setAllergenName("");
-            }}
-            required
+        <Stack
+          component="form"
+          gap="sm"
+          onSubmit={handleSubmit((values) => createMutation.mutate(values))}
+        >
+          <Controller
+            name="allergy_type"
+            control={control}
+            render={({ field }) => (
+              <Select
+                label="Allergy Type"
+                data={PATIENT_ALLERGY_TYPE_OPTIONS}
+                value={field.value}
+                onChange={(value) => {
+                  field.onChange(value ?? "drug");
+                  setValue("allergen_name", "");
+                }}
+                error={errors.allergy_type?.message}
+                required
+              />
+            )}
           />
           {allergyType === "drug" ? (
-            <DrugSearchSelect
-              value={allergenName}
-              onChange={(_id, drug) => setAllergenName(drug?.name ?? "")}
-              label="Drug"
-              required
+            <Controller
+              name="allergen_name"
+              control={control}
+              render={({ field }) => (
+                <DrugSearchSelect
+                  value={field.value}
+                  onChange={(_id, drug) => field.onChange(drug?.name ?? "")}
+                  label="Drug"
+                  required
+                />
+              )}
             />
           ) : (
-            <TextInput
-              label="Allergen Name"
-              placeholder="e.g., Peanuts, Latex, Dust"
-              value={allergenName}
-              onChange={(e) => setAllergenName(e.currentTarget.value)}
-              required
+            <Controller
+              name="allergen_name"
+              control={control}
+              render={({ field }) => (
+                <TextInput
+                  label="Allergen Name"
+                  placeholder="e.g., Peanuts, Latex, Dust"
+                  value={field.value}
+                  onChange={field.onChange}
+                  error={errors.allergen_name?.message}
+                  required
+                />
+              )}
             />
           )}
-          <Select
-            label="Severity"
-            data={SEVERITY_OPTIONS}
-            value={severity}
-            onChange={setSeverity}
-            clearable
+          {allergyType === "drug" && errors.allergen_name?.message && (
+            <Text size="xs" c="danger">
+              {errors.allergen_name.message}
+            </Text>
+          )}
+          <Controller
+            name="severity"
+            control={control}
+            render={({ field }) => (
+              <Select
+                label="Severity"
+                data={PATIENT_ALLERGY_SEVERITY_OPTIONS}
+                value={field.value}
+                onChange={field.onChange}
+                error={errors.severity?.message}
+                clearable
+              />
+            )}
           />
-          <TextInput
-            label="Reaction"
-            placeholder="e.g., Rash, Anaphylaxis, Itching"
-            value={reaction}
-            onChange={(e) => setReaction(e.currentTarget.value)}
+          <Controller
+            name="reaction"
+            control={control}
+            render={({ field }) => (
+              <TextInput
+                label="Reaction"
+                placeholder="e.g., Rash, Anaphylaxis, Itching"
+                value={field.value}
+                onChange={field.onChange}
+                error={errors.reaction?.message}
+              />
+            )}
           />
           <Group justify="flex-end">
             <Button variant="subtle" onClick={handleClose}>
               Cancel
             </Button>
-            <Button
-              onClick={handleSubmit}
-              loading={createMutation.isPending}
-              disabled={!allergyType || !allergenName.trim()}
-            >
+            <Button type="submit" loading={createMutation.isPending}>
               Add Allergy
             </Button>
           </Group>
@@ -502,7 +543,7 @@ function AllergiesTab({ patient }: { patient: Patient }) {
 function VisitsTab({ patientId }: { patientId: string }) {
   const { data: visits, isLoading } = useQuery({
     queryKey: ["patient-visits", patientId],
-    queryFn: () => api.listPatientVisits(patientId),
+    queryFn: () => patientDetailService.listPatientVisits(patientId),
   });
 
   if (isLoading) return <Loader size="sm" />;
@@ -584,19 +625,19 @@ function VisitsTab({ patientId }: { patientId: string }) {
 // ── Prescriptions Tab ────────────────────────────────────────
 
 function PrescriptionsTab({ patient }: { patient: Patient }) {
-  const { data: history, isLoading } = useQuery({
+  const { data: history = [], isLoading } = useQuery<PrescriptionHistoryItem[]>({
     queryKey: ["patient-prescriptions", patient.id],
-    queryFn: () => api.listPatientPrescriptions(patient.id),
+    queryFn: () => patientDetailService.listPatientPrescriptions(patient.id),
   });
 
   const { data: allergies } = useQuery({
     queryKey: ["patient-allergies", patient.id],
-    queryFn: () => api.listPatientAllergies(patient.id),
+    queryFn: () => patientDetailService.listPatientAllergies(patient.id),
   });
 
   if (isLoading) return <Loader size="sm" />;
 
-  const items = (history ?? []) as PrescriptionHistoryItem[];
+  const items = history;
 
   if (items.length === 0) {
     return (
@@ -627,7 +668,7 @@ function PrescriptionsTab({ patient }: { patient: Patient }) {
 function LabOrdersTab({ patientId }: { patientId: string }) {
   const { data: orders, isLoading } = useQuery({
     queryKey: ["patient-lab-orders", patientId],
-    queryFn: () => api.listPatientLabOrders(patientId),
+    queryFn: () => patientDetailService.listPatientLabOrders(patientId),
   });
 
   if (isLoading) return <Loader size="sm" />;
@@ -703,7 +744,7 @@ function LabOrdersTab({ patientId }: { patientId: string }) {
 function ImagingTab({ patientId }: { patientId: string }) {
   const { data: studies = [], isLoading } = useQuery({
     queryKey: ["patient-dicom-studies", patientId],
-    queryFn: () => api.getPriorRadiologyDicomStudies(patientId),
+    queryFn: () => patientDetailService.getPriorRadiologyDicomStudies(patientId),
   });
 
   if (isLoading) return <Loader size="sm" />;
@@ -800,7 +841,7 @@ function ImagingTab({ patientId }: { patientId: string }) {
 function BillingTab({ patientId }: { patientId: string }) {
   const { data: invoices, isLoading } = useQuery({
     queryKey: ["patient-invoices", patientId],
-    queryFn: () => api.listPatientInvoices(patientId),
+    queryFn: () => patientDetailService.listPatientInvoices(patientId),
   });
 
   const totals = useMemo(() => {
@@ -929,7 +970,7 @@ function BillingTab({ patientId }: { patientId: string }) {
 function AppointmentsTab({ patientId }: { patientId: string }) {
   const { data: appointments, isLoading } = useQuery({
     queryKey: ["patient-appointments", patientId],
-    queryFn: () => api.listPatientAppointments(patientId),
+    queryFn: () => patientDetailService.listPatientAppointments(patientId),
   });
 
   if (isLoading) return <Loader size="sm" />;
@@ -1003,16 +1044,6 @@ function AppointmentsTab({ patientId }: { patientId: string }) {
 
 // ── Family Links Tab (Detail Page) ─────────────────────────
 
-const RELATIONSHIP_OPTIONS = [
-  { value: "father", label: "Father" },
-  { value: "mother", label: "Mother" },
-  { value: "spouse", label: "Spouse" },
-  { value: "child", label: "Child" },
-  { value: "sibling", label: "Sibling" },
-  { value: "guardian", label: "Guardian" },
-  { value: "other", label: "Other" },
-];
-
 function DetailFamilyLinksTab({ patientId }: { patientId: string }) {
   const canUpdate = useHasPermission(P.PATIENTS.UPDATE);
   const queryClient = useQueryClient();
@@ -1020,15 +1051,25 @@ function DetailFamilyLinksTab({ patientId }: { patientId: string }) {
   const [searchTerm, setSearchTerm] = useState("");
   const [searchResults, setSearchResults] = useState<Patient[]>([]);
   const [selectedRelated, setSelectedRelated] = useState<Patient | null>(null);
-  const [relationship, setRelationship] = useState<string | null>("spouse");
+  const {
+    control,
+    handleSubmit,
+    reset,
+    setValue,
+    formState: { errors },
+  } = useForm<PatientDetailFamilyLinkFormInput>({
+    resolver: zodResolver(patientDetailFamilyLinkFormSchema),
+    defaultValues: DEFAULT_PATIENT_FAMILY_LINK_FORM_VALUES,
+  });
 
-  const { data: links = [], isLoading } = useQuery({
+  const { data: links = [], isLoading } = useQuery<FamilyLinkRow[]>({
     queryKey: ["patient-family-links", patientId],
-    queryFn: () => api.listFamilyLinks(patientId),
+    queryFn: () => patientDetailService.listFamilyLinks(patientId),
   });
 
   const createMutation = useMutation({
-    mutationFn: (data: CreateFamilyLinkRequest) => api.createFamilyLink(patientId, data),
+    mutationFn: (values: PatientDetailFamilyLinkFormInput) =>
+      patientDetailService.createFamilyLink(patientId, toCreateFamilyLinkRequest(values)),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["patient-family-links", patientId] });
       notifications.show({ title: "Linked", message: "Family member linked", color: "success" });
@@ -1037,7 +1078,7 @@ function DetailFamilyLinksTab({ patientId }: { patientId: string }) {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (linkId: string) => api.deleteFamilyLink(patientId, linkId),
+    mutationFn: (linkId: string) => patientDetailService.deleteFamilyLink(patientId, linkId),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["patient-family-links", patientId] });
     },
@@ -1046,7 +1087,11 @@ function DetailFamilyLinksTab({ patientId }: { patientId: string }) {
   const handleSearch = async () => {
     if (!searchTerm.trim()) return;
     try {
-      const result = await api.listPatients({ page: 1, per_page: 5, search: searchTerm.trim() });
+      const result = await patientDetailService.listPatients({
+        page: 1,
+        per_page: 5,
+        search: searchTerm.trim(),
+      });
       setSearchResults(result.patients.filter((p) => p.id !== patientId));
     } catch {
       setSearchResults([]);
@@ -1058,7 +1103,7 @@ function DetailFamilyLinksTab({ patientId }: { patientId: string }) {
     setSearchTerm("");
     setSearchResults([]);
     setSelectedRelated(null);
-    setRelationship("spouse");
+    reset(DEFAULT_PATIENT_FAMILY_LINK_FORM_VALUES);
   };
 
   if (isLoading) return <Loader size="sm" />;
@@ -1073,7 +1118,7 @@ function DetailFamilyLinksTab({ patientId }: { patientId: string }) {
         </Group>
       )}
 
-      {(links as FamilyLinkRow[]).length === 0 ? (
+      {links.length === 0 ? (
         <Text c="dimmed" ta="center" py="xl">
           No family links
         </Text>
@@ -1090,7 +1135,7 @@ function DetailFamilyLinksTab({ patientId }: { patientId: string }) {
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
-            {(links as FamilyLinkRow[]).map((l) => (
+            {links.map((l) => (
               <Table.Tr key={l.id}>
                 <Table.Td>
                   <Badge size="sm" variant="light">
@@ -1131,7 +1176,11 @@ function DetailFamilyLinksTab({ patientId }: { patientId: string }) {
       )}
 
       <Modal opened={opened} onClose={handleClose} title="Link Family Member">
-        <Stack gap="sm">
+        <Stack
+          component="form"
+          gap="sm"
+          onSubmit={handleSubmit((values) => createMutation.mutate(values))}
+        >
           <Group>
             <TextInput
               placeholder="Search by UHID, name or phone"
@@ -1154,7 +1203,10 @@ function DetailFamilyLinksTab({ patientId }: { patientId: string }) {
                       background:
                         selectedRelated?.id === p.id ? "var(--mb-nav-active-bg)" : undefined,
                     }}
-                    onClick={() => setSelectedRelated(p)}
+                    onClick={() => {
+                      setSelectedRelated(p);
+                      setValue("related_patient_id", p.id, { shouldValidate: true });
+                    }}
                   >
                     <Table.Td>
                       <Text size="sm" fw={500}>
@@ -1182,25 +1234,30 @@ function DetailFamilyLinksTab({ patientId }: { patientId: string }) {
               {selectedRelated.last_name}
             </Alert>
           )}
-          <Select
-            label="Relationship"
-            data={RELATIONSHIP_OPTIONS}
-            value={relationship}
-            onChange={setRelationship}
-            required
+          {errors.related_patient_id?.message && (
+            <Text size="xs" c="danger">
+              {errors.related_patient_id.message}
+            </Text>
+          )}
+          <Controller
+            name="relationship"
+            control={control}
+            render={({ field }) => (
+              <Select
+                label="Relationship"
+                data={PATIENT_RELATIONSHIP_OPTIONS}
+                value={field.value}
+                onChange={(value) => field.onChange(value ?? "spouse")}
+                error={errors.relationship?.message}
+                required
+              />
+            )}
           />
           <Group justify="flex-end">
             <Button variant="subtle" onClick={handleClose}>
               Cancel
             </Button>
-            <Button
-              onClick={() => {
-                if (selectedRelated && relationship)
-                  createMutation.mutate({ related_patient_id: selectedRelated.id, relationship });
-              }}
-              loading={createMutation.isPending}
-              disabled={!selectedRelated || !relationship}
-            >
+            <Button type="submit" loading={createMutation.isPending} disabled={!selectedRelated}>
               Link
             </Button>
           </Group>
@@ -1212,34 +1269,28 @@ function DetailFamilyLinksTab({ patientId }: { patientId: string }) {
 
 // ── Documents Tab (Detail Page) ────────────────────────────
 
-const DOCUMENT_TYPE_OPTIONS = [
-  { value: "id_proof", label: "ID Proof" },
-  { value: "consent_form", label: "Consent Form" },
-  { value: "referral_letter", label: "Referral Letter" },
-  { value: "photo", label: "Photo" },
-  { value: "report", label: "Report" },
-  { value: "prescription", label: "Prescription" },
-  { value: "discharge_summary", label: "Discharge Summary" },
-  { value: "insurance_card", label: "Insurance Card" },
-  { value: "other", label: "Other" },
-];
-
 function DetailDocumentsTab({ patientId }: { patientId: string }) {
   const canUpdate = useHasPermission(P.PATIENTS.UPDATE);
   const queryClient = useQueryClient();
   const [opened, { open, close }] = useDisclosure(false);
-  const [docType, setDocType] = useState<string | null>("id_proof");
-  const [docName, setDocName] = useState("");
-  const [fileUrl, setFileUrl] = useState("");
-  const [notes, setNotes] = useState("");
+  const {
+    control,
+    handleSubmit,
+    reset,
+    formState: { errors },
+  } = useForm<PatientDetailDocumentFormInput>({
+    resolver: zodResolver(patientDetailDocumentFormSchema),
+    defaultValues: DEFAULT_PATIENT_DOCUMENT_FORM_VALUES,
+  });
 
-  const { data: documents = [], isLoading } = useQuery({
+  const { data: documents = [], isLoading } = useQuery<PatientDocument[]>({
     queryKey: ["patient-documents", patientId],
-    queryFn: () => api.listPatientDocuments(patientId),
+    queryFn: () => patientDetailService.listPatientDocuments(patientId),
   });
 
   const createMutation = useMutation({
-    mutationFn: (data: CreateDocumentRequest) => api.createPatientDocument(patientId, data),
+    mutationFn: (values: PatientDetailDocumentFormInput) =>
+      patientDetailService.createPatientDocument(patientId, toCreatePatientDocumentRequest(values)),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["patient-documents", patientId] });
       notifications.show({ title: "Added", message: "Document added", color: "success" });
@@ -1248,7 +1299,7 @@ function DetailDocumentsTab({ patientId }: { patientId: string }) {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (docId: string) => api.deletePatientDocument(patientId, docId),
+    mutationFn: (docId: string) => patientDetailService.deletePatientDocument(patientId, docId),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["patient-documents", patientId] });
     },
@@ -1256,10 +1307,7 @@ function DetailDocumentsTab({ patientId }: { patientId: string }) {
 
   const handleClose = () => {
     close();
-    setDocType("id_proof");
-    setDocName("");
-    setFileUrl("");
-    setNotes("");
+    reset(DEFAULT_PATIENT_DOCUMENT_FORM_VALUES);
   };
 
   if (isLoading) return <Loader size="sm" />;
@@ -1274,7 +1322,7 @@ function DetailDocumentsTab({ patientId }: { patientId: string }) {
         </Group>
       )}
 
-      {(documents as PatientDocument[]).length === 0 ? (
+      {documents.length === 0 ? (
         <Text c="dimmed" ta="center" py="xl">
           No documents uploaded
         </Text>
@@ -1290,7 +1338,7 @@ function DetailDocumentsTab({ patientId }: { patientId: string }) {
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
-            {(documents as PatientDocument[]).map((d) => (
+            {documents.map((d) => (
               <Table.Tr key={d.id}>
                 <Table.Td>
                   <Badge size="sm" variant="light">
@@ -1337,51 +1385,71 @@ function DetailDocumentsTab({ patientId }: { patientId: string }) {
       )}
 
       <Modal opened={opened} onClose={handleClose} title="Add Document">
-        <Stack gap="sm">
-          <Select
-            label="Document Type"
-            data={DOCUMENT_TYPE_OPTIONS}
-            value={docType}
-            onChange={setDocType}
-            required
+        <Stack
+          component="form"
+          gap="sm"
+          onSubmit={handleSubmit((values) => createMutation.mutate(values))}
+        >
+          <Controller
+            name="document_type"
+            control={control}
+            render={({ field }) => (
+              <Select
+                label="Document Type"
+                data={PATIENT_DOCUMENT_TYPE_OPTIONS}
+                value={field.value}
+                onChange={(value) => field.onChange(value ?? "id_proof")}
+                error={errors.document_type?.message}
+                required
+              />
+            )}
           />
-          <TextInput
-            label="Document Name"
-            placeholder="e.g. Aadhaar Card"
-            value={docName}
-            onChange={(e) => setDocName(e.currentTarget.value)}
-            required
+          <Controller
+            name="document_name"
+            control={control}
+            render={({ field }) => (
+              <TextInput
+                label="Document Name"
+                placeholder="e.g. Aadhaar Card"
+                value={field.value}
+                onChange={field.onChange}
+                error={errors.document_name?.message}
+                required
+              />
+            )}
           />
-          <TextInput
-            label="File URL"
-            placeholder="https://..."
-            value={fileUrl}
-            onChange={(e) => setFileUrl(e.currentTarget.value)}
-            required
+          <Controller
+            name="file_url"
+            control={control}
+            render={({ field }) => (
+              <TextInput
+                label="File URL"
+                placeholder="https://..."
+                value={field.value}
+                onChange={field.onChange}
+                error={errors.file_url?.message}
+                required
+              />
+            )}
           />
-          <Textarea
-            label="Notes"
-            placeholder="Optional notes"
-            value={notes}
-            onChange={(e) => setNotes(e.currentTarget.value)}
+          <Controller
+            name="notes"
+            control={control}
+            render={({ field }) => (
+              <Textarea
+                label="Notes"
+                placeholder="Optional notes"
+                value={field.value}
+                onChange={field.onChange}
+                error={errors.notes?.message}
+              />
+            )}
           />
           <Group justify="flex-end">
             <Button variant="subtle" onClick={handleClose}>
               Cancel
             </Button>
-            <Button
-              onClick={() => {
-                if (docType && docName.trim() && fileUrl.trim())
-                  createMutation.mutate({
-                    document_type: docType,
-                    document_name: docName.trim(),
-                    file_url: fileUrl.trim(),
-                    notes: notes.trim() || undefined,
-                  });
-              }}
-              loading={createMutation.isPending}
-              disabled={!docType || !docName.trim() || !fileUrl.trim()}
-            >
+            <Button type="submit" loading={createMutation.isPending}>
               Add
             </Button>
           </Group>
@@ -1396,29 +1464,40 @@ function DetailDocumentsTab({ patientId }: { patientId: string }) {
 function MergeTab({ patient }: { patient: Patient }) {
   const canUpdate = useHasPermission(P.PATIENTS.UPDATE);
   const queryClient = useQueryClient();
-  const [mergeReason, setMergeReason] = useState("");
   const [selectedTarget, setSelectedTarget] = useState<Patient | null>(null);
   const [confirmOpen, confirmHandlers] = useDisclosure(false);
+  const {
+    control,
+    getValues,
+    handleSubmit,
+    reset,
+    setValue,
+    formState: { errors },
+  } = useForm<PatientMergeFormInput>({
+    resolver: zodResolver(patientMergeFormSchema),
+    defaultValues: DEFAULT_PATIENT_MERGE_FORM_VALUES,
+  });
 
-  const { data: mergeHistory = [], isLoading } = useQuery({
+  const { data: mergeHistory = [], isLoading } = useQuery<PatientMergeHistory[]>({
     queryKey: ["patient-merge-history", patient.id],
-    queryFn: () => api.listMergeHistory(patient.id),
+    queryFn: () => patientDetailService.listMergeHistory(patient.id),
   });
 
   const mergeMutation = useMutation({
-    mutationFn: (data: MergePatientRequest) => api.mergePatients(data),
+    mutationFn: (values: PatientMergeFormInput) =>
+      patientDetailService.mergePatients(toMergePatientRequest(patient.id, values)),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["patient-merge-history", patient.id] });
       void queryClient.invalidateQueries({ queryKey: ["patients"] });
       notifications.show({ title: "Merged", message: "Patient records merged", color: "success" });
       confirmHandlers.close();
       setSelectedTarget(null);
-      setMergeReason("");
+      reset(DEFAULT_PATIENT_MERGE_FORM_VALUES);
     },
   });
 
   const unmergeMutation = useMutation({
-    mutationFn: (historyId: string) => api.unmergePatient(historyId),
+    mutationFn: (historyId: string) => patientDetailService.unmergePatient(historyId),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["patient-merge-history", patient.id] });
       void queryClient.invalidateQueries({ queryKey: ["patients"] });
@@ -1445,7 +1524,7 @@ function MergeTab({ patient }: { patient: Patient }) {
         <Title order={5} mb="sm">
           Merge History
         </Title>
-        {(mergeHistory as PatientMergeHistory[]).length === 0 ? (
+        {mergeHistory.length === 0 ? (
           <Text size="sm" c="dimmed">
             No merge history
           </Text>
@@ -1462,7 +1541,7 @@ function MergeTab({ patient }: { patient: Patient }) {
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
-              {(mergeHistory as PatientMergeHistory[]).map((h) => (
+              {mergeHistory.map((h) => (
                 <Table.Tr key={h.id}>
                   <Table.Td>
                     <Text size="xs">{formatDate(h.created_at)}</Text>
@@ -1517,18 +1596,35 @@ function MergeTab({ patient }: { patient: Patient }) {
             onChange={(id) => {
               if (!id) {
                 setSelectedTarget(null);
+                setValue("merged_patient_id", "", { shouldValidate: true });
                 return;
               }
-              api
+              patientDetailService
                 .getPatient(id)
-                .then((p) => setSelectedTarget(p as Patient))
-                .catch(() => setSelectedTarget(null));
+                .then((p) => {
+                  setSelectedTarget(p);
+                  setValue("merged_patient_id", p.id, { shouldValidate: true });
+                })
+                .catch(() => {
+                  setSelectedTarget(null);
+                  setValue("merged_patient_id", "", { shouldValidate: true });
+                });
             }}
             label="Search duplicate patient"
             placeholder="Search by UHID, name or phone..."
           />
+          {errors.merged_patient_id?.message && (
+            <Text size="xs" c="danger">
+              {errors.merged_patient_id.message}
+            </Text>
+          )}
           {selectedTarget && (
-            <Stack gap="sm" mt="md">
+            <Stack
+              component="form"
+              gap="sm"
+              mt="md"
+              onSubmit={handleSubmit(() => confirmHandlers.open())}
+            >
               {/* Side-by-side comparison */}
               <Card withBorder bg="var(--fc-panel, #f7f8f6)" p="md">
                 <Text
@@ -1644,22 +1740,32 @@ function MergeTab({ patient }: { patient: Patient }) {
                 All visits, prescriptions, lab orders, and billing records from{" "}
                 <b>{selectedTarget.uhid}</b> will be transferred to <b>{patient.uhid}</b>.
               </Alert>
-              <Textarea
-                label="Merge Reason"
-                placeholder="Why are these records being merged?"
-                value={mergeReason}
-                onChange={(e) => setMergeReason(e.currentTarget.value)}
-                required
+              <Controller
+                name="merge_reason"
+                control={control}
+                render={({ field }) => (
+                  <Textarea
+                    label="Merge Reason"
+                    placeholder="Why are these records being merged?"
+                    value={field.value}
+                    onChange={field.onChange}
+                    error={errors.merge_reason?.message}
+                    required
+                  />
+                )}
               />
               <Group justify="flex-end">
-                <Button variant="subtle" onClick={() => setSelectedTarget(null)}>
+                <Button
+                  type="button"
+                  variant="subtle"
+                  onClick={() => {
+                    setSelectedTarget(null);
+                    reset(DEFAULT_PATIENT_MERGE_FORM_VALUES);
+                  }}
+                >
                   Cancel
                 </Button>
-                <Button
-                  color="warning"
-                  disabled={!mergeReason.trim()}
-                  onClick={confirmHandlers.open}
-                >
+                <Button type="submit" color="warning">
                   Merge Records
                 </Button>
               </Group>
@@ -1683,11 +1789,7 @@ function MergeTab({ patient }: { patient: Patient }) {
             loading={mergeMutation.isPending}
             onClick={() => {
               if (selectedTarget) {
-                mergeMutation.mutate({
-                  surviving_patient_id: patient.id,
-                  merged_patient_id: selectedTarget.id,
-                  merge_reason: mergeReason.trim(),
-                });
+                mergeMutation.mutate(getValues());
               }
             }}
           >
@@ -1821,19 +1923,19 @@ function DrugOGramSegment({ patientId }: { patientId: string }) {
 
   const { data, isLoading } = useQuery({
     queryKey: ["drug-timeline-labs", patientId, range],
-    queryFn: () => api.drugTimelineWithLabs(patientId, dateRange),
+    queryFn: () => patientDetailService.drugTimelineWithLabs(patientId, dateRange),
   });
 
   const { data: alerts = [] } = useQuery({
     queryKey: ["interaction-alerts", patientId],
-    queryFn: () => api.listInteractionAlerts(patientId),
+    queryFn: () => patientDetailService.listInteractionAlerts(patientId),
   });
 
   const activeAlerts = alerts.filter((a) => a.status === "active");
 
   const { data: summary } = useQuery({
     queryKey: ["treatment-summary", patientId],
-    queryFn: () => api.treatmentSummary(patientId),
+    queryFn: () => patientDetailService.treatmentSummary(patientId),
   });
 
   return (
@@ -1935,7 +2037,12 @@ function DrugSwimLane({ data }: { data: DrugTimelineWithLabsResponse }) {
           Medication Timeline
         </Text>
         <ScrollArea>
-          <svg width={LABEL_WIDTH + CHART_WIDTH + 20} height={totalHeight}>
+          <svg
+            width={LABEL_WIDTH + CHART_WIDTH + 20}
+            height={totalHeight}
+            role="img"
+            aria-label="Medication timeline"
+          >
             {/* Header line */}
             <line
               x1={LABEL_WIDTH}
@@ -1983,7 +2090,7 @@ function DrugSwimLane({ data }: { data: DrugTimelineWithLabsResponse }) {
                   />
 
                   {/* Event bars and markers */}
-                  {events.map((ev, eidx) => {
+                  {events.map((ev) => {
                     const startX =
                       LABEL_WIDTH +
                       ((new Date(ev.effective_date).getTime() - minDate) / rangeMs) * CHART_WIDTH;
@@ -1997,7 +2104,7 @@ function DrugSwimLane({ data }: { data: DrugTimelineWithLabsResponse }) {
 
                     if (ev.event_type === "started" || ev.event_type === "resumed") {
                       return (
-                        <g key={eidx}>
+                        <g key={ev.id}>
                           <rect
                             x={startX}
                             y={y + 8}
@@ -2015,7 +2122,7 @@ function DrugSwimLane({ data }: { data: DrugTimelineWithLabsResponse }) {
                     }
 
                     return (
-                      <g key={eidx}>
+                      <g key={ev.id}>
                         <circle
                           cx={startX}
                           cy={y + 15}
@@ -2069,8 +2176,10 @@ function DrugSwimLane({ data }: { data: DrugTimelineWithLabsResponse }) {
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
-              {active_drugs.map((d, i) => (
-                <Table.Tr key={i}>
+              {active_drugs.map((d) => (
+                <Table.Tr
+                  key={`${d.drug_name}-${d.started_date}-${d.dosage ?? ""}-${d.frequency ?? ""}`}
+                >
                   <Table.Td>
                     <Text fw={500} size="sm">
                       {d.drug_name}
@@ -2102,7 +2211,8 @@ function DrugSwimLane({ data }: { data: DrugTimelineWithLabsResponse }) {
             {lab_series.slice(0, 9).map((series) => {
               const points = series.data_points;
               if (points.length === 0) return null;
-              const latest = points[points.length - 1]!;
+              const latest = points.at(-1);
+              if (!latest) return null;
               const atTarget =
                 series.target_value != null && latest.numeric_value != null
                   ? latest.numeric_value <= series.target_value
@@ -2144,7 +2254,7 @@ function DrugSwimLane({ data }: { data: DrugTimelineWithLabsResponse }) {
 function OutcomesSegment({ patientId }: { patientId: string }) {
   const { data, isLoading } = useQuery({
     queryKey: ["outcome-dashboard", patientId],
-    queryFn: () => api.outcomeDashboard(patientId),
+    queryFn: () => patientDetailService.outcomeDashboard(patientId),
   });
 
   if (isLoading) return <Loader size="sm" />;
@@ -2222,7 +2332,7 @@ function OutcomesSegment({ patientId }: { patientId: string }) {
 function AdherenceSegment({ patientId }: { patientId: string }) {
   const { data: enrollments = [] } = useQuery({
     queryKey: ["patient-enrollments-chronic", patientId],
-    queryFn: () => api.patientEnrollments(patientId),
+    queryFn: () => patientDetailService.patientEnrollments(patientId),
   });
 
   const activeEnrollments = enrollments.filter((e) => e.status === "active");
@@ -2230,7 +2340,7 @@ function AdherenceSegment({ patientId }: { patientId: string }) {
 
   const { data: summary } = useQuery({
     queryKey: ["adherence-summary-detail", selected],
-    queryFn: () => api.adherenceSummary(selected ?? ""),
+    queryFn: () => patientDetailService.adherenceSummary(selected ?? ""),
     enabled: !!selected,
   });
 
@@ -2412,6 +2522,7 @@ function printTreatmentSummary(summary: TreatmentSummaryResponse) {
 export function PatientDetailPage() {
   useRequirePermission(P.PATIENTS.VIEW);
   const { id } = useParams<{ id: string }>();
+  const patientId = id ?? "";
   const navigate = useNavigate();
   const canUpdate = useHasPermission(P.PATIENTS.UPDATE);
   const canCreateVisit = useHasPermission(P.OPD.VISIT_CREATE);
@@ -2422,16 +2533,16 @@ export function PatientDetailPage() {
   const [shareOpen, { open: openShare, close: closeShare }] = useDisclosure(false);
 
   const { data: patient, isLoading } = useQuery({
-    queryKey: ["patient", id],
-    queryFn: () => api.getPatient(id!),
-    enabled: !!id,
+    queryKey: ["patient", patientId],
+    queryFn: () => patientDetailService.getPatient(patientId),
+    enabled: patientId.length > 0,
   });
 
   // Latest active encounter — basket needs an encounter to scope orders to.
   const { data: visits = [] } = useQuery({
-    queryKey: ["patient-visits", id],
-    queryFn: () => api.listPatientVisits(id!),
-    enabled: !!id,
+    queryKey: ["patient-visits", patientId],
+    queryFn: () => patientDetailService.listPatientVisits(patientId),
+    enabled: patientId.length > 0,
   });
   const activeEncounter = visits.find((v) => v.status === "open" || v.status === "in_progress");
 

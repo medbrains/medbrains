@@ -128,6 +128,22 @@ services:
       timeout: 5s
       retries: 10
 
+  # ── WHO ICD-API local terminology service ──
+  # Optional for dev/research. Start with:
+  #   make icd-up
+  # or:
+  #   ICD_API_ACCEPT_LICENSE=true docker compose --profile icd up -d icd-api
+  icd-api:
+    image: whoicd/icd-api:${ICD_API_IMAGE_TAG:-latest}
+    profiles: ["icd"]
+    ports:
+      - "127.0.0.1:${ICD_API_PORT:-8382}:80"
+    environment:
+      include: ${ICD_API_INCLUDE:-2026-01_en}
+      acceptLicense: ${ICD_API_ACCEPT_LICENSE:-false}
+      saveAnalytics: ${ICD_API_SAVE_ANALYTICS:-false}
+    restart: unless-stopped
+
 volumes:
   pgdata:
   yottadata:

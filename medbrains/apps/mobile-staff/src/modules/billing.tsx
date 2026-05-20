@@ -29,6 +29,7 @@ function BillingHome(): ReactNode {
       eyebrow="MODULE"
       title="Billing"
       description="Invoices, payments, credit, reconciliation."
+      tags={["Mobile-Admin", "Desktop-Workstation", "finance", "cash-control"]}
       summaries={[
         { eyebrow: "OPEN", count: "—", title: "Outstanding invoices" },
         { eyebrow: "TODAY", count: "—", title: "Collections so far" },
@@ -104,5 +105,7 @@ export const billingModule: Module = {
   icon: () => null,
   requiredPermissions: [P.BILLING.INVOICES_LIST],
   navigator: BillingScreen,
+  appCodes: ["Mobile-Admin", "Desktop-Workstation"],
+  tags: ["billing", "finance", "collections", "cash-control"],
   offlineDocTypes: ["payment_event"],
 };

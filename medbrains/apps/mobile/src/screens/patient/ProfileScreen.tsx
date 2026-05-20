@@ -1,7 +1,12 @@
-import { api } from "@medbrains/api";
+import { zodResolver } from "@hookform/resolvers/zod";
+import {
+  type MobilePatientProfileContactFormInput,
+  mobilePatientProfileContactFormSchema,
+} from "@medbrains/schemas";
 import { useAuthStore } from "@medbrains/stores";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { Controller, useForm } from "react-hook-form";
 import { ScrollView, StyleSheet, View } from "react-native";
 import {
   ActivityIndicator,
@@ -19,6 +24,14 @@ import {
   useTheme,
 } from "react-native-paper";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { authService } from "../../services/auth.service";
+import { patientService } from "../../services/patient.service";
+
+const emptyProfileContactForm: MobilePatientProfileContactFormInput = {
+  phone: "",
+  email: "",
+  phone_secondary: "",
+};
 
 export function ProfileScreen() {
   const theme = useTheme();
@@ -26,26 +39,42 @@ export function ProfileScreen() {
   const { user, clearAuth } = useAuthStore();
 
   const [editMode, setEditMode] = useState(false);
-  const [editedData, setEditedData] = useState({
-    phone: "",
-    email: "",
-    phone_secondary: "",
-  });
   const [logoutDialogVisible, setLogoutDialogVisible] = useState(false);
   const [snackbar, setSnackbar] = useState({ visible: false, message: "" });
 
   const { data: patient, isLoading } = useQuery({
     queryKey: ["patient", user?.id],
-    queryFn: () => api.getPatient(user?.id || ""),
+    queryFn: () => patientService.getPatient(user?.id || ""),
     enabled: Boolean(user?.id),
   });
 
+  const profileContactValues = useMemo<MobilePatientProfileContactFormInput>(
+    () =>
+      patient
+        ? {
+            phone: patient.phone || "",
+            email: patient.email || "",
+            phone_secondary: patient.phone_secondary || "",
+          }
+        : emptyProfileContactForm,
+    [patient],
+  );
+
+  const {
+    control,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<MobilePatientProfileContactFormInput>({
+    resolver: zodResolver(mobilePatientProfileContactFormSchema),
+    values: profileContactValues,
+  });
+
   const updateMutation = useMutation({
-    mutationFn: () =>
-      api.updatePatient(user?.id || "", {
-        phone: editedData.phone || patient?.phone,
-        email: editedData.email || patient?.email || undefined,
-        phone_secondary: editedData.phone_secondary || patient?.phone_secondary || undefined,
+    mutationFn: (values: MobilePatientProfileContactFormInput) =>
+      patientService.updatePatient(user?.id || "", {
+        phone: values.phone.trim() || patient?.phone,
+        email: values.email?.trim() || patient?.email || undefined,
+        phone_secondary: values.phone_secondary.trim() || patient?.phone_secondary || undefined,
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["patient"] });
@@ -59,24 +88,17 @@ export function ProfileScreen() {
 
   const handleLogout = async () => {
     try {
-      await api.logout();
-    } catch {
-      // Ignore logout errors
-    }
+      await authService.logout();
+    } catch {}
     clearAuth();
     setLogoutDialogVisible(false);
   };
 
   const handleEditStart = () => {
-    if (patient) {
-      setEditedData({
-        phone: patient.phone || "",
-        email: patient.email || "",
-        phone_secondary: patient.phone_secondary || "",
-      });
-    }
     setEditMode(true);
   };
+
+  const saveProfileContact = handleSubmit((values) => updateMutation.mutate(values));
 
   if (isLoading) {
     return (
@@ -152,33 +174,54 @@ export function ProfileScreen() {
 
             {editMode ? (
               <View style={styles.editForm}>
-                <TextInput
-                  label="Phone"
-                  value={editedData.phone}
-                  onChangeText={(v) => setEditedData({ ...editedData, phone: v })}
-                  mode="outlined"
-                  keyboardType="phone-pad"
-                  left={<TextInput.Icon icon="phone" />}
-                  style={styles.input}
+                <Controller
+                  control={control}
+                  name="phone"
+                  render={({ field }) => (
+                    <TextInput
+                      label="Phone"
+                      value={field.value}
+                      onChangeText={field.onChange}
+                      mode="outlined"
+                      keyboardType="phone-pad"
+                      error={Boolean(errors.phone)}
+                      left={<TextInput.Icon icon="phone" />}
+                      style={styles.input}
+                    />
+                  )}
                 />
-                <TextInput
-                  label="Secondary Phone"
-                  value={editedData.phone_secondary}
-                  onChangeText={(v) => setEditedData({ ...editedData, phone_secondary: v })}
-                  mode="outlined"
-                  keyboardType="phone-pad"
-                  left={<TextInput.Icon icon="phone-plus" />}
-                  style={styles.input}
+                <Controller
+                  control={control}
+                  name="phone_secondary"
+                  render={({ field }) => (
+                    <TextInput
+                      label="Secondary Phone"
+                      value={field.value}
+                      onChangeText={field.onChange}
+                      mode="outlined"
+                      keyboardType="phone-pad"
+                      error={Boolean(errors.phone_secondary)}
+                      left={<TextInput.Icon icon="phone-plus" />}
+                      style={styles.input}
+                    />
+                  )}
                 />
-                <TextInput
-                  label="Email"
-                  value={editedData.email}
-                  onChangeText={(v) => setEditedData({ ...editedData, email: v })}
-                  mode="outlined"
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  left={<TextInput.Icon icon="email" />}
-                  style={styles.input}
+                <Controller
+                  control={control}
+                  name="email"
+                  render={({ field }) => (
+                    <TextInput
+                      label="Email"
+                      value={field.value || ""}
+                      onChangeText={field.onChange}
+                      mode="outlined"
+                      keyboardType="email-address"
+                      autoCapitalize="none"
+                      error={Boolean(errors.email)}
+                      left={<TextInput.Icon icon="email" />}
+                      style={styles.input}
+                    />
+                  )}
                 />
 
                 <View style={styles.editActions}>
@@ -191,7 +234,7 @@ export function ProfileScreen() {
                   </Button>
                   <Button
                     mode="contained"
-                    onPress={() => updateMutation.mutate()}
+                    onPress={() => void saveProfileContact()}
                     loading={updateMutation.isPending}
                     style={styles.editButton}
                   >

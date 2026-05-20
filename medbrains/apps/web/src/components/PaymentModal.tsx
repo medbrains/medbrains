@@ -1,3 +1,4 @@
+import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Alert,
   Badge,
@@ -11,7 +12,8 @@ import {
   TextInput,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
+import type { PaymentFormInput } from "@medbrains/schemas";
+import { createPaymentFormSchema } from "@medbrains/schemas";
 import type { CreatePaymentOrderResponse, UpiQrResponse } from "@medbrains/types";
 import {
   IconAlertCircle,
@@ -21,15 +23,15 @@ import {
   IconQrcode,
 } from "@tabler/icons-react";
 import { useMutation } from "@tanstack/react-query";
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
+import { Controller, useForm } from "react-hook-form";
+import { paymentsService } from "../services/payments.service";
 
 declare global {
   interface Window {
     Razorpay: new (options: Record<string, unknown>) => { open: () => void };
   }
 }
-
-type PaymentMode = "online" | "upi_qr" | "cash";
 
 interface PaymentModalProps {
   opened: boolean;
@@ -38,7 +40,14 @@ interface PaymentModalProps {
   invoiceId?: string;
   posSaleId?: string;
   patientName?: string;
-  onSuccess: (paymentId: string) => void;
+  onSuccess: (paymentId: string, settlement: PaymentModalSettlement) => void;
+}
+
+export interface PaymentModalSettlement {
+  source: "gateway" | "manual";
+  mode: "cash" | "upi";
+  amount: number;
+  reference_number?: string;
 }
 
 export function PaymentModal({
@@ -50,16 +59,31 @@ export function PaymentModal({
   patientName,
   onSuccess,
 }: PaymentModalProps) {
-  const [mode, setMode] = useState<PaymentMode>("online");
-  const [cashReceived, setCashReceived] = useState<number>(amount);
-  const [utrReference, setUtrReference] = useState("");
   const [qrData, setQrData] = useState<UpiQrResponse | null>(null);
+  const paymentSchema = useMemo(() => createPaymentFormSchema(amount), [amount]);
+  const {
+    control,
+    handleSubmit,
+    watch,
+    formState: { errors },
+  } = useForm<PaymentFormInput>({
+    resolver: zodResolver(paymentSchema),
+    defaultValues: {
+      mode: "online",
+      cashReceived: amount,
+      utrReference: "",
+    },
+    mode: "onTouched",
+  });
 
+  const formValues = watch();
+  const mode = formValues.mode;
+  const cashReceived = Number(formValues.cashReceived || 0);
   const changeDue = Math.max(0, cashReceived - amount);
 
   const createOrderMutation = useMutation({
     mutationFn: () =>
-      api.createPaymentOrder({
+      paymentsService.createPaymentOrder({
         invoice_id: invoiceId,
         pos_sale_id: posSaleId,
         amount,
@@ -81,7 +105,7 @@ export function PaymentModal({
       razorpay_order_id: string;
       razorpay_payment_id: string;
       razorpay_signature: string;
-    }) => api.verifyPayment(params),
+    }) => paymentsService.verifyPayment(params),
     onSuccess: (txn) => {
       notifications.show({
         title: "Payment Successful",
@@ -89,7 +113,12 @@ export function PaymentModal({
         color: "green",
         icon: <IconCheck size={16} />,
       });
-      onSuccess(txn.id);
+      onSuccess(txn.id, {
+        source: "gateway",
+        mode: "upi",
+        amount,
+        reference_number: txn.gateway_payment_id ?? txn.id,
+      });
       onClose();
     },
     onError: () => {
@@ -103,7 +132,7 @@ export function PaymentModal({
 
   const upiQrMutation = useMutation({
     mutationFn: () =>
-      api.generateUpiQr({
+      paymentsService.generateUpiQr({
         amount,
         invoice_id: invoiceId,
         pos_sale_id: posSaleId,
@@ -173,8 +202,9 @@ export function PaymentModal({
     [patientName, verifyMutation],
   );
 
-  const handleCashPayment = useCallback(() => {
-    if (cashReceived < amount) {
+  const handleCashPayment = handleSubmit((values) => {
+    const received = Number(values.cashReceived || 0);
+    if (received < amount) {
       notifications.show({
         title: "Insufficient Amount",
         message: "Cash received is less than amount due",
@@ -182,24 +212,24 @@ export function PaymentModal({
       });
       return;
     }
-    // For cash payments, record directly via the existing billing record_payment
-    // The parent component handles this through onSuccess
-    onSuccess("cash");
+    onSuccess("cash", {
+      source: "manual",
+      mode: "cash",
+      amount,
+    });
     onClose();
-  }, [cashReceived, amount, onSuccess, onClose]);
+  });
 
-  const handleUpiConfirm = useCallback(() => {
-    if (!utrReference.trim()) {
-      notifications.show({
-        title: "UTR Required",
-        message: "Please enter the UTR/reference number after patient pays",
-        color: "yellow",
-      });
-      return;
-    }
-    onSuccess(`upi_qr:${utrReference}`);
+  const handleUpiConfirm = handleSubmit((values) => {
+    const reference = values.utrReference.trim();
+    onSuccess(`upi_qr:${reference}`, {
+      source: "manual",
+      mode: "upi",
+      amount,
+      reference_number: reference,
+    });
     onClose();
-  }, [utrReference, onSuccess, onClose]);
+  });
 
   const isProcessing = createOrderMutation.isPending || verifyMutation.isPending;
 
@@ -213,7 +243,7 @@ export function PaymentModal({
           <Text fw={600}>Collect Payment</Text>
         </Group>
       }
-      size="md"
+      size="lg"
       closeOnClickOutside={!isProcessing}
       closeOnEscape={!isProcessing}
     >
@@ -233,39 +263,45 @@ export function PaymentModal({
           </Text>
         )}
 
-        <SegmentedControl
-          value={mode}
-          onChange={(v) => setMode(v as PaymentMode)}
-          fullWidth
-          data={[
-            {
-              value: "online",
-              label: (
-                <Group gap={4} justify="center">
-                  <IconCreditCard size={14} />
-                  <span>Online</span>
-                </Group>
-              ),
-            },
-            {
-              value: "upi_qr",
-              label: (
-                <Group gap={4} justify="center">
-                  <IconQrcode size={14} />
-                  <span>UPI QR</span>
-                </Group>
-              ),
-            },
-            {
-              value: "cash",
-              label: (
-                <Group gap={4} justify="center">
-                  <IconCash size={14} />
-                  <span>Cash</span>
-                </Group>
-              ),
-            },
-          ]}
+        <Controller
+          control={control}
+          name="mode"
+          render={({ field }) => (
+            <SegmentedControl
+              value={field.value}
+              onChange={field.onChange}
+              fullWidth
+              data={[
+                {
+                  value: "online",
+                  label: (
+                    <Group gap={4} justify="center">
+                      <IconCreditCard size={14} />
+                      <span>Online</span>
+                    </Group>
+                  ),
+                },
+                {
+                  value: "upi_qr",
+                  label: (
+                    <Group gap={4} justify="center">
+                      <IconQrcode size={14} />
+                      <span>UPI QR</span>
+                    </Group>
+                  ),
+                },
+                {
+                  value: "cash",
+                  label: (
+                    <Group gap={4} justify="center">
+                      <IconCash size={14} />
+                      <span>Cash</span>
+                    </Group>
+                  ),
+                },
+              ]}
+            />
+          )}
         />
 
         {mode === "online" && (
@@ -312,15 +348,26 @@ export function PaymentModal({
                 <Alert variant="light" color="yellow" icon={<IconAlertCircle size={16} />}>
                   After patient pays, enter the UTR/reference number below to confirm.
                 </Alert>
-                <TextInput
-                  label="UTR / Reference Number"
-                  placeholder="Enter UTR after payment"
-                  value={utrReference}
-                  onChange={(e) => setUtrReference(e.currentTarget.value)}
-                  required
-                  w="100%"
+                <Controller
+                  control={control}
+                  name="utrReference"
+                  render={({ field }) => (
+                    <TextInput
+                      label="UTR / Reference Number"
+                      placeholder="Enter UTR after payment"
+                      value={field.value}
+                      onChange={field.onChange}
+                      error={errors.utrReference?.message}
+                      required
+                      w="100%"
+                    />
+                  )}
                 />
-                <Button fullWidth onClick={handleUpiConfirm} leftSection={<IconCheck size={18} />}>
+                <Button
+                  fullWidth
+                  onClick={() => void handleUpiConfirm()}
+                  leftSection={<IconCheck size={18} />}
+                >
                   Confirm Payment Received
                 </Button>
               </Stack>
@@ -330,14 +377,21 @@ export function PaymentModal({
 
         {mode === "cash" && (
           <Stack gap="sm">
-            <NumberInput
-              label="Cash Received"
-              value={cashReceived}
-              onChange={(v) => setCashReceived(Number(v))}
-              min={0}
-              decimalScale={2}
-              prefix="₹"
-              size="md"
+            <Controller
+              control={control}
+              name="cashReceived"
+              render={({ field }) => (
+                <NumberInput
+                  label="Cash Received"
+                  value={field.value}
+                  onChange={field.onChange}
+                  error={errors.cashReceived?.message}
+                  min={0}
+                  decimalScale={2}
+                  prefix="₹"
+                  size="md"
+                />
+              )}
             />
             {cashReceived >= amount && (
               <Group justify="space-between">
@@ -352,7 +406,7 @@ export function PaymentModal({
             <Button
               fullWidth
               size="md"
-              onClick={handleCashPayment}
+              onClick={() => void handleCashPayment()}
               disabled={cashReceived < amount}
               leftSection={<IconCash size={18} />}
               color="green"
@@ -407,7 +461,7 @@ function QrCodeDisplay({ value }: { value: string }) {
         w="100%"
         styles={{ input: { fontFamily: "monospace", fontSize: 10 } }}
         onClick={(e) => {
-          (e.target as HTMLInputElement).select();
+          e.currentTarget.select();
           void navigator.clipboard.writeText(value);
           notifications.show({
             message: "UPI URI copied to clipboard",

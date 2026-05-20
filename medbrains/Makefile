@@ -1,4 +1,4 @@
-.PHONY: help dev dev-backend dev-frontend db db-stop db-reset \
+.PHONY: help dev dev-fast dev-icd dev-backend dev-frontend db db-stop db-reset db-icd \
        sim-hospital sim-hospital-batch sim-hospital-clean \
        local-https-cert dev-proxy dev-https \
        build build-backend build-frontend \
@@ -12,12 +12,14 @@
        check-rls check-sharing check-authz-posture check-tenant-leak check-runtime-sqlx check-audit check-tracing \
        check-migration-headers \
        check-region-pinning check-no-card-logging check-egress-allowlist \
-       smoke-test e2e-test generate-smoke generate-e2e \
+       smoke-test e2e-test e2e-smoke e2e-crud e2e-forms e2e-analytics e2e-rbac e2e-journeys e2e-full e2e-all generate-smoke generate-e2e \
        test-rust test-unit test-ts test-all test-coverage \
        ship ship-quick ship-cold ship-help \
        docker-build \
        packer-build packer-destroy packer-destroy-dry \
        deploy deploy-plan deploy-bootstrap \
+       desktop desktop-dev desktop-reports-dev desktop-build desktop-build-macos desktop-build-windows desktop-build-linux \
+       icd-up icd-down icd-logs icd-open \
        clean logs db-shell seed
 
 # SQLx policy:
@@ -36,11 +38,21 @@ CAMP_IOS_RUN_ARGS = -- --port $(CAMP_MOBILE_PORT) $(if $(IOS_DEVICE),--device "$
 CAMP_ANDROID_RUN_ARGS = -- --port $(CAMP_MOBILE_PORT) $(if $(ANDROID_DEVICE),--device "$(ANDROID_DEVICE)",)
 DEV_HTTPS_DOMAIN ?= medbrains.localhost
 DEV_HTTPS_ORIGIN ?= https://$(DEV_HTTPS_DOMAIN)
+DEV_DESKTOP_HTTPS_DOMAIN ?= medbrains-desktop.localhost
+DEV_DESKTOP_HTTPS_ORIGIN ?= https://$(DEV_DESKTOP_HTTPS_DOMAIN)
+DEV_ICD_HTTPS_DOMAIN ?= medbrains-icd.localhost
+DEV_ICD_HTTPS_ORIGIN ?= https://$(DEV_ICD_HTTPS_DOMAIN)
+DEV_HTTPS_ALT_DOMAINS ?= $(DEV_DESKTOP_HTTPS_DOMAIN),$(DEV_ICD_HTTPS_DOMAIN)
 DEV_PROXY_CONFIG ?= infra/local/pingora-dev.toml
 SIM_CONFIG ?= configs/simulators/hospital-stream.demo.json
 SIM_RUN_ID ?= nmc-demo
 SIM_PATIENTS ?= 60
 SIM_RATE ?= 3
+WHO_ICD_RELEASE_ID ?= 2026-01
+ICD_API_PORT ?= 8382
+ICD_API_INCLUDE ?= $(WHO_ICD_RELEASE_ID)_en
+ICD_API_SAVE_ANALYTICS ?= false
+ICD_API_LOCAL_BASE_URL ?= $(DEV_ICD_HTTPS_ORIGIN)
 
 # Default
 help: ## Show this help
@@ -49,19 +61,21 @@ help: ## Show this help
 
 # ── Development ──────────────────────────────────────────────
 
-dev: local-https-cert ## Start everything with local HTTPS proxy
+dev: local-https-cert icd-up ## Start everything with local HTTPS proxy and local ICD-11
 	@echo "Starting PostgreSQL and local SpiceDB..."
 	@docker compose up -d postgres spicedb
 	@echo "Waiting for PostgreSQL..."
 	@until docker compose exec -T postgres pg_isready -U medbrains > /dev/null 2>&1; do sleep 1; done
 	@SPICEDB_SKIP_START=true SPICEDB_ENDPOINT=http://localhost:50051 SPICEDB_TOKEN=devsecret scripts/spicedb_local_schema.sh
-	@DEV_HTTPS_DOMAIN=$(DEV_HTTPS_DOMAIN) DEV_HTTPS_ORIGIN=$(DEV_HTTPS_ORIGIN) DEV_PROXY_CONFIG=$(DEV_PROXY_CONFIG) scripts/dev_https.sh
+	@WHO_ICD_API_BASE_URL=$(ICD_API_LOCAL_BASE_URL) WHO_ICD_AUTH_MODE=none WHO_ICD_RELEASE_ID=$(WHO_ICD_RELEASE_ID) DEV_HTTPS_DOMAIN=$(DEV_HTTPS_DOMAIN) DEV_HTTPS_ORIGIN=$(DEV_HTTPS_ORIGIN) DEV_DESKTOP_HTTPS_ORIGIN=$(DEV_DESKTOP_HTTPS_ORIGIN) DEV_ICD_HTTPS_ORIGIN=$(DEV_ICD_HTTPS_ORIGIN) DEV_HTTPS_ALT_DOMAINS=$(DEV_HTTPS_ALT_DOMAINS) DEV_PROXY_CONFIG=$(DEV_PROXY_CONFIG) scripts/dev_https.sh
 
-dev-fast: local-https-cert ## Start everything with HTTPS proxy, skip compile check
+dev-fast: local-https-cert icd-up ## Start everything with HTTPS proxy and ICD-11, skip compile check
 	@docker compose up -d postgres spicedb 2>/dev/null
 	@until docker compose exec -T postgres pg_isready -U medbrains > /dev/null 2>&1; do sleep 1; done
 	@SPICEDB_SKIP_START=true SPICEDB_ENDPOINT=http://localhost:50051 SPICEDB_TOKEN=devsecret scripts/spicedb_local_schema.sh
-	@SKIP_BACKEND_BUILD=true DEV_HTTPS_DOMAIN=$(DEV_HTTPS_DOMAIN) DEV_HTTPS_ORIGIN=$(DEV_HTTPS_ORIGIN) DEV_PROXY_CONFIG=$(DEV_PROXY_CONFIG) scripts/dev_https.sh
+	@SKIP_BACKEND_BUILD=true WHO_ICD_API_BASE_URL=$(ICD_API_LOCAL_BASE_URL) WHO_ICD_AUTH_MODE=none WHO_ICD_RELEASE_ID=$(WHO_ICD_RELEASE_ID) DEV_HTTPS_DOMAIN=$(DEV_HTTPS_DOMAIN) DEV_HTTPS_ORIGIN=$(DEV_HTTPS_ORIGIN) DEV_DESKTOP_HTTPS_ORIGIN=$(DEV_DESKTOP_HTTPS_ORIGIN) DEV_ICD_HTTPS_ORIGIN=$(DEV_ICD_HTTPS_ORIGIN) DEV_HTTPS_ALT_DOMAINS=$(DEV_HTTPS_ALT_DOMAINS) DEV_PROXY_CONFIG=$(DEV_PROXY_CONFIG) scripts/dev_https.sh
+
+dev-icd: dev ## Alias for make dev; ICD-11 is now part of the default dev stack
 
 dev-backend: db ## Start database + backend only
 	SPICEDB_ENDPOINT=http://localhost:50051 SPICEDB_TOKEN=devsecret scripts/spicedb_local_schema.sh
@@ -74,10 +88,10 @@ dev-edge: ## Run medbrains-edge appliance locally for offline-mode testing
 dev-frontend: ## Start frontend only (assumes backend running)
 	pnpm dev:web
 
-local-https-cert: ## Generate local HTTPS certificate for medbrains.localhost
-	DEV_HTTPS_DOMAIN=$(DEV_HTTPS_DOMAIN) scripts/local_https_cert.sh
+local-https-cert: ## Generate local HTTPS certificate for MedBrains local domains
+	DEV_HTTPS_DOMAIN=$(DEV_HTTPS_DOMAIN) DEV_HTTPS_ALT_DOMAINS=$(DEV_HTTPS_ALT_DOMAINS) scripts/local_https_cert.sh
 
-dev-proxy: local-https-cert ## Start local Pingora HTTPS proxy on https://medbrains.localhost
+dev-proxy: local-https-cert ## Start local Pingora HTTPS proxy
 	cargo build -p medbrains-proxy
 	sudo -E target/debug/medbrains-proxy --config $(DEV_PROXY_CONFIG)
 
@@ -163,6 +177,8 @@ mobile-staff-typecheck: ## Typecheck staff mobile app
 db: ## Start PostgreSQL + local SpiceDB
 	docker compose up -d postgres spicedb
 
+db-icd: db icd-up ## Start PostgreSQL, SpiceDB, and local WHO ICD-API
+
 db-stop: ## Stop all containers
 	docker compose down
 
@@ -178,6 +194,23 @@ db-shell: ## Open psql shell
 
 logs: ## Tail database logs
 	docker compose logs -f postgres
+
+icd-up: ## Start local WHO ICD-API container for ICD-11 search
+	ICD_API_ACCEPT_LICENSE=true ICD_API_SAVE_ANALYTICS=$(ICD_API_SAVE_ANALYTICS) ICD_API_INCLUDE=$(ICD_API_INCLUDE) ICD_API_PORT=$(ICD_API_PORT) docker compose --profile icd up -d icd-api
+	@echo "WHO ICD-API proxied URL: $(ICD_API_LOCAL_BASE_URL)"
+	@echo "Set WHO_ICD_API_BASE_URL=$(ICD_API_LOCAL_BASE_URL) and WHO_ICD_AUTH_MODE=none for the backend."
+
+icd-down: ## Stop local WHO ICD-API container
+	docker compose --profile icd stop icd-api
+
+icd-logs: ## Tail local WHO ICD-API logs
+	docker compose --profile icd logs -f icd-api
+
+icd-open: ## Print local WHO ICD-API browser/coding-tool URLs
+	@echo "ICD-API Swagger:      $(DEV_ICD_HTTPS_ORIGIN)/swagger/index.html"
+	@echo "ICD-11 Coding Tool:   $(DEV_ICD_HTTPS_ORIGIN)/ct"
+	@echo "ICD-11 Browser:       $(DEV_ICD_HTTPS_ORIGIN)/browse"
+	@echo "Backend base URL:     $(ICD_API_LOCAL_BASE_URL)"
 
 # ── Build ────────────────────────────────────────────────────
 
@@ -294,7 +327,7 @@ packer-destroy-dry: ## Preview what packer-destroy would delete
 # ── Terraform (RFC-INFRA-2026-002 Phase 4) ───────────────────
 
 # Usage: make deploy ENV=prod REGION=ap-south-1
-deploy: ## terraform apply for ENV/REGION combination
+deploy: e2e-full ## terraform apply for ENV/REGION combination after full E2E
 	@if [ -z "$(ENV)" ] || [ -z "$(REGION)" ]; then \
 		echo "Usage: make deploy ENV=<dev|staging|prod> REGION=<aws-region>"; \
 		exit 1; \
@@ -324,8 +357,13 @@ deploy-bootstrap: ## terraform apply bootstrap (state buckets, run ONCE per regi
 
 # ── Desktop (Tauri 2) ────────────────────────────────────
 
-desktop-dev: ## Run desktop app in dev mode (hot-reload SPA)
-	cd apps/desktop && pnpm install && pnpm dev
+desktop: desktop-dev ## Start desktop app against the running make dev stack
+
+desktop-dev: ## Start desktop app against https://medbrains-desktop.localhost
+	cd apps/desktop && pnpm install && MEDBRAINS_DESKTOP_DEV_URL=$(DEV_DESKTOP_HTTPS_ORIGIN) MEDBRAINS_DESKTOP_API_BASE=$(DEV_HTTPS_ORIGIN)/api MEDBRAINS_DESKTOP_START_ROUTE=$(ROUTE) pnpm tauri dev --config '{"build":{"beforeDevCommand":"","devUrl":"$(DEV_DESKTOP_HTTPS_ORIGIN)"}}'
+
+desktop-reports-dev: ## Run desktop app directly on the reports command center
+	cd apps/desktop && pnpm install && MEDBRAINS_DESKTOP_DEV_URL=$(DEV_DESKTOP_HTTPS_ORIGIN) MEDBRAINS_DESKTOP_API_BASE=$(DEV_HTTPS_ORIGIN)/api MEDBRAINS_DESKTOP_START_ROUTE=/reports pnpm tauri dev --config '{"build":{"beforeDevCommand":"","devUrl":"$(DEV_DESKTOP_HTTPS_ORIGIN)"}}'
 
 desktop-build: ## Build desktop bundle for current OS
 	cd apps/desktop && pnpm install && pnpm build
@@ -370,11 +408,16 @@ e2e-forms: ## Layer 3 — Form-field validation (UI; needs dev server)
 e2e-analytics: ## Layer 4 — Analytics endpoints (REST)
 	cd apps/web && pnpm exec playwright test --project=analytics
 
+e2e-rbac: ## Layer 6 — RBAC matrix (REST, multi-role)
+	cd apps/web && pnpm exec playwright test --project=rbac
+
 e2e-journeys: ## Layer 5 — End-to-end journeys (hybrid UI + REST)
 	cd apps/web && pnpm exec playwright test --project=journeys
 
-e2e-all: e2e-smoke e2e-crud e2e-analytics e2e-journeys ## Run smoke + CRUD + analytics + journeys (skip forms by default)
-	@echo "Run 'make e2e-forms' separately to drive the UI layer."
+e2e-full: ## Full E2E gate: smoke + CRUD + forms + analytics + RBAC + journeys
+	cd apps/web && pnpm exec playwright test --project=smoke --project=crud --project=forms --project=analytics --project=rbac --project=journeys
+
+e2e-all: e2e-full ## Alias for the full E2E gate used before deploy
 
 # ── Load test ─────────────────────────────────────────────────
 
@@ -448,34 +491,36 @@ ship-quick: ## Local sanity: lint + typecheck + cargo check + audit (~5 min)
 	@python3 ../scripts/audit_screens.py
 	@echo "✅ ship-quick clean."
 
-ship: ## Full CI gate (no deploy). lint → typecheck → tests → contract → audit → build (~15-20 min)
-	@echo "── 1/9 lint ─────────────────────────────"
+ship: ## Full CI gate (no deploy). Includes full E2E before release build.
+	@echo "── 1/10 lint ─────────────────────────────"
 	@$(MAKE) -s lint
-	@echo "── 2/9 typecheck (frontend) ─────────────"
+	@echo "── 2/10 typecheck (frontend) ─────────────"
 	@$(MAKE) -s check-frontend
-	@echo "── 3/9 cargo check ──────────────────────"
+	@echo "── 3/10 cargo check ──────────────────────"
 	@$(MAKE) -s check-backend
-	@echo "── 4/9 unit tests ───────────────────────"
+	@echo "── 4/10 unit tests ───────────────────────"
 	@$(MAKE) -s test-all
-	@echo "── 5/9 API + UI + type contract ─────────"
+	@echo "── 5/10 API + UI + type contract ─────────"
 	@$(MAKE) -s check-api
 	@$(MAKE) -s check-ui-api
 	@$(MAKE) -s check-types
 	@$(MAKE) -s check-nav-drift
-	@echo "── 6/9 RLS + audit + tenant + tracing + sqlx ──"
+	@echo "── 6/10 RLS + audit + tenant + tracing + sqlx ──"
 	@$(MAKE) -s check-rls
 	@$(MAKE) -s check-tenant-leak
 	@$(MAKE) -s check-runtime-sqlx
 	@$(MAKE) -s check-audit
 	@$(MAKE) -s check-tracing
-	@echo "── 7/9 compliance (region/PCI/egress) ──"
+	@echo "── 7/10 compliance (region/PCI/egress) ──"
 	@$(MAKE) -s check-region-pinning
 	@$(MAKE) -s check-no-card-logging
 	@$(MAKE) -s check-egress-allowlist
 	@$(MAKE) -s check-migration-headers
-	@echo "── 8/9 screen audit (strict) ───────────"
+	@echo "── 8/10 screen audit (strict) ───────────"
 	@python3 ../scripts/audit_screens.py --strict
-	@echo "── 9/9 release build ────────────────────"
+	@echo "── 9/10 full E2E gate ───────────────────"
+	@$(MAKE) -s e2e-full
+	@echo "── 10/10 release build ──────────────────"
 	@$(MAKE) -s build
 	@echo "✅ ship clean — ready to deploy."
 
@@ -498,7 +543,7 @@ ship-help: ## Document each ship-pipeline stage
 	@echo "  check-api, check-ui-api, check-types, check-nav-drift,"
 	@echo "  check-rls, check-tenant-leak, check-audit, check-tracing,"
 	@echo "  check-region-pinning, check-no-card-logging,"
-	@echo "  check-egress-allowlist, check-migration-headers, build"
+	@echo "  check-egress-allowlist, check-migration-headers, e2e-full, build"
 
 kiwi-up: ## Start Kiwi TCMS
 	docker compose up -d kiwi

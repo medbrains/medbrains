@@ -1,4 +1,3 @@
-import { api } from "@medbrains/api";
 import { useAuthStore } from "@medbrains/stores";
 import type { LabHomeCollection } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
@@ -21,6 +20,7 @@ import {
   useTheme,
 } from "react-native-paper";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { phlebotomyService } from "../../services/phlebotomy.service";
 
 interface TripSummaryScreenProps {
   navigation: {
@@ -47,7 +47,7 @@ export function TripSummaryScreen({ navigation }: TripSummaryScreenProps) {
       if (user?.id) {
         params.phlebotomist_id = user.id;
       }
-      return api.listHomeCollections(params);
+      return phlebotomyService.listHomeCollections(params);
     },
     enabled: Boolean(user?.id),
   });

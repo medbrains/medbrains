@@ -1,3 +1,4 @@
+import { zodResolver } from "@hookform/resolvers/zod";
 import {
   ActionIcon,
   Badge,
@@ -13,7 +14,20 @@ import {
 } from "@mantine/core";
 import { DatePickerInput } from "@mantine/dates";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
+import type {
+  AppointmentRecurrenceFormValue,
+  AppointmentTypeFormValue,
+  BookAppointmentFormInput,
+  CancelAppointmentFormInput,
+  RescheduleAppointmentFormInput,
+} from "@medbrains/schemas";
+import {
+  bookAppointmentFormSchema,
+  cancelAppointmentFormSchema,
+  rescheduleAppointmentFormSchema,
+  toAppointmentRecurrenceFormValue,
+  toAppointmentTypeFormValue,
+} from "@medbrains/schemas";
 import { useHasPermission } from "@medbrains/stores";
 import type {
   AppointmentWithPatient,
@@ -35,8 +49,10 @@ import {
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
+import { Controller, useForm } from "react-hook-form";
 import { PageHeader } from "../components/PageHeader";
 import { useRequirePermission } from "../hooks/useRequirePermission";
+import { appointmentsService } from "../services/appointments.service";
 
 // ── Helpers ────────────────────────────────────────────────
 
@@ -58,6 +74,20 @@ const APPT_TYPE_LABELS: Record<string, string> = {
   walk_in: "Walk-in",
 };
 
+const APPOINTMENT_TYPE_OPTIONS: Array<{ value: AppointmentTypeFormValue; label: string }> = [
+  { value: "new_visit", label: "New Visit" },
+  { value: "follow_up", label: "Follow-up" },
+  { value: "consultation", label: "Consultation" },
+  { value: "procedure", label: "Procedure" },
+];
+
+const RECURRENCE_PATTERN_OPTIONS: Array<{ value: AppointmentRecurrenceFormValue; label: string }> =
+  [
+    { value: "weekly", label: "Weekly" },
+    { value: "biweekly", label: "Bi-weekly" },
+    { value: "monthly", label: "Monthly" },
+  ];
+
 function formatTime(time: string): string {
   const [h, m] = time.split(":");
   const hour = parseInt(h ?? "0", 10);
@@ -70,34 +100,49 @@ function todayStr(): string {
   return new Date().toISOString().split("T")[0] ?? "";
 }
 
+const DEFAULT_BOOK_APPOINTMENT_VALUES: BookAppointmentFormInput = {
+  patient_id: null,
+  doctor_id: null,
+  department_id: null,
+  appointment_date: null,
+  appointment_type: "new_visit",
+  reason: "",
+  recurrence_pattern: null,
+  recurrence_count: "4",
+};
+
 // ── Book Appointment Modal ─────────────────────────────────
 
 function BookAppointmentModal({ opened, onClose }: { opened: boolean; onClose: () => void }) {
   const queryClient = useQueryClient();
   const [step, setStep] = useState<"form" | "slots">("form");
-  const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
-  const [selectedDoctorId, setSelectedDoctorId] = useState<string | null>(null);
-  const [selectedDeptId, setSelectedDeptId] = useState<string | null>(null);
-  const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [selectedSlot, setSelectedSlot] = useState<AvailableSlot | null>(null);
-  const [appointmentType, setAppointmentType] = useState<string>("new_visit");
-  const [reason, setReason] = useState("");
-  const [recurrencePattern, setRecurrencePattern] = useState<string | null>(null);
-  const [recurrenceCount, setRecurrenceCount] = useState<number>(4);
+  const {
+    control,
+    handleSubmit,
+    reset,
+    watch,
+    formState: { errors },
+  } = useForm<BookAppointmentFormInput>({
+    resolver: zodResolver(bookAppointmentFormSchema),
+    defaultValues: DEFAULT_BOOK_APPOINTMENT_VALUES,
+    mode: "onTouched",
+  });
+  const values = watch();
 
   const { data: departments } = useQuery({
     queryKey: ["setup-departments"],
-    queryFn: () => api.listDepartments(),
+    queryFn: () => appointmentsService.listDepartments(),
   });
 
   const { data: users } = useQuery({
     queryKey: ["setup-users"],
-    queryFn: () => api.listSetupUsers(),
+    queryFn: () => appointmentsService.listSetupUsers(),
   });
 
   const { data: patients } = useQuery({
     queryKey: ["patients-list"],
-    queryFn: () => api.listPatients({ per_page: 200 }),
+    queryFn: () => appointmentsService.listPatients({ per_page: 200 }),
   });
 
   const doctorOptions = useMemo(() => {
@@ -124,38 +169,35 @@ function BookAppointmentModal({ opened, onClose }: { opened: boolean; onClose: (
     }));
   }, [patients]);
 
-  const dateStr = selectedDate ?? "";
+  const dateStr = values.appointment_date ?? "";
 
   const { data: slots, isLoading: slotsLoading } = useQuery({
-    queryKey: ["available-slots", selectedDoctorId, dateStr],
-    queryFn: () => api.getAvailableSlots(selectedDoctorId!, dateStr),
-    enabled: !!selectedDoctorId && !!dateStr,
+    queryKey: ["available-slots", values.doctor_id, dateStr],
+    queryFn: () => appointmentsService.getAvailableSlots(values.doctor_id ?? "", dateStr),
+    enabled: !!values.doctor_id && !!dateStr,
   });
 
   const bookMutation = useMutation({
-    mutationFn: () =>
-      api.bookAppointment({
-        patient_id: selectedPatientId!,
-        doctor_id: selectedDoctorId!,
-        department_id: selectedDeptId!,
-        appointment_date: dateStr,
+    mutationFn: (formValues: BookAppointmentFormInput) =>
+      appointmentsService.bookAppointment({
+        patient_id: formValues.patient_id ?? "",
+        doctor_id: formValues.doctor_id ?? "",
+        department_id: formValues.department_id ?? "",
+        appointment_date: formValues.appointment_date ?? "",
         slot_start: selectedSlot?.start_time ?? "",
         slot_end: selectedSlot?.end_time ?? "",
-        appointment_type: appointmentType as
-          | "new_visit"
-          | "follow_up"
-          | "consultation"
-          | "procedure"
-          | "walk_in",
-        reason: reason || undefined,
-        recurrence_pattern: recurrencePattern as "weekly" | "biweekly" | "monthly" | undefined,
-        recurrence_count: recurrencePattern ? recurrenceCount : undefined,
+        appointment_type: formValues.appointment_type,
+        reason: formValues.reason || undefined,
+        recurrence_pattern: formValues.recurrence_pattern ?? undefined,
+        recurrence_count: formValues.recurrence_pattern
+          ? Number(formValues.recurrence_count) || 4
+          : undefined,
       }),
     onSuccess: () => {
       notifications.show({
         title: "Appointment booked",
-        message: recurrencePattern
-          ? `${recurrenceCount} recurring appointments scheduled.`
+        message: values.recurrence_pattern
+          ? `${Number(values.recurrence_count) || 4} recurring appointments scheduled.`
           : "Appointment has been scheduled successfully.",
         color: "success",
         icon: <IconCheck size={16} />,
@@ -174,102 +216,150 @@ function BookAppointmentModal({ opened, onClose }: { opened: boolean; onClose: (
 
   const handleClose = () => {
     setStep("form");
-    setSelectedPatientId(null);
-    setSelectedDoctorId(null);
-    setSelectedDeptId(null);
-    setSelectedDate(null);
     setSelectedSlot(null);
-    setReason("");
-    setAppointmentType("new_visit");
-    setRecurrencePattern(null);
-    setRecurrenceCount(4);
+    reset(DEFAULT_BOOK_APPOINTMENT_VALUES);
     onClose();
   };
 
-  const canProceedToSlots = selectedPatientId && selectedDoctorId && selectedDeptId && selectedDate;
+  const canProceedToSlots =
+    values.patient_id && values.doctor_id && values.department_id && values.appointment_date;
+  const submitBooking = handleSubmit((formValues) => {
+    if (!selectedSlot) {
+      notifications.show({
+        title: "Slot required",
+        message: "Select an available slot before confirming the booking.",
+        color: "warning",
+      });
+      return;
+    }
+    bookMutation.mutate(formValues);
+  });
 
   return (
     <Modal opened={opened} onClose={handleClose} title="Book Appointment" size="lg">
       {step === "form" ? (
         <Stack gap="sm">
-          <Select
-            label="Patient"
-            placeholder="Select patient"
-            data={patientOptions}
-            value={selectedPatientId}
-            onChange={setSelectedPatientId}
-            searchable
-            required
+          <Controller
+            control={control}
+            name="patient_id"
+            render={({ field }) => (
+              <Select
+                label="Patient"
+                placeholder="Select patient"
+                data={patientOptions}
+                value={field.value}
+                onChange={field.onChange}
+                error={errors.patient_id?.message}
+                searchable
+                required
+              />
+            )}
           />
-          <Select
-            label="Department"
-            placeholder="Select department"
-            data={deptOptions}
-            value={selectedDeptId}
-            onChange={setSelectedDeptId}
-            searchable
-            required
+          <Controller
+            control={control}
+            name="department_id"
+            render={({ field }) => (
+              <Select
+                label="Department"
+                placeholder="Select department"
+                data={deptOptions}
+                value={field.value}
+                onChange={field.onChange}
+                error={errors.department_id?.message}
+                searchable
+                required
+              />
+            )}
           />
-          <Select
-            label="Doctor"
-            placeholder="Select doctor"
-            data={doctorOptions}
-            value={selectedDoctorId}
-            onChange={(v) => {
-              setSelectedDoctorId(v);
-              setSelectedSlot(null);
-            }}
-            searchable
-            required
+          <Controller
+            control={control}
+            name="doctor_id"
+            render={({ field }) => (
+              <Select
+                label="Doctor"
+                placeholder="Select doctor"
+                data={doctorOptions}
+                value={field.value}
+                onChange={(value) => {
+                  field.onChange(value);
+                  setSelectedSlot(null);
+                }}
+                error={errors.doctor_id?.message}
+                searchable
+                required
+              />
+            )}
           />
-          <DatePickerInput
-            label="Date"
-            placeholder="Pick date"
-            value={selectedDate}
-            onChange={(v: string | null) => {
-              setSelectedDate(v);
-              setSelectedSlot(null);
-            }}
-            minDate={new Date()}
-            required
+          <Controller
+            control={control}
+            name="appointment_date"
+            render={({ field }) => (
+              <DatePickerInput
+                label="Date"
+                placeholder="Pick date"
+                value={field.value}
+                onChange={(value: string | null) => {
+                  field.onChange(value);
+                  setSelectedSlot(null);
+                }}
+                error={errors.appointment_date?.message}
+                minDate={new Date()}
+                required
+              />
+            )}
           />
-          <Select
-            label="Appointment Type"
-            data={[
-              { value: "new_visit", label: "New Visit" },
-              { value: "follow_up", label: "Follow-up" },
-              { value: "consultation", label: "Consultation" },
-              { value: "procedure", label: "Procedure" },
-            ]}
-            value={appointmentType}
-            onChange={(v) => setAppointmentType(v ?? "new_visit")}
+          <Controller
+            control={control}
+            name="appointment_type"
+            render={({ field }) => (
+              <Select
+                label="Appointment Type"
+                data={APPOINTMENT_TYPE_OPTIONS}
+                value={field.value}
+                onChange={(value) => field.onChange(toAppointmentTypeFormValue(value))}
+              />
+            )}
           />
-          <Textarea
-            label="Reason for Visit"
-            placeholder="Optional"
-            value={reason}
-            onChange={(e) => setReason(e.currentTarget.value)}
-            minRows={2}
+          <Controller
+            control={control}
+            name="reason"
+            render={({ field }) => (
+              <Textarea
+                label="Reason for Visit"
+                placeholder="Optional"
+                value={field.value}
+                onChange={field.onChange}
+                minRows={2}
+              />
+            )}
           />
           <Group grow>
-            <Select
-              label="Recurring"
-              placeholder="One-time"
-              data={[
-                { value: "weekly", label: "Weekly" },
-                { value: "biweekly", label: "Bi-weekly" },
-                { value: "monthly", label: "Monthly" },
-              ]}
-              value={recurrencePattern}
-              onChange={setRecurrencePattern}
-              clearable
+            <Controller
+              control={control}
+              name="recurrence_pattern"
+              render={({ field }) => (
+                <Select
+                  label="Recurring"
+                  placeholder="One-time"
+                  data={RECURRENCE_PATTERN_OPTIONS}
+                  value={field.value}
+                  onChange={(value) => field.onChange(toAppointmentRecurrenceFormValue(value))}
+                  clearable
+                />
+              )}
             />
-            {recurrencePattern && (
-              <Select
-                label="Number of Appointments"
-                data={["2", "3", "4", "6", "8", "12"]}
-                value={String(recurrenceCount)}
-                onChange={(v) => setRecurrenceCount(Number(v) || 4)}
+            {values.recurrence_pattern && (
+              <Controller
+                control={control}
+                name="recurrence_count"
+                render={({ field }) => (
+                  <Select
+                    label="Number of Appointments"
+                    data={["2", "3", "4", "6", "8", "12"]}
+                    value={field.value}
+                    onChange={(value) => field.onChange(value ?? "4")}
+                  />
+                )}
               />
             )}
           </Group>
@@ -323,7 +413,7 @@ function BookAppointmentModal({ opened, onClose }: { opened: boolean; onClose: (
               Back
             </Button>
             <Button
-              onClick={() => bookMutation.mutate()}
+              onClick={() => void submitBooking()}
               disabled={!selectedSlot}
               loading={bookMutation.isPending}
             >
@@ -349,20 +439,29 @@ export function AppointmentsPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [dateFilter, setDateFilter] = useState<string | null>(todayStr());
   const [cancelTarget, setCancelTarget] = useState<AppointmentWithPatient | null>(null);
-  const [cancelReason, setCancelReason] = useState("");
   const [rescheduleTarget, setRescheduleTarget] = useState<AppointmentWithPatient | null>(null);
-  const [rescheduleDate, setRescheduleDate] = useState<string | null>(null);
   const [rescheduleSlot, setRescheduleSlot] = useState<AvailableSlot | null>(null);
+  const cancelForm = useForm<CancelAppointmentFormInput>({
+    resolver: zodResolver(cancelAppointmentFormSchema),
+    defaultValues: { cancel_reason: "" },
+    mode: "onTouched",
+  });
+  const rescheduleForm = useForm<RescheduleAppointmentFormInput>({
+    resolver: zodResolver(rescheduleAppointmentFormSchema),
+    defaultValues: { appointment_date: null },
+    mode: "onTouched",
+  });
 
   const dateStr = dateFilter ?? undefined;
+  const rescheduleDate = rescheduleForm.watch("appointment_date");
 
   const { data: appointments, isLoading } = useQuery({
     queryKey: ["appointments", dateStr],
-    queryFn: () => api.listAppointments(dateStr ? { date: dateStr } : undefined),
+    queryFn: () => appointmentsService.listAppointments(dateStr ? { date: dateStr } : undefined),
   });
 
   const checkInMutation = useMutation({
-    mutationFn: (id: string) => api.checkInAppointment(id),
+    mutationFn: (id: string) => appointmentsService.checkInAppointment(id),
     onSuccess: () => {
       notifications.show({
         title: "Checked in",
@@ -382,7 +481,7 @@ export function AppointmentsPage() {
   });
 
   const completeMutation = useMutation({
-    mutationFn: (id: string) => api.completeAppointment(id),
+    mutationFn: (id: string) => appointmentsService.completeAppointment(id),
     onSuccess: () => {
       notifications.show({
         title: "Completed",
@@ -402,7 +501,7 @@ export function AppointmentsPage() {
   });
 
   const noShowMutation = useMutation({
-    mutationFn: (id: string) => api.markAppointmentNoShow(id),
+    mutationFn: (id: string) => appointmentsService.markAppointmentNoShow(id),
     onSuccess: () => {
       notifications.show({
         title: "Marked No-Show",
@@ -421,10 +520,10 @@ export function AppointmentsPage() {
   });
 
   const cancelMutation = useMutation({
-    mutationFn: () => {
+    mutationFn: (formValues: CancelAppointmentFormInput) => {
       if (!cancelTarget) throw new Error("No appointment selected");
-      return api.cancelAppointment(cancelTarget.id, {
-        cancel_reason: cancelReason || undefined,
+      return appointmentsService.cancelAppointment(cancelTarget.id, {
+        cancel_reason: formValues.cancel_reason || undefined,
       });
     },
     onSuccess: () => {
@@ -436,7 +535,7 @@ export function AppointmentsPage() {
       });
       void queryClient.invalidateQueries({ queryKey: ["appointments"] });
       setCancelTarget(null);
-      setCancelReason("");
+      cancelForm.reset({ cancel_reason: "" });
     },
     onError: (err: Error) => {
       notifications.show({
@@ -449,14 +548,18 @@ export function AppointmentsPage() {
 
   const rescheduleSlots = useQuery({
     queryKey: ["available-slots", rescheduleTarget?.doctor_id, rescheduleDate],
-    queryFn: () => api.getAvailableSlots(rescheduleTarget?.doctor_id ?? "", rescheduleDate ?? ""),
+    queryFn: () =>
+      appointmentsService.getAvailableSlots(
+        rescheduleTarget?.doctor_id ?? "",
+        rescheduleDate ?? "",
+      ),
     enabled: !!rescheduleTarget && !!rescheduleDate,
   });
 
   const rescheduleMutation = useMutation({
     mutationFn: (data: RescheduleAppointmentRequest) => {
       if (!rescheduleTarget) throw new Error("No appointment selected");
-      return api.rescheduleAppointment(rescheduleTarget.id, data);
+      return appointmentsService.rescheduleAppointment(rescheduleTarget.id, data);
     },
     onSuccess: () => {
       notifications.show({
@@ -467,7 +570,7 @@ export function AppointmentsPage() {
       });
       void queryClient.invalidateQueries({ queryKey: ["appointments"] });
       setRescheduleTarget(null);
-      setRescheduleDate(null);
+      rescheduleForm.reset({ appointment_date: null });
       setRescheduleSlot(null);
     },
     onError: (err: Error) => {
@@ -477,6 +580,22 @@ export function AppointmentsPage() {
         color: "danger",
       });
     },
+  });
+  const submitCancel = cancelForm.handleSubmit((formValues) => cancelMutation.mutate(formValues));
+  const submitReschedule = rescheduleForm.handleSubmit((formValues) => {
+    if (!formValues.appointment_date || !rescheduleSlot) {
+      notifications.show({
+        title: "Slot required",
+        message: "Select a new date and available slot before confirming.",
+        color: "warning",
+      });
+      return;
+    }
+    rescheduleMutation.mutate({
+      appointment_date: formValues.appointment_date,
+      slot_start: rescheduleSlot.start_time,
+      slot_end: rescheduleSlot.end_time,
+    });
   });
 
   return (
@@ -595,7 +714,7 @@ export function AppointmentsPage() {
                               title="Reschedule"
                               onClick={() => {
                                 setRescheduleTarget(appt);
-                                setRescheduleDate(null);
+                                rescheduleForm.reset({ appointment_date: null });
                                 setRescheduleSlot(null);
                               }}
                               aria-label="Calendar Event"
@@ -622,7 +741,10 @@ export function AppointmentsPage() {
                               variant="subtle"
                               color="danger"
                               title="Cancel"
-                              onClick={() => setCancelTarget(appt)}
+                              onClick={() => {
+                                setCancelTarget(appt);
+                                cancelForm.reset({ cancel_reason: "" });
+                              }}
                               aria-label="Close"
                             >
                               <IconX size={16} />
@@ -650,7 +772,10 @@ export function AppointmentsPage() {
 
       <Modal
         opened={!!cancelTarget}
-        onClose={() => setCancelTarget(null)}
+        onClose={() => {
+          setCancelTarget(null);
+          cancelForm.reset({ cancel_reason: "" });
+        }}
         title="Cancel Appointment"
         size="sm"
       >
@@ -662,20 +787,32 @@ export function AppointmentsPage() {
             </Text>{" "}
             at {cancelTarget ? formatTime(cancelTarget.slot_start) : ""}?
           </Text>
-          <Textarea
-            label="Cancel Reason"
-            placeholder="Optional"
-            value={cancelReason}
-            onChange={(e) => setCancelReason(e.currentTarget.value)}
-            minRows={2}
+          <Controller
+            control={cancelForm.control}
+            name="cancel_reason"
+            render={({ field }) => (
+              <Textarea
+                label="Cancel Reason"
+                placeholder="Optional"
+                value={field.value}
+                onChange={field.onChange}
+                minRows={2}
+              />
+            )}
           />
           <Group justify="flex-end">
-            <Button variant="light" onClick={() => setCancelTarget(null)}>
+            <Button
+              variant="light"
+              onClick={() => {
+                setCancelTarget(null);
+                cancelForm.reset({ cancel_reason: "" });
+              }}
+            >
               Keep
             </Button>
             <Button
               color="danger"
-              onClick={() => cancelMutation.mutate()}
+              onClick={() => void submitCancel()}
               loading={cancelMutation.isPending}
             >
               Cancel Appointment
@@ -689,7 +826,7 @@ export function AppointmentsPage() {
         opened={!!rescheduleTarget}
         onClose={() => {
           setRescheduleTarget(null);
-          setRescheduleDate(null);
+          rescheduleForm.reset({ appointment_date: null });
           setRescheduleSlot(null);
         }}
         title="Reschedule Appointment"
@@ -710,16 +847,23 @@ export function AppointmentsPage() {
               : ""}
           </Text>
 
-          <DatePickerInput
-            label="New Date"
-            placeholder="Pick new date"
-            value={rescheduleDate}
-            onChange={(v: string | null) => {
-              setRescheduleDate(v);
-              setRescheduleSlot(null);
-            }}
-            minDate={new Date()}
-            leftSection={<IconCalendar size={16} />}
+          <Controller
+            control={rescheduleForm.control}
+            name="appointment_date"
+            render={({ field, fieldState }) => (
+              <DatePickerInput
+                label="New Date"
+                placeholder="Pick new date"
+                value={field.value}
+                onChange={(value: string | null) => {
+                  field.onChange(value);
+                  setRescheduleSlot(null);
+                }}
+                error={fieldState.error?.message}
+                minDate={new Date()}
+                leftSection={<IconCalendar size={16} />}
+              />
+            )}
           />
 
           {rescheduleDate && (
@@ -761,7 +905,7 @@ export function AppointmentsPage() {
               variant="light"
               onClick={() => {
                 setRescheduleTarget(null);
-                setRescheduleDate(null);
+                rescheduleForm.reset({ appointment_date: null });
                 setRescheduleSlot(null);
               }}
             >
@@ -770,15 +914,7 @@ export function AppointmentsPage() {
             <Button
               disabled={!rescheduleDate || !rescheduleSlot}
               loading={rescheduleMutation.isPending}
-              onClick={() => {
-                if (rescheduleDate && rescheduleSlot) {
-                  rescheduleMutation.mutate({
-                    appointment_date: rescheduleDate,
-                    slot_start: rescheduleSlot.start_time,
-                    slot_end: rescheduleSlot.end_time,
-                  });
-                }
-              }}
+              onClick={() => void submitReschedule()}
             >
               Confirm Reschedule
             </Button>

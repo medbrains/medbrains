@@ -27,6 +27,7 @@ pub mod coverage;
 pub mod cssd;
 pub mod custom_code;
 pub mod dashboard;
+pub mod debug;
 pub mod device_pairing;
 pub mod devices;
 pub mod diet;
@@ -99,6 +100,7 @@ pub mod procurement;
 pub mod quality;
 pub mod radiology;
 pub mod regulatory;
+pub mod reports;
 pub mod retrospective;
 pub mod scheduling;
 pub mod schema_registry;
@@ -112,6 +114,7 @@ pub mod specialty_maternity;
 pub mod specialty_other;
 pub mod specialty_psychiatry;
 pub mod storage;
+pub mod terminology;
 pub mod tv;
 pub mod utilization_review;
 pub mod ws;
@@ -237,6 +240,10 @@ pub fn build_router(state: AppState) -> Router {
         .route("/api/fhir/Patient/{id}/$everything", get(fhir::patient_everything))
         .route("/api/fhir/Encounter/{id}", get(fhir::read_encounter))
         .route("/api/debug/authz-probe", get(health::authz_probe))
+        .route(
+            "/api/debug/e2e/canonical-fixtures",
+            post(debug::seed_canonical_fixtures),
+        )
         // ── Sharing API (manual per-resource grants) ─────────
         .route("/api/sharing/subjects", get(sharing::list_subjects))
         .route(
@@ -610,6 +617,10 @@ pub fn build_router(state: AppState) -> Router {
             get(patients::list_patient_visits),
         )
         .route(
+            "/api/patients/{patient_id}/consultations",
+            get(patients::list_patient_consultations),
+        )
+        .route(
             "/api/patients/{patient_id}/lab-orders",
             get(patients::list_patient_lab_orders),
         )
@@ -766,7 +777,7 @@ pub fn build_router(state: AppState) -> Router {
         )
         .route(
             "/api/opd/encounters/{id}/diagnoses/{did}",
-            delete(opd::delete_diagnosis),
+            put(opd::update_diagnosis).delete(opd::delete_diagnosis),
         )
         .route(
             "/api/opd/encounters/{id}/prescriptions",
@@ -774,7 +785,7 @@ pub fn build_router(state: AppState) -> Router {
         )
         .route(
             "/api/opd/prescriptions/{id}",
-            get(opd::get_prescription),
+            get(opd::get_prescription).put(opd::update_prescription),
         )
         .route(
             "/api/opd/prescription-templates",
@@ -836,6 +847,26 @@ pub fn build_router(state: AppState) -> Router {
         .route(
             "/api/opd/icd10/search",
             get(opd::search_icd10),
+        )
+        .route(
+            "/api/opd/icd11/search",
+            get(opd::search_icd11),
+        )
+        .route(
+            "/api/opd/clinical-corpus",
+            get(opd::search_clinical_corpus).post(opd::create_clinical_corpus_entry),
+        )
+        .route(
+            "/api/opd/clinical-corpus/{id}",
+            put(opd::update_clinical_corpus_entry),
+        )
+        .route(
+            "/api/terminology/search",
+            get(terminology::search_terminology),
+        )
+        .route(
+            "/api/terminology/lookup",
+            get(terminology::lookup_terminology),
         )
         .route(
             "/api/opd/chief-complaints",
@@ -5364,6 +5395,9 @@ pub fn build_router(state: AppState) -> Router {
             "/api/analytics/export",
             get(analytics::export_csv),
         )
+        // ── Governed Reports Command Center ───────────────────
+        .route("/api/reports/catalog", get(reports::catalog))
+        .route("/api/reports/{id}/data", get(reports::data))
         // ── Print Data (clinical) ─────────────────────────────
         .route(
             "/api/print-data/prescription/{encounter_id}",

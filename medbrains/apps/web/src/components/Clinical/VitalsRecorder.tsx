@@ -9,7 +9,6 @@ import {
   Textarea,
   ThemeIcon,
 } from "@mantine/core";
-import { api } from "@medbrains/api";
 import { useLocaleConfig } from "@medbrains/stores";
 import type { CreateVitalRequest, TenantSettingsRow } from "@medbrains/types";
 import {
@@ -32,6 +31,7 @@ import {
   heightToCm,
   weightToKg,
 } from "../../lib/vital-units";
+import { clinicalSupportService } from "../../services/clinicalSupport.service";
 import styles from "./vitals-recorder.module.scss";
 
 type RangeLevel = "normal" | "borderline" | "critical";
@@ -97,7 +97,7 @@ export function VitalsRecorder({ onSubmit, isSubmitting, onCancel }: VitalsRecor
   // Load hospital-configurable vital fields (if customized in settings)
   const { data: clinicalSettings = [] } = useQuery<TenantSettingsRow[]>({
     queryKey: ["tenant-settings", "clinical"],
-    queryFn: () => api.getTenantSettings("clinical"),
+    queryFn: () => clinicalSupportService.getTenantSettings("clinical"),
     staleTime: 600_000,
   });
   const enabledVitals = useMemo(() => {

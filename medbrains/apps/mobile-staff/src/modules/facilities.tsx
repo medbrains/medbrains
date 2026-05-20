@@ -34,6 +34,7 @@ function FacilitiesHome(): ReactNode {
       eyebrow="MODULE"
       title="Facilities"
       description="MGPS, fire safety, water, energy, work orders."
+      tags={["Mobile-BME", "Mobile-Housekeeping", "MGPS", "fire-safety"]}
       summaries={[
         { eyebrow: "OPEN", count: "—", title: "Work orders" },
         { eyebrow: "INSP", count: "—", title: "Inspections due" },
@@ -110,5 +111,7 @@ export const facilitiesModule: Module = {
   icon: () => null,
   requiredPermissions: [P.FACILITIES.WORK_ORDERS_LIST],
   navigator: FacilitiesScreen,
+  appCodes: ["Mobile-BME", "Mobile-Housekeeping", "TV-Wayfinding"],
+  tags: ["facilities", "mgps", "fire", "water", "work-orders"],
   offlineDocTypes: ["fms_work_order", "fms_gas_reading"],
 };

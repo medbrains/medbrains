@@ -1,3 +1,4 @@
+import { zodResolver } from "@hookform/resolvers/zod";
 import { LineChart } from "@mantine/charts";
 import {
   Accordion,
@@ -25,7 +26,15 @@ import {
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
+import type { OpdQueueVisitFormInput } from "@medbrains/schemas";
+import {
+  opdFeedbackFormSchema,
+  opdLabOrderFormSchema,
+  opdProcedureConsentFormSchema,
+  opdProcedureOrderFormSchema,
+  opdQueueVisitFormSchema,
+  opdReminderFormSchema,
+} from "@medbrains/schemas";
 import { useAuthStore, useHasPermission } from "@medbrains/stores";
 import type {
   AdmitFromOpdRequest,
@@ -36,18 +45,12 @@ import type {
   CertificateType,
   Consultation,
   ConsultationTemplate,
-  CreateConsentRequest,
   CreateConsultationRequest,
   CreateDiagnosisRequest,
-  CreateEncounterRequest,
-  CreateFeedbackRequest,
-  CreateLabOrderRequest,
   CreateMedicalCertificateRequest,
   CreatePreAuthRequest,
   CreatePrescriptionRequest,
-  CreateProcedureOrderRequest,
   CreateReferralRequest,
-  CreateReminderRequest,
   CreateVitalRequest,
   DepartmentRow,
   Diagnosis,
@@ -56,6 +59,7 @@ import type {
   FamilyHistoryEntry,
   FollowupComplianceRow,
   LabOrder,
+  LabOrderListResponse,
   LabResult,
   LabTestCatalog,
   MedicalCertificate,
@@ -63,6 +67,7 @@ import type {
   PastSurgicalEntry,
   Patient,
   PatientAllergy,
+  PatientConsultationHistoryRow,
   PatientDiagnosisRow,
   PatientFeedback,
   PatientLabOrderRow,
@@ -75,16 +80,17 @@ import type {
   PrescriptionWithItems,
   ProcedureCatalog,
   ProcedureConsent,
-  ProcedureConsentType,
   ProcedureOrderWithName,
   QueueEntry,
   RadiologyDicomStudy,
   ReferralTrackingRow,
+  ReferralUrgency,
   ReferralWithNames,
-  ReminderType,
   ReviewOfSystems as ROSType,
   SocialHistory,
   UpdateConsultationRequest,
+  UpdateDiagnosisRequest,
+  UpdatePrescriptionRequest,
   Vital,
   VitalHistoryPoint,
 } from "@medbrains/types";
@@ -124,6 +130,7 @@ import {
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
+import { Controller, useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useParams } from "react-router";
 import {
@@ -145,9 +152,34 @@ import {
   VisitSummaryPrint,
   VitalsRecorder,
 } from "../components";
+import { Icd11CodeSelect } from "../components/Clinical/Icd11CodeSelect";
+import { OrderBasketChip } from "../components/OrderBasket/OrderBasketChip";
+import { OrderBasketWorkspace } from "../components/OrderBasket/OrderBasketWorkspace";
 import { PatientContextBanner } from "../components/Patient/PatientContextBanner";
+import {
+  DEFAULT_OPD_CONSENT_FORM_VALUES,
+  DEFAULT_OPD_FEEDBACK_FORM_VALUES,
+  DEFAULT_OPD_LAB_ORDER_FORM_VALUES,
+  DEFAULT_OPD_PROCEDURE_ORDER_FORM_VALUES,
+  DEFAULT_OPD_QUEUE_VISIT_FORM_VALUES,
+  DEFAULT_OPD_REMINDER_FORM_VALUES,
+  OPD_CONSENT_TYPE_OPTIONS,
+  OPD_LAB_PRIORITY_OPTIONS,
+  OPD_PROCEDURE_PRIORITY_OPTIONS,
+  OPD_RATING_OPTIONS,
+  OPD_REMINDER_PRIORITY_OPTIONS,
+  OPD_REMINDER_TYPE_OPTIONS,
+  OPD_VISIT_TYPE_OPTIONS,
+  toCreateConsentRequest,
+  toCreateEncounterRequest,
+  toCreateFeedbackRequest,
+  toCreateLabOrderRequest,
+  toCreateProcedureOrderRequest,
+  toCreateReminderRequest,
+} from "../forms/opd.form";
 import { useRequirePermission } from "../hooks/useRequirePermission";
 import { useVitalsSource } from "../hooks/useVitalsSource";
+import { opdService } from "../services/opd.service";
 
 const statusColors: Record<string, string> = {
   waiting: "primary",
@@ -156,6 +188,21 @@ const statusColors: Record<string, string> = {
   completed: "success",
   no_show: "danger",
 };
+
+const referralUrgencyValues = [
+  "routine",
+  "urgent",
+  "emergency",
+] as const satisfies readonly ReferralUrgency[];
+
+function toReferralUrgency(value: string | null): ReferralUrgency | undefined {
+  return referralUrgencyValues.find((candidate) => candidate === value);
+}
+
+function toCreateConsultationPayload(data: UpdateConsultationRequest): CreateConsultationRequest {
+  const { snomed_codes: _snomedCodes, ...payload } = data;
+  return payload;
+}
 
 export function OpdPage() {
   useRequirePermission(P.OPD.QUEUE_LIST);
@@ -176,14 +223,14 @@ export function OpdEncounterPage() {
 
   const { data: encounter, isLoading: encounterLoading } = useQuery({
     queryKey: ["opd-encounter", requestedEncounterId],
-    queryFn: () => api.getEncounter(requestedEncounterId),
+    queryFn: () => opdService.getEncounter(requestedEncounterId),
     enabled: requestedEncounterId.length > 0,
   });
   const patientId = encounter?.patient_id ?? "";
 
   const { data: patient, isLoading: patientLoading } = useQuery({
     queryKey: ["patient", patientId],
-    queryFn: () => api.getPatient(patientId),
+    queryFn: () => opdService.getPatient(patientId),
     enabled: patientId.length > 0,
   });
 
@@ -273,19 +320,27 @@ function OpdPageInner() {
   // Departments for filter dropdown
   const { data: departments = [] } = useQuery({
     queryKey: ["departments"],
-    queryFn: () => api.listDepartments(),
+    queryFn: () => opdService.listDepartments(),
     staleTime: 600_000,
   });
   const deptOptions = (departments as DepartmentRow[])
     .filter((d) => d.department_type === "clinical" || d.department_type === "para_clinical")
     .map((d) => ({ value: d.id, label: d.name }));
 
-  // Create encounter form state
-  const [newPatientId, setNewPatientId] = useState("");
-  const [newDepartmentId, setNewDepartmentId] = useState("");
-  const [newDoctorId, setNewDoctorId] = useState("");
-  const [newNotes, setNewNotes] = useState("");
-  const [newVisitType, setNewVisitType] = useState<string | null>("walk_in");
+  const {
+    control: createControl,
+    handleSubmit: handleCreateSubmit,
+    reset: resetCreateVisit,
+    formState: { errors: createErrors },
+  } = useForm<OpdQueueVisitFormInput>({
+    resolver: zodResolver(opdQueueVisitFormSchema),
+    defaultValues: DEFAULT_OPD_QUEUE_VISIT_FORM_VALUES,
+  });
+
+  const closeCreateDrawer = () => {
+    closeCreate();
+    resetCreateVisit(DEFAULT_OPD_QUEUE_VISIT_FORM_VALUES);
+  };
 
   const queueParams: Record<string, string> = {};
   if (filterDate) {
@@ -303,11 +358,12 @@ function OpdPageInner() {
 
   const { data: queue = [], isLoading } = useQuery({
     queryKey: ["opd-queue", queueParams],
-    queryFn: () => api.listQueue(queueParams),
+    queryFn: () => opdService.listQueue(queueParams),
   });
 
   const createMutation = useMutation({
-    mutationFn: (data: CreateEncounterRequest) => api.createEncounter(data),
+    mutationFn: (values: OpdQueueVisitFormInput) =>
+      opdService.createEncounter(toCreateEncounterRequest(values)),
     onSuccess: (_result, variables) => {
       void queryClient.invalidateQueries({ queryKey: ["opd-queue"] });
       notifications.show({
@@ -317,13 +373,9 @@ function OpdPageInner() {
       });
       emit("encounter.created", {
         patient_id: variables.patient_id,
-        department_id: variables.department_id,
+        department_id: variables.department_id ?? "",
       });
-      closeCreate();
-      setNewPatientId("");
-      setNewDepartmentId("");
-      setNewDoctorId("");
-      setNewNotes("");
+      closeCreateDrawer();
     },
     onError: () => {
       notifications.show({ title: "Error", message: "Failed to create visit", color: "danger" });
@@ -331,28 +383,28 @@ function OpdPageInner() {
   });
 
   const callMutation = useMutation({
-    mutationFn: (id: string) => api.callQueueEntry(id),
+    mutationFn: (id: string) => opdService.callQueueEntry(id),
     onSuccess: (_result, id) => {
       void queryClient.invalidateQueries({ queryKey: ["opd-queue"] });
       emit("patient.called", { queue_entry_id: id });
     },
   });
   const startMutation = useMutation({
-    mutationFn: (id: string) => api.startConsultation(id),
+    mutationFn: (id: string) => opdService.startConsultation(id),
     onSuccess: (_result, id) => {
       void queryClient.invalidateQueries({ queryKey: ["opd-queue"] });
       emit("consultation.started", { queue_entry_id: id });
     },
   });
   const completeMutation = useMutation({
-    mutationFn: (id: string) => api.completeQueueEntry(id),
+    mutationFn: (id: string) => opdService.completeQueueEntry(id),
     onSuccess: (_result, id) => {
       void queryClient.invalidateQueries({ queryKey: ["opd-queue"] });
       emit("encounter.completed", { queue_entry_id: id });
     },
   });
   const noShowMutation = useMutation({
-    mutationFn: (id: string) => api.markNoShow(id),
+    mutationFn: (id: string) => opdService.markNoShow(id),
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["opd-queue"] }),
   });
 
@@ -544,53 +596,73 @@ function OpdPageInner() {
       {/* Create encounter drawer */}
       <Drawer
         opened={createOpened}
-        onClose={closeCreate}
+        onClose={closeCreateDrawer}
         title="New OPD Visit"
         position="right"
         size="xl"
       >
-        <Stack>
-          <Select
-            label="Visit Type"
-            data={[
-              { value: "walk_in", label: "Walk-in" },
-              { value: "booked", label: "Booked Appointment" },
-              { value: "follow_up", label: "Follow-up" },
-            ]}
-            value={newVisitType}
-            onChange={setNewVisitType}
-            required
+        <Stack
+          component="form"
+          onSubmit={handleCreateSubmit((values) => createMutation.mutate(values))}
+        >
+          <Controller
+            control={createControl}
+            name="visit_type"
+            render={({ field }) => (
+              <Select
+                label="Visit Type"
+                data={OPD_VISIT_TYPE_OPTIONS}
+                value={field.value}
+                onChange={(value) => field.onChange(value ?? "walk_in")}
+                error={createErrors.visit_type?.message}
+                required
+              />
+            )}
           />
-          <PatientSearchSelect value={newPatientId} onChange={setNewPatientId} required />
-          <Select
-            label="Department"
-            placeholder="Select department"
-            data={deptOptions}
-            value={newDepartmentId}
-            onChange={(v) => setNewDepartmentId(v ?? "")}
-            searchable
-            required
+          <Controller
+            control={createControl}
+            name="patient_id"
+            render={({ field }) => (
+              <PatientSearchSelect
+                value={field.value}
+                onChange={field.onChange}
+                error={createErrors.patient_id?.message}
+                required
+              />
+            )}
           />
-          <DoctorSearchSelect value={newDoctorId} onChange={setNewDoctorId} />
-          <Textarea
-            label="Notes"
-            placeholder="Visit notes"
-            value={newNotes}
-            onChange={(e) => setNewNotes(e.currentTarget.value)}
+          <Controller
+            control={createControl}
+            name="department_id"
+            render={({ field }) => (
+              <Select
+                label="Department"
+                placeholder="Select department"
+                data={deptOptions}
+                value={field.value ?? ""}
+                onChange={(value) => field.onChange(value || null)}
+                error={createErrors.department_id?.message}
+                searchable
+                required
+              />
+            )}
           />
-          <Button
-            onClick={() =>
-              createMutation.mutate({
-                patient_id: newPatientId,
-                department_id: newDepartmentId,
-                doctor_id: newDoctorId || undefined,
-                notes: newNotes || undefined,
-                visit_type: newVisitType ?? undefined,
-              })
-            }
-            loading={createMutation.isPending}
-            disabled={!newPatientId.trim() || !newDepartmentId}
-          >
+          <Controller
+            control={createControl}
+            name="doctor_id"
+            render={({ field }) => (
+              <DoctorSearchSelect
+                value={field.value ?? ""}
+                onChange={(value) => field.onChange(value || null)}
+              />
+            )}
+          />
+          <Controller
+            control={createControl}
+            name="notes"
+            render={({ field }) => <Textarea label="Notes" placeholder="Visit notes" {...field} />}
+          />
+          <Button type="submit" loading={createMutation.isPending}>
             Create Visit
           </Button>
         </Stack>
@@ -657,50 +729,53 @@ function EncounterDetail({
   departmentId: string;
   canUpdate: boolean;
 }) {
-  const [showSummary, setShowSummary] = useState(false);
+  const canOrder = useHasPermission(P.ORDER_BASKET.SIGN);
+  const queryClient = useQueryClient();
+  const [summaryOpened, { open: openSummary, close: closeSummary }] = useDisclosure(false);
+  const [basketOpened, { open: openBasket, close: closeBasket }] = useDisclosure(false);
 
   // Fetch all data for visit summary print
   const { data: vitals = [] } = useQuery({
     queryKey: ["vitals", encounterId],
-    queryFn: () => api.listVitals(encounterId),
+    queryFn: () => opdService.listVitals(encounterId),
   });
-  const { data: consultation } = useQuery({
+  const { data: consultation } = useQuery<Consultation | null>({
     queryKey: ["consultation", encounterId],
-    queryFn: () => api.getConsultation(encounterId).catch(() => null),
+    queryFn: () => opdService.getConsultation(encounterId).catch(() => null),
   });
   const { data: diagnoses = [] } = useQuery({
     queryKey: ["diagnoses", encounterId],
-    queryFn: () => api.listDiagnoses(encounterId),
+    queryFn: () => opdService.listDiagnoses(encounterId),
   });
   const { data: prescriptions = [] } = useQuery({
     queryKey: ["prescriptions", encounterId],
-    queryFn: () => api.listPrescriptions(encounterId),
+    queryFn: () => opdService.listPrescriptions(encounterId),
   });
   const { data: labOrdersResponse } = useQuery({
     queryKey: ["lab-orders", encounterId],
-    queryFn: () => api.listLabOrders({ encounter_id: encounterId }),
+    queryFn: () => opdService.listLabOrders({ encounter_id: encounterId }),
   });
   const { data: labCatalog = [] } = useQuery({
     queryKey: ["lab-catalog"],
-    queryFn: () => api.listLabCatalog(),
+    queryFn: () => opdService.listLabCatalog(),
   });
   const { data: hospitalSettings = [] } = useQuery({
     queryKey: ["tenant-settings", "general"],
-    queryFn: () => api.getTenantSettings("general"),
+    queryFn: () => opdService.getTenantSettings("general"),
     staleTime: 600_000,
   });
 
   // Allergy data
   const { data: allergies = [] } = useQuery({
     queryKey: ["patient-allergies", patientId],
-    queryFn: () => api.listPatientAllergies(patientId),
+    queryFn: () => opdService.listPatientAllergies(patientId),
   });
   const activeAllergies = (allergies as PatientAllergy[]).filter((a) => a.is_active);
 
   // Current medications (from most recent prescription)
   const { data: rxHistory = [] } = useQuery({
     queryKey: ["patient-rx-history", patientId],
-    queryFn: () => api.listPatientPrescriptions(patientId),
+    queryFn: () => opdService.listPatientPrescriptions(patientId),
     staleTime: 120_000,
   });
   const currentMeds = useMemo(() => {
@@ -713,7 +788,7 @@ function EncounterDetail({
   // Chronic conditions (unresolved diagnoses from past encounters)
   const { data: patientDiagnoses = [] } = useQuery({
     queryKey: ["patient-diagnoses", patientId],
-    queryFn: () => api.listPatientDiagnoses(patientId),
+    queryFn: () => opdService.listPatientDiagnoses(patientId),
     staleTime: 120_000,
   });
   const chronicConditions = useMemo(() => {
@@ -729,10 +804,10 @@ function EncounterDetail({
 
   return (
     <>
-      {showSummary && (
+      {summaryOpened && (
         <VisitSummaryPrint
-          opened={showSummary}
-          onClose={() => setShowSummary(false)}
+          opened={summaryOpened}
+          onClose={closeSummary}
           patientName={patientName}
           uhid={uhid}
           visitDate={new Date().toISOString()}
@@ -836,10 +911,11 @@ function EncounterDetail({
               size="xs"
               fullWidth
               leftSection={<IconPrinter size={14} />}
-              onClick={() => setShowSummary(true)}
+              onClick={openSummary}
             >
               Print Summary
             </Button>
+            {canOrder && <OrderBasketChip onClick={openBasket} />}
             <AdmitToIpdButton encounterId={encounterId} patientName={patientName} />
             <GroupAppointmentModal patientId={patientId} />
           </Stack>
@@ -995,7 +1071,11 @@ function EncounterDetail({
             <VitalsTab encounterId={encounterId} canUpdate={canUpdate} />
           </Tabs.Panel>
           <Tabs.Panel value="consultation">
-            <ConsultationTab encounterId={encounterId} canUpdate={canUpdate} />
+            <ConsultationTab
+              encounterId={encounterId}
+              patientId={patientId}
+              canUpdate={canUpdate}
+            />
           </Tabs.Panel>
           <Tabs.Panel value="history">
             <HistoryTab encounterId={encounterId} canUpdate={canUpdate} />
@@ -1007,7 +1087,7 @@ function EncounterDetail({
             <PhysicalExamTab encounterId={encounterId} canUpdate={canUpdate} />
           </Tabs.Panel>
           <Tabs.Panel value="diagnoses">
-            <DiagnosesTab encounterId={encounterId} canUpdate={canUpdate} />
+            <DiagnosesTab encounterId={encounterId} patientId={patientId} canUpdate={canUpdate} />
           </Tabs.Panel>
           <Tabs.Panel value="investigations">
             <InvestigationsTab
@@ -1081,6 +1161,19 @@ function EncounterDetail({
           </Tabs.Panel>
         </div>
       </Tabs>
+      <OrderBasketWorkspace
+        opened={basketOpened}
+        onClose={closeBasket}
+        encounterId={encounterId}
+        patientId={patientId}
+        onSigned={() => {
+          void queryClient.invalidateQueries({ queryKey: ["lab-orders", encounterId] });
+          void queryClient.invalidateQueries({ queryKey: ["prescriptions", encounterId] });
+          void queryClient.invalidateQueries({ queryKey: ["opd-pharmacy-dispatch", encounterId] });
+          void queryClient.invalidateQueries({ queryKey: ["patient-invoices", patientId] });
+          void queryClient.invalidateQueries({ queryKey: ["patient-dicom-studies", patientId] });
+        }}
+      />
     </>
   );
 }
@@ -1090,7 +1183,7 @@ function EncounterDetail({
 function PharmacyDispatchTab({ encounterId }: { encounterId: string }) {
   const { data: dispatch = [], isLoading } = useQuery({
     queryKey: ["opd-pharmacy-dispatch", encounterId],
-    queryFn: () => api.opdPharmacyDispatchStatus(encounterId),
+    queryFn: () => opdService.opdPharmacyDispatchStatus(encounterId),
   });
 
   const dispatchStatusColors: Record<string, string> = {
@@ -1155,7 +1248,7 @@ function PharmacyDispatchTab({ encounterId }: { encounterId: string }) {
 
 function VitalsTab({ encounterId, canUpdate }: { encounterId: string; canUpdate: boolean }) {
   const emit = useClinicalEmit();
-  const [showForm, setShowForm] = useState(false);
+  const [formOpened, formHandlers] = useDisclosure(false);
 
   // Mode (REST vs CRDT) is read from <TenantConfigProvider>. Flips
   // automatically when a tenant turns on tenant_settings.clinical.
@@ -1165,23 +1258,23 @@ function VitalsTab({ encounterId, canUpdate }: { encounterId: string; canUpdate:
   const handleSubmit = (data: CreateVitalRequest) => {
     append(data);
     emit("vitals.recorded", { encounter_id: encounterId, ...data });
-    setShowForm(false);
+    formHandlers.close();
   };
 
   return (
     <Stack>
-      {canUpdate && !showForm && (
+      {canUpdate && !formOpened && (
         <Group>
-          <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => setShowForm(true)}>
+          <Button size="xs" leftSection={<IconPlus size={14} />} onClick={formHandlers.open}>
             Record Vitals
           </Button>
         </Group>
       )}
-      {showForm && (
+      {formOpened && (
         <VitalsRecorder
           onSubmit={handleSubmit}
           isSubmitting={unsyncedOps > 0}
-          onCancel={() => setShowForm(false)}
+          onCancel={formHandlers.close}
         />
       )}
       {vitals.length > 0 && (
@@ -1303,30 +1396,47 @@ function VitalsTab({ encounterId, canUpdate }: { encounterId: string; canUpdate:
 
 // ── Consultation ─────────────────────────────────────────
 
-function ConsultationTab({ encounterId, canUpdate }: { encounterId: string; canUpdate: boolean }) {
+function ConsultationTab({
+  encounterId,
+  patientId,
+  canUpdate,
+}: {
+  encounterId: string;
+  patientId: string;
+  canUpdate: boolean;
+}) {
   const emit = useClinicalEmit();
   const queryClient = useQueryClient();
   const [templateId, setTemplateId] = useState<string | null>(null);
 
-  const { data: consultation } = useQuery({
+  const { data: consultation } = useQuery<Consultation | null>({
     queryKey: ["consultation", encounterId],
-    queryFn: () => api.getConsultation(encounterId).catch(() => null),
+    queryFn: () => opdService.getConsultation(encounterId).catch(() => null),
   });
 
-  const { data: templates = [] } = useQuery({
+  const { data: templates = [] } = useQuery<ConsultationTemplate[]>({
     queryKey: ["consultation-templates"],
-    queryFn: () => api.listConsultationTemplates(),
+    queryFn: () => opdService.listConsultationTemplates(),
     staleTime: 300_000,
   });
 
-  const templateOptions = (templates as ConsultationTemplate[]).map((t) => ({
+  const { data: consultationHistory = [], isLoading: loadingConsultationHistory } = useQuery<
+    PatientConsultationHistoryRow[]
+  >({
+    queryKey: ["patient-consultations", patientId],
+    queryFn: () => opdService.listPatientConsultations(patientId),
+    enabled: patientId.length > 0,
+    staleTime: 60_000,
+  });
+
+  const templateOptions = templates.map((t) => ({
     value: t.id,
     label: `${t.name}${t.specialty ? ` (${t.specialty})` : ""}`,
   }));
 
   const selectedTemplate = useMemo(() => {
     if (!templateId) return null;
-    return (templates as ConsultationTemplate[]).find((t) => t.id === templateId) ?? null;
+    return templates.find((t) => t.id === templateId) ?? null;
   }, [templates, templateId]);
 
   const templateDefaults = useMemo((): Partial<Consultation> | undefined => {
@@ -1338,28 +1448,17 @@ function ConsultationTab({ encounterId, canUpdate }: { encounterId: string; canU
   }, [selectedTemplate, consultation]);
 
   const createMutation = useMutation({
-    mutationFn: (data: CreateConsultationRequest) => api.createConsultation(encounterId, data),
+    mutationFn: (data: CreateConsultationRequest) =>
+      opdService.createConsultation(encounterId, data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["consultation", encounterId] });
-      emit("consultation.saved", { encounter_id: encounterId });
-    },
-  });
-
-  const updateMutation = useMutation({
-    mutationFn: (data: UpdateConsultationRequest) =>
-      api.updateConsultation(encounterId, (consultation as Consultation).id, data),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["consultation", encounterId] });
+      void queryClient.invalidateQueries({ queryKey: ["patient-consultations", patientId] });
       emit("consultation.saved", { encounter_id: encounterId });
     },
   });
 
   const handleSubmit = (data: CreateConsultationRequest | UpdateConsultationRequest) => {
-    if (consultation) {
-      updateMutation.mutate(data);
-    } else {
-      createMutation.mutate(data as CreateConsultationRequest);
-    }
+    createMutation.mutate(toCreateConsultationPayload(data));
   };
 
   if (!canUpdate && !consultation) {
@@ -1386,11 +1485,15 @@ function ConsultationTab({ encounterId, canUpdate }: { encounterId: string; canU
         />
       )}
       <SOAPNotes
-        key={templateId ?? "default"}
+        key={consultation?.updated_at ?? templateId ?? "default"}
         onSubmit={handleSubmit}
-        defaultValues={consultation ? (consultation as Consultation) : templateDefaults}
-        submitLabel={consultation ? "Update Notes" : "Save Notes"}
-        isSubmitting={createMutation.isPending || updateMutation.isPending}
+        defaultValues={consultation ?? templateDefaults}
+        editorDefaultValues={templateDefaults}
+        historyNotes={consultationHistory}
+        isHistoryLoading={loadingConsultationHistory}
+        submitLabel="Save Note"
+        isSubmitting={createMutation.isPending}
+        readOnly={!canUpdate}
       />
     </Stack>
   );
@@ -1403,18 +1506,19 @@ function HistoryTab({ encounterId, canUpdate }: { encounterId: string; canUpdate
 
   const { data: consultation } = useQuery({
     queryKey: ["consultation", encounterId],
-    queryFn: () => api.getConsultation(encounterId).catch(() => null),
+    queryFn: () => opdService.getConsultation(encounterId).catch(() => null),
   });
 
   const createMutation = useMutation({
-    mutationFn: (data: CreateConsultationRequest) => api.createConsultation(encounterId, data),
+    mutationFn: (data: CreateConsultationRequest) =>
+      opdService.createConsultation(encounterId, data),
     onSuccess: () =>
       void queryClient.invalidateQueries({ queryKey: ["consultation", encounterId] }),
   });
 
   const updateMutation = useMutation({
     mutationFn: (data: UpdateConsultationRequest) =>
-      api.updateConsultation(encounterId, (consultation as Consultation).id, data),
+      opdService.updateConsultation(encounterId, (consultation as Consultation).id, data),
     onSuccess: () =>
       void queryClient.invalidateQueries({ queryKey: ["consultation", encounterId] }),
   });
@@ -1423,7 +1527,7 @@ function HistoryTab({ encounterId, canUpdate }: { encounterId: string; canUpdate
     if (consultation) {
       updateMutation.mutate(data);
     } else {
-      createMutation.mutate(data as CreateConsultationRequest);
+      createMutation.mutate(toCreateConsultationPayload(data));
     }
   };
 
@@ -1451,7 +1555,7 @@ function ROSTab({ encounterId, canUpdate }: { encounterId: string; canUpdate: bo
 
   const { data: consultation } = useQuery({
     queryKey: ["consultation", encounterId],
-    queryFn: () => api.getConsultation(encounterId).catch(() => null),
+    queryFn: () => opdService.getConsultation(encounterId).catch(() => null),
   });
 
   // Sync server data to local state when loaded
@@ -1464,7 +1568,8 @@ function ROSTab({ encounterId, canUpdate }: { encounterId: string; canUpdate: bo
   });
 
   const createMutation = useMutation({
-    mutationFn: (data: CreateConsultationRequest) => api.createConsultation(encounterId, data),
+    mutationFn: (data: CreateConsultationRequest) =>
+      opdService.createConsultation(encounterId, data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["consultation", encounterId] });
       setDirty(false);
@@ -1476,7 +1581,7 @@ function ROSTab({ encounterId, canUpdate }: { encounterId: string; canUpdate: bo
 
   const updateMutation = useMutation({
     mutationFn: (data: UpdateConsultationRequest) =>
-      api.updateConsultation(encounterId, (consultation as Consultation).id, data),
+      opdService.updateConsultation(encounterId, (consultation as Consultation).id, data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["consultation", encounterId] });
       setDirty(false);
@@ -1532,18 +1637,19 @@ function PhysicalExamTab({ encounterId, canUpdate }: { encounterId: string; canU
 
   const { data: consultation } = useQuery({
     queryKey: ["consultation", encounterId],
-    queryFn: () => api.getConsultation(encounterId).catch(() => null),
+    queryFn: () => opdService.getConsultation(encounterId).catch(() => null),
   });
 
   const createMutation = useMutation({
-    mutationFn: (data: CreateConsultationRequest) => api.createConsultation(encounterId, data),
+    mutationFn: (data: CreateConsultationRequest) =>
+      opdService.createConsultation(encounterId, data),
     onSuccess: () =>
       void queryClient.invalidateQueries({ queryKey: ["consultation", encounterId] }),
   });
 
   const updateMutation = useMutation({
     mutationFn: (data: UpdateConsultationRequest) =>
-      api.updateConsultation(encounterId, (consultation as Consultation).id, data),
+      opdService.updateConsultation(encounterId, (consultation as Consultation).id, data),
     onSuccess: () =>
       void queryClient.invalidateQueries({ queryKey: ["consultation", encounterId] }),
   });
@@ -1554,7 +1660,7 @@ function PhysicalExamTab({ encounterId, canUpdate }: { encounterId: string; canU
     if (consultation) {
       updateMutation.mutate(data);
     } else {
-      createMutation.mutate(data as CreateConsultationRequest);
+      createMutation.mutate(toCreateConsultationPayload(data));
     }
   };
 
@@ -1572,34 +1678,69 @@ function PhysicalExamTab({ encounterId, canUpdate }: { encounterId: string; canU
 
 // ── Diagnoses ────────────────────────────────────────────
 
-function DiagnosesTab({ encounterId, canUpdate }: { encounterId: string; canUpdate: boolean }) {
+function DiagnosesTab({
+  encounterId,
+  patientId,
+  canUpdate,
+}: {
+  encounterId: string;
+  patientId: string;
+  canUpdate: boolean;
+}) {
   const queryClient = useQueryClient();
 
-  const { data: diagnoses = [] } = useQuery({
+  const { data: diagnoses = [] } = useQuery<Diagnosis[]>({
     queryKey: ["diagnoses", encounterId],
-    queryFn: () => api.listDiagnoses(encounterId),
+    queryFn: () => opdService.listDiagnoses(encounterId),
   });
 
+  const { data: patientDiagnoses = [] } = useQuery<PatientDiagnosisRow[]>({
+    queryKey: ["patient-diagnoses", patientId],
+    queryFn: () => opdService.listPatientDiagnoses(patientId),
+    staleTime: 120_000,
+  });
+
+  const invalidateDiagnosisQueries = () => {
+    void queryClient.invalidateQueries({ queryKey: ["diagnoses", encounterId] });
+    void queryClient.invalidateQueries({ queryKey: ["patient-diagnoses", patientId] });
+  };
+
   const createMutation = useMutation({
-    mutationFn: (data: CreateDiagnosisRequest) => api.createDiagnosis(encounterId, data),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["diagnoses", encounterId] });
-    },
+    mutationFn: (data: CreateDiagnosisRequest) => opdService.createDiagnosis(encounterId, data),
+    onSuccess: invalidateDiagnosisQueries,
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: ({
+      diagnosisEncounterId,
+      diagnosisId,
+      data,
+    }: {
+      diagnosisEncounterId: string;
+      diagnosisId: string;
+      data: UpdateDiagnosisRequest;
+    }) => opdService.updateDiagnosis(diagnosisEncounterId, diagnosisId, data),
+    onSuccess: invalidateDiagnosisQueries,
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => api.deleteDiagnosis(encounterId, id),
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["diagnoses", encounterId] }),
+    mutationFn: (id: string) => opdService.deleteDiagnosis(encounterId, id),
+    onSuccess: invalidateDiagnosisQueries,
   });
 
   return (
     <DiagnosisPanel
       encounterId={encounterId}
-      diagnoses={diagnoses as Diagnosis[]}
+      diagnoses={diagnoses}
+      patientDiagnoses={patientDiagnoses}
       canUpdate={canUpdate}
       onAdd={(data) => createMutation.mutate(data)}
+      onUpdate={(diagnosisEncounterId, diagnosisId, data) =>
+        updateMutation.mutate({ diagnosisEncounterId, diagnosisId, data })
+      }
       onDelete={(id) => deleteMutation.mutate(id)}
       isAdding={createMutation.isPending}
+      isUpdating={updateMutation.isPending}
     />
   );
 }
@@ -1641,55 +1782,64 @@ function InvestigationsTab({
 }) {
   const emit = useClinicalEmit();
   const queryClient = useQueryClient();
-  const [showForm, setShowForm] = useState(false);
-  const [selectedTestId, setSelectedTestId] = useState<string | null>(null);
-  const [priority, setPriority] = useState<string | null>("routine");
-  const [notes, setNotes] = useState("");
+  const [formOpened, formHandlers] = useDisclosure(false);
   const [labDupeWarning, setLabDupeWarning] = useState<DuplicateOrderInfo[]>([]);
   const [selectedLabReportId, setSelectedLabReportId] = useState<string | null>(null);
+  const {
+    control,
+    handleSubmit,
+    reset,
+    watch,
+    formState: { errors },
+  } = useForm({
+    resolver: zodResolver(opdLabOrderFormSchema),
+    defaultValues: DEFAULT_OPD_LAB_ORDER_FORM_VALUES,
+    mode: "onTouched",
+  });
+  const selectedTestId = watch("test_id");
 
-  const { data: catalog = [] } = useQuery({
+  const { data: catalog = [] } = useQuery<LabTestCatalog[]>({
     queryKey: ["lab-catalog"],
-    queryFn: () => api.listLabCatalog(),
+    queryFn: () => opdService.listLabCatalog(),
   });
 
-  const { data: ordersResponse } = useQuery({
+  const { data: ordersResponse } = useQuery<LabOrderListResponse>({
     queryKey: ["lab-orders", encounterId],
-    queryFn: () => api.listLabOrders({ encounter_id: encounterId }),
+    queryFn: () => opdService.listLabOrders({ encounter_id: encounterId }),
   });
   const orders = ordersResponse?.orders ?? [];
 
-  const { data: patientLabOrders = [] } = useQuery({
+  const { data: patientLabOrders = [] } = useQuery<PatientLabOrderRow[]>({
     queryKey: ["patient-lab-orders", patientId],
-    queryFn: () => api.listPatientLabOrders(patientId),
+    queryFn: () => opdService.listPatientLabOrders(patientId),
   });
 
-  const { data: imagingStudies = [] } = useQuery({
+  const { data: imagingStudies = [] } = useQuery<RadiologyDicomStudy[]>({
     queryKey: ["patient-dicom-studies", patientId],
-    queryFn: () => api.getPriorRadiologyDicomStudies(patientId),
+    queryFn: () => opdService.getPriorRadiologyDicomStudies(patientId),
   });
 
   const { data: selectedLabReport, isLoading: selectedLabReportLoading } = useQuery({
     queryKey: ["lab-order-detail", selectedLabReportId],
-    queryFn: () => api.getLabOrder(selectedLabReportId ?? ""),
+    queryFn: () => opdService.getLabOrder(selectedLabReportId ?? ""),
     enabled: selectedLabReportId !== null,
   });
 
-  const recentLabReports = (patientLabOrders as PatientLabOrderRow[])
+  const recentLabReports = patientLabOrders
     .filter((order) => (order.result_count ?? 0) > 0 || order.status === "verified")
     .slice(0, 5);
 
-  const recentImagingStudies = (imagingStudies as RadiologyDicomStudy[]).slice(0, 5);
+  const recentImagingStudies = imagingStudies.slice(0, 5);
 
   const testOptions = catalog
-    .filter((t: LabTestCatalog) => t.is_active)
-    .map((t: LabTestCatalog) => ({
-      value: t.id,
-      label: `${t.code} — ${t.name}${t.sample_type ? ` (${t.sample_type})` : ""}`,
+    .filter((test) => test.is_active)
+    .map((test) => ({
+      value: test.id,
+      label: `${test.code} — ${test.name}${test.sample_type ? ` (${test.sample_type})` : ""}`,
     }));
 
   const createMutation = useMutation({
-    mutationFn: (data: CreateLabOrderRequest) => api.createLabOrder(data),
+    mutationFn: opdService.createLabOrder,
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["lab-orders", encounterId] });
       notifications.show({
@@ -1698,11 +1848,9 @@ function InvestigationsTab({
         color: "success",
       });
       emit("lab.ordered", { encounter_id: encounterId, patient_id: patientId });
-      setSelectedTestId(null);
-      setPriority("routine");
-      setNotes("");
+      reset(DEFAULT_OPD_LAB_ORDER_FORM_VALUES);
       setLabDupeWarning([]);
-      setShowForm(false);
+      formHandlers.close();
     },
     onError: () => {
       notifications.show({ title: "Error", message: "Failed to place lab order", color: "danger" });
@@ -1710,7 +1858,7 @@ function InvestigationsTab({
   });
 
   const cancelMutation = useMutation({
-    mutationFn: (id: string) => api.cancelLabOrder(id),
+    mutationFn: (id: string) => opdService.cancelLabOrder(id),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["lab-orders", encounterId] });
       notifications.show({
@@ -1721,16 +1869,9 @@ function InvestigationsTab({
     },
   });
 
-  const handleOrder = () => {
-    if (!selectedTestId) return;
-    createMutation.mutate({
-      patient_id: patientId,
-      encounter_id: encounterId,
-      test_id: selectedTestId,
-      priority: (priority as CreateLabOrderRequest["priority"]) ?? undefined,
-      notes: notes.trim() || undefined,
-    });
-  };
+  const handleOrder = handleSubmit((values) => {
+    createMutation.mutate(toCreateLabOrderRequest(values, patientId, encounterId));
+  });
 
   const getTestName = (testId: string) => {
     const test = catalog.find((t: LabTestCatalog) => t.id === testId);
@@ -1739,40 +1880,47 @@ function InvestigationsTab({
 
   return (
     <Stack>
-      {canUpdate && !showForm && (
+      {canUpdate && !formOpened && (
         <Group>
-          <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => setShowForm(true)}>
+          <Button size="xs" leftSection={<IconPlus size={14} />} onClick={formHandlers.open}>
             Order Investigation
           </Button>
         </Group>
       )}
 
-      {showForm && (
+      {formOpened && (
         <Card padding="sm" radius="md" withBorder>
           <Stack gap="xs">
-            <Select
-              label="Lab Test"
-              placeholder="Search tests..."
-              data={testOptions}
-              value={selectedTestId}
-              onChange={async (testId) => {
-                setSelectedTestId(testId);
-                setLabDupeWarning([]);
-                if (testId) {
-                  try {
-                    const dupes = await api.checkDuplicateOrders({
-                      patient_id: patientId,
-                      test_id: testId,
-                    });
-                    if (dupes.length > 0) setLabDupeWarning(dupes);
-                  } catch {
-                    /* ignore */
-                  }
-                }
-              }}
-              searchable
-              nothingFoundMessage="No tests found"
-              required
+            <Controller
+              control={control}
+              name="test_id"
+              render={({ field }) => (
+                <Select
+                  label="Lab Test"
+                  placeholder="Search tests..."
+                  data={testOptions}
+                  value={field.value}
+                  onChange={async (testId) => {
+                    field.onChange(testId);
+                    setLabDupeWarning([]);
+                    if (testId) {
+                      try {
+                        const dupes = await opdService.checkDuplicateOrders({
+                          patient_id: patientId,
+                          test_id: testId,
+                        });
+                        if (dupes.length > 0) setLabDupeWarning(dupes);
+                      } catch {
+                        /* ignore */
+                      }
+                    }
+                  }}
+                  searchable
+                  nothingFoundMessage="No tests found"
+                  error={errors.test_id?.message}
+                  required
+                />
+              )}
             />
             {labDupeWarning.length > 0 && (
               <Alert
@@ -1788,34 +1936,42 @@ function InvestigationsTab({
               </Alert>
             )}
             <Group gap="xs" grow>
-              <Select
-                label="Priority"
-                data={[
-                  { value: "routine", label: "Routine" },
-                  { value: "urgent", label: "Urgent" },
-                  { value: "stat", label: "STAT" },
-                ]}
-                value={priority}
-                onChange={setPriority}
+              <Controller
+                control={control}
+                name="priority"
+                render={({ field }) => (
+                  <Select
+                    label="Priority"
+                    data={OPD_LAB_PRIORITY_OPTIONS}
+                    value={field.value}
+                    onChange={field.onChange}
+                    error={errors.priority?.message}
+                  />
+                )}
               />
             </Group>
-            <Textarea
-              label="Clinical Notes"
-              placeholder="Reason for investigation, clinical context..."
-              value={notes}
-              onChange={(e) => setNotes(e.currentTarget.value)}
-              autosize
-              minRows={2}
-              maxRows={4}
+            <Controller
+              control={control}
+              name="notes"
+              render={({ field }) => (
+                <Textarea
+                  label="Clinical Notes"
+                  placeholder="Reason for investigation, clinical context..."
+                  value={field.value}
+                  onChange={field.onChange}
+                  autosize
+                  minRows={2}
+                  maxRows={4}
+                />
+              )}
             />
             <Group justify="flex-end" gap="xs">
               <Button
                 variant="subtle"
                 size="sm"
                 onClick={() => {
-                  setShowForm(false);
-                  setSelectedTestId(null);
-                  setNotes("");
+                  formHandlers.close();
+                  reset(DEFAULT_OPD_LAB_ORDER_FORM_VALUES);
                 }}
               >
                 Cancel
@@ -2044,7 +2200,7 @@ function InvestigationsTab({
         </Table>
       )}
 
-      {!showForm && orders.length === 0 && (
+      {!formOpened && orders.length === 0 && (
         <Text size="sm" c="dimmed" ta="center" py="md">
           No investigations ordered yet.
         </Text>
@@ -2139,7 +2295,7 @@ function FollowUpTab({
   // Get available slots when date is set and doctor is known
   const { data: slots = [], isLoading: loadingSlots } = useQuery({
     queryKey: ["available-slots", doctorId, selectedDate],
-    queryFn: () => api.getAvailableSlots(doctorId as string, selectedDate),
+    queryFn: () => opdService.getAvailableSlots(doctorId as string, selectedDate),
     enabled: Boolean(doctorId) && Boolean(selectedDate),
   });
 
@@ -2150,7 +2306,7 @@ function FollowUpTab({
   }));
 
   const bookMutation = useMutation({
-    mutationFn: (data: BookAppointmentRequest) => api.bookAppointment(data),
+    mutationFn: (data: BookAppointmentRequest) => opdService.bookAppointment(data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["appointments"] });
       notifications.show({
@@ -2305,12 +2461,12 @@ function PrescriptionsTab({
 
   const { data: prescriptions = [] } = useQuery({
     queryKey: ["prescriptions", encounterId],
-    queryFn: () => api.listPrescriptions(encounterId),
+    queryFn: () => opdService.listPrescriptions(encounterId),
   });
 
   const { data: hospitalSettings = [] } = useQuery({
     queryKey: ["tenant-settings", "general"],
-    queryFn: () => api.getTenantSettings("general"),
+    queryFn: () => opdService.getTenantSettings("general"),
     staleTime: 600_000,
   });
 
@@ -2320,12 +2476,38 @@ function PrescriptionsTab({
   };
 
   const createMutation = useMutation({
-    mutationFn: (data: CreatePrescriptionRequest) => api.createPrescription(encounterId, data),
+    mutationFn: (data: CreatePrescriptionRequest) =>
+      opdService.createPrescription(encounterId, data),
     onSuccess: (_result, variables) => {
       void queryClient.invalidateQueries({ queryKey: ["prescriptions", encounterId] });
+      void queryClient.invalidateQueries({ queryKey: ["pharmacy-rx-queue"] });
       emit("prescription.created", {
         encounter_id: encounterId,
         item_count: variables.items.length,
+      });
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: ({
+      prescriptionId,
+      data,
+    }: {
+      prescriptionId: string;
+      data: UpdatePrescriptionRequest;
+    }) => opdService.updatePrescription(prescriptionId, data),
+    onSuccess: (_result, variables) => {
+      void queryClient.invalidateQueries({ queryKey: ["prescriptions", encounterId] });
+      void queryClient.invalidateQueries({ queryKey: ["pharmacy-rx-queue"] });
+      emit("prescription.updated_before_pharmacy_approval", {
+        prescription_id: variables.prescriptionId,
+        encounter_id: encounterId,
+        item_count: variables.data.items.length,
+      });
+      notifications.show({
+        title: "Prescription updated",
+        message: "Pharmacy review and billing will use the revised prescription",
+        color: "teal",
       });
     },
   });
@@ -2347,7 +2529,9 @@ function PrescriptionsTab({
         prescriptions={prescriptions as PrescriptionWithItems[]}
         canUpdate={canUpdate}
         onSave={(data) => createMutation.mutate(data)}
+        onUpdate={(prescriptionId, data) => updateMutation.mutate({ prescriptionId, data })}
         isSaving={createMutation.isPending}
+        isUpdating={updateMutation.isPending}
         onPrint={(rx) => setPrintRx(rx)}
         onSendToPharmacy={handleSendToPharmacy}
       />
@@ -2381,7 +2565,7 @@ function PrescriptionsTab({
 function RxHistoryTab({ patientId }: { patientId: string }) {
   const { data: history = [], isLoading } = useQuery({
     queryKey: ["patient-prescriptions", patientId],
-    queryFn: () => api.listPatientPrescriptions(patientId),
+    queryFn: () => opdService.listPatientPrescriptions(patientId),
   });
 
   if (isLoading) {
@@ -2487,11 +2671,11 @@ function CertificatesTab({
 
   const { data: certificates = [], isLoading } = useQuery({
     queryKey: ["patient-certificates", patientId],
-    queryFn: () => api.listCertificates(patientId),
+    queryFn: () => opdService.listCertificates(patientId),
   });
 
   const createMutation = useMutation({
-    mutationFn: (data: CreateMedicalCertificateRequest) => api.createCertificate(data),
+    mutationFn: (data: CreateMedicalCertificateRequest) => opdService.createCertificate(data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["patient-certificates", patientId] });
       notifications.show({
@@ -2673,7 +2857,7 @@ function ChartsTab({ patientId }: { patientId: string }) {
 
   const { data: history = [], isLoading } = useQuery({
     queryKey: ["patient-vitals-history", patientId],
-    queryFn: () => api.listPatientVitalsHistory(patientId),
+    queryFn: () => opdService.listPatientVitalsHistory(patientId),
   });
 
   const chartData = useMemo(() => {
@@ -2766,24 +2950,25 @@ function TimelineTab({ patientId }: { patientId: string }) {
   const [typeFilter, setTypeFilter] = useState<string | null>(null);
   const { data: visits = [], isLoading: loadingVisits } = useQuery({
     queryKey: ["patient-visits", patientId],
-    queryFn: () => api.listPatientVisits(patientId),
+    queryFn: () => opdService.listPatientVisits(patientId),
   });
   const { data: rxHistory = [] } = useQuery({
     queryKey: ["patient-prescriptions", patientId],
-    queryFn: () => api.listPatientPrescriptions(patientId),
+    queryFn: () => opdService.listPatientPrescriptions(patientId),
   });
   const { data: labOrders = [] } = useQuery({
     queryKey: ["patient-lab-orders", patientId],
-    queryFn: () => api.listPatientLabOrders(patientId),
+    queryFn: () => opdService.listPatientLabOrders(patientId),
   });
   const { data: certificates = [] } = useQuery({
     queryKey: ["patient-certificates", patientId],
-    queryFn: () => api.listCertificates(patientId),
+    queryFn: () => opdService.listCertificates(patientId),
   });
 
   // Merge into unified timeline
   const timelineItems = useMemo(() => {
     const items: {
+      key: string;
       date: string;
       type: string;
       title: string;
@@ -2802,6 +2987,7 @@ function TimelineTab({ patientId }: { patientId: string }) {
         .filter(Boolean)
         .join(", ");
       items.push({
+        key: `visit-${v.id}`,
         date: v.encounter_date ?? v.created_at,
         type: "visit",
         title: `${v.encounter_type.toUpperCase()} visit — ${v.status}`,
@@ -2820,6 +3006,7 @@ function TimelineTab({ patientId }: { patientId: string }) {
 
     for (const rx of rxHistory as PrescriptionHistoryItem[]) {
       items.push({
+        key: `prescription-${rx.prescription.id}`,
         date: rx.encounter_date ?? rx.prescription.created_at,
         type: "prescription",
         title: `Prescription (${rx.items.length} items)`,
@@ -2831,6 +3018,7 @@ function TimelineTab({ patientId }: { patientId: string }) {
 
     for (const lo of labOrders) {
       items.push({
+        key: `lab-${lo.id}`,
         date: lo.created_at,
         type: "lab",
         title: `Lab: ${lo.test_name ?? "Test"}`,
@@ -2842,6 +3030,7 @@ function TimelineTab({ patientId }: { patientId: string }) {
 
     for (const cert of certificates as MedicalCertificate[]) {
       items.push({
+        key: `certificate-${cert.id}`,
         date: cert.created_at,
         type: "certificate",
         title: `${cert.certificate_type.replace(/_/g, " ")} certificate`,
@@ -2902,9 +3091,9 @@ function TimelineTab({ patientId }: { patientId: string }) {
         </Text>
       </Group>
       <Timeline active={-1} bulletSize={24} lineWidth={2}>
-        {filteredItems.map((item, idx) => (
+        {filteredItems.map((item) => (
           <Timeline.Item
-            key={idx}
+            key={item.key}
             bullet={item.icon}
             color={item.color}
             title={
@@ -2958,35 +3147,49 @@ function ProceduresTab({
 }) {
   const emit = useClinicalEmit();
   const queryClient = useQueryClient();
-  const [showForm, setShowForm] = useState(false);
-  const [selectedProcId, setSelectedProcId] = useState<string | null>(null);
-  const [priority, setPriority] = useState<string | null>("routine");
-  const [notes, setNotes] = useState("");
+  const [formOpened, formHandlers] = useDisclosure(false);
   const [dupeWarning, setDupeWarning] = useState<DuplicateOrderInfo[]>([]);
+  const {
+    control,
+    handleSubmit,
+    reset,
+    watch,
+    formState: { errors },
+  } = useForm({
+    resolver: zodResolver(opdProcedureOrderFormSchema),
+    defaultValues: DEFAULT_OPD_PROCEDURE_ORDER_FORM_VALUES,
+    mode: "onTouched",
+  });
+  const selectedProcId = watch("procedure_id");
 
-  const { data: catalog = [] } = useQuery({
+  const { data: catalog = [] } = useQuery<ProcedureCatalog[]>({
     queryKey: ["procedure-catalog"],
-    queryFn: () => api.listProcedureCatalog(),
+    queryFn: () => opdService.listProcedureCatalog(),
     staleTime: 300_000,
   });
 
-  const { data: orders = [] } = useQuery({
+  const { data: orders = [] } = useQuery<ProcedureOrderWithName[]>({
     queryKey: ["procedure-orders", encounterId],
-    queryFn: () => api.listProcedureOrders(encounterId),
+    queryFn: () => opdService.listProcedureOrders(encounterId),
   });
 
-  const procOptions = (catalog as ProcedureCatalog[]).map((p) => ({
-    value: p.id,
-    label: `${p.code} — ${p.name}${p.category ? ` (${p.category})` : ""}`,
+  const procOptions = catalog.map((procedure) => ({
+    value: procedure.id,
+    label: `${procedure.code} — ${procedure.name}${
+      procedure.category ? ` (${procedure.category})` : ""
+    }`,
   }));
 
   // Duplicate check on procedure selection
-  const handleProcSelect = async (procId: string | null) => {
-    setSelectedProcId(procId);
+  const handleProcSelect = async (
+    procId: string | null,
+    onChange: (value: string | null) => void,
+  ) => {
+    onChange(procId);
     setDupeWarning([]);
     if (procId) {
       try {
-        const dupes = await api.checkDuplicateOrders({
+        const dupes = await opdService.checkDuplicateOrders({
           patient_id: patientId,
           procedure_id: procId,
         });
@@ -2998,7 +3201,7 @@ function ProceduresTab({
   };
 
   const createMutation = useMutation({
-    mutationFn: (data: CreateProcedureOrderRequest) => api.createProcedureOrder(data),
+    mutationFn: opdService.createProcedureOrder,
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["procedure-orders", encounterId] });
       notifications.show({
@@ -3007,11 +3210,9 @@ function ProceduresTab({
         color: "success",
       });
       emit("procedure.ordered", { encounter_id: encounterId, patient_id: patientId });
-      setSelectedProcId(null);
-      setPriority("routine");
-      setNotes("");
+      reset(DEFAULT_OPD_PROCEDURE_ORDER_FORM_VALUES);
       setDupeWarning([]);
-      setShowForm(false);
+      formHandlers.close();
     },
     onError: () => {
       notifications.show({ title: "Error", message: "Failed to order procedure", color: "danger" });
@@ -3019,7 +3220,7 @@ function ProceduresTab({
   });
 
   const cancelMutation = useMutation({
-    mutationFn: (id: string) => api.cancelProcedureOrder(id),
+    mutationFn: (id: string) => opdService.cancelProcedureOrder(id),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["procedure-orders", encounterId] });
       notifications.show({
@@ -3030,39 +3231,39 @@ function ProceduresTab({
     },
   });
 
-  const handleOrder = () => {
-    if (!selectedProcId) return;
-    createMutation.mutate({
-      patient_id: patientId,
-      encounter_id: encounterId,
-      procedure_id: selectedProcId,
-      priority: priority ?? undefined,
-      notes: notes.trim() || undefined,
-    });
-  };
+  const handleOrder = handleSubmit((values) => {
+    createMutation.mutate(toCreateProcedureOrderRequest(values, patientId, encounterId));
+  });
 
   return (
     <Stack>
-      {canUpdate && !showForm && (
+      {canUpdate && !formOpened && (
         <Group>
-          <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => setShowForm(true)}>
+          <Button size="xs" leftSection={<IconPlus size={14} />} onClick={formHandlers.open}>
             Order Procedure
           </Button>
         </Group>
       )}
 
-      {showForm && (
+      {formOpened && (
         <Card padding="sm" radius="md" withBorder>
           <Stack gap="xs">
-            <Select
-              label="Procedure"
-              placeholder="Search procedures..."
-              data={procOptions}
-              value={selectedProcId}
-              onChange={handleProcSelect}
-              searchable
-              nothingFoundMessage="No procedures found"
-              required
+            <Controller
+              control={control}
+              name="procedure_id"
+              render={({ field }) => (
+                <Select
+                  label="Procedure"
+                  placeholder="Search procedures..."
+                  data={procOptions}
+                  value={field.value}
+                  onChange={(value) => void handleProcSelect(value, field.onChange)}
+                  searchable
+                  nothingFoundMessage="No procedures found"
+                  error={errors.procedure_id?.message}
+                  required
+                />
+              )}
             />
             {dupeWarning.length > 0 && (
               <Alert
@@ -3077,30 +3278,40 @@ function ProceduresTab({
                 </Text>
               </Alert>
             )}
-            <Select
-              label="Priority"
-              data={[
-                { value: "routine", label: "Routine" },
-                { value: "urgent", label: "Urgent" },
-                { value: "stat", label: "STAT" },
-              ]}
-              value={priority}
-              onChange={setPriority}
+            <Controller
+              control={control}
+              name="priority"
+              render={({ field }) => (
+                <Select
+                  label="Priority"
+                  data={OPD_PROCEDURE_PRIORITY_OPTIONS}
+                  value={field.value}
+                  onChange={field.onChange}
+                  error={errors.priority?.message}
+                />
+              )}
             />
-            <Textarea
-              label="Notes"
-              placeholder="Clinical notes for procedure..."
-              value={notes}
-              onChange={(e) => setNotes(e.currentTarget.value)}
-              autosize
-              minRows={2}
+            <Controller
+              control={control}
+              name="notes"
+              render={({ field }) => (
+                <Textarea
+                  label="Notes"
+                  placeholder="Clinical notes for procedure..."
+                  value={field.value}
+                  onChange={field.onChange}
+                  autosize
+                  minRows={2}
+                />
+              )}
             />
             <Group justify="flex-end" gap="xs">
               <Button
                 variant="subtle"
                 size="sm"
                 onClick={() => {
-                  setShowForm(false);
+                  formHandlers.close();
+                  reset(DEFAULT_OPD_PROCEDURE_ORDER_FORM_VALUES);
                   setDupeWarning([]);
                 }}
               >
@@ -3120,7 +3331,7 @@ function ProceduresTab({
         </Card>
       )}
 
-      {(orders as ProcedureOrderWithName[]).length > 0 && (
+      {orders.length > 0 && (
         <Table striped highlightOnHover>
           <Table.Thead>
             <Table.Tr>
@@ -3132,7 +3343,7 @@ function ProceduresTab({
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
-            {(orders as ProcedureOrderWithName[]).map((order) => (
+            {orders.map((order) => (
               <Table.Tr key={order.id}>
                 <Table.Td>
                   <Text size="sm" fw={500}>
@@ -3183,7 +3394,7 @@ function ProceduresTab({
         </Table>
       )}
 
-      {!showForm && (orders as ProcedureOrderWithName[]).length === 0 && (
+      {!formOpened && orders.length === 0 && (
         <Text size="sm" c="dimmed" ta="center" py="md">
           No procedures ordered yet.
         </Text>
@@ -3228,12 +3439,12 @@ function ReferralsTab({
 
   const { data: referrals = [], isLoading } = useQuery({
     queryKey: ["patient-referrals", patientId],
-    queryFn: () => api.listPatientReferrals(patientId),
+    queryFn: () => opdService.listPatientReferrals(patientId),
   });
 
   const { data: departments = [] } = useQuery({
     queryKey: ["departments"],
-    queryFn: () => api.listDepartments(),
+    queryFn: () => opdService.listDepartments(),
     staleTime: 600_000,
   });
 
@@ -3246,7 +3457,7 @@ function ReferralsTab({
     .map((d) => ({ value: d.id, label: d.name }));
 
   const createMutation = useMutation({
-    mutationFn: (data: CreateReferralRequest) => api.createReferral(data),
+    mutationFn: (data: CreateReferralRequest) => opdService.createReferral(data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["patient-referrals", patientId] });
       notifications.show({
@@ -3271,7 +3482,7 @@ function ReferralsTab({
       patient_id: patientId,
       encounter_id: encounterId,
       to_department_id: toDeptId,
-      urgency: (urgency as CreateReferralRequest["urgency"]) ?? undefined,
+      urgency: toReferralUrgency(urgency),
       reason: reason.trim(),
       clinical_notes: clinicalNotes.trim() || undefined,
     });
@@ -3413,15 +3624,6 @@ function ReferralsTab({
 
 // ── Reminders ─────────────────────────────────────────────
 
-const REMINDER_TYPES: { value: ReminderType; label: string }[] = [
-  { value: "follow_up", label: "Follow-up" },
-  { value: "lab_review", label: "Lab Review" },
-  { value: "medication_review", label: "Medication Review" },
-  { value: "vaccination", label: "Vaccination" },
-  { value: "screening", label: "Screening" },
-  { value: "custom", label: "Custom" },
-];
-
 function RemindersTab({
   patientId,
   encounterId,
@@ -3432,27 +3634,32 @@ function RemindersTab({
   canUpdate: boolean;
 }) {
   const queryClient = useQueryClient();
-  const [showForm, setShowForm] = useState(false);
-  const [title, setTitle] = useState("");
-  const [reminderType, setReminderType] = useState<string | null>("follow_up");
-  const [reminderDate, setReminderDate] = useState("");
-  const [description, setDescription] = useState("");
-  const [priority, setPriority] = useState<string | null>("normal");
+  const [formOpened, formHandlers] = useDisclosure(false);
+  const {
+    control,
+    handleSubmit,
+    reset,
+    watch,
+    formState: { errors },
+  } = useForm({
+    resolver: zodResolver(opdReminderFormSchema),
+    defaultValues: DEFAULT_OPD_REMINDER_FORM_VALUES,
+    mode: "onTouched",
+  });
+  const reminderValues = watch();
 
-  const { data: reminders = [] } = useQuery({
+  const { data: reminders = [] } = useQuery<PatientReminder[]>({
     queryKey: ["reminders", patientId],
-    queryFn: () => api.listReminders({ patient_id: patientId }),
+    queryFn: () => opdService.listReminders({ patient_id: patientId }),
   });
 
   const createMutation = useMutation({
-    mutationFn: (data: CreateReminderRequest) => api.createReminder(data),
-    onSuccess: () => {
+    mutationFn: opdService.createReminder,
+    onSuccess: (_data, variables) => {
       void queryClient.invalidateQueries({ queryKey: ["reminders", patientId] });
-      notifications.show({ title: "Reminder created", message: title, color: "success" });
-      setShowForm(false);
-      setTitle("");
-      setDescription("");
-      setReminderDate("");
+      notifications.show({ title: "Reminder created", message: variables.title, color: "success" });
+      formHandlers.close();
+      reset(DEFAULT_OPD_REMINDER_FORM_VALUES);
     },
     onError: () => {
       notifications.show({ title: "Error", message: "Failed to create reminder", color: "danger" });
@@ -3460,26 +3667,22 @@ function RemindersTab({
   });
 
   const completeMutation = useMutation({
-    mutationFn: (id: string) => api.completeReminder(id),
+    mutationFn: (id: string) => opdService.completeReminder(id),
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["reminders", patientId] }),
   });
 
   const cancelMutation = useMutation({
-    mutationFn: (id: string) => api.cancelReminder(id),
+    mutationFn: (id: string) => opdService.cancelReminder(id),
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: ["reminders", patientId] }),
   });
 
-  const handleCreate = () => {
-    if (!title.trim() || !reminderDate || !reminderType) return;
-    createMutation.mutate({
-      patient_id: patientId,
-      encounter_id: encounterId,
-      reminder_type: reminderType as ReminderType,
-      reminder_date: reminderDate,
-      title: title.trim(),
-      description: description.trim() || undefined,
-      priority: (priority as CreateReminderRequest["priority"]) ?? undefined,
-    });
+  const handleCreate = handleSubmit((values) => {
+    createMutation.mutate(toCreateReminderRequest(values, patientId, encounterId));
+  });
+
+  const closeForm = () => {
+    formHandlers.close();
+    reset(DEFAULT_OPD_REMINDER_FORM_VALUES);
   };
 
   const priorityColors: Record<string, string> = {
@@ -3502,13 +3705,13 @@ function RemindersTab({
     <Stack>
       {canUpdate && (
         <Group justify="flex-end">
-          <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => setShowForm(true)}>
+          <Button size="xs" leftSection={<IconPlus size={14} />} onClick={formHandlers.open}>
             Add Reminder
           </Button>
         </Group>
       )}
 
-      {(reminders as PatientReminder[]).length === 0 ? (
+      {reminders.length === 0 ? (
         <Text size="sm" c="dimmed" ta="center" py="md">
           No reminders yet.
         </Text>
@@ -3525,7 +3728,7 @@ function RemindersTab({
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
-            {(reminders as PatientReminder[]).map((r) => (
+            {reminders.map((r) => (
               <Table.Tr key={r.id}>
                 <Table.Td>{r.title}</Table.Td>
                 <Table.Td>
@@ -3576,54 +3779,68 @@ function RemindersTab({
         </Table>
       )}
 
-      <Modal opened={showForm} onClose={() => setShowForm(false)} title="New Reminder" size="md">
+      <Modal opened={formOpened} onClose={closeForm} title="New Reminder" size="md">
         <Stack gap="sm">
-          <TextInput
-            label="Title"
-            value={title}
-            onChange={(e) => setTitle(e.currentTarget.value)}
-            required
+          <Controller
+            control={control}
+            name="title"
+            render={({ field }) => (
+              <TextInput label="Title" error={errors.title?.message} required {...field} />
+            )}
           />
-          <Select
-            label="Type"
-            data={REMINDER_TYPES}
-            value={reminderType}
-            onChange={setReminderType}
-            required
+          <Controller
+            control={control}
+            name="reminder_type"
+            render={({ field }) => (
+              <Select
+                label="Type"
+                data={OPD_REMINDER_TYPE_OPTIONS}
+                value={field.value}
+                onChange={field.onChange}
+                error={errors.reminder_type?.message}
+                required
+              />
+            )}
           />
-          <TextInput
-            label="Reminder Date"
-            type="date"
-            value={reminderDate}
-            onChange={(e) => setReminderDate(e.currentTarget.value)}
-            required
+          <Controller
+            control={control}
+            name="reminder_date"
+            render={({ field }) => (
+              <TextInput
+                label="Reminder Date"
+                type="date"
+                error={errors.reminder_date?.message}
+                required
+                {...field}
+              />
+            )}
           />
-          <Select
-            label="Priority"
-            data={[
-              { value: "low", label: "Low" },
-              { value: "normal", label: "Normal" },
-              { value: "high", label: "High" },
-              { value: "urgent", label: "Urgent" },
-            ]}
-            value={priority}
-            onChange={setPriority}
+          <Controller
+            control={control}
+            name="priority"
+            render={({ field }) => (
+              <Select
+                label="Priority"
+                data={OPD_REMINDER_PRIORITY_OPTIONS}
+                value={field.value}
+                onChange={field.onChange}
+                error={errors.priority?.message}
+              />
+            )}
           />
-          <Textarea
-            label="Description"
-            value={description}
-            onChange={(e) => setDescription(e.currentTarget.value)}
-            autosize
-            minRows={2}
+          <Controller
+            control={control}
+            name="description"
+            render={({ field }) => <Textarea label="Description" autosize minRows={2} {...field} />}
           />
           <Group justify="flex-end">
-            <Button variant="subtle" onClick={() => setShowForm(false)}>
+            <Button variant="subtle" onClick={closeForm}>
               Cancel
             </Button>
             <Button
               onClick={handleCreate}
               loading={createMutation.isPending}
-              disabled={!title.trim() || !reminderDate || !reminderType}
+              disabled={!reminderValues.title.trim() || !reminderValues.reminder_date}
             >
               Create Reminder
             </Button>
@@ -3646,29 +3863,25 @@ function FeedbackTab({
   canUpdate: boolean;
 }) {
   const queryClient = useQueryClient();
-  const [showForm, setShowForm] = useState(false);
-  const [rating, setRating] = useState<string | null>(null);
-  const [waitTimeRating, setWaitTimeRating] = useState<string | null>(null);
-  const [staffRating, setStaffRating] = useState<string | null>(null);
-  const [cleanlinessRating, setCleanlinessRating] = useState<string | null>(null);
-  const [experience, setExperience] = useState("");
-  const [suggestions, setSuggestions] = useState("");
-
-  const { data: feedback = [] } = useQuery({
-    queryKey: ["feedback", patientId],
-    queryFn: () => api.listPatientFeedback(patientId),
+  const [formOpened, formHandlers] = useDisclosure(false);
+  const {
+    control,
+    handleSubmit,
+    reset,
+    formState: { errors },
+  } = useForm({
+    resolver: zodResolver(opdFeedbackFormSchema),
+    defaultValues: DEFAULT_OPD_FEEDBACK_FORM_VALUES,
+    mode: "onTouched",
   });
 
-  const ratingOptions = [
-    { value: "1", label: "1 - Poor" },
-    { value: "2", label: "2 - Fair" },
-    { value: "3", label: "3 - Good" },
-    { value: "4", label: "4 - Very Good" },
-    { value: "5", label: "5 - Excellent" },
-  ];
+  const { data: feedback = [] } = useQuery<PatientFeedback[]>({
+    queryKey: ["feedback", patientId],
+    queryFn: () => opdService.listPatientFeedback(patientId),
+  });
 
   const createMutation = useMutation({
-    mutationFn: (data: CreateFeedbackRequest) => api.createFeedback(data),
+    mutationFn: opdService.createFeedback,
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["feedback", patientId] });
       notifications.show({
@@ -3676,30 +3889,21 @@ function FeedbackTab({
         message: "Thank you for the feedback",
         color: "success",
       });
-      setShowForm(false);
-      setRating(null);
-      setWaitTimeRating(null);
-      setStaffRating(null);
-      setCleanlinessRating(null);
-      setExperience("");
-      setSuggestions("");
+      formHandlers.close();
+      reset(DEFAULT_OPD_FEEDBACK_FORM_VALUES);
     },
     onError: () => {
       notifications.show({ title: "Error", message: "Failed to submit feedback", color: "danger" });
     },
   });
 
-  const handleCreate = () => {
-    createMutation.mutate({
-      patient_id: patientId,
-      encounter_id: encounterId,
-      rating: rating ? Number(rating) : undefined,
-      wait_time_rating: waitTimeRating ? Number(waitTimeRating) : undefined,
-      staff_rating: staffRating ? Number(staffRating) : undefined,
-      cleanliness_rating: cleanlinessRating ? Number(cleanlinessRating) : undefined,
-      overall_experience: experience.trim() || undefined,
-      suggestions: suggestions.trim() || undefined,
-    });
+  const handleCreate = handleSubmit((values) => {
+    createMutation.mutate(toCreateFeedbackRequest(values, patientId, encounterId));
+  });
+
+  const closeForm = () => {
+    formHandlers.close();
+    reset(DEFAULT_OPD_FEEDBACK_FORM_VALUES);
   };
 
   const ratingColor = (val: number | null) => {
@@ -3713,19 +3917,19 @@ function FeedbackTab({
     <Stack>
       {canUpdate && (
         <Group justify="flex-end">
-          <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => setShowForm(true)}>
+          <Button size="xs" leftSection={<IconPlus size={14} />} onClick={formHandlers.open}>
             Collect Feedback
           </Button>
         </Group>
       )}
 
-      {(feedback as PatientFeedback[]).length === 0 ? (
+      {feedback.length === 0 ? (
         <Text size="sm" c="dimmed" ta="center" py="md">
           No feedback collected yet.
         </Text>
       ) : (
         <Stack gap="sm">
-          {(feedback as PatientFeedback[]).map((fb) => (
+          {feedback.map((fb) => (
             <Card key={fb.id} padding="sm" radius="md" withBorder>
               <Group justify="space-between" mb="xs">
                 <Text size="sm" c="dimmed">
@@ -3774,48 +3978,74 @@ function FeedbackTab({
         </Stack>
       )}
 
-      <Modal
-        opened={showForm}
-        onClose={() => setShowForm(false)}
-        title="Collect Patient Feedback"
-        size="md"
-      >
+      <Modal opened={formOpened} onClose={closeForm} title="Collect Patient Feedback" size="md">
         <Stack gap="sm">
-          <Select label="Overall Rating" data={ratingOptions} value={rating} onChange={setRating} />
-          <Select
-            label="Wait Time"
-            data={ratingOptions}
-            value={waitTimeRating}
-            onChange={setWaitTimeRating}
+          <Controller
+            control={control}
+            name="rating"
+            render={({ field }) => (
+              <Select
+                label="Overall Rating"
+                data={OPD_RATING_OPTIONS}
+                value={field.value}
+                onChange={field.onChange}
+                error={errors.rating?.message}
+              />
+            )}
           />
-          <Select
-            label="Staff Courtesy"
-            data={ratingOptions}
-            value={staffRating}
-            onChange={setStaffRating}
+          <Controller
+            control={control}
+            name="wait_time_rating"
+            render={({ field }) => (
+              <Select
+                label="Wait Time"
+                data={OPD_RATING_OPTIONS}
+                value={field.value}
+                onChange={field.onChange}
+                error={errors.wait_time_rating?.message}
+              />
+            )}
           />
-          <Select
-            label="Cleanliness"
-            data={ratingOptions}
-            value={cleanlinessRating}
-            onChange={setCleanlinessRating}
+          <Controller
+            control={control}
+            name="staff_rating"
+            render={({ field }) => (
+              <Select
+                label="Staff Courtesy"
+                data={OPD_RATING_OPTIONS}
+                value={field.value}
+                onChange={field.onChange}
+                error={errors.staff_rating?.message}
+              />
+            )}
           />
-          <Textarea
-            label="Overall Experience"
-            value={experience}
-            onChange={(e) => setExperience(e.currentTarget.value)}
-            autosize
-            minRows={2}
+          <Controller
+            control={control}
+            name="cleanliness_rating"
+            render={({ field }) => (
+              <Select
+                label="Cleanliness"
+                data={OPD_RATING_OPTIONS}
+                value={field.value}
+                onChange={field.onChange}
+                error={errors.cleanliness_rating?.message}
+              />
+            )}
           />
-          <Textarea
-            label="Suggestions"
-            value={suggestions}
-            onChange={(e) => setSuggestions(e.currentTarget.value)}
-            autosize
-            minRows={2}
+          <Controller
+            control={control}
+            name="overall_experience"
+            render={({ field }) => (
+              <Textarea label="Overall Experience" autosize minRows={2} {...field} />
+            )}
+          />
+          <Controller
+            control={control}
+            name="suggestions"
+            render={({ field }) => <Textarea label="Suggestions" autosize minRows={2} {...field} />}
           />
           <Group justify="flex-end">
-            <Button variant="subtle" onClick={() => setShowForm(false)}>
+            <Button variant="subtle" onClick={closeForm}>
               Cancel
             </Button>
             <Button onClick={handleCreate} loading={createMutation.isPending}>
@@ -3830,15 +4060,6 @@ function FeedbackTab({
 
 // ── Consents ──────────────────────────────────────────────
 
-const CONSENT_TYPES: { value: ProcedureConsentType; label: string }[] = [
-  { value: "procedure", label: "Procedure" },
-  { value: "anesthesia", label: "Anesthesia" },
-  { value: "blood_transfusion", label: "Blood Transfusion" },
-  { value: "surgery", label: "Surgery" },
-  { value: "investigation", label: "Investigation" },
-  { value: "general", label: "General" },
-];
-
 function ConsentsTab({
   patientId,
   encounterId,
@@ -3849,34 +4070,36 @@ function ConsentsTab({
   canUpdate: boolean;
 }) {
   const queryClient = useQueryClient();
-  const [showForm, setShowForm] = useState(false);
-  const [procedureName, setProcedureName] = useState("");
-  const [consentType, setConsentType] = useState<string | null>("procedure");
-  const [risks, setRisks] = useState("");
-  const [alternatives, setAlternatives] = useState("");
-  const [benefits, setBenefits] = useState("");
-  const [consentedByName, setConsentedByName] = useState("");
-  const [consentedByRelation, setConsentedByRelation] = useState("");
-  const [witnessName, setWitnessName] = useState("");
+  const [formOpened, formHandlers] = useDisclosure(false);
+  const {
+    control,
+    handleSubmit,
+    reset,
+    watch,
+    formState: { errors },
+  } = useForm({
+    resolver: zodResolver(opdProcedureConsentFormSchema),
+    defaultValues: DEFAULT_OPD_CONSENT_FORM_VALUES,
+    mode: "onTouched",
+  });
+  const procedureName = watch("procedure_name");
 
-  const { data: consents = [] } = useQuery({
+  const { data: consents = [] } = useQuery<ProcedureConsent[]>({
     queryKey: ["consents", patientId],
-    queryFn: () => api.listProcedureConsents(patientId),
+    queryFn: () => opdService.listProcedureConsents(patientId),
   });
 
   const createMutation = useMutation({
-    mutationFn: (data: CreateConsentRequest) => api.createProcedureConsent(data),
-    onSuccess: () => {
+    mutationFn: opdService.createProcedureConsent,
+    onSuccess: (_data, variables) => {
       void queryClient.invalidateQueries({ queryKey: ["consents", patientId] });
-      notifications.show({ title: "Consent created", message: procedureName, color: "success" });
-      setShowForm(false);
-      setProcedureName("");
-      setRisks("");
-      setAlternatives("");
-      setBenefits("");
-      setConsentedByName("");
-      setConsentedByRelation("");
-      setWitnessName("");
+      notifications.show({
+        title: "Consent created",
+        message: variables.procedure_name,
+        color: "success",
+      });
+      formHandlers.close();
+      reset(DEFAULT_OPD_CONSENT_FORM_VALUES);
     },
     onError: () => {
       notifications.show({ title: "Error", message: "Failed to create consent", color: "danger" });
@@ -3884,7 +4107,7 @@ function ConsentsTab({
   });
 
   const signMutation = useMutation({
-    mutationFn: (id: string) => api.signProcedureConsent(id),
+    mutationFn: (id: string) => opdService.signProcedureConsent(id),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["consents", patientId] });
       notifications.show({
@@ -3895,20 +4118,13 @@ function ConsentsTab({
     },
   });
 
-  const handleCreate = () => {
-    if (!procedureName.trim()) return;
-    createMutation.mutate({
-      patient_id: patientId,
-      encounter_id: encounterId,
-      procedure_name: procedureName.trim(),
-      consent_type: (consentType as ProcedureConsentType) ?? undefined,
-      risks_explained: risks.trim() || undefined,
-      alternatives_explained: alternatives.trim() || undefined,
-      benefits_explained: benefits.trim() || undefined,
-      consented_by_name: consentedByName.trim() || undefined,
-      consented_by_relation: consentedByRelation.trim() || undefined,
-      witness_name: witnessName.trim() || undefined,
-    });
+  const handleCreate = handleSubmit((values) => {
+    createMutation.mutate(toCreateConsentRequest(values, patientId, encounterId));
+  });
+
+  const closeForm = () => {
+    formHandlers.close();
+    reset(DEFAULT_OPD_CONSENT_FORM_VALUES);
   };
 
   const consentStatusColors: Record<string, string> = {
@@ -3923,13 +4139,13 @@ function ConsentsTab({
     <Stack>
       {canUpdate && (
         <Group justify="flex-end">
-          <Button size="xs" leftSection={<IconPlus size={14} />} onClick={() => setShowForm(true)}>
+          <Button size="xs" leftSection={<IconPlus size={14} />} onClick={formHandlers.open}>
             New Consent
           </Button>
         </Group>
       )}
 
-      {(consents as ProcedureConsent[]).length === 0 ? (
+      {consents.length === 0 ? (
         <Text size="sm" c="dimmed" ta="center" py="md">
           No consents recorded.
         </Text>
@@ -3946,7 +4162,7 @@ function ConsentsTab({
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
-            {(consents as ProcedureConsent[]).map((c) => (
+            {consents.map((c) => (
               <Table.Tr key={c.id}>
                 <Table.Td>{c.procedure_name}</Table.Td>
                 <Table.Td>
@@ -3981,65 +4197,73 @@ function ConsentsTab({
         </Table>
       )}
 
-      <Modal
-        opened={showForm}
-        onClose={() => setShowForm(false)}
-        title="New Procedure Consent"
-        size="lg"
-      >
+      <Modal opened={formOpened} onClose={closeForm} title="New Procedure Consent" size="lg">
         <Stack gap="sm">
-          <TextInput
-            label="Procedure Name"
-            value={procedureName}
-            onChange={(e) => setProcedureName(e.currentTarget.value)}
-            required
+          <Controller
+            control={control}
+            name="procedure_name"
+            render={({ field }) => (
+              <TextInput
+                label="Procedure Name"
+                error={errors.procedure_name?.message}
+                required
+                {...field}
+              />
+            )}
           />
-          <Select
-            label="Consent Type"
-            data={CONSENT_TYPES}
-            value={consentType}
-            onChange={setConsentType}
+          <Controller
+            control={control}
+            name="consent_type"
+            render={({ field }) => (
+              <Select
+                label="Consent Type"
+                data={OPD_CONSENT_TYPE_OPTIONS}
+                value={field.value}
+                onChange={field.onChange}
+                error={errors.consent_type?.message}
+              />
+            )}
           />
-          <Textarea
-            label="Risks Explained"
-            value={risks}
-            onChange={(e) => setRisks(e.currentTarget.value)}
-            autosize
-            minRows={2}
+          <Controller
+            control={control}
+            name="risks_explained"
+            render={({ field }) => (
+              <Textarea label="Risks Explained" autosize minRows={2} {...field} />
+            )}
           />
-          <Textarea
-            label="Alternatives Explained"
-            value={alternatives}
-            onChange={(e) => setAlternatives(e.currentTarget.value)}
-            autosize
-            minRows={2}
+          <Controller
+            control={control}
+            name="alternatives_explained"
+            render={({ field }) => (
+              <Textarea label="Alternatives Explained" autosize minRows={2} {...field} />
+            )}
           />
-          <Textarea
-            label="Benefits Explained"
-            value={benefits}
-            onChange={(e) => setBenefits(e.currentTarget.value)}
-            autosize
-            minRows={2}
+          <Controller
+            control={control}
+            name="benefits_explained"
+            render={({ field }) => (
+              <Textarea label="Benefits Explained" autosize minRows={2} {...field} />
+            )}
           />
           <Group grow>
-            <TextInput
-              label="Consented By (Name)"
-              value={consentedByName}
-              onChange={(e) => setConsentedByName(e.currentTarget.value)}
+            <Controller
+              control={control}
+              name="consented_by_name"
+              render={({ field }) => <TextInput label="Consented By (Name)" {...field} />}
             />
-            <TextInput
-              label="Relation to Patient"
-              value={consentedByRelation}
-              onChange={(e) => setConsentedByRelation(e.currentTarget.value)}
+            <Controller
+              control={control}
+              name="consented_by_relation"
+              render={({ field }) => <TextInput label="Relation to Patient" {...field} />}
             />
           </Group>
-          <TextInput
-            label="Witness Name"
-            value={witnessName}
-            onChange={(e) => setWitnessName(e.currentTarget.value)}
+          <Controller
+            control={control}
+            name="witness_name"
+            render={({ field }) => <TextInput label="Witness Name" {...field} />}
           />
           <Group justify="flex-end">
-            <Button variant="subtle" onClick={() => setShowForm(false)}>
+            <Button variant="subtle" onClick={closeForm}>
               Cancel
             </Button>
             <Button
@@ -4067,12 +4291,12 @@ function DocketTab() {
 
   const { data: docket, isLoading } = useQuery({
     queryKey: ["docket", selectedDate],
-    queryFn: () => api.getDoctorDocket(selectedDate || undefined),
+    queryFn: () => opdService.getDoctorDocket(selectedDate || undefined),
     enabled: Boolean(selectedDate),
   });
 
   const generateMutation = useMutation({
-    mutationFn: (date?: string) => api.generateDoctorDocket(date),
+    mutationFn: (date?: string) => opdService.generateDoctorDocket(date),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["docket", selectedDate] });
       notifications.show({
@@ -4190,16 +4414,17 @@ function PreAuthTab({
   const [policyNo, setPolicyNo] = useState("");
   const [procCodes, setProcCodes] = useState("");
   const [diagCodes, setDiagCodes] = useState("");
+  const [selectedDiagCode, setSelectedDiagCode] = useState("");
   const [estCost, setEstCost] = useState("");
   const [notes, setNotes] = useState("");
 
   const { data: requests = [] } = useQuery({
     queryKey: ["pre-auth", patientId],
-    queryFn: () => api.listPreAuthRequests(patientId),
+    queryFn: () => opdService.listPreAuthRequests(patientId),
   });
 
   const createMutation = useMutation({
-    mutationFn: (data: CreatePreAuthRequest) => api.createPreAuthRequest(data),
+    mutationFn: (data: CreatePreAuthRequest) => opdService.createPreAuthRequest(data),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["pre-auth", patientId] });
       notifications.show({
@@ -4212,10 +4437,21 @@ function PreAuthTab({
       setPolicyNo("");
       setProcCodes("");
       setDiagCodes("");
+      setSelectedDiagCode("");
       setEstCost("");
       setNotes("");
     },
   });
+
+  const addDiagnosisCode = (code: string) => {
+    const existing = diagCodes
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean);
+    if (!existing.some((item) => item.toLowerCase() === code.toLowerCase())) {
+      setDiagCodes([...existing, code].join(", "));
+    }
+  };
 
   const handleCreate = () => {
     if (!insurer.trim()) return;
@@ -4330,9 +4566,17 @@ function PreAuthTab({
             value={procCodes}
             onChange={(e) => setProcCodes(e.currentTarget.value)}
           />
+          <Icd11CodeSelect
+            label="Add ICD-11 diagnosis"
+            value={selectedDiagCode || null}
+            onChange={(value) => {
+              setSelectedDiagCode(value ?? "");
+              if (value) addDiagnosisCode(value);
+            }}
+          />
           <TextInput
-            label="Diagnosis Codes"
-            placeholder="Comma-separated ICD-10 codes"
+            label="Diagnosis codes"
+            placeholder="ICD-11 codes selected for claim/pre-auth"
             value={diagCodes}
             onChange={(e) => setDiagCodes(e.currentTarget.value)}
           />
@@ -4378,7 +4622,8 @@ function ReferralTrackingTab() {
 
   const { data: referrals = [], isLoading } = useQuery({
     queryKey: ["opd-referral-tracking", filterStatus],
-    queryFn: () => api.opdReferralTracking(filterStatus ? { status: filterStatus } : undefined),
+    queryFn: () =>
+      opdService.opdReferralTracking(filterStatus ? { status: filterStatus } : undefined),
   });
 
   const refStatusColors: Record<string, string> = {
@@ -4478,7 +4723,7 @@ function ReferralTrackingTab() {
 function FollowupComplianceTab() {
   const { data: rows = [], isLoading } = useQuery({
     queryKey: ["opd-followup-compliance"],
-    queryFn: () => api.opdFollowupCompliance(),
+    queryFn: () => opdService.opdFollowupCompliance(),
   });
 
   const columns = [
@@ -4543,7 +4788,7 @@ function FollowupComplianceTab() {
 function WaitTimeBadge({ departmentId, doctorId }: { departmentId?: string; doctorId?: string }) {
   const { data: estimate } = useQuery({
     queryKey: ["wait-estimate", departmentId, doctorId],
-    queryFn: () => api.getWaitEstimate({ department_id: departmentId, doctor_id: doctorId }),
+    queryFn: () => opdService.getWaitEstimate({ department_id: departmentId, doctor_id: doctorId }),
     refetchInterval: 60_000,
   });
 
@@ -4576,18 +4821,18 @@ function AdmitToIpdButton({
 
   const { data: departments = [] } = useQuery({
     queryKey: ["departments"],
-    queryFn: () => api.listDepartments(),
+    queryFn: () => opdService.listDepartments(),
   });
 
   const { data: beds = [] } = useQuery({
     queryKey: ["available-beds", wardId],
-    queryFn: () => api.listAvailableBeds(wardId ? { ward_id: wardId } : undefined),
+    queryFn: () => opdService.listAvailableBeds(wardId ? { ward_id: wardId } : undefined),
     enabled: opened,
   });
 
   const { data: wards = [] } = useQuery({
     queryKey: ["ipd-wards"],
-    queryFn: () => api.listWards(),
+    queryFn: () => opdService.listWards(),
     enabled: opened,
   });
 
@@ -4602,7 +4847,7 @@ function AdmitToIpdButton({
   }));
 
   const admitMutation = useMutation({
-    mutationFn: (data: AdmitFromOpdRequest) => api.admitFromOpd(encounterId, data),
+    mutationFn: (data: AdmitFromOpdRequest) => opdService.admitFromOpd(encounterId, data),
     onSuccess: (result) => {
       void queryClient.invalidateQueries({ queryKey: ["opd-queue"] });
       notifications.show({
@@ -4699,6 +4944,7 @@ function AdmitToIpdButton({
 }
 
 interface GroupSlotRow {
+  id: string;
   doctorId: string;
   departmentId: string;
   date: string;
@@ -4707,24 +4953,38 @@ interface GroupSlotRow {
   notes: string;
 }
 
+type GroupSlotEditableField = Exclude<keyof GroupSlotRow, "id">;
+
+let groupSlotRowSequence = 0;
+
+function createGroupSlotRow(): GroupSlotRow {
+  groupSlotRowSequence += 1;
+  return {
+    id: `group-slot-${groupSlotRowSequence}`,
+    doctorId: "",
+    departmentId: "",
+    date: "",
+    slotStart: "",
+    slotEnd: "",
+    notes: "",
+  };
+}
+
 function GroupAppointmentModal({ patientId }: { patientId: string }) {
   const [opened, { open, close }] = useDisclosure(false);
   const queryClient = useQueryClient();
-  const [rows, setRows] = useState<GroupSlotRow[]>([
-    { doctorId: "", departmentId: "", date: "", slotStart: "", slotEnd: "", notes: "" },
-    { doctorId: "", departmentId: "", date: "", slotStart: "", slotEnd: "", notes: "" },
-  ]);
+  const [rows, setRows] = useState<GroupSlotRow[]>([createGroupSlotRow(), createGroupSlotRow()]);
 
   const { data: allDoctors = [] } = useQuery({
     queryKey: ["doctors"],
-    queryFn: () => api.listDoctors(),
+    queryFn: () => opdService.listDoctors(),
     staleTime: 600_000,
     enabled: opened,
   });
 
   const { data: groupDepts = [] } = useQuery({
     queryKey: ["departments"],
-    queryFn: () => api.listDepartments(),
+    queryFn: () => opdService.listDepartments(),
     staleTime: 600_000,
   });
 
@@ -4742,15 +5002,12 @@ function GroupAppointmentModal({ patientId }: { patientId: string }) {
     [groupDepts],
   );
 
-  const updateRow = (idx: number, field: keyof GroupSlotRow, value: string) => {
+  const updateRow = (idx: number, field: GroupSlotEditableField, value: string) => {
     setRows((prev) => prev.map((r, i) => (i === idx ? { ...r, [field]: value } : r)));
   };
 
   const addRow = () => {
-    setRows((prev) => [
-      ...prev,
-      { doctorId: "", departmentId: "", date: "", slotStart: "", slotEnd: "", notes: "" },
-    ]);
+    setRows((prev) => [...prev, createGroupSlotRow()]);
   };
 
   const removeRow = (idx: number) => {
@@ -4759,20 +5016,17 @@ function GroupAppointmentModal({ patientId }: { patientId: string }) {
   };
 
   const bookGroupMutation = useMutation({
-    mutationFn: (data: BookAppointmentGroupRequest) => api.bookAppointmentGroup(data),
+    mutationFn: (data: BookAppointmentGroupRequest) => opdService.bookAppointmentGroup(data),
     onSuccess: (result) => {
       void queryClient.invalidateQueries({ queryKey: ["appointments"] });
       void queryClient.invalidateQueries({ queryKey: ["opd-queue"] });
       notifications.show({
         title: "Group appointment booked",
-        message: `${(result as unknown[]).length} appointments created`,
+        message: `${result.length} appointments created`,
         color: "success",
       });
       close();
-      setRows([
-        { doctorId: "", departmentId: "", date: "", slotStart: "", slotEnd: "", notes: "" },
-        { doctorId: "", departmentId: "", date: "", slotStart: "", slotEnd: "", notes: "" },
-      ]);
+      setRows([createGroupSlotRow(), createGroupSlotRow()]);
     },
     onError: () => {
       notifications.show({
@@ -4789,17 +5043,19 @@ function GroupAppointmentModal({ patientId }: { patientId: string }) {
 
   const handleSubmit = () => {
     if (!canSubmit) return;
+    const slotRequests: BookAppointmentGroupRequest["slot_requests"] = rows.map((r) => ({
+      doctor_id: r.doctorId,
+      department_id: r.departmentId,
+      appointment_date: r.date,
+      slot_start: r.slotStart,
+      slot_end: r.slotEnd,
+      appointment_type: "consultation",
+      notes: r.notes.trim() || undefined,
+    }));
+
     bookGroupMutation.mutate({
       patient_id: patientId,
-      slot_requests: rows.map((r) => ({
-        doctor_id: r.doctorId,
-        department_id: r.departmentId,
-        appointment_date: r.date,
-        slot_start: r.slotStart,
-        slot_end: r.slotEnd,
-        appointment_type: "consultation" as const,
-        notes: r.notes.trim() || undefined,
-      })),
+      slot_requests: slotRequests,
     });
   };
 
@@ -4819,7 +5075,7 @@ function GroupAppointmentModal({ patientId }: { patientId: string }) {
             listed doctors.
           </Text>
           {rows.map((row, idx) => (
-            <Card key={idx} padding="xs" radius="sm" withBorder>
+            <Card key={row.id} padding="xs" radius="sm" withBorder>
               <Group gap="xs" align="flex-end" wrap="nowrap">
                 <Select
                   label={`Doctor ${idx + 1}`}

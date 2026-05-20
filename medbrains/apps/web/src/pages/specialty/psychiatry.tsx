@@ -13,7 +13,6 @@ import {
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
 import { useHasPermission } from "@medbrains/stores";
 import type {
   CreatePsychPatientRequest,
@@ -32,6 +31,7 @@ import { DataTable, PageHeader } from "../../components";
 import type { Column } from "../../components/DataTable";
 import { PatientNameCell } from "../../components/PatientNameCell";
 import { useRequirePermission } from "../../hooks/useRequirePermission";
+import { specialtyService } from "../../services/specialty.service";
 
 const ADMISSION_CATEGORIES: { value: PsychAdmissionCategory; label: string }[] = [
   { value: "independent", label: "Independent" },
@@ -39,6 +39,17 @@ const ADMISSION_CATEGORIES: { value: PsychAdmissionCategory; label: string }[] =
   { value: "minor_supported", label: "Minor / Supported" },
   { value: "emergency", label: "Emergency" },
 ];
+
+function toPsychAdmissionCategory(value: string | null): PsychAdmissionCategory {
+  switch (value) {
+    case "supported":
+    case "minor_supported":
+    case "emergency":
+      return value;
+    default:
+      return "independent";
+  }
+}
 
 export function PsychiatryPage() {
   useRequirePermission(P.SPECIALTY.PSYCHIATRY.PATIENTS_LIST);
@@ -52,30 +63,30 @@ export function PsychiatryPage() {
 
   const { data: patients = [], isLoading } = useQuery({
     queryKey: ["psych-patients"],
-    queryFn: () => api.listPsychPatients(),
+    queryFn: () => specialtyService.listPsychPatients(),
   });
 
   const { data: assessments = [] } = useQuery({
     queryKey: ["psych-assessments", selectedId],
-    queryFn: () => api.listPsychAssessments(selectedId!),
+    queryFn: () => specialtyService.listPsychAssessments(selectedId ?? ""),
     enabled: !!selectedId,
   });
 
   const { data: ectSessions = [] } = useQuery({
     queryKey: ["psych-ect", selectedId],
-    queryFn: () => api.listEctSessions(selectedId!),
+    queryFn: () => specialtyService.listEctSessions(selectedId ?? ""),
     enabled: !!selectedId,
   });
 
   const { data: restraints = [] } = useQuery({
     queryKey: ["psych-restraints", selectedId],
-    queryFn: () => api.listRestraints(selectedId!),
+    queryFn: () => specialtyService.listRestraints(selectedId ?? ""),
     enabled: !!selectedId,
   });
 
   const { data: mhrb = [] } = useQuery({
     queryKey: ["psych-mhrb", selectedId],
-    queryFn: () => api.listMhrbNotifications(selectedId!),
+    queryFn: () => specialtyService.listMhrbNotifications(selectedId ?? ""),
     enabled: !!selectedId,
   });
 
@@ -85,7 +96,7 @@ export function PsychiatryPage() {
   });
 
   const createPat = useMutation({
-    mutationFn: (data: CreatePsychPatientRequest) => api.createPsychPatient(data),
+    mutationFn: (data: CreatePsychPatientRequest) => specialtyService.createPsychPatient(data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["psych-patients"] });
       patHandlers.close();
@@ -98,7 +109,7 @@ export function PsychiatryPage() {
   });
 
   const releaseRestraint = useMutation({
-    mutationFn: (id: string) => api.releaseRestraint(id),
+    mutationFn: (id: string) => specialtyService.releaseRestraint(id),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["psych-restraints"] });
       notifications.show({ title: "Released", message: "Restraint released", color: "success" });
@@ -369,7 +380,7 @@ export function PsychiatryPage() {
             onChange={(v) =>
               setPatForm((p) => ({
                 ...p,
-                admission_category: (v ?? "independent") as PsychAdmissionCategory,
+                admission_category: toPsychAdmissionCategory(v),
               }))
             }
           />

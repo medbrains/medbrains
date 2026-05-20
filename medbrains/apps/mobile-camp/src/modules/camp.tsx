@@ -1,7 +1,9 @@
 import type { Module } from "@medbrains/mobile-shell";
 import {
   type Camp,
+  type CampPacketDepartmentRef,
   type CampPacketDiagnosisHistory,
+  type CampPacketLabTestRef,
   type CampPacketMedicationHistory,
   type CampPacketPatientSummary,
   type CampPacketRegistrationHistory,
@@ -21,7 +23,7 @@ import * as Crypto from "expo-crypto";
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
 import { RefreshControl, ScrollView, View } from "react-native";
-import { Button, Text } from "react-native-paper";
+import { Button, Menu, Text } from "react-native-paper";
 import {
   getCampPacket,
   getPatientContext,
@@ -211,6 +213,7 @@ function CampHome(): ReactNode {
           ? `${selectedCamp.camp_code} · ${selectedCamp.scheduled_date} · ${selectedCamp.venue_city ?? "Remote site"}`
           : "Select today's camp once. The app then stays inside that camp workspace."
       }
+      tags={["Mobile-Camp", "offline packet", "patient roster", "sync"]}
       trailing={
         selectedCamp ? (
           <View style={{ alignItems: "flex-end", gap: SPACING.xs }}>
@@ -573,6 +576,10 @@ function PacketSummary({
   const medicines = packet.medication_history ?? [];
   const checklist = packet.remote_checklist ?? [];
   const supplies = packet.supplies ?? [];
+  const departments = packet.department_refs ?? [];
+  const doctors = packet.doctor_refs ?? [];
+  const labTests = packet.lab_test_refs ?? [];
+  const pharmacyStock = packet.pharmacy_stock_refs ?? [];
 
   return (
     <View style={{ gap: SPACING.sm }}>
@@ -583,6 +590,10 @@ function PacketSummary({
         <Metric label="Linked patients" value={patients.length} />
         <Metric label="Past visits" value={visits.length} />
         <Metric label="Medicines" value={medicines.length} />
+        <Metric label="Departments" value={departments.length} />
+        <Metric label="Doctors" value={doctors.length} />
+        <Metric label="Lab catalog" value={labTests.length} />
+        <Metric label="Pharmacy stock" value={pharmacyStock.length} />
         <Metric label="Readiness items" value={checklist.length} />
         <Metric label="Supplies" value={supplies.length} />
         <Metric label="Outbox pending" value={pendingEvents} />
@@ -593,8 +604,8 @@ function PacketSummary({
         </Text>
         <Text variant="bodySmall" style={{ color: COLORS.brandDeep, opacity: 0.75, marginTop: 4 }}>
           Includes camp data, team, intake records, patient search, registration history, prior
-          visits, vitals, diagnosis history, medicines, and active allergy warnings for linked
-          patients only.
+          visits, vitals, diagnosis history, medicines, active allergy warnings, departments,
+          doctors, lab catalog, and pharmacy stock refs for linked patients and field work.
         </Text>
       </Card>
       <View style={{ gap: SPACING.sm }}>
@@ -1618,6 +1629,17 @@ function PatientActionsTab({
 
       <Card eyebrow="Diagnostics" title="Lab sample" pattern="violet">
         <View style={{ gap: SPACING.sm }}>
+          <CampReferenceMenu
+            title="Test from camp packet"
+            rows={packet.lab_test_refs ?? []}
+            selectedId={packet.lab_test_refs.find((test) => test.name === testRequested)?.id ?? ""}
+            label={campLabTestLabel}
+            placeholder="Select blood / urine / screening test"
+            onSelect={(test) => {
+              setTestRequested(test.name);
+              if (test.sample_type) setSampleType(test.sample_type);
+            }}
+          />
           <MobileTextField label="Sample type" value={sampleType} onChangeText={setSampleType} />
           <MobileTextField
             label="Test requested"
@@ -1649,10 +1671,31 @@ function PatientActionsTab({
 
       <Card eyebrow="Continuity" title="Referral" pattern="copper">
         <View style={{ gap: SPACING.sm }}>
+          {packet.remote_setup?.referral_facility_name && (
+            <Button
+              mode="outlined"
+              onPress={() => {
+                setReferralFacility(packet.remote_setup?.referral_facility_name ?? "");
+              }}
+            >
+              Use configured referral facility
+            </Button>
+          )}
           <MobileTextField
             label="Referral facility"
             value={referralFacility}
             onChangeText={setReferralFacility}
+          />
+          <CampReferenceMenu
+            title="Referral department"
+            rows={packet.department_refs ?? []}
+            selectedId={
+              packet.department_refs.find((department) => department.name === referralDepartment)
+                ?.id ?? ""
+            }
+            label={campDepartmentLabel}
+            placeholder="Select department"
+            onSelect={(department) => setReferralDepartment(department.name)}
           />
           <MobileTextField
             label="Department"
@@ -2565,6 +2608,79 @@ function calculateReadiness(rows: CampRemoteChecklistItem[]): {
   };
 }
 
+function CampReferenceMenu<T extends { id: string }>({
+  title,
+  rows,
+  selectedId,
+  label,
+  placeholder,
+  onSelect,
+}: {
+  title: string;
+  rows: T[];
+  selectedId: string;
+  label: (row: T) => string;
+  placeholder: string;
+  onSelect: (row: T) => void;
+}): ReactNode {
+  const [open, setOpen] = useState(false);
+  const selected = rows.find((row) => row.id === selectedId);
+  const visibleRows = rows.slice(0, 24);
+
+  if (rows.length === 0) {
+    return (
+      <Text variant="bodySmall" style={{ color: COLORS.brandDeep, opacity: 0.75 }}>
+        {title}: not available in this packet
+      </Text>
+    );
+  }
+
+  return (
+    <View style={{ gap: SPACING.xs }}>
+      <Text variant="labelMedium" style={{ color: COLORS.ink }}>
+        {title}
+      </Text>
+      <Menu
+        visible={open}
+        onDismiss={() => setOpen(false)}
+        anchor={
+          <Button
+            mode={selected ? "contained" : "outlined"}
+            onPress={() => setOpen(true)}
+            contentStyle={{ justifyContent: "flex-start" }}
+          >
+            {selected ? label(selected) : placeholder}
+          </Button>
+        }
+      >
+        <View style={{ maxHeight: 320 }}>
+          {visibleRows.map((row) => (
+            <Menu.Item
+              key={row.id}
+              title={label(row)}
+              onPress={() => {
+                setOpen(false);
+                onSelect(row);
+              }}
+            />
+          ))}
+          {rows.length > visibleRows.length && (
+            <Menu.Item title={`Showing first ${visibleRows.length} of ${rows.length}`} disabled />
+          )}
+        </View>
+      </Menu>
+    </View>
+  );
+}
+
+function campDepartmentLabel(department: CampPacketDepartmentRef): string {
+  return [department.name, department.code].filter(Boolean).join(" - ");
+}
+
+function campLabTestLabel(test: CampPacketLabTestRef): string {
+  return [test.name, test.code, test.sample_type].filter(Boolean).join(" - ");
+}
+
 async function flushQueuedCampEvents(campId: string): Promise<string> {
   const events = await readCampOutbox(campId);
   if (events.length === 0) {
@@ -2659,5 +2775,7 @@ export const campModule: Module = {
   icon: () => null,
   requiredPermissions: [P.CAMP.LIST],
   navigator: CampScreen,
+  appCodes: ["Mobile-Camp", "Mobile-Doctor", "Mobile-Nurse", "Mobile-Phlebo"],
+  tags: ["camp", "offline-sync", "field-ops", "patient-roster", "registration"],
   offlineDocTypes: ["camp_registration", "camp_screening", "camp_lab_sample"],
 };

@@ -28,7 +28,6 @@ import {
 import { DateInput } from "@mantine/dates";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
 import { useHasPermission } from "@medbrains/stores";
 import type {
   AccreditationBodyType,
@@ -88,9 +87,12 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { DataTable, PageHeader } from "../components";
+import { Icd11CodeSelect } from "../components/Clinical/Icd11CodeSelect";
 import { DepartmentSelect } from "../components/DepartmentSelect";
 import { PatientSearchSelect } from "../components/PatientSearchSelect";
 import { useRequirePermission } from "../hooks/useRequirePermission";
+import { qualityService } from "../services/quality.service";
+import classes from "./quality.module.scss";
 
 // ── Color Maps ──────────────────────────────────────────
 
@@ -190,7 +192,9 @@ function IndicatorsTab() {
   const { data: indicators = [], isLoading } = useQuery({
     queryKey: ["quality-indicators", categoryFilter],
     queryFn: () =>
-      api.listQualityIndicators(categoryFilter ? { category: categoryFilter } : undefined),
+      qualityService.listQualityIndicators(
+        categoryFilter ? { category: categoryFilter } : undefined,
+      ),
   });
 
   const categories = [...new Set(indicators.map((i) => i.category))];
@@ -198,7 +202,7 @@ function IndicatorsTab() {
   // Fetch all indicator values for benchmarking
   const { data: allIndicatorValues = [] } = useQuery({
     queryKey: ["quality-all-indicator-values"],
-    queryFn: () => api.listIndicatorValues({}),
+    queryFn: () => qualityService.listIndicatorValues({}),
     enabled: indicatorView === "benchmarking",
   });
 
@@ -216,7 +220,7 @@ function IndicatorsTab() {
 
   const { data: trendValues = [] } = useQuery({
     queryKey: ["quality-indicator-values", trendIndicator?.id],
-    queryFn: () => api.listIndicatorValues({ indicator_id: trendIndicator?.id }),
+    queryFn: () => qualityService.listIndicatorValues({ indicator_id: trendIndicator?.id }),
     enabled: !!trendIndicator,
   });
 
@@ -250,7 +254,8 @@ function IndicatorsTab() {
   });
 
   const createMut = useMutation({
-    mutationFn: (data: CreateQualityIndicatorRequest) => api.createQualityIndicator(data),
+    mutationFn: (data: CreateQualityIndicatorRequest) =>
+      qualityService.createQualityIndicator(data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["quality-indicators"] });
       notifications.show({ title: "Indicator created", message: "", color: "success" });
@@ -260,7 +265,7 @@ function IndicatorsTab() {
   });
 
   const calculateMut = useMutation({
-    mutationFn: (id: string) => api.calculateIndicator(id),
+    mutationFn: (id: string) => qualityService.calculateIndicator(id),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["quality-indicators"] });
       void qc.invalidateQueries({ queryKey: ["quality-indicator-values"] });
@@ -291,7 +296,7 @@ function IndicatorsTab() {
 
   const recordMut = useMutation({
     mutationFn: () =>
-      api.recordIndicatorValue({
+      qualityService.recordIndicatorValue({
         indicator_id: recordForm.indicator_id,
         period_start: recordForm.period_start,
         period_end: recordForm.period_end,
@@ -740,14 +745,14 @@ function DocumentsTab() {
 
   const { data: pendingAcks = [], isLoading: acksLoading } = useQuery({
     queryKey: ["quality-pending-acks", ackDocId],
-    queryFn: () => api.listPendingAcks(ackDocId!),
+    queryFn: () => (ackDocId ? qualityService.listPendingAcks(ackDocId) : []),
     enabled: !!ackDocId,
   });
 
   const { data: versionHistory = [], isLoading: versionsLoading } = useQuery({
     queryKey: ["quality-document-versions", versionDocCode],
     queryFn: async () => {
-      const allDocs = await api.listQualityDocuments({});
+      const allDocs = await qualityService.listQualityDocuments({});
       return allDocs.filter((d: QualityDocument) => d.document_number === versionDocCode);
     },
     enabled: !!versionDocCode,
@@ -756,7 +761,7 @@ function DocumentsTab() {
   const { data: documents = [], isLoading } = useQuery({
     queryKey: ["quality-documents", statusFilter, categoryFilter],
     queryFn: () =>
-      api.listQualityDocuments({
+      qualityService.listQualityDocuments({
         status: statusFilter ?? undefined,
         category: categoryFilter ?? undefined,
       }),
@@ -774,7 +779,7 @@ function DocumentsTab() {
   });
 
   const createMut = useMutation({
-    mutationFn: (data: CreateQualityDocumentRequest) => api.createQualityDocument(data),
+    mutationFn: (data: CreateQualityDocumentRequest) => qualityService.createQualityDocument(data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["quality-documents"] });
       notifications.show({ title: "Document created", message: "", color: "success" });
@@ -785,7 +790,7 @@ function DocumentsTab() {
 
   const statusMut = useMutation({
     mutationFn: ({ id, status }: { id: string; status: string }) =>
-      api.updateDocumentStatus(id, { status }),
+      qualityService.updateDocumentStatus(id, { status }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["quality-documents"] });
       notifications.show({ title: "Status updated", message: "", color: "success" });
@@ -793,7 +798,7 @@ function DocumentsTab() {
   });
 
   const acknowledgeMut = useMutation({
-    mutationFn: (id: string) => api.acknowledgeDocument(id),
+    mutationFn: (id: string) => qualityService.acknowledgeDocument(id),
     onSuccess: () => {
       notifications.show({ title: "Document acknowledged", message: "", color: "success" });
     },
@@ -1156,7 +1161,7 @@ function IncidentsTab() {
   const { data: incidents = [], isLoading } = useQuery({
     queryKey: ["quality-incidents", statusFilter, severityFilter],
     queryFn: () =>
-      api.listQualityIncidents({
+      qualityService.listQualityIncidents({
         status: statusFilter ?? undefined,
         severity: severityFilter ?? undefined,
       }),
@@ -1164,7 +1169,7 @@ function IncidentsTab() {
 
   const { data: capaList = [] } = useQuery({
     queryKey: ["quality-capa", selectedIncident?.id],
-    queryFn: () => api.listCapa({ incident_id: selectedIncident?.id }),
+    queryFn: () => qualityService.listCapa({ incident_id: selectedIncident?.id }),
     enabled: !!selectedIncident,
   });
 
@@ -1176,7 +1181,7 @@ function IncidentsTab() {
   });
 
   const createMut = useMutation({
-    mutationFn: (data: CreateQualityIncidentRequest) => api.createQualityIncident(data),
+    mutationFn: (data: CreateQualityIncidentRequest) => qualityService.createQualityIncident(data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["quality-incidents"] });
       notifications.show({ title: "Incident reported", message: "", color: "success" });
@@ -1202,7 +1207,7 @@ function IncidentsTab() {
 
   const updateMut = useMutation({
     mutationFn: ({ id, data }: { id: string; data: Record<string, unknown> }) =>
-      api.updateQualityIncident(id, data),
+      qualityService.updateQualityIncident(id, data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["quality-incidents"] });
       notifications.show({ title: "Incident updated", message: "", color: "success" });
@@ -1216,14 +1221,16 @@ function IncidentsTab() {
     death_date: "",
     primary_diagnosis: "",
   });
+  const [mortalityIcd11Code, setMortalityIcd11Code] = useState("");
 
   const createMortalityMut = useMutation({
-    mutationFn: (data: CreateMortalityReviewRequest) => api.createMortalityReview(data),
+    mutationFn: (data: CreateMortalityReviewRequest) => qualityService.createMortalityReview(data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["quality-incidents"] });
       notifications.show({ title: "Mortality review created", message: "", color: "success" });
       closeMortality();
       setMortalityForm({ patient_id: "", death_date: "", primary_diagnosis: "" });
+      setMortalityIcd11Code("");
     },
   });
 
@@ -1235,7 +1242,7 @@ function IncidentsTab() {
   });
 
   const createCapaMut = useMutation({
-    mutationFn: (data: CreateCapaRequest) => api.createCapa(data),
+    mutationFn: (data: CreateCapaRequest) => qualityService.createCapa(data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["quality-capa"] });
       notifications.show({ title: "CAPA created", message: "", color: "success" });
@@ -1807,8 +1814,20 @@ function IncidentsTab() {
               setMortalityForm({ ...mortalityForm, death_date: e.currentTarget.value })
             }
           />
+          <Icd11CodeSelect
+            label="Primary ICD-11 diagnosis"
+            value={mortalityIcd11Code || null}
+            onChange={(value) => setMortalityIcd11Code(value ?? "")}
+            onSelectResult={(result) =>
+              setMortalityForm({
+                ...mortalityForm,
+                primary_diagnosis: `${result.code} - ${result.display}`,
+              })
+            }
+            required
+          />
           <TextInput
-            label="Primary Diagnosis"
+            label="Primary diagnosis summary"
             required
             value={mortalityForm.primary_diagnosis}
             onChange={(e) =>
@@ -1861,33 +1880,24 @@ function CommitteesTab() {
 
   const { data: committees = [], isLoading } = useQuery({
     queryKey: ["quality-committees"],
-    queryFn: () => api.listQualityCommittees(),
+    queryFn: () => qualityService.listQualityCommittees(),
   });
 
   const { data: meetings = [] } = useQuery({
     queryKey: ["quality-meetings", selectedCommittee?.id],
-    queryFn: () => api.listCommitteeMeetings({ committee_id: selectedCommittee?.id }),
+    queryFn: () => qualityService.listCommitteeMeetings({ committee_id: selectedCommittee?.id }),
     enabled: !!selectedCommittee,
   });
 
   const { data: actionItems = [] } = useQuery({
     queryKey: ["quality-action-items"],
-    queryFn: () => api.listActionItems(),
+    queryFn: () => qualityService.listActionItems(),
   });
 
   // Patient feedback data (graceful fallback if API not available)
   const { data: feedbackData, isLoading: feedbackLoading } = useQuery({
     queryKey: ["patient-feedback"],
-    queryFn: async () => {
-      // Check if API method exists (it doesn't yet, so this will return null)
-      if (
-        "listFeedback" in api &&
-        typeof (api as { listFeedback?: () => Promise<unknown> }).listFeedback === "function"
-      ) {
-        return await (api as { listFeedback: () => Promise<unknown> }).listFeedback();
-      }
-      return null;
-    },
+    queryFn: async () => null,
     enabled: showFeedback,
   });
 
@@ -1928,7 +1938,8 @@ function CommitteesTab() {
   });
 
   const createCommitteeMut = useMutation({
-    mutationFn: (data: CreateQualityCommitteeRequest) => api.createQualityCommittee(data),
+    mutationFn: (data: CreateQualityCommitteeRequest) =>
+      qualityService.createQualityCommittee(data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["quality-committees"] });
       notifications.show({ title: "Committee created", message: "", color: "success" });
@@ -1943,7 +1954,7 @@ function CommitteesTab() {
   });
 
   const createMeetingMut = useMutation({
-    mutationFn: (data: CreateMeetingRequest) => api.createCommitteeMeeting(data),
+    mutationFn: (data: CreateMeetingRequest) => qualityService.createCommitteeMeeting(data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["quality-meetings"] });
       notifications.show({ title: "Meeting scheduled", message: "", color: "success" });
@@ -1953,7 +1964,8 @@ function CommitteesTab() {
   });
 
   const autoScheduleMut = useMutation({
-    mutationFn: (committeeId: string) => api.autoScheduleMeetings(committeeId, { months_ahead: 6 }),
+    mutationFn: (committeeId: string) =>
+      qualityService.autoScheduleMeetings(committeeId, { months_ahead: 6 }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["quality-meetings"] });
       notifications.show({
@@ -2377,7 +2389,7 @@ function AccreditationTab() {
   );
 
   const compileEvidenceMut = useMutation({
-    mutationFn: (body: string) => api.compileEvidence(body),
+    mutationFn: (body: string) => qualityService.compileEvidence(body),
     onSuccess: (data) => {
       setEvidenceData(data);
       openEvidenceModal();
@@ -2393,12 +2405,13 @@ function AccreditationTab() {
 
   const { data: standards = [], isLoading } = useQuery({
     queryKey: ["quality-standards", bodyFilter],
-    queryFn: () => api.listAccreditationStandards(bodyFilter ? { body: bodyFilter } : undefined),
+    queryFn: () =>
+      qualityService.listAccreditationStandards(bodyFilter ? { body: bodyFilter } : undefined),
   });
 
   const { data: compliance = [] } = useQuery({
     queryKey: ["quality-compliance"],
-    queryFn: () => api.listAccreditationCompliance(),
+    queryFn: () => qualityService.listAccreditationCompliance(),
   });
 
   const complianceMap = new Map(
@@ -2412,7 +2425,8 @@ function AccreditationTab() {
   });
 
   const createStandardMut = useMutation({
-    mutationFn: (data: CreateAccreditationStandardRequest) => api.createAccreditationStandard(data),
+    mutationFn: (data: CreateAccreditationStandardRequest) =>
+      qualityService.createAccreditationStandard(data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["quality-standards"] });
       notifications.show({ title: "Standard added", message: "", color: "success" });
@@ -2427,7 +2441,8 @@ function AccreditationTab() {
   });
 
   const updateComplianceMut = useMutation({
-    mutationFn: (data: UpdateComplianceRequest) => api.updateAccreditationCompliance(data),
+    mutationFn: (data: UpdateComplianceRequest) =>
+      qualityService.updateAccreditationCompliance(data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["quality-compliance"] });
       notifications.show({ title: "Compliance updated", message: "", color: "success" });
@@ -2869,7 +2884,7 @@ function AccreditationTab() {
                   </Table.Thead>
                   <Table.Tbody>
                     {evidenceData.non_compliant_items.map((item, idx) => (
-                      <Table.Tr key={idx}>
+                      <Table.Tr key={typeof item === "string" ? item : JSON.stringify(item)}>
                         <Table.Td>{idx + 1}</Table.Td>
                         <Table.Td>
                           {typeof item === "string" ? item : JSON.stringify(item)}
@@ -2901,12 +2916,12 @@ function AuditsTab() {
 
   const { data: audits = [], isLoading } = useQuery({
     queryKey: ["quality-audits", statusFilter],
-    queryFn: () => api.listQualityAudits({ status: statusFilter ?? undefined }),
+    queryFn: () => qualityService.listQualityAudits({ status: statusFilter ?? undefined }),
   });
 
   const { data: departments = [] } = useQuery({
     queryKey: ["departments-list"],
-    queryFn: () => api.listDepartments(),
+    queryFn: () => qualityService.listDepartments(),
     staleTime: 300_000,
   });
 
@@ -2921,7 +2936,7 @@ function AuditsTab() {
   });
 
   const createMut = useMutation({
-    mutationFn: (data: CreateQualityAuditRequest) => api.createQualityAudit(data),
+    mutationFn: (data: CreateQualityAuditRequest) => qualityService.createQualityAudit(data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["quality-audits"] });
       notifications.show({ title: "Audit created", message: "", color: "success" });
@@ -2944,7 +2959,7 @@ function AuditsTab() {
   });
 
   const scheduleAuditsMut = useMutation({
-    mutationFn: (data: ScheduleAuditsRequest) => api.scheduleAudits(data),
+    mutationFn: (data: ScheduleAuditsRequest) => qualityService.scheduleAudits(data),
     onSuccess: (result) => {
       void qc.invalidateQueries({ queryKey: ["quality-audits"] });
       notifications.show({
@@ -2966,14 +2981,14 @@ function AuditsTab() {
 
   const { data: findings = [], isLoading: findingsLoading } = useQuery({
     queryKey: ["quality-audit-findings", selectedAudit?.id],
-    queryFn: () => api.listAuditFindings(selectedAudit?.id ?? ""),
+    queryFn: () => qualityService.listAuditFindings(selectedAudit?.id ?? ""),
     enabled: !!selectedAudit,
   });
 
   const createFindingMut = useMutation({
     mutationFn: (data: CreateAuditFindingRequest) => {
       if (!selectedAudit) throw new Error("No audit selected");
-      return api.createAuditFinding(selectedAudit.id, data);
+      return qualityService.createAuditFinding(selectedAudit.id, data);
     },
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["quality-audit-findings", selectedAudit?.id] });
@@ -3212,7 +3227,7 @@ function AuditsTab() {
                   </Table.Thead>
                   <Table.Tbody>
                     {selectedAudit.findings.map((f, idx) => (
-                      <Table.Tr key={idx}>
+                      <Table.Tr key={typeof f === "string" ? f : JSON.stringify(f)}>
                         <Table.Td>{idx + 1}</Table.Td>
                         <Table.Td>{typeof f === "string" ? f : JSON.stringify(f)}</Table.Td>
                       </Table.Tr>
@@ -3409,31 +3424,31 @@ function AnalyticsReviewsTab() {
 
   const { data: psiData = [], isLoading: psiLoading } = useQuery({
     queryKey: ["quality-psi", dateParams],
-    queryFn: () => api.patientSafetyIndicators(dateParams),
+    queryFn: () => qualityService.patientSafetyIndicators(dateParams),
     enabled: subView === "psi",
   });
 
   const { data: scorecardData = [], isLoading: scorecardLoading } = useQuery({
     queryKey: ["quality-scorecard", dateParams],
-    queryFn: () => api.departmentScorecard(),
+    queryFn: () => qualityService.departmentScorecard(),
     enabled: subView === "scorecard",
   });
 
   const { data: overdueCapas = [], isLoading: overdueLoading } = useQuery({
     queryKey: ["quality-overdue-capas"],
-    queryFn: () => api.listOverdueCapas(),
+    queryFn: () => qualityService.listOverdueCapas(),
     enabled: subView === "overdue-capas",
   });
 
   const { data: committeeDash, isLoading: cdLoading } = useQuery({
     queryKey: ["quality-committee-dashboard"],
-    queryFn: () => api.committeeDashboard(),
+    queryFn: () => qualityService.committeeDashboard(),
     enabled: subView === "committee-dashboard",
   });
 
   const { data: sentinelEvents = [], isLoading: seLoading } = useQuery({
     queryKey: ["quality-sentinel-events"],
-    queryFn: () => api.listSentinelEvents(),
+    queryFn: () => qualityService.listSentinelEvents(),
     enabled: subView === "sentinel",
   });
 
@@ -3757,30 +3772,6 @@ function AnalyticsReviewsTab() {
 }
 
 // ══════════════════════════════════════════════════════════
-//  Print Watermark Styles
-// ══════════════════════════════════════════════════════════
-
-const printWatermarkStyles = `
-@media print {
-  body::after {
-    content: "CONTROLLED COPY";
-    position: fixed;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%) rotate(-45deg);
-    font-size: 80px;
-    font-weight: bold;
-    color: rgba(0, 0, 0, 0.06);
-    z-index: 9999;
-    pointer-events: none;
-    white-space: nowrap;
-    letter-spacing: 8px;
-    text-transform: uppercase;
-  }
-}
-`;
-
-// ══════════════════════════════════════════════════════════
 //  Main Quality Page
 // ══════════════════════════════════════════════════════════
 
@@ -3788,8 +3779,7 @@ export function QualityPage() {
   useRequirePermission(P.QUALITY.INDICATORS_LIST);
 
   return (
-    <div>
-      <style dangerouslySetInnerHTML={{ __html: printWatermarkStyles }} />
+    <div className={classes.qualityPage}>
       <PageHeader
         title="Quality Management"
         subtitle="Indicators, documents, incidents, committees, accreditation, and audits"

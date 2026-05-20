@@ -1,8 +1,8 @@
 import { Select } from "@mantine/core";
-import { api } from "@medbrains/api";
 import type { WardListRow } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
+import { lookupsService } from "../services/lookups.service";
 
 interface WardSelectProps {
   value: string;
@@ -27,7 +27,7 @@ export function WardSelect({
 }: WardSelectProps) {
   const { data: wards = [] } = useQuery({
     queryKey: ["wards-list"],
-    queryFn: () => api.listWards(),
+    queryFn: () => lookupsService.listWards(),
     staleTime: 300_000,
   });
 

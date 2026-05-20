@@ -12,13 +12,13 @@ import {
   TextInput,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
 import type { LocationRow } from "@medbrains/types";
 import { IconCheck, IconPencil, IconPlus, IconTrash } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { CreateLocationModal, SelectLabel } from "../../../components";
 import { useCreateInline } from "../../../hooks/useCreateInline";
+import { settingsSetupService } from "../../../services/settingsSetup.service";
 
 // ── Constants ─────────────────────────────────────────────
 
@@ -97,7 +97,7 @@ function LocationModal({
 
   const createMutation = useMutation({
     mutationFn: (data: { code: string; name: string; level: string; parent_id?: string }) =>
-      api.createLocation(data),
+      settingsSetupService.createLocation(data),
     onSuccess: () => {
       notifications.show({
         title: "Location created",
@@ -120,7 +120,7 @@ function LocationModal({
   const updateMutation = useMutation({
     mutationFn: (data: Record<string, unknown>) => {
       if (!editingLocation) throw new Error("No location selected");
-      return api.updateLocation(editingLocation.id, data);
+      return settingsSetupService.updateLocation(editingLocation.id, data);
     },
     onSuccess: () => {
       notifications.show({
@@ -278,11 +278,11 @@ export function LocationsSettings() {
 
   const { data: locations, isLoading } = useQuery({
     queryKey: QUERY_KEY,
-    queryFn: () => api.listLocations(),
+    queryFn: () => settingsSetupService.listLocations(),
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => api.deleteLocation(id),
+    mutationFn: (id: string) => settingsSetupService.deleteLocation(id),
     onSuccess: () => {
       notifications.show({
         title: "Location deleted",

@@ -39,6 +39,7 @@ thiserror = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
+url = { workspace = true }
 
 [features]
 # By default we ship a full-featured desktop. The "thin" feature

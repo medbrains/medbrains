@@ -12,7 +12,6 @@ import {
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { api } from "@medbrains/api";
 import { useHasPermission } from "@medbrains/stores";
 import type {
   AudiologyTest,
@@ -29,6 +28,7 @@ import { DataTable, PageHeader } from "../../components";
 import type { Column } from "../../components/DataTable";
 import { PatientNameCell } from "../../components/PatientNameCell";
 import { useRequirePermission } from "../../hooks/useRequirePermission";
+import { specialtyService } from "../../services/specialty.service";
 
 const DISCIPLINES: { value: RehabDiscipline; label: string }[] = [
   { value: "physiotherapy", label: "Physiotherapy" },
@@ -37,6 +37,18 @@ const DISCIPLINES: { value: RehabDiscipline; label: string }[] = [
   { value: "psychology", label: "Psychology" },
   { value: "prosthetics_orthotics", label: "Prosthetics & Orthotics" },
 ];
+
+function toRehabDiscipline(value: string | null): RehabDiscipline {
+  switch (value) {
+    case "occupational_therapy":
+    case "speech_therapy":
+    case "psychology":
+    case "prosthetics_orthotics":
+      return value;
+    default:
+      return "physiotherapy";
+  }
+}
 
 export function PmrPage() {
   useRequirePermission(P.SPECIALTY.PMR.PLANS_LIST);
@@ -49,16 +61,16 @@ export function PmrPage() {
 
   const { data: plans = [], isLoading } = useQuery({
     queryKey: ["rehab-plans"],
-    queryFn: () => api.listRehabPlans(),
+    queryFn: () => specialtyService.listRehabPlans(),
   });
   const { data: sessions = [] } = useQuery({
     queryKey: ["rehab-sessions", selectedPlanId],
-    queryFn: () => api.listRehabSessions(selectedPlanId!),
+    queryFn: () => specialtyService.listRehabSessions(selectedPlanId ?? ""),
     enabled: !!selectedPlanId,
   });
   const { data: audioTests = [] } = useQuery({
     queryKey: ["audiology-tests"],
-    queryFn: () => api.listAudiologyTests(),
+    queryFn: () => specialtyService.listAudiologyTests(),
   });
 
   const [planForm, setPlanForm] = useState<CreateRehabPlanRequest>({
@@ -67,7 +79,7 @@ export function PmrPage() {
   });
 
   const createPlan = useMutation({
-    mutationFn: (data: CreateRehabPlanRequest) => api.createRehabPlan(data),
+    mutationFn: (data: CreateRehabPlanRequest) => specialtyService.createRehabPlan(data),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ["rehab-plans"] });
       planHandlers.close();
@@ -205,9 +217,7 @@ export function PmrPage() {
             required
             data={DISCIPLINES}
             value={planForm.discipline}
-            onChange={(v) =>
-              setPlanForm((p) => ({ ...p, discipline: (v ?? "physiotherapy") as RehabDiscipline }))
-            }
+            onChange={(v) => setPlanForm((p) => ({ ...p, discipline: toRehabDiscipline(v) }))}
           />
           <Textarea
             label="Goals"

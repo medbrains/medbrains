@@ -1,7 +1,8 @@
-# Postgres-only docker-compose for the standalone deploy kit.
+# Postgres-first docker-compose for the standalone deploy kit.
 # The Rust binary runs on the host (systemd), not in a container —
-# only the database is dockerised so backups + minor-version
-# upgrades stay simple.
+# the database is dockerised so backups + minor-version upgrades stay
+# simple. Optional sidecars, such as WHO ICD-API, are profile-gated and
+# started only when install.sh sees the matching env opt-in.
 #
 # YottaDB / Kiwi TCMS / SpiceDB from the dev compose are intentionally
 # excluded — they're dev/test only and not needed for a hospital
@@ -31,6 +32,24 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+
+  # Optional WHO ICD-API local service for ICD-11 diagnosis coding.
+  # Enable from /etc/medbrains/env:
+  #   MEDBRAINS_ICD_LOCAL_SERVICE=true
+  #   ICD_API_ACCEPT_LICENSE=true
+  #   WHO_ICD_API_BASE_URL=https://<hospital-domain>
+  #   WHO_ICD_AUTH_MODE=none
+  icd-api:
+    image: whoicd/icd-api:${ICD_API_IMAGE_TAG:-latest}
+    profiles: ["icd"]
+    container_name: medbrains-icd-api
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${ICD_API_PORT:-8382}:80"
+    environment:
+      include: ${ICD_API_INCLUDE:-2026-01_en}
+      acceptLicense: ${ICD_API_ACCEPT_LICENSE:-false}
+      saveAnalytics: ${ICD_API_SAVE_ANALYTICS:-false}
 
   # Optional: nightly logical-dump backup container. Cron picks it
   # up via the timer-based "medbrains-pg-backup.service" if
