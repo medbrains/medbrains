@@ -22,16 +22,16 @@ import { DateInput } from "@mantine/dates";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import type {
-  CampCreateFormInput,
   CampClinicalVisitFormInput,
+  CampCreateFormInput,
   CampFollowupFormInput,
   CampLabSampleFormInput,
   CampRegistrationFormInput,
   CampScreeningFormInput,
 } from "@medbrains/schemas";
 import {
-  campCreateFormSchema,
   campClinicalVisitFormSchema,
+  campCreateFormSchema,
   campFollowupFormSchema,
   campLabSampleFormSchema,
   campRegistrationFormSchema,
@@ -44,20 +44,20 @@ import type {
   CampFollowup,
   CampIncident,
   CampLabSample,
+  CampOpenEncounterResponse,
   CampRegistration,
   CampReport as CampReportType,
   CampScreening,
   CampSupplyItem,
   CampTeamMember,
-  CampOpenEncounterResponse,
   CreateCampFollowupRequest,
   CreateCampLabSampleRequest,
   CreateCampRegistrationRequest,
   CreateCampRequest,
   CreateCampScreeningRequest,
   CreateVitalRequest,
-  UpdateCampFollowupRequest,
   DepartmentRow,
+  UpdateCampFollowupRequest,
 } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import {
@@ -72,8 +72,8 @@ import {
   IconPlus,
   IconSearch,
   IconStethoscope,
-  IconTrash,
   IconTransferIn,
+  IconTrash,
   IconUsers,
   IconX,
 } from "@tabler/icons-react";
@@ -1409,28 +1409,24 @@ function RegistrationsTab({
     queryFn: () => campService.listCampRegistrations({ camp_id: campId ?? "" }),
     enabled: !!campId,
   });
-  const filteredRegs = useMemo(
-    () => {
-      const byStatus = statusTab === "all" ? regs : regs.filter((row) => row.status === statusTab);
-      const needle = patientSearch.trim().toLowerCase();
-      if (!needle) return byStatus;
+  const filteredRegs = useMemo(() => {
+    const byStatus = statusTab === "all" ? regs : regs.filter((row) => row.status === statusTab);
+    const needle = patientSearch.trim().toLowerCase();
+    if (!needle) return byStatus;
 
-      return byStatus.filter((row) => {
-        const haystack = [
-          row.registration_number,
-          row.person_name,
-          row.phone,
-          row.id_proof_number,
-          row.patient_id,
-          row.chief_complaint,
-        ]
-          .filter((value): value is string => Boolean(value));
+    return byStatus.filter((row) => {
+      const haystack = [
+        row.registration_number,
+        row.person_name,
+        row.phone,
+        row.id_proof_number,
+        row.patient_id,
+        row.chief_complaint,
+      ].filter((value): value is string => Boolean(value));
 
-        return haystack.some((value) => value.toLowerCase().includes(needle));
-      });
-    },
-    [patientSearch, regs, statusTab],
-  );
+      return haystack.some((value) => value.toLowerCase().includes(needle));
+    });
+  }, [patientSearch, regs, statusTab]);
 
   const createMut = useMutation({
     mutationFn: (data: CreateCampRegistrationRequest) => campService.createCampRegistration(data),
@@ -1567,7 +1563,9 @@ function RegistrationsTab({
           </Tooltip>
           {canOpenClinicalVisit && (
             <Tooltip
-              label={r.clinical_department_id ? "Open OPD drawer" : "Select department and open OPD"}
+              label={
+                r.clinical_department_id ? "Open OPD drawer" : "Select department and open OPD"
+              }
               closeDelay={0}
               withinPortal={false}
             >
@@ -1753,7 +1751,7 @@ function RegistrationsTab({
             control={control}
             name="service_line"
             render={({ field }) => (
-                <Select
+              <Select
                 label="Camp service needed"
                 placeholder="Opinion, X-ray, lab, pharmacy..."
                 data={CAMP_SERVICE_LINE_OPTIONS}
@@ -1829,7 +1827,8 @@ function RegistrationsTab({
           <Stack gap={2}>
             <Text fw={600}>{selectedRegistrationForClinical?.person_name ?? "Participant"}</Text>
             <Text size="xs" c="dimmed">
-              Select the department and doctor for this camp participant. Saved values will be reused next time.
+              Select the department and doctor for this camp participant. Saved values will be
+              reused next time.
             </Text>
           </Stack>
           <Controller
@@ -2474,8 +2473,7 @@ function FollowupsTab({
     [registrations],
   );
   const filteredFollowups = useMemo(
-    () =>
-      statusTab === "all" ? followups : followups.filter((row) => row.status === statusTab),
+    () => (statusTab === "all" ? followups : followups.filter((row) => row.status === statusTab)),
     [followups, statusTab],
   );
   const renderRegistrationCell = (registrationId: string) => {
