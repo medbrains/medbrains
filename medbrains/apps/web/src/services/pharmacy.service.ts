@@ -38,6 +38,8 @@ export const pharmacyService = {
     api.createNdpsEntry(...args),
   listPharmacyBatches: (...args: Parameters<typeof api.listPharmacyBatches>) =>
     api.listPharmacyBatches(...args),
+  createPharmacyBatch: (...args: Parameters<typeof api.createPharmacyBatch>) =>
+    api.createPharmacyBatch(...args),
   getNearExpiryReport: (...args: Parameters<typeof api.getNearExpiryReport>) =>
     api.getNearExpiryReport(...args),
   getPharmacyDeadStock: (...args: Parameters<typeof api.getPharmacyDeadStock>) =>
@@ -61,7 +63,12 @@ export const pharmacyService = {
   getPosDaySummary: (...args: Parameters<typeof api.getPosDaySummary>) =>
     api.getPosDaySummary(...args),
   listPosSales: (...args: Parameters<typeof api.listPosSales>) => api.listPosSales(...args),
+  listPosSaleItems: (...args: Parameters<typeof api.listPosSaleItems>) =>
+    api.listPosSaleItems(...args),
   createPosSale: (...args: Parameters<typeof api.createPosSale>) => api.createPosSale(...args),
+  cancelPharmacyPosSale: (...args: Parameters<typeof api.cancelPharmacyPosSale>) =>
+    api.cancelPharmacyPosSale(...args),
+  returnPosItems: (...args: Parameters<typeof api.returnPosItems>) => api.returnPosItems(...args),
   listPharmacyCreditNotes: (...args: Parameters<typeof api.listPharmacyCreditNotes>) =>
     api.listPharmacyCreditNotes(...args),
   approvePharmacyCreditNote: (...args: Parameters<typeof api.approvePharmacyCreditNote>) =>
@@ -72,6 +79,14 @@ export const pharmacyService = {
     api.cancelPharmacyCreditNote(...args),
   createPharmacyCreditNote: (...args: Parameters<typeof api.createPharmacyCreditNote>) =>
     api.createPharmacyCreditNote(...args),
+  listPharmacyReturns: (...args: Parameters<typeof api.listPharmacyReturns>) =>
+    api.listPharmacyReturns(...args),
+  createPharmacyReturn: (...args: Parameters<typeof api.createPharmacyReturn>) =>
+    api.createPharmacyReturn(...args),
+  createPharmacyReturns: (...args: Parameters<typeof api.createPharmacyReturns>) =>
+    api.createPharmacyReturns(...args),
+  processPharmacyReturn: (...args: Parameters<typeof api.processPharmacyReturn>) =>
+    api.processPharmacyReturn(...args),
   listPatientOrdersForReturn: (...args: Parameters<typeof api.listPatientOrdersForReturn>) =>
     api.listPatientOrdersForReturn(...args),
   listPharmacyStoreIndents: (...args: Parameters<typeof api.listPharmacyStoreIndents>) =>

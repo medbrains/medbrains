@@ -1,3 +1,4 @@
+import "@mantine/charts/styles.css";
 import { BarChart, LineChart } from "@mantine/charts";
 import {
   ActionIcon,
@@ -67,7 +68,8 @@ import {
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { DataTable, PageHeader } from "../components";
+import { useSearchParams } from "react-router";
+import { DataTable, IpdContextStrip, ipdContextFromSearchParams, PageHeader } from "../components";
 import { DepartmentSelect } from "../components/DepartmentSelect";
 import { EmployeeSearchSelect } from "../components/EmployeeSearchSelect";
 import { PatientSearchSelect } from "../components/PatientSearchSelect";
@@ -138,6 +140,14 @@ const STAFF_CATEGORIES = [
   { value: "security", label: "Security" },
   { value: "other", label: "Other" },
 ];
+
+const INFECTION_CONTROL_PAGE_PERMISSIONS = [
+  P.INFECTION_CONTROL.SURVEILLANCE_LIST,
+  P.INFECTION_CONTROL.STEWARDSHIP_LIST,
+  P.INFECTION_CONTROL.BIOWASTE_LIST,
+  P.INFECTION_CONTROL.HYGIENE_LIST,
+  P.INFECTION_CONTROL.OUTBREAK_LIST,
+] as const;
 
 // ── HAI Surveillance Tab ────────────────────────────────
 
@@ -2384,7 +2394,33 @@ function MeetingsTab() {
 // ══════════════════════════════════════════════════════════
 
 export function InfectionControlPage() {
-  useRequirePermission(P.INFECTION_CONTROL.SURVEILLANCE_LIST);
+  useRequirePermission(INFECTION_CONTROL_PAGE_PERMISSIONS);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const ipdContext = ipdContextFromSearchParams(searchParams);
+  const canViewSurveillance = useHasPermission(P.INFECTION_CONTROL.SURVEILLANCE_LIST);
+  const canViewStewardship = useHasPermission(P.INFECTION_CONTROL.STEWARDSHIP_LIST);
+  const canViewBiowaste = useHasPermission(P.INFECTION_CONTROL.BIOWASTE_LIST);
+  const canViewHygiene = useHasPermission(P.INFECTION_CONTROL.HYGIENE_LIST);
+  const canViewOutbreaks = useHasPermission(P.INFECTION_CONTROL.OUTBREAK_LIST);
+  const canViewAnalytics = canViewSurveillance && canViewStewardship && canViewHygiene;
+  const visibleTabs = [
+    ...(canViewSurveillance ? ["surveillance"] : []),
+    ...(canViewStewardship ? ["stewardship"] : []),
+    ...(canViewBiowaste ? ["biowaste", "sharps"] : []),
+    ...(canViewHygiene ? ["hygiene"] : []),
+    ...(canViewOutbreaks ? ["outbreaks"] : []),
+    ...(canViewAnalytics ? ["analytics"] : []),
+    ...(canViewSurveillance ? ["meetings"] : []),
+  ];
+  const requestedTab = searchParams.get("tab");
+  const selectedTab =
+    requestedTab && visibleTabs.includes(requestedTab) ? requestedTab : (visibleTabs[0] ?? null);
+  const handleTabChange = (value: string | null) => {
+    if (!value) return;
+    const params = new URLSearchParams(searchParams);
+    params.set("tab", value);
+    setSearchParams(params, { replace: true });
+  };
 
   return (
     <div>
@@ -2394,59 +2430,92 @@ export function InfectionControlPage() {
         icon={<IconShieldCheck size={20} stroke={1.5} />}
         color="danger"
       />
+      <IpdContextStrip context={ipdContext} />
 
-      <Tabs defaultValue="surveillance" mt="md">
+      <Tabs value={selectedTab} onChange={handleTabChange} keepMounted={false} mt="md">
         <Tabs.List>
-          <Tabs.Tab value="surveillance" leftSection={<IconBug size={16} />}>
-            HAI Surveillance
-          </Tabs.Tab>
-          <Tabs.Tab value="stewardship" leftSection={<IconPill size={16} />}>
-            Stewardship & Antibiogram
-          </Tabs.Tab>
-          <Tabs.Tab value="biowaste" leftSection={<IconBiohazard size={16} />}>
-            Bio-Waste
-          </Tabs.Tab>
-          <Tabs.Tab value="hygiene" leftSection={<IconHandStop size={16} />}>
-            Hygiene & Bundles
-          </Tabs.Tab>
-          <Tabs.Tab value="outbreaks" leftSection={<IconVirusSearch size={16} />}>
-            Outbreaks
-          </Tabs.Tab>
-          <Tabs.Tab value="sharps" leftSection={<IconNeedleThread size={16} />}>
-            Sharps Safety
-          </Tabs.Tab>
-          <Tabs.Tab value="analytics" leftSection={<IconChartBar size={16} />}>
-            Analytics
-          </Tabs.Tab>
-          <Tabs.Tab value="meetings" leftSection={<IconUsers size={16} />}>
-            Meetings
-          </Tabs.Tab>
+          {canViewSurveillance && (
+            <Tabs.Tab value="surveillance" leftSection={<IconBug size={16} />}>
+              HAI Surveillance
+            </Tabs.Tab>
+          )}
+          {canViewStewardship && (
+            <Tabs.Tab value="stewardship" leftSection={<IconPill size={16} />}>
+              Stewardship & Antibiogram
+            </Tabs.Tab>
+          )}
+          {canViewBiowaste && (
+            <Tabs.Tab value="biowaste" leftSection={<IconBiohazard size={16} />}>
+              Bio-Waste
+            </Tabs.Tab>
+          )}
+          {canViewHygiene && (
+            <Tabs.Tab value="hygiene" leftSection={<IconHandStop size={16} />}>
+              Hygiene & Bundles
+            </Tabs.Tab>
+          )}
+          {canViewOutbreaks && (
+            <Tabs.Tab value="outbreaks" leftSection={<IconVirusSearch size={16} />}>
+              Outbreaks
+            </Tabs.Tab>
+          )}
+          {canViewBiowaste && (
+            <Tabs.Tab value="sharps" leftSection={<IconNeedleThread size={16} />}>
+              Sharps Safety
+            </Tabs.Tab>
+          )}
+          {canViewAnalytics && (
+            <Tabs.Tab value="analytics" leftSection={<IconChartBar size={16} />}>
+              Analytics
+            </Tabs.Tab>
+          )}
+          {canViewSurveillance && (
+            <Tabs.Tab value="meetings" leftSection={<IconUsers size={16} />}>
+              Meetings
+            </Tabs.Tab>
+          )}
         </Tabs.List>
 
-        <Tabs.Panel value="surveillance" pt="md">
-          <SurveillanceTab />
-        </Tabs.Panel>
-        <Tabs.Panel value="stewardship" pt="md">
-          <StewardshipTab />
-        </Tabs.Panel>
-        <Tabs.Panel value="biowaste" pt="md">
-          <BiowasteTab />
-        </Tabs.Panel>
-        <Tabs.Panel value="hygiene" pt="md">
-          <HygieneTab />
-        </Tabs.Panel>
-        <Tabs.Panel value="outbreaks" pt="md">
-          <OutbreakTab />
-        </Tabs.Panel>
-        <Tabs.Panel value="sharps" pt="md">
-          <SharpsSafetyTab />
-        </Tabs.Panel>
-        <Tabs.Panel value="analytics" pt="md">
-          <AnalyticsTab />
-        </Tabs.Panel>
-        <Tabs.Panel value="meetings" pt="md">
-          <MeetingsTab />
-        </Tabs.Panel>
+        {canViewSurveillance && (
+          <Tabs.Panel value="surveillance" pt="md">
+            <SurveillanceTab />
+          </Tabs.Panel>
+        )}
+        {canViewStewardship && (
+          <Tabs.Panel value="stewardship" pt="md">
+            <StewardshipTab />
+          </Tabs.Panel>
+        )}
+        {canViewBiowaste && (
+          <Tabs.Panel value="biowaste" pt="md">
+            <BiowasteTab />
+          </Tabs.Panel>
+        )}
+        {canViewHygiene && (
+          <Tabs.Panel value="hygiene" pt="md">
+            <HygieneTab />
+          </Tabs.Panel>
+        )}
+        {canViewOutbreaks && (
+          <Tabs.Panel value="outbreaks" pt="md">
+            <OutbreakTab />
+          </Tabs.Panel>
+        )}
+        {canViewBiowaste && (
+          <Tabs.Panel value="sharps" pt="md">
+            <SharpsSafetyTab />
+          </Tabs.Panel>
+        )}
+        {canViewAnalytics && (
+          <Tabs.Panel value="analytics" pt="md">
+            <AnalyticsTab />
+          </Tabs.Panel>
+        )}
+        {canViewSurveillance && (
+          <Tabs.Panel value="meetings" pt="md">
+            <MeetingsTab />
+          </Tabs.Panel>
+        )}
       </Tabs>
     </div>
   );

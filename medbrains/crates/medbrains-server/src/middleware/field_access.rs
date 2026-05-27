@@ -1,7 +1,7 @@
 //! Field-level access enforcement for write operations.
 //!
-//! When a user's `field_access` map marks a field as `"view"` or `"hidden"`,
-//! the server must reject writes that include those fields. This module
+//! When a user's `field_access` map marks a field as `"view"`, `"mask"`, or
+//! `"hidden"`, the server must reject writes that include those fields. This module
 //! provides helpers for route handlers to validate incoming payloads
 //! against the user's resolved field access levels.
 
@@ -86,6 +86,7 @@ pub fn validate_write_access(
         if let Some(level) = restricted.get(&field_code) {
             let level_str = match level {
                 FieldAccessLevel::View => "read-only",
+                FieldAccessLevel::Mask => "masked",
                 FieldAccessLevel::Hidden => "hidden",
                 FieldAccessLevel::Edit => continue,
             };
@@ -121,7 +122,9 @@ fn merge_field_access_map(
             FieldAccessLevel::Edit => {
                 restricted.remove(field_code);
             }
-            parsed @ (FieldAccessLevel::View | FieldAccessLevel::Hidden) => {
+            parsed @ (FieldAccessLevel::View
+            | FieldAccessLevel::Mask
+            | FieldAccessLevel::Hidden) => {
                 restricted.insert(field_code.clone(), parsed);
             }
         }
@@ -134,6 +137,7 @@ fn parse_field_access_level(level: &str, field_code: &str) -> Result<FieldAccess
     match level {
         "edit" => Ok(FieldAccessLevel::Edit),
         "view" => Ok(FieldAccessLevel::View),
+        "mask" => Ok(FieldAccessLevel::Mask),
         "hidden" => Ok(FieldAccessLevel::Hidden),
         other => Err(AppError::Internal(format!(
             "Invalid field access level for {field_code}: {other}"
@@ -171,5 +175,20 @@ mod tests {
         );
 
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn mask_level_is_a_restriction() {
+        let mut restricted = HashMap::new();
+        let result = merge_field_access_map(
+            &mut restricted,
+            &serde_json::json!({ "patients.phone": "mask" }),
+        );
+
+        assert!(result.is_ok());
+        assert_eq!(
+            restricted.get("patients.phone"),
+            Some(&FieldAccessLevel::Mask)
+        );
     }
 }

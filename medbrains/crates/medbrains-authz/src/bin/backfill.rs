@@ -72,9 +72,7 @@ async fn main() -> anyhow::Result<()> {
     let spicedb_token = env::var("SPICEDB_TOKEN").unwrap_or_else(|_| "devsecret".to_owned());
     let backend = SpiceDbBackend::connect(&spicedb_endpoint, &spicedb_token).await?;
 
-    println!(
-        "rebac-backfill — tenant={tenant} endpoint={spicedb_endpoint} dry_run={dry_run}"
-    );
+    println!("rebac-backfill — tenant={tenant} endpoint={spicedb_endpoint} dry_run={dry_run}");
 
     let mut total_written = 0u64;
 
@@ -248,9 +246,7 @@ async fn main() -> anyhow::Result<()> {
     )
     .await?;
 
-    println!(
-        "\n✅ done — total tuples written: {total_written} (dry_run={dry_run})"
-    );
+    println!("\n✅ done — total tuples written: {total_written} (dry_run={dry_run})");
     Ok(())
 }
 

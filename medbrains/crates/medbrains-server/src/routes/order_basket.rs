@@ -28,7 +28,11 @@ use serde_json::{Value, json};
 use uuid::Uuid;
 
 use crate::{
-    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
+    error::AppError,
+    middleware::{
+        auth::Claims,
+        authorization::{is_bypass_role, require_permission},
+    },
     state::AppState,
 };
 
@@ -202,6 +206,32 @@ pub struct OrderBasketDraft {
 
 const MAX_BASKET_ITEMS: usize = 30;
 
+fn has_permission(claims: &Claims, permission: &str) -> bool {
+    is_bypass_role(claims) || claims.permissions.iter().any(|item| item == permission)
+}
+
+fn basket_item_permission(item: &BasketItem) -> Result<&'static str, AppError> {
+    match item {
+        BasketItem::Drug(_) => Ok(permissions::pharmacy::dispensing::CREATE),
+        BasketItem::Lab(_) => Ok(permissions::lab::orders::CREATE),
+        BasketItem::Radiology(_) => Ok(permissions::radiology::orders::CREATE),
+        BasketItem::Diet(_) => Ok(permissions::diet::orders::CREATE),
+        BasketItem::Procedure(_) => Err(AppError::BadRequest(
+            "procedure orders via basket are not enabled".to_owned(),
+        )),
+        BasketItem::Referral(_) => Err(AppError::BadRequest(
+            "referral orders via basket are not enabled".to_owned(),
+        )),
+    }
+}
+
+fn require_basket_item_permissions(claims: &Claims, items: &[BasketItem]) -> Result<(), AppError> {
+    for item in items {
+        require_permission(claims, basket_item_permission(item)?)?;
+    }
+    Ok(())
+}
+
 // ══════════════════════════════════════════════════════════
 //  POST /api/orders/basket/check
 // ══════════════════════════════════════════════════════════
@@ -218,6 +248,7 @@ pub async fn check_basket(
             "basket exceeds {MAX_BASKET_ITEMS}-item limit"
         )));
     }
+    require_basket_item_permissions(&claims, &body.items)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -254,6 +285,7 @@ pub async fn sign_basket(
             "basket exceeds {MAX_BASKET_ITEMS}-item limit"
         )));
     }
+    require_basket_item_permissions(&claims, &body.items)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -294,13 +326,12 @@ pub async fn sign_basket(
     // the whole basket via tx rollback.
     let mut created: Vec<CreatedOrderRef> = Vec::with_capacity(body.items.len());
     for (idx, item) in body.items.iter().enumerate() {
-        let r = dispatch_item(
+        let r = dispatch_item_with_savepoint(
             &mut tx,
             &claims,
             &body.encounter_id,
             &body.patient_id,
             item,
-            &body.warnings_acknowledged,
         )
         .await
         .map_err(|e| AppError::BadRequest(format!("basket item #{idx} failed: {e}")))?;
@@ -424,6 +455,7 @@ pub async fn preview_cost(
             "basket exceeds {MAX_BASKET_ITEMS}-item limit"
         )));
     }
+    require_basket_item_permissions(&claims, &body.items)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -618,108 +650,139 @@ pub async fn carry_forward(
 
     let mut out: Vec<CarryForwardItem> = Vec::new();
 
-    // Pharmacy prescriptions
-    let drugs = sqlx::query_as::<
-        _,
-        (
-            Uuid,
-            Uuid,
-            String,
-            String,
-            String,
-            String,
-            Option<i32>,
-            DateTime<Utc>,
-        ),
-    >(
-        "SELECT id, drug_id, drug_name, dose, frequency, route, duration_days, created_at \
-         FROM pharmacy_prescriptions \
-         WHERE tenant_id = $1 AND encounter_id = $2 \
-         ORDER BY created_at DESC LIMIT 20",
-    )
-    .bind(claims.tenant_id)
-    .bind(prev_id)
-    .fetch_all(&mut *tx)
-    .await
-    .unwrap_or_default();
+    if has_permission(&claims, permissions::pharmacy::dispensing::CREATE) {
+        let drugs = sqlx::query_as::<
+            _,
+            (
+                Uuid,
+                Uuid,
+                String,
+                String,
+                String,
+                Option<String>,
+                String,
+                Decimal,
+                DateTime<Utc>,
+            ),
+        >(
+            "SELECT pi.id, COALESCE(pi.catalog_item_id, pc.id) AS drug_id, \
+                    pi.drug_name, pi.dosage, pi.frequency, pi.route, pi.duration, \
+                    COALESCE(pc.base_price, 0) AS unit_price, pi.created_at \
+             FROM prescriptions pr \
+             JOIN prescription_items pi \
+               ON pi.prescription_id = pr.id AND pi.tenant_id = pr.tenant_id \
+             LEFT JOIN LATERAL ( \
+                 SELECT c.id, c.base_price \
+                 FROM pharmacy_catalog c \
+                 WHERE c.tenant_id = pi.tenant_id \
+                   AND c.is_active = true \
+                   AND ( \
+                       c.id = pi.catalog_item_id \
+                       OR lower(c.name) = lower(pi.drug_name) \
+                       OR (c.generic_name IS NOT NULL AND lower(c.generic_name) = lower(pi.drug_name)) \
+                   ) \
+                 ORDER BY \
+                   CASE \
+                     WHEN c.id = pi.catalog_item_id THEN 0 \
+                     WHEN lower(c.name) = lower(pi.drug_name) THEN 1 \
+                     ELSE 2 \
+                   END, \
+                   c.name \
+                 LIMIT 1 \
+             ) pc ON true \
+             WHERE pr.tenant_id = $1 AND pr.encounter_id = $2 \
+               AND pi.item_status = 'active' \
+               AND COALESCE(pi.catalog_item_id, pc.id) IS NOT NULL \
+             ORDER BY pi.created_at DESC LIMIT 20",
+        )
+        .bind(claims.tenant_id)
+        .bind(prev_id)
+        .fetch_all(&mut *tx)
+        .await
+        .unwrap_or_default();
 
-    for (id, drug_id, drug_name, dose, frequency, route, duration_days, created_at) in drugs {
-        out.push(CarryForwardItem {
-            kind: "drug",
-            label: format!("{drug_name} {dose}"),
-            source_encounter_id: prev_id,
-            source_order_id: id,
-            created_at,
-            item: json!({
-                "kind": "drug",
-                "drug_id": drug_id,
-                "drug_name": drug_name,
-                "dose": dose,
-                "frequency": frequency,
-                "route": route,
-                "duration_days": duration_days,
-                "quantity": 1,
-                "unit_price": "0",
-            }),
-        });
+        for (id, drug_id, drug_name, dose, frequency, route, duration, unit_price, created_at) in
+            drugs
+        {
+            out.push(CarryForwardItem {
+                kind: "drug",
+                label: format!("{drug_name} {dose}"),
+                source_encounter_id: prev_id,
+                source_order_id: id,
+                created_at,
+                item: json!({
+                    "kind": "drug",
+                    "drug_id": drug_id,
+                    "drug_name": drug_name,
+                    "dose": dose,
+                    "frequency": frequency,
+                    "route": route.unwrap_or_else(|| "PO".to_owned()),
+                    "duration_days": duration_text_to_days(&duration),
+                    "quantity": 1,
+                    "unit_price": unit_price.to_string(),
+                }),
+            });
+        }
     }
 
-    // Lab orders
-    let labs = sqlx::query_as::<_, (Uuid, Uuid, String, Option<String>, DateTime<Utc>)>(
-        "SELECT lo.id, lo.test_id, COALESCE(lt.name, '?'), lo.priority, lo.created_at \
-         FROM lab_orders lo \
-         LEFT JOIN lab_test_catalog lt ON lt.id = lo.test_id \
-         WHERE lo.tenant_id = $1 AND lo.encounter_id = $2 \
-         ORDER BY lo.created_at DESC LIMIT 20",
-    )
-    .bind(claims.tenant_id)
-    .bind(prev_id)
-    .fetch_all(&mut *tx)
-    .await
-    .unwrap_or_default();
+    if has_permission(&claims, permissions::lab::orders::CREATE) {
+        let labs = sqlx::query_as::<_, (Uuid, Uuid, String, Option<String>, DateTime<Utc>)>(
+            "SELECT lo.id, lo.test_id, COALESCE(lt.name, '?'), lo.priority, lo.created_at \
+             FROM lab_orders lo \
+             LEFT JOIN lab_test_catalog lt ON lt.id = lo.test_id \
+             WHERE lo.tenant_id = $1 AND lo.encounter_id = $2 \
+             ORDER BY lo.created_at DESC LIMIT 20",
+        )
+        .bind(claims.tenant_id)
+        .bind(prev_id)
+        .fetch_all(&mut *tx)
+        .await
+        .unwrap_or_default();
 
-    for (id, test_id, name, priority, created_at) in labs {
-        out.push(CarryForwardItem {
-            kind: "lab",
-            label: name,
-            source_encounter_id: prev_id,
-            source_order_id: id,
-            created_at,
-            item: json!({
-                "kind": "lab",
-                "test_id": test_id,
-                "priority": priority,
-            }),
-        });
+        for (id, test_id, name, priority, created_at) in labs {
+            out.push(CarryForwardItem {
+                kind: "lab",
+                label: name,
+                source_encounter_id: prev_id,
+                source_order_id: id,
+                created_at,
+                item: json!({
+                    "kind": "lab",
+                    "test_id": test_id,
+                    "priority": priority,
+                }),
+            });
+        }
     }
 
-    // Radiology orders
-    let rads = sqlx::query_as::<_, (Uuid, Uuid, String, Option<String>, DateTime<Utc>)>(
-        "SELECT ro.id, ro.modality_id, COALESCE(rm.name, '?'), ro.body_part, ro.created_at \
-         FROM radiology_orders ro \
-         LEFT JOIN radiology_modalities rm ON rm.id = ro.modality_id \
-         WHERE ro.tenant_id = $1 AND ro.encounter_id = $2 \
-         ORDER BY ro.created_at DESC LIMIT 10",
-    )
-    .bind(claims.tenant_id)
-    .bind(prev_id)
-    .fetch_all(&mut *tx)
-    .await
-    .unwrap_or_default();
+    if has_permission(&claims, permissions::radiology::orders::CREATE) {
+        let rads = sqlx::query_as::<_, (Uuid, Uuid, String, Option<String>, DateTime<Utc>)>(
+            "SELECT ro.id, ro.modality_id, COALESCE(rm.name, '?'), ro.body_part, ro.created_at \
+             FROM radiology_orders ro \
+             LEFT JOIN radiology_modalities rm ON rm.id = ro.modality_id \
+             WHERE ro.tenant_id = $1 AND ro.encounter_id = $2 \
+             ORDER BY ro.created_at DESC LIMIT 10",
+        )
+        .bind(claims.tenant_id)
+        .bind(prev_id)
+        .fetch_all(&mut *tx)
+        .await
+        .unwrap_or_default();
 
-    for (id, modality_id, name, body_part, created_at) in rads {
-        out.push(CarryForwardItem {
-            kind: "radiology",
-            label: name,
-            source_encounter_id: prev_id,
-            source_order_id: id,
-            created_at,
-            item: json!({
-                "kind": "radiology",
-                "modality_id": modality_id,
-                "body_part": body_part,
-            }),
-        });
+        for (id, modality_id, name, body_part, created_at) in rads {
+            out.push(CarryForwardItem {
+                kind: "radiology",
+                label: name,
+                source_encounter_id: prev_id,
+                source_order_id: id,
+                created_at,
+                item: json!({
+                    "kind": "radiology",
+                    "modality_id": modality_id,
+                    "body_part": body_part,
+                }),
+            });
+        }
     }
 
     tx.commit().await?;
@@ -812,6 +875,7 @@ pub async fn save_draft(
             "draft exceeds {MAX_BASKET_ITEMS}-item limit"
         )));
     }
+    require_basket_item_permissions(&claims, &body.items)?;
     let items_json = serde_json::to_value(&body.items)
         .map_err(|e| AppError::Internal(format!("items serialize: {e}")))?;
 
@@ -873,13 +937,60 @@ struct ItemResult {
     order_id: Uuid,
 }
 
+async fn dispatch_item_with_savepoint(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    claims: &Claims,
+    encounter_id: &Uuid,
+    patient_id: &Uuid,
+    item: &BasketItem,
+) -> Result<ItemResult, AppError> {
+    sqlx::query("SAVEPOINT order_basket_item")
+        .execute(&mut **tx)
+        .await?;
+
+    match dispatch_item(tx, claims, encounter_id, patient_id, item).await {
+        Ok(result) => {
+            sqlx::query("RELEASE SAVEPOINT order_basket_item")
+                .execute(&mut **tx)
+                .await?;
+            Ok(result)
+        }
+        Err(error) => {
+            match sqlx::query("ROLLBACK TO SAVEPOINT order_basket_item")
+                .execute(&mut **tx)
+                .await
+            {
+                Ok(_) => {
+                    if let Err(release_error) = sqlx::query("RELEASE SAVEPOINT order_basket_item")
+                        .execute(&mut **tx)
+                        .await
+                    {
+                        tracing::warn!(
+                            error = %release_error,
+                            item_error = %error,
+                            "failed to release order-basket item savepoint after rollback"
+                        );
+                    }
+                }
+                Err(rollback_error) => {
+                    tracing::warn!(
+                        error = %rollback_error,
+                        item_error = %error,
+                        "failed to roll back order-basket item savepoint"
+                    );
+                }
+            }
+            Err(error)
+        }
+    }
+}
+
 async fn dispatch_item(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     claims: &Claims,
     encounter_id: &Uuid,
     patient_id: &Uuid,
     item: &BasketItem,
-    acks: &[WarningAck],
 ) -> Result<ItemResult, AppError> {
     match item {
         BasketItem::Lab(it) => {
@@ -889,8 +1000,15 @@ async fn dispatch_item(
                 test_id: it.test_id,
                 priority: it.priority.clone(),
                 notes: it.notes.clone().or_else(|| it.indication.clone()),
+                is_dummy: None,
             };
-            let order = super::lab::create_order_in_tx(tx, claims, &req).await?;
+            let order = super::lab::create_order_in_tx_with_options(
+                tx,
+                claims,
+                &req,
+                super::lab::CreateOrderOptions { auto_bill: false },
+            )
+            .await?;
             Ok(ItemResult {
                 order_type: "lab".to_owned(),
                 order_id: order.id,
@@ -909,8 +1027,15 @@ async fn dispatch_item(
                 contrast_required: it.contrast_required,
                 pregnancy_checked: it.pregnancy_checked,
                 allergy_flagged: it.allergy_flagged,
+                is_dummy: None,
             };
-            let order = super::radiology::create_order_in_tx(tx, claims, &req).await?;
+            let order = super::radiology::create_order_in_tx_with_options(
+                tx,
+                claims,
+                &req,
+                super::radiology::CreateOrderOptions { auto_bill: false },
+            )
+            .await?;
             Ok(ItemResult {
                 order_type: "radiology".to_owned(),
                 order_id: order.id,
@@ -941,29 +1066,17 @@ async fn dispatch_item(
             })
         }
         BasketItem::Drug(it) => {
-            let override_reason = drug_override_reason_for_item(acks, it);
-            let req = super::pharmacy::CreateOrderRequest {
-                prescription_id: None,
-                patient_id: *patient_id,
-                encounter_id: Some(*encounter_id),
-                notes: it.indication.clone(),
-                items: vec![super::pharmacy::OrderItemInput {
-                    catalog_item_id: Some(it.drug_id),
-                    drug_name: it.drug_name.clone(),
-                    quantity: it.quantity,
-                    unit_price: it.unit_price,
-                }],
-                dispensing_type: Some("prescription".to_owned()),
-                discharge_summary_id: None,
-                billing_package_id: None,
-                store_location_id: None,
-                safety_override_reason: override_reason.clone(),
-                allergy_override_reason: override_reason,
-            };
-            let result = super::pharmacy::create_order_in_tx(tx, claims, &req).await?;
+            let prescription_id = create_prescription_from_basket_drug_in_tx(
+                tx,
+                claims,
+                encounter_id,
+                patient_id,
+                it,
+            )
+            .await?;
             Ok(ItemResult {
-                order_type: "drug".to_owned(),
-                order_id: result.order.id,
+                order_type: "prescription".to_owned(),
+                order_id: prescription_id,
             })
         }
         BasketItem::Procedure(_) => Err(AppError::BadRequest(
@@ -972,6 +1085,157 @@ async fn dispatch_item(
         BasketItem::Referral(_) => Err(AppError::BadRequest(
             "referral orders via basket — Phase 2".to_owned(),
         )),
+    }
+}
+
+async fn create_prescription_from_basket_drug_in_tx(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    claims: &Claims,
+    encounter_id: &Uuid,
+    patient_id: &Uuid,
+    item: &BasketDrugItem,
+) -> Result<Uuid, AppError> {
+    let encounter_type = sqlx::query_scalar::<_, Option<String>>(
+        "SELECT encounter_type::text FROM encounters WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(encounter_id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut **tx)
+    .await?
+    .flatten()
+    .unwrap_or_else(|| "opd".to_owned());
+    let source = match encounter_type.as_str() {
+        "ipd" => "ipd",
+        "emergency" => "emergency",
+        _ => "opd",
+    };
+    let duration = item
+        .duration_days
+        .filter(|days| *days > 0)
+        .map_or_else(|| "as advised".to_owned(), |days| format!("{days} days"));
+    let notes = basket_drug_prescription_notes(item);
+    let instructions = basket_drug_prescription_instructions(item);
+
+    let prescription_id: Uuid = sqlx::query_scalar(
+        "INSERT INTO prescriptions (tenant_id, encounter_id, doctor_id, patient_id, notes) \
+         VALUES ($1, $2, $3, $4, $5) RETURNING id",
+    )
+    .bind(claims.tenant_id)
+    .bind(encounter_id)
+    .bind(claims.sub)
+    .bind(patient_id)
+    .bind(notes.as_deref())
+    .fetch_one(&mut **tx)
+    .await?;
+
+    sqlx::query(
+        "INSERT INTO prescription_items \
+         (tenant_id, prescription_id, drug_name, dosage, frequency, duration, \
+          route, instructions, catalog_item_id) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
+    )
+    .bind(claims.tenant_id)
+    .bind(prescription_id)
+    .bind(&item.drug_name)
+    .bind(&item.dose)
+    .bind(&item.frequency)
+    .bind(duration)
+    .bind(&item.route)
+    .bind(instructions.as_deref())
+    .bind(item.drug_id)
+    .execute(&mut **tx)
+    .await?;
+
+    sqlx::query(
+        "INSERT INTO pharmacy_prescriptions \
+         (tenant_id, prescription_id, patient_id, encounter_id, doctor_id, source, status, priority) \
+         VALUES ($1, $2, $3, $4, $5, $6, 'pending_review', $7) \
+         ON CONFLICT DO NOTHING",
+    )
+    .bind(claims.tenant_id)
+    .bind(prescription_id)
+    .bind(patient_id)
+    .bind(encounter_id)
+    .bind(claims.sub)
+    .bind(source)
+    .bind(basket_drug_priority(item))
+    .execute(&mut **tx)
+    .await?;
+
+    Ok(prescription_id)
+}
+
+fn basket_drug_priority(item: &BasketDrugItem) -> &'static str {
+    if item.frequency.eq_ignore_ascii_case("STAT") {
+        "stat"
+    } else {
+        "normal"
+    }
+}
+
+fn duration_text_to_days(duration: &str) -> Option<i32> {
+    let duration = duration.trim();
+    if duration.is_empty() {
+        return None;
+    }
+    let digits = duration
+        .chars()
+        .skip_while(|ch| !ch.is_ascii_digit())
+        .take_while(char::is_ascii_digit)
+        .collect::<String>();
+    let value = digits.parse::<i32>().ok().filter(|days| *days > 0)?;
+    let lower = duration.to_ascii_lowercase();
+    if lower.contains("week") {
+        Some(value.saturating_mul(7))
+    } else if lower.contains("month") {
+        Some(value.saturating_mul(30))
+    } else {
+        Some(value)
+    }
+}
+
+fn basket_drug_prescription_notes(item: &BasketDrugItem) -> Option<String> {
+    let mut parts = Vec::new();
+    if let Some(indication) = item
+        .indication
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        parts.push(format!("Indication: {indication}"));
+    }
+    if let Some(serial) = item
+        .schedule_x_serial
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        parts.push(format!("Schedule X serial: {serial}"));
+    }
+    if parts.is_empty() {
+        None
+    } else {
+        Some(parts.join("; "))
+    }
+}
+
+fn basket_drug_prescription_instructions(item: &BasketDrugItem) -> Option<String> {
+    let mut parts = Vec::new();
+    if let Some(instructions) = item
+        .instructions
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        parts.push(instructions.to_owned());
+    }
+    if item.quantity > 0 {
+        parts.push(format!("Requested pharmacy quantity: {}", item.quantity));
+    }
+    if parts.is_empty() {
+        None
+    } else {
+        Some(parts.join("; "))
     }
 }
 
@@ -1002,14 +1266,13 @@ async fn run_basket_checks(
             let count: (i64,) = sqlx::query_as(
                 "SELECT COUNT(*)::bigint FROM lab_orders \
                  WHERE tenant_id = $1 AND patient_id = $2 AND test_id = $3 \
-                   AND ordered_at::date = current_date",
+                   AND COALESCE(order_date, created_at)::date = current_date",
             )
             .bind(tenant_id)
             .bind(patient_id)
             .bind(it.test_id)
             .fetch_one(&mut **tx)
-            .await
-            .unwrap_or((0,));
+            .await?;
             if count.0 > 0 {
                 warnings.push(BasketWarning {
                     code: "DUPLICATE_LAB_TODAY".to_owned(),
@@ -1170,31 +1433,6 @@ fn ack_for_warning<'a>(acks: &'a [WarningAck], code: &str) -> Option<&'a str> {
     acks.iter()
         .find(|ack| ack.code == code && !ack.override_reason.trim().is_empty())
         .map(|ack| ack.override_reason.trim())
-}
-
-fn drug_override_reason_for_item(acks: &[WarningAck], _item: &BasketDrugItem) -> Option<String> {
-    let reasons = acks
-        .iter()
-        .filter(|ack| {
-            warning_is_overrideable(&ack.code)
-                && matches!(
-                    ack.code.as_str(),
-                    "DRUG_ALLERGY_CONFLICT"
-                        | "DUPLICATE_ACTIVE_MEDICATION_ORDER"
-                        | "DUPLICATE_MEDICATION_IN_BASKET"
-                        | "CONTROLLED_DRUG_ACK_REQUIRED"
-                        | "HIGH_RISK_MEDICATION_ACK_REQUIRED"
-                        | "RESTRICTED_FORMULARY_ACK_REQUIRED"
-                )
-                && !ack.override_reason.trim().is_empty()
-        })
-        .map(|ack| format!("{}: {}", ack.code, ack.override_reason.trim()))
-        .collect::<Vec<_>>();
-    if reasons.is_empty() {
-        None
-    } else {
-        Some(reasons.join("; "))
-    }
 }
 
 // ══════════════════════════════════════════════════════════

@@ -21,6 +21,7 @@ import {
 } from "@mantine/core";
 import { DatePickerInput } from "@mantine/dates";
 import { notifications } from "@mantine/notifications";
+import "@mantine/schedule/styles.css";
 import type { ScheduleEventData } from "@mantine/schedule";
 import { WeekView } from "@mantine/schedule";
 import { useHasPermission } from "@medbrains/stores";

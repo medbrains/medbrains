@@ -2,9 +2,8 @@
 // Mirrors design preview/components-inputs.html `.form-clinical` exactly.
 
 .form {
-  background: var(--fc-canvas);
-  border: 1px solid var(--fc-rule);
-  border-radius: 6px;
+  width: 100%;
+  background: transparent;
 }
 
 .head {
@@ -97,7 +96,6 @@
   padding: 16px 22px;
   background: var(--fc-panel);
   border-top: 1px solid var(--fc-rule);
-  border-radius: 0 0 6px 6px;
 }
 
 .meta {

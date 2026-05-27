@@ -1,4 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
+import "@mantine/charts/styles.css";
 import { LineChart } from "@mantine/charts";
 import {
   ActionIcon,

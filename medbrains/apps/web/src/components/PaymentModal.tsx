@@ -14,7 +14,10 @@ import {
 import { notifications } from "@mantine/notifications";
 import type { PaymentFormInput } from "@medbrains/schemas";
 import { createPaymentFormSchema } from "@medbrains/schemas";
-import type { CreatePaymentOrderResponse, UpiQrResponse } from "@medbrains/types";
+import { useHasPermission } from "@medbrains/stores";
+import type { CreatePaymentOrderResponse, FieldAccessLevel, UpiQrResponse } from "@medbrains/types";
+import { P } from "@medbrains/types";
+import { fieldAccessText } from "@medbrains/utils";
 import {
   IconAlertCircle,
   IconCash,
@@ -37,6 +40,7 @@ interface PaymentModalProps {
   opened: boolean;
   onClose: () => void;
   amount: number;
+  amountAccess?: FieldAccessLevel;
   invoiceId?: string;
   posSaleId?: string;
   patientName?: string;
@@ -54,12 +58,14 @@ export function PaymentModal({
   opened,
   onClose,
   amount,
+  amountAccess = "edit",
   invoiceId,
   posSaleId,
   patientName,
   onSuccess,
 }: PaymentModalProps) {
   const [qrData, setQrData] = useState<UpiQrResponse | null>(null);
+  const canCreatePayment = useHasPermission(P.BILLING.PAYMENTS_CREATE);
   const paymentSchema = useMemo(() => createPaymentFormSchema(amount), [amount]);
   const {
     control,
@@ -80,6 +86,22 @@ export function PaymentModal({
   const mode = formValues.mode;
   const cashReceived = Number(formValues.cashReceived || 0);
   const changeDue = Math.max(0, cashReceived - amount);
+  const amountLabel = paymentAmountText(amountAccess, amount);
+  const changeDueLabel = paymentAmountText(amountAccess, changeDue);
+  const showAmountInAction = amountAccess === "edit" || amountAccess === "view";
+  const canCollectAmount = amountAccess === "edit";
+  const paymentBlocked = !canCreatePayment || !canCollectAmount;
+  const paymentBlockedMessage = !canCreatePayment
+    ? "Payment collection requires billing payment permission."
+    : "Payment collection requires editable billing amount access.";
+
+  const notifyPaymentBlocked = useCallback(() => {
+    notifications.show({
+      title: "Payment not allowed",
+      message: paymentBlockedMessage,
+      color: "yellow",
+    });
+  }, [paymentBlockedMessage]);
 
   const createOrderMutation = useMutation({
     mutationFn: () =>
@@ -109,7 +131,7 @@ export function PaymentModal({
     onSuccess: (txn) => {
       notifications.show({
         title: "Payment Successful",
-        message: `Payment of ₹${amount} captured successfully`,
+        message: `Payment of ${amountLabel} captured successfully`,
         color: "green",
         icon: <IconCheck size={16} />,
       });
@@ -149,6 +171,22 @@ export function PaymentModal({
       });
     },
   });
+
+  const startOnlinePayment = useCallback(() => {
+    if (paymentBlocked) {
+      notifyPaymentBlocked();
+      return;
+    }
+    createOrderMutation.mutate();
+  }, [createOrderMutation, notifyPaymentBlocked, paymentBlocked]);
+
+  const generateUpiQr = useCallback(() => {
+    if (paymentBlocked) {
+      notifyPaymentBlocked();
+      return;
+    }
+    upiQrMutation.mutate();
+  }, [notifyPaymentBlocked, paymentBlocked, upiQrMutation]);
 
   const openRazorpayCheckout = useCallback(
     (orderData: CreatePaymentOrderResponse) => {
@@ -203,6 +241,10 @@ export function PaymentModal({
   );
 
   const handleCashPayment = handleSubmit((values) => {
+    if (paymentBlocked) {
+      notifyPaymentBlocked();
+      return;
+    }
     const received = Number(values.cashReceived || 0);
     if (received < amount) {
       notifications.show({
@@ -221,6 +263,10 @@ export function PaymentModal({
   });
 
   const handleUpiConfirm = handleSubmit((values) => {
+    if (paymentBlocked) {
+      notifyPaymentBlocked();
+      return;
+    }
     const reference = values.utrReference.trim();
     onSuccess(`upi_qr:${reference}`, {
       source: "manual",
@@ -253,7 +299,7 @@ export function PaymentModal({
             Amount Due
           </Text>
           <Text fw={700} size="xl">
-            ₹{amount.toFixed(2)}
+            {amountLabel}
           </Text>
         </Group>
 
@@ -261,6 +307,12 @@ export function PaymentModal({
           <Text size="sm" c="dimmed">
             Patient: {patientName}
           </Text>
+        )}
+
+        {paymentBlocked && (
+          <Alert variant="light" color="yellow" icon={<IconAlertCircle size={16} />}>
+            {paymentBlockedMessage}
+          </Alert>
         )}
 
         <Controller
@@ -313,10 +365,11 @@ export function PaymentModal({
               fullWidth
               size="md"
               loading={isProcessing}
-              onClick={() => createOrderMutation.mutate()}
+              disabled={paymentBlocked}
+              onClick={startOnlinePayment}
               leftSection={<IconCreditCard size={18} />}
             >
-              Pay ₹{amount.toFixed(2)} Online
+              {showAmountInAction ? `Pay ${amountLabel} Online` : "Pay Online"}
             </Button>
           </Stack>
         )}
@@ -328,7 +381,8 @@ export function PaymentModal({
                 fullWidth
                 variant="light"
                 loading={upiQrMutation.isPending}
-                onClick={() => upiQrMutation.mutate()}
+                disabled={paymentBlocked}
+                onClick={generateUpiQr}
                 leftSection={<IconQrcode size={18} />}
               >
                 Generate UPI QR Code
@@ -336,7 +390,9 @@ export function PaymentModal({
             ) : (
               <Stack gap="sm" align="center">
                 <Badge size="lg" variant="light" color="green">
-                  Scan to Pay ₹{qrData.amount}
+                  {showAmountInAction
+                    ? `Scan to Pay ${paymentAmountText(amountAccess, qrData.amount)}`
+                    : "Scan to Pay"}
                 </Badge>
                 <QrCodeDisplay value={qrData.upi_uri} />
                 <Text size="xs" c="dimmed">
@@ -358,6 +414,7 @@ export function PaymentModal({
                       value={field.value}
                       onChange={field.onChange}
                       error={errors.utrReference?.message}
+                      disabled={paymentBlocked}
                       required
                       w="100%"
                     />
@@ -366,6 +423,7 @@ export function PaymentModal({
                 <Button
                   fullWidth
                   onClick={() => void handleUpiConfirm()}
+                  disabled={paymentBlocked}
                   leftSection={<IconCheck size={18} />}
                 >
                   Confirm Payment Received
@@ -390,6 +448,7 @@ export function PaymentModal({
                   decimalScale={2}
                   prefix="₹"
                   size="md"
+                  disabled={paymentBlocked}
                 />
               )}
             />
@@ -399,7 +458,7 @@ export function PaymentModal({
                   Change Due
                 </Text>
                 <Text fw={600} c="green" size="lg">
-                  ₹{changeDue.toFixed(2)}
+                  {changeDueLabel}
                 </Text>
               </Group>
             )}
@@ -407,7 +466,7 @@ export function PaymentModal({
               fullWidth
               size="md"
               onClick={() => void handleCashPayment()}
-              disabled={cashReceived < amount}
+              disabled={paymentBlocked || cashReceived < amount}
               leftSection={<IconCash size={18} />}
               color="green"
             >
@@ -417,6 +476,22 @@ export function PaymentModal({
         )}
       </Stack>
     </Modal>
+  );
+}
+
+function paymentAmountText(
+  access: FieldAccessLevel,
+  value: number | string | null | undefined,
+): string {
+  const parsed = Number(value ?? 0);
+  const amount = Number.isFinite(parsed) ? parsed : 0;
+  return fieldAccessText(
+    access,
+    `₹${amount.toLocaleString("en-IN", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}`,
+    "amount",
   );
 }
 

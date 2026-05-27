@@ -42,9 +42,61 @@
   }
 }
 
+.phoneWrapper,
+.phoneShell,
+.phoneControl {
+  width: 100%;
+}
+
+.phoneShell {
+  min-width: 0;
+}
+
+.phoneCountry {
+  flex: 0 0 132px;
+  min-width: 118px;
+}
+
+.phoneCountryInput {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+  font-weight: 600;
+}
+
+.phoneNumber {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.phoneNumberInput {
+  margin-left: -1px;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+
+.phoneError {
+  .phoneCountryInput,
+  .phoneNumberInput {
+    border-color: var(--code-red);
+  }
+}
+
+.phoneHint {
+  margin-top: 6px;
+  color: var(--fc-muted);
+  font-family: var(--font-mono);
+  letter-spacing: 0.04em;
+}
+
 @keyframes fcCursor {
   50% {
     opacity: 0;
+  }
+}
+
+@media (max-width: 480px) {
+  .phoneCountry {
+    flex-basis: 112px;
   }
 }
 

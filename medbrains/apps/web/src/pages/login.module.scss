@@ -1,40 +1,55 @@
-// ── Login — Split-screen: dark forest manifesto + white form ──
-
-$forest: #1F4332;
-$forest-deep: #0d2417;
-$copper: #B8924A;
+// Login — public auth surface using the shared app design tokens.
 
 .wrapper {
   min-height: 100vh;
   display: flex;
-  background: #ffffff;
+  background: var(--mb-bg-content);
+  color: var(--mb-text-primary);
 }
-
-// ── Left panel: dark forest with manifesto ──
 
 .manifesto {
   flex: 1;
-  background: linear-gradient(160deg, $forest-deep 0%, $forest 100%);
+  background: var(--mb-sidebar-bg);
   display: flex;
   flex-direction: column;
   justify-content: center;
   padding: 64px;
   position: relative;
   overflow: hidden;
+  border-right: 1px solid var(--mb-border-subtle);
+
+  &::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: var(--mb-selected-edge);
+  }
+
+  &::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: var(--mb-accent-gradient-soft);
+    opacity: 0.72;
+    pointer-events: none;
+  }
 
   @media (max-width: 900px) {
     display: none;
   }
 }
 
-// Subtle ECG line decoration in the background
 .manifestoEcg {
   position: absolute;
   bottom: 80px;
   left: 0;
   width: 100%;
   height: 40px;
-  opacity: 0.08;
+  opacity: 0.14;
+  z-index: 1;
 }
 
 .manifestoLogo {
@@ -42,36 +57,41 @@ $copper: #B8924A;
   align-items: center;
   gap: 12px;
   margin-bottom: 48px;
+  position: relative;
+  z-index: 2;
 }
 
 .manifestoLogoText {
-  color: rgba(255, 255, 255, 0.9);
+  color: var(--mb-text-primary);
   font-size: 18px;
   font-weight: 700;
-  letter-spacing: -0.02em;
+  letter-spacing: var(--mb-letter-spacing);
 }
 
 .manifestoTitle {
-  font-family: var(--font-display, "Fraunces Variable", Georgia, serif);
+  font-family: var(--font-display);
   font-size: 36px;
-  font-weight: 400;
+  font-weight: var(--mb-font-weight-heading);
   line-height: 1.15;
-  color: #ffffff;
-  letter-spacing: -0.02em;
+  color: var(--mb-text-heading);
+  letter-spacing: var(--mb-letter-spacing);
   margin-bottom: 24px;
+  position: relative;
+  z-index: 2;
 
   em {
-    font-style: italic;
-    font-weight: 500;
-    color: $copper;
+    font-style: normal;
+    color: var(--fc-copper);
   }
 }
 
 .manifestoBody {
   font-size: 15px;
   line-height: 1.7;
-  color: rgba(255, 255, 255, 0.55);
+  color: var(--mb-text-secondary);
   max-width: 400px;
+  position: relative;
+  z-index: 2;
 }
 
 .manifestoStats {
@@ -79,7 +99,9 @@ $copper: #B8924A;
   gap: 32px;
   margin-top: 40px;
   padding-top: 32px;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  border-top: 1px solid var(--mb-border-subtle);
+  position: relative;
+  z-index: 2;
 }
 
 .manifestoStat {
@@ -88,24 +110,22 @@ $copper: #B8924A;
 }
 
 .manifestoStatValue {
-  font-family: var(--font-display, "Fraunces Variable", Georgia, serif);
+  font-family: var(--font-display);
   font-size: 24px;
-  font-weight: 400;
-  color: #ffffff;
+  font-weight: var(--mb-font-weight-heading);
+  color: var(--mb-text-primary);
   font-variant-numeric: lining-nums tabular-nums;
 }
 
 .manifestoStatLabel {
   font-size: 11px;
-  font-weight: 500;
-  color: rgba(255, 255, 255, 0.4);
+  font-weight: var(--mb-font-weight-label);
+  color: var(--mb-text-muted);
   text-transform: uppercase;
-  letter-spacing: 0.14em;
-  font-family: var(--font-mono, "JetBrains Mono", monospace);
+  letter-spacing: var(--mb-letter-spacing);
+  font-family: var(--font-mono);
   margin-top: 4px;
 }
-
-// ── Right panel: white form ──
 
 .formSide {
   flex: 1;
@@ -114,6 +134,7 @@ $copper: #B8924A;
   justify-content: center;
   padding: 48px;
   max-width: 560px;
+  background: var(--mb-bg-content);
 
   @media (max-width: 900px) {
     max-width: 100%;
@@ -124,6 +145,23 @@ $copper: #B8924A;
 .container {
   width: 100%;
   max-width: 400px;
+  position: relative;
+  padding: 28px;
+  border: 1px solid var(--mb-border);
+  border-radius: 18px;
+  background: var(--mb-card-bg);
+  box-shadow: var(--mb-shadow-soft);
+
+  &::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 18px;
+    right: 18px;
+    height: 3px;
+    border-radius: 999px;
+    background: var(--mb-selected-edge);
+  }
 }
 
 .card {
@@ -149,12 +187,12 @@ $copper: #B8924A;
   color: var(--mb-text-secondary);
 
   a {
-    color: var(--mantine-color-primary-5, $forest);
+    color: var(--mb-link);
     font-weight: 600;
     text-decoration: none;
 
     &:hover {
-      text-decoration: underline;
+      color: var(--mb-link-hover);
     }
   }
 }
@@ -182,28 +220,28 @@ $copper: #B8924A;
 .devCreds {
   margin-top: 8px;
   padding: 10px 14px;
-  background: var(--mb-bg-content, #f7f8f6);
+  background: var(--mb-panel-bg);
   border-radius: 14px;
-  border: none;
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.04);
+  border: 1px solid var(--mb-border-subtle);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.16);
 }
 
 .desktopSetup {
   margin-top: 18px;
-  border-top: 1px solid rgba(31, 67, 50, 0.08);
+  border-top: 1px solid var(--mb-border-subtle);
   padding-top: 16px;
 }
 
 .desktopSetupToggle {
   width: 100%;
-  border: 1px solid rgba(31, 67, 50, 0.14);
-  background: linear-gradient(180deg, #ffffff 0%, #f7faf7 100%);
-  color: $forest;
+  border: 1px solid var(--mb-border);
+  background: var(--mb-action-surface-bg);
+  color: var(--mb-action-surface-text);
   cursor: pointer;
   border-radius: 12px;
   padding: 10px 12px;
   font-size: 12px;
-  font-weight: 700;
+  font-weight: var(--mb-font-weight-action);
   text-align: left;
   transition:
     border-color 0.15s ease,
@@ -211,8 +249,9 @@ $copper: #B8924A;
     transform 0.15s ease;
 
   &:hover {
-    border-color: rgba(184, 146, 74, 0.5);
-    box-shadow: 0 8px 20px rgba(31, 67, 50, 0.08);
+    border-color: var(--mb-active-border);
+    background: var(--mb-action-surface-hover-bg);
+    box-shadow: var(--mb-card-hover-shadow);
     transform: translateY(-1px);
   }
 }
@@ -222,11 +261,9 @@ $copper: #B8924A;
   gap: 12px;
   margin-top: 12px;
   padding: 14px;
-  border: 1px solid rgba(31, 67, 50, 0.1);
+  border: 1px solid var(--mb-border);
   border-radius: 14px;
-  background:
-    linear-gradient(135deg, rgba(31, 67, 50, 0.04), rgba(184, 146, 74, 0.06)),
-    #ffffff;
+  background: var(--mb-panel-bg);
 }
 
 .desktopSetupActions {
@@ -239,5 +276,5 @@ $copper: #B8924A;
   font-size: 11px;
   color: var(--mb-text-muted);
   margin-top: 12px;
-  font-family: var(--font-mono, "JetBrains Mono", monospace);
+  font-family: var(--font-mono);
 }

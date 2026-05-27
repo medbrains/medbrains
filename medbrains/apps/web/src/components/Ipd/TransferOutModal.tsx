@@ -15,6 +15,8 @@ import { Alert, Button, Group, Modal, Stack, Textarea, TextInput } from "@mantin
 import { notifications } from "@mantine/notifications";
 import type { IpdTransferOutFormInput } from "@medbrains/schemas";
 import { ipdTransferOutFormSchema } from "@medbrains/schemas";
+import { useHasPermission } from "@medbrains/stores";
+import { P } from "@medbrains/types";
 import { Controller, useForm } from "react-hook-form";
 
 interface TransferOutModalProps {
@@ -24,6 +26,7 @@ interface TransferOutModalProps {
 }
 
 export function TransferOutModal({ admissionId, opened, onClose }: TransferOutModalProps) {
+  const canCreateTransfer = useHasPermission(P.IPD.TRANSFERS_CREATE);
   const {
     control,
     handleSubmit,
@@ -43,6 +46,14 @@ export function TransferOutModal({ admissionId, opened, onClose }: TransferOutMo
   });
 
   const handlePrint = handleSubmit((values) => {
+    if (!canCreateTransfer) {
+      notifications.show({
+        title: "Transfer blocked",
+        message: "You do not have permission to create IPD transfers.",
+        color: "red",
+      });
+      return;
+    }
     const w = window.open("", "_blank", "width=800,height=900");
     if (!w) return;
     w.document.write(`
@@ -99,6 +110,11 @@ export function TransferOutModal({ admissionId, opened, onClose }: TransferOutMo
           the future referral.dispatched event. MLC cases require additional police-liaison
           clearance.
         </Alert>
+        {!canCreateTransfer && (
+          <Alert color="danger" variant="light">
+            Generating a transfer-out letter requires IPD transfer permission.
+          </Alert>
+        )}
 
         <Controller
           control={control}
@@ -202,7 +218,9 @@ export function TransferOutModal({ admissionId, opened, onClose }: TransferOutMo
           <Button variant="subtle" onClick={onClose}>
             Cancel
           </Button>
-          <Button onClick={() => void handlePrint()}>Generate + print letter</Button>
+          <Button disabled={!canCreateTransfer} onClick={() => void handlePrint()}>
+            Generate + print letter
+          </Button>
         </Group>
       </Stack>
     </Modal>

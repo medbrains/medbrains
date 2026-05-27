@@ -1,10 +1,11 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Button, Group, Select, Stack, TextInput } from "@mantine/core";
+import { Alert, Button, Group, Select, Stack, TextInput } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import type { DrugScheduleFormValue, MiniAddDrugFormInput } from "@medbrains/schemas";
 import { miniAddDrugFormSchema, toDrugScheduleFormValue } from "@medbrains/schemas";
-import type { PharmacyCatalog } from "@medbrains/types";
-import { IconCheck, IconPill } from "@tabler/icons-react";
+import { useFieldAccess, useHasPermission } from "@medbrains/stores";
+import { P, type PharmacyCatalog } from "@medbrains/types";
+import { IconCheck, IconLock, IconPill } from "@tabler/icons-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { Controller, useForm } from "react-hook-form";
@@ -48,6 +49,10 @@ function errorMessage(error: unknown): string {
 export function MiniAddDrug({ searchText, onCreated, onCancel }: MiniAddDrugProps) {
   const initialName = useMemo(() => inferName(searchText), [searchText]);
   const queryClient = useQueryClient();
+  const canCreateDrug = useHasPermission(P.PHARMACY.STOCK_MANAGE);
+  const canManagePricing = useHasPermission(P.PHARMACY.PRICING_MANAGE);
+  const priceAccess = useFieldAccess("pharmacy.catalog.base_price");
+  const canEditBasePrice = canManagePricing && priceAccess === "edit";
   const {
     control,
     getValues,
@@ -92,7 +97,7 @@ export function MiniAddDrug({ searchText, onCreated, onCancel }: MiniAddDrugProp
     },
   });
 
-  const canSubmit = values.name.trim().length > 0 && values.code.trim().length > 0;
+  const canSubmit = canCreateDrug && values.name.trim().length > 0 && values.code.trim().length > 0;
 
   const submitDrug = handleSubmit((formValues) => {
     if (!canSubmit) {
@@ -102,7 +107,7 @@ export function MiniAddDrug({ searchText, onCreated, onCancel }: MiniAddDrugProp
     const payload: CreatePharmacyCatalogInput = {
       code: formValues.code.trim(),
       name: formValues.name.trim(),
-      base_price: Number(formValues.base_price) || 0,
+      base_price: canEditBasePrice ? Number(formValues.base_price) || 0 : 0,
       tax_percent: 0,
       reorder_level: Number(formValues.reorder_level) || 0,
       drug_schedule: formValues.drug_schedule,
@@ -119,6 +124,17 @@ export function MiniAddDrug({ searchText, onCreated, onCancel }: MiniAddDrugProp
 
   return (
     <Stack gap="sm">
+      {!canCreateDrug && (
+        <Alert color="orange" variant="light" icon={<IconLock size={16} />}>
+          Adding formulary drugs requires pharmacy stock management permission.
+        </Alert>
+      )}
+      {canCreateDrug && !canEditBasePrice && (
+        <Alert color="yellow" variant="light" icon={<IconLock size={16} />}>
+          Base price is restricted for this role; the drug can be created with price 0 and priced
+          later by an authorized pricing user.
+        </Alert>
+      )}
       <Controller
         control={control}
         name="name"
@@ -136,6 +152,7 @@ export function MiniAddDrug({ searchText, onCreated, onCancel }: MiniAddDrugProp
               field.onChange(next);
             }}
             error={errors.name?.message}
+            disabled={!canCreateDrug}
           />
         )}
       />
@@ -143,7 +160,12 @@ export function MiniAddDrug({ searchText, onCreated, onCancel }: MiniAddDrugProp
         control={control}
         name="generic_name"
         render={({ field }) => (
-          <TextInput label="Generic / INN" value={field.value} onChange={field.onChange} />
+          <TextInput
+            label="Generic / INN"
+            value={field.value}
+            onChange={field.onChange}
+            disabled={!canCreateDrug}
+          />
         )}
       />
       <Group grow align="flex-start">
@@ -157,6 +179,7 @@ export function MiniAddDrug({ searchText, onCreated, onCancel }: MiniAddDrugProp
               value={field.value}
               onChange={field.onChange}
               error={errors.code?.message}
+              disabled={!canCreateDrug}
             />
           )}
         />
@@ -164,7 +187,12 @@ export function MiniAddDrug({ searchText, onCreated, onCancel }: MiniAddDrugProp
           control={control}
           name="unit"
           render={({ field }) => (
-            <TextInput label="Unit" value={field.value} onChange={field.onChange} />
+            <TextInput
+              label="Unit"
+              value={field.value}
+              onChange={field.onChange}
+              disabled={!canCreateDrug}
+            />
           )}
         />
       </Group>
@@ -179,6 +207,7 @@ export function MiniAddDrug({ searchText, onCreated, onCancel }: MiniAddDrugProp
               value={field.value}
               onChange={field.onChange}
               error={errors.base_price?.message}
+              disabled={!canCreateDrug || !canEditBasePrice}
             />
           )}
         />
@@ -192,6 +221,7 @@ export function MiniAddDrug({ searchText, onCreated, onCancel }: MiniAddDrugProp
               value={field.value}
               onChange={field.onChange}
               error={errors.reorder_level?.message}
+              disabled={!canCreateDrug}
             />
           )}
         />
@@ -206,6 +236,7 @@ export function MiniAddDrug({ searchText, onCreated, onCancel }: MiniAddDrugProp
             label="Drug schedule"
             value={field.value}
             onChange={(value) => field.onChange(toDrugScheduleFormValue(value))}
+            disabled={!canCreateDrug}
           />
         )}
       />

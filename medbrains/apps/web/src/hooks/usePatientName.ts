@@ -1,6 +1,7 @@
 // usePatientName — shared, cached fetch of patient display name.
 // 5min stale (names rarely change), keeps tables consistent across the app.
 
+import type { Gender } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
 import { patientsService } from "../services/patients.service";
 
@@ -8,6 +9,7 @@ export interface PatientNameInfo {
   id: string;
   uhid: string;
   full_name: string;
+  gender: Gender;
 }
 
 export function patientNameQueryKey(patientId: string | null | undefined) {
@@ -29,6 +31,7 @@ export function usePatientName(patientId: string | null | undefined) {
         id: p.id,
         uhid: p.uhid,
         full_name: nameParts.join(" "),
+        gender: p.gender,
       };
     },
     enabled: Boolean(patientId),

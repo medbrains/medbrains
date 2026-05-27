@@ -21,7 +21,10 @@ import {
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import type { CreateInclusionRequest } from "@medbrains/types";
+import { useFieldAccess, useHasPermission } from "@medbrains/stores";
+import type { CreateInclusionRequest, FieldAccessLevel } from "@medbrains/types";
+import { P } from "@medbrains/types";
+import { fieldAccessText } from "@medbrains/utils";
 import { IconList, IconPackage, IconPlus, IconTrash } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
@@ -31,6 +34,26 @@ import { patientPackagesService } from "../../services/patientPackages.service";
 
 type InclusionType = "consultation" | "lab" | "procedure" | "service";
 
+function canEditBillingAmount(access: FieldAccessLevel): boolean {
+  return access === "edit";
+}
+
+function packageAmountText(
+  access: FieldAccessLevel,
+  value: number | string | null | undefined,
+): string {
+  const parsed = Number(value ?? 0);
+  const amount = Number.isFinite(parsed) ? parsed : 0;
+  return fieldAccessText(
+    access,
+    `₹${amount.toLocaleString("en-IN", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}`,
+    "amount",
+  );
+}
+
 function isInclusionType(value: string | null): value is InclusionType {
   return (
     value === "consultation" || value === "lab" || value === "procedure" || value === "service"
@@ -38,8 +61,12 @@ function isInclusionType(value: string | null): value is InclusionType {
 }
 
 export function AdminDoctorPackagesPage() {
-  useRequirePermission("admin.doctor_packages.list");
+  useRequirePermission(P.ADMIN.DOCTOR_PACKAGES.LIST);
   const queryClient = useQueryClient();
+  const billingAmountAccess = useFieldAccess("billing.amount");
+  const canManagePackageMasters = useHasPermission(P.ADMIN.DOCTOR_PACKAGES.MANAGE);
+  const canCreatePackages =
+    canManagePackageMasters && canEditBillingAmount(billingAmountAccess);
   const [createOpen, createHandlers] = useDisclosure(false);
   const [editPackageId, setEditPackageId] = useState<string | null>(null);
   const [showInactive, setShowInactive] = useState(false);
@@ -92,9 +119,11 @@ export function AdminDoctorPackagesPage() {
               checked={showInactive}
               onChange={(e) => setShowInactive(e.currentTarget.checked)}
             />
-            <Button size="xs" leftSection={<IconPlus size={14} />} onClick={createHandlers.open}>
-              New package
-            </Button>
+            {canCreatePackages && (
+              <Button size="xs" leftSection={<IconPlus size={14} />} onClick={createHandlers.open}>
+                New package
+              </Button>
+            )}
           </Group>
         }
       />
@@ -128,7 +157,7 @@ export function AdminDoctorPackagesPage() {
                   )}
                 </Table.Td>
                 <Table.Td>
-                  <Text size="sm">₹{p.total_price}</Text>
+                  <Text size="sm">{packageAmountText(billingAmountAccess, p.total_price)}</Text>
                 </Table.Td>
                 <Table.Td>
                   <Text size="sm">{p.validity_days}d</Text>
@@ -139,11 +168,13 @@ export function AdminDoctorPackagesPage() {
                   </Badge>
                 </Table.Td>
                 <Table.Td>
-                  <Tooltip label="Manage inclusions">
-                    <ActionIcon variant="subtle" onClick={() => setEditPackageId(p.id)}>
-                      <IconList size={16} />
-                    </ActionIcon>
-                  </Tooltip>
+                  {canManagePackageMasters && (
+                    <Tooltip label="Manage inclusions">
+                      <ActionIcon variant="subtle" onClick={() => setEditPackageId(p.id)}>
+                        <IconList size={16} />
+                      </ActionIcon>
+                    </Tooltip>
+                  )}
                 </Table.Td>
               </Table.Tr>
             ))}
@@ -160,14 +191,16 @@ export function AdminDoctorPackagesPage() {
         </Table>
       </Card>
 
-      <CreatePackageDrawer
-        opened={createOpen}
-        onClose={createHandlers.close}
-        onSubmit={create.mutate}
-        submitting={create.isPending}
-      />
+      {canCreatePackages && (
+        <CreatePackageDrawer
+          opened={createOpen}
+          onClose={createHandlers.close}
+          onSubmit={create.mutate}
+          submitting={create.isPending}
+        />
+      )}
 
-      {editPackageId && (
+      {editPackageId && canManagePackageMasters && (
         <InclusionsDrawer packageId={editPackageId} onClose={() => setEditPackageId(null)} />
       )}
     </div>

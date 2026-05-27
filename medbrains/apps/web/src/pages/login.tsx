@@ -66,7 +66,7 @@ export function LoginPage() {
       });
       setAuth(authUser);
       setPermissions(data.user.role, data.permissions, data.field_access);
-      navigate("/dashboard");
+      navigate("/apps");
     },
   });
 
@@ -107,7 +107,7 @@ export function LoginPage() {
   };
 
   if (user) {
-    return <Navigate to="/dashboard" replace />;
+    return <Navigate to="/apps" replace />;
   }
 
   return (

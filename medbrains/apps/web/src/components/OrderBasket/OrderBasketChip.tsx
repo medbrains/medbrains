@@ -1,9 +1,11 @@
 import { Badge, Button } from "@mantine/core";
-import { useOrderBasketStore } from "@medbrains/stores";
+import { useHasPermission, useOrderBasketStore } from "@medbrains/stores";
+import { P } from "@medbrains/types";
 import { IconShoppingCart } from "@tabler/icons-react";
 
 interface OrderBasketChipProps {
   onClick: () => void;
+  requiredPermission?: string;
 }
 
 /**
@@ -11,9 +13,13 @@ interface OrderBasketChipProps {
  * lands from other chat's sprint) or any encounter-scoped header. Shows
  * basket size as a badge.
  */
-export function OrderBasketChip({ onClick }: OrderBasketChipProps) {
+export function OrderBasketChip({
+  onClick,
+  requiredPermission = P.ORDER_BASKET.SIGN,
+}: OrderBasketChipProps) {
   const itemCount = useOrderBasketStore((s) => s.items.length);
   const isChecking = useOrderBasketStore((s) => s.isChecking);
+  const canOpenBasket = useHasPermission(requiredPermission);
 
   return (
     <Button
@@ -28,7 +34,10 @@ export function OrderBasketChip({ onClick }: OrderBasketChipProps) {
           </Badge>
         ) : null
       }
-      onClick={onClick}
+      onClick={() => {
+        if (canOpenBasket) onClick();
+      }}
+      disabled={!canOpenBasket}
       loading={isChecking}
     >
       Order Basket

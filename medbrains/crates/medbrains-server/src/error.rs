@@ -32,6 +32,9 @@ pub enum AppError {
     #[error("conflict: {0}")]
     Conflict(String),
 
+    #[error("service unavailable: {0}")]
+    ServiceUnavailable(String),
+
     #[error("validation failed")]
     ValidationFailed(ValidationErrors),
 
@@ -122,6 +125,14 @@ impl IntoResponse for AppError {
             Self::Conflict(msg) => {
                 tracing::warn!(detail = %msg, "conflict");
                 (StatusCode::CONFLICT, "conflict", msg.clone())
+            }
+            Self::ServiceUnavailable(msg) => {
+                tracing::warn!(detail = %msg, "service unavailable");
+                (
+                    StatusCode::SERVICE_UNAVAILABLE,
+                    "service unavailable",
+                    msg.clone(),
+                )
             }
             Self::Internal(msg) => {
                 tracing::error!(detail = %msg, "internal error");

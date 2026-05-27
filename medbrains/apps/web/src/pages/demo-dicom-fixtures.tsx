@@ -1,5 +1,4 @@
 import {
-  Anchor,
   Badge,
   Button,
   Card,
@@ -10,47 +9,51 @@ import {
   Text,
   Title,
 } from "@mantine/core";
-import { IconExternalLink, IconFileTypeHtml, IconFileTypeXml } from "@tabler/icons-react";
+import { P } from "@medbrains/types";
+import { IconFileTypeXml } from "@tabler/icons-react";
+import chestXrayPaDemoDicom from "../assets/demo-dicom/chest-xray-pa-demo.dcm?url";
+import ctBrainPlainDemoDicom from "../assets/demo-dicom/ct-brain-plain-demo.dcm?url";
+import leftHandXrayDemoDicom from "../assets/demo-dicom/left-hand-xray-demo.dcm?url";
+import mriRightKneeDemoDicom from "../assets/demo-dicom/mri-right-knee-demo.dcm?url";
+import usAbdomenDemoDicom from "../assets/demo-dicom/us-abdomen-demo.dcm?url";
+import { useRequirePermission } from "../hooks/useRequirePermission";
 
 const fixtures = [
   {
     title: "Chest X-Ray PA",
     modality: "CR",
     bodySite: "Chest",
-    viewer: "/demo/dicom/chest-xray-pa-demo.html",
-    dicom: "/demo/dicom/chest-xray-pa-demo.dcm",
+    dicom: chestXrayPaDemoDicom,
   },
   {
     title: "CT Brain Plain",
     modality: "CT",
     bodySite: "Brain",
-    viewer: "/demo/dicom/ct-brain-plain-demo.html",
-    dicom: "/demo/dicom/ct-brain-plain-demo.dcm",
+    dicom: ctBrainPlainDemoDicom,
   },
   {
     title: "US Abdomen",
     modality: "US",
     bodySite: "Abdomen",
-    viewer: "/demo/dicom/us-abdomen-demo.html",
-    dicom: "/demo/dicom/us-abdomen-demo.dcm",
+    dicom: usAbdomenDemoDicom,
   },
   {
     title: "MRI Right Knee",
     modality: "MR",
     bodySite: "Knee",
-    viewer: "/demo/dicom/mri-right-knee-demo.html",
-    dicom: "/demo/dicom/mri-right-knee-demo.dcm",
+    dicom: mriRightKneeDemoDicom,
   },
   {
     title: "Left Hand X-Ray",
     modality: "DX",
     bodySite: "Hand",
-    viewer: "/demo/dicom/left-hand-xray-demo.html",
-    dicom: "/demo/dicom/left-hand-xray-demo.dcm",
+    dicom: leftHandXrayDemoDicom,
   },
 ];
 
 export function DemoDicomFixturesPage() {
+  useRequirePermission(P.RADIOLOGY.MODALITIES_MANAGE);
+
   return (
     <Container size="lg" py="xl">
       <Stack gap="lg">
@@ -85,17 +88,6 @@ export function DemoDicomFixturesPage() {
                 <Group gap="xs">
                   <Button
                     component="a"
-                    href={fixture.viewer}
-                    target="_blank"
-                    rel="noreferrer"
-                    leftSection={<IconFileTypeHtml size={16} />}
-                    rightSection={<IconExternalLink size={14} />}
-                    variant="filled"
-                  >
-                    Open viewer
-                  </Button>
-                  <Button
-                    component="a"
                     href={fixture.dicom}
                     target="_blank"
                     rel="noreferrer"
@@ -109,13 +101,6 @@ export function DemoDicomFixturesPage() {
             </Card>
           ))}
         </SimpleGrid>
-
-        <Text size="sm" c="dimmed">
-          Static index:{" "}
-          <Anchor href="/demo/dicom/index.html" target="_blank" rel="noreferrer">
-            /demo/dicom/index.html
-          </Anchor>
-        </Text>
       </Stack>
     </Container>
   );

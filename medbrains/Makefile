@@ -1,4 +1,4 @@
-.PHONY: help dev dev-fast dev-icd dev-backend dev-frontend db db-stop db-reset db-icd \
+.PHONY: help dev dev-fast dev-icd dev-backend dev-frontend dev-simulator-admin db db-stop db-reset db-icd \
        sim-hospital sim-hospital-batch sim-hospital-clean \
        local-https-cert dev-proxy dev-https \
        build build-backend build-frontend \
@@ -11,10 +11,10 @@
        check-ui-api check-types check-all \
        check-rls check-sharing check-authz-posture check-tenant-leak check-runtime-sqlx check-audit check-tracing \
        check-migration-headers \
-       check-region-pinning check-no-card-logging check-egress-allowlist \
+       check-region-pinning check-no-card-logging check-egress-allowlist check-cert-readiness check-encryption-at-rest check-redaction-masking \
        smoke-test e2e-test e2e-smoke e2e-crud e2e-forms e2e-analytics e2e-rbac e2e-journeys e2e-full e2e-all generate-smoke generate-e2e \
        test-rust test-unit test-ts test-all test-coverage \
-       ship ship-quick ship-cold ship-help \
+       ship ship-quick ship-cold hotpush-ui ship-help \
        docker-build \
        packer-build packer-destroy packer-destroy-dry \
        deploy deploy-plan deploy-bootstrap \
@@ -40,9 +40,11 @@ DEV_HTTPS_DOMAIN ?= medbrains.localhost
 DEV_HTTPS_ORIGIN ?= https://$(DEV_HTTPS_DOMAIN)
 DEV_DESKTOP_HTTPS_DOMAIN ?= medbrains-desktop.localhost
 DEV_DESKTOP_HTTPS_ORIGIN ?= https://$(DEV_DESKTOP_HTTPS_DOMAIN)
+DEV_SIMULATOR_HTTPS_DOMAIN ?= medbrains-simulator.localhost
+DEV_SIMULATOR_HTTPS_ORIGIN ?= https://$(DEV_SIMULATOR_HTTPS_DOMAIN)
 DEV_ICD_HTTPS_DOMAIN ?= medbrains-icd.localhost
 DEV_ICD_HTTPS_ORIGIN ?= https://$(DEV_ICD_HTTPS_DOMAIN)
-DEV_HTTPS_ALT_DOMAINS ?= $(DEV_DESKTOP_HTTPS_DOMAIN),$(DEV_ICD_HTTPS_DOMAIN)
+DEV_HTTPS_ALT_DOMAINS ?= $(DEV_DESKTOP_HTTPS_DOMAIN),$(DEV_SIMULATOR_HTTPS_DOMAIN),$(DEV_ICD_HTTPS_DOMAIN)
 DEV_PROXY_CONFIG ?= infra/local/pingora-dev.toml
 SIM_CONFIG ?= configs/simulators/hospital-stream.demo.json
 SIM_RUN_ID ?= nmc-demo
@@ -67,19 +69,19 @@ dev: local-https-cert icd-up ## Start everything with local HTTPS proxy and loca
 	@echo "Waiting for PostgreSQL..."
 	@until docker compose exec -T postgres pg_isready -U medbrains > /dev/null 2>&1; do sleep 1; done
 	@SPICEDB_SKIP_START=true SPICEDB_ENDPOINT=http://localhost:50051 SPICEDB_TOKEN=devsecret scripts/spicedb_local_schema.sh
-	@WHO_ICD_API_BASE_URL=$(ICD_API_LOCAL_BASE_URL) WHO_ICD_AUTH_MODE=none WHO_ICD_RELEASE_ID=$(WHO_ICD_RELEASE_ID) DEV_HTTPS_DOMAIN=$(DEV_HTTPS_DOMAIN) DEV_HTTPS_ORIGIN=$(DEV_HTTPS_ORIGIN) DEV_DESKTOP_HTTPS_ORIGIN=$(DEV_DESKTOP_HTTPS_ORIGIN) DEV_ICD_HTTPS_ORIGIN=$(DEV_ICD_HTTPS_ORIGIN) DEV_HTTPS_ALT_DOMAINS=$(DEV_HTTPS_ALT_DOMAINS) DEV_PROXY_CONFIG=$(DEV_PROXY_CONFIG) scripts/dev_https.sh
+	@WHO_ICD_API_BASE_URL=$(ICD_API_LOCAL_BASE_URL) WHO_ICD_AUTH_MODE=none WHO_ICD_RELEASE_ID=$(WHO_ICD_RELEASE_ID) DEV_HTTPS_DOMAIN=$(DEV_HTTPS_DOMAIN) DEV_HTTPS_ORIGIN=$(DEV_HTTPS_ORIGIN) DEV_DESKTOP_HTTPS_DOMAIN=$(DEV_DESKTOP_HTTPS_DOMAIN) DEV_DESKTOP_HTTPS_ORIGIN=$(DEV_DESKTOP_HTTPS_ORIGIN) DEV_SIMULATOR_HTTPS_DOMAIN=$(DEV_SIMULATOR_HTTPS_DOMAIN) DEV_SIMULATOR_HTTPS_ORIGIN=$(DEV_SIMULATOR_HTTPS_ORIGIN) DEV_ICD_HTTPS_DOMAIN=$(DEV_ICD_HTTPS_DOMAIN) DEV_ICD_HTTPS_ORIGIN=$(DEV_ICD_HTTPS_ORIGIN) DEV_HTTPS_ALT_DOMAINS=$(DEV_HTTPS_ALT_DOMAINS) DEV_PROXY_CONFIG=$(DEV_PROXY_CONFIG) scripts/dev_https.sh
 
 dev-fast: local-https-cert icd-up ## Start everything with HTTPS proxy and ICD-11, skip compile check
 	@docker compose up -d postgres spicedb 2>/dev/null
 	@until docker compose exec -T postgres pg_isready -U medbrains > /dev/null 2>&1; do sleep 1; done
 	@SPICEDB_SKIP_START=true SPICEDB_ENDPOINT=http://localhost:50051 SPICEDB_TOKEN=devsecret scripts/spicedb_local_schema.sh
-	@SKIP_BACKEND_BUILD=true WHO_ICD_API_BASE_URL=$(ICD_API_LOCAL_BASE_URL) WHO_ICD_AUTH_MODE=none WHO_ICD_RELEASE_ID=$(WHO_ICD_RELEASE_ID) DEV_HTTPS_DOMAIN=$(DEV_HTTPS_DOMAIN) DEV_HTTPS_ORIGIN=$(DEV_HTTPS_ORIGIN) DEV_DESKTOP_HTTPS_ORIGIN=$(DEV_DESKTOP_HTTPS_ORIGIN) DEV_ICD_HTTPS_ORIGIN=$(DEV_ICD_HTTPS_ORIGIN) DEV_HTTPS_ALT_DOMAINS=$(DEV_HTTPS_ALT_DOMAINS) DEV_PROXY_CONFIG=$(DEV_PROXY_CONFIG) scripts/dev_https.sh
+	@SKIP_BACKEND_BUILD=true WHO_ICD_API_BASE_URL=$(ICD_API_LOCAL_BASE_URL) WHO_ICD_AUTH_MODE=none WHO_ICD_RELEASE_ID=$(WHO_ICD_RELEASE_ID) DEV_HTTPS_DOMAIN=$(DEV_HTTPS_DOMAIN) DEV_HTTPS_ORIGIN=$(DEV_HTTPS_ORIGIN) DEV_DESKTOP_HTTPS_DOMAIN=$(DEV_DESKTOP_HTTPS_DOMAIN) DEV_DESKTOP_HTTPS_ORIGIN=$(DEV_DESKTOP_HTTPS_ORIGIN) DEV_SIMULATOR_HTTPS_DOMAIN=$(DEV_SIMULATOR_HTTPS_DOMAIN) DEV_SIMULATOR_HTTPS_ORIGIN=$(DEV_SIMULATOR_HTTPS_ORIGIN) DEV_ICD_HTTPS_DOMAIN=$(DEV_ICD_HTTPS_DOMAIN) DEV_ICD_HTTPS_ORIGIN=$(DEV_ICD_HTTPS_ORIGIN) DEV_HTTPS_ALT_DOMAINS=$(DEV_HTTPS_ALT_DOMAINS) DEV_PROXY_CONFIG=$(DEV_PROXY_CONFIG) scripts/dev_https.sh
 
 dev-icd: dev ## Alias for make dev; ICD-11 is now part of the default dev stack
 
 dev-backend: db ## Start database + backend only
 	SPICEDB_ENDPOINT=http://localhost:50051 SPICEDB_TOKEN=devsecret scripts/spicedb_local_schema.sh
-	cargo run
+	cargo run -p medbrains-server --bin medbrains-server
 
 dev-edge: ## Run medbrains-edge appliance locally for offline-mode testing
 	@mkdir -p var/medbrains-edge/docs var/medbrains-edge/chain
@@ -87,6 +89,9 @@ dev-edge: ## Run medbrains-edge appliance locally for offline-mode testing
 
 dev-frontend: ## Start frontend only (assumes backend running)
 	pnpm dev:web
+
+dev-simulator-admin: ## Start simulator control UI on http://127.0.0.1:5180
+	pnpm --filter @medbrains/simulator-admin dev
 
 local-https-cert: ## Generate local HTTPS certificate for MedBrains local domains
 	DEV_HTTPS_DOMAIN=$(DEV_HTTPS_DOMAIN) DEV_HTTPS_ALT_DOMAINS=$(DEV_HTTPS_ALT_DOMAINS) scripts/local_https_cert.sh
@@ -101,7 +106,7 @@ dev-split: ## Start backend + web without local HTTPS proxy
 	@docker compose up -d postgres 2>/dev/null
 	@until docker compose exec -T postgres pg_isready -U medbrains > /dev/null 2>&1; do sleep 1; done
 	@trap 'kill 0' EXIT; \
-		cargo run & \
+		cargo run -p medbrains-server --bin medbrains-server & \
 		pnpm dev:web & \
 		wait
 
@@ -265,7 +270,7 @@ check-types: ## Verify TS ↔ Rust type field contracts
 check-nav-drift: ## Verify navigation.ts in sync with access::SCREENS
 	python3 scripts/check_nav_drift.py
 
-check-all: check-api check-ui-api check-types check-nav-drift check-rls check-authz-posture check-tenant-leak check-runtime-sqlx check-migrations check-sharing check-audit check-tracing check-migration-headers check-region-pinning check-no-card-logging check-egress-allowlist ## Run all static checks (incl. RLS + sharing + audit + tracing + compliance)
+check-all: check-api check-ui-api check-types check-nav-drift check-rls check-authz-posture check-tenant-leak check-runtime-sqlx check-migrations check-sharing check-audit check-tracing check-migration-headers check-region-pinning check-no-card-logging check-egress-allowlist check-encryption-at-rest check-redaction-masking ## Run all static checks (incl. RLS + sharing + audit + tracing + compliance)
 
 # ── Audit / Authz Static Checks (RFC-INFRA-2026-002 Phase 0) ─
 
@@ -307,6 +312,15 @@ check-no-card-logging: ## PCI scope check — card identifiers banned from log s
 
 check-egress-allowlist: ## Cilium egress allowlist coherence check (soft until Phase 4)
 	python3 ../scripts/check_egress_allowlist.py
+
+check-cert-readiness: ## Map modules to ISO/SOC/HIPAA/HITRUST/NABH/ABDM/SaMD readiness evidence
+	python3 ../scripts/check_cert_readiness.py
+
+check-encryption-at-rest: ## Verify KMS-backed at-rest encryption evidence for SOC 2/ISO readiness
+	python3 ../scripts/check_encryption_at_rest.py
+
+check-redaction-masking: ## Verify privacy masking/redaction evidence beyond storage encryption
+	python3 ../scripts/check_redaction_masking.py
 
 # ── Docker ───────────────────────────────────────────────────
 
@@ -532,6 +546,24 @@ ship-cold: ship ## Full ship + deploy to prod (Starter tier on hims.amh.org.in)
 		&& echo "✅ /api/health 200" \
 		|| { echo "❌ /api/health failed"; exit 1; }
 	@echo "✅ ship-cold complete."
+
+hotpush-ui: ## Build and deploy only the web SPA to the standalone host
+	@set -euo pipefail; \
+	if [ -f infra/.env ]; then set -a; . infra/.env; set +a; fi; \
+	: "$${TF_VAR_ssh_private_key_path:?Set TF_VAR_ssh_private_key_path in infra/.env}"; \
+	DOMAIN="$${TF_VAR_domain:-hims.amh.org.in}"; \
+	SSH_ENDPOINT="$$(cd infra/terraform/envs/standalone/alagappa && terraform output -raw ssh_endpoint 2>/dev/null || true)"; \
+	if [ -z "$$SSH_ENDPOINT" ] || [ "$$SSH_ENDPOINT" = "null" ]; then SSH_ENDPOINT="ubuntu@$$DOMAIN"; fi; \
+	echo "── hotpush-ui: typecheck web ───────────"; \
+	pnpm --filter @medbrains/web typecheck; \
+	echo "── hotpush-ui: build web ───────────────"; \
+	pnpm --filter @medbrains/web build; \
+	echo "── hotpush-ui: upload SPA ──────────────"; \
+	rsync -az --delete -e "ssh -i $${TF_VAR_ssh_private_key_path} -o StrictHostKeyChecking=no" apps/web/dist/ "$$SSH_ENDPOINT:/tmp/medbrains-web-hotpush/"; \
+	ssh -i "$${TF_VAR_ssh_private_key_path}" -o StrictHostKeyChecking=no "$$SSH_ENDPOINT" "sudo rm -rf /var/www/medbrains && sudo mkdir -p /var/www/medbrains && sudo cp -r /tmp/medbrains-web-hotpush/. /var/www/medbrains/ && sudo chown -R medbrains:medbrains /var/www/medbrains && rm -rf /tmp/medbrains-web-hotpush"; \
+	echo "── hotpush-ui: post-deploy smoke ───────"; \
+	curl -sS --fail --max-time 10 "https://$$DOMAIN/api/health" > /dev/null; \
+	echo "✅ hotpush-ui complete: https://$$DOMAIN"
 
 ship-help: ## Document each ship-pipeline stage
 	@echo "make ship-quick    — ~5 min  — local dev sanity"

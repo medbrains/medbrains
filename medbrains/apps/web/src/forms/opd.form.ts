@@ -3,26 +3,31 @@ import type {
   OpdFollowUpAppointmentFormInput,
   OpdLabOrderFormInput,
   OpdLabOrderPriorityFormValue,
+  OpdPreAuthFormInput,
   OpdProcedureConsentFormInput,
   OpdProcedureConsentTypeFormValue,
   OpdProcedureOrderFormInput,
   OpdProcedureOrderPriorityFormValue,
   OpdQueueVisitFormInput,
   OpdRatingFormValue,
+  OpdReferralFormInput,
+  OpdReferralUrgencyFormValue,
   OpdReminderFormInput,
   OpdReminderPriorityFormValue,
   OpdReminderTypeFormValue,
   OpdVisitTypeFormValue,
   StartOpdVisitFormInput,
 } from "@medbrains/schemas";
-import { optionalTextFromFormValue } from "@medbrains/schemas";
+import { optionalNumberFromFormValue, optionalTextFromFormValue } from "@medbrains/schemas";
 import type {
   BookAppointmentRequest,
   CreateConsentRequest,
   CreateEncounterRequest,
   CreateFeedbackRequest,
   CreateLabOrderRequest,
+  CreatePreAuthRequest,
   CreateProcedureOrderRequest,
+  CreateReferralRequest,
   CreateReminderRequest,
 } from "@medbrains/types";
 
@@ -59,6 +64,12 @@ export const OPD_REMINDER_PRIORITY_OPTIONS: Array<SelectOption<OpdReminderPriori
   { value: "normal", label: "Normal" },
   { value: "high", label: "High" },
   { value: "urgent", label: "Urgent" },
+];
+
+export const OPD_REFERRAL_URGENCY_OPTIONS: Array<SelectOption<OpdReferralUrgencyFormValue>> = [
+  { value: "routine", label: "Routine" },
+  { value: "urgent", label: "Urgent" },
+  { value: "emergency", label: "Emergency" },
 ];
 
 export const OPD_RATING_OPTIONS: Array<SelectOption<OpdRatingFormValue>> = [
@@ -122,6 +133,22 @@ export const DEFAULT_OPD_PROCEDURE_ORDER_FORM_VALUES: OpdProcedureOrderFormInput
   notes: "",
 };
 
+export const DEFAULT_OPD_REFERRAL_FORM_VALUES: OpdReferralFormInput = {
+  to_department_id: null,
+  urgency: "routine",
+  reason: "",
+  clinical_notes: "",
+};
+
+export const DEFAULT_OPD_PRE_AUTH_FORM_VALUES: OpdPreAuthFormInput = {
+  insurance_provider: "",
+  policy_number: "",
+  procedure_codes: "",
+  diagnosis_codes: "",
+  estimated_cost: "",
+  notes: "",
+};
+
 export const DEFAULT_OPD_REMINDER_FORM_VALUES: OpdReminderFormInput = {
   reminder_type: "follow_up",
   reminder_date: "",
@@ -156,6 +183,14 @@ function selectedValue(value: string | null): string {
 
 function optionalRating(value: OpdRatingFormValue | null): number | undefined {
   return value ? Number(value) : undefined;
+}
+
+function commaList(value: string): string[] | undefined {
+  const items = value
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+  return items.length > 0 ? items : undefined;
 }
 
 export function toCreateEncounterRequest(values: OpdQueueVisitFormInput): CreateEncounterRequest {
@@ -226,6 +261,38 @@ export function toCreateProcedureOrderRequest(
     encounter_id: encounterId,
     procedure_id: selectedValue(values.procedure_id),
     priority: values.priority,
+    notes: optionalTextFromFormValue(values.notes),
+  };
+}
+
+export function toCreateReferralRequest(
+  values: OpdReferralFormInput,
+  patientId: string,
+  encounterId: string,
+): CreateReferralRequest {
+  return {
+    patient_id: patientId,
+    encounter_id: encounterId,
+    to_department_id: selectedValue(values.to_department_id),
+    urgency: values.urgency,
+    reason: values.reason.trim(),
+    clinical_notes: optionalTextFromFormValue(values.clinical_notes),
+  };
+}
+
+export function toCreatePreAuthRequest(
+  values: OpdPreAuthFormInput,
+  patientId: string,
+  encounterId: string,
+): CreatePreAuthRequest {
+  return {
+    patient_id: patientId,
+    encounter_id: encounterId,
+    insurance_provider: values.insurance_provider.trim(),
+    policy_number: optionalTextFromFormValue(values.policy_number),
+    procedure_codes: commaList(values.procedure_codes),
+    diagnosis_codes: commaList(values.diagnosis_codes),
+    estimated_cost: optionalNumberFromFormValue(values.estimated_cost),
     notes: optionalTextFromFormValue(values.notes),
   };
 }

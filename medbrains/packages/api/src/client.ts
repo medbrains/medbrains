@@ -1,6 +1,17 @@
 import type {
   AbcAnalysisRow,
   AbdmConsentPrintData,
+  AbhaAuthenticatedRequest,
+  AbhaProviderResponse,
+  AbhaPublicCertificateRequest,
+  AbhaPublicCertificateResponse,
+  AbhaRequestOtpRequest,
+  AbhaRequestOtpResponse,
+  AbhaSessionRequest,
+  AbhaSessionTokenResponse,
+  AbhaStatusResponse,
+  AbhaVerifyOtpRequest,
+  AbhaVerifyOtpResponse,
   AccessAlert,
   AccessLogEntry,
   AccessLogQuery,
@@ -37,6 +48,9 @@ import type {
   AdvanceAdjustment,
   AdvanceReceiptPrintData,
   AebasAttendanceReportPrintData,
+  AebasImportResponse,
+  AebasPeriodImportRequest,
+  AebasStatusResponse,
   AgeEstimationPrintData,
   AgingBucket,
   AiGenerateCodeRequest,
@@ -70,6 +84,8 @@ import type {
   ApproveIndentRequest,
   ApproveRejectRequest,
   ApproveWriteOffRequest,
+  AssetCategory,
+  AssetClassification,
   AssignBedToWardRequest,
   AssignHospitalToGroup,
   AssignIncentivePlanRequest,
@@ -164,19 +180,23 @@ import type {
   BreakGlassQuery,
   BridgeAgent,
   BroadcastAnnouncementRequest,
+  BulkCreateCampSupplyItemsRequest,
+  BulkCreateCampSupplyItemsResponse,
   BulkCreateUsersRequest,
   CalculateIncentiveRequest,
   CalibrationCertificatePrintData,
   // Camp Management
   Camp,
   CampAnalytics,
+  CampAssetReservation,
   CampBillingRecord,
   CampFollowup,
   CampIncident,
   CampLabSample,
+  CampMedicineOption,
   CampOpenEncounterResponse,
-  OpenCampRegistrationEncounterRequest,
   CampPacketResponse,
+  CampPlanningSummary,
   CampReferral,
   CampRegistration,
   CampRemoteChecklistItem,
@@ -184,6 +204,7 @@ import type {
   CampRemoteSetup,
   CampReport,
   CampScreening,
+  CampStaffOption,
   CampStatsResponse,
   CampSupplyItem,
   CampSyncInboundRequest,
@@ -219,13 +240,6 @@ import type {
   CheckPaRequiredRequest,
   ChemoProtocol,
   ChiefComplaintMaster,
-  ClinicalCorpusEntry,
-  CreateClinicalCorpusEntryRequest,
-  LookupTerminologyParams,
-  SearchClinicalCorpusParams,
-  SearchTerminologyParams,
-  TerminologySearchResult,
-  UpdateClinicalCorpusEntryRequest,
   ChronicEnrollmentRow,
   ChronicProgram,
   // Housekeeping
@@ -233,6 +247,7 @@ import type {
   CleaningTask,
   ClientErrorReportRequest,
   ClientErrorReportResponse,
+  ClinicalCorpusEntry,
   ClinicalIndicatorRow,
   ClinicalProtocol,
   CmeCertificatePrintData,
@@ -281,6 +296,7 @@ import type {
   ComplianceRow,
   ComponentSlipPrintData,
   ConcessionListResponse,
+  ConfirmPoliceReceiptRequest,
   // Orchestration Engine
   ConnectorHealthCheckResponse,
   ConnectorRow,
@@ -318,6 +334,7 @@ import type {
   CreateAppealRequest,
   CreateAppraisalRequest,
   CreateAssessmentRequest,
+  CreateAssetCategoryRequest,
   CreateAttendanceRequest,
   CreateAttenderRequest,
   CreateAudiologyTestRequest,
@@ -349,6 +366,7 @@ import type {
   CreateBreakGlassRequest,
   CreateCalendarEventRequest,
   CreateCalibrationRequest,
+  CreateCampAssetReservationRequest,
   CreateCampBillingRequest,
   CreateCampFollowupRequest,
   CreateCampIncidentRequest,
@@ -376,6 +394,7 @@ import type {
   CreateChronicProgramRequest,
   CreateCleaningScheduleRequest,
   CreateCleaningTaskRequest,
+  CreateClinicalCorpusEntryRequest,
   CreateClinicalDocRequest,
   CreateClinicalProtocolRequest,
   CreateCmsAuthor,
@@ -533,6 +552,7 @@ import type {
   CreateMrdDeathRequest,
   CreateMrdRecordRequest,
   CreateMrdRetentionPolicyRequest,
+  CreateMrdStorageLocationRequest,
   CreateMvRequest,
   CreateNablDocumentRequest,
   CreateNdpsEntryRequest,
@@ -577,6 +597,7 @@ import type {
   CreatePharmacyCatalogRequest,
   CreatePharmacyCreditNoteRequest,
   CreatePharmacyOrderRequest,
+  CreatePharmacyReturnBatchRequest,
   CreatePharmacyReturnRequest,
   CreatePharmacyTransferRequest,
   CreatePhlebotomyEntryRequest,
@@ -652,6 +673,7 @@ import type {
   CreateStockTransfer,
   CreateStoreAssignmentRequest,
   CreateStoreCatalogRequest,
+  CreateStoreCategoryRequest,
   CreateStoreIndentRequest,
   CreateStoreLocationRequest,
   CreateStoreStockMovementRequest,
@@ -853,6 +875,7 @@ import type {
   FamilyLinkRow,
   FeedbackStatsResponse,
   FieldAccessLevel,
+  FileMrdCaseSheetPacketRequest,
   FinancialMisReport,
   FireEquipmentInspectionPrintData,
   FireMockDrillReportPrintData,
@@ -1006,6 +1029,7 @@ import type {
   IpdTransferLog,
   // IPD Phase 2b
   IpTypeConfiguration,
+  IssueCampAssetRequest,
   IssueCredentialRequest,
   IssueIndentRequest,
   IssueMrdRecordRequest,
@@ -1070,6 +1094,9 @@ import type {
   LinenParLevel,
   LinkCampLabSampleRequest,
   LinkMlcRequest,
+  ListAssetsParams,
+  ListCampAssetCandidatesParams,
+  ListMrdCaseSheetPacketsParams,
   ListQueueTokensQuery,
   LmsCertificate,
   LmsComplianceRow,
@@ -1082,6 +1109,7 @@ import type {
   LmsQuizQuestion,
   LocationRow,
   LogAccessRequest,
+  LookupTerminologyParams,
   LosComparisonRow,
   ManualAutoChargeRequest,
   ManualAutoChargeResponse,
@@ -1108,8 +1136,11 @@ import type {
   MlcDocument,
   MlcDocumentationPrintData,
   MlcPoliceIntimation,
+  MlcPoliceIntimationPrintData,
   MlcRegisterPrintData,
   MlcRegisterSummaryPrintData,
+  MockRenderPrintTemplateRequest,
+  MockRenderPrintTemplateResponse,
   ModuleConfig,
   ModuleEntitySchema,
   ModuleSummary,
@@ -1119,12 +1150,16 @@ import type {
   MpiMatchResult,
   MrdAdmissionDischargeSummary,
   MrdBirthRegister,
+  MrdCaseSheetCompletenessResponse,
+  MrdCaseSheetPacket,
+  MrdCaseSheetPage,
   MrdDeathRegister,
   // MRD
   MrdMedicalRecord,
   MrdMorbidityMortalityResponse,
   MrdRecordMovement,
   MrdRetentionPolicy,
+  MrdStorageLocation,
   MyDayResponse,
   MyTasksResponse,
   // Phase 4 Print Data - Regulatory
@@ -1165,9 +1200,12 @@ import type {
   OnCallSchedule,
   // Phase 2 Print Data - Billing
   OpdBillPrintData,
+  OpdCertificatePrintData,
   OpdFootfallRow,
   // Phase 4 Print Data - Clinical Delivery
   OpdPrescriptionPrintData,
+  OpdProcedureConsentPrintData,
+  OpenCampRegistrationEncounterRequest,
   OperationNotesPrintData,
   OrderBasketDraft,
   OrderSetActivation,
@@ -1213,10 +1251,10 @@ import type {
   PatientAppointmentRow,
   PatientCardPrintData,
   PatientConsent,
+  PatientConsultationHistoryRow,
   PatientConsumableIssue,
   PatientContact,
   PatientContext,
-  PatientConsultationHistoryRow,
   PatientDiagnosisRow,
   PatientDocument,
   PatientEducationPrintData,
@@ -1268,6 +1306,7 @@ import type {
   PharmacyOrderListResponse,
   PharmacyPaymentTransaction,
   PharmacyPosSale,
+  PharmacyPosSaleItem,
   PharmacyPrescriptionRx,
   PharmacyPricingTier,
   // Specialty Queue Displays
@@ -1301,6 +1340,8 @@ import type {
   PrescriptionTemplate,
   PrescriptionWithItems,
   PressureUlcerRiskPrintData,
+  PrintEditorCapabilitiesResponse,
+  PrintMrdCaseSheetPacketRequest,
   PrintTemplateRequest,
   PriorAuthAppeal,
   PriorAuthDetail,
@@ -1360,6 +1401,7 @@ import type {
   RateContract,
   RatePlan,
   RatePlanDetailResponse,
+  RazorpayStatusResponse,
   RcaTemplatePrintData,
   RcDetailResponse,
   ReagentConsumptionRow,
@@ -1374,7 +1416,6 @@ import type {
   RecordIndicatorValueRequest,
   RecordPaymentRequest,
   RecordReactionRequest,
-  ReferralTrackingRow,
   ReferralWithNames,
   Refund,
   RefundAdvanceRequest,
@@ -1406,6 +1447,7 @@ import type {
   // Retrospective
   RetrospectiveEntry,
   RetrospectiveSettings,
+  ReturnCampAssetRequest,
   ReturnToStoreRequest,
   ReturnToWorkClearanceRequest,
   ReviewBreakGlassRequest,
@@ -1415,6 +1457,7 @@ import type {
   RevokeConsentRequest,
   RevokeCredentialRequest,
   RevokePassRequest,
+  RevokeProcedureConsentRequest,
   RoomTurnaround,
   RoomUtilization,
   RunVerificationRequest,
@@ -1432,6 +1475,8 @@ import type {
   ScopeStatus,
   ScoreAppointmentRequest,
   ScoreBatchRequest,
+  SearchClinicalCorpusParams,
+  SearchTerminologyParams,
   SecureTenantSettingRow,
   SecurityAccessCard,
   SecurityAccessLog,
@@ -1479,6 +1524,7 @@ import type {
   StockTransferItem,
   StockTransferNotePrintData,
   StoreCatalog,
+  StoreCategory,
   StoreLocation,
   StoreStockMovement,
   // Phase 6: Academic/Medical College Forms
@@ -1506,6 +1552,8 @@ import type {
   TemplateWithItems,
   TenantSettingsRow,
   TenantSummary,
+  TerminologySearchResponse,
+  TerminologySearchResult,
   ToggleChecklistItemRequest,
   TokenSlipPrintData,
   TpaRateCard,
@@ -1529,6 +1577,7 @@ import type {
   TvAnnouncement,
   // TV Displays & Queue
   TvDisplay,
+  UnifiedAsset,
   UpdateAdmissionRequest,
   UpdateAdrRequest,
   UpdateAlertThresholdRequest,
@@ -1540,6 +1589,7 @@ import type {
   UpdateAmbulanceTripStatusRequest,
   UpdateAnesthesiaRecordRequest,
   UpdateAppealRequest,
+  UpdateAssetCategoryRequest,
   UpdateB2bClientRequest,
   UpdateBbCampaignRequest,
   UpdateBbLookbackRequest,
@@ -1570,6 +1620,7 @@ import type {
   UpdateChargeMasterRequest,
   UpdateChecklistRequest,
   UpdateCleaningScheduleRequest,
+  UpdateClinicalCorpusEntryRequest,
   UpdateClinicalDocRequest,
   UpdateCmsAuthor,
   UpdateCmsCategory,
@@ -1594,12 +1645,12 @@ import type {
   UpdateCreditPatientRequest,
   UpdateCrossmatchRequestBody,
   UpdateCssdInstrumentRequest,
-  UpdateDiagnosisRequest,
   UpdateCssdLoadStatusRequest,
   UpdateCssdSterilizerRequest,
   UpdateDeathSummaryRequest,
   UpdateDesignationRequest,
   UpdateDeviceInstanceRequest,
+  UpdateDiagnosisRequest,
   UpdateDietOrderRequest,
   UpdateDietTemplateRequest,
   UpdateDischargeBarrierRequest,
@@ -1642,6 +1693,7 @@ import type {
   UpdateModalityRequest,
   UpdateMrdRecordRequest,
   UpdateMrdRetentionPolicyRequest,
+  UpdateMrdStorageLocationRequest,
   UpdateMvRequest,
   UpdateMyDoctorProfileRequest,
   UpdateNablDocumentRequest,
@@ -1688,6 +1740,7 @@ import type {
   UpdateSecurityZoneRequest,
   UpdateShiftRequest,
   UpdateStoreCatalogRequest,
+  UpdateStoreCategoryRequest,
   UpdateStoreLocationRequest,
   UpdateSupplierPaymentRequest,
   UpdateSurgeonPreferenceRequest,
@@ -1702,6 +1755,7 @@ import type {
   UpdateWaitlistRequest,
   UpdateWardRequest,
   UpiQrResponse,
+  UpsertAssetClassificationRequest,
   UpsertCampRemoteSetupRequest,
   UpsertDisplayConfigRequest,
   UpsertParLevelRequest,
@@ -1740,6 +1794,7 @@ import type {
   VitalsChartPrintData,
   VitalsChecklistRow,
   VoidDocumentRequest,
+  VoidMedicalCertificateRequest,
   Vulnerability,
   WaitEstimate,
   WaitlistStatsResponse,
@@ -2250,6 +2305,11 @@ export const api = {
     }
     return resp;
   },
+  refreshTokenDirect: (data?: { refresh_token?: string }) =>
+    request<RefreshResponse>("/auth/refresh", {
+      method: "POST",
+      body: JSON.stringify(data ?? {}),
+    }),
   logout: async () => {
     try {
       return await request<{ status: string }>("/auth/logout", {
@@ -3299,6 +3359,8 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
+  listNurseVitals: (encounterId: string) =>
+    request<Vital[]>(`/nurse/vitals/encounter/${encounterId}`),
   getConsultation: (encounterId: string) =>
     request<Consultation>(`/opd/encounters/${encounterId}/consultation`),
   createConsultation: (encounterId: string, data: CreateConsultationRequest) =>
@@ -3372,6 +3434,11 @@ export const api = {
   createCertificate: (data: CreateMedicalCertificateRequest) =>
     request<MedicalCertificate>("/opd/certificates", {
       method: "POST",
+      body: JSON.stringify(data),
+    }),
+  voidCertificate: (id: string, data: VoidMedicalCertificateRequest) =>
+    request<MedicalCertificate>(`/opd/certificates/${id}/void`, {
+      method: "PUT",
       body: JSON.stringify(data),
     }),
 
@@ -3452,6 +3519,14 @@ export const api = {
     if (params.limit !== undefined) qs.set("limit", String(params.limit));
     if (params.semantic_tag) qs.set("semantic_tag", params.semantic_tag);
     return request<TerminologySearchResult[]>(`/terminology/search?${qs}`);
+  },
+  searchTerminologyWithSuggestions: (params: SearchTerminologyParams) => {
+    const qs = new URLSearchParams();
+    qs.set("system", params.system);
+    qs.set("q", params.q);
+    if (params.limit !== undefined) qs.set("limit", String(params.limit));
+    if (params.semantic_tag) qs.set("semantic_tag", params.semantic_tag);
+    return request<TerminologySearchResponse>(`/terminology/search-with-suggestions?${qs}`);
   },
   lookupTerminology: (params: LookupTerminologyParams) => {
     const qs = new URLSearchParams();
@@ -3543,6 +3618,11 @@ export const api = {
     }),
   signProcedureConsent: (id: string) =>
     request<ProcedureConsent>(`/opd/consents/${id}/sign`, { method: "PUT" }),
+  revokeProcedureConsent: (id: string, data: RevokeProcedureConsentRequest) =>
+    request<ProcedureConsent>(`/opd/consents/${id}/revoke`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
 
   // ── Consultation Templates ────────────────────────────
   listConsultationTemplates: () => request<ConsultationTemplate[]>("/opd/consultation-templates"),
@@ -4715,6 +4795,11 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
+  createPharmacyReturns: (data: CreatePharmacyReturnBatchRequest) =>
+    request<PharmacyReturn[]>("/pharmacy/returns/batch", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
   processPharmacyReturn: (id: string, data: ProcessPharmacyReturnRequest) =>
     request<PharmacyReturn>(`/pharmacy/returns/${id}/process`, {
       method: "PUT",
@@ -4765,6 +4850,8 @@ export const api = {
     const q = qs.toString();
     return request<PharmacyPosSale[]>(`/pharmacy/pos/sales${q ? `?${q}` : ""}`);
   },
+  listPosSaleItems: (saleId: string) =>
+    request<PharmacyPosSaleItem[]>(`/pharmacy/pos/sales/${saleId}/items`),
   getPosDaySummary: () => request<PosDaySummary>("/pharmacy/pos/day-summary"),
 
   // Pricing
@@ -4826,6 +4913,7 @@ export const api = {
     request<{
       id: string;
       receipt_number: string;
+      patient_id: string | null;
       total_amount: number;
       payment_mode: string;
       status: string;
@@ -5809,6 +5897,52 @@ export const api = {
     return request<FeedbackStatsResponse>(`/communications/feedback/stats${qs ? `?${qs}` : ""}`);
   },
 
+  // ── Unified Assets & Stores ─────────────────────────────
+
+  listAssets: (params?: ListAssetsParams) => {
+    const sp = new URLSearchParams();
+    if (params?.source_type) sp.set("source_type", params.source_type);
+    if (params?.source_id) sp.set("source_id", params.source_id);
+    if (params?.asset_domain) sp.set("asset_domain", params.asset_domain);
+    if (params?.asset_category_id) sp.set("asset_category_id", params.asset_category_id);
+    if (params?.camp_eligible !== undefined) {
+      sp.set("camp_eligible", String(params.camp_eligible));
+    }
+    if (params?.available_only !== undefined) {
+      sp.set("available_only", String(params.available_only));
+    }
+    if (params?.search) sp.set("search", params.search);
+    const qs = sp.toString();
+    return request<UnifiedAsset[]>(`/assets${qs ? `?${qs}` : ""}`);
+  },
+  listAssetCategories: () => request<AssetCategory[]>("/assets/categories"),
+  createAssetCategory: (data: CreateAssetCategoryRequest) =>
+    request<AssetCategory>("/assets/categories", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  updateAssetCategory: (id: string, data: UpdateAssetCategoryRequest) =>
+    request<AssetCategory>(`/assets/categories/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  listStoreCategories: () => request<StoreCategory[]>("/assets/store-categories"),
+  createStoreCategory: (data: CreateStoreCategoryRequest) =>
+    request<StoreCategory>("/assets/store-categories", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  updateStoreCategory: (id: string, data: UpdateStoreCategoryRequest) =>
+    request<StoreCategory>(`/assets/store-categories/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  upsertAssetClassification: (data: UpsertAssetClassificationRequest) =>
+    request<AssetClassification>("/assets/classifications", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
   // ── Camp Management ────────────────────────────────────
 
   listCamps: (params?: { status?: string; camp_type?: string }) => {
@@ -5848,11 +5982,58 @@ export const api = {
       method: "DELETE",
     }),
   getCampStats: (campId: string) => request<CampStatsResponse>(`/camp/camps/${campId}/stats`),
+  getCampPlanningSummary: (campId: string) =>
+    request<CampPlanningSummary>(`/camp/camps/${campId}/planning-summary`),
+  listCampAssetCandidates: (campId: string, params?: ListCampAssetCandidatesParams) => {
+    const sp = new URLSearchParams();
+    if (params?.source_type) sp.set("source_type", params.source_type);
+    if (params?.asset_domain) sp.set("asset_domain", params.asset_domain);
+    if (params?.asset_category_id) sp.set("asset_category_id", params.asset_category_id);
+    if (params?.search) sp.set("search", params.search);
+    if (params?.required_from) sp.set("required_from", params.required_from);
+    if (params?.required_to) sp.set("required_to", params.required_to);
+    const qs = sp.toString();
+    return request<UnifiedAsset[]>(`/camp/camps/${campId}/asset-candidates${qs ? `?${qs}` : ""}`);
+  },
+  listCampAssetReservations: (campId: string) =>
+    request<CampAssetReservation[]>(`/camp/camps/${campId}/asset-reservations`),
+  createCampAssetReservation: (campId: string, data: CreateCampAssetReservationRequest) =>
+    request<CampAssetReservation>(`/camp/camps/${campId}/asset-reservations`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  issueCampAssetReservation: (id: string, data: IssueCampAssetRequest) =>
+    request<CampAssetReservation>(`/camp/asset-reservations/${id}/issue`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  returnCampAssetReservation: (id: string, data: ReturnCampAssetRequest) =>
+    request<CampAssetReservation>(`/camp/asset-reservations/${id}/return`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  cancelCampAssetReservation: (id: string) =>
+    request<CampAssetReservation>(`/camp/asset-reservations/${id}/cancel`, {
+      method: "PUT",
+    }),
   getCampPacket: (campId: string, params?: { device_id?: string }) => {
     const sp = new URLSearchParams();
     if (params?.device_id) sp.set("device_id", params.device_id);
     const qs = sp.toString();
     return request<CampPacketResponse>(`/camp/camps/${campId}/packet${qs ? `?${qs}` : ""}`);
+  },
+  listCampStaffOptions: (params?: { search?: string; department_id?: string }) => {
+    const sp = new URLSearchParams();
+    if (params?.search) sp.set("search", params.search);
+    if (params?.department_id) sp.set("department_id", params.department_id);
+    const qs = sp.toString();
+    return request<CampStaffOption[]>(`/camp/lookups/staff${qs ? `?${qs}` : ""}`);
+  },
+  listCampMedicineOptions: (params?: { search?: string }) => {
+    const sp = new URLSearchParams();
+    if (params?.search) sp.set("search", params.search);
+    const qs = sp.toString();
+    return request<CampMedicineOption[]>(`/camp/lookups/medicines${qs ? `?${qs}` : ""}`);
   },
   syncCampInbound: (data: CampSyncInboundRequest) =>
     request<CampSyncInboundResponse>("/camp/sync/inbound", {
@@ -5876,11 +6057,17 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
+  bulkCreateCampSupplyItems: (campId: string, data: BulkCreateCampSupplyItemsRequest) =>
+    request<BulkCreateCampSupplyItemsResponse>(`/camp/camps/${campId}/supplies/bulk`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
   updateCampSupplyItem: (id: string, data: UpdateCampSupplyItemRequest) =>
     request<CampSupplyItem>(`/camp/supplies/${id}`, {
       method: "PUT",
       body: JSON.stringify(data),
     }),
+  listCampReferrals: (campId: string) => request<CampReferral[]>(`/camp/camps/${campId}/referrals`),
   createCampReferral: (campId: string, data: CreateCampReferralRequest) =>
     request<CampReferral>(`/camp/camps/${campId}/referrals`, {
       method: "POST",
@@ -6541,9 +6728,10 @@ export const api = {
       body: JSON.stringify(data),
     }),
 
-  confirmPoliceReceipt: (id: string) =>
+  confirmPoliceReceipt: (id: string, data: ConfirmPoliceReceiptRequest) =>
     request<MlcPoliceIntimation>(`/emergency/mlc/police-intimations/${id}/confirm`, {
       method: "PUT",
+      body: JSON.stringify(data),
     }),
 
   listMassCasualtyEvents: () => request<MassCasualtyEvent[]>("/emergency/mass-casualty"),
@@ -8049,6 +8237,54 @@ export const api = {
       body: JSON.stringify(body),
     }),
 
+  // Storage Locations
+  listMrdStorageLocations: () => request<MrdStorageLocation[]>("/mrd/storage-locations"),
+  createMrdStorageLocation: (body: CreateMrdStorageLocationRequest) =>
+    request<MrdStorageLocation>("/mrd/storage-locations", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  updateMrdStorageLocation: (id: string, body: UpdateMrdStorageLocationRequest) =>
+    request<MrdStorageLocation>(`/mrd/storage-locations/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(body),
+    }),
+
+  // Case Sheet Packets
+  listMrdCaseSheetPackets: (params?: ListMrdCaseSheetPacketsParams) => {
+    const sp = new URLSearchParams();
+    if (params?.status) sp.set("status", params.status);
+    if (params?.packet_type) sp.set("packet_type", params.packet_type);
+    if (params?.patient_id) sp.set("patient_id", params.patient_id);
+    if (params?.encounter_id) sp.set("encounter_id", params.encounter_id);
+    if (params?.admission_id) sp.set("admission_id", params.admission_id);
+    const qs = sp.toString();
+    return request<MrdCaseSheetPacket[]>(`/mrd/case-sheets${qs ? `?${qs}` : ""}`);
+  },
+  getMrdCaseSheetPacket: (id: string) => request<MrdCaseSheetPacket>(`/mrd/case-sheets/${id}`),
+  listMrdCaseSheetPages: (packetId: string) =>
+    request<MrdCaseSheetPage[]>(`/mrd/case-sheets/${packetId}/pages`),
+  getMrdCaseSheetCompleteness: (packetId: string) =>
+    request<MrdCaseSheetCompletenessResponse>(`/mrd/case-sheets/${packetId}/completeness`),
+  generateOpdCaseSheetPacket: (encounterId: string) =>
+    request<MrdCaseSheetPacket>(`/mrd/case-sheets/from-opd/${encounterId}`, {
+      method: "POST",
+    }),
+  generateIpdCaseSheetPacket: (admissionId: string) =>
+    request<MrdCaseSheetPacket>(`/mrd/case-sheets/from-ipd/${admissionId}`, {
+      method: "POST",
+    }),
+  printMrdCaseSheetPacket: (id: string, body: PrintMrdCaseSheetPacketRequest) =>
+    request<MrdCaseSheetPacket>(`/mrd/case-sheets/${id}/print`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  fileMrdCaseSheetPacket: (id: string, body: FileMrdCaseSheetPacketRequest) =>
+    request<MrdCaseSheetPacket>(`/mrd/case-sheets/${id}/file`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+
   // Stats
   getMrdMorbidityMortality: (params?: { from_date?: string; to_date?: string }) => {
     const sp = new URLSearchParams();
@@ -8615,6 +8851,13 @@ export const api = {
   updatePrintJob: (id: string, data: Record<string, unknown>) =>
     request<unknown>(`/documents/print-jobs/${id}`, {
       method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  getPrintEditorCapabilities: () =>
+    request<PrintEditorCapabilitiesResponse>("/documents/print-editor/capabilities"),
+  mockRenderPrintTemplate: (data: MockRenderPrintTemplateRequest) =>
+    request<MockRenderPrintTemplateResponse>("/documents/print-editor/mock-render", {
+      method: "POST",
       body: JSON.stringify(data),
     }),
 
@@ -9262,8 +9505,12 @@ export const api = {
   getAdmissionBillingSummary: (admissionId: string) =>
     request<BillingSummaryResponse>(`/ipd/admissions/${admissionId}/billing-summary`),
 
-  getAdmissionPrintData: (admissionId: string) =>
-    request<AdmissionPrintData>(`/ipd/admissions/${admissionId}/print`),
+  getAdmissionPrintData: (admissionId: string, params?: { reprintReason?: string }) => {
+    const sp = new URLSearchParams();
+    if (params?.reprintReason) sp.set("reprint_reason", params.reprintReason);
+    const qs = sp.toString();
+    return request<AdmissionPrintData>(`/ipd/admissions/${admissionId}/print${qs ? `?${qs}` : ""}`);
+  },
 
   getAdmissionDietOrders: (admissionId: string) =>
     request<DietOrder[]>(`/ipd/admissions/${admissionId}/diet-orders`),
@@ -10169,7 +10416,7 @@ export const api = {
     const sp = new URLSearchParams();
     if (params?.status) sp.set("status", params.status);
     const qs = sp.toString();
-    return request<ReferralTrackingRow[]>(`/opd/referrals/tracking${qs ? `?${qs}` : ""}`);
+    return request<ReferralWithNames[]>(`/opd/referrals/tracking${qs ? `?${qs}` : ""}`);
   },
 
   opdFollowupCompliance: () => request<FollowupComplianceRow[]>("/opd/analytics/followup"),
@@ -10185,7 +10432,7 @@ export const api = {
 
   bedTransfer: (admissionId: string, data: BedTransferRequest) =>
     request<{ success: true }>(`/ipd/admissions/${admissionId}/transfer`, {
-      method: "PUT",
+      method: "POST",
       body: JSON.stringify(data),
     }),
 
@@ -10597,8 +10844,30 @@ export const api = {
   getPatientCardPrintData: (patientId: string) =>
     request<PatientCardPrintData>(`/print-data/patient-card/${patientId}`),
 
-  getWristbandPrintData: (admissionId: string) =>
-    request<WristbandPrintData>(`/print-data/wristband/${admissionId}`),
+  getWristbandPrintData: (admissionId: string, params?: { reprintReason?: string }) => {
+    const sp = new URLSearchParams();
+    if (params?.reprintReason) sp.set("reprint_reason", params.reprintReason);
+    const qs = sp.toString();
+    return request<WristbandPrintData>(`/print-data/wristband/${admissionId}${qs ? `?${qs}` : ""}`);
+  },
+
+  getOpdCertificatePrintData: (certificateId: string, params?: { reprintReason?: string }) => {
+    const sp = new URLSearchParams();
+    if (params?.reprintReason) sp.set("reprint_reason", params.reprintReason);
+    const qs = sp.toString();
+    return request<OpdCertificatePrintData>(
+      `/print-data/opd-certificate/${certificateId}${qs ? `?${qs}` : ""}`,
+    );
+  },
+
+  getOpdConsentPrintData: (consentId: string, params?: { reprintReason?: string }) => {
+    const sp = new URLSearchParams();
+    if (params?.reprintReason) sp.set("reprint_reason", params.reprintReason);
+    const qs = sp.toString();
+    return request<OpdProcedureConsentPrintData>(
+      `/print-data/opd-consent/${consentId}${qs ? `?${qs}` : ""}`,
+    );
+  },
 
   getDeathCertPrintData: (admissionId: string) =>
     request<DeathCertificatePrintData>(`/print-data/death-certificate/${admissionId}`),
@@ -10606,8 +10875,12 @@ export const api = {
   getDischargePrintData: (admissionId: string) =>
     request<DischargeSummaryPrintData>(`/print-data/discharge/${admissionId}`),
 
-  getReceiptPrintData: (paymentId: string) =>
-    request<ReceiptPrintData>(`/print-data/receipt/${paymentId}`),
+  getReceiptPrintData: (paymentId: string, params?: { reprintReason?: string }) => {
+    const sp = new URLSearchParams();
+    if (params?.reprintReason) sp.set("reprint_reason", params.reprintReason);
+    const qs = sp.toString();
+    return request<ReceiptPrintData>(`/print-data/receipt/${paymentId}${qs ? `?${qs}` : ""}`);
+  },
 
   getEstimatePrintData: (invoiceId: string) =>
     request<EstimatePrintData>(`/print-data/estimate/${invoiceId}`),
@@ -10794,8 +11067,17 @@ export const api = {
   getAmaFormPrintData: (admissionId: string) =>
     request<AmaFormPrintData>(`/print-data/ama-form/${admissionId}`),
 
-  getMlcRegisterPrintData: (caseId: string) =>
-    request<MlcRegisterPrintData>(`/print-data/mlc-register/${caseId}`),
+  getMlcRegisterPrintData: (caseId: string, params?: { reprint_reason?: string }) => {
+    const qs = params ? `?${new URLSearchParams(params)}` : "";
+    return request<MlcRegisterPrintData>(`/print-data/mlc-register/${caseId}${qs}`);
+  },
+
+  getMlcPoliceIntimationPrintData: (intimationId: string, params?: { reprint_reason?: string }) => {
+    const qs = params ? `?${new URLSearchParams(params)}` : "";
+    return request<MlcPoliceIntimationPrintData>(
+      `/print-data/mlc-police-intimation/${intimationId}${qs}`,
+    );
+  },
 
   getWoundCertificatePrintData: (caseId: string) =>
     request<WoundCertificatePrintData>(`/print-data/wound-certificate/${caseId}`),
@@ -10806,8 +11088,10 @@ export const api = {
   getDeathDeclarationPrintData: (patientId: string) =>
     request<DeathDeclarationPrintData>(`/print-data/death-declaration/${patientId}`),
 
-  getMlcDocumentationPrintData: (caseId: string) =>
-    request<MlcDocumentationPrintData>(`/print-data/mlc-documentation/${caseId}`),
+  getMlcDocumentationPrintData: (caseId: string, params?: { reprint_reason?: string }) => {
+    const qs = params ? `?${new URLSearchParams(params)}` : "";
+    return request<MlcDocumentationPrintData>(`/print-data/mlc-documentation/${caseId}${qs}`);
+  },
 
   // ── Phase 3: Quality & Safety Print Data ──
   getIncidentReportPrintData: (incidentId: string) =>
@@ -12277,6 +12561,7 @@ export const api = {
       body: JSON.stringify(data),
     }),
   getPaymentStatus: (id: string) => request<PaymentStatusResponse>(`/payments/${id}/status`),
+  getRazorpayStatus: () => request<RazorpayStatusResponse>("/payments/razorpay/status"),
   generateUpiQr: (data: GenerateUpiQrRequest) =>
     request<UpiQrResponse>("/payments/upi-qr", {
       method: "POST",
@@ -12793,7 +13078,15 @@ export const api = {
     shiftId: string,
     data: { category: "alert" | "info" | "task"; note: string; department_id?: string },
   ) =>
-    request<unknown>(`/clinical/handoff-entries/shifts/${encodeURIComponent(shiftId)}`, {
+    request<{
+      id: string;
+      shift_id: string;
+      author_user_id: string;
+      author_name: string;
+      category: "alert" | "info" | "task";
+      note: string;
+      authored_at: string;
+    }>(`/clinical/handoff-entries/shifts/${encodeURIComponent(shiftId)}`, {
       method: "POST",
       body: JSON.stringify(data),
     }),
@@ -12815,7 +13108,16 @@ export const api = {
     visitId: string,
     data: { esi_level: 1 | 2 | 3 | 4 | 5; chief_complaint: string; observation?: string },
   ) =>
-    request<unknown>(`/clinical/triage-entries/visits/${visitId}`, {
+    request<{
+      id: string;
+      er_visit_id: string;
+      author_user_id: string;
+      author_name: string;
+      esi_level: 1 | 2 | 3 | 4 | 5;
+      chief_complaint: string;
+      observation: string;
+      authored_at: string;
+    }>(`/clinical/triage-entries/visits/${visitId}`, {
       method: "POST",
       body: JSON.stringify(data),
     }),
@@ -12830,7 +13132,14 @@ export const api = {
       version: number;
     }>(`/clinical/patient-notes/${patientId}`),
   updatePatientNotes: (patientId: string, data: { text: string; if_version?: number }) =>
-    request<unknown>(`/clinical/patient-notes/${patientId}`, {
+    request<{
+      patient_id: string;
+      text: string;
+      last_author_id: string | null;
+      last_author_name: string | null;
+      last_edited_at: string | null;
+      version: number;
+    }>(`/clinical/patient-notes/${patientId}`, {
       method: "PUT",
       body: JSON.stringify(data),
     }),
@@ -12848,7 +13157,14 @@ export const api = {
     shiftId: string,
     data: { text: string; department_id?: string; if_version?: number },
   ) =>
-    request<unknown>(`/clinical/nursing-shift-notes/${encodeURIComponent(shiftId)}`, {
+    request<{
+      shift_id: string;
+      text: string;
+      last_author_id: string | null;
+      last_author_name: string | null;
+      last_edited_at: string | null;
+      version: number;
+    }>(`/clinical/nursing-shift-notes/${encodeURIComponent(shiftId)}`, {
       method: "PUT",
       body: JSON.stringify(data),
     }),
@@ -13020,6 +13336,27 @@ export const api = {
   readFhirEncounter: (id: string) => request<unknown>(`/fhir/Encounter/${id}`),
   debugAuthzProbe: () => request<unknown>("/debug/authz-probe"),
   listAuthRevocations: () => request<unknown>("/auth/revocations"),
+  getAbhaStatus: () => request<AbhaStatusResponse>("/abdm/abha/status"),
+  createAbhaSession: (data: AbhaSessionRequest) =>
+    request<AbhaProviderResponse<AbhaSessionTokenResponse>>("/abdm/abha/session", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  getAbhaPublicCertificate: (data: AbhaPublicCertificateRequest) =>
+    request<AbhaProviderResponse<AbhaPublicCertificateResponse>>("/abdm/abha/public-certificate", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  requestAbhaLoginOtp: (data: AbhaAuthenticatedRequest<AbhaRequestOtpRequest>) =>
+    request<AbhaProviderResponse<AbhaRequestOtpResponse>>("/abdm/abha/login/request-otp", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  verifyAbhaLoginOtp: (data: AbhaAuthenticatedRequest<AbhaVerifyOtpRequest>) =>
+    request<AbhaProviderResponse<AbhaVerifyOtpResponse>>("/abdm/abha/login/verify", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
   getAbdmHfr: () => request<unknown>("/abdm/hfr"),
   createAbdmHfr: (data: Record<string, unknown>) =>
     request<unknown>("/abdm/hfr", {
@@ -13036,6 +13373,12 @@ export const api = {
   acknowledgeAbdmGatewayCallback: (id: string, data: Record<string, unknown>) =>
     request<unknown>(`/abdm/gateway/callbacks/${id}/ack`, {
       method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  getAebasStatus: () => request<AebasStatusResponse>("/aebas/status"),
+  importAebasPeriodSummary: (data: AebasPeriodImportRequest) =>
+    request<AebasImportResponse>("/aebas/period-summary", {
+      method: "POST",
       body: JSON.stringify(data),
     }),
   getLabAnalyzerWorklist: () => request<unknown>("/lab/analyzer-worklist"),
@@ -13123,6 +13466,74 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
+  // ── Simulator control plane (super_admin / hospital_admin) ──
+  listSimulatorSchedules: () =>
+    request<import("@medbrains/types").SimulatorSchedule[]>("/admin/simulator/schedules"),
+  createSimulatorSchedule: (data: import("@medbrains/types").CreateSimulatorScheduleRequest) =>
+    request<import("@medbrains/types").SimulatorSchedule>("/admin/simulator/schedules", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  getSimulatorSchedule: (id: string) =>
+    request<import("@medbrains/types").SimulatorSchedule>(`/admin/simulator/schedules/${id}`),
+  updateSimulatorSchedule: (
+    id: string,
+    data: import("@medbrains/types").UpdateSimulatorScheduleRequest,
+  ) =>
+    request<import("@medbrains/types").SimulatorSchedule>(`/admin/simulator/schedules/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  deleteSimulatorSchedule: (id: string) =>
+    request<void>(`/admin/simulator/schedules/${id}`, { method: "DELETE" }),
+  runSimulatorNow: (id: string) =>
+    request<import("@medbrains/types").SimulatorRunNowResponse>(
+      `/admin/simulator/schedules/${id}/run-now`,
+      { method: "POST" },
+    ),
+  listSimulatorRuns: (params?: { schedule_id?: string; limit?: number }) => {
+    const qs = new URLSearchParams();
+    if (params?.schedule_id) qs.set("schedule_id", params.schedule_id);
+    if (params?.limit !== undefined) qs.set("limit", String(params.limit));
+    const suffix = qs.toString() ? `?${qs.toString()}` : "";
+    return request<import("@medbrains/types").SimulatorRun[]>(`/admin/simulator/runs${suffix}`);
+  },
+  getSimulatorRun: (id: string) =>
+    request<import("@medbrains/types").SimulatorRunDetail>(`/admin/simulator/runs/${id}`),
+  previewSimulator: (profile: import("@medbrains/types").SimulatorProfile) =>
+    request<import("@medbrains/types").SimulatorPreviewResponse>("/admin/simulator/preview", {
+      method: "POST",
+      body: JSON.stringify({ profile }),
+    }),
+  approveSimulatorRun: (id: string) =>
+    request<{ approved: true; run_id: string }>(`/admin/simulator/runs/${id}/approve`, {
+      method: "POST",
+    }),
+  rejectSimulatorRun: (id: string) =>
+    request<{ rejected: true; run_id: string; deleted_rows: number }>(
+      `/admin/simulator/runs/${id}/reject`,
+      { method: "POST" },
+    ),
+  // ── News / health advisories ──
+  listActiveNews: (params?: { category?: string; limit?: number }) => {
+    const qs = new URLSearchParams();
+    if (params?.category) qs.set("category", params.category);
+    if (params?.limit !== undefined) qs.set("limit", String(params.limit));
+    const suffix = qs.toString() ? `?${qs.toString()}` : "";
+    return request<import("@medbrains/types").NewsArticle[]>(`/news${suffix}`);
+  },
+  listAllNews: () => request<import("@medbrains/types").NewsArticle[]>("/admin/news"),
+  createNewsArticle: (data: import("@medbrains/types").CreateNewsArticleRequest) =>
+    request<import("@medbrains/types").NewsArticle>("/admin/news", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  updateNewsArticle: (id: string, data: import("@medbrains/types").UpdateNewsArticleRequest) =>
+    request<import("@medbrains/types").NewsArticle>(`/admin/news/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  deleteNewsArticle: (id: string) => request<void>(`/admin/news/${id}`, { method: "DELETE" }),
   exportAuditLog: () => request<unknown>("/audit/export"),
   getIntegrationCodeSnippet: (id: string) => request<unknown>(`/integration/code-snippets/${id}`),
   getPublicAppointmentSlots: () => request<unknown>("/public/appointments/slots"),

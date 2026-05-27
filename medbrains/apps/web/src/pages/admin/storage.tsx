@@ -5,7 +5,7 @@
  *
  * Tabs: Policies / Usage / Transitions / Archived.
  */
-
+import "@mantine/charts/styles.css";
 import { DonutChart } from "@mantine/charts";
 import {
   Alert,

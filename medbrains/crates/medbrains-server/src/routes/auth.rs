@@ -71,6 +71,7 @@ fn field_access_to_wire(
             let s = match v {
                 medbrains_core::form::FieldAccessLevel::Edit => "edit",
                 medbrains_core::form::FieldAccessLevel::View => "view",
+                medbrains_core::form::FieldAccessLevel::Mask => "mask",
                 medbrains_core::form::FieldAccessLevel::Hidden => "hidden",
             };
             (k, s.to_owned())

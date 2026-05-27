@@ -3,7 +3,6 @@ import {
   Alert,
   Badge,
   Button,
-  Drawer,
   Group,
   Modal,
   Table,
@@ -14,27 +13,39 @@ import {
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
+import type { PatientRegistrationInitialValues } from "@medbrains/schemas";
 import { useHasPermission } from "@medbrains/stores";
 import type { CreatePatientRequest, MpiMatchResult, Patient } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import {
   IconAlertTriangle,
-  IconBolt,
   IconCash,
+  IconCircleCheck,
+  IconClock,
+  IconDroplet,
   IconEye,
+  IconGenderFemale,
+  IconGenderMale,
   IconSearch,
   IconStarFilled,
+  IconUserCheck,
   IconUserPlus,
+  IconUserQuestion,
   IconUsers,
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useNavigate } from "react-router";
+import { useNavigate, useSearchParams } from "react-router";
 import { DataTable, PageHeader, StatusDot } from "../components";
-import { PatientRegisterForm } from "../components/Patient/PatientRegisterForm";
+import {
+  PatientRegisterForm,
+  type PatientRegistrationLinkedServicesOptions,
+} from "../components/Patient/PatientRegisterForm";
 import { usePacedQueryValue } from "../hooks/usePacedQueryValue";
 import { useRequirePermission } from "../hooks/useRequirePermission";
+import { campService } from "../services/camp.service";
+import { opdService } from "../services/opd.service";
 import { patientsService } from "../services/patients.service";
 
 const PER_PAGE = 20;
@@ -42,10 +53,10 @@ const PER_PAGE = 20;
 // #region Helpers
 
 const genderColors: Record<string, string> = {
-  male: "primary",
+  male: "info",
   female: "danger",
   other: "violet",
-  unknown: "slate",
+  unknown: "warning",
 };
 
 const categoryColors: Record<string, string> = {
@@ -108,24 +119,97 @@ function formatMoney(value: number | string | null | undefined): string {
   });
 }
 
+interface RegisterPatientMutationInput {
+  req: CreatePatientRequest;
+  linkedServices?: PatientRegistrationLinkedServicesOptions;
+  campContext?: PatientRegistrationCampContext;
+}
+
+interface RegisterPatientMutationResult {
+  patient: Patient;
+  encounterId?: string;
+  tokenNumber?: number;
+  queueWarning?: string;
+  linkedServices?: PatientRegistrationLinkedServicesOptions;
+  campId?: string;
+  campRegistrationId?: string;
+  returnTo?: string;
+}
+
+interface PatientRegistrationCampContext {
+  campId: string;
+  returnTo?: string;
+}
+
+function registrationVisitType(req: CreatePatientRequest): string {
+  if (req.registration_type === "camp" || req.registration_source === "camp") return "camp";
+  if (req.registration_type === "emergency" || req.registration_source === "ambulance") {
+    return "emergency";
+  }
+  if (req.registration_type === "referral" || req.registration_source === "referral") {
+    return "referral";
+  }
+  if (req.registration_type === "revisit") return "follow_up";
+  return "walk_in";
+}
+
+function genderIcon(gender: string) {
+  if (gender === "male") return IconGenderMale;
+  if (gender === "female") return IconGenderFemale;
+  if (gender === "other") return IconUserCheck;
+  return IconUserQuestion;
+}
+
+function registrationIcon(registrationType: string) {
+  if (registrationType === "revisit") return IconCircleCheck;
+  if (registrationType === "emergency") return IconAlertTriangle;
+  if (registrationType === "camp") return IconUsers;
+  return IconClock;
+}
+
+function registrationQueueNotes(req: CreatePatientRequest): string {
+  const notes = ["Created from patient registration"];
+  if (req.registration_type) notes.push(`Registration type: ${req.registration_type}`);
+  if (req.registration_source) notes.push(`Source: ${req.registration_source}`);
+  if (req.camp_name) notes.push(`Camp: ${req.camp_name}`);
+  if (req.referred_by_name) notes.push(`Referred by: ${req.referred_by_name}`);
+  if (req.initial_diagnosis_text)
+    notes.push(`Provisional diagnosis: ${req.initial_diagnosis_text}`);
+  return notes.join("\n");
+}
+
+function patientRegistrationName(req: CreatePatientRequest): string {
+  return [req.first_name, req.last_name].filter(Boolean).join(" ").trim() || req.phone;
+}
+
+function patientAddressText(address: CreatePatientRequest["address"]): string | undefined {
+  if (!address || typeof address !== "object" || Array.isArray(address)) return undefined;
+  return ["line1", "line2", "landmark", "city", "district", "state", "postal_code", "country"]
+    .map((key) => {
+      const value = address[key];
+      return typeof value === "string" ? value.trim() : "";
+    })
+    .filter(Boolean)
+    .join(", ");
+}
+
+function errorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  return "Unknown error";
+}
+
 // #endregion
 
 export function PatientsPage() {
   useRequirePermission(P.PATIENTS.LIST);
   const { t } = useTranslation("patients");
   const canCreate = useHasPermission(P.PATIENTS.CREATE);
-  const queryClient = useQueryClient();
   const navigate = useNavigate();
 
   // State
   const [search, setSearch] = useState("");
   const debouncedSearch = usePacedQueryValue(search, 300);
   const [page, setPage] = useState(1);
-  const [drawerOpen, { open: openDrawer, close: closeDrawer }] = useDisclosure(false);
-  const [quickMode, setQuickMode] = useState(false);
-  const [duplicateMatches, setDuplicateMatches] = useState<MpiMatchResult[]>([]);
-  const pendingRequestRef = useRef<CreatePatientRequest | null>(null);
-  const [dupModalOpen, dupModalHandlers] = useDisclosure(false);
 
   const handleSearchChange = (val: string) => {
     setSearch(val);
@@ -143,59 +227,8 @@ export function PatientsPage() {
       }),
   });
 
-  const createMutation = useMutation({
-    mutationFn: (req: CreatePatientRequest) => patientsService.createPatient(req),
-    onSuccess: (patient) => {
-      notifications.show({
-        title: "Patient registered",
-        message: `UHID: ${patient.uhid}`,
-        color: "success",
-      });
-      void queryClient.invalidateQueries({ queryKey: ["patients"] });
-      closeDrawer();
-    },
-    onError: (err: Error) => {
-      notifications.show({
-        title: "Registration failed",
-        message: err.message,
-        color: "danger",
-      });
-    },
-  });
-
-  const handleRegisterSubmit = async (req: CreatePatientRequest) => {
-    // Check for duplicates via MPI before creating
-    try {
-      const matches = await patientsService.matchPatients({
-        first_name: req.first_name,
-        last_name: req.last_name,
-        date_of_birth: req.date_of_birth ?? undefined,
-        phone: req.phone ?? undefined,
-      });
-      if (matches.length > 0) {
-        setDuplicateMatches(matches);
-        pendingRequestRef.current = req;
-        dupModalHandlers.open();
-        return;
-      }
-    } catch {
-      // If match endpoint fails, proceed with creation
-    }
-    createMutation.mutate(req);
-  };
-
-  const handleCreateAnyway = () => {
-    if (pendingRequestRef.current) {
-      createMutation.mutate(pendingRequestRef.current);
-    }
-    dupModalHandlers.close();
-    pendingRequestRef.current = null;
-    setDuplicateMatches([]);
-  };
-
-  const openRegister = (quick: boolean) => {
-    setQuickMode(quick);
-    openDrawer();
+  const openRegister = () => {
+    navigate("/patients/register");
   };
 
   const totalPages = data ? Math.ceil(data.total / PER_PAGE) : 0;
@@ -213,25 +246,33 @@ export function PatientsPage() {
     {
       key: "name",
       label: "Name",
-      render: (row: Patient) => (
-        <Group gap={6}>
-          <Text size="sm">{buildFullName(row)}</Text>
-          {row.is_vip && (
-            <Tooltip label="VIP Patient">
-              <ThemeIcon variant="light" color="warning" size="xs">
-                <IconStarFilled size={10} />
-              </ThemeIcon>
+      render: (row: Patient) => {
+        const fullName = buildFullName(row);
+
+        return (
+          <Group gap={6} wrap="nowrap" maw={280}>
+            <Tooltip label={fullName} disabled={fullName.length < 24} withArrow>
+              <Text size="sm" truncate>
+                {fullName}
+              </Text>
             </Tooltip>
-          )}
-          {row.is_medico_legal && (
-            <Tooltip label={`MLC${row.mlc_number ? ` #${row.mlc_number}` : ""}`}>
-              <ThemeIcon variant="light" color="danger" size="xs">
-                <IconAlertTriangle size={10} />
-              </ThemeIcon>
-            </Tooltip>
-          )}
-        </Group>
-      ),
+            {row.is_vip && (
+              <Tooltip label="VIP Patient">
+                <ThemeIcon variant="light" color="warning" size="xs">
+                  <IconStarFilled size={10} />
+                </ThemeIcon>
+              </Tooltip>
+            )}
+            {row.is_medico_legal && (
+              <Tooltip label={`MLC${row.mlc_number ? ` #${row.mlc_number}` : ""}`}>
+                <ThemeIcon variant="light" color="danger" size="xs">
+                  <IconAlertTriangle size={10} />
+                </ThemeIcon>
+              </Tooltip>
+            )}
+          </Group>
+        );
+      },
     },
     {
       key: "phone",
@@ -242,7 +283,12 @@ export function PatientsPage() {
       key: "gender",
       label: "Gender",
       render: (row: Patient) => (
-        <StatusDot color={genderColors[row.gender] ?? "slate"} label={row.gender} size="sm" />
+        <StatusDot
+          color={genderColors[row.gender] ?? "slate"}
+          icon={genderIcon(row.gender)}
+          label={row.gender}
+          size="sm"
+        />
       ),
     },
     {
@@ -252,6 +298,7 @@ export function PatientsPage() {
         row.blood_group && row.blood_group !== "unknown" ? (
           <StatusDot
             color="danger"
+            icon={IconDroplet}
             label={bloodGroupLabels[row.blood_group] ?? row.blood_group}
             size="sm"
           />
@@ -283,7 +330,14 @@ export function PatientsPage() {
             : row.registration_type === "emergency"
               ? "danger"
               : "slate";
-        return <StatusDot color={color} label={label} size="sm" />;
+        return (
+          <StatusDot
+            color={color}
+            icon={registrationIcon(row.registration_type)}
+            label={label}
+            size="sm"
+          />
+        );
       },
     },
     {
@@ -330,24 +384,6 @@ export function PatientsPage() {
         subtitle={t("subtitle.registration&Records")}
         icon={<IconUsers size={20} stroke={1.5} />}
         color="teal"
-        actions={
-          <>
-            <Button
-              variant="light"
-              leftSection={<IconBolt size={16} />}
-              onClick={() => openRegister(true)}
-            >
-              Quick Register
-            </Button>
-            <Button
-              leftSection={<IconUserPlus size={16} />}
-              onClick={() => openRegister(false)}
-              disabled={!canCreate}
-            >
-              Register Patient
-            </Button>
-          </>
-        }
       />
 
       <DataTable<Patient>
@@ -364,9 +400,7 @@ export function PatientsPage() {
             : "Register your first patient to get started"
         }
         emptyAction={
-          !debouncedSearch
-            ? { label: "Register Patient", onClick: () => openRegister(false) }
-            : undefined
+          !debouncedSearch ? { label: "Register Patient", onClick: openRegister } : undefined
         }
         page={page}
         totalPages={totalPages}
@@ -382,32 +416,273 @@ export function PatientsPage() {
             style={{ maxWidth: 360 }}
           />
         }
+        tableActions={
+          <Button
+            leftSection={<IconUserPlus size={16} />}
+            onClick={openRegister}
+            disabled={!canCreate}
+          >
+            Register Patient
+          </Button>
+        }
       />
+    </div>
+  );
+}
 
-      {/* Registration Drawer */}
-      <Drawer
-        opened={drawerOpen}
-        onClose={closeDrawer}
-        title={quickMode ? "Quick Registration" : "Register Patient"}
-        position="right"
-        size="100%"
-        padding="md"
-      >
+export function PatientRegisterPage() {
+  useRequirePermission(P.PATIENTS.CREATE);
+  const navigate = useNavigate();
+  const [params] = useSearchParams();
+  const queryClient = useQueryClient();
+  const source = params.get("source");
+  const sourceCampId = params.get("campId") ?? "";
+  const returnTo = params.get("returnTo") ?? undefined;
+  const isCampRegistration = source === "camp" && Boolean(sourceCampId);
+  const { data: camps = [], isLoading: campContextLoading } = useQuery({
+    queryKey: ["camp-camps", "patient-registration-page", sourceCampId],
+    queryFn: () => patientsService.listCamps(),
+    enabled: isCampRegistration,
+    staleTime: 300_000,
+  });
+  const selectedCamp = camps.find((camp) => camp.id === sourceCampId);
+  const campInitialValues: PatientRegistrationInitialValues | undefined = isCampRegistration
+    ? {
+        registration_type: "camp",
+        registration_source: "camp",
+        camp_id: sourceCampId,
+        camp_name: selectedCamp?.name,
+        department_id: selectedCamp?.organizing_department_id ?? undefined,
+        referred_by_facility: selectedCamp?.venue_name ?? selectedCamp?.name,
+        create_opd_visit: true,
+        open_opd_after_registration: true,
+      }
+    : undefined;
+  const [duplicateMatches, setDuplicateMatches] = useState<MpiMatchResult[]>([]);
+  const pendingRegistrationRef = useRef<RegisterPatientMutationInput | null>(null);
+  const [dupModalOpen, dupModalHandlers] = useDisclosure(false);
+
+  const createMutation = useMutation({
+    mutationFn: async ({
+      req,
+      linkedServices,
+      campContext,
+    }: RegisterPatientMutationInput): Promise<RegisterPatientMutationResult> => {
+      const patient = await patientsService.createPatient(req);
+      if (campContext?.campId) {
+        try {
+          const campRegistration = await campService.createCampRegistration({
+            camp_id: campContext.campId,
+            person_name: patientRegistrationName(req),
+            gender: req.gender,
+            phone: req.phone,
+            address: patientAddressText(req.address),
+            patient_id: patient.id,
+            clinical_department_id: req.department_id,
+            attending_doctor_id: req.consultant_id,
+            chief_complaint: req.initial_diagnosis_text,
+            is_walk_in: true,
+          });
+
+          if (linkedServices?.createOpdVisit && req.department_id) {
+            try {
+              const result = await campService.openCampRegistrationEncounter(campRegistration.id, {
+                department_id: req.department_id,
+                doctor_id: req.consultant_id,
+              });
+              return {
+                patient,
+                encounterId: result.encounter_id,
+                linkedServices,
+                campId: campContext.campId,
+                campRegistrationId: campRegistration.id,
+                returnTo: campContext.returnTo,
+              };
+            } catch (error) {
+              return {
+                patient,
+                queueWarning: errorMessage(error),
+                linkedServices,
+                campId: campContext.campId,
+                campRegistrationId: campRegistration.id,
+                returnTo: campContext.returnTo,
+              };
+            }
+          }
+
+          return {
+            patient,
+            linkedServices,
+            campId: campContext.campId,
+            campRegistrationId: campRegistration.id,
+            returnTo: campContext.returnTo,
+          };
+        } catch (error) {
+          return {
+            patient,
+            queueWarning: errorMessage(error),
+            linkedServices,
+            campId: campContext.campId,
+            returnTo: campContext.returnTo,
+          };
+        }
+      }
+
+      if (!linkedServices?.createOpdVisit || !req.department_id) {
+        return { patient, linkedServices };
+      }
+
+      try {
+        const result = await opdService.createEncounter({
+          patient_id: patient.id,
+          department_id: req.department_id,
+          doctor_id: req.consultant_id,
+          visit_type: registrationVisitType(req),
+          camp_id: req.camp_id,
+          notes: registrationQueueNotes(req),
+        });
+        return {
+          patient,
+          encounterId: result.encounter.id,
+          tokenNumber: result.queue.token_number,
+          linkedServices,
+        };
+      } catch (error) {
+        return {
+          patient,
+          queueWarning: errorMessage(error),
+          linkedServices,
+        };
+      }
+    },
+    onSuccess: (result) => {
+      const {
+        patient,
+        queueWarning,
+        tokenNumber,
+        encounterId,
+        linkedServices,
+        campId,
+        returnTo: resultReturnTo,
+      } = result;
+      notifications.show({
+        title: queueWarning ? "Patient registered, OPD queue pending" : "Patient registered",
+        message: queueWarning
+          ? `UHID: ${patient.uhid}. OPD queue was not created: ${queueWarning}`
+          : tokenNumber
+            ? `UHID: ${patient.uhid} · OPD token T${String(tokenNumber).padStart(3, "0")}`
+            : `UHID: ${patient.uhid}`,
+        color: queueWarning ? "warning" : "success",
+      });
+      void queryClient.invalidateQueries({ queryKey: ["patients"] });
+      if (encounterId) {
+        void queryClient.invalidateQueries({ queryKey: ["opd-queue"] });
+        void queryClient.invalidateQueries({ queryKey: ["opd-encounter", encounterId] });
+      }
+      if (campId) {
+        void queryClient.invalidateQueries({ queryKey: ["camp-registrations"] });
+      }
+      if (encounterId && linkedServices?.openOpdAfterRegistration) {
+        if (campId) {
+          const query = new URLSearchParams({ source: "camp", campId });
+          if (result.campRegistrationId) query.set("registrationId", result.campRegistrationId);
+          navigate(`/opd/encounters/${encounterId}?${query.toString()}`);
+          return;
+        }
+        navigate(`/opd/encounters/${encounterId}`);
+        return;
+      }
+      if (campId && resultReturnTo) {
+        navigate(resultReturnTo);
+        return;
+      }
+      navigate(`/patients/${patient.id}`);
+    },
+    onError: (err: Error) => {
+      notifications.show({
+        title: "Registration failed",
+        message: err.message,
+        color: "danger",
+      });
+    },
+  });
+
+  const handleRegisterSubmit = async (
+    req: CreatePatientRequest,
+    linkedServices?: PatientRegistrationLinkedServicesOptions,
+  ) => {
+    const campContext = isCampRegistration
+      ? {
+          campId: sourceCampId,
+          returnTo,
+        }
+      : undefined;
+    try {
+      const matches = await patientsService.matchPatients({
+        first_name: req.first_name,
+        last_name: req.last_name,
+        date_of_birth: req.date_of_birth ?? undefined,
+        phone: req.phone ?? undefined,
+      });
+      if (matches.length > 0) {
+        setDuplicateMatches(matches);
+        pendingRegistrationRef.current = { req, linkedServices, campContext };
+        dupModalHandlers.open();
+        return;
+      }
+    } catch {
+      // If MPI matching fails, proceed; registration still needs to work during camp load.
+    }
+    createMutation.mutate({ req, linkedServices, campContext });
+  };
+
+  const handleCreateAnyway = () => {
+    if (pendingRegistrationRef.current) {
+      createMutation.mutate(pendingRegistrationRef.current);
+    }
+    dupModalHandlers.close();
+    pendingRegistrationRef.current = null;
+    setDuplicateMatches([]);
+  };
+
+  return (
+    <div>
+      <PageHeader
+        title="Register Patient"
+        subtitle={
+          isCampRegistration
+            ? "Create the hospital patient record from the camp context and keep camp OPD linked."
+            : "Create a patient record and link the first OPD workflow when required."
+        }
+        icon={<IconUserPlus size={20} stroke={1.5} />}
+        color="teal"
+        breadcrumbs={[{ label: "Patients", href: "/patients" }, { label: "Register Patient" }]}
+        actions={
+          <Button
+            variant="light"
+            onClick={() => navigate(isCampRegistration && returnTo ? returnTo : "/patients")}
+          >
+            {isCampRegistration && returnTo ? "Back to Camp" : "Back to Patients"}
+          </Button>
+        }
+      />
+      {isCampRegistration && campContextLoading ? (
+        <Text c="dimmed">Loading camp context...</Text>
+      ) : (
         <PatientRegisterForm
-          quickMode={quickMode}
           onSubmit={handleRegisterSubmit}
-          onCancel={closeDrawer}
+          onCancel={() => navigate(isCampRegistration && returnTo ? returnTo : "/patients")}
           isSubmitting={createMutation.isPending}
           submitLabel="Register"
+          initialValues={campInitialValues}
         />
-      </Drawer>
+      )}
 
-      {/* MPI Duplicate Detection Modal */}
       <Modal
         opened={dupModalOpen}
         onClose={() => {
           dupModalHandlers.close();
-          pendingRequestRef.current = null;
+          pendingRegistrationRef.current = null;
         }}
         title="Potential Duplicates Found"
         size="lg"
@@ -468,7 +743,7 @@ export function PatientsPage() {
             variant="subtle"
             onClick={() => {
               dupModalHandlers.close();
-              pendingRequestRef.current = null;
+              pendingRegistrationRef.current = null;
             }}
           >
             Cancel

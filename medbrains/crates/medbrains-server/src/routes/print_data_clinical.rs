@@ -2,19 +2,21 @@
 
 use axum::{
     Extension, Json,
-    extract::{Path, State},
+    extract::{Path, Query, State},
 };
+use serde::Deserialize;
+use serde_json::json;
 use uuid::Uuid;
 
 use medbrains_core::permissions;
 use medbrains_core::print_data::{
     AppointmentSlipPrintData, CumulativeLabReportPrintData, DeathCertificatePrintData,
     DischargeSummaryPrintData, EducationSection, InfantWristbandPrintData, KeyImage, LabParameter,
-    LabReportFullPrintData, OpdPrescriptionPrintData, OpdVitals, ParameterTrend,
-    PatientEducationPrintData, PrescriptionMedication, RadiologyReportFullPrintData,
-    RegistrationCardPrintData, StatOrder, TokenSlipPrintData, TransferSummaryPrintData,
-    TreatmentChartIvFluid, TreatmentChartMedication, TreatmentChartPrintData, TrendValue,
-    VisitorPassPrintData, WristbandPrintData,
+    LabReportFullPrintData, OpdCertificatePrintData, OpdPrescriptionPrintData,
+    OpdProcedureConsentPrintData, OpdVitals, ParameterTrend, PatientEducationPrintData,
+    PrescriptionMedication, RadiologyReportFullPrintData, RegistrationCardPrintData, StatOrder,
+    TokenSlipPrintData, TransferSummaryPrintData, TreatmentChartIvFluid, TreatmentChartMedication,
+    TreatmentChartPrintData, TrendValue, VisitorPassPrintData, WristbandPrintData,
 };
 
 use crate::{
@@ -23,10 +25,490 @@ use crate::{
     state::AppState,
 };
 
+// ── OPD certificate / consent print ledger ───────────────
+
+#[derive(Debug, Deserialize)]
+pub struct OpdPrintQuery {
+    pub reprint_reason: Option<String>,
+}
+
+#[derive(Debug, sqlx::FromRow)]
+struct OpdCertificatePrintRow {
+    certificate_id: Uuid,
+    certificate_number: Option<String>,
+    certificate_type: String,
+    patient_id: Uuid,
+    encounter_id: Option<Uuid>,
+    patient_name: String,
+    uhid: String,
+    age: Option<f64>,
+    gender: String,
+    date_of_birth: Option<chrono::NaiveDate>,
+    phone: String,
+    doctor_name: Option<String>,
+    department: Option<String>,
+    encounter_date: Option<chrono::NaiveDate>,
+    issued_date: chrono::NaiveDate,
+    valid_from: Option<chrono::NaiveDate>,
+    valid_to: Option<chrono::NaiveDate>,
+    diagnosis: Option<String>,
+    remarks: Option<String>,
+    body: serde_json::Value,
+}
+
+#[derive(Debug, sqlx::FromRow)]
+struct OpdConsentPrintRow {
+    consent_id: Uuid,
+    consent_type: String,
+    status: String,
+    patient_id: Uuid,
+    encounter_id: Option<Uuid>,
+    patient_name: String,
+    uhid: String,
+    age: Option<f64>,
+    gender: String,
+    date_of_birth: Option<chrono::NaiveDate>,
+    phone: String,
+    doctor_name: Option<String>,
+    department: Option<String>,
+    encounter_date: Option<chrono::NaiveDate>,
+    procedure_name: String,
+    risks_explained: Option<String>,
+    alternatives_explained: Option<String>,
+    benefits_explained: Option<String>,
+    patient_questions: Option<String>,
+    consented_by_name: Option<String>,
+    consented_by_relation: Option<String>,
+    witness_name: Option<String>,
+    witness_designation: Option<String>,
+    signed_at: Option<chrono::DateTime<Utc>>,
+    withdrawn_at: Option<chrono::DateTime<Utc>>,
+    withdrawal_reason: Option<String>,
+    created_at: chrono::DateTime<Utc>,
+}
+
+fn formatted_age(age: Option<f64>) -> Option<String> {
+    age.map(|value| format!("{} yrs", value as i64))
+}
+
+fn formatted_date(date: Option<chrono::NaiveDate>) -> Option<String> {
+    date.map(|value| value.format("%d-%b-%Y").to_string())
+}
+
+fn formatted_datetime(datetime: Option<chrono::DateTime<Utc>>) -> Option<String> {
+    datetime.map(|value| value.format("%d-%b-%Y %H:%M").to_string())
+}
+
+async fn hospital_name(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: Uuid,
+) -> Result<Option<String>, AppError> {
+    Ok(
+        sqlx::query_scalar::<_, String>("SELECT name FROM tenants WHERE id = $1")
+            .bind(tenant_id)
+            .fetch_optional(&mut **tx)
+            .await?,
+    )
+}
+
+pub async fn get_opd_certificate_print_data(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(certificate_id): Path<Uuid>,
+    Query(query): Query<OpdPrintQuery>,
+) -> Result<Json<OpdCertificatePrintData>, AppError> {
+    require_permission(&claims, permissions::opd::certificates::LIST)?;
+    require_permission(&claims, permissions::opd::certificates::PRINT)?;
+    require_permission(&claims, permissions::patients::VIEW)?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
+
+    let prior_print_count: i64 = sqlx::query_scalar(
+        "SELECT COALESCE(SUM(print_count), 0)::bigint \
+         FROM document_outputs \
+         WHERE tenant_id = $1 \
+           AND module_code = 'opd' \
+           AND source_table = 'medical_certificates' \
+           AND source_id = $2 \
+           AND title = 'OPD Medical Certificate' \
+           AND status <> 'voided'::document_output_status",
+    )
+    .bind(claims.tenant_id)
+    .bind(certificate_id)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    let reprint_reason = query
+        .reprint_reason
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    let is_reprint = prior_print_count > 0;
+    if is_reprint {
+        require_permission(&claims, permissions::opd::certificates::REPRINT)?;
+        if reprint_reason.is_none_or(|value| value.len() < 5) {
+            return Err(AppError::BadRequest(
+                "reprint reason is required after the first certificate print".to_owned(),
+            ));
+        }
+    } else if reprint_reason.is_some() {
+        return Err(AppError::BadRequest(
+            "certificate has not been printed yet".to_owned(),
+        ));
+    }
+
+    let row = sqlx::query_as::<_, OpdCertificatePrintRow>(
+        "SELECT \
+           mc.id AS certificate_id, \
+           mc.certificate_number, \
+           mc.certificate_type, \
+           mc.patient_id, \
+           mc.encounter_id, \
+           (p.first_name || ' ' || p.last_name) AS patient_name, \
+           p.uhid, \
+           EXTRACT(YEAR FROM age(p.date_of_birth))::float8 AS age, \
+           p.gender::text AS gender, \
+           p.date_of_birth, \
+           p.phone, \
+           doc.full_name AS doctor_name, \
+           dept.name AS department, \
+           e.encounter_date, \
+           mc.issued_date, \
+           mc.valid_from, \
+           mc.valid_to, \
+           mc.diagnosis, \
+           mc.remarks, \
+           mc.body \
+         FROM medical_certificates mc \
+         JOIN patients p ON p.id = mc.patient_id AND p.tenant_id = mc.tenant_id \
+         LEFT JOIN users doc ON doc.id = mc.doctor_id AND doc.tenant_id = mc.tenant_id \
+         LEFT JOIN encounters e ON e.id = mc.encounter_id AND e.tenant_id = mc.tenant_id \
+         LEFT JOIN departments dept ON dept.id = e.department_id AND dept.tenant_id = e.tenant_id \
+         WHERE mc.id = $1 AND mc.tenant_id = $2 AND mc.is_void = false",
+    )
+    .bind(certificate_id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+
+    let today = Utc::now().format("%Y%m%d").to_string();
+    let document_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*)::bigint \
+         FROM document_outputs \
+         WHERE tenant_id = $1 \
+           AND document_number LIKE 'OPD-CERT-' || $2 || '-%'",
+    )
+    .bind(claims.tenant_id)
+    .bind(&today)
+    .fetch_one(&mut *tx)
+    .await?;
+    let document_number = format!("OPD-CERT-{today}-{:04}", document_count + 1);
+    let print_action = if is_reprint { "reprint" } else { "print" };
+    let context_snapshot = json!({
+        "document_type": "opd_medical_certificate",
+        "action": print_action,
+        "certificate_id": row.certificate_id,
+        "certificate_number": row.certificate_number,
+        "patient_id": row.patient_id,
+        "encounter_id": row.encounter_id,
+        "prior_print_count": prior_print_count,
+        "reprint_reason": reprint_reason,
+    });
+
+    let document_output_id: Uuid = sqlx::query_scalar(
+        "INSERT INTO document_outputs \
+         (tenant_id, module_code, source_table, source_id, patient_id, visit_id, admission_id, \
+          document_number, title, category, status, page_count, print_count, \
+          first_printed_at, last_printed_at, watermark, context_snapshot, generated_by) \
+         VALUES ($1, 'opd', 'medical_certificates', $2, $3, $4, NULL, \
+          $5, 'OPD Medical Certificate', 'custom'::document_template_category, \
+          'printed'::document_output_status, 1, 1, now(), now(), \
+          CASE WHEN $6::bool THEN 'duplicate'::watermark_type ELSE 'none'::watermark_type END, \
+          $7, $8) \
+         RETURNING id",
+    )
+    .bind(claims.tenant_id)
+    .bind(certificate_id)
+    .bind(row.patient_id)
+    .bind(row.encounter_id)
+    .bind(&document_number)
+    .bind(is_reprint)
+    .bind(&context_snapshot)
+    .bind(claims.sub)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    let audit_values = json!({
+        "document_output_id": document_output_id,
+        "document_number": &document_number,
+        "document_type": "opd_medical_certificate",
+        "action": print_action,
+        "certificate_id": row.certificate_id,
+        "certificate_number": row.certificate_number,
+        "prior_print_count": prior_print_count,
+        "reprint_reason": reprint_reason,
+    });
+    medbrains_db::audit::AuditLogger::log(
+        &mut tx,
+        &medbrains_db::audit::AuditEntry {
+            tenant_id: claims.tenant_id,
+            user_id: Some(claims.sub),
+            action: if is_reprint {
+                "opd.certificate.reprint"
+            } else {
+                "opd.certificate.print"
+            },
+            entity_type: "medical_certificate",
+            entity_id: Some(certificate_id),
+            old_values: None,
+            new_values: Some(&audit_values),
+            ip_address: None,
+        },
+    )
+    .await?;
+
+    let h_name = hospital_name(&mut tx, claims.tenant_id).await?;
+    tx.commit().await?;
+
+    Ok(Json(OpdCertificatePrintData {
+        document_number,
+        is_reprint,
+        certificate_number: row.certificate_number,
+        certificate_type: row.certificate_type,
+        patient_name: row.patient_name,
+        uhid: row.uhid,
+        age: formatted_age(row.age),
+        gender: row.gender,
+        date_of_birth: formatted_date(row.date_of_birth),
+        phone: row.phone,
+        doctor_name: row.doctor_name,
+        department: row.department,
+        encounter_date: formatted_date(row.encounter_date),
+        issued_date: row.issued_date.format("%d-%b-%Y").to_string(),
+        valid_from: formatted_date(row.valid_from),
+        valid_to: formatted_date(row.valid_to),
+        diagnosis: row.diagnosis,
+        remarks: row.remarks,
+        body: row.body,
+        hospital_name: h_name,
+    }))
+}
+
+pub async fn get_opd_consent_print_data(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(consent_id): Path<Uuid>,
+    Query(query): Query<OpdPrintQuery>,
+) -> Result<Json<OpdProcedureConsentPrintData>, AppError> {
+    require_permission(&claims, permissions::opd::consents::LIST)?;
+    require_permission(&claims, permissions::opd::consents::PRINT)?;
+    require_permission(&claims, permissions::patients::VIEW)?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
+
+    let prior_print_count: i64 = sqlx::query_scalar(
+        "SELECT COALESCE(SUM(print_count), 0)::bigint \
+         FROM document_outputs \
+         WHERE tenant_id = $1 \
+           AND module_code = 'opd' \
+           AND source_table = 'procedure_consents' \
+           AND source_id = $2 \
+           AND title = 'OPD Procedure Consent' \
+           AND status <> 'voided'::document_output_status",
+    )
+    .bind(claims.tenant_id)
+    .bind(consent_id)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    let reprint_reason = query
+        .reprint_reason
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    let is_reprint = prior_print_count > 0;
+    if is_reprint {
+        require_permission(&claims, permissions::opd::consents::REPRINT)?;
+        if reprint_reason.is_none_or(|value| value.len() < 5) {
+            return Err(AppError::BadRequest(
+                "reprint reason is required after the first consent print".to_owned(),
+            ));
+        }
+    } else if reprint_reason.is_some() {
+        return Err(AppError::BadRequest(
+            "consent has not been printed yet".to_owned(),
+        ));
+    }
+
+    let row = sqlx::query_as::<_, OpdConsentPrintRow>(
+        "SELECT \
+           pc.id AS consent_id, \
+           pc.consent_type::text AS consent_type, \
+           pc.status::text AS status, \
+           pc.patient_id, \
+           pc.encounter_id, \
+           (p.first_name || ' ' || p.last_name) AS patient_name, \
+           p.uhid, \
+           EXTRACT(YEAR FROM age(p.date_of_birth))::float8 AS age, \
+           p.gender::text AS gender, \
+           p.date_of_birth, \
+           p.phone, \
+           doc.full_name AS doctor_name, \
+           dept.name AS department, \
+           e.encounter_date, \
+           pc.procedure_name, \
+           pc.risks_explained, \
+           pc.alternatives_explained, \
+           pc.benefits_explained, \
+           pc.patient_questions, \
+           pc.consented_by_name, \
+           pc.consented_by_relation, \
+           pc.witness_name, \
+           pc.witness_designation, \
+           pc.signed_at, \
+           pc.withdrawn_at, \
+           pc.withdrawal_reason, \
+           pc.created_at \
+         FROM procedure_consents pc \
+         JOIN patients p ON p.id = pc.patient_id AND p.tenant_id = pc.tenant_id \
+         LEFT JOIN users doc ON doc.id = pc.doctor_id AND doc.tenant_id = pc.tenant_id \
+         LEFT JOIN encounters e ON e.id = pc.encounter_id AND e.tenant_id = pc.tenant_id \
+         LEFT JOIN departments dept ON dept.id = e.department_id AND dept.tenant_id = e.tenant_id \
+         WHERE pc.id = $1 AND pc.tenant_id = $2",
+    )
+    .bind(consent_id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+
+    let today = Utc::now().format("%Y%m%d").to_string();
+    let document_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*)::bigint \
+         FROM document_outputs \
+         WHERE tenant_id = $1 \
+           AND document_number LIKE 'OPD-CONS-' || $2 || '-%'",
+    )
+    .bind(claims.tenant_id)
+    .bind(&today)
+    .fetch_one(&mut *tx)
+    .await?;
+    let document_number = format!("OPD-CONS-{today}-{:04}", document_count + 1);
+    let print_action = if is_reprint { "reprint" } else { "print" };
+    let context_snapshot = json!({
+        "document_type": "opd_procedure_consent",
+        "action": print_action,
+        "consent_id": row.consent_id,
+        "patient_id": row.patient_id,
+        "encounter_id": row.encounter_id,
+        "status": row.status,
+        "prior_print_count": prior_print_count,
+        "reprint_reason": reprint_reason,
+    });
+
+    let document_output_id: Uuid = sqlx::query_scalar(
+        "INSERT INTO document_outputs \
+         (tenant_id, module_code, source_table, source_id, patient_id, visit_id, admission_id, \
+          document_number, title, category, status, page_count, print_count, \
+          first_printed_at, last_printed_at, watermark, context_snapshot, generated_by) \
+         VALUES ($1, 'opd', 'procedure_consents', $2, $3, $4, NULL, \
+          $5, 'OPD Procedure Consent', 'custom'::document_template_category, \
+          'printed'::document_output_status, 1, 1, now(), now(), \
+          CASE WHEN $6::bool THEN 'duplicate'::watermark_type ELSE 'none'::watermark_type END, \
+          $7, $8) \
+         RETURNING id",
+    )
+    .bind(claims.tenant_id)
+    .bind(consent_id)
+    .bind(row.patient_id)
+    .bind(row.encounter_id)
+    .bind(&document_number)
+    .bind(is_reprint)
+    .bind(&context_snapshot)
+    .bind(claims.sub)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    let audit_values = json!({
+        "document_output_id": document_output_id,
+        "document_number": &document_number,
+        "document_type": "opd_procedure_consent",
+        "action": print_action,
+        "consent_id": row.consent_id,
+        "status": row.status,
+        "prior_print_count": prior_print_count,
+        "reprint_reason": reprint_reason,
+    });
+    medbrains_db::audit::AuditLogger::log(
+        &mut tx,
+        &medbrains_db::audit::AuditEntry {
+            tenant_id: claims.tenant_id,
+            user_id: Some(claims.sub),
+            action: if is_reprint {
+                "opd.consent.reprint"
+            } else {
+                "opd.consent.print"
+            },
+            entity_type: "procedure_consent",
+            entity_id: Some(consent_id),
+            old_values: None,
+            new_values: Some(&audit_values),
+            ip_address: None,
+        },
+    )
+    .await?;
+
+    let h_name = hospital_name(&mut tx, claims.tenant_id).await?;
+    tx.commit().await?;
+
+    Ok(Json(OpdProcedureConsentPrintData {
+        document_number,
+        is_reprint,
+        consent_id: row.consent_id.to_string(),
+        consent_type: row.consent_type,
+        status: row.status,
+        patient_name: row.patient_name,
+        uhid: row.uhid,
+        age: formatted_age(row.age),
+        gender: row.gender,
+        date_of_birth: formatted_date(row.date_of_birth),
+        phone: row.phone,
+        doctor_name: row.doctor_name,
+        department: row.department,
+        encounter_date: formatted_date(row.encounter_date),
+        procedure_name: row.procedure_name,
+        risks_explained: row.risks_explained,
+        alternatives_explained: row.alternatives_explained,
+        benefits_explained: row.benefits_explained,
+        patient_questions: row.patient_questions,
+        consented_by_name: row.consented_by_name,
+        consented_by_relation: row.consented_by_relation,
+        witness_name: row.witness_name,
+        witness_designation: row.witness_designation,
+        signed_at: formatted_datetime(row.signed_at),
+        withdrawn_at: formatted_datetime(row.withdrawn_at),
+        withdrawal_reason: row.withdrawal_reason,
+        created_at: row.created_at.format("%d-%b-%Y %H:%M").to_string(),
+        hospital_name: h_name,
+    }))
+}
+
 // ── Wristband ────────────────────────────────────────────
+
+#[derive(Debug, Deserialize)]
+pub struct WristbandPrintQuery {
+    pub reprint_reason: Option<String>,
+}
 
 #[derive(Debug, sqlx::FromRow)]
 struct WristbandRow {
+    patient_id: Uuid,
+    encounter_id: Uuid,
     patient_name: String,
     uhid: String,
     age: Option<f64>,
@@ -37,21 +519,61 @@ struct WristbandRow {
     bed_number: Option<String>,
     ward_name: Option<String>,
     doctor_name: Option<String>,
+    is_critical: bool,
+    is_mlc: bool,
 }
 
 pub async fn get_wristband_print_data(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Path(admission_id): Path<Uuid>,
+    Query(query): Query<WristbandPrintQuery>,
 ) -> Result<Json<WristbandPrintData>, AppError> {
-    require_permission(&claims, permissions::ipd::admissions::VIEW)?;
+    require_permission(&claims, permissions::ipd::wristband::PRINT)?;
+    require_permission(&claims, permissions::patients::VIEW)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
+    let prior_print_count: i64 = sqlx::query_scalar(
+        "SELECT COALESCE(SUM(print_count), 0)::bigint \
+         FROM document_outputs \
+         WHERE tenant_id = $1 \
+           AND module_code = 'ipd' \
+           AND source_table = 'admissions' \
+           AND source_id = $2 \
+           AND title = 'IPD Wristband' \
+           AND status <> 'voided'::document_output_status",
+    )
+    .bind(claims.tenant_id)
+    .bind(admission_id)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    let reprint_reason = query
+        .reprint_reason
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    let is_reprint = prior_print_count > 0;
+    if is_reprint {
+        require_permission(&claims, permissions::ipd::wristband::REPRINT)?;
+        if reprint_reason.is_none_or(|value| value.len() < 5) {
+            return Err(AppError::BadRequest(
+                "reprint reason is required after the first wristband print".to_owned(),
+            ));
+        }
+    } else if reprint_reason.is_some() {
+        return Err(AppError::BadRequest(
+            "wristband has not been printed yet".to_owned(),
+        ));
+    }
+
     let row = sqlx::query_as::<_, WristbandRow>(
         "SELECT \
+           a.patient_id, \
+           a.encounter_id, \
            (p.first_name || ' ' || p.last_name) AS patient_name, \
            p.uhid, \
            EXTRACT(YEAR FROM age(p.date_of_birth))::float8 AS age, \
@@ -61,12 +583,14 @@ pub async fn get_wristband_print_data(
            a.admitted_at, \
            l.name AS bed_number, \
            w.name AS ward_name, \
-           doc.full_name AS doctor_name \
+           doc.full_name AS doctor_name, \
+           a.is_critical, \
+           (a.mlc_case_id IS NOT NULL) AS is_mlc \
          FROM admissions a \
          JOIN patients p ON p.id = a.patient_id AND p.tenant_id = a.tenant_id \
          LEFT JOIN locations l ON l.id = a.bed_id AND l.tenant_id = a.tenant_id \
          LEFT JOIN wards w ON w.id = a.ward_id AND w.tenant_id = a.tenant_id \
-         LEFT JOIN users doc ON doc.id = a.admitting_doctor \
+         LEFT JOIN users doc ON doc.id = a.admitting_doctor AND doc.tenant_id = a.tenant_id \
          WHERE a.id = $1 AND a.tenant_id = $2",
     )
     .bind(admission_id)
@@ -76,19 +600,94 @@ pub async fn get_wristband_print_data(
 
     let allergies: Vec<String> = sqlx::query_scalar(
         "SELECT allergen_name FROM patient_allergies \
-         WHERE patient_id = (SELECT patient_id FROM admissions WHERE id = $1) \
+         WHERE patient_id = $1 \
            AND tenant_id = $2 \
            AND is_active = true \
          ORDER BY created_at",
     )
-    .bind(admission_id)
+    .bind(row.patient_id)
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
+    .await?;
+
+    let today = Utc::now().format("%Y%m%d").to_string();
+    let document_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*)::bigint \
+         FROM document_outputs \
+         WHERE tenant_id = $1 \
+           AND document_number LIKE 'IPD-WB-' || $2 || '-%'",
+    )
+    .bind(claims.tenant_id)
+    .bind(&today)
+    .fetch_one(&mut *tx)
+    .await?;
+    let document_number = format!("IPD-WB-{today}-{:04}", document_count + 1);
+    let print_action = if is_reprint { "reprint" } else { "print" };
+    let context_snapshot = json!({
+        "document_type": "ipd_wristband",
+        "action": print_action,
+        "admission_id": admission_id,
+        "patient_id": row.patient_id,
+        "encounter_id": row.encounter_id,
+        "prior_print_count": prior_print_count,
+        "reprint_reason": reprint_reason,
+    });
+
+    let document_output_id: Uuid = sqlx::query_scalar(
+        "INSERT INTO document_outputs \
+         (tenant_id, module_code, source_table, source_id, patient_id, visit_id, admission_id, \
+          document_number, title, category, status, page_count, print_count, \
+          first_printed_at, last_printed_at, watermark, context_snapshot, generated_by) \
+         VALUES ($1, 'ipd', 'admissions', $2, $3, $4, $2, \
+          $5, 'IPD Wristband', 'custom'::document_template_category, \
+          'printed'::document_output_status, 1, 1, now(), now(), \
+          CASE WHEN $6::bool THEN 'duplicate'::watermark_type ELSE 'none'::watermark_type END, \
+          $7, $8) \
+         RETURNING id",
+    )
+    .bind(claims.tenant_id)
+    .bind(admission_id)
+    .bind(row.patient_id)
+    .bind(row.encounter_id)
+    .bind(&document_number)
+    .bind(is_reprint)
+    .bind(&context_snapshot)
+    .bind(claims.sub)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    let audit_values = json!({
+        "document_output_id": document_output_id,
+        "document_number": document_number,
+        "document_type": "ipd_wristband",
+        "action": print_action,
+        "prior_print_count": prior_print_count,
+        "reprint_reason": reprint_reason,
+    });
+    medbrains_db::audit::AuditLogger::log(
+        &mut tx,
+        &medbrains_db::audit::AuditEntry {
+            tenant_id: claims.tenant_id,
+            user_id: Some(claims.sub),
+            action: if is_reprint {
+                "ipd.wristband.reprint"
+            } else {
+                "ipd.wristband.print"
+            },
+            entity_type: "admission",
+            entity_id: Some(admission_id),
+            old_values: None,
+            new_values: Some(&audit_values),
+            ip_address: None,
+        },
+    )
     .await?;
 
     tx.commit().await?;
 
     Ok(Json(WristbandPrintData {
+        document_number,
+        is_reprint,
         patient_name: row.patient_name,
         uhid: row.uhid,
         age: row.age.map(|a| format!("{} yrs", a as i64)),
@@ -99,6 +698,8 @@ pub async fn get_wristband_print_data(
         bed_number: row.bed_number,
         ward_name: row.ward_name,
         doctor_name: row.doctor_name,
+        is_critical: row.is_critical,
+        is_mlc: row.is_mlc,
         allergies,
     }))
 }
@@ -128,6 +729,7 @@ pub async fn get_discharge_print_data(
     Path(admission_id): Path<Uuid>,
 ) -> Result<Json<DischargeSummaryPrintData>, AppError> {
     require_permission(&claims, permissions::ipd::admissions::VIEW)?;
+    require_permission(&claims, permissions::patients::VIEW)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -385,6 +987,7 @@ pub async fn get_treatment_chart_print_data(
     Path(admission_id): Path<Uuid>,
 ) -> Result<Json<TreatmentChartPrintData>, AppError> {
     require_permission(&claims, permissions::ipd::admissions::VIEW)?;
+    require_permission(&claims, permissions::patients::VIEW)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -544,6 +1147,7 @@ pub async fn get_transfer_summary_print_data(
     Path(transfer_id): Path<Uuid>,
 ) -> Result<Json<TransferSummaryPrintData>, AppError> {
     require_permission(&claims, permissions::ipd::admissions::VIEW)?;
+    require_permission(&claims, permissions::patients::VIEW)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -878,6 +1482,7 @@ pub async fn get_infant_wristband_print_data(
     Path(newborn_id): Path<Uuid>,
 ) -> Result<Json<InfantWristbandPrintData>, AppError> {
     require_permission(&claims, permissions::ipd::admissions::VIEW)?;
+    require_permission(&claims, permissions::patients::VIEW)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -988,6 +1593,7 @@ pub async fn get_opd_prescription_print_data(
     Path(encounter_id): Path<Uuid>,
 ) -> Result<Json<OpdPrescriptionPrintData>, AppError> {
     require_permission(&claims, permissions::opd::visit::UPDATE)?;
+    require_permission(&claims, permissions::patients::VIEW)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -1729,6 +2335,7 @@ pub async fn get_death_certificate_print_data(
     Path(patient_id): Path<Uuid>,
 ) -> Result<Json<DeathCertificatePrintData>, AppError> {
     require_permission(&claims, permissions::ipd::death_records::MANAGE)?;
+    require_permission(&claims, permissions::patients::VIEW)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)

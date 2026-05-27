@@ -384,22 +384,6 @@
     "notes": []
   },
   {
-    "rel_path": "admin/settings/DepartmentHoursSettings.tsx",
-    "lines": 324,
-    "guard": null,
-    "element_perms": [],
-    "api_methods": [
-      "listDepartments",
-      "updateDepartment"
-    ],
-    "has_query_hooks": true,
-    "methods_resolved": 2,
-    "methods_missing": [],
-    "handlers_stub": [],
-    "handlers_unregistered": [],
-    "notes": []
-  },
-  {
     "rel_path": "admin/settings/DepartmentsSettings.tsx",
     "lines": 638,
     "guard": null,
@@ -509,21 +493,6 @@
     "notes": []
   },
   {
-    "rel_path": "admin/settings/LocationTreeSettings.tsx",
-    "lines": 205,
-    "guard": null,
-    "element_perms": [],
-    "api_methods": [
-      "listLocations"
-    ],
-    "has_query_hooks": true,
-    "methods_resolved": 1,
-    "methods_missing": [],
-    "handlers_stub": [],
-    "handlers_unregistered": [],
-    "notes": []
-  },
-  {
     "rel_path": "admin/settings/LocationsSettings.tsx",
     "lines": 430,
     "guard": null,
@@ -543,7 +512,7 @@
   },
   {
     "rel_path": "admin/settings/MasterDataStatusSettings.tsx",
-    "lines": 258,
+    "lines": 1558,
     "guard": null,
     "element_perms": [],
     "api_methods": [
@@ -647,25 +616,6 @@
     "notes": []
   },
   {
-    "rel_path": "admin/settings/SetupWizardSettings.tsx",
-    "lines": 181,
-    "guard": null,
-    "element_perms": [],
-    "api_methods": [
-      "listDepartments",
-      "listLocations",
-      "listRoles",
-      "listServices",
-      "listSetupUsers"
-    ],
-    "has_query_hooks": true,
-    "methods_resolved": 5,
-    "methods_missing": [],
-    "handlers_stub": [],
-    "handlers_unregistered": [],
-    "notes": []
-  },
-  {
     "rel_path": "admin/settings/SystemHealthSettings.tsx",
     "lines": 292,
     "guard": null,
@@ -700,35 +650,9 @@
     "notes": []
   },
   {
-    "rel_path": "admin/settings/UsersRolesSettings.tsx",
-    "lines": 1046,
-    "guard": null,
-    "element_perms": [],
-    "api_methods": [
-      "assignUserFacilities",
-      "createRole",
-      "createSetupUser",
-      "deleteRole",
-      "deleteSetupUser",
-      "listDepartments",
-      "listFacilities",
-      "listRoles",
-      "listSetupUsers",
-      "listUserFacilities",
-      "updateRole",
-      "updateSetupUser"
-    ],
-    "has_query_hooks": true,
-    "methods_resolved": 12,
-    "methods_missing": [],
-    "handlers_stub": [],
-    "handlers_unregistered": [],
-    "notes": []
-  },
-  {
     "rel_path": "admin/settings.tsx",
-    "lines": 53,
-    "guard": "visibleTabs[0]?.requiredPermission",
+    "lines": 272,
+    "guard": "settingsTabPermissions(visibleTabs[0])",
     "element_perms": [],
     "api_methods": [],
     "has_query_hooks": false,

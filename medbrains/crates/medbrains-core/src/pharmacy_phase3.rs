@@ -86,6 +86,11 @@ pub struct PharmacyPosSale {
     pub store_location_id: Option<Uuid>,
     pub billing_invoice_id: Option<Uuid>,
     pub billing_posted_at: Option<DateTime<Utc>>,
+    pub status: Option<String>,
+    pub cancelled_at: Option<DateTime<Utc>>,
+    pub cancelled_by: Option<Uuid>,
+    pub cancel_reason: Option<String>,
+    pub refund_amount: Option<rust_decimal::Decimal>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -110,6 +115,9 @@ pub struct PharmacyPosSaleItem {
     pub igst_amount: rust_decimal::Decimal,
     pub line_total: rust_decimal::Decimal,
     pub created_at: DateTime<Utc>,
+    pub is_cancelled: Option<bool>,
+    pub cancelled_qty: Option<i32>,
+    pub cancel_reason: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]

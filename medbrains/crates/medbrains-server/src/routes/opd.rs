@@ -19,17 +19,78 @@ use medbrains_core::consultation::{
     PrescriptionTemplate, ProcedureCatalog, ProcedureConsent, ProcedureOrder, Referral, SnomedCode,
     Vital,
 };
-use medbrains_core::encounter::{Encounter, OpdQueue};
+use medbrains_core::encounter::{Encounter, EncounterStatus, EncounterType, OpdQueue};
+use medbrains_core::form::FieldAccessLevel;
 use medbrains_core::ipd::Admission;
 use medbrains_core::permissions;
+use medbrains_core::privacy::mask_free_text;
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{
-    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
+    error::AppError,
+    middleware::{
+        auth::Claims,
+        authorization::{require_any_permission, require_permission},
+        field_access,
+    },
     state::AppState,
 };
+
+const OPD_ENCOUNTER_WORKSPACE_PERMISSIONS: &[&str] = &[
+    permissions::opd::queue::VIEW,
+    permissions::opd::visit::UPDATE,
+    permissions::opd::vitals::LIST,
+    permissions::opd::vitals::CREATE,
+    permissions::opd::diagnoses::LIST,
+    permissions::opd::diagnoses::CREATE,
+    permissions::opd::diagnoses::UPDATE,
+    permissions::opd::diagnoses::DELETE,
+    permissions::opd::procedures::LIST,
+    permissions::opd::procedures::CREATE,
+    permissions::opd::procedures::CANCEL,
+    permissions::opd::referrals::LIST,
+    permissions::opd::referrals::CREATE,
+    permissions::opd::certificates::LIST,
+    permissions::opd::certificates::CREATE,
+    permissions::opd::certificates::PRINT,
+    permissions::opd::certificates::REPRINT,
+    permissions::opd::certificates::VOID,
+    permissions::opd::reminders::LIST,
+    permissions::opd::reminders::CREATE,
+    permissions::opd::reminders::UPDATE,
+    permissions::opd::feedback::LIST,
+    permissions::opd::feedback::CREATE,
+    permissions::opd::consents::LIST,
+    permissions::opd::consents::CREATE,
+    permissions::opd::consents::SIGN,
+    permissions::opd::consents::PRINT,
+    permissions::opd::consents::REPRINT,
+    permissions::opd::consents::REVOKE,
+    permissions::opd::schedule::LIST,
+    permissions::opd::schedule::MANAGE,
+    permissions::pharmacy::prescriptions::LIST,
+    permissions::pharmacy::dispensing::CREATE,
+    permissions::lab::orders::LIST,
+    permissions::lab::orders::VIEW,
+    permissions::lab::reports::VIEW,
+    permissions::lab::orders::CREATE,
+    permissions::radiology::orders::LIST,
+    permissions::radiology::orders::VIEW,
+    permissions::radiology::orders::CREATE,
+    permissions::insurance::prior_auth::LIST,
+    permissions::insurance::prior_auth::CREATE,
+    permissions::mrd::case_sheets::GENERATE,
+];
+
+fn claims_have_permission(claims: &Claims, permission: &str) -> bool {
+    crate::middleware::authorization::is_bypass_role(claims)
+        || claims
+            .permissions
+            .iter()
+            .any(|granted| granted == permission)
+}
 
 // ══════════════════════════════════════════════════════════
 //  Query / Request / Response types
@@ -63,6 +124,11 @@ pub struct CreateEncounterRequest {
     pub notes: Option<String>,
     pub visit_type: Option<String>,
     pub camp_id: Option<Uuid>,
+    /// Internal training / simulator flag. Only honoured for bypass roles
+    /// (super_admin, hospital_admin); silently coerced to false otherwise.
+    /// Tagged rows must be excluded from regulator-facing reports.
+    #[serde(default)]
+    pub is_dummy: Option<bool>,
 }
 
 #[derive(Debug, Serialize)]
@@ -107,8 +173,8 @@ pub struct QueueEntry {
     pub called_at: Option<DateTime<Utc>>,
     pub completed_at: Option<DateTime<Utc>>,
     pub patient_id: Uuid,
-    pub patient_name: String,
-    pub uhid: String,
+    pub patient_name: Option<String>,
+    pub uhid: Option<String>,
     pub visit_type: Option<String>,
     pub camp_id: Option<Uuid>,
     pub camp_name: Option<String>,
@@ -467,6 +533,9 @@ pub async fn create_encounter(
     Json(body): Json<CreateEncounterRequest>,
 ) -> Result<Json<CreateEncounterResponse>, AppError> {
     require_permission(&claims, permissions::opd::visit::CREATE)?;
+    if body.appointment_id.is_some() {
+        require_permission(&claims, permissions::opd::appointment::UPDATE)?;
+    }
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -620,11 +689,14 @@ pub async fn create_encounter(
         attributes["camp_name"] = serde_json::json!(camp.name);
     }
 
+    let is_dummy =
+        body.is_dummy.unwrap_or(false) && crate::middleware::authorization::is_bypass_role(&claims);
+
     let encounter = sqlx::query_as::<_, Encounter>(
         "INSERT INTO encounters \
          (tenant_id, patient_id, encounter_type, status, department_id, doctor_id, \
-          encounter_date, notes, attributes, visit_type) \
-         VALUES ($1, $2, 'opd'::encounter_type, 'open'::encounter_status, $3, $4, $5, $6, $7, $8) \
+          encounter_date, notes, attributes, visit_type, is_dummy) \
+         VALUES ($1, $2, 'opd'::encounter_type, 'open'::encounter_status, $3, $4, $5, $6, $7, $8, $9) \
          RETURNING *",
     )
     .bind(claims.tenant_id)
@@ -635,6 +707,7 @@ pub async fn create_encounter(
     .bind(&notes)
     .bind(attributes)
     .bind(visit_type)
+    .bind(is_dummy)
     .fetch_one(&mut *tx)
     .await?;
 
@@ -695,17 +768,6 @@ pub async fn create_encounter(
 
     tx.commit().await?;
 
-    // Enrich payload with names for orchestration
-    let patient_name = sqlx::query_scalar::<_, String>(
-        "SELECT first_name || ' ' || last_name FROM patients WHERE id = $1",
-    )
-    .bind(encounter.patient_id)
-    .fetch_optional(&state.db)
-    .await
-    .ok()
-    .flatten()
-    .unwrap_or_else(|| "Unknown".to_owned());
-
     let doctor_name = if let Some(did) = encounter.doctor_id {
         sqlx::query_scalar::<_, String>("SELECT full_name FROM users WHERE id = $1")
             .bind(did)
@@ -739,7 +801,6 @@ pub async fn create_encounter(
         serde_json::json!({
             "encounter_id": encounter.id,
             "patient_id": encounter.patient_id,
-            "patient_name": patient_name,
             "doctor_id": encounter.doctor_id,
             "doctor_name": doctor_name,
             "department_id": encounter.department_id,
@@ -763,22 +824,25 @@ pub async fn get_encounter(
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<Encounter>, AppError> {
-    require_permission(&claims, permissions::opd::queue::VIEW)?;
+    require_any_permission(&claims, OPD_ENCOUNTER_WORKSPACE_PERMISSIONS)?;
 
-    // ── ReBAC pre-check — must hold `view` on the specific encounter ──
-    let authz_ctx = crate::middleware::authorization::authz_context(&claims);
-    let allowed = state
-        .authz
-        .check(
-            &authz_ctx,
-            medbrains_authz::Relation::Viewer,
-            "encounter",
-            id,
-        )
-        .await
-        .unwrap_or(false);
-    if !allowed {
-        return Err(AppError::NotFound);
+    if claims_have_permission(&claims, permissions::opd::queue::VIEW)
+        && !crate::middleware::authorization::is_bypass_role(&claims)
+    {
+        let authz_ctx = crate::middleware::authorization::authz_context(&claims);
+        let allowed = state
+            .authz
+            .check(
+                &authz_ctx,
+                medbrains_authz::Relation::Viewer,
+                "encounter",
+                id,
+            )
+            .await
+            .unwrap_or(false);
+        if !allowed {
+            return Err(AppError::NotFound);
+        }
     }
 
     let mut tx = state.db.begin().await?;
@@ -843,6 +907,11 @@ pub async fn list_queue(
     Query(params): Query<ListQueueQuery>,
 ) -> Result<Json<Vec<QueueEntry>>, AppError> {
     require_permission(&claims, permissions::opd::queue::LIST)?;
+    let can_view_patient_identity = crate::middleware::authorization::is_bypass_role(&claims)
+        || claims
+            .permissions
+            .iter()
+            .any(|permission| permission == permissions::patients::VIEW);
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -856,7 +925,7 @@ pub async fn list_queue(
         "q.tenant_id = $1".to_owned(),
         "q.queue_date = $2".to_owned(),
     ];
-    let mut bind_idx: usize = 3;
+    let mut bind_idx: usize = 4;
 
     #[allow(clippy::items_after_statements)]
     struct Bind {
@@ -908,12 +977,22 @@ pub async fn list_queue(
         .map(str::trim)
         .filter(|value| !value.is_empty())
     {
-        conditions.push(format!(
-            "(q.token_number::text ILIKE ${bind_idx} \
-              OR p.uhid ILIKE ${bind_idx} \
-              OR p.phone ILIKE ${bind_idx} \
-              OR CONCAT(p.first_name, ' ', p.last_name) ILIKE ${bind_idx})"
-        ));
+        let search_condition = if can_view_patient_identity {
+            format!(
+                "(q.token_number::text ILIKE ${bind_idx} \
+                  OR p.uhid ILIKE ${bind_idx} \
+                  OR p.phone ILIKE ${bind_idx} \
+                  OR CONCAT(p.first_name, ' ', p.last_name) ILIKE ${bind_idx})"
+            )
+        } else {
+            format!(
+                "(q.token_number::text ILIKE ${bind_idx} \
+                  OR q.status::text ILIKE ${bind_idx} \
+                  OR e.visit_type::text ILIKE ${bind_idx} \
+                  OR COALESCE(e.attributes->>'camp_name', '') ILIKE ${bind_idx})"
+            )
+        };
+        conditions.push(search_condition);
         binds.push(Bind {
             uuid_val: None,
             string_val: Some(format!("%{search}%")),
@@ -934,8 +1013,8 @@ pub async fn list_queue(
         "SELECT q.id, q.encounter_id, q.department_id, q.doctor_id, q.token_number, \
                 q.status::text AS status, q.queue_date, q.called_at, q.completed_at, \
                 e.patient_id, \
-                CONCAT(p.first_name, ' ', p.last_name) AS patient_name, \
-                p.uhid, \
+                CASE WHEN $3::bool THEN CONCAT(p.first_name, ' ', p.last_name) ELSE NULL END AS patient_name, \
+                CASE WHEN $3::bool THEN p.uhid ELSE NULL END AS uhid, \
                 e.visit_type::text AS visit_type, \
                 NULLIF(e.attributes->>'camp_id', '')::uuid AS camp_id, \
                 e.attributes->>'camp_name' AS camp_name, \
@@ -956,7 +1035,8 @@ pub async fn list_queue(
 
     let mut query = sqlx::query_as::<_, QueueEntry>(&sql)
         .bind(claims.tenant_id)
-        .bind(queue_date);
+        .bind(queue_date)
+        .bind(can_view_patient_identity);
     for b in &binds {
         if let Some(u) = b.uuid_val {
             query = query.bind(u);
@@ -1247,7 +1327,7 @@ pub async fn list_vitals(
     Extension(claims): Extension<Claims>,
     Path(encounter_id): Path<Uuid>,
 ) -> Result<Json<Vec<Vital>>, AppError> {
-    require_permission(&claims, permissions::opd::queue::VIEW)?;
+    require_permission(&claims, permissions::opd::vitals::LIST)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1271,7 +1351,7 @@ pub async fn create_vital(
     Path(encounter_id): Path<Uuid>,
     Json(body): Json<CreateVitalRequest>,
 ) -> Result<Json<Vital>, AppError> {
-    require_permission(&claims, permissions::opd::visit::UPDATE)?;
+    require_permission(&claims, permissions::opd::vitals::CREATE)?;
 
     // Auto-calculate BMI
     let bmi = match (body.weight_kg, body.height_cm) {
@@ -1317,12 +1397,88 @@ pub async fn create_vital(
 //  Consultation
 // ══════════════════════════════════════════════════════════
 
+const OPD_SOAP_NOTE_FIELD: &str = "opd.soap_note";
+
+fn opd_soap_note_access(restricted: &HashMap<String, FieldAccessLevel>) -> FieldAccessLevel {
+    restricted
+        .get(OPD_SOAP_NOTE_FIELD)
+        .copied()
+        .unwrap_or(FieldAccessLevel::Edit)
+}
+
+fn can_write_opd_soap_note(restricted: &HashMap<String, FieldAccessLevel>) -> bool {
+    opd_soap_note_access(restricted) == FieldAccessLevel::Edit
+}
+
+fn should_hide_opd_soap_note(restricted: &HashMap<String, FieldAccessLevel>) -> bool {
+    opd_soap_note_access(restricted) == FieldAccessLevel::Hidden
+}
+
+fn should_mask_opd_soap_note(restricted: &HashMap<String, FieldAccessLevel>) -> bool {
+    opd_soap_note_access(restricted) == FieldAccessLevel::Mask
+}
+
+fn validate_opd_soap_note_write_access(
+    restricted: &HashMap<String, FieldAccessLevel>,
+) -> Result<(), AppError> {
+    if can_write_opd_soap_note(restricted) {
+        return Ok(());
+    }
+    Err(AppError::BadRequest(
+        "Cannot write restricted OPD SOAP note fields".to_owned(),
+    ))
+}
+
+fn filter_consultation_response(
+    mut row: Consultation,
+    restricted: &HashMap<String, FieldAccessLevel>,
+) -> Consultation {
+    if should_hide_opd_soap_note(restricted) {
+        row.chief_complaint = None;
+        row.history = None;
+        row.examination = None;
+        row.plan = None;
+        row.notes = None;
+        row.hpi = None;
+        row.past_medical_history = None;
+        row.past_surgical_history = None;
+        row.family_history = None;
+        row.social_history = None;
+        row.review_of_systems = None;
+        row.physical_examination = None;
+        row.general_appearance = None;
+        row.snomed_codes = None;
+    } else if should_mask_opd_soap_note(restricted) {
+        row.chief_complaint = row.chief_complaint.map(|value| mask_free_text(&value));
+        row.history = row.history.map(|value| mask_free_text(&value));
+        row.examination = row.examination.map(|value| mask_free_text(&value));
+        row.plan = row.plan.map(|value| mask_free_text(&value));
+        row.notes = row.notes.map(|value| mask_free_text(&value));
+        row.hpi = row.hpi.map(|value| mask_free_text(&value));
+        row.past_medical_history = None;
+        row.past_surgical_history = None;
+        row.family_history = None;
+        row.social_history = None;
+        row.review_of_systems = None;
+        row.physical_examination = None;
+        row.general_appearance = row.general_appearance.map(|value| mask_free_text(&value));
+        row.snomed_codes = None;
+    }
+    row
+}
+
 pub async fn get_consultation(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Path(encounter_id): Path<Uuid>,
 ) -> Result<Json<Option<Consultation>>, AppError> {
-    require_permission(&claims, permissions::opd::queue::VIEW)?;
+    require_any_permission(
+        &claims,
+        &[
+            permissions::opd::queue::VIEW,
+            permissions::opd::visit::UPDATE,
+        ],
+    )?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1337,7 +1493,10 @@ pub async fn get_consultation(
     .await?;
 
     tx.commit().await?;
-    Ok(Json(row))
+    let restricted_fields = resolve_opd_restricted_fields(&state, &claims).await?;
+    Ok(Json(row.map(|consultation| {
+        filter_consultation_response(consultation, &restricted_fields)
+    })))
 }
 
 pub async fn create_consultation(
@@ -1347,6 +1506,8 @@ pub async fn create_consultation(
     Json(body): Json<CreateConsultationRequest>,
 ) -> Result<Json<Consultation>, AppError> {
     require_permission(&claims, permissions::opd::visit::UPDATE)?;
+    let restricted_fields = resolve_opd_restricted_fields(&state, &claims).await?;
+    validate_opd_soap_note_write_access(&restricted_fields)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1396,6 +1557,7 @@ pub async fn create_consultation(
             test_id: lab.test_id,
             priority: lab.priority.clone(),
             notes: lab.notes.clone(),
+            is_dummy: None,
         };
         super::lab::create_order_in_tx(&mut tx, &claims, &req).await?;
     }
@@ -1413,6 +1575,7 @@ pub async fn create_consultation(
             contrast_required: Some(false),
             pregnancy_checked: Some(false),
             allergy_flagged: Some(false),
+            is_dummy: None,
         };
         super::radiology::create_order_in_tx(&mut tx, &claims, &req).await?;
     }
@@ -1427,7 +1590,7 @@ pub async fn create_consultation(
         "consultation: created with inline orders"
     );
 
-    Ok(Json(row))
+    Ok(Json(filter_consultation_response(row, &restricted_fields)))
 }
 
 pub async fn update_consultation(
@@ -1437,6 +1600,8 @@ pub async fn update_consultation(
     Json(body): Json<UpdateConsultationRequest>,
 ) -> Result<Json<Consultation>, AppError> {
     require_permission(&claims, permissions::opd::visit::UPDATE)?;
+    let restricted_fields = resolve_opd_restricted_fields(&state, &claims).await?;
+    validate_opd_soap_note_write_access(&restricted_fields)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1479,19 +1644,142 @@ pub async fn update_consultation(
     .await?;
 
     tx.commit().await?;
-    row.map_or_else(|| Err(AppError::NotFound), |r| Ok(Json(r)))
+    row.map_or_else(
+        || Err(AppError::NotFound),
+        |r| Ok(Json(filter_consultation_response(r, &restricted_fields))),
+    )
 }
 
 // ══════════════════════════════════════════════════════════
 //  Diagnoses
 // ══════════════════════════════════════════════════════════
 
+const OPD_DIAGNOSIS_FIELD: &str = "opd.diagnosis";
+
+async fn resolve_opd_restricted_fields(
+    state: &AppState,
+    claims: &Claims,
+) -> Result<HashMap<String, FieldAccessLevel>, AppError> {
+    field_access::resolve_restricted_fields(&state.db, claims.tenant_id, claims.sub, &claims.role)
+        .await
+}
+
+fn opd_diagnosis_access(restricted: &HashMap<String, FieldAccessLevel>) -> FieldAccessLevel {
+    restricted
+        .get(OPD_DIAGNOSIS_FIELD)
+        .copied()
+        .unwrap_or(FieldAccessLevel::Edit)
+}
+
+fn can_write_opd_diagnosis(restricted: &HashMap<String, FieldAccessLevel>) -> bool {
+    opd_diagnosis_access(restricted) == FieldAccessLevel::Edit
+}
+
+fn should_hide_opd_diagnosis(restricted: &HashMap<String, FieldAccessLevel>) -> bool {
+    opd_diagnosis_access(restricted) == FieldAccessLevel::Hidden
+}
+
+fn should_mask_opd_diagnosis(restricted: &HashMap<String, FieldAccessLevel>) -> bool {
+    opd_diagnosis_access(restricted) == FieldAccessLevel::Mask
+}
+
+fn validate_opd_diagnosis_write_access(
+    restricted: &HashMap<String, FieldAccessLevel>,
+) -> Result<(), AppError> {
+    if can_write_opd_diagnosis(restricted) {
+        return Ok(());
+    }
+    Err(AppError::BadRequest(
+        "Cannot write restricted OPD diagnosis fields".to_owned(),
+    ))
+}
+
+fn filter_diagnosis_response(
+    mut row: Diagnosis,
+    restricted: &HashMap<String, FieldAccessLevel>,
+) -> Diagnosis {
+    if should_hide_opd_diagnosis(restricted) {
+        row.icd_code = None;
+        row.icd_display = None;
+        row.icd_source_url = None;
+        row.icd_source_version = None;
+        row.icd_provider_mode = None;
+        row.description = "Restricted diagnosis".to_owned();
+        row.notes = None;
+        row.severity = None;
+        row.certainty = None;
+        row.onset_date = None;
+        row.resolved_date = None;
+        row.snomed_code = None;
+        row.snomed_display = None;
+    } else if should_mask_opd_diagnosis(restricted) {
+        row.icd_code = None;
+        row.icd_display = row.icd_display.map(|value| mask_free_text(&value));
+        row.icd_source_url = None;
+        row.icd_source_version = None;
+        row.icd_provider_mode = None;
+        row.description = mask_free_text(&row.description);
+        row.notes = row.notes.map(|value| mask_free_text(&value));
+        row.severity = None;
+        row.certainty = None;
+        row.onset_date = None;
+        row.resolved_date = None;
+        row.snomed_code = None;
+        row.snomed_display = row.snomed_display.map(|value| mask_free_text(&value));
+    }
+    row
+}
+
+fn filter_patient_diagnosis_response(
+    mut row: PatientDiagnosisRow,
+    restricted: &HashMap<String, FieldAccessLevel>,
+) -> PatientDiagnosisRow {
+    if should_hide_opd_diagnosis(restricted) {
+        row.icd_code = None;
+        row.icd_display = None;
+        row.icd_source_url = None;
+        row.icd_source_version = None;
+        row.icd_provider_mode = None;
+        row.description = "Restricted diagnosis".to_owned();
+        row.notes = None;
+        row.severity = None;
+        row.certainty = None;
+        row.onset_date = None;
+        row.resolved_date = None;
+        row.snomed_code = None;
+        row.snomed_display = None;
+    } else if should_mask_opd_diagnosis(restricted) {
+        row.icd_code = None;
+        row.icd_display = row.icd_display.map(|value| mask_free_text(&value));
+        row.icd_source_url = None;
+        row.icd_source_version = None;
+        row.icd_provider_mode = None;
+        row.description = mask_free_text(&row.description);
+        row.notes = row.notes.map(|value| mask_free_text(&value));
+        row.severity = None;
+        row.certainty = None;
+        row.onset_date = None;
+        row.resolved_date = None;
+        row.snomed_code = None;
+        row.snomed_display = row.snomed_display.map(|value| mask_free_text(&value));
+    }
+    row
+}
+
 pub async fn list_diagnoses(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Path(encounter_id): Path<Uuid>,
 ) -> Result<Json<Vec<Diagnosis>>, AppError> {
-    require_permission(&claims, permissions::opd::queue::VIEW)?;
+    require_any_permission(
+        &claims,
+        &[
+            permissions::opd::diagnoses::LIST,
+            permissions::opd::diagnoses::CREATE,
+            permissions::opd::diagnoses::UPDATE,
+            permissions::opd::diagnoses::DELETE,
+        ],
+    )?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1506,6 +1794,11 @@ pub async fn list_diagnoses(
     .await?;
 
     tx.commit().await?;
+    let restricted_fields = resolve_opd_restricted_fields(&state, &claims).await?;
+    let rows = rows
+        .into_iter()
+        .map(|row| filter_diagnosis_response(row, &restricted_fields))
+        .collect();
     Ok(Json(rows))
 }
 
@@ -1515,7 +1808,9 @@ pub async fn create_diagnosis(
     Path(encounter_id): Path<Uuid>,
     Json(body): Json<CreateDiagnosisRequest>,
 ) -> Result<Json<Diagnosis>, AppError> {
-    require_permission(&claims, permissions::opd::visit::UPDATE)?;
+    require_permission(&claims, permissions::opd::diagnoses::CREATE)?;
+    let restricted_fields = resolve_opd_restricted_fields(&state, &claims).await?;
+    validate_opd_diagnosis_write_access(&restricted_fields)?;
 
     let is_primary = body.is_primary.unwrap_or(false);
 
@@ -1558,7 +1853,7 @@ pub async fn create_diagnosis(
     .await?;
 
     tx.commit().await?;
-    Ok(Json(row))
+    Ok(Json(filter_diagnosis_response(row, &restricted_fields)))
 }
 
 pub async fn update_diagnosis(
@@ -1567,7 +1862,9 @@ pub async fn update_diagnosis(
     Path((encounter_id, did)): Path<(Uuid, Uuid)>,
     Json(body): Json<UpdateDiagnosisRequest>,
 ) -> Result<Json<Diagnosis>, AppError> {
-    require_permission(&claims, permissions::opd::visit::UPDATE)?;
+    require_permission(&claims, permissions::opd::diagnoses::UPDATE)?;
+    let restricted_fields = resolve_opd_restricted_fields(&state, &claims).await?;
+    validate_opd_diagnosis_write_access(&restricted_fields)?;
 
     if let Some(value) = body.icd_system.as_deref() {
         if !matches!(value, "icd10" | "icd11" | "snomed") {
@@ -1638,7 +1935,7 @@ pub async fn update_diagnosis(
     .ok_or(AppError::NotFound)?;
 
     tx.commit().await?;
-    Ok(Json(row))
+    Ok(Json(filter_diagnosis_response(row, &restricted_fields)))
 }
 
 pub async fn delete_diagnosis(
@@ -1646,7 +1943,7 @@ pub async fn delete_diagnosis(
     Extension(claims): Extension<Claims>,
     Path((_encounter_id, did)): Path<(Uuid, Uuid)>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    require_permission(&claims, permissions::opd::visit::UPDATE)?;
+    require_permission(&claims, permissions::opd::diagnoses::DELETE)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1701,7 +1998,14 @@ pub async fn list_prescriptions(
     Extension(claims): Extension<Claims>,
     Path(encounter_id): Path<Uuid>,
 ) -> Result<Json<Vec<PrescriptionWithItems>>, AppError> {
-    require_permission(&claims, permissions::opd::queue::VIEW)?;
+    require_any_permission(
+        &claims,
+        &[
+            permissions::opd::queue::VIEW,
+            permissions::opd::visit::UPDATE,
+            permissions::pharmacy::prescriptions::LIST,
+        ],
+    )?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1765,7 +2069,14 @@ pub async fn get_prescription(
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<PrescriptionWithItems>, AppError> {
-    require_permission(&claims, permissions::opd::queue::VIEW)?;
+    require_any_permission(
+        &claims,
+        &[
+            permissions::opd::queue::VIEW,
+            permissions::opd::visit::UPDATE,
+            permissions::pharmacy::prescriptions::VIEW,
+        ],
+    )?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
@@ -1894,21 +2205,6 @@ pub async fn create_prescription(
 
     tx.commit().await?;
 
-    // Enrich payload with names for orchestration
-    let rx_patient_name = if let Some(pid) = patient_id {
-        sqlx::query_scalar::<_, String>(
-            "SELECT first_name || ' ' || last_name FROM patients WHERE id = $1",
-        )
-        .bind(pid)
-        .fetch_optional(&state.db)
-        .await
-        .ok()
-        .flatten()
-        .unwrap_or_else(|| "Unknown".to_owned())
-    } else {
-        "Unknown".to_owned()
-    };
-
     let rx_doctor_name =
         sqlx::query_scalar::<_, String>("SELECT full_name FROM users WHERE id = $1")
             .bind(rx.doctor_id)
@@ -1930,7 +2226,6 @@ pub async fn create_prescription(
             "doctor_id": rx.doctor_id,
             "doctor_name": rx_doctor_name,
             "patient_id": patient_id,
-            "patient_name": rx_patient_name,
             "items_count": items.len(),
         }),
     )
@@ -2100,7 +2395,14 @@ pub async fn list_prescription_templates(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<PrescriptionTemplate>>, AppError> {
-    require_permission(&claims, permissions::opd::queue::VIEW)?;
+    require_any_permission(
+        &claims,
+        &[
+            permissions::opd::queue::VIEW,
+            permissions::opd::visit::UPDATE,
+            permissions::pharmacy::dispensing::CREATE,
+        ],
+    )?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -2191,7 +2493,15 @@ pub async fn list_patient_prescriptions(
     Extension(claims): Extension<Claims>,
     Path(patient_id): Path<Uuid>,
 ) -> Result<Json<Vec<PrescriptionHistoryItem>>, AppError> {
-    require_permission(&claims, permissions::opd::queue::VIEW)?;
+    require_permission(&claims, permissions::patients::VIEW)?;
+    require_any_permission(
+        &claims,
+        &[
+            permissions::opd::queue::VIEW,
+            permissions::opd::visit::UPDATE,
+            permissions::pharmacy::prescriptions::LIST,
+        ],
+    )?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -2281,7 +2591,8 @@ pub async fn list_patient_diagnoses(
     Extension(claims): Extension<Claims>,
     Path(patient_id): Path<Uuid>,
 ) -> Result<Json<Vec<PatientDiagnosisRow>>, AppError> {
-    require_permission(&claims, permissions::opd::queue::VIEW)?;
+    require_permission(&claims, permissions::opd::diagnoses::LIST)?;
+    require_permission(&claims, permissions::patients::VIEW)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -2307,6 +2618,11 @@ pub async fn list_patient_diagnoses(
     .await?;
 
     tx.commit().await?;
+    let restricted_fields = resolve_opd_restricted_fields(&state, &claims).await?;
+    let rows = rows
+        .into_iter()
+        .map(|row| filter_patient_diagnosis_response(row, &restricted_fields))
+        .collect();
     Ok(Json(rows))
 }
 
@@ -2327,12 +2643,58 @@ pub struct CreateCertificateRequest {
     pub body: serde_json::Value,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct VoidCertificateRequest {
+    pub void_reason: String,
+}
+
+async fn ensure_opd_patient_context_in_tx(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: &Uuid,
+    patient_id: Uuid,
+    encounter_id: Option<Uuid>,
+) -> Result<(), AppError> {
+    let patient_exists = sqlx::query_scalar::<_, bool>(
+        "SELECT EXISTS(SELECT 1 FROM patients WHERE id = $1 AND tenant_id = $2)",
+    )
+    .bind(patient_id)
+    .bind(tenant_id)
+    .fetch_one(&mut **tx)
+    .await?;
+
+    if !patient_exists {
+        return Err(AppError::NotFound);
+    }
+
+    let Some(encounter_id) = encounter_id else {
+        return Ok(());
+    };
+
+    let encounter_patient_id = sqlx::query_scalar::<_, Uuid>(
+        "SELECT patient_id FROM encounters WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(encounter_id)
+    .bind(tenant_id)
+    .fetch_optional(&mut **tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+
+    if encounter_patient_id != patient_id {
+        return Err(AppError::BadRequest(
+            "encounter does not belong to patient".to_owned(),
+        ));
+    }
+
+    Ok(())
+}
+
 pub async fn list_certificates(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Path(patient_id): Path<Uuid>,
 ) -> Result<Json<Vec<MedicalCertificate>>, AppError> {
-    require_permission(&claims, permissions::opd::visit::UPDATE)?;
+    require_permission(&claims, permissions::opd::certificates::LIST)?;
+    require_permission(&claims, permissions::patients::VIEW)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -2356,10 +2718,17 @@ pub async fn create_certificate(
     Extension(claims): Extension<Claims>,
     Json(body): Json<CreateCertificateRequest>,
 ) -> Result<Json<MedicalCertificate>, AppError> {
-    require_permission(&claims, permissions::opd::visit::UPDATE)?;
+    require_permission(&claims, permissions::opd::certificates::CREATE)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    ensure_opd_patient_context_in_tx(
+        &mut tx,
+        &claims.tenant_id,
+        body.patient_id,
+        body.encounter_id,
+    )
+    .await?;
     let issued = if let Some(date) = body.issued_date {
         date
     } else {
@@ -2405,6 +2774,73 @@ pub async fn create_certificate(
     Ok(Json(row))
 }
 
+pub async fn void_certificate(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<VoidCertificateRequest>,
+) -> Result<Json<MedicalCertificate>, AppError> {
+    require_permission(&claims, permissions::opd::certificates::VOID)?;
+    require_permission(&claims, permissions::patients::VIEW)?;
+
+    let reason = body.void_reason.trim();
+    if reason.len() < 5 {
+        return Err(AppError::BadRequest(
+            "void reason must be at least 5 characters".to_owned(),
+        ));
+    }
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let row = sqlx::query_as::<_, MedicalCertificate>(
+        "UPDATE medical_certificates \
+         SET is_void = true, voided_by = $3, voided_at = now(), void_reason = $4, updated_at = now() \
+         WHERE id = $1 AND tenant_id = $2 AND is_void = false \
+         RETURNING *",
+    )
+    .bind(id)
+    .bind(claims.tenant_id)
+    .bind(claims.sub)
+    .bind(reason)
+    .fetch_optional(&mut *tx)
+    .await?;
+
+    let row = match row {
+        Some(row) => row,
+        None => {
+            return Err(AppError::BadRequest(
+                "certificate is already voided or was not found".to_owned(),
+            ));
+        }
+    };
+
+    let audit_values = serde_json::json!({
+        "certificate_id": row.id,
+        "certificate_number": row.certificate_number,
+        "patient_id": row.patient_id,
+        "encounter_id": row.encounter_id,
+        "void_reason": reason,
+    });
+    medbrains_db::audit::AuditLogger::log(
+        &mut tx,
+        &medbrains_db::audit::AuditEntry {
+            tenant_id: claims.tenant_id,
+            user_id: Some(claims.sub),
+            action: "opd.certificate.void",
+            entity_type: "medical_certificate",
+            entity_id: Some(id),
+            old_values: None,
+            new_values: Some(&audit_values),
+            ip_address: None,
+        },
+    )
+    .await?;
+
+    tx.commit().await?;
+    Ok(Json(row))
+}
+
 // ══════════════════════════════════════════════════════════
 //  Patient vitals history (cross-encounter, for trend charts)
 // ══════════════════════════════════════════════════════════
@@ -2432,7 +2868,8 @@ pub async fn list_patient_vitals_history(
     Extension(claims): Extension<Claims>,
     Path(patient_id): Path<Uuid>,
 ) -> Result<Json<Vec<VitalHistoryPoint>>, AppError> {
-    require_permission(&claims, permissions::opd::queue::VIEW)?;
+    require_permission(&claims, permissions::opd::vitals::LIST)?;
+    require_permission(&claims, permissions::patients::VIEW)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -2499,7 +2936,8 @@ pub async fn list_patient_referrals(
     Extension(claims): Extension<Claims>,
     Path(patient_id): Path<Uuid>,
 ) -> Result<Json<Vec<ReferralWithNames>>, AppError> {
-    require_permission(&claims, permissions::opd::queue::VIEW)?;
+    require_permission(&claims, permissions::opd::referrals::LIST)?;
+    require_permission(&claims, permissions::patients::VIEW)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -2517,10 +2955,11 @@ pub async fn list_patient_referrals(
          LEFT JOIN departments td ON td.id = r.to_department_id \
          LEFT JOIN users fu ON fu.id = r.from_doctor_id \
          LEFT JOIN users tu ON tu.id = r.to_doctor_id \
-         WHERE r.patient_id = $1 \
+         WHERE r.patient_id = $1 AND r.tenant_id = $2 \
          ORDER BY r.created_at DESC",
     )
     .bind(patient_id)
+    .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
     .await?;
 
@@ -2534,12 +2973,46 @@ pub async fn create_referral(
     Extension(claims): Extension<Claims>,
     Json(body): Json<CreateReferralRequest>,
 ) -> Result<Json<Referral>, AppError> {
-    require_permission(&claims, permissions::opd::visit::UPDATE)?;
+    require_permission(&claims, permissions::opd::referrals::CREATE)?;
 
     let urgency = body.urgency.as_deref().unwrap_or("routine");
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let referral_context_exists = match body.encounter_id {
+        Some(encounter_id) => {
+            sqlx::query_scalar::<_, bool>(
+                "SELECT EXISTS(\
+                 SELECT 1 FROM encounters \
+                 WHERE id = $1 AND patient_id = $2 AND tenant_id = $3\
+                 )",
+            )
+            .bind(encounter_id)
+            .bind(body.patient_id)
+            .bind(claims.tenant_id)
+            .fetch_one(&mut *tx)
+            .await?
+        }
+        None => {
+            sqlx::query_scalar::<_, bool>(
+                "SELECT EXISTS(\
+                 SELECT 1 FROM patients \
+                 WHERE id = $1 AND tenant_id = $2\
+                 )",
+            )
+            .bind(body.patient_id)
+            .bind(claims.tenant_id)
+            .fetch_one(&mut *tx)
+            .await?
+        }
+    };
+
+    if !referral_context_exists {
+        return Err(AppError::BadRequest(
+            "referral patient or encounter context is invalid".to_owned(),
+        ));
+    }
 
     // Get current user's department (fallback to to_department if not assigned)
     let from_dept: (Uuid,) = sqlx::query_as(
@@ -2583,7 +3056,13 @@ pub async fn list_procedure_catalog(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<ProcedureCatalog>>, AppError> {
-    require_permission(&claims, permissions::opd::queue::VIEW)?;
+    require_any_permission(
+        &claims,
+        &[
+            permissions::opd::procedures::LIST,
+            permissions::opd::procedures::CREATE,
+        ],
+    )?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -2631,7 +3110,13 @@ pub async fn list_procedure_orders(
     Extension(claims): Extension<Claims>,
     Path(encounter_id): Path<Uuid>,
 ) -> Result<Json<Vec<ProcedureOrderWithName>>, AppError> {
-    require_permission(&claims, permissions::opd::queue::VIEW)?;
+    require_any_permission(
+        &claims,
+        &[
+            permissions::opd::procedures::LIST,
+            permissions::opd::procedures::CANCEL,
+        ],
+    )?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -2643,10 +3128,11 @@ pub async fn list_procedure_orders(
          po.notes, po.findings, po.created_at \
          FROM procedure_orders po \
          JOIN procedure_catalog pc ON pc.id = po.procedure_id \
-         WHERE po.encounter_id = $1 \
+         WHERE po.encounter_id = $1 AND po.tenant_id = $2 \
          ORDER BY po.created_at DESC",
     )
     .bind(encounter_id)
+    .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
     .await?;
 
@@ -2660,7 +3146,7 @@ pub async fn create_procedure_order(
     Extension(claims): Extension<Claims>,
     Json(body): Json<CreateProcedureOrderRequest>,
 ) -> Result<Json<ProcedureOrder>, AppError> {
-    require_permission(&claims, permissions::opd::visit::UPDATE)?;
+    require_permission(&claims, permissions::opd::procedures::CREATE)?;
 
     let priority = body.priority.as_deref().unwrap_or("routine");
 
@@ -2695,21 +3181,29 @@ pub async fn cancel_procedure_order(
     Extension(claims): Extension<Claims>,
     Path(order_id): Path<Uuid>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    require_permission(&claims, permissions::opd::visit::UPDATE)?;
+    require_permission(&claims, permissions::opd::procedures::CANCEL)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    sqlx::query(
+    let result = sqlx::query(
         "UPDATE procedure_orders SET status = 'cancelled', \
          cancelled_at = now(), cancel_reason = 'Cancelled by doctor' \
-         WHERE id = $1 AND status IN ('ordered', 'scheduled')",
+         WHERE id = $1 AND tenant_id = $2 AND status IN ('ordered', 'scheduled')",
     )
     .bind(order_id)
+    .bind(claims.tenant_id)
     .execute(&mut *tx)
     .await?;
 
     tx.commit().await?;
+
+    if result.rows_affected() == 0 {
+        return Err(AppError::BadRequest(
+            "procedure order not found or not cancellable".to_owned(),
+        ));
+    }
+
     Ok(Json(serde_json::json!({ "status": "cancelled" })))
 }
 
@@ -2740,7 +3234,14 @@ pub async fn check_duplicate_orders(
     Extension(claims): Extension<Claims>,
     Query(q): Query<DuplicateCheckQuery>,
 ) -> Result<Json<Vec<DuplicateOrderInfo>>, AppError> {
-    require_permission(&claims, permissions::opd::queue::VIEW)?;
+    require_any_permission(
+        &claims,
+        &[
+            permissions::opd::queue::VIEW,
+            permissions::lab::orders::CREATE,
+            permissions::opd::procedures::CREATE,
+        ],
+    )?;
 
     let hours = q.hours.unwrap_or(24);
 
@@ -2806,7 +3307,15 @@ pub async fn search_icd10(
     Extension(claims): Extension<Claims>,
     Query(q): Query<Icd10SearchQuery>,
 ) -> Result<Json<Vec<Icd10Code>>, AppError> {
-    require_permission(&claims, permissions::opd::queue::VIEW)?;
+    require_any_permission(
+        &claims,
+        &[
+            permissions::opd::queue::VIEW,
+            permissions::opd::diagnoses::LIST,
+            permissions::opd::diagnoses::CREATE,
+            permissions::opd::diagnoses::UPDATE,
+        ],
+    )?;
 
     let limit = q.limit.unwrap_or(20).min(50);
     let search_term = format!("%{}%", q.q.trim());
@@ -3290,7 +3799,13 @@ pub async fn get_doctor_docket(
     Extension(claims): Extension<Claims>,
     Query(q): Query<DocketQuery>,
 ) -> Result<Json<Option<DoctorDocket>>, AppError> {
-    require_permission(&claims, permissions::opd::queue::VIEW)?;
+    require_any_permission(
+        &claims,
+        &[
+            permissions::opd::schedule::LIST,
+            permissions::opd::schedule::MANAGE,
+        ],
+    )?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -3319,7 +3834,7 @@ pub async fn generate_doctor_docket(
     Extension(claims): Extension<Claims>,
     Query(q): Query<DocketQuery>,
 ) -> Result<Json<DoctorDocket>, AppError> {
-    require_permission(&claims, permissions::opd::queue::VIEW)?;
+    require_permission(&claims, permissions::opd::schedule::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -3390,7 +3905,10 @@ pub async fn list_reminders(
     Extension(claims): Extension<Claims>,
     Query(q): Query<ListRemindersQuery>,
 ) -> Result<Json<Vec<PatientReminder>>, AppError> {
-    require_permission(&claims, permissions::opd::queue::VIEW)?;
+    require_permission(&claims, permissions::opd::reminders::LIST)?;
+    if q.patient_id.is_some() {
+        require_permission(&claims, permissions::patients::VIEW)?;
+    }
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -3422,12 +3940,19 @@ pub async fn create_reminder(
     Extension(claims): Extension<Claims>,
     Json(body): Json<CreateReminderRequest>,
 ) -> Result<Json<PatientReminder>, AppError> {
-    require_permission(&claims, permissions::opd::visit::UPDATE)?;
+    require_permission(&claims, permissions::opd::reminders::CREATE)?;
 
     let priority = body.priority.as_deref().unwrap_or("normal");
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    ensure_opd_patient_context_in_tx(
+        &mut tx,
+        &claims.tenant_id,
+        body.patient_id,
+        body.encounter_id,
+    )
+    .await?;
 
     let row = sqlx::query_as::<_, PatientReminder>(
         "INSERT INTO patient_reminders \
@@ -3457,7 +3982,7 @@ pub async fn complete_reminder(
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<PatientReminder>, AppError> {
-    require_permission(&claims, permissions::opd::visit::UPDATE)?;
+    require_permission(&claims, permissions::opd::reminders::UPDATE)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -3480,7 +4005,7 @@ pub async fn cancel_reminder(
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<PatientReminder>, AppError> {
-    require_permission(&claims, permissions::opd::visit::UPDATE)?;
+    require_permission(&claims, permissions::opd::reminders::UPDATE)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -3523,7 +4048,8 @@ pub async fn list_feedback(
     Extension(claims): Extension<Claims>,
     Path(patient_id): Path<Uuid>,
 ) -> Result<Json<Vec<PatientFeedback>>, AppError> {
-    require_permission(&claims, permissions::opd::queue::VIEW)?;
+    require_permission(&claims, permissions::opd::feedback::LIST)?;
+    require_permission(&claims, permissions::patients::VIEW)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -3546,10 +4072,17 @@ pub async fn create_feedback(
     Extension(claims): Extension<Claims>,
     Json(body): Json<CreateFeedbackRequest>,
 ) -> Result<Json<PatientFeedback>, AppError> {
-    require_permission(&claims, permissions::opd::visit::UPDATE)?;
+    require_permission(&claims, permissions::opd::feedback::CREATE)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    ensure_opd_patient_context_in_tx(
+        &mut tx,
+        &claims.tenant_id,
+        body.patient_id,
+        body.encounter_id,
+    )
+    .await?;
 
     let row = sqlx::query_as::<_, PatientFeedback>(
         "INSERT INTO patient_feedback \
@@ -3600,12 +4133,18 @@ pub struct CreateConsentRequest {
     pub witness_designation: Option<String>,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct RevokeConsentRequest {
+    pub withdrawal_reason: String,
+}
+
 pub async fn list_consents(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Path(patient_id): Path<Uuid>,
 ) -> Result<Json<Vec<ProcedureConsent>>, AppError> {
-    require_permission(&claims, permissions::opd::queue::VIEW)?;
+    require_permission(&claims, permissions::opd::consents::LIST)?;
+    require_permission(&claims, permissions::patients::VIEW)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -3628,12 +4167,19 @@ pub async fn create_consent(
     Extension(claims): Extension<Claims>,
     Json(body): Json<CreateConsentRequest>,
 ) -> Result<Json<ProcedureConsent>, AppError> {
-    require_permission(&claims, permissions::opd::visit::UPDATE)?;
+    require_permission(&claims, permissions::opd::consents::CREATE)?;
 
     let consent_type = body.consent_type.as_deref().unwrap_or("procedure");
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    ensure_opd_patient_context_in_tx(
+        &mut tx,
+        &claims.tenant_id,
+        body.patient_id,
+        body.encounter_id,
+    )
+    .await?;
 
     let row = sqlx::query_as::<_, ProcedureConsent>(
         "INSERT INTO procedure_consents \
@@ -3671,7 +4217,7 @@ pub async fn sign_consent(
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<ProcedureConsent>, AppError> {
-    require_permission(&claims, permissions::opd::visit::UPDATE)?;
+    require_permission(&claims, permissions::opd::consents::SIGN)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -3687,6 +4233,74 @@ pub async fn sign_consent(
 
     tx.commit().await?;
     row.map_or_else(|| Err(AppError::NotFound), |r| Ok(Json(r)))
+}
+
+pub async fn revoke_consent(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<RevokeConsentRequest>,
+) -> Result<Json<ProcedureConsent>, AppError> {
+    require_permission(&claims, permissions::opd::consents::REVOKE)?;
+    require_permission(&claims, permissions::patients::VIEW)?;
+
+    let reason = body.withdrawal_reason.trim();
+    if reason.len() < 5 {
+        return Err(AppError::BadRequest(
+            "withdrawal reason must be at least 5 characters".to_owned(),
+        ));
+    }
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let row = sqlx::query_as::<_, ProcedureConsent>(
+        "UPDATE procedure_consents \
+         SET status = 'withdrawn', withdrawn_at = now(), withdrawal_reason = $3, updated_at = now() \
+         WHERE id = $1 \
+           AND tenant_id = $2 \
+           AND status IN ('pending', 'signed') \
+         RETURNING *",
+    )
+    .bind(id)
+    .bind(claims.tenant_id)
+    .bind(reason)
+    .fetch_optional(&mut *tx)
+    .await?;
+
+    let row = match row {
+        Some(row) => row,
+        None => {
+            return Err(AppError::BadRequest(
+                "consent is not revocable or was not found".to_owned(),
+            ));
+        }
+    };
+
+    let audit_values = serde_json::json!({
+        "consent_id": row.id,
+        "patient_id": row.patient_id,
+        "encounter_id": row.encounter_id,
+        "procedure_name": row.procedure_name,
+        "withdrawal_reason": reason,
+    });
+    medbrains_db::audit::AuditLogger::log(
+        &mut tx,
+        &medbrains_db::audit::AuditEntry {
+            tenant_id: claims.tenant_id,
+            user_id: Some(claims.sub),
+            action: "opd.consent.revoke",
+            entity_type: "procedure_consent",
+            entity_id: Some(id),
+            old_values: None,
+            new_values: Some(&audit_values),
+            ip_address: None,
+        },
+    )
+    .await?;
+
+    tx.commit().await?;
+    Ok(Json(row))
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -3713,7 +4327,14 @@ pub async fn list_consultation_templates(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<ConsultationTemplate>>, AppError> {
-    require_permission(&claims, permissions::opd::queue::VIEW)?;
+    require_any_permission(
+        &claims,
+        &[
+            permissions::opd::queue::VIEW,
+            permissions::opd::visit::CREATE,
+            permissions::opd::visit::UPDATE,
+        ],
+    )?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -4052,6 +4673,7 @@ pub async fn admit_from_opd(
     Path(encounter_id): Path<Uuid>,
     Json(body): Json<AdmitFromOpdRequest>,
 ) -> Result<Json<AdmitFromOpdResponse>, AppError> {
+    require_permission(&claims, permissions::opd::visit::UPDATE)?;
     require_permission(&claims, permissions::ipd::admissions::CREATE)?;
 
     let mut tx = state.db.begin().await?;
@@ -4066,15 +4688,33 @@ pub async fn admit_from_opd(
             .await?
             .ok_or_else(|| AppError::NotFound)?;
 
+    if opd_encounter.encounter_type != EncounterType::Opd {
+        return Err(AppError::BadRequest(
+            "Only OPD encounters can be admitted to IPD".to_owned(),
+        ));
+    }
+    if matches!(
+        opd_encounter.status,
+        EncounterStatus::Completed | EncounterStatus::Cancelled
+    ) {
+        return Err(AppError::Conflict(
+            "OPD encounter is already closed".to_owned(),
+        ));
+    }
+
     let doctor_id = body.doctor_id.unwrap_or(claims.sub);
     let today = crate::hospital_time::tenant_local_today(&mut *tx, claims.tenant_id).await?;
+    let ipd_attributes = serde_json::json!({
+        "source": "opd",
+        "opd_encounter_id": encounter_id,
+    });
 
     // 2. Create IPD encounter
     let ipd_encounter = sqlx::query_as::<_, Encounter>(
         "INSERT INTO encounters \
          (tenant_id, patient_id, encounter_type, status, department_id, doctor_id, \
           encounter_date, notes, attributes) \
-         VALUES ($1, $2, 'ipd'::encounter_type, 'open'::encounter_status, $3, $4, $5, $6, '{}') \
+         VALUES ($1, $2, 'ipd'::encounter_type, 'open'::encounter_status, $3, $4, $5, $6, $7) \
          RETURNING *",
     )
     .bind(claims.tenant_id)
@@ -4083,6 +4723,7 @@ pub async fn admit_from_opd(
     .bind(doctor_id)
     .bind(today)
     .bind(&body.notes)
+    .bind(ipd_attributes)
     .fetch_one(&mut *tx)
     .await?;
 
@@ -4181,17 +4822,6 @@ pub async fn admit_from_opd(
 
     tx.commit().await?;
 
-    // Enrich payload with names for orchestration
-    let admit_patient_name = sqlx::query_scalar::<_, String>(
-        "SELECT first_name || ' ' || last_name FROM patients WHERE id = $1",
-    )
-    .bind(opd_encounter.patient_id)
-    .fetch_optional(&state.db)
-    .await
-    .ok()
-    .flatten()
-    .unwrap_or_else(|| "Unknown".to_owned());
-
     let admit_doctor_name =
         sqlx::query_scalar::<_, String>("SELECT full_name FROM users WHERE id = $1")
             .bind(doctor_id)
@@ -4220,7 +4850,6 @@ pub async fn admit_from_opd(
             "opd_encounter_id": encounter_id,
             "ipd_encounter_id": ipd_encounter.id,
             "patient_id": opd_encounter.patient_id,
-            "patient_name": admit_patient_name,
             "doctor_name": admit_doctor_name,
             "department_name": admit_dept_name,
             "source": "opd",
@@ -4254,7 +4883,15 @@ pub async fn pharmacy_dispatch_status(
     Extension(claims): Extension<Claims>,
     Path(encounter_id): Path<Uuid>,
 ) -> Result<Json<Vec<PharmacyDispatchStatusRow>>, AppError> {
-    require_permission(&claims, permissions::opd::queue::VIEW)?;
+    require_any_permission(
+        &claims,
+        &[
+            permissions::opd::queue::VIEW,
+            permissions::opd::visit::UPDATE,
+            permissions::pharmacy::prescriptions::LIST,
+            permissions::pharmacy::dispensing::CREATE,
+        ],
+    )?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -4294,7 +4931,7 @@ pub async fn referral_tracking(
     Extension(claims): Extension<Claims>,
     Query(params): Query<ReferralTrackingQuery>,
 ) -> Result<Json<Vec<ReferralWithNames>>, AppError> {
-    require_permission(&claims, permissions::opd::queue::VIEW)?;
+    require_permission(&claims, permissions::opd::referrals::LIST)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -4342,9 +4979,10 @@ pub struct FollowupComplianceRow {
     pub encounter_id: Uuid,
     pub department_id: Option<Uuid>,
     pub doctor_id: Option<Uuid>,
+    pub department: Option<String>,
     pub follow_up_date: NaiveDate,
-    pub visit_date: NaiveDate,
-    pub days_overdue: Option<i32>,
+    pub last_visit_date: NaiveDate,
+    pub days_overdue: i32,
 }
 
 pub async fn followup_compliance(
@@ -4352,19 +4990,27 @@ pub async fn followup_compliance(
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<FollowupComplianceRow>>, AppError> {
     require_permission(&claims, permissions::opd::queue::VIEW)?;
+    let can_view_patient_identity = crate::middleware::authorization::is_bypass_role(&claims)
+        || claims
+            .permissions
+            .iter()
+            .any(|permission| permission == permissions::patients::VIEW);
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let today = crate::hospital_time::tenant_local_today(&mut *tx, claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, FollowupComplianceRow>(
-        "SELECT e.patient_id, (p.first_name || ' ' || p.last_name) AS patient_name, p.uhid, \
-         e.id AS encounter_id, e.department_id, e.doctor_id, \
-         a.appointment_date AS follow_up_date, e.encounter_date::date AS visit_date, \
+        "SELECT e.patient_id, \
+         CASE WHEN $3::bool THEN (p.first_name || ' ' || p.last_name) ELSE NULL END AS patient_name, \
+         CASE WHEN $3::bool THEN p.uhid ELSE NULL END AS uhid, \
+         e.id AS encounter_id, e.department_id, e.doctor_id, d.name AS department, \
+         a.appointment_date AS follow_up_date, e.encounter_date::date AS last_visit_date, \
          ($2::date - a.appointment_date)::int AS days_overdue \
          FROM appointments a \
          JOIN encounters e ON e.id = a.encounter_id \
          JOIN patients p ON p.id = a.patient_id AND p.tenant_id = a.tenant_id \
+         LEFT JOIN departments d ON d.id = e.department_id AND d.tenant_id = e.tenant_id \
          WHERE a.tenant_id = $1 \
            AND a.appointment_type = 'follow_up' \
            AND a.status = 'no_show' \
@@ -4374,6 +5020,7 @@ pub async fn followup_compliance(
     )
     .bind(claims.tenant_id)
     .bind(today)
+    .bind(can_view_patient_identity)
     .fetch_all(&mut *tx)
     .await?;
 

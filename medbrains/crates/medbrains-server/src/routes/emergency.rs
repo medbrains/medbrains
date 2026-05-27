@@ -9,12 +9,19 @@ use medbrains_core::emergency::{
     ErCodeActivation, ErResuscitationLog, ErTriageAssessment, ErVisit, MassCasualtyEvent, MlcCase,
     MlcDocument, MlcPoliceIntimation,
 };
+use medbrains_core::form::FieldAccessLevel;
 use medbrains_core::permissions;
+use medbrains_core::privacy::{mask_free_text, mask_identifier_keep_last, mask_name, mask_phone};
 use serde::Deserialize;
 use uuid::Uuid;
 
 use crate::{
-    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
+    error::AppError,
+    middleware::{
+        auth::Claims,
+        authorization::{is_bypass_role, require_any_permission, require_permission},
+        field_access,
+    },
     state::AppState,
 };
 
@@ -33,6 +40,9 @@ pub struct CreateVisitRequest {
     pub vitals: Option<serde_json::Value>,
     pub notes: Option<String>,
     pub mass_casualty_event_id: Option<Uuid>,
+    /// Internal training / simulator flag. See OPD CreateEncounterRequest.
+    #[serde(default)]
+    pub is_dummy: Option<bool>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -49,6 +59,14 @@ pub struct UpdateVisitRequest {
     pub door_to_disposition_mins: Option<i32>,
     pub vitals: Option<serde_json::Value>,
     pub notes: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct AdmitFromErRequest {
+    pub ward_id: Option<Uuid>,
+    pub bed_id: Uuid,
+    pub admitting_doctor_id: Uuid,
+    pub admission_notes: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -92,7 +110,7 @@ pub struct CreateResuscitationLogRequest {
 pub struct CreateCodeActivationRequest {
     pub er_visit_id: Option<Uuid>,
     pub code_type: String,
-    pub location: Option<String>,
+    pub location: String,
     pub response_team: Option<serde_json::Value>,
     pub crash_cart_checklist: Option<serde_json::Value>,
     pub notes: Option<String>,
@@ -100,7 +118,7 @@ pub struct CreateCodeActivationRequest {
 
 #[derive(Debug, Deserialize)]
 pub struct DeactivateCodeRequest {
-    pub outcome: Option<String>,
+    pub outcome: String,
     pub notes: Option<String>,
 }
 
@@ -149,6 +167,234 @@ pub struct CreatePoliceIntimationRequest {
     pub officer_contact: Option<String>,
     pub sent_via: Option<String>,
     pub notes: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ConfirmPoliceReceiptRequest {
+    pub receipt_number: String,
+    pub notes: Option<String>,
+}
+
+const MLC_FIR_NUMBER_FIELD: &str = "emergency.mlc.fir_number";
+const MLC_POLICE_STATION_FIELD: &str = "emergency.mlc.police_station";
+const MLC_INFORMANT_NAME_FIELD: &str = "emergency.mlc.informant_name";
+const MLC_INFORMANT_RELATION_FIELD: &str = "emergency.mlc.informant_relation";
+const MLC_INFORMANT_CONTACT_FIELD: &str = "emergency.mlc.informant_contact";
+const MLC_HISTORY_FIELD: &str = "emergency.mlc.history_of_incident";
+const MLC_EXAMINATION_FIELD: &str = "emergency.mlc.examination_findings";
+const MLC_MEDICAL_OPINION_FIELD: &str = "emergency.mlc.medical_opinion";
+const MLC_CAUSE_OF_DEATH_FIELD: &str = "emergency.mlc.cause_of_death";
+const MLC_POCSO_REPORT_FIELD: &str = "emergency.mlc.pocso_report";
+
+fn mlc_document_create_permission(document_type: &str) -> Result<&'static str, AppError> {
+    match document_type {
+        "sbar_handover" => Ok(permissions::emergency::mlc_documents::SBAR_CREATE),
+        "age_estimation" => Ok(permissions::emergency::mlc_documents::AGE_ESTIMATION_CREATE),
+        "pocso_report" => Ok(permissions::emergency::mlc_documents::POCSO_CREATE),
+        "court_summons" => Ok(permissions::emergency::mlc_documents::COURT_SUMMONS_CREATE),
+        _ => Err(AppError::BadRequest(
+            "Unsupported MLC document type".to_owned(),
+        )),
+    }
+}
+
+fn trim_optional_text(value: Option<String>) -> Option<String> {
+    value
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToOwned::to_owned)
+}
+
+fn require_resuscitation_text(value: &Option<String>, label: &str) -> Result<(), AppError> {
+    if value.is_some() {
+        return Ok(());
+    }
+
+    Err(AppError::BadRequest(format!(
+        "{label} is required for this resuscitation log type"
+    )))
+}
+
+fn claims_have_any_permission(claims: &Claims, permissions: &[&str]) -> bool {
+    is_bypass_role(claims)
+        || permissions.iter().any(|permission| {
+            claims
+                .permissions
+                .iter()
+                .any(|granted| granted == permission)
+        })
+}
+
+fn can_view_full_er_visit(claims: &Claims) -> bool {
+    claims_have_any_permission(
+        claims,
+        &[
+            permissions::emergency::visits::LIST,
+            permissions::emergency::visits::UPDATE,
+        ],
+    )
+}
+
+fn filter_er_visit_response(mut row: ErVisit, claims: &Claims) -> ErVisit {
+    if can_view_full_er_visit(claims) {
+        return row;
+    }
+
+    row.attending_doctor_id = None;
+    row.disposition = None;
+    row.disposition_time = None;
+    row.disposition_notes = None;
+    row.admitted_to = None;
+    row.admission_id = None;
+    row.door_to_doctor_mins = None;
+    row.door_to_disposition_mins = None;
+    row.vitals = None;
+    row.notes = None;
+    row.mass_casualty_event_id = None;
+    row.created_by = None;
+    row
+}
+
+fn mlc_field_access(
+    restricted: &std::collections::HashMap<String, FieldAccessLevel>,
+    field: &str,
+) -> FieldAccessLevel {
+    restricted
+        .get(field)
+        .copied()
+        .unwrap_or(FieldAccessLevel::Edit)
+}
+
+fn mlc_field_is_hidden(
+    restricted: &std::collections::HashMap<String, FieldAccessLevel>,
+    field: &str,
+) -> bool {
+    mlc_field_access(restricted, field) == FieldAccessLevel::Hidden
+}
+
+fn mlc_field_is_masked(
+    restricted: &std::collections::HashMap<String, FieldAccessLevel>,
+    field: &str,
+) -> bool {
+    mlc_field_access(restricted, field) == FieldAccessLevel::Mask
+}
+
+fn mlc_field_is_writable(
+    restricted: &std::collections::HashMap<String, FieldAccessLevel>,
+    field: &str,
+) -> bool {
+    mlc_field_access(restricted, field) == FieldAccessLevel::Edit
+}
+
+fn reject_restricted_mlc_field_writes(
+    writes: &[(&str, &str, bool)],
+    restricted: &std::collections::HashMap<String, FieldAccessLevel>,
+) -> Result<(), AppError> {
+    let violations = writes
+        .iter()
+        .filter_map(|(field, label, was_written)| {
+            (*was_written && !mlc_field_is_writable(restricted, field)).then_some(*label)
+        })
+        .collect::<Vec<_>>();
+
+    if violations.is_empty() {
+        return Ok(());
+    }
+
+    Err(AppError::BadRequest(format!(
+        "Cannot write restricted MLC fields: {}",
+        violations.join(", ")
+    )))
+}
+
+fn filter_mlc_case_response(
+    mut row: MlcCase,
+    restricted: &std::collections::HashMap<String, FieldAccessLevel>,
+) -> MlcCase {
+    if mlc_field_is_hidden(restricted, MLC_FIR_NUMBER_FIELD) {
+        row.fir_number = None;
+    } else if mlc_field_is_masked(restricted, MLC_FIR_NUMBER_FIELD) {
+        row.fir_number = row
+            .fir_number
+            .map(|value| mask_identifier_keep_last(&value, 4));
+    }
+    if mlc_field_is_hidden(restricted, MLC_POLICE_STATION_FIELD) {
+        row.police_station = None;
+    } else if mlc_field_is_masked(restricted, MLC_POLICE_STATION_FIELD) {
+        row.police_station = row.police_station.map(|value| mask_free_text(&value));
+    }
+    if mlc_field_is_hidden(restricted, MLC_INFORMANT_NAME_FIELD) {
+        row.informant_name = None;
+    } else if mlc_field_is_masked(restricted, MLC_INFORMANT_NAME_FIELD) {
+        row.informant_name = row.informant_name.map(|value| mask_name(&value));
+    }
+    if mlc_field_is_hidden(restricted, MLC_INFORMANT_RELATION_FIELD) {
+        row.informant_relation = None;
+    } else if mlc_field_is_masked(restricted, MLC_INFORMANT_RELATION_FIELD) {
+        row.informant_relation = row.informant_relation.map(|value| mask_free_text(&value));
+    }
+    if mlc_field_is_hidden(restricted, MLC_INFORMANT_CONTACT_FIELD) {
+        row.informant_contact = None;
+    } else if mlc_field_is_masked(restricted, MLC_INFORMANT_CONTACT_FIELD) {
+        row.informant_contact = row.informant_contact.map(|value| mask_phone(&value));
+    }
+    if mlc_field_is_hidden(restricted, MLC_HISTORY_FIELD) {
+        row.history_of_incident = None;
+    } else if mlc_field_is_masked(restricted, MLC_HISTORY_FIELD) {
+        row.history_of_incident = row.history_of_incident.map(|value| mask_free_text(&value));
+    }
+    if mlc_field_is_hidden(restricted, MLC_EXAMINATION_FIELD) {
+        row.examination_findings = None;
+    } else if mlc_field_is_masked(restricted, MLC_EXAMINATION_FIELD) {
+        row.examination_findings = row.examination_findings.map(|value| mask_free_text(&value));
+    }
+    if mlc_field_is_hidden(restricted, MLC_MEDICAL_OPINION_FIELD) {
+        row.medical_opinion = None;
+    } else if mlc_field_is_masked(restricted, MLC_MEDICAL_OPINION_FIELD) {
+        row.medical_opinion = row.medical_opinion.map(|value| mask_free_text(&value));
+    }
+    if mlc_field_is_hidden(restricted, MLC_CAUSE_OF_DEATH_FIELD) {
+        row.cause_of_death = None;
+    } else if mlc_field_is_masked(restricted, MLC_CAUSE_OF_DEATH_FIELD) {
+        row.cause_of_death = row.cause_of_death.map(|value| mask_free_text(&value));
+    }
+
+    row
+}
+
+fn filter_mlc_document_response(
+    mut row: MlcDocument,
+    restricted: &std::collections::HashMap<String, FieldAccessLevel>,
+) -> MlcDocument {
+    if row.document_type == "pocso_report"
+        && mlc_field_is_hidden(restricted, MLC_POCSO_REPORT_FIELD)
+    {
+        row.body_diagram = None;
+        row.content = serde_json::json!({ "restricted": true });
+        row.notes = None;
+    } else if row.document_type == "pocso_report"
+        && mlc_field_is_masked(restricted, MLC_POCSO_REPORT_FIELD)
+    {
+        row.body_diagram = None;
+        row.content = serde_json::json!({ "masked": true });
+        row.notes = row.notes.map(|value| mask_free_text(&value));
+    }
+
+    row
+}
+
+fn filter_mlc_police_intimation_response(
+    mut row: MlcPoliceIntimation,
+    restricted: &std::collections::HashMap<String, FieldAccessLevel>,
+) -> MlcPoliceIntimation {
+    if mlc_field_is_hidden(restricted, MLC_POLICE_STATION_FIELD) {
+        row.police_station.clear();
+    } else if mlc_field_is_masked(restricted, MLC_POLICE_STATION_FIELD) {
+        row.police_station = mask_free_text(&row.police_station);
+    }
+
+    row
 }
 
 #[derive(Debug, Deserialize)]
@@ -202,6 +448,97 @@ fn infer_mlc_case_type(parts: &[Option<&str>]) -> Option<&'static str> {
         .find_map(|(keyword, case_type)| haystack.contains(keyword).then_some(*case_type))
 }
 
+async fn ensure_patient_belongs_to_tenant(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: Uuid,
+    patient_id: Uuid,
+) -> Result<(), AppError> {
+    let exists = sqlx::query_scalar::<_, bool>(
+        "SELECT EXISTS(SELECT 1 FROM patients WHERE id = $1 AND tenant_id = $2)",
+    )
+    .bind(patient_id)
+    .bind(tenant_id)
+    .fetch_one(&mut **tx)
+    .await?;
+
+    if !exists {
+        return Err(AppError::BadRequest(
+            "Emergency patient does not belong to this tenant".to_owned(),
+        ));
+    }
+
+    Ok(())
+}
+
+async fn ensure_open_mass_casualty_event(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: Uuid,
+    event_id: Uuid,
+) -> Result<(), AppError> {
+    let status = sqlx::query_scalar::<_, String>(
+        "SELECT status::text FROM mass_casualty_events WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(event_id)
+    .bind(tenant_id)
+    .fetch_optional(&mut **tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+
+    if status == "deactivated" {
+        return Err(AppError::BadRequest(
+            "Cannot attach an ER visit to a deactivated mass-casualty event".to_owned(),
+        ));
+    }
+
+    Ok(())
+}
+
+async fn ensure_er_visit_matches_patient(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: Uuid,
+    er_visit_id: Uuid,
+    patient_id: Uuid,
+) -> Result<(), AppError> {
+    let linked_patient_id = sqlx::query_scalar::<_, Uuid>(
+        "SELECT patient_id FROM er_visits WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(er_visit_id)
+    .bind(tenant_id)
+    .fetch_optional(&mut **tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+
+    if linked_patient_id != patient_id {
+        return Err(AppError::BadRequest(
+            "Linked ER visit belongs to a different patient".to_owned(),
+        ));
+    }
+
+    Ok(())
+}
+
+async fn ensure_er_visit_belongs_to_tenant(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: Uuid,
+    er_visit_id: Uuid,
+) -> Result<(), AppError> {
+    let exists = sqlx::query_scalar::<_, bool>(
+        "SELECT EXISTS(SELECT 1 FROM er_visits WHERE id = $1 AND tenant_id = $2)",
+    )
+    .bind(er_visit_id)
+    .bind(tenant_id)
+    .fetch_one(&mut **tx)
+    .await?;
+
+    if !exists {
+        return Err(AppError::BadRequest(
+            "ER visit does not belong to this tenant".to_owned(),
+        ));
+    }
+
+    Ok(())
+}
+
 async fn auto_create_mlc_case_for_visit(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     tenant_id: &Uuid,
@@ -244,7 +581,17 @@ pub async fn list_visits(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<ErVisit>>, AppError> {
-    require_permission(&claims, permissions::emergency::visits::LIST)?;
+    require_any_permission(
+        &claims,
+        &[
+            permissions::emergency::visits::LIST,
+            permissions::emergency::visits::UPDATE,
+            permissions::emergency::triage::LIST,
+            permissions::emergency::triage::CREATE,
+            permissions::emergency::resuscitation::LIST,
+            permissions::emergency::resuscitation::CREATE,
+        ],
+    )?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let rows = sqlx::query_as::<_, ErVisit>(
@@ -254,7 +601,11 @@ pub async fn list_visits(
     .fetch_all(&mut *tx)
     .await?;
     tx.commit().await?;
-    Ok(Json(rows))
+    Ok(Json(
+        rows.into_iter()
+            .map(|row| filter_er_visit_response(row, &claims))
+            .collect(),
+    ))
 }
 
 pub async fn get_visit(
@@ -262,7 +613,17 @@ pub async fn get_visit(
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<ErVisit>, AppError> {
-    require_permission(&claims, permissions::emergency::visits::LIST)?;
+    require_any_permission(
+        &claims,
+        &[
+            permissions::emergency::visits::LIST,
+            permissions::emergency::visits::UPDATE,
+            permissions::emergency::triage::LIST,
+            permissions::emergency::triage::CREATE,
+            permissions::emergency::resuscitation::LIST,
+            permissions::emergency::resuscitation::CREATE,
+        ],
+    )?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let row =
@@ -272,7 +633,7 @@ pub async fn get_visit(
             .fetch_one(&mut *tx)
             .await?;
     tx.commit().await?;
-    Ok(Json(row))
+    Ok(Json(filter_er_visit_response(row, &claims)))
 }
 
 pub async fn create_visit(
@@ -281,20 +642,30 @@ pub async fn create_visit(
     Json(body): Json<CreateVisitRequest>,
 ) -> Result<Json<ErVisit>, AppError> {
     require_permission(&claims, permissions::emergency::visits::CREATE)?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-
-    let visit_number = format!("ER-{}", Utc::now().format("%Y%m%d%H%M%S"));
     let inferred_mlc_case_type = infer_mlc_case_type(&[
         body.chief_complaint.as_deref(),
         body.notes.as_deref(),
         body.arrival_mode.as_deref(),
     ]);
     let is_mlc = body.is_mlc.unwrap_or(false) || inferred_mlc_case_type.is_some();
+    if is_mlc {
+        require_permission(&claims, permissions::emergency::mlc::CREATE)?;
+    }
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    ensure_patient_belongs_to_tenant(&mut tx, claims.tenant_id, body.patient_id).await?;
+    if let Some(event_id) = body.mass_casualty_event_id {
+        ensure_open_mass_casualty_event(&mut tx, claims.tenant_id, event_id).await?;
+    }
+
+    let visit_number = format!("ER-{}", Utc::now().format("%Y%m%d%H%M%S"));
+
+    let is_dummy = body.is_dummy.unwrap_or(false) && is_bypass_role(&claims);
 
     let row = sqlx::query_as::<_, ErVisit>(
-        "INSERT INTO er_visits (tenant_id, patient_id, visit_number, arrival_mode, chief_complaint, is_mlc, is_brought_dead, bay_number, vitals, notes, mass_casualty_event_id, created_by)
-         VALUES ($1, $2, $3, $4, $5, COALESCE($6, false), COALESCE($7, false), $8, $9, $10, $11, $12)
+        "INSERT INTO er_visits (tenant_id, patient_id, visit_number, arrival_mode, chief_complaint, is_mlc, is_brought_dead, bay_number, vitals, notes, mass_casualty_event_id, created_by, is_dummy)
+         VALUES ($1, $2, $3, $4, $5, COALESCE($6, false), COALESCE($7, false), $8, $9, $10, $11, $12, $13)
          RETURNING *",
     )
     .bind(claims.tenant_id)
@@ -309,6 +680,7 @@ pub async fn create_visit(
     .bind(&body.notes)
     .bind(body.mass_casualty_event_id)
     .bind(claims.sub)
+    .bind(is_dummy)
     .fetch_one(&mut *tx)
     .await?;
 
@@ -330,17 +702,22 @@ pub async fn create_visit(
         .await
         .unwrap_or(false)
     {
-        let _ = super::billing::create_service_charge(
+        let _ = super::billing::auto_charge(
             &mut tx,
-            super::billing::ServiceChargeInput {
-                tenant_id: claims.tenant_id,
+            &claims.tenant_id,
+            super::billing::AutoChargeInput {
                 patient_id: row.patient_id,
-                encounter_id: row.id,
-                charge_code: "ER_CONSULTATION",
+                encounter_id: None,
+                charge_code: "CON_EMERGENCY".to_owned(),
+                source: "emergency".to_owned(),
+                source_id: row.id,
                 quantity: 1,
-                source_module: "emergency",
-                source_entity_id: row.id,
-                requested_by: claims.sub,
+                description_override: Some(format!(
+                    "Emergency consultation - {}",
+                    row.visit_number
+                )),
+                unit_price_override: None,
+                tax_percent_override: None,
             },
         )
         .await;
@@ -406,7 +783,13 @@ pub async fn list_triage(
     Extension(claims): Extension<Claims>,
     Path(visit_id): Path<Uuid>,
 ) -> Result<Json<Vec<ErTriageAssessment>>, AppError> {
-    require_permission(&claims, permissions::emergency::triage::LIST)?;
+    require_any_permission(
+        &claims,
+        &[
+            permissions::emergency::triage::LIST,
+            permissions::emergency::triage::CREATE,
+        ],
+    )?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let rows = sqlx::query_as::<_, ErTriageAssessment>(
@@ -427,13 +810,17 @@ pub async fn create_triage(
     Json(body): Json<CreateTriageRequest>,
 ) -> Result<Json<ErTriageAssessment>, AppError> {
     require_permission(&claims, permissions::emergency::triage::CREATE)?;
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let inferred_mlc_case_type = infer_mlc_case_type(&[
         body.chief_complaint.as_deref(),
         body.disability_assessment.as_deref(),
         body.notes.as_deref(),
     ]);
+    if inferred_mlc_case_type.is_some() {
+        require_permission(&claims, permissions::emergency::mlc::CREATE)?;
+    }
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let row = sqlx::query_as::<_, ErTriageAssessment>(
         "INSERT INTO er_triage_assessments (tenant_id, er_visit_id, triage_level, triage_system, score,
@@ -516,7 +903,13 @@ pub async fn list_resuscitation_logs(
     Extension(claims): Extension<Claims>,
     Path(visit_id): Path<Uuid>,
 ) -> Result<Json<Vec<ErResuscitationLog>>, AppError> {
-    require_permission(&claims, permissions::emergency::resuscitation::LIST)?;
+    require_any_permission(
+        &claims,
+        &[
+            permissions::emergency::resuscitation::LIST,
+            permissions::emergency::resuscitation::CREATE,
+        ],
+    )?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let rows = sqlx::query_as::<_, ErResuscitationLog>(
@@ -537,8 +930,87 @@ pub async fn create_resuscitation_log(
     Json(body): Json<CreateResuscitationLogRequest>,
 ) -> Result<Json<ErResuscitationLog>, AppError> {
     require_permission(&claims, permissions::emergency::resuscitation::CREATE)?;
+    let log_type = match body.log_type.trim() {
+        "medication" | "fluid" | "procedure" | "airway" | "cpr" | "defibrillation" | "vitals"
+        | "note" => body.log_type.trim().to_owned(),
+        _ => {
+            return Err(AppError::BadRequest(
+                "Unsupported resuscitation log type".to_owned(),
+            ));
+        }
+    };
+    let mut medication_name = trim_optional_text(body.medication_name);
+    let mut dose = trim_optional_text(body.dose);
+    let mut route = trim_optional_text(body.route);
+    let mut fluid_name = trim_optional_text(body.fluid_name);
+    let mut fluid_volume_ml = body.fluid_volume_ml;
+    let mut procedure_name = trim_optional_text(body.procedure_name);
+    let mut procedure_notes = trim_optional_text(body.procedure_notes);
+    let vitals_snapshot = body.vitals_snapshot;
+    let notes = trim_optional_text(body.notes);
+
+    if fluid_volume_ml.is_some_and(|volume| volume < 0) {
+        return Err(AppError::BadRequest(
+            "Fluid volume cannot be negative".to_owned(),
+        ));
+    }
+
+    match log_type.as_str() {
+        "medication" => {
+            require_resuscitation_text(&medication_name, "Medication")?;
+            require_resuscitation_text(&dose, "Dose")?;
+            require_resuscitation_text(&route, "Route")?;
+            fluid_name = None;
+            fluid_volume_ml = None;
+            procedure_name = None;
+            procedure_notes = None;
+        }
+        "fluid" => {
+            require_resuscitation_text(&fluid_name, "Fluid")?;
+            require_resuscitation_text(&route, "Route")?;
+            if fluid_volume_ml.is_none_or(|volume| volume <= 0) {
+                return Err(AppError::BadRequest(
+                    "Fluid volume must be greater than 0 ml".to_owned(),
+                ));
+            }
+            medication_name = None;
+            dose = None;
+            procedure_name = None;
+            procedure_notes = None;
+        }
+        "procedure" | "airway" | "cpr" | "defibrillation" => {
+            require_resuscitation_text(&procedure_name, "Procedure/action")?;
+            medication_name = None;
+            dose = None;
+            route = None;
+            fluid_name = None;
+            fluid_volume_ml = None;
+        }
+        "vitals" | "note" => {
+            if notes.is_none() && vitals_snapshot.is_none() {
+                return Err(AppError::BadRequest(
+                    "Clinical notes or vitals snapshot are required for this resuscitation log type"
+                        .to_owned(),
+                ));
+            }
+            medication_name = None;
+            dose = None;
+            route = None;
+            fluid_name = None;
+            fluid_volume_ml = None;
+            procedure_name = None;
+            procedure_notes = None;
+        }
+        _ => {
+            return Err(AppError::BadRequest(
+                "Unsupported resuscitation log type".to_owned(),
+            ));
+        }
+    }
+
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    ensure_er_visit_belongs_to_tenant(&mut tx, claims.tenant_id, visit_id).await?;
     let row = sqlx::query_as::<_, ErResuscitationLog>(
         "INSERT INTO er_resuscitation_logs (tenant_id, er_visit_id, log_type, medication_name, dose, route,
             fluid_name, fluid_volume_ml, procedure_name, procedure_notes, vitals_snapshot, notes, recorded_by)
@@ -547,16 +1019,16 @@ pub async fn create_resuscitation_log(
     )
     .bind(claims.tenant_id)
     .bind(visit_id)
-    .bind(&body.log_type)
-    .bind(body.medication_name)
-    .bind(body.dose)
-    .bind(body.route)
-    .bind(body.fluid_name)
-    .bind(body.fluid_volume_ml)
-    .bind(body.procedure_name)
-    .bind(body.procedure_notes)
-    .bind(body.vitals_snapshot)
-    .bind(body.notes)
+    .bind(&log_type)
+    .bind(medication_name)
+    .bind(dose)
+    .bind(route)
+    .bind(fluid_name)
+    .bind(fluid_volume_ml)
+    .bind(procedure_name)
+    .bind(procedure_notes)
+    .bind(vitals_snapshot)
+    .bind(notes)
     .bind(claims.sub)
     .fetch_one(&mut *tx)
     .await?;
@@ -572,7 +1044,13 @@ pub async fn list_code_activations(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<ErCodeActivation>>, AppError> {
-    require_permission(&claims, permissions::emergency::codes::LIST)?;
+    require_any_permission(
+        &claims,
+        &[
+            permissions::emergency::codes::LIST,
+            permissions::emergency::codes::UPDATE,
+        ],
+    )?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let rows = sqlx::query_as::<_, ErCodeActivation>(
@@ -591,8 +1069,46 @@ pub async fn create_code_activation(
     Json(body): Json<CreateCodeActivationRequest>,
 ) -> Result<Json<ErCodeActivation>, AppError> {
     require_permission(&claims, permissions::emergency::codes::CREATE)?;
+    let code_type = match body.code_type.as_str() {
+        "code_blue" | "code_yellow" | "code_pink" | "code_orange" | "code_red" | "code_silver"
+        | "code_black" => body.code_type,
+        _ => {
+            return Err(AppError::BadRequest(
+                "Invalid emergency code type".to_owned(),
+            ));
+        }
+    };
+    let location = body.location.trim();
+    if location.len() < 2 {
+        return Err(AppError::BadRequest(
+            "Emergency code location is required".to_owned(),
+        ));
+    }
+    let location = location.to_owned();
+    let notes = body
+        .notes
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_owned);
+
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    if let Some(er_visit_id) = body.er_visit_id {
+        let visit_exists = sqlx::query_scalar::<_, bool>(
+            "SELECT EXISTS(SELECT 1 FROM er_visits WHERE id = $1 AND tenant_id = $2)",
+        )
+        .bind(er_visit_id)
+        .bind(claims.tenant_id)
+        .fetch_one(&mut *tx)
+        .await?;
+        if !visit_exists {
+            return Err(AppError::BadRequest(
+                "Linked ER visit does not belong to this tenant".to_owned(),
+            ));
+        }
+    }
+
     let row = sqlx::query_as::<_, ErCodeActivation>(
         "INSERT INTO er_code_activations (tenant_id, er_visit_id, code_type, location, response_team, crash_cart_checklist, notes, activated_by)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
@@ -600,11 +1116,11 @@ pub async fn create_code_activation(
     )
     .bind(claims.tenant_id)
     .bind(body.er_visit_id)
-    .bind(&body.code_type)
-    .bind(body.location)
+    .bind(&code_type)
+    .bind(&location)
     .bind(body.response_team)
     .bind(body.crash_cart_checklist)
-    .bind(body.notes)
+    .bind(&notes)
     .bind(claims.sub)
     .fetch_one(&mut *tx)
     .await?;
@@ -615,13 +1131,17 @@ pub async fn create_code_activation(
     // perm_version when expiry fires so the JWT is re-issued without
     // the elevated grant.
     let break_glass_expiry = Utc::now() + chrono::Duration::hours(4);
-    let group_id: Option<Uuid> = sqlx::query_scalar(
-        "SELECT id FROM access_groups \
-         WHERE tenant_id = $1 AND code = 'code_blue_team' AND is_active = true",
-    )
-    .bind(claims.tenant_id)
-    .fetch_optional(&mut *tx)
-    .await?;
+    let group_id: Option<Uuid> = if code_type == "code_blue" {
+        sqlx::query_scalar(
+            "SELECT id FROM access_groups \
+             WHERE tenant_id = $1 AND code = 'code_blue_team' AND is_active = true",
+        )
+        .bind(claims.tenant_id)
+        .fetch_optional(&mut *tx)
+        .await?
+    } else {
+        None
+    };
     if let Some(gid) = group_id {
         sqlx::query(
             "INSERT INTO access_group_members (group_id, user_id, tenant_id, added_by, expires_at) \
@@ -677,9 +1197,40 @@ pub async fn deactivate_code(
     Path(id): Path<Uuid>,
     Json(body): Json<DeactivateCodeRequest>,
 ) -> Result<Json<ErCodeActivation>, AppError> {
-    require_permission(&claims, permissions::emergency::codes::CREATE)?;
+    require_permission(&claims, permissions::emergency::codes::UPDATE)?;
+    let outcome = match body.outcome.trim() {
+        "resolved" | "stable" | "rosc" | "transferred" | "expired" | "false_alarm"
+        | "escalated" => body.outcome.trim().to_owned(),
+        _ => {
+            return Err(AppError::BadRequest(
+                "Unsupported emergency code closure outcome".to_owned(),
+            ));
+        }
+    };
+    let notes = body
+        .notes
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToOwned::to_owned);
+
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let current = sqlx::query_as::<_, ErCodeActivation>(
+        "SELECT * FROM er_code_activations WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+
+    if current.deactivated_at.is_some() {
+        return Err(AppError::Conflict(
+            "Emergency code is already deactivated".to_owned(),
+        ));
+    }
+
     let row = sqlx::query_as::<_, ErCodeActivation>(
         "UPDATE er_code_activations SET deactivated_at = now(), outcome = $3, notes = COALESCE($4, notes), deactivated_by = $5
          WHERE id = $1 AND tenant_id = $2
@@ -687,8 +1238,8 @@ pub async fn deactivate_code(
     )
     .bind(id)
     .bind(claims.tenant_id)
-    .bind(body.outcome)
-    .bind(body.notes)
+    .bind(outcome)
+    .bind(notes)
     .bind(claims.sub)
     .fetch_one(&mut *tx)
     .await?;
@@ -704,7 +1255,31 @@ pub async fn list_mlc_cases(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<MlcCase>>, AppError> {
-    require_permission(&claims, permissions::emergency::mlc::LIST)?;
+    require_any_permission(
+        &claims,
+        &[
+            permissions::emergency::mlc::LIST,
+            permissions::emergency::mlc::UPDATE,
+            permissions::emergency::mlc::PRINT,
+            permissions::emergency::mlc::REPRINT,
+            permissions::emergency::mlc_documents::SBAR_CREATE,
+            permissions::emergency::mlc_documents::AGE_ESTIMATION_CREATE,
+            permissions::emergency::mlc_documents::POCSO_CREATE,
+            permissions::emergency::mlc_documents::COURT_SUMMONS_CREATE,
+            permissions::emergency::mlc_police_intimations::LIST,
+            permissions::emergency::mlc_police_intimations::CREATE,
+            permissions::emergency::mlc_police_intimations::CONFIRM,
+            permissions::emergency::mlc_police_intimations::PRINT,
+            permissions::emergency::mlc_police_intimations::REPRINT,
+        ],
+    )?;
+    let restricted_fields = field_access::resolve_restricted_fields(
+        &state.db,
+        claims.tenant_id,
+        claims.sub,
+        &claims.role,
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let rows = sqlx::query_as::<_, MlcCase>(
@@ -714,7 +1289,11 @@ pub async fn list_mlc_cases(
     .fetch_all(&mut *tx)
     .await?;
     tx.commit().await?;
-    Ok(Json(rows))
+    Ok(Json(
+        rows.into_iter()
+            .map(|row| filter_mlc_case_response(row, &restricted_fields))
+            .collect(),
+    ))
 }
 
 pub async fn create_mlc_case(
@@ -723,8 +1302,78 @@ pub async fn create_mlc_case(
     Json(body): Json<CreateMlcCaseRequest>,
 ) -> Result<Json<MlcCase>, AppError> {
     require_permission(&claims, permissions::emergency::mlc::CREATE)?;
+    let restricted_fields = field_access::resolve_restricted_fields(
+        &state.db,
+        claims.tenant_id,
+        claims.sub,
+        &claims.role,
+    )
+    .await?;
+    reject_restricted_mlc_field_writes(
+        &[
+            (
+                MLC_FIR_NUMBER_FIELD,
+                "fir_number",
+                body.fir_number.is_some(),
+            ),
+            (
+                MLC_POLICE_STATION_FIELD,
+                "police_station",
+                body.police_station.is_some(),
+            ),
+            (
+                MLC_INFORMANT_NAME_FIELD,
+                "informant_name",
+                body.informant_name.is_some(),
+            ),
+            (
+                MLC_INFORMANT_RELATION_FIELD,
+                "informant_relation",
+                body.informant_relation.is_some(),
+            ),
+            (
+                MLC_INFORMANT_CONTACT_FIELD,
+                "informant_contact",
+                body.informant_contact.is_some(),
+            ),
+            (
+                MLC_HISTORY_FIELD,
+                "history_of_incident",
+                body.history_of_incident.is_some(),
+            ),
+            (
+                MLC_EXAMINATION_FIELD,
+                "examination_findings",
+                body.examination_findings.is_some(),
+            ),
+        ],
+        &restricted_fields,
+    )?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    ensure_patient_belongs_to_tenant(&mut tx, claims.tenant_id, body.patient_id).await?;
+
+    if let Some(er_visit_id) = body.er_visit_id {
+        ensure_er_visit_matches_patient(&mut tx, claims.tenant_id, er_visit_id, body.patient_id)
+            .await?;
+        let existing = sqlx::query_scalar::<_, bool>(
+            "SELECT EXISTS(SELECT 1 FROM mlc_cases WHERE er_visit_id = $1 AND tenant_id = $2)",
+        )
+        .bind(er_visit_id)
+        .bind(claims.tenant_id)
+        .fetch_one(&mut *tx)
+        .await?;
+        if existing {
+            return Err(AppError::Conflict(
+                "An MLC case is already linked to this ER visit".to_owned(),
+            ));
+        }
+        sqlx::query("UPDATE er_visits SET is_mlc = true, updated_at = now() WHERE id = $1 AND tenant_id = $2")
+            .bind(er_visit_id)
+            .bind(claims.tenant_id)
+            .execute(&mut *tx)
+            .await?;
+    }
 
     let mlc_number = format!("MLC-{}", Utc::now().format("%Y%m%d%H%M%S"));
 
@@ -754,7 +1403,7 @@ pub async fn create_mlc_case(
     .fetch_one(&mut *tx)
     .await?;
     tx.commit().await?;
-    Ok(Json(row))
+    Ok(Json(filter_mlc_case_response(row, &restricted_fields)))
 }
 
 pub async fn update_mlc_case(
@@ -764,6 +1413,54 @@ pub async fn update_mlc_case(
     Json(body): Json<UpdateMlcCaseRequest>,
 ) -> Result<Json<MlcCase>, AppError> {
     require_permission(&claims, permissions::emergency::mlc::UPDATE)?;
+    if let Some(status) = body.status.as_deref() {
+        match status {
+            "registered" | "under_investigation" | "opinion_given" | "court_pending" | "closed" => {
+            }
+            _ => {
+                return Err(AppError::BadRequest(
+                    "Unsupported MLC case status".to_owned(),
+                ));
+            }
+        }
+    }
+    let restricted_fields = field_access::resolve_restricted_fields(
+        &state.db,
+        claims.tenant_id,
+        claims.sub,
+        &claims.role,
+    )
+    .await?;
+    reject_restricted_mlc_field_writes(
+        &[
+            (
+                MLC_FIR_NUMBER_FIELD,
+                "fir_number",
+                body.fir_number.is_some(),
+            ),
+            (
+                MLC_POLICE_STATION_FIELD,
+                "police_station",
+                body.police_station.is_some(),
+            ),
+            (
+                MLC_EXAMINATION_FIELD,
+                "examination_findings",
+                body.examination_findings.is_some(),
+            ),
+            (
+                MLC_MEDICAL_OPINION_FIELD,
+                "medical_opinion",
+                body.medical_opinion.is_some(),
+            ),
+            (
+                MLC_CAUSE_OF_DEATH_FIELD,
+                "cause_of_death",
+                body.cause_of_death.is_some(),
+            ),
+        ],
+        &restricted_fields,
+    )?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let row = sqlx::query_as::<_, MlcCase>(
@@ -790,7 +1487,7 @@ pub async fn update_mlc_case(
     .fetch_one(&mut *tx)
     .await?;
     tx.commit().await?;
-    Ok(Json(row))
+    Ok(Json(filter_mlc_case_response(row, &restricted_fields)))
 }
 
 // ══════════════════════════════════════════════════════════
@@ -802,7 +1499,25 @@ pub async fn list_mlc_documents(
     Extension(claims): Extension<Claims>,
     Path(mlc_id): Path<Uuid>,
 ) -> Result<Json<Vec<MlcDocument>>, AppError> {
-    require_permission(&claims, permissions::emergency::mlc::LIST)?;
+    require_any_permission(
+        &claims,
+        &[
+            permissions::emergency::mlc::LIST,
+            permissions::emergency::mlc::PRINT,
+            permissions::emergency::mlc::REPRINT,
+            permissions::emergency::mlc_documents::SBAR_CREATE,
+            permissions::emergency::mlc_documents::AGE_ESTIMATION_CREATE,
+            permissions::emergency::mlc_documents::POCSO_CREATE,
+            permissions::emergency::mlc_documents::COURT_SUMMONS_CREATE,
+        ],
+    )?;
+    let restricted_fields = field_access::resolve_restricted_fields(
+        &state.db,
+        claims.tenant_id,
+        claims.sub,
+        &claims.role,
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let rows = sqlx::query_as::<_, MlcDocument>(
@@ -813,7 +1528,11 @@ pub async fn list_mlc_documents(
     .fetch_all(&mut *tx)
     .await?;
     tx.commit().await?;
-    Ok(Json(rows))
+    Ok(Json(
+        rows.into_iter()
+            .map(|row| filter_mlc_document_response(row, &restricted_fields))
+            .collect(),
+    ))
 }
 
 pub async fn create_mlc_document(
@@ -822,9 +1541,40 @@ pub async fn create_mlc_document(
     Path(mlc_id): Path<Uuid>,
     Json(body): Json<CreateMlcDocumentRequest>,
 ) -> Result<Json<MlcDocument>, AppError> {
-    require_permission(&claims, permissions::emergency::mlc::CREATE)?;
+    let required_permission = mlc_document_create_permission(&body.document_type)?;
+    require_permission(&claims, required_permission)?;
+    let restricted_fields = field_access::resolve_restricted_fields(
+        &state.db,
+        claims.tenant_id,
+        claims.sub,
+        &claims.role,
+    )
+    .await?;
+    if body.document_type == "pocso_report"
+        && !mlc_field_is_writable(&restricted_fields, MLC_POCSO_REPORT_FIELD)
+    {
+        return Err(AppError::BadRequest(
+            "Cannot write restricted MLC POCSO report content".to_owned(),
+        ));
+    }
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let is_pocso_case = sqlx::query_scalar::<_, bool>(
+        "SELECT is_pocso FROM mlc_cases WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(mlc_id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+
+    if body.document_type == "pocso_report" && !is_pocso_case {
+        return Err(AppError::BadRequest(
+            "POCSO report can only be added to a POCSO-marked MLC case".to_owned(),
+        ));
+    }
+
     let row = sqlx::query_as::<_, MlcDocument>(
         "INSERT INTO mlc_documents (tenant_id, mlc_case_id, document_type, title, body_diagram, content, notes, generated_by)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
@@ -841,7 +1591,7 @@ pub async fn create_mlc_document(
     .fetch_one(&mut *tx)
     .await?;
     tx.commit().await?;
-    Ok(Json(row))
+    Ok(Json(filter_mlc_document_response(row, &restricted_fields)))
 }
 
 // ══════════════════════════════════════════════════════════
@@ -853,7 +1603,23 @@ pub async fn list_police_intimations(
     Extension(claims): Extension<Claims>,
     Path(mlc_id): Path<Uuid>,
 ) -> Result<Json<Vec<MlcPoliceIntimation>>, AppError> {
-    require_permission(&claims, permissions::emergency::mlc::LIST)?;
+    require_any_permission(
+        &claims,
+        &[
+            permissions::emergency::mlc_police_intimations::LIST,
+            permissions::emergency::mlc_police_intimations::CREATE,
+            permissions::emergency::mlc_police_intimations::CONFIRM,
+            permissions::emergency::mlc_police_intimations::PRINT,
+            permissions::emergency::mlc_police_intimations::REPRINT,
+        ],
+    )?;
+    let restricted_fields = field_access::resolve_restricted_fields(
+        &state.db,
+        claims.tenant_id,
+        claims.sub,
+        &claims.role,
+    )
+    .await?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let rows = sqlx::query_as::<_, MlcPoliceIntimation>(
@@ -864,7 +1630,11 @@ pub async fn list_police_intimations(
     .fetch_all(&mut *tx)
     .await?;
     tx.commit().await?;
-    Ok(Json(rows))
+    Ok(Json(
+        rows.into_iter()
+            .map(|row| filter_mlc_police_intimation_response(row, &restricted_fields))
+            .collect(),
+    ))
 }
 
 pub async fn create_police_intimation(
@@ -873,7 +1643,27 @@ pub async fn create_police_intimation(
     Path(mlc_id): Path<Uuid>,
     Json(body): Json<CreatePoliceIntimationRequest>,
 ) -> Result<Json<MlcPoliceIntimation>, AppError> {
-    require_permission(&claims, permissions::emergency::mlc::CREATE)?;
+    require_permission(
+        &claims,
+        permissions::emergency::mlc_police_intimations::CREATE,
+    )?;
+    let restricted_fields = field_access::resolve_restricted_fields(
+        &state.db,
+        claims.tenant_id,
+        claims.sub,
+        &claims.role,
+    )
+    .await?;
+    reject_restricted_mlc_field_writes(
+        &[(MLC_POLICE_STATION_FIELD, "police_station", true)],
+        &restricted_fields,
+    )?;
+    let police_station = body.police_station.trim();
+    if police_station.is_empty() {
+        return Err(AppError::BadRequest(
+            "Police station is required".to_owned(),
+        ));
+    }
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
@@ -888,7 +1678,7 @@ pub async fn create_police_intimation(
     .bind(claims.tenant_id)
     .bind(mlc_id)
     .bind(&intimation_number)
-    .bind(&body.police_station)
+    .bind(police_station)
     .bind(body.officer_name)
     .bind(body.officer_designation)
     .bind(body.officer_contact)
@@ -898,28 +1688,62 @@ pub async fn create_police_intimation(
     .fetch_one(&mut *tx)
     .await?;
     tx.commit().await?;
-    Ok(Json(row))
+    Ok(Json(filter_mlc_police_intimation_response(
+        row,
+        &restricted_fields,
+    )))
 }
 
 pub async fn confirm_police_receipt(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
+    Json(body): Json<ConfirmPoliceReceiptRequest>,
 ) -> Result<Json<MlcPoliceIntimation>, AppError> {
-    require_permission(&claims, permissions::emergency::mlc::UPDATE)?;
+    require_permission(
+        &claims,
+        permissions::emergency::mlc_police_intimations::CONFIRM,
+    )?;
+    let restricted_fields = field_access::resolve_restricted_fields(
+        &state.db,
+        claims.tenant_id,
+        claims.sub,
+        &claims.role,
+    )
+    .await?;
+    let receipt_number = body.receipt_number.trim();
+    if receipt_number.is_empty() {
+        return Err(AppError::BadRequest(
+            "Police receipt number is required".to_owned(),
+        ));
+    }
+    let notes = body
+        .notes
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let row = sqlx::query_as::<_, MlcPoliceIntimation>(
         "UPDATE mlc_police_intimations SET receipt_confirmed = true, receipt_confirmed_at = now()
-         WHERE id = $1 AND tenant_id = $2
+            , receipt_number = $3, notes = COALESCE($4, notes)
+         WHERE id = $1 AND tenant_id = $2 AND receipt_confirmed = false
          RETURNING *",
     )
     .bind(id)
     .bind(claims.tenant_id)
-    .fetch_one(&mut *tx)
-    .await?;
+    .bind(receipt_number)
+    .bind(notes)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or_else(|| {
+        AppError::BadRequest("Police receipt already confirmed or intimation not found".to_owned())
+    })?;
     tx.commit().await?;
-    Ok(Json(row))
+    Ok(Json(filter_mlc_police_intimation_response(
+        row,
+        &restricted_fields,
+    )))
 }
 
 // ══════════════════════════════════════════════════════════
@@ -930,7 +1754,14 @@ pub async fn list_mass_casualty_events(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<MassCasualtyEvent>>, AppError> {
-    require_permission(&claims, permissions::emergency::mass_casualty::LIST)?;
+    require_any_permission(
+        &claims,
+        &[
+            permissions::emergency::mass_casualty::LIST,
+            permissions::emergency::mass_casualty::UPDATE,
+            permissions::emergency::mass_casualty::CLOSE,
+        ],
+    )?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let rows = sqlx::query_as::<_, MassCasualtyEvent>(
@@ -975,7 +1806,19 @@ pub async fn update_mass_casualty_event(
     Path(id): Path<Uuid>,
     Json(body): Json<UpdateMassCasualtyEventRequest>,
 ) -> Result<Json<MassCasualtyEvent>, AppError> {
-    require_permission(&claims, permissions::emergency::mass_casualty::UPDATE)?;
+    match body.status.as_deref() {
+        Some("deactivated") => {
+            require_permission(&claims, permissions::emergency::mass_casualty::CLOSE)?;
+        }
+        Some("activated" | "ongoing" | "scaling_down") | None => {
+            require_permission(&claims, permissions::emergency::mass_casualty::UPDATE)?;
+        }
+        Some(_) => {
+            return Err(AppError::BadRequest(
+                "Unsupported mass casualty status".to_owned(),
+            ));
+        }
+    }
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let row = sqlx::query_as::<_, MassCasualtyEvent>(
@@ -1015,9 +1858,10 @@ pub async fn admit_from_er(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
-    Json(body): Json<serde_json::Value>,
+    Json(body): Json<AdmitFromErRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    require_permission(&claims, permissions::emergency::visits::CREATE)?;
+    require_permission(&claims, permissions::emergency::visits::UPDATE)?;
+    require_permission(&claims, permissions::ipd::admissions::CREATE)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1025,15 +1869,13 @@ pub async fn admit_from_er(
     #[derive(sqlx::FromRow)]
     struct ErAdmissionSource {
         patient_id: Uuid,
-        attending_doctor_id: Option<Uuid>,
         chief_complaint: Option<String>,
         admission_id: Option<Uuid>,
         status: String,
     }
 
     let visit = sqlx::query_as::<_, ErAdmissionSource>(
-        "SELECT patient_id, attending_doctor_id, chief_complaint, admission_id, \
-                status::text AS status \
+        "SELECT patient_id, chief_complaint, admission_id, status::text AS status \
          FROM er_visits \
          WHERE id = $1 AND tenant_id = $2",
     )
@@ -1049,46 +1891,82 @@ pub async fn admit_from_er(
         ));
     }
 
-    let ward_id = body
-        .get("ward_id")
-        .and_then(|v| v.as_str())
-        .and_then(|s| s.parse::<Uuid>().ok());
+    let doctor_exists = sqlx::query_scalar::<_, bool>(
+        "SELECT EXISTS( \
+           SELECT 1 FROM users \
+           WHERE id = $1 AND tenant_id = $2 AND role = 'doctor' AND is_active = true \
+         )",
+    )
+    .bind(body.admitting_doctor_id)
+    .bind(claims.tenant_id)
+    .fetch_one(&mut *tx)
+    .await?;
 
-    let bed_id = body
-        .get("bed_id")
-        .and_then(|v| v.as_str())
-        .and_then(|s| s.parse::<Uuid>().ok());
-
-    let admitting_doctor_id = body
-        .get("admitting_doctor_id")
-        .and_then(|v| v.as_str())
-        .and_then(|s| s.parse::<Uuid>().ok())
-        .or(visit.attending_doctor_id)
-        .unwrap_or(claims.sub);
+    if !doctor_exists {
+        return Err(AppError::BadRequest(
+            "Admitting doctor must be an active doctor in this hospital".to_owned(),
+        ));
+    }
 
     let admission_notes = body
-        .get("admission_notes")
-        .and_then(|v| v.as_str())
-        .filter(|value| !value.trim().is_empty())
+        .admission_notes
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
         .map(str::to_owned);
     let reason = admission_notes
         .clone()
         .or_else(|| visit.chief_complaint.clone())
         .unwrap_or_else(|| "ER admission".to_owned());
 
-    let bed_ward_id = if let Some(selected_bed_id) = bed_id {
-        sqlx::query_scalar::<_, Option<Uuid>>(
-            "SELECT ward_id FROM bed_states WHERE location_id = $1 AND tenant_id = $2",
+    let (bed_ward_id, bed_status, current_admission_id) =
+        sqlx::query_as::<_, (Option<Uuid>, String, Option<Uuid>)>(
+            "SELECT ward_id, status::text AS status, admission_id \
+             FROM bed_states \
+             WHERE location_id = $1 AND tenant_id = $2 \
+             FOR UPDATE",
         )
-        .bind(selected_bed_id)
+        .bind(body.bed_id)
         .bind(claims.tenant_id)
         .fetch_optional(&mut *tx)
         .await?
-        .flatten()
-    } else {
-        None
-    };
-    let admission_ward_id = ward_id.or(bed_ward_id);
+        .ok_or_else(|| AppError::BadRequest("Selected bed is not configured".to_owned()))?;
+
+    if bed_status != "vacant_clean" || current_admission_id.is_some() {
+        return Err(AppError::BadRequest(
+            "Selected bed is not vacant and clean".to_owned(),
+        ));
+    }
+
+    let reserved_for_other_patient = sqlx::query_scalar::<_, bool>(
+        "SELECT EXISTS( \
+           SELECT 1 FROM bed_reservations \
+           WHERE tenant_id = $1 AND bed_id = $2 \
+             AND status IN ('active', 'confirmed') \
+             AND reserved_until > NOW() \
+             AND patient_id <> $3 \
+         )",
+    )
+    .bind(claims.tenant_id)
+    .bind(body.bed_id)
+    .bind(visit.patient_id)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    if reserved_for_other_patient {
+        return Err(AppError::BadRequest(
+            "Selected bed is reserved for another patient".to_owned(),
+        ));
+    }
+
+    if let (Some(requested_ward_id), Some(selected_bed_ward_id)) = (body.ward_id, bed_ward_id) {
+        if requested_ward_id != selected_bed_ward_id {
+            return Err(AppError::BadRequest(
+                "Selected bed does not belong to the requested ward".to_owned(),
+            ));
+        }
+    }
+    let admission_ward_id = bed_ward_id.or(body.ward_id);
 
     let encounter_date =
         crate::hospital_time::tenant_local_today(&mut *tx, claims.tenant_id).await?;
@@ -1100,7 +1978,7 @@ pub async fn admit_from_er(
     )
     .bind(claims.tenant_id)
     .bind(visit.patient_id)
-    .bind(admitting_doctor_id)
+    .bind(body.admitting_doctor_id)
     .bind(encounter_date)
     .bind(&reason)
     .bind(serde_json::json!({
@@ -1122,8 +2000,8 @@ pub async fn admit_from_er(
     .bind(claims.tenant_id)
     .bind(encounter_id)
     .bind(visit.patient_id)
-    .bind(bed_id)
-    .bind(admitting_doctor_id)
+    .bind(body.bed_id)
+    .bind(body.admitting_doctor_id)
     .bind(&reason)
     .bind(admission_ward_id)
     .bind(id)
@@ -1131,22 +2009,34 @@ pub async fn admit_from_er(
     .fetch_one(&mut *tx)
     .await?;
 
-    if let Some(selected_bed_id) = bed_id {
-        sqlx::query(
-            "UPDATE bed_states \
-             SET ward_id = COALESCE($3, ward_id), admission_id = $4, patient_id = $5, \
-                 status = 'occupied'::bed_status, changed_by = $6, changed_at = now() \
-             WHERE location_id = $1 AND tenant_id = $2",
-        )
-        .bind(selected_bed_id)
-        .bind(claims.tenant_id)
-        .bind(admission_ward_id)
-        .bind(admission_id)
-        .bind(visit.patient_id)
-        .bind(claims.sub)
-        .execute(&mut *tx)
-        .await?;
-    }
+    sqlx::query(
+        "UPDATE bed_states \
+         SET ward_id = COALESCE($3, ward_id), admission_id = $4, patient_id = $5, \
+             status = 'occupied'::bed_status, changed_by = $6, changed_at = now(), \
+             reason = $7, reserved_for_patient = NULL, reserved_until = NULL \
+         WHERE location_id = $1 AND tenant_id = $2",
+    )
+    .bind(body.bed_id)
+    .bind(claims.tenant_id)
+    .bind(admission_ward_id)
+    .bind(admission_id)
+    .bind(visit.patient_id)
+    .bind(claims.sub)
+    .bind(&reason)
+    .execute(&mut *tx)
+    .await?;
+
+    sqlx::query(
+        "UPDATE bed_reservations SET status = 'fulfilled'::bed_reservation_status \
+         WHERE tenant_id = $1 AND bed_id = $2 AND patient_id = $3 \
+           AND status IN ('active', 'confirmed') \
+           AND reserved_until > NOW()",
+    )
+    .bind(claims.tenant_id)
+    .bind(body.bed_id)
+    .bind(visit.patient_id)
+    .execute(&mut *tx)
+    .await?;
 
     // Update ER visit disposition
     sqlx::query(

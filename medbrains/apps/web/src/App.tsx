@@ -22,6 +22,10 @@ const LoginPage = lazy(() => import("./pages/login").then((m) => ({ default: m.L
 const OnboardingPage = lazy(() =>
   import("./pages/onboarding").then((m) => ({ default: m.OnboardingPage })),
 );
+const AppsPage = lazy(() => import("./pages/apps").then((m) => ({ default: m.AppsPage })));
+const WorkspaceLandingPage = lazy(() =>
+  import("./pages/apps").then((m) => ({ default: m.WorkspaceLandingPage })),
+);
 const DemoDicomFixturesPage = lazy(() =>
   import("./pages/demo-dicom-fixtures").then((m) => ({ default: m.DemoDicomFixturesPage })),
 );
@@ -31,6 +35,9 @@ const DashboardPage = lazy(() =>
 const PatientsPage = lazy(() =>
   import("./pages/patients").then((m) => ({ default: m.PatientsPage })),
 );
+const PatientRegisterPage = lazy(() =>
+  import("./pages/patients").then((m) => ({ default: m.PatientRegisterPage })),
+);
 const PatientDetailPage = lazy(() =>
   import("./pages/patient-detail").then((m) => ({ default: m.PatientDetailPage })),
 );
@@ -38,9 +45,13 @@ const PatientEditPage = lazy(() =>
   import("./pages/patient-edit").then((m) => ({ default: m.PatientEditPage })),
 );
 const OpdPage = lazy(() => import("./pages/opd").then((m) => ({ default: m.OpdPage })));
+const OpdNewVisitPage = lazy(() =>
+  import("./pages/opd").then((m) => ({ default: m.OpdNewVisitPage })),
+);
 const OpdEncounterPage = lazy(() =>
   import("./pages/opd").then((m) => ({ default: m.OpdEncounterPage })),
 );
+const OpdVitalsPage = lazy(() => import("./pages/opd").then((m) => ({ default: m.OpdVitalsPage })));
 const AppointmentsPage = lazy(() =>
   import("./pages/appointments").then((m) => ({ default: m.AppointmentsPage })),
 );
@@ -58,6 +69,9 @@ const RadiologyPage = lazy(() =>
   import("./pages/radiology").then((m) => ({ default: m.RadiologyPage })),
 );
 const BillingPage = lazy(() => import("./pages/billing").then((m) => ({ default: m.BillingPage })));
+const BillingInvoiceDetailPage = lazy(() =>
+  import("./pages/billing").then((m) => ({ default: m.BillingInvoiceDetailPage })),
+);
 const CssdPage = lazy(() => import("./pages/cssd").then((m) => ({ default: m.CssdPage })));
 const DietKitchenPage = lazy(() =>
   import("./pages/diet-kitchen").then((m) => ({ default: m.DietKitchenPage })),
@@ -70,6 +84,12 @@ const BloodBankPage = lazy(() =>
 );
 const IcuPage = lazy(() => import("./pages/icu").then((m) => ({ default: m.IcuPage })));
 const IpdPage = lazy(() => import("./pages/ipd").then((m) => ({ default: m.IpdPage })));
+const IpdNewAdmissionPage = lazy(() =>
+  import("./pages/ipd").then((m) => ({ default: m.IpdNewAdmissionPage })),
+);
+const IpdAdmissionDetailPage = lazy(() =>
+  import("./pages/ipd").then((m) => ({ default: m.IpdAdmissionDetailPage })),
+);
 const NurseActivitiesPage = lazy(() =>
   import("./pages/nurse-activities").then((m) => ({ default: m.NurseActivitiesPage })),
 );
@@ -90,6 +110,7 @@ const HousekeepingPage = lazy(() =>
 );
 const HrPage = lazy(() => import("./pages/hr").then((m) => ({ default: m.HrPage })));
 const BmePage = lazy(() => import("./pages/bme").then((m) => ({ default: m.BmePage })));
+const AssetsPage = lazy(() => import("./pages/assets").then((m) => ({ default: m.AssetsPage })));
 const AmbulancePage = lazy(() =>
   import("./pages/ambulance").then((m) => ({ default: m.AmbulancePage })),
 );
@@ -97,7 +118,34 @@ const CommunicationsPage = lazy(() =>
   import("./pages/communications").then((m) => ({ default: m.CommunicationsPage })),
 );
 const CampPage = lazy(() => import("./pages/camp").then((m) => ({ default: m.CampPage })));
+const CampCreatePage = lazy(() =>
+  import("./pages/camp").then((m) => ({ default: m.CampCreatePage })),
+);
 const CampWorkPage = lazy(() => import("./pages/camp").then((m) => ({ default: m.CampWorkPage })));
+const CampPlanEditPage = lazy(() =>
+  import("./pages/camp").then((m) => ({ default: m.CampPlanEditPage })),
+);
+const CampClinicalRoutePage = lazy(() =>
+  import("./pages/camp").then((m) => ({ default: m.CampClinicalRoutePage })),
+);
+const CampScreeningCreatePage = lazy(() =>
+  import("./pages/camp").then((m) => ({ default: m.CampScreeningCreatePage })),
+);
+const CampLabSampleCreatePage = lazy(() =>
+  import("./pages/camp").then((m) => ({ default: m.CampLabSampleCreatePage })),
+);
+const CampTeamMemberAddPage = lazy(() =>
+  import("./pages/camp").then((m) => ({ default: m.CampTeamMemberAddPage })),
+);
+const CampAssetReturnPage = lazy(() =>
+  import("./pages/camp").then((m) => ({ default: m.CampAssetReturnPage })),
+);
+const CampBillingCreatePage = lazy(() =>
+  import("./pages/camp").then((m) => ({ default: m.CampBillingCreatePage })),
+);
+const CampFollowupCreatePage = lazy(() =>
+  import("./pages/camp").then((m) => ({ default: m.CampFollowupCreatePage })),
+);
 const BedsidePortalPage = lazy(() =>
   import("./pages/bedside-portal").then((m) => ({ default: m.BedsidePortalPage })),
 );
@@ -220,7 +268,6 @@ export function App() {
             <Route path="/" element={<LandingPage />} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/onboarding" element={<OnboardingPage />} />
-            <Route path="/demo/dicom/*" element={<DemoDicomFixturesPage />} />
 
             {/* Protected */}
             <Route
@@ -233,13 +280,19 @@ export function App() {
                 </ProtectedRoute>
               }
             >
+              <Route path="apps" element={<AppsPage />} />
+              <Route path="apps/:workspaceKey" element={<WorkspaceLandingPage />} />
               <Route path="dashboard" element={<DashboardPage />} />
               <Route path="components-inputs" element={<ComponentsInputsPage />} />
+              <Route path="demo/dicom/*" element={<DemoDicomFixturesPage />} />
               <Route path="patients" element={<PatientsPage />} />
+              <Route path="patients/register" element={<PatientRegisterPage />} />
               <Route path="patients/:id/edit" element={<PatientEditPage />} />
               <Route path="patients/:id" element={<PatientDetailPage />} />
               <Route path="opd" element={<OpdPage />} />
+              <Route path="opd/new" element={<OpdNewVisitPage />} />
               <Route path="opd/encounters/:encounterId" element={<OpdEncounterPage />} />
+              <Route path="opd/queue/:queueEntryId/vitals" element={<OpdVitalsPage />} />
               <Route path="opd/appointments" element={<AppointmentsPage />} />
               <Route path="opd/pg-logbook" element={<PgLogbookPage />} />
               <Route path="doctor/signoffs" element={<DoctorSignoffsPage />} />
@@ -248,6 +301,7 @@ export function App() {
               <Route path="pharmacy" element={<PharmacyPage />} />
               <Route path="pharmacy/finance" element={<PharmacyFinancePage />} />
               <Route path="billing" element={<BillingPage />} />
+              <Route path="billing/invoices/:invoiceId" element={<BillingInvoiceDetailPage />} />
               <Route path="indent/*" element={<IndentPage />} />
               <Route path="procurement" element={<ProcurementPage />} />
               <Route path="quality" element={<QualityPage />} />
@@ -255,10 +309,29 @@ export function App() {
               <Route path="housekeeping" element={<HousekeepingPage />} />
               <Route path="hr" element={<HrPage />} />
               <Route path="bme" element={<BmePage />} />
+              <Route path="assets" element={<AssetsPage />} />
               <Route path="ambulance" element={<AmbulancePage />} />
               <Route path="communications" element={<CommunicationsPage />} />
               <Route path="camp" element={<CampPage />} />
+              <Route path="camp/new" element={<CampCreatePage />} />
               <Route path="camp/:campId/work" element={<CampWorkPage />} />
+              <Route path="camp/:campId/work/plan" element={<CampPlanEditPage />} />
+              <Route path="camp/:campId/work/team/new" element={<CampTeamMemberAddPage />} />
+              <Route
+                path="camp/:campId/work/assets/:reservationId/return"
+                element={<CampAssetReturnPage />}
+              />
+              <Route
+                path="camp/:campId/work/screenings/new"
+                element={<CampScreeningCreatePage />}
+              />
+              <Route path="camp/:campId/work/lab/new" element={<CampLabSampleCreatePage />} />
+              <Route path="camp/:campId/work/billing/new" element={<CampBillingCreatePage />} />
+              <Route path="camp/:campId/work/followups/new" element={<CampFollowupCreatePage />} />
+              <Route
+                path="camp/:campId/work/registrations/:registrationId/clinical-route"
+                element={<CampClinicalRoutePage />}
+              />
               <Route path="command-center" element={<CommandCenterPage />} />
               <Route path="facilities" element={<FacilitiesPage />} />
               <Route path="consent" element={<ConsentPage />} />
@@ -295,6 +368,8 @@ export function App() {
               <Route path="blood-bank" element={<BloodBankPage />} />
               <Route path="icu" element={<IcuPage />} />
               <Route path="ipd" element={<IpdPage />} />
+              <Route path="ipd/new" element={<IpdNewAdmissionPage />} />
+              <Route path="ipd/admissions/:admissionId" element={<IpdAdmissionDetailPage />} />
               <Route path="nurse" element={<NurseActivitiesPage />} />
               <Route path="bedside-portal" element={<BedsidePortalPage />} />
               <Route path="care-view" element={<CareViewPage />} />

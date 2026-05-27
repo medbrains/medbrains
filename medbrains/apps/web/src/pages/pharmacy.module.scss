@@ -2,9 +2,7 @@
   padding: 6px;
   border: 1px solid var(--mb-border-subtle);
   border-radius: 8px;
-  background:
-    linear-gradient(135deg, rgba(240, 253, 250, 0.76), rgba(239, 246, 255, 0.72)),
-    var(--mb-bg-card);
+  background: var(--mb-panel-bg);
 
   :global(.mantine-Tabs-tab) {
     border-radius: 7px;
@@ -13,31 +11,29 @@
   }
 
   :global(.mantine-Tabs-tab[data-active="true"]) {
-    color: #0f766e;
-    background: linear-gradient(135deg, #ccfbf1 0%, #e0f2fe 100%);
-    box-shadow: 0 8px 20px rgba(20, 184, 166, 0.14);
+    color: var(--mb-active-text);
+    background: var(--mb-active-bg-strong, var(--mb-active-bg));
+    border: 1px solid var(--mb-active-border);
+    box-shadow: var(--mb-nav-active-shadow, 0 4px 12px rgba(0, 0, 0, 0.18));
   }
 }
 
 .medicationCard {
-  border-color: rgba(20, 184, 166, 0.18);
-  background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(240, 253, 250, 0.72)),
-    var(--mb-bg-card);
-  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.04);
+  border: 1px solid var(--mb-border-subtle);
+  background: var(--mb-card-bg);
+  box-shadow: var(--mb-float-shadow, 0 4px 12px rgba(0, 0, 0, 0.18));
 }
 
 .rxEstimateCard {
-  border-color: rgba(14, 165, 233, 0.18);
-  background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.98), rgba(224, 242, 254, 0.66)),
-    var(--mb-bg-card);
-  box-shadow: 0 10px 24px rgba(2, 132, 199, 0.08);
+  border: 1px solid var(--mb-border-subtle);
+  background: var(--mb-card-bg);
+  box-shadow: var(--mb-float-shadow, 0 4px 12px rgba(0, 0, 0, 0.18));
 }
 
 .billingSummaryBand {
   padding: 8px 10px;
   border-radius: 8px;
-  background: linear-gradient(135deg, rgba(204, 251, 241, 0.64), rgba(254, 243, 199, 0.48));
-  border: 1px solid rgba(20, 184, 166, 0.16);
+  background: var(--mb-panel-bg);
+  border: 1px solid var(--mb-border-subtle);
+  color: var(--mb-text-primary);
 }

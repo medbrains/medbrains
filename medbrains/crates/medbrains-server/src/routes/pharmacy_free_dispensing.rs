@@ -11,7 +11,9 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{
-    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
+    error::AppError,
+    middleware::auth::Claims,
+    middleware::authorization::{require_any_permission, require_permission},
     state::AppState,
 };
 
@@ -380,9 +382,12 @@ pub async fn list_supplier_payments(
     Extension(claims): Extension<Claims>,
     Query(q): Query<ListSupplierPaymentsQuery>,
 ) -> Result<Json<Vec<SupplierPayment>>, AppError> {
-    require_permission(
+    require_any_permission(
         &claims,
-        permissions::pharmacy_finance::supplier_payments::VIEW,
+        &[
+            permissions::pharmacy_finance::supplier_payments::VIEW,
+            permissions::pharmacy_finance::supplier_payments::MANAGE,
+        ],
     )?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;

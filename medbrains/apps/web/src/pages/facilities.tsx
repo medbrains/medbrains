@@ -1,3 +1,4 @@
+import "@mantine/charts/styles.css";
 import { BarChart } from "@mantine/charts";
 import {
   ActionIcon,
@@ -57,7 +58,8 @@ import {
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { DataTable, PageHeader } from "../components";
+import { useSearchParams } from "react-router";
+import { DataTable, IpdContextStrip, ipdContextFromSearchParams, PageHeader } from "../components";
 import type { Column } from "../components/DataTable";
 import { useRequirePermission } from "../hooks/useRequirePermission";
 import { facilitiesService } from "../services/facilities.service";
@@ -212,7 +214,17 @@ function woStatusColor(s: string) {
 
 export function FacilitiesPage() {
   useRequirePermission(P.FACILITIES.GAS_LIST);
-  const [tab, setTab] = useState<string | null>("mgps");
+  const [searchParams] = useSearchParams();
+  const ipdContext = ipdContextFromSearchParams(searchParams);
+  const requestedTab = searchParams.get("tab");
+  const initialTab =
+    requestedTab === "fire" ||
+    requestedTab === "water" ||
+    requestedTab === "energy" ||
+    requestedTab === "work-orders"
+      ? requestedTab
+      : "mgps";
+  const [tab, setTab] = useState<string | null>(initialTab);
 
   return (
     <div>
@@ -220,6 +232,7 @@ export function FacilitiesPage() {
         title="Facilities Management"
         subtitle="MGPS, Fire Safety, Water Quality, Energy, Work Orders"
       />
+      <IpdContextStrip context={ipdContext} />
       <Tabs value={tab} onChange={setTab}>
         <Tabs.List>
           <Tabs.Tab value="mgps" leftSection={<IconBuildingFactory2 size={16} />}>

@@ -90,6 +90,29 @@ pub async fn create_vitals_reading(
     Ok(Json(row))
 }
 
+pub async fn list_vitals_for_encounter(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(encounter_id): Path<Uuid>,
+) -> Result<Json<Vec<Vital>>, AppError> {
+    require_permission(&claims, permissions::nurse::vitals::VIEW)?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let rows = sqlx::query_as::<_, Vital>(
+        "SELECT * FROM vitals WHERE tenant_id = $1 AND encounter_id = $2 \
+         ORDER BY recorded_at DESC LIMIT 200",
+    )
+    .bind(claims.tenant_id)
+    .bind(encounter_id)
+    .fetch_all(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+    Ok(Json(rows))
+}
+
 // ── vitals_capture_schedules ────────────────────────────────────────
 
 #[derive(Debug, Serialize, sqlx::FromRow)]

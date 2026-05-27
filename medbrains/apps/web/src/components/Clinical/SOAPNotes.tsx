@@ -18,13 +18,16 @@ import {
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { type SoapNoteFormInput, soapNoteFormSchema } from "@medbrains/schemas";
-import type {
-  ClinicalCorpusEntry,
-  Consultation,
-  CreateConsultationRequest,
-  PatientConsultationHistoryRow,
-  UpdateConsultationRequest,
+import { useFieldAccess, useHasPermission } from "@medbrains/stores";
+import {
+  type ClinicalCorpusEntry,
+  type Consultation,
+  type CreateConsultationRequest,
+  P,
+  type PatientConsultationHistoryRow,
+  type UpdateConsultationRequest,
 } from "@medbrains/types";
+import { fieldAccessText } from "@medbrains/utils";
 import {
   IconBrain,
   IconCalendarStats,
@@ -345,6 +348,11 @@ export function SOAPNotes({
   readOnly,
 }: SOAPNotesProps) {
   const { t } = useTranslation("clinical");
+  const hasSoapWritePermission = useHasPermission(P.OPD.VISIT_UPDATE);
+  const soapNoteAccess = useFieldAccess("opd.soap_note");
+  const canEditSoap = !readOnly && hasSoapWritePermission && soapNoteAccess === "edit";
+  const canShowSoapText = soapNoteAccess !== "hidden";
+  const soapText = (value: string | null | undefined) => fieldAccessText(soapNoteAccess, value);
   const [editorOpened, { open: openEditor, close: closeEditor }] = useDisclosure(false);
   const savedValues = useMemo(
     () => soapNoteDefaultsFromConsultation(defaultValues),
@@ -376,7 +384,7 @@ export function SOAPNotes({
         corpus_type: "soap_phrase",
         limit: 8,
       }),
-    enabled: subjectiveToken.length >= 2,
+    enabled: canEditSoap && subjectiveToken.length >= 2,
     staleTime: 10 * 60 * 1000,
     gcTime: 60 * 60 * 1000,
   });
@@ -389,7 +397,7 @@ export function SOAPNotes({
         corpus_type: "soap_phrase",
         limit: 8,
       }),
-    enabled: objectiveToken.length >= 2,
+    enabled: canEditSoap && objectiveToken.length >= 2,
     staleTime: 10 * 60 * 1000,
     gcTime: 60 * 60 * 1000,
   });
@@ -402,7 +410,7 @@ export function SOAPNotes({
         corpus_type: "soap_phrase",
         limit: 8,
       }),
-    enabled: assessmentToken.length >= 2,
+    enabled: canEditSoap && assessmentToken.length >= 2,
     staleTime: 10 * 60 * 1000,
     gcTime: 60 * 60 * 1000,
   });
@@ -415,7 +423,7 @@ export function SOAPNotes({
         corpus_type: "soap_phrase",
         limit: 8,
       }),
-    enabled: planToken.length >= 2,
+    enabled: canEditSoap && planToken.length >= 2,
     staleTime: 10 * 60 * 1000,
     gcTime: 60 * 60 * 1000,
   });
@@ -445,14 +453,22 @@ export function SOAPNotes({
       : buildCombinedSoapNote(savedValues);
   const combinedPreview = buildCombinedSoapNote(watchedValues);
   const hasVisibleNote = savedCombined.length > 0 || savedSections.length > 0;
-  const sectionTimelines = useMemo(() => buildSectionTimelines(historyNotes), [historyNotes]);
-  const calendarEntries = useMemo(() => buildCalendarEntries(historyNotes), [historyNotes]);
+  const sectionTimelines = useMemo(
+    () => buildSectionTimelines(canShowSoapText ? historyNotes : []),
+    [canShowSoapText, historyNotes],
+  );
+  const calendarEntries = useMemo(
+    () => buildCalendarEntries(canShowSoapText ? historyNotes : []),
+    [canShowSoapText, historyNotes],
+  );
 
   function acceptKeywordSuggestion(key: SoapSectionKey, nextValue: string) {
+    if (!canEditSoap) return;
     form.setValue(key, nextValue, { shouldDirty: true, shouldValidate: true });
   }
 
   function combineSections() {
+    if (!canEditSoap) return;
     form.setValue("notes", buildCombinedSoapNote(form.getValues()), {
       shouldDirty: true,
       shouldValidate: true,
@@ -465,6 +481,7 @@ export function SOAPNotes({
   }
 
   function handleSubmit(values: SoapNoteFormInput) {
+    if (!canEditSoap) return;
     onSubmit(toSoapNoteRequest(values));
     form.reset(editorValues);
     closeEditor();
@@ -492,7 +509,7 @@ export function SOAPNotes({
               {noteDate}
             </Text>
           </div>
-          {!readOnly && (
+          {canEditSoap && (
             <Button
               size="xs"
               variant={hasVisibleNote ? "light" : "filled"}
@@ -530,7 +547,7 @@ export function SOAPNotes({
                       </Text>
                     </Group>
                     <Text size="sm" c={value.length > 0 ? undefined : "dimmed"} lineClamp={6}>
-                      {value.length > 0 ? value : "Not documented in this encounter."}
+                      {value.length > 0 ? soapText(value) : "Not documented in this encounter."}
                     </Text>
                   </div>
                 );
@@ -543,7 +560,7 @@ export function SOAPNotes({
                   Combined Note
                 </Text>
                 <Text size="sm" className={styles.noteText}>
-                  {savedCombined}
+                  {soapText(savedCombined)}
                 </Text>
               </div>
             )}
@@ -602,7 +619,7 @@ export function SOAPNotes({
                         {[entry.date, entry.subtitle].filter(Boolean).join(" - ")}
                       </Text>
                       <Text size="sm" className={styles.noteText}>
-                        {entry.value}
+                        {soapText(entry.value)}
                       </Text>
                     </Timeline.Item>
                   ))}
@@ -618,7 +635,7 @@ export function SOAPNotes({
       </Card>
 
       <Drawer
-        opened={editorOpened}
+        opened={editorOpened && canEditSoap}
         onClose={handleCloseEditor}
         title="Add SOAP note"
         position="right"
@@ -662,14 +679,16 @@ export function SOAPNotes({
                           </Group>
                           {entry.preview.length > 0 && (
                             <Text size="xs" mt={6} lineClamp={3}>
-                              {entry.preview}
+                              {soapText(entry.preview)}
                             </Text>
                           )}
                         </div>
                       ))
                     ) : (
                       <Text size="sm" c="dimmed">
-                        No SOAP note entries found for this patient.
+                        {canShowSoapText
+                          ? "No SOAP note entries found for this patient."
+                          : "SOAP timeline is restricted by field policy."}
                       </Text>
                     )}
                   </Stack>
@@ -766,7 +785,13 @@ export function SOAPNotes({
                       Combined note
                     </Text>
                   </Group>
-                  <Button type="button" size="xs" variant="light" onClick={combineSections}>
+                  <Button
+                    type="button"
+                    size="xs"
+                    variant="light"
+                    onClick={combineSections}
+                    disabled={!canEditSoap}
+                  >
                     Combine S/O/A/P
                   </Button>
                 </Group>
@@ -795,7 +820,7 @@ export function SOAPNotes({
                 <Button type="button" variant="default" onClick={handleCloseEditor}>
                   Cancel
                 </Button>
-                <Button type="submit" loading={isSubmitting}>
+                <Button type="submit" loading={isSubmitting} disabled={!canEditSoap}>
                   {label}
                 </Button>
               </Group>

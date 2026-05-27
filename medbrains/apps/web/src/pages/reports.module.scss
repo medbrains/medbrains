@@ -23,11 +23,24 @@
 .familyButton {
   width: 100%;
   border-radius: var(--mantine-radius-md);
+  color: light-dark(var(--mantine-color-gray-8), var(--mantine-color-gray-1));
 }
 
 .familyButtonActive {
-  background: linear-gradient(135deg, var(--mantine-color-teal-0), var(--mantine-color-blue-0));
-  border: 1px solid var(--mantine-color-teal-2);
+  border: 1px solid light-dark(var(--mantine-color-teal-3), rgba(20, 184, 166, 0.55));
+  background:
+    linear-gradient(90deg, light-dark(var(--mantine-color-teal-6), var(--mantine-color-teal-5)) 0 4px, transparent 4px),
+    linear-gradient(135deg, light-dark(var(--mantine-color-teal-0), rgba(20, 184, 166, 0.18)), light-dark(var(--mantine-color-blue-0), rgba(59, 130, 246, 0.14)));
+  color: light-dark(var(--mantine-color-gray-9), var(--mantine-color-white));
+}
+
+.familyButtonActive :global(.mantine-NavLink-label),
+.familyButtonActive :global(.mantine-NavLink-description) {
+  color: light-dark(var(--mantine-color-gray-9), var(--mantine-color-white));
+}
+
+.familyButtonActive :global(.mantine-NavLink-description) {
+  opacity: 0.78;
 }
 
 .searchPanel {

@@ -2,10 +2,13 @@ pub mod abdm;
 pub mod access;
 pub mod admin;
 pub mod admin_db_topology;
+pub mod admin_simulator;
 pub mod admin_system_state;
+pub mod aebas;
 pub mod ambulance;
 pub mod analytics;
 pub mod appointments;
+pub mod assets;
 pub mod audit;
 pub mod auth;
 pub mod bedside_portal;
@@ -59,6 +62,7 @@ pub mod mrd;
 pub mod multi_hospital;
 pub mod nabh_evidence;
 pub mod nabh_indicators;
+pub mod news;
 pub mod nhcx_callback;
 pub mod nurse_clinical;
 pub mod nurse_handoff;
@@ -811,6 +815,10 @@ pub fn build_router(state: AppState) -> Router {
             "/api/opd/certificates",
             post(opd::create_certificate),
         )
+        .route(
+            "/api/opd/certificates/{id}/void",
+            put(opd::void_certificate),
+        )
         // ── OPD Round 3: Vitals history, Referrals, Procedures, Duplicate check
         .route(
             "/api/opd/patients/{id}/vitals-history",
@@ -865,6 +873,10 @@ pub fn build_router(state: AppState) -> Router {
             get(terminology::search_terminology),
         )
         .route(
+            "/api/terminology/search-with-suggestions",
+            get(terminology::search_terminology_with_suggestions),
+        )
+        .route(
             "/api/terminology/lookup",
             get(terminology::lookup_terminology),
         )
@@ -912,6 +924,10 @@ pub fn build_router(state: AppState) -> Router {
         .route(
             "/api/opd/consents/{id}/sign",
             put(opd::sign_consent),
+        )
+        .route(
+            "/api/opd/consents/{id}/revoke",
+            put(opd::revoke_consent),
         )
         // OPD — consultation templates
         .route(
@@ -1415,6 +1431,10 @@ pub fn build_router(state: AppState) -> Router {
             "/api/payments/refund",
             post(payment_gateway::initiate_refund),
         )
+        .route(
+            "/api/payments/razorpay/status",
+            get(payment_gateway::razorpay_status),
+        )
         // ── Lab ──────────────────────────────────────────
         // Phase 3 static routes (MUST be before /orders/{id})
         .route(
@@ -1818,6 +1838,10 @@ pub fn build_router(state: AppState) -> Router {
             get(pharmacy::list_returns).post(pharmacy::create_return),
         )
         .route(
+            "/api/pharmacy/returns/batch",
+            post(pharmacy::create_return_batch),
+        )
+        .route(
             "/api/pharmacy/returns/{id}/process",
             put(pharmacy::process_return),
         )
@@ -1853,6 +1877,7 @@ pub fn build_router(state: AppState) -> Router {
         .route("/api/pharmacy/safety/allergy-check", post(pharmacy::check_patient_allergies))
         .route("/api/pharmacy/batches/fefo-select", post(pharmacy::select_fefo_batch))
         .route("/api/pharmacy/pos/sales", get(pharmacy::list_pos_sales).post(pharmacy::create_pos_sale))
+        .route("/api/pharmacy/pos/sales/{id}/items", get(pharmacy::list_pos_sale_items))
         .route("/api/pharmacy/pos/sales/{id}/cancel", put(pharmacy::cancel_pos_sale))
         .route("/api/pharmacy/pos/sales/{id}/return-items", put(pharmacy::return_pos_items))
         .route("/api/pharmacy/pos/day-summary", get(pharmacy::pos_day_summary))
@@ -1988,6 +2013,26 @@ pub fn build_router(state: AppState) -> Router {
             get(abdm::hfr::get_tenant_facility),
         )
         .route(
+            "/api/abdm/abha/status",
+            get(abdm::abha::status),
+        )
+        .route(
+            "/api/abdm/abha/session",
+            post(abdm::abha::create_session),
+        )
+        .route(
+            "/api/abdm/abha/public-certificate",
+            post(abdm::abha::public_certificate),
+        )
+        .route(
+            "/api/abdm/abha/login/request-otp",
+            post(abdm::abha::request_login_otp),
+        )
+        .route(
+            "/api/abdm/abha/login/verify",
+            post(abdm::abha::verify_login_otp),
+        )
+        .route(
             "/api/abdm/gateway/callback",
             post(abdm::hip_relay::receive_callback),
         )
@@ -2036,6 +2081,10 @@ pub fn build_router(state: AppState) -> Router {
         .route(
             "/api/nurse/vitals",
             post(nurse_vitals::create_vitals_reading),
+        )
+        .route(
+            "/api/nurse/vitals/encounter/{encounter_id}",
+            get(nurse_vitals::list_vitals_for_encounter),
         )
         .route(
             "/api/nurse/vitals-schedules",
@@ -2849,7 +2898,7 @@ pub fn build_router(state: AppState) -> Router {
         )
         .route(
             "/api/ipd/admissions/{id}/transfer",
-            put(ipd::transfer_bed),
+            put(ipd::transfer_bed).post(ipd::bed_transfer),
         )
         .route(
             "/api/ipd/admissions/{id}/discharge",
@@ -3755,6 +3804,28 @@ pub fn build_router(state: AppState) -> Router {
             "/api/bme/calibrations",
             get(bme::list_calibrations).post(bme::create_calibration),
         )
+        // ── Unified Assets & Stores ─────────────────────────
+        .route("/api/assets", get(assets::list_assets))
+        .route(
+            "/api/assets/categories",
+            get(assets::list_asset_categories).post(assets::create_asset_category),
+        )
+        .route(
+            "/api/assets/categories/{id}",
+            put(assets::update_asset_category),
+        )
+        .route(
+            "/api/assets/store-categories",
+            get(assets::list_store_categories).post(assets::create_store_category),
+        )
+        .route(
+            "/api/assets/store-categories/{id}",
+            put(assets::update_store_category),
+        )
+        .route(
+            "/api/assets/classifications",
+            post(assets::upsert_asset_classification),
+        )
         .route(
             "/api/bme/calibrations/{id}",
             put(bme::update_calibration),
@@ -3866,6 +3937,46 @@ pub fn build_router(state: AppState) -> Router {
             put(mrd::update_retention_policy),
         )
         .route(
+            "/api/mrd/storage-locations",
+            get(mrd::list_storage_locations).post(mrd::create_storage_location),
+        )
+        .route(
+            "/api/mrd/storage-locations/{id}",
+            put(mrd::update_storage_location),
+        )
+        .route(
+            "/api/mrd/case-sheets",
+            get(mrd::list_case_sheet_packets),
+        )
+        .route(
+            "/api/mrd/case-sheets/from-opd/{encounter_id}",
+            post(mrd::generate_opd_case_sheet_packet),
+        )
+        .route(
+            "/api/mrd/case-sheets/from-ipd/{admission_id}",
+            post(mrd::generate_ipd_case_sheet_packet),
+        )
+        .route(
+            "/api/mrd/case-sheets/{id}",
+            get(mrd::get_case_sheet_packet),
+        )
+        .route(
+            "/api/mrd/case-sheets/{id}/pages",
+            get(mrd::list_case_sheet_pages),
+        )
+        .route(
+            "/api/mrd/case-sheets/{id}/completeness",
+            get(mrd::get_case_sheet_completeness),
+        )
+        .route(
+            "/api/mrd/case-sheets/{id}/print",
+            post(mrd::print_case_sheet_packet),
+        )
+        .route(
+            "/api/mrd/case-sheets/{id}/file",
+            post(mrd::file_case_sheet_packet),
+        )
+        .route(
             "/api/mrd/stats/morbidity-mortality",
             get(mrd::stats_morbidity_mortality),
         )
@@ -3926,8 +4037,40 @@ pub fn build_router(state: AppState) -> Router {
             get(camp::get_camp_packet),
         )
         .route(
+            "/api/camp/camps/{id}/planning-summary",
+            get(camp::get_camp_planning_summary),
+        )
+        .route(
+            "/api/camp/camps/{camp_id}/asset-candidates",
+            get(assets::list_camp_asset_candidates),
+        )
+        .route(
+            "/api/camp/camps/{camp_id}/asset-reservations",
+            get(assets::list_camp_asset_reservations).post(assets::create_camp_asset_reservation),
+        )
+        .route(
+            "/api/camp/asset-reservations/{id}/issue",
+            put(assets::issue_camp_asset_reservation),
+        )
+        .route(
+            "/api/camp/asset-reservations/{id}/return",
+            put(assets::return_camp_asset_reservation),
+        )
+        .route(
+            "/api/camp/asset-reservations/{id}/cancel",
+            put(assets::cancel_camp_asset_reservation),
+        )
+        .route(
             "/api/camp/sync/inbound",
             post(camp::sync_camp_inbound),
+        )
+        .route(
+            "/api/camp/lookups/staff",
+            get(camp::list_staff_options),
+        )
+        .route(
+            "/api/camp/lookups/medicines",
+            get(camp::list_medicine_options),
         )
         .route(
             "/api/camp/camps/{camp_id}/remote-operations",
@@ -3946,12 +4089,16 @@ pub fn build_router(state: AppState) -> Router {
             post(camp::create_supply_item),
         )
         .route(
+            "/api/camp/camps/{camp_id}/supplies/bulk",
+            post(camp::bulk_create_supply_items),
+        )
+        .route(
             "/api/camp/supplies/{id}",
             put(camp::update_supply_item),
         )
         .route(
             "/api/camp/camps/{camp_id}/referrals",
-            post(camp::create_camp_referral),
+            get(camp::list_camp_referrals).post(camp::create_camp_referral),
         )
         .route(
             "/api/camp/referrals/{id}",
@@ -4752,6 +4899,14 @@ pub fn build_router(state: AppState) -> Router {
             get(documents::list_printers).post(documents::create_printer),
         )
         .route(
+            "/api/documents/print-editor/capabilities",
+            get(documents::print_editor_capabilities),
+        )
+        .route(
+            "/api/documents/print-editor/mock-render",
+            post(documents::mock_render_print_template),
+        )
+        .route(
             "/api/documents/print-jobs",
             get(documents::list_print_jobs),
         )
@@ -5444,6 +5599,14 @@ pub fn build_router(state: AppState) -> Router {
             get(print_data_clinical::get_wristband_print_data),
         )
         .route(
+            "/api/print-data/opd-certificate/{certificate_id}",
+            get(print_data_clinical::get_opd_certificate_print_data),
+        )
+        .route(
+            "/api/print-data/opd-consent/{consent_id}",
+            get(print_data_clinical::get_opd_consent_print_data),
+        )
+        .route(
             "/api/print-data/appointment-slip/{appointment_id}",
             get(print_data_clinical::get_appointment_slip_print_data),
         )
@@ -5680,6 +5843,10 @@ pub fn build_router(state: AppState) -> Router {
         .route(
             "/api/print-data/mlc-register/{case_id}",
             get(print_data_medicolegal::get_mlc_register_print_data),
+        )
+        .route(
+            "/api/print-data/mlc-police-intimation/{intimation_id}",
+            get(print_data_medicolegal::get_mlc_police_intimation_print_data),
         )
         .route(
             "/api/print-data/wound-certificate/{case_id}",
@@ -6395,6 +6562,47 @@ pub fn build_router(state: AppState) -> Router {
             get(admin_system_state::get_system_state)
                 .post(admin_system_state::update_system_state),
         )
+        // Internal data simulator control plane (super_admin / hospital_admin).
+        // Schedules carry a JSON profile + cron; run-now kicks the engine
+        // in a detached task and returns the run_id immediately.
+        .route(
+            "/api/admin/simulator/schedules",
+            get(admin_simulator::list_schedules).post(admin_simulator::create_schedule),
+        )
+        .route(
+            "/api/admin/simulator/schedules/{id}",
+            get(admin_simulator::get_schedule)
+                .put(admin_simulator::update_schedule)
+                .delete(admin_simulator::delete_schedule),
+        )
+        .route(
+            "/api/admin/simulator/schedules/{id}/run-now",
+            post(admin_simulator::run_now),
+        )
+        .route("/api/admin/simulator/preview", post(admin_simulator::preview))
+        .route(
+            "/api/admin/simulator/runs/{id}/approve",
+            post(admin_simulator::approve_run),
+        )
+        .route(
+            "/api/admin/simulator/runs/{id}/reject",
+            post(admin_simulator::reject_run),
+        )
+        .route("/api/admin/simulator/runs", get(admin_simulator::list_runs))
+        .route(
+            "/api/admin/simulator/runs/{id}",
+            get(admin_simulator::get_run),
+        )
+        // News / health advisories — public list (any auth'd role), admin CRUD.
+        .route("/api/news", get(news::list_active))
+        .route(
+            "/api/admin/news",
+            get(news::list_all).post(news::create_article),
+        )
+        .route(
+            "/api/admin/news/{id}",
+            put(news::update_article).delete(news::delete_article),
+        )
         // Sprint B.4.3 — per-tenant DB topology selector (aurora ↔ patroni)
         .route(
             "/api/admin/db-topology",
@@ -6485,6 +6693,12 @@ pub fn build_router(state: AppState) -> Router {
         .route("/api/incentive-calculations", get(it_security::list_incentive_calculations).post(it_security::calculate_incentive))
         .route("/api/incentive-calculations/{id}/approve", post(it_security::approve_incentive))
         .route("/api/incentive-calculations/{id}/paid", post(it_security::mark_incentive_paid))
+        // ── AEBAS / BAS attendance integration ───────────────────────
+        .route("/api/aebas/status", get(aebas::status))
+        .route(
+            "/api/aebas/period-summary",
+            post(aebas::import_period_summary),
+        )
         // ── Device Integration ───────────────────────────────────────
         // Adapter catalog (global knowledge base)
         .route("/api/devices/manufacturers", get(devices::list_manufacturers))

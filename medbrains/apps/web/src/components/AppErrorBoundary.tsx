@@ -181,7 +181,7 @@ class AppErrorBoundaryInner extends Component<BoundaryProps, BoundaryState> {
               </Button>
               <Button
                 leftSection={<IconHome size={16} />}
-                onClick={() => window.location.assign("/dashboard")}
+                onClick={() => window.location.assign("/apps")}
                 variant="light"
               >
                 Dashboard

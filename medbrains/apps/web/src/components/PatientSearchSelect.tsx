@@ -17,6 +17,7 @@ interface PatientSearchSelectProps {
   required?: boolean;
   size?: string;
   error?: string;
+  selectedDisplay?: string;
   /** Patient IDs to exclude from results (e.g. current patient in merge) */
   excludeIds?: string[];
 }
@@ -48,16 +49,18 @@ export function PatientSearchSelect({
   required,
   size = "sm",
   error,
+  selectedDisplay,
   excludeIds = [],
 }: PatientSearchSelectProps) {
   const [search, setSearch] = useState("");
   const [debounced] = useDebouncedValue(search, 300);
+  const canListPatients = useHasPermission(P.PATIENTS.LIST);
   const canCreatePatient = useHasPermission(P.PATIENTS.CREATE);
 
   const { data } = useQuery({
     queryKey: ["patient-search", debounced],
     queryFn: () => lookupsService.listPatients({ search: debounced, per_page: 15 }),
-    enabled: debounced.length >= 2,
+    enabled: canListPatients && debounced.length >= 2,
     staleTime: 30_000,
   });
 
@@ -77,9 +80,10 @@ export function PatientSearchSelect({
       onSearchChange={setSearch}
       getItemValue={(patient) => patient.id}
       getItemDisplay={(patient) => `${patient.first_name} ${patient.last_name} (${patient.uhid})`}
+      selectedDisplay={selectedDisplay}
       onSelect={(patient) => onChange(patient.id)}
       onClear={() => onChange("")}
-      emptyLabel="No patients found"
+      emptyLabel={canListPatients ? "No patients found" : "Patient search restricted"}
       canCreate={canCreatePatient}
       createButtonLabel="Register new patient"
       createButtonIcon={<IconUserPlus size={14} />}

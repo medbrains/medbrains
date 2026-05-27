@@ -101,6 +101,8 @@ pub struct PatientCardPrintData {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WristbandPrintData {
+    pub document_number: String,
+    pub is_reprint: bool,
     pub patient_name: String,
     pub uhid: String,
     pub age: Option<String>,
@@ -111,7 +113,67 @@ pub struct WristbandPrintData {
     pub bed_number: Option<String>,
     pub ward_name: Option<String>,
     pub doctor_name: Option<String>,
+    pub is_critical: bool,
+    pub is_mlc: bool,
     pub allergies: Vec<String>,
+}
+
+// ── OPD Certificates / Consents ─────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OpdCertificatePrintData {
+    pub document_number: String,
+    pub is_reprint: bool,
+    pub certificate_number: Option<String>,
+    pub certificate_type: String,
+    pub patient_name: String,
+    pub uhid: String,
+    pub age: Option<String>,
+    pub gender: String,
+    pub date_of_birth: Option<String>,
+    pub phone: String,
+    pub doctor_name: Option<String>,
+    pub department: Option<String>,
+    pub encounter_date: Option<String>,
+    pub issued_date: String,
+    pub valid_from: Option<String>,
+    pub valid_to: Option<String>,
+    pub diagnosis: Option<String>,
+    pub remarks: Option<String>,
+    pub body: serde_json::Value,
+    pub hospital_name: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OpdProcedureConsentPrintData {
+    pub document_number: String,
+    pub is_reprint: bool,
+    pub consent_id: String,
+    pub consent_type: String,
+    pub status: String,
+    pub patient_name: String,
+    pub uhid: String,
+    pub age: Option<String>,
+    pub gender: String,
+    pub date_of_birth: Option<String>,
+    pub phone: String,
+    pub doctor_name: Option<String>,
+    pub department: Option<String>,
+    pub encounter_date: Option<String>,
+    pub procedure_name: String,
+    pub risks_explained: Option<String>,
+    pub alternatives_explained: Option<String>,
+    pub benefits_explained: Option<String>,
+    pub patient_questions: Option<String>,
+    pub consented_by_name: Option<String>,
+    pub consented_by_relation: Option<String>,
+    pub witness_name: Option<String>,
+    pub witness_designation: Option<String>,
+    pub signed_at: Option<String>,
+    pub withdrawn_at: Option<String>,
+    pub withdrawal_reason: Option<String>,
+    pub created_at: String,
+    pub hospital_name: Option<String>,
 }
 
 // ── Discharge Summary ────────────────────────────────────
@@ -163,6 +225,8 @@ pub struct DischargeSummaryPrintData {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ReceiptPrintData {
+    pub document_number: String,
+    pub is_reprint: bool,
     pub receipt_number: Option<String>,
     pub patient_name: String,
     pub uhid: String,
@@ -1144,6 +1208,7 @@ pub struct CaseSheetCoverPrintData {
     pub patient_name: String,
     pub uhid: String,
     pub age: Option<String>,
+    pub age_display: String,
     pub gender: String,
     pub admission_number: String,
     pub admission_date: String,
@@ -1153,12 +1218,16 @@ pub struct CaseSheetCoverPrintData {
     pub department: String,
     pub provisional_diagnosis: Option<String>,
     pub final_diagnosis: Option<String>,
+    pub primary_diagnosis: Option<String>,
+    pub secondary_diagnoses: Vec<String>,
     pub allergies: Vec<String>,
     pub blood_group: Option<String>,
     pub emergency_contact_name: Option<String>,
     pub emergency_contact_phone: Option<String>,
     pub insurance_provider: Option<String>,
     pub policy_number: Option<String>,
+    pub hospital_name: String,
+    pub hospital_logo_url: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1771,6 +1840,28 @@ pub struct MlcRegisterPrintData {
     pub patient_condition_at_discharge: Option<String>,
     pub examining_doctor: String,
     pub examined_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MlcPoliceIntimationPrintData {
+    pub intimation_number: String,
+    pub mlc_number: String,
+    pub patient_name: String,
+    pub uhid: String,
+    pub age: Option<String>,
+    pub gender: String,
+    pub police_station: String,
+    pub officer_name: Option<String>,
+    pub officer_designation: Option<String>,
+    pub officer_contact: Option<String>,
+    pub sent_at: String,
+    pub sent_via: Option<String>,
+    pub receipt_confirmed: bool,
+    pub receipt_confirmed_at: Option<String>,
+    pub receipt_number: Option<String>,
+    pub notes: Option<String>,
+    pub sent_by: Option<String>,
+    pub generated_at: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]

@@ -29,6 +29,8 @@ export const ipdService = {
   listAttenders: (...args: Parameters<typeof api.listAttenders>) => api.listAttenders(...args),
   createAttender: (...args: Parameters<typeof api.createAttender>) => api.createAttender(...args),
   deleteAttender: (...args: Parameters<typeof api.deleteAttender>) => api.deleteAttender(...args),
+  listDischargeTemplates: (...args: Parameters<typeof api.listDischargeTemplates>) =>
+    api.listDischargeTemplates(...args),
   getDischargeSummary: (...args: Parameters<typeof api.getDischargeSummary>) =>
     api.getDischargeSummary(...args),
   createDischargeSummary: (...args: Parameters<typeof api.createDischargeSummary>) =>
@@ -43,6 +45,8 @@ export const ipdService = {
   dischargePatient: (...args: Parameters<typeof api.dischargePatient>) =>
     api.dischargePatient(...args),
   listWards: (...args: Parameters<typeof api.listWards>) => api.listWards(...args),
+  listAvailableBeds: (...args: Parameters<typeof api.listAvailableBeds>) =>
+    api.listAvailableBeds(...args),
   createWard: (...args: Parameters<typeof api.createWard>) => api.createWard(...args),
   updateWard: (...args: Parameters<typeof api.updateWard>) => api.updateWard(...args),
   listWardBeds: (...args: Parameters<typeof api.listWardBeds>) => api.listWardBeds(...args),
@@ -105,6 +109,8 @@ export const ipdService = {
     api.getAdmissionConsents(...args),
   getAdmissionPrintData: (...args: Parameters<typeof api.getAdmissionPrintData>) =>
     api.getAdmissionPrintData(...args),
+  getWristbandPrintData: (...args: Parameters<typeof api.getWristbandPrintData>) =>
+    api.getWristbandPrintData(...args),
   listBedTurnaround: (...args: Parameters<typeof api.listBedTurnaround>) =>
     api.listBedTurnaround(...args),
   listRestraintChecks: (...args: Parameters<typeof api.listRestraintChecks>) =>

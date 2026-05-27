@@ -75,6 +75,27 @@ pub struct IamAccessRequestRow {
     pub updated_at: DateTime<Utc>,
 }
 
+const ELEVATED_PERMISSION_PREFIXES: &[&str] = &[
+    "admin.",
+    "security.",
+    "hr.",
+    "audit.access.",
+    "pharmacy.ndps.",
+    "regulatory.pcpndt.",
+    "mrd.deaths.",
+    "ipd.death_records.",
+];
+
+const ELEVATED_PERMISSION_CODES: &[&str] = &[
+    "audit.log.export",
+    "audit.break_glass.review",
+    "billing.write_off.approve",
+    "billing.concessions.approve",
+    "pharmacy.validation.bypass",
+    "pharmacy_finance.free_dispensing.approve",
+    "retrospective.approve",
+];
+
 pub async fn list_access_requests(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -230,6 +251,7 @@ pub async fn approve_access_request(
             ));
         }
     }
+    validate_review_authority(&claims, &row)?;
 
     let access_matrix = sqlx::query_scalar::<_, Value>(
         "SELECT access_matrix FROM users WHERE id = $1 AND tenant_id = $2",
@@ -298,6 +320,7 @@ pub async fn reject_access_request(
             row.status
         )));
     }
+    validate_review_authority(&claims, &row)?;
 
     sqlx::query(
         "UPDATE iam_access_requests \
@@ -335,6 +358,7 @@ pub async fn revoke_access_request(
             row.status
         )));
     }
+    validate_review_authority(&claims, &row)?;
 
     if row.status == "approved" {
         let access_matrix = sqlx::query_scalar::<_, Value>(
@@ -443,6 +467,32 @@ fn normalize_modules(requested: Option<Vec<String>>, permissions: &[String]) -> 
     }
     out.sort();
     out
+}
+
+fn is_elevated_permission(permission: &str) -> bool {
+    ELEVATED_PERMISSION_CODES.contains(&permission)
+        || ELEVATED_PERMISSION_PREFIXES
+            .iter()
+            .any(|prefix| permission.starts_with(prefix))
+}
+
+fn validate_review_authority(claims: &Claims, row: &IamAccessRequestRow) -> Result<(), AppError> {
+    if claims.sub == row.requester_id || claims.sub == row.target_user_id {
+        return Err(AppError::Conflict(
+            "access requests require a different reviewer".to_owned(),
+        ));
+    }
+
+    if row
+        .requested_permissions
+        .iter()
+        .any(|permission| is_elevated_permission(permission))
+        && !is_bypass_role(claims)
+    {
+        return Err(AppError::Forbidden);
+    }
+
+    Ok(())
 }
 
 fn ensure_matrix_object(value: Value) -> Map<String, Value> {

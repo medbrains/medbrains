@@ -13,7 +13,7 @@
 /// for now until the hierarchical `pub const` tree is consolidated
 /// into a flat array (see TODO above). Mirrors the count in
 /// `packages/types/src/permissions.ts::PERMISSIONS.length`.
-pub const PERMISSION_COUNT: usize = 661;
+pub const PERMISSION_COUNT: usize = 777;
 
 /// Returns all known permission codes. Currently hardcoded — see
 /// TODO above. The CI check `make check-permissions-sync` (planned)
@@ -51,6 +51,57 @@ pub mod opd {
     pub mod visit {
         pub const CREATE: &str = "opd.visit.create";
         pub const UPDATE: &str = "opd.visit.update";
+    }
+
+    pub mod vitals {
+        pub const LIST: &str = "opd.vitals.list";
+        pub const CREATE: &str = "opd.vitals.create";
+    }
+
+    pub mod diagnoses {
+        pub const LIST: &str = "opd.diagnoses.list";
+        pub const CREATE: &str = "opd.diagnoses.create";
+        pub const UPDATE: &str = "opd.diagnoses.update";
+        pub const DELETE: &str = "opd.diagnoses.delete";
+    }
+
+    pub mod procedures {
+        pub const LIST: &str = "opd.procedures.list";
+        pub const CREATE: &str = "opd.procedures.create";
+        pub const CANCEL: &str = "opd.procedures.cancel";
+    }
+
+    pub mod referrals {
+        pub const LIST: &str = "opd.referrals.list";
+        pub const CREATE: &str = "opd.referrals.create";
+    }
+
+    pub mod certificates {
+        pub const LIST: &str = "opd.certificates.list";
+        pub const CREATE: &str = "opd.certificates.create";
+        pub const PRINT: &str = "opd.certificates.print";
+        pub const REPRINT: &str = "opd.certificates.reprint";
+        pub const VOID: &str = "opd.certificates.void";
+    }
+
+    pub mod reminders {
+        pub const LIST: &str = "opd.reminders.list";
+        pub const CREATE: &str = "opd.reminders.create";
+        pub const UPDATE: &str = "opd.reminders.update";
+    }
+
+    pub mod feedback {
+        pub const LIST: &str = "opd.feedback.list";
+        pub const CREATE: &str = "opd.feedback.create";
+    }
+
+    pub mod consents {
+        pub const LIST: &str = "opd.consents.list";
+        pub const CREATE: &str = "opd.consents.create";
+        pub const SIGN: &str = "opd.consents.sign";
+        pub const PRINT: &str = "opd.consents.print";
+        pub const REPRINT: &str = "opd.consents.reprint";
+        pub const REVOKE: &str = "opd.consents.revoke";
     }
 
     pub const TOKEN_MANAGE: &str = "opd.token.manage";
@@ -130,6 +181,9 @@ pub mod pharmacy {
 
     pub mod dispensing {
         pub const CREATE: &str = "pharmacy.dispensing.create";
+        pub const PARTIAL: &str = "pharmacy.dispensing.partial";
+        pub const CANCEL: &str = "pharmacy.dispensing.cancel";
+        pub const VOID: &str = "pharmacy.dispensing.void";
     }
 
     pub mod stock {
@@ -152,6 +206,11 @@ pub mod pharmacy {
 
     pub mod returns {
         pub const LIST: &str = "pharmacy.returns.list";
+        pub const REQUEST: &str = "pharmacy.returns.request";
+        pub const APPROVE: &str = "pharmacy.returns.approve";
+        pub const RESTOCK: &str = "pharmacy.returns.restock";
+        pub const DESTROY: &str = "pharmacy.returns.destroy";
+        pub const REJECT: &str = "pharmacy.returns.reject";
         pub const MANAGE: &str = "pharmacy.returns.manage";
     }
 
@@ -175,6 +234,8 @@ pub mod pharmacy {
     pub mod pos {
         pub const CREATE: &str = "pharmacy.pos.create";
         pub const VIEW: &str = "pharmacy.pos.view";
+        pub const CANCEL: &str = "pharmacy.pos.cancel";
+        pub const RETURN: &str = "pharmacy.pos.return";
     }
 
     pub mod pricing {
@@ -196,11 +257,22 @@ pub mod billing {
         pub const LIST: &str = "billing.invoices.list";
         pub const VIEW: &str = "billing.invoices.view";
         pub const CREATE: &str = "billing.invoices.create";
+        pub const UPDATE: &str = "billing.invoices.update";
+        pub const CANCEL: &str = "billing.invoices.cancel";
+    }
+
+    pub mod catalog {
+        pub const MANAGE: &str = "billing.catalog.manage";
     }
 
     pub mod payments {
         pub const CREATE: &str = "billing.payments.create";
         pub const VOID: &str = "billing.payments.void";
+    }
+
+    pub mod receipts {
+        pub const PRINT: &str = "billing.receipts.print";
+        pub const REPRINT: &str = "billing.receipts.reprint";
     }
 
     pub mod advances {
@@ -214,6 +286,8 @@ pub mod billing {
         pub const LIST: &str = "billing.corporate.list";
         pub const CREATE: &str = "billing.corporate.create";
         pub const UPDATE: &str = "billing.corporate.update";
+        pub const ENROLL: &str = "billing.corporate.enroll";
+        pub const UNENROLL: &str = "billing.corporate.unenroll";
     }
 
     pub mod reports {
@@ -237,6 +311,7 @@ pub mod billing {
     pub mod credit {
         pub const LIST: &str = "billing.credit.list";
         pub const MANAGE: &str = "billing.credit.manage";
+        pub const APPLY: &str = "billing.credit.apply";
     }
 
     pub mod journal {
@@ -277,6 +352,17 @@ pub mod ipd {
         pub const VIEW: &str = "ipd.admissions.view";
         pub const CREATE: &str = "ipd.admissions.create";
         pub const UPDATE: &str = "ipd.admissions.update";
+        pub const PRINT: &str = "ipd.admissions.print";
+        pub const REPRINT: &str = "ipd.admissions.reprint";
+    }
+
+    pub mod attenders {
+        pub const MANAGE: &str = "ipd.attenders.manage";
+    }
+
+    pub mod wristband {
+        pub const PRINT: &str = "ipd.wristband.print";
+        pub const REPRINT: &str = "ipd.wristband.reprint";
     }
 
     pub mod discharge {
@@ -340,6 +426,11 @@ pub mod ipd {
         pub const MANAGE: &str = "ipd.wards.manage";
     }
 
+    pub mod tariffs {
+        pub const LIST: &str = "ipd.tariffs.list";
+        pub const MANAGE: &str = "ipd.tariffs.manage";
+    }
+
     pub mod discharge_summary {
         pub const CREATE: &str = "ipd.discharge_summary.create";
         pub const FINALIZE: &str = "ipd.discharge_summary.finalize";
@@ -372,6 +463,12 @@ pub mod ipd {
 
     pub mod discharge_tat {
         pub const VIEW: &str = "ipd.discharge_tat.view";
+        pub const UPDATE: &str = "ipd.discharge_tat.update";
+        pub const BILLING_UPDATE: &str = "ipd.discharge_tat.billing.update";
+        pub const PHARMACY_UPDATE: &str = "ipd.discharge_tat.pharmacy.update";
+        pub const NURSING_UPDATE: &str = "ipd.discharge_tat.nursing.update";
+        pub const DOCTOR_UPDATE: &str = "ipd.discharge_tat.doctor.update";
+        pub const COMPLETE: &str = "ipd.discharge_tat.complete";
     }
 }
 
@@ -539,9 +636,14 @@ pub mod camp {
     pub const CREATE: &str = "camp.create";
     pub const UPDATE: &str = "camp.update";
 
+    pub mod assets {
+        pub const MANAGE: &str = "camp.assets.manage";
+    }
+
     pub mod registrations {
         pub const LIST: &str = "camp.registrations.list";
         pub const CREATE: &str = "camp.registrations.create";
+        pub const UPDATE: &str = "camp.registrations.update";
     }
 
     pub mod screenings {
@@ -549,14 +651,28 @@ pub mod camp {
         pub const MANAGE: &str = "camp.screenings.manage";
     }
 
+    pub mod referrals {
+        pub const CREATE: &str = "camp.referrals.create";
+        pub const UPDATE: &str = "camp.referrals.update";
+        pub const STATUS: &str = "camp.referrals.status";
+    }
+
     pub mod lab {
         pub const LIST: &str = "camp.lab.list";
         pub const MANAGE: &str = "camp.lab.manage";
     }
 
+    pub mod billing {
+        pub const LIST: &str = "camp.billing.list";
+        pub const CREATE: &str = "camp.billing.create";
+    }
+
     pub mod followups {
         pub const LIST: &str = "camp.followups.list";
         pub const MANAGE: &str = "camp.followups.manage";
+        pub const SCHEDULE: &str = "camp.followups.schedule";
+        pub const OUTCOME: &str = "camp.followups.outcome";
+        pub const CONVERT: &str = "camp.followups.convert";
     }
 }
 
@@ -697,18 +813,37 @@ pub mod emergency {
     pub mod codes {
         pub const LIST: &str = "emergency.codes.list";
         pub const CREATE: &str = "emergency.codes.create";
+        pub const UPDATE: &str = "emergency.codes.update";
     }
 
     pub mod mlc {
         pub const LIST: &str = "emergency.mlc.list";
         pub const CREATE: &str = "emergency.mlc.create";
         pub const UPDATE: &str = "emergency.mlc.update";
+        pub const PRINT: &str = "emergency.mlc.print";
+        pub const REPRINT: &str = "emergency.mlc.reprint";
+    }
+
+    pub mod mlc_documents {
+        pub const SBAR_CREATE: &str = "emergency.mlc_documents.sbar.create";
+        pub const AGE_ESTIMATION_CREATE: &str = "emergency.mlc_documents.age_estimation.create";
+        pub const POCSO_CREATE: &str = "emergency.mlc_documents.pocso.create";
+        pub const COURT_SUMMONS_CREATE: &str = "emergency.mlc_documents.court_summons.create";
+    }
+
+    pub mod mlc_police_intimations {
+        pub const LIST: &str = "emergency.mlc_police_intimations.list";
+        pub const CREATE: &str = "emergency.mlc_police_intimations.create";
+        pub const CONFIRM: &str = "emergency.mlc_police_intimations.confirm";
+        pub const PRINT: &str = "emergency.mlc_police_intimations.print";
+        pub const REPRINT: &str = "emergency.mlc_police_intimations.reprint";
     }
 
     pub mod mass_casualty {
         pub const LIST: &str = "emergency.mass_casualty.list";
         pub const CREATE: &str = "emergency.mass_casualty.create";
         pub const UPDATE: &str = "emergency.mass_casualty.update";
+        pub const CLOSE: &str = "emergency.mass_casualty.close";
     }
 }
 
@@ -1007,6 +1142,14 @@ pub mod bme {
     }
 }
 
+pub mod assets {
+    pub const LIST: &str = "assets.list";
+    pub const MANAGE: &str = "assets.manage";
+    pub const RESERVE: &str = "assets.reserve";
+    pub const ISSUE: &str = "assets.issue";
+    pub const RETURN: &str = "assets.return";
+}
+
 pub mod mrd {
     pub mod records {
         pub const LIST: &str = "mrd.records.list";
@@ -1022,6 +1165,18 @@ pub mod mrd {
     pub mod deaths {
         pub const LIST: &str = "mrd.deaths.list";
         pub const CREATE: &str = "mrd.deaths.create";
+    }
+
+    pub mod case_sheets {
+        pub const VIEW: &str = "mrd.case_sheets.view";
+        pub const GENERATE: &str = "mrd.case_sheets.generate";
+        pub const PRINT: &str = "mrd.case_sheets.print";
+        pub const FILE: &str = "mrd.case_sheets.file";
+        pub const REPRINT: &str = "mrd.case_sheets.reprint";
+    }
+
+    pub mod storage {
+        pub const MANAGE: &str = "mrd.storage.manage";
     }
 }
 
@@ -1646,6 +1801,7 @@ pub mod audit {
     pub const VIEW: &str = "audit.log.view";
     pub const EXPORT: &str = "audit.log.export";
     pub const ACCESS_VIEW: &str = "audit.access.view";
+    pub const START: &str = "audit.break_glass.start";
     pub const REVIEW: &str = "audit.break_glass.review";
 }
 

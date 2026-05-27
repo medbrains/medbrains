@@ -1,4 +1,8 @@
 #![allow(clippy::too_many_lines)]
+// Structured camp-planning helpers staged in this file are scheduled for
+// wiring into the route layer in a follow-up. Suppress dead_code so the
+// in-progress scaffolding doesn't block CI.
+#![allow(dead_code)]
 
 use axum::{
     Extension, Json,
@@ -9,13 +13,22 @@ use medbrains_core::camp::{
     Camp, CampBillingRecord, CampFollowup, CampLabSample, CampRegistration, CampScreening,
     CampTeamMember,
 };
+use medbrains_core::form::FieldAccessLevel;
 use medbrains_core::permissions;
+use medbrains_core::privacy::{mask_identifier_keep_last, mask_name, mask_phone};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
+use serde_json::Value;
+use std::{collections::HashMap, str::FromStr};
 use uuid::Uuid;
 
 use crate::{
-    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
+    error::AppError,
+    middleware::{
+        auth::Claims,
+        authorization::{is_bypass_role, require_any_permission, require_permission},
+        field_access,
+    },
     state::AppState,
 };
 
@@ -37,6 +50,56 @@ pub struct CampPacketQuery {
 }
 
 #[derive(Debug, Deserialize)]
+pub struct CampLookupQuery {
+    pub search: Option<String>,
+    pub department_id: Option<Uuid>,
+}
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct CampStaffOption {
+    pub id: Uuid,
+    pub employee_code: String,
+    pub display_name: String,
+    pub department_id: Option<Uuid>,
+    pub department_name: Option<String>,
+    pub designation_name: Option<String>,
+    pub status: String,
+}
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct CampMedicineOption {
+    pub id: Uuid,
+    pub code: String,
+    pub name: String,
+    pub generic_name: Option<String>,
+    pub unit: Option<String>,
+    pub current_stock: i32,
+    pub base_price: Decimal,
+    pub tax_percent: Decimal,
+    pub drug_schedule: Option<String>,
+    pub is_controlled: bool,
+    pub is_lasa: bool,
+    pub batch_tracking_required: bool,
+    pub formulary_status: String,
+}
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct CampTeamMemberWithEmployee {
+    pub id: Uuid,
+    pub tenant_id: Uuid,
+    pub camp_id: Uuid,
+    pub employee_id: Uuid,
+    pub employee_code: Option<String>,
+    pub employee_name: Option<String>,
+    pub department_name: Option<String>,
+    pub role_in_camp: String,
+    pub is_confirmed: bool,
+    pub notes: Option<String>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Deserialize)]
 pub struct CreateCampRequest {
     pub name: String,
     pub camp_type: String,
@@ -55,7 +118,7 @@ pub struct CreateCampRequest {
     pub expected_participants: Option<i32>,
     pub budget_allocated: Option<Decimal>,
     pub logistics_notes: Option<String>,
-    pub equipment_list: Option<serde_json::Value>,
+    pub equipment_list: Option<Value>,
     pub is_free: Option<bool>,
     pub discount_percentage: Option<Decimal>,
 }
@@ -79,7 +142,7 @@ pub struct UpdateCampRequest {
     pub budget_allocated: Option<Decimal>,
     pub budget_spent: Option<Decimal>,
     pub logistics_notes: Option<String>,
-    pub equipment_list: Option<serde_json::Value>,
+    pub equipment_list: Option<Value>,
     pub is_free: Option<bool>,
     pub discount_percentage: Option<Decimal>,
     pub summary_notes: Option<String>,
@@ -129,14 +192,35 @@ pub struct UpdateRemoteChecklistItemRequest {
 #[derive(Debug, Deserialize)]
 pub struct CreateSupplyItemRequest {
     pub category: String,
+    pub catalog_item_id: Option<Uuid>,
+    pub batch_stock_id: Option<Uuid>,
+    pub store_location_id: Option<Uuid>,
     pub item_name: String,
     pub unit: Option<String>,
     pub planned_qty: Option<Decimal>,
     pub packed_qty: Option<Decimal>,
     pub batch_no: Option<String>,
     pub expiry_date: Option<NaiveDate>,
+    pub charge_mode: Option<String>,
+    pub unit_price: Option<Decimal>,
+    pub tax_percent: Option<Decimal>,
+    pub cost_amount: Option<Decimal>,
+    pub sponsor_covered_amount: Option<Decimal>,
+    pub concession_percentage: Option<Decimal>,
+    pub approval_required: Option<bool>,
     pub is_critical: Option<bool>,
     pub shortage_notes: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct BulkCreateSupplyItemsRequest {
+    pub items: Vec<CreateSupplyItemRequest>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct BulkCreateSupplyItemsResponse {
+    pub count: usize,
+    pub created: Vec<CampSupplyItem>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -198,7 +282,7 @@ pub struct CampSyncInboundEvent {
     pub event_type: String,
     pub client_entity_id: Option<Uuid>,
     pub occurred_at: Option<DateTime<Utc>>,
-    pub payload: serde_json::Value,
+    pub payload: Value,
 }
 
 #[derive(Debug, Deserialize)]
@@ -375,6 +459,238 @@ pub struct OpenCampRegistrationEncounterRequest {
     pub doctor_id: Option<Uuid>,
 }
 
+const CAMP_REGISTRATION_PERSON_NAME_FIELD: &str = "camp.registrations.person_name";
+const CAMP_REGISTRATION_PHONE_FIELD: &str = "camp.registrations.phone";
+const CAMP_REGISTRATION_ID_PROOF_FIELD: &str = "camp.registrations.id_proof_number";
+const BILLING_AMOUNT_FIELD: &str = "billing.amount";
+const CAMP_REGISTRATION_SELECTOR_PERMISSIONS: &[&str] = &[
+    permissions::camp::registrations::LIST,
+    permissions::camp::registrations::UPDATE,
+    permissions::camp::screenings::MANAGE,
+    permissions::camp::lab::MANAGE,
+    permissions::camp::billing::CREATE,
+    permissions::camp::followups::SCHEDULE,
+];
+
+async fn resolve_camp_registration_restricted_fields(
+    state: &AppState,
+    claims: &Claims,
+) -> Result<HashMap<String, FieldAccessLevel>, AppError> {
+    field_access::resolve_restricted_fields(&state.db, claims.tenant_id, claims.sub, &claims.role)
+        .await
+}
+
+fn has_patient_record_view(claims: &Claims) -> bool {
+    is_bypass_role(claims)
+        || claims
+            .permissions
+            .iter()
+            .any(|permission| permission == permissions::patients::VIEW)
+}
+
+fn claims_have_any_permission(claims: &Claims, permissions: &[&str]) -> bool {
+    is_bypass_role(claims)
+        || permissions.iter().any(|permission| {
+            claims
+                .permissions
+                .iter()
+                .any(|granted| granted == permission)
+        })
+}
+
+fn can_view_full_camp_registration_queue(claims: &Claims) -> bool {
+    claims_have_any_permission(claims, &[permissions::camp::registrations::LIST])
+}
+
+fn resolved_camp_registration_field_access(
+    restricted: &HashMap<String, FieldAccessLevel>,
+    field: &str,
+) -> FieldAccessLevel {
+    restricted
+        .get(field)
+        .copied()
+        .unwrap_or(FieldAccessLevel::Edit)
+}
+
+fn can_write_camp_registration_field(level: FieldAccessLevel) -> bool {
+    level == FieldAccessLevel::Edit
+}
+
+fn should_hide_camp_registration_field(level: FieldAccessLevel) -> bool {
+    level == FieldAccessLevel::Hidden
+}
+
+fn should_mask_camp_registration_field(level: FieldAccessLevel) -> bool {
+    level == FieldAccessLevel::Mask
+}
+
+fn has_camp_registration_text(value: &Option<String>) -> bool {
+    value.as_deref().is_some_and(|text| !text.trim().is_empty())
+}
+
+fn validate_camp_registration_write_access(
+    body: &CreateRegistrationRequest,
+    restricted: &HashMap<String, FieldAccessLevel>,
+) -> Result<(), AppError> {
+    let mut violations = Vec::new();
+    let name_access =
+        resolved_camp_registration_field_access(restricted, CAMP_REGISTRATION_PERSON_NAME_FIELD);
+    let phone_access =
+        resolved_camp_registration_field_access(restricted, CAMP_REGISTRATION_PHONE_FIELD);
+    let id_proof_access =
+        resolved_camp_registration_field_access(restricted, CAMP_REGISTRATION_ID_PROOF_FIELD);
+
+    if !can_write_camp_registration_field(name_access) {
+        violations.push("person_name");
+    }
+    if has_camp_registration_text(&body.phone) && !can_write_camp_registration_field(phone_access) {
+        violations.push("phone");
+    }
+    if (has_camp_registration_text(&body.id_proof_type)
+        || has_camp_registration_text(&body.id_proof_number))
+        && !can_write_camp_registration_field(id_proof_access)
+    {
+        violations.push("id_proof");
+    }
+
+    if violations.is_empty() {
+        return Ok(());
+    }
+
+    Err(AppError::BadRequest(format!(
+        "Cannot write restricted camp registration fields: {}",
+        violations.join(", ")
+    )))
+}
+
+fn filter_camp_registration_response(
+    mut row: CampRegistration,
+    restricted: &HashMap<String, FieldAccessLevel>,
+    can_view_patient_record: bool,
+    can_view_full_queue: bool,
+) -> CampRegistration {
+    let name_access =
+        resolved_camp_registration_field_access(restricted, CAMP_REGISTRATION_PERSON_NAME_FIELD);
+    let phone_access =
+        resolved_camp_registration_field_access(restricted, CAMP_REGISTRATION_PHONE_FIELD);
+    let id_proof_access =
+        resolved_camp_registration_field_access(restricted, CAMP_REGISTRATION_ID_PROOF_FIELD);
+
+    if should_hide_camp_registration_field(name_access) {
+        row.person_name = "Restricted".to_owned();
+    } else if should_mask_camp_registration_field(name_access) {
+        row.person_name = mask_name(&row.person_name);
+    }
+    if should_hide_camp_registration_field(phone_access) {
+        row.phone = None;
+    } else if should_mask_camp_registration_field(phone_access) {
+        row.phone = row.phone.map(|value| mask_phone(&value));
+    }
+    if should_hide_camp_registration_field(id_proof_access) {
+        row.id_proof_type = None;
+        row.id_proof_number = None;
+    } else if should_mask_camp_registration_field(id_proof_access) {
+        row.id_proof_number = row
+            .id_proof_number
+            .map(|value| mask_identifier_keep_last(&value, 4));
+    }
+    if !can_view_patient_record {
+        row.patient_id = None;
+    }
+    if !can_view_full_queue {
+        row.phone = None;
+        row.address = None;
+        row.id_proof_type = None;
+        row.id_proof_number = None;
+        row.patient_id = None;
+        row.registered_by = None;
+    }
+
+    row
+}
+
+fn filter_camp_registration_history_response(
+    mut row: CampPacketRegistrationHistory,
+    restricted: &HashMap<String, FieldAccessLevel>,
+    can_view_patient_record: bool,
+) -> CampPacketRegistrationHistory {
+    let name_access =
+        resolved_camp_registration_field_access(restricted, CAMP_REGISTRATION_PERSON_NAME_FIELD);
+    let phone_access =
+        resolved_camp_registration_field_access(restricted, CAMP_REGISTRATION_PHONE_FIELD);
+
+    if should_hide_camp_registration_field(name_access) {
+        row.person_name = "Restricted".to_owned();
+    } else if should_mask_camp_registration_field(name_access) {
+        row.person_name = mask_name(&row.person_name);
+    }
+    if should_hide_camp_registration_field(phone_access) {
+        row.phone_last4 = None;
+    }
+    if !can_view_patient_record {
+        row.patient_id = None;
+    }
+
+    row
+}
+
+fn filter_open_camp_encounter_response(
+    mut row: OpenCampRegistrationEncounterResponse,
+    can_view_patient_record: bool,
+) -> OpenCampRegistrationEncounterResponse {
+    if !can_view_patient_record {
+        row.patient_name = "Restricted".to_owned();
+        row.uhid = "Restricted".to_owned();
+    }
+    row
+}
+
+fn camp_billing_amount_access(restricted: &HashMap<String, FieldAccessLevel>) -> FieldAccessLevel {
+    restricted
+        .get(BILLING_AMOUNT_FIELD)
+        .copied()
+        .unwrap_or(FieldAccessLevel::Edit)
+}
+
+fn should_scrub_camp_billing_amount(restricted: &HashMap<String, FieldAccessLevel>) -> bool {
+    matches!(
+        camp_billing_amount_access(restricted),
+        FieldAccessLevel::Mask | FieldAccessLevel::Hidden
+    )
+}
+
+fn can_write_camp_billing_amount(restricted: &HashMap<String, FieldAccessLevel>) -> bool {
+    camp_billing_amount_access(restricted) == FieldAccessLevel::Edit
+}
+
+fn validate_camp_billing_amount_write_access(
+    restricted: &HashMap<String, FieldAccessLevel>,
+) -> Result<(), AppError> {
+    if can_write_camp_billing_amount(restricted) {
+        return Ok(());
+    }
+
+    Err(AppError::BadRequest(
+        "Cannot write restricted billing amount fields".to_owned(),
+    ))
+}
+
+fn filter_camp_billing_amounts(
+    mut row: CampBillingRecord,
+    restricted: &HashMap<String, FieldAccessLevel>,
+) -> CampBillingRecord {
+    if should_scrub_camp_billing_amount(restricted) {
+        row.standard_amount = Decimal::ZERO;
+        row.discount_percentage = Some(Decimal::ZERO);
+        row.charged_amount = Decimal::ZERO;
+        row.tax_percent = Decimal::ZERO;
+        row.tax_amount = Decimal::ZERO;
+        row.total_amount = Decimal::ZERO;
+        row.sponsor_covered_amount = Decimal::ZERO;
+    }
+    row
+}
+
 // ── Screenings ───────────────────────────────────────────
 
 #[derive(Debug, Deserialize)]
@@ -455,6 +771,71 @@ pub struct LinkLabSampleRequest {
     pub result_summary: Option<String>,
 }
 
+#[derive(Debug)]
+struct NormalizedCampLabSampleInput {
+    sample_type: String,
+    test_requested: String,
+    barcode: Option<String>,
+}
+
+fn normalize_camp_lab_sample_input(
+    body: &CreateLabSampleRequest,
+) -> Result<NormalizedCampLabSampleInput, AppError> {
+    let sample_type = body.sample_type.trim().to_ascii_lowercase();
+    if !matches!(
+        sample_type.as_str(),
+        "blood" | "urine" | "sputum" | "swab" | "other"
+    ) {
+        return Err(AppError::BadRequest(
+            "sample type must be blood, urine, sputum, swab, or other".to_owned(),
+        ));
+    }
+
+    let test_requested = body
+        .test_requested
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| AppError::BadRequest("test requested is required".to_owned()))?;
+    if test_requested.chars().count() > 255 {
+        return Err(AppError::BadRequest(
+            "test requested cannot exceed 255 characters".to_owned(),
+        ));
+    }
+
+    let barcode = body
+        .barcode
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToOwned::to_owned);
+    if barcode
+        .as_deref()
+        .is_some_and(|value| value.chars().count() > 100)
+    {
+        return Err(AppError::BadRequest(
+            "sample barcode cannot exceed 100 characters".to_owned(),
+        ));
+    }
+
+    Ok(NormalizedCampLabSampleInput {
+        sample_type,
+        test_requested: test_requested.to_owned(),
+        barcode,
+    })
+}
+
+#[derive(Debug, sqlx::FromRow)]
+struct CampLabSampleLinkContext {
+    patient_id: Option<Uuid>,
+    sent_to_lab: bool,
+}
+
+#[derive(Debug, sqlx::FromRow)]
+struct CampLabOrderLinkContext {
+    patient_id: Uuid,
+}
+
 // ── Billing ──────────────────────────────────────────────
 
 #[derive(Debug, Deserialize)]
@@ -470,9 +851,13 @@ pub struct CreateBillingRequest {
     pub standard_amount: Decimal,
     pub discount_percentage: Option<Decimal>,
     pub charged_amount: Decimal,
+    pub tax_percent: Option<Decimal>,
+    pub sponsor_covered_amount: Option<Decimal>,
     pub is_free: Option<bool>,
     pub payment_mode: Option<String>,
     pub payment_reference: Option<String>,
+    pub source_module: Option<String>,
+    pub source_entity_id: Option<Uuid>,
 }
 
 // ── Follow-ups ───────────────────────────────────────────
@@ -771,6 +1156,9 @@ pub struct CampSupplyItem {
     pub tenant_id: Uuid,
     pub camp_id: Uuid,
     pub category: String,
+    pub catalog_item_id: Option<Uuid>,
+    pub batch_stock_id: Option<Uuid>,
+    pub store_location_id: Option<Uuid>,
     pub item_name: String,
     pub unit: Option<String>,
     pub planned_qty: Decimal,
@@ -779,6 +1167,13 @@ pub struct CampSupplyItem {
     pub returned_qty: Decimal,
     pub batch_no: Option<String>,
     pub expiry_date: Option<NaiveDate>,
+    pub charge_mode: String,
+    pub unit_price: Decimal,
+    pub tax_percent: Decimal,
+    pub cost_amount: Decimal,
+    pub sponsor_covered_amount: Decimal,
+    pub concession_percentage: Decimal,
+    pub approval_required: bool,
     pub is_critical: bool,
     pub shortage_notes: Option<String>,
     pub created_at: DateTime<Utc>,
@@ -833,6 +1228,64 @@ pub struct CampReadinessSummary {
 }
 
 #[derive(Debug, Clone, Serialize)]
+pub struct CampPlanningFinancials {
+    pub planned_budget: Decimal,
+    pub planned_patient_collection: Decimal,
+    pub planned_sponsor_coverage: Decimal,
+    pub planned_cost: Decimal,
+    pub actual_patient_collection: Decimal,
+    pub sponsor_receivable: Decimal,
+    pub sponsor_collected: Decimal,
+    pub actual_cost: Decimal,
+    pub profit_loss: Decimal,
+    pub margin_pct: f64,
+    pub budget_variance: Decimal,
+    pub budget_variance_pct: f64,
+    pub cash_surplus: Decimal,
+    pub free_issue_value: Decimal,
+    pub paid_issue_value: Decimal,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct CampPlanningStockSummary {
+    pub total_items: i64,
+    pub medicine_items: i64,
+    pub approval_required_items: i64,
+    pub shortage_items: i64,
+    pub critical_shortage_items: i64,
+    pub traceability_gap_items: i64,
+    pub supply_return_pending_items: i64,
+    pub asset_reservation_items: i64,
+    pub asset_critical_unissued_items: i64,
+    pub asset_return_pending_items: i64,
+    pub asset_reconciliation_blocked_items: i64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct CampPlanningActionItem {
+    pub code: String,
+    pub label: String,
+    pub severity: String,
+    pub status: String,
+    pub owner_module: String,
+    pub evidence: String,
+    pub blocks_activation: bool,
+    pub blocks_closeout: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct CampPlanningSummary {
+    pub camp_id: Uuid,
+    pub camp_status: String,
+    pub readiness: CampReadinessSummary,
+    pub financials: CampPlanningFinancials,
+    pub stock: CampPlanningStockSummary,
+    pub action_items: Vec<CampPlanningActionItem>,
+    pub activation_blocked: bool,
+    pub closeout_blocked: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
 pub struct CampRemoteOperationsResponse {
     pub setup: CampRemoteSetup,
     pub checklist: Vec<CampRemoteChecklistItem>,
@@ -849,7 +1302,7 @@ pub struct CampSyncEventResult {
     pub status: String,
     pub server_entity_type: Option<String>,
     pub server_entity_id: Option<Uuid>,
-    pub server_entities: Option<serde_json::Value>,
+    pub server_entities: Option<Value>,
     pub message: Option<String>,
 }
 
@@ -868,7 +1321,7 @@ pub struct CampSyncInboundResponse {
 struct AppliedSyncEvent {
     server_entity_type: String,
     server_entity_id: Uuid,
-    server_entities: serde_json::Value,
+    server_entities: Value,
 }
 
 #[derive(Debug, sqlx::FromRow)]
@@ -878,6 +1331,78 @@ struct ExistingSyncEvent {
     server_entity_type: Option<String>,
     server_entity_id: Option<Uuid>,
     error: Option<String>,
+}
+
+#[derive(Debug, sqlx::FromRow)]
+struct CampPlanningBillingTotals {
+    patient_collected: Option<Decimal>,
+    sponsor_receivable: Option<Decimal>,
+    free_issue_value: Option<Decimal>,
+    paid_issue_value: Option<Decimal>,
+    billed_items: i64,
+    free_items: i64,
+    paid_items: i64,
+}
+
+#[derive(Debug, sqlx::FromRow)]
+struct CampPlanningSupplyTotals {
+    total_items: i64,
+    medicine_items: i64,
+    approval_required_items: i64,
+    shortage_items: i64,
+    critical_shortage_items: i64,
+    traceability_gap_items: i64,
+    supply_return_pending_items: i64,
+    asset_return_pending_items: i64,
+    planned_supply_cost: Option<Decimal>,
+    actual_supply_cost: Option<Decimal>,
+    supply_free_issue_value: Option<Decimal>,
+}
+
+#[derive(Debug, sqlx::FromRow)]
+struct CampPlanningAssetTotals {
+    total_reservations: i64,
+    critical_unissued_items: i64,
+    return_pending_items: i64,
+    compliance_blocked_items: i64,
+}
+
+#[derive(Debug, sqlx::FromRow)]
+struct CampTeamCountRow {
+    total_team: i64,
+    confirmed_team: i64,
+}
+
+#[derive(Debug, sqlx::FromRow)]
+struct CampStructuredPlanTotals {
+    counter_items: i64,
+    department_items: i64,
+    doctor_items: i64,
+    staff_items: i64,
+    service_items: i64,
+    medicine_items: i64,
+    pending_approvals: i64,
+    activation_blocking_approvals: i64,
+    closeout_blocking_approvals: i64,
+    site_open_items: i64,
+    closure_open_items: i64,
+    print_total_items: i64,
+    print_ready_items: i64,
+    planned_patient_collection: Option<Decimal>,
+    planned_sponsor_coverage: Option<Decimal>,
+    planned_cost: Option<Decimal>,
+    sponsor_receivable: Option<Decimal>,
+    sponsor_collected: Option<Decimal>,
+}
+
+#[derive(Debug, sqlx::FromRow)]
+struct JsonDataRow {
+    data: Value,
+}
+
+#[derive(Debug, sqlx::FromRow)]
+struct IdRow {
+    id: Uuid,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -1043,6 +1568,1256 @@ fn readiness_summary(items: &[CampRemoteChecklistItem]) -> CampReadinessSummary 
     }
 }
 
+fn camp_status_code(status: medbrains_core::camp::CampStatus) -> &'static str {
+    match status {
+        medbrains_core::camp::CampStatus::Planned => "planned",
+        medbrains_core::camp::CampStatus::Approved => "approved",
+        medbrains_core::camp::CampStatus::Setup => "setup",
+        medbrains_core::camp::CampStatus::Active => "active",
+        medbrains_core::camp::CampStatus::Completed => "completed",
+        medbrains_core::camp::CampStatus::Cancelled => "cancelled",
+    }
+}
+
+fn json_decimal(value: Option<&Value>) -> Decimal {
+    match value {
+        Some(Value::Number(number)) => Decimal::from_str(&number.to_string()).unwrap_or_default(),
+        Some(Value::String(text)) => Decimal::from_str(text.trim()).unwrap_or_default(),
+        _ => Decimal::ZERO,
+    }
+}
+
+fn json_array<'a>(value: &'a Value, key: &str) -> &'a [Value] {
+    value
+        .get(key)
+        .and_then(Value::as_array)
+        .map(Vec::as_slice)
+        .unwrap_or(&[])
+}
+
+fn json_text(value: Option<&Value>) -> Option<String> {
+    value
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|text| !text.is_empty())
+        .map(ToOwned::to_owned)
+}
+
+fn json_text_or(value: Option<&Value>, fallback: &str) -> String {
+    json_text(value).unwrap_or_else(|| fallback.to_owned())
+}
+
+fn json_uuid(value: Option<&Value>) -> Option<Uuid> {
+    json_text(value).and_then(|text| Uuid::parse_str(&text).ok())
+}
+
+fn json_i32(value: Option<&Value>) -> Option<i32> {
+    match value {
+        Some(Value::Number(number)) => number.as_i64().and_then(|raw| i32::try_from(raw).ok()),
+        Some(Value::String(text)) => text.trim().parse::<i32>().ok(),
+        _ => None,
+    }
+}
+
+fn json_bool(value: Option<&Value>) -> bool {
+    match value {
+        Some(Value::Bool(flag)) => *flag,
+        Some(Value::String(text)) => matches!(text.trim(), "true" | "1" | "yes"),
+        _ => false,
+    }
+}
+
+fn planned_component_sum(plan: &Value, key: &str) -> Decimal {
+    json_array(plan, "budget_components")
+        .iter()
+        .map(|item| json_decimal(item.get(key)))
+        .sum()
+}
+
+fn planned_service_patient_collection(plan: &Value) -> Decimal {
+    json_array(plan, "service_offerings")
+        .iter()
+        .map(|item| {
+            let mode = item
+                .get("charge_mode")
+                .and_then(Value::as_str)
+                .unwrap_or("free");
+            if matches!(mode, "free" | "sponsor_covered") {
+                Decimal::ZERO
+            } else {
+                let qty = json_decimal(item.get("planned_qty"));
+                let rate = json_decimal(item.get("patient_rate"));
+                let concession = json_decimal(item.get("concession_percentage"));
+                (qty * rate * (Decimal::from(100) - concession) / Decimal::from(100)).round_dp(2)
+            }
+        })
+        .sum()
+}
+
+fn planned_doctor_patient_collection(plan: &Value) -> Decimal {
+    json_array(plan, "doctor_engagements")
+        .iter()
+        .map(|item| {
+            let mode = item
+                .get("charge_mode")
+                .and_then(Value::as_str)
+                .unwrap_or("free");
+            if matches!(mode, "free" | "sponsor_covered") {
+                Decimal::ZERO
+            } else {
+                let qty = json_decimal(item.get("expected_consults"));
+                let rate = json_decimal(item.get("consultation_fee"));
+                let concession = json_decimal(item.get("concession_percentage"));
+                (qty * rate * (Decimal::from(100) - concession) / Decimal::from(100)).round_dp(2)
+            }
+        })
+        .sum()
+}
+
+fn planned_medicine_patient_collection(plan: &Value) -> Decimal {
+    json_array(plan, "planned_medicine_refs")
+        .iter()
+        .map(|item| {
+            let mode = item
+                .get("charge_mode")
+                .and_then(Value::as_str)
+                .unwrap_or("free");
+            if matches!(mode, "free" | "sponsor_covered") {
+                Decimal::ZERO
+            } else {
+                let paid_qty = json_decimal(item.get("paid_qty"));
+                let planned_qty = json_decimal(item.get("planned_qty"));
+                let qty = if paid_qty > Decimal::ZERO {
+                    paid_qty
+                } else {
+                    planned_qty
+                };
+                let rate = json_decimal(item.get("unit_price"));
+                let concession = json_decimal(item.get("concession_percentage"));
+                (qty * rate * (Decimal::from(100) - concession) / Decimal::from(100)).round_dp(2)
+            }
+        })
+        .sum()
+}
+
+fn planned_service_cost(plan: &Value) -> Decimal {
+    json_array(plan, "service_offerings")
+        .iter()
+        .map(|item| json_decimal(item.get("planned_qty")) * json_decimal(item.get("camp_cost")))
+        .sum()
+}
+
+fn planned_doctor_cost(plan: &Value) -> Decimal {
+    json_array(plan, "doctor_engagements")
+        .iter()
+        .map(|item| json_decimal(item.get("salary_amount")))
+        .sum()
+}
+
+fn planned_medicine_cost(plan: &Value) -> Decimal {
+    json_array(plan, "planned_medicine_refs")
+        .iter()
+        .map(|item| json_decimal(item.get("planned_qty")) * json_decimal(item.get("cost_amount")))
+        .sum()
+}
+
+fn planned_sponsor_coverage(plan: &Value) -> Decimal {
+    let budget = planned_component_sum(plan, "sponsor_covered_amount");
+    let doctors: Decimal = json_array(plan, "doctor_engagements")
+        .iter()
+        .map(|item| json_decimal(item.get("sponsor_covered_amount")))
+        .sum();
+    let medicines: Decimal = json_array(plan, "planned_medicine_refs")
+        .iter()
+        .map(|item| json_decimal(item.get("sponsor_covered_amount")))
+        .sum();
+    budget + doctors + medicines
+}
+
+async fn soft_clear_materialized_camp_plan(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: Uuid,
+    camp_id: Uuid,
+    user_id: Uuid,
+) -> Result<(), AppError> {
+    for table in [
+        "camp_sponsor_plans",
+        "camp_target_populations",
+        "camp_counters",
+        "camp_department_counters",
+        "camp_doctor_roster",
+        "camp_staff_roster",
+        "camp_service_pricing_rules",
+        "camp_medicine_pricing_rules",
+        "camp_approval_items",
+        "camp_print_plan_items",
+        "camp_closure_tasks",
+    ] {
+        let sql = format!(
+            "UPDATE public.{table} SET \
+             deleted_at = COALESCE(deleted_at, now()), \
+             deleted_by = COALESCE(deleted_by, $3), \
+             delete_reason = COALESCE(delete_reason, 'Superseded by camp planning save'), \
+             updated_at = now() \
+             WHERE tenant_id = $1 AND camp_id = $2 AND deleted_at IS NULL"
+        );
+        sqlx::query(&sql)
+            .bind(tenant_id)
+            .bind(camp_id)
+            .bind(user_id)
+            .execute(&mut **tx)
+            .await?;
+    }
+    Ok(())
+}
+
+async fn upsert_camp_approval_item(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: Uuid,
+    camp_id: Uuid,
+    source_key: &str,
+    approval_type: &str,
+    linked_entity_type: &str,
+    linked_entity_id: Option<Uuid>,
+    requested_by: Uuid,
+    reason: &str,
+    blocks_activation: bool,
+    blocks_closeout: bool,
+) -> Result<(), AppError> {
+    sqlx::query(
+        "INSERT INTO camp_approval_items \
+         (tenant_id, camp_id, source_key, approval_type, linked_entity_type, linked_entity_id, \
+          requested_by, reason, status, blocks_activation, blocks_closeout, deleted_at, deleted_by, delete_reason) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'pending', $9, $10, NULL, NULL, NULL) \
+         ON CONFLICT (tenant_id, camp_id, source_key) DO UPDATE SET \
+          approval_type = EXCLUDED.approval_type, \
+          linked_entity_type = EXCLUDED.linked_entity_type, \
+          linked_entity_id = EXCLUDED.linked_entity_id, \
+          requested_by = COALESCE(camp_approval_items.requested_by, EXCLUDED.requested_by), \
+          reason = EXCLUDED.reason, \
+          blocks_activation = EXCLUDED.blocks_activation, \
+          blocks_closeout = EXCLUDED.blocks_closeout, \
+          status = CASE WHEN camp_approval_items.status = 'approved' THEN 'approved' ELSE 'pending' END, \
+          deleted_at = NULL, deleted_by = NULL, delete_reason = NULL, updated_at = now()",
+    )
+    .bind(tenant_id)
+    .bind(camp_id)
+    .bind(source_key)
+    .bind(approval_type)
+    .bind(linked_entity_type)
+    .bind(linked_entity_id)
+    .bind(requested_by)
+    .bind(reason)
+    .bind(blocks_activation)
+    .bind(blocks_closeout)
+    .execute(&mut **tx)
+    .await?;
+    Ok(())
+}
+
+fn approval_type_for_line(
+    charge_mode: &str,
+    approval_required: bool,
+    medicine: bool,
+) -> Option<&'static str> {
+    if !approval_required && !matches!(charge_mode, "free" | "mixed" | "sponsor_covered") {
+        return None;
+    }
+    if medicine && charge_mode == "mixed" {
+        return Some("partial_free_medicine");
+    }
+    if medicine {
+        return Some("free_medicine");
+    }
+    if charge_mode == "sponsor_covered" {
+        return Some("sponsor_billing");
+    }
+    if approval_required {
+        return Some("budget_overrun");
+    }
+    None
+}
+
+async fn materialize_default_camp_print_and_closure(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: Uuid,
+    camp_id: Uuid,
+) -> Result<(), AppError> {
+    for (template_type, template_name) in [
+        ("registration_slip", "Camp registration slip"),
+        ("prescription", "Camp prescription"),
+        ("referral_slip", "Referral slip"),
+        ("lab_label", "Lab sample label"),
+        ("medicine_issue_slip", "Medicine issue slip"),
+        ("asset_handover", "Asset handover"),
+        ("closure_summary", "Camp closure summary"),
+        ("nabh_evidence_pack", "NABH evidence pack"),
+    ] {
+        let source_key = format!("print:{template_type}");
+        sqlx::query(
+            "INSERT INTO camp_print_plan_items \
+             (tenant_id, camp_id, source_key, template_type, template_name, status, paper_size, copies, deleted_at, deleted_by, delete_reason) \
+             VALUES ($1, $2, $3, $4, $5, 'planned', 'A4', 1, NULL, NULL, NULL) \
+             ON CONFLICT (tenant_id, camp_id, source_key) DO UPDATE SET \
+              template_type = EXCLUDED.template_type, template_name = EXCLUDED.template_name, \
+              deleted_at = NULL, deleted_by = NULL, delete_reason = NULL, updated_at = now()",
+        )
+        .bind(tenant_id)
+        .bind(camp_id)
+        .bind(source_key)
+        .bind(template_type)
+        .bind(template_name)
+        .execute(&mut **tx)
+        .await?;
+    }
+
+    for (task_type, label) in [
+        ("stock_return", "Return or reconcile all camp stock"),
+        ("asset_return", "Return or reconcile all issued camp assets"),
+        (
+            "sponsor_settlement",
+            "Close sponsor receivable and settlement notes",
+        ),
+        (
+            "pending_referrals",
+            "Review pending referrals and follow-up ageing",
+        ),
+        (
+            "incidents",
+            "Close incidents, near misses, and corrective actions",
+        ),
+        ("bmw_handoff", "Attach biomedical waste handoff proof"),
+        (
+            "report_signoff",
+            "Sign off closure report and NABH evidence pack",
+        ),
+    ] {
+        let source_key = format!("closure:{task_type}");
+        sqlx::query(
+            "INSERT INTO camp_closure_tasks \
+             (tenant_id, camp_id, source_key, task_type, label, status, deleted_at, deleted_by, delete_reason) \
+             VALUES ($1, $2, $3, $4, $5, 'pending', NULL, NULL, NULL) \
+             ON CONFLICT (tenant_id, camp_id, source_key) DO UPDATE SET \
+              task_type = EXCLUDED.task_type, label = EXCLUDED.label, \
+              deleted_at = NULL, deleted_by = NULL, delete_reason = NULL, updated_at = now()",
+        )
+        .bind(tenant_id)
+        .bind(camp_id)
+        .bind(source_key)
+        .bind(task_type)
+        .bind(label)
+        .execute(&mut **tx)
+        .await?;
+    }
+
+    Ok(())
+}
+
+async fn materialize_camp_plan_from_value(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: Uuid,
+    camp_id: Uuid,
+    plan: Option<&Value>,
+    user_id: Uuid,
+) -> Result<(), AppError> {
+    let Some(plan) = plan else {
+        return Ok(());
+    };
+    if !plan.is_object() {
+        return Ok(());
+    }
+
+    soft_clear_materialized_camp_plan(tx, tenant_id, camp_id, user_id).await?;
+
+    let sponsor_amount = (planned_sponsor_coverage(plan)
+        + json_decimal(plan.get("sponsor_covered_amount")))
+    .round_dp(2);
+    if sponsor_amount > Decimal::ZERO {
+        let covered_services = json_array(plan, "service_lines")
+            .iter()
+            .filter_map(|item| json_text(Some(item)))
+            .collect::<Vec<_>>();
+        let covered_medicines = json_array(plan, "planned_medicine_refs")
+            .iter()
+            .filter_map(|item| json_text(item.get("medicine_name")))
+            .collect::<Vec<_>>();
+        sqlx::query(
+            "INSERT INTO camp_sponsor_plans \
+             (tenant_id, camp_id, source_key, sponsor_name, covered_services, covered_medicines, \
+              coverage_cap, receivable_amount, outstanding_amount, status, owner_id, notes, deleted_at, deleted_by, delete_reason) \
+             VALUES ($1, $2, 'default', $3, $4, $5, $6, $6, $6, 'active', $7, $8, NULL, NULL, NULL) \
+             ON CONFLICT (tenant_id, camp_id, source_key) DO UPDATE SET \
+              sponsor_name = EXCLUDED.sponsor_name, covered_services = EXCLUDED.covered_services, \
+              covered_medicines = EXCLUDED.covered_medicines, coverage_cap = EXCLUDED.coverage_cap, \
+              receivable_amount = EXCLUDED.receivable_amount, \
+              outstanding_amount = GREATEST(EXCLUDED.receivable_amount - camp_sponsor_plans.collected_amount, 0), \
+              owner_id = EXCLUDED.owner_id, notes = EXCLUDED.notes, status = 'active', \
+              deleted_at = NULL, deleted_by = NULL, delete_reason = NULL, updated_at = now()",
+        )
+        .bind(tenant_id)
+        .bind(camp_id)
+        .bind(json_text(plan.get("sponsor_name")).unwrap_or_else(|| "Camp sponsor".to_owned()))
+        .bind(covered_services)
+        .bind(covered_medicines)
+        .bind(sponsor_amount)
+        .bind(user_id)
+        .bind(json_text(plan.get("budget_notes")))
+        .execute(&mut **tx)
+        .await?;
+    }
+
+    for service_line in json_array(plan, "service_lines") {
+        if let Some(service_key) = json_text(Some(service_line)) {
+            let source_key = format!("counter:service:{service_key}");
+            sqlx::query(
+                "INSERT INTO camp_counters \
+                 (tenant_id, camp_id, source_key, counter_type, counter_name, status, notes, deleted_at, deleted_by, delete_reason) \
+                 VALUES ($1, $2, $3, 'service', $4, 'planned', $5, NULL, NULL, NULL) \
+                 ON CONFLICT (tenant_id, camp_id, source_key) DO UPDATE SET \
+                  counter_name = EXCLUDED.counter_name, notes = EXCLUDED.notes, \
+                  deleted_at = NULL, deleted_by = NULL, delete_reason = NULL, updated_at = now()",
+            )
+            .bind(tenant_id)
+            .bind(camp_id)
+            .bind(source_key)
+            .bind(service_key.replace('_', " "))
+            .bind(json_text(plan.get("service_policy_notes")))
+            .execute(&mut **tx)
+            .await?;
+        }
+    }
+
+    for department_id in json_array(plan, "supporting_department_ids")
+        .iter()
+        .filter_map(|item| json_uuid(Some(item)))
+    {
+        let source_key = format!("department:{department_id}");
+        sqlx::query(
+            "INSERT INTO camp_department_counters \
+             (tenant_id, camp_id, source_key, department_id, service_scope, opd_routing_enabled, status, notes, deleted_at, deleted_by, delete_reason) \
+             VALUES ($1, $2, $3, $4, $5, true, 'planned', $6, NULL, NULL, NULL) \
+             ON CONFLICT (tenant_id, camp_id, source_key) DO UPDATE SET \
+              department_id = EXCLUDED.department_id, service_scope = EXCLUDED.service_scope, \
+              opd_routing_enabled = true, notes = EXCLUDED.notes, \
+              deleted_at = NULL, deleted_by = NULL, delete_reason = NULL, updated_at = now()",
+        )
+        .bind(tenant_id)
+        .bind(camp_id)
+        .bind(source_key)
+        .bind(department_id)
+        .bind(json_text(plan.get("service_policy_notes")))
+        .bind("Materialized from camp department plan")
+        .execute(&mut **tx)
+        .await?;
+    }
+
+    let mut materialized_doctors = Vec::new();
+    for (index, item) in json_array(plan, "doctor_engagements").iter().enumerate() {
+        let Some(doctor_id) = json_uuid(item.get("doctor_id")) else {
+            continue;
+        };
+        materialized_doctors.push(doctor_id);
+        let source_key = format!("doctor:{doctor_id}");
+        sqlx::query(
+            "INSERT INTO camp_doctor_roster \
+             (tenant_id, camp_id, source_key, doctor_id, expected_consults, charge_mode, patient_fee, \
+              concession_percentage, sponsor_share_amount, honorarium_amount, status, owner_id, notes, deleted_at, deleted_by, delete_reason) \
+             VALUES ($1, $2, $3, $4, COALESCE($5, 0), $6, $7, $8, $9, $10, 'planned', $11, $12, NULL, NULL, NULL) \
+             ON CONFLICT (tenant_id, camp_id, source_key) DO UPDATE SET \
+              doctor_id = EXCLUDED.doctor_id, expected_consults = EXCLUDED.expected_consults, \
+              charge_mode = EXCLUDED.charge_mode, patient_fee = EXCLUDED.patient_fee, \
+              concession_percentage = EXCLUDED.concession_percentage, sponsor_share_amount = EXCLUDED.sponsor_share_amount, \
+              honorarium_amount = EXCLUDED.honorarium_amount, owner_id = EXCLUDED.owner_id, notes = EXCLUDED.notes, \
+              deleted_at = NULL, deleted_by = NULL, delete_reason = NULL, updated_at = now()",
+        )
+        .bind(tenant_id)
+        .bind(camp_id)
+        .bind(if source_key.trim().is_empty() {
+            format!("doctor:index:{index}")
+        } else {
+            source_key
+        })
+        .bind(doctor_id)
+        .bind(json_i32(item.get("expected_consults")))
+        .bind(json_text(item.get("charge_mode")).unwrap_or_else(|| "free".to_owned()))
+        .bind(json_decimal(item.get("consultation_fee")))
+        .bind(json_decimal(item.get("concession_percentage")))
+        .bind(json_decimal(item.get("sponsor_covered_amount")))
+        .bind(json_decimal(item.get("salary_amount")))
+        .bind(user_id)
+        .bind(json_text(item.get("notes")))
+        .execute(&mut **tx)
+        .await?;
+    }
+    for doctor_id in json_array(plan, "planned_doctor_ids")
+        .iter()
+        .filter_map(|item| json_uuid(Some(item)))
+        .filter(|doctor_id| !materialized_doctors.contains(doctor_id))
+    {
+        let source_key = format!("doctor:{doctor_id}");
+        sqlx::query(
+            "INSERT INTO camp_doctor_roster \
+             (tenant_id, camp_id, source_key, doctor_id, charge_mode, status, owner_id, deleted_at, deleted_by, delete_reason) \
+             VALUES ($1, $2, $3, $4, $5, 'planned', $6, NULL, NULL, NULL) \
+             ON CONFLICT (tenant_id, camp_id, source_key) DO UPDATE SET \
+              doctor_id = EXCLUDED.doctor_id, charge_mode = EXCLUDED.charge_mode, owner_id = EXCLUDED.owner_id, \
+              deleted_at = NULL, deleted_by = NULL, delete_reason = NULL, updated_at = now()",
+        )
+        .bind(tenant_id)
+        .bind(camp_id)
+        .bind(source_key)
+        .bind(doctor_id)
+        .bind(json_text(plan.get("doctor_charge_mode")).unwrap_or_else(|| "free".to_owned()))
+        .bind(user_id)
+        .execute(&mut **tx)
+        .await?;
+    }
+
+    for employee_id in json_array(plan, "planned_staff_ids")
+        .iter()
+        .filter_map(|item| json_uuid(Some(item)))
+    {
+        let source_key = format!("staff:{employee_id}");
+        sqlx::query(
+            "INSERT INTO camp_staff_roster \
+             (tenant_id, camp_id, source_key, employee_id, role_in_camp, status, owner_id, notes, deleted_at, deleted_by, delete_reason) \
+             VALUES ($1, $2, $3, $4, 'camp_staff', 'planned', $5, 'Materialized from camp staff plan', NULL, NULL, NULL) \
+             ON CONFLICT (tenant_id, camp_id, source_key) DO UPDATE SET \
+              employee_id = EXCLUDED.employee_id, owner_id = EXCLUDED.owner_id, \
+              deleted_at = NULL, deleted_by = NULL, delete_reason = NULL, updated_at = now()",
+        )
+        .bind(tenant_id)
+        .bind(camp_id)
+        .bind(source_key)
+        .bind(employee_id)
+        .bind(user_id)
+        .execute(&mut **tx)
+        .await?;
+    }
+
+    for (index, item) in json_array(plan, "service_offerings").iter().enumerate() {
+        let service_key =
+            json_text(item.get("service_line")).unwrap_or_else(|| format!("service_{index}"));
+        let charge_mode = json_text(item.get("charge_mode")).unwrap_or_else(|| "free".to_owned());
+        let source_key = format!("service:{service_key}");
+        let row = sqlx::query_as::<_, IdRow>(
+            "INSERT INTO camp_service_pricing_rules \
+             (tenant_id, camp_id, source_key, service_key, service_name, planned_qty, charge_mode, \
+              standard_rate, patient_rate, concession_percentage, camp_cost, sponsor_share_amount, \
+              approval_required, status, owner_id, notes, deleted_at, deleted_by, delete_reason) \
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $8, $9, $10, 0, $11, 'planned', $12, $13, NULL, NULL, NULL) \
+             ON CONFLICT (tenant_id, camp_id, source_key) DO UPDATE SET \
+              service_key = EXCLUDED.service_key, service_name = EXCLUDED.service_name, planned_qty = EXCLUDED.planned_qty, \
+              charge_mode = EXCLUDED.charge_mode, standard_rate = EXCLUDED.standard_rate, patient_rate = EXCLUDED.patient_rate, \
+              concession_percentage = EXCLUDED.concession_percentage, camp_cost = EXCLUDED.camp_cost, \
+              approval_required = EXCLUDED.approval_required, owner_id = EXCLUDED.owner_id, notes = EXCLUDED.notes, \
+              deleted_at = NULL, deleted_by = NULL, delete_reason = NULL, updated_at = now() \
+             RETURNING id",
+        )
+        .bind(tenant_id)
+        .bind(camp_id)
+        .bind(&source_key)
+        .bind(&service_key)
+        .bind(json_text_or(item.get("label"), &service_key.replace('_', " ")))
+        .bind(json_decimal(item.get("planned_qty")))
+        .bind(&charge_mode)
+        .bind(json_decimal(item.get("patient_rate")))
+        .bind(json_decimal(item.get("concession_percentage")))
+        .bind(json_decimal(item.get("camp_cost")))
+        .bind(json_bool(item.get("approval_required")))
+        .bind(user_id)
+        .bind(json_text(item.get("notes")))
+        .fetch_one(&mut **tx)
+        .await?;
+        if let Some(approval_type) = approval_type_for_line(
+            &charge_mode,
+            json_bool(item.get("approval_required")),
+            false,
+        ) {
+            upsert_camp_approval_item(
+                tx,
+                tenant_id,
+                camp_id,
+                &format!("{source_key}:approval"),
+                approval_type,
+                "camp_service_pricing_rules",
+                Some(row.id),
+                user_id,
+                "Camp service pricing requires approval",
+                true,
+                false,
+            )
+            .await?;
+        }
+    }
+
+    let free_medicine_approval_required = json_bool(plan.get("free_medicine_approval_required"));
+    let mut materialized_medicines = Vec::new();
+    for (index, item) in json_array(plan, "planned_medicine_refs").iter().enumerate() {
+        let catalog_item_id = json_uuid(item.get("catalog_item_id"));
+        if let Some(id) = catalog_item_id {
+            materialized_medicines.push(id);
+        }
+        let source_key = catalog_item_id
+            .map(|id| format!("medicine:{id}"))
+            .unwrap_or_else(|| format!("medicine:index:{index}"));
+        let charge_mode = json_text(item.get("charge_mode"))
+            .or_else(|| json_text(plan.get("medicine_charge_mode")))
+            .unwrap_or_else(|| "free".to_owned());
+        let approval_required = json_bool(item.get("approval_required"))
+            || (free_medicine_approval_required
+                && matches!(charge_mode.as_str(), "free" | "mixed" | "sponsor_covered"));
+        let row = sqlx::query_as::<_, IdRow>(
+            "INSERT INTO camp_medicine_pricing_rules \
+             (tenant_id, camp_id, source_key, catalog_item_id, medicine_name, generic_name, batch_stock_id, \
+              batch_no, expiry_date, store_location_id, planned_qty, reserved_qty, issued_qty, free_qty, paid_qty, \
+              consumed_qty, returned_qty, damaged_qty, patient_unit_price, tax_percent, camp_unit_cost, \
+              sponsor_share_amount, concession_percentage, charge_mode, approval_required, status, owner_id, notes, \
+              deleted_at, deleted_by, delete_reason) \
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, \
+              $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, 'planned', $26, $27, NULL, NULL, NULL) \
+             ON CONFLICT (tenant_id, camp_id, source_key) DO UPDATE SET \
+              catalog_item_id = EXCLUDED.catalog_item_id, medicine_name = EXCLUDED.medicine_name, generic_name = EXCLUDED.generic_name, \
+              batch_stock_id = EXCLUDED.batch_stock_id, batch_no = EXCLUDED.batch_no, expiry_date = EXCLUDED.expiry_date, \
+              store_location_id = EXCLUDED.store_location_id, planned_qty = EXCLUDED.planned_qty, reserved_qty = EXCLUDED.reserved_qty, \
+              issued_qty = EXCLUDED.issued_qty, free_qty = EXCLUDED.free_qty, paid_qty = EXCLUDED.paid_qty, consumed_qty = EXCLUDED.consumed_qty, \
+              returned_qty = EXCLUDED.returned_qty, damaged_qty = EXCLUDED.damaged_qty, patient_unit_price = EXCLUDED.patient_unit_price, \
+              tax_percent = EXCLUDED.tax_percent, camp_unit_cost = EXCLUDED.camp_unit_cost, sponsor_share_amount = EXCLUDED.sponsor_share_amount, \
+              concession_percentage = EXCLUDED.concession_percentage, charge_mode = EXCLUDED.charge_mode, approval_required = EXCLUDED.approval_required, \
+              owner_id = EXCLUDED.owner_id, notes = EXCLUDED.notes, deleted_at = NULL, deleted_by = NULL, delete_reason = NULL, updated_at = now() \
+             RETURNING id",
+        )
+        .bind(tenant_id)
+        .bind(camp_id)
+        .bind(&source_key)
+        .bind(catalog_item_id)
+        .bind(json_text_or(item.get("medicine_name"), "Camp medicine"))
+        .bind(json_text(item.get("generic_name")))
+        .bind(json_uuid(item.get("batch_id")))
+        .bind(json_text(item.get("batch_number")))
+        .bind(json_text(item.get("expiry_date")).and_then(|text| NaiveDate::parse_from_str(&text, "%Y-%m-%d").ok()))
+        .bind(json_uuid(item.get("store_location_id")))
+        .bind(json_decimal(item.get("planned_qty")))
+        .bind(json_decimal(item.get("reserved_qty")))
+        .bind(json_decimal(item.get("issue_qty")))
+        .bind(json_decimal(item.get("free_qty")))
+        .bind(json_decimal(item.get("paid_qty")))
+        .bind(json_decimal(item.get("consumed_qty")))
+        .bind(json_decimal(item.get("return_qty")))
+        .bind(json_decimal(item.get("damaged_qty")))
+        .bind(json_decimal(item.get("unit_price")))
+        .bind(json_decimal(item.get("tax_percent")))
+        .bind(json_decimal(item.get("cost_amount")))
+        .bind(json_decimal(item.get("sponsor_covered_amount")))
+        .bind(json_decimal(item.get("concession_percentage")))
+        .bind(&charge_mode)
+        .bind(approval_required)
+        .bind(user_id)
+        .bind(json_text(item.get("stock_source_notes")))
+        .fetch_one(&mut **tx)
+        .await?;
+        if let Some(approval_type) = approval_type_for_line(&charge_mode, approval_required, true) {
+            upsert_camp_approval_item(
+                tx,
+                tenant_id,
+                camp_id,
+                &format!("{source_key}:approval"),
+                approval_type,
+                "camp_medicine_pricing_rules",
+                Some(row.id),
+                user_id,
+                "Camp medicine pricing or free issue requires approval",
+                true,
+                false,
+            )
+            .await?;
+        }
+    }
+    for catalog_item_id in json_array(plan, "planned_medicine_ids")
+        .iter()
+        .filter_map(|item| json_uuid(Some(item)))
+        .filter(|catalog_item_id| !materialized_medicines.contains(catalog_item_id))
+    {
+        let source_key = format!("medicine:{catalog_item_id}");
+        let charge_mode =
+            json_text(plan.get("medicine_charge_mode")).unwrap_or_else(|| "free".to_owned());
+        let row = sqlx::query_as::<_, IdRow>(
+            "INSERT INTO camp_medicine_pricing_rules \
+             (tenant_id, camp_id, source_key, catalog_item_id, medicine_name, charge_mode, approval_required, status, owner_id, \
+              deleted_at, deleted_by, delete_reason) \
+             VALUES ($1, $2, $3, $4, 'Camp medicine', $5, $6, 'planned', $7, NULL, NULL, NULL) \
+             ON CONFLICT (tenant_id, camp_id, source_key) DO UPDATE SET \
+              catalog_item_id = EXCLUDED.catalog_item_id, charge_mode = EXCLUDED.charge_mode, approval_required = EXCLUDED.approval_required, \
+              owner_id = EXCLUDED.owner_id, deleted_at = NULL, deleted_by = NULL, delete_reason = NULL, updated_at = now() \
+             RETURNING id",
+        )
+        .bind(tenant_id)
+        .bind(camp_id)
+        .bind(&source_key)
+        .bind(catalog_item_id)
+        .bind(&charge_mode)
+        .bind(free_medicine_approval_required)
+        .bind(user_id)
+        .fetch_one(&mut **tx)
+        .await?;
+        if let Some(approval_type) =
+            approval_type_for_line(&charge_mode, free_medicine_approval_required, true)
+        {
+            upsert_camp_approval_item(
+                tx,
+                tenant_id,
+                camp_id,
+                &format!("{source_key}:approval"),
+                approval_type,
+                "camp_medicine_pricing_rules",
+                Some(row.id),
+                user_id,
+                "Camp medicine issue requires approval",
+                true,
+                false,
+            )
+            .await?;
+        }
+    }
+
+    materialize_default_camp_print_and_closure(tx, tenant_id, camp_id).await?;
+    Ok(())
+}
+
+fn service_plan_has_service(plan: &Value) -> bool {
+    json_array(plan, "service_lines").iter().any(|item| {
+        item.as_str()
+            .map(str::trim)
+            .is_some_and(|value| !value.is_empty())
+    }) || !json_array(plan, "service_offerings").is_empty()
+        || !json_array(plan, "planned_medicine_refs").is_empty()
+}
+
+fn decimal_percent(numerator: Decimal, denominator: Decimal) -> f64 {
+    if denominator <= Decimal::ZERO {
+        return 0.0;
+    }
+    let pct = numerator * Decimal::from(100) / denominator;
+    pct.to_string().parse::<f64>().unwrap_or(0.0)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn planning_action(
+    code: &str,
+    label: &str,
+    severity: &str,
+    status: &str,
+    owner_module: &str,
+    evidence: String,
+    blocks_activation: bool,
+    blocks_closeout: bool,
+) -> CampPlanningActionItem {
+    CampPlanningActionItem {
+        code: code.to_owned(),
+        label: label.to_owned(),
+        severity: severity.to_owned(),
+        status: status.to_owned(),
+        owner_module: owner_module.to_owned(),
+        evidence,
+        blocks_activation,
+        blocks_closeout,
+    }
+}
+
+async fn build_camp_planning_summary(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: Uuid,
+    camp_id: Uuid,
+) -> Result<CampPlanningSummary, AppError> {
+    let camp = sqlx::query_as::<_, Camp>("SELECT * FROM camps WHERE id = $1 AND tenant_id = $2")
+        .bind(camp_id)
+        .bind(tenant_id)
+        .fetch_optional(&mut **tx)
+        .await?
+        .ok_or(AppError::NotFound)?;
+
+    let empty_plan = Value::Null;
+    let plan = camp.equipment_list.as_ref().unwrap_or(&empty_plan);
+    let budget_components = planned_component_sum(plan, "planned_amount");
+    let planned_budget = match camp.budget_allocated {
+        Some(amount) if amount > budget_components => amount,
+        _ => budget_components,
+    }
+    .round_dp(2);
+
+    let planned_patient_collection = (planned_component_sum(plan, "patient_pay_amount")
+        + planned_service_patient_collection(plan)
+        + planned_doctor_patient_collection(plan)
+        + planned_medicine_patient_collection(plan))
+    .round_dp(2);
+    let planned_cost = (planned_budget
+        + planned_service_cost(plan)
+        + planned_doctor_cost(plan)
+        + planned_medicine_cost(plan))
+    .round_dp(2);
+    let planned_sponsor_coverage = planned_sponsor_coverage(plan).round_dp(2);
+
+    let checklist = sqlx::query_as::<_, CampRemoteChecklistItem>(
+        "SELECT * FROM camp_remote_checklist_items \
+         WHERE camp_id = $1 AND tenant_id = $2",
+    )
+    .bind(camp_id)
+    .bind(tenant_id)
+    .fetch_all(&mut **tx)
+    .await?;
+    let readiness = readiness_summary(&checklist);
+
+    let supply = sqlx::query_as::<_, CampPlanningSupplyTotals>(
+        "SELECT \
+           COUNT(*)::bigint AS total_items, \
+           COUNT(*) FILTER (WHERE category = 'medicine')::bigint AS medicine_items, \
+           COUNT(*) FILTER (WHERE approval_required)::bigint AS approval_required_items, \
+           COUNT(*) FILTER (WHERE packed_qty < planned_qty OR NULLIF(trim(COALESCE(shortage_notes, '')), '') IS NOT NULL)::bigint AS shortage_items, \
+           COUNT(*) FILTER (WHERE is_critical AND (packed_qty < planned_qty OR NULLIF(trim(COALESCE(shortage_notes, '')), '') IS NOT NULL))::bigint AS critical_shortage_items, \
+           COUNT(*) FILTER (WHERE category = 'medicine' AND packed_qty > 0 AND (batch_no IS NULL OR expiry_date IS NULL))::bigint AS traceability_gap_items, \
+           COUNT(*) FILTER (WHERE category <> 'equipment' AND packed_qty > (consumed_qty + returned_qty))::bigint AS supply_return_pending_items, \
+           COUNT(*) FILTER (WHERE category = 'equipment' AND packed_qty > (consumed_qty + returned_qty))::bigint AS asset_return_pending_items, \
+           COALESCE(SUM(planned_qty * cost_amount), 0) AS planned_supply_cost, \
+           COALESCE(SUM(consumed_qty * cost_amount), 0) AS actual_supply_cost, \
+           COALESCE(SUM(CASE WHEN charge_mode IN ('free', 'sponsor_covered') THEN planned_qty * unit_price ELSE 0 END), 0) AS supply_free_issue_value \
+         FROM camp_supply_items \
+         WHERE tenant_id = $1 AND camp_id = $2",
+    )
+    .bind(tenant_id)
+    .bind(camp_id)
+    .fetch_one(&mut **tx)
+    .await?;
+
+    let asset_totals = sqlx::query_as::<_, CampPlanningAssetTotals>(
+        "SELECT \
+           COUNT(*)::bigint AS total_reservations, \
+           COUNT(*) FILTER (WHERE is_critical AND status NOT IN ('issued', 'returned'))::bigint AS critical_unissued_items, \
+           COUNT(*) FILTER (WHERE status = 'issued' OR (status IN ('damaged', 'lost') AND NULLIF(trim(COALESCE(reconciliation_notes, '')), '') IS NULL))::bigint AS return_pending_items, \
+           COUNT(*) FILTER (WHERE status IN ('damaged', 'lost') AND NULLIF(trim(COALESCE(reconciliation_notes, '')), '') IS NULL)::bigint AS compliance_blocked_items \
+         FROM camp_asset_reservations \
+         WHERE tenant_id = $1 AND camp_id = $2",
+    )
+    .bind(tenant_id)
+    .bind(camp_id)
+    .fetch_one(&mut **tx)
+    .await?;
+
+    let billing = sqlx::query_as::<_, CampPlanningBillingTotals>(
+        "SELECT \
+           COALESCE(SUM(b.total_amount), 0) AS patient_collected, \
+           COALESCE(SUM(b.sponsor_covered_amount), 0) AS sponsor_receivable, \
+           COALESCE(SUM(CASE WHEN b.is_free THEN b.standard_amount ELSE 0 END), 0) AS free_issue_value, \
+           COALESCE(SUM(CASE WHEN NOT b.is_free THEN b.total_amount ELSE 0 END), 0) AS paid_issue_value, \
+           COUNT(*)::bigint AS billed_items, \
+           COUNT(*) FILTER (WHERE b.is_free)::bigint AS free_items, \
+           COUNT(*) FILTER (WHERE NOT b.is_free)::bigint AS paid_items \
+         FROM camp_billing_records b \
+         JOIN camp_registrations r ON r.id = b.registration_id \
+         WHERE b.tenant_id = $1 AND r.camp_id = $2",
+    )
+    .bind(tenant_id)
+    .bind(camp_id)
+    .fetch_one(&mut **tx)
+    .await?;
+
+    let team = sqlx::query_as::<_, CampTeamCountRow>(
+        "SELECT \
+           COUNT(*)::bigint AS total_team, \
+           COUNT(*) FILTER (WHERE is_confirmed)::bigint AS confirmed_team \
+         FROM camp_team_members \
+         WHERE tenant_id = $1 AND camp_id = $2 AND deleted_at IS NULL",
+    )
+    .bind(tenant_id)
+    .bind(camp_id)
+    .fetch_one(&mut **tx)
+    .await?;
+
+    let structured = sqlx::query_as::<_, CampStructuredPlanTotals>(
+        "SELECT \
+          (SELECT COUNT(*)::bigint FROM camp_counters WHERE tenant_id = $1 AND camp_id = $2 AND deleted_at IS NULL) AS counter_items, \
+          (SELECT COUNT(*)::bigint FROM camp_department_counters WHERE tenant_id = $1 AND camp_id = $2 AND deleted_at IS NULL) AS department_items, \
+          (SELECT COUNT(*)::bigint FROM camp_doctor_roster WHERE tenant_id = $1 AND camp_id = $2 AND deleted_at IS NULL) AS doctor_items, \
+          (SELECT COUNT(*)::bigint FROM camp_staff_roster WHERE tenant_id = $1 AND camp_id = $2 AND deleted_at IS NULL) AS staff_items, \
+          (SELECT COUNT(*)::bigint FROM camp_service_pricing_rules WHERE tenant_id = $1 AND camp_id = $2 AND deleted_at IS NULL) AS service_items, \
+          (SELECT COUNT(*)::bigint FROM camp_medicine_pricing_rules WHERE tenant_id = $1 AND camp_id = $2 AND deleted_at IS NULL) AS medicine_items, \
+          (SELECT COUNT(*)::bigint FROM camp_approval_items WHERE tenant_id = $1 AND camp_id = $2 AND status = 'pending' AND deleted_at IS NULL) AS pending_approvals, \
+          (SELECT COUNT(*)::bigint FROM camp_approval_items WHERE tenant_id = $1 AND camp_id = $2 AND status = 'pending' AND blocks_activation AND deleted_at IS NULL) AS activation_blocking_approvals, \
+          (SELECT COUNT(*)::bigint FROM camp_approval_items WHERE tenant_id = $1 AND camp_id = $2 AND status = 'pending' AND blocks_closeout AND deleted_at IS NULL) AS closeout_blocking_approvals, \
+          (SELECT COUNT(*)::bigint FROM camp_site_readiness_items WHERE tenant_id = $1 AND camp_id = $2 AND status IN ('pending', 'issue') AND deleted_at IS NULL) AS site_open_items, \
+          (SELECT COUNT(*)::bigint FROM camp_closure_tasks WHERE tenant_id = $1 AND camp_id = $2 AND status IN ('pending', 'blocked') AND deleted_at IS NULL) AS closure_open_items, \
+          (SELECT COUNT(*)::bigint FROM camp_print_plan_items WHERE tenant_id = $1 AND camp_id = $2 AND deleted_at IS NULL) AS print_total_items, \
+          (SELECT COUNT(*)::bigint FROM camp_print_plan_items WHERE tenant_id = $1 AND camp_id = $2 AND status IN ('ready', 'printed') AND deleted_at IS NULL) AS print_ready_items, \
+          ((SELECT COALESCE(SUM(CASE WHEN charge_mode NOT IN ('free', 'sponsor_covered') THEN planned_qty * patient_rate * (100 - concession_percentage) / 100 ELSE 0 END), 0) FROM camp_service_pricing_rules WHERE tenant_id = $1 AND camp_id = $2 AND deleted_at IS NULL) + \
+           (SELECT COALESCE(SUM(CASE WHEN charge_mode NOT IN ('free', 'sponsor_covered') THEN expected_consults * patient_fee * (100 - concession_percentage) / 100 ELSE 0 END), 0) FROM camp_doctor_roster WHERE tenant_id = $1 AND camp_id = $2 AND deleted_at IS NULL) + \
+           (SELECT COALESCE(SUM(CASE WHEN charge_mode NOT IN ('free', 'sponsor_covered') THEN (CASE WHEN paid_qty > 0 THEN paid_qty ELSE planned_qty END) * patient_unit_price * (100 - concession_percentage) / 100 ELSE 0 END), 0) FROM camp_medicine_pricing_rules WHERE tenant_id = $1 AND camp_id = $2 AND deleted_at IS NULL)) AS planned_patient_collection, \
+          ((SELECT COALESCE(SUM(sponsor_share_amount), 0) FROM camp_service_pricing_rules WHERE tenant_id = $1 AND camp_id = $2 AND deleted_at IS NULL) + \
+           (SELECT COALESCE(SUM(sponsor_share_amount), 0) FROM camp_doctor_roster WHERE tenant_id = $1 AND camp_id = $2 AND deleted_at IS NULL) + \
+           (SELECT COALESCE(SUM(sponsor_share_amount), 0) FROM camp_medicine_pricing_rules WHERE tenant_id = $1 AND camp_id = $2 AND deleted_at IS NULL) + \
+           (SELECT COALESCE(SUM(receivable_amount), 0) FROM camp_sponsor_plans WHERE tenant_id = $1 AND camp_id = $2 AND deleted_at IS NULL)) AS planned_sponsor_coverage, \
+          ((SELECT COALESCE(SUM(planned_qty * camp_cost), 0) FROM camp_service_pricing_rules WHERE tenant_id = $1 AND camp_id = $2 AND deleted_at IS NULL) + \
+           (SELECT COALESCE(SUM(honorarium_amount), 0) FROM camp_doctor_roster WHERE tenant_id = $1 AND camp_id = $2 AND deleted_at IS NULL) + \
+           (SELECT COALESCE(SUM(planned_qty * camp_unit_cost), 0) FROM camp_medicine_pricing_rules WHERE tenant_id = $1 AND camp_id = $2 AND deleted_at IS NULL)) AS planned_cost, \
+          (SELECT COALESCE(SUM(receivable_amount), 0) FROM camp_sponsor_plans WHERE tenant_id = $1 AND camp_id = $2 AND deleted_at IS NULL) AS sponsor_receivable, \
+          (SELECT COALESCE(SUM(collected_amount), 0) FROM camp_sponsor_plans WHERE tenant_id = $1 AND camp_id = $2 AND deleted_at IS NULL) AS sponsor_collected",
+    )
+    .bind(tenant_id)
+    .bind(camp_id)
+    .fetch_one(&mut **tx)
+    .await?;
+
+    let actual_patient_collection = billing.patient_collected.unwrap_or_default().round_dp(2);
+    let sponsor_receivable = (billing.sponsor_receivable.unwrap_or_default()
+        + structured.sponsor_receivable.unwrap_or_default())
+    .round_dp(2);
+    let sponsor_collected = structured.sponsor_collected.unwrap_or_default().round_dp(2);
+    let actual_cost = (supply.actual_supply_cost.unwrap_or_default()
+        + camp.budget_spent.unwrap_or_default())
+    .round_dp(2);
+    let accrual_revenue = actual_patient_collection + sponsor_receivable;
+    let profit_loss = (accrual_revenue - actual_cost).round_dp(2);
+    let budget_variance = (actual_cost - planned_budget).round_dp(2);
+    let cash_surplus = (actual_patient_collection + sponsor_collected - actual_cost).round_dp(2);
+    let margin_pct = decimal_percent(profit_loss, accrual_revenue);
+    let budget_variance_pct = decimal_percent(budget_variance, planned_budget);
+
+    let mut action_items = Vec::new();
+    if camp.coordinator_id.is_none() {
+        action_items.push(planning_action(
+            "coordinator_missing",
+            "Assign a camp coordinator",
+            "warning",
+            "pending",
+            "camp",
+            "No coordinator is linked to this camp".to_owned(),
+            true,
+            false,
+        ));
+    }
+    let venue_present = camp
+        .venue_name
+        .as_deref()
+        .map(str::trim)
+        .is_some_and(|value| !value.is_empty())
+        || camp
+            .venue_address
+            .as_deref()
+            .map(str::trim)
+            .is_some_and(|value| !value.is_empty());
+    if !venue_present {
+        action_items.push(planning_action(
+            "venue_missing",
+            "Capture venue and site address",
+            "warning",
+            "pending",
+            "camp",
+            "Venue name/address is not set".to_owned(),
+            true,
+            false,
+        ));
+    }
+    if !service_plan_has_service(plan) && supply.total_items == 0 {
+        action_items.push(planning_action(
+            "service_plan_missing",
+            "Define service, pharmacy, or supply plan",
+            "danger",
+            "blocked",
+            "camp",
+            "No service lines, service offerings, medicines, or supplies are planned".to_owned(),
+            true,
+            false,
+        ));
+    }
+    if team.total_team == 0 {
+        action_items.push(planning_action(
+            "team_missing",
+            "Add camp team members",
+            "danger",
+            "blocked",
+            "camp",
+            "No staff, doctor, nurse, pharmacist, volunteer, or coordinator rows are assigned"
+                .to_owned(),
+            true,
+            false,
+        ));
+    } else if team.confirmed_team == 0 {
+        action_items.push(planning_action(
+            "team_unconfirmed",
+            "Confirm at least one team member",
+            "warning",
+            "pending",
+            "camp",
+            format!("{} team rows exist, none are confirmed", team.total_team),
+            true,
+            false,
+        ));
+    }
+    if !readiness.ready {
+        action_items.push(planning_action(
+            "readiness_incomplete",
+            "Complete remote readiness checklist",
+            "danger",
+            "blocked",
+            "camp",
+            format!(
+                "{} of {} required controls complete, {} open issues",
+                readiness.required_done, readiness.required_total, readiness.issue_count
+            ),
+            true,
+            false,
+        ));
+    }
+    if supply.critical_shortage_items > 0 {
+        action_items.push(planning_action(
+            "critical_shortage",
+            "Resolve critical supply or asset shortage",
+            "danger",
+            "blocked",
+            "camp",
+            format!(
+                "{} critical item rows have shortage markers",
+                supply.critical_shortage_items
+            ),
+            true,
+            false,
+        ));
+    } else if supply.shortage_items > 0 {
+        action_items.push(planning_action(
+            "supply_shortage",
+            "Resolve supply shortage before camp start",
+            "warning",
+            "pending",
+            "camp",
+            format!(
+                "{} supply rows are short or have shortage notes",
+                supply.shortage_items
+            ),
+            true,
+            false,
+        ));
+    }
+    if supply.traceability_gap_items > 0 {
+        action_items.push(planning_action(
+            "medicine_traceability_gap",
+            "Add batch and expiry for packed medicines",
+            "danger",
+            "blocked",
+            "pharmacy",
+            format!(
+                "{} packed medicine rows are missing batch or expiry",
+                supply.traceability_gap_items
+            ),
+            true,
+            false,
+        ));
+    }
+    if asset_totals.critical_unissued_items > 0 {
+        action_items.push(planning_action(
+            "critical_asset_unissued",
+            "Issue critical camp assets before start",
+            "danger",
+            "blocked",
+            "assets",
+            format!(
+                "{} critical reserved assets are not issued yet",
+                asset_totals.critical_unissued_items
+            ),
+            true,
+            false,
+        ));
+    }
+    if supply.approval_required_items > 0 && camp.approved_at.is_none() {
+        action_items.push(planning_action(
+            "approval_required",
+            "Approve budget/free/sponsor-covered camp items",
+            "warning",
+            "pending",
+            "approvals",
+            format!(
+                "{} stock/service rows require approval before issue",
+                supply.approval_required_items
+            ),
+            true,
+            false,
+        ));
+    }
+    if sponsor_receivable > Decimal::ZERO {
+        action_items.push(planning_action(
+            "sponsor_receivable",
+            "Track sponsor receivable settlement",
+            "warning",
+            "pending",
+            "billing",
+            format!(
+                "Sponsor receivable {}, {} free issue rows, {} paid rows, {} billed rows",
+                sponsor_receivable.round_dp(2),
+                billing.free_items,
+                billing.paid_items,
+                billing.billed_items
+            ),
+            false,
+            true,
+        ));
+    }
+    if budget_variance > Decimal::ZERO && planned_budget > Decimal::ZERO {
+        action_items.push(planning_action(
+            "budget_overrun",
+            "Review actual cost above approved budget",
+            "warning",
+            "pending",
+            "billing",
+            format!(
+                "Actual cost exceeds plan by {}",
+                budget_variance.round_dp(2)
+            ),
+            false,
+            true,
+        ));
+    }
+    if structured.closeout_blocking_approvals > 0 {
+        action_items.push(planning_action(
+            "closeout_approvals_pending",
+            "Clear closeout approval checklist",
+            "danger",
+            "blocked",
+            "approvals",
+            format!(
+                "{} approval items are blocking camp closeout",
+                structured.closeout_blocking_approvals
+            ),
+            false,
+            true,
+        ));
+    }
+    if structured.closure_open_items > 0 {
+        action_items.push(planning_action(
+            "closure_checklist_open",
+            "Complete camp closure checklist",
+            "danger",
+            "blocked",
+            "camp",
+            format!(
+                "{} closure tasks remain open for retrospective handover, stock, assets, equipment, cash, waste, or incident closure",
+                structured.closure_open_items
+            ),
+            false,
+            true,
+        ));
+    }
+    if supply.supply_return_pending_items > 0 {
+        action_items.push(planning_action(
+            "supply_return_pending",
+            "Return or reconcile camp medicines and consumables",
+            "danger",
+            "blocked",
+            "indent",
+            format!(
+                "{} medicine/consumable rows still have packed quantity not consumed or returned",
+                supply.supply_return_pending_items
+            ),
+            false,
+            true,
+        ));
+    }
+    let asset_return_pending_items =
+        supply.asset_return_pending_items + asset_totals.return_pending_items;
+    if asset_return_pending_items > 0 {
+        action_items.push(planning_action(
+            "asset_return_pending",
+            "Return or reconcile issued camp assets",
+            "warning",
+            "pending",
+            "assets",
+            format!(
+                "{} asset/equipment rows are issued, damaged, lost, or not reconciled",
+                asset_return_pending_items
+            ),
+            false,
+            true,
+        ));
+    }
+    if asset_totals.compliance_blocked_items > 0 {
+        action_items.push(planning_action(
+            "asset_reconciliation_blocked",
+            "Reconcile damaged or lost camp assets",
+            "danger",
+            "blocked",
+            "assets",
+            format!(
+                "{} damaged/lost assets require reconciliation notes",
+                asset_totals.compliance_blocked_items
+            ),
+            false,
+            true,
+        ));
+    }
+    if action_items.is_empty() {
+        action_items.push(planning_action(
+            "operational_controls_clear",
+            "Operational controls are clear",
+            "success",
+            "ok",
+            "camp",
+            "No blocking camp planning issues found".to_owned(),
+            false,
+            false,
+        ));
+    }
+
+    let activation_blocked = action_items
+        .iter()
+        .any(|item| item.blocks_activation && item.status != "ok");
+    let closeout_blocked = action_items
+        .iter()
+        .any(|item| item.blocks_closeout && item.status != "ok");
+    let planned_supply_cost = supply.planned_supply_cost.unwrap_or_default().round_dp(2);
+    let planned_cost = if planned_cost > planned_supply_cost {
+        planned_cost
+    } else {
+        planned_supply_cost
+    };
+
+    Ok(CampPlanningSummary {
+        camp_id,
+        camp_status: camp_status_code(camp.status).to_owned(),
+        readiness,
+        financials: CampPlanningFinancials {
+            planned_budget,
+            planned_patient_collection,
+            planned_sponsor_coverage,
+            planned_cost,
+            actual_patient_collection,
+            sponsor_receivable,
+            sponsor_collected,
+            actual_cost,
+            profit_loss,
+            margin_pct,
+            budget_variance,
+            budget_variance_pct,
+            cash_surplus,
+            free_issue_value: (billing.free_issue_value.unwrap_or_default()
+                + supply.supply_free_issue_value.unwrap_or_default())
+            .round_dp(2),
+            paid_issue_value: billing.paid_issue_value.unwrap_or_default().round_dp(2),
+        },
+        stock: CampPlanningStockSummary {
+            total_items: supply.total_items,
+            medicine_items: supply.medicine_items,
+            approval_required_items: supply.approval_required_items,
+            shortage_items: supply.shortage_items,
+            critical_shortage_items: supply.critical_shortage_items,
+            traceability_gap_items: supply.traceability_gap_items,
+            supply_return_pending_items: supply.supply_return_pending_items,
+            asset_reservation_items: asset_totals.total_reservations,
+            asset_critical_unissued_items: asset_totals.critical_unissued_items,
+            asset_return_pending_items,
+            asset_reconciliation_blocked_items: asset_totals.compliance_blocked_items,
+        },
+        action_items,
+        activation_blocked,
+        closeout_blocked,
+    })
+}
+
 async fn seed_default_remote_checklist(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     tenant_id: Uuid,
@@ -1101,6 +2876,31 @@ async fn ensure_registration_belongs_to_camp(
     } else {
         Err(AppError::BadRequest(format!(
             "registration {registration_id} does not belong to camp {camp_id}"
+        )))
+    }
+}
+
+async fn ensure_registration_belongs_to_tenant(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: Uuid,
+    registration_id: Uuid,
+) -> Result<(), AppError> {
+    let exists = sqlx::query_scalar::<_, bool>(
+        "SELECT EXISTS ( \
+           SELECT 1 FROM camp_registrations \
+           WHERE id = $1 AND tenant_id = $2 \
+         )",
+    )
+    .bind(registration_id)
+    .bind(tenant_id)
+    .fetch_one(&mut **tx)
+    .await?;
+
+    if exists {
+        Ok(())
+    } else {
+        Err(AppError::BadRequest(format!(
+            "registration {registration_id} is not available for this tenant"
         )))
     }
 }
@@ -2066,6 +3866,9 @@ async fn apply_camp_sync_event(
         "camp.screening.create" => {
             require_permission(claims, permissions::camp::screenings::MANAGE)?;
             let body: CreateScreeningRequest = parse_sync_payload(event)?;
+            if body.referred_to_hospital.unwrap_or(false) {
+                require_permission(claims, permissions::camp::referrals::CREATE)?;
+            }
             ensure_registration_belongs_to_camp(
                 tx,
                 claims.tenant_id,
@@ -2181,6 +3984,7 @@ async fn apply_camp_sync_event(
         "camp.lab_sample.create" => {
             require_permission(claims, permissions::camp::lab::MANAGE)?;
             let body: CreateLabSampleRequest = parse_sync_payload(event)?;
+            let normalized = normalize_camp_lab_sample_input(&body)?;
             ensure_registration_belongs_to_camp(
                 tx,
                 claims.tenant_id,
@@ -2200,9 +4004,9 @@ async fn apply_camp_sync_event(
             .bind(entity_id)
             .bind(claims.tenant_id)
             .bind(body.registration_id)
-            .bind(body.sample_type)
-            .bind(body.test_requested)
-            .bind(body.barcode)
+            .bind(&normalized.sample_type)
+            .bind(&normalized.test_requested)
+            .bind(&normalized.barcode)
             .bind(claims.sub)
             .fetch_one(&mut **tx)
             .await?;
@@ -2214,7 +4018,7 @@ async fn apply_camp_sync_event(
             })
         }
         "camp.referral.create" => {
-            require_permission(claims, permissions::camp::screenings::MANAGE)?;
+            require_permission(claims, permissions::camp::referrals::CREATE)?;
             let body: CreateCampReferralRequest = parse_sync_payload(event)?;
             if let Some(registration_id) = body.registration_id {
                 ensure_registration_belongs_to_camp(tx, claims.tenant_id, camp_id, registration_id)
@@ -2254,7 +4058,7 @@ async fn apply_camp_sync_event(
             })
         }
         "camp.incident.create" => {
-            require_permission(claims, permissions::camp::LIST)?;
+            require_permission(claims, permissions::camp::UPDATE)?;
             let body: CreateCampIncidentRequest = parse_sync_payload(event)?;
             if let Some(registration_id) = body.registration_id {
                 ensure_registration_belongs_to_camp(tx, claims.tenant_id, camp_id, registration_id)
@@ -2433,7 +4237,20 @@ pub async fn list_camps(
     Extension(claims): Extension<Claims>,
     Query(params): Query<ListCampsQuery>,
 ) -> Result<Json<Vec<Camp>>, AppError> {
-    require_permission(&claims, permissions::camp::LIST)?;
+    let can_list_all_camps = is_bypass_role(&claims)
+        || claims
+            .permissions
+            .iter()
+            .any(|permission| permission.as_str() == permissions::camp::LIST);
+    if !can_list_all_camps {
+        require_any_permission(
+            &claims,
+            &[permissions::patients::CREATE, permissions::patients::UPDATE],
+        )?;
+        if params.status.as_deref() != Some("active") {
+            return Err(AppError::Forbidden);
+        }
+    }
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -2458,7 +4275,30 @@ pub async fn get_camp(
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<Camp>, AppError> {
-    require_permission(&claims, permissions::camp::LIST)?;
+    require_any_permission(
+        &claims,
+        &[
+            permissions::camp::LIST,
+            permissions::camp::UPDATE,
+            permissions::camp::assets::MANAGE,
+            permissions::camp::registrations::LIST,
+            permissions::camp::registrations::CREATE,
+            permissions::camp::registrations::UPDATE,
+            permissions::camp::screenings::LIST,
+            permissions::camp::screenings::MANAGE,
+            permissions::camp::lab::LIST,
+            permissions::camp::lab::MANAGE,
+            permissions::camp::billing::LIST,
+            permissions::camp::billing::CREATE,
+            permissions::camp::followups::LIST,
+            permissions::camp::followups::SCHEDULE,
+            permissions::camp::followups::OUTCOME,
+            permissions::camp::followups::CONVERT,
+            permissions::camp::referrals::CREATE,
+            permissions::camp::referrals::UPDATE,
+            permissions::camp::referrals::STATUS,
+        ],
+    )?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -2482,6 +4322,9 @@ pub async fn get_camp_packet(
     require_permission(&claims, permissions::camp::registrations::LIST)?;
     require_permission(&claims, permissions::camp::screenings::LIST)?;
     require_permission(&claims, permissions::camp::lab::LIST)?;
+
+    let restricted_fields = resolve_camp_registration_restricted_fields(&state, &claims).await?;
+    let can_view_patient_record = has_patient_record_view(&claims);
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -2933,6 +4776,58 @@ pub async fn get_camp_packet(
 
     tx.commit().await?;
 
+    let registrations = registrations
+        .into_iter()
+        .map(|row| {
+            filter_camp_registration_response(
+                row,
+                &restricted_fields,
+                can_view_patient_record,
+                true,
+            )
+        })
+        .collect::<Vec<_>>();
+    let registration_history = registration_history
+        .into_iter()
+        .map(|row| {
+            filter_camp_registration_history_response(
+                row,
+                &restricted_fields,
+                can_view_patient_record,
+            )
+        })
+        .collect::<Vec<_>>();
+    let patient_summaries = if can_view_patient_record {
+        patient_summaries
+    } else {
+        Vec::new()
+    };
+    let active_allergies = if can_view_patient_record {
+        active_allergies
+    } else {
+        Vec::new()
+    };
+    let recent_vitals = if can_view_patient_record {
+        recent_vitals
+    } else {
+        Vec::new()
+    };
+    let visit_history = if can_view_patient_record {
+        visit_history
+    } else {
+        Vec::new()
+    };
+    let diagnosis_history = if can_view_patient_record {
+        diagnosis_history
+    } else {
+        Vec::new()
+    };
+    let medication_history = if can_view_patient_record {
+        medication_history
+    } else {
+        Vec::new()
+    };
+
     Ok(Json(CampPacketResponse {
         camp,
         team,
@@ -3062,7 +4957,7 @@ pub async fn sync_camp_inbound(
                 let patient_grant_id = applied_event
                     .server_entities
                     .get("patient_id")
-                    .and_then(serde_json::Value::as_str)
+                    .and_then(Value::as_str)
                     .and_then(|value| Uuid::parse_str(value).ok());
                 sqlx::query(
                     "UPDATE camp_sync_events SET \
@@ -3250,6 +5145,20 @@ pub async fn get_remote_operations(
     }))
 }
 
+pub async fn get_camp_planning_summary(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(camp_id): Path<Uuid>,
+) -> Result<Json<CampPlanningSummary>, AppError> {
+    require_permission(&claims, permissions::camp::LIST)?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let summary = build_camp_planning_summary(&mut tx, claims.tenant_id, camp_id).await?;
+    tx.commit().await?;
+    Ok(Json(summary))
+}
+
 pub async fn upsert_remote_setup(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
@@ -3398,29 +5307,106 @@ pub async fn create_supply_item(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
+    let row = insert_supply_item(&mut tx, claims.tenant_id, camp_id, body).await?;
+
+    tx.commit().await?;
+    Ok(Json(row))
+}
+
+pub async fn bulk_create_supply_items(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(camp_id): Path<Uuid>,
+    Json(body): Json<BulkCreateSupplyItemsRequest>,
+) -> Result<Json<BulkCreateSupplyItemsResponse>, AppError> {
+    require_permission(&claims, permissions::camp::UPDATE)?;
+
+    if body.items.is_empty() {
+        return Err(AppError::BadRequest(
+            "at least one supply item is required".to_owned(),
+        ));
+    }
+    if body.items.len() > 250 {
+        return Err(AppError::BadRequest(
+            "bulk camp supply intake is limited to 250 rows".to_owned(),
+        ));
+    }
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let mut created = Vec::with_capacity(body.items.len());
+    for item in body.items {
+        created.push(insert_supply_item(&mut tx, claims.tenant_id, camp_id, item).await?);
+    }
+
+    tx.commit().await?;
+    Ok(Json(BulkCreateSupplyItemsResponse {
+        count: created.len(),
+        created,
+    }))
+}
+
+async fn insert_supply_item(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: Uuid,
+    camp_id: Uuid,
+    body: CreateSupplyItemRequest,
+) -> Result<CampSupplyItem, AppError> {
+    if body.item_name.trim().is_empty() {
+        return Err(AppError::BadRequest(
+            "supply item name is required".to_owned(),
+        ));
+    }
+    let charge_mode = normalized_camp_charge_mode(body.charge_mode.as_deref())?;
     let row = sqlx::query_as::<_, CampSupplyItem>(
         "INSERT INTO camp_supply_items \
-         (tenant_id, camp_id, category, item_name, unit, planned_qty, packed_qty, \
-          batch_no, expiry_date, is_critical, shortage_notes) \
-         VALUES ($1, $2, $3, $4, $5, COALESCE($6, 0), COALESCE($7, 0), $8, $9, COALESCE($10, false), $11) \
+         (tenant_id, camp_id, category, catalog_item_id, batch_stock_id, store_location_id, \
+          item_name, unit, planned_qty, packed_qty, batch_no, expiry_date, charge_mode, \
+          unit_price, tax_percent, cost_amount, sponsor_covered_amount, concession_percentage, \
+          approval_required, is_critical, shortage_notes) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, COALESCE($9, 0), COALESCE($10, 0), \
+          $11, $12, $13, COALESCE($14, 0), COALESCE($15, 0), COALESCE($16, 0), \
+          COALESCE($17, 0), COALESCE($18, 0), COALESCE($19, false), COALESCE($20, false), $21) \
          RETURNING *",
     )
-    .bind(claims.tenant_id)
+    .bind(tenant_id)
     .bind(camp_id)
     .bind(body.category)
-    .bind(body.item_name)
+    .bind(body.catalog_item_id)
+    .bind(body.batch_stock_id)
+    .bind(body.store_location_id)
+    .bind(body.item_name.trim())
     .bind(body.unit)
     .bind(body.planned_qty)
     .bind(body.packed_qty)
     .bind(body.batch_no)
     .bind(body.expiry_date)
+    .bind(charge_mode)
+    .bind(body.unit_price)
+    .bind(body.tax_percent)
+    .bind(body.cost_amount)
+    .bind(body.sponsor_covered_amount)
+    .bind(body.concession_percentage)
+    .bind(body.approval_required)
     .bind(body.is_critical)
     .bind(body.shortage_notes)
-    .fetch_one(&mut *tx)
+    .fetch_one(&mut **tx)
     .await?;
 
-    tx.commit().await?;
-    Ok(Json(row))
+    Ok(row)
+}
+
+fn normalized_camp_charge_mode(value: Option<&str>) -> Result<&'static str, AppError> {
+    match value.unwrap_or("free").trim() {
+        "" | "free" => Ok("free"),
+        "paid" => Ok("paid"),
+        "mixed" => Ok("mixed"),
+        "sponsor_covered" => Ok("sponsor_covered"),
+        other => Err(AppError::BadRequest(format!(
+            "invalid camp charge mode: {other}"
+        ))),
+    }
 }
 
 pub async fn update_supply_item(
@@ -3463,10 +5449,27 @@ pub async fn create_camp_referral(
     Path(camp_id): Path<Uuid>,
     Json(body): Json<CreateCampReferralRequest>,
 ) -> Result<Json<CampReferral>, AppError> {
-    require_permission(&claims, permissions::camp::screenings::MANAGE)?;
+    require_permission(&claims, permissions::camp::referrals::CREATE)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    if let Some(registration_id) = body.registration_id {
+        ensure_registration_belongs_to_camp(&mut tx, claims.tenant_id, camp_id, registration_id)
+            .await?;
+    }
+
+    let referred_to_facility = body.referred_to_facility.trim().to_owned();
+    if referred_to_facility.is_empty() {
+        return Err(AppError::BadRequest(
+            "referral facility is required for camp referral".to_owned(),
+        ));
+    }
+    let reason = body.reason.trim().to_owned();
+    if reason.is_empty() {
+        return Err(AppError::BadRequest(
+            "referral reason is required for camp referral".to_owned(),
+        ));
+    }
 
     let row = sqlx::query_as::<_, CampReferral>(
         "INSERT INTO camp_referrals \
@@ -3478,10 +5481,10 @@ pub async fn create_camp_referral(
     .bind(claims.tenant_id)
     .bind(camp_id)
     .bind(body.registration_id)
-    .bind(body.referred_to_facility)
+    .bind(referred_to_facility)
     .bind(body.referral_department)
     .bind(body.urgency)
-    .bind(body.reason)
+    .bind(reason)
     .bind(body.transport_mode)
     .bind(body.ambulance_required)
     .bind(body.attendant_name)
@@ -3494,13 +5497,81 @@ pub async fn create_camp_referral(
     Ok(Json(row))
 }
 
+pub async fn list_camp_referrals(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(camp_id): Path<Uuid>,
+) -> Result<Json<Vec<CampReferral>>, AppError> {
+    require_any_permission(
+        &claims,
+        &[
+            permissions::camp::LIST,
+            permissions::camp::referrals::CREATE,
+            permissions::camp::referrals::UPDATE,
+            permissions::camp::referrals::STATUS,
+        ],
+    )?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let rows = sqlx::query_as::<_, CampReferral>(
+        "SELECT * FROM camp_referrals \
+         WHERE tenant_id = $1 AND camp_id = $2 \
+         ORDER BY created_at DESC LIMIT 200",
+    )
+    .bind(claims.tenant_id)
+    .bind(camp_id)
+    .fetch_all(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+    Ok(Json(rows))
+}
+
 pub async fn update_camp_referral(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
     Json(body): Json<UpdateCampReferralRequest>,
 ) -> Result<Json<CampReferral>, AppError> {
-    require_permission(&claims, permissions::camp::screenings::MANAGE)?;
+    let status = if let Some(value) = body.status.as_deref() {
+        let trimmed = value.trim();
+        if trimmed.is_empty() {
+            return Err(AppError::BadRequest(
+                "camp referral status cannot be blank".to_owned(),
+            ));
+        }
+        if !matches!(
+            trimmed,
+            "created" | "sent" | "accepted" | "completed" | "cancelled"
+        ) {
+            return Err(AppError::BadRequest(
+                "invalid camp referral status transition".to_owned(),
+            ));
+        }
+        Some(trimmed.to_owned())
+    } else {
+        None
+    };
+    let handoff_update_requested = body.transport_mode.is_some()
+        || body.attendant_name.is_some()
+        || body.attendant_phone.is_some();
+    if handoff_update_requested {
+        require_permission(&claims, permissions::camp::referrals::UPDATE)?;
+    } else if status.is_some() {
+        require_any_permission(
+            &claims,
+            &[
+                permissions::camp::referrals::STATUS,
+                permissions::camp::referrals::UPDATE,
+            ],
+        )?;
+    } else {
+        return Err(AppError::BadRequest(
+            "camp referral update payload is empty".to_owned(),
+        ));
+    }
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -3515,7 +5586,7 @@ pub async fn update_camp_referral(
          RETURNING *",
     )
     .bind(id)
-    .bind(body.status)
+    .bind(status)
     .bind(body.transport_mode)
     .bind(body.attendant_name)
     .bind(body.attendant_phone)
@@ -3534,7 +5605,7 @@ pub async fn create_camp_incident(
     Path(camp_id): Path<Uuid>,
     Json(body): Json<CreateCampIncidentRequest>,
 ) -> Result<Json<CampIncident>, AppError> {
-    require_permission(&claims, permissions::camp::LIST)?;
+    require_permission(&claims, permissions::camp::UPDATE)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -3752,6 +5823,20 @@ pub async fn activate_camp(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
+    let summary = build_camp_planning_summary(&mut tx, claims.tenant_id, id).await?;
+    if summary.activation_blocked {
+        let blockers = summary
+            .action_items
+            .iter()
+            .filter(|item| item.blocks_activation && item.status != "ok")
+            .map(|item| item.label.as_str())
+            .collect::<Vec<_>>()
+            .join("; ");
+        return Err(AppError::BadRequest(format!(
+            "camp activation blocked: {blockers}"
+        )));
+    }
+
     let row = sqlx::query_as::<_, Camp>(
         "UPDATE camps SET status = 'active' \
          WHERE id = $1 AND status IN ('approved', 'setup') RETURNING *",
@@ -3773,6 +5858,20 @@ pub async fn complete_camp(
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let summary = build_camp_planning_summary(&mut tx, claims.tenant_id, id).await?;
+    if summary.closeout_blocked {
+        let blockers = summary
+            .action_items
+            .iter()
+            .filter(|item| item.blocks_closeout && item.status != "ok")
+            .map(|item| item.label.as_str())
+            .collect::<Vec<_>>()
+            .join("; ");
+        return Err(AppError::BadRequest(format!(
+            "camp closeout blocked: {blockers}"
+        )));
+    }
 
     // Count actual participants
     let count_row = sqlx::query_as::<_, CountRow>(
@@ -3821,6 +5920,103 @@ pub async fn cancel_camp(
     Ok(Json(row))
 }
 
+pub async fn list_staff_options(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Query(q): Query<CampLookupQuery>,
+) -> Result<Json<Vec<CampStaffOption>>, AppError> {
+    require_any_permission(
+        &claims,
+        &[
+            permissions::camp::LIST,
+            permissions::camp::CREATE,
+            permissions::camp::UPDATE,
+        ],
+    )?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let search = q.search.map(|value| format!("%{}%", value.trim()));
+    let rows = sqlx::query_as::<_, CampStaffOption>(
+        "SELECT \
+            e.id, \
+            e.employee_code, \
+            trim(concat_ws(' ', e.first_name, e.last_name)) AS display_name, \
+            e.department_id, \
+            d.name AS department_name, \
+            des.name AS designation_name, \
+            e.status::text AS status \
+         FROM employees e \
+         LEFT JOIN departments d ON d.id = e.department_id AND d.tenant_id = e.tenant_id \
+         LEFT JOIN designations des ON des.id = e.designation_id AND des.tenant_id = e.tenant_id \
+         WHERE e.tenant_id = $1 \
+           AND e.status = 'active'::employee_status \
+           AND ($2::uuid IS NULL OR e.department_id = $2) \
+           AND ( \
+                $3::text IS NULL \
+                OR e.employee_code ILIKE $3 \
+                OR e.first_name ILIKE $3 \
+                OR e.last_name ILIKE $3 \
+                OR e.phone ILIKE $3 \
+                OR e.email ILIKE $3 \
+           ) \
+         ORDER BY e.first_name, e.last_name \
+         LIMIT 150",
+    )
+    .bind(claims.tenant_id)
+    .bind(q.department_id)
+    .bind(&search)
+    .fetch_all(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+    Ok(Json(rows))
+}
+
+pub async fn list_medicine_options(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Query(q): Query<CampLookupQuery>,
+) -> Result<Json<Vec<CampMedicineOption>>, AppError> {
+    require_any_permission(
+        &claims,
+        &[
+            permissions::camp::LIST,
+            permissions::camp::CREATE,
+            permissions::camp::UPDATE,
+        ],
+    )?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
+
+    let search = q.search.map(|value| format!("%{}%", value.trim()));
+    let rows = sqlx::query_as::<_, CampMedicineOption>(
+        "SELECT \
+            id, code, name, generic_name, unit, current_stock, base_price, tax_percent, \
+            drug_schedule::text AS drug_schedule, \
+            is_controlled, is_lasa, batch_tracking_required, \
+            formulary_status::text AS formulary_status \
+         FROM pharmacy_catalog \
+         WHERE tenant_id = $1 \
+           AND is_active = true \
+           AND ($2::text IS NULL OR name ILIKE $2 OR generic_name ILIKE $2 OR code ILIKE $2) \
+         ORDER BY \
+           CASE WHEN current_stock > 0 THEN 0 ELSE 1 END, \
+           name \
+         LIMIT 150",
+    )
+    .bind(claims.tenant_id)
+    .bind(&search)
+    .fetch_all(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+    Ok(Json(rows))
+}
+
 // ══════════════════════════════════════════════════════════
 //  Handlers — Team Members
 // ══════════════════════════════════════════════════════════
@@ -3829,16 +6025,30 @@ pub async fn list_team_members(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Path(camp_id): Path<Uuid>,
-) -> Result<Json<Vec<CampTeamMember>>, AppError> {
-    require_permission(&claims, permissions::camp::LIST)?;
+) -> Result<Json<Vec<CampTeamMemberWithEmployee>>, AppError> {
+    require_any_permission(
+        &claims,
+        &[permissions::camp::LIST, permissions::camp::UPDATE],
+    )?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let rows = sqlx::query_as::<_, CampTeamMember>(
-        "SELECT * FROM camp_team_members WHERE camp_id = $1 ORDER BY created_at",
+    let rows = sqlx::query_as::<_, CampTeamMemberWithEmployee>(
+        "SELECT \
+            ctm.id, ctm.tenant_id, ctm.camp_id, ctm.employee_id, \
+            e.employee_code, \
+            trim(concat_ws(' ', e.first_name, e.last_name)) AS employee_name, \
+            d.name AS department_name, \
+            ctm.role_in_camp, ctm.is_confirmed, ctm.notes, ctm.created_at, ctm.updated_at \
+         FROM camp_team_members ctm \
+         LEFT JOIN employees e ON e.id = ctm.employee_id AND e.tenant_id = ctm.tenant_id \
+         LEFT JOIN departments d ON d.id = e.department_id AND d.tenant_id = e.tenant_id \
+         WHERE ctm.camp_id = $1 AND ctm.tenant_id = $2 AND ctm.deleted_at IS NULL \
+         ORDER BY ctm.role_in_camp, e.first_name, e.last_name, ctm.created_at",
     )
     .bind(camp_id)
+    .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
     .await?;
 
@@ -3853,22 +6063,77 @@ pub async fn add_team_member(
     Json(body): Json<AddTeamMemberRequest>,
 ) -> Result<Json<CampTeamMember>, AppError> {
     require_permission(&claims, permissions::camp::UPDATE)?;
+    let role_in_camp = body.role_in_camp.trim();
+    if role_in_camp.is_empty() {
+        return Err(AppError::BadRequest("Camp role is required".to_owned()));
+    }
+    let notes = body
+        .notes
+        .as_ref()
+        .map(|value| value.trim())
+        .and_then(|value| {
+            if value.is_empty() {
+                None
+            } else {
+                Some(value.to_owned())
+            }
+        });
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let camp_status = sqlx::query_scalar::<_, String>(
+        "SELECT status::text FROM camps WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(camp_id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or_else(|| AppError::NotFound)?;
+
+    if matches!(camp_status.as_str(), "completed" | "cancelled") {
+        return Err(AppError::BadRequest(
+            "Camp team cannot be changed after completion or cancellation".to_owned(),
+        ));
+    }
+
+    let employee_is_active = sqlx::query_scalar::<_, bool>(
+        "SELECT EXISTS( \
+            SELECT 1 FROM employees \
+            WHERE id = $1 AND tenant_id = $2 AND status = 'active'::employee_status \
+         )",
+    )
+    .bind(body.employee_id)
+    .bind(claims.tenant_id)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    if !employee_is_active {
+        return Err(AppError::BadRequest(
+            "Select an active staff member from this tenant".to_owned(),
+        ));
+    }
 
     let row = sqlx::query_as::<_, CampTeamMember>(
         "INSERT INTO camp_team_members \
          (tenant_id, camp_id, employee_id, role_in_camp, is_confirmed, notes) \
          VALUES ($1, $2, $3, $4, COALESCE($5, false), $6) \
+         ON CONFLICT (tenant_id, camp_id, employee_id) DO UPDATE SET \
+           role_in_camp = EXCLUDED.role_in_camp, \
+           is_confirmed = EXCLUDED.is_confirmed, \
+           notes = EXCLUDED.notes, \
+           deleted_at = NULL, \
+           deleted_by = NULL, \
+           delete_reason = NULL, \
+           updated_at = now() \
          RETURNING *",
     )
     .bind(claims.tenant_id)
     .bind(camp_id)
     .bind(body.employee_id)
-    .bind(&body.role_in_camp)
+    .bind(role_in_camp)
     .bind(body.is_confirmed)
-    .bind(&body.notes)
+    .bind(&notes)
     .fetch_one(&mut *tx)
     .await?;
 
@@ -3879,20 +6144,34 @@ pub async fn add_team_member(
 pub async fn remove_team_member(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
-    Path((_camp_id, member_id)): Path<(Uuid, Uuid)>,
-) -> Result<Json<serde_json::Value>, AppError> {
+    Path((camp_id, member_id)): Path<(Uuid, Uuid)>,
+) -> Result<Json<Value>, AppError> {
     require_permission(&claims, permissions::camp::UPDATE)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    sqlx::query("DELETE FROM camp_team_members WHERE id = $1")
-        .bind(member_id)
-        .execute(&mut *tx)
-        .await?;
+    let result = sqlx::query(
+        "UPDATE camp_team_members SET \
+         deleted_at = COALESCE(deleted_at, now()), \
+         deleted_by = COALESCE(deleted_by, $3), \
+         delete_reason = COALESCE(delete_reason, 'Removed from camp team'), \
+         is_confirmed = false, \
+         updated_at = now() \
+         WHERE id = $1 AND camp_id = $2 AND tenant_id = $4 AND deleted_at IS NULL",
+    )
+    .bind(member_id)
+    .bind(camp_id)
+    .bind(claims.sub)
+    .bind(claims.tenant_id)
+    .execute(&mut *tx)
+    .await?;
 
     tx.commit().await?;
-    Ok(Json(serde_json::json!({ "deleted": true })))
+    Ok(Json(serde_json::json!({
+        "deleted": false,
+        "archived": result.rows_affected() > 0
+    })))
 }
 
 // ══════════════════════════════════════════════════════════
@@ -3904,7 +6183,11 @@ pub async fn list_registrations(
     Extension(claims): Extension<Claims>,
     Query(params): Query<ListRegistrationsQuery>,
 ) -> Result<Json<Vec<CampRegistration>>, AppError> {
-    require_permission(&claims, permissions::camp::registrations::LIST)?;
+    require_any_permission(&claims, CAMP_REGISTRATION_SELECTOR_PERMISSIONS)?;
+
+    let restricted_fields = resolve_camp_registration_restricted_fields(&state, &claims).await?;
+    let can_view_patient_record = has_patient_record_view(&claims);
+    let can_view_full_queue = can_view_full_camp_registration_queue(&claims);
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -3921,6 +6204,17 @@ pub async fn list_registrations(
     .await?;
 
     tx.commit().await?;
+    let rows = rows
+        .into_iter()
+        .map(|row| {
+            filter_camp_registration_response(
+                row,
+                &restricted_fields,
+                can_view_patient_record,
+                can_view_full_queue,
+            )
+        })
+        .collect();
     Ok(Json(rows))
 }
 
@@ -3930,6 +6224,14 @@ pub async fn create_registration(
     Json(body): Json<CreateRegistrationRequest>,
 ) -> Result<Json<CampRegistration>, AppError> {
     require_permission(&claims, permissions::camp::registrations::CREATE)?;
+    if body.patient_id.is_some() && !has_patient_record_view(&claims) {
+        return Err(AppError::Forbidden);
+    }
+
+    let restricted_fields = resolve_camp_registration_restricted_fields(&state, &claims).await?;
+    validate_camp_registration_write_access(&body, &restricted_fields)?;
+    let can_view_patient_record = has_patient_record_view(&claims);
+    let can_view_full_queue = can_view_full_camp_registration_queue(&claims);
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -3950,6 +6252,15 @@ pub async fn create_registration(
 
     let seq = count_row.count.unwrap_or(0) + 1;
     let reg_number = format!("CR-{}-{seq:04}", camp.camp_code);
+
+    // All camp participants see a doctor first; investigations follow only on
+    // the doctor's advice. Default service_line to 'consultation' so the
+    // registration form doesn't need to ask which service is needed.
+    let service_line = body
+        .service_line
+        .clone()
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or_else(|| "consultation".to_owned());
 
     let row = sqlx::query_as::<_, CampRegistration>(
         "INSERT INTO camp_registrations \
@@ -3976,7 +6287,7 @@ pub async fn create_registration(
     .bind(body.patient_id)
     .bind(body.clinical_department_id)
     .bind(body.attending_doctor_id)
-    .bind(&body.service_line)
+    .bind(&service_line)
     .bind(&body.chief_complaint)
     .bind(body.is_walk_in)
     .bind(claims.sub)
@@ -3984,7 +6295,12 @@ pub async fn create_registration(
     .await?;
 
     tx.commit().await?;
-    Ok(Json(row))
+    Ok(Json(filter_camp_registration_response(
+        row,
+        &restricted_fields,
+        can_view_patient_record,
+        can_view_full_queue,
+    )))
 }
 
 pub async fn update_registration(
@@ -3993,7 +6309,14 @@ pub async fn update_registration(
     Path(id): Path<Uuid>,
     Json(body): Json<UpdateRegistrationRequest>,
 ) -> Result<Json<CampRegistration>, AppError> {
-    require_permission(&claims, permissions::camp::registrations::CREATE)?;
+    require_permission(&claims, permissions::camp::registrations::UPDATE)?;
+    if body.patient_id.is_some() && !has_patient_record_view(&claims) {
+        return Err(AppError::Forbidden);
+    }
+
+    let restricted_fields = resolve_camp_registration_restricted_fields(&state, &claims).await?;
+    let can_view_patient_record = has_patient_record_view(&claims);
+    let can_view_full_queue = can_view_full_camp_registration_queue(&claims);
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -4020,7 +6343,12 @@ pub async fn update_registration(
     .await?;
 
     tx.commit().await?;
-    Ok(Json(row))
+    Ok(Json(filter_camp_registration_response(
+        row,
+        &restricted_fields,
+        can_view_patient_record,
+        can_view_full_queue,
+    )))
 }
 
 pub async fn open_registration_encounter(
@@ -4029,8 +6357,9 @@ pub async fn open_registration_encounter(
     Path(id): Path<Uuid>,
     body: Option<Json<OpenCampRegistrationEncounterRequest>>,
 ) -> Result<Json<OpenCampRegistrationEncounterResponse>, AppError> {
-    require_permission(&claims, permissions::camp::registrations::CREATE)?;
+    require_permission(&claims, permissions::camp::registrations::UPDATE)?;
     require_permission(&claims, permissions::opd::visit::CREATE)?;
+    let can_view_patient_record = has_patient_record_view(&claims);
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -4051,6 +6380,9 @@ pub async fn open_registration_encounter(
     .fetch_optional(&mut *tx)
     .await?
     .ok_or(AppError::NotFound)?;
+    if context.patient_id.is_none() {
+        require_permission(&claims, permissions::patients::CREATE)?;
+    }
 
     let body = body.map_or(
         OpenCampRegistrationEncounterRequest {
@@ -4149,7 +6481,7 @@ pub async fn open_registration_encounter(
     .await?;
 
     tx.commit().await?;
-    Ok(Json(OpenCampRegistrationEncounterResponse {
+    let response = OpenCampRegistrationEncounterResponse {
         encounter_id: link.encounter_id,
         queue_id: link.queue_id,
         patient_id,
@@ -4157,7 +6489,11 @@ pub async fn open_registration_encounter(
         uhid,
         department_id,
         doctor_id,
-    }))
+    };
+    Ok(Json(filter_open_camp_encounter_response(
+        response,
+        can_view_patient_record,
+    )))
 }
 
 // ══════════════════════════════════════════════════════════
@@ -4196,6 +6532,9 @@ pub async fn create_screening(
     Json(body): Json<CreateScreeningRequest>,
 ) -> Result<Json<CampScreening>, AppError> {
     require_permission(&claims, permissions::camp::screenings::MANAGE)?;
+    if body.referred_to_hospital.unwrap_or(false) {
+        require_permission(&claims, permissions::camp::referrals::CREATE)?;
+    }
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -4369,9 +6708,11 @@ pub async fn create_lab_sample(
     Json(body): Json<CreateLabSampleRequest>,
 ) -> Result<Json<CampLabSample>, AppError> {
     require_permission(&claims, permissions::camp::lab::MANAGE)?;
+    let normalized = normalize_camp_lab_sample_input(&body)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    ensure_registration_belongs_to_tenant(&mut tx, claims.tenant_id, body.registration_id).await?;
 
     let row = sqlx::query_as::<_, CampLabSample>(
         "INSERT INTO camp_lab_samples \
@@ -4382,9 +6723,9 @@ pub async fn create_lab_sample(
     )
     .bind(claims.tenant_id)
     .bind(body.registration_id)
-    .bind(&body.sample_type)
-    .bind(&body.test_requested)
-    .bind(&body.barcode)
+    .bind(&normalized.sample_type)
+    .bind(&normalized.test_requested)
+    .bind(&normalized.barcode)
     .bind(claims.sub)
     .fetch_one(&mut *tx)
     .await?;
@@ -4400,18 +6741,68 @@ pub async fn link_lab_sample(
     Json(body): Json<LinkLabSampleRequest>,
 ) -> Result<Json<CampLabSample>, AppError> {
     require_permission(&claims, permissions::camp::lab::MANAGE)?;
+    require_permission(&claims, permissions::lab::orders::CREATE)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
+    let sample_context = sqlx::query_as::<_, CampLabSampleLinkContext>(
+        "SELECT r.patient_id, ls.sent_to_lab \
+         FROM camp_lab_samples ls \
+         JOIN camp_registrations r ON r.id = ls.registration_id \
+         WHERE ls.id = $1 AND ls.tenant_id = $2",
+    )
+    .bind(id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or_else(|| AppError::BadRequest("camp lab sample not found".to_owned()))?;
+
+    if sample_context.sent_to_lab {
+        return Err(AppError::BadRequest(
+            "camp lab sample is already linked to a lab order".to_owned(),
+        ));
+    }
+
+    let lab_order_context = sqlx::query_as::<_, CampLabOrderLinkContext>(
+        "SELECT patient_id \
+         FROM lab_orders \
+         WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(body.lab_order_id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or_else(|| AppError::BadRequest("lab order not found".to_owned()))?;
+
+    let registration_patient_id = sample_context.patient_id.ok_or_else(|| {
+        AppError::BadRequest(
+            "camp registration must be linked to a patient before sending samples to lab"
+                .to_owned(),
+        )
+    })?;
+    if registration_patient_id != lab_order_context.patient_id {
+        return Err(AppError::BadRequest(
+            "lab order patient does not match the camp registration patient".to_owned(),
+        ));
+    }
+
+    let result_summary = body
+        .result_summary
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToOwned::to_owned);
+
     let row = sqlx::query_as::<_, CampLabSample>(
         "UPDATE camp_lab_samples SET \
          lab_order_id = $2, result_summary = $3, sent_to_lab = true \
-         WHERE id = $1 RETURNING *",
+         WHERE id = $1 AND tenant_id = $4 RETURNING *",
     )
     .bind(id)
     .bind(body.lab_order_id)
-    .bind(&body.result_summary)
+    .bind(&result_summary)
+    .bind(claims.tenant_id)
     .fetch_one(&mut *tx)
     .await?;
 
@@ -4428,7 +6819,8 @@ pub async fn list_billing(
     Extension(claims): Extension<Claims>,
     Query(params): Query<ListBillingQuery>,
 ) -> Result<Json<Vec<CampBillingRecord>>, AppError> {
-    require_permission(&claims, permissions::camp::LIST)?;
+    require_permission(&claims, permissions::camp::billing::LIST)?;
+    let restricted_fields = resolve_camp_registration_restricted_fields(&state, &claims).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -4446,6 +6838,10 @@ pub async fn list_billing(
     .await?;
 
     tx.commit().await?;
+    let rows = rows
+        .into_iter()
+        .map(|row| filter_camp_billing_amounts(row, &restricted_fields))
+        .collect();
     Ok(Json(rows))
 }
 
@@ -4454,34 +6850,286 @@ pub async fn create_billing(
     Extension(claims): Extension<Claims>,
     Json(body): Json<CreateBillingRequest>,
 ) -> Result<Json<CampBillingRecord>, AppError> {
-    require_permission(&claims, permissions::camp::UPDATE)?;
+    require_permission(&claims, permissions::camp::billing::CREATE)?;
+    let restricted_fields = resolve_camp_registration_restricted_fields(&state, &claims).await?;
+    validate_camp_billing_amount_write_access(&restricted_fields)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    ensure_registration_belongs_to_tenant(&mut tx, claims.tenant_id, body.registration_id).await?;
+
+    let service_description = body.service_description.trim().to_owned();
+    if service_description.is_empty() {
+        return Err(AppError::BadRequest(
+            "service description is required for camp billing".to_owned(),
+        ));
+    }
+
+    let discount_percentage = body.discount_percentage.unwrap_or(Decimal::ZERO);
+    let tax_percent = body.tax_percent.unwrap_or(Decimal::ZERO);
+    let sponsor_covered_amount = body.sponsor_covered_amount.unwrap_or(Decimal::ZERO);
+    let is_free = body.is_free.unwrap_or(false);
+    if body.standard_amount < Decimal::ZERO {
+        return Err(AppError::BadRequest(
+            "standard amount cannot be negative".to_owned(),
+        ));
+    }
+    if body.charged_amount < Decimal::ZERO {
+        return Err(AppError::BadRequest(
+            "charged amount cannot be negative".to_owned(),
+        ));
+    }
+    if discount_percentage < Decimal::ZERO || discount_percentage > Decimal::from(100) {
+        return Err(AppError::BadRequest(
+            "discount percentage must be between 0 and 100".to_owned(),
+        ));
+    }
+    if tax_percent < Decimal::ZERO || tax_percent > Decimal::from(100) {
+        return Err(AppError::BadRequest(
+            "tax percent must be between 0 and 100".to_owned(),
+        ));
+    }
+    if sponsor_covered_amount < Decimal::ZERO {
+        return Err(AppError::BadRequest(
+            "sponsor covered amount cannot be negative".to_owned(),
+        ));
+    }
+    if is_free && body.charged_amount != Decimal::ZERO {
+        return Err(AppError::BadRequest(
+            "free camp billing items must charge zero to the patient".to_owned(),
+        ));
+    }
+    let max_charge =
+        body.standard_amount - (body.standard_amount * discount_percentage / Decimal::from(100));
+    if body.charged_amount > max_charge {
+        return Err(AppError::BadRequest(
+            "charged amount cannot exceed standard amount after concession".to_owned(),
+        ));
+    }
+    if body.charged_amount + sponsor_covered_amount > max_charge {
+        return Err(AppError::BadRequest(
+            "patient charge plus sponsor coverage cannot exceed standard amount after concession"
+                .to_owned(),
+        ));
+    }
+    let tax_amount = (body.charged_amount * tax_percent / Decimal::from(100)).round_dp(2);
+    let total_amount = (body.charged_amount + tax_amount).round_dp(2);
+    let payment_mode = body
+        .payment_mode
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    if !is_free && total_amount > Decimal::ZERO && payment_mode.is_none() {
+        return Err(AppError::BadRequest(
+            "payment mode is required for paid camp billing items".to_owned(),
+        ));
+    }
+    let payment_reference = body
+        .payment_reference
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    let source_module = body
+        .source_module
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
 
     let row = sqlx::query_as::<_, CampBillingRecord>(
         "INSERT INTO camp_billing_records \
          (tenant_id, registration_id, service_description, standard_amount, \
-          discount_percentage, charged_amount, is_free, payment_mode, payment_reference, \
-          billed_by) \
-         VALUES ($1, $2, $3, $4, $5, $6, COALESCE($7, true), $8, $9, $10) \
+          discount_percentage, charged_amount, tax_percent, tax_amount, total_amount, \
+          sponsor_covered_amount, is_free, payment_mode, payment_reference, source_module, \
+          source_entity_id, billed_by) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, COALESCE($11, true), $12, $13, \
+          $14, $15, $16) \
          RETURNING *",
     )
     .bind(claims.tenant_id)
     .bind(body.registration_id)
-    .bind(&body.service_description)
+    .bind(&service_description)
     .bind(body.standard_amount)
-    .bind(body.discount_percentage)
+    .bind(discount_percentage)
     .bind(body.charged_amount)
-    .bind(body.is_free)
-    .bind(&body.payment_mode)
-    .bind(&body.payment_reference)
+    .bind(tax_percent)
+    .bind(tax_amount)
+    .bind(total_amount)
+    .bind(sponsor_covered_amount)
+    .bind(is_free)
+    .bind(payment_mode)
+    .bind(payment_reference)
+    .bind(source_module)
+    .bind(body.source_entity_id)
     .bind(claims.sub)
     .fetch_one(&mut *tx)
     .await?;
 
+    mirror_camp_billing_to_common_billing_in_tx(
+        &mut tx,
+        &claims,
+        &row,
+        discount_percentage,
+        tax_percent,
+        payment_mode,
+        payment_reference,
+    )
+    .await?;
+
     tx.commit().await?;
-    Ok(Json(row))
+    Ok(Json(filter_camp_billing_amounts(row, &restricted_fields)))
+}
+
+async fn mirror_camp_billing_to_common_billing_in_tx(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    claims: &Claims,
+    row: &CampBillingRecord,
+    discount_percentage: Decimal,
+    tax_percent: Decimal,
+    payment_mode: Option<&str>,
+    payment_reference: Option<&str>,
+) -> Result<(), AppError> {
+    if !super::billing::is_auto_billing_enabled(tx, &claims.tenant_id, "camp").await? {
+        return Ok(());
+    }
+
+    #[derive(sqlx::FromRow)]
+    struct CampBillingRegistrationContext {
+        patient_id: Option<Uuid>,
+        camp_id: Uuid,
+        camp_code: String,
+        camp_name: String,
+        registration_number: String,
+    }
+
+    let context = sqlx::query_as::<_, CampBillingRegistrationContext>(
+        "SELECT r.patient_id, r.camp_id, c.camp_code, c.name AS camp_name, r.registration_number \
+         FROM camp_registrations r \
+         JOIN camps c ON c.id = r.camp_id AND c.tenant_id = r.tenant_id \
+         WHERE r.id = $1 AND r.tenant_id = $2",
+    )
+    .bind(row.registration_id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut **tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+
+    let Some(patient_id) = context.patient_id else {
+        return Err(AppError::BadRequest(
+            "Camp billing requires a linked central patient registration".to_owned(),
+        ));
+    };
+
+    let charge_code = format!("CAMP-{}", context.camp_code);
+    let description = format!(
+        "{} · {} · {}",
+        row.service_description, context.camp_name, context.registration_number
+    );
+    let charge = super::billing::auto_charge(
+        tx,
+        &claims.tenant_id,
+        super::billing::AutoChargeInput {
+            patient_id,
+            encounter_id: None,
+            charge_code,
+            source: "manual".to_owned(),
+            source_id: row.id,
+            quantity: 1,
+            description_override: Some(description),
+            unit_price_override: Some(row.charged_amount),
+            tax_percent_override: Some(tax_percent),
+        },
+    )
+    .await?;
+
+    sqlx::query(
+        "UPDATE invoice_items \
+         SET source_module = 'camp' \
+         WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(charge.item_id)
+    .bind(claims.tenant_id)
+    .execute(&mut **tx)
+    .await?;
+
+    let concession_amount = (row.standard_amount - row.charged_amount).round_dp(2);
+    if !charge.skipped_duplicate && concession_amount > Decimal::ZERO {
+        sqlx::query(
+            "INSERT INTO billing_concessions \
+             (tenant_id, invoice_id, invoice_item_id, patient_id, concession_type, \
+              original_amount, concession_percent, concession_amount, final_amount, \
+              reason, status, requested_by, approved_by, approved_at, auto_rule, \
+              source_module, source_entity_id) \
+             VALUES ($1, $2, $3, $4, 'camp_coverage', \
+                     $5, $6, $7, $8, \
+                     $9, 'auto_applied'::concession_status, $10, $10, now(), 'camp_plan', \
+                     'camp', $11)",
+        )
+        .bind(claims.tenant_id)
+        .bind(charge.invoice_id)
+        .bind(charge.item_id)
+        .bind(patient_id)
+        .bind(row.standard_amount)
+        .bind(discount_percentage)
+        .bind(concession_amount)
+        .bind(row.charged_amount)
+        .bind(format!("Camp coverage: {}", context.camp_name))
+        .bind(claims.sub)
+        .bind(row.id)
+        .execute(&mut **tx)
+        .await?;
+    }
+
+    if !charge.skipped_duplicate && row.total_amount > Decimal::ZERO {
+        let mode = payment_mode.ok_or_else(|| {
+            AppError::BadRequest("payment mode is required for paid camp billing".to_owned())
+        })?;
+        sqlx::query(
+            "INSERT INTO payments \
+             (tenant_id, invoice_id, amount, mode, reference_number, received_by, notes, paid_at) \
+             VALUES ($1, $2, $3, $4::payment_mode, $5, $6, $7, now())",
+        )
+        .bind(claims.tenant_id)
+        .bind(charge.invoice_id)
+        .bind(row.total_amount)
+        .bind(mode)
+        .bind(payment_reference)
+        .bind(claims.sub)
+        .bind(format!(
+            "Camp collection for {}",
+            context.registration_number
+        ))
+        .execute(&mut **tx)
+        .await?;
+    }
+
+    sqlx::query(
+        "UPDATE invoices \
+         SET paid_amount = COALESCE(( \
+               SELECT SUM(amount) FROM payments \
+               WHERE invoice_id = $1 AND tenant_id = $2 \
+             ), 0), \
+             status = CASE \
+               WHEN total_amount <= COALESCE(( \
+                 SELECT SUM(amount) FROM payments \
+                 WHERE invoice_id = $1 AND tenant_id = $2 \
+               ), 0) THEN 'paid'::invoice_status \
+               WHEN COALESCE(( \
+                 SELECT SUM(amount) FROM payments \
+                 WHERE invoice_id = $1 AND tenant_id = $2 \
+               ), 0) > 0 THEN 'partially_paid'::invoice_status \
+               ELSE 'issued'::invoice_status \
+             END, \
+             notes = COALESCE(notes, '') || ' | Camp: ' || $3, \
+             updated_at = now() \
+         WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(charge.invoice_id)
+    .bind(claims.tenant_id)
+    .bind(context.camp_id.to_string())
+    .execute(&mut **tx)
+    .await?;
+
+    Ok(())
 }
 
 // ══════════════════════════════════════════════════════════
@@ -4501,7 +7149,8 @@ pub async fn list_followups(
     let rows = sqlx::query_as::<_, CampFollowup>(
         "SELECT f.* FROM camp_followups f \
          JOIN camp_registrations r ON r.id = f.registration_id \
-         WHERE ($1::uuid IS NULL OR r.camp_id = $1) \
+         WHERE f.tenant_id = $4 AND r.tenant_id = $4 \
+         AND ($1::uuid IS NULL OR r.camp_id = $1) \
          AND ($2::uuid IS NULL OR f.registration_id = $2) \
          AND ($3::text IS NULL OR f.status::text = $3) \
          ORDER BY f.followup_date DESC LIMIT 500",
@@ -4509,6 +7158,7 @@ pub async fn list_followups(
     .bind(params.camp_id)
     .bind(params.registration_id)
     .bind(&params.status)
+    .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
     .await?;
 
@@ -4521,7 +7171,7 @@ pub async fn create_followup(
     Extension(claims): Extension<Claims>,
     Json(body): Json<CreateFollowupRequest>,
 ) -> Result<Json<CampFollowup>, AppError> {
-    require_permission(&claims, permissions::camp::followups::MANAGE)?;
+    require_permission(&claims, permissions::camp::followups::SCHEDULE)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -4529,7 +7179,9 @@ pub async fn create_followup(
     let row = sqlx::query_as::<_, CampFollowup>(
         "INSERT INTO camp_followups \
          (tenant_id, registration_id, followup_date, followup_type, notes, followed_up_by) \
-         VALUES ($1, $2, $3, $4, $5, $6) \
+         SELECT $1, r.id, $3, $4, $5, $6 \
+         FROM camp_registrations r \
+         WHERE r.id = $2 AND r.tenant_id = $1 \
          RETURNING *",
     )
     .bind(claims.tenant_id)
@@ -4551,20 +7203,39 @@ pub async fn update_followup(
     Path(id): Path<Uuid>,
     Json(body): Json<UpdateFollowupRequest>,
 ) -> Result<Json<CampFollowup>, AppError> {
-    require_permission(&claims, permissions::camp::followups::MANAGE)?;
+    let records_outcome = body.status.is_some() || body.notes.is_some() || body.outcome.is_some();
+    let records_conversion = body.converted_to_patient.is_some()
+        || body.converted_patient_id.is_some()
+        || body.converted_department_id.is_some();
+
+    if records_outcome {
+        require_permission(&claims, permissions::camp::followups::OUTCOME)?;
+    }
+    if records_conversion {
+        require_permission(&claims, permissions::camp::followups::CONVERT)?;
+    }
+    if !records_outcome && !records_conversion {
+        return Err(AppError::BadRequest(
+            "follow-up update must include outcome or conversion fields".to_owned(),
+        ));
+    }
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let row = sqlx::query_as::<_, CampFollowup>(
         "UPDATE camp_followups SET \
-         status = COALESCE($2::camp_followup_status, status), \
+         status = CASE \
+           WHEN $5 = true AND $2::camp_followup_status IS NULL \
+             THEN 'completed'::camp_followup_status \
+           ELSE COALESCE($2::camp_followup_status, status) \
+         END, \
          notes = COALESCE($3, notes), \
          outcome = COALESCE($4, outcome), \
          converted_to_patient = COALESCE($5, converted_to_patient), \
          converted_patient_id = COALESCE($6, converted_patient_id), \
          converted_department_id = COALESCE($7, converted_department_id) \
-         WHERE id = $1 RETURNING *",
+         WHERE id = $1 AND tenant_id = $8 RETURNING *",
     )
     .bind(id)
     .bind(&body.status)
@@ -4573,6 +7244,7 @@ pub async fn update_followup(
     .bind(body.converted_to_patient)
     .bind(body.converted_patient_id)
     .bind(body.converted_department_id)
+    .bind(claims.tenant_id)
     .fetch_one(&mut *tx)
     .await?;
 
@@ -4580,9 +7252,11 @@ pub async fn update_followup(
     if body.converted_to_patient == Some(true) {
         sqlx::query(
             "UPDATE camp_registrations SET status = 'converted' \
-             WHERE id = (SELECT registration_id FROM camp_followups WHERE id = $1)",
+             WHERE tenant_id = $2 \
+             AND id = (SELECT registration_id FROM camp_followups WHERE id = $1 AND tenant_id = $2)",
         )
         .bind(id)
+        .bind(claims.tenant_id)
         .execute(&mut *tx)
         .await?;
     }
@@ -4831,7 +7505,7 @@ pub async fn camp_report(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
-) -> Result<Json<serde_json::Value>, AppError> {
+) -> Result<Json<Value>, AppError> {
     require_permission(&claims, permissions::camp::LIST)?;
 
     let mut tx = state.db.begin().await?;

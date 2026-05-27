@@ -1,7 +1,10 @@
-// Landing page — Forest + Copper design system
+// Landing page — public surface using the shared app design tokens.
 
 .page {
   scroll-behavior: smooth;
+  min-height: 100vh;
+  background: var(--mb-bg-content);
+  color: var(--mb-text-primary);
 }
 
 // ─── Navbar ───
@@ -9,9 +12,9 @@
   position: sticky;
   top: 0;
   z-index: 100;
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(8px);
-  border-bottom: 1px solid var(--mb-border, #e7ebe8);
+  background: var(--mb-header-bg);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--mb-border-subtle);
   padding: 0 24px;
   height: 60px;
   display: flex;
@@ -38,8 +41,8 @@
 .navLogoText {
   font-size: 18px;
   font-weight: 800;
-  color: var(--mb-text-primary, #0F1412);
-  letter-spacing: -0.03em;
+  color: var(--mb-text-primary);
+  letter-spacing: var(--mb-letter-spacing);
 }
 
 .navLinks {
@@ -55,13 +58,13 @@
 .navLink {
   font-size: 14px;
   font-weight: 500;
-  color: var(--mb-text-secondary, #3e4a44);
+  color: var(--mb-text-secondary);
   text-decoration: none;
   transition: color 0.15s ease;
   cursor: pointer;
 
   &:hover {
-    color: var(--mantine-color-primary-5, #1F4332);
+    color: var(--mb-link-hover);
   }
 }
 
@@ -75,7 +78,29 @@
 .hero {
   padding: 120px 24px 100px;
   text-align: center;
-  background: #ffffff;
+  background: var(--mb-bg-content);
+  position: relative;
+  overflow: hidden;
+
+  &::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 8%;
+    right: 8%;
+    height: 3px;
+    border-radius: 999px;
+    background: var(--mb-selected-edge);
+  }
+
+  &::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: var(--mb-accent-gradient-soft);
+    opacity: 0.72;
+    pointer-events: none;
+  }
 
   @media (max-width: 768px) {
     padding: 80px 20px 60px;
@@ -85,6 +110,8 @@
 .heroInner {
   max-width: 720px;
   margin: 0 auto;
+  position: relative;
+  z-index: 1;
 }
 
 .heroBadge {
@@ -93,27 +120,26 @@
   gap: 8px;
   padding: 6px 16px;
   border-radius: 20px;
-  background: var(--mantine-color-primary-0, #f3f7f5);
-  color: var(--mantine-color-primary-5, #1F4332);
+  background: var(--mb-active-bg);
+  color: var(--mb-active-text);
+  border: 1px solid var(--mb-active-border);
   font-size: 13px;
   font-weight: 600;
   margin-bottom: 24px;
 }
 
-// Fraunces display — regular weight, italic accent word in forest green
 .heroTitle {
-  font-family: var(--font-display, "Fraunces Variable", "Fraunces", Georgia, serif);
+  font-family: var(--font-display);
   font-size: 48px;
-  font-weight: 400;
-  color: var(--mb-text-primary, #0F1412);
+  font-weight: var(--mb-font-weight-heading);
+  color: var(--mb-text-heading);
   line-height: 1.02;
-  letter-spacing: -0.03em;
+  letter-spacing: var(--mb-letter-spacing);
   margin-bottom: 20px;
 
   em {
-    font-style: italic;
-    font-weight: 500;
-    color: var(--mantine-color-primary-5, #1F4332);
+    font-style: normal;
+    color: var(--fc-copper);
   }
 
   @media (max-width: 768px) {
@@ -123,7 +149,7 @@
 
 .heroSubtitle {
   font-size: 18px;
-  color: var(--mb-text-secondary, #3e4a44);
+  color: var(--mb-text-secondary);
   line-height: 1.6;
   max-width: 600px;
   margin: 0 auto 40px;
@@ -144,9 +170,9 @@
 // ─── Stats ───
 .stats {
   padding: 48px 24px;
-  background: #ffffff;
-  border-top: 1px solid var(--mb-border, #e7ebe8);
-  border-bottom: 1px solid var(--mb-border, #e7ebe8);
+  background: var(--mb-card-bg);
+  border-top: 1px solid var(--mb-border);
+  border-bottom: 1px solid var(--mb-border);
 }
 
 .statsInner {
@@ -169,7 +195,7 @@
   padding: 0 32px;
 
   &:not(:last-child) {
-    border-right: 1px solid var(--mb-border, #e7ebe8);
+    border-right: 1px solid var(--mb-border);
 
     @media (max-width: 768px) {
       border-right: none;
@@ -177,19 +203,18 @@
   }
 }
 
-// Serif numerals for stat values (Fraunces)
 .statValue {
-  font-family: var(--font-display, "Fraunces Variable", "Fraunces", Georgia, serif);
+  font-family: var(--font-display);
   font-size: 32px;
-  font-weight: 400;
+  font-weight: var(--mb-font-weight-heading);
   font-variant-numeric: lining-nums tabular-nums;
-  color: var(--mantine-color-primary-5, #1F4332);
-  letter-spacing: -0.02em;
+  color: var(--fc-copper);
+  letter-spacing: var(--mb-letter-spacing);
 }
 
 .statLabel {
   font-size: 14px;
-  color: var(--mb-text-secondary, #3e4a44);
+  color: var(--mb-text-secondary);
   font-weight: 500;
   margin-top: 4px;
 }
@@ -197,7 +222,7 @@
 // ─── Features Grid ───
 .features {
   padding: 80px 24px;
-  background: var(--mb-bg-content, #f7f8f6);
+  background: var(--mb-bg-content);
 
   @media (max-width: 768px) {
     padding: 60px 20px;
@@ -212,49 +237,54 @@
 .sectionTitle {
   font-size: 28px;
   font-weight: 600;
-  color: var(--mb-text-primary, #0F1412);
+  color: var(--mb-text-heading);
   text-align: center;
-  letter-spacing: -0.02em;
+  letter-spacing: var(--mb-letter-spacing);
   margin-bottom: 12px;
 }
 
 .sectionSubtitle {
   font-size: 16px;
-  color: var(--mb-text-secondary, #3e4a44);
+  color: var(--mb-text-secondary);
   text-align: center;
   margin-bottom: 48px;
 }
 
 .featureCard {
   padding: 28px;
-  border: 1px solid var(--mb-border, #e7ebe8);
+  border: 1px solid var(--mb-border);
   border-radius: 8px;
-  background: #ffffff;
-  transition: box-shadow 0.15s ease;
+  background: var(--mb-card-bg);
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease,
+    transform 0.15s ease;
 
   &:hover {
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.14);
+    border-color: var(--mb-active-border);
+    box-shadow: var(--mb-card-hover-shadow);
+    transform: translateY(-1px);
   }
 }
 
 .featureTitle {
   font-size: 16px;
   font-weight: 700;
-  color: var(--mb-text-primary, #0F1412);
+  color: var(--mb-text-primary);
   margin-top: 16px;
   margin-bottom: 8px;
 }
 
 .featureDesc {
   font-size: 14px;
-  color: var(--mb-text-secondary, #3e4a44);
+  color: var(--mb-text-secondary);
   line-height: 1.5;
 }
 
 // ─── Modules Section ───
 .modules {
   padding: 80px 24px;
-  background: #ffffff;
+  background: var(--mb-card-bg);
 
   @media (max-width: 768px) {
     padding: 60px 20px;
@@ -267,12 +297,12 @@
 
 // Eyebrow — mono, caps, tight tracking
 .moduleCategoryTitle {
-  font-family: var(--font-mono, "JetBrains Mono", monospace);
+  font-family: var(--font-mono);
   font-size: 11px;
   font-weight: 500;
-  color: var(--mb-text-muted, #8a938f);
+  color: var(--mb-text-muted);
   text-transform: uppercase;
-  letter-spacing: 0.14em;
+  letter-spacing: var(--mb-letter-spacing);
   margin-bottom: 12px;
 }
 
@@ -285,7 +315,7 @@
 // ─── Open Source Section ───
 .openSource {
   padding: 80px 24px;
-  background: var(--mb-bg-content, #f7f8f6);
+  background: var(--mb-bg-content);
 
   @media (max-width: 768px) {
     padding: 60px 20px;
@@ -293,11 +323,12 @@
 }
 
 .codeBlock {
-  background: var(--mantine-color-primary-7, #0d2417);
-  color: var(--mantine-color-primary-1, #e4ede9);
+  background: var(--mb-panel-bg);
+  color: var(--mb-text-primary);
   padding: 20px 24px;
   border-radius: 8px;
-  font-family: "JetBrains Mono", "Fira Code", monospace;
+  border: 1px solid var(--mb-border-subtle);
+  font-family: var(--font-mono);
   font-size: 13px;
   line-height: 1.6;
   overflow-x: auto;
@@ -307,26 +338,29 @@
 .osCard {
   text-align: center;
   padding: 32px 24px;
+  background: var(--mb-card-bg);
+  border: 1px solid var(--mb-border);
 }
 
 .osCardTitle {
   font-size: 16px;
   font-weight: 700;
-  color: var(--mb-text-primary, #0F1412);
+  color: var(--mb-text-primary);
   margin-bottom: 12px;
 }
 
 .osCardDesc {
   font-size: 14px;
-  color: var(--mb-text-secondary, #3e4a44);
+  color: var(--mb-text-secondary);
   line-height: 1.5;
 }
 
 // ─── Footer ───
 .footer {
-  background: var(--mantine-color-primary-7, #0d2417);
-  color: var(--mantine-color-primary-1, #e4ede9);
+  background: var(--mb-sidebar-bg);
+  color: var(--mb-text-primary);
   padding: 64px 24px 32px;
+  border-top: 1px solid var(--mb-border);
 
   @media (max-width: 768px) {
     padding: 48px 20px 24px;
@@ -359,22 +393,22 @@
 .footerBrandName {
   font-size: 18px;
   font-weight: 800;
-  color: #ffffff;
+  color: var(--mb-text-primary);
 }
 
 .footerBrandDesc {
   font-size: 14px;
-  color: var(--mantine-color-primary-3, #8aa89a);
+  color: var(--mb-text-secondary);
   line-height: 1.5;
 }
 
 .footerColTitle {
-  font-family: var(--font-mono, "JetBrains Mono", monospace);
+  font-family: var(--font-mono);
   font-size: 11px;
   font-weight: 500;
-  color: #ffffff;
+  color: var(--mb-text-primary);
   text-transform: uppercase;
-  letter-spacing: 0.14em;
+  letter-spacing: var(--mb-letter-spacing);
   margin-bottom: 16px;
 }
 
@@ -389,18 +423,18 @@
 
 .footerLink {
   font-size: 14px;
-  color: var(--mantine-color-primary-3, #8aa89a);
+  color: var(--mb-text-secondary);
   text-decoration: none;
   transition: color 0.15s ease;
   cursor: pointer;
 
   &:hover {
-    color: #ffffff;
+    color: var(--mb-link-hover);
   }
 }
 
 .footerBottom {
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  border-top: 1px solid var(--mb-border-subtle);
   padding-top: 24px;
   display: flex;
   align-items: center;
@@ -411,7 +445,7 @@
 
 .footerCopyright {
   font-size: 13px;
-  color: var(--mantine-color-primary-3, #8aa89a);
+  color: var(--mb-text-muted);
 }
 
 // ─── Features Modal ───
@@ -423,13 +457,13 @@
 
 .featureListItem {
   padding: 10px 12px;
-  border-bottom: 1px solid var(--mb-border-subtle, #eef2f0);
+  border-bottom: 1px solid var(--mb-border-subtle);
 
   &:last-child {
     border-bottom: none;
   }
 
   &:hover {
-    background: var(--mb-bg-content, #f7f8f6);
+    background: var(--mb-table-hover);
   }
 }

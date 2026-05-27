@@ -7,6 +7,7 @@ test.describe("PatientRegisterForm field validation", () => {
   test.beforeEach(async ({ page }) => {
     await routeApiDirect(page);
     await navigateTo(page, patientRegisterSchema.navigatePath);
+    await expect(page.getByText("Patient registration")).toBeVisible();
   });
 
   test.afterEach(async ({ page }) => {
@@ -14,23 +15,15 @@ test.describe("PatientRegisterForm field validation", () => {
   });
 
   test("required fields reject blank submission", async ({ page }) => {
-    await page.getByRole("button", { name: /Register Patient/i }).click();
-    const root = page.getByRole("dialog");
-    await expect(root).toBeVisible();
+    await page.getByRole("button", { name: /Save now/i }).click();
 
-    await root.getByRole("button", { name: /Register/ }).click();
-
-    await expect(root.getByText("First name required")).toBeVisible();
-    await expect(root.getByText("Last name required")).toBeVisible();
-    await expect(root.getByText("Phone required")).toBeVisible();
+    await expect(page.getByText("First name is required")).toBeVisible();
+    await expect(page.getByText("Last name is required")).toBeVisible();
+    await expect(page.getByText("Phone is required")).toBeVisible();
   });
 
   test("registration context exposes all canonical patient types and sources", async ({ page }) => {
-    await page.getByRole("button", { name: /Register Patient/i }).click();
-    const root = page.getByRole("dialog");
-    await expect(root).toBeVisible();
-
-    await expectSelectOptions(page, root.getByLabel("Registration type"), [
+    await expectSelectOptions(page, page.getByRole("combobox", { name: "Registration type" }), [
       "New",
       "Revisit",
       "Transfer in",
@@ -41,7 +34,7 @@ test.describe("PatientRegisterForm field validation", () => {
       "Pre-registration",
     ]);
 
-    await expectSelectOptions(page, root.getByLabel("Registration source"), [
+    await expectSelectOptions(page, page.getByRole("combobox", { name: "Registration source" }), [
       "Walk-in",
       "Phone",
       "Online portal",
@@ -54,6 +47,16 @@ test.describe("PatientRegisterForm field validation", () => {
     ]);
   });
 
+  test("DOB, age hint, calendar popover, and phone prefix stay usable", async ({ page }) => {
+    await expect(page.locator('input[aria-label="Primary phone country"]')).toHaveValue(/\+\d+/);
+    await expect(page.locator('input[aria-label="Phone (primary) Phone Primary"]')).toBeVisible();
+
+    await page.locator('input[aria-label="Age years"]').fill("25");
+    await expect(page.getByText(/As of today: 25 years/i)).toBeVisible();
+
+    await page.getByLabel("Date of birth").click();
+    await expect(page.getByRole("dialog")).toBeVisible();
+  });
 });
 
 test.describe("PatientRegisterForm mobile viewport", () => {
@@ -62,6 +65,7 @@ test.describe("PatientRegisterForm mobile viewport", () => {
   test.beforeEach(async ({ page }) => {
     await routeApiDirect(page);
     await navigateTo(page, patientRegisterSchema.navigatePath);
+    await expect(page.getByText("Patient registration")).toBeVisible();
   });
 
   test.afterEach(async ({ page }) => {
@@ -69,13 +73,11 @@ test.describe("PatientRegisterForm mobile viewport", () => {
   });
 
   test("keeps registration context usable on a mobile-sized device", async ({ page }) => {
-    await page.getByRole("button", { name: /Register Patient/i }).click();
-    const root = page.getByRole("dialog");
-    await expect(root).toBeVisible();
-    await expect(root.getByLabel("Registration type")).toBeVisible();
-    await expect(root.getByLabel("Registration source")).toBeVisible();
-    await expect(root.getByLabel("Camp reference")).toBeVisible();
-    await expect(root.getByLabel("Referral type")).toBeVisible();
+    await expect(page.getByLabel("Registration type")).toBeVisible();
+    await expect(page.getByLabel("Registration source")).toBeVisible();
+    await expect(page.getByLabel("Camp reference")).toBeVisible();
+    await expect(page.locator('input[aria-label="Primary phone country"]')).toBeVisible();
+    await expect(page.locator('input[aria-label="Phone (primary) Phone Primary"]')).toBeVisible();
   });
 });
 

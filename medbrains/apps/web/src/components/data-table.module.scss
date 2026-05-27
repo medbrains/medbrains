@@ -3,13 +3,24 @@
 .card {
   overflow: hidden;
   border-color: var(--mb-border-subtle);
+  background: var(--mb-table-bg);
   box-shadow: var(--mb-float-shadow);
 }
 
 .toolbar {
-  background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0.84)),
-    var(--mb-accent-gradient-soft);
+  position: relative;
+  background: var(--mb-table-toolbar-bg);
+  border-bottom: 1px solid var(--mb-table-border);
+  color: var(--mb-text-body);
+}
+
+.toolbarContent {
+  min-width: 0;
+  color: var(--mb-text-secondary);
+}
+
+.tableActions {
+  margin-left: auto;
 }
 
 .tableWrapper {
@@ -31,11 +42,12 @@
 }
 
 .columnIcon {
-  color: var(--mb-active-text);
+  color: var(--mb-table-header-text);
   opacity: 0.82;
   flex-shrink: 0;
 }
 
 .footerCount {
   font-variant-numeric: tabular-nums;
+  color: var(--mb-table-text-muted);
 }

@@ -1,6 +1,10 @@
 import { ActionIcon, Badge, Card, Group, Stack, Text, Tooltip } from "@mantine/core";
+import { useHasPermission } from "@medbrains/stores";
 import type { BasketItem, BasketWarning } from "@medbrains/types";
+import { P } from "@medbrains/types";
 import { IconAlertTriangle, IconTrash } from "@tabler/icons-react";
+import { instructionsDisplayText } from "../../lib/medication-timing-utils";
+import { DrugRxComposer } from "../inputs/DrugRxComposer";
 
 interface BasketItemRowProps {
   item: BasketItem;
@@ -10,8 +14,26 @@ interface BasketItemRowProps {
 }
 
 export function BasketItemRow({ item, index, warnings, onRemove }: BasketItemRowProps) {
+  const canRemoveDrug = useHasPermission(P.PHARMACY.DISPENSING_CREATE);
+  const canRemoveLab = useHasPermission(P.LAB.ORDERS_CREATE);
+  const canRemoveRadiology = useHasPermission(P.RADIOLOGY.ORDERS_CREATE);
+  const canRemoveProcedure = useHasPermission(P.OPD.PROCEDURES.CREATE);
+  const canRemoveDiet = useHasPermission(P.DIET.ORDERS_CREATE);
+  const canRemoveReferral = useHasPermission(P.OPD.REFERRALS.CREATE);
   const hasBlock = warnings.some((w) => w.severity === "BLOCK");
   const hasWarn = warnings.some((w) => w.severity === "WARN");
+  const canRemoveItem =
+    item.kind === "drug"
+      ? canRemoveDrug
+      : item.kind === "lab"
+        ? canRemoveLab
+        : item.kind === "radiology"
+          ? canRemoveRadiology
+          : item.kind === "procedure"
+            ? canRemoveProcedure
+            : item.kind === "diet"
+              ? canRemoveDiet
+              : canRemoveReferral;
 
   const borderColor = hasBlock
     ? "var(--mantine-color-red-6)"
@@ -49,16 +71,38 @@ export function BasketItemRow({ item, index, warnings, onRemove }: BasketItemRow
               </Tooltip>
             )}
           </Group>
-          <Text size="sm" fw={500} truncate>
-            {summarizeItem(item)}
-          </Text>
+          {item.kind === "drug" ? (
+            <DrugRxComposer
+              rx={{
+                drug: item.drug_name,
+                dose: item.dose,
+                freq: item.frequency,
+                duration: item.duration_days != null ? `${item.duration_days} days` : "duration",
+                instruction:
+                  instructionsDisplayText(item.instructions) ?? item.indication ?? undefined,
+              }}
+            />
+          ) : (
+            <Text size="sm" fw={500} truncate>
+              {summarizeItem(item)}
+            </Text>
+          )}
           <Text size="xs" c="dimmed" truncate>
             {detailLine(item)}
           </Text>
         </Stack>
-        <ActionIcon variant="subtle" color="red" onClick={onRemove}>
-          <IconTrash size={16} />
-        </ActionIcon>
+        {canRemoveItem && (
+          <Tooltip label="Remove basket item">
+            <ActionIcon
+              variant="subtle"
+              color="red"
+              onClick={onRemove}
+              aria-label={`Remove ${item.kind} item ${index + 1}`}
+            >
+              <IconTrash size={16} />
+            </ActionIcon>
+          </Tooltip>
+        )}
       </Group>
     </Card>
   );

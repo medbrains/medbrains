@@ -21,7 +21,11 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{
-    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
+    error::AppError,
+    middleware::{
+        auth::Claims,
+        authorization::{require_any_permission, require_permission},
+    },
     state::AppState,
 };
 
@@ -54,6 +58,27 @@ pub struct CreateOrderRequest {
     pub test_id: Uuid,
     pub priority: Option<String>,
     pub notes: Option<String>,
+    /// Internal training / simulator flag. See OPD CreateEncounterRequest.
+    #[serde(default)]
+    pub is_dummy: Option<bool>,
+}
+
+fn normalize_lab_priority(priority: Option<&str>) -> Result<&'static str, AppError> {
+    let Some(priority) = priority.map(str::trim).filter(|value| !value.is_empty()) else {
+        return Ok("routine");
+    };
+
+    if priority.eq_ignore_ascii_case("routine") {
+        Ok("routine")
+    } else if priority.eq_ignore_ascii_case("urgent") {
+        Ok("urgent")
+    } else if priority.eq_ignore_ascii_case("stat") {
+        Ok("stat")
+    } else {
+        Err(AppError::BadRequest(format!(
+            "unsupported lab priority: {priority}"
+        )))
+    }
 }
 
 #[derive(Debug, Serialize)]
@@ -449,7 +474,27 @@ pub async fn create_order_in_tx(
     claims: &Claims,
     body: &CreateOrderRequest,
 ) -> Result<LabOrder, AppError> {
-    let priority = body.priority.as_deref().unwrap_or("routine");
+    create_order_in_tx_with_options(tx, claims, body, CreateOrderOptions::default()).await
+}
+
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct CreateOrderOptions {
+    pub(crate) auto_bill: bool,
+}
+
+impl Default for CreateOrderOptions {
+    fn default() -> Self {
+        Self { auto_bill: true }
+    }
+}
+
+pub(crate) async fn create_order_in_tx_with_options(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    claims: &Claims,
+    body: &CreateOrderRequest,
+    options: CreateOrderOptions,
+) -> Result<LabOrder, AppError> {
+    let priority = normalize_lab_priority(body.priority.as_deref())?;
 
     let encounter_patient_id = sqlx::query_scalar::<_, Uuid>(
         "SELECT patient_id FROM encounters WHERE id = $1 AND tenant_id = $2",
@@ -466,12 +511,15 @@ pub async fn create_order_in_tx(
         ));
     }
 
+    let is_dummy =
+        body.is_dummy.unwrap_or(false) && crate::middleware::authorization::is_bypass_role(claims);
+
     let order = sqlx::query_as::<_, LabOrder>(
         "INSERT INTO lab_orders \
          (tenant_id, encounter_id, patient_id, test_id, ordered_by, \
-          status, priority, notes) \
+          status, priority, notes, is_dummy) \
          VALUES ($1, $2, $3, $4, $5, 'ordered'::lab_order_status, \
-                 $6::lab_priority, $7) \
+                 $6::lab_priority, $7, $8) \
          RETURNING *",
     )
     .bind(claims.tenant_id)
@@ -481,12 +529,48 @@ pub async fn create_order_in_tx(
     .bind(claims.sub)
     .bind(priority)
     .bind(&body.notes)
+    .bind(is_dummy)
     .fetch_one(&mut **tx)
     .await?;
 
-    auto_bill_lab_order_in_tx(tx, claims, &order).await?;
+    if options.auto_bill {
+        best_effort_auto_bill_lab_order_in_tx(tx, claims, &order).await?;
+    }
 
     Ok(order)
+}
+
+async fn best_effort_auto_bill_lab_order_in_tx(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    claims: &Claims,
+    order: &LabOrder,
+) -> Result<(), AppError> {
+    sqlx::query("SAVEPOINT lab_order_auto_bill")
+        .execute(&mut **tx)
+        .await?;
+
+    match auto_bill_lab_order_in_tx(tx, claims, order).await {
+        Ok(()) => {
+            sqlx::query("RELEASE SAVEPOINT lab_order_auto_bill")
+                .execute(&mut **tx)
+                .await?;
+        }
+        Err(error) => {
+            sqlx::query("ROLLBACK TO SAVEPOINT lab_order_auto_bill")
+                .execute(&mut **tx)
+                .await?;
+            sqlx::query("RELEASE SAVEPOINT lab_order_auto_bill")
+                .execute(&mut **tx)
+                .await?;
+            tracing::warn!(
+                error = %error,
+                order_id = %order.id,
+                "lab order auto-billing failed; continuing with clinical order creation"
+            );
+        }
+    }
+
+    Ok(())
 }
 
 async fn auto_bill_lab_order_in_tx(
@@ -1014,7 +1098,14 @@ pub async fn list_catalog(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<LabTestCatalog>>, AppError> {
-    require_permission(&claims, permissions::lab::orders::LIST)?;
+    require_any_permission(
+        &claims,
+        &[
+            permissions::lab::orders::LIST,
+            permissions::lab::orders::CREATE,
+            permissions::camp::lab::MANAGE,
+        ],
+    )?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1975,7 +2066,7 @@ pub async fn create_phlebotomy_entry(
 ) -> Result<Json<LabPhlebotomyQueue>, AppError> {
     require_permission(&claims, permissions::lab::phlebotomy::MANAGE)?;
 
-    let priority = body.priority.as_deref().unwrap_or("routine");
+    let priority = normalize_lab_priority(body.priority.as_deref())?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -2199,7 +2290,7 @@ pub async fn add_on_test(
         ));
     }
 
-    let priority = body.priority.as_deref().unwrap_or("routine");
+    let priority = normalize_lab_priority(body.priority.as_deref())?;
 
     let order = sqlx::query_as::<_, LabOrder>(
         "INSERT INTO lab_orders \

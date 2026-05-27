@@ -27,6 +27,7 @@ import { P } from "@medbrains/types";
 import { IconPlus, IconX } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { useSearchParams } from "react-router";
 import { DataTable, PageHeader } from "../../components";
 import type { Column } from "../../components/DataTable";
 import { PatientNameCell } from "../../components/PatientNameCell";
@@ -49,33 +50,77 @@ const BODY_COLORS: Record<string, string> = {
   disposed: "slate",
 };
 
-export function PalliativePage() {
-  useRequirePermission(P.SPECIALTY.PALLIATIVE.DNR_LIST);
-  const qc = useQueryClient();
-  const canDnr = useHasPermission(P.SPECIALTY.PALLIATIVE.DNR_MANAGE);
-  const canPain = useHasPermission(P.SPECIALTY.PALLIATIVE.PAIN_CREATE);
-  const canMortuary = useHasPermission(P.SPECIALTY.PALLIATIVE.MORTUARY_MANAGE);
+const PALLIATIVE_PAGE_PERMISSIONS = [
+  P.SPECIALTY.PALLIATIVE.DNR_LIST,
+  P.SPECIALTY.PALLIATIVE.DNR_MANAGE,
+  P.SPECIALTY.PALLIATIVE.PAIN_LIST,
+  P.SPECIALTY.PALLIATIVE.PAIN_CREATE,
+  P.SPECIALTY.PALLIATIVE.MORTUARY_LIST,
+  P.SPECIALTY.PALLIATIVE.MORTUARY_MANAGE,
+  P.SPECIALTY.PALLIATIVE.NUCMED_LIST,
+  P.SPECIALTY.PALLIATIVE.NUCMED_CREATE,
+  P.SPECIALTY.PALLIATIVE.NUCMED_MANAGE,
+] as const;
 
-  const [tab, setTab] = useState<string | null>("dnr");
+export function PalliativePage() {
+  useRequirePermission(PALLIATIVE_PAGE_PERMISSIONS);
+  const qc = useQueryClient();
+  const [searchParams] = useSearchParams();
+  const canViewDnr = useHasPermission(P.SPECIALTY.PALLIATIVE.DNR_LIST);
+  const canDnr = useHasPermission(P.SPECIALTY.PALLIATIVE.DNR_MANAGE);
+  const canViewPain = useHasPermission(P.SPECIALTY.PALLIATIVE.PAIN_LIST);
+  const canPain = useHasPermission(P.SPECIALTY.PALLIATIVE.PAIN_CREATE);
+  const canViewMortuary = useHasPermission(P.SPECIALTY.PALLIATIVE.MORTUARY_LIST);
+  const canMortuary = useHasPermission(P.SPECIALTY.PALLIATIVE.MORTUARY_MANAGE);
+  const canViewNucmed = useHasPermission(P.SPECIALTY.PALLIATIVE.NUCMED_LIST);
+  const canOpenDnr = canViewDnr || canDnr;
+  const canOpenPain = canViewPain || canPain;
+  const canOpenMortuary = canViewMortuary || canMortuary;
+  const canOpenNucmed = canViewNucmed;
+  const requestedTab = searchParams.get("tab");
+  const requestedAction = searchParams.get("action");
+  const requestedAdmissionId = searchParams.get("admission_id");
+  const initialTab =
+    requestedTab === "mortuary" && canOpenMortuary
+      ? "mortuary"
+      : requestedTab === "pain" && canOpenPain
+        ? "pain"
+        : requestedTab === "nucmed" && canOpenNucmed
+          ? "nucmed"
+          : canOpenDnr
+            ? "dnr"
+            : canOpenPain
+              ? "pain"
+              : canOpenMortuary
+                ? "mortuary"
+                : "nucmed";
+
+  const [tab, setTab] = useState<string | null>(initialTab);
   const [dnrOpen, dnrHandlers] = useDisclosure(false);
   const [painOpen, painHandlers] = useDisclosure(false);
-  const [mortuaryOpen, mortuaryHandlers] = useDisclosure(false);
+  const [mortuaryOpen, mortuaryHandlers] = useDisclosure(
+    requestedTab === "mortuary" && requestedAction === "new" && canMortuary,
+  );
 
   const { data: dnrOrders = [], isLoading: dnrLoading } = useQuery({
     queryKey: ["dnr-orders"],
     queryFn: () => specialtyService.listDnrOrders(),
+    enabled: canViewDnr,
   });
   const { data: painRecords = [] } = useQuery({
     queryKey: ["pain-assessments"],
     queryFn: () => specialtyService.listPainAssessments(),
+    enabled: canViewPain,
   });
   const { data: mortuaryRecords = [] } = useQuery({
     queryKey: ["mortuary-records"],
     queryFn: () => specialtyService.listMortuaryRecords(),
+    enabled: canViewMortuary,
   });
   const { data: nucSources = [] } = useQuery({
     queryKey: ["nuclear-sources"],
     queryFn: () => specialtyService.listNuclearSources(),
+    enabled: canViewNucmed,
   });
 
   const [dnrForm, setDnrForm] = useState<CreateDnrOrderRequest>({ patient_id: "" });
@@ -84,7 +129,9 @@ export function PalliativePage() {
     pain_score: 0,
   });
   const [mortForm, setMortForm] = useState<CreateMortuaryRecordRequest>({
-    body_receipt_number: "",
+    body_receipt_number: requestedAdmissionId
+      ? `IPD-${requestedAdmissionId.slice(0, 8).toUpperCase()}`
+      : "",
     deceased_name: "",
   });
 
@@ -320,36 +367,72 @@ export function PalliativePage() {
       />
       <Tabs value={tab} onChange={setTab} mt="md">
         <Tabs.List>
-          <Tabs.Tab value="dnr">DNR Orders</Tabs.Tab>
-          <Tabs.Tab value="pain">Pain Assessment</Tabs.Tab>
-          <Tabs.Tab value="mortuary">Mortuary</Tabs.Tab>
-          <Tabs.Tab value="nucmed">Nuclear Medicine</Tabs.Tab>
+          {canOpenDnr && <Tabs.Tab value="dnr">DNR Orders</Tabs.Tab>}
+          {canOpenPain && <Tabs.Tab value="pain">Pain Assessment</Tabs.Tab>}
+          {canOpenMortuary && <Tabs.Tab value="mortuary">Mortuary</Tabs.Tab>}
+          {canOpenNucmed && <Tabs.Tab value="nucmed">Nuclear Medicine</Tabs.Tab>}
         </Tabs.List>
-        <Tabs.Panel value="dnr" pt="md">
-          <DataTable columns={dnrCols} data={dnrOrders} loading={dnrLoading} rowKey={(r) => r.id} />
-        </Tabs.Panel>
-        <Tabs.Panel value="pain" pt="md">
-          <DataTable columns={painCols} data={painRecords} loading={false} rowKey={(r) => r.id} />
-        </Tabs.Panel>
-        <Tabs.Panel value="mortuary" pt="md">
-          <DataTable
-            columns={mortCols}
-            data={mortuaryRecords}
-            loading={false}
-            rowKey={(r) => r.id}
-          />
-        </Tabs.Panel>
-        <Tabs.Panel value="nucmed" pt="md">
-          <Stack>
-            <Text fw={600}>Radioactive Sources</Text>
-            <DataTable
-              columns={nucSourceCols}
-              data={nucSources}
-              loading={false}
-              rowKey={(r) => r.id}
-            />
-          </Stack>
-        </Tabs.Panel>
+        {canOpenDnr && (
+          <Tabs.Panel value="dnr" pt="md">
+            {canViewDnr ? (
+              <DataTable
+                columns={dnrCols}
+                data={dnrOrders}
+                loading={dnrLoading}
+                rowKey={(r) => r.id}
+              />
+            ) : (
+              <Text c="dimmed" size="sm">
+                DNR list access is required to view existing orders.
+              </Text>
+            )}
+          </Tabs.Panel>
+        )}
+        {canOpenPain && (
+          <Tabs.Panel value="pain" pt="md">
+            {canViewPain ? (
+              <DataTable
+                columns={painCols}
+                data={painRecords}
+                loading={false}
+                rowKey={(r) => r.id}
+              />
+            ) : (
+              <Text c="dimmed" size="sm">
+                Pain-assessment list access is required to view existing records.
+              </Text>
+            )}
+          </Tabs.Panel>
+        )}
+        {canOpenMortuary && (
+          <Tabs.Panel value="mortuary" pt="md">
+            {canViewMortuary ? (
+              <DataTable
+                columns={mortCols}
+                data={mortuaryRecords}
+                loading={false}
+                rowKey={(r) => r.id}
+              />
+            ) : (
+              <Text c="dimmed" size="sm">
+                Mortuary list access is required to view existing body records.
+              </Text>
+            )}
+          </Tabs.Panel>
+        )}
+        {canOpenNucmed && (
+          <Tabs.Panel value="nucmed" pt="md">
+            <Stack>
+              <Text fw={600}>Radioactive Sources</Text>
+              <DataTable
+                columns={nucSourceCols}
+                data={nucSources}
+                loading={false}
+                rowKey={(r) => r.id}
+              />
+            </Stack>
+          </Tabs.Panel>
+        )}
       </Tabs>
       <Drawer
         opened={dnrOpen}

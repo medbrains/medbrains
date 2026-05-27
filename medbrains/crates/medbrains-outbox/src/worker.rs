@@ -265,7 +265,9 @@ async fn dispatch_one(
         http_client,
     };
 
-    let handler = if let Some(h) = handler.as_ref() { Arc::clone(h) } else {
+    let handler = if let Some(h) = handler.as_ref() {
+        Arc::clone(h)
+    } else {
         // No registered handler + no fallback → permanent failure
         mark_dlq(&pool, event_id, attempts, "no handler registered").await;
         return;

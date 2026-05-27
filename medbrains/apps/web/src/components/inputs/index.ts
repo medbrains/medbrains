@@ -1,5 +1,16 @@
 export { AllergyField } from "./AllergyField";
 export { type AnatomicPrefix, BodySitePicker } from "./BodySitePicker";
+export {
+  buildPhoneCountryOptions,
+  CountryPhoneInput,
+  defaultPhoneCountryCode,
+  detectPhoneCountryCode,
+  formatPhoneWithCountryCode,
+  normalizePhoneCountryCode,
+  phoneCountryOptions,
+  stripPhoneCountryCode,
+  type PhoneCountryOption,
+} from "./CountryPhoneInput";
 export { DrugRxComposer, type DrugToken } from "./DrugRxComposer";
 export { ShiftTimePicker } from "./ShiftTimePicker";
 export { UhidDisplay } from "./UhidDisplay";

@@ -14,7 +14,8 @@ import { DateTimePicker } from "@mantine/dates";
 import { notifications } from "@mantine/notifications";
 import type { IpdMarkDeathFormInput } from "@medbrains/schemas";
 import { ipdMarkDeathFormSchema } from "@medbrains/schemas";
-import type { IpdMortalityCreate } from "@medbrains/types";
+import { useHasPermission } from "@medbrains/stores";
+import { type IpdMortalityCreate, P } from "@medbrains/types";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Controller, useForm } from "react-hook-form";
 import { clinicalActionsService } from "../../services/clinicalActions.service";
@@ -28,6 +29,7 @@ interface MarkDeathModalProps {
 
 export function MarkDeathModal({ admissionId, opened, onClose }: MarkDeathModalProps) {
   const queryClient = useQueryClient();
+  const canRecordDeath = useHasPermission(P.IPD.DEATH_RECORDS_MANAGE);
   const {
     control,
     handleSubmit,
@@ -47,7 +49,12 @@ export function MarkDeathModal({ admissionId, opened, onClose }: MarkDeathModalP
   });
 
   const mutation = useMutation({
-    mutationFn: (body: IpdMortalityCreate) => clinicalActionsService.createIpdMortalityReview(body),
+    mutationFn: (body: IpdMortalityCreate) => {
+      if (!canRecordDeath) {
+        throw new Error("You do not have permission to record death details");
+      }
+      return clinicalActionsService.createIpdMortalityReview(body);
+    },
     onSuccess: () => {
       notifications.show({
         title: "Death recorded",
@@ -80,6 +87,11 @@ export function MarkDeathModal({ admissionId, opened, onClose }: MarkDeathModalP
           medical, Form 4A cause of death) and the discharge-with-`expired` disposition are separate
           steps that follow.
         </Alert>
+        {!canRecordDeath && (
+          <Alert color="danger" variant="light">
+            Recording death details requires IPD death-record permission.
+          </Alert>
+        )}
 
         <Controller
           control={control}
@@ -168,7 +180,12 @@ export function MarkDeathModal({ admissionId, opened, onClose }: MarkDeathModalP
           <Button variant="subtle" onClick={onClose}>
             Cancel
           </Button>
-          <Button color="danger" loading={mutation.isPending} onClick={() => void submit()}>
+          <Button
+            color="danger"
+            loading={mutation.isPending}
+            disabled={!canRecordDeath}
+            onClick={() => void submit()}
+          >
             Confirm death recorded
           </Button>
         </Group>

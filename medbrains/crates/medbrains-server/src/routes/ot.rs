@@ -15,7 +15,11 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{
-    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
+    error::AppError,
+    middleware::{
+        auth::Claims,
+        authorization::{require_any_permission, require_permission},
+    },
     state::AppState,
 };
 
@@ -48,6 +52,7 @@ pub struct ListBookingsQuery {
     pub per_page: Option<i64>,
     pub status: Option<String>,
     pub date: Option<NaiveDate>,
+    pub admission_id: Option<Uuid>,
     pub room_id: Option<Uuid>,
     pub surgeon_id: Option<Uuid>,
 }
@@ -261,7 +266,16 @@ pub async fn list_rooms(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<OtRoom>>, AppError> {
-    require_permission(&claims, permissions::ot::rooms::LIST)?;
+    require_any_permission(
+        &claims,
+        &[
+            permissions::ot::rooms::LIST,
+            permissions::ot::rooms::MANAGE,
+            permissions::ot::bookings::LIST,
+            permissions::ot::bookings::CREATE,
+            permissions::ot::bookings::UPDATE,
+        ],
+    )?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -391,6 +405,15 @@ pub async fn list_bookings(
         });
         bind_idx += 1;
     }
+    if let Some(admission_id) = params.admission_id {
+        conditions.push(format!("admission_id = ${bind_idx}"));
+        binds.push(Bind {
+            uuid_val: Some(admission_id),
+            string_val: None,
+            date_val: None,
+        });
+        bind_idx += 1;
+    }
     if let Some(room_id) = params.room_id {
         conditions.push(format!("ot_room_id = ${bind_idx}"));
         binds.push(Bind {
@@ -495,6 +518,29 @@ pub async fn create_booking(
 
     let priority = body.priority.as_deref().unwrap_or("elective");
     let empty = serde_json::json!([]);
+
+    if let Some(admission_id) = body.admission_id {
+        let admission_matches = sqlx::query_scalar::<_, bool>(
+            "SELECT EXISTS( \
+                 SELECT 1 FROM admissions \
+                 WHERE tenant_id = $1 \
+                   AND id = $2 \
+                   AND patient_id = $3 \
+                   AND status = 'admitted'::admission_status \
+             )",
+        )
+        .bind(claims.tenant_id)
+        .bind(admission_id)
+        .bind(body.patient_id)
+        .fetch_one(&mut *tx)
+        .await?;
+
+        if !admission_matches {
+            return Err(AppError::BadRequest(
+                "Linked IPD admission must be active and belong to the selected patient".to_owned(),
+            ));
+        }
+    }
 
     let row = sqlx::query_as::<_, OtBooking>(
         "INSERT INTO ot_bookings \

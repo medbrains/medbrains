@@ -130,6 +130,7 @@ function useVitalsCrdt(
     bmi: null,
     notes: e.notes ?? null,
     recorded_by: e.recordedBy,
+    recorded_at: new Date(e.ts).toISOString(),
     created_at: new Date(e.ts).toISOString(),
   }));
 

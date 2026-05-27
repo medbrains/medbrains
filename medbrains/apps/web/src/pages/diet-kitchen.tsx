@@ -1,6 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   ActionIcon,
+  Alert,
   Badge,
   Button,
   Card,
@@ -67,6 +68,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
+import { useSearchParams } from "react-router";
 import { DataTable, PageHeader } from "../components";
 import { PatientContextBanner } from "../components/Patient/PatientContextBanner";
 import { PatientSearchSelect } from "../components/PatientSearchSelect";
@@ -98,6 +100,34 @@ const PREP_STATUS_COLORS: Record<string, string> = {
 };
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+type DietKitchenTabKey = "orders" | "templates" | "kitchen" | "inventory" | "audits";
+
+const DIET_PAGE_PERMISSIONS = [
+  P.DIET.ORDERS_LIST,
+  P.DIET.ORDERS_CREATE,
+  P.DIET.TEMPLATES_LIST,
+  P.DIET.TEMPLATES_MANAGE,
+  P.DIET.KITCHEN_LIST,
+  P.DIET.KITCHEN_MANAGE,
+  P.DIET.INVENTORY_LIST,
+  P.DIET.INVENTORY_MANAGE,
+  P.DIET.AUDITS_LIST,
+  P.DIET.AUDITS_CREATE,
+] as const;
+
+function dietTabFromSearch(value: string | null): DietKitchenTabKey | null {
+  if (
+    value === "orders" ||
+    value === "templates" ||
+    value === "kitchen" ||
+    value === "inventory" ||
+    value === "audits"
+  ) {
+    return value;
+  }
+
+  return null;
+}
 
 function mutationError(error: unknown) {
   return error instanceof Error ? error.message : "Request failed. Please try again.";
@@ -159,21 +189,34 @@ function admissionLabel(admission: AdmissionRow) {
 
 function DietOrdersTab() {
   const qc = useQueryClient();
+  const canViewOrders = useHasPermission(P.DIET.ORDERS_LIST);
   const canCreate = useHasPermission(P.DIET.ORDERS_CREATE);
-  const [opened, { open, close }] = useDisclosure(false);
+  const canViewTemplates = useHasPermission(P.DIET.TEMPLATES_LIST);
+  const canListAdmissions = useHasPermission(P.IPD.ADMISSIONS_LIST);
+  const [searchParams] = useSearchParams();
+  const contextAdmissionId = searchParams.get("admission_id") ?? "";
+  const requestedPatientId = searchParams.get("patient_id") ?? "";
+  const contextWardId = searchParams.get("ward_id") ?? "";
+  const contextBedId = searchParams.get("bed_id") ?? "";
+  const contextChargeable = searchParams.get("chargeable") ?? "";
+  const contextChargeContext = searchParams.get("charge_context") ?? "";
+  const shouldOpenContextOrder = searchParams.get("action") === "new" && canCreate;
+  const [opened, { open, close }] = useDisclosure(shouldOpenContextOrder);
 
   const { data: ordersData, isLoading } = useQuery({
     queryKey: ["diet-orders"],
     queryFn: dietKitchenService.listDietOrders,
+    enabled: canViewOrders,
   });
-  const orders = rowsOrEmpty(ordersData);
+  const orders = canViewOrders ? rowsOrEmpty(ordersData) : [];
 
   const { data: admissionsData, isLoading: admissionsLoading } = useQuery({
     queryKey: ["diet-active-admissions"],
     queryFn: () => dietKitchenService.listAdmissions({ status: "admitted", per_page: "200" }),
+    enabled: canListAdmissions,
     staleTime: 30_000,
   });
-  const activeAdmissions = rowsOrEmpty(admissionsData?.admissions);
+  const activeAdmissions = canListAdmissions ? rowsOrEmpty(admissionsData?.admissions) : [];
   const admissionById = useMemo(
     () => new Map(activeAdmissions.map((admission) => [admission.id, admission])),
     [activeAdmissions],
@@ -190,8 +233,9 @@ function DietOrdersTab() {
   const { data: templatesData } = useQuery({
     queryKey: ["diet-templates"],
     queryFn: dietKitchenService.listDietTemplates,
+    enabled: canViewTemplates,
   });
-  const templates = rowsOrEmpty(templatesData);
+  const templates = canViewTemplates ? rowsOrEmpty(templatesData) : [];
   const templateOptions = useMemo(
     () =>
       templates
@@ -206,8 +250,8 @@ function DietOrdersTab() {
   const orderForm = useForm<DietOrderFormInput>({
     resolver: zodResolver(dietOrderFormSchema),
     defaultValues: {
-      admission_id: "",
-      patient_id: "",
+      admission_id: contextAdmissionId,
+      patient_id: requestedPatientId,
       template_id: "",
       diet_type: "regular",
       special_instructions: "",
@@ -241,6 +285,12 @@ function DietOrdersTab() {
   ]
     .filter(Boolean)
     .join("\n");
+  const selectedPatientDisplay =
+    contextPatientId && patientContext?.patient_id === contextPatientId
+      ? `${patientContext.full_name} (${patientContext.uhid})`
+      : contextPatientId
+        ? `Linked patient ${contextPatientId.slice(0, 8)}`
+        : undefined;
 
   const createMut = useMutation({
     mutationFn: (data: CreateDietOrderRequest) => dietKitchenService.createDietOrder(data),
@@ -355,39 +405,72 @@ function DietOrdersTab() {
           </Button>
         )}
       </Group>
-      <DataTable
-        columns={columns}
-        data={orders}
-        loading={isLoading}
-        rowKey={(r) => r.id}
-        emptyTitle="No diet orders"
-      />
+      {canViewOrders ? (
+        <DataTable
+          columns={columns}
+          data={orders}
+          loading={isLoading}
+          rowKey={(r) => r.id}
+          emptyTitle="No diet orders"
+        />
+      ) : (
+        <Card withBorder p="md">
+          <Text size="sm" c="dimmed">
+            Diet order list is not available for your role. You can still create an order from the
+            linked IPD admission when order creation is allowed.
+          </Text>
+        </Card>
+      )}
       <Drawer opened={opened} onClose={close} title="New Diet Order" position="right" size="xl">
         <Stack component="form" onSubmit={handleSubmit(submitOrder)}>
-          <Controller
-            name="admission_id"
-            control={control}
-            render={({ field }) => (
-              <Select
-                label="Active IPD patient / bed"
-                placeholder="Search active admission, UHID, ward"
-                data={admissionOptions}
-                value={field.value || null}
-                onChange={(value) => {
-                  const admission = value ? admissionById.get(value) : undefined;
-                  field.onChange(value ?? "");
-                  if (admission?.patient_id) {
-                    setValue("patient_id", admission.patient_id, { shouldValidate: true });
-                  }
-                }}
-                searchable
-                clearable
-                nothingFoundMessage="No active IPD patients found"
-                disabled={admissionsLoading}
+          {contextAdmissionId && (
+            <Alert color="primary" variant="light" title="Linked IPD admission">
+              {[
+                contextWardId ? `Ward ${contextWardId.slice(0, 8)}` : "",
+                contextBedId ? `Bed ${contextBedId.slice(0, 8)}` : "",
+                contextChargeContext ? `Billing: ${contextChargeContext}` : "",
+                contextChargeable ? `Chargeable: ${contextChargeable}` : "",
+              ]
+                .filter(Boolean)
+                .join(" · ") || "Diet order is linked to the current admission context."}
+            </Alert>
+          )}
+          {canListAdmissions ? (
+            <Controller
+              name="admission_id"
+              control={control}
+              render={({ field }) => (
+                <Select
+                  label="Active IPD patient / bed"
+                  placeholder="Search active admission, UHID, ward"
+                  data={admissionOptions}
+                  value={field.value || null}
+                  onChange={(value) => {
+                    const admission = value ? admissionById.get(value) : undefined;
+                    field.onChange(value ?? "");
+                    if (admission?.patient_id) {
+                      setValue("patient_id", admission.patient_id, { shouldValidate: true });
+                    }
+                  }}
+                  searchable
+                  clearable
+                  nothingFoundMessage="No active IPD patients found"
+                  disabled={admissionsLoading}
+                  error={errors.admission_id?.message}
+                />
+              )}
+            />
+          ) : (
+            watchedAdmissionId && (
+              <TextInput
+                label="Admission ID"
+                value={watchedAdmissionId}
+                readOnly
+                description="Linked from IPD context"
                 error={errors.admission_id?.message}
               />
-            )}
-          />
+            )
+          )}
           {contextPatientId && (
             <PatientContextBanner patientId={contextPatientId} hideLoadingState />
           )}
@@ -402,6 +485,7 @@ function DietOrdersTab() {
                   setValue("admission_id", "", { shouldValidate: true });
                 }}
                 required={!watchedAdmissionId}
+                selectedDisplay={selectedPatientDisplay}
               />
             )}
           />
@@ -476,14 +560,16 @@ function DietOrdersTab() {
 
 function DietTemplatesTab() {
   const qc = useQueryClient();
+  const canViewTemplates = useHasPermission(P.DIET.TEMPLATES_LIST);
   const canManage = useHasPermission(P.DIET.TEMPLATES_MANAGE);
   const [opened, { open, close }] = useDisclosure(false);
 
   const { data: templatesData, isLoading } = useQuery({
     queryKey: ["diet-templates"],
     queryFn: dietKitchenService.listDietTemplates,
+    enabled: canViewTemplates,
   });
-  const templates = rowsOrEmpty(templatesData);
+  const templates = canViewTemplates ? rowsOrEmpty(templatesData) : [];
 
   const templateForm = useForm<DietTemplateFormInput>({
     resolver: zodResolver(dietTemplateFormSchema),
@@ -598,13 +684,22 @@ function DietTemplatesTab() {
           </Button>
         )}
       </Group>
-      <DataTable
-        columns={columns}
-        data={templates}
-        loading={isLoading}
-        rowKey={(r) => r.id}
-        emptyTitle="No diet templates"
-      />
+      {canViewTemplates ? (
+        <DataTable
+          columns={columns}
+          data={templates}
+          loading={isLoading}
+          rowKey={(r) => r.id}
+          emptyTitle="No diet templates"
+        />
+      ) : (
+        <Card withBorder p="md">
+          <Text size="sm" c="dimmed">
+            Template list is not available for your role. You can still create a new template when
+            template management is allowed.
+          </Text>
+        </Card>
+      )}
       <Drawer opened={opened} onClose={close} title="New Diet Template" position="right" size="xl">
         <Stack component="form" onSubmit={handleSubmit(submitTemplate)}>
           <Controller
@@ -699,7 +794,10 @@ function DietTemplatesTab() {
 
 function KitchenTab() {
   const qc = useQueryClient();
+  const canViewKitchen = useHasPermission(P.DIET.KITCHEN_LIST);
   const canManage = useHasPermission(P.DIET.KITCHEN_MANAGE);
+  const canViewOrders = useHasPermission(P.DIET.ORDERS_LIST);
+  const canCreateMealPrep = canManage && canViewOrders;
   const [menuOpened, { open: openMenu, close: closeMenu }] = useDisclosure(false);
   const [prepOpened, { open: openPrep, close: closePrep }] = useDisclosure(false);
   const [sub, setSub] = useState<"menus" | "preps" | "counts" | "summary">("menus");
@@ -707,27 +805,31 @@ function KitchenTab() {
   const { data: menusData, isLoading: menusLoading } = useQuery({
     queryKey: ["kitchen-menus"],
     queryFn: dietKitchenService.listKitchenMenus,
+    enabled: canViewKitchen,
   });
-  const menus = rowsOrEmpty(menusData);
+  const menus = canViewKitchen ? rowsOrEmpty(menusData) : [];
 
   const { data: prepsData, isLoading: prepsLoading } = useQuery({
     queryKey: ["meal-preps"],
     queryFn: dietKitchenService.listMealPreps,
+    enabled: canViewKitchen,
   });
-  const preps = rowsOrEmpty(prepsData);
+  const preps = canViewKitchen ? rowsOrEmpty(prepsData) : [];
 
   const { data: countsData, isLoading: countsLoading } = useQuery({
     queryKey: ["meal-counts"],
     queryFn: dietKitchenService.listMealCounts,
+    enabled: canViewKitchen,
   });
-  const counts = rowsOrEmpty(countsData);
+  const counts = canViewKitchen ? rowsOrEmpty(countsData) : [];
 
   const { data: ordersData } = useQuery({
     queryKey: ["diet-orders-for-prep"],
     queryFn: dietKitchenService.listDietOrders,
+    enabled: canCreateMealPrep,
     staleTime: 30_000,
   });
-  const prepOrders = rowsOrEmpty(ordersData);
+  const prepOrders = canCreateMealPrep ? rowsOrEmpty(ordersData) : [];
   const prepOrderOptions = useMemo(
     () =>
       prepOrders
@@ -1020,14 +1122,23 @@ function KitchenTab() {
             New Menu
           </Button>
         )}
-        {canManage && sub === "preps" && (
+        {canCreateMealPrep && sub === "preps" && (
           <Button leftSection={<IconPlus size={16} />} size="xs" onClick={openPrep}>
             New Meal Prep
           </Button>
         )}
       </Group>
 
-      {sub === "menus" && (
+      {!canViewKitchen && (
+        <Card withBorder p="md">
+          <Text size="sm" c="dimmed">
+            Kitchen production lists are not available for your role. Management actions stay
+            available where the required action permissions are present.
+          </Text>
+        </Card>
+      )}
+
+      {canViewKitchen && sub === "menus" && (
         <DataTable
           columns={menuCols}
           data={menus}
@@ -1036,7 +1147,7 @@ function KitchenTab() {
           emptyTitle="No menus"
         />
       )}
-      {sub === "preps" && (
+      {canViewKitchen && sub === "preps" && (
         <DataTable
           columns={prepCols}
           data={preps}
@@ -1045,7 +1156,7 @@ function KitchenTab() {
           emptyTitle="No meal preps"
         />
       )}
-      {sub === "counts" && (
+      {canViewKitchen && sub === "counts" && (
         <DataTable
           columns={countCols}
           data={counts}
@@ -1055,7 +1166,7 @@ function KitchenTab() {
         />
       )}
 
-      {sub === "summary" && (
+      {canViewKitchen && sub === "summary" && (
         <Stack>
           <Text fw={600} size="lg">
             Kitchen Production Summary
@@ -1233,14 +1344,16 @@ function KitchenTab() {
 
 function InventoryTab() {
   const qc = useQueryClient();
+  const canViewInventory = useHasPermission(P.DIET.INVENTORY_LIST);
   const canManage = useHasPermission(P.DIET.INVENTORY_MANAGE);
   const [opened, { open, close }] = useDisclosure(false);
 
   const { data: itemsData, isLoading } = useQuery({
     queryKey: ["kitchen-inventory"],
     queryFn: dietKitchenService.listKitchenInventory,
+    enabled: canViewInventory,
   });
-  const items = rowsOrEmpty(itemsData);
+  const items = canViewInventory ? rowsOrEmpty(itemsData) : [];
 
   const inventoryForm = useForm<KitchenInventoryFormInput>({
     resolver: zodResolver(kitchenInventoryFormSchema),
@@ -1343,13 +1456,22 @@ function InventoryTab() {
           </Button>
         )}
       </Group>
-      <DataTable
-        columns={columns}
-        data={items}
-        loading={isLoading}
-        rowKey={(r) => r.id}
-        emptyTitle="No inventory items"
-      />
+      {canViewInventory ? (
+        <DataTable
+          columns={columns}
+          data={items}
+          loading={isLoading}
+          rowKey={(r) => r.id}
+          emptyTitle="No inventory items"
+        />
+      ) : (
+        <Card withBorder p="md">
+          <Text size="sm" c="dimmed">
+            Inventory list is not available for your role. You can still add an item when inventory
+            management is allowed.
+          </Text>
+        </Card>
+      )}
       <Drawer opened={opened} onClose={close} title="Add Inventory Item" position="right" size="xl">
         <Stack component="form" onSubmit={handleSubmit(submitInventoryItem)}>
           <Controller
@@ -1419,14 +1541,16 @@ function InventoryTab() {
 
 function AuditsTab() {
   const qc = useQueryClient();
+  const canViewAudits = useHasPermission(P.DIET.AUDITS_LIST);
   const canCreate = useHasPermission(P.DIET.AUDITS_CREATE);
   const [opened, { open, close }] = useDisclosure(false);
 
   const { data: auditsData, isLoading } = useQuery({
     queryKey: ["kitchen-audits"],
     queryFn: dietKitchenService.listKitchenAudits,
+    enabled: canViewAudits,
   });
-  const audits = rowsOrEmpty(auditsData);
+  const audits = canViewAudits ? rowsOrEmpty(auditsData) : [];
 
   const auditForm = useForm<KitchenAuditFormInput>({
     resolver: zodResolver(kitchenAuditFormSchema),
@@ -1524,13 +1648,22 @@ function AuditsTab() {
           </Button>
         )}
       </Group>
-      <DataTable
-        columns={columns}
-        data={audits}
-        loading={isLoading}
-        rowKey={(r) => r.id}
-        emptyTitle="No audits recorded"
-      />
+      {canViewAudits ? (
+        <DataTable
+          columns={columns}
+          data={audits}
+          loading={isLoading}
+          rowKey={(r) => r.id}
+          emptyTitle="No audits recorded"
+        />
+      ) : (
+        <Card withBorder p="md">
+          <Text size="sm" c="dimmed">
+            Audit history is not available for your role. You can still record an audit when audit
+            creation is allowed.
+          </Text>
+        </Card>
+      )}
       <Drawer opened={opened} onClose={close} title="Record FSSAI Audit" position="right" size="xl">
         <Stack component="form" onSubmit={handleSubmit(submitAudit)}>
           <Controller
@@ -1604,7 +1737,61 @@ function AuditsTab() {
 // ══════════════════════════════════════════════════════════
 
 export function DietKitchenPage() {
-  useRequirePermission(P.DIET.ORDERS_LIST);
+  useRequirePermission(DIET_PAGE_PERMISSIONS);
+  const [searchParams] = useSearchParams();
+  const requestedTab = dietTabFromSearch(searchParams.get("tab"));
+  const canViewOrders = useHasPermission(P.DIET.ORDERS_LIST);
+  const canCreateOrders = useHasPermission(P.DIET.ORDERS_CREATE);
+  const canViewTemplates = useHasPermission(P.DIET.TEMPLATES_LIST);
+  const canManageTemplates = useHasPermission(P.DIET.TEMPLATES_MANAGE);
+  const canViewKitchen = useHasPermission(P.DIET.KITCHEN_LIST);
+  const canManageKitchen = useHasPermission(P.DIET.KITCHEN_MANAGE);
+  const canViewInventory = useHasPermission(P.DIET.INVENTORY_LIST);
+  const canManageInventory = useHasPermission(P.DIET.INVENTORY_MANAGE);
+  const canViewAudits = useHasPermission(P.DIET.AUDITS_LIST);
+  const canCreateAudits = useHasPermission(P.DIET.AUDITS_CREATE);
+
+  const availableTabs = [
+    {
+      value: "orders" as const,
+      label: "Diet Orders",
+      icon: <IconClipboardList size={16} />,
+      visible: canViewOrders || canCreateOrders,
+    },
+    {
+      value: "templates" as const,
+      label: "Templates",
+      icon: <IconSalad size={16} />,
+      visible: canViewTemplates || canManageTemplates,
+    },
+    {
+      value: "kitchen" as const,
+      label: "Kitchen",
+      icon: <IconToolsKitchen2 size={16} />,
+      visible: canViewKitchen || canManageKitchen,
+    },
+    {
+      value: "inventory" as const,
+      label: "Inventory",
+      icon: <IconPackage size={16} />,
+      visible: canViewInventory || canManageInventory,
+    },
+    {
+      value: "audits" as const,
+      label: "FSSAI Audits",
+      icon: <IconShieldCheck size={16} />,
+      visible: canViewAudits || canCreateAudits,
+    },
+  ].filter((item) => item.visible);
+  const fallbackTab = availableTabs[0]?.value ?? "orders";
+  const initialTab =
+    requestedTab && availableTabs.some((item) => item.value === requestedTab)
+      ? requestedTab
+      : fallbackTab;
+  const [selectedTab, setSelectedTab] = useState<DietKitchenTabKey>(initialTab);
+  const activeTab = availableTabs.some((item) => item.value === selectedTab)
+    ? selectedTab
+    : fallbackTab;
 
   return (
     <div>
@@ -1612,40 +1799,55 @@ export function DietKitchenPage() {
         title="Diet & Kitchen"
         subtitle="Patient dietary orders, meal planning, kitchen operations, and FSSAI compliance"
       />
-      <Tabs defaultValue="orders" keepMounted={false}>
-        <Tabs.List mb="md">
-          <Tabs.Tab value="orders" leftSection={<IconClipboardList size={16} />}>
-            Diet Orders
-          </Tabs.Tab>
-          <Tabs.Tab value="templates" leftSection={<IconSalad size={16} />}>
-            Templates
-          </Tabs.Tab>
-          <Tabs.Tab value="kitchen" leftSection={<IconToolsKitchen2 size={16} />}>
-            Kitchen
-          </Tabs.Tab>
-          <Tabs.Tab value="inventory" leftSection={<IconPackage size={16} />}>
-            Inventory
-          </Tabs.Tab>
-          <Tabs.Tab value="audits" leftSection={<IconShieldCheck size={16} />}>
-            FSSAI Audits
-          </Tabs.Tab>
-        </Tabs.List>
-        <Tabs.Panel value="orders">
-          <DietOrdersTab />
-        </Tabs.Panel>
-        <Tabs.Panel value="templates">
-          <DietTemplatesTab />
-        </Tabs.Panel>
-        <Tabs.Panel value="kitchen">
-          <KitchenTab />
-        </Tabs.Panel>
-        <Tabs.Panel value="inventory">
-          <InventoryTab />
-        </Tabs.Panel>
-        <Tabs.Panel value="audits">
-          <AuditsTab />
-        </Tabs.Panel>
-      </Tabs>
+      {availableTabs.length === 0 ? (
+        <Text c="dimmed" size="sm">
+          No diet or kitchen work areas are available for your current role.
+        </Text>
+      ) : (
+        <Tabs
+          value={activeTab}
+          onChange={(value) => {
+            const nextTab = dietTabFromSearch(value);
+            if (nextTab) {
+              setSelectedTab(nextTab);
+            }
+          }}
+          keepMounted={false}
+        >
+          <Tabs.List mb="md">
+            {availableTabs.map((tab) => (
+              <Tabs.Tab key={tab.value} value={tab.value} leftSection={tab.icon}>
+                {tab.label}
+              </Tabs.Tab>
+            ))}
+          </Tabs.List>
+          {(canViewOrders || canCreateOrders) && (
+            <Tabs.Panel value="orders">
+              <DietOrdersTab />
+            </Tabs.Panel>
+          )}
+          {(canViewTemplates || canManageTemplates) && (
+            <Tabs.Panel value="templates">
+              <DietTemplatesTab />
+            </Tabs.Panel>
+          )}
+          {(canViewKitchen || canManageKitchen) && (
+            <Tabs.Panel value="kitchen">
+              <KitchenTab />
+            </Tabs.Panel>
+          )}
+          {(canViewInventory || canManageInventory) && (
+            <Tabs.Panel value="inventory">
+              <InventoryTab />
+            </Tabs.Panel>
+          )}
+          {(canViewAudits || canCreateAudits) && (
+            <Tabs.Panel value="audits">
+              <AuditsTab />
+            </Tabs.Panel>
+          )}
+        </Tabs>
+      )}
     </div>
   );
 }

@@ -9,26 +9,25 @@ import type { FormSchema } from "../../helpers/form-runner";
 
 export const patientRegisterSchema: FormSchema = {
   name: "PatientRegisterForm",
-  navigatePath: "/patients",
-  openTrigger: { role: "button", name: /Register Patient/i },
-  expectDialog: true,
+  navigatePath: "/patients/register",
+  expectDialog: false,
   submitName: /Register/,
   cancelName: /Cancel/,
   fields: [
     {
-      label: "First name",
+      label: "First Name",
       type: "text",
       required: true,
       validValue: "TestFirst",
     },
     {
-      label: "Last name",
+      label: "Last Name",
       type: "text",
       required: true,
       validValue: "TestLast",
     },
     {
-      label: "Phone (primary)",
+      label: "Phone (primary) Phone Primary",
       type: "phone",
       required: true,
       validValue: "9876543210",
@@ -53,7 +52,7 @@ export const patientRegisterSchema: FormSchema = {
       validValue: "Mid",
     },
     {
-      label: "Phone (alternate)",
+      label: "Phone (alternate) Phone Alternate",
       type: "phone",
       validValue: "9876543211",
     },

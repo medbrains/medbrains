@@ -103,6 +103,7 @@ export function PatientEditPage() {
           last_name: patient.last_name,
           suffix: patient.suffix ?? undefined,
           date_of_birth: patient.date_of_birth ?? undefined,
+          is_dob_estimated: patient.is_dob_estimated,
           gender: patient.gender,
           phone: patient.phone ?? "",
           phone_secondary: patient.phone_secondary ?? undefined,
@@ -119,6 +120,10 @@ export function PatientEditPage() {
             (
               patient.attributes as Record<string, unknown> | null | undefined
             )?.known_allergies?.toString() ?? undefined,
+          drug_allergies:
+            (
+              patient.attributes as Record<string, unknown> | null | undefined
+            )?.drug_allergies?.toString() ?? undefined,
         }}
       />
     </Stack>

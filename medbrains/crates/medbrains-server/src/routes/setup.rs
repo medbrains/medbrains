@@ -18,7 +18,10 @@ use uuid::Uuid;
 
 use crate::{
     error::AppError,
-    middleware::{auth::Claims, authorization::require_permission},
+    middleware::{
+        auth::Claims,
+        authorization::{is_bypass_role, require_any_permission, require_permission},
+    },
     state::AppState,
     validation::{self, ValidationErrors},
 };
@@ -60,6 +63,10 @@ pub struct TenantSummary {
     pub locale: String,
     pub currency: String,
     pub fy_start_month: i32,
+    pub country_id: Option<Uuid>,
+    pub state_id: Option<Uuid>,
+    pub district_id: Option<Uuid>,
+    pub phone_code: Option<String>,
 }
 
 pub async fn update_tenant(
@@ -101,24 +108,33 @@ pub async fn update_tenant(
         .await?;
 
     let tenant = sqlx::query_as::<_, TenantSummary>(
-        "UPDATE tenants SET \
-         address_line1 = COALESCE($1, address_line1), \
-         address_line2 = COALESCE($2, address_line2), \
-         city = COALESCE($3, city), \
-         pincode = COALESCE($4, pincode), \
-         phone = COALESCE($5, phone), \
-         email = COALESCE($6, email), \
-         website = COALESCE($7, website), \
-         registration_no = COALESCE($8, registration_no), \
-         accreditation = COALESCE($9, accreditation), \
-         timezone = COALESCE($10, timezone), \
-         locale = COALESCE($11, locale), \
-         currency = COALESCE($12, currency), \
-         fy_start_month = COALESCE($13, fy_start_month) \
-         WHERE id = $14 \
-         RETURNING id, code, name, address_line1, address_line2, city, pincode, \
-         phone, email, website, registration_no, accreditation, timezone, locale, \
-         currency, fy_start_month",
+        "WITH updated AS ( \
+           UPDATE tenants SET \
+           address_line1 = COALESCE($1, address_line1), \
+           address_line2 = COALESCE($2, address_line2), \
+           city = COALESCE($3, city), \
+           pincode = COALESCE($4, pincode), \
+           phone = COALESCE($5, phone), \
+           email = COALESCE($6, email), \
+           website = COALESCE($7, website), \
+           registration_no = COALESCE($8, registration_no), \
+           accreditation = COALESCE($9, accreditation), \
+           timezone = COALESCE($10, timezone), \
+           locale = COALESCE($11, locale), \
+           currency = COALESCE($12, currency), \
+           fy_start_month = COALESCE($13, fy_start_month) \
+           WHERE id = $14 \
+           RETURNING id, code, name, address_line1, address_line2, city, pincode, \
+           phone, email, website, registration_no, accreditation, timezone, locale, \
+           currency, fy_start_month, country_id, state_id, district_id \
+         ) \
+         SELECT updated.id, updated.code, updated.name, updated.address_line1, \
+         updated.address_line2, updated.city, updated.pincode, updated.phone, updated.email, \
+         updated.website, updated.registration_no, updated.accreditation, updated.timezone, \
+         updated.locale, updated.currency, updated.fy_start_month, updated.country_id, \
+         updated.state_id, updated.district_id, gc.phone_code \
+         FROM updated \
+         LEFT JOIN geo_countries gc ON gc.id = updated.country_id",
     )
     .bind(&body.address_line1)
     .bind(&body.address_line2)
@@ -149,10 +165,12 @@ pub async fn get_tenant(
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<TenantSummary>, AppError> {
     let tenant = sqlx::query_as::<_, TenantSummary>(
-        "SELECT id, code, name, address_line1, address_line2, city, pincode, \
-         phone, email, website, registration_no, accreditation, timezone, locale, \
-         currency, fy_start_month \
-         FROM tenants WHERE id = $1",
+        "SELECT t.id, t.code, t.name, t.address_line1, t.address_line2, t.city, t.pincode, \
+         t.phone, t.email, t.website, t.registration_no, t.accreditation, t.timezone, t.locale, \
+         t.currency, t.fy_start_month, t.country_id, t.state_id, t.district_id, gc.phone_code \
+         FROM tenants t \
+         LEFT JOIN geo_countries gc ON gc.id = t.country_id \
+         WHERE t.id = $1",
     )
     .bind(claims.tenant_id)
     .fetch_optional(&state.db)
@@ -228,7 +246,14 @@ pub async fn list_facilities(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<Facility>>, AppError> {
-    require_permission(&claims, permissions::admin::settings::facilities::LIST)?;
+    require_any_permission(
+        &claims,
+        &[
+            permissions::admin::settings::facilities::LIST,
+            permissions::patients::CREATE,
+            permissions::patients::UPDATE,
+        ],
+    )?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -585,7 +610,30 @@ pub async fn list_departments(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<DepartmentRow>>, AppError> {
-    require_permission(&claims, permissions::admin::settings::departments::LIST)?;
+    require_any_permission(
+        &claims,
+        &[
+            permissions::admin::settings::departments::LIST,
+            permissions::patients::CREATE,
+            permissions::patients::UPDATE,
+            permissions::opd::queue::LIST,
+            permissions::opd::visit::CREATE,
+            permissions::opd::visit::UPDATE,
+            permissions::opd::appointment::LIST,
+            permissions::opd::appointment::CREATE,
+            permissions::opd::referrals::CREATE,
+            permissions::opd::schedule::LIST,
+            permissions::opd::schedule::MANAGE,
+            permissions::ipd::admissions::CREATE,
+            permissions::camp::LIST,
+            permissions::camp::CREATE,
+            permissions::camp::UPDATE,
+            permissions::emergency::visits::CREATE,
+            permissions::emergency::visits::UPDATE,
+            permissions::ot::bookings::CREATE,
+            permissions::ot::bookings::UPDATE,
+        ],
+    )?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -848,21 +896,60 @@ pub async fn list_doctors(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<SetupUserRow>>, AppError> {
-    require_permission(&claims, permissions::admin::users::LIST)?;
+    require_any_permission(
+        &claims,
+        &[
+            permissions::admin::users::LIST,
+            permissions::patients::CREATE,
+            permissions::patients::UPDATE,
+            permissions::opd::queue::LIST,
+            permissions::opd::visit::CREATE,
+            permissions::opd::visit::UPDATE,
+            permissions::opd::appointment::LIST,
+            permissions::opd::appointment::CREATE,
+            permissions::opd::schedule::LIST,
+            permissions::opd::schedule::MANAGE,
+            permissions::ipd::admissions::CREATE,
+            permissions::camp::CREATE,
+            permissions::camp::UPDATE,
+            permissions::emergency::visits::CREATE,
+            permissions::emergency::visits::UPDATE,
+            permissions::ot::bookings::CREATE,
+            permissions::ot::bookings::UPDATE,
+        ],
+    )?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
-    let rows = sqlx::query_as::<_, SetupUserRow>(
-        "SELECT id, tenant_id, username, email, full_name, role::text, \
-         specialization, medical_registration_number, qualification, \
-         consultation_fee, department_ids, is_active, access_matrix \
-         FROM users WHERE tenant_id = $1 AND role = 'doctor' AND is_active = true \
-         ORDER BY full_name",
-    )
-    .bind(claims.tenant_id)
-    .fetch_all(&mut *tx)
-    .await?;
+    let can_view_admin_fields = is_bypass_role(&claims)
+        || claims
+            .permissions
+            .iter()
+            .any(|permission| permission.as_str() == permissions::admin::users::LIST);
+    let rows = if can_view_admin_fields {
+        sqlx::query_as::<_, SetupUserRow>(
+            "SELECT id, tenant_id, username, email, full_name, role::text, \
+             specialization, medical_registration_number, qualification, \
+             consultation_fee, department_ids, is_active, access_matrix \
+             FROM users WHERE tenant_id = $1 AND role = 'doctor' AND is_active = true \
+             ORDER BY full_name",
+        )
+        .bind(claims.tenant_id)
+        .fetch_all(&mut *tx)
+        .await?
+    } else {
+        sqlx::query_as::<_, SetupUserRow>(
+            "SELECT id, tenant_id, ''::text AS username, ''::text AS email, full_name, role::text, \
+             specialization, medical_registration_number, qualification, \
+             consultation_fee, department_ids, is_active, '{}'::jsonb AS access_matrix \
+             FROM users WHERE tenant_id = $1 AND role = 'doctor' AND is_active = true \
+             ORDER BY full_name",
+        )
+        .bind(claims.tenant_id)
+        .fetch_all(&mut *tx)
+        .await?
+    };
 
     tx.commit().await?;
 
@@ -1263,7 +1350,7 @@ fn validate_field_access_map(
     field_access: &std::collections::HashMap<String, String>,
 ) -> Result<(), AppError> {
     for (field_code, level) in field_access {
-        if !matches!(level.as_str(), "edit" | "view" | "hidden") {
+        if !matches!(level.as_str(), "edit" | "view" | "mask" | "hidden") {
             return Err(AppError::BadRequest(format!(
                 "Invalid field_access level for {field_code}: {level}"
             )));

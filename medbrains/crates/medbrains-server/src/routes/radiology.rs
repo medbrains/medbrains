@@ -55,6 +55,9 @@ pub struct CreateOrderRequest {
     pub contrast_required: Option<bool>,
     pub pregnancy_checked: Option<bool>,
     pub allergy_flagged: Option<bool>,
+    /// Internal training / simulator flag. See OPD CreateEncounterRequest.
+    #[serde(default)]
+    pub is_dummy: Option<bool>,
 }
 
 #[derive(Debug, Serialize)]
@@ -269,6 +272,26 @@ pub async fn create_order_in_tx(
     claims: &Claims,
     body: &CreateOrderRequest,
 ) -> Result<RadiologyOrder, AppError> {
+    create_order_in_tx_with_options(tx, claims, body, CreateOrderOptions::default()).await
+}
+
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct CreateOrderOptions {
+    pub(crate) auto_bill: bool,
+}
+
+impl Default for CreateOrderOptions {
+    fn default() -> Self {
+        Self { auto_bill: true }
+    }
+}
+
+pub(crate) async fn create_order_in_tx_with_options(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    claims: &Claims,
+    body: &CreateOrderRequest,
+    options: CreateOrderOptions,
+) -> Result<RadiologyOrder, AppError> {
     let priority = body.priority.as_deref().unwrap_or("routine");
     let contrast = body.contrast_required.unwrap_or(false);
     let pregnancy = body.pregnancy_checked.unwrap_or(false);
@@ -291,14 +314,17 @@ pub async fn create_order_in_tx(
         }
     }
 
+    let is_dummy =
+        body.is_dummy.unwrap_or(false) && crate::middleware::authorization::is_bypass_role(claims);
+
     let order = sqlx::query_as::<_, RadiologyOrder>(
         "INSERT INTO radiology_orders \
          (tenant_id, patient_id, encounter_id, modality_id, ordered_by, \
           body_part, clinical_indication, priority, status, \
-          scheduled_at, notes, contrast_required, pregnancy_checked, allergy_flagged) \
+          scheduled_at, notes, contrast_required, pregnancy_checked, allergy_flagged, is_dummy) \
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8::radiology_priority, \
                  'ordered'::radiology_order_status, \
-                 $9::timestamptz, $10, $11, $12, $13) \
+                 $9::timestamptz, $10, $11, $12, $13, $14) \
          RETURNING *",
     )
     .bind(claims.tenant_id)
@@ -314,12 +340,48 @@ pub async fn create_order_in_tx(
     .bind(contrast)
     .bind(pregnancy)
     .bind(allergy)
+    .bind(is_dummy)
     .fetch_one(&mut **tx)
     .await?;
 
-    auto_bill_radiology_order_in_tx(tx, claims, &order).await?;
+    if options.auto_bill {
+        best_effort_auto_bill_radiology_order_in_tx(tx, claims, &order).await?;
+    }
 
     Ok(order)
+}
+
+async fn best_effort_auto_bill_radiology_order_in_tx(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    claims: &Claims,
+    order: &RadiologyOrder,
+) -> Result<(), AppError> {
+    sqlx::query("SAVEPOINT radiology_order_auto_bill")
+        .execute(&mut **tx)
+        .await?;
+
+    match auto_bill_radiology_order_in_tx(tx, claims, order).await {
+        Ok(()) => {
+            sqlx::query("RELEASE SAVEPOINT radiology_order_auto_bill")
+                .execute(&mut **tx)
+                .await?;
+        }
+        Err(error) => {
+            sqlx::query("ROLLBACK TO SAVEPOINT radiology_order_auto_bill")
+                .execute(&mut **tx)
+                .await?;
+            sqlx::query("RELEASE SAVEPOINT radiology_order_auto_bill")
+                .execute(&mut **tx)
+                .await?;
+            tracing::warn!(
+                error = %error,
+                order_id = %order.id,
+                "radiology order auto-billing failed; continuing with clinical order creation"
+            );
+        }
+    }
+
+    Ok(())
 }
 
 async fn auto_bill_radiology_order_in_tx(
@@ -484,7 +546,7 @@ pub async fn update_order_status(
         .ok_or(AppError::NotFound)?;
 
     if body.status == "completed" {
-        auto_bill_radiology_order_in_tx(&mut tx, &claims, &order).await?;
+        best_effort_auto_bill_radiology_order_in_tx(&mut tx, &claims, &order).await?;
     }
 
     let is_completed = body.status == "completed";

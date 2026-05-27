@@ -43,6 +43,11 @@ const chargeSourceLabels: Record<BillingChargeSourceFormValue, string> = {
   pharmacy: "Pharmacy",
   radiology: "Radiology",
   procedure: "Procedure",
+  ot: "OT",
+  emergency: "Emergency",
+  diet: "Diet",
+  cssd: "CSSD",
+  ambulance: "Ambulance",
   manual: "Manual",
 };
 

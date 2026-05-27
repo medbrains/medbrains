@@ -81,7 +81,7 @@ import {
   VisualMapPiecewiseComponent,
 } from "echarts/components";
 import { type EChartsCoreOption, type EChartsType, init, use } from "echarts/core";
-import { CanvasRenderer, SVGRenderer } from "echarts/renderers";
+import { CanvasRenderer } from "echarts/renderers";
 import { useEffect, useRef, useState } from "react";
 
 use([
@@ -141,7 +141,6 @@ use([
   VisualMapContinuousComponent,
   VisualMapPiecewiseComponent,
   CanvasRenderer,
-  SVGRenderer,
 ]);
 
 interface ReportChartProps {
@@ -202,18 +201,28 @@ export function ReportChart({
 
     const chart = init(expandedHostRef.current, undefined, { renderer: "canvas" });
     expandedChartRef.current = chart;
-    chart.setOption(option, true);
 
     const resizeObserver = new ResizeObserver(() => chart.resize());
     resizeObserver.observe(expandedHostRef.current);
     const frame = window.requestAnimationFrame(() => chart.resize());
+    const delayedResizes = [80, 180, 360].map((delay) =>
+      window.setTimeout(() => chart.resize(), delay),
+    );
 
     return () => {
       window.cancelAnimationFrame(frame);
+      delayedResizes.forEach((timer) => window.clearTimeout(timer));
       resizeObserver.disconnect();
       chart.dispose();
       expandedChartRef.current = null;
     };
+  }, [canView, expanded]);
+
+  useEffect(() => {
+    if (!canView || !expanded || !expandedChartRef.current) return;
+
+    expandedChartRef.current.setOption(option, true);
+    expandedChartRef.current.resize();
   }, [canView, expanded, option]);
 
   if (!canView) {
@@ -327,6 +336,18 @@ export function ReportChart({
         opened={expanded}
         onClose={() => setExpanded(false)}
         fullScreen
+        styles={{
+          body: {
+            display: "flex",
+            flex: 1,
+            flexDirection: "column",
+            minHeight: 0,
+          },
+          content: {
+            display: "flex",
+            flexDirection: "column",
+          },
+        }}
         title={
           <Stack gap={2}>
             <Text fw={800}>{title}</Text>
@@ -338,11 +359,18 @@ export function ReportChart({
           </Stack>
         }
       >
-        <Stack gap="sm" h="calc(100dvh - 110px)">
+        <Stack gap="sm" h="calc(100dvh - 110px)" mih={520} style={{ minHeight: 0 }}>
           <Text size="sm" c="dimmed" maw={900}>
             {description}
           </Text>
-          <div style={{ position: "relative", flex: 1, minHeight: 0, width: "100%" }}>
+          <div
+            style={{
+              height: "calc(100dvh - 190px)",
+              minHeight: 420,
+              position: "relative",
+              width: "100%",
+            }}
+          >
             {onViewDetails && (
               <Button
                 size="xs"

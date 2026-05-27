@@ -17,26 +17,16 @@ import {
 import { sessionService } from "./services/session.service";
 import { cssVariableResolver, theme } from "./theme";
 
-import "@fontsource/jetbrains-mono/400.css";
-import "@fontsource/jetbrains-mono/500.css";
-import "@fontsource/jetbrains-mono/600.css";
-import "@fontsource/ibm-plex-sans/400.css";
-import "@fontsource/ibm-plex-sans/500.css";
-import "@fontsource/ibm-plex-sans/600.css";
-import "@fontsource/ibm-plex-sans/700.css";
-import "@fontsource/manrope/400.css";
-import "@fontsource/manrope/500.css";
-import "@fontsource/manrope/600.css";
-import "@fontsource/manrope/700.css";
-import "@fontsource/nunito-sans/400.css";
-import "@fontsource/nunito-sans/500.css";
-import "@fontsource/nunito-sans/600.css";
-import "@fontsource/nunito-sans/700.css";
+import "@fontsource/jetbrains-mono/latin-400.css";
+import "@fontsource/jetbrains-mono/latin-500.css";
+import "@fontsource/jetbrains-mono/latin-600.css";
+import "@fontsource/inter/latin-400.css";
+import "@fontsource/inter/latin-500.css";
+import "@fontsource/inter/latin-600.css";
+import "@fontsource/inter/latin-700.css";
 import "@mantine/core/styles.css";
 import "@mantine/notifications/styles.css";
-import "@mantine/charts/styles.css";
 import "@mantine/dates/styles.css";
-import "@mantine/schedule/styles.css";
 import "./styles/global.scss";
 
 const isTauriDesktop = isTauriDesktopRuntime();
@@ -60,6 +50,14 @@ sessionService.configureNativeAuth(isTauriDesktop ? "desktop" : null);
 
 const runtimeState = globalThis as typeof globalThis & {
   __medbrainsConsoleReporterInstalled?: boolean;
+  __medbrainsReactRenderStats?: Record<
+    string,
+    { count: number; lastMs: number; totalMs: number; unnecessary: number }
+  >;
+  __medbrainsReactScan?: Pick<
+    typeof import("react-scan"),
+    "getOptions" | "getReport" | "setOptions"
+  >;
   __medbrainsRoot?: ReturnType<typeof createRoot>;
 };
 const reportedConsoleMessages = new Set<string>();
@@ -124,6 +122,55 @@ installConsoleErrorReporter();
 
 const queryClient = createQueryClient();
 
+async function enableReactScan() {
+  if (!import.meta.env.DEV) {
+    return;
+  }
+
+  const shouldScan =
+    import.meta.env.VITE_REACT_SCAN === "true" ||
+    new URLSearchParams(window.location.search).get("reactScan") === "1";
+  if (!shouldScan) {
+    return;
+  }
+
+  const reactScan = await import("react-scan");
+  runtimeState.__medbrainsReactRenderStats = {};
+  reactScan.scan({
+    animationSpeed: "fast",
+    enabled: true,
+    log: false,
+    onRender: (_fiber, renders) => {
+      const stats = runtimeState.__medbrainsReactRenderStats ?? {};
+      for (const render of renders) {
+        const componentName = render.componentName ?? "Anonymous";
+        const entry = stats[componentName] ?? {
+          count: 0,
+          lastMs: 0,
+          totalMs: 0,
+          unnecessary: 0,
+        };
+        const renderCount = render.count || 1;
+        const durationMs = render.time ?? 0;
+        entry.count += renderCount;
+        entry.lastMs = durationMs;
+        entry.totalMs += durationMs;
+        if (render.unnecessary) {
+          entry.unnecessary += renderCount;
+        }
+        stats[componentName] = entry;
+      }
+      runtimeState.__medbrainsReactRenderStats = stats;
+    },
+    showToolbar: true,
+  });
+  runtimeState.__medbrainsReactScan = {
+    getOptions: reactScan.getOptions,
+    getReport: reactScan.getReport,
+    setOptions: reactScan.setOptions,
+  };
+}
+
 /** Wrapper that sets text direction based on current i18n language */
 function AppWithDirection() {
   const { i18n: i18nInstance } = useTranslation();
@@ -133,7 +180,7 @@ function AppWithDirection() {
     <DirectionProvider initialDirection={dir}>
       <MantineProvider
         theme={theme}
-        defaultColorScheme="light"
+        defaultColorScheme="dark"
         cssVariablesResolver={cssVariableResolver}
       >
         <Notifications position="top-right" autoClose={4000} transitionDuration={250} />
@@ -146,11 +193,13 @@ function AppWithDirection() {
 const root = document.getElementById("root");
 if (root) {
   runtimeState.__medbrainsRoot ??= createRoot(root);
-  runtimeState.__medbrainsRoot.render(
-    <StrictMode>
-      <QueryClientProvider client={queryClient}>
-        <AppWithDirection />
-      </QueryClientProvider>
-    </StrictMode>,
-  );
+  void enableReactScan().finally(() => {
+    runtimeState.__medbrainsRoot?.render(
+      <StrictMode>
+        <QueryClientProvider client={queryClient}>
+          <AppWithDirection />
+        </QueryClientProvider>
+      </StrictMode>,
+    );
+  });
 }

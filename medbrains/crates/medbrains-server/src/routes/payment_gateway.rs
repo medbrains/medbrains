@@ -32,12 +32,29 @@ struct RazorpayConfig {
     webhook_secret: Option<String>,
 }
 
+#[derive(Debug)]
+struct ResolvedRazorpayConfig {
+    config: RazorpayConfig,
+    source: String,
+}
+
 /// Read Razorpay config from `tenant_settings` or env vars.
 async fn get_razorpay_config(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     tenant_id: &Uuid,
 ) -> Result<RazorpayConfig, AppError> {
-    // Try tenant_settings first
+    resolve_razorpay_config(tx, tenant_id)
+        .await?
+        .map(|value| value.config)
+        .ok_or_else(|| {
+            AppError::ServiceUnavailable("Razorpay credentials are not configured".to_owned())
+        })
+}
+
+async fn resolve_razorpay_config(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: &Uuid,
+) -> Result<Option<ResolvedRazorpayConfig>, AppError> {
     let row = sqlx::query_scalar::<_, serde_json::Value>(
         "SELECT value FROM tenant_settings \
          WHERE tenant_id = $1 AND category = 'payments' AND key = 'razorpay_config'",
@@ -49,21 +66,28 @@ async fn get_razorpay_config(
     if let Some(val) = row {
         let cfg: RazorpayConfig = serde_json::from_value(val)
             .map_err(|e| AppError::Internal(format!("invalid razorpay_config: {e}")))?;
-        return Ok(cfg);
+        return Ok(Some(ResolvedRazorpayConfig {
+            config: cfg,
+            source: "tenant_settings".to_owned(),
+        }));
     }
 
-    // Fall back to env vars
-    let key_id = std::env::var("RAZORPAY_KEY_ID")
-        .map_err(|_| AppError::BadRequest("RAZORPAY_KEY_ID not configured".to_owned()))?;
-    let key_secret = std::env::var("RAZORPAY_KEY_SECRET")
-        .map_err(|_| AppError::BadRequest("RAZORPAY_KEY_SECRET not configured".to_owned()))?;
+    let key_id = std::env::var("RAZORPAY_KEY_ID").ok();
+    let key_secret = std::env::var("RAZORPAY_KEY_SECRET").ok();
     let webhook_secret = std::env::var("RAZORPAY_WEBHOOK_SECRET").ok();
 
-    Ok(RazorpayConfig {
-        key_id,
-        key_secret,
-        webhook_secret,
-    })
+    if let (Some(key_id), Some(key_secret)) = (key_id, key_secret) {
+        return Ok(Some(ResolvedRazorpayConfig {
+            config: RazorpayConfig {
+                key_id,
+                key_secret,
+                webhook_secret,
+            },
+            source: "env".to_owned(),
+        }));
+    }
+
+    Ok(None)
 }
 
 /// Read UPI VPA from `tenant_settings`.
@@ -127,6 +151,54 @@ pub struct InitiateRefundRequest {
 pub struct RefundResponse {
     pub transaction: PaymentGatewayTransaction,
     pub refund_id: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub struct RazorpayStatusResponse {
+    pub configured: bool,
+    pub mode: Option<String>,
+    pub source: Option<String>,
+    pub key_id_prefix: Option<String>,
+    pub webhook_configured: bool,
+}
+
+pub async fn razorpay_status(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+) -> Result<Json<RazorpayStatusResponse>, AppError> {
+    require_permission(&claims, permissions::billing::payments::CREATE)?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let resolved = resolve_razorpay_config(&mut tx, &claims.tenant_id).await?;
+    tx.commit().await?;
+
+    let Some(resolved) = resolved else {
+        return Ok(Json(RazorpayStatusResponse {
+            configured: false,
+            mode: None,
+            source: None,
+            key_id_prefix: None,
+            webhook_configured: false,
+        }));
+    };
+
+    let mode = if resolved.config.key_id.starts_with("rzp_test_") {
+        "test"
+    } else if resolved.config.key_id.starts_with("rzp_live_") {
+        "live"
+    } else {
+        "unknown"
+    };
+
+    Ok(Json(RazorpayStatusResponse {
+        configured: true,
+        mode: Some(mode.to_owned()),
+        source: Some(resolved.source),
+        key_id_prefix: Some(mask_key_id(&resolved.config.key_id)),
+        webhook_configured: resolved.config.webhook_secret.is_some(),
+    }))
 }
 
 // ══════════════════════════════════════════════════════════
@@ -744,4 +816,11 @@ fn urlencoded(s: &str) -> String {
         .replace('&', "%26")
         .replace('=', "%3D")
         .replace('#', "%23")
+}
+
+fn mask_key_id(key_id: &str) -> String {
+    if key_id.len() <= 12 {
+        return key_id.to_owned();
+    }
+    format!("{}...", &key_id[..12])
 }

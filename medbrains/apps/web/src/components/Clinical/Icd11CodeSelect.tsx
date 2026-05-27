@@ -1,9 +1,54 @@
-import { Loader, Select, type SelectProps } from "@mantine/core";
+import {
+  Loader,
+  Select,
+  type ComboboxData,
+  type ComboboxItem,
+  type SelectProps,
+} from "@mantine/core";
 import type { TerminologySearchResult } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { usePacedQueryValue } from "../../hooks/usePacedQueryValue";
 import { clinicalSupportService } from "../../services/clinicalSupport.service";
+
+function isIcd11CodeFragment(value: string) {
+  const query = value.trim();
+  if (!/^[A-Za-z0-9][A-Za-z0-9.&-]*$/.test(query)) return false;
+  return /[0-9.&-]/.test(query) || query.length <= 3;
+}
+
+function normalizeIcd11Query(value: string, selectedValue?: string | null, selectedLabel?: string) {
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+  const isSelectedEcho =
+    Boolean(selectedValue) &&
+    (trimmed === selectedValue ||
+      trimmed === selectedLabel ||
+      trimmed.startsWith(`${selectedValue} ·`));
+  if (isSelectedEcho) return "";
+  const [codePart, labelPart] = trimmed.split("·").map((part) => part.trim());
+  if (codePart && labelPart && isIcd11CodeFragment(codePart)) {
+    return codePart;
+  }
+  return trimmed;
+}
+
+function canSearchIcd11Query(value: string) {
+  const query = value.trim();
+  return query.length >= 2;
+}
+
+function suggestionValue(value: string) {
+  return `suggestion:${value}`;
+}
+
+function isSuggestionValue(value: string | null | undefined) {
+  return Boolean(value?.startsWith("suggestion:"));
+}
+
+function suggestionLabel(value: string) {
+  return value.replace(/^suggestion:/, "");
+}
 
 type Icd11CodeSelectProps = Omit<
   SelectProps,
@@ -25,27 +70,29 @@ export function Icd11CodeSelect({
   onChange,
   onSelectResult,
   onSearchTextChange,
+  onClear: externalOnClear,
   ...props
 }: Icd11CodeSelectProps) {
   const [search, setSearch] = useState("");
+  const [immediateSearch, setImmediateSearch] = useState<string | null>(null);
+  const [dropdownOpened, setDropdownOpened] = useState(false);
   const [selectedDisplay, setSelectedDisplay] = useState<string | null>(displayValue ?? null);
   const selectedLabel = value && selectedDisplay ? `${value} · ${selectedDisplay}` : value;
-  const searchText = search.trim();
-  const isSelectedEcho =
-    Boolean(value) &&
-    (searchText === value || searchText === selectedLabel || searchText.startsWith(`${value} ·`));
-  const queryText = isSelectedEcho ? "" : searchText;
+  const queryText = normalizeIcd11Query(search, value, selectedLabel ?? undefined);
   const pacedSearch = usePacedQueryValue(queryText, 300);
+  const querySearch =
+    immediateSearch && immediateSearch === queryText ? immediateSearch : pacedSearch;
+  const searchEnabled = canSearchIcd11Query(querySearch);
 
-  const { data: results = [], isFetching } = useQuery({
-    queryKey: ["terminology-search", "icd11", pacedSearch, limit],
+  const { data, isFetching } = useQuery({
+    queryKey: ["terminology-search-with-suggestions", "icd11", querySearch, limit],
     queryFn: () =>
-      clinicalSupportService.searchTerminology({
+      clinicalSupportService.searchTerminologyWithSuggestions({
         system: "icd11",
-        q: pacedSearch,
+        q: querySearch,
         limit,
       }),
-    enabled: pacedSearch.length >= 2,
+    enabled: searchEnabled,
     staleTime: 0,
     gcTime: 0,
     retry: false,
@@ -53,10 +100,23 @@ export function Icd11CodeSelect({
     refetchOnWindowFocus: false,
   });
 
+  const results: TerminologySearchResult[] = data?.results ?? [];
+  const suggestions: string[] = data?.suggestions ?? [];
+
+  const clearSelection = () => {
+    setImmediateSearch(null);
+    setDropdownOpened(false);
+    setSelectedDisplay(null);
+    setSearch("");
+    onSearchTextChange?.("");
+    onChange(undefined);
+    externalOnClear?.();
+  };
+
   const options = useMemo(() => {
     const seen = new Set<string>();
-    const currentResults = pacedSearch.length >= 2 && isFetching ? [] : results;
-    const rows = currentResults.map((result) => {
+    const currentResults = searchEnabled && isFetching ? [] : results;
+    const codeRows: ComboboxItem[] = currentResults.map((result) => {
       seen.add(result.code);
       return {
         value: result.code,
@@ -64,13 +124,38 @@ export function Icd11CodeSelect({
       };
     });
     if (value && !seen.has(value)) {
-      rows.unshift({
+      codeRows.unshift({
         value,
         label: selectedDisplay ? `${value} · ${selectedDisplay}` : value,
       });
     }
-    return rows;
-  }, [isFetching, pacedSearch.length, results, selectedDisplay, value]);
+    const activeQuery = querySearch.trim().toLowerCase();
+    const suggestionRows: ComboboxItem[] = (searchEnabled && isFetching ? [] : suggestions)
+      .filter((suggestion) => suggestion.trim().toLowerCase() !== activeQuery)
+      .map((suggestion) => ({
+        value: suggestionValue(suggestion),
+        label: suggestion,
+      }));
+    const groupedOptions: ComboboxData =
+      suggestionRows.length > 0
+        ? [
+            {
+              group: "ICD-11 codes",
+              items: codeRows,
+            },
+            {
+              group: "Suggested words",
+              items: suggestionRows,
+            },
+          ]
+        : [
+            {
+              group: "ICD-11 codes",
+              items: codeRows,
+            },
+          ];
+    return groupedOptions;
+  }, [isFetching, querySearch, results, searchEnabled, selectedDisplay, suggestions, value]);
 
   return (
     <Select
@@ -80,34 +165,51 @@ export function Icd11CodeSelect({
       filter={({ options }) => options}
       value={value || null}
       searchValue={search}
+      dropdownOpened={dropdownOpened}
+      onDropdownOpen={() => setDropdownOpened(true)}
+      onDropdownClose={() => setDropdownOpened(false)}
       onSearchChange={(nextSearch) => {
         setSearch(nextSearch);
-        const nextText = nextSearch.trim();
-        const nextIsSelectedEcho =
-          Boolean(value) &&
-          (nextText === value || nextText === selectedLabel || nextText.startsWith(`${value} ·`));
-        if (!nextIsSelectedEcho) {
-          onSearchTextChange?.(nextSearch);
+        const nextQuery = normalizeIcd11Query(nextSearch, value, selectedLabel ?? undefined);
+        setImmediateSearch((currentSearch) =>
+          currentSearch && currentSearch !== nextQuery ? null : currentSearch,
+        );
+        if (nextQuery) {
+          onSearchTextChange?.(nextQuery);
         }
       }}
       onChange={(nextValue) => {
-        onChange(nextValue ?? undefined);
+        if (isSuggestionValue(nextValue)) {
+          const nextSearch = suggestionLabel(nextValue ?? "");
+          const nextQuery = normalizeIcd11Query(nextSearch, value, selectedLabel ?? undefined);
+          setSearch(nextSearch);
+          setImmediateSearch(nextQuery);
+          setDropdownOpened(true);
+          window.setTimeout(() => setDropdownOpened(true), 0);
+          onSearchTextChange?.(nextQuery || nextSearch);
+          return;
+        }
+        if (!nextValue) {
+          clearSelection();
+          return;
+        }
+        setImmediateSearch(null);
+        setDropdownOpened(false);
+        onChange(nextValue);
         const result = results.find((item) => item.code === nextValue);
         if (result) {
           setSelectedDisplay(result.display);
           setSearch("");
           onSelectResult?.(result);
-        } else if (!nextValue) {
-          setSelectedDisplay(null);
-          setSearch("");
         }
       }}
+      onClear={clearSelection}
       rightSection={isFetching ? <Loader size="xs" /> : undefined}
       nothingFoundMessage={
         isFetching
           ? "Loading ICD-11 matches..."
-          : pacedSearch.length < 2
-            ? "Type at least 2 characters"
+          : !searchEnabled
+            ? "Type a code fragment or at least 2 letters"
             : "No ICD-11 match"
       }
       searchable

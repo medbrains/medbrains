@@ -1,4 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
+import "@mantine/charts/styles.css";
 import { BarChart } from "@mantine/charts";
 import {
   ActionIcon,
@@ -35,22 +36,33 @@ import type {
 } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import {
+  IconAmbulance,
+  IconArrowRight,
+  IconBed,
+  IconBuildingStore,
   IconChartBar,
   IconCheck,
   IconClock,
   IconDoorEnter,
   IconGauge,
+  IconMapPin,
+  IconPackage,
   IconPhone,
+  IconPill,
   IconPlus,
   IconQrcode,
+  IconReceipt,
   IconSettings,
+  IconStethoscope,
+  IconUserPlus,
   IconUsers,
   IconX,
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
-import { DataTable, PageHeader } from "../components";
+import { useNavigate } from "react-router";
+import { DataTable, PageHeader, TableValueBadge } from "../components";
 import type { Column } from "../components/DataTable";
 import {
   DAY_OPTIONS,
@@ -113,21 +125,39 @@ const priorityColors: Record<string, string> = {
 export function FrontOfficePage() {
   useRequirePermission(P.FRONT_OFFICE.QUEUE_LIST);
 
+  const navigate = useNavigate();
   const canManageVisitors = useHasPermission(P.FRONT_OFFICE.VISITORS_MANAGE);
   const canCreateVisitors = useHasPermission(P.FRONT_OFFICE.VISITORS_CREATE);
   const canManagePasses = useHasPermission(P.FRONT_OFFICE.PASSES_MANAGE);
   const canManageQueue = useHasPermission(P.FRONT_OFFICE.QUEUE_MANAGE);
   const canCreateEnquiry = useHasPermission(P.FRONT_OFFICE.ENQUIRY_CREATE);
   const canManageEnquiry = useHasPermission(P.FRONT_OFFICE.ENQUIRY_MANAGE);
+  const canRegisterPatient = useHasPermission(P.PATIENTS.CREATE);
+  const canCreateOpdVisit = useHasPermission(P.OPD.VISIT_CREATE);
+  const canViewOpdQueue = useHasPermission(P.OPD.QUEUE_LIST);
+  const canCreateEmergencyVisit = useHasPermission(P.EMERGENCY.VISITS_CREATE);
+  const canViewEmergency = useHasPermission(P.EMERGENCY.VISITS_LIST);
+  const canViewCamp = useHasPermission(P.CAMP.LIST);
+  const canCreateCampRegistration = useHasPermission(P.CAMP.REGISTRATIONS_CREATE);
+  const canViewBilling = useHasPermission(P.BILLING.INVOICES_LIST);
+  const canCreateBilling = useHasPermission(P.BILLING.INVOICES_CREATE);
+  const canViewPharmacy = useHasPermission(P.PHARMACY.PRESCRIPTIONS_LIST);
+  const canViewIndent = useHasPermission(P.INDENT.LIST);
+  const canViewProcurementStores = useHasPermission(P.PROCUREMENT.STORES_LIST);
+  const canViewAssets = useHasPermission(P.ASSETS.LIST);
+  const canViewIpd = useHasPermission(P.IPD.ADMISSIONS_LIST);
 
   return (
     <div>
       <PageHeader
         title="Front Office"
-        subtitle="Queue dashboard, visitor management & enquiry desk"
+        subtitle="Reception command center linked to registration, OPD, ER, billing, stores and visitor workflows"
       />
-      <Tabs defaultValue="queue">
+      <Tabs defaultValue="patient-flow">
         <Tabs.List>
+          <Tabs.Tab value="patient-flow" leftSection={<IconUserPlus size={16} />}>
+            Patient Flow
+          </Tabs.Tab>
           <Tabs.Tab value="queue" leftSection={<IconUsers size={16} />}>
             Queue Dashboard
           </Tabs.Tab>
@@ -148,6 +178,25 @@ export function FrontOfficePage() {
           </Tabs.Tab>
         </Tabs.List>
 
+        <Tabs.Panel value="patient-flow" pt="md">
+          <PatientFlowHub
+            navigate={navigate}
+            canRegisterPatient={canRegisterPatient}
+            canCreateOpdVisit={canCreateOpdVisit}
+            canViewOpdQueue={canViewOpdQueue}
+            canCreateEmergencyVisit={canCreateEmergencyVisit}
+            canViewEmergency={canViewEmergency}
+            canViewCamp={canViewCamp}
+            canCreateCampRegistration={canCreateCampRegistration}
+            canViewBilling={canViewBilling}
+            canCreateBilling={canCreateBilling}
+            canViewPharmacy={canViewPharmacy}
+            canViewIndent={canViewIndent}
+            canViewProcurementStores={canViewProcurementStores}
+            canViewAssets={canViewAssets}
+            canViewIpd={canViewIpd}
+          />
+        </Tabs.Panel>
         <Tabs.Panel value="queue" pt="md">
           <QueueDashboardTab />
         </Tabs.Panel>
@@ -172,7 +221,205 @@ export function FrontOfficePage() {
 }
 
 // ══════════════════════════════════════════════════════════
-//  Tab 1 — Queue Dashboard
+//  Tab 1 — Patient Flow
+// ══════════════════════════════════════════════════════════
+
+interface PatientFlowHubProps {
+  navigate: ReturnType<typeof useNavigate>;
+  canRegisterPatient: boolean;
+  canCreateOpdVisit: boolean;
+  canViewOpdQueue: boolean;
+  canCreateEmergencyVisit: boolean;
+  canViewEmergency: boolean;
+  canViewCamp: boolean;
+  canCreateCampRegistration: boolean;
+  canViewBilling: boolean;
+  canCreateBilling: boolean;
+  canViewPharmacy: boolean;
+  canViewIndent: boolean;
+  canViewProcurementStores: boolean;
+  canViewAssets: boolean;
+  canViewIpd: boolean;
+}
+
+interface PatientFlowAction {
+  title: string;
+  module: string;
+  description: string;
+  path: string;
+  enabled: boolean;
+  icon: ReactNode;
+}
+
+function PatientFlowHub({
+  navigate,
+  canRegisterPatient,
+  canCreateOpdVisit,
+  canViewOpdQueue,
+  canCreateEmergencyVisit,
+  canViewEmergency,
+  canViewCamp,
+  canCreateCampRegistration,
+  canViewBilling,
+  canCreateBilling,
+  canViewPharmacy,
+  canViewIndent,
+  canViewProcurementStores,
+  canViewAssets,
+  canViewIpd,
+}: PatientFlowHubProps) {
+  const actions: PatientFlowAction[] = [
+    {
+      title: "Register Patient",
+      module: "Registration",
+      description: "Create the patient record before OPD, ER, IPD or camp service.",
+      path: "/patients/register",
+      enabled: canRegisterPatient,
+      icon: <IconUserPlus size={20} />,
+    },
+    {
+      title: "Start OPD Visit",
+      module: "OPD",
+      description: "Create the visit, assign doctor and send the patient to the OPD queue.",
+      path: "/opd/new",
+      enabled: canCreateOpdVisit,
+      icon: <IconStethoscope size={20} />,
+    },
+    {
+      title: "OPD Queue",
+      module: "OPD",
+      description: "Track waiting patients, tokens and department queue load.",
+      path: "/opd",
+      enabled: canViewOpdQueue,
+      icon: <IconUsers size={20} />,
+    },
+    {
+      title: "Emergency Desk",
+      module: "ER",
+      description: "Open ER visits, triage, MLC and critical flow from reception.",
+      path: "/emergency",
+      enabled: canCreateEmergencyVisit || canViewEmergency,
+      icon: <IconAmbulance size={20} />,
+    },
+    {
+      title: "Camp Desk",
+      module: "Camp",
+      description: "Handle outreach registrations, screenings, samples and camp billing.",
+      path: "/camp",
+      enabled: canViewCamp || canCreateCampRegistration,
+      icon: <IconMapPin size={20} />,
+    },
+    {
+      title: "Billing Counter",
+      module: "Billing",
+      description: "Create invoices, collect payments, advances and counter receipts.",
+      path: "/billing",
+      enabled: canViewBilling || canCreateBilling,
+      icon: <IconReceipt size={20} />,
+    },
+    {
+      title: "Pharmacy Queue",
+      module: "Pharmacy",
+      description: "Send prescription and dispensing questions to the pharmacy counter.",
+      path: "/pharmacy",
+      enabled: canViewPharmacy,
+      icon: <IconPill size={20} />,
+    },
+    {
+      title: "IPD Admission",
+      module: "IPD",
+      description: "Route admitted patients to bed, ward and inpatient workflows.",
+      path: "/ipd",
+      enabled: canViewIpd,
+      icon: <IconBed size={20} />,
+    },
+    {
+      title: "Store Indents",
+      module: "Stores",
+      description: "Check requisitions, stock movement, borrow and return workflows.",
+      path: "/indent",
+      enabled: canViewIndent,
+      icon: <IconPackage size={20} />,
+    },
+    {
+      title: "Procurement",
+      module: "Stores",
+      description: "Open vendors, POs, GRN and multi-store procurement operations.",
+      path: "/procurement",
+      enabled: canViewProcurementStores,
+      icon: <IconBuildingStore size={20} />,
+    },
+    {
+      title: "Assets",
+      module: "Assets",
+      description: "Reserve, issue, return and locate patient-facing equipment.",
+      path: "/assets",
+      enabled: canViewAssets,
+      icon: <IconPackage size={20} />,
+    },
+  ];
+
+  return (
+    <Stack gap="md">
+      <Group justify="space-between" align="flex-start">
+        <div>
+          <Text fw={600}>Reception workflow entry points</Text>
+          <Text size="sm" c="dimmed">
+            Front Office coordinates patient movement; the source records stay in their owning
+            modules.
+          </Text>
+        </div>
+        <Badge size="sm" variant="light" color="primary" leftSection={<IconDoorEnter size={12} />}>
+          Intake
+        </Badge>
+      </Group>
+
+      <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }}>
+        {actions.map((action) => (
+          <Card key={action.title} withBorder padding="md">
+            <Stack gap="sm" h="100%">
+              <Group justify="space-between" align="flex-start" wrap="nowrap">
+                <Group gap="sm" wrap="nowrap">
+                  <Badge
+                    size="lg"
+                    variant="light"
+                    color={action.enabled ? "primary" : "slate"}
+                    leftSection={action.icon}
+                  >
+                    {action.module}
+                  </Badge>
+                </Group>
+                {!action.enabled && (
+                  <Badge size="xs" variant="light" color="slate">
+                    No access
+                  </Badge>
+                )}
+              </Group>
+              <div>
+                <Text fw={600}>{action.title}</Text>
+                <Text size="sm" c="dimmed">
+                  {action.description}
+                </Text>
+              </div>
+              <Button
+                mt="auto"
+                variant={action.enabled ? "light" : "subtle"}
+                rightSection={<IconArrowRight size={16} />}
+                disabled={!action.enabled}
+                onClick={() => navigate(action.path)}
+              >
+                Open
+              </Button>
+            </Stack>
+          </Card>
+        ))}
+      </SimpleGrid>
+    </Stack>
+  );
+}
+
+// ══════════════════════════════════════════════════════════
+//  Tab 2 — Queue Dashboard
 // ══════════════════════════════════════════════════════════
 
 function QueueDashboardTab() {
@@ -321,11 +568,7 @@ function VisitorManagementTab({
     {
       key: "category",
       label: "Category",
-      render: (r: VisitorRegistration) => (
-        <Badge size="sm" variant="light">
-          {r.category}
-        </Badge>
-      ),
+      render: (r: VisitorRegistration) => <TableValueBadge value={r.category} kind="category" />,
     },
     { key: "id_type", label: "ID Type", render: (r: VisitorRegistration) => r.id_type ?? "—" },
     { key: "purpose", label: "Purpose", render: (r: VisitorRegistration) => r.purpose ?? "—" },
@@ -362,7 +605,12 @@ function VisitorManagementTab({
       key: "status",
       label: "Status",
       render: (r: VisitorPass) => (
-        <Badge color={passStatusColors[r.status] ?? "slate"}>{r.status}</Badge>
+        <TableValueBadge
+          value={r.status}
+          kind="status"
+          color={passStatusColors[r.status] ?? "slate"}
+          variant="filled"
+        />
       ),
     },
     {
@@ -661,7 +909,12 @@ function QueueConfigTab({
       key: "priority",
       label: "Priority",
       render: (r: QueuePriorityRule) => (
-        <Badge color={priorityColors[r.priority] ?? "slate"}>{r.priority}</Badge>
+        <TableValueBadge
+          value={r.priority}
+          kind="priority"
+          color={priorityColors[r.priority] ?? "slate"}
+          variant="filled"
+        />
       ),
     },
     { key: "weight", label: "Weight", render: (r: QueuePriorityRule) => String(r.weight) },
@@ -669,7 +922,11 @@ function QueueConfigTab({
       key: "is_active",
       label: "Active",
       render: (r: QueuePriorityRule) =>
-        r.is_active ? <Badge color="success">Yes</Badge> : <Badge color="slate">No</Badge>,
+        r.is_active ? (
+          <TableValueBadge value="active" label="Yes" color="success" variant="filled" />
+        ) : (
+          <TableValueBadge value="inactive" label="No" color="slate" variant="filled" />
+        ),
     },
   ];
 
@@ -1026,9 +1283,7 @@ function EnquiryDeskTab({ canCreate, canManage }: { canCreate: boolean; canManag
       key: "enquiry_type",
       label: "Type",
       render: (r: FrontOfficeEnquiryLog) => (
-        <Badge variant="light" size="sm">
-          {r.enquiry_type}
-        </Badge>
+        <TableValueBadge value={r.enquiry_type} kind="source" />
       ),
     },
     {
@@ -1040,7 +1295,11 @@ function EnquiryDeskTab({ canCreate, canManage }: { canCreate: boolean; canManag
       key: "resolved",
       label: "Resolved",
       render: (r: FrontOfficeEnquiryLog) =>
-        r.resolved ? <Badge color="success">Yes</Badge> : <Badge color="orange">No</Badge>,
+        r.resolved ? (
+          <TableValueBadge value="completed" label="Yes" color="success" variant="filled" />
+        ) : (
+          <TableValueBadge value="pending" label="No" color="orange" variant="filled" />
+        ),
     },
     {
       key: "created_at",

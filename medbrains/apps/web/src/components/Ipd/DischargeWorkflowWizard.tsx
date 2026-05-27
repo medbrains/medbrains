@@ -5,8 +5,9 @@
 //
 // Steps map 1:1 to the DB columns: each click stamps `<step>_at` and
 // `<step>_by`. Idempotent on the server — re-clicking is harmless.
-import { Badge, Button, Card, Group, Stack, Text } from "@mantine/core";
-import type { IpdDischargeStep, IpdDischargeWorkflow } from "@medbrains/types";
+import { Alert, Badge, Button, Card, Group, Stack, Text } from "@mantine/core";
+import { useHasPermission } from "@medbrains/stores";
+import { type IpdDischargeStep, type IpdDischargeWorkflow, P } from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ipdService } from "../../services/ipd.service";
 
@@ -71,14 +72,22 @@ interface DischargeWorkflowWizardProps {
 
 export function DischargeWorkflowWizard({ admissionId }: DischargeWorkflowWizardProps) {
   const queryClient = useQueryClient();
+  const canListWorkflow = useHasPermission(P.IPD.DISCHARGE_CHECKLIST_LIST);
+  const canUpdateWorkflow = useHasPermission(P.IPD.DISCHARGE_CHECKLIST_UPDATE);
+  const canViewWorkflow = canListWorkflow || canUpdateWorkflow;
   const { data: workflow } = useQuery({
     queryKey: ["ipd-discharge-workflow", admissionId],
     queryFn: () => ipdService.getIpdDischargeWorkflow(admissionId),
+    enabled: canViewWorkflow,
   });
 
   const stepMutation = useMutation({
-    mutationFn: (step: IpdDischargeStep) =>
-      ipdService.updateIpdDischargeStep(admissionId, { step }),
+    mutationFn: (step: IpdDischargeStep) => {
+      if (!canUpdateWorkflow) {
+        throw new Error("You do not have permission to update the discharge workflow");
+      }
+      return ipdService.updateIpdDischargeStep(admissionId, { step });
+    },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["ipd-discharge-workflow", admissionId] });
     },
@@ -91,6 +100,17 @@ export function DischargeWorkflowWizard({ admissionId }: DischargeWorkflowWizard
         Each step records the time and the staff member who completed it. Steps are idempotent —
         re-clicking a completed step is a no-op.
       </Text>
+      {!canViewWorkflow && (
+        <Alert color="orange" variant="light">
+          Discharge workflow details require discharge-checklist permission.
+        </Alert>
+      )}
+      {canViewWorkflow && !canUpdateWorkflow && (
+        <Alert color="gray" variant="light">
+          You can review this workflow, but marking steps complete requires discharge-checklist
+          update permission.
+        </Alert>
+      )}
       {STEPS.map((step) => {
         const at = stamp(workflow, step.key);
         const done = !!at;
@@ -121,6 +141,7 @@ export function DischargeWorkflowWizard({ admissionId }: DischargeWorkflowWizard
                 <Button
                   size="xs"
                   variant="light"
+                  disabled={!canUpdateWorkflow}
                   loading={stepMutation.isPending && stepMutation.variables === step.key}
                   onClick={() => stepMutation.mutate(step.key)}
                 >

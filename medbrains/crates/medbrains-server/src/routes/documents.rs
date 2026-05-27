@@ -7,7 +7,7 @@ use axum::{
 use chrono::Utc;
 use medbrains_core::document::{
     DocumentFormReviewSchedule, DocumentOutput, DocumentOutputSignature, DocumentTemplate,
-    DocumentTemplateVersion, PrintJob, PrinterConfig,
+    DocumentTemplateVersion, PrintFormat, PrintJob, PrinterConfig,
 };
 use medbrains_core::permissions;
 use serde::{Deserialize, Serialize};
@@ -152,6 +152,49 @@ pub struct ListOutputsQuery {
 #[derive(Debug, Deserialize)]
 pub struct RecordPrintRequest {
     pub printed_by: Option<Uuid>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CreatePrinterRequest {
+    pub name: String,
+    pub printer_type: Option<String>,
+    pub connection_type: Option<String>,
+    pub connection_string: Option<String>,
+    pub department_id: Option<Uuid>,
+    pub default_format: Option<String>,
+    pub capabilities: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdatePrintJobRequest {
+    pub status: String,
+    pub error_message: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct PrintEditorCapabilitiesResponse {
+    pub paper_formats: Vec<&'static str>,
+    pub block_types: Vec<&'static str>,
+    pub barcode_types: Vec<&'static str>,
+    pub printer_types: Vec<&'static str>,
+    pub connection_types: Vec<&'static str>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct MockRenderPrintTemplateRequest {
+    pub template_code: Option<String>,
+    pub print_format: Option<String>,
+    pub layout: serde_json::Value,
+    pub sample_context: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct MockRenderPrintTemplateResponse {
+    pub render_id: Uuid,
+    pub format: String,
+    pub page_count: i32,
+    pub warnings: Vec<String>,
+    pub preview: serde_json::Value,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1169,25 +1212,64 @@ pub async fn mark_reviewed(
 // ══════════════════════════════════════════════════════════
 
 pub async fn list_printers(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<PrinterConfig>>, AppError> {
     require_permission(&claims, permissions::documents::printers::LIST)?;
 
-    // TODO: Phase 2 — printer discovery and configuration
-    Ok(Json(Vec::new()))
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let rows = sqlx::query_as::<_, PrinterConfig>(
+        "SELECT id, tenant_id, name, printer_type, connection_type, connection_string, \
+         department_id, default_format, capabilities, is_active, created_at, updated_at \
+         FROM printer_configs \
+         WHERE tenant_id = $1 AND is_active = true \
+         ORDER BY name",
+    )
+    .bind(claims.tenant_id)
+    .fetch_all(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(Json(rows))
 }
 
 pub async fn create_printer(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
-) -> Result<Json<serde_json::Value>, AppError> {
+    Json(body): Json<CreatePrinterRequest>,
+) -> Result<Json<PrinterConfig>, AppError> {
     require_permission(&claims, permissions::documents::printers::MANAGE)?;
 
-    // TODO: Phase 2 — printer registration with connection testing
-    Err(AppError::Internal(
-        "printer management not yet implemented (Phase 2)".to_owned(),
-    ))
+    if body.name.trim().is_empty() {
+        return Err(AppError::BadRequest("printer name is required".to_owned()));
+    }
+    let default_format = parse_print_format(body.default_format.as_deref())?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let row = sqlx::query_as::<_, PrinterConfig>(
+        "INSERT INTO printer_configs \
+         (tenant_id, name, printer_type, connection_type, connection_string, department_id, \
+          default_format, capabilities, is_active) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7::print_format, $8, true) \
+         RETURNING id, tenant_id, name, printer_type, connection_type, connection_string, \
+         department_id, default_format, capabilities, is_active, created_at, updated_at",
+    )
+    .bind(claims.tenant_id)
+    .bind(body.name.trim())
+    .bind(body.printer_type.unwrap_or_else(|| "laser".to_owned()))
+    .bind(body.connection_type.unwrap_or_else(|| "network".to_owned()))
+    .bind(body.connection_string)
+    .bind(body.department_id)
+    .bind(default_format)
+    .bind(
+        body.capabilities
+            .unwrap_or_else(default_printer_capabilities),
+    )
+    .fetch_one(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(Json(row))
 }
 
 // ══════════════════════════════════════════════════════════
@@ -1195,24 +1277,174 @@ pub async fn create_printer(
 // ══════════════════════════════════════════════════════════
 
 pub async fn list_print_jobs(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<PrintJob>>, AppError> {
     require_permission(&claims, permissions::documents::printers::LIST)?;
 
-    // TODO: Phase 2 — print job queue management
-    Ok(Json(Vec::new()))
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let rows = sqlx::query_as::<_, PrintJob>(
+        "SELECT id, tenant_id, document_output_id, printer_id, status, copies, priority, \
+         department_id, submitted_by, started_at, completed_at, error_message, created_at, updated_at \
+         FROM print_jobs \
+         WHERE tenant_id = $1 \
+         ORDER BY created_at DESC \
+         LIMIT 100",
+    )
+    .bind(claims.tenant_id)
+    .fetch_all(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(Json(rows))
 }
 
 pub async fn update_print_job(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
-    Path(_id): Path<Uuid>,
-) -> Result<Json<serde_json::Value>, AppError> {
+    Path(id): Path<Uuid>,
+    Json(body): Json<UpdatePrintJobRequest>,
+) -> Result<Json<PrintJob>, AppError> {
     require_permission(&claims, permissions::documents::printers::MANAGE)?;
 
-    // TODO: Phase 2 — print job status updates (cancel, retry, etc.)
-    Err(AppError::Internal(
-        "print job management not yet implemented (Phase 2)".to_owned(),
-    ))
+    if !matches!(
+        body.status.as_str(),
+        "queued" | "printing" | "completed" | "failed" | "cancelled"
+    ) {
+        return Err(AppError::BadRequest("invalid print job status".to_owned()));
+    }
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let row = sqlx::query_as::<_, PrintJob>(
+        "UPDATE print_jobs SET \
+         status = $3::print_job_status, \
+         error_message = $4, \
+         started_at = CASE WHEN $3 = 'printing' THEN COALESCE(started_at, now()) ELSE started_at END, \
+         completed_at = CASE WHEN $3 IN ('completed', 'failed', 'cancelled') THEN now() ELSE completed_at END \
+         WHERE id = $1 AND tenant_id = $2 \
+         RETURNING id, tenant_id, document_output_id, printer_id, status, copies, priority, \
+         department_id, submitted_by, started_at, completed_at, error_message, created_at, updated_at",
+    )
+    .bind(id)
+    .bind(claims.tenant_id)
+    .bind(body.status)
+    .bind(body.error_message)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+    tx.commit().await?;
+    Ok(Json(row))
+}
+
+pub async fn print_editor_capabilities(
+    Extension(claims): Extension<Claims>,
+) -> Result<Json<PrintEditorCapabilitiesResponse>, AppError> {
+    require_permission(&claims, permissions::documents::templates::LIST)?;
+    Ok(Json(PrintEditorCapabilitiesResponse {
+        paper_formats: vec![
+            "a4_portrait",
+            "a4_landscape",
+            "a5_portrait",
+            "a5_landscape",
+            "thermal_80mm",
+            "thermal_58mm",
+            "label_50x25mm",
+            "wristband",
+            "custom",
+        ],
+        block_types: vec![
+            "text",
+            "rich_text",
+            "image",
+            "logo",
+            "table",
+            "line",
+            "box",
+            "signature",
+            "qr_code",
+            "barcode",
+            "patient_identifier",
+            "page_number",
+        ],
+        barcode_types: vec!["qr", "code128", "ean13", "datamatrix"],
+        printer_types: vec![
+            "laser",
+            "inkjet",
+            "thermal",
+            "label",
+            "wristband",
+            "virtual_mock",
+        ],
+        connection_types: vec!["network", "usb_bridge", "browser", "ipp", "escpos", "mock"],
+    }))
+}
+
+pub async fn mock_render_print_template(
+    Extension(claims): Extension<Claims>,
+    Json(body): Json<MockRenderPrintTemplateRequest>,
+) -> Result<Json<MockRenderPrintTemplateResponse>, AppError> {
+    require_permission(&claims, permissions::documents::templates::LIST)?;
+    let format = parse_print_format(body.print_format.as_deref())?;
+    let mut warnings = Vec::new();
+    if body.layout.get("blocks").is_none() {
+        warnings.push("layout.blocks is missing; preview uses an empty canvas".to_owned());
+    }
+    if body.sample_context.is_none() {
+        warnings
+            .push("sample_context is missing; dynamic fields render as placeholders".to_owned());
+    }
+    let format_label = print_format_label(format).to_owned();
+    Ok(Json(MockRenderPrintTemplateResponse {
+        render_id: Uuid::new_v4(),
+        format: format_label.clone(),
+        page_count: 1,
+        warnings,
+        preview: serde_json::json!({
+            "template_code": body.template_code,
+            "format": format_label,
+            "engine": "medbrains-print-preview-v1",
+            "html": "<section data-medbrains-preview=\"true\"></section>",
+        }),
+    }))
+}
+
+fn parse_print_format(value: Option<&str>) -> Result<PrintFormat, AppError> {
+    match value.unwrap_or("a4_portrait") {
+        "a4_portrait" => Ok(PrintFormat::A4Portrait),
+        "a4_landscape" => Ok(PrintFormat::A4Landscape),
+        "a5_portrait" => Ok(PrintFormat::A5Portrait),
+        "a5_landscape" => Ok(PrintFormat::A5Landscape),
+        "thermal_80mm" => Ok(PrintFormat::Thermal80mm),
+        "thermal_58mm" => Ok(PrintFormat::Thermal58mm),
+        "label_50x25mm" => Ok(PrintFormat::Label50x25mm),
+        "wristband" => Ok(PrintFormat::Wristband),
+        "custom" => Ok(PrintFormat::Custom),
+        other => Err(AppError::BadRequest(format!(
+            "invalid print format: {other}"
+        ))),
+    }
+}
+
+fn print_format_label(value: PrintFormat) -> &'static str {
+    match value {
+        PrintFormat::A4Portrait => "a4_portrait",
+        PrintFormat::A4Landscape => "a4_landscape",
+        PrintFormat::A5Portrait => "a5_portrait",
+        PrintFormat::A5Landscape => "a5_landscape",
+        PrintFormat::Thermal80mm => "thermal_80mm",
+        PrintFormat::Thermal58mm => "thermal_58mm",
+        PrintFormat::Label50x25mm => "label_50x25mm",
+        PrintFormat::Wristband => "wristband",
+        PrintFormat::Custom => "custom",
+    }
+}
+
+fn default_printer_capabilities() -> serde_json::Value {
+    serde_json::json!({
+        "duplex": false,
+        "color": false,
+        "supports_test_print": true,
+        "mockable": true
+    })
 }

@@ -57,7 +57,15 @@ export function EmployeeSearchSelect({
   };
 
   return (
-    <Combobox store={combobox} onOptionSubmit={handleSelect}>
+    <Combobox
+      store={combobox}
+      onOptionSubmit={handleSelect}
+      middlewares={{ flip: true, shift: true, size: true }}
+      position="bottom-start"
+      shadow="lg"
+      withinPortal
+      zIndex={3000}
+    >
       <Combobox.Target>
         <InputBase
           label={label}
@@ -89,7 +97,7 @@ export function EmployeeSearchSelect({
         />
       </Combobox.Target>
       <Combobox.Dropdown>
-        <Combobox.Options>
+        <Combobox.Options mah={280} style={{ overflowY: "auto" }}>
           {employees.length > 0 ? (
             employees.slice(0, 15).map((e: Employee) => (
               <Combobox.Option key={e.id} value={e.id}>

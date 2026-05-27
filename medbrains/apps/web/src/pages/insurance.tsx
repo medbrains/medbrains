@@ -19,11 +19,12 @@ import {
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { useHasPermission } from "@medbrains/stores";
+import { useFieldAccess, useHasPermission } from "@medbrains/stores";
 import type {
   CreateAppealRequest,
   CreatePaRuleRequest,
   CreatePriorAuthRequestBody,
+  FieldAccessLevel,
   InsuranceDashboard,
   InsuranceVerification,
   PaRequirementRule,
@@ -90,8 +91,18 @@ const appealStatusColors: Record<string, string> = {
   withdrawn: "dimmed",
 };
 
+function canViewSensitiveField(access: FieldAccessLevel) {
+  return access !== "hidden";
+}
+
 export function InsurancePage() {
   useRequirePermission(P.INSURANCE.VERIFICATION_LIST);
+  const canViewPriorAuth = useHasPermission(P.INSURANCE.PRIOR_AUTH_LIST);
+  const canViewAppeals = useHasPermission(P.INSURANCE.APPEALS_LIST);
+  const canListRules = useHasPermission(P.INSURANCE.RULES_LIST);
+  const canManageRules = useHasPermission(P.INSURANCE.RULES_MANAGE);
+  const canViewRules = canListRules || canManageRules;
+  const canViewDashboard = useHasPermission(P.INSURANCE.DASHBOARD_VIEW);
 
   return (
     <Tabs defaultValue="verification">
@@ -99,35 +110,51 @@ export function InsurancePage() {
         <Tabs.Tab value="verification" leftSection={<IconShieldCheck size={16} />}>
           Verification
         </Tabs.Tab>
-        <Tabs.Tab value="prior-auth" leftSection={<IconClipboardText size={16} />}>
-          Prior Authorization
-        </Tabs.Tab>
-        <Tabs.Tab value="appeals" leftSection={<IconGavel size={16} />}>
-          Appeals
-        </Tabs.Tab>
-        <Tabs.Tab value="rules" leftSection={<IconChecklist size={16} />}>
-          PA Rules
-        </Tabs.Tab>
-        <Tabs.Tab value="dashboard" leftSection={<IconChartBar size={16} />}>
-          Dashboard
-        </Tabs.Tab>
+        {canViewPriorAuth && (
+          <Tabs.Tab value="prior-auth" leftSection={<IconClipboardText size={16} />}>
+            Prior Authorization
+          </Tabs.Tab>
+        )}
+        {canViewAppeals && (
+          <Tabs.Tab value="appeals" leftSection={<IconGavel size={16} />}>
+            Appeals
+          </Tabs.Tab>
+        )}
+        {canViewRules && (
+          <Tabs.Tab value="rules" leftSection={<IconChecklist size={16} />}>
+            PA Rules
+          </Tabs.Tab>
+        )}
+        {canViewDashboard && (
+          <Tabs.Tab value="dashboard" leftSection={<IconChartBar size={16} />}>
+            Dashboard
+          </Tabs.Tab>
+        )}
       </Tabs.List>
 
       <Tabs.Panel value="verification" pt="md">
         <VerificationTab />
       </Tabs.Panel>
-      <Tabs.Panel value="prior-auth" pt="md">
-        <PriorAuthTab />
-      </Tabs.Panel>
-      <Tabs.Panel value="appeals" pt="md">
-        <AppealsTab />
-      </Tabs.Panel>
-      <Tabs.Panel value="rules" pt="md">
-        <RulesTab />
-      </Tabs.Panel>
-      <Tabs.Panel value="dashboard" pt="md">
-        <DashboardTab />
-      </Tabs.Panel>
+      {canViewPriorAuth && (
+        <Tabs.Panel value="prior-auth" pt="md">
+          <PriorAuthTab />
+        </Tabs.Panel>
+      )}
+      {canViewAppeals && (
+        <Tabs.Panel value="appeals" pt="md">
+          <AppealsTab />
+        </Tabs.Panel>
+      )}
+      {canViewRules && (
+        <Tabs.Panel value="rules" pt="md">
+          <RulesTab />
+        </Tabs.Panel>
+      )}
+      {canViewDashboard && (
+        <Tabs.Panel value="dashboard" pt="md">
+          <DashboardTab />
+        </Tabs.Panel>
+      )}
     </Tabs>
   );
 }
@@ -139,6 +166,8 @@ export function InsurancePage() {
 function VerificationTab() {
   const qc = useQueryClient();
   const canCreate = useHasPermission(P.INSURANCE.VERIFICATION_CREATE);
+  const memberIdAccess = useFieldAccess("insurance.verification.member_id");
+  const canViewMemberId = canViewSensitiveField(memberIdAccess);
   const [opened, { open, close }] = useDisclosure(false);
   const [detailId, setDetailId] = useState<string | null>(null);
   const [filterStatus, setFilterStatus] = useState<string | null>(null);
@@ -317,7 +346,7 @@ function VerificationTab() {
                   Member ID
                 </Text>
                 <Text size="sm" fw={500}>
-                  {detail.member_id ?? "—"}
+                  {canViewMemberId ? (detail.member_id ?? "—") : "Restricted"}
                 </Text>
               </Grid.Col>
               <Grid.Col span={6}>
@@ -406,6 +435,12 @@ function PriorAuthTab() {
   const canCreate = useHasPermission(P.INSURANCE.PRIOR_AUTH_CREATE);
   const canUpdate = useHasPermission(P.INSURANCE.PRIOR_AUTH_UPDATE);
   const canSubmit = useHasPermission(P.INSURANCE.PRIOR_AUTH_SUBMIT);
+  const authNumberAccess = useFieldAccess("insurance.prior_auth.auth_number");
+  const denialDetailAccess = useFieldAccess("insurance.prior_auth.denial_reason");
+  const canViewAuthNumber = canViewSensitiveField(authNumberAccess);
+  const canEditAuthNumber = authNumberAccess === "edit";
+  const canViewDenialDetails = canViewSensitiveField(denialDetailAccess);
+  const canEditDenialDetails = denialDetailAccess === "edit";
   const [opened, { open, close }] = useDisclosure(false);
   const [detailId, setDetailId] = useState<string | null>(null);
   const [respondId, setRespondId] = useState<string | null>(null);
@@ -494,6 +529,32 @@ function PriorAuthTab() {
   };
 
   const detail: PriorAuthDetail | undefined = detailQuery.data;
+
+  const handleRespondPriorAuth = () => {
+    if (!respondId) return;
+    const body: RespondPriorAuthRequest = {
+      status: respondForm.status,
+      notes: respondForm.notes,
+    };
+    if (respondForm.status === "approved" || respondForm.status === "partially_approved") {
+      Object.assign(body, {
+        approved_amount: respondForm.approved_amount,
+        approved_units: respondForm.approved_units,
+      });
+      if (canEditAuthNumber) {
+        Object.assign(body, { auth_number: respondForm.auth_number });
+      }
+    }
+    if (respondForm.status === "denied" && canEditDenialDetails) {
+      Object.assign(body, {
+        denial_code: respondForm.denial_code,
+        denial_reason: respondForm.denial_reason,
+      });
+    }
+    respondMut.mutate({ id: respondId, body });
+  };
+
+  const responseBlockedByFieldAccess = respondForm.status === "denied" && !canEditDenialDetails;
 
   return (
     <Stack gap="md">
@@ -737,14 +798,16 @@ function PriorAuthTab() {
                     : "—"}
                 </Text>
               </Grid.Col>
-              <Grid.Col span={6}>
-                <Text size="xs" c="dimmed">
-                  Auth Number
-                </Text>
-                <Text size="sm" fw={500}>
-                  {detail.prior_auth.auth_number ?? "—"}
-                </Text>
-              </Grid.Col>
+              {canViewAuthNumber && (
+                <Grid.Col span={6}>
+                  <Text size="xs" c="dimmed">
+                    Auth Number
+                  </Text>
+                  <Text size="sm" fw={500}>
+                    {detail.prior_auth.auth_number ?? "—"}
+                  </Text>
+                </Grid.Col>
+              )}
               {detail.prior_auth.approved_amount != null && (
                 <Grid.Col span={6}>
                   <Text size="xs" c="dimmed">
@@ -755,11 +818,20 @@ function PriorAuthTab() {
                   </Text>
                 </Grid.Col>
               )}
-              {detail.prior_auth.denial_reason && (
+              {detail.prior_auth.denial_reason && canViewDenialDetails && (
                 <Grid.Col span={12}>
                   <Paper p="sm" bg="red.0">
                     <Text size="sm" c="danger" fw={500}>
                       Denial: {detail.prior_auth.denial_code} — {detail.prior_auth.denial_reason}
+                    </Text>
+                  </Paper>
+                </Grid.Col>
+              )}
+              {detail.prior_auth.denial_reason && !canViewDenialDetails && (
+                <Grid.Col span={12}>
+                  <Paper p="sm" bg="red.0">
+                    <Text size="sm" c="danger" fw={500}>
+                      Denial details restricted
                     </Text>
                   </Paper>
                 </Grid.Col>
@@ -862,16 +934,19 @@ function PriorAuthTab() {
           />
           {(respondForm.status === "approved" || respondForm.status === "partially_approved") && (
             <>
-              <TextInput
-                label="Auth Number"
-                value={respondForm.auth_number ?? ""}
-                onChange={(e) =>
-                  setRespondForm({
-                    ...respondForm,
-                    auth_number: e.currentTarget.value || undefined,
-                  })
-                }
-              />
+              {canViewAuthNumber && (
+                <TextInput
+                  label="Auth Number"
+                  disabled={!canEditAuthNumber}
+                  value={respondForm.auth_number ?? ""}
+                  onChange={(e) =>
+                    setRespondForm({
+                      ...respondForm,
+                      auth_number: e.currentTarget.value || undefined,
+                    })
+                  }
+                />
+              )}
               <NumberInput
                 label="Approved Amount"
                 min={0}
@@ -897,30 +972,37 @@ function PriorAuthTab() {
               />
             </>
           )}
-          {respondForm.status === "denied" && (
-            <>
-              <TextInput
-                label="Denial Code"
-                value={respondForm.denial_code ?? ""}
-                onChange={(e) =>
-                  setRespondForm({
-                    ...respondForm,
-                    denial_code: e.currentTarget.value || undefined,
-                  })
-                }
-              />
-              <Textarea
-                label="Denial Reason"
-                value={respondForm.denial_reason ?? ""}
-                onChange={(e) =>
-                  setRespondForm({
-                    ...respondForm,
-                    denial_reason: e.currentTarget.value || undefined,
-                  })
-                }
-              />
-            </>
-          )}
+          {respondForm.status === "denied" &&
+            (canViewDenialDetails ? (
+              <>
+                <TextInput
+                  label="Denial Code"
+                  disabled={!canEditDenialDetails}
+                  value={respondForm.denial_code ?? ""}
+                  onChange={(e) =>
+                    setRespondForm({
+                      ...respondForm,
+                      denial_code: e.currentTarget.value || undefined,
+                    })
+                  }
+                />
+                <Textarea
+                  label="Denial Reason"
+                  disabled={!canEditDenialDetails}
+                  value={respondForm.denial_reason ?? ""}
+                  onChange={(e) =>
+                    setRespondForm({
+                      ...respondForm,
+                      denial_reason: e.currentTarget.value || undefined,
+                    })
+                  }
+                />
+              </>
+            ) : (
+              <Text size="sm" c="danger">
+                Denial details are restricted for this role.
+              </Text>
+            ))}
           <Textarea
             label="Notes"
             value={respondForm.notes ?? ""}
@@ -930,9 +1012,8 @@ function PriorAuthTab() {
           />
           <Button
             loading={respondMut.isPending}
-            onClick={() => {
-              if (respondId) respondMut.mutate({ id: respondId, body: respondForm });
-            }}
+            onClick={handleRespondPriorAuth}
+            disabled={responseBlockedByFieldAccess}
           >
             Record Response
           </Button>
@@ -1065,7 +1146,7 @@ function AppealsTab() {
             label: "",
             render: (r: PriorAuthAppeal) => (
               <Group gap={4}>
-                {r.status === "draft" && (
+                {canCreate && r.status === "draft" && (
                   <ActionIcon
                     variant="subtle"
                     color="primary"

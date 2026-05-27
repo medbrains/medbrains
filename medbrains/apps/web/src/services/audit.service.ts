@@ -11,6 +11,7 @@ export const auditService = {
   verifyIntegrity: api.verifyAuditIntegrity,
   exportAuditLogUrl: api.exportAuditLogUrl,
   getEntityTimeline: api.getEntityTimeline,
+  getUserActivity: api.getUserActivity,
   listBreakGlass: api.listBreakGlass,
   getBreakGlass: api.getBreakGlass,
   reviewBreakGlass: api.reviewBreakGlass,

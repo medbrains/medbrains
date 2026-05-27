@@ -233,6 +233,8 @@ pub async fn start_break_glass(
     Extension(claims): Extension<Claims>,
     Json(body): Json<CreateBreakGlassRequest>,
 ) -> Result<Json<BreakGlassEvent>, AppError> {
+    require_permission(&claims, permissions::audit::START)?;
+
     let start = normalize_break_glass_start(body)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -362,7 +364,7 @@ pub async fn list_break_glass(
     Extension(claims): Extension<Claims>,
     Query(params): Query<BreakGlassQuery>,
 ) -> Result<Json<Vec<BreakGlassEventSummary>>, AppError> {
-    require_permission(&claims, permissions::audit::VIEW)?;
+    require_permission(&claims, permissions::audit::REVIEW)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -417,7 +419,7 @@ pub async fn get_break_glass(
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<BreakGlassEvent>, AppError> {
-    require_permission(&claims, permissions::audit::VIEW)?;
+    require_permission(&claims, permissions::audit::REVIEW)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;

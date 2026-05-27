@@ -1,26 +1,37 @@
 #![allow(clippy::too_many_lines)]
 
+use std::collections::HashMap;
+
 use axum::{
     Extension, Json,
     extract::{Path, Query, State},
 };
 use chrono::NaiveDate;
 use medbrains_core::billing::{
-    AdvanceAdjustment, AuditAction, BadDebtWriteOff, BankTransaction, BillingAuditEntry,
-    BillingConcession, BillingPackage, BillingPackageItem, ChargeMaster, CorporateClient,
-    CorporateEnrollment, CreditNote, CreditPatient, CreditPatientStatus, CurrencyCode, DayEndClose,
-    ErpExportLog, ExchangeRate, GlAccount, GstReturnSummary, InsuranceClaim, Invoice,
-    InvoiceDiscount, InvoiceItem, InvoiceStatus, JournalEntry, JournalEntryLine, PatientAdvance,
-    Payment, RatePlan, RatePlanItem, Receipt, Refund, TdsDeduction, TpaRateCard,
+    AdvanceAdjustment, AdvanceStatus, AuditAction, BadDebtWriteOff, BankTransaction,
+    BillingAuditEntry, BillingConcession, BillingPackage, BillingPackageItem, ChargeMaster,
+    ConcessionStatus, CorporateClient, CorporateEnrollment, CreditNote, CreditPatient,
+    CreditPatientStatus, CurrencyCode, DayEndClose, ErpExportLog, ExchangeRate, GlAccount,
+    GstReturnSummary, InsuranceClaim, Invoice, InvoiceDiscount, InvoiceItem, InvoiceStatus,
+    JournalEntry, JournalEntryLine, PatientAdvance, Payment, RatePlan, RatePlanItem, Receipt,
+    Refund, TdsDeduction, TpaRateCard,
 };
 use medbrains_core::clinical_events::{ClinicalEventEnvelope, ClinicalEventName};
+use medbrains_core::form::FieldAccessLevel;
 use medbrains_core::permissions;
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{
-    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
+    error::AppError,
+    middleware::{
+        auth::Claims,
+        authorization::{
+            authz_context, is_bypass_role, require_any_permission, require_permission,
+        },
+        field_access,
+    },
     state::AppState,
 };
 
@@ -345,6 +356,7 @@ pub struct ListInvoicesQuery {
     pub status: Option<String>,
     pub patient_id: Option<Uuid>,
     pub search: Option<String>,
+    pub service_lane: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -386,6 +398,337 @@ pub struct AddInvoiceItemRequest {
     pub tax_percent: Option<Decimal>,
     pub ordering_doctor_id: Option<Uuid>,
     pub department_id: Option<Uuid>,
+}
+
+const BILLING_AMOUNT_FIELD: &str = "billing.amount";
+
+async fn resolve_billing_restricted_fields(
+    state: &AppState,
+    claims: &Claims,
+) -> Result<HashMap<String, FieldAccessLevel>, AppError> {
+    field_access::resolve_restricted_fields(&state.db, claims.tenant_id, claims.sub, &claims.role)
+        .await
+}
+
+fn billing_amount_access(restricted: &HashMap<String, FieldAccessLevel>) -> FieldAccessLevel {
+    restricted
+        .get(BILLING_AMOUNT_FIELD)
+        .copied()
+        .unwrap_or(FieldAccessLevel::Edit)
+}
+
+fn should_scrub_billing_amount(restricted: &HashMap<String, FieldAccessLevel>) -> bool {
+    matches!(
+        billing_amount_access(restricted),
+        FieldAccessLevel::Mask | FieldAccessLevel::Hidden
+    )
+}
+
+fn can_write_billing_amount(restricted: &HashMap<String, FieldAccessLevel>) -> bool {
+    billing_amount_access(restricted) == FieldAccessLevel::Edit
+}
+
+fn validate_billing_amount_write_access(
+    restricted: &HashMap<String, FieldAccessLevel>,
+) -> Result<(), AppError> {
+    if can_write_billing_amount(restricted) {
+        return Ok(());
+    }
+    Err(AppError::BadRequest(
+        "Cannot write restricted billing amount fields".to_owned(),
+    ))
+}
+
+fn filter_invoice_amounts(
+    mut row: Invoice,
+    restricted: &HashMap<String, FieldAccessLevel>,
+) -> Invoice {
+    if should_scrub_billing_amount(restricted) {
+        row.subtotal = Decimal::ZERO;
+        row.tax_amount = Decimal::ZERO;
+        row.discount_amount = Decimal::ZERO;
+        row.total_amount = Decimal::ZERO;
+        row.paid_amount = Decimal::ZERO;
+        row.cgst_amount = Decimal::ZERO;
+        row.sgst_amount = Decimal::ZERO;
+        row.igst_amount = Decimal::ZERO;
+        row.cess_amount = Decimal::ZERO;
+    }
+    row
+}
+
+fn filter_invoice_item_amounts(
+    mut row: InvoiceItem,
+    restricted: &HashMap<String, FieldAccessLevel>,
+) -> InvoiceItem {
+    if should_scrub_billing_amount(restricted) {
+        row.unit_price = Decimal::ZERO;
+        row.tax_percent = Decimal::ZERO;
+        row.total_price = Decimal::ZERO;
+        row.gst_rate = Decimal::ZERO;
+        row.cgst_amount = Decimal::ZERO;
+        row.sgst_amount = Decimal::ZERO;
+        row.igst_amount = Decimal::ZERO;
+    }
+    row
+}
+
+fn filter_payment_amounts(
+    mut row: Payment,
+    restricted: &HashMap<String, FieldAccessLevel>,
+) -> Payment {
+    if should_scrub_billing_amount(restricted) {
+        row.amount = Decimal::ZERO;
+    }
+    row
+}
+
+fn filter_discount_amounts(
+    mut row: InvoiceDiscount,
+    restricted: &HashMap<String, FieldAccessLevel>,
+) -> InvoiceDiscount {
+    if should_scrub_billing_amount(restricted) {
+        row.discount_value = Decimal::ZERO;
+    }
+    row
+}
+
+fn filter_refund_amounts(
+    mut row: Refund,
+    restricted: &HashMap<String, FieldAccessLevel>,
+) -> Refund {
+    if should_scrub_billing_amount(restricted) {
+        row.amount = Decimal::ZERO;
+    }
+    row
+}
+
+fn filter_credit_note_amounts(
+    mut row: CreditNote,
+    restricted: &HashMap<String, FieldAccessLevel>,
+) -> CreditNote {
+    if should_scrub_billing_amount(restricted) {
+        row.amount = Decimal::ZERO;
+    }
+    row
+}
+
+fn filter_credit_patient_amounts(
+    mut row: CreditPatient,
+    restricted: &HashMap<String, FieldAccessLevel>,
+) -> CreditPatient {
+    if should_scrub_billing_amount(restricted) {
+        row.credit_limit = Decimal::ZERO;
+        row.current_balance = Decimal::ZERO;
+    }
+    row
+}
+
+fn filter_advance_amounts(
+    mut row: PatientAdvance,
+    restricted: &HashMap<String, FieldAccessLevel>,
+) -> PatientAdvance {
+    if should_scrub_billing_amount(restricted) {
+        row.amount = Decimal::ZERO;
+        row.balance = Decimal::ZERO;
+    }
+    row
+}
+
+fn filter_charge_master_amounts(
+    mut row: ChargeMaster,
+    restricted: &HashMap<String, FieldAccessLevel>,
+) -> ChargeMaster {
+    if should_scrub_billing_amount(restricted) {
+        row.base_price = Decimal::ZERO;
+    }
+    row
+}
+
+fn filter_billing_package_amounts(
+    mut row: BillingPackage,
+    restricted: &HashMap<String, FieldAccessLevel>,
+) -> BillingPackage {
+    if should_scrub_billing_amount(restricted) {
+        row.total_price = Decimal::ZERO;
+        row.discount_percent = Decimal::ZERO;
+    }
+    row
+}
+
+fn filter_billing_package_item_amounts(
+    mut row: BillingPackageItem,
+    restricted: &HashMap<String, FieldAccessLevel>,
+) -> BillingPackageItem {
+    if should_scrub_billing_amount(restricted) {
+        row.unit_price = Decimal::ZERO;
+    }
+    row
+}
+
+fn filter_rate_plan_item_amounts(
+    mut row: RatePlanItem,
+    restricted: &HashMap<String, FieldAccessLevel>,
+) -> RatePlanItem {
+    if should_scrub_billing_amount(restricted) {
+        row.override_price = Decimal::ZERO;
+        row.override_tax_percent = Some(Decimal::ZERO);
+    }
+    row
+}
+
+fn filter_hsn_amounts(
+    mut row: HsnSummaryRow,
+    restricted: &HashMap<String, FieldAccessLevel>,
+) -> HsnSummaryRow {
+    if should_scrub_billing_amount(restricted) {
+        row.taxable_amount = Decimal::ZERO;
+        row.cgst_amount = Decimal::ZERO;
+        row.sgst_amount = Decimal::ZERO;
+        row.igst_amount = Decimal::ZERO;
+        row.total_tax = Decimal::ZERO;
+    }
+    row
+}
+
+fn filter_credit_aging_row(
+    mut row: CreditAgingRow,
+    restricted: &HashMap<String, FieldAccessLevel>,
+    can_view_patient_identity: bool,
+) -> CreditAgingRow {
+    if !can_view_patient_identity {
+        row.patient_name = None;
+    }
+    if should_scrub_billing_amount(restricted) {
+        row.credit_limit = Decimal::ZERO;
+        row.current_balance = Decimal::ZERO;
+    }
+    row
+}
+
+async fn ensure_invoice_view_access(
+    state: &AppState,
+    claims: &Claims,
+    invoice_id: Uuid,
+) -> Result<(), AppError> {
+    let authz_ctx = authz_context(claims);
+    let allowed = state
+        .authz
+        .check(
+            &authz_ctx,
+            medbrains_authz::Relation::Viewer,
+            "invoice",
+            invoice_id,
+        )
+        .await
+        .unwrap_or(false);
+    if allowed {
+        return Ok(());
+    }
+    Err(AppError::NotFound)
+}
+
+const BILLING_INVOICE_WORKSPACE_PERMISSIONS: &[&str] = &[
+    permissions::billing::invoices::VIEW,
+    permissions::billing::invoices::UPDATE,
+    permissions::billing::invoices::CANCEL,
+    permissions::billing::payments::CREATE,
+    permissions::billing::payments::VOID,
+    permissions::billing::receipts::PRINT,
+    permissions::billing::receipts::REPRINT,
+];
+const BILLING_RECEIPT_CONTEXT_PERMISSIONS: &[&str] = &[
+    permissions::billing::invoices::VIEW,
+    permissions::billing::receipts::PRINT,
+    permissions::billing::receipts::REPRINT,
+];
+const BILLING_REFUND_LIST_PERMISSIONS: &[&str] = &[
+    permissions::billing::invoices::LIST,
+    permissions::billing::payments::VOID,
+];
+
+fn claims_have_any_billing_permission(claims: &Claims, permissions: &[&str]) -> bool {
+    is_bypass_role(claims)
+        || permissions.iter().any(|permission| {
+            claims
+                .permissions
+                .iter()
+                .any(|granted| granted == permission)
+        })
+}
+
+async fn ensure_invoice_workspace_access(
+    state: &AppState,
+    claims: &Claims,
+    invoice_id: Uuid,
+) -> Result<(), AppError> {
+    if claims_have_any_billing_permission(claims, &[permissions::billing::invoices::VIEW]) {
+        ensure_invoice_view_access(state, claims, invoice_id).await?;
+    }
+    Ok(())
+}
+
+fn can_view_patient_identity(claims: &Claims) -> bool {
+    is_bypass_role(claims)
+        || claims
+            .permissions
+            .iter()
+            .any(|permission| permission == permissions::patients::VIEW)
+}
+
+fn invoice_service_lane_condition(
+    service_lane: Option<&str>,
+) -> Result<Option<&'static str>, AppError> {
+    match service_lane {
+        None | Some("") | Some("all") => Ok(None),
+        Some("patient") => Ok(Some(
+            "EXISTS (SELECT 1 FROM invoice_items ii \
+             WHERE ii.tenant_id = invoices.tenant_id \
+               AND ii.invoice_id = invoices.id \
+               AND ii.source IN ('opd'::charge_source, 'procedure'::charge_source, \
+                                 'ot'::charge_source))",
+        )),
+        Some("pharmacy") => Ok(Some(
+            "EXISTS (SELECT 1 FROM invoice_items ii \
+             WHERE ii.tenant_id = invoices.tenant_id \
+               AND ii.invoice_id = invoices.id \
+               AND ii.source = 'pharmacy'::charge_source)",
+        )),
+        Some("lab") => Ok(Some(
+            "EXISTS (SELECT 1 FROM invoice_items ii \
+             WHERE ii.tenant_id = invoices.tenant_id \
+               AND ii.invoice_id = invoices.id \
+               AND ii.source = 'lab'::charge_source)",
+        )),
+        Some("imaging") => Ok(Some(
+            "EXISTS (SELECT 1 FROM invoice_items ii \
+             WHERE ii.tenant_id = invoices.tenant_id \
+               AND ii.invoice_id = invoices.id \
+               AND ii.source = 'radiology'::charge_source)",
+        )),
+        Some("ward") => Ok(Some(
+            "EXISTS (SELECT 1 FROM invoice_items ii \
+             WHERE ii.tenant_id = invoices.tenant_id \
+               AND ii.invoice_id = invoices.id \
+               AND ii.source IN ('ipd'::charge_source, 'diet'::charge_source, \
+                                 'cssd'::charge_source))",
+        )),
+        Some("emergency") => Ok(Some(
+            "EXISTS (SELECT 1 FROM invoice_items ii \
+             WHERE ii.tenant_id = invoices.tenant_id \
+               AND ii.invoice_id = invoices.id \
+               AND ii.source IN ('emergency'::charge_source, 'ambulance'::charge_source))",
+        )),
+        Some("other") => Ok(Some(
+            "EXISTS (SELECT 1 FROM invoice_items ii \
+             WHERE ii.tenant_id = invoices.tenant_id \
+               AND ii.invoice_id = invoices.id \
+               AND ii.source = 'manual'::charge_source)",
+        )),
+        Some(other) => Err(AppError::BadRequest(format!(
+            "unsupported billing service lane: {other}"
+        ))),
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -708,15 +1051,21 @@ pub async fn list_invoices(
     Extension(claims): Extension<Claims>,
     Query(params): Query<ListInvoicesQuery>,
 ) -> Result<Json<InvoiceListResponse>, AppError> {
-    require_permission(&claims, permissions::billing::invoices::LIST)?;
+    let has_invoice_list =
+        claims_have_any_billing_permission(&claims, &[permissions::billing::invoices::LIST]);
+    let has_advance_adjust_picker = params.patient_id.is_some()
+        && claims_have_any_billing_permission(&claims, &[permissions::billing::advances::ADJUST]);
+    if !has_invoice_list && !has_advance_adjust_picker {
+        return Err(AppError::Forbidden);
+    }
 
     let page = params.page.unwrap_or(1).max(1);
     let per_page = params.per_page.unwrap_or(20).clamp(1, 100);
     let offset = (page - 1) * per_page;
 
     // ── ReBAC scope — invoices the caller has `view` on ──────
-    let authz_ctx = crate::middleware::authorization::authz_context(&claims);
-    let visible_ids: Option<Vec<Uuid>> = if authz_ctx.is_bypass {
+    let authz_ctx = authz_context(&claims);
+    let visible_ids: Option<Vec<Uuid>> = if authz_ctx.is_bypass || !has_invoice_list {
         None
     } else {
         Some(
@@ -728,11 +1077,6 @@ pub async fn list_invoices(
         )
     };
 
-    let mut tx = state.db.begin().await?;
-    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
-
-    let mut conditions = vec!["tenant_id = $1".to_owned()];
-    let mut bind_idx: usize = 2;
     if let Some(ref ids) = visible_ids {
         if ids.is_empty() {
             return Ok(Json(InvoiceListResponse {
@@ -742,9 +1086,13 @@ pub async fn list_invoices(
                 per_page,
             }));
         }
-        conditions.push(format!("id = ANY(${bind_idx}::uuid[])"));
-        bind_idx += 1;
     }
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let mut conditions = vec!["tenant_id = $1".to_owned()];
+    let mut bind_idx: usize = 2;
 
     #[allow(clippy::items_after_statements)]
     struct Bind {
@@ -776,6 +1124,13 @@ pub async fn list_invoices(
             uuid_val: None,
             string_val: Some(pattern),
         });
+        bind_idx += 1;
+    }
+    if let Some(condition) = invoice_service_lane_condition(params.service_lane.as_deref())? {
+        conditions.push(condition.to_owned());
+    }
+    if visible_ids.is_some() {
+        conditions.push(format!("id = ANY(${bind_idx}::uuid[])"));
         bind_idx += 1;
     }
 
@@ -816,6 +1171,11 @@ pub async fn list_invoices(
     let invoices = dq.bind(per_page).bind(offset).fetch_all(&mut *tx).await?;
 
     tx.commit().await?;
+    let restricted_fields = resolve_billing_restricted_fields(&state, &claims).await?;
+    let invoices = invoices
+        .into_iter()
+        .map(|row| filter_invoice_amounts(row, &restricted_fields))
+        .collect();
     Ok(Json(InvoiceListResponse {
         invoices,
         total,
@@ -895,24 +1255,6 @@ pub async fn create_invoice(
 
     tx.commit().await?;
 
-    // Enrich payload with patient details for orchestration
-    let patient_info = sqlx::query_as::<_, (String, String, Option<String>)>(
-        "SELECT first_name || ' ' || last_name, uhid, \
-         (SELECT name FROM departments WHERE id = e.department_id) \
-         FROM patients p \
-         LEFT JOIN encounters e ON e.id = $2 \
-         WHERE p.id = $1",
-    )
-    .bind(invoice.patient_id)
-    .bind(invoice.encounter_id)
-    .fetch_optional(&state.db)
-    .await
-    .ok()
-    .flatten();
-
-    let (patient_name, uhid, department_name) =
-        patient_info.unwrap_or_else(|| ("Unknown".to_owned(), "N/A".to_owned(), None));
-
     let _ = crate::orchestration::lifecycle::emit_after_event(
         &state.db,
         claims.tenant_id,
@@ -922,11 +1264,8 @@ pub async fn create_invoice(
             "invoice_id": invoice.id,
             "patient_id": invoice.patient_id,
             "invoice_number": invoice.invoice_number,
-            "patient_name": patient_name,
-            "uhid": uhid,
             "total_amount": invoice.total_amount,
             "net_amount": invoice.total_amount - invoice.discount_amount,
-            "department_name": department_name,
             "is_insured": invoice.corporate_id.is_some(),
         }),
     )
@@ -944,18 +1283,11 @@ pub async fn get_invoice(
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<InvoiceDetailResponse>, AppError> {
-    require_permission(&claims, permissions::billing::invoices::VIEW)?;
+    require_any_permission(&claims, BILLING_INVOICE_WORKSPACE_PERMISSIONS)?;
 
-    // ── ReBAC pre-check — must hold `view` on the invoice ────
-    let authz_ctx = crate::middleware::authorization::authz_context(&claims);
-    let allowed = state
-        .authz
-        .check(&authz_ctx, medbrains_authz::Relation::Viewer, "invoice", id)
-        .await
-        .unwrap_or(false);
-    if !allowed {
-        return Err(AppError::NotFound);
-    }
+    // Invoice viewers keep resource-scoped ReBAC. Payment/receipt action roles may open
+    // a known invoice shell so they can collect, reverse, or print without list authority.
+    ensure_invoice_workspace_access(&state, &claims, id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -987,10 +1319,17 @@ pub async fn get_invoice(
     .await?;
 
     tx.commit().await?;
+    let restricted_fields = resolve_billing_restricted_fields(&state, &claims).await?;
     Ok(Json(InvoiceDetailResponse {
-        invoice,
-        items,
-        payments,
+        invoice: filter_invoice_amounts(invoice, &restricted_fields),
+        items: items
+            .into_iter()
+            .map(|row| filter_invoice_item_amounts(row, &restricted_fields))
+            .collect(),
+        payments: payments
+            .into_iter()
+            .map(|row| filter_payment_amounts(row, &restricted_fields))
+            .collect(),
     }))
 }
 
@@ -1004,7 +1343,7 @@ pub async fn update_invoice(
     Path(id): Path<Uuid>,
     Json(body): Json<UpdateInvoiceRequest>,
 ) -> Result<Json<Invoice>, AppError> {
-    require_permission(&claims, permissions::billing::invoices::CREATE)?;
+    require_permission(&claims, permissions::billing::invoices::UPDATE)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1055,7 +1394,9 @@ pub async fn add_invoice_item(
     Path(invoice_id): Path<Uuid>,
     Json(body): Json<AddInvoiceItemRequest>,
 ) -> Result<Json<InvoiceItem>, AppError> {
-    require_permission(&claims, permissions::billing::invoices::CREATE)?;
+    require_permission(&claims, permissions::billing::invoices::UPDATE)?;
+    let restricted_fields = resolve_billing_restricted_fields(&state, &claims).await?;
+    validate_billing_amount_write_access(&restricted_fields)?;
 
     let tax_pct = body.tax_percent.unwrap_or(Decimal::ZERO);
     let total = body.unit_price
@@ -1102,7 +1443,9 @@ pub async fn remove_invoice_item(
     Extension(claims): Extension<Claims>,
     Path((invoice_id, item_id)): Path<(Uuid, Uuid)>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    require_permission(&claims, permissions::billing::invoices::CREATE)?;
+    require_permission(&claims, permissions::billing::invoices::UPDATE)?;
+    let restricted_fields = resolve_billing_restricted_fields(&state, &claims).await?;
+    validate_billing_amount_write_access(&restricted_fields)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1157,7 +1500,7 @@ pub async fn issue_invoice(
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<Invoice>, AppError> {
-    require_permission(&claims, permissions::billing::invoices::CREATE)?;
+    require_permission(&claims, permissions::billing::invoices::UPDATE)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1186,7 +1529,7 @@ pub async fn cancel_invoice(
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<Invoice>, AppError> {
-    require_permission(&claims, permissions::billing::invoices::CREATE)?;
+    require_permission(&claims, permissions::billing::invoices::CANCEL)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1217,11 +1560,14 @@ pub async fn record_payment(
     Json(body): Json<RecordPaymentRequest>,
 ) -> Result<Json<Payment>, AppError> {
     require_permission(&claims, permissions::billing::payments::CREATE)?;
+    let restricted_fields = resolve_billing_restricted_fields(&state, &claims).await?;
+    validate_billing_amount_write_access(&restricted_fields)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    if body.amount <= Decimal::ZERO {
+    let payment_amount = body.amount.round_dp(2);
+    if payment_amount <= Decimal::ZERO {
         return Err(AppError::BadRequest(
             "Payment amount must be greater than zero".to_owned(),
         ));
@@ -1255,13 +1601,13 @@ pub async fn record_payment(
         ));
     }
 
-    let outstanding = invoice.total_amount - invoice.paid_amount;
+    let outstanding = (invoice.total_amount - invoice.paid_amount).round_dp(2);
     if outstanding <= Decimal::ZERO {
         return Err(AppError::BadRequest(
             "Invoice has no outstanding balance".to_owned(),
         ));
     }
-    if body.amount > outstanding {
+    if payment_amount > outstanding {
         return Err(AppError::BadRequest(format!(
             "Payment exceeds outstanding balance of {outstanding}"
         )));
@@ -1275,7 +1621,7 @@ pub async fn record_payment(
     )
     .bind(claims.tenant_id)
     .bind(invoice_id)
-    .bind(body.amount)
+    .bind(payment_amount)
     .bind(&body.mode)
     .bind(&body.reference_number)
     .bind(claims.sub)
@@ -1294,7 +1640,7 @@ pub async fn record_payment(
          updated_at = now() \
          WHERE id = $2 AND tenant_id = $3",
     )
-    .bind(body.amount)
+    .bind(payment_amount)
     .bind(invoice_id)
     .bind(claims.tenant_id)
     .execute(&mut *tx)
@@ -1319,19 +1665,6 @@ pub async fn record_payment(
 
     tx.commit().await?;
 
-    // Enrich payload with patient name for orchestration
-    let patient_name = sqlx::query_scalar::<_, String>(
-        "SELECT p.first_name || ' ' || p.last_name \
-         FROM invoices i JOIN patients p ON p.id = i.patient_id \
-         WHERE i.id = $1",
-    )
-    .bind(invoice_id)
-    .fetch_optional(&state.db)
-    .await
-    .ok()
-    .flatten()
-    .unwrap_or_else(|| "Unknown".to_owned());
-
     let _ = crate::orchestration::lifecycle::emit_after_event(
         &state.db,
         claims.tenant_id,
@@ -1340,7 +1673,7 @@ pub async fn record_payment(
         serde_json::json!({
             "payment_id": payment.id,
             "invoice_id": invoice_id,
-            "patient_name": patient_name,
+            "patient_id": invoice.patient_id,
             "amount": payment.amount,
             "payment_mode": format!("{:?}", payment.mode),
             "receipt_number": payment.reference_number,
@@ -1360,7 +1693,8 @@ pub async fn list_payments(
     Extension(claims): Extension<Claims>,
     Path(invoice_id): Path<Uuid>,
 ) -> Result<Json<Vec<Payment>>, AppError> {
-    require_permission(&claims, permissions::billing::invoices::VIEW)?;
+    require_any_permission(&claims, BILLING_INVOICE_WORKSPACE_PERMISSIONS)?;
+    ensure_invoice_workspace_access(&state, &claims, invoice_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1375,6 +1709,11 @@ pub async fn list_payments(
     .await?;
 
     tx.commit().await?;
+    let restricted_fields = resolve_billing_restricted_fields(&state, &claims).await?;
+    let payments = payments
+        .into_iter()
+        .map(|row| filter_payment_amounts(row, &restricted_fields))
+        .collect();
     Ok(Json(payments))
 }
 
@@ -1386,7 +1725,13 @@ pub async fn list_charge_master(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<ChargeMaster>>, AppError> {
-    require_permission(&claims, permissions::billing::invoices::LIST)?;
+    require_any_permission(
+        &claims,
+        &[
+            permissions::billing::invoices::LIST,
+            permissions::billing::catalog::MANAGE,
+        ],
+    )?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1399,6 +1744,11 @@ pub async fn list_charge_master(
     .await?;
 
     tx.commit().await?;
+    let restricted_fields = resolve_billing_restricted_fields(&state, &claims).await?;
+    let rows = rows
+        .into_iter()
+        .map(|row| filter_charge_master_amounts(row, &restricted_fields))
+        .collect();
     Ok(Json(rows))
 }
 
@@ -1407,7 +1757,9 @@ pub async fn create_charge_master(
     Extension(claims): Extension<Claims>,
     Json(body): Json<CreateChargeMasterRequest>,
 ) -> Result<Json<ChargeMaster>, AppError> {
-    require_permission(&claims, permissions::billing::invoices::CREATE)?;
+    require_permission(&claims, permissions::billing::catalog::MANAGE)?;
+    let restricted_fields = resolve_billing_restricted_fields(&state, &claims).await?;
+    validate_billing_amount_write_access(&restricted_fields)?;
 
     let tax_pct = body.tax_percent.unwrap_or(Decimal::ZERO);
 
@@ -1431,7 +1783,7 @@ pub async fn create_charge_master(
     .await?;
 
     tx.commit().await?;
-    Ok(Json(row))
+    Ok(Json(filter_charge_master_amounts(row, &restricted_fields)))
 }
 
 pub async fn update_charge_master(
@@ -1440,7 +1792,11 @@ pub async fn update_charge_master(
     Path(id): Path<Uuid>,
     Json(body): Json<UpdateChargeMasterRequest>,
 ) -> Result<Json<ChargeMaster>, AppError> {
-    require_permission(&claims, permissions::billing::invoices::CREATE)?;
+    require_permission(&claims, permissions::billing::catalog::MANAGE)?;
+    let restricted_fields = resolve_billing_restricted_fields(&state, &claims).await?;
+    if body.base_price.is_some() || body.tax_percent.is_some() {
+        validate_billing_amount_write_access(&restricted_fields)?;
+    }
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1471,7 +1827,10 @@ pub async fn update_charge_master(
     .await?;
 
     tx.commit().await?;
-    row.map_or_else(|| Err(AppError::NotFound), |r| Ok(Json(r)))
+    row.map_or_else(
+        || Err(AppError::NotFound),
+        |r| Ok(Json(filter_charge_master_amounts(r, &restricted_fields))),
+    )
 }
 
 pub async fn delete_charge_master(
@@ -1479,7 +1838,7 @@ pub async fn delete_charge_master(
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    require_permission(&claims, permissions::billing::invoices::CREATE)?;
+    require_permission(&claims, permissions::billing::catalog::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1543,7 +1902,13 @@ pub async fn list_packages(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<BillingPackage>>, AppError> {
-    require_permission(&claims, permissions::billing::invoices::LIST)?;
+    require_any_permission(
+        &claims,
+        &[
+            permissions::billing::invoices::LIST,
+            permissions::billing::catalog::MANAGE,
+        ],
+    )?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1556,6 +1921,11 @@ pub async fn list_packages(
     .await?;
 
     tx.commit().await?;
+    let restricted_fields = resolve_billing_restricted_fields(&state, &claims).await?;
+    let rows = rows
+        .into_iter()
+        .map(|row| filter_billing_package_amounts(row, &restricted_fields))
+        .collect();
     Ok(Json(rows))
 }
 
@@ -1564,7 +1934,13 @@ pub async fn get_package(
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<PackageDetailResponse>, AppError> {
-    require_permission(&claims, permissions::billing::invoices::VIEW)?;
+    require_any_permission(
+        &claims,
+        &[
+            permissions::billing::invoices::VIEW,
+            permissions::billing::catalog::MANAGE,
+        ],
+    )?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1587,6 +1963,12 @@ pub async fn get_package(
     .await?;
 
     tx.commit().await?;
+    let restricted_fields = resolve_billing_restricted_fields(&state, &claims).await?;
+    let package = filter_billing_package_amounts(package, &restricted_fields);
+    let items = items
+        .into_iter()
+        .map(|row| filter_billing_package_item_amounts(row, &restricted_fields))
+        .collect();
     Ok(Json(PackageDetailResponse { package, items }))
 }
 
@@ -1595,7 +1977,9 @@ pub async fn create_package(
     Extension(claims): Extension<Claims>,
     Json(body): Json<CreatePackageRequest>,
 ) -> Result<Json<BillingPackage>, AppError> {
-    require_permission(&claims, permissions::billing::invoices::CREATE)?;
+    require_permission(&claims, permissions::billing::catalog::MANAGE)?;
+    let restricted_fields = resolve_billing_restricted_fields(&state, &claims).await?;
+    validate_billing_amount_write_access(&restricted_fields)?;
 
     let disc = body.discount_percent.unwrap_or(Decimal::ZERO);
 
@@ -1638,7 +2022,10 @@ pub async fn create_package(
     }
 
     tx.commit().await?;
-    Ok(Json(pkg))
+    Ok(Json(filter_billing_package_amounts(
+        pkg,
+        &restricted_fields,
+    )))
 }
 
 pub async fn update_package(
@@ -1647,7 +2034,11 @@ pub async fn update_package(
     Path(id): Path<Uuid>,
     Json(body): Json<UpdatePackageRequest>,
 ) -> Result<Json<BillingPackage>, AppError> {
-    require_permission(&claims, permissions::billing::invoices::CREATE)?;
+    require_permission(&claims, permissions::billing::catalog::MANAGE)?;
+    let restricted_fields = resolve_billing_restricted_fields(&state, &claims).await?;
+    if body.total_price.is_some() || body.discount_percent.is_some() {
+        validate_billing_amount_write_access(&restricted_fields)?;
+    }
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1678,7 +2069,10 @@ pub async fn update_package(
     .await?;
 
     tx.commit().await?;
-    row.map_or_else(|| Err(AppError::NotFound), |r| Ok(Json(r)))
+    row.map_or_else(
+        || Err(AppError::NotFound),
+        |r| Ok(Json(filter_billing_package_amounts(r, &restricted_fields))),
+    )
 }
 
 pub async fn delete_package(
@@ -1686,7 +2080,7 @@ pub async fn delete_package(
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    require_permission(&claims, permissions::billing::invoices::CREATE)?;
+    require_permission(&claims, permissions::billing::catalog::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1743,7 +2137,13 @@ pub async fn list_rate_plans(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<RatePlan>>, AppError> {
-    require_permission(&claims, permissions::billing::invoices::LIST)?;
+    require_any_permission(
+        &claims,
+        &[
+            permissions::billing::invoices::LIST,
+            permissions::billing::catalog::MANAGE,
+        ],
+    )?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1764,7 +2164,13 @@ pub async fn get_rate_plan(
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<RatePlanDetailResponse>, AppError> {
-    require_permission(&claims, permissions::billing::invoices::VIEW)?;
+    require_any_permission(
+        &claims,
+        &[
+            permissions::billing::invoices::VIEW,
+            permissions::billing::catalog::MANAGE,
+        ],
+    )?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1786,6 +2192,11 @@ pub async fn get_rate_plan(
     .await?;
 
     tx.commit().await?;
+    let restricted_fields = resolve_billing_restricted_fields(&state, &claims).await?;
+    let items = items
+        .into_iter()
+        .map(|row| filter_rate_plan_item_amounts(row, &restricted_fields))
+        .collect();
     Ok(Json(RatePlanDetailResponse { plan, items }))
 }
 
@@ -1794,7 +2205,9 @@ pub async fn create_rate_plan(
     Extension(claims): Extension<Claims>,
     Json(body): Json<CreateRatePlanRequest>,
 ) -> Result<Json<RatePlan>, AppError> {
-    require_permission(&claims, permissions::billing::invoices::CREATE)?;
+    require_permission(&claims, permissions::billing::catalog::MANAGE)?;
+    let restricted_fields = resolve_billing_restricted_fields(&state, &claims).await?;
+    validate_billing_amount_write_access(&restricted_fields)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1838,7 +2251,7 @@ pub async fn update_rate_plan(
     Path(id): Path<Uuid>,
     Json(body): Json<UpdateRatePlanRequest>,
 ) -> Result<Json<RatePlan>, AppError> {
-    require_permission(&claims, permissions::billing::invoices::CREATE)?;
+    require_permission(&claims, permissions::billing::catalog::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1873,7 +2286,7 @@ pub async fn delete_rate_plan(
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    require_permission(&claims, permissions::billing::invoices::CREATE)?;
+    require_permission(&claims, permissions::billing::catalog::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1908,6 +2321,7 @@ pub async fn list_discounts(
     Path(invoice_id): Path<Uuid>,
 ) -> Result<Json<Vec<InvoiceDiscount>>, AppError> {
     require_permission(&claims, permissions::billing::invoices::VIEW)?;
+    ensure_invoice_view_access(&state, &claims, invoice_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1922,6 +2336,11 @@ pub async fn list_discounts(
     .await?;
 
     tx.commit().await?;
+    let restricted_fields = resolve_billing_restricted_fields(&state, &claims).await?;
+    let rows = rows
+        .into_iter()
+        .map(|row| filter_discount_amounts(row, &restricted_fields))
+        .collect();
     Ok(Json(rows))
 }
 
@@ -1931,7 +2350,9 @@ pub async fn add_discount(
     Path(invoice_id): Path<Uuid>,
     Json(body): Json<AddDiscountRequest>,
 ) -> Result<Json<InvoiceDiscount>, AppError> {
-    require_permission(&claims, permissions::billing::invoices::CREATE)?;
+    require_permission(&claims, permissions::billing::invoices::UPDATE)?;
+    let restricted_fields = resolve_billing_restricted_fields(&state, &claims).await?;
+    validate_billing_amount_write_access(&restricted_fields)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -1973,7 +2394,9 @@ pub async fn remove_discount(
     Extension(claims): Extension<Claims>,
     Path((invoice_id, discount_id)): Path<(Uuid, Uuid)>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    require_permission(&claims, permissions::billing::invoices::CREATE)?;
+    require_permission(&claims, permissions::billing::invoices::UPDATE)?;
+    let restricted_fields = resolve_billing_restricted_fields(&state, &claims).await?;
+    validate_billing_amount_write_access(&restricted_fields)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -2054,7 +2477,7 @@ pub async fn list_refunds(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<Refund>>, AppError> {
-    require_permission(&claims, permissions::billing::invoices::LIST)?;
+    require_any_permission(&claims, BILLING_REFUND_LIST_PERMISSIONS)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -2067,6 +2490,11 @@ pub async fn list_refunds(
     .await?;
 
     tx.commit().await?;
+    let restricted_fields = resolve_billing_restricted_fields(&state, &claims).await?;
+    let rows = rows
+        .into_iter()
+        .map(|row| filter_refund_amounts(row, &restricted_fields))
+        .collect();
     Ok(Json(rows))
 }
 
@@ -2075,10 +2503,65 @@ pub async fn create_refund(
     Extension(claims): Extension<Claims>,
     Json(body): Json<CreateRefundRequest>,
 ) -> Result<Json<Refund>, AppError> {
-    require_permission(&claims, permissions::billing::payments::CREATE)?;
+    require_permission(&claims, permissions::billing::payments::VOID)?;
+    let restricted_fields = resolve_billing_restricted_fields(&state, &claims).await?;
+    validate_billing_amount_write_access(&restricted_fields)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let refund_amount = body.amount.round_dp(2);
+    if refund_amount <= Decimal::ZERO {
+        return Err(AppError::BadRequest(
+            "Refund amount must be greater than zero".to_owned(),
+        ));
+    }
+
+    #[derive(sqlx::FromRow)]
+    struct RefundInvoiceGate {
+        status: InvoiceStatus,
+        paid_amount: Decimal,
+    }
+
+    let invoice = sqlx::query_as::<_, RefundInvoiceGate>(
+        "SELECT status, paid_amount FROM invoices WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(body.invoice_id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+
+    if matches!(
+        invoice.status,
+        InvoiceStatus::Draft | InvoiceStatus::Cancelled | InvoiceStatus::Refunded
+    ) {
+        return Err(AppError::BadRequest(
+            "Refunds can be processed only against paid or partially paid invoices".to_owned(),
+        ));
+    }
+    if refund_amount > invoice.paid_amount {
+        return Err(AppError::BadRequest(format!(
+            "Refund exceeds refundable paid amount of {}",
+            invoice.paid_amount
+        )));
+    }
+
+    if let Some(payment_id) = body.payment_id {
+        let payment_exists = sqlx::query_scalar::<_, bool>(
+            "SELECT EXISTS(SELECT 1 FROM payments WHERE id = $1 AND invoice_id = $2 AND tenant_id = $3)",
+        )
+        .bind(payment_id)
+        .bind(body.invoice_id)
+        .bind(claims.tenant_id)
+        .fetch_one(&mut *tx)
+        .await?;
+        if !payment_exists {
+            return Err(AppError::BadRequest(
+                "Refund payment reference does not belong to this invoice".to_owned(),
+            ));
+        }
+    }
 
     let refund_number = generate_refund_number(&mut tx, &claims.tenant_id).await?;
 
@@ -2093,7 +2576,7 @@ pub async fn create_refund(
     .bind(body.invoice_id)
     .bind(body.payment_id)
     .bind(&refund_number)
-    .bind(body.amount)
+    .bind(refund_amount)
     .bind(&body.reason)
     .bind(&body.mode)
     .bind(&body.reference_number)
@@ -2112,14 +2595,14 @@ pub async fn create_refund(
          updated_at = now() \
          WHERE id = $2 AND tenant_id = $3",
     )
-    .bind(body.amount)
+    .bind(refund_amount)
     .bind(body.invoice_id)
     .bind(claims.tenant_id)
     .execute(&mut *tx)
     .await?;
 
     tx.commit().await?;
-    Ok(Json(refund))
+    Ok(Json(filter_refund_amounts(refund, &restricted_fields)))
 }
 
 // ══════════════════════════════════════════════════════════
@@ -2168,7 +2651,14 @@ pub async fn list_credit_notes(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<CreditNote>>, AppError> {
-    require_permission(&claims, permissions::billing::invoices::LIST)?;
+    require_any_permission(
+        &claims,
+        &[
+            permissions::billing::credit::LIST,
+            permissions::billing::credit::MANAGE,
+            permissions::billing::credit::APPLY,
+        ],
+    )?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -2181,6 +2671,11 @@ pub async fn list_credit_notes(
     .await?;
 
     tx.commit().await?;
+    let restricted_fields = resolve_billing_restricted_fields(&state, &claims).await?;
+    let rows = rows
+        .into_iter()
+        .map(|row| filter_credit_note_amounts(row, &restricted_fields))
+        .collect();
     Ok(Json(rows))
 }
 
@@ -2189,10 +2684,52 @@ pub async fn create_credit_note(
     Extension(claims): Extension<Claims>,
     Json(body): Json<CreateCreditNoteRequest>,
 ) -> Result<Json<CreditNote>, AppError> {
-    require_permission(&claims, permissions::billing::invoices::CREATE)?;
+    require_permission(&claims, permissions::billing::credit::MANAGE)?;
+    let restricted_fields = resolve_billing_restricted_fields(&state, &claims).await?;
+    validate_billing_amount_write_access(&restricted_fields)?;
+
+    let credit_amount = body.amount.round_dp(2);
+    if credit_amount <= Decimal::ZERO {
+        return Err(AppError::BadRequest(
+            "Credit note amount must be greater than zero".to_owned(),
+        ));
+    }
+    let reason = body.reason.trim();
+    if reason.len() < 3 {
+        return Err(AppError::BadRequest(
+            "Credit note reason must contain at least 3 characters".to_owned(),
+        ));
+    }
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let source_invoice = sqlx::query_as::<_, (InvoiceStatus, Decimal)>(
+        "SELECT status, paid_amount \
+         FROM invoices \
+         WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(body.invoice_id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or_else(|| AppError::BadRequest("Source invoice not found".to_owned()))?;
+
+    if !matches!(
+        source_invoice.0,
+        InvoiceStatus::Paid | InvoiceStatus::PartiallyPaid
+    ) || source_invoice.1 <= Decimal::ZERO
+    {
+        return Err(AppError::BadRequest(
+            "Credit note can only be created from a paid or partially paid invoice".to_owned(),
+        ));
+    }
+    if credit_amount > source_invoice.1 {
+        return Err(AppError::BadRequest(format!(
+            "Credit note amount exceeds refundable paid amount: {}",
+            source_invoice.1
+        )));
+    }
 
     let cn_number = generate_credit_note_number(&mut tx, &claims.tenant_id).await?;
 
@@ -2205,14 +2742,14 @@ pub async fn create_credit_note(
     .bind(claims.tenant_id)
     .bind(&cn_number)
     .bind(body.invoice_id)
-    .bind(body.amount)
-    .bind(&body.reason)
+    .bind(credit_amount)
+    .bind(reason)
     .bind(claims.sub)
     .fetch_one(&mut *tx)
     .await?;
 
     tx.commit().await?;
-    Ok(Json(note))
+    Ok(Json(filter_credit_note_amounts(note, &restricted_fields)))
 }
 
 pub async fn apply_credit_note(
@@ -2221,10 +2758,72 @@ pub async fn apply_credit_note(
     Path(id): Path<Uuid>,
     Json(body): Json<ApplyCreditNoteRequest>,
 ) -> Result<Json<CreditNote>, AppError> {
-    require_permission(&claims, permissions::billing::invoices::CREATE)?;
+    require_permission(&claims, permissions::billing::credit::APPLY)?;
+    let restricted_fields = resolve_billing_restricted_fields(&state, &claims).await?;
+    validate_billing_amount_write_access(&restricted_fields)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let note = sqlx::query_as::<_, CreditNote>(
+        "SELECT * FROM credit_notes \
+         WHERE id = $1 AND tenant_id = $2 AND status = 'active' \
+         FOR UPDATE",
+    )
+    .bind(id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+
+    let note_patient_id = sqlx::query_scalar::<_, Uuid>(
+        "SELECT patient_id FROM invoices WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(note.invoice_id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or_else(|| AppError::BadRequest("Credit note source invoice not found".to_owned()))?;
+
+    let target_invoice = sqlx::query_as::<_, (Uuid, InvoiceStatus, Decimal, Decimal)>(
+        "SELECT patient_id, status, total_amount, paid_amount \
+         FROM invoices \
+         WHERE id = $1 AND tenant_id = $2 \
+         FOR UPDATE",
+    )
+    .bind(body.invoice_id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or_else(|| AppError::BadRequest("Target invoice not found".to_owned()))?;
+
+    if target_invoice.0 != note_patient_id {
+        return Err(AppError::BadRequest(
+            "Credit note can only be applied to the same patient".to_owned(),
+        ));
+    }
+
+    if !matches!(
+        target_invoice.1,
+        InvoiceStatus::Issued | InvoiceStatus::PartiallyPaid
+    ) {
+        return Err(AppError::BadRequest(
+            "Credit note can only be applied to an issued invoice with outstanding balance"
+                .to_owned(),
+        ));
+    }
+
+    let outstanding = (target_invoice.2 - target_invoice.3).round_dp(2);
+    if outstanding <= Decimal::ZERO {
+        return Err(AppError::BadRequest(
+            "Target invoice has no outstanding balance".to_owned(),
+        ));
+    }
+    if note.amount > outstanding {
+        return Err(AppError::BadRequest(format!(
+            "Credit note amount exceeds invoice outstanding balance: {outstanding}"
+        )));
+    }
 
     let note = sqlx::query_as::<_, CreditNote>(
         "UPDATE credit_notes SET \
@@ -2241,7 +2840,6 @@ pub async fn apply_credit_note(
     .await?
     .ok_or(AppError::NotFound)?;
 
-    // Apply credit to the target invoice
     sqlx::query(
         "UPDATE invoices SET \
          paid_amount = paid_amount + $1, \
@@ -2259,7 +2857,7 @@ pub async fn apply_credit_note(
     .await?;
 
     tx.commit().await?;
-    Ok(Json(note))
+    Ok(Json(filter_credit_note_amounts(note, &restricted_fields)))
 }
 
 // ══════════════════════════════════════════════════════════
@@ -2302,7 +2900,8 @@ pub async fn list_receipts(
     Extension(claims): Extension<Claims>,
     Path(invoice_id): Path<Uuid>,
 ) -> Result<Json<Vec<Receipt>>, AppError> {
-    require_permission(&claims, permissions::billing::invoices::VIEW)?;
+    require_any_permission(&claims, BILLING_RECEIPT_CONTEXT_PERMISSIONS)?;
+    ensure_invoice_workspace_access(&state, &claims, invoice_id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -2326,7 +2925,7 @@ pub async fn generate_receipt(
     Path(invoice_id): Path<Uuid>,
     Json(body): Json<GenerateReceiptRequest>,
 ) -> Result<Json<Receipt>, AppError> {
-    require_permission(&claims, permissions::billing::payments::CREATE)?;
+    require_permission(&claims, permissions::billing::receipts::PRINT)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -2341,6 +2940,22 @@ pub async fn generate_receipt(
     .fetch_optional(&mut *tx)
     .await?
     .ok_or(AppError::NotFound)?;
+
+    if let Some(existing) = sqlx::query_as::<_, Receipt>(
+        "SELECT * FROM receipts \
+         WHERE payment_id = $1 AND invoice_id = $2 AND tenant_id = $3 \
+         ORDER BY created_at DESC \
+         LIMIT 1",
+    )
+    .bind(body.payment_id)
+    .bind(invoice_id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    {
+        tx.commit().await?;
+        return Ok(Json(existing));
+    }
 
     let receipt_number = generate_receipt_number(&mut tx, &claims.tenant_id).await?;
 
@@ -2396,7 +3011,7 @@ pub async fn list_insurance_claims(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<InsuranceClaim>>, AppError> {
-    require_permission(&claims, permissions::billing::invoices::LIST)?;
+    require_permission(&claims, permissions::billing::corporate::LIST)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -2417,7 +3032,7 @@ pub async fn get_insurance_claim(
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<InsuranceClaim>, AppError> {
-    require_permission(&claims, permissions::billing::invoices::VIEW)?;
+    require_permission(&claims, permissions::billing::corporate::LIST)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -2440,12 +3055,112 @@ pub async fn create_insurance_claim(
     Extension(claims): Extension<Claims>,
     Json(body): Json<CreateInsuranceClaimRequest>,
 ) -> Result<Json<InsuranceClaim>, AppError> {
-    require_permission(&claims, permissions::billing::invoices::CREATE)?;
+    require_permission(&claims, permissions::billing::corporate::CREATE)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let scheme = body.scheme_type.as_deref().unwrap_or("private");
+    #[derive(sqlx::FromRow)]
+    struct ClaimInvoiceGate {
+        patient_id: Uuid,
+        status: InvoiceStatus,
+    }
+
+    let invoice = sqlx::query_as::<_, ClaimInvoiceGate>(
+        "SELECT patient_id, status FROM invoices WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(body.invoice_id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+
+    if invoice.patient_id != body.patient_id {
+        return Err(AppError::BadRequest(
+            "Insurance claim patient must match the selected invoice".to_owned(),
+        ));
+    }
+
+    if !matches!(
+        invoice.status,
+        InvoiceStatus::Issued | InvoiceStatus::PartiallyPaid | InvoiceStatus::Paid
+    ) {
+        return Err(AppError::BadRequest(
+            "Insurance claim can be created only for issued, partially paid, or paid invoices"
+                .to_owned(),
+        ));
+    }
+
+    let insurance_provider = body.insurance_provider.trim();
+    if insurance_provider.len() < 2 {
+        return Err(AppError::BadRequest(
+            "Insurance provider is required".to_owned(),
+        ));
+    }
+
+    let claim_type = body.claim_type.trim();
+    if claim_type.is_empty() {
+        return Err(AppError::BadRequest("Claim type is required".to_owned()));
+    }
+
+    if body
+        .pre_auth_amount
+        .is_some_and(|amount| amount < Decimal::ZERO)
+    {
+        return Err(AppError::BadRequest(
+            "Pre-auth amount cannot be negative".to_owned(),
+        ));
+    }
+
+    if body
+        .deductible_amount
+        .is_some_and(|amount| amount < Decimal::ZERO)
+    {
+        return Err(AppError::BadRequest(
+            "Deductible amount cannot be negative".to_owned(),
+        ));
+    }
+
+    if body
+        .co_pay_percent
+        .is_some_and(|percent| percent < Decimal::ZERO || percent > Decimal::from(100))
+    {
+        return Err(AppError::BadRequest(
+            "Co-pay percent must be between 0 and 100".to_owned(),
+        ));
+    }
+
+    let scheme = body
+        .scheme_type
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .unwrap_or("private");
+    let policy_number = body
+        .policy_number
+        .as_deref()
+        .map(str::trim)
+        .filter(|v| !v.is_empty());
+    let tpa_name = body
+        .tpa_name
+        .as_deref()
+        .map(str::trim)
+        .filter(|v| !v.is_empty());
+    let notes = body
+        .notes
+        .as_deref()
+        .map(str::trim)
+        .filter(|v| !v.is_empty());
+    let member_id = body
+        .member_id
+        .as_deref()
+        .map(str::trim)
+        .filter(|v| !v.is_empty());
+    let scheme_card_number = body
+        .scheme_card_number
+        .as_deref()
+        .map(str::trim)
+        .filter(|v| !v.is_empty());
 
     let claim = sqlx::query_as::<_, InsuranceClaim>(
         "INSERT INTO insurance_claims \
@@ -2459,18 +3174,18 @@ pub async fn create_insurance_claim(
     .bind(claims.tenant_id)
     .bind(body.invoice_id)
     .bind(body.patient_id)
-    .bind(&body.insurance_provider)
-    .bind(&body.policy_number)
-    .bind(&body.claim_type)
-    .bind(body.pre_auth_amount)
-    .bind(&body.tpa_name)
-    .bind(&body.notes)
+    .bind(insurance_provider)
+    .bind(policy_number)
+    .bind(claim_type)
+    .bind(body.pre_auth_amount.map(|amount| amount.round_dp(2)))
+    .bind(tpa_name)
+    .bind(notes)
     .bind(claims.sub)
     .bind(scheme)
-    .bind(body.co_pay_percent)
-    .bind(body.deductible_amount)
-    .bind(&body.member_id)
-    .bind(&body.scheme_card_number)
+    .bind(body.co_pay_percent.map(|percent| percent.round_dp(2)))
+    .bind(body.deductible_amount.map(|amount| amount.round_dp(2)))
+    .bind(member_id)
+    .bind(scheme_card_number)
     .fetch_one(&mut *tx)
     .await?;
 
@@ -2484,7 +3199,7 @@ pub async fn update_insurance_claim(
     Path(id): Path<Uuid>,
     Json(body): Json<UpdateInsuranceClaimRequest>,
 ) -> Result<Json<InsuranceClaim>, AppError> {
-    require_permission(&claims, permissions::billing::invoices::CREATE)?;
+    require_permission(&claims, permissions::billing::corporate::UPDATE)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -2931,7 +3646,15 @@ pub async fn list_advances(
     Extension(claims): Extension<Claims>,
     Query(params): Query<ListAdvancesQuery>,
 ) -> Result<Json<Vec<PatientAdvance>>, AppError> {
-    require_permission(&claims, permissions::billing::advances::LIST)?;
+    require_any_permission(
+        &claims,
+        &[
+            permissions::billing::advances::LIST,
+            permissions::billing::advances::ADJUST,
+            permissions::billing::advances::REFUND,
+        ],
+    )?;
+    let restricted_fields = resolve_billing_restricted_fields(&state, &claims).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -2956,7 +3679,11 @@ pub async fn list_advances(
     };
 
     tx.commit().await?;
-    Ok(Json(rows))
+    Ok(Json(
+        rows.into_iter()
+            .map(|row| filter_advance_amounts(row, &restricted_fields))
+            .collect(),
+    ))
 }
 
 pub async fn create_advance(
@@ -2965,9 +3692,35 @@ pub async fn create_advance(
     Json(body): Json<CreateAdvanceRequest>,
 ) -> Result<Json<PatientAdvance>, AppError> {
     require_permission(&claims, permissions::billing::advances::CREATE)?;
+    let restricted_fields = resolve_billing_restricted_fields(&state, &claims).await?;
+    validate_billing_amount_write_access(&restricted_fields)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let advance_amount = body.amount.round_dp(2);
+    if advance_amount <= Decimal::ZERO {
+        return Err(AppError::BadRequest(
+            "Advance amount must be greater than zero".to_owned(),
+        ));
+    }
+
+    if let Some(encounter_id) = body.encounter_id {
+        let encounter_patient_id = sqlx::query_scalar::<_, Uuid>(
+            "SELECT patient_id FROM encounters WHERE id = $1 AND tenant_id = $2",
+        )
+        .bind(encounter_id)
+        .bind(claims.tenant_id)
+        .fetch_optional(&mut *tx)
+        .await?
+        .ok_or(AppError::NotFound)?;
+
+        if encounter_patient_id != body.patient_id {
+            return Err(AppError::BadRequest(
+                "Advance encounter does not belong to patient".to_owned(),
+            ));
+        }
+    }
 
     let adv_number = generate_advance_number(&mut tx, &claims.tenant_id).await?;
     let purpose = body.purpose.as_deref().unwrap_or("general");
@@ -2984,7 +3737,7 @@ pub async fn create_advance(
     .bind(body.patient_id)
     .bind(body.encounter_id)
     .bind(&adv_number)
-    .bind(body.amount)
+    .bind(advance_amount)
     .bind(&body.payment_mode)
     .bind(&body.reference_number)
     .bind(purpose)
@@ -2993,8 +3746,27 @@ pub async fn create_advance(
     .fetch_one(&mut *tx)
     .await?;
 
+    log_billing_audit(
+        &mut tx,
+        claims.tenant_id,
+        AuditAction::AdvanceCollected,
+        "patient_advance",
+        advance.id,
+        None,
+        Some(advance.patient_id),
+        Some(advance_amount),
+        Some(serde_json::json!({
+            "advance_number": advance.advance_number,
+            "purpose": purpose,
+            "payment_mode": body.payment_mode,
+            "balance": advance.balance,
+        })),
+        claims.sub,
+    )
+    .await;
+
     tx.commit().await?;
-    Ok(Json(advance))
+    Ok(Json(filter_advance_amounts(advance, &restricted_fields)))
 }
 
 pub async fn adjust_advance(
@@ -3004,13 +3776,21 @@ pub async fn adjust_advance(
     Json(body): Json<AdjustAdvanceRequest>,
 ) -> Result<Json<AdvanceAdjustment>, AppError> {
     require_permission(&claims, permissions::billing::advances::ADJUST)?;
+    let restricted_fields = resolve_billing_restricted_fields(&state, &claims).await?;
+    validate_billing_amount_write_access(&restricted_fields)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    // Check advance balance
+    let adjustment_amount = body.amount.round_dp(2);
+    if adjustment_amount <= Decimal::ZERO {
+        return Err(AppError::BadRequest(
+            "Adjustment amount must be greater than zero".to_owned(),
+        ));
+    }
+
     let advance = sqlx::query_as::<_, PatientAdvance>(
-        "SELECT * FROM patient_advances WHERE id = $1 AND tenant_id = $2",
+        "SELECT * FROM patient_advances WHERE id = $1 AND tenant_id = $2 FOR UPDATE",
     )
     .bind(id)
     .bind(claims.tenant_id)
@@ -3018,14 +3798,70 @@ pub async fn adjust_advance(
     .await?
     .ok_or(AppError::NotFound)?;
 
-    if advance.balance < body.amount {
+    if !matches!(
+        advance.status,
+        AdvanceStatus::Active | AdvanceStatus::PartiallyUsed
+    ) || advance.balance <= Decimal::ZERO
+    {
+        return Err(AppError::BadRequest(
+            "Advance has no usable balance".to_owned(),
+        ));
+    }
+
+    if advance.balance < adjustment_amount {
         return Err(AppError::BadRequest(
             "Adjustment amount exceeds advance balance".to_owned(),
         ));
     }
 
+    #[derive(sqlx::FromRow)]
+    struct AdvanceInvoiceGate {
+        patient_id: Uuid,
+        status: InvoiceStatus,
+        total_amount: Decimal,
+        paid_amount: Decimal,
+    }
+
+    let invoice = sqlx::query_as::<_, AdvanceInvoiceGate>(
+        "SELECT patient_id, status, total_amount, paid_amount \
+         FROM invoices WHERE id = $1 AND tenant_id = $2 FOR UPDATE",
+    )
+    .bind(body.invoice_id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+
+    if invoice.patient_id != advance.patient_id {
+        return Err(AppError::BadRequest(
+            "Advance can be adjusted only against the same patient's invoice".to_owned(),
+        ));
+    }
+
+    if !matches!(
+        invoice.status,
+        InvoiceStatus::Issued | InvoiceStatus::PartiallyPaid
+    ) {
+        return Err(AppError::BadRequest(
+            "Advance can be adjusted only against issued invoices with an outstanding balance"
+                .to_owned(),
+        ));
+    }
+
+    let outstanding = (invoice.total_amount - invoice.paid_amount).round_dp(2);
+    if outstanding <= Decimal::ZERO {
+        return Err(AppError::BadRequest(
+            "Invoice has no outstanding balance".to_owned(),
+        ));
+    }
+    if adjustment_amount > outstanding {
+        return Err(AppError::BadRequest(format!(
+            "Adjustment exceeds outstanding invoice balance of {outstanding}"
+        )));
+    }
+
     // Deduct balance
-    let new_balance = advance.balance - body.amount;
+    let new_balance = (advance.balance - adjustment_amount).round_dp(2);
     let new_status = if new_balance == Decimal::ZERO {
         "fully_used"
     } else {
@@ -3052,7 +3888,7 @@ pub async fn adjust_advance(
     .bind(claims.tenant_id)
     .bind(id)
     .bind(body.invoice_id)
-    .bind(body.amount)
+    .bind(adjustment_amount)
     .bind(claims.sub)
     .bind(&body.notes)
     .fetch_one(&mut *tx)
@@ -3069,11 +3905,31 @@ pub async fn adjust_advance(
          updated_at = now() \
          WHERE id = $2 AND tenant_id = $3",
     )
-    .bind(body.amount)
+    .bind(adjustment_amount)
     .bind(body.invoice_id)
     .bind(claims.tenant_id)
     .execute(&mut *tx)
     .await?;
+
+    log_billing_audit(
+        &mut tx,
+        claims.tenant_id,
+        AuditAction::AdvanceAdjusted,
+        "advance_adjustment",
+        adj.id,
+        Some(body.invoice_id),
+        Some(advance.patient_id),
+        Some(adjustment_amount),
+        Some(serde_json::json!({
+            "advance_id": id,
+            "advance_number": advance.advance_number,
+            "balance_after": new_balance,
+            "advance_status_after": new_status,
+            "invoice_outstanding_before": outstanding,
+        })),
+        claims.sub,
+    )
+    .await;
 
     tx.commit().await?;
     Ok(Json(adj))
@@ -3086,12 +3942,24 @@ pub async fn refund_advance(
     Json(body): Json<RefundAdvanceRequest>,
 ) -> Result<Json<PatientAdvance>, AppError> {
     require_permission(&claims, permissions::billing::advances::REFUND)?;
+    let restricted_fields = resolve_billing_restricted_fields(&state, &claims).await?;
+    validate_billing_amount_write_access(&restricted_fields)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
+    let refund_amount = body.amount.round_dp(2);
+    if refund_amount <= Decimal::ZERO {
+        return Err(AppError::BadRequest(
+            "Refund amount must be greater than zero".to_owned(),
+        ));
+    }
+    if body.reason.trim().is_empty() {
+        return Err(AppError::BadRequest("Refund reason is required".to_owned()));
+    }
+
     let advance = sqlx::query_as::<_, PatientAdvance>(
-        "SELECT * FROM patient_advances WHERE id = $1 AND tenant_id = $2",
+        "SELECT * FROM patient_advances WHERE id = $1 AND tenant_id = $2 FOR UPDATE",
     )
     .bind(id)
     .bind(claims.tenant_id)
@@ -3099,50 +3967,66 @@ pub async fn refund_advance(
     .await?
     .ok_or(AppError::NotFound)?;
 
-    if advance.balance < body.amount {
+    if !matches!(
+        advance.status,
+        AdvanceStatus::Active | AdvanceStatus::PartiallyUsed
+    ) || advance.balance <= Decimal::ZERO
+    {
+        return Err(AppError::BadRequest(
+            "Advance has no refundable balance".to_owned(),
+        ));
+    }
+
+    if advance.balance < refund_amount {
         return Err(AppError::BadRequest(
             "Refund amount exceeds advance balance".to_owned(),
         ));
     }
 
-    let new_balance = advance.balance - body.amount;
+    let new_balance = (advance.balance - refund_amount).round_dp(2);
+    let new_status = if new_balance == Decimal::ZERO {
+        "refunded"
+    } else if matches!(advance.status, AdvanceStatus::Active) {
+        "active"
+    } else {
+        "partially_used"
+    };
+
     let updated = sqlx::query_as::<_, PatientAdvance>(
         "UPDATE patient_advances SET balance = $1, \
-         status = 'refunded'::advance_status, updated_at = now() \
-         WHERE id = $2 AND tenant_id = $3 RETURNING *",
+         status = $2::advance_status, updated_at = now() \
+         WHERE id = $3 AND tenant_id = $4 RETURNING *",
     )
     .bind(new_balance)
+    .bind(new_status)
     .bind(id)
     .bind(claims.tenant_id)
     .fetch_one(&mut *tx)
     .await?;
 
-    // Create a refunds record
-    let mode = body.mode.as_deref().unwrap_or("cash");
-    let refund_number = generate_refund_number(&mut tx, &claims.tenant_id).await?;
-
-    // Use a zero-invoice placeholder — advance refund is not tied to a specific invoice
-    // We create the refund record with the advance's own data for audit trail
-    sqlx::query(
-        "INSERT INTO refunds \
-         (tenant_id, refund_number, amount, reason, mode, reference_number, \
-          refunded_by, refunded_at, invoice_id) \
-         VALUES ($1, $2, $3, $4, $5::payment_mode, $6, $7, now(), \
-          (SELECT id FROM invoices WHERE tenant_id = $1 LIMIT 1))",
+    log_billing_audit(
+        &mut tx,
+        claims.tenant_id,
+        AuditAction::AdvanceRefunded,
+        "patient_advance",
+        id,
+        None,
+        Some(advance.patient_id),
+        Some(refund_amount),
+        Some(serde_json::json!({
+            "advance_number": advance.advance_number,
+            "reason": body.reason.trim(),
+            "mode": body.mode.as_deref().unwrap_or("cash"),
+            "reference_number": body.reference_number,
+            "balance_after": new_balance,
+            "advance_status_after": new_status,
+        })),
+        claims.sub,
     )
-    .bind(claims.tenant_id)
-    .bind(&refund_number)
-    .bind(body.amount)
-    .bind(&body.reason)
-    .bind(mode)
-    .bind(&body.reference_number)
-    .bind(claims.sub)
-    .execute(&mut *tx)
-    .await
-    .ok(); // Best-effort — don't fail advance refund if refund record fails
+    .await;
 
     tx.commit().await?;
-    Ok(Json(updated))
+    Ok(Json(filter_advance_amounts(updated, &restricted_fields)))
 }
 
 // ══════════════════════════════════════════════════════════
@@ -3166,6 +4050,27 @@ pub async fn create_interim_invoice(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
+    #[derive(Debug, sqlx::FromRow)]
+    struct InterimEncounterContext {
+        patient_id: Uuid,
+        created_at: chrono::DateTime<chrono::Utc>,
+    }
+
+    let encounter = sqlx::query_as::<_, InterimEncounterContext>(
+        "SELECT patient_id, created_at FROM encounters WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(body.encounter_id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or_else(|| AppError::BadRequest("Encounter not found".to_owned()))?;
+
+    if encounter.patient_id != body.patient_id {
+        return Err(AppError::BadRequest(
+            "Encounter patient does not match selected patient".to_owned(),
+        ));
+    }
+
     // Find the last interim invoice for this encounter
     #[derive(Debug, sqlx::FromRow)]
     struct LastInterim {
@@ -3185,8 +4090,8 @@ pub async fn create_interim_invoice(
 
     let seq_num = last.as_ref().and_then(|l| l.sequence_number).unwrap_or(0) + 1;
     let period_start = last.and_then(|l| l.billing_period_end).unwrap_or_else(|| {
-        // Use encounter start time as first period start
-        chrono::Utc::now()
+        // Use encounter creation time as the first period start.
+        encounter.created_at
     });
     let period_end = chrono::Utc::now();
 
@@ -3447,7 +4352,7 @@ pub async fn create_enrollment(
     Path(corporate_id): Path<Uuid>,
     Json(body): Json<CreateEnrollmentRequest>,
 ) -> Result<Json<CorporateEnrollment>, AppError> {
-    require_permission(&claims, permissions::billing::corporate::CREATE)?;
+    require_permission(&claims, permissions::billing::corporate::ENROLL)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -3474,7 +4379,7 @@ pub async fn delete_enrollment(
     Extension(claims): Extension<Claims>,
     Path((corporate_id, enrollment_id)): Path<(Uuid, Uuid)>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    require_permission(&claims, permissions::billing::corporate::UPDATE)?;
+    require_permission(&claims, permissions::billing::corporate::UNENROLL)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -3916,7 +4821,13 @@ pub async fn list_day_closes(
     Extension(claims): Extension<Claims>,
     Query(params): Query<ListDayClosesQuery>,
 ) -> Result<Json<Vec<DayEndClose>>, AppError> {
-    require_permission(&claims, permissions::billing::day_close::CREATE)?;
+    require_any_permission(
+        &claims,
+        &[
+            permissions::billing::day_close::CREATE,
+            permissions::billing::day_close::VERIFY,
+        ],
+    )?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -4176,7 +5087,13 @@ pub async fn list_write_offs(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<BadDebtWriteOff>>, AppError> {
-    require_permission(&claims, permissions::billing::write_off::CREATE)?;
+    require_any_permission(
+        &claims,
+        &[
+            permissions::billing::write_off::CREATE,
+            permissions::billing::write_off::APPROVE,
+        ],
+    )?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -4199,8 +5116,78 @@ pub async fn create_write_off(
 ) -> Result<Json<BadDebtWriteOff>, AppError> {
     require_permission(&claims, permissions::billing::write_off::CREATE)?;
 
+    let reason = body.reason.trim();
+    if reason.len() < 3 {
+        return Err(AppError::BadRequest(
+            "write-off reason must contain at least 3 characters".to_owned(),
+        ));
+    }
+    if body.amount <= Decimal::ZERO {
+        return Err(AppError::BadRequest(
+            "write-off amount must be greater than zero".to_owned(),
+        ));
+    }
+    let notes = body
+        .notes
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_owned);
+
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let Some((invoice_status, total_amount, paid_amount)) =
+        sqlx::query_as::<_, (String, Decimal, Decimal)>(
+            "SELECT status::text, total_amount, paid_amount \
+             FROM invoices WHERE id = $1 AND tenant_id = $2",
+        )
+        .bind(body.invoice_id)
+        .bind(claims.tenant_id)
+        .fetch_optional(&mut *tx)
+        .await?
+    else {
+        return Err(AppError::NotFound);
+    };
+
+    if matches!(
+        invoice_status.as_str(),
+        "draft" | "paid" | "cancelled" | "refunded"
+    ) {
+        return Err(AppError::Conflict(
+            "Only issued or partially paid invoices can be written off".to_owned(),
+        ));
+    }
+
+    let outstanding = total_amount - paid_amount;
+    if outstanding <= Decimal::ZERO {
+        return Err(AppError::Conflict(
+            "Invoice has no outstanding balance to write off".to_owned(),
+        ));
+    }
+
+    let reserved_write_offs = sqlx::query_scalar::<_, Decimal>(
+        "SELECT COALESCE(SUM(amount), 0)::numeric \
+         FROM bad_debt_write_offs \
+         WHERE invoice_id = $1 AND tenant_id = $2 \
+           AND status IN ('pending'::write_off_status, 'approved'::write_off_status)",
+    )
+    .bind(body.invoice_id)
+    .bind(claims.tenant_id)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    let available_to_write_off = outstanding - reserved_write_offs;
+    if available_to_write_off <= Decimal::ZERO {
+        return Err(AppError::Conflict(
+            "Invoice outstanding balance is already reserved for write-off".to_owned(),
+        ));
+    }
+    if body.amount > available_to_write_off {
+        return Err(AppError::Conflict(format!(
+            "write-off amount exceeds available outstanding balance: {available_to_write_off}"
+        )));
+    }
 
     let wo_number = generate_write_off_number(&mut tx, &claims.tenant_id).await?;
 
@@ -4215,9 +5202,9 @@ pub async fn create_write_off(
     .bind(body.invoice_id)
     .bind(&wo_number)
     .bind(body.amount)
-    .bind(&body.reason)
+    .bind(reason)
     .bind(claims.sub)
-    .bind(&body.notes)
+    .bind(&notes)
     .fetch_one(&mut *tx)
     .await?;
 
@@ -4249,6 +5236,23 @@ pub async fn approve_write_off(
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let existing = sqlx::query_as::<_, BadDebtWriteOff>(
+        "SELECT * FROM bad_debt_write_offs \
+         WHERE id = $1 AND tenant_id = $2 AND status = 'pending'::write_off_status \
+         FOR UPDATE",
+    )
+    .bind(id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+
+    if existing.requested_by == claims.sub {
+        return Err(AppError::Conflict(
+            "write-off requester cannot approve or reject the same write-off".to_owned(),
+        ));
+    }
 
     let new_status = if body.approved {
         "approved"
@@ -4319,7 +5323,7 @@ pub async fn list_tpa_rate_cards(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<TpaRateCard>>, AppError> {
-    require_permission(&claims, permissions::billing::invoices::LIST)?;
+    require_permission(&claims, permissions::billing::corporate::LIST)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -4340,12 +5344,45 @@ pub async fn create_tpa_rate_card(
     Extension(claims): Extension<Claims>,
     Json(body): Json<CreateTpaRateCardRequest>,
 ) -> Result<Json<TpaRateCard>, AppError> {
-    require_permission(&claims, permissions::billing::invoices::CREATE)?;
+    require_permission(&claims, permissions::billing::corporate::CREATE)?;
 
     let scheme = body.scheme_type.as_deref().unwrap_or("private");
+    let tpa_name = body.tpa_name.trim().to_owned();
+    let insurance_provider = body.insurance_provider.trim().to_owned();
+    if tpa_name.is_empty() {
+        return Err(AppError::BadRequest("TPA name is required".to_owned()));
+    }
+    if insurance_provider.is_empty() {
+        return Err(AppError::BadRequest(
+            "insurance provider is required".to_owned(),
+        ));
+    }
+    if let (Some(valid_from), Some(valid_to)) = (body.valid_from, body.valid_to) {
+        if valid_to < valid_from {
+            return Err(AppError::BadRequest(
+                "valid to date must be after valid from date".to_owned(),
+            ));
+        }
+    }
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let rate_plan_exists = sqlx::query_scalar::<_, bool>(
+        "SELECT EXISTS( \
+             SELECT 1 FROM rate_plans \
+             WHERE id = $1 AND tenant_id = $2 AND is_active = true \
+         )",
+    )
+    .bind(body.rate_plan_id)
+    .bind(claims.tenant_id)
+    .fetch_one(&mut *tx)
+    .await?;
+    if !rate_plan_exists {
+        return Err(AppError::BadRequest(
+            "rate plan must be an active tenant rate plan".to_owned(),
+        ));
+    }
 
     let row = sqlx::query_as::<_, TpaRateCard>(
         "INSERT INTO tpa_rate_cards \
@@ -4355,8 +5392,8 @@ pub async fn create_tpa_rate_card(
          RETURNING *",
     )
     .bind(claims.tenant_id)
-    .bind(&body.tpa_name)
-    .bind(&body.insurance_provider)
+    .bind(&tpa_name)
+    .bind(&insurance_provider)
     .bind(body.rate_plan_id)
     .bind(scheme)
     .bind(body.valid_from)
@@ -4374,10 +5411,45 @@ pub async fn update_tpa_rate_card(
     Path(id): Path<Uuid>,
     Json(body): Json<UpdateTpaRateCardRequest>,
 ) -> Result<Json<TpaRateCard>, AppError> {
-    require_permission(&claims, permissions::billing::invoices::CREATE)?;
+    require_permission(&claims, permissions::billing::corporate::UPDATE)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    if let (Some(valid_from), Some(valid_to)) = (body.valid_from, body.valid_to) {
+        if valid_to < valid_from {
+            return Err(AppError::BadRequest(
+                "valid to date must be after valid from date".to_owned(),
+            ));
+        }
+    }
+    if let Some(rate_plan_id) = body.rate_plan_id {
+        let rate_plan_exists = sqlx::query_scalar::<_, bool>(
+            "SELECT EXISTS( \
+                 SELECT 1 FROM rate_plans \
+                 WHERE id = $1 AND tenant_id = $2 AND is_active = true \
+             )",
+        )
+        .bind(rate_plan_id)
+        .bind(claims.tenant_id)
+        .fetch_one(&mut *tx)
+        .await?;
+        if !rate_plan_exists {
+            return Err(AppError::BadRequest(
+                "rate plan must be an active tenant rate plan".to_owned(),
+            ));
+        }
+    }
+    let tpa_name = body
+        .tpa_name
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    let insurance_provider = body
+        .insurance_provider
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
 
     let row = sqlx::query_as::<_, TpaRateCard>(
         "UPDATE tpa_rate_cards SET \
@@ -4391,8 +5463,8 @@ pub async fn update_tpa_rate_card(
          WHERE id = $7 AND tenant_id = $8 \
          RETURNING *",
     )
-    .bind(&body.tpa_name)
-    .bind(&body.insurance_provider)
+    .bind(tpa_name)
+    .bind(insurance_provider)
     .bind(body.rate_plan_id)
     .bind(body.valid_from)
     .bind(body.valid_to)
@@ -4412,7 +5484,7 @@ pub async fn delete_tpa_rate_card(
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    require_permission(&claims, permissions::billing::invoices::CREATE)?;
+    require_permission(&claims, permissions::billing::corporate::UPDATE)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -4959,6 +6031,7 @@ pub async fn get_invoice_print_data(
     Path(id): Path<Uuid>,
 ) -> Result<Json<InvoicePrintData>, AppError> {
     require_permission(&claims, permissions::billing::invoices::VIEW)?;
+    ensure_invoice_view_access(&state, &claims, id).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -5032,17 +6105,32 @@ pub async fn get_invoice_print_data(
     .await?;
 
     tx.commit().await?;
+    let restricted_fields = resolve_billing_restricted_fields(&state, &claims).await?;
+    let patient_name = if can_view_patient_identity(&claims) {
+        patient_name
+    } else {
+        None
+    };
 
     Ok(Json(InvoicePrintData {
-        invoice,
-        items,
-        payments,
+        invoice: filter_invoice_amounts(invoice, &restricted_fields),
+        items: items
+            .into_iter()
+            .map(|row| filter_invoice_item_amounts(row, &restricted_fields))
+            .collect(),
+        payments: payments
+            .into_iter()
+            .map(|row| filter_payment_amounts(row, &restricted_fields))
+            .collect(),
         hospital_gstin,
         hospital_name,
         hospital_address: None,
         patient_name,
         patient_address: None,
-        hsn_summary,
+        hsn_summary: hsn_summary
+            .into_iter()
+            .map(|row| filter_hsn_amounts(row, &restricted_fields))
+            .collect(),
     }))
 }
 
@@ -5188,7 +6276,14 @@ pub async fn list_credit_patients(
     Extension(claims): Extension<Claims>,
     Query(params): Query<CreditPatientQuery>,
 ) -> Result<Json<Vec<CreditPatient>>, AppError> {
-    require_permission(&claims, permissions::billing::credit::LIST)?;
+    require_any_permission(
+        &claims,
+        &[
+            permissions::billing::credit::LIST,
+            permissions::billing::credit::MANAGE,
+        ],
+    )?;
+    let restricted_fields = resolve_billing_restricted_fields(&state, &claims).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -5204,7 +6299,11 @@ pub async fn list_credit_patients(
     .await?;
 
     tx.commit().await?;
-    Ok(Json(rows))
+    Ok(Json(
+        rows.into_iter()
+            .map(|row| filter_credit_patient_amounts(row, &restricted_fields))
+            .collect(),
+    ))
 }
 
 #[derive(Debug, Deserialize)]
@@ -5221,6 +6320,8 @@ pub async fn create_credit_patient(
     Json(body): Json<CreateCreditPatientRequest>,
 ) -> Result<Json<CreditPatient>, AppError> {
     require_permission(&claims, permissions::billing::credit::MANAGE)?;
+    let restricted_fields = resolve_billing_restricted_fields(&state, &claims).await?;
+    validate_billing_amount_write_access(&restricted_fields)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -5241,7 +6342,7 @@ pub async fn create_credit_patient(
     .await?;
 
     tx.commit().await?;
-    Ok(Json(row))
+    Ok(Json(filter_credit_patient_amounts(row, &restricted_fields)))
 }
 
 #[derive(Debug, Deserialize)]
@@ -5258,6 +6359,10 @@ pub async fn update_credit_patient(
     Json(body): Json<UpdateCreditPatientRequest>,
 ) -> Result<Json<CreditPatient>, AppError> {
     require_permission(&claims, permissions::billing::credit::MANAGE)?;
+    let restricted_fields = resolve_billing_restricted_fields(&state, &claims).await?;
+    if body.credit_limit.is_some() {
+        validate_billing_amount_write_access(&restricted_fields)?;
+    }
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -5279,7 +6384,7 @@ pub async fn update_credit_patient(
     .await?;
 
     tx.commit().await?;
-    Ok(Json(row))
+    Ok(Json(filter_credit_patient_amounts(row, &restricted_fields)))
 }
 
 #[derive(Debug, Serialize, sqlx::FromRow)]
@@ -5297,7 +6402,15 @@ pub async fn report_credit_aging(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<CreditAgingRow>>, AppError> {
-    require_permission(&claims, permissions::billing::credit::LIST)?;
+    require_any_permission(
+        &claims,
+        &[
+            permissions::billing::credit::LIST,
+            permissions::billing::credit::MANAGE,
+        ],
+    )?;
+    let restricted_fields = resolve_billing_restricted_fields(&state, &claims).await?;
+    let can_reveal_patient_identity = can_view_patient_identity(&claims);
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -5319,7 +6432,13 @@ pub async fn report_credit_aging(
     .await?;
 
     tx.commit().await?;
-    Ok(Json(rows))
+    Ok(Json(
+        rows.into_iter()
+            .map(|row| {
+                filter_credit_aging_row(row, &restricted_fields, can_reveal_patient_identity)
+            })
+            .collect(),
+    ))
 }
 
 // ══════════════════════════════════════════════════════════
@@ -5560,7 +6679,14 @@ pub async fn list_gl_accounts(
     Extension(claims): Extension<Claims>,
     Query(params): Query<GlAccountQuery>,
 ) -> Result<Json<Vec<GlAccount>>, AppError> {
-    require_permission(&claims, permissions::billing::journal::LIST)?;
+    require_any_permission(
+        &claims,
+        &[
+            permissions::billing::journal::LIST,
+            permissions::billing::journal::CREATE,
+            permissions::billing::journal::POST,
+        ],
+    )?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -5979,7 +7105,13 @@ pub async fn list_bank_transactions(
     Extension(claims): Extension<Claims>,
     Query(params): Query<BankTransactionQuery>,
 ) -> Result<Json<Vec<BankTransaction>>, AppError> {
-    require_permission(&claims, permissions::billing::bank_recon::LIST)?;
+    require_any_permission(
+        &claims,
+        &[
+            permissions::billing::bank_recon::LIST,
+            permissions::billing::bank_recon::MANAGE,
+        ],
+    )?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -6872,13 +8004,19 @@ pub async fn er_fast_invoice(
     Json(body): Json<ErFastInvoiceRequest>,
 ) -> Result<Json<Invoice>, AppError> {
     require_permission(&claims, permissions::billing::invoices::CREATE)?;
+    require_any_permission(
+        &claims,
+        &[
+            permissions::emergency::visits::LIST,
+            permissions::emergency::visits::UPDATE,
+        ],
+    )?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    // Collect ER charges from emergency visit encounter
-    let er_encounter_id = sqlx::query_scalar::<_, Uuid>(
-        "SELECT encounter_id FROM emergency_visits \
+    let (er_patient_id, visit_number) = sqlx::query_as::<_, (Uuid, String)>(
+        "SELECT patient_id, visit_number FROM er_visits \
          WHERE id = $1 AND tenant_id = $2",
     )
     .bind(body.emergency_visit_id)
@@ -6887,64 +8025,92 @@ pub async fn er_fast_invoice(
     .await?
     .ok_or_else(|| AppError::BadRequest("Emergency visit not found".to_owned()))?;
 
+    if er_patient_id != body.patient_id {
+        return Err(AppError::BadRequest(
+            "Emergency visit patient does not match selected patient".to_owned(),
+        ));
+    }
+
+    let inv_number = generate_invoice_number(&mut tx, &claims.tenant_id).await?;
+    let notes = body
+        .notes
+        .unwrap_or_else(|| format!("ER fast invoice for {visit_number}"));
+
     // Create a fast invoice from ER charges
     let invoice = sqlx::query_as::<_, Invoice>(
         "INSERT INTO invoices \
-         (tenant_id, patient_id, encounter_id, invoice_type, status, \
-          total_amount, notes, created_by) \
-         VALUES ($1, $2, $3, 'emergency', 'draft'::invoice_status, \
-                 0, $4, $5) \
+         (tenant_id, invoice_number, patient_id, encounter_id, status, \
+          subtotal, tax_amount, discount_amount, total_amount, paid_amount, notes, created_by, \
+          is_er_deferred) \
+         VALUES ($1, $2, $3, NULL::uuid, 'draft'::invoice_status, \
+                 0, 0, 0, 0, 0, $4, $5, false) \
          RETURNING *",
     )
     .bind(claims.tenant_id)
-    .bind(body.patient_id)
-    .bind(er_encounter_id)
-    .bind(&body.notes)
+    .bind(&inv_number)
+    .bind(er_patient_id)
+    .bind(&notes)
     .bind(claims.sub)
     .fetch_one(&mut *tx)
     .await?;
 
-    // Pull charge_master items for ER consultation and add them
+    // Pull standard ER registration and consultation charges.
     let charge_rows = sqlx::query_as::<_, ChargeMaster>(
         "SELECT * FROM charge_master \
-         WHERE tenant_id = $1 AND department_code = 'ER' \
+         WHERE tenant_id = $1 \
+           AND code = ANY($2::text[]) \
            AND is_active = true \
-         LIMIT 50",
+         ORDER BY CASE code \
+           WHEN 'REG_EMERGENCY' THEN 1 \
+           WHEN 'CON_EMERGENCY' THEN 2 \
+           ELSE 99 \
+         END",
     )
     .bind(claims.tenant_id)
+    .bind(&["REG_EMERGENCY", "CON_EMERGENCY"])
     .fetch_all(&mut *tx)
     .await?;
+    if charge_rows.is_empty() {
+        return Err(AppError::BadRequest(
+            "Standard ER charges are not configured".to_owned(),
+        ));
+    }
 
-    let mut total = Decimal::ZERO;
+    let mut subtotal = Decimal::ZERO;
+    let mut tax_total = Decimal::ZERO;
     for charge in &charge_rows {
         let item_total = charge.base_price * Decimal::from(1);
         let tax = charge.tax_percent * item_total / Decimal::from(100);
         sqlx::query(
             "INSERT INTO invoice_items \
-             (tenant_id, invoice_id, charge_code, description, quantity, \
-              unit_price, tax_amount, total_amount) \
-             VALUES ($1, $2, $3, $4, 1, $5, $6, $7)",
+             (tenant_id, invoice_id, charge_code, description, source, source_id, quantity, \
+              unit_price, tax_percent, total_price) \
+             VALUES ($1, $2, $3, $4, 'emergency'::charge_source, $5, 1, $6, $7, $8)",
         )
         .bind(claims.tenant_id)
         .bind(invoice.id)
         .bind(&charge.code)
         .bind(&charge.name)
+        .bind(body.emergency_visit_id)
         .bind(charge.base_price)
-        .bind(tax)
+        .bind(charge.tax_percent)
         .bind(item_total + tax)
         .execute(&mut *tx)
         .await?;
-        total += item_total + tax;
+        subtotal += item_total;
+        tax_total += tax;
     }
 
     // Update invoice total
     let updated_invoice = sqlx::query_as::<_, Invoice>(
-        "UPDATE invoices SET total_amount = $2, updated_at = NOW() \
-         WHERE id = $1 AND tenant_id = $3 \
+        "UPDATE invoices SET subtotal = $2, tax_amount = $3, total_amount = $4, updated_at = NOW() \
+         WHERE id = $1 AND tenant_id = $5 \
          RETURNING *",
     )
     .bind(invoice.id)
-    .bind(total)
+    .bind(subtotal)
+    .bind(tax_total)
+    .bind(subtotal + tax_total)
     .bind(claims.tenant_id)
     .fetch_one(&mut *tx)
     .await?;
@@ -7186,6 +8352,18 @@ pub struct CreateConcessionRequest {
     pub source_entity_id: Option<Uuid>,
 }
 
+#[derive(Debug, sqlx::FromRow)]
+struct ConcessionInvoiceContext {
+    patient_id: Uuid,
+    status: InvoiceStatus,
+}
+
+#[derive(Debug, sqlx::FromRow)]
+struct ConcessionInvoiceItemContext {
+    invoice_id: Uuid,
+    total_price: Decimal,
+}
+
 #[derive(Debug, Serialize)]
 pub struct AutoConcessionRulesResponse {
     pub rules: serde_json::Value,
@@ -7205,7 +8383,13 @@ pub async fn list_concessions(
     Extension(claims): Extension<Claims>,
     Query(params): Query<ListConcessionsQuery>,
 ) -> Result<Json<ConcessionListResponse>, AppError> {
-    require_permission(&claims, permissions::billing::concessions::LIST)?;
+    require_any_permission(
+        &claims,
+        &[
+            permissions::billing::concessions::LIST,
+            permissions::billing::concessions::APPROVE,
+        ],
+    )?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -7275,6 +8459,146 @@ pub async fn create_concession(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
+    let concession_type = body.concession_type.trim().to_owned();
+    if concession_type.is_empty() {
+        return Err(AppError::BadRequest(
+            "concession type is required".to_owned(),
+        ));
+    }
+
+    let reason = body
+        .reason
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| value.chars().count() >= 3)
+        .map(ToOwned::to_owned)
+        .ok_or_else(|| {
+            AppError::BadRequest("concession reason must contain at least 3 characters".to_owned())
+        })?;
+
+    if body.original_amount <= Decimal::ZERO {
+        return Err(AppError::BadRequest(
+            "original amount must be greater than zero".to_owned(),
+        ));
+    }
+    if body.concession_amount <= Decimal::ZERO {
+        return Err(AppError::BadRequest(
+            "concession amount must be greater than zero".to_owned(),
+        ));
+    }
+    if body.final_amount < Decimal::ZERO {
+        return Err(AppError::BadRequest(
+            "final amount cannot be negative".to_owned(),
+        ));
+    }
+    if body.concession_amount > body.original_amount {
+        return Err(AppError::BadRequest(
+            "concession amount cannot exceed original amount".to_owned(),
+        ));
+    }
+    if body.original_amount - body.concession_amount != body.final_amount {
+        return Err(AppError::BadRequest(
+            "final amount must equal original amount minus concession amount".to_owned(),
+        ));
+    }
+    if body
+        .concession_percent
+        .is_some_and(|percent| percent < Decimal::ZERO || percent > Decimal::from(100))
+    {
+        return Err(AppError::BadRequest(
+            "concession percent must be between 0 and 100".to_owned(),
+        ));
+    }
+
+    let item_context = if let Some(item_id) = body.invoice_item_id {
+        Some(
+            sqlx::query_as::<_, ConcessionInvoiceItemContext>(
+                "SELECT invoice_id, total_price \
+                 FROM invoice_items \
+                 WHERE id = $1 AND tenant_id = $2",
+            )
+            .bind(item_id)
+            .bind(claims.tenant_id)
+            .fetch_optional(&mut *tx)
+            .await?
+            .ok_or_else(|| AppError::BadRequest("invoice item not found".to_owned()))?,
+        )
+    } else {
+        None
+    };
+
+    if body.invoice_id.is_some() && item_context.is_none() {
+        return Err(AppError::BadRequest(
+            "invoice-linked concessions must specify an invoice item".to_owned(),
+        ));
+    }
+
+    let effective_invoice_id = match (&item_context, body.invoice_id) {
+        (Some(item), Some(invoice_id)) if item.invoice_id != invoice_id => {
+            return Err(AppError::BadRequest(
+                "invoice item does not belong to the supplied invoice".to_owned(),
+            ));
+        }
+        (Some(item), _) => Some(item.invoice_id),
+        (None, invoice_id) => invoice_id,
+    };
+
+    if let Some(item) = &item_context {
+        if item.total_price != body.original_amount {
+            return Err(AppError::BadRequest(
+                "original amount must match the linked invoice item total".to_owned(),
+            ));
+        }
+    }
+
+    if let Some(invoice_id) = effective_invoice_id {
+        let invoice_context = sqlx::query_as::<_, ConcessionInvoiceContext>(
+            "SELECT patient_id, status \
+             FROM invoices \
+             WHERE id = $1 AND tenant_id = $2",
+        )
+        .bind(invoice_id)
+        .bind(claims.tenant_id)
+        .fetch_optional(&mut *tx)
+        .await?
+        .ok_or_else(|| AppError::BadRequest("invoice not found".to_owned()))?;
+
+        if invoice_context.patient_id != body.patient_id {
+            return Err(AppError::BadRequest(
+                "concession patient does not match invoice patient".to_owned(),
+            ));
+        }
+        if matches!(
+            invoice_context.status,
+            InvoiceStatus::Paid | InvoiceStatus::Cancelled | InvoiceStatus::Refunded
+        ) {
+            return Err(AppError::BadRequest(
+                "paid, cancelled, or refunded invoices require refund/credit-note workflow"
+                    .to_owned(),
+            ));
+        }
+    } else {
+        let patient_exists = sqlx::query_scalar::<_, bool>(
+            "SELECT EXISTS( \
+                SELECT 1 FROM patients WHERE id = $1 AND tenant_id = $2 \
+             )",
+        )
+        .bind(body.patient_id)
+        .bind(claims.tenant_id)
+        .fetch_one(&mut *tx)
+        .await?;
+        if !patient_exists {
+            return Err(AppError::BadRequest("patient not found".to_owned()));
+        }
+    }
+
+    let source_module = body
+        .source_module
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToOwned::to_owned);
+
     let row = sqlx::query_as::<_, BillingConcession>(
         "INSERT INTO billing_concessions \
          (tenant_id, invoice_id, invoice_item_id, patient_id, concession_type, \
@@ -7285,17 +8609,17 @@ pub async fn create_concession(
          RETURNING *",
     )
     .bind(claims.tenant_id)
-    .bind(body.invoice_id)
+    .bind(effective_invoice_id)
     .bind(body.invoice_item_id)
     .bind(body.patient_id)
-    .bind(&body.concession_type)
+    .bind(&concession_type)
     .bind(body.original_amount)
     .bind(body.concession_percent)
     .bind(body.concession_amount)
     .bind(body.final_amount)
-    .bind(&body.reason)
+    .bind(&reason)
     .bind(claims.sub)
-    .bind(&body.source_module)
+    .bind(&source_module)
     .bind(body.source_entity_id)
     .fetch_one(&mut *tx)
     .await?;
@@ -7317,6 +8641,25 @@ pub async fn approve_concession(
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let current = sqlx::query_as::<_, BillingConcession>(
+        "SELECT * FROM billing_concessions WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+    if current.status != ConcessionStatus::Pending {
+        return Err(AppError::Conflict(
+            "only pending concessions can be approved".to_owned(),
+        ));
+    }
+    if current.requested_by == claims.sub {
+        return Err(AppError::BadRequest(
+            "concession requester cannot approve the same concession".to_owned(),
+        ));
+    }
 
     let row = sqlx::query_as::<_, BillingConcession>(
         "UPDATE billing_concessions SET \
@@ -7364,6 +8707,25 @@ pub async fn reject_concession(
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let current = sqlx::query_as::<_, BillingConcession>(
+        "SELECT * FROM billing_concessions WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+    if current.status != ConcessionStatus::Pending {
+        return Err(AppError::Conflict(
+            "only pending concessions can be rejected".to_owned(),
+        ));
+    }
+    if current.requested_by == claims.sub {
+        return Err(AppError::BadRequest(
+            "concession requester cannot reject the same concession".to_owned(),
+        ));
+    }
 
     let row = sqlx::query_as::<_, BillingConcession>(
         "UPDATE billing_concessions SET \
@@ -7670,7 +9032,13 @@ pub async fn insurance_receivables_aging(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<PayerAgingBucket>>, AppError> {
-    require_permission(&claims, permissions::billing::bank_recon::LIST)?;
+    require_any_permission(
+        &claims,
+        &[
+            permissions::billing::bank_recon::LIST,
+            permissions::billing::bank_recon::MANAGE,
+        ],
+    )?;
 
     let rows = sqlx::query_as::<_, PayerAgingBucket>(
         "SELECT \

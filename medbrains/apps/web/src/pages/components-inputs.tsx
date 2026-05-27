@@ -1,4 +1,6 @@
+import { P } from "@medbrains/types";
 import { useState } from "react";
+import { useRequirePermission } from "../hooks/useRequirePermission";
 import s from "./components-inputs.module.scss";
 
 const cx = (...parts: Array<string | false | undefined>): string => parts.filter(Boolean).join(" ");
@@ -66,6 +68,8 @@ type SexKey = "female" | "male" | "other";
 type ModeKey = "inpatient" | "outpatient";
 
 export function ComponentsInputsPage() {
+  useRequirePermission(P.ADMIN.SETTINGS.BRANDING.MANAGE);
+
   const [dept, setDept] = useState<DeptKey>("all");
   const [sex, setSex] = useState<SexKey>("female");
   const [mode, setMode] = useState<ModeKey>("inpatient");

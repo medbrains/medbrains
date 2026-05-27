@@ -40,10 +40,10 @@ Source of truth for everything found during the per-screen walk-through (Track 0
 | 076 | `migrations/0072,0078,0083,...` (54 files) | P2 | Bulk soft issues: missing IF NOT EXISTS / DROP POLICY IF EXISTS — historical baseline of 632 issues, ratchet active. New code blocked. | Track 0.gamma cleanup PR can knock these out one file at a time **only on fresh-DB-only repos** — editing already-applied migrations breaks `sqlx::migrate!` with VersionMismatch. Confirmed empirically. Script `idempotent_migrations.py` now has `--force` guard. | Open |
 | 077 | `scripts/idempotent_migrations.py` | P0 | Original sweep edited 56 already-applied migrations → live DB rejected redeploy with VersionMismatch(1). Reverted via git restore. | Script now skips files in `.migrations_applied.json` by default. Must run `make db-mark-applied` to seed the list before running. | Closed |
 | 018 | `admin/users.tsx` | P1 | Page exposes user data without `useRequirePermission` guard | Add `useRequirePermission(P.ADMIN.USERS.LIST)` at top | Open |
-| 019 | 31 admin/settings pages | P1 | No permission guards | Add `useRequirePermission` per settings tab | Open |
+| 019 | 25 admin/settings panels | P1 | Panels are parent-gated by `SettingsPage`, but individual panel guard audit is still open | Add direct panel guards only if panels become independently routed | Open |
 | 020 | 11 onboarding pages | P2 | No permission guards (probably intentional during setup, but verify gating at App.tsx level) | Audit App.tsx route definition | Open |
-| 021 | `admin/settings/MasterDataStatusSettings.tsx` | P2 | API refs without `useQuery`/`useMutation` (race-condition risk) | Wrap calls in React Query | Open |
-| 022 | `admin/settings/SetupWizardSettings.tsx` | P2 | Same | Same | Open |
+| 021 | `admin/settings/MasterDataStatusSettings.tsx` | P2 | API refs without `useQuery`/`useMutation` (race-condition risk) | Closed: converted to React Query `useQueries`; current work also adds filters/readiness summary | Closed |
+| 022 | `admin/settings/SetupWizardSettings.tsx` | P2 | Same | Closed: obsolete duplicate settings panel deleted | Closed |
 | 023 | 4 onboarding step pages | P2 | API refs without useQuery — direct fetch in wizard submit. **Intentional design** for sequential setup wizard; not a race-condition risk because each step is exclusive. | Audit accepts as intentional. | Closed |
 
 ## Known issues from this session's user reports
@@ -58,9 +58,9 @@ Source of truth for everything found during the per-screen walk-through (Track 0
 | 055 | `Patient/PatientRegisterForm.tsx` | P0 | Allergies field marked required — fixed (this session) | Verify post-deploy | Pending verify |
 | 056 | `Patient/PatientRegisterForm.tsx` | P1 | Drug-allergy field separated from general allergies — added (this session) | Verify post-deploy | Pending verify |
 | 057 | `Patient/PatientRegisterForm.tsx` | P2 | New VIP/multi-specialty fields (next-of-kin, dietary, room class, etc.) added (this session) | Verify post-deploy | Pending verify |
-| 058 | `ipd.tsx` (drawer header) | P1 | Only 3 actions visible; many missing — Actions menu added with DAMA + Death (this session) | Verify post-deploy | Pending verify |
-| 059 | `ipd.tsx` (drawer header) | P1 | Wristband / Transfer-out modals — Phase B | Wristband + TransferOut shipped (this turn). Quick Rx/Lab/Imaging shortcuts + Send-to-mortuary + Attendant-pass + floating Code-Blue still pending. | Partial |
-| 060 | OPD/IPD diagnosis | P1 | "ICD codes and SNOMED codes are missing" — _need user clarification on which screen_ | DiagnosisPanel exists in OPD; verify catalog seeded; verify embedded in IPD | Open |
+| 058 | `ipd.tsx` (drawer header) | P1 | Only 3 actions visible; many missing | Closed in current code: admission rows deep-link to workspace, transfer, discharge, DAMA/LAMA, death, admission print, and wristband; top workspace action groups now separate admission actions from navigation. | Closed |
+| 059 | `ipd.tsx` (drawer header) | P1 | Wristband / Transfer-out modals and missing urgent/ward handoff actions | Closed in current code: wristband and transfer-out modals are wired; Rx/Lab/Imaging shortcuts are permission-gated through the order basket; Code Blue is a direct admission action; attender rows can print a pass; mortuary handoff deep-links to the mortuary tab with IPD context. | Closed |
+| 060 | OPD/IPD diagnosis | P1 | "ICD codes and SNOMED codes are missing" | Closed in current code: OPD already uses the ICD-11/SNOMED DiagnosisPanel, and IPD admission workspace now embeds the same coded diagnosis panel against the admission encounter with OPD diagnosis permissions included in the IPD workspace guards. | Closed |
 | 061 | OPD consultation | P1 | "Consultation summary notes should be day-based, why only entered apart history notes?" — _need user clarification_ | Either day-based notes per encounter or day-based for OPD revisits | Open |
 
 ---

@@ -6,33 +6,68 @@
 // at least 2 identifiers. We use UHID + full name + DOB. Bed & ward
 // help nursing locate the patient quickly. Critical / MLC / allergy
 // indicators surface as inline glyphs the moment the band is read.
-import { Alert, Button, Group, Modal, Stack, Text } from "@mantine/core";
-import type { AdmissionDetailResponse } from "@medbrains/types";
-import { useQuery } from "@tanstack/react-query";
-import { useEffect, useRef } from "react";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { Alert, Badge, Button, Group, Modal, Stack, Textarea } from "@mantine/core";
+import { useDisclosure } from "@mantine/hooks";
+import { notifications } from "@mantine/notifications";
+import type { IpdWristbandReprintFormInput } from "@medbrains/schemas";
+import { ipdWristbandReprintFormSchema } from "@medbrains/schemas";
+import { useHasPermission } from "@medbrains/stores";
+import { P, type WristbandPrintData } from "@medbrains/types";
+import { useMutation } from "@tanstack/react-query";
+import { useRef, useState } from "react";
+import { Controller, useForm } from "react-hook-form";
 import { ipdService } from "../../services/ipd.service";
 
 interface WristbandPrintModalProps {
   admissionId: string;
   opened: boolean;
   onClose: () => void;
+  canReprint: boolean;
 }
 
-export function WristbandPrintModal({ admissionId, opened, onClose }: WristbandPrintModalProps) {
+export function WristbandPrintModal({
+  admissionId,
+  opened,
+  onClose,
+  canReprint,
+}: WristbandPrintModalProps) {
   const printRef = useRef<HTMLDivElement | null>(null);
-  const { data } = useQuery({
-    queryKey: ["admission-detail", admissionId],
-    queryFn: () => ipdService.getAdmission(admissionId),
-    enabled: opened,
+  const [printData, setPrintData] = useState<WristbandPrintData | null>(null);
+  const hasPrintPermission = useHasPermission(P.IPD.WRISTBAND_PRINT);
+  const hasReprintPermission = useHasPermission(P.IPD.WRISTBAND_REPRINT);
+  const canViewPatientRecord = useHasPermission(P.PATIENTS.VIEW);
+  const canPreparePrint = hasPrintPermission && canViewPatientRecord;
+  const canPrepareReprint = canReprint && hasReprintPermission && canViewPatientRecord;
+  const reprintForm = useForm<IpdWristbandReprintFormInput>({
+    resolver: zodResolver(ipdWristbandReprintFormSchema),
+    defaultValues: { reprint_reason: "" },
   });
+  const [reprintReasonOpened, { open: openReprintReason, close: closeReprintReason }] =
+    useDisclosure(false);
 
-  const detail = data as AdmissionDetailResponse | undefined;
-  const adm = detail?.admission;
-  const patientId = adm?.patient_id ?? "";
-  const { data: patient } = useQuery({
-    queryKey: ["patient-detail", patientId],
-    queryFn: () => ipdService.getPatient(patientId),
-    enabled: patientId.length > 0,
+  const printMutation = useMutation({
+    mutationFn: (variables: { reprintReason?: string }) => {
+      if (variables.reprintReason && !canPrepareReprint) {
+        throw new Error("You do not have permission to reprint wristbands");
+      }
+      if (!variables.reprintReason && !canPreparePrint) {
+        throw new Error("You do not have permission to print wristbands");
+      }
+      return ipdService.getWristbandPrintData(admissionId, variables);
+    },
+    onSuccess: (data) => {
+      setPrintData(data);
+      closeReprintReason();
+      reprintForm.reset({ reprint_reason: "" });
+    },
+    onError: (error) => {
+      notifications.show({
+        title: "Wristband print failed",
+        message: error instanceof Error ? error.message : "Unable to prepare wristband",
+        color: "red",
+      });
+    },
   });
 
   const handlePrint = () => {
@@ -42,7 +77,7 @@ export function WristbandPrintModal({ admissionId, opened, onClose }: WristbandP
     w.document.write(`
       <html>
         <head>
-          <title>Wristband — ${patient?.uhid ?? ""}</title>
+          <title>Wristband — ${printData?.uhid ?? ""}</title>
           <style>
             @page { size: 60mm 30mm; margin: 0; }
             body { margin: 0; font-family: monospace; }
@@ -61,80 +96,141 @@ export function WristbandPrintModal({ admissionId, opened, onClose }: WristbandP
     w.document.close();
   };
 
-  // Auto-trigger print as soon as the data lands so the operator can
-  // just click "Print" + Enter on the OS dialog. Disabled by default
-  // because operators may want to confirm the badges first.
-  useEffect(() => {
-    return () => {
-      // no-op — kept here for future auto-print toggle
-    };
-  }, []);
-
-  const fullName = patient
-    ? `${patient.prefix ?? ""} ${patient.first_name} ${patient.middle_name ?? ""} ${patient.last_name}`.trim()
-    : "—";
-  const dob = patient?.date_of_birth ?? "—";
-  const allergies =
-    patient?.attributes && typeof patient.attributes === "object"
-      ? (((patient.attributes as Record<string, unknown>).drug_allergies as string | undefined) ??
-        null)
-      : null;
+  const preparePrint = () => printMutation.mutate({});
+  const prepareReprint = reprintForm.handleSubmit((values) => {
+    printMutation.mutate({ reprintReason: values.reprint_reason.trim() });
+  });
+  const closeReprint = () => {
+    closeReprintReason();
+    reprintForm.reset({ reprint_reason: "" });
+  };
+  const closeModal = () => {
+    setPrintData(null);
+    closeReprint();
+    onClose();
+  };
 
   return (
-    <Modal opened={opened} onClose={onClose} title="Print wristband" size="md">
+    <Modal opened={opened} onClose={closeModal} title="Print wristband" size="md">
       <Stack gap="sm">
         <Alert color="primary" variant="light">
           NABH IPSG 1 — patient identification. Wristband prints with UHID + name + DOB at minimum.
           Confirm with the patient before attaching.
         </Alert>
+        {!canPreparePrint && (
+          <Alert color="danger" variant="light">
+            Wristband printing requires both wristband print and patient-view permission.
+          </Alert>
+        )}
 
-        <div ref={printRef}>
-          <div
-            className="band"
-            style={{
-              width: "60mm",
-              height: "30mm",
-              padding: "2mm",
-              border: "1px solid #999",
-              boxSizing: "border-box",
-              display: "flex",
-              flexDirection: "column",
-              justifyContent: "space-between",
-              fontFamily: "monospace",
-            }}
-          >
-            <div className="name" style={{ fontSize: "10pt", fontWeight: 700 }}>
-              {fullName}
-            </div>
-            <div className="uhid" style={{ fontSize: "9pt", letterSpacing: "0.5mm" }}>
-              {patient?.uhid ?? "—"}
-            </div>
-            <div className="row" style={{ fontSize: "7pt" }}>
-              DOB {dob} · {patient?.gender ?? "—"} · BG {patient?.blood_group ?? "—"}
-            </div>
-            {(adm?.is_critical || adm?.mlc_case_id || allergies) && (
-              <div className="badges" style={{ fontSize: "6pt", color: "#c8102e" }}>
-                {adm?.is_critical && "★ CRITICAL "}
-                {adm?.mlc_case_id && "⚠ MLC "}
-                {allergies && `⚕ ALLERGY: ${allergies.slice(0, 30)}`}
+        {printData && (
+          <div ref={printRef}>
+            <div
+              className="band"
+              style={{
+                width: "60mm",
+                height: "30mm",
+                padding: "2mm",
+                border: "1px solid #999",
+                boxSizing: "border-box",
+                display: "flex",
+                flexDirection: "column",
+                justifyContent: "space-between",
+                fontFamily: "monospace",
+              }}
+            >
+              <div className="name" style={{ fontSize: "10pt", fontWeight: 700 }}>
+                {printData.patient_name}
               </div>
-            )}
+              <div className="uhid" style={{ fontSize: "9pt", letterSpacing: "0.5mm" }}>
+                {printData.uhid}
+              </div>
+              <div className="row" style={{ fontSize: "7pt" }}>
+                DOB {printData.date_of_birth ?? "—"} · {printData.gender} · BG{" "}
+                {printData.blood_group ?? "—"}
+              </div>
+              {(printData.is_critical || printData.is_mlc || printData.allergies.length > 0) && (
+                <div className="badges" style={{ fontSize: "6pt", color: "#c8102e" }}>
+                  {printData.is_critical && "★ CRITICAL "}
+                  {printData.is_mlc && "⚠ MLC "}
+                  {printData.allergies.length > 0 &&
+                    `⚕ ALLERGY: ${printData.allergies.join(", ").slice(0, 30)}`}
+                </div>
+              )}
+            </div>
           </div>
-        </div>
+        )}
 
-        <Text size="xs" c="dimmed">
-          Print on a 60×30mm label printer (Zebra ZD230 / Brother QL series / generic). Browser
-          print dialog opens in a new window.
-        </Text>
+        {printData && (
+          <Group gap="xs">
+            <Badge variant="light">{printData.document_number}</Badge>
+            {printData.is_reprint && (
+              <Badge color="orange" variant="light">
+                Duplicate
+              </Badge>
+            )}
+          </Group>
+        )}
 
         <Group justify="flex-end">
-          <Button variant="subtle" onClick={onClose}>
+          <Button variant="subtle" onClick={closeModal}>
             Close
           </Button>
-          <Button onClick={handlePrint} disabled={!patient}>
-            Print wristband
-          </Button>
+          {canPrepareReprint && (
+            <Button
+              variant="default"
+              disabled={printMutation.isPending}
+              onClick={openReprintReason}
+            >
+              Reprint
+            </Button>
+          )}
+          {printData ? (
+            <Button onClick={handlePrint}>Print wristband</Button>
+          ) : (
+            <Button
+              onClick={preparePrint}
+              loading={printMutation.isPending}
+              disabled={!canPreparePrint}
+            >
+              Prepare wristband
+            </Button>
+          )}
         </Group>
+
+        <Modal
+          opened={reprintReasonOpened}
+          onClose={closeReprint}
+          title="Wristband reprint"
+          centered
+        >
+          <form onSubmit={prepareReprint}>
+            <Stack gap="sm">
+              <Controller
+                name="reprint_reason"
+                control={reprintForm.control}
+                render={({ field, fieldState }) => (
+                  <Textarea
+                    label="Reason"
+                    placeholder="Example: original band damaged or ward transfer duplicate"
+                    minRows={3}
+                    error={fieldState.error?.message}
+                    required
+                    {...field}
+                  />
+                )}
+              />
+              <Group justify="flex-end">
+                <Button variant="default" onClick={closeReprint}>
+                  Cancel
+                </Button>
+                <Button type="submit" loading={printMutation.isPending}>
+                  Prepare reprint
+                </Button>
+              </Group>
+            </Stack>
+          </form>
+        </Modal>
       </Stack>
     </Modal>
   );

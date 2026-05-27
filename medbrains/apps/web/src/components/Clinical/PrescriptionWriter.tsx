@@ -15,24 +15,25 @@ import {
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import type {
-  AllergyConflict,
-  ComplianceSettings,
-  CreatePrescriptionRequest,
-  CreatePrescriptionTemplateRequest,
-  DrugInteractionAlert,
-  PrescriptionItemInput,
-  PrescriptionTemplate,
-  PrescriptionWithItems,
-  TenantSettingsRow,
-  UpdatePrescriptionRequest,
+import { useHasAnyPermission, useHasPermission } from "@medbrains/stores";
+import {
+  type AllergyConflict,
+  type ComplianceSettings,
+  type CreatePrescriptionRequest,
+  type CreatePrescriptionTemplateRequest,
+  type DrugInteractionAlert,
+  P,
+  type PrescriptionItemInput,
+  type PrescriptionTemplate,
+  type PrescriptionWithItems,
+  type TenantSettingsRow,
+  type UpdatePrescriptionRequest,
 } from "@medbrains/types";
 import {
   IconAlertTriangle,
   IconBookmark,
   IconChevronDown,
   IconChevronUp,
-  IconMedicineSyrup,
   IconPencil,
   IconPill,
   IconPlus,
@@ -60,7 +61,6 @@ interface PrescriptionWriterProps {
   isSaving?: boolean;
   isUpdating?: boolean;
   onPrint?: (rx: PrescriptionWithItems) => void;
-  onSendToPharmacy?: (rxId: string) => void;
 }
 
 export function PrescriptionWriter({
@@ -72,7 +72,6 @@ export function PrescriptionWriter({
   isSaving,
   isUpdating,
   onPrint,
-  onSendToPharmacy,
 }: PrescriptionWriterProps) {
   const { t } = useTranslation("clinical");
   const queryClient = useQueryClient();
@@ -86,6 +85,14 @@ export function PrescriptionWriter({
   const [templateName, setTemplateName] = useState("");
   const [templateDesc, setTemplateDesc] = useState("");
   const [templateShared, setTemplateShared] = useState(false);
+  const hasPrescriptionWritePermission = useHasPermission(P.OPD.VISIT_UPDATE);
+  const hasTemplateListPermission = useHasAnyPermission([
+    P.OPD.QUEUE_VIEW,
+    P.OPD.VISIT_UPDATE,
+    P.PHARMACY.DISPENSING_CREATE,
+  ]);
+  const canWritePrescription = canUpdate && hasPrescriptionWritePermission;
+  const canUseSavedRxSets = canWritePrescription && hasTemplateListPermission;
 
   // ── Data Queries ──
   const { data: drugCatalog = [] } = useQuery({
@@ -125,6 +132,7 @@ export function PrescriptionWriter({
   const { data: templates = [] } = useQuery({
     queryKey: ["prescription-templates"],
     queryFn: () => clinicalSupportService.listPrescriptionTemplates(),
+    enabled: canUseSavedRxSets,
     staleTime: 300_000,
   });
 
@@ -135,7 +143,7 @@ export function PrescriptionWriter({
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["prescription-templates"] });
       notifications.show({
-        title: "Template saved",
+        title: "Saved Rx set",
         message: `"${templateName}" saved`,
         color: "success",
       });
@@ -153,7 +161,7 @@ export function PrescriptionWriter({
     mutationFn: (id: string) => clinicalSupportService.deletePrescriptionTemplate(id),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["prescription-templates"] });
-      notifications.show({ title: "Deleted", message: "Template removed", color: "warning" });
+      notifications.show({ title: "Deleted", message: "Saved Rx set removed", color: "warning" });
     },
   });
 
@@ -182,19 +190,21 @@ export function PrescriptionWriter({
 
   // ── Handlers ──
   const handleAddItem = (item: PrescriptionItemInput) => {
+    if (!canWritePrescription) return;
     const updated = [...pendingItems, item];
     setPendingItems(updated);
     checkDrugSafety(updated);
   };
 
   const handleRemoveItem = (index: number) => {
+    if (!canWritePrescription) return;
     const updated = pendingItems.filter((_, i) => i !== index);
     setPendingItems(updated);
     checkDrugSafety(updated);
   };
 
   const handleSave = () => {
-    if (pendingItems.length === 0) return;
+    if (!canWritePrescription || pendingItems.length === 0) return;
     if (editingPrescriptionId && onUpdate) {
       onUpdate(editingPrescriptionId, {
         notes: rxNotes.trim() || undefined,
@@ -217,6 +227,7 @@ export function PrescriptionWriter({
   };
 
   const handleEditPrescription = (rx: PrescriptionWithItems) => {
+    if (!canWritePrescription) return;
     setPendingItems(
       rx.items.map((item) => ({
         drug_name: item.drug_name,
@@ -236,18 +247,19 @@ export function PrescriptionWriter({
   };
 
   const handleLoadTemplate = (tpl: PrescriptionTemplate) => {
+    if (!canWritePrescription) return;
     setPendingItems(tpl.items);
     setEditingPrescriptionId(null);
     if (!showForm) toggleForm();
     notifications.show({
-      title: "Template loaded",
+      title: "Saved Rx set loaded",
       message: `"${tpl.name}" loaded with ${tpl.items.length} items`,
       color: "primary",
     });
   };
 
   const handleSaveTemplate = () => {
-    if (!templateName.trim() || pendingItems.length === 0) return;
+    if (!canWritePrescription || !templateName.trim() || pendingItems.length === 0) return;
     saveTemplateMut.mutate({
       name: templateName.trim(),
       description: templateDesc.trim() || undefined,
@@ -259,7 +271,7 @@ export function PrescriptionWriter({
   return (
     <Stack gap="sm">
       {/* Toolbar */}
-      {canUpdate && (
+      {canWritePrescription && (
         <Group>
           <Button
             size="xs"
@@ -273,11 +285,11 @@ export function PrescriptionWriter({
                 ? "Edit prescription"
                 : t("prescription.newPrescription")}
           </Button>
-          {templates.length > 0 && (
+          {canUseSavedRxSets && templates.length > 0 && (
             <Menu shadow="md" width={260}>
               <Menu.Target>
                 <Button size="xs" variant="light" leftSection={<IconTemplate size={14} />}>
-                  Templates
+                  Saved Rx Sets
                 </Button>
               </Menu.Target>
               <Menu.Dropdown>
@@ -292,6 +304,7 @@ export function PrescriptionWriter({
                         size="xs"
                         onClick={(e) => {
                           e.stopPropagation();
+                          if (!canWritePrescription) return;
                           deleteTemplateMut.mutate(tpl.id);
                         }}
                         aria-label="Delete"
@@ -316,12 +329,13 @@ export function PrescriptionWriter({
       )}
 
       {/* Entry form */}
-      {showForm && (
+      {showForm && canWritePrescription && (
         <Card padding="sm" radius="md" withBorder className={styles.writerCard}>
           <Stack gap="xs">
             <PrescriptionItemEntry
               drugCatalog={drugCatalog}
               compliance={compliance}
+              canAddItem={canWritePrescription}
               onAdd={handleAddItem}
             />
 
@@ -416,6 +430,7 @@ export function PrescriptionWriter({
               onRemoveItem={handleRemoveItem}
               onSave={handleSave}
               onOpenSaveTemplate={openSaveTemplate}
+              canManagePrescription={canWritePrescription}
               isSaving={editingPrescriptionId ? isUpdating : isSaving}
             />
           </Stack>
@@ -427,10 +442,9 @@ export function PrescriptionWriter({
         <ExistingPrescriptionCard
           key={p.prescription.id}
           rx={p}
-          canUpdate={canUpdate}
+          canUpdate={canWritePrescription}
           onEdit={handleEditPrescription}
           onPrint={onPrint}
-          onSendToPharmacy={onSendToPharmacy}
         />
       ))}
 
@@ -441,7 +455,7 @@ export function PrescriptionWriter({
       )}
 
       <PrescriptionTemplateModal
-        opened={saveTemplateOpen}
+        opened={saveTemplateOpen && canWritePrescription}
         onClose={closeSaveTemplate}
         templateName={templateName}
         onTemplateNameChange={setTemplateName}
@@ -451,6 +465,7 @@ export function PrescriptionWriter({
         onTemplateSharedChange={setTemplateShared}
         itemCount={pendingItems.length}
         onSave={handleSaveTemplate}
+        canSaveTemplate={canWritePrescription}
         isSaving={saveTemplateMut.isPending}
       />
     </Stack>
@@ -463,13 +478,11 @@ function ExistingPrescriptionCard({
   canUpdate,
   onEdit,
   onPrint,
-  onSendToPharmacy,
 }: {
   rx: PrescriptionWithItems;
   canUpdate: boolean;
   onEdit: (rx: PrescriptionWithItems) => void;
   onPrint?: (rx: PrescriptionWithItems) => void;
-  onSendToPharmacy?: (rxId: string) => void;
 }) {
   const { t } = useTranslation("clinical");
   const editable =
@@ -506,19 +519,6 @@ function ExistingPrescriptionCard({
                 aria-label="Edit prescription"
               >
                 <IconPencil size={14} />
-              </ActionIcon>
-            </Tooltip>
-          )}
-          {onSendToPharmacy && editable && (
-            <Tooltip label="Send to Pharmacy">
-              <ActionIcon
-                variant="subtle"
-                color="teal"
-                size="sm"
-                onClick={() => onSendToPharmacy(rx.prescription.id)}
-                aria-label="Medicine Syrup"
-              >
-                <IconMedicineSyrup size={14} />
               </ActionIcon>
             </Tooltip>
           )}

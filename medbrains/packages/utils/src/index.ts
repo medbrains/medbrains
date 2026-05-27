@@ -1,4 +1,4 @@
-export { ValidationError, applyServerErrors } from "./form-errors.js";
+export { applyServerErrors, ValidationError } from "./form-errors.js";
 
 /**
  * Deep clone an object. Uses structuredClone when available,
@@ -59,7 +59,90 @@ export function snakeToTitle(str: string): string {
  */
 export function truncate(str: string, maxLength: number): string {
   if (str.length <= maxLength) return str;
-  return str.slice(0, maxLength - 1) + "\u2026";
+  return `${str.slice(0, maxLength - 1)}\u2026`;
+}
+
+// ── Privacy / Masking Utilities ──────────────────────────────────────────────
+
+export type MaskableFieldAccessLevel = "edit" | "view" | "mask" | "hidden";
+
+function isMaskableIdentifierChar(char: string): boolean {
+  return /^[A-Za-z0-9]$/.test(char);
+}
+
+/**
+ * Mask every ASCII alpha-numeric character except the last visible segment.
+ * Separators are preserved so values stay recognizable without exposing the raw identifier.
+ */
+export function maskIdentifierKeepLast(value: string | null | undefined, visibleChars = 4): string {
+  const source = value?.trim() ?? "";
+  if (!source) return "";
+
+  const chars = Array.from(source);
+  const maskableCount = chars.filter(isMaskableIdentifierChar).length;
+  if (maskableCount === 0) return "";
+
+  let remainingVisible = Math.min(visibleChars, maskableCount);
+  const reversed: string[] = [];
+  for (let index = chars.length - 1; index >= 0; index -= 1) {
+    const char = chars[index];
+    if (!char) continue;
+    if (!isMaskableIdentifierChar(char)) {
+      reversed.push(char);
+      continue;
+    }
+    if (remainingVisible > 0) {
+      remainingVisible -= 1;
+      reversed.push(char);
+    } else {
+      reversed.push("X");
+    }
+  }
+
+  return reversed.reverse().join("");
+}
+
+export function maskPhone(value: string | null | undefined): string {
+  return maskIdentifierKeepLast(value, 4);
+}
+
+export function maskName(value: string | null | undefined): string {
+  return value?.trim() ? "Masked name" : "";
+}
+
+export function maskEmail(value: string | null | undefined): string {
+  const source = value?.trim() ?? "";
+  if (!source) return "";
+  const atIndex = source.indexOf("@");
+  if (atIndex <= 0) return maskIdentifierKeepLast(source, 2);
+
+  const local = source.slice(0, atIndex);
+  const domain = source.slice(atIndex + 1);
+  const visibleLocal = local.slice(0, 1);
+  return `${visibleLocal}${"X".repeat(Math.max(local.length - 1, 3))}@${domain}`;
+}
+
+export function maskAmount(value: string | null | undefined): string {
+  return value?.trim() ? "Amount masked" : "";
+}
+
+export function maskSensitiveText(value: string | null | undefined, label = "Masked"): string {
+  return value?.trim() ? label : "";
+}
+
+export function fieldAccessText(
+  access: MaskableFieldAccessLevel,
+  value: string | null | undefined,
+  kind: "amount" | "email" | "identifier" | "name" | "phone" | "text" = "text",
+): string {
+  if (access === "hidden") return "Restricted";
+  if (access !== "mask") return value?.trim() || "\u2014";
+  if (kind === "amount") return maskAmount(value) || "Masked";
+  if (kind === "email") return maskEmail(value) || "Masked";
+  if (kind === "phone") return maskPhone(value) || "Masked";
+  if (kind === "identifier") return maskIdentifierKeepLast(value, 4) || "Masked";
+  if (kind === "name") return maskName(value) || "Masked";
+  return maskSensitiveText(value) || "Masked";
 }
 
 // ── Case Conversion Utilities ────────────────────────────────────────────────

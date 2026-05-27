@@ -1,5 +1,6 @@
 import {
   ActionIcon,
+  Alert,
   Badge,
   Button,
   Group,
@@ -15,11 +16,13 @@ import {
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
+import { useHasPermission } from "@medbrains/stores";
 import type {
   CreateStoreIndentRequest,
   PharmacyStoreIndent,
   PharmacyStoreIndentStatus,
 } from "@medbrains/types";
+import { P } from "@medbrains/types";
 import {
   IconCheck,
   IconPackageExport,
@@ -70,8 +73,18 @@ const UNIT_OPTIONS = [
   { value: "litre", label: "Litre" },
 ];
 
-export function StoreIndentsTab() {
+export function StoreIndentsTab({
+  canViewQueue: parentCanViewQueue,
+  canManage: parentCanManage,
+}: {
+  canViewQueue: boolean;
+  canManage: boolean;
+}) {
   const queryClient = useQueryClient();
+  const hasStoreList = useHasPermission(P.PHARMACY.STORES_LIST);
+  const hasStoreManage = useHasPermission(P.PHARMACY.STORES_MANAGE);
+  const canViewQueue = parentCanViewQueue && (hasStoreList || hasStoreManage);
+  const canManage = parentCanManage && hasStoreManage;
   const [filterStatus, setFilterStatus] = useState("all");
   const [createOpened, { open: openCreate, close: closeCreate }] = useDisclosure(false);
 
@@ -81,6 +94,7 @@ export function StoreIndentsTab() {
   const { data: indents = [], isLoading } = useQuery({
     queryKey: ["pharmacy-store-indents", params],
     queryFn: () => pharmacyService.listPharmacyStoreIndents(params),
+    enabled: canViewQueue,
   });
 
   const approveMutation = useMutation({
@@ -164,7 +178,7 @@ export function StoreIndentsTab() {
       label: "Actions",
       render: (row: PharmacyStoreIndent) => (
         <Group gap="xs">
-          {row.status === "pending" && (
+          {canManage && row.status === "pending" && (
             <Tooltip label="Approve">
               <ActionIcon
                 variant="subtle"
@@ -177,7 +191,7 @@ export function StoreIndentsTab() {
               </ActionIcon>
             </Tooltip>
           )}
-          {row.status === "approved" && (
+          {canManage && row.status === "approved" && (
             <Tooltip label="Issue">
               <ActionIcon
                 variant="subtle"
@@ -190,7 +204,7 @@ export function StoreIndentsTab() {
               </ActionIcon>
             </Tooltip>
           )}
-          {row.status === "issued" && (
+          {canManage && row.status === "issued" && (
             <Tooltip label="Receive">
               <ActionIcon
                 variant="subtle"
@@ -223,18 +237,27 @@ export function StoreIndentsTab() {
             { label: "Received", value: "received" },
           ]}
         />
-        <Button size="xs" leftSection={<IconPlus size={14} />} onClick={openCreate}>
-          New Request
-        </Button>
+        {canManage && (
+          <Button size="xs" leftSection={<IconPlus size={14} />} onClick={openCreate}>
+            New Request
+          </Button>
+        )}
       </Group>
-      <DataTable columns={columns} data={indents} loading={isLoading} rowKey={(row) => row.id} />
-      <CreateStoreIndentModal opened={createOpened} onClose={closeCreate} />
+      {canViewQueue ? (
+        <DataTable columns={columns} data={indents} loading={isLoading} rowKey={(row) => row.id} />
+      ) : (
+        <Alert color="warning" variant="light">
+          Store indent queue requires `pharmacy.stores.list` or `pharmacy.stores.manage`.
+        </Alert>
+      )}
+      {canManage && <CreateStoreIndentModal opened={createOpened} onClose={closeCreate} />}
     </Stack>
   );
 }
 
 function CreateStoreIndentModal({ opened, onClose }: { opened: boolean; onClose: () => void }) {
   const queryClient = useQueryClient();
+  const canManageStores = useHasPermission(P.PHARMACY.STORES_MANAGE);
   const [fromStoreId, setFromStoreId] = useState<string | null>(null);
   const [toStoreId, setToStoreId] = useState<string | null>(null);
   const [items, setItems] = useState<IndentItem[]>([emptyItem()]);
@@ -243,6 +266,7 @@ function CreateStoreIndentModal({ opened, onClose }: { opened: boolean; onClose:
   const { data: storeLocations = [] } = useQuery({
     queryKey: ["store-locations"],
     queryFn: () => pharmacyService.listStoreLocations(),
+    enabled: canManageStores,
     staleTime: 300_000,
   });
 
@@ -257,6 +281,7 @@ function CreateStoreIndentModal({ opened, onClose }: { opened: boolean; onClose:
   const { data: storeCatalog = [] } = useQuery({
     queryKey: ["store-catalog"],
     queryFn: () => pharmacyService.listStoreCatalog(),
+    enabled: canManageStores,
     staleTime: 300_000,
   });
 
@@ -291,6 +316,7 @@ function CreateStoreIndentModal({ opened, onClose }: { opened: boolean; onClose:
   }
 
   function handleSubmit() {
+    if (!canManageStores) return;
     const payload: CreateStoreIndentRequest = {
       from_store_id: fromStoreId ?? undefined,
       to_store_id: toStoreId ?? undefined,
@@ -316,6 +342,7 @@ function CreateStoreIndentModal({ opened, onClose }: { opened: boolean; onClose:
             onChange={setFromStoreId}
             searchable
             clearable
+            disabled={!canManageStores}
           />
           <Select
             label="To Store"
@@ -325,6 +352,7 @@ function CreateStoreIndentModal({ opened, onClose }: { opened: boolean; onClose:
             onChange={setToStoreId}
             searchable
             clearable
+            disabled={!canManageStores}
           />
         </Group>
 
@@ -358,6 +386,7 @@ function CreateStoreIndentModal({ opened, onClose }: { opened: boolean; onClose:
                     }}
                     searchable
                     placeholder="Select item"
+                    disabled={!canManageStores}
                   />
                 </Table.Td>
                 <Table.Td>
@@ -367,6 +396,7 @@ function CreateStoreIndentModal({ opened, onClose }: { opened: boolean; onClose:
                     value={item.quantity}
                     onChange={(val) => updateItem(index, "quantity", Number(val))}
                     w={80}
+                    disabled={!canManageStores}
                   />
                 </Table.Td>
                 <Table.Td>
@@ -376,6 +406,7 @@ function CreateStoreIndentModal({ opened, onClose }: { opened: boolean; onClose:
                     value={item.unit}
                     onChange={(v) => updateItem(index, "unit", v ?? "pieces")}
                     w={110}
+                    disabled={!canManageStores}
                   />
                 </Table.Td>
                 <Table.Td>
@@ -384,7 +415,7 @@ function CreateStoreIndentModal({ opened, onClose }: { opened: boolean; onClose:
                     color="red"
                     variant="light"
                     aria-label="Remove item"
-                    disabled={items.length <= 1}
+                    disabled={!canManageStores || items.length <= 1}
                     onClick={() => removeItem(index)}
                   >
                     <IconTrash size={14} />
@@ -401,11 +432,17 @@ function CreateStoreIndentModal({ opened, onClose }: { opened: boolean; onClose:
           leftSection={<IconPlus size={14} />}
           onClick={() => setItems((prev) => [...prev, emptyItem()])}
           style={{ alignSelf: "flex-start" }}
+          disabled={!canManageStores}
         >
           Add Item
         </Button>
 
-        <Textarea label="Notes" value={notes} onChange={(e) => setNotes(e.currentTarget.value)} />
+        <Textarea
+          label="Notes"
+          value={notes}
+          onChange={(e) => setNotes(e.currentTarget.value)}
+          disabled={!canManageStores}
+        />
 
         <Group justify="flex-end">
           <Button variant="default" onClick={resetAndClose}>
@@ -414,7 +451,7 @@ function CreateStoreIndentModal({ opened, onClose }: { opened: boolean; onClose:
           <Button
             onClick={handleSubmit}
             loading={createMutation.isPending}
-            disabled={items.length === 0 || items.every((i) => !i.name)}
+            disabled={!canManageStores || items.length === 0 || items.every((i) => !i.name)}
           >
             Create Indent
           </Button>

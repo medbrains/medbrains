@@ -1,3 +1,4 @@
+import "@mantine/charts/styles.css";
 import { BarChart } from "@mantine/charts";
 import {
   ActionIcon,
@@ -62,7 +63,8 @@ import {
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { DataTable, PageHeader } from "../components";
+import { useSearchParams } from "react-router";
+import { DataTable, IpdContextStrip, ipdContextFromSearchParams, PageHeader } from "../components";
 import type { Column } from "../components/DataTable";
 import { useRequirePermission } from "../hooks/useRequirePermission";
 import { bmeService } from "../services/bme.service";
@@ -2135,6 +2137,19 @@ export function BmePage() {
   const canCal = useHasPermission(P.BME.CALIBRATION_LIST);
   const canContracts = useHasPermission(P.BME.CONTRACTS_LIST);
   const canBreakdowns = useHasPermission(P.BME.BREAKDOWNS_LIST);
+  const [searchParams] = useSearchParams();
+  const ipdContext = ipdContextFromSearchParams(searchParams);
+  const requestedTab = searchParams.get("tab");
+  const initialTab =
+    requestedTab === "breakdowns" && canBreakdowns
+      ? "breakdowns"
+      : requestedTab === "pm" && canPm
+        ? "pm"
+        : requestedTab === "calibration" && canCal
+          ? "calibration"
+          : requestedTab === "contracts" && canContracts
+            ? "contracts"
+            : "equipment";
 
   return (
     <div>
@@ -2142,7 +2157,8 @@ export function BmePage() {
         title="BME / CMMS"
         subtitle="Biomedical equipment management, maintenance, calibration & contracts"
       />
-      <Tabs defaultValue="equipment" keepMounted={false}>
+      <IpdContextStrip context={ipdContext} />
+      <Tabs defaultValue={initialTab} keepMounted={false}>
         <Tabs.List>
           <Tabs.Tab value="equipment" leftSection={<IconDeviceDesktopAnalytics size={16} />}>
             Equipment

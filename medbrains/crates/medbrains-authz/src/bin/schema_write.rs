@@ -13,7 +13,8 @@ const MAX_ATTEMPTS: u8 = 40;
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let schema_path = env::args()
-        .nth(1).map_or_else(|| PathBuf::from(DEFAULT_SCHEMA_PATH), PathBuf::from);
+        .nth(1)
+        .map_or_else(|| PathBuf::from(DEFAULT_SCHEMA_PATH), PathBuf::from);
     let endpoint = env::var("SPICEDB_ENDPOINT").unwrap_or_else(|_| DEFAULT_ENDPOINT.to_owned());
     let token = env::var("SPICEDB_TOKEN").unwrap_or_else(|_| DEFAULT_TOKEN.to_owned());
     let schema = fs::read_to_string(&schema_path)

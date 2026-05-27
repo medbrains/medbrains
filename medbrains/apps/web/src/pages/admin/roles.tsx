@@ -31,7 +31,13 @@ import type {
   WidgetAccessLevel,
   WidgetTemplate,
 } from "@medbrains/types";
-import { buildPermissionTree, P, PERMISSIONS, ROLE_TEMPLATES } from "@medbrains/types";
+import {
+  buildPermissionTree,
+  FIELD_ACCESS_FIELDS,
+  P,
+  PERMISSIONS,
+  ROLE_TEMPLATES,
+} from "@medbrains/types";
 import {
   IconDots,
   IconEdit,
@@ -206,7 +212,7 @@ function PermissionEditor({
   const [widgetFilter, setWidgetFilter] = useState("");
   const pacedWidgetFilter = usePacedQueryValue(widgetFilter, 200);
 
-  const allFields = useMemo<FieldMasterFull[]>(() => [], []);
+  const allFields = useMemo<FieldMasterFull[]>(() => FIELD_ACCESS_FIELDS, []);
   const widgetTemplates = useMemo<WidgetTemplate[]>(() => [], []);
 
   // Sync state when role changes
@@ -512,6 +518,7 @@ function PermissionEditor({
                               data={[
                                 { label: "Edit", value: "edit" },
                                 { label: "View", value: "view" },
+                                { label: "Mask", value: "mask" },
                                 { label: "Hidden", value: "hidden" },
                               ]}
                             />

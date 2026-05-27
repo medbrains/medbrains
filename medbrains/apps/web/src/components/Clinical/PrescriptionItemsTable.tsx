@@ -1,5 +1,6 @@
 import { ActionIcon, Badge, Button, Group, Table, Text, Tooltip } from "@mantine/core";
-import type { PharmacyCatalog, PrescriptionItemInput } from "@medbrains/types";
+import { useHasPermission } from "@medbrains/stores";
+import { P, type PharmacyCatalog, type PrescriptionItemInput } from "@medbrains/types";
 import { IconDeviceFloppy, IconPill, IconX } from "@tabler/icons-react";
 import { useTranslation } from "react-i18next";
 import { instructionsDisplayText } from "../../lib/medication-timing-utils";
@@ -10,6 +11,7 @@ interface PrescriptionItemsTableProps {
   onRemoveItem: (index: number) => void;
   onSave: () => void;
   onOpenSaveTemplate: () => void;
+  canManagePrescription: boolean;
   isSaving?: boolean;
   drugCatalog?: PharmacyCatalog[];
 }
@@ -19,10 +21,14 @@ export function PrescriptionItemsTable({
   onRemoveItem,
   onSave,
   onOpenSaveTemplate,
+  canManagePrescription,
   isSaving,
   drugCatalog = [],
 }: PrescriptionItemsTableProps) {
   const { t } = useTranslation("clinical");
+  const hasPrescriptionWritePermission = useHasPermission(P.OPD.VISIT_UPDATE);
+  const canViewStockDetail = useHasPermission(P.PHARMACY.STOCK_MANAGE);
+  const canWritePrescription = canManagePrescription && hasPrescriptionWritePermission;
 
   if (items.length === 0) return null;
 
@@ -46,9 +52,17 @@ export function PrescriptionItemsTable({
             const catalogItem = item.catalog_item_id
               ? drugCatalog.find((drug) => drug.id === item.catalog_item_id)
               : undefined;
-            const stockWarning = prescriptionStockWarning(catalogItem);
+            const stockWarning = prescriptionStockWarning(catalogItem, canViewStockDetail);
+            const rowKey = [
+              item.catalog_item_id ?? item.drug_name,
+              item.dosage,
+              item.frequency,
+              item.duration,
+              item.route ?? "",
+              item.instructions ?? "",
+            ].join(":");
             return (
-              <Table.Tr key={idx}>
+              <Table.Tr key={rowKey}>
                 <Table.Td>
                   <Text size="sm" fw={500}>
                     {item.drug_name}
@@ -87,7 +101,10 @@ export function PrescriptionItemsTable({
                     variant="subtle"
                     color="danger"
                     size="xs"
-                    onClick={() => onRemoveItem(idx)}
+                    onClick={() => {
+                      if (canWritePrescription) onRemoveItem(idx);
+                    }}
+                    disabled={!canWritePrescription}
                     aria-label="Close"
                   >
                     <IconX size={12} />
@@ -103,11 +120,18 @@ export function PrescriptionItemsTable({
           size="sm"
           variant="light"
           onClick={onOpenSaveTemplate}
+          disabled={!canWritePrescription}
           leftSection={<IconDeviceFloppy size={14} />}
         >
-          Save as Template
+          Save Rx Set
         </Button>
-        <Button size="sm" onClick={onSave} loading={isSaving} leftSection={<IconPill size={14} />}>
+        <Button
+          size="sm"
+          onClick={onSave}
+          loading={isSaving}
+          disabled={!canWritePrescription}
+          leftSection={<IconPill size={14} />}
+        >
           {t("prescription.savePrescription")} ({t("prescription.items", { count: items.length })})
         </Button>
       </Group>
@@ -115,7 +139,7 @@ export function PrescriptionItemsTable({
   );
 }
 
-function prescriptionStockWarning(drug: PharmacyCatalog | undefined) {
+function prescriptionStockWarning(drug: PharmacyCatalog | undefined, canViewStockDetail: boolean) {
   if (!drug) {
     return null;
   }
@@ -124,8 +148,9 @@ function prescriptionStockWarning(drug: PharmacyCatalog | undefined) {
     return {
       color: "danger",
       label: "Out of stock warning",
-      message:
-        "Out of stock now. The prescription can still be saved; pharmacy will arrange stock, substitute, or partial-fill.",
+      message: canViewStockDetail
+        ? "Out of stock now. The prescription can still be saved; pharmacy will arrange stock, substitute, or partial-fill."
+        : "Out of stock now. Pharmacy will arrange stock, substitute, or partial-fill.",
     };
   }
 
@@ -133,7 +158,9 @@ function prescriptionStockWarning(drug: PharmacyCatalog | undefined) {
     return {
       color: "warning",
       label: "Low stock warning",
-      message: `Low stock. ${drug.current_stock} ${drug.unit ?? "units"} available in pharmacy.`,
+      message: canViewStockDetail
+        ? `Low stock. ${drug.current_stock} ${drug.unit ?? "units"} available in pharmacy.`
+        : "Low stock. Pharmacy can review availability before dispensing.",
     };
   }
 

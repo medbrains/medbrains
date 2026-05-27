@@ -10,7 +10,9 @@ use medbrains_core::{
 use uuid::Uuid;
 
 use crate::{
-    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
+    error::AppError,
+    middleware::auth::Claims,
+    middleware::authorization::{is_bypass_role, require_permission},
     state::AppState,
 };
 
@@ -26,6 +28,12 @@ pub async fn list_appointments(
     Query(query): Query<ListAppointmentsQuery>,
 ) -> Result<Json<Vec<AppointmentWithPatient>>, AppError> {
     require_permission(&claims, permissions::opd::appointment::LIST)?;
+    let can_view_patient_identity = is_bypass_role(&claims)
+        || claims
+            .permissions
+            .iter()
+            .any(|permission| permission == permissions::patients::VIEW);
+
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
@@ -57,13 +65,13 @@ pub async fn list_appointments(
         created_by: Uuid,
         created_at: chrono::DateTime<Utc>,
         updated_at: chrono::DateTime<Utc>,
-        patient_name: String,
+        patient_name: Option<String>,
         doctor_name: String,
     }
 
     let rows = sqlx::query_as::<_, AppointmentRow>(
         "SELECT a.*, \
-         CONCAT(p.first_name, ' ', p.last_name) AS patient_name, \
+         CASE WHEN $6::bool THEN CONCAT(p.first_name, ' ', p.last_name) ELSE NULL END AS patient_name, \
          u.full_name AS doctor_name \
          FROM appointments a \
          JOIN patients p ON p.id = a.patient_id \
@@ -80,6 +88,7 @@ pub async fn list_appointments(
     .bind(query.department_id)
     .bind(query.patient_id)
     .bind(query.status.as_deref())
+    .bind(can_view_patient_identity)
     .fetch_all(&mut *tx)
     .await?;
 

@@ -2,7 +2,9 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Button, Group, Select, Stack, TextInput } from "@mantine/core";
 import type { OrderBasketLabFormInput } from "@medbrains/schemas";
 import { orderBasketLabFormSchema } from "@medbrains/schemas";
+import { useHasPermission } from "@medbrains/stores";
 import type { BasketItem, BasketLabItem, LabTestCatalog } from "@medbrains/types";
+import { P } from "@medbrains/types";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { labPriorityOptions } from "../../../forms/orderBasket.form";
@@ -14,6 +16,7 @@ interface LabPickerFormProps {
 
 export function LabPickerForm({ onAdd }: LabPickerFormProps) {
   const [test, setTest] = useState<LabTestCatalog | undefined>();
+  const canAddLab = useHasPermission(P.LAB.ORDERS_CREATE);
   const { control, register, reset, handleSubmit } = useForm<OrderBasketLabFormInput>({
     resolver: zodResolver(orderBasketLabFormSchema),
     defaultValues: {
@@ -35,7 +38,7 @@ export function LabPickerForm({ onAdd }: LabPickerFormProps) {
   };
 
   const handleAdd = (values: OrderBasketLabFormInput) => {
-    if (!test) return;
+    if (!test || !canAddLab) return;
     const item: BasketLabItem = {
       kind: "lab",
       test_id: test.id,
@@ -79,7 +82,7 @@ export function LabPickerForm({ onAdd }: LabPickerFormProps) {
       </Group>
       <TextInput label="Notes" placeholder="optional" {...register("notes")} />
       <Group justify="flex-end">
-        <Button type="submit" disabled={!test}>
+        <Button type="submit" disabled={!test || !canAddLab}>
           Add to basket
         </Button>
       </Group>

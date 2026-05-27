@@ -14,15 +14,19 @@ import {
   Timeline,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
-import type {
-  CreateDiagnosisRequest,
-  Diagnosis,
-  DiagnosisCertainty,
-  DiagnosisSeverity,
-  PatientDiagnosisRow,
-  TerminologySearchResult,
-  UpdateDiagnosisRequest,
+import { useFieldAccess, useHasPermission } from "@medbrains/stores";
+import {
+  type CreateDiagnosisRequest,
+  type Diagnosis,
+  type DiagnosisCertainty,
+  type DiagnosisSeverity,
+  type FieldAccessLevel,
+  P,
+  type PatientDiagnosisRow,
+  type TerminologySearchResult,
+  type UpdateDiagnosisRequest,
 } from "@medbrains/types";
+import { fieldAccessText } from "@medbrains/utils";
 import { IconCircleCheck, IconPlus, IconRotateClockwise, IconTrash } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
@@ -43,7 +47,9 @@ interface DiagnosisPanelProps {
   encounterId: string;
   diagnoses: Diagnosis[];
   patientDiagnoses?: PatientDiagnosisRow[];
+  canCreate: boolean;
   canUpdate: boolean;
+  canDelete: boolean;
   onAdd: (data: CreateDiagnosisRequest) => void;
   onUpdate?: (encounterId: string, diagnosisId: string, data: UpdateDiagnosisRequest) => void;
   onDelete: (id: string) => void;
@@ -95,6 +101,10 @@ function todayIsoDate(): string {
   return todayDateString();
 }
 
+function canEditDiagnosisField(access: FieldAccessLevel): boolean {
+  return access === "edit";
+}
+
 function displayDate(value: string | null | undefined): string {
   if (!value) return "Not dated";
   return new Intl.DateTimeFormat(undefined, { dateStyle: "medium" }).format(new Date(value));
@@ -125,7 +135,9 @@ export function DiagnosisPanel({
   encounterId,
   diagnoses,
   patientDiagnoses = [],
+  canCreate,
   canUpdate,
+  canDelete,
   onAdd,
   onUpdate,
   onDelete,
@@ -133,6 +145,10 @@ export function DiagnosisPanel({
   isUpdating,
 }: DiagnosisPanelProps) {
   const { t } = useTranslation("clinical");
+  const diagnosisAccess = useFieldAccess("opd.diagnosis");
+  const hasDiagnosisCreatePermission = useHasPermission(P.OPD.DIAGNOSES.CREATE);
+  const hasDiagnosisUpdatePermission = useHasPermission(P.OPD.DIAGNOSES.UPDATE);
+  const hasDiagnosisDeletePermission = useHasPermission(P.OPD.DIAGNOSES.DELETE);
   const [description, setDescription] = useState("");
   const [icdCode, setIcdCode] = useState("");
   const [selectedIcd11, setSelectedIcd11] = useState<TerminologySearchResult | null>(null);
@@ -149,6 +165,13 @@ export function DiagnosisPanel({
   const [resolutionOpened, resolutionHandlers] = useDisclosure(false);
   const primarySystem = DIAGNOSIS_TERMINOLOGY_POLICY.primarySystem;
   const snomedEnabled = DIAGNOSIS_TERMINOLOGY_POLICY.secondarySystems.includes("snomed");
+  const canEditDiagnosis = canEditDiagnosisField(diagnosisAccess);
+  const canCreateDiagnosis = canCreate && hasDiagnosisCreatePermission && canEditDiagnosis;
+  const canUpdateDiagnosis = canUpdate && hasDiagnosisUpdatePermission && canEditDiagnosis;
+  const canDeleteDiagnosis = canDelete && hasDiagnosisDeletePermission && canEditDiagnosis;
+  const canShowDiagnosisDetails = diagnosisAccess === "edit" || diagnosisAccess === "view";
+  const diagnosisText = (value: string | null | undefined) =>
+    fieldAccessText(diagnosisAccess, value);
 
   const { data: snomedResults } = useQuery({
     queryKey: ["terminology-search", "snomed", pacedTerminologySearch],
@@ -171,8 +194,24 @@ export function DiagnosisPanel({
     }
   };
 
+  const handleIcdCodeChange = (nextValue: string | undefined) => {
+    setIcdCode(nextValue ?? "");
+    if (!nextValue) {
+      setSelectedIcd11(null);
+      setDescription("");
+      setTerminologySearch("");
+    }
+  };
+
+  const handleIcdResultSelect = (result: TerminologySearchResult) => {
+    setSelectedIcd11(result);
+    setIcdCode(result.code);
+    setDescription(result.display);
+    setTerminologySearch(result.display);
+  };
+
   const handleAdd = () => {
-    if (!description.trim()) return;
+    if (!canCreateDiagnosis || !description.trim()) return;
     onAdd({
       description: description.trim(),
       icd_code: icdCode.trim() || undefined,
@@ -206,6 +245,7 @@ export function DiagnosisPanel({
   };
 
   const openResolutionModal = (diagnosis: Diagnosis, mode: ResolutionMode) => {
+    if (!canUpdateDiagnosis) return;
     setResolutionTarget(diagnosis);
     setResolutionMode(mode);
     setResolutionNote("");
@@ -213,7 +253,7 @@ export function DiagnosisPanel({
   };
 
   const handleResolve = () => {
-    if (!resolutionTarget || !onUpdate) return;
+    if (!resolutionTarget || !onUpdate || !canUpdateDiagnosis) return;
     const action = resolutionMode === "ruled_out" ? "Ruled out" : "Resolved";
     onUpdate(resolutionTarget.encounter_id, resolutionTarget.id, {
       certainty: resolutionMode === "ruled_out" ? "ruled_out" : "confirmed",
@@ -224,7 +264,7 @@ export function DiagnosisPanel({
   };
 
   const handleReopen = (diagnosis: Diagnosis) => {
-    if (!onUpdate) return;
+    if (!onUpdate || !canUpdateDiagnosis) return;
     onUpdate(diagnosis.encounter_id, diagnosis.id, {
       certainty: "confirmed",
       resolved_date: null,
@@ -246,7 +286,7 @@ export function DiagnosisPanel({
       >
         <Stack gap="sm">
           <Text size="sm" fw={600}>
-            {resolutionTarget?.description}
+            {diagnosisText(resolutionTarget?.description)}
           </Text>
           <Textarea
             label="Resolution notes"
@@ -273,25 +313,15 @@ export function DiagnosisPanel({
         </Stack>
       </Modal>
 
-      {canUpdate && (
+      {canCreateDiagnosis && (
         <Stack gap="xs">
           <Group gap="xs" align="flex-end" wrap="nowrap">
             <Icd11CodeSelect
               placeholder={terminologySearchPlaceholder(primarySystem)}
               value={icdCode || null}
-              onChange={(value) => {
-                setIcdCode(value ?? "");
-                if (!value) {
-                  setSelectedIcd11(null);
-                }
-              }}
+              onChange={handleIcdCodeChange}
               onSearchTextChange={setTerminologySearch}
-              onSelectResult={(result) => {
-                setSelectedIcd11(result);
-                if (!description.trim()) {
-                  setDescription(result.display);
-                }
-              }}
+              onSelectResult={handleIcdResultSelect}
               w={300}
               size="sm"
               limit={15}
@@ -394,7 +424,7 @@ export function DiagnosisPanel({
             <div>
               <Group gap={8}>
                 <Text size="sm" fw={500}>
-                  {d.description}
+                  {diagnosisText(d.description)}
                 </Text>
                 <Badge size="xs" color={diagnosisStatus(d).color} variant="light">
                   {diagnosisStatus(d).label}
@@ -406,80 +436,86 @@ export function DiagnosisPanel({
                 )}
               </Group>
               <Group gap={6} mt={4}>
-                {d.icd_code && (
+                {canShowDiagnosisDetails && d.icd_code && (
                   <Badge size="xs" variant="outline" color="slate">
                     {terminologySystemLabel(d.icd_system)}: {d.icd_code}
                   </Badge>
                 )}
-                {d.snomed_code && (
+                {canShowDiagnosisDetails && d.snomed_code && (
                   <Badge size="xs" variant="light" color="teal">
                     SNOMED CT: {d.snomed_code}
                   </Badge>
                 )}
-                {d.severity && (
+                {canShowDiagnosisDetails && d.severity && (
                   <Badge size="xs" variant="light" color={SEVERITY_COLORS[d.severity] ?? "slate"}>
                     {d.severity}
                   </Badge>
                 )}
-                {d.certainty && (
+                {canShowDiagnosisDetails && d.certainty && (
                   <Badge size="xs" variant="dot" color={CERTAINTY_COLORS[d.certainty] ?? "slate"}>
                     {d.certainty}
                   </Badge>
                 )}
-                {d.resolved_date && (
+                {canShowDiagnosisDetails && d.resolved_date && (
                   <Badge size="xs" variant="outline" color="success">
                     resolved {displayDate(d.resolved_date)}
                   </Badge>
                 )}
               </Group>
-              {d.notes && (
+              {canShowDiagnosisDetails && d.notes && (
                 <Text size="xs" c="dimmed" mt={6} style={{ whiteSpace: "pre-wrap" }}>
-                  {d.notes}
+                  {diagnosisText(d.notes)}
                 </Text>
               )}
             </div>
-            {canUpdate && (
+            {(canUpdateDiagnosis || canDeleteDiagnosis) && (
               <Group gap={4} wrap="nowrap">
-                {d.resolved_date || d.certainty === "ruled_out" ? (
-                  <Button
-                    size="compact-xs"
-                    variant="light"
-                    leftSection={<IconRotateClockwise size={12} />}
-                    onClick={() => handleReopen(d)}
-                    loading={isUpdating}
+                {canUpdateDiagnosis &&
+                  (d.resolved_date || d.certainty === "ruled_out" ? (
+                    <Button
+                      size="compact-xs"
+                      variant="light"
+                      leftSection={<IconRotateClockwise size={12} />}
+                      onClick={() => handleReopen(d)}
+                      loading={isUpdating}
+                    >
+                      Reopen
+                    </Button>
+                  ) : (
+                    <>
+                      <Button
+                        size="compact-xs"
+                        variant="light"
+                        color="success"
+                        leftSection={<IconCircleCheck size={12} />}
+                        onClick={() => openResolutionModal(d, "resolved")}
+                      >
+                        Resolve
+                      </Button>
+                      <Button
+                        size="compact-xs"
+                        variant="light"
+                        color="slate"
+                        onClick={() => openResolutionModal(d, "ruled_out")}
+                      >
+                        Rule out
+                      </Button>
+                    </>
+                  ))}
+                {canDeleteDiagnosis && (
+                  <ActionIcon
+                    variant="subtle"
+                    color="danger"
+                    size="sm"
+                    onClick={() => {
+                      if (canDeleteDiagnosis) onDelete(d.id);
+                    }}
+                    disabled={!canDeleteDiagnosis}
+                    aria-label="Delete"
                   >
-                    Reopen
-                  </Button>
-                ) : (
-                  <>
-                    <Button
-                      size="compact-xs"
-                      variant="light"
-                      color="success"
-                      leftSection={<IconCircleCheck size={12} />}
-                      onClick={() => openResolutionModal(d, "resolved")}
-                    >
-                      Resolve
-                    </Button>
-                    <Button
-                      size="compact-xs"
-                      variant="light"
-                      color="slate"
-                      onClick={() => openResolutionModal(d, "ruled_out")}
-                    >
-                      Rule out
-                    </Button>
-                  </>
+                    <IconTrash size={14} />
+                  </ActionIcon>
                 )}
-                <ActionIcon
-                  variant="subtle"
-                  color="danger"
-                  size="sm"
-                  onClick={() => onDelete(d.id)}
-                  aria-label="Delete"
-                >
-                  <IconTrash size={14} />
-                </ActionIcon>
               </Group>
             )}
           </Group>
@@ -504,7 +540,7 @@ export function DiagnosisPanel({
                 <Timeline.Item key={diagnosis.id} color={status.color}>
                   <Group gap={6} mb={2}>
                     <Text size="sm" fw={600}>
-                      {diagnosis.description}
+                      {diagnosisText(diagnosis.description)}
                     </Text>
                     <Badge size="xs" color={status.color} variant="light">
                       {status.label}
@@ -516,12 +552,12 @@ export function DiagnosisPanel({
                     )}
                   </Group>
                   <Group gap={6}>
-                    {diagnosis.icd_code && (
+                    {canShowDiagnosisDetails && diagnosis.icd_code && (
                       <Badge size="xs" variant="outline" color="slate">
                         {terminologySystemLabel(diagnosis.icd_system)}: {diagnosis.icd_code}
                       </Badge>
                     )}
-                    {diagnosis.snomed_code && (
+                    {canShowDiagnosisDetails && diagnosis.snomed_code && (
                       <Badge size="xs" variant="light" color="teal">
                         SNOMED CT: {diagnosis.snomed_code}
                       </Badge>
@@ -530,13 +566,13 @@ export function DiagnosisPanel({
                   <Text size="xs" c="dimmed" mt={4}>
                     {displayDate(diagnosis.created_at)} ·{" "}
                     {diagnosis.doctor_name ?? "Provider not recorded"}
-                    {diagnosis.resolved_date
+                    {canShowDiagnosisDetails && diagnosis.resolved_date
                       ? ` · resolved ${displayDate(diagnosis.resolved_date)}`
                       : ""}
                   </Text>
-                  {diagnosis.notes && (
+                  {canShowDiagnosisDetails && diagnosis.notes && (
                     <Text size="xs" mt={4} style={{ whiteSpace: "pre-wrap" }}>
-                      {diagnosis.notes}
+                      {diagnosisText(diagnosis.notes)}
                     </Text>
                   )}
                 </Timeline.Item>

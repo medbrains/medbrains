@@ -19,8 +19,8 @@ import {
   Text,
 } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
-import { useOrderBasketStore } from "@medbrains/stores";
-import type { BasketItem } from "@medbrains/types";
+import { useHasPermission, useOrderBasketStore } from "@medbrains/stores";
+import { type BasketItem, P } from "@medbrains/types";
 import {
   IconAlertTriangle,
   IconCheck,
@@ -58,6 +58,11 @@ export function OrderBasketWorkspace({
   onSigned,
 }: OrderBasketWorkspaceProps) {
   const basket = useOrderBasketStore();
+  const canSignOrders = useHasPermission(P.ORDER_BASKET.SIGN);
+  const canUseDraft = useHasPermission(P.ORDER_BASKET.DRAFT);
+  const canAddDrug = useHasPermission(P.PHARMACY.DISPENSING_CREATE);
+  const canAddLab = useHasPermission(P.LAB.ORDERS_CREATE);
+  const canAddRadiology = useHasPermission(P.RADIOLOGY.ORDERS_CREATE);
   const [orderSetOpen, setOrderSetOpen] = useState(false);
   const [carryFwdOpen, setCarryFwdOpen] = useState(false);
   const [costPreview, setCostPreview] = useState<{
@@ -67,6 +72,29 @@ export function OrderBasketWorkspace({
     preauth_threshold: string;
     exceeds_preauth: boolean;
   } | null>(null);
+  const availableTabs = useMemo(
+    () =>
+      [
+        canAddDrug ? { value: "drug" as const, label: "Drug" } : null,
+        canAddLab ? { value: "lab" as const, label: "Lab" } : null,
+        canAddRadiology ? { value: "radiology" as const, label: "Radiology" } : null,
+      ].filter((tab): tab is { value: OrderBasketTab; label: string } => tab !== null),
+    [canAddDrug, canAddLab, canAddRadiology],
+  );
+  const safeActiveTab = availableTabs.some((tab) => tab.value === activeTab)
+    ? activeTab
+    : (availableTabs[0]?.value ?? null);
+  const allowedBasketKinds = useMemo(
+    () =>
+      new Set(
+        [
+          canAddDrug ? "drug" : null,
+          canAddLab ? "lab" : null,
+          canAddRadiology ? "radiology" : null,
+        ].filter((kind): kind is BasketItem["kind"] => kind !== null),
+      ),
+    [canAddDrug, canAddLab, canAddRadiology],
+  );
 
   // Sync context whenever drawer opens for a (potentially new) encounter
   useEffect(() => {
@@ -78,7 +106,7 @@ export function OrderBasketWorkspace({
   // Debounced server-side check on every items change
   const checkTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
-    if (!opened) return;
+    if (!opened || !canSignOrders) return;
     if (basket.items.length === 0) {
       basket.setWarnings([]);
       setCostPreview(null);
@@ -117,11 +145,19 @@ export function OrderBasketWorkspace({
     return () => {
       if (checkTimer.current) clearTimeout(checkTimer.current);
     };
-  }, [opened, basket.items, encounterId, patientId, basket.setChecking, basket.setWarnings]);
+  }, [
+    opened,
+    canSignOrders,
+    basket.items,
+    encounterId,
+    patientId,
+    basket.setChecking,
+    basket.setWarnings,
+  ]);
 
   // Load draft on open (if any)
   useEffect(() => {
-    if (!opened || basket.items.length > 0) return;
+    if (!opened || !canUseDraft || basket.items.length > 0) return;
     let cancelled = false;
     void (async () => {
       try {
@@ -141,10 +177,10 @@ export function OrderBasketWorkspace({
     return () => {
       cancelled = true;
     };
-  }, [opened, encounterId, basket.items.length, basket.loadDraft]);
+  }, [opened, canUseDraft, encounterId, basket.items.length, basket.loadDraft]);
 
   const hasBlocks = basket.hasUnacknowledgedBlocks();
-  const canSign = basket.items.length > 0 && !hasBlocks && !basket.isSigning;
+  const canSign = canSignOrders && basket.items.length > 0 && !hasBlocks && !basket.isSigning;
 
   const handleSign = async () => {
     basket.setSigning(true);
@@ -177,6 +213,14 @@ export function OrderBasketWorkspace({
   };
 
   const handleSaveDraft = async () => {
+    if (!canUseDraft) {
+      notifications.show({
+        title: "Draft blocked",
+        message: "You do not have permission to save order basket drafts.",
+        color: "orange",
+      });
+      return;
+    }
     try {
       await orderBasketService.saveBasketDraft(encounterId, {
         items: basket.items,
@@ -205,9 +249,20 @@ export function OrderBasketWorkspace({
   );
 
   const handleTabChange = (value: string | null) => {
-    if (isOrderBasketTab(value)) {
+    if (isOrderBasketTab(value) && availableTabs.some((tab) => tab.value === value)) {
       onActiveTabChange?.(value);
     }
+  };
+  const addPermittedItems = (items: BasketItem[]) => {
+    const permitted = items.filter((item) => allowedBasketKinds.has(item.kind));
+    if (permitted.length < items.length) {
+      notifications.show({
+        title: "Some orders skipped",
+        message: "Your role cannot add every item type from this source.",
+        color: "orange",
+      });
+    }
+    permitted.forEach(basket.addItem);
   };
 
   return (
@@ -239,25 +294,43 @@ export function OrderBasketWorkspace({
               size="xs"
               variant="light"
               leftSection={<IconStack2 size={14} />}
+              disabled={availableTabs.length === 0}
               onClick={() => setOrderSetOpen(true)}
             >
               Apply Order Set
             </Button>
-            <Button
-              size="xs"
-              variant="light"
-              leftSection={<IconClock size={14} />}
-              onClick={() => setCarryFwdOpen(true)}
-            >
-              Carry Forward
-            </Button>
+            {canUseDraft && (
+              <Button
+                size="xs"
+                variant="light"
+                leftSection={<IconClock size={14} />}
+                disabled={availableTabs.length === 0}
+                onClick={() => setCarryFwdOpen(true)}
+              >
+                Carry Forward
+              </Button>
+            )}
           </Group>
 
-          <Tabs value={activeTab} onChange={handleTabChange}>
+          {!canSignOrders && (
+            <Alert color="orange" variant="light">
+              Signing the order basket requires clinical order-basket sign permission.
+            </Alert>
+          )}
+          {availableTabs.length === 0 && (
+            <Alert color="gray" variant="light">
+              No order types are available for your role. Drug, lab, and radiology basket items use
+              their target module create permissions.
+            </Alert>
+          )}
+
+          <Tabs value={safeActiveTab} onChange={handleTabChange}>
             <Tabs.List>
-              <Tabs.Tab value="drug">Drug</Tabs.Tab>
-              <Tabs.Tab value="lab">Lab</Tabs.Tab>
-              <Tabs.Tab value="radiology">Radiology</Tabs.Tab>
+              {availableTabs.map((tab) => (
+                <Tabs.Tab key={tab.value} value={tab.value}>
+                  {tab.label}
+                </Tabs.Tab>
+              ))}
               <Tabs.Tab value="diet" disabled>
                 Diet
               </Tabs.Tab>
@@ -268,15 +341,21 @@ export function OrderBasketWorkspace({
                 Referral
               </Tabs.Tab>
             </Tabs.List>
-            <Tabs.Panel value="drug" pt="xs">
-              <DrugPickerForm onAdd={basket.addItem} />
-            </Tabs.Panel>
-            <Tabs.Panel value="lab" pt="xs">
-              <LabPickerForm onAdd={basket.addItem} />
-            </Tabs.Panel>
-            <Tabs.Panel value="radiology" pt="xs">
-              <RadiologyPickerForm onAdd={basket.addItem} />
-            </Tabs.Panel>
+            {canAddDrug && (
+              <Tabs.Panel value="drug" pt="xs">
+                <DrugPickerForm onAdd={basket.addItem} />
+              </Tabs.Panel>
+            )}
+            {canAddLab && (
+              <Tabs.Panel value="lab" pt="xs">
+                <LabPickerForm onAdd={basket.addItem} />
+              </Tabs.Panel>
+            )}
+            {canAddRadiology && (
+              <Tabs.Panel value="radiology" pt="xs">
+                <RadiologyPickerForm onAdd={basket.addItem} />
+              </Tabs.Panel>
+            )}
           </Tabs>
 
           <Divider />
@@ -336,14 +415,16 @@ export function OrderBasketWorkspace({
 
           <Group justify="space-between">
             <Group gap="xs">
-              <Button
-                variant="subtle"
-                size="sm"
-                onClick={handleSaveDraft}
-                disabled={basket.items.length === 0}
-              >
-                Save draft
-              </Button>
+              {canUseDraft && (
+                <Button
+                  variant="subtle"
+                  size="sm"
+                  onClick={handleSaveDraft}
+                  disabled={basket.items.length === 0}
+                >
+                  Save draft
+                </Button>
+              )}
               <Button
                 variant="default"
                 size="sm"
@@ -368,7 +449,7 @@ export function OrderBasketWorkspace({
       <OrderSetPickerModal
         opened={orderSetOpen}
         onClose={() => setOrderSetOpen(false)}
-        onAddItems={(items) => items.forEach(basket.addItem)}
+        onAddItems={addPermittedItems}
       />
 
       <CarryForwardModal
@@ -376,7 +457,7 @@ export function OrderBasketWorkspace({
         onClose={() => setCarryFwdOpen(false)}
         patientId={patientId}
         encounterId={encounterId}
-        onAddItems={(items) => items.forEach(basket.addItem)}
+        onAddItems={addPermittedItems}
       />
     </>
   );

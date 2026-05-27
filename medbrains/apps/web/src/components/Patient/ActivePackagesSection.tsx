@@ -26,7 +26,10 @@ import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import type { SubscribePackageFormInput } from "@medbrains/schemas";
 import { subscribePackageFormSchema } from "@medbrains/schemas";
-import type { InclusionBalance, SubscriptionWithBalance } from "@medbrains/types";
+import { useFieldAccess, useHasPermission } from "@medbrains/stores";
+import type { FieldAccessLevel, InclusionBalance, SubscriptionWithBalance } from "@medbrains/types";
+import { P } from "@medbrains/types";
+import { fieldAccessText } from "@medbrains/utils";
 import { IconPackage, IconPlus, IconRefresh, IconShoppingBag } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
@@ -37,13 +40,42 @@ interface ActivePackagesSectionProps {
   patientId: string;
 }
 
+function canEditBillingAmount(access: FieldAccessLevel): boolean {
+  return access === "edit";
+}
+
+function packageAmountText(
+  access: FieldAccessLevel,
+  value: number | string | null | undefined,
+): string {
+  const parsed = Number(value ?? 0);
+  const amount = Number.isFinite(parsed) ? parsed : 0;
+  return fieldAccessText(
+    access,
+    `₹${amount.toLocaleString("en-IN", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}`,
+    "amount",
+  );
+}
+
 export function ActivePackagesSection({ patientId }: ActivePackagesSectionProps) {
   const queryClient = useQueryClient();
   const [subscribeOpen, subscribeHandlers] = useDisclosure(false);
+  const billingAmountAccess = useFieldAccess("billing.amount");
+  const canViewPackages = useHasPermission(P.PATIENT_PACKAGES.VIEW);
+  const canSubscribePackages =
+    useHasPermission(P.PATIENT_PACKAGES.SUBSCRIBE) && canEditBillingAmount(billingAmountAccess);
+  const canConsumePackages = useHasPermission(P.PATIENT_PACKAGES.CONSUME);
+  const canRefundPackages =
+    useHasPermission(P.PATIENT_PACKAGES.REFUND) && canEditBillingAmount(billingAmountAccess);
+  const canViewPackageMasters = useHasPermission(P.ADMIN.DOCTOR_PACKAGES.LIST);
 
   const { data: subs = [], isLoading } = useQuery({
     queryKey: ["patient-packages", patientId],
     queryFn: () => patientPackagesService.listPatientPackages(patientId),
+    enabled: canViewPackages,
   });
 
   const refund = useMutation({
@@ -62,6 +94,7 @@ export function ActivePackagesSection({ patientId }: ActivePackagesSectionProps)
 
   const active = subs.filter((s) => s.status === "active");
   const others = subs.filter((s) => s.status !== "active");
+  const canOpenSubscribe = canSubscribePackages && canViewPackageMasters;
 
   return (
     <Stack gap="md">
@@ -74,9 +107,11 @@ export function ActivePackagesSection({ patientId }: ActivePackagesSectionProps)
             Bundle pricing — chronic care plans, follow-up packs, etc.
           </Text>
         </div>
-        <Button size="xs" leftSection={<IconPlus size={14} />} onClick={subscribeHandlers.open}>
-          Subscribe to package
-        </Button>
+        {canOpenSubscribe && (
+          <Button size="xs" leftSection={<IconPlus size={14} />} onClick={subscribeHandlers.open}>
+            Subscribe to package
+          </Button>
+        )}
       </Group>
 
       {isLoading && (
@@ -85,32 +120,43 @@ export function ActivePackagesSection({ patientId }: ActivePackagesSectionProps)
         </Text>
       )}
 
-      <Stack gap="sm">
-        {active.map((s) => (
-          <SubscriptionCard
-            key={s.id}
-            sub={s}
-            onConsumed={() =>
-              queryClient.invalidateQueries({ queryKey: ["patient-packages", patientId] })
-            }
-            onRefund={() => {
-              if (window.confirm("Refund this subscription? Cannot be undone.")) {
-                refund.mutate(s.id);
+      {!canViewPackages ? (
+        <Card padding="md" withBorder>
+          <Text size="sm" c="dimmed" ta="center">
+            Package subscriptions are restricted for this role.
+          </Text>
+        </Card>
+      ) : (
+        <Stack gap="sm">
+          {active.map((s) => (
+            <SubscriptionCard
+              key={s.id}
+              sub={s}
+              amountAccess={billingAmountAccess}
+              canConsume={canConsumePackages}
+              canRefund={canRefundPackages}
+              onConsumed={() =>
+                queryClient.invalidateQueries({ queryKey: ["patient-packages", patientId] })
               }
-            }}
-          />
-        ))}
+              onRefund={() => {
+                if (window.confirm("Refund this subscription? Cannot be undone.")) {
+                  refund.mutate(s.id);
+                }
+              }}
+            />
+          ))}
 
-        {active.length === 0 && !isLoading && (
-          <Card padding="md" withBorder>
-            <Text size="sm" c="dimmed" ta="center">
-              No active package subscriptions for this patient.
-            </Text>
-          </Card>
-        )}
-      </Stack>
+          {active.length === 0 && !isLoading && others.length > 0 && (
+            <Card padding="md" withBorder>
+              <Text size="sm" c="dimmed" ta="center">
+                No active package subscriptions for this patient.
+              </Text>
+            </Card>
+          )}
+        </Stack>
+      )}
 
-      {others.length > 0 && (
+      {canViewPackages && others.length > 0 && (
         <>
           <Divider label={`Past subscriptions (${others.length})`} />
           <Stack gap="xs">
@@ -127,7 +173,8 @@ export function ActivePackagesSection({ patientId }: ActivePackagesSectionProps)
                       </Text>
                     </Group>
                     <Text size="xs" c="dimmed">
-                      Purchased {new Date(s.purchased_at).toLocaleDateString()} • ₹{s.total_paid}
+                      Purchased {new Date(s.purchased_at).toLocaleDateString()} •{" "}
+                      {packageAmountText(billingAmountAccess, s.total_paid)}
                     </Text>
                   </Stack>
                 </Group>
@@ -137,9 +184,18 @@ export function ActivePackagesSection({ patientId }: ActivePackagesSectionProps)
         </>
       )}
 
-      {subscribeOpen && (
+      {canViewPackages && active.length === 0 && !isLoading && others.length === 0 && (
+        <Card padding="md" withBorder>
+          <Text size="sm" c="dimmed" ta="center">
+            No package subscriptions for this patient.
+          </Text>
+        </Card>
+      )}
+
+      {subscribeOpen && canOpenSubscribe && (
         <SubscribeModal
           patientId={patientId}
+          amountAccess={billingAmountAccess}
           onClose={subscribeHandlers.close}
           onSubscribed={() => {
             queryClient.invalidateQueries({ queryKey: ["patient-packages", patientId] });
@@ -153,10 +209,16 @@ export function ActivePackagesSection({ patientId }: ActivePackagesSectionProps)
 
 function SubscriptionCard({
   sub,
+  amountAccess,
+  canConsume,
+  canRefund,
   onConsumed,
   onRefund,
 }: {
   sub: SubscriptionWithBalance;
+  amountAccess: FieldAccessLevel;
+  canConsume: boolean;
+  canRefund: boolean;
   onConsumed: () => void;
   onRefund: () => void;
 }) {
@@ -197,14 +259,17 @@ function SubscriptionCard({
             </Badge>
           </Group>
           <Text size="xs" c="dimmed">
-            ₹{sub.total_paid} • Valid until {validUntil.toLocaleDateString()} ({daysLeft}d left)
+            {packageAmountText(amountAccess, sub.total_paid)} • Valid until{" "}
+            {validUntil.toLocaleDateString()} ({daysLeft}d left)
           </Text>
         </Stack>
-        <Tooltip label="Mark as refunded">
-          <ActionIcon variant="subtle" color="orange" onClick={onRefund}>
-            <IconRefresh size={16} />
-          </ActionIcon>
-        </Tooltip>
+        {canRefund && (
+          <Tooltip label="Mark as refunded">
+            <ActionIcon variant="subtle" color="orange" onClick={onRefund}>
+              <IconRefresh size={16} />
+            </ActionIcon>
+          </Tooltip>
+        )}
       </Group>
 
       <Stack gap="xs">
@@ -212,6 +277,7 @@ function SubscriptionCard({
           <BalanceBar
             key={b.inclusion_id}
             balance={b}
+            canConsume={canConsume}
             isConsuming={consuming === b.inclusion_id && consume.isPending}
             onConsume={() => {
               setConsuming(b.inclusion_id);
@@ -231,10 +297,12 @@ function SubscriptionCard({
 
 function BalanceBar({
   balance,
+  canConsume,
   isConsuming,
   onConsume,
 }: {
   balance: InclusionBalance;
+  canConsume: boolean;
   isConsuming: boolean;
   onConsume: () => void;
 }) {
@@ -258,15 +326,17 @@ function BalanceBar({
           <Text size="xs" fw={500} c={exhausted ? "dimmed" : undefined}>
             {balance.remaining} left
           </Text>
-          <Button
-            size="compact-xs"
-            variant="light"
-            disabled={exhausted}
-            loading={isConsuming}
-            onClick={onConsume}
-          >
-            Use 1
-          </Button>
+          {canConsume && (
+            <Button
+              size="compact-xs"
+              variant="light"
+              disabled={exhausted}
+              loading={isConsuming}
+              onClick={onConsume}
+            >
+              Use 1
+            </Button>
+          )}
         </Group>
       </Group>
       <Progress
@@ -280,10 +350,12 @@ function BalanceBar({
 
 function SubscribeModal({
   patientId,
+  amountAccess,
   onClose,
   onSubscribed,
 }: {
   patientId: string;
+  amountAccess: FieldAccessLevel;
   onClose: () => void;
   onSubscribed: () => void;
 }) {
@@ -344,7 +416,7 @@ function SubscribeModal({
               placeholder="Choose a package…"
               data={packages.map((p) => ({
                 value: p.id,
-                label: `${p.name} — ₹${p.total_price} (${p.validity_days}d)`,
+                label: `${p.name} — ${packageAmountText(amountAccess, p.total_price)} (${p.validity_days}d)`,
               }))}
               value={field.value}
               onChange={(v) => {

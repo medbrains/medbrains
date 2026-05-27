@@ -17,7 +17,9 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{
-    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
+    error::AppError,
+    middleware::auth::Claims,
+    middleware::authorization::{require_any_permission, require_permission},
     state::AppState,
 };
 
@@ -258,7 +260,13 @@ pub async fn list_drug_interactions(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<DrugInteraction>>, AppError> {
-    require_permission(&claims, permissions::opd::queue::VIEW)?;
+    require_any_permission(
+        &claims,
+        &[
+            permissions::opd::queue::VIEW,
+            permissions::admin::settings::general::MANAGE,
+        ],
+    )?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -339,7 +347,13 @@ pub async fn list_critical_value_rules(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<CriticalValueRule>>, AppError> {
-    require_permission(&claims, permissions::opd::queue::VIEW)?;
+    require_any_permission(
+        &claims,
+        &[
+            permissions::opd::queue::VIEW,
+            permissions::admin::settings::general::MANAGE,
+        ],
+    )?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -424,7 +438,13 @@ pub async fn list_protocols(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<ClinicalProtocol>>, AppError> {
-    require_permission(&claims, permissions::opd::queue::VIEW)?;
+    require_any_permission(
+        &claims,
+        &[
+            permissions::opd::queue::VIEW,
+            permissions::admin::settings::general::MANAGE,
+        ],
+    )?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -605,18 +625,54 @@ pub async fn update_restricted_drug_approval(
 //  Pre-Authorization Requests
 // ══════════════════════════════════════════════════════════
 
+fn trimmed_optional(value: Option<String>) -> Option<String> {
+    value
+        .map(|item| item.trim().to_owned())
+        .filter(|item| !item.is_empty())
+}
+
+fn normalized_code_list(values: Option<Vec<String>>) -> Vec<String> {
+    values
+        .unwrap_or_default()
+        .into_iter()
+        .map(|item| item.trim().to_owned())
+        .filter(|item| !item.is_empty())
+        .collect()
+}
+
+fn normalized_pre_auth_status(status: Option<String>) -> Result<Option<String>, AppError> {
+    let Some(status) = trimmed_optional(status) else {
+        return Ok(None);
+    };
+    match status.as_str() {
+        "pending" | "submitted" | "approved" | "denied" | "expired" => Ok(Some(status)),
+        _ => Err(AppError::BadRequest(
+            "invalid pre-authorization status".to_owned(),
+        )),
+    }
+}
+
 /// GET /api/cds/pre-auth-requests?patient_id=...
 pub async fn list_pre_auth_requests(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Query(q): Query<std::collections::HashMap<String, String>>,
 ) -> Result<Json<Vec<PreAuthorizationRequest>>, AppError> {
-    require_permission(&claims, permissions::opd::queue::VIEW)?;
+    require_permission(&claims, permissions::insurance::prior_auth::LIST)?;
+    let patient_filter = q
+        .get("patient_id")
+        .map(|value| {
+            require_permission(&claims, permissions::patients::VIEW)?;
+            value
+                .parse::<Uuid>()
+                .map_err(|_| AppError::BadRequest("invalid patient id".to_owned()))
+        })
+        .transpose()?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let rows = if let Some(pid) = q.get("patient_id").and_then(|v| v.parse::<Uuid>().ok()) {
+    let rows = if let Some(pid) = patient_filter {
         sqlx::query_as::<_, PreAuthorizationRequest>(
             "SELECT * FROM pre_authorization_requests \
              WHERE tenant_id = $1 AND patient_id = $2 \
@@ -647,13 +703,46 @@ pub async fn create_pre_auth_request(
     Extension(claims): Extension<Claims>,
     Json(body): Json<CreatePreAuthRequest>,
 ) -> Result<Json<PreAuthorizationRequest>, AppError> {
-    require_permission(&claims, permissions::opd::visit::CREATE)?;
+    require_permission(&claims, permissions::insurance::prior_auth::CREATE)?;
+    require_permission(&claims, permissions::patients::VIEW)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let proc_codes = body.procedure_codes.unwrap_or_default();
-    let diag_codes = body.diagnosis_codes.unwrap_or_default();
+    let insurance_provider = body.insurance_provider.trim().to_owned();
+    if insurance_provider.len() < 2 {
+        return Err(AppError::BadRequest(
+            "insurance provider is required".to_owned(),
+        ));
+    }
+    if matches!(body.estimated_cost, Some(amount) if amount < rust_decimal::Decimal::ZERO) {
+        return Err(AppError::BadRequest(
+            "estimated cost cannot be negative".to_owned(),
+        ));
+    }
+
+    let context_exists = sqlx::query_scalar::<_, bool>(
+        "SELECT EXISTS( \
+             SELECT 1 FROM encounters \
+             WHERE tenant_id = $1 AND id = $2 AND patient_id = $3 \
+         )",
+    )
+    .bind(claims.tenant_id)
+    .bind(body.encounter_id)
+    .bind(body.patient_id)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    if !context_exists {
+        return Err(AppError::BadRequest(
+            "pre-authorization encounter does not match patient".to_owned(),
+        ));
+    }
+
+    let proc_codes = normalized_code_list(body.procedure_codes);
+    let diag_codes = normalized_code_list(body.diagnosis_codes);
+    let policy_number = trimmed_optional(body.policy_number);
+    let notes = trimmed_optional(body.notes);
 
     let row = sqlx::query_as::<_, PreAuthorizationRequest>(
         "INSERT INTO pre_authorization_requests \
@@ -664,12 +753,12 @@ pub async fn create_pre_auth_request(
     .bind(claims.tenant_id)
     .bind(body.patient_id)
     .bind(body.encounter_id)
-    .bind(&body.insurance_provider)
-    .bind(body.policy_number.as_deref())
+    .bind(&insurance_provider)
+    .bind(policy_number.as_deref())
     .bind(&proc_codes)
     .bind(&diag_codes)
     .bind(body.estimated_cost)
-    .bind(body.notes.as_deref())
+    .bind(notes.as_deref())
     .bind(claims.sub)
     .fetch_one(&mut *tx)
     .await?;
@@ -685,12 +774,31 @@ pub async fn update_pre_auth_request(
     Path(id): Path<Uuid>,
     Json(body): Json<UpdatePreAuthRequest>,
 ) -> Result<Json<PreAuthorizationRequest>, AppError> {
-    require_permission(&claims, permissions::opd::visit::UPDATE)?;
+    require_permission(&claims, permissions::insurance::prior_auth::UPDATE)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let reviewed_at = if body.status.is_some() {
+    let status = normalized_pre_auth_status(body.status)?;
+    if matches!(status.as_deref(), Some("submitted")) {
+        require_permission(&claims, permissions::insurance::prior_auth::SUBMIT)?;
+    }
+    if matches!(body.approved_amount, Some(amount) if amount < rust_decimal::Decimal::ZERO) {
+        return Err(AppError::BadRequest(
+            "approved amount cannot be negative".to_owned(),
+        ));
+    }
+    if let (Some(valid_from), Some(valid_until)) = (body.valid_from, body.valid_until) {
+        if valid_from > valid_until {
+            return Err(AppError::BadRequest(
+                "valid from cannot be after valid until".to_owned(),
+            ));
+        }
+    }
+
+    let auth_number = trimmed_optional(body.auth_number);
+    let notes = trimmed_optional(body.notes);
+    let reviewed_at = if status.is_some() {
         Some(Utc::now())
     } else {
         None
@@ -706,12 +814,12 @@ pub async fn update_pre_auth_request(
     )
     .bind(id)
     .bind(claims.tenant_id)
-    .bind(body.status.as_deref())
-    .bind(body.auth_number.as_deref())
+    .bind(status.as_deref())
+    .bind(auth_number.as_deref())
     .bind(body.approved_amount)
     .bind(body.valid_from)
     .bind(body.valid_until)
-    .bind(body.notes.as_deref())
+    .bind(notes.as_deref())
     .bind(reviewed_at)
     .fetch_optional(&mut *tx)
     .await?;

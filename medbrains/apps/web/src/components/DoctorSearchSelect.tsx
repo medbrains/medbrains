@@ -16,6 +16,9 @@ interface DoctorSearchSelectProps {
   required?: boolean;
   size?: string;
   clearable?: boolean;
+  error?: string;
+  departmentIds?: string[];
+  doctorIds?: string[];
 }
 
 export function DoctorSearchSelect({
@@ -26,6 +29,9 @@ export function DoctorSearchSelect({
   required,
   size = "sm",
   clearable = true,
+  error,
+  departmentIds = [],
+  doctorIds = [],
 }: DoctorSearchSelectProps) {
   const [search, setSearch] = useState("");
   const canCreate = useHasPermission(P.ADMIN.USERS.CREATE);
@@ -40,20 +46,35 @@ export function DoctorSearchSelect({
     () => doctors.filter((doctor: SetupUser) => doctor.is_active),
     [doctors],
   );
+  const scopedDoctors = useMemo(() => {
+    if (doctorIds.length > 0) {
+      return activeDoctors.filter((doctor) => doctorIds.includes(doctor.id));
+    }
+
+    if (departmentIds.length === 0) {
+      return activeDoctors;
+    }
+
+    const departmentDoctors = activeDoctors.filter((doctor) =>
+      doctor.department_ids.some((departmentId) => departmentIds.includes(departmentId)),
+    );
+
+    return departmentDoctors.length > 0 ? departmentDoctors : activeDoctors;
+  }, [activeDoctors, departmentIds, doctorIds]);
   const selectedDoctor = activeDoctors.find((doctor) => doctor.id === value);
   const visibleDoctors = useMemo(() => {
     const needle = search.trim().toLowerCase();
     if (!needle) {
-      return activeDoctors;
+      return scopedDoctors;
     }
 
-    return activeDoctors.filter(
+    return scopedDoctors.filter(
       (doctor) =>
         doctor.full_name.toLowerCase().includes(needle) ||
         doctor.email.toLowerCase().includes(needle) ||
         (doctor.specialization ?? "").toLowerCase().includes(needle),
     );
-  }, [activeDoctors, search]);
+  }, [scopedDoctors, search]);
 
   return (
     <SearchOrCreate<SetupUser>
@@ -94,6 +115,7 @@ export function DoctorSearchSelect({
       minSearchLength={0}
       required={required}
       size={size}
+      error={error}
       leftSection={<IconStethoscope size={14} />}
       emptyLabel="No doctors found"
       typeToSearchLabel="No doctors found"

@@ -1,3 +1,4 @@
+import "@mantine/charts/styles.css";
 import { AreaChart, BarChart, LineChart } from "@mantine/charts";
 import { Card, Group, SegmentedControl, SimpleGrid, Stack, Text } from "@mantine/core";
 import { DateInput } from "@mantine/dates";

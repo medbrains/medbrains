@@ -1,4 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
+import "@mantine/charts/styles.css";
 import { LineChart } from "@mantine/charts";
 import {
   ActionIcon,
@@ -347,13 +348,6 @@ function LabPageInner() {
         subtitle={t("subtitle.labOrders,Results,Qc&Compliance")}
         icon={<IconFlask size={20} stroke={1.5} />}
         color="violet"
-        actions={
-          canCreateOrder ? (
-            <Button leftSection={<IconPlus size={16} />} onClick={openCreate}>
-              New Order
-            </Button>
-          ) : undefined
-        }
       />
 
       {unacknowledgedAlerts.length > 0 && (
@@ -435,6 +429,13 @@ function LabPageInner() {
             totalPages={data ? Math.ceil(data.total / data.per_page) : 1}
             onPageChange={setPage}
             rowKey={(row) => row.id}
+            tableActions={
+              canCreateOrder ? (
+                <Button leftSection={<IconPlus size={16} />} onClick={openCreate}>
+                  New Order
+                </Button>
+              ) : undefined
+            }
           />
         </Tabs.Panel>
 

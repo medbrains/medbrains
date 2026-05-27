@@ -1,6 +1,7 @@
-import { Button, Group, Modal, Stack } from "@mantine/core";
-import type { PrescriptionWithItems } from "@medbrains/types";
-import { IconPrinter } from "@tabler/icons-react";
+import { Alert, Button, Group, Modal, Stack } from "@mantine/core";
+import { useHasAnyPermission, useHasPermission } from "@medbrains/stores";
+import { P, type PrescriptionWithItems } from "@medbrains/types";
+import { IconLock, IconPrinter } from "@tabler/icons-react";
 import { useRef } from "react";
 import styles from "./prescription-print.module.scss";
 
@@ -16,6 +17,19 @@ interface PrescriptionPrintProps {
   hospitalPhone?: string;
 }
 
+function escapePrintText(value: string) {
+  return value.replace(/[&<>"']/g, (char) => {
+    const entities: Record<string, string> = {
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      '"': "&quot;",
+      "'": "&#39;",
+    };
+    return entities[char] ?? char;
+  });
+}
+
 export function PrescriptionPrint({
   opened,
   onClose,
@@ -28,8 +42,17 @@ export function PrescriptionPrint({
   hospitalPhone,
 }: PrescriptionPrintProps) {
   const printRef = useRef<HTMLDivElement>(null);
+  const canViewPatient = useHasPermission(P.PATIENTS.VIEW);
+  const canPrintPrescription = useHasAnyPermission([
+    P.OPD.VISIT_UPDATE,
+    P.PHARMACY.PRESCRIPTIONS_VIEW,
+    P.PHARMACY.DISPENSING_CREATE,
+    P.PHARMACY.RX_QUEUE_REVIEW,
+  ]);
+  const canPrint = canViewPatient && canPrintPrescription;
 
   const handlePrint = () => {
+    if (!canPrint) return;
     const content = printRef.current;
     if (!content) return;
 
@@ -40,7 +63,7 @@ export function PrescriptionPrint({
       <!DOCTYPE html>
       <html>
         <head>
-          <title>Prescription — ${patientName}</title>
+          <title>Prescription - ${escapePrintText(patientName)}</title>
           <style>
             * { margin: 0; padding: 0; box-sizing: border-box; }
             body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; padding: 24px; color: #111; }
@@ -81,81 +104,93 @@ export function PrescriptionPrint({
   return (
     <Modal opened={opened} onClose={onClose} title="Prescription Preview" size="lg">
       <Stack>
+        {!canPrint && (
+          <Alert color="orange" variant="light" icon={<IconLock size={16} />}>
+            Prescription printing requires patient view and prescription, dispensing, Rx review, or
+            OPD visit update permission.
+          </Alert>
+        )}
         <div ref={printRef}>
-          <div className={styles.printContainer}>
-            {/* Hospital Header */}
-            <div className={styles.header}>
-              <p className={styles.hospitalName}>{hospitalName ?? "Hospital"}</p>
-              {hospitalAddress && <p className={styles.hospitalInfo}>{hospitalAddress}</p>}
-              {hospitalPhone && <p className={styles.hospitalInfo}>Tel: {hospitalPhone}</p>}
-            </div>
+          {canPrint && (
+            <div className={styles.printContainer}>
+              {/* Hospital Header */}
+              <div className={styles.header}>
+                <p className={styles.hospitalName}>{hospitalName ?? "Hospital"}</p>
+                {hospitalAddress && <p className={styles.hospitalInfo}>{hospitalAddress}</p>}
+                {hospitalPhone && <p className={styles.hospitalInfo}>Tel: {hospitalPhone}</p>}
+              </div>
 
-            {/* Patient Info */}
-            <div className={styles.patientRow}>
-              <div className={styles.patientField}>
-                <span className={styles.fieldLabel}>Patient:</span>
-                <span className={styles.fieldValue}>{patientName}</span>
+              {/* Patient Info */}
+              <div className={styles.patientRow}>
+                <div className={styles.patientField}>
+                  <span className={styles.fieldLabel}>Patient:</span>
+                  <span className={styles.fieldValue}>{patientName}</span>
+                </div>
+                <div className={styles.patientField}>
+                  <span className={styles.fieldLabel}>UHID:</span>
+                  <span className={styles.fieldValue}>{uhid}</span>
+                </div>
+                <div className={styles.patientField}>
+                  <span className={styles.fieldLabel}>Date:</span>
+                  <span className={styles.fieldValue}>{prescDate}</span>
+                </div>
               </div>
-              <div className={styles.patientField}>
-                <span className={styles.fieldLabel}>UHID:</span>
-                <span className={styles.fieldValue}>{uhid}</span>
-              </div>
-              <div className={styles.patientField}>
-                <span className={styles.fieldLabel}>Date:</span>
-                <span className={styles.fieldValue}>{prescDate}</span>
-              </div>
-            </div>
 
-            {/* Rx Symbol + Drug Table */}
-            <div className={styles.rxSymbol}>&#8478;</div>
-            <table className={styles.drugTable}>
-              <thead>
-                <tr>
-                  <th>#</th>
-                  <th>Drug</th>
-                  <th>Dosage</th>
-                  <th>Frequency</th>
-                  <th>Duration</th>
-                  <th>Route</th>
-                </tr>
-              </thead>
-              <tbody>
-                {prescription.items.map((item, idx) => (
-                  <tr key={item.id}>
-                    <td>{idx + 1}</td>
-                    <td className={styles.drugName}>{item.drug_name}</td>
-                    <td>{item.dosage}</td>
-                    <td>{item.frequency}</td>
-                    <td>{item.duration}</td>
-                    <td>{item.route ?? "—"}</td>
+              {/* Rx Symbol + Drug Table */}
+              <div className={styles.rxSymbol}>&#8478;</div>
+              <table className={styles.drugTable}>
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>Drug</th>
+                    <th>Dosage</th>
+                    <th>Frequency</th>
+                    <th>Duration</th>
+                    <th>Route</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {prescription.items.map((item, idx) => (
+                    <tr key={item.id}>
+                      <td>{idx + 1}</td>
+                      <td className={styles.drugName}>{item.drug_name}</td>
+                      <td>{item.dosage}</td>
+                      <td>{item.frequency}</td>
+                      <td>{item.duration}</td>
+                      <td>{item.route ?? "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
 
-            {/* Notes */}
-            {prescription.prescription.notes && (
-              <div className={styles.notes}>
-                <strong>Instructions:</strong> {prescription.prescription.notes}
-              </div>
-            )}
+              {/* Notes */}
+              {prescription.prescription.notes && (
+                <div className={styles.notes}>
+                  <strong>Instructions:</strong> {prescription.prescription.notes}
+                </div>
+              )}
 
-            {/* Footer */}
-            <div className={styles.footer}>
-              <div className={styles.dateSection}>Date: {prescDate}</div>
-              <div className={styles.signatureSection}>
-                {doctorName && <div className={styles.doctorName}>Dr. {doctorName}</div>}
-                <div className={styles.signatureLine}>Signature & Seal</div>
+              {/* Footer */}
+              <div className={styles.footer}>
+                <div className={styles.dateSection}>Date: {prescDate}</div>
+                <div className={styles.signatureSection}>
+                  {doctorName && <div className={styles.doctorName}>Dr. {doctorName}</div>}
+                  <div className={styles.signatureLine}>Signature & Seal</div>
+                </div>
               </div>
             </div>
-          </div>
+          )}
         </div>
 
         <Group justify="flex-end" className={styles.noPrint}>
           <Button variant="subtle" onClick={onClose}>
             Close
           </Button>
-          <Button leftSection={<IconPrinter size={16} />} onClick={handlePrint}>
+          <Button
+            leftSection={<IconPrinter size={16} />}
+            onClick={handlePrint}
+            disabled={!canPrint}
+          >
             Print
           </Button>
         </Group>

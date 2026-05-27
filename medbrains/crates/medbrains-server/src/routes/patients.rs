@@ -1,5 +1,7 @@
 #![allow(clippy::too_many_lines)]
 
+use std::collections::HashMap;
+
 use axum::{
     Extension, Json,
     extract::{Path, Query, State},
@@ -8,6 +10,7 @@ use chrono::{DateTime, NaiveDate, Utc};
 use medbrains_core::billing::InvoiceStatus;
 use medbrains_core::clinical_events::{ClinicalEventEnvelope, ClinicalEventName};
 use medbrains_core::encounter::{EncounterStatus, EncounterType};
+use medbrains_core::form::FieldAccessLevel;
 use medbrains_core::lab::LabOrderStatus;
 use medbrains_core::patient::{
     AddressType, AllergySeverity, AllergyType, BloodGroup, ConsentCaptureMode, ConsentStatus,
@@ -17,6 +20,7 @@ use medbrains_core::patient::{
     PatientInsurance, PatientMergeHistory, RegistrationSource, RegistrationType,
 };
 use medbrains_core::permissions;
+use medbrains_core::privacy::{mask_free_text, mask_identifier_keep_last, mask_name, mask_phone};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -28,6 +32,37 @@ use crate::{
     state::AppState,
     validation::{self, ValidationErrors},
 };
+
+const PATIENT_UHID_FIELD: &str = "patients.uhid";
+const PATIENT_FIRST_NAME_FIELD: &str = "patients.first_name";
+const PATIENT_MIDDLE_NAME_FIELD: &str = "patients.middle_name";
+const PATIENT_LAST_NAME_FIELD: &str = "patients.last_name";
+const PATIENT_FULL_NAME_LOCAL_FIELD: &str = "patients.full_name_local";
+const PATIENT_DATE_OF_BIRTH_FIELD: &str = "patients.date_of_birth";
+const PATIENT_PHONE_FIELD: &str = "patients.phone";
+const PATIENT_PHONE_SECONDARY_FIELD: &str = "patients.phone_secondary";
+const PATIENT_EMAIL_FIELD: &str = "patients.email";
+const PATIENT_ADDRESS_FIELD: &str = "patients.address";
+const PATIENT_ABHA_ID_FIELD: &str = "patients.abha_id";
+const PATIENT_MLC_NUMBER_FIELD: &str = "patients.mlc_number";
+const PATIENT_IDENTIFIER_NUMBER_FIELD: &str = "patients.identifiers.id_number";
+const OPD_SOAP_NOTE_FIELD: &str = "opd.soap_note";
+const BILLING_AMOUNT_FIELD: &str = "billing.amount";
+
+fn opd_soap_note_access(restricted: &HashMap<String, FieldAccessLevel>) -> FieldAccessLevel {
+    restricted
+        .get(OPD_SOAP_NOTE_FIELD)
+        .copied()
+        .unwrap_or(FieldAccessLevel::Edit)
+}
+
+fn should_hide_opd_soap_note(restricted: &HashMap<String, FieldAccessLevel>) -> bool {
+    opd_soap_note_access(restricted) == FieldAccessLevel::Hidden
+}
+
+fn should_mask_opd_soap_note(restricted: &HashMap<String, FieldAccessLevel>) -> bool {
+    opd_soap_note_access(restricted) == FieldAccessLevel::Mask
+}
 
 // ══════════════════════════════════════════════════════════
 //  Query / Request / Response types — Patients
@@ -72,6 +107,169 @@ struct PatientPaymentStatusRow {
     patient_id: Uuid,
     outstanding_balance: Decimal,
     pending_invoice_count: i64,
+}
+
+fn patient_field_access(
+    restricted: &HashMap<String, FieldAccessLevel>,
+    field: &str,
+) -> FieldAccessLevel {
+    restricted
+        .get(field)
+        .copied()
+        .unwrap_or(FieldAccessLevel::Edit)
+}
+
+fn patient_field_is_hidden(restricted: &HashMap<String, FieldAccessLevel>, field: &str) -> bool {
+    patient_field_access(restricted, field) == FieldAccessLevel::Hidden
+}
+
+fn patient_field_is_masked(restricted: &HashMap<String, FieldAccessLevel>, field: &str) -> bool {
+    patient_field_access(restricted, field) == FieldAccessLevel::Mask
+}
+
+fn should_scrub_patient_billing_amount(restricted: &HashMap<String, FieldAccessLevel>) -> bool {
+    matches!(
+        patient_field_access(restricted, BILLING_AMOUNT_FIELD),
+        FieldAccessLevel::Mask | FieldAccessLevel::Hidden
+    )
+}
+
+fn mask_email(value: &str) -> String {
+    let trimmed = value.trim();
+    let Some((local, domain)) = trimmed.split_once('@') else {
+        return mask_free_text(trimmed);
+    };
+    let first = local.chars().next().unwrap_or('X');
+    format!(
+        "{first}{}@{domain}",
+        "X".repeat(local.len().saturating_sub(1).max(3))
+    )
+}
+
+fn mask_json_text(value: serde_json::Value) -> serde_json::Value {
+    if value.is_null() {
+        value
+    } else {
+        serde_json::Value::String(mask_free_text("value"))
+    }
+}
+
+fn filter_patient_response(
+    mut row: Patient,
+    restricted: &HashMap<String, FieldAccessLevel>,
+) -> Patient {
+    if patient_field_is_hidden(restricted, PATIENT_UHID_FIELD) {
+        row.uhid = "Restricted".to_owned();
+    } else if patient_field_is_masked(restricted, PATIENT_UHID_FIELD) {
+        row.uhid = mask_identifier_keep_last(&row.uhid, 4);
+    }
+
+    if patient_field_is_hidden(restricted, PATIENT_FIRST_NAME_FIELD) {
+        row.first_name = "Restricted".to_owned();
+    } else if patient_field_is_masked(restricted, PATIENT_FIRST_NAME_FIELD) {
+        row.first_name = mask_name(&row.first_name);
+    }
+
+    if patient_field_is_hidden(restricted, PATIENT_MIDDLE_NAME_FIELD) {
+        row.middle_name = None;
+    } else if patient_field_is_masked(restricted, PATIENT_MIDDLE_NAME_FIELD) {
+        row.middle_name = row.middle_name.map(|value| mask_name(&value));
+    }
+
+    if patient_field_is_hidden(restricted, PATIENT_LAST_NAME_FIELD) {
+        row.last_name.clear();
+    } else if patient_field_is_masked(restricted, PATIENT_LAST_NAME_FIELD) {
+        row.last_name = mask_name(&row.last_name);
+    }
+
+    if patient_field_is_hidden(restricted, PATIENT_FULL_NAME_LOCAL_FIELD) {
+        row.full_name_local = None;
+    } else if patient_field_is_masked(restricted, PATIENT_FULL_NAME_LOCAL_FIELD) {
+        row.full_name_local = row.full_name_local.map(|value| mask_name(&value));
+    }
+
+    if patient_field_is_hidden(restricted, PATIENT_DATE_OF_BIRTH_FIELD)
+        || patient_field_is_masked(restricted, PATIENT_DATE_OF_BIRTH_FIELD)
+    {
+        row.date_of_birth = None;
+        row.is_dob_estimated = true;
+    }
+
+    if patient_field_is_hidden(restricted, PATIENT_PHONE_FIELD) {
+        row.phone = "Restricted".to_owned();
+    } else if patient_field_is_masked(restricted, PATIENT_PHONE_FIELD) {
+        row.phone = mask_phone(&row.phone);
+    }
+
+    if patient_field_is_hidden(restricted, PATIENT_PHONE_SECONDARY_FIELD) {
+        row.phone_secondary = None;
+    } else if patient_field_is_masked(restricted, PATIENT_PHONE_SECONDARY_FIELD) {
+        row.phone_secondary = row.phone_secondary.map(|value| mask_phone(&value));
+    }
+
+    if patient_field_is_hidden(restricted, PATIENT_EMAIL_FIELD) {
+        row.email = None;
+    } else if patient_field_is_masked(restricted, PATIENT_EMAIL_FIELD) {
+        row.email = row.email.map(|value| mask_email(&value));
+    }
+
+    if patient_field_is_hidden(restricted, PATIENT_ADDRESS_FIELD) {
+        row.address = None;
+    } else if patient_field_is_masked(restricted, PATIENT_ADDRESS_FIELD) {
+        row.address = row.address.map(mask_json_text);
+    }
+
+    if patient_field_is_hidden(restricted, PATIENT_ABHA_ID_FIELD) {
+        row.abha_id = None;
+    } else if patient_field_is_masked(restricted, PATIENT_ABHA_ID_FIELD) {
+        row.abha_id = row
+            .abha_id
+            .map(|value| mask_identifier_keep_last(&value, 4));
+    }
+
+    if patient_field_is_hidden(restricted, PATIENT_MLC_NUMBER_FIELD) {
+        row.mlc_number = None;
+    } else if patient_field_is_masked(restricted, PATIENT_MLC_NUMBER_FIELD) {
+        row.mlc_number = row
+            .mlc_number
+            .map(|value| mask_identifier_keep_last(&value, 4));
+    }
+
+    row
+}
+
+fn can_write_patient_field(restricted: &HashMap<String, FieldAccessLevel>, field: &str) -> bool {
+    patient_field_access(restricted, field) == FieldAccessLevel::Edit
+}
+
+fn validate_patient_identifier_write_access(
+    writes_id_number: bool,
+    restricted: &HashMap<String, FieldAccessLevel>,
+) -> Result<(), AppError> {
+    if writes_id_number && !can_write_patient_field(restricted, PATIENT_IDENTIFIER_NUMBER_FIELD) {
+        return Err(AppError::BadRequest(
+            "Cannot write restricted patient identifier fields".to_owned(),
+        ));
+    }
+
+    Ok(())
+}
+
+fn filter_patient_identifier_response(
+    mut row: PatientIdentifier,
+    restricted: &HashMap<String, FieldAccessLevel>,
+) -> PatientIdentifier {
+    if patient_field_is_hidden(restricted, PATIENT_IDENTIFIER_NUMBER_FIELD) {
+        row.id_number = "Restricted".to_owned();
+        row.id_number_hash = None;
+        row.document_url = None;
+    } else if patient_field_is_masked(restricted, PATIENT_IDENTIFIER_NUMBER_FIELD) {
+        row.id_number = mask_identifier_keep_last(&row.id_number, 4);
+        row.id_number_hash = None;
+        row.document_url = None;
+    }
+
+    row
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -773,6 +971,14 @@ pub async fn list_patients(
     Query(params): Query<ListPatientsQuery>,
 ) -> Result<Json<PatientListResponse>, AppError> {
     require_permission(&claims, permissions::patients::LIST)?;
+    let restricted = field_access::resolve_restricted_fields(
+        &state.db,
+        claims.tenant_id,
+        claims.sub,
+        &claims.role,
+    )
+    .await?;
+    let scrub_billing_amount = should_scrub_patient_billing_amount(&restricted);
     let page = params.page.unwrap_or(1).max(1);
     let per_page = params.per_page.unwrap_or(20).clamp(1, 100);
     let offset = (page - 1) * per_page;
@@ -973,7 +1179,7 @@ pub async fn list_patients(
     let payment_status = payment_status_rows
         .into_iter()
         .map(|row| (row.patient_id, row))
-        .collect::<std::collections::HashMap<_, _>>();
+        .collect::<HashMap<_, _>>();
 
     tx.commit().await?;
 
@@ -992,7 +1198,7 @@ pub async fn list_patients(
         })
         .collect();
     let perms_map = if patients_raw.is_empty() {
-        std::collections::HashMap::new()
+        HashMap::new()
     } else {
         state
             .authz
@@ -1031,11 +1237,19 @@ pub async fn list_patients(
                 }
             };
             PatientWithPerms {
-                patient: p,
-                outstanding_balance: billing
-                    .map(|row| row.outstanding_balance)
-                    .unwrap_or(Decimal::ZERO),
-                pending_invoice_count: billing.map(|row| row.pending_invoice_count).unwrap_or(0),
+                patient: filter_patient_response(p, &restricted),
+                outstanding_balance: if scrub_billing_amount {
+                    Decimal::ZERO
+                } else {
+                    billing
+                        .map(|row| row.outstanding_balance)
+                        .unwrap_or(Decimal::ZERO)
+                },
+                pending_invoice_count: if scrub_billing_amount {
+                    0
+                } else {
+                    billing.map(|row| row.pending_invoice_count).unwrap_or(0)
+                },
                 perms,
             }
         })
@@ -1311,7 +1525,7 @@ pub async fn create_patient(
     )
     .await;
 
-    Ok(Json(patient))
+    Ok(Json(filter_patient_response(patient, &restricted)))
 }
 
 // ══════════════════════════════════════════════════════════
@@ -1324,6 +1538,13 @@ pub async fn get_patient(
     Path(id): Path<Uuid>,
 ) -> Result<Json<Patient>, AppError> {
     require_permission(&claims, permissions::patients::VIEW)?;
+    let restricted = field_access::resolve_restricted_fields(
+        &state.db,
+        claims.tenant_id,
+        claims.sub,
+        &claims.role,
+    )
+    .await?;
 
     // ── ReBAC pre-check — must hold `view` on the specific patient ──
     let authz_ctx = crate::middleware::authorization::authz_context(&claims);
@@ -1365,7 +1586,10 @@ pub async fn get_patient(
 
     tx.commit().await?;
 
-    patient.map_or_else(|| Err(AppError::NotFound), |p| Ok(Json(p)))
+    patient.map_or_else(
+        || Err(AppError::NotFound),
+        |p| Ok(Json(filter_patient_response(p, &restricted))),
+    )
 }
 
 // ══════════════════════════════════════════════════════════
@@ -1523,7 +1747,10 @@ pub async fn update_patient(
 
     tx.commit().await?;
 
-    patient.map_or_else(|| Err(AppError::NotFound), |p| Ok(Json(p)))
+    patient.map_or_else(
+        || Err(AppError::NotFound),
+        |p| Ok(Json(filter_patient_response(p, &restricted))),
+    )
 }
 
 // ══════════════════════════════════════════════════════════
@@ -1536,6 +1763,14 @@ pub async fn list_patient_identifiers(
     Path(patient_id): Path<Uuid>,
 ) -> Result<Json<Vec<PatientIdentifier>>, AppError> {
     require_permission(&claims, permissions::patients::VIEW)?;
+    let restricted = field_access::resolve_restricted_fields(
+        &state.db,
+        claims.tenant_id,
+        claims.sub,
+        &claims.role,
+    )
+    .await?;
+
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -1552,7 +1787,11 @@ pub async fn list_patient_identifiers(
     .await?;
 
     tx.commit().await?;
-    Ok(Json(rows))
+    Ok(Json(
+        rows.into_iter()
+            .map(|row| filter_patient_identifier_response(row, &restricted))
+            .collect(),
+    ))
 }
 
 pub async fn create_patient_identifier(
@@ -1562,6 +1801,14 @@ pub async fn create_patient_identifier(
     Json(body): Json<CreateIdentifierRequest>,
 ) -> Result<Json<PatientIdentifier>, AppError> {
     require_permission(&claims, permissions::patients::UPDATE)?;
+    let restricted = field_access::resolve_restricted_fields(
+        &state.db,
+        claims.tenant_id,
+        claims.sub,
+        &claims.role,
+    )
+    .await?;
+    validate_patient_identifier_write_access(true, &restricted)?;
 
     let mut errors = ValidationErrors::new();
     if body.id_number.is_empty() {
@@ -1604,7 +1851,7 @@ pub async fn create_patient_identifier(
     .await?;
 
     tx.commit().await?;
-    Ok(Json(row))
+    Ok(Json(filter_patient_identifier_response(row, &restricted)))
 }
 
 pub async fn update_patient_identifier(
@@ -1614,6 +1861,14 @@ pub async fn update_patient_identifier(
     Json(body): Json<UpdateIdentifierRequest>,
 ) -> Result<Json<PatientIdentifier>, AppError> {
     require_permission(&claims, permissions::patients::UPDATE)?;
+    let restricted = field_access::resolve_restricted_fields(
+        &state.db,
+        claims.tenant_id,
+        claims.sub,
+        &claims.role,
+    )
+    .await?;
+    validate_patient_identifier_write_access(body.id_number.is_some(), &restricted)?;
 
     let id_type_str = body.id_type.map(|t| enum_to_str(&t));
 
@@ -1655,7 +1910,10 @@ pub async fn update_patient_identifier(
     .await?;
 
     tx.commit().await?;
-    row.map_or_else(|| Err(AppError::NotFound), |r| Ok(Json(r)))
+    row.map_or_else(
+        || Err(AppError::NotFound),
+        |r| Ok(Json(filter_patient_identifier_response(r, &restricted))),
+    )
 }
 
 pub async fn delete_patient_identifier(
@@ -2748,6 +3006,42 @@ pub struct PatientConsultationHistoryRow {
     pub updated_at: DateTime<Utc>,
 }
 
+fn filter_patient_visit_consultation_response(
+    mut row: PatientVisitRow,
+    restricted: &HashMap<String, FieldAccessLevel>,
+) -> PatientVisitRow {
+    if should_hide_opd_soap_note(restricted) {
+        row.chief_complaint = None;
+    } else if should_mask_opd_soap_note(restricted) {
+        row.chief_complaint = row.chief_complaint.map(|value| mask_free_text(&value));
+    }
+    row
+}
+
+fn filter_patient_consultation_response(
+    mut row: PatientConsultationHistoryRow,
+    restricted: &HashMap<String, FieldAccessLevel>,
+) -> PatientConsultationHistoryRow {
+    if should_hide_opd_soap_note(restricted) {
+        row.chief_complaint = None;
+        row.history = None;
+        row.examination = None;
+        row.plan = None;
+        row.notes = None;
+        row.hpi = None;
+        row.general_appearance = None;
+    } else if should_mask_opd_soap_note(restricted) {
+        row.chief_complaint = row.chief_complaint.map(|value| mask_free_text(&value));
+        row.history = row.history.map(|value| mask_free_text(&value));
+        row.examination = row.examination.map(|value| mask_free_text(&value));
+        row.plan = row.plan.map(|value| mask_free_text(&value));
+        row.notes = row.notes.map(|value| mask_free_text(&value));
+        row.hpi = row.hpi.map(|value| mask_free_text(&value));
+        row.general_appearance = row.general_appearance.map(|value| mask_free_text(&value));
+    }
+    row
+}
+
 /// GET /api/patients/{id}/visits — list encounters for a patient.
 pub async fn list_patient_visits(
     Extension(claims): Extension<Claims>,
@@ -2785,6 +3079,17 @@ pub async fn list_patient_visits(
     .await?;
 
     tx.commit().await?;
+    let restricted_fields = field_access::resolve_restricted_fields(
+        &state.db,
+        claims.tenant_id,
+        claims.sub,
+        &claims.role,
+    )
+    .await?;
+    let rows = rows
+        .into_iter()
+        .map(|row| filter_patient_visit_consultation_response(row, &restricted_fields))
+        .collect();
     Ok(Json(rows))
 }
 
@@ -2831,6 +3136,17 @@ pub async fn list_patient_consultations(
     .await?;
 
     tx.commit().await?;
+    let restricted_fields = field_access::resolve_restricted_fields(
+        &state.db,
+        claims.tenant_id,
+        claims.sub,
+        &claims.role,
+    )
+    .await?;
+    let rows = rows
+        .into_iter()
+        .map(|row| filter_patient_consultation_response(row, &restricted_fields))
+        .collect();
     Ok(Json(rows))
 }
 
@@ -2854,6 +3170,7 @@ pub async fn list_patient_lab_orders(
     Path(patient_id): Path<Uuid>,
 ) -> Result<Json<Vec<PatientLabOrderRow>>, AppError> {
     require_permission(&claims, permissions::patients::VIEW)?;
+    require_permission(&claims, permissions::lab::orders::LIST)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)

@@ -26,6 +26,15 @@ export const patientDetailService = {
     api.getPriorRadiologyDicomStudies(...args),
   listPatientInvoices: (...args: Parameters<typeof api.listPatientInvoices>) =>
     api.listPatientInvoices(...args),
+  listPatientAdmissions: (patientId: string, status?: string) =>
+    api.listAdmissions({
+      patient_id: patientId,
+      ...(status ? { status } : {}),
+    }),
+  getAdmissionBillingSummary: (...args: Parameters<typeof api.getAdmissionBillingSummary>) =>
+    api.getAdmissionBillingSummary(...args),
+  getInvoicePrintData: (...args: Parameters<typeof api.getInvoicePrintData>) =>
+    api.getInvoicePrintData(...args),
   listPatientAppointments: (...args: Parameters<typeof api.listPatientAppointments>) =>
     api.listPatientAppointments(...args),
   listFamilyLinks: (...args: Parameters<typeof api.listFamilyLinks>) =>

@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CERT_DIR="$ROOT_DIR/var/local-https"
 DOMAIN="${DEV_HTTPS_DOMAIN:-medbrains.localhost}"
-ALT_DOMAINS="${DEV_HTTPS_ALT_DOMAINS:-medbrains-desktop.localhost}"
+ALT_DOMAINS="${DEV_HTTPS_ALT_DOMAINS:-medbrains-desktop.localhost,medbrains-simulator.localhost,medbrains-icd.localhost}"
 CERT_PATH="$CERT_DIR/$DOMAIN.pem"
 KEY_PATH="$CERT_DIR/$DOMAIN-key.pem"
 

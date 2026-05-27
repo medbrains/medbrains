@@ -98,12 +98,13 @@ export function BreakGlassReviewTab() {
   const { data: events = [], isLoading } = useQuery({
     queryKey: ["break-glass", filter],
     queryFn: () => auditService.listBreakGlass(queryForFilter(filter)),
+    enabled: canReview,
   });
 
   const { data: selectedEvent, isLoading: detailLoading } = useQuery({
     queryKey: ["break-glass", selectedId],
     queryFn: () => auditService.getBreakGlass(selectedId ?? ""),
-    enabled: !!selectedId,
+    enabled: canReview && !!selectedId,
   });
 
   const reviewMutation = useMutation({
@@ -132,6 +133,14 @@ export function BreakGlassReviewTab() {
     setReviewNotes("");
     openDetail();
   };
+
+  if (!canReview) {
+    return (
+      <Text c="dimmed" ta="center" py="xl">
+        Break-glass evidence is restricted to review users.
+      </Text>
+    );
+  }
 
   const columns: Column<BreakGlassEventSummary>[] = [
     {

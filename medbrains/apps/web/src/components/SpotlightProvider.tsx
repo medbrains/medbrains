@@ -30,6 +30,7 @@ interface SpotlightEntry {
   icon: ReactNode;
   group: string;
   requiredPermission?: string;
+  requiredPermissions?: readonly string[];
   keywords?: string[];
 }
 
@@ -69,6 +70,7 @@ function buildNavEntries(t: (key: string) => string): SpotlightEntry[] {
         icon: resolveIcon(item.icon, 18, 1.5),
         group: "Navigation",
         requiredPermission: item.requiredPermission,
+        requiredPermissions: item.requiredPermissions,
       });
     }
   }
@@ -86,7 +88,7 @@ const QUICK_ACTIONS: SpotlightEntry[] = [
     id: "action-new-patient",
     label: "Create New Patient",
     description: "Register a new patient",
-    path: "/patients",
+    path: "/patients/register",
     icon: <IconUserPlus size={18} stroke={1.5} />,
     group: "Quick Actions",
     requiredPermission: "patients.create",
@@ -96,7 +98,7 @@ const QUICK_ACTIONS: SpotlightEntry[] = [
     id: "action-new-opd",
     label: "New OPD Visit",
     description: "Start an outpatient visit",
-    path: "/opd",
+    path: "/opd/new",
     icon: <IconReportMedical size={18} stroke={1.5} />,
     group: "Quick Actions",
     requiredPermission: "opd.visit.create",
@@ -134,7 +136,13 @@ export function SpotlightProvider() {
   const allEntries = useMemo(() => [...buildNavEntries(t), ...QUICK_ACTIONS], [t]);
 
   const permittedEntries = useMemo(
-    () => allEntries.filter((e) => !e.requiredPermission || hasPermission(e.requiredPermission)),
+    () =>
+      allEntries.filter(
+        (e) =>
+          (!e.requiredPermission || hasPermission(e.requiredPermission)) &&
+          (!e.requiredPermissions ||
+            e.requiredPermissions.some((permission) => hasPermission(permission))),
+      ),
     [allEntries, hasPermission],
   );
 

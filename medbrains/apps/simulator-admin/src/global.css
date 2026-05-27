@@ -1,0 +1,42 @@
+:root {
+  --sim-scrollbar-track: color-mix(in srgb, #111827 82%, transparent);
+  --sim-scrollbar-thumb: color-mix(in srgb, #14b8a6 62%, #f59e0b);
+  --sim-scrollbar-thumb-hover: color-mix(in srgb, #0ea5e9 48%, #f97316);
+}
+
+html {
+  scrollbar-color: var(--sim-scrollbar-thumb) var(--sim-scrollbar-track);
+  scrollbar-width: thin;
+}
+
+* {
+  scrollbar-color: var(--sim-scrollbar-thumb) var(--sim-scrollbar-track);
+  scrollbar-width: thin;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--sim-scrollbar-track);
+}
+
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(
+    180deg,
+    var(--sim-scrollbar-thumb),
+    var(--sim-scrollbar-thumb-hover)
+  );
+  border: 2px solid var(--sim-scrollbar-track);
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--sim-scrollbar-thumb-hover);
+}
+
+::-webkit-scrollbar-corner {
+  background: var(--sim-scrollbar-track);
+}

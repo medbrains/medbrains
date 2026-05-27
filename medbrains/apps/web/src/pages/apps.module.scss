@@ -1,0 +1,140 @@
+.page {
+  min-height: calc(100vh - 96px);
+}
+
+.hero {
+  margin-bottom: 18px;
+}
+
+.grid {
+  align-items: stretch;
+}
+
+.card {
+  position: relative;
+  overflow: hidden;
+  min-height: 190px;
+  padding: 18px;
+  border: 1px solid var(--mb-border);
+  border-radius: 12px;
+  background: var(--mb-card-bg);
+  cursor: pointer;
+  transition:
+    border-color 180ms ease,
+    box-shadow 180ms ease,
+    transform 180ms cubic-bezier(0.22, 1, 0.36, 1);
+
+  &::before {
+    content: "";
+    position: absolute;
+    inset: 0 0 auto;
+    height: 5px;
+    background: var(--workspace-gradient);
+  }
+
+  &::after {
+    content: "";
+    position: absolute;
+    inset: -30% auto auto -30%;
+    width: 150px;
+    height: 150px;
+    border-radius: 999px;
+    background: var(--workspace-gradient);
+    opacity: 0.1;
+    filter: blur(4px);
+    transition:
+      opacity 180ms ease,
+      transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  &:hover {
+    border-color: var(--mb-active-border, var(--mb-text-faint));
+    box-shadow: 0 18px 42px rgba(15, 23, 42, 0.12);
+    transform: translateY(-3px);
+
+    &::after {
+      opacity: 0.18;
+      transform: scale(1.12);
+    }
+  }
+}
+
+.iconShell {
+  position: relative;
+  overflow: hidden;
+  width: 46px;
+  height: 46px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 14px;
+  color: white;
+  background: var(--workspace-gradient);
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.16);
+
+  &::after {
+    content: "";
+    position: absolute;
+    inset: -45%;
+    background: linear-gradient(120deg, transparent 30%, rgba(255, 255, 255, 0.45), transparent 70%);
+    transform: translateX(-70%) rotate(18deg);
+    animation: appCardShine 3s ease-in-out infinite;
+  }
+
+  > * {
+    position: relative;
+    z-index: 1;
+    animation: appCardIcon 2.5s ease-in-out infinite;
+  }
+}
+
+.arrow {
+  color: var(--mb-text-muted);
+  transition:
+    color 160ms ease,
+    transform 160ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.card:hover .arrow {
+  color: var(--mb-text-primary);
+  transform: translateX(3px);
+}
+
+.empty {
+  max-width: 620px;
+  margin: 56px auto 0;
+}
+
+@keyframes appCardShine {
+  0%,
+  55%,
+  100% {
+    transform: translateX(-70%) rotate(18deg);
+  }
+  75% {
+    transform: translateX(70%) rotate(18deg);
+  }
+}
+
+@keyframes appCardIcon {
+  0%,
+  100% {
+    transform: translateY(0) scale(1);
+  }
+  50% {
+    transform: translateY(-2px) scale(1.08);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card,
+  .card::after,
+  .arrow {
+    transition: none;
+  }
+
+  .iconShell::after,
+  .iconShell > * {
+    animation: none;
+  }
+}

@@ -118,6 +118,13 @@ const CHARGES: &[(&str, &str, &str, &str, &str)] = &[
         "0.00",
     ),
     (
+        "ROOM_PICU",
+        "PICU Bed (per day)",
+        "Room Charges",
+        "7000.00",
+        "0.00",
+    ),
+    (
         "ROOM_HDU",
         "HDU Bed (per day)",
         "Room Charges",
@@ -129,6 +136,13 @@ const CHARGES: &[(&str, &str, &str, &str, &str)] = &[
         "Isolation Room (per day)",
         "Room Charges",
         "4000.00",
+        "0.00",
+    ),
+    (
+        "ROOM_NURSERY",
+        "Nursery Bed (per day)",
+        "Room Charges",
+        "2000.00",
         "0.00",
     ),
     (

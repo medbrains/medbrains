@@ -21,7 +21,9 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{
-    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
+    error::AppError,
+    middleware::auth::Claims,
+    middleware::authorization::{require_any_permission, require_permission},
     state::AppState,
 };
 
@@ -62,7 +64,13 @@ pub async fn list_handoff_entries(
     Extension(claims): Extension<Claims>,
     Path(shift_id): Path<String>,
 ) -> Result<Json<Vec<HandoffEntry>>, AppError> {
-    require_permission(&claims, permissions::nurse::handoff_entries::VIEW)?;
+    require_any_permission(
+        &claims,
+        &[
+            permissions::nurse::handoff::VIEW,
+            permissions::nurse::handoff_entries::VIEW,
+        ],
+    )?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -86,7 +94,13 @@ pub async fn create_handoff_entry(
     Path(shift_id): Path<String>,
     Json(body): Json<CreateHandoffEntry>,
 ) -> Result<Json<HandoffEntry>, AppError> {
-    require_permission(&claims, permissions::nurse::handoff_entries::RECORD)?;
+    require_any_permission(
+        &claims,
+        &[
+            permissions::nurse::handoff::RECORD,
+            permissions::nurse::handoff_entries::RECORD,
+        ],
+    )?;
     if !matches!(body.category.as_str(), "alert" | "info" | "task") {
         return Err(AppError::BadRequest(format!(
             "category must be alert | info | task, got {}",
@@ -146,7 +160,13 @@ pub async fn list_triage_entries(
     Extension(claims): Extension<Claims>,
     Path(visit_id): Path<Uuid>,
 ) -> Result<Json<Vec<TriageEntry>>, AppError> {
-    require_permission(&claims, permissions::emergency::triage::LIST)?;
+    require_any_permission(
+        &claims,
+        &[
+            permissions::emergency::triage::LIST,
+            permissions::emergency::triage::CREATE,
+        ],
+    )?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -326,7 +346,13 @@ pub async fn get_nursing_shift_notes(
     Extension(claims): Extension<Claims>,
     Path(shift_id): Path<String>,
 ) -> Result<Json<NursingShiftNotes>, AppError> {
-    require_permission(&claims, permissions::nurse::shift_notes::VIEW)?;
+    require_any_permission(
+        &claims,
+        &[
+            permissions::nurse::handoff::VIEW,
+            permissions::nurse::shift_notes::VIEW,
+        ],
+    )?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -355,7 +381,13 @@ pub async fn update_nursing_shift_notes(
     Path(shift_id): Path<String>,
     Json(body): Json<UpdateNursingShiftNotes>,
 ) -> Result<Json<NursingShiftNotes>, AppError> {
-    require_permission(&claims, permissions::nurse::shift_notes::EDIT)?;
+    require_any_permission(
+        &claims,
+        &[
+            permissions::nurse::handoff::RECORD,
+            permissions::nurse::shift_notes::EDIT,
+        ],
+    )?;
     let author = author_display_name(&state.db, claims.sub).await?;
 
     let mut tx = state.db.begin().await?;

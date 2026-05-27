@@ -19,7 +19,9 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{
-    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
+    error::AppError,
+    middleware::auth::Claims,
+    middleware::authorization::{require_any_permission, require_permission},
     state::AppState,
 };
 
@@ -903,7 +905,14 @@ pub async fn list_catalog(
     Extension(claims): Extension<Claims>,
     Query(params): Query<ListCatalogQuery>,
 ) -> Result<Json<Vec<StoreCatalog>>, AppError> {
-    require_permission(&claims, permissions::indent::LIST)?;
+    require_any_permission(
+        &claims,
+        &[
+            permissions::indent::LIST,
+            permissions::pharmacy::stores::LIST,
+            permissions::pharmacy::stores::MANAGE,
+        ],
+    )?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;

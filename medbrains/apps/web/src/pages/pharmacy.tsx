@@ -9,6 +9,7 @@ import {
   Group,
   Loader,
   Modal,
+  MultiSelect,
   NumberInput,
   SegmentedControl,
   Select,
@@ -26,28 +27,31 @@ import { notifications } from "@mantine/notifications";
 import type {
   PharmacyCatalogFormInput,
   PharmacyNdpsEntryFormInput,
+  PharmacyPosReturnFormInput,
   PharmacyPosSaleFormInput,
+  PharmacyReturnRequestFormInput,
   PharmacyRxReviewFormInput,
-  PharmacyStockTransactionFormInput,
 } from "@medbrains/schemas";
 import {
   pharmacyCatalogFormSchema,
   pharmacyNdpsEntryFormSchema,
+  pharmacyPosReturnFormSchema,
   pharmacyPosSaleFormSchema,
+  pharmacyReturnRequestFormSchema,
   pharmacyRxReviewFormSchema,
-  pharmacyStockTransactionFormSchema,
 } from "@medbrains/schemas";
-import { useHasPermission } from "@medbrains/stores";
+import { useFieldAccess, useHasPermission } from "@medbrains/stores";
 import type {
   ComplianceSettings,
   CreateNdpsEntryRequest,
   CreateOtcSaleRequest,
+  CreatePharmacyBatchRequest,
   CreatePharmacyCatalogRequest,
   CreatePharmacyOrderRequest,
-  CreateStockTransactionRequest,
   DrugInteractionCheckRequest,
   DrugInteractionResult,
   DrugUtilizationRow,
+  FieldAccessLevel,
   FormularyCheckResult,
   NdpsRegisterEntry,
   NearExpiryRow,
@@ -60,6 +64,9 @@ import type {
   PharmacyOrderDetailResponse,
   PharmacyOrderItemInput,
   PharmacyPosSale,
+  PharmacyPosSaleItem,
+  PharmacyReturn,
+  PharmacyReturnStatusType,
   PharmacyRxDetailItem,
   PharmacyRxDetailResponse,
   PharmacyRxReviewItemInput,
@@ -71,6 +78,7 @@ import type {
   TenantSettingsRow,
 } from "@medbrains/types";
 import { P } from "@medbrains/types";
+import { fieldAccessText } from "@medbrains/utils";
 import {
   IconAlertTriangle,
   IconCashRegister,
@@ -92,15 +100,18 @@ import {
   IconX,
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { ReactNode } from "react";
 import { useMemo, useState } from "react";
 import { Controller, useFieldArray, useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
+import { useNavigate, useSearchParams } from "react-router";
 import {
   ClinicalEventProvider,
   DataTable,
   PageHeader,
   PrescriptionViews,
   StatusDot,
+  TableValueBadge,
   useClinicalEmit,
 } from "../components";
 import { DrugSearchSelect } from "../components/DrugSearchSelect";
@@ -108,6 +119,7 @@ import { PatientContextBanner } from "../components/Patient/PatientContextBanner
 import { PatientNameCell } from "../components/PatientNameCell";
 import { PatientSearchSelect } from "../components/PatientSearchSelect";
 import { CreditNotesTab } from "../components/Pharmacy/CreditNotesTab";
+import { MedicineOrderLineCard } from "../components/Pharmacy/MedicineOrderLineCard";
 import { PharmacyDispensingView } from "../components/Pharmacy/PharmacyDispensingView";
 import { PharmacyLabel } from "../components/Pharmacy/PharmacyLabel";
 import { StoreIndentsTab } from "../components/Pharmacy/StoreIndentsTab";
@@ -120,7 +132,6 @@ import {
   ndpsActionOptions,
   optionalFormText,
   pharmacyPosPaymentModeOptions,
-  stockTransactionTypeOptions,
 } from "../forms/pharmacy.form";
 import { usePatientName } from "../hooks/usePatientName";
 import { useRequirePermission } from "../hooks/useRequirePermission";
@@ -129,9 +140,12 @@ import { pharmacyService } from "../services/pharmacy.service";
 import styles from "./pharmacy.module.scss";
 
 const statusColors: Record<string, string> = {
+  completed: "success",
   ordered: "primary",
   dispensed: "success",
   cancelled: "danger",
+  partially_cancelled: "warning",
+  refunded: "indigo",
   returned: "orange",
 };
 
@@ -144,14 +158,171 @@ const dispensingTypeLabels: Record<string, string> = {
 };
 
 type DraftPharmacyOrderItem = PharmacyOrderItemInput & {
+  row_id: string;
   catalog_item_id?: string;
   tax_percent?: number;
 };
 
 type PharmacyPosSaleLine = PharmacyPosSaleFormInput["items"][number];
+type PharmacyPosReturnLine = PharmacyPosReturnFormInput["items"][number];
 
 function formatInr(value: number) {
   return `₹${Number.isFinite(value) ? value.toFixed(2) : "0.00"}`;
+}
+
+type PatientOrderForReturnLookup = Awaited<
+  ReturnType<typeof pharmacyService.listPatientOrdersForReturn>
+>[number];
+
+type ReturnableOrderItem = {
+  orderId: string;
+  orderDate: string;
+  orderStatus: string;
+  itemId: string;
+  drugName: string;
+  batchNumber: string | null;
+  quantity: number;
+  returnedQuantity: number;
+  remainingQuantity: number;
+};
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function parseJsonArray(value: string): unknown[] {
+  try {
+    const parsed: unknown = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function unknownString(value: unknown) {
+  return typeof value === "string" ? value : "";
+}
+
+function unknownNullableString(value: unknown) {
+  const parsed = unknownString(value);
+  return parsed.length > 0 ? parsed : null;
+}
+
+function unknownNumber(value: unknown, fallback: number) {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string") {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return fallback;
+}
+
+function normalizeReturnableItems(order: PatientOrderForReturnLookup): ReturnableOrderItem[] {
+  const rawItems =
+    typeof order.items === "string"
+      ? parseJsonArray(order.items)
+      : Array.isArray(order.items)
+        ? order.items
+        : [];
+
+  return rawItems
+    .filter(isRecord)
+    .map((item) => ({
+      orderId: order.order_id,
+      orderDate: order.order_date,
+      orderStatus: order.status,
+      itemId: unknownString(item.item_id),
+      drugName: unknownString(item.drug_name),
+      batchNumber: unknownNullableString(item.batch_number),
+      quantity: unknownNumber(item.quantity, 0),
+      returnedQuantity: unknownNumber(item.returned_quantity, 0),
+      remainingQuantity: unknownNumber(
+        item.remaining_quantity,
+        unknownNumber(item.quantity, 0) - unknownNumber(item.returned_quantity, 0),
+      ),
+    }))
+    .filter(
+      (item) =>
+        item.itemId.length > 0 &&
+        item.drugName.length > 0 &&
+        item.quantity > 0 &&
+        item.remainingQuantity > 0,
+    );
+}
+
+function canViewPharmacyField(access: FieldAccessLevel) {
+  return access !== "hidden";
+}
+
+function canViewUnmaskedPharmacyField(access: FieldAccessLevel) {
+  return access === "view" || access === "edit";
+}
+
+function canEditPharmacyField(access: FieldAccessLevel) {
+  return access === "edit";
+}
+
+function PharmacyRestrictedValue() {
+  return (
+    <Text span size="sm" c="dimmed">
+      Restricted
+    </Text>
+  );
+}
+
+function PharmacyPatientCell({
+  patientId,
+  canViewPatientRecord,
+}: {
+  patientId: string | null | undefined;
+  canViewPatientRecord: boolean;
+}) {
+  if (!patientId) {
+    return (
+      <Text span size="sm" c="dimmed">
+        Walk-in
+      </Text>
+    );
+  }
+  if (!canViewPatientRecord) {
+    return <PharmacyRestrictedValue />;
+  }
+  return <PatientNameCell patientId={patientId} showUhid={false} />;
+}
+
+function PharmacyPatientContext({
+  patientId,
+  canViewPatientRecord,
+}: {
+  patientId: string | null | undefined;
+  canViewPatientRecord: boolean;
+}) {
+  if (!patientId) return null;
+  if (!canViewPatientRecord) {
+    return (
+      <Alert color="gray" variant="light" title="Patient context restricted">
+        Patient identity and demographics are hidden for this pharmacy role.
+      </Alert>
+    );
+  }
+  return <PatientContextBanner patientId={patientId} hideLoadingState />;
+}
+
+function renderPharmacySensitiveValue(access: FieldAccessLevel, value: string | null | undefined) {
+  return fieldAccessText(access, value);
+}
+
+function renderPharmacySensitiveCurrency(
+  access: FieldAccessLevel,
+  value: string | number | null | undefined,
+) {
+  if (!canViewUnmaskedPharmacyField(access)) {
+    return <PharmacyRestrictedValue />;
+  }
+  if (value === null || value === undefined || value === "") {
+    return "—";
+  }
+  return formatInr(Number(value));
 }
 
 function posSaleLineQuantity(item: PharmacyPosSaleLine) {
@@ -159,6 +330,18 @@ function posSaleLineQuantity(item: PharmacyPosSaleLine) {
 }
 
 function posSaleLinePrice(item: PharmacyPosSaleLine) {
+  return formNumberOrFallback(item.unit_price, 0);
+}
+
+function posSaleItemReturnableQuantity(item: PharmacyPosSaleItem) {
+  return Math.max(0, Number(item.quantity ?? 0) - Number(item.cancelled_qty ?? 0));
+}
+
+function posReturnLineQuantity(item: PharmacyPosReturnLine) {
+  return formIntegerOrFallback(item.return_qty, 0);
+}
+
+function posReturnLinePrice(item: PharmacyPosReturnLine) {
   return formNumberOrFallback(item.unit_price, 0);
 }
 
@@ -171,10 +354,6 @@ function draftItemTaxAmount(item: DraftPharmacyOrderItem) {
   return item.quantity * item.unit_price * ((item.tax_percent ?? 0) / 100);
 }
 
-function draftItemTotal(item: DraftPharmacyOrderItem) {
-  return item.quantity * item.unit_price + draftItemTaxAmount(item);
-}
-
 function draftTotals(items: DraftPharmacyOrderItem[]) {
   const subtotal = items.reduce((sum, item) => sum + item.quantity * item.unit_price, 0);
   const tax = items.reduce((sum, item) => sum + draftItemTaxAmount(item), 0);
@@ -183,6 +362,25 @@ function draftTotals(items: DraftPharmacyOrderItem[]) {
     tax,
     total: subtotal + tax,
   };
+}
+
+function newDraftPharmacyOrderItem(): DraftPharmacyOrderItem {
+  return {
+    row_id: crypto.randomUUID(),
+    drug_name: "",
+    quantity: 1,
+    unit_price: 0,
+    tax_percent: 0,
+  };
+}
+
+function draftPharmacyOrderItemsPayload(items: DraftPharmacyOrderItem[]): PharmacyOrderItemInput[] {
+  return items.map(({ catalog_item_id, drug_name, quantity, unit_price }) => ({
+    catalog_item_id,
+    drug_name,
+    quantity,
+    unit_price,
+  }));
 }
 
 function rxReviewInputFromItem(item: PharmacyRxDetailItem): PharmacyRxReviewItemInput {
@@ -250,6 +448,146 @@ function rxHasPriceOverride(
   });
 }
 
+type BulkBatchLine = {
+  id: string;
+  catalog_item_id: string;
+  product_name: string;
+  tax_percent: number;
+  current_stock: number;
+  reorder_level: number;
+  batch_number: string;
+  supplier_batch_number: string;
+  expiry_date: string;
+  manufacture_date: string;
+  grn_reference: string;
+  storage_conditions: string;
+  rack_bin: string;
+  purchase_rate: number | "";
+  mrp: number | "";
+  paid_quantity: number | "";
+  free_quantity: number | "";
+};
+
+type BulkBatchHeader = {
+  invoice_mode: "cash" | "credit";
+  invoice_date: string;
+  invoice_number: string;
+  invoice_amount: number | "";
+  supplier_name: string;
+  store_location_id: string;
+  payment_terms: string;
+};
+
+function todayInputDate() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function newBulkBatchHeader(): BulkBatchHeader {
+  return {
+    invoice_mode: "credit",
+    invoice_date: todayInputDate(),
+    invoice_number: "",
+    invoice_amount: "",
+    supplier_name: "",
+    store_location_id: "",
+    payment_terms: "",
+  };
+}
+
+function newBulkBatchLine(): BulkBatchLine {
+  return {
+    id: crypto.randomUUID(),
+    catalog_item_id: "",
+    product_name: "",
+    tax_percent: 0,
+    current_stock: 0,
+    reorder_level: 0,
+    batch_number: "",
+    supplier_batch_number: "",
+    expiry_date: "",
+    manufacture_date: "",
+    grn_reference: "",
+    storage_conditions: "",
+    rack_bin: "",
+    purchase_rate: "",
+    mrp: "",
+    paid_quantity: 0,
+    free_quantity: 0,
+  };
+}
+
+function batchLineNumber(value: number | "") {
+  return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
+
+function batchLineTotalQuantity(row: BulkBatchLine) {
+  return batchLineNumber(row.paid_quantity) + batchLineNumber(row.free_quantity);
+}
+
+function batchLineTaxableAmount(row: BulkBatchLine) {
+  return batchLineNumber(row.paid_quantity) * batchLineNumber(row.purchase_rate);
+}
+
+function batchLineTaxAmount(row: BulkBatchLine) {
+  return batchLineTaxableAmount(row) * (row.tax_percent / 100);
+}
+
+function isBatchLineBelowReorder(row: BulkBatchLine) {
+  return row.catalog_item_id.trim().length > 0 && row.current_stock <= row.reorder_level;
+}
+
+function isBatchLinePriceValid(row: BulkBatchLine) {
+  return row.purchase_rate === "" || row.mrp === "" || row.purchase_rate <= row.mrp;
+}
+
+function isBulkBatchLineReady(row: BulkBatchLine) {
+  return (
+    row.catalog_item_id.trim().length > 0 &&
+    row.batch_number.trim().length > 0 &&
+    row.expiry_date.trim().length > 0 &&
+    batchLineTotalQuantity(row) > 0 &&
+    isBatchLinePriceValid(row)
+  );
+}
+
+function buildBatchPayload(
+  row: BulkBatchLine,
+  header: BulkBatchHeader,
+): CreatePharmacyBatchRequest {
+  const paidQty = batchLineNumber(row.paid_quantity);
+  const freeQty = batchLineNumber(row.free_quantity);
+  const sourceParts = [
+    `Invoice mode: ${header.invoice_mode}`,
+    header.invoice_date ? `Invoice date: ${header.invoice_date}` : null,
+    header.invoice_number.trim() ? `Invoice: ${header.invoice_number.trim()}` : null,
+    header.invoice_amount !== "" ? `Invoice amount: ${header.invoice_amount}` : null,
+    header.supplier_name.trim() ? `Supplier: ${header.supplier_name.trim()}` : null,
+    header.store_location_id.trim() ? `Store: ${header.store_location_id.trim()}` : null,
+    header.payment_terms.trim() ? `Payment terms: ${header.payment_terms.trim()}` : null,
+    row.grn_reference.trim() ? `GRN/source: ${row.grn_reference.trim()}` : null,
+    row.supplier_batch_number.trim() ? `Supplier batch: ${row.supplier_batch_number.trim()}` : null,
+    row.storage_conditions.trim() ? `Storage: ${row.storage_conditions.trim()}` : null,
+    row.rack_bin.trim() ? `Rack/bin: ${row.rack_bin.trim()}` : null,
+    `Paid qty: ${paidQty}`,
+    `Free qty: ${freeQty}`,
+    row.mrp !== "" ? `MRP: ${row.mrp}` : null,
+    `GST: ${row.tax_percent}%`,
+  ].filter(Boolean);
+  return {
+    catalog_item_id: row.catalog_item_id,
+    batch_number: row.batch_number.trim(),
+    expiry_date: row.expiry_date,
+    manufacture_date: row.manufacture_date || undefined,
+    quantity_received: paidQty + freeQty,
+    store_location_id: header.store_location_id.trim() || undefined,
+    supplier_info: sourceParts.join(" | "),
+    invoice_number: header.invoice_number.trim() || row.grn_reference.trim() || undefined,
+    supplier_batch_number: row.supplier_batch_number.trim() || undefined,
+    purchase_rate: row.purchase_rate === "" ? undefined : row.purchase_rate,
+    selling_rate: row.mrp === "" ? undefined : row.mrp,
+  };
+}
+
 // Dropdown options for categorical fields - aligned with ATC classification
 const DRUG_CATEGORIES = [
   { value: "alimentary", label: "Alimentary Tract & Metabolism" },
@@ -270,8 +608,36 @@ const DRUG_CATEGORIES = [
   { value: "other", label: "Other" },
 ];
 
+const PHARMACY_PAGE_PERMISSIONS = [
+  P.PHARMACY.PRESCRIPTIONS_LIST,
+  P.PHARMACY.PRESCRIPTIONS_VIEW,
+  P.PHARMACY.DISPENSING_CREATE,
+  P.PHARMACY.DISPENSING_PARTIAL,
+  P.PHARMACY.DISPENSING_CANCEL,
+  P.PHARMACY.DISPENSING_VOID,
+  P.PHARMACY.RX_QUEUE_LIST,
+  P.PHARMACY.RX_QUEUE_REVIEW,
+  P.PHARMACY.POS_VIEW,
+  P.PHARMACY.POS_CREATE,
+  P.PHARMACY.POS_CANCEL,
+  P.PHARMACY.POS_RETURN,
+  P.PHARMACY.STOCK_MANAGE,
+  P.PHARMACY.NDPS_LIST,
+  P.PHARMACY.NDPS_MANAGE,
+  P.PHARMACY.STORES_LIST,
+  P.PHARMACY.STORES_MANAGE,
+  P.PHARMACY.ANALYTICS_VIEW,
+  P.PHARMACY.RETURNS_LIST,
+  P.PHARMACY.RETURNS_REQUEST,
+  P.PHARMACY.RETURNS_APPROVE,
+  P.PHARMACY.RETURNS_RESTOCK,
+  P.PHARMACY.RETURNS_DESTROY,
+  P.PHARMACY.RETURNS_REJECT,
+  P.PHARMACY.SAFETY_VIEW,
+] as const;
+
 export function PharmacyPage() {
-  useRequirePermission(P.PHARMACY.PRESCRIPTIONS_LIST);
+  useRequirePermission(PHARMACY_PAGE_PERMISSIONS);
 
   return (
     <ClinicalEventProvider moduleCode="pharmacy" contextCode="pharmacy-orders">
@@ -282,16 +648,121 @@ export function PharmacyPage() {
 
 function PharmacyPageInner() {
   const { t } = useTranslation("pharmacy");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const canViewOrders = useHasPermission(P.PHARMACY.PRESCRIPTIONS_LIST);
+  const canViewOrderDetail = useHasPermission(P.PHARMACY.PRESCRIPTIONS_VIEW);
   const canDispense = useHasPermission(P.PHARMACY.DISPENSING_CREATE);
+  const canAdjustPartialDispense = useHasPermission(P.PHARMACY.DISPENSING_PARTIAL);
+  const canCancelDispensingOrder = useHasPermission(P.PHARMACY.DISPENSING_CANCEL);
+  const canVoidDispensing = useHasPermission(P.PHARMACY.DISPENSING_VOID);
   const canManageStock = useHasPermission(P.PHARMACY.STOCK_MANAGE);
   const canViewNdps = useHasPermission(P.PHARMACY.NDPS_LIST);
+  const canManageNdps = useHasPermission(P.PHARMACY.NDPS_MANAGE);
   const canViewStores = useHasPermission(P.PHARMACY.STORES_LIST);
+  const canManageStores = useHasPermission(P.PHARMACY.STORES_MANAGE);
   const canViewAnalytics = useHasPermission(P.PHARMACY.ANALYTICS_VIEW);
   const canViewReturns = useHasPermission(P.PHARMACY.RETURNS_LIST);
+  const canRequestReturn = useHasPermission(P.PHARMACY.RETURNS_REQUEST);
+  const canApproveReturn = useHasPermission(P.PHARMACY.RETURNS_APPROVE);
+  const canRestockReturn = useHasPermission(P.PHARMACY.RETURNS_RESTOCK);
+  const canDestroyReturn = useHasPermission(P.PHARMACY.RETURNS_DESTROY);
+  const canRejectReturn = useHasPermission(P.PHARMACY.RETURNS_REJECT);
+  const canWorkReturns =
+    canViewReturns ||
+    canRequestReturn ||
+    canApproveReturn ||
+    canRestockReturn ||
+    canDestroyReturn ||
+    canRejectReturn;
+  const canViewReturnQueue =
+    canViewReturns || canApproveReturn || canRestockReturn || canDestroyReturn || canRejectReturn;
+  const canViewCreditNoteQueue = canViewReturns || canApproveReturn || canRejectReturn;
   const canViewRxQueue = useHasPermission(P.PHARMACY.RX_QUEUE_LIST);
   const canReviewRx = useHasPermission(P.PHARMACY.RX_QUEUE_REVIEW);
+  const canOpenRxQueue = canViewRxQueue || canReviewRx;
+  const canViewSafety = useHasPermission(P.PHARMACY.SAFETY_VIEW);
+  const canViewSafetyChecks = canViewSafety || canViewOrderDetail || canReviewRx;
   const canCreatePos = useHasPermission(P.PHARMACY.POS_CREATE);
   const canViewPos = useHasPermission(P.PHARMACY.POS_VIEW);
+  const canCancelPos = useHasPermission(P.PHARMACY.POS_CANCEL);
+  const canReturnPos = useHasPermission(P.PHARMACY.POS_RETURN);
+  const canManageBillingCredit = useHasPermission(P.BILLING.CREDIT_MANAGE);
+  const canViewPatientRecord = useHasPermission(P.PATIENTS.VIEW);
+  const canOpenOrders =
+    canViewOrders ||
+    canViewOrderDetail ||
+    canDispense ||
+    canAdjustPartialDispense ||
+    canCancelDispensingOrder ||
+    canViewSafety;
+  const canViewDrugCatalog =
+    canViewOrders ||
+    canViewOrderDetail ||
+    canDispense ||
+    canAdjustPartialDispense ||
+    canManageStock ||
+    canManageNdps ||
+    canManageStores ||
+    canRequestReturn ||
+    canViewRxQueue ||
+    canReviewRx ||
+    canCreatePos ||
+    canViewSafety;
+  const defaultTab = canOpenRxQueue
+    ? "rx-queue"
+    : canCreatePos || canViewPos || canCancelPos || canReturnPos
+      ? "pos"
+      : canOpenOrders
+        ? "orders"
+        : canViewDrugCatalog
+          ? "catalog"
+          : canManageStock
+            ? "stock"
+            : canViewNdps || canManageNdps
+              ? "ndps"
+              : canViewStores
+                ? "stores"
+                : canManageStores
+                  ? "store-requests"
+                  : canViewAnalytics
+                    ? "analytics"
+                    : canWorkReturns
+                      ? "returns"
+                      : "rx-queue";
+  const visiblePharmacyTabs = new Set<string>([
+    ...(canOpenRxQueue ? ["rx-queue"] : []),
+    ...(canCreatePos || canViewPos || canCancelPos || canReturnPos ? ["pos"] : []),
+    ...(canOpenOrders ? ["orders"] : []),
+    ...(canViewDrugCatalog ? ["catalog"] : []),
+    ...(canManageStock ? ["stock", "batches"] : []),
+    ...(canViewNdps || canManageNdps ? ["ndps"] : []),
+    ...(canViewStores || canManageStores ? ["stores", "store-requests"] : []),
+    ...(canViewAnalytics ? ["analytics"] : []),
+    ...(canWorkReturns ? ["returns"] : []),
+  ]);
+  const requestedTab = searchParams.get("tab");
+  const selectedTab =
+    requestedTab && visiblePharmacyTabs.has(requestedTab) ? requestedTab : defaultTab;
+  const setSelectedTab = (value: string | null) => {
+    const params = new URLSearchParams(searchParams);
+    params.set("tab", value ?? defaultTab);
+    setSearchParams(params, { replace: true });
+  };
+  const hasVisibleTab =
+    canOpenRxQueue ||
+    canCreatePos ||
+    canViewPos ||
+    canCancelPos ||
+    canReturnPos ||
+    canOpenOrders ||
+    canViewDrugCatalog ||
+    canManageStock ||
+    canViewNdps ||
+    canManageNdps ||
+    canViewStores ||
+    canManageStores ||
+    canViewAnalytics ||
+    canWorkReturns;
 
   const { data: complianceRaw = [] } = useQuery<TenantSettingsRow[]>({
     queryKey: ["tenant-settings", "compliance"],
@@ -335,106 +806,168 @@ function PharmacyPageInner() {
         subtitle={t("subtitle.drugInventory&Dispensing")}
         icon={<IconPill size={20} stroke={1.5} />}
         color="success"
-        actions={
-          <Group gap="xs">
-            <Button
-              size="xs"
-              variant="light"
-              color="orange"
-              leftSection={<IconAlertTriangle size={14} />}
-              onClick={openInteractionModal}
-            >
-              Drug Interactions
-            </Button>
-            <Button
-              size="xs"
-              variant="light"
-              color="info"
-              leftSection={<IconShieldCheck size={14} />}
-              onClick={openFormularyModal}
-            >
-              Formulary Check
-            </Button>
-          </Group>
-        }
       />
 
-      <DrugInteractionModal opened={interactionModalOpen} onClose={closeInteractionModal} />
+      <DrugInteractionModal
+        opened={interactionModalOpen}
+        onClose={closeInteractionModal}
+        canViewPatientRecord={canViewPatientRecord}
+      />
       <FormularyCheckModal opened={formularyModalOpen} onClose={closeFormularyModal} />
 
-      <Tabs defaultValue={canViewRxQueue ? "rx-queue" : "orders"}>
-        <Tabs.List mb="md" className={styles.tabsList}>
-          {canViewRxQueue && (
-            <Tabs.Tab value="rx-queue" leftSection={<IconPrescription size={14} />}>
-              {t("rxQueue")}
-            </Tabs.Tab>
-          )}
-          {(canCreatePos || canViewPos) && (
-            <Tabs.Tab value="pos" leftSection={<IconCashRegister size={14} />}>
-              {t("posCounter")}
-            </Tabs.Tab>
-          )}
-          <Tabs.Tab value="orders">{t("orders")}</Tabs.Tab>
-          <Tabs.Tab value="catalog">{t("drugCatalog")}</Tabs.Tab>
-          <Tabs.Tab value="stock">{t("stock")}</Tabs.Tab>
-          {canViewNdps && <Tabs.Tab value="ndps">{t("ndpsRegister")}</Tabs.Tab>}
-          {canManageStock && <Tabs.Tab value="batches">{t("batch&Expiry")}</Tabs.Tab>}
-          {canViewStores && <Tabs.Tab value="stores">{t("stores&Transfers")}</Tabs.Tab>}
-          {canViewAnalytics && <Tabs.Tab value="analytics">{t("analytics&Reports")}</Tabs.Tab>}
-          <Tabs.Tab value="credit-notes" leftSection={<IconReceipt size={14} />}>
-            Returns
-          </Tabs.Tab>
-          <Tabs.Tab value="store-requests" leftSection={<IconPackage size={14} />}>
-            Store Requests
-          </Tabs.Tab>
-        </Tabs.List>
+      {hasVisibleTab ? (
+        <Tabs value={selectedTab} onChange={setSelectedTab}>
+          <Tabs.List mb="md" className={styles.tabsList}>
+            {canOpenRxQueue && (
+              <Tabs.Tab value="rx-queue" leftSection={<IconPrescription size={14} />}>
+                {t("rxQueue")}
+              </Tabs.Tab>
+            )}
+            {(canCreatePos || canViewPos || canCancelPos || canReturnPos) && (
+              <Tabs.Tab value="pos" leftSection={<IconCashRegister size={14} />}>
+                {t("posCounter")}
+              </Tabs.Tab>
+            )}
+            {canOpenOrders && <Tabs.Tab value="orders">{t("orders")}</Tabs.Tab>}
+            {canViewDrugCatalog && <Tabs.Tab value="catalog">{t("drugCatalog")}</Tabs.Tab>}
+            {canManageStock && <Tabs.Tab value="stock">{t("stock")}</Tabs.Tab>}
+            {(canViewNdps || canManageNdps) && (
+              <Tabs.Tab value="ndps">{t("ndpsRegister")}</Tabs.Tab>
+            )}
+            {canManageStock && <Tabs.Tab value="batches">{t("batch&Expiry")}</Tabs.Tab>}
+            {(canViewStores || canManageStores) && (
+              <Tabs.Tab value="stores">{t("stores&Transfers")}</Tabs.Tab>
+            )}
+            {canViewAnalytics && <Tabs.Tab value="analytics">{t("analytics&Reports")}</Tabs.Tab>}
+            {canWorkReturns && (
+              <Tabs.Tab value="returns" leftSection={<IconReceipt size={14} />}>
+                Returns
+              </Tabs.Tab>
+            )}
+            {(canViewStores || canManageStores) && (
+              <Tabs.Tab value="store-requests" leftSection={<IconPackage size={14} />}>
+                Store Requests
+              </Tabs.Tab>
+            )}
+          </Tabs.List>
 
-        {canViewRxQueue && (
-          <Tabs.Panel value="rx-queue">
-            <RxQueueTab canReview={canReviewRx} />
-          </Tabs.Panel>
-        )}
-        {(canCreatePos || canViewPos) && (
-          <Tabs.Panel value="pos">
-            <PosCounterTab canCreate={canCreatePos} />
-          </Tabs.Panel>
-        )}
-        <Tabs.Panel value="orders">
-          <PharmacyOrdersTab canDispense={canDispense} canViewReturns={canViewReturns} />
-        </Tabs.Panel>
-        <Tabs.Panel value="catalog">
-          <PharmacyCatalogTab canManage={canManageStock} compliance={compliance} />
-        </Tabs.Panel>
-        <Tabs.Panel value="stock">
-          <StockTab canManage={canManageStock} />
-        </Tabs.Panel>
-        {canViewNdps && (
-          <Tabs.Panel value="ndps">
-            <NdpsRegisterTab />
-          </Tabs.Panel>
-        )}
-        {canManageStock && (
-          <Tabs.Panel value="batches">
-            <BatchExpiryTab />
-          </Tabs.Panel>
-        )}
-        {canViewStores && (
-          <Tabs.Panel value="stores">
-            <StoresTransfersTab />
-          </Tabs.Panel>
-        )}
-        {canViewAnalytics && (
-          <Tabs.Panel value="analytics">
-            <AnalyticsTab />
-          </Tabs.Panel>
-        )}
-        <Tabs.Panel value="credit-notes">
-          <CreditNotesTab />
-        </Tabs.Panel>
-        <Tabs.Panel value="store-requests">
-          <StoreIndentsTab />
-        </Tabs.Panel>
-      </Tabs>
+          {canOpenRxQueue && (
+            <Tabs.Panel value="rx-queue">
+              <RxQueueTab
+                canReview={canReviewRx}
+                canViewPatientRecord={canViewPatientRecord}
+                canViewQueue={canViewRxQueue}
+              />
+            </Tabs.Panel>
+          )}
+          {(canCreatePos || canViewPos || canCancelPos || canReturnPos) && (
+            <Tabs.Panel value="pos">
+              <PosCounterTab
+                canView={canViewPos}
+                canCreate={canCreatePos}
+                canCancel={canCancelPos}
+                canReturn={canReturnPos}
+                canViewPatientRecord={canViewPatientRecord}
+              />
+            </Tabs.Panel>
+          )}
+          {canOpenOrders && (
+            <Tabs.Panel value="orders">
+              <PharmacyOrdersTab
+                canViewOrders={canViewOrders}
+                canDispense={canDispense}
+                canAdjustPartialDispense={canAdjustPartialDispense}
+                canCancelOrder={canCancelDispensingOrder}
+                canViewOrderDetail={canViewOrderDetail}
+                canViewReturns={canViewReturns}
+                canViewPatientRecord={canViewPatientRecord}
+                headerActions={
+                  canViewSafetyChecks && (
+                    <>
+                      <Button
+                        size="xs"
+                        variant="light"
+                        color="orange"
+                        leftSection={<IconAlertTriangle size={14} />}
+                        onClick={openInteractionModal}
+                      >
+                        Drug Interactions
+                      </Button>
+                      <Button
+                        size="xs"
+                        variant="light"
+                        color="info"
+                        leftSection={<IconShieldCheck size={14} />}
+                        onClick={openFormularyModal}
+                      >
+                        Formulary Check
+                      </Button>
+                    </>
+                  )
+                }
+              />
+            </Tabs.Panel>
+          )}
+          {canViewDrugCatalog && (
+            <Tabs.Panel value="catalog">
+              <PharmacyCatalogTab canManage={canManageStock} compliance={compliance} />
+            </Tabs.Panel>
+          )}
+          {canManageStock && (
+            <Tabs.Panel value="stock">
+              <StockTab canManage={canManageStock} />
+            </Tabs.Panel>
+          )}
+          {(canViewNdps || canManageNdps) && (
+            <Tabs.Panel value="ndps">
+              <NdpsRegisterTab />
+            </Tabs.Panel>
+          )}
+          {canManageStock && (
+            <Tabs.Panel value="batches">
+              <BatchExpiryTab />
+            </Tabs.Panel>
+          )}
+          {(canViewStores || canManageStores) && (
+            <Tabs.Panel value="stores">
+              <StoresTransfersTab canViewStores={canViewStores} canManageStores={canManageStores} />
+            </Tabs.Panel>
+          )}
+          {canViewAnalytics && (
+            <Tabs.Panel value="analytics">
+              <AnalyticsTab />
+            </Tabs.Panel>
+          )}
+          {canWorkReturns && (
+            <Tabs.Panel value="returns">
+              <PharmacyReturnsWorkspace
+                canViewQueue={canViewReturnQueue}
+                canViewCreditNoteQueue={canViewCreditNoteQueue}
+                canRequest={canRequestReturn}
+                canApprove={canApproveReturn}
+                canVoidDispensing={canVoidDispensing}
+                canRestock={canRestockReturn}
+                canDestroy={canDestroyReturn}
+                canReject={canRejectReturn}
+                canSettleCreditNote={canApproveReturn && canManageBillingCredit}
+                canViewPatientRecord={canViewPatientRecord}
+              />
+            </Tabs.Panel>
+          )}
+          {(canViewStores || canManageStores) && (
+            <Tabs.Panel value="store-requests">
+              <StoreIndentsTab
+                canViewQueue={canViewStores || canManageStores}
+                canManage={canManageStores}
+              />
+            </Tabs.Panel>
+          )}
+        </Tabs>
+      ) : (
+        <Text c="dimmed" size="sm">
+          No pharmacy work areas are available for your current role.
+        </Text>
+      )}
     </div>
   );
 }
@@ -444,11 +977,23 @@ function PharmacyPageInner() {
 // ══════════════════════════════════════════════════════════
 
 function PharmacyOrdersTab({
+  canViewOrders,
   canDispense,
+  canAdjustPartialDispense,
+  canCancelOrder,
+  canViewOrderDetail,
   canViewReturns,
+  canViewPatientRecord,
+  headerActions,
 }: {
+  canViewOrders: boolean;
   canDispense: boolean;
+  canAdjustPartialDispense: boolean;
+  canCancelOrder: boolean;
+  canViewOrderDetail: boolean;
   canViewReturns: boolean;
+  canViewPatientRecord: boolean;
+  headerActions?: ReactNode;
 }) {
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
@@ -464,17 +1009,21 @@ function PharmacyOrdersTab({
   const { data, isLoading } = useQuery({
     queryKey: ["pharmacy-orders", params],
     queryFn: () => pharmacyService.listPharmacyOrders(params),
+    enabled: canViewOrders,
   });
 
   const emit = useClinicalEmit();
 
   const dispenseMutation = useMutation({
     mutationFn: (id: string) => pharmacyService.dispenseOrder(id),
-    onSuccess: (_result, id) => {
+    onSuccess: (result, id) => {
       void queryClient.invalidateQueries({ queryKey: ["pharmacy-orders"] });
+      void queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      void queryClient.invalidateQueries({ queryKey: ["invoice"] });
+      void queryClient.invalidateQueries({ queryKey: ["patient-invoices", result.patient_id] });
       notifications.show({
         title: "Dispensed",
-        message: "Order dispensed successfully",
+        message: "Order dispensed and linked billing charges refreshed",
         color: "success",
       });
       emit("order.dispensed", { order_id: id });
@@ -483,8 +1032,11 @@ function PharmacyOrdersTab({
 
   const cancelMutation = useMutation({
     mutationFn: (id: string) => pharmacyService.cancelPharmacyOrder(id),
-    onSuccess: (_result, id) => {
+    onSuccess: (result, id) => {
       void queryClient.invalidateQueries({ queryKey: ["pharmacy-orders"] });
+      void queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      void queryClient.invalidateQueries({ queryKey: ["invoice"] });
+      void queryClient.invalidateQueries({ queryKey: ["patient-invoices", result.patient_id] });
       emit("order.cancelled", { order_id: id });
     },
   });
@@ -494,16 +1046,21 @@ function PharmacyOrdersTab({
       key: "patient_id",
       label: "Patient",
       render: (row: PharmacyOrder) => (
-        <PatientNameCell patientId={row.patient_id} showUhid={false} />
+        <PharmacyPatientCell
+          patientId={row.patient_id}
+          canViewPatientRecord={canViewPatientRecord}
+        />
       ),
     },
     {
       key: "dispensing_type",
       label: "Type",
       render: (row: PharmacyOrder) => (
-        <Badge
+        <TableValueBadge
+          value={row.dispensing_type}
+          kind="pharmacy"
+          label={dispensingTypeLabels[row.dispensing_type] ?? row.dispensing_type}
           size="xs"
-          variant="light"
           color={
             row.dispensing_type === "otc"
               ? "teal"
@@ -511,9 +1068,7 @@ function PharmacyOrdersTab({
                 ? "danger"
                 : "primary"
           }
-        >
-          {dispensingTypeLabels[row.dispensing_type] ?? row.dispensing_type}
-        </Badge>
+        />
       ),
     },
     {
@@ -535,10 +1090,14 @@ function PharmacyOrdersTab({
       label: "Actions",
       render: (row: PharmacyOrder) => (
         <Group gap="xs">
-          <Tooltip label="View">
+          <Tooltip label={canViewOrderDetail ? "View" : "No permission to view order detail"}>
             <ActionIcon
               variant="subtle"
+              color="primary"
+              disabled={!canViewOrderDetail}
+              aria-label="View pharmacy order"
               onClick={() => {
+                if (!canViewOrderDetail) return;
                 setSelectedOrderId(row.id);
                 openDetail();
               }}
@@ -546,27 +1105,33 @@ function PharmacyOrdersTab({
               <IconEye size={16} />
             </ActionIcon>
           </Tooltip>
-          {canDispense && row.status === "ordered" && (
-            <>
-              <Tooltip label="Dispense">
-                <ActionIcon
-                  variant="subtle"
-                  color="success"
-                  onClick={() => dispenseMutation.mutate(row.id)}
-                >
-                  <IconCheck size={16} />
-                </ActionIcon>
-              </Tooltip>
-              <Tooltip label="Cancel">
-                <ActionIcon
-                  variant="subtle"
-                  color="danger"
-                  onClick={() => cancelMutation.mutate(row.id)}
-                >
-                  <IconX size={16} />
-                </ActionIcon>
-              </Tooltip>
-            </>
+          {row.status === "ordered" && (
+            <Group gap={4} wrap="nowrap">
+              {canDispense && (
+                <Tooltip label="Dispense">
+                  <ActionIcon
+                    variant="subtle"
+                    color="success"
+                    aria-label="Dispense pharmacy order"
+                    onClick={() => dispenseMutation.mutate(row.id)}
+                  >
+                    <IconCheck size={16} />
+                  </ActionIcon>
+                </Tooltip>
+              )}
+              {canCancelOrder && (
+                <Tooltip label="Cancel">
+                  <ActionIcon
+                    variant="subtle"
+                    color="danger"
+                    aria-label="Cancel pharmacy order"
+                    onClick={() => cancelMutation.mutate(row.id)}
+                  >
+                    <IconX size={16} />
+                  </ActionIcon>
+                </Tooltip>
+              )}
+            </Group>
           )}
         </Group>
       ),
@@ -575,48 +1140,69 @@ function PharmacyOrdersTab({
 
   return (
     <Stack>
-      <Group>
-        <Select
-          placeholder="Status"
-          data={[
-            { value: "ordered", label: "Ordered" },
-            { value: "dispensed", label: "Dispensed" },
-            { value: "cancelled", label: "Cancelled" },
-            { value: "returned", label: "Returned" },
-          ]}
-          value={filterStatus}
-          onChange={setFilterStatus}
-          clearable
-          w={160}
-        />
-        {canDispense && (
-          <>
-            <Button size="xs" leftSection={<IconPlus size={14} />} onClick={openCreate}>
-              New Order
-            </Button>
-            <Button
-              size="xs"
-              variant="light"
-              color="teal"
-              leftSection={<IconShoppingCart size={14} />}
-              onClick={openOtc}
-            >
-              OTC Sale
-            </Button>
-          </>
+      <Group justify="space-between" align="flex-end">
+        {canViewOrders ? (
+          <Select
+            placeholder="Status"
+            data={[
+              { value: "ordered", label: "Ordered" },
+              { value: "dispensed", label: "Dispensed" },
+              { value: "cancelled", label: "Cancelled" },
+              { value: "returned", label: "Returned" },
+            ]}
+            value={filterStatus}
+            onChange={setFilterStatus}
+            clearable
+            w={160}
+          />
+        ) : (
+          <Text size="sm" c="dimmed">
+            Order queue requires prescription-list permission.
+          </Text>
         )}
+        <Group gap="xs">
+          {headerActions}
+          {canDispense && (
+            <>
+              <Button size="xs" leftSection={<IconPlus size={14} />} onClick={openCreate}>
+                New Order
+              </Button>
+              <Button
+                size="xs"
+                variant="light"
+                color="teal"
+                leftSection={<IconShoppingCart size={14} />}
+                onClick={openOtc}
+              >
+                OTC Sale
+              </Button>
+            </>
+          )}
+        </Group>
       </Group>
-      <DataTable
-        columns={columns}
-        data={data?.orders ?? []}
-        loading={isLoading}
-        page={page}
-        totalPages={data ? Math.ceil(data.total / data.per_page) : 1}
-        onPageChange={setPage}
-        rowKey={(row) => row.id}
-      />
 
-      <CreatePharmacyOrderDrawer opened={createOpened} onClose={closeCreate} />
+      {canViewOrders ? (
+        <DataTable
+          columns={columns}
+          data={data?.orders ?? []}
+          loading={isLoading}
+          page={page}
+          totalPages={data ? Math.ceil(data.total / data.per_page) : 1}
+          onPageChange={setPage}
+          rowKey={(row) => row.id}
+        />
+      ) : (
+        <Alert color="warning" variant="light">
+          This role can create or process pharmacy orders, but the order queue and patient list stay
+          hidden until `pharmacy.prescriptions.list` is granted.
+        </Alert>
+      )}
+
+      <CreatePharmacyOrderDrawer
+        opened={createOpened}
+        onClose={closeCreate}
+        canViewPatientRecord={canViewPatientRecord}
+      />
       <OtcSaleDrawer opened={otcOpened} onClose={closeOtc} />
 
       <Drawer
@@ -626,11 +1212,12 @@ function PharmacyOrdersTab({
         position="right"
         size="xl"
       >
-        {selectedOrderId && (
+        {selectedOrderId && canViewOrderDetail && (
           <PharmacyOrderDetail
             orderId={selectedOrderId}
-            canEditItems={canDispense}
+            canEditItems={canAdjustPartialDispense}
             canViewReturns={canViewReturns}
+            canViewPatientRecord={canViewPatientRecord}
           />
         )}
       </Drawer>
@@ -638,12 +1225,646 @@ function PharmacyOrdersTab({
   );
 }
 
+type ReturnWorkspaceMode = "medicine-returns" | "credit-notes";
+const returnWorkspaceModes: ReturnWorkspaceMode[] = ["medicine-returns", "credit-notes"];
+
+function isReturnWorkspaceMode(value: string): value is ReturnWorkspaceMode {
+  return returnWorkspaceModes.some((mode) => mode === value);
+}
+
+type ReturnFilterStatus = PharmacyReturnStatusType | "all";
+const returnFilterStatuses: ReturnFilterStatus[] = [
+  "all",
+  "requested",
+  "approved",
+  "returned_to_stock",
+  "destroyed",
+  "rejected",
+];
+
+function isReturnFilterStatus(value: string): value is ReturnFilterStatus {
+  return returnFilterStatuses.some((status) => status === value);
+}
+
+function PharmacyReturnsWorkspace({
+  canViewQueue,
+  canViewCreditNoteQueue,
+  canRequest,
+  canApprove,
+  canVoidDispensing,
+  canRestock,
+  canDestroy,
+  canReject,
+  canSettleCreditNote,
+  canViewPatientRecord,
+}: {
+  canViewQueue: boolean;
+  canViewCreditNoteQueue: boolean;
+  canRequest: boolean;
+  canApprove: boolean;
+  canVoidDispensing: boolean;
+  canRestock: boolean;
+  canDestroy: boolean;
+  canReject: boolean;
+  canSettleCreditNote: boolean;
+  canViewPatientRecord: boolean;
+}) {
+  const [mode, setMode] = useState<ReturnWorkspaceMode>("medicine-returns");
+
+  return (
+    <Stack>
+      <SegmentedControl
+        size="xs"
+        value={mode}
+        onChange={(value) => {
+          if (isReturnWorkspaceMode(value)) setMode(value);
+        }}
+        data={[
+          { value: "medicine-returns", label: "Dispensed item returns" },
+          { value: "credit-notes", label: "Custom credit notes" },
+        ]}
+      />
+      {mode === "medicine-returns" ? (
+        <PharmacyReturnsTab
+          canViewQueue={canViewQueue}
+          canRequest={canRequest}
+          canApprove={canApprove}
+          canVoidDispensing={canVoidDispensing}
+          canRestock={canRestock}
+          canDestroy={canDestroy}
+          canReject={canReject}
+          canViewPatientRecord={canViewPatientRecord}
+        />
+      ) : (
+        <CreditNotesTab
+          canViewQueue={canViewCreditNoteQueue}
+          canCreate={canRequest}
+          canApprove={canApprove}
+          canSettle={canSettleCreditNote}
+          canCancel={canReject}
+          canViewPatientRecord={canViewPatientRecord}
+        />
+      )}
+    </Stack>
+  );
+}
+
+const returnStatusColors: Record<PharmacyReturnStatusType, string> = {
+  requested: "yellow",
+  approved: "blue",
+  returned_to_stock: "green",
+  destroyed: "red",
+  rejected: "gray",
+};
+
+const returnStatusLabels: Record<PharmacyReturnStatusType, string> = {
+  requested: "Requested",
+  approved: "Approved",
+  returned_to_stock: "Returned to stock",
+  destroyed: "Destroyed",
+  rejected: "Rejected",
+};
+
+function PharmacyReturnsTab({
+  canViewQueue,
+  canRequest,
+  canApprove,
+  canVoidDispensing,
+  canRestock,
+  canDestroy,
+  canReject,
+  canViewPatientRecord,
+}: {
+  canViewQueue: boolean;
+  canRequest: boolean;
+  canApprove: boolean;
+  canVoidDispensing: boolean;
+  canRestock: boolean;
+  canDestroy: boolean;
+  canReject: boolean;
+  canViewPatientRecord: boolean;
+}) {
+  const queryClient = useQueryClient();
+  const [filterStatus, setFilterStatus] = useState<ReturnFilterStatus>("all");
+  const [createOpened, { open: openCreate, close: closeCreate }] = useDisclosure(false);
+
+  const { data: returns = [], isLoading } = useQuery({
+    queryKey: ["pharmacy-returns"],
+    queryFn: () => pharmacyService.listPharmacyReturns(),
+    enabled: canViewQueue,
+  });
+
+  const processMutation = useMutation({
+    mutationFn: ({ id, status }: { id: string; status: PharmacyReturnStatusType }) =>
+      pharmacyService.processPharmacyReturn(id, { status }),
+    onSuccess: (_row, variables) => {
+      void queryClient.invalidateQueries({ queryKey: ["pharmacy-returns"] });
+      void queryClient.invalidateQueries({ queryKey: ["pharmacy-orders"] });
+      void queryClient.invalidateQueries({ queryKey: ["pharmacy-order-detail"] });
+      void queryClient.invalidateQueries({ queryKey: ["pharmacy-credit-notes"] });
+      notifications.show({
+        title: returnStatusLabels[variables.status],
+        message: "Return queue updated",
+        color: returnStatusColors[variables.status],
+      });
+    },
+    onError: (error) => {
+      notifications.show({
+        title: "Return action failed",
+        message: error instanceof Error ? error.message : "Unable to update return",
+        color: "danger",
+      });
+    },
+  });
+
+  const filteredReturns = useMemo(
+    () => (filterStatus === "all" ? returns : returns.filter((row) => row.status === filterStatus)),
+    [filterStatus, returns],
+  );
+  const requestReturnAction = canRequest ? (
+    canViewPatientRecord ? (
+      <Button size="xs" leftSection={<IconPlus size={14} />} onClick={openCreate}>
+        Request Return
+      </Button>
+    ) : (
+      <Tooltip label="Patient record access is required to pick the return order">
+        <span>
+          <Button size="xs" leftSection={<IconLock size={14} />} disabled>
+            Request Return
+          </Button>
+        </span>
+      </Tooltip>
+    )
+  ) : undefined;
+
+  const columns = [
+    {
+      key: "patient_id",
+      label: "Patient",
+      render: (row: PharmacyReturn) => (
+        <PharmacyPatientCell
+          patientId={row.patient_id}
+          canViewPatientRecord={canViewPatientRecord}
+        />
+      ),
+    },
+    {
+      key: "order_item_id",
+      label: "Order Item",
+      render: (row: PharmacyReturn) => (
+        <Text size="sm" ff="JetBrains Mono, monospace">
+          {row.order_item_id.slice(0, 8)}
+        </Text>
+      ),
+    },
+    {
+      key: "quantity_returned",
+      label: "Qty",
+      render: (row: PharmacyReturn) => <Text size="sm">{row.quantity_returned}</Text>,
+    },
+    {
+      key: "reason",
+      label: "Reason",
+      render: (row: PharmacyReturn) => (
+        <Text size="sm" lineClamp={1}>
+          {row.reason?.trim() || "—"}
+        </Text>
+      ),
+    },
+    {
+      key: "status",
+      label: "Status",
+      render: (row: PharmacyReturn) => (
+        <Badge size="xs" variant="light" color={returnStatusColors[row.status]}>
+          {returnStatusLabels[row.status]}
+        </Badge>
+      ),
+    },
+    {
+      key: "created_at",
+      label: "Requested",
+      render: (row: PharmacyReturn) => (
+        <Text size="sm">{new Date(row.created_at).toLocaleString()}</Text>
+      ),
+    },
+    {
+      key: "actions",
+      label: "Actions",
+      render: (row: PharmacyReturn) => (
+        <Group gap={4} wrap="nowrap">
+          {row.status === "requested" && (
+            <>
+              <Tooltip
+                label={
+                  canApprove && canVoidDispensing
+                    ? "Approve post-dispense reversal"
+                    : "Return approval and dispensing void permissions required"
+                }
+              >
+                <ActionIcon
+                  size="sm"
+                  variant="subtle"
+                  color="success"
+                  disabled={!canApprove || !canVoidDispensing || processMutation.isPending}
+                  onClick={() => processMutation.mutate({ id: row.id, status: "approved" })}
+                  aria-label="Approve return"
+                >
+                  <IconCheck size={14} />
+                </ActionIcon>
+              </Tooltip>
+              <Tooltip label={canReject ? "Reject return" : "No reject permission"}>
+                <ActionIcon
+                  size="sm"
+                  variant="subtle"
+                  color="danger"
+                  disabled={!canReject || processMutation.isPending}
+                  onClick={() => processMutation.mutate({ id: row.id, status: "rejected" })}
+                  aria-label="Reject return"
+                >
+                  <IconX size={14} />
+                </ActionIcon>
+              </Tooltip>
+            </>
+          )}
+          {row.status === "approved" && (
+            <>
+              <Tooltip label={canRestock ? "Return usable stock" : "No restock permission"}>
+                <ActionIcon
+                  size="sm"
+                  variant="subtle"
+                  color="teal"
+                  disabled={!canRestock || processMutation.isPending}
+                  onClick={() =>
+                    processMutation.mutate({ id: row.id, status: "returned_to_stock" })
+                  }
+                  aria-label="Return to stock"
+                >
+                  <IconPackage size={14} />
+                </ActionIcon>
+              </Tooltip>
+              <Tooltip label={canDestroy ? "Mark as destroyed" : "No destroy permission"}>
+                <ActionIcon
+                  size="sm"
+                  variant="subtle"
+                  color="danger"
+                  disabled={!canDestroy || processMutation.isPending}
+                  onClick={() => processMutation.mutate({ id: row.id, status: "destroyed" })}
+                  aria-label="Destroy returned item"
+                >
+                  <IconTrash size={14} />
+                </ActionIcon>
+              </Tooltip>
+            </>
+          )}
+          {row.status !== "requested" && row.status !== "approved" && (
+            <Text size="xs" c="dimmed">
+              Closed
+            </Text>
+          )}
+        </Group>
+      ),
+    },
+  ];
+
+  return (
+    <Stack>
+      <Alert color="blue" variant="light" icon={<IconReceipt size={16} />}>
+        Medicine returns are linked to already dispensed/billed order lines. Use Custom credit notes
+        for supplier returns, expiry/damage write-off, or manual financial adjustments.
+      </Alert>
+      {!canViewQueue && (
+        <Alert color="gray" variant="light" icon={<IconLock size={16} />}>
+          Return queue access requires a return list, approval, restock, destroy, or rejection role.
+          You can still request a return if that action is available.
+        </Alert>
+      )}
+      <DataTable
+        columns={columns}
+        data={filteredReturns}
+        loading={canViewQueue && isLoading}
+        rowKey={(row) => row.id}
+        toolbar={
+          <SegmentedControl
+            size="xs"
+            value={filterStatus}
+            disabled={!canViewQueue}
+            onChange={(value) => {
+              if (isReturnFilterStatus(value)) setFilterStatus(value);
+            }}
+            data={[
+              { value: "all", label: "All" },
+              { value: "requested", label: "Requested" },
+              { value: "approved", label: "Approved" },
+              { value: "returned_to_stock", label: "Restocked" },
+              { value: "destroyed", label: "Destroyed" },
+              { value: "rejected", label: "Rejected" },
+            ]}
+          />
+        }
+        tableActions={requestReturnAction}
+      />
+      <CreatePharmacyReturnModal
+        opened={createOpened}
+        onClose={closeCreate}
+        canViewPatientRecord={canViewPatientRecord}
+      />
+    </Stack>
+  );
+}
+
+function CreatePharmacyReturnModal({
+  opened,
+  onClose,
+  canViewPatientRecord,
+}: {
+  opened: boolean;
+  onClose: () => void;
+  canViewPatientRecord: boolean;
+}) {
+  const queryClient = useQueryClient();
+  const {
+    control,
+    handleSubmit,
+    reset,
+    setValue,
+    setError,
+    clearErrors,
+    watch,
+    formState: { errors },
+  } = useForm<PharmacyReturnRequestFormInput>({
+    resolver: zodResolver(pharmacyReturnRequestFormSchema),
+    defaultValues: {
+      patient_id: "",
+      items: [],
+    },
+  });
+  const {
+    fields: selectedReturnFields,
+    replace: replaceReturnItems,
+    remove: removeReturnItem,
+  } = useFieldArray({
+    control,
+    name: "items",
+  });
+
+  const patientId = watch("patient_id");
+  const selectedReturnItems = watch("items") ?? [];
+  const selectedOrderItemIds = selectedReturnItems.map((item) => item.order_item_id);
+
+  const { data: patientOrders = [], isLoading: patientOrdersLoading } = useQuery({
+    queryKey: ["pharmacy", "patient-orders", patientId],
+    queryFn: () => pharmacyService.listPatientOrdersForReturn(patientId),
+    enabled: canViewPatientRecord && patientId.length > 0,
+  });
+
+  const returnableItems = useMemo(
+    () =>
+      patientOrders
+        .filter((order) => order.status === "dispensed")
+        .flatMap((order) => normalizeReturnableItems(order)),
+    [patientOrders],
+  );
+
+  const returnableItemById = useMemo(
+    () => new Map(returnableItems.map((item) => [item.itemId, item])),
+    [returnableItems],
+  );
+  const returnableItemOptions = useMemo(
+    () =>
+      returnableItems.map((item) => ({
+        value: item.itemId,
+        label: `${item.drugName} · remaining ${item.remainingQuantity}/${item.quantity} · ${new Date(
+          item.orderDate,
+        ).toLocaleDateString()}`,
+      })),
+    [returnableItems],
+  );
+
+  const createMutation = useMutation({
+    mutationFn: (values: PharmacyReturnRequestFormInput) =>
+      pharmacyService.createPharmacyReturns({
+        patient_id: values.patient_id,
+        items: values.items.map((item) => ({
+          order_item_id: item.order_item_id,
+          quantity_returned: formIntegerOrFallback(item.quantity_returned, 1),
+          reason: optionalFormText(item.reason),
+        })),
+      }),
+    onSuccess: (rows) => {
+      void queryClient.invalidateQueries({ queryKey: ["pharmacy-returns"] });
+      void queryClient.invalidateQueries({ queryKey: ["pharmacy-orders"] });
+      void queryClient.invalidateQueries({ queryKey: ["pharmacy-order-detail"] });
+      notifications.show({
+        title: "Return requested",
+        message: `${rows.length} return ${rows.length === 1 ? "line is" : "lines are"} waiting for approval`,
+        color: "success",
+      });
+      reset({ patient_id: "", items: [] });
+      onClose();
+    },
+    onError: (error) => {
+      notifications.show({
+        title: "Return request failed",
+        message: error instanceof Error ? error.message : "Unable to request return",
+        color: "danger",
+      });
+    },
+  });
+
+  function handleClose() {
+    reset({ patient_id: "", items: [] });
+    onClose();
+  }
+
+  function submitReturn(values: PharmacyReturnRequestFormInput) {
+    for (const item of values.items) {
+      const returnableItem = returnableItemById.get(item.order_item_id);
+      const returnQuantity = formIntegerOrFallback(item.quantity_returned, 1);
+      if (!returnableItem) {
+        setError("items", {
+          type: "validate",
+          message: "One selected medicine is no longer available for return.",
+        });
+        return;
+      }
+      if (returnQuantity > returnableItem.remainingQuantity) {
+        setError("items", {
+          type: "validate",
+          message: `${returnableItem.drugName} can return only ${returnableItem.remainingQuantity} more.`,
+        });
+        return;
+      }
+    }
+    createMutation.mutate(values);
+  }
+
+  function updateSelectedMedicineIds(itemIds: string[]) {
+    const currentById = new Map(selectedReturnItems.map((item) => [item.order_item_id, item]));
+    replaceReturnItems(
+      itemIds.map(
+        (itemId) =>
+          currentById.get(itemId) ?? {
+            order_item_id: itemId,
+            quantity_returned: 1,
+            reason: "",
+          },
+      ),
+    );
+    clearErrors("items");
+  }
+
+  return (
+    <Modal opened={opened} onClose={handleClose} title="Request Medicine Return" size="xl">
+      {!canViewPatientRecord ? (
+        <Stack>
+          <Alert color="orange" variant="light" icon={<IconLock size={16} />}>
+            Patient record access is required to select the dispensed medicine for a return.
+          </Alert>
+          <Group justify="flex-end">
+            <Button variant="subtle" onClick={handleClose}>
+              Close
+            </Button>
+          </Group>
+        </Stack>
+      ) : (
+        <Stack component="form" onSubmit={handleSubmit(submitReturn)}>
+          <Controller
+            control={control}
+            name="patient_id"
+            render={({ field, fieldState }) => (
+              <PatientSearchSelect
+                label="Patient"
+                value={field.value}
+                onChange={(value) => {
+                  field.onChange(value);
+                  replaceReturnItems([]);
+                  setValue("items", []);
+                  clearErrors("items");
+                }}
+                error={fieldState.error?.message}
+                required
+              />
+            )}
+          />
+          {patientId.length > 0 && (
+            <PharmacyPatientContext
+              patientId={patientId}
+              canViewPatientRecord={canViewPatientRecord}
+            />
+          )}
+          <MultiSelect
+            label="Previous billed / dispensed medicines"
+            placeholder={
+              patientOrdersLoading ? "Loading dispensed medicines..." : "Select medicine lines"
+            }
+            data={returnableItemOptions}
+            value={selectedOrderItemIds}
+            onChange={updateSelectedMedicineIds}
+            error={typeof errors.items?.message === "string" ? errors.items.message : undefined}
+            disabled={!patientId || patientOrdersLoading}
+            searchable
+            clearable
+            required
+          />
+          {patientId.length > 0 && !patientOrdersLoading && returnableItems.length === 0 && (
+            <Alert color="gray" variant="light" icon={<IconClock size={16} />}>
+              No dispensed pharmacy medicines are available for return.
+            </Alert>
+          )}
+          {selectedReturnFields.map((field, index) => {
+            const selectedLine = selectedReturnItems[index];
+            const returnableItem = returnableItemById.get(selectedLine?.order_item_id ?? "");
+            return (
+              <Card key={field.id} withBorder radius="sm" p="sm">
+                <Stack gap="xs">
+                  <Group justify="space-between" align="flex-start" wrap="nowrap">
+                    <Stack gap={2}>
+                      <Text size="sm" fw={700}>
+                        {returnableItem?.drugName ?? "Selected medicine"}
+                      </Text>
+                      <Group gap="xs">
+                        <Badge size="xs" variant="light" color="blue">
+                          {returnableItem
+                            ? new Date(returnableItem.orderDate).toLocaleDateString()
+                            : "Order"}
+                        </Badge>
+                        <Badge size="xs" variant="light" color="gray">
+                          Batch {returnableItem?.batchNumber ?? "not captured"}
+                        </Badge>
+                        <Badge size="xs" variant="light" color="teal">
+                          Remaining {returnableItem?.remainingQuantity ?? 0}/
+                          {returnableItem?.quantity ?? 0}
+                        </Badge>
+                      </Group>
+                    </Stack>
+                    <ActionIcon
+                      size="sm"
+                      variant="subtle"
+                      color="danger"
+                      aria-label="Remove return line"
+                      onClick={() => removeReturnItem(index)}
+                    >
+                      <IconTrash size={14} />
+                    </ActionIcon>
+                  </Group>
+                  <Group grow align="flex-start">
+                    <Controller
+                      control={control}
+                      name={`items.${index}.quantity_returned`}
+                      render={({ field: quantityField, fieldState }) => (
+                        <NumberInput
+                          label="Return quantity"
+                          min={1}
+                          max={returnableItem?.remainingQuantity}
+                          value={quantityField.value}
+                          onChange={quantityField.onChange}
+                          error={fieldState.error?.message}
+                          required
+                        />
+                      )}
+                    />
+                    <Controller
+                      control={control}
+                      name={`items.${index}.reason`}
+                      render={({ field: reasonField, fieldState }) => (
+                        <Textarea
+                          label="Reason"
+                          placeholder="Wrong medicine, adverse event, patient refused, damaged strip..."
+                          value={reasonField.value}
+                          onChange={reasonField.onChange}
+                          error={fieldState.error?.message}
+                          autosize
+                          minRows={1}
+                        />
+                      )}
+                    />
+                  </Group>
+                </Stack>
+              </Card>
+            );
+          })}
+          <Group justify="flex-end">
+            <Button variant="subtle" onClick={handleClose}>
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              loading={createMutation.isPending}
+              disabled={selectedReturnItems.length === 0}
+            >
+              Submit {selectedReturnItems.length > 1 ? "Returns" : "Return"}
+            </Button>
+          </Group>
+        </Stack>
+      )}
+    </Modal>
+  );
+}
+
 function OtcSaleDrawer({ opened, onClose }: { opened: boolean; onClose: () => void }) {
   const queryClient = useQueryClient();
   const [notes, setNotes] = useState("");
-  const [items, setItems] = useState<DraftPharmacyOrderItem[]>([
-    { drug_name: "", quantity: 1, unit_price: 0, tax_percent: 0 },
-  ]);
+  const [items, setItems] = useState<DraftPharmacyOrderItem[]>([newDraftPharmacyOrderItem()]);
 
   const createMutation = useMutation({
     mutationFn: (data: CreateOtcSaleRequest) => pharmacyService.createOtcSale(data),
@@ -652,7 +1873,7 @@ function OtcSaleDrawer({ opened, onClose }: { opened: boolean; onClose: () => vo
       notifications.show({ title: "OTC Sale", message: "Walk-in sale recorded", color: "teal" });
       onClose();
       setNotes("");
-      setItems([{ drug_name: "", quantity: 1, unit_price: 0, tax_percent: 0 }]);
+      setItems([newDraftPharmacyOrderItem()]);
     },
     onError: () => {
       notifications.show({ title: "Error", message: "Failed to record OTC sale", color: "danger" });
@@ -667,79 +1888,40 @@ function OtcSaleDrawer({ opened, onClose }: { opened: boolean; onClose: () => vo
           Items
         </Text>
         {items.map((item, idx) => (
-          <Card
-            key={`${item.catalog_item_id ?? (item.drug_name || "item")}-${item.quantity}-${item.unit_price}`}
-            withBorder
-            padding="xs"
+          <MedicineOrderLineCard
+            key={item.row_id}
+            value={item}
+            index={idx}
+            priceLabel="Price"
             className={styles.medicationCard}
-          >
-            <Stack gap="xs">
-              <DrugSearchSelect
-                value={item.catalog_item_id ?? ""}
-                onChange={(drugId, drug) => {
-                  const updated = [...items];
-                  updated[idx] = {
-                    ...item,
-                    catalog_item_id: drugId,
-                    drug_name: drug?.name ?? "",
-                    unit_price: drug ? Number(drug.base_price) : 0,
-                    tax_percent: drug ? Number(drug.tax_percent) : 0,
-                  };
-                  setItems(updated);
-                }}
-                label={`Drug #${idx + 1}`}
-                required
-              />
-              <Group grow>
-                <NumberInput
-                  label="Qty"
-                  min={1}
-                  value={item.quantity}
-                  onChange={(v) => {
-                    const updated = [...items];
-                    updated[idx] = { ...item, quantity: Number(v) };
-                    setItems(updated);
-                  }}
-                />
-                <NumberInput
-                  label="Price"
-                  min={0}
-                  decimalScale={2}
-                  prefix="₹"
-                  value={item.unit_price}
-                  onChange={(v) => {
-                    const updated = [...items];
-                    updated[idx] = { ...item, unit_price: Number(v) };
-                    setItems(updated);
-                  }}
-                />
-              </Group>
-              <Group justify="space-between">
-                <Text size="xs" c="dimmed">
-                  GST {item.tax_percent ?? 0}%: {formatInr(draftItemTaxAmount(item))}
-                </Text>
-                <Text size="sm" fw={700}>
-                  Total {formatInr(draftItemTotal(item))}
-                </Text>
-              </Group>
-            </Stack>
-          </Card>
+            removePermission={P.PHARMACY.POS_CREATE}
+            onChange={(next) => {
+              const updated = [...items];
+              updated[idx] = { ...item, ...next };
+              setItems(updated);
+            }}
+            canRemove={items.length > 1}
+            onRemove={() => setItems(items.filter((_, i) => i !== idx))}
+          />
         ))}
         <Group>
           <Button
             size="xs"
             variant="light"
             leftSection={<IconPlus size={14} />}
-            onClick={() =>
-              setItems([...items, { drug_name: "", quantity: 1, unit_price: 0, tax_percent: 0 }])
-            }
+            onClick={() => setItems([...items, newDraftPharmacyOrderItem()])}
           >
-            Add Drug
+            Add medicine
           </Button>
           <Button
             size="xs"
             color="teal"
-            onClick={() => createMutation.mutate({ items, notes: notes || undefined })}
+            onClick={() =>
+              createMutation.mutate({
+                items: draftPharmacyOrderItemsPayload(items),
+                notes: notes || undefined,
+              })
+            }
             loading={createMutation.isPending}
           >
             Record OTC Sale
@@ -750,15 +1932,22 @@ function OtcSaleDrawer({ opened, onClose }: { opened: boolean; onClose: () => vo
   );
 }
 
-function CreatePharmacyOrderDrawer({ opened, onClose }: { opened: boolean; onClose: () => void }) {
+function CreatePharmacyOrderDrawer({
+  opened,
+  onClose,
+  canViewPatientRecord,
+}: {
+  opened: boolean;
+  onClose: () => void;
+  canViewPatientRecord: boolean;
+}) {
   const queryClient = useQueryClient();
   const canOverrideSafety = useHasPermission(P.PHARMACY.SAFETY_OVERRIDE);
+  const priceAccess = useFieldAccess("pharmacy.pricing.unit_price");
   const [patientId, setPatientId] = useState("");
   const [notes, setNotes] = useState("");
   const [safetyOverrideReason, setSafetyOverrideReason] = useState("");
-  const [items, setItems] = useState<DraftPharmacyOrderItem[]>([
-    { drug_name: "", quantity: 1, unit_price: 0, tax_percent: 0 },
-  ]);
+  const [items, setItems] = useState<DraftPharmacyOrderItem[]>([newDraftPharmacyOrderItem()]);
 
   const createMutation = useMutation({
     mutationFn: (data: CreatePharmacyOrderRequest) => pharmacyService.createPharmacyOrder(data),
@@ -774,7 +1963,7 @@ function CreatePharmacyOrderDrawer({ opened, onClose }: { opened: boolean; onClo
       setPatientId("");
       setNotes("");
       setSafetyOverrideReason("");
-      setItems([{ drug_name: "", quantity: 1, unit_price: 0, tax_percent: 0 }]);
+      setItems([newDraftPharmacyOrderItem()]);
     },
     onError: (error) => {
       notifications.show({
@@ -799,7 +1988,7 @@ function CreatePharmacyOrderDrawer({ opened, onClose }: { opened: boolean; onClo
     >
       <Stack>
         <PatientSearchSelect value={patientId} onChange={setPatientId} required />
-        <PatientContextBanner patientId={patientId} hideLoadingState />
+        <PharmacyPatientContext patientId={patientId} canViewPatientRecord={canViewPatientRecord} />
         {createError && (
           <Alert color="red" icon={<IconAlertTriangle size={16} />}>
             {createError}
@@ -818,98 +2007,39 @@ function CreatePharmacyOrderDrawer({ opened, onClose }: { opened: boolean; onClo
           Medications
         </Text>
         {items.map((item, idx) => (
-          <Card
-            key={`${item.catalog_item_id ?? (item.drug_name || "item")}-${item.quantity}-${item.unit_price}`}
-            withBorder
-            padding="xs"
+          <MedicineOrderLineCard
+            key={item.row_id}
+            value={item}
+            index={idx}
+            priceLabel="Unit price (ex-GST)"
             className={styles.medicationCard}
-          >
-            <Stack gap="xs">
-              <DrugSearchSelect
-                value={item.catalog_item_id ?? ""}
-                onChange={(drugId, drug) => {
-                  const updated = [...items];
-                  updated[idx] = {
-                    ...item,
-                    catalog_item_id: drugId,
-                    drug_name: drug?.name ?? "",
-                    unit_price: drug ? Number(drug.base_price) : 0,
-                    tax_percent: drug ? Number(drug.tax_percent) : 0,
-                  };
-                  setItems(updated);
-                }}
-                label={`Drug #${idx + 1}`}
-                required
-              />
-              <Group grow>
-                <NumberInput
-                  label="Qty"
-                  min={1}
-                  value={item.quantity}
-                  onChange={(v) => {
-                    const updated = [...items];
-                    updated[idx] = { ...item, quantity: Number(v) };
-                    setItems(updated);
-                  }}
-                />
-                <NumberInput
-                  label="Unit Price (ex-GST)"
-                  min={0}
-                  decimalScale={2}
-                  prefix="₹"
-                  value={item.unit_price}
-                  onChange={(v) => {
-                    const updated = [...items];
-                    updated[idx] = { ...item, unit_price: Number(v) };
-                    setItems(updated);
-                  }}
-                />
-                <Stack gap={0} justify="flex-end" pb={2}>
-                  <Text size="xs" c="dimmed">
-                    Subtotal
-                  </Text>
-                  <Text size="sm" fw={600}>
-                    {formatInr(item.quantity * item.unit_price)}
-                  </Text>
-                </Stack>
-              </Group>
-              <Group justify="space-between">
-                <Text size="xs" c="dimmed">
-                  GST {item.tax_percent ?? 0}%: {formatInr(draftItemTaxAmount(item))}
-                </Text>
-                <Text size="sm" fw={700}>
-                  Total {formatInr(draftItemTotal(item))}
-                </Text>
-              </Group>
-              {items.length > 1 && (
-                <Button
-                  size="xs"
-                  variant="subtle"
-                  color="danger"
-                  onClick={() => setItems(items.filter((_, i) => i !== idx))}
-                >
-                  Remove
-                </Button>
-              )}
-            </Stack>
-          </Card>
+            removePermission={P.PHARMACY.DISPENSING_CREATE}
+            onChange={(next) => {
+              const updated = [...items];
+              updated[idx] = { ...item, ...next };
+              setItems(updated);
+            }}
+            canRemove={items.length > 1}
+            onRemove={() => setItems(items.filter((_, i) => i !== idx))}
+          />
         ))}
         <Group justify="space-between">
           <Button
             size="xs"
             variant="light"
             leftSection={<IconPlus size={14} />}
-            onClick={() =>
-              setItems([...items, { drug_name: "", quantity: 1, unit_price: 0, tax_percent: 0 }])
-            }
+            onClick={() => setItems([...items, newDraftPharmacyOrderItem()])}
           >
-            Add Drug
+            Add medicine
           </Button>
           <Stack gap={0} align="flex-end">
             <Text size="xs" c="dimmed">
-              Subtotal {formatInr(orderTotals.subtotal)} · GST {formatInr(orderTotals.tax)}
+              Subtotal {renderPharmacySensitiveCurrency(priceAccess, orderTotals.subtotal)} · GST{" "}
+              {renderPharmacySensitiveCurrency(priceAccess, orderTotals.tax)}
             </Text>
-            <Text fw={700}>Payable: {formatInr(orderTotals.total)}</Text>
+            <Text fw={700}>
+              Payable: {renderPharmacySensitiveCurrency(priceAccess, orderTotals.total)}
+            </Text>
           </Stack>
         </Group>
         <Button
@@ -918,7 +2048,7 @@ function CreatePharmacyOrderDrawer({ opened, onClose }: { opened: boolean; onClo
             createMutation.mutate({
               patient_id: patientId,
               notes: notes || undefined,
-              items,
+              items: draftPharmacyOrderItemsPayload(items),
               safety_override_reason: safetyOverrideReason.trim() || undefined,
             })
           }
@@ -936,15 +2066,19 @@ function PharmacyOrderDetail({
   orderId,
   canEditItems,
   canViewReturns,
+  canViewPatientRecord,
 }: {
   orderId: string;
   canEditItems: boolean;
   canViewReturns: boolean;
+  canViewPatientRecord: boolean;
 }) {
   const queryClient = useQueryClient();
   const [showAudit, setShowAudit] = useState(false);
   const [showLabels, setShowLabels] = useState(false);
   const [viewMode, setViewMode] = useState<"table" | "schedule">("schedule");
+  const batchNumberAccess = useFieldAccess("pharmacy.batches.batch_number");
+  const priceAccess = useFieldAccess("pharmacy.pricing.unit_price");
   const { data } = useQuery({
     queryKey: ["pharmacy-order-detail", orderId],
     queryFn: () => pharmacyService.getPharmacyOrder(orderId),
@@ -961,7 +2095,9 @@ function PharmacyOrderDetail({
 
   // Patient identity for labels — UUID slice is medically dangerous on a
   // dispensed-medication label, so resolve to real name + UHID.
-  const { data: patientName } = usePatientName(detail?.order.patient_id);
+  const { data: patientName } = usePatientName(
+    canViewPatientRecord ? detail?.order.patient_id : undefined,
+  );
 
   const updateItemMutation = useMutation({
     mutationFn: ({ itemId, quantity }: { itemId: string; quantity: number }) =>
@@ -996,6 +2132,11 @@ function PharmacyOrderDetail({
 
   const hasRxItems = rxData && rxData.items.length > 0;
   const canEditOrderItems = canEditItems && detail.order.status === "ordered";
+  const canPrintMedicationLabels = canViewPatientRecord && hasRxItems;
+  const prescriptionPatientName = canViewPatientRecord
+    ? (patientName?.full_name ?? "Linked patient")
+    : "Patient restricted";
+  const prescriptionUhid = canViewPatientRecord ? (patientName?.uhid ?? "") : "";
 
   return (
     <Stack>
@@ -1020,7 +2161,10 @@ function PharmacyOrderDetail({
           Edit or remove medicines before dispense. Draft billing lines stay synchronized.
         </Alert>
       )}
-      <PatientContextBanner patientId={detail.order.patient_id} hideLoadingState />
+      <PharmacyPatientContext
+        patientId={detail.order.patient_id}
+        canViewPatientRecord={canViewPatientRecord}
+      />
 
       {/* View mode toggle — show schedule view when prescription data is available */}
       {hasRxItems && (
@@ -1056,7 +2200,9 @@ function PharmacyOrderDetail({
             {detail.items.map((item) => (
               <Table.Tr key={item.id}>
                 <Table.Td>{item.drug_name}</Table.Td>
-                <Table.Td>{item.batch_number ?? "\u2014"}</Table.Td>
+                <Table.Td>
+                  {renderPharmacySensitiveValue(batchNumberAccess, item.batch_number)}
+                </Table.Td>
                 <Table.Td>
                   {item.expiry_date ? <ExpiryCell date={item.expiry_date} /> : "\u2014"}
                 </Table.Td>
@@ -1074,13 +2220,9 @@ function PharmacyOrderDetail({
                     item.quantity
                   )}
                 </Table.Td>
+                <Table.Td>{renderPharmacySensitiveCurrency(priceAccess, item.unit_price)}</Table.Td>
                 <Table.Td>
-                  {"\u20B9"}
-                  {Number(item.unit_price).toFixed(2)}
-                </Table.Td>
-                <Table.Td>
-                  {"\u20B9"}
-                  {Number(item.total_price).toFixed(2)}
+                  {renderPharmacySensitiveCurrency(priceAccess, item.total_price)}
                 </Table.Td>
                 {canViewReturns && (
                   <Table.Td>{item.quantity_returned > 0 ? item.quantity_returned : "—"}</Table.Td>
@@ -1129,18 +2271,18 @@ function PharmacyOrderDetail({
         >
           {showAudit ? "Hide" : "Show"} Prescription Audit Trail
         </Button>
-        {hasRxItems && (
+        {canPrintMedicationLabels && (
           <Button variant="light" size="xs" color="teal" onClick={() => setShowLabels(!showLabels)}>
             {showLabels ? "Hide" : "Print"} Medication Labels
           </Button>
         )}
       </Group>
       {showAudit && <PrescriptionAuditTrail prescriptionId={orderId} />}
-      {showLabels && hasRxItems && (
+      {showLabels && canPrintMedicationLabels && (
         <PharmacyLabel
           items={rxData.items}
-          patientName={patientName?.full_name ?? ""}
-          uhid={patientName?.uhid ?? ""}
+          patientName={prescriptionPatientName}
+          uhid={prescriptionUhid}
           date={new Date().toLocaleDateString()}
         />
       )}
@@ -1148,8 +2290,8 @@ function PharmacyOrderDetail({
       {hasRxItems && (
         <PrescriptionViews
           prescriptions={[rxData]}
-          patientName={patientName?.full_name ?? ""}
-          uhid={patientName?.uhid ?? ""}
+          patientName={prescriptionPatientName}
+          uhid={prescriptionUhid}
           allergies={[]}
         />
       )}
@@ -1271,7 +2413,15 @@ function PrescriptionAuditTrail({ prescriptionId }: { prescriptionId: string }) 
 
 // ── Drug Interaction Check Modal ──────────────────────────
 
-function DrugInteractionModal({ opened, onClose }: { opened: boolean; onClose: () => void }) {
+function DrugInteractionModal({
+  opened,
+  onClose,
+  canViewPatientRecord,
+}: {
+  opened: boolean;
+  onClose: () => void;
+  canViewPatientRecord: boolean;
+}) {
   const [patientId, setPatientId] = useState("");
   const [drugId, setDrugId] = useState("");
 
@@ -1290,7 +2440,7 @@ function DrugInteractionModal({ opened, onClose }: { opened: boolean; onClose: (
     <Modal opened={opened} onClose={onClose} title="Drug Interaction Check" size="xl">
       <Stack>
         <PatientSearchSelect value={patientId} onChange={setPatientId} required />
-        <PatientContextBanner patientId={patientId} hideLoadingState />
+        <PharmacyPatientContext patientId={patientId} canViewPatientRecord={canViewPatientRecord} />
         <DrugSearchSelect
           value={drugId}
           onChange={(id) => setDrugId(id)}
@@ -1414,6 +2564,7 @@ function PharmacyCatalogTab({
   const queryClient = useQueryClient();
   const [formOpened, formHandlers] = useDisclosure(false);
   const [formularyFilter, setFormularyFilter] = useState<string | null>(null);
+  const priceAccess = useFieldAccess("pharmacy.catalog.base_price");
   const catalogDefaults: PharmacyCatalogFormInput = {
     code: "",
     name: "",
@@ -1500,16 +2651,14 @@ function PharmacyCatalogTab({
     {
       key: "category",
       label: "Category",
-      render: (row: PharmacyCatalog) => <Text size="sm">{row.category ?? "\u2014"}</Text>,
+      render: (row: PharmacyCatalog) =>
+        row.category ? <TableValueBadge value={row.category} kind="pharmacy" /> : "\u2014",
     },
     {
       key: "base_price",
       label: "Price",
       render: (row: PharmacyCatalog) => (
-        <Text size="sm">
-          {"\u20B9"}
-          {row.base_price}
-        </Text>
+        <Text size="sm">{renderPharmacySensitiveCurrency(priceAccess, row.base_price)}</Text>
       ),
     },
     {
@@ -1597,7 +2746,7 @@ function PharmacyCatalogTab({
       <Group>
         {canManage && (
           <Button size="xs" leftSection={<IconPlus size={14} />} onClick={formHandlers.toggle}>
-            Add Drug
+            Add formulary medicine
           </Button>
         )}
         <Select
@@ -1787,63 +2936,100 @@ function PharmacyCatalogTab({
 
 function StockTab({ canManage }: { canManage: boolean }) {
   const queryClient = useQueryClient();
-  const [formOpened, formHandlers] = useDisclosure(false);
-  const {
-    control,
-    register,
-    reset,
-    handleSubmit,
-    formState: { errors },
-  } = useForm<PharmacyStockTransactionFormInput>({
-    resolver: zodResolver(pharmacyStockTransactionFormSchema),
-    defaultValues: {
-      catalog_item_id: "",
-      transaction_type: "receipt",
-      quantity: 1,
-      notes: "",
-    },
-  });
+  const [batchModalOpened, batchModalHandlers] = useDisclosure(false);
+  const [bulkBatchOpened, bulkBatchHandlers] = useDisclosure(false);
+  const [bulkStep, setBulkStep] = useState<"edit" | "verify">("edit");
+  const [selectedStockItem, setSelectedStockItem] = useState<PharmacyCatalog | null>(null);
+  const [bulkHeader, setBulkHeader] = useState<BulkBatchHeader>(newBulkBatchHeader());
+  const [bulkRows, setBulkRows] = useState<BulkBatchLine[]>([newBulkBatchLine()]);
+  const batchNumberAccess = useFieldAccess("pharmacy.batches.batch_number");
+  const purchaseRateAccess = useFieldAccess("pharmacy.batches.purchase_rate");
+  const sellingRateAccess = useFieldAccess("pharmacy.batches.selling_rate");
+  const sourceAccess = useFieldAccess("pharmacy.batches.source");
+  const canEditBatchPrices =
+    canEditPharmacyField(purchaseRateAccess) && canEditPharmacyField(sellingRateAccess);
 
   const { data: stock = [], isLoading } = useQuery({
     queryKey: ["pharmacy-stock"],
     queryFn: () => pharmacyService.listStock(),
   });
+  const { data: batches = [], isLoading: batchesLoading } = useQuery({
+    queryKey: ["pharmacy-batches"],
+    queryFn: () => pharmacyService.listPharmacyBatches(),
+  });
+  const { data: storeLocations = [] } = useQuery({
+    queryKey: ["store-locations"],
+    queryFn: () => pharmacyService.listStoreLocations(),
+    staleTime: 10 * 60 * 1000,
+  });
 
   const emit = useClinicalEmit();
 
-  const createTxMutation = useMutation({
-    mutationFn: (data: CreateStockTransactionRequest) =>
-      pharmacyService.createStockTransaction(data),
-    onSuccess: (_result, variables) => {
+  const selectedBatches = useMemo(
+    () =>
+      selectedStockItem
+        ? batches.filter((batch) => batch.catalog_item_id === selectedStockItem.id)
+        : [],
+    [batches, selectedStockItem],
+  );
+  const readyBulkRows = useMemo(() => bulkRows.filter(isBulkBatchLineReady), [bulkRows]);
+  const storeLocationOptions = useMemo(
+    () =>
+      storeLocations.map((store) => ({
+        value: store.id,
+        label: [store.name, store.location_type, store.code].filter(Boolean).join(" - "),
+      })),
+    [storeLocations],
+  );
+  const storeLocationById = useMemo(
+    () => new Map(storeLocations.map((store) => [store.id, store])),
+    [storeLocations],
+  );
+  const storeSelectionRequired = storeLocations.length > 0;
+  const canVerifyBulkRows =
+    canEditBatchPrices &&
+    readyBulkRows.length > 0 &&
+    (!storeSelectionRequired || bulkHeader.store_location_id.trim().length > 0);
+
+  const updateBulkRow = (id: string, patch: Partial<BulkBatchLine>) => {
+    setBulkRows((rows) => rows.map((row) => (row.id === id ? { ...row, ...patch } : row)));
+  };
+
+  const removeBulkRow = (id: string) => {
+    setBulkRows((rows) => (rows.length === 1 ? rows : rows.filter((row) => row.id !== id)));
+  };
+
+  const resetBulkRows = () => {
+    setBulkHeader(newBulkBatchHeader());
+    setBulkRows([newBulkBatchLine()]);
+    setBulkStep("edit");
+  };
+
+  const bulkBatchMutation = useMutation({
+    mutationFn: async (rows: BulkBatchLine[]) => {
+      const created: PharmacyBatch[] = [];
+      for (const row of rows) {
+        created.push(await pharmacyService.createPharmacyBatch(buildBatchPayload(row, bulkHeader)));
+      }
+      return created;
+    },
+    onSuccess: (created) => {
       void queryClient.invalidateQueries({ queryKey: ["pharmacy-stock"] });
       void queryClient.invalidateQueries({ queryKey: ["pharmacy-catalog"] });
+      void queryClient.invalidateQueries({ queryKey: ["pharmacy-batches"] });
       notifications.show({
-        title: "Stock updated",
-        message: "Transaction recorded",
+        title: "Batches added",
+        message: `${created.length} batch row(s) verified and posted`,
         color: "success",
       });
       emit("stock.movement", {
-        transaction_type: variables.transaction_type,
-        quantity: variables.quantity,
+        transaction_type: "bulk_batch_receipt",
+        quantity: readyBulkRows.reduce((sum, row) => sum + batchLineTotalQuantity(row), 0),
       });
-      formHandlers.close();
-      reset({
-        catalog_item_id: "",
-        transaction_type: "receipt",
-        quantity: 1,
-        notes: "",
-      });
+      bulkBatchHandlers.close();
+      resetBulkRows();
     },
   });
-
-  const handleCreateTransaction = (values: PharmacyStockTransactionFormInput) => {
-    createTxMutation.mutate({
-      catalog_item_id: values.catalog_item_id,
-      transaction_type: values.transaction_type,
-      quantity: formIntegerOrFallback(values.quantity, 1),
-      notes: values.notes.trim() || undefined,
-    });
-  };
 
   const columns = [
     {
@@ -1860,9 +3046,12 @@ function StockTab({ canManage }: { canManage: boolean }) {
       key: "current_stock",
       label: "Current Stock",
       render: (row: PharmacyCatalog) => (
-        <Badge color={row.current_stock < row.reorder_level ? "danger" : "success"} variant="light">
-          {row.current_stock}
-        </Badge>
+        <TableValueBadge
+          value={row.current_stock < row.reorder_level ? "low_stock" : "stock"}
+          kind="stock"
+          color={row.current_stock < row.reorder_level ? "danger" : "success"}
+          label={String(row.current_stock)}
+        />
       ),
     },
     {
@@ -1875,75 +3064,555 @@ function StockTab({ canManage }: { canManage: boolean }) {
       label: "Status",
       render: (row: PharmacyCatalog) =>
         row.current_stock < row.reorder_level ? (
-          <Badge color="danger" variant="filled" size="sm">
-            Low Stock
-          </Badge>
+          <TableValueBadge
+            value="low_stock"
+            kind="stock"
+            color="danger"
+            label="Low Stock"
+            variant="filled"
+          />
         ) : (
-          <Badge color="success" variant="light" size="sm">
-            OK
-          </Badge>
+          <TableValueBadge value="ready" kind="status" color="success" label="OK" />
         ),
+    },
+    {
+      key: "batches",
+      label: "Batches",
+      render: (row: PharmacyCatalog) => {
+        const activeBatches = batches.filter((batch) => batch.catalog_item_id === row.id);
+        const earliest = activeBatches[0];
+        return (
+          <Button
+            size="compact-xs"
+            variant="light"
+            leftSection={<IconEye size={12} />}
+            onClick={() => {
+              setSelectedStockItem(row);
+              batchModalHandlers.open();
+            }}
+          >
+            {activeBatches.length} batch{activeBatches.length === 1 ? "" : "es"}
+            {earliest?.expiry_date ? ` · FEFO ${earliest.expiry_date}` : ""}
+          </Button>
+        );
+      },
     },
   ];
 
   return (
     <Stack>
-      {canManage && (
+      {canManage && !canEditBatchPrices && (
+        <Alert color="orange" variant="light">
+          Stock intake requires editable batch purchase and selling rate access.
+        </Alert>
+      )}
+      {canManage && canEditBatchPrices && (
         <Group>
-          <Button size="xs" leftSection={<IconPackage size={14} />} onClick={formHandlers.toggle}>
-            New Stock Transaction
+          <Button
+            size="xs"
+            leftSection={<IconPlus size={14} />}
+            onClick={() => {
+              resetBulkRows();
+              bulkBatchHandlers.open();
+            }}
+          >
+            Add stock intake
           </Button>
         </Group>
       )}
-      {formOpened && (
-        <Stack component="form" gap="xs" onSubmit={handleSubmit(handleCreateTransaction)}>
-          <Controller
-            control={control}
-            name="catalog_item_id"
-            render={({ field }) => (
-              <DrugSearchSelect
-                value={field.value}
-                onChange={field.onChange}
-                error={errors.catalog_item_id?.message}
-                required
-              />
-            )}
-          />
-          <Group grow>
-            <Controller
-              control={control}
-              name="transaction_type"
-              render={({ field }) => (
-                <Select
-                  label="Type"
-                  data={stockTransactionTypeOptions}
-                  value={field.value}
-                  onChange={(value) => value && field.onChange(value)}
-                />
-              )}
-            />
-            <Controller
-              control={control}
-              name="quantity"
-              render={({ field }) => (
-                <NumberInput
-                  label="Quantity"
-                  required
-                  min={1}
-                  value={field.value}
-                  onChange={field.onChange}
-                  error={errors.quantity?.message}
-                />
-              )}
-            />
-          </Group>
-          <TextInput label="Notes" {...register("notes")} />
-          <Button size="xs" type="submit" loading={createTxMutation.isPending}>
-            Record Transaction
-          </Button>
-        </Stack>
-      )}
       <DataTable columns={columns} data={stock} loading={isLoading} rowKey={(row) => row.id} />
+      <Modal
+        opened={batchModalOpened}
+        onClose={batchModalHandlers.close}
+        title={selectedStockItem ? `${selectedStockItem.name} batches` : "Batch details"}
+        size="xl"
+      >
+        <Stack gap="sm">
+          {batchesLoading ? (
+            <Loader size="sm" />
+          ) : selectedBatches.length === 0 ? (
+            <Text size="sm" c="dimmed">
+              No active batch stock recorded for this product.
+            </Text>
+          ) : (
+            <Table striped highlightOnHover withTableBorder>
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th>Batch</Table.Th>
+                  <Table.Th>Expiry</Table.Th>
+                  <Table.Th>Qty</Table.Th>
+                  <Table.Th>Purchase</Table.Th>
+                  <Table.Th>MRP</Table.Th>
+                  <Table.Th>GRN / Source</Table.Th>
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
+                {selectedBatches.map((batch) => (
+                  <Table.Tr key={batch.id}>
+                    <Table.Td>
+                      {renderPharmacySensitiveValue(batchNumberAccess, batch.batch_number)}
+                    </Table.Td>
+                    <Table.Td>
+                      <ExpiryCell date={batch.expiry_date} />
+                    </Table.Td>
+                    <Table.Td>
+                      {batch.quantity_on_hand} / {batch.quantity_received}
+                    </Table.Td>
+                    <Table.Td>
+                      {renderPharmacySensitiveCurrency(purchaseRateAccess, batch.purchase_rate)}
+                    </Table.Td>
+                    <Table.Td>
+                      {renderPharmacySensitiveCurrency(sellingRateAccess, batch.selling_rate)}
+                    </Table.Td>
+                    <Table.Td>
+                      <Text size="xs">
+                        {renderPharmacySensitiveValue(
+                          sourceAccess,
+                          batch.grn_id ??
+                            batch.supplier_info ??
+                            batch.invoice_number ??
+                            "Manual intake",
+                        )}
+                      </Text>
+                    </Table.Td>
+                  </Table.Tr>
+                ))}
+              </Table.Tbody>
+            </Table>
+          )}
+        </Stack>
+      </Modal>
+      <Modal
+        opened={bulkBatchOpened}
+        onClose={bulkBatchHandlers.close}
+        title="Bulk batch intake"
+        size="100%"
+      >
+        <Stack gap="sm">
+          {bulkStep === "edit" ? (
+            <>
+              <Text size="sm" c="dimmed">
+                Add multiple received batches in one table, then verify before stock is posted.
+              </Text>
+              <Stack gap="xs">
+                <Group grow>
+                  <TextInput
+                    label="Supplier name"
+                    value={bulkHeader.supplier_name}
+                    onChange={(event) => {
+                      const value = event.currentTarget.value;
+                      setBulkHeader((header) => ({
+                        ...header,
+                        supplier_name: value,
+                      }));
+                    }}
+                    placeholder="Supplier / distributor"
+                  />
+                  <TextInput
+                    label="Supplier invoice number"
+                    value={bulkHeader.invoice_number}
+                    onChange={(event) => {
+                      const value = event.currentTarget.value;
+                      setBulkHeader((header) => ({
+                        ...header,
+                        invoice_number: value,
+                      }));
+                    }}
+                    placeholder="Invoice no."
+                  />
+                </Group>
+                <Group grow>
+                  <Select
+                    label="Receiving store"
+                    data={storeLocationOptions}
+                    value={bulkHeader.store_location_id}
+                    onChange={(value) =>
+                      setBulkHeader((header) => ({
+                        ...header,
+                        store_location_id: value ?? "",
+                      }))
+                    }
+                    placeholder={
+                      storeLocationOptions.length > 0 ? "Select store" : "No store configured"
+                    }
+                    required={storeSelectionRequired}
+                    searchable
+                  />
+                  <Select
+                    label="Invoice mode"
+                    data={[
+                      { value: "credit", label: "Credit invoice" },
+                      { value: "cash", label: "Cash invoice" },
+                    ]}
+                    value={bulkHeader.invoice_mode}
+                    onChange={(value) =>
+                      setBulkHeader((header) => ({
+                        ...header,
+                        invoice_mode: value === "cash" ? "cash" : "credit",
+                      }))
+                    }
+                  />
+                  <TextInput
+                    label="Invoice date"
+                    type="date"
+                    value={bulkHeader.invoice_date}
+                    onChange={(event) => {
+                      const value = event.currentTarget.value;
+                      setBulkHeader((header) => ({
+                        ...header,
+                        invoice_date: value,
+                      }));
+                    }}
+                  />
+                </Group>
+                <Group grow>
+                  <NumberInput
+                    label="Invoice amount"
+                    min={0}
+                    decimalScale={2}
+                    value={bulkHeader.invoice_amount}
+                    onChange={(value) =>
+                      setBulkHeader((header) => ({
+                        ...header,
+                        invoice_amount: typeof value === "number" ? value : "",
+                      }))
+                    }
+                  />
+                  <TextInput
+                    label="Payment terms"
+                    value={bulkHeader.payment_terms}
+                    onChange={(event) => {
+                      const value = event.currentTarget.value;
+                      setBulkHeader((header) => ({
+                        ...header,
+                        payment_terms: value,
+                      }));
+                    }}
+                    placeholder="Credit days / cash / sponsor / payable note"
+                  />
+                </Group>
+              </Stack>
+              {storeSelectionRequired && !bulkHeader.store_location_id && (
+                <Alert color="warning" variant="light">
+                  Select the receiving store before verification so stock is posted to the correct
+                  pharmacy location.
+                </Alert>
+              )}
+              <Table striped highlightOnHover withTableBorder>
+                <Table.Thead>
+                  <Table.Tr>
+                    <Table.Th>Product</Table.Th>
+                    <Table.Th>Reorder</Table.Th>
+                    <Table.Th>Batch</Table.Th>
+                    <Table.Th>Supplier batch</Table.Th>
+                    <Table.Th>Expiry</Table.Th>
+                    <Table.Th>Mfg</Table.Th>
+                    <Table.Th>GRN / Source</Table.Th>
+                    <Table.Th>Storage</Table.Th>
+                    <Table.Th>Rack / bin</Table.Th>
+                    <Table.Th>Purchase rate</Table.Th>
+                    <Table.Th>MRP</Table.Th>
+                    <Table.Th>Tax</Table.Th>
+                    <Table.Th>Paid qty</Table.Th>
+                    <Table.Th>Free qty</Table.Th>
+                    <Table.Th />
+                  </Table.Tr>
+                </Table.Thead>
+                <Table.Tbody>
+                  {bulkRows.map((row) => (
+                    <Table.Tr key={row.id}>
+                      <Table.Td miw={220}>
+                        <DrugSearchSelect
+                          value={row.catalog_item_id}
+                          onChange={(id, selectedDrug) =>
+                            updateBulkRow(row.id, {
+                              catalog_item_id: id ?? "",
+                              product_name: selectedDrug?.name ?? "",
+                              tax_percent: Number(selectedDrug?.tax_percent ?? 0),
+                              current_stock: selectedDrug?.current_stock ?? 0,
+                              reorder_level: selectedDrug?.reorder_level ?? 0,
+                            })
+                          }
+                        />
+                      </Table.Td>
+                      <Table.Td>
+                        {row.catalog_item_id ? (
+                          <Badge
+                            variant={isBatchLineBelowReorder(row) ? "filled" : "light"}
+                            color={isBatchLineBelowReorder(row) ? "danger" : "success"}
+                          >
+                            {isBatchLineBelowReorder(row) ? "Reorder" : "OK"} {row.current_stock}/
+                            {row.reorder_level}
+                          </Badge>
+                        ) : (
+                          "—"
+                        )}
+                      </Table.Td>
+                      <Table.Td>
+                        <TextInput
+                          value={row.batch_number}
+                          onChange={(event) =>
+                            updateBulkRow(row.id, { batch_number: event.currentTarget.value })
+                          }
+                          placeholder="Batch no."
+                        />
+                      </Table.Td>
+                      <Table.Td>
+                        <TextInput
+                          value={row.supplier_batch_number}
+                          onChange={(event) =>
+                            updateBulkRow(row.id, {
+                              supplier_batch_number: event.currentTarget.value,
+                            })
+                          }
+                          placeholder="Supplier batch"
+                        />
+                      </Table.Td>
+                      <Table.Td>
+                        <TextInput
+                          type="date"
+                          value={row.expiry_date}
+                          onChange={(event) =>
+                            updateBulkRow(row.id, { expiry_date: event.currentTarget.value })
+                          }
+                        />
+                      </Table.Td>
+                      <Table.Td>
+                        <TextInput
+                          type="date"
+                          value={row.manufacture_date}
+                          onChange={(event) =>
+                            updateBulkRow(row.id, { manufacture_date: event.currentTarget.value })
+                          }
+                        />
+                      </Table.Td>
+                      <Table.Td>
+                        <TextInput
+                          value={row.grn_reference}
+                          onChange={(event) =>
+                            updateBulkRow(row.id, { grn_reference: event.currentTarget.value })
+                          }
+                          placeholder="GRN / invoice"
+                        />
+                      </Table.Td>
+                      <Table.Td>
+                        <TextInput
+                          value={row.storage_conditions}
+                          onChange={(event) =>
+                            updateBulkRow(row.id, {
+                              storage_conditions: event.currentTarget.value,
+                            })
+                          }
+                          placeholder="Ambient / cold chain"
+                        />
+                      </Table.Td>
+                      <Table.Td>
+                        <TextInput
+                          value={row.rack_bin}
+                          onChange={(event) =>
+                            updateBulkRow(row.id, { rack_bin: event.currentTarget.value })
+                          }
+                          placeholder="Rack / shelf"
+                        />
+                      </Table.Td>
+                      <Table.Td>
+                        <NumberInput
+                          min={0}
+                          value={row.purchase_rate}
+                          error={!isBatchLinePriceValid(row) ? "Cannot exceed MRP" : undefined}
+                          onChange={(value) =>
+                            updateBulkRow(row.id, {
+                              purchase_rate: typeof value === "number" ? value : "",
+                            })
+                          }
+                        />
+                      </Table.Td>
+                      <Table.Td>
+                        <NumberInput
+                          min={0}
+                          value={row.mrp}
+                          error={
+                            !isBatchLinePriceValid(row) ? "MRP must be >= purchase" : undefined
+                          }
+                          onChange={(value) =>
+                            updateBulkRow(row.id, { mrp: typeof value === "number" ? value : "" })
+                          }
+                        />
+                      </Table.Td>
+                      <Table.Td>
+                        <NumberInput
+                          min={0}
+                          max={100}
+                          value={row.tax_percent}
+                          suffix="%"
+                          onChange={(value) =>
+                            updateBulkRow(row.id, {
+                              tax_percent: typeof value === "number" ? value : 0,
+                            })
+                          }
+                        />
+                      </Table.Td>
+                      <Table.Td>
+                        <NumberInput
+                          min={0}
+                          value={row.paid_quantity}
+                          onChange={(value) =>
+                            updateBulkRow(row.id, {
+                              paid_quantity: typeof value === "number" ? value : "",
+                            })
+                          }
+                        />
+                      </Table.Td>
+                      <Table.Td>
+                        <NumberInput
+                          min={0}
+                          value={row.free_quantity}
+                          onChange={(value) =>
+                            updateBulkRow(row.id, {
+                              free_quantity: typeof value === "number" ? value : "",
+                            })
+                          }
+                        />
+                      </Table.Td>
+                      <Table.Td>
+                        <ActionIcon
+                          variant="subtle"
+                          color="danger"
+                          onClick={() => removeBulkRow(row.id)}
+                          disabled={bulkRows.length === 1}
+                          aria-label="Remove batch row"
+                        >
+                          <IconTrash size={14} />
+                        </ActionIcon>
+                      </Table.Td>
+                    </Table.Tr>
+                  ))}
+                </Table.Tbody>
+              </Table>
+              <Stack gap="xs">
+                <Button
+                  variant="light"
+                  fullWidth
+                  leftSection={<IconPlus size={14} />}
+                  onClick={() => setBulkRows((rows) => [...rows, newBulkBatchLine()])}
+                >
+                  Add another batch line
+                </Button>
+                <Group justify="flex-end">
+                  <Button variant="default" onClick={bulkBatchHandlers.close}>
+                    Cancel
+                  </Button>
+                  <Button disabled={!canVerifyBulkRows} onClick={() => setBulkStep("verify")}>
+                    Verify {readyBulkRows.length} row{readyBulkRows.length === 1 ? "" : "s"}
+                  </Button>
+                </Group>
+              </Stack>
+            </>
+          ) : (
+            <>
+              <Alert color="primary" variant="light">
+                Verify product, batch, expiry, paid quantity, and free quantity before posting. This
+                will increase pharmacy stock immediately. Purchase rate must be equal to or less
+                than MRP.
+              </Alert>
+              <Table striped withTableBorder>
+                <Table.Caption>
+                  {bulkHeader.invoice_mode === "cash" ? "Cash invoice" : "Credit invoice"} ·{" "}
+                  {bulkHeader.invoice_date || "No date"} ·{" "}
+                  {bulkHeader.invoice_number || "No invoice no."} · Supplier{" "}
+                  {bulkHeader.supplier_name || "not recorded"} · Store{" "}
+                  {storeLocationById.get(bulkHeader.store_location_id)?.name || "not selected"}
+                  {bulkHeader.invoice_amount !== "" && (
+                    <>
+                      {" "}
+                      · Invoice amount{" "}
+                      {renderPharmacySensitiveCurrency(
+                        purchaseRateAccess,
+                        bulkHeader.invoice_amount,
+                      )}
+                    </>
+                  )}
+                </Table.Caption>
+                <Table.Thead>
+                  <Table.Tr>
+                    <Table.Th>Product</Table.Th>
+                    <Table.Th>Reorder</Table.Th>
+                    <Table.Th>Batch</Table.Th>
+                    <Table.Th>Supplier batch</Table.Th>
+                    <Table.Th>Expiry</Table.Th>
+                    <Table.Th>Mfg</Table.Th>
+                    <Table.Th>Storage / rack</Table.Th>
+                    <Table.Th>Paid</Table.Th>
+                    <Table.Th>Free</Table.Th>
+                    <Table.Th>Total</Table.Th>
+                    <Table.Th>Purchase</Table.Th>
+                    <Table.Th>MRP</Table.Th>
+                    <Table.Th>Tax</Table.Th>
+                    <Table.Th>Taxable</Table.Th>
+                    <Table.Th>GST</Table.Th>
+                  </Table.Tr>
+                </Table.Thead>
+                <Table.Tbody>
+                  {readyBulkRows.map((row) => (
+                    <Table.Tr key={row.id}>
+                      <Table.Td>{row.product_name || row.catalog_item_id}</Table.Td>
+                      <Table.Td>
+                        <Badge
+                          color={isBatchLineBelowReorder(row) ? "danger" : "success"}
+                          variant="light"
+                        >
+                          {isBatchLineBelowReorder(row) ? "Below reorder" : "Above reorder"}
+                        </Badge>
+                      </Table.Td>
+                      <Table.Td>{row.batch_number}</Table.Td>
+                      <Table.Td>{row.supplier_batch_number || "—"}</Table.Td>
+                      <Table.Td>{row.expiry_date}</Table.Td>
+                      <Table.Td>{row.manufacture_date || "—"}</Table.Td>
+                      <Table.Td>
+                        {[row.storage_conditions, row.rack_bin].filter(Boolean).join(" · ") || "—"}
+                      </Table.Td>
+                      <Table.Td>{batchLineNumber(row.paid_quantity)}</Table.Td>
+                      <Table.Td>{batchLineNumber(row.free_quantity)}</Table.Td>
+                      <Table.Td>{batchLineTotalQuantity(row)}</Table.Td>
+                      <Table.Td>
+                        {renderPharmacySensitiveCurrency(purchaseRateAccess, row.purchase_rate)}
+                      </Table.Td>
+                      <Table.Td>
+                        {renderPharmacySensitiveCurrency(sellingRateAccess, row.mrp)}
+                      </Table.Td>
+                      <Table.Td>{row.tax_percent}%</Table.Td>
+                      <Table.Td>
+                        {renderPharmacySensitiveCurrency(
+                          purchaseRateAccess,
+                          batchLineTaxableAmount(row),
+                        )}
+                      </Table.Td>
+                      <Table.Td>
+                        {renderPharmacySensitiveCurrency(
+                          purchaseRateAccess,
+                          batchLineTaxAmount(row),
+                        )}
+                      </Table.Td>
+                    </Table.Tr>
+                  ))}
+                </Table.Tbody>
+              </Table>
+              <Group justify="space-between">
+                <Button variant="default" onClick={() => setBulkStep("edit")}>
+                  Back to edit
+                </Button>
+                <Button
+                  leftSection={<IconCheck size={14} />}
+                  loading={bulkBatchMutation.isPending}
+                  onClick={() => bulkBatchMutation.mutate(readyBulkRows)}
+                >
+                  Submit verified batches
+                </Button>
+              </Group>
+            </>
+          )}
+        </Stack>
+      </Modal>
     </Stack>
   );
 }
@@ -1956,6 +3625,10 @@ function NdpsRegisterTab() {
   const canManage = useHasPermission(P.PHARMACY.NDPS_MANAGE);
   const queryClient = useQueryClient();
   const [formOpened, formHandlers] = useDisclosure(false);
+  const balanceAccess = useFieldAccess("pharmacy.ndps.balance_after");
+  const userAccess = useFieldAccess("pharmacy.ndps.user_ids");
+  const witnessAccess = useFieldAccess("pharmacy.ndps.witnessed_by");
+  const canEditWitness = canEditPharmacyField(witnessAccess);
   const {
     control,
     register,
@@ -2010,7 +3683,7 @@ function NdpsRegisterTab() {
       action: values.action,
       quantity: formIntegerOrFallback(values.quantity, 1),
       notes: values.notes.trim() || undefined,
-      witnessed_by: values.witnessed_by.trim() || undefined,
+      witnessed_by: canEditWitness ? values.witnessed_by.trim() || undefined : undefined,
     });
   };
 
@@ -2042,7 +3715,7 @@ function NdpsRegisterTab() {
       label: "Balance",
       render: (row: NdpsRegisterEntry) => (
         <Text size="sm" fw={700}>
-          {row.balance_after}
+          {canViewPharmacyField(balanceAccess) ? row.balance_after : <PharmacyRestrictedValue />}
         </Text>
       ),
     },
@@ -2050,14 +3723,26 @@ function NdpsRegisterTab() {
       key: "dispensed_by",
       label: "By",
       render: (row: NdpsRegisterEntry) => (
-        <Text size="sm">{row.dispensed_by?.slice(0, 8) ?? "\u2014"}</Text>
+        <Text size="sm">
+          {canViewPharmacyField(userAccess) ? (
+            (row.dispensed_by?.slice(0, 8) ?? "\u2014")
+          ) : (
+            <PharmacyRestrictedValue />
+          )}
+        </Text>
       ),
     },
     {
       key: "witnessed_by",
       label: "Witness",
       render: (row: NdpsRegisterEntry) => (
-        <Text size="sm">{row.witnessed_by?.slice(0, 8) ?? "\u2014"}</Text>
+        <Text size="sm">
+          {canViewPharmacyField(witnessAccess) ? (
+            (row.witnessed_by?.slice(0, 8) ?? "\u2014")
+          ) : (
+            <PharmacyRestrictedValue />
+          )}
+        </Text>
       ),
     },
     {
@@ -2134,7 +3819,13 @@ function NdpsRegisterTab() {
               )}
             />
           </Group>
-          <TextInput label="Witnessed by" {...register("witnessed_by")} />
+          {canViewPharmacyField(witnessAccess) && (
+            <TextInput
+              label="Witnessed by"
+              disabled={!canEditWitness}
+              {...register("witnessed_by")}
+            />
+          )}
           <TextInput label="Notes" {...register("notes")} />
           <Button size="xs" type="submit" loading={createMutation.isPending}>
             Record
@@ -2177,6 +3868,7 @@ function BatchExpiryTab() {
 }
 
 function BatchLedgerView() {
+  const batchNumberAccess = useFieldAccess("pharmacy.batches.batch_number");
   const { data: batches = [], isLoading } = useQuery({
     queryKey: ["pharmacy-batches"],
     queryFn: () => pharmacyService.listPharmacyBatches(),
@@ -2188,7 +3880,7 @@ function BatchLedgerView() {
       label: "Batch #",
       render: (row: PharmacyBatch) => (
         <Text fw={500} size="sm">
-          {row.batch_number}
+          {renderPharmacySensitiveValue(batchNumberAccess, row.batch_number)}
         </Text>
       ),
     },
@@ -2254,6 +3946,7 @@ function ExpiryCell({ date }: { date: string }) {
 // dispensers can apply FEFO at a glance. Filters the global near-expiry
 // report by drug_name (NearExpiryRow doesn't carry catalog_item_id).
 function NearExpiryHints({ drugNames }: { drugNames: string[] }) {
+  const batchNumberAccess = useFieldAccess("pharmacy.batches.batch_number");
   const nameSet = useMemo(() => new Set(drugNames.map((n) => n.toLowerCase())), [drugNames]);
   const { data: rows = [] } = useQuery({
     queryKey: ["pharmacy-near-expiry-hints"],
@@ -2276,7 +3969,7 @@ function NearExpiryHints({ drugNames }: { drugNames: string[] }) {
               </Table.Td>
               <Table.Td>
                 <Text size="xs" ff="monospace">
-                  Batch {r.batch_number}
+                  Batch {renderPharmacySensitiveValue(batchNumberAccess, r.batch_number)}
                 </Text>
               </Table.Td>
               <Table.Td>
@@ -2294,6 +3987,7 @@ function NearExpiryHints({ drugNames }: { drugNames: string[] }) {
 }
 
 function NearExpiryView() {
+  const batchNumberAccess = useFieldAccess("pharmacy.batches.batch_number");
   const { data: rows = [], isLoading } = useQuery({
     queryKey: ["pharmacy-near-expiry"],
     queryFn: () => pharmacyService.getNearExpiryReport({ days: "90" }),
@@ -2308,7 +4002,9 @@ function NearExpiryView() {
     {
       key: "batch_number",
       label: "Batch #",
-      render: (row: NearExpiryRow) => <Text size="sm">{row.batch_number}</Text>,
+      render: (row: NearExpiryRow) => (
+        <Text size="sm">{renderPharmacySensitiveValue(batchNumberAccess, row.batch_number)}</Text>
+      ),
     },
     {
       key: "expiry_date",
@@ -2365,6 +4061,7 @@ function NearExpiryView() {
 }
 
 function DeadStockView() {
+  const valueAccess = useFieldAccess("pharmacy.analytics.value");
   const { data: rows = [], isLoading } = useQuery({
     queryKey: ["pharmacy-dead-stock"],
     queryFn: () => pharmacyService.getPharmacyDeadStock({ idle_days: "90" }),
@@ -2385,10 +4082,7 @@ function DeadStockView() {
       key: "stock_value",
       label: "Value",
       render: (row: PharmacyDeadStockRow) => (
-        <Text size="sm">
-          {"\u20B9"}
-          {Number(row.stock_value).toLocaleString()}
-        </Text>
+        <Text size="sm">{renderPharmacySensitiveCurrency(valueAccess, row.stock_value)}</Text>
       ),
     },
     {
@@ -2422,7 +4116,13 @@ function DeadStockView() {
 //  Stores & Transfers Tab
 // ══════════════════════════════════════════════════════════
 
-function StoresTransfersTab() {
+function StoresTransfersTab({
+  canViewStores,
+  canManageStores,
+}: {
+  canViewStores: boolean;
+  canManageStores: boolean;
+}) {
   const [view, setView] = useState("locations");
 
   return (
@@ -2435,16 +4135,24 @@ function StoresTransfersTab() {
           { label: "Transfers", value: "transfers" },
         ]}
       />
-      {view === "locations" && <PharmacyLocationsView />}
-      {view === "transfers" && <TransfersView />}
+      {view === "locations" && (
+        <PharmacyLocationsView canViewStores={canViewStores || canManageStores} />
+      )}
+      {view === "transfers" && (
+        <TransfersView
+          canViewStores={canViewStores || canManageStores}
+          canManage={canManageStores}
+        />
+      )}
     </Stack>
   );
 }
 
-function PharmacyLocationsView() {
+function PharmacyLocationsView({ canViewStores }: { canViewStores: boolean }) {
   const { data: assignments = [], isLoading } = useQuery({
     queryKey: ["pharmacy-store-assignments"],
     queryFn: () => pharmacyService.listPharmacyStoreAssignments(),
+    enabled: canViewStores,
   });
 
   const columns = [
@@ -2483,18 +4191,28 @@ function PharmacyLocationsView() {
     },
   ];
 
-  return (
+  return canViewStores ? (
     <DataTable columns={columns} data={assignments} loading={isLoading} rowKey={(row) => row.id} />
+  ) : (
+    <Alert color="warning" variant="light">
+      Store assignment locations require `pharmacy.stores.list` or `pharmacy.stores.manage`.
+    </Alert>
   );
 }
 
-function TransfersView() {
-  const canManage = useHasPermission(P.PHARMACY.STORES_MANAGE);
+function TransfersView({
+  canViewStores,
+  canManage,
+}: {
+  canViewStores: boolean;
+  canManage: boolean;
+}) {
   const queryClient = useQueryClient();
 
   const { data: transfers = [], isLoading } = useQuery({
     queryKey: ["pharmacy-transfers"],
     queryFn: () => pharmacyService.listPharmacyTransfers(),
+    enabled: canViewStores,
   });
 
   const approveMutation = useMutation({
@@ -2535,9 +4253,13 @@ function TransfersView() {
       key: "status",
       label: "Status",
       render: (row: PharmacyTransferRequest) => (
-        <Badge size="xs" color={transferStatusColors[row.status] ?? "gray"}>
-          {row.status}
-        </Badge>
+        <TableValueBadge
+          value={row.status}
+          kind="stock"
+          color={transferStatusColors[row.status] ?? "gray"}
+          size="xs"
+          variant="filled"
+        />
       ),
     },
     {
@@ -2557,6 +4279,7 @@ function TransfersView() {
               <ActionIcon
                 variant="subtle"
                 color="success"
+                aria-label="Approve store transfer"
                 onClick={() => approveMutation.mutate(row.id)}
               >
                 <IconCheck size={16} />
@@ -2568,8 +4291,12 @@ function TransfersView() {
     },
   ];
 
-  return (
+  return canViewStores ? (
     <DataTable columns={columns} data={transfers} loading={isLoading} rowKey={(row) => row.id} />
+  ) : (
+    <Alert color="warning" variant="light">
+      Transfer queue requires `pharmacy.stores.list` or `pharmacy.stores.manage`.
+    </Alert>
   );
 }
 
@@ -2599,6 +4326,7 @@ function AnalyticsTab() {
 }
 
 function ConsumptionView() {
+  const valueAccess = useFieldAccess("pharmacy.analytics.value");
   const { data: rows = [], isLoading } = useQuery({
     queryKey: ["pharmacy-consumption"],
     queryFn: () => pharmacyService.getPharmacyConsumption(),
@@ -2613,7 +4341,8 @@ function ConsumptionView() {
     {
       key: "category",
       label: "Category",
-      render: (row: PharmacyConsumptionRow) => <Text size="sm">{row.category ?? "\u2014"}</Text>,
+      render: (row: PharmacyConsumptionRow) =>
+        row.category ? <TableValueBadge value={row.category} kind="pharmacy" /> : "\u2014",
     },
     {
       key: "total_dispensed",
@@ -2628,10 +4357,7 @@ function ConsumptionView() {
       key: "total_value",
       label: "Total Value",
       render: (row: PharmacyConsumptionRow) => (
-        <Text size="sm">
-          {"\u20B9"}
-          {Number(row.total_value).toLocaleString()}
-        </Text>
+        <Text size="sm">{renderPharmacySensitiveCurrency(valueAccess, row.total_value)}</Text>
       ),
     },
   ];
@@ -2642,6 +4368,7 @@ function ConsumptionView() {
 }
 
 function AbcVedView() {
+  const valueAccess = useFieldAccess("pharmacy.analytics.value");
   const { data: rows = [], isLoading } = useQuery({
     queryKey: ["pharmacy-abc-ved"],
     queryFn: () => pharmacyService.getPharmacyAbcVed(),
@@ -2660,10 +4387,7 @@ function AbcVedView() {
       key: "annual_value",
       label: "Annual Value",
       render: (row: PharmacyAbcVedRow) => (
-        <Text size="sm">
-          {"\u20B9"}
-          {Number(row.annual_value).toLocaleString()}
-        </Text>
+        <Text size="sm">{renderPharmacySensitiveCurrency(valueAccess, row.annual_value)}</Text>
       ),
     },
     {
@@ -2768,7 +4492,15 @@ const rxStatusColors: Record<string, string> = {
   cancelled: "dimmed",
 };
 
-function RxQueueTab({ canReview }: { canReview: boolean }) {
+function RxQueueTab({
+  canReview,
+  canViewQueue,
+  canViewPatientRecord,
+}: {
+  canReview: boolean;
+  canViewQueue: boolean;
+  canViewPatientRecord: boolean;
+}) {
   const queryClient = useQueryClient();
   const [filterStatus, setFilterStatus] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -2888,9 +4620,10 @@ function RxQueueTab({ canReview }: { canReview: boolean }) {
       key: "patient_name",
       label: "Patient",
       render: (row: RxQueueRow) => (
-        <Text size="sm" fw={600}>
-          {row.patient_name}
-        </Text>
+        <PharmacyPatientCell
+          patientId={row.patient_id}
+          canViewPatientRecord={canViewPatientRecord}
+        />
       ),
     },
     {
@@ -2901,31 +4634,31 @@ function RxQueueTab({ canReview }: { canReview: boolean }) {
     {
       key: "source",
       label: "Source",
-      render: (row: RxQueueRow) => (
-        <Badge size="xs" variant="light">
-          {row.source}
-        </Badge>
-      ),
+      render: (row: RxQueueRow) => <TableValueBadge value={row.source} kind="source" size="xs" />,
     },
     {
       key: "priority",
       label: "Priority",
       render: (row: RxQueueRow) => (
-        <Badge
+        <TableValueBadge
+          value={row.priority}
+          kind="priority"
           size="xs"
           color={row.priority === "urgent" ? "danger" : row.priority === "high" ? "orange" : "gray"}
-        >
-          {row.priority}
-        </Badge>
+          variant="filled"
+        />
       ),
     },
     {
       key: "status",
       label: "Status",
       render: (row: RxQueueRow) => (
-        <Badge size="xs" color={rxStatusColors[row.status] ?? "gray"}>
-          {row.status.replace(/_/g, " ")}
-        </Badge>
+        <TableValueBadge
+          value={row.status}
+          color={rxStatusColors[row.status] ?? "gray"}
+          size="xs"
+          variant="filled"
+        />
       ),
     },
     {
@@ -2933,9 +4666,14 @@ function RxQueueTab({ canReview }: { canReview: boolean }) {
       label: "Allergies",
       render: (row: RxQueueRow) =>
         row.allergy_count > 0 ? (
-          <Badge size="xs" color="danger">
-            {row.allergy_count} alerts
-          </Badge>
+          <TableValueBadge
+            value="critical"
+            kind="priority"
+            size="xs"
+            color="danger"
+            label={`${row.allergy_count} alerts`}
+            variant="filled"
+          />
         ) : (
           <Text size="sm" c="dimmed">
             None
@@ -2958,11 +4696,12 @@ function RxQueueTab({ canReview }: { canReview: boolean }) {
             <ActionIcon
               size="sm"
               variant="subtle"
+              color="primary"
               onClick={() => {
                 setReviewItems([]);
                 setSelectedId(row.id);
               }}
-              aria-label="View details"
+              aria-label="View prescription details"
             >
               <IconEye size={14} />
             </ActionIcon>
@@ -2975,7 +4714,7 @@ function RxQueueTab({ canReview }: { canReview: boolean }) {
                   color="success"
                   variant="light"
                   onClick={() => handleOpenReview(row.id, "approved")}
-                  aria-label="Approve"
+                  aria-label="Approve prescription review"
                 >
                   <IconCheck size={14} />
                 </ActionIcon>
@@ -2986,7 +4725,7 @@ function RxQueueTab({ canReview }: { canReview: boolean }) {
                   color="warning"
                   variant="light"
                   onClick={() => handleOpenReview(row.id, "on_hold")}
-                  aria-label="Hold"
+                  aria-label="Hold prescription for review"
                 >
                   <IconClock size={14} />
                 </ActionIcon>
@@ -2997,7 +4736,7 @@ function RxQueueTab({ canReview }: { canReview: boolean }) {
                   color="danger"
                   variant="light"
                   onClick={() => handleOpenReview(row.id, "rejected")}
-                  aria-label="Reject"
+                  aria-label="Reject prescription"
                 >
                   <IconX size={14} />
                 </ActionIcon>
@@ -3016,6 +4755,12 @@ function RxQueueTab({ canReview }: { canReview: boolean }) {
 
   return (
     <Stack>
+      {!canViewQueue && canReview && (
+        <Alert color="blue" variant="light" icon={<IconShieldCheck size={16} />}>
+          Review-only access is active. You can inspect pending prescriptions and approve, hold, or
+          reject them, but broad queue visibility remains limited to Rx queue list roles.
+        </Alert>
+      )}
       <Group justify="space-between">
         <Text fw={600}>Prescription Queue</Text>
         <Select
@@ -3049,6 +4794,7 @@ function RxQueueTab({ canReview }: { canReview: boolean }) {
             canReview={canReview}
             reviewItems={reviewItems}
             onReviewItemsChange={setReviewItems}
+            canViewPatientRecord={canViewPatientRecord}
             onReview={(action) => {
               handleOpenReview(selectedId, action);
             }}
@@ -3146,12 +4892,14 @@ function RxDetailView({
   canReview,
   reviewItems,
   onReviewItemsChange,
+  canViewPatientRecord,
   onReview,
 }: {
   rxQueueId: string;
   canReview: boolean;
   reviewItems: PharmacyRxReviewItemInput[];
   onReviewItemsChange: (items: PharmacyRxReviewItemInput[]) => void;
+  canViewPatientRecord: boolean;
   onReview: (action: PharmacyRxReviewAction) => void;
 }) {
   const { data, isLoading, error } = useQuery({
@@ -3159,6 +4907,9 @@ function RxDetailView({
     queryFn: () => pharmacyService.getRxDetail(rxQueueId),
     retry: 1,
   });
+  const rxDetail = data as PharmacyRxDetailResponse | undefined;
+  const rxPatientId = rxDetail?.prescription.patient_id;
+  const { data: patientName } = usePatientName(canViewPatientRecord ? rxPatientId : undefined);
 
   if (isLoading) return <Loader />;
   if (error)
@@ -3167,9 +4918,9 @@ function RxDetailView({
         {String(error)}
       </Alert>
     );
-  if (!data) return <Text c="dimmed">No prescription data</Text>;
+  if (!rxDetail) return <Text c="dimmed">No prescription data</Text>;
 
-  const { prescription, items: rxItems, allergies } = data as PharmacyRxDetailResponse;
+  const { prescription, items: rxItems, allergies } = rxDetail;
   const pricedRxItems = applyRxReviewItems(rxItems, reviewItems);
   const allergyNames = (allergies as { allergen_name: string }[]).map((a) => a.allergen_name);
   const patientId = prescription.patient_id;
@@ -3209,7 +4960,7 @@ function RxDetailView({
 
   return (
     <Stack>
-      <PatientContextBanner patientId={patientId} hideLoadingState />
+      <PharmacyPatientContext patientId={patientId} canViewPatientRecord={canViewPatientRecord} />
       {/* Allergy alert */}
       {allergyNames.length > 0 && (
         <Alert
@@ -3316,8 +5067,10 @@ function RxDetailView({
       {/* 4-view prescription display */}
       <PrescriptionViews
         prescriptions={rxForViews}
-        patientName={patientId.slice(0, 8)}
-        uhid=""
+        patientName={
+          canViewPatientRecord ? (patientName?.full_name ?? "Linked patient") : "Patient restricted"
+        }
+        uhid={canViewPatientRecord ? (patientName?.uhid ?? "") : ""}
         allergies={allergyNames}
       />
     </Stack>
@@ -3338,11 +5091,12 @@ function RxBillingEstimate({
   onReviewItemsChange?: (items: PharmacyRxReviewItemInput[]) => void;
 }) {
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
+  const priceAccess = useFieldAccess("pharmacy.pricing.unit_price");
   const subtotal = items.reduce((sum, item) => sum + Number(item.taxable_amount || 0), 0);
   const tax = items.reduce((sum, item) => sum + Number(item.tax_amount || 0), 0);
   const total = items.reduce((sum, item) => sum + Number(item.line_total || 0), 0);
   const unmatchedCount = items.filter((item) => item.price_source === "unmatched").length;
-  const canEdit = editable && Boolean(onReviewItemsChange);
+  const canEdit = editable && Boolean(onReviewItemsChange) && canEditPharmacyField(priceAccess);
 
   function updateReviewLine(item: PharmacyRxDetailItem, patch: Partial<PharmacyRxReviewItemInput>) {
     if (!onReviewItemsChange) return;
@@ -3452,12 +5206,16 @@ function RxBillingEstimate({
                         }}
                       />
                     ) : (
-                      formatInr(Number(item.unit_price || 0))
+                      renderPharmacySensitiveCurrency(priceAccess, item.unit_price)
                     )}
                   </Table.Td>
                   <Table.Td>{Number(item.tax_percent || 0).toFixed(2)}%</Table.Td>
-                  <Table.Td>{formatInr(Number(item.tax_amount || 0))}</Table.Td>
-                  <Table.Td fw={700}>{formatInr(Number(item.line_total || 0))}</Table.Td>
+                  <Table.Td>
+                    {renderPharmacySensitiveCurrency(priceAccess, item.tax_amount)}
+                  </Table.Td>
+                  <Table.Td fw={700}>
+                    {renderPharmacySensitiveCurrency(priceAccess, item.line_total)}
+                  </Table.Td>
                   {canEdit && (
                     <Table.Td>
                       <Tooltip label={isEditing ? "Done editing" : "Edit quantity and price"}>
@@ -3480,12 +5238,14 @@ function RxBillingEstimate({
         </Table>
         <Group justify="flex-end" gap="lg" className={styles.billingSummaryBand}>
           <Text size="sm" c="dimmed">
-            Subtotal {formatInr(subtotal)}
+            Subtotal {renderPharmacySensitiveCurrency(priceAccess, subtotal)}
           </Text>
           <Text size="sm" c="dimmed">
-            GST {formatInr(tax)}
+            GST {renderPharmacySensitiveCurrency(priceAccess, tax)}
           </Text>
-          <Text fw={800}>Billing indent total {formatInr(total)}</Text>
+          <Text fw={800}>
+            Billing indent total {renderPharmacySensitiveCurrency(priceAccess, total)}
+          </Text>
         </Group>
       </Stack>
     </Card>
@@ -3496,9 +5256,37 @@ function RxBillingEstimate({
 //  POS Counter Tab (Phase 3)
 // ══════════════════════════════════════════════════════════
 
-function PosCounterTab({ canCreate }: { canCreate: boolean }) {
+function PosCounterTab({
+  canView,
+  canCreate,
+  canCancel,
+  canReturn,
+  canViewPatientRecord,
+}: {
+  canView: boolean;
+  canCreate: boolean;
+  canCancel: boolean;
+  canReturn: boolean;
+  canViewPatientRecord: boolean;
+}) {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  const canViewBillingInvoice = useHasPermission(P.BILLING.INVOICES_VIEW);
   const [drugSelectValue, setDrugSelectValue] = useState("");
+  const [saleToCancel, setSaleToCancel] = useState<PharmacyPosSale | null>(null);
+  const [saleToReturn, setSaleToReturn] = useState<PharmacyPosSale | null>(null);
+  const [cancelReason, setCancelReason] = useState("");
+  const [cancelOpened, { open: openCancelModal, close: closeCancelModal }] = useDisclosure(false);
+  const [returnOpened, { open: openReturnModal, close: closeReturnModal }] = useDisclosure(false);
+  const [returnItemsLoading, setReturnItemsLoading] = useState(false);
+  const walkInNameAccess = useFieldAccess("pharmacy.pos.patient_name");
+  const walkInPhoneAccess = useFieldAccess("pharmacy.pos.patient_phone");
+  const priceAccess = useFieldAccess("pharmacy.pricing.unit_price");
+  const canViewWalkInName = canViewPharmacyField(walkInNameAccess);
+  const canViewWalkInPhone = canViewPharmacyField(walkInPhoneAccess);
+  const canEditWalkInName = canEditPharmacyField(walkInNameAccess);
+  const canEditWalkInPhone = canEditPharmacyField(walkInPhoneAccess);
+  const canEditPosAmounts = canEditPharmacyField(priceAccess);
   const posSaleDefaults: PharmacyPosSaleFormInput = {
     patient_id: "",
     patient_name: "",
@@ -3519,8 +5307,27 @@ function PosCounterTab({ canCreate }: { canCreate: boolean }) {
     resolver: zodResolver(pharmacyPosSaleFormSchema),
     defaultValues: posSaleDefaults,
   });
-  const { append, remove, update } = useFieldArray({
+  const { fields, append, remove, update } = useFieldArray({
     control,
+    name: "items",
+  });
+  const posReturnDefaults: PharmacyPosReturnFormInput = {
+    reason: "",
+    items: [],
+  };
+  const {
+    control: returnControl,
+    reset: resetReturnForm,
+    handleSubmit: handleReturnSubmit,
+    watch: watchReturn,
+    setError: setReturnError,
+    formState: { errors: returnErrors },
+  } = useForm<PharmacyPosReturnFormInput>({
+    resolver: zodResolver(pharmacyPosReturnFormSchema),
+    defaultValues: posReturnDefaults,
+  });
+  const { fields: returnFields } = useFieldArray({
+    control: returnControl,
     name: "items",
   });
 
@@ -3532,22 +5339,28 @@ function PosCounterTab({ canCreate }: { canCreate: boolean }) {
   const { data: daySummary } = useQuery({
     queryKey: ["pharmacy-pos-day-summary"],
     queryFn: () => pharmacyService.getPosDaySummary(),
+    enabled: canView,
     refetchInterval: 60_000,
   });
 
   const { data: sales = [], isLoading: salesLoading } = useQuery({
     queryKey: ["pharmacy-pos-sales"],
     queryFn: () => pharmacyService.listPosSales(),
+    enabled: canView || canCancel || canReturn,
   });
 
   const createMutation = useMutation({
     mutationFn: (data: Record<string, unknown>) => pharmacyService.createPosSale(data),
-    onSuccess: (_sale, variables) => {
+    onSuccess: (sale, variables) => {
       const patientId = posSalePayloadPatientId(variables);
+      const billingInvoiceId = sale.billing_invoice_id;
       void queryClient.invalidateQueries({ queryKey: ["pharmacy-pos"] });
       void queryClient.invalidateQueries({ queryKey: ["pharmacy-pos-day-summary"] });
       void queryClient.invalidateQueries({ queryKey: ["pharmacy-pos-sales"] });
       void queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      if (billingInvoiceId) {
+        void queryClient.invalidateQueries({ queryKey: ["invoice-detail", billingInvoiceId] });
+      }
       void queryClient.invalidateQueries({ queryKey: ["patients"] });
       if (patientId) {
         void queryClient.invalidateQueries({ queryKey: ["patient-context", patientId] });
@@ -3557,10 +5370,67 @@ function PosCounterTab({ canCreate }: { canCreate: boolean }) {
       setDrugSelectValue("");
       notifications.show({
         title: "Sale Complete",
-        message: patientId
-          ? "Pharmacy sale recorded and mirrored to Billing"
-          : "Walk-in sale recorded in Pharmacy POS",
+        message:
+          patientId && billingInvoiceId
+            ? "Pharmacy sale recorded and linked to the Billing invoice workbench"
+            : "Walk-in sale recorded in Pharmacy POS",
         color: "green",
+      });
+    },
+  });
+
+  const cancelSaleMutation = useMutation({
+    mutationFn: ({ saleId, reason }: { saleId: string; reason: string }) =>
+      pharmacyService.cancelPharmacyPosSale(saleId, { reason }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["pharmacy-pos"] });
+      void queryClient.invalidateQueries({ queryKey: ["pharmacy-pos-day-summary"] });
+      void queryClient.invalidateQueries({ queryKey: ["pharmacy-pos-sales"] });
+      void queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      closeCancelSale();
+      notifications.show({
+        title: "Sale cancelled",
+        message: "Stock reversal and POS refund entry were recorded",
+        color: "green",
+      });
+    },
+    onError: () => {
+      notifications.show({
+        title: "Unable to cancel sale",
+        message: "The sale may already be cancelled, refunded, or locked by finance controls",
+        color: "danger",
+      });
+    },
+  });
+
+  const returnItemsMutation = useMutation({
+    mutationFn: ({
+      saleId,
+      data,
+    }: {
+      saleId: string;
+      data: {
+        items: Array<{ item_id: string; return_qty: number; reason?: string }>;
+        reason?: string;
+      };
+    }) => pharmacyService.returnPosItems(saleId, data),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["pharmacy-pos"] });
+      void queryClient.invalidateQueries({ queryKey: ["pharmacy-pos-day-summary"] });
+      void queryClient.invalidateQueries({ queryKey: ["pharmacy-pos-sales"] });
+      void queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      closeReturnSale();
+      notifications.show({
+        title: "Items returned",
+        message: "Partial return, stock reversal, and POS refund entry were recorded",
+        color: "green",
+      });
+    },
+    onError: () => {
+      notifications.show({
+        title: "Unable to return items",
+        message: "The sale may already be refunded, cancelled, or locked by finance controls",
+        color: "danger",
       });
     },
   });
@@ -3622,12 +5492,111 @@ function PosCounterTab({ canCreate }: { canCreate: boolean }) {
       })),
       payment_mode: values.payment_mode,
       amount_received: formNumberOrFallback(values.amount_received, 0),
-      patient_name: optionalFormText(values.patient_name),
-      patient_phone: optionalFormText(values.patient_phone),
+      patient_name: canEditWalkInName ? optionalFormText(values.patient_name) : undefined,
+      patient_phone: canEditWalkInPhone ? optionalFormText(values.patient_phone) : undefined,
       discount_percent: discountPercentValue || undefined,
       discount_amount: discountValue > 0 ? discountValue : undefined,
     });
   }
+
+  function openCancelSale(row: PharmacyPosSale) {
+    setSaleToCancel(row);
+    setCancelReason("");
+    openCancelModal();
+  }
+
+  function closeCancelSale() {
+    closeCancelModal();
+    setSaleToCancel(null);
+    setCancelReason("");
+  }
+
+  async function openReturnSale(row: PharmacyPosSale) {
+    setSaleToReturn(row);
+    resetReturnForm(posReturnDefaults);
+    openReturnModal();
+    setReturnItemsLoading(true);
+    try {
+      const items = await queryClient.fetchQuery<PharmacyPosSaleItem[]>({
+        queryKey: ["pharmacy-pos-sale-items", row.id],
+        queryFn: () => pharmacyService.listPosSaleItems(row.id),
+      });
+      resetReturnForm({
+        reason: "",
+        items: items
+          .filter((item) => posSaleItemReturnableQuantity(item) > 0)
+          .map((item) => ({
+            item_id: item.id,
+            drug_name: item.drug_name,
+            batch_number: item.batch_number ?? "",
+            max_qty: posSaleItemReturnableQuantity(item),
+            return_qty: 0,
+            unit_price: Number(item.selling_price ?? 0),
+          })),
+      });
+    } catch {
+      notifications.show({
+        title: "Unable to load sale items",
+        message: "Check POS return permission and try again",
+        color: "danger",
+      });
+    } finally {
+      setReturnItemsLoading(false);
+    }
+  }
+
+  function closeReturnSale() {
+    closeReturnModal();
+    setSaleToReturn(null);
+    resetReturnForm(posReturnDefaults);
+    setReturnItemsLoading(false);
+  }
+
+  function submitReturnItems(values: PharmacyPosReturnFormInput) {
+    if (!saleToReturn) return;
+    const selectedItems = values.items
+      .map((item) => ({
+        item,
+        returnQty: posReturnLineQuantity(item),
+      }))
+      .filter(({ returnQty }) => returnQty > 0);
+
+    if (selectedItems.length === 0) {
+      setReturnError("items", { message: "Select at least one medicine to return" });
+      return;
+    }
+
+    const invalidIndex = selectedItems.findIndex(
+      ({ item, returnQty }) => returnQty > formIntegerOrFallback(item.max_qty, 0),
+    );
+    if (invalidIndex >= 0) {
+      const invalidItem = selectedItems[invalidIndex]?.item;
+      const formIndex = values.items.findIndex((item) => item.item_id === invalidItem?.item_id);
+      if (formIndex >= 0) {
+        setReturnError(`items.${formIndex}.return_qty` as const, {
+          message: "Return quantity cannot exceed remaining sale quantity",
+        });
+      }
+      return;
+    }
+
+    returnItemsMutation.mutate({
+      saleId: saleToReturn.id,
+      data: {
+        reason: values.reason.trim(),
+        items: selectedItems.map(({ item, returnQty }) => ({
+          item_id: item.item_id,
+          return_qty: returnQty,
+        })),
+      },
+    });
+  }
+
+  const returnItems = watchReturn("items");
+  const returnRefundTotal = returnItems.reduce(
+    (sum, item) => sum + posReturnLineQuantity(item) * posReturnLinePrice(item),
+    0,
+  );
 
   const saleColumns = [
     {
@@ -3642,15 +5611,33 @@ function PosCounterTab({ canCreate }: { canCreate: boolean }) {
     {
       key: "patient_name",
       label: "Customer",
-      render: (row: PharmacyPosSale) => <Text size="sm">{row.patient_name ?? "Walk-in"}</Text>,
+      render: (row: PharmacyPosSale) =>
+        row.patient_id ? (
+          <PharmacyPatientCell
+            patientId={row.patient_id}
+            canViewPatientRecord={canViewPatientRecord}
+          />
+        ) : (
+          <Stack gap={0}>
+            <Text size="sm" c={canViewWalkInName ? undefined : "dimmed"}>
+              {row.patient_name
+                ? fieldAccessText(walkInNameAccess, row.patient_name, "name")
+                : "Walk-in"}
+            </Text>
+            {canViewWalkInPhone && row.patient_phone && (
+              <Text size="xs" c="dimmed">
+                {fieldAccessText(walkInPhoneAccess, row.patient_phone, "phone")}
+              </Text>
+            )}
+          </Stack>
+        ),
     },
     {
       key: "total_amount",
       label: "Total",
       render: (row: PharmacyPosSale) => (
         <Text size="sm" fw={700}>
-          {"\u20B9"}
-          {Number(row.total_amount).toLocaleString()}
+          {renderPharmacySensitiveCurrency(priceAccess, row.total_amount)}
         </Text>
       ),
     },
@@ -3668,14 +5655,51 @@ function PosCounterTab({ canCreate }: { canCreate: boolean }) {
       label: "Billing",
       render: (row: PharmacyPosSale) =>
         row.billing_invoice_id ? (
-          <Badge size="xs" color="success" variant="light">
-            Posted
-          </Badge>
+          <Stack gap={2}>
+            <Badge size="xs" color="success" variant="light">
+              Posted
+            </Badge>
+            {row.billing_posted_at && (
+              <Text size="xs" c="dimmed">
+                {new Date(row.billing_posted_at).toLocaleTimeString()}
+              </Text>
+            )}
+            {canViewBillingInvoice && (
+              <Button
+                size="compact-xs"
+                variant="subtle"
+                leftSection={<IconReceipt size={12} />}
+                onClick={() => navigate(`/billing/invoices/${row.billing_invoice_id}`)}
+              >
+                Open invoice
+              </Button>
+            )}
+          </Stack>
         ) : (
           <Badge size="xs" color="gray" variant="light">
             POS only
           </Badge>
         ),
+    },
+    {
+      key: "status",
+      label: "Status",
+      render: (row: PharmacyPosSale) => {
+        const saleStatus = row.status ?? "completed";
+        const refundAmount = Number(row.refund_amount ?? 0);
+        return (
+          <Stack gap={2}>
+            <Badge size="xs" color={statusColors[saleStatus] ?? "gray"} variant="light">
+              {saleStatus.replace(/_/g, " ")}
+            </Badge>
+            {refundAmount > 0 && (
+              <Text size="xs" c="dimmed">
+                Refund {renderPharmacySensitiveCurrency(priceAccess, refundAmount)}
+              </Text>
+            )}
+          </Stack>
+        );
+      },
     },
     {
       key: "created_at",
@@ -3684,11 +5708,56 @@ function PosCounterTab({ canCreate }: { canCreate: boolean }) {
         <Text size="sm">{new Date(row.created_at).toLocaleTimeString()}</Text>
       ),
     },
+    {
+      key: "actions",
+      label: "Actions",
+      render: (row: PharmacyPosSale) => {
+        const saleStatus = row.status ?? "completed";
+        const canCancelSale = canCancel && !["cancelled", "refunded"].includes(saleStatus);
+        const canReturnSale = canReturn && !["cancelled", "refunded"].includes(saleStatus);
+        return canCancelSale || canReturnSale ? (
+          <Group gap={4} wrap="nowrap">
+            {canReturnSale && (
+              <Tooltip label="Return selected items">
+                <ActionIcon
+                  size="sm"
+                  color="orange"
+                  variant="light"
+                  onClick={() => {
+                    void openReturnSale(row);
+                  }}
+                  aria-label="Return POS sale items"
+                >
+                  <IconReceipt size={14} />
+                </ActionIcon>
+              </Tooltip>
+            )}
+            {canCancelSale && (
+              <Tooltip label="Cancel sale and reverse remaining stock/refund">
+                <ActionIcon
+                  size="sm"
+                  color="danger"
+                  variant="light"
+                  onClick={() => openCancelSale(row)}
+                  aria-label="Cancel POS sale"
+                >
+                  <IconX size={14} />
+                </ActionIcon>
+              </Tooltip>
+            )}
+          </Group>
+        ) : (
+          <Text size="xs" c="dimmed">
+            Locked
+          </Text>
+        );
+      },
+    },
   ];
 
   return (
     <Stack>
-      {daySummary && (
+      {canView && daySummary && (
         <Group gap="lg">
           <Card withBorder p="xs" style={{ flex: 1 }}>
             <Text size="xs" c="dimmed">
@@ -3703,8 +5772,7 @@ function PosCounterTab({ canCreate }: { canCreate: boolean }) {
               Revenue
             </Text>
             <Text size="lg" fw={700}>
-              {"\u20B9"}
-              {Number(daySummary.total_revenue).toLocaleString()}
+              {renderPharmacySensitiveCurrency(priceAccess, daySummary.total_revenue)}
             </Text>
           </Card>
           <Card withBorder p="xs" style={{ flex: 1 }}>
@@ -3712,8 +5780,7 @@ function PosCounterTab({ canCreate }: { canCreate: boolean }) {
               Cash
             </Text>
             <Text size="lg" fw={700}>
-              {"\u20B9"}
-              {Number(daySummary.cash_total).toLocaleString()}
+              {renderPharmacySensitiveCurrency(priceAccess, daySummary.cash_total)}
             </Text>
           </Card>
           <Card withBorder p="xs" style={{ flex: 1 }}>
@@ -3721,8 +5788,10 @@ function PosCounterTab({ canCreate }: { canCreate: boolean }) {
               Card/UPI
             </Text>
             <Text size="lg" fw={700}>
-              {"\u20B9"}
-              {Number(daySummary.card_total + daySummary.upi_total).toLocaleString()}
+              {renderPharmacySensitiveCurrency(
+                priceAccess,
+                Number(daySummary.card_total) + Number(daySummary.upi_total),
+              )}
             </Text>
           </Card>
         </Group>
@@ -3739,7 +5808,7 @@ function PosCounterTab({ canCreate }: { canCreate: boolean }) {
             </Alert>
             <Group mb="sm" align="flex-end">
               <DrugSearchSelect
-                label="Add Drug"
+                label="Add medicine"
                 value={drugSelectValue}
                 onChange={(id: string, drug) => {
                   setDrugSelectValue("");
@@ -3759,8 +5828,24 @@ function PosCounterTab({ canCreate }: { canCreate: boolean }) {
                   />
                 )}
               />
-              <TextInput size="xs" label="Customer" w={160} {...register("patient_name")} />
-              <TextInput size="xs" label="Phone" w={130} {...register("patient_phone")} />
+              {canViewWalkInName && (
+                <TextInput
+                  size="xs"
+                  label="Customer"
+                  w={160}
+                  disabled={!canEditWalkInName}
+                  {...register("patient_name")}
+                />
+              )}
+              {canViewWalkInPhone && (
+                <TextInput
+                  size="xs"
+                  label="Phone"
+                  w={130}
+                  disabled={!canEditWalkInPhone}
+                  {...register("patient_phone")}
+                />
+              )}
             </Group>
 
             {cart.length > 0 && (
@@ -3775,52 +5860,60 @@ function PosCounterTab({ canCreate }: { canCreate: boolean }) {
                   </Table.Tr>
                 </Table.Thead>
                 <Table.Tbody>
-                  {cart.map((item, index) => (
-                    <Table.Tr key={`${item.catalog_item_id}-${index}`}>
-                      <Table.Td>
-                        <Text size="sm">{item.drug_name}</Text>
-                      </Table.Td>
-                      <Table.Td>
-                        <NumberInput
-                          size="xs"
-                          w={70}
-                          min={1}
-                          value={posSaleLineQuantity(item)}
-                          onChange={(val) => updateQuantity(index, val)}
-                          error={errors.items?.[index]?.quantity?.message}
-                        />
-                      </Table.Td>
-                      <Table.Td>
-                        <NumberInput
-                          size="xs"
-                          w={90}
-                          min={0}
-                          decimalScale={2}
-                          prefix={"\u20B9"}
-                          value={posSaleLinePrice(item)}
-                          onChange={(val) => updatePrice(index, val)}
-                          error={errors.items?.[index]?.unit_price?.message}
-                        />
-                      </Table.Td>
-                      <Table.Td>
-                        <Text size="sm" fw={600}>
-                          {"\u20B9"}
-                          {(posSaleLineQuantity(item) * posSaleLinePrice(item)).toFixed(2)}
-                        </Text>
-                      </Table.Td>
-                      <Table.Td>
-                        <ActionIcon
-                          size="sm"
-                          color="red"
-                          variant="light"
-                          onClick={() => remove(index)}
-                          aria-label="Remove sale line"
-                        >
-                          <IconX size={14} />
-                        </ActionIcon>
-                      </Table.Td>
-                    </Table.Tr>
-                  ))}
+                  {fields.map((field, index) => {
+                    const item = cart[index];
+                    if (!item) return null;
+
+                    return (
+                      <Table.Tr key={field.id}>
+                        <Table.Td>
+                          <Text size="sm">{item.drug_name}</Text>
+                        </Table.Td>
+                        <Table.Td>
+                          <NumberInput
+                            size="xs"
+                            w={70}
+                            min={1}
+                            value={posSaleLineQuantity(item)}
+                            onChange={(val) => updateQuantity(index, val)}
+                            error={errors.items?.[index]?.quantity?.message}
+                          />
+                        </Table.Td>
+                        <Table.Td>
+                          <NumberInput
+                            size="xs"
+                            w={90}
+                            min={0}
+                            decimalScale={2}
+                            prefix={"\u20B9"}
+                            value={posSaleLinePrice(item)}
+                            disabled={!canEditPosAmounts}
+                            onChange={(val) => updatePrice(index, val)}
+                            error={errors.items?.[index]?.unit_price?.message}
+                          />
+                        </Table.Td>
+                        <Table.Td>
+                          <Text size="sm" fw={600}>
+                            {renderPharmacySensitiveCurrency(
+                              priceAccess,
+                              posSaleLineQuantity(item) * posSaleLinePrice(item),
+                            )}
+                          </Text>
+                        </Table.Td>
+                        <Table.Td>
+                          <ActionIcon
+                            size="sm"
+                            color="red"
+                            variant="light"
+                            onClick={() => remove(index)}
+                            aria-label="Remove sale line"
+                          >
+                            <IconX size={14} />
+                          </ActionIcon>
+                        </Table.Td>
+                      </Table.Tr>
+                    );
+                  })}
                 </Table.Tbody>
               </Table>
             )}
@@ -3876,6 +5969,7 @@ function PosCounterTab({ canCreate }: { canCreate: boolean }) {
                         decimalScale={2}
                         prefix={"\u20B9"}
                         value={field.value}
+                        disabled={!canEditPosAmounts}
                         onChange={field.onChange}
                         error={fieldState.error?.message}
                       />
@@ -3884,18 +5978,13 @@ function PosCounterTab({ canCreate }: { canCreate: boolean }) {
                 </Group>
                 <Stack gap={2} align="flex-end">
                   <Text size="sm">
-                    Subtotal: {"\u20B9"}
-                    {subtotal.toFixed(2)} | GST: {"\u20B9"}
-                    {gstAmount.toFixed(2)} | Total:{" "}
-                    <b>
-                      {"\u20B9"}
-                      {totalAmount.toFixed(2)}
-                    </b>
+                    Subtotal: {renderPharmacySensitiveCurrency(priceAccess, subtotal)} | GST:{" "}
+                    {renderPharmacySensitiveCurrency(priceAccess, gstAmount)} | Total:{" "}
+                    <b>{renderPharmacySensitiveCurrency(priceAccess, totalAmount)}</b>
                   </Text>
                   {changeDue > 0 && (
                     <Text size="xs" c="green">
-                      Change: {"\u20B9"}
-                      {changeDue.toFixed(2)}
+                      Change: {renderPharmacySensitiveCurrency(priceAccess, changeDue)}
                     </Text>
                   )}
                   <Button
@@ -3904,7 +5993,9 @@ function PosCounterTab({ canCreate }: { canCreate: boolean }) {
                     loading={createMutation.isPending}
                     type="submit"
                     disabled={
-                      cart.length === 0 || formNumberOrFallback(amountReceived, 0) < totalAmount
+                      !canEditPosAmounts ||
+                      cart.length === 0 ||
+                      formNumberOrFallback(amountReceived, 0) < totalAmount
                     }
                     leftSection={<IconShoppingCart size={14} />}
                   >
@@ -3917,15 +6008,208 @@ function PosCounterTab({ canCreate }: { canCreate: boolean }) {
         </Card>
       )}
 
-      <Text fw={600} mt="md">
-        Today's Sales
-      </Text>
-      <DataTable
-        columns={saleColumns}
-        data={sales}
-        loading={salesLoading}
-        rowKey={(row) => row.id}
-      />
+      {canView || canCancel || canReturn ? (
+        <>
+          <Text fw={600} mt="md">
+            {canView ? "Today's Sales" : "Today's sales available for POS actions"}
+          </Text>
+          <DataTable
+            columns={saleColumns}
+            data={sales}
+            loading={salesLoading}
+            rowKey={(row) => row.id}
+          />
+        </>
+      ) : (
+        <Card withBorder p="md">
+          <Text size="sm" c="dimmed">
+            POS sale history is not available for your role. You can still complete a new counter
+            sale when POS creation is allowed.
+          </Text>
+        </Card>
+      )}
+      <Modal
+        opened={returnOpened}
+        onClose={closeReturnSale}
+        title="Return POS sale items"
+        size="lg"
+      >
+        <Stack component="form" onSubmit={handleReturnSubmit(submitReturnItems)}>
+          <Alert color="orange" variant="light" icon={<IconAlertTriangle size={16} />}>
+            Return only the medicines actually coming back to pharmacy. This posts a partial POS
+            refund and restores stock for the selected quantities.
+          </Alert>
+          {saleToReturn && (
+            <Group justify="space-between">
+              <Stack gap={0}>
+                <Text size="sm" fw={600}>
+                  {saleToReturn.sale_number}
+                </Text>
+                <Text size="xs" c="dimmed">
+                  {new Date(saleToReturn.created_at).toLocaleString()}
+                </Text>
+              </Stack>
+              <Text size="sm" fw={700}>
+                {renderPharmacySensitiveCurrency(priceAccess, saleToReturn.total_amount)}
+              </Text>
+            </Group>
+          )}
+
+          {returnItemsLoading ? (
+            <Group gap="xs">
+              <Loader size="sm" />
+              <Text size="sm" c="dimmed">
+                Loading sale items...
+              </Text>
+            </Group>
+          ) : returnFields.length > 0 ? (
+            <Table striped highlightOnHover>
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th>Medicine</Table.Th>
+                  <Table.Th>Batch</Table.Th>
+                  <Table.Th>Remaining</Table.Th>
+                  <Table.Th>Return</Table.Th>
+                  <Table.Th>Refund</Table.Th>
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
+                {returnFields.map((field, index) => {
+                  const item = returnItems[index];
+                  if (!item) return null;
+                  const returnQty = posReturnLineQuantity(item);
+                  const refund = returnQty * posReturnLinePrice(item);
+                  return (
+                    <Table.Tr key={field.id}>
+                      <Table.Td>
+                        <Text size="sm" fw={600}>
+                          {item.drug_name}
+                        </Text>
+                      </Table.Td>
+                      <Table.Td>
+                        <Text size="sm">{item.batch_number || "—"}</Text>
+                      </Table.Td>
+                      <Table.Td>
+                        <Badge variant="light">{formIntegerOrFallback(item.max_qty, 0)}</Badge>
+                      </Table.Td>
+                      <Table.Td>
+                        <Controller
+                          control={returnControl}
+                          name={`items.${index}.return_qty` as const}
+                          render={({ field: qtyField }) => (
+                            <NumberInput
+                              size="xs"
+                              min={0}
+                              max={formIntegerOrFallback(item.max_qty, 0)}
+                              value={qtyField.value}
+                              onChange={qtyField.onChange}
+                              error={returnErrors.items?.[index]?.return_qty?.message}
+                              w={100}
+                            />
+                          )}
+                        />
+                      </Table.Td>
+                      <Table.Td>
+                        <Text size="sm" fw={600}>
+                          {renderPharmacySensitiveCurrency(priceAccess, refund)}
+                        </Text>
+                      </Table.Td>
+                    </Table.Tr>
+                  );
+                })}
+              </Table.Tbody>
+            </Table>
+          ) : (
+            <Alert color="gray" variant="light">
+              No returnable items remain on this sale.
+            </Alert>
+          )}
+          {returnErrors.items?.message && (
+            <Text size="xs" c="danger">
+              {returnErrors.items.message}
+            </Text>
+          )}
+          <Controller
+            control={returnControl}
+            name="reason"
+            render={({ field, fieldState }) => (
+              <Textarea
+                label="Return reason"
+                required
+                minRows={3}
+                placeholder="Patient returned medicine, wrong item, damaged strip..."
+                error={fieldState.error?.message}
+                {...field}
+              />
+            )}
+          />
+          <Group justify="space-between">
+            <Text fw={700}>
+              Refund: {renderPharmacySensitiveCurrency(priceAccess, returnRefundTotal)}
+            </Text>
+            <Group>
+              <Button variant="default" onClick={closeReturnSale}>
+                Keep sale
+              </Button>
+              <Button
+                color="orange"
+                type="submit"
+                loading={returnItemsMutation.isPending}
+                disabled={returnItemsLoading || returnFields.length === 0}
+                leftSection={<IconReceipt size={14} />}
+              >
+                Return selected items
+              </Button>
+            </Group>
+          </Group>
+        </Stack>
+      </Modal>
+      <Modal opened={cancelOpened} onClose={closeCancelSale} title="Cancel POS sale" centered>
+        <Stack>
+          <Alert color="warning" variant="light" icon={<IconAlertTriangle size={16} />}>
+            Cancelling reverses remaining stock and records a POS refund transaction. Use this only
+            for same-day voids or cashier-approved sale reversals.
+          </Alert>
+          {saleToCancel && (
+            <Group justify="space-between">
+              <Text size="sm" fw={600}>
+                {saleToCancel.sale_number}
+              </Text>
+              <Text size="sm" fw={700}>
+                {renderPharmacySensitiveCurrency(priceAccess, saleToCancel.total_amount)}
+              </Text>
+            </Group>
+          )}
+          <Textarea
+            label="Reason"
+            required
+            minRows={3}
+            value={cancelReason}
+            onChange={(event) => setCancelReason(event.currentTarget.value)}
+            placeholder="Wrong item, duplicate bill, payment void, or other approved reason"
+          />
+          <Group justify="flex-end">
+            <Button variant="default" onClick={closeCancelSale}>
+              Keep sale
+            </Button>
+            <Button
+              color="danger"
+              loading={cancelSaleMutation.isPending}
+              disabled={!saleToCancel || cancelReason.trim().length < 3}
+              leftSection={<IconX size={14} />}
+              onClick={() => {
+                if (!saleToCancel) return;
+                cancelSaleMutation.mutate({
+                  saleId: saleToCancel.id,
+                  reason: cancelReason.trim(),
+                });
+              }}
+            >
+              Cancel sale
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
     </Stack>
   );
 }

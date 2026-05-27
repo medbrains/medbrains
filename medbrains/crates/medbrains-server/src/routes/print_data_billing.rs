@@ -6,8 +6,10 @@
 
 use axum::{
     Extension, Json,
-    extract::{Path, State},
+    extract::{Path, Query, State},
 };
+use serde::Deserialize;
+use serde_json::json;
 use uuid::Uuid;
 
 use medbrains_core::permissions;
@@ -44,6 +46,11 @@ async fn hospital_name(
 
 #[derive(Debug, sqlx::FromRow)]
 struct ReceiptRow {
+    receipt_id: Uuid,
+    receipt_number: String,
+    invoice_id: Uuid,
+    patient_id: Uuid,
+    encounter_id: Option<Uuid>,
     reference_number: Option<String>,
     patient_name: String,
     uhid: String,
@@ -54,19 +61,66 @@ struct ReceiptRow {
     paid_at: chrono::DateTime<chrono::Utc>,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct ReceiptPrintQuery {
+    pub reprint_reason: Option<String>,
+}
+
 pub async fn get_receipt_print_data(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Path(payment_id): Path<Uuid>,
+    Query(query): Query<ReceiptPrintQuery>,
 ) -> Result<Json<ReceiptPrintData>, AppError> {
     require_permission(&claims, permissions::billing::invoices::VIEW)?;
+    require_permission(&claims, permissions::billing::receipts::PRINT)?;
+    require_permission(&claims, permissions::patients::VIEW)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
+    let prior_print_count: i64 = sqlx::query_scalar(
+        "SELECT COALESCE(SUM(print_count), 0)::bigint \
+         FROM document_outputs \
+         WHERE tenant_id = $1 \
+           AND module_code = 'billing' \
+           AND source_table = 'payments' \
+           AND source_id = $2 \
+           AND title = 'Billing Receipt' \
+           AND status <> 'voided'::document_output_status",
+    )
+    .bind(claims.tenant_id)
+    .bind(payment_id)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    let reprint_reason = query
+        .reprint_reason
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    let is_reprint = prior_print_count > 0;
+    if is_reprint {
+        require_permission(&claims, permissions::billing::receipts::REPRINT)?;
+        if reprint_reason.is_none_or(|value| value.len() < 5) {
+            return Err(AppError::BadRequest(
+                "reprint reason is required after the first receipt print".to_owned(),
+            ));
+        }
+    } else if reprint_reason.is_some() {
+        return Err(AppError::BadRequest(
+            "receipt has not been printed yet".to_owned(),
+        ));
+    }
+
     let row = sqlx::query_as::<_, ReceiptRow>(
         "SELECT \
+           r.id AS receipt_id, \
+           r.receipt_number, \
+           inv.id AS invoice_id, \
+           inv.patient_id, \
+           inv.encounter_id, \
            pay.reference_number, \
            (p.first_name || ' ' || p.last_name) AS patient_name, \
            p.uhid, \
@@ -78,22 +132,121 @@ pub async fn get_receipt_print_data(
          FROM payments pay \
          JOIN invoices inv ON inv.id = pay.invoice_id \
                            AND inv.tenant_id = pay.tenant_id \
+         JOIN receipts r ON r.payment_id = pay.id \
+                        AND r.invoice_id = inv.id \
+                        AND r.tenant_id = pay.tenant_id \
          JOIN patients p ON p.id = inv.patient_id \
                          AND p.tenant_id = inv.tenant_id \
          LEFT JOIN users u ON u.id = pay.received_by \
-         WHERE pay.id = $1 AND pay.tenant_id = $2",
+         WHERE pay.id = $1 AND pay.tenant_id = $2 \
+         ORDER BY r.created_at DESC \
+         LIMIT 1",
     )
     .bind(payment_id)
     .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or_else(|| {
+        AppError::BadRequest("generate a receipt before preparing print data".to_owned())
+    })?;
+
+    let h_name = hospital_name(&mut tx, claims.tenant_id).await?;
+
+    let today = chrono::Utc::now().format("%Y%m%d").to_string();
+    let document_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*)::bigint \
+         FROM document_outputs \
+         WHERE tenant_id = $1 \
+           AND document_number LIKE 'BIL-RCPT-' || $2 || '-%'",
+    )
+    .bind(claims.tenant_id)
+    .bind(&today)
+    .fetch_one(&mut *tx)
+    .await?;
+    let document_number = format!("BIL-RCPT-{today}-{:04}", document_count + 1);
+    let print_action = if is_reprint { "reprint" } else { "print" };
+    let context_snapshot = json!({
+        "document_type": "billing_receipt",
+        "action": print_action,
+        "payment_id": payment_id,
+        "receipt_id": row.receipt_id,
+        "receipt_number": &row.receipt_number,
+        "invoice_id": row.invoice_id,
+        "patient_id": row.patient_id,
+        "prior_print_count": prior_print_count,
+        "reprint_reason": reprint_reason,
+    });
+
+    let document_output_id: Uuid = sqlx::query_scalar(
+        "INSERT INTO document_outputs \
+         (tenant_id, module_code, source_table, source_id, patient_id, visit_id, admission_id, \
+          document_number, title, category, status, page_count, print_count, \
+          first_printed_at, last_printed_at, watermark, context_snapshot, generated_by) \
+         VALUES ($1, 'billing', 'payments', $2, $3, $4, NULL, \
+          $5, 'Billing Receipt', 'custom'::document_template_category, \
+          'printed'::document_output_status, 1, 1, now(), now(), \
+          CASE WHEN $6::bool THEN 'duplicate'::watermark_type ELSE 'none'::watermark_type END, \
+          $7, $8) \
+         RETURNING id",
+    )
+    .bind(claims.tenant_id)
+    .bind(payment_id)
+    .bind(row.patient_id)
+    .bind(row.encounter_id)
+    .bind(&document_number)
+    .bind(is_reprint)
+    .bind(&context_snapshot)
+    .bind(claims.sub)
     .fetch_one(&mut *tx)
     .await?;
 
-    let h_name = hospital_name(&mut tx, claims.tenant_id).await?;
+    sqlx::query(
+        "UPDATE receipts \
+         SET printed_at = COALESCE(printed_at, now()) \
+         WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(row.receipt_id)
+    .bind(claims.tenant_id)
+    .execute(&mut *tx)
+    .await?;
+
+    let audit_values = json!({
+        "document_output_id": document_output_id,
+        "document_number": &document_number,
+        "document_type": "billing_receipt",
+        "action": print_action,
+        "receipt_id": row.receipt_id,
+        "receipt_number": &row.receipt_number,
+        "payment_id": payment_id,
+        "invoice_id": row.invoice_id,
+        "prior_print_count": prior_print_count,
+        "reprint_reason": reprint_reason,
+    });
+    medbrains_db::audit::AuditLogger::log(
+        &mut tx,
+        &medbrains_db::audit::AuditEntry {
+            tenant_id: claims.tenant_id,
+            user_id: Some(claims.sub),
+            action: if is_reprint {
+                "billing.receipt.reprint"
+            } else {
+                "billing.receipt.print"
+            },
+            entity_type: "payment",
+            entity_id: Some(payment_id),
+            old_values: None,
+            new_values: Some(&audit_values),
+            ip_address: None,
+        },
+    )
+    .await?;
 
     tx.commit().await?;
 
     Ok(Json(ReceiptPrintData {
-        receipt_number: row.reference_number.clone(),
+        document_number,
+        is_reprint,
+        receipt_number: Some(row.receipt_number),
         patient_name: row.patient_name,
         uhid: row.uhid,
         invoice_number: row.invoice_number,
@@ -127,6 +280,7 @@ pub async fn get_estimate_print_data(
     Path(invoice_id): Path<Uuid>,
 ) -> Result<Json<EstimatePrintData>, AppError> {
     require_permission(&claims, permissions::billing::invoices::VIEW)?;
+    require_permission(&claims, permissions::patients::VIEW)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -212,6 +366,7 @@ pub async fn get_gst_invoice_print_data(
     Path(invoice_id): Path<Uuid>,
 ) -> Result<Json<GstInvoicePrintData>, AppError> {
     require_permission(&claims, permissions::billing::invoices::VIEW)?;
+    require_permission(&claims, permissions::patients::VIEW)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -313,6 +468,7 @@ pub async fn get_opd_bill_print_data(
     Path(invoice_id): Path<Uuid>,
 ) -> Result<Json<OpdBillPrintData>, AppError> {
     require_permission(&claims, permissions::billing::invoices::VIEW)?;
+    require_permission(&claims, permissions::patients::VIEW)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -443,6 +599,7 @@ pub async fn get_ipd_interim_bill_print_data(
     Path(admission_id): Path<Uuid>,
 ) -> Result<Json<IpdInterimBillPrintData>, AppError> {
     require_permission(&claims, permissions::billing::invoices::VIEW)?;
+    require_permission(&claims, permissions::patients::VIEW)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -638,6 +795,7 @@ pub async fn get_ipd_final_bill_print_data(
     Path(invoice_id): Path<Uuid>,
 ) -> Result<Json<IpdFinalBillPrintData>, AppError> {
     require_permission(&claims, permissions::billing::invoices::VIEW)?;
+    require_permission(&claims, permissions::patients::VIEW)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -812,6 +970,7 @@ pub async fn get_advance_receipt_print_data(
     Path(payment_id): Path<Uuid>,
 ) -> Result<Json<AdvanceReceiptPrintData>, AppError> {
     require_permission(&claims, permissions::billing::invoices::VIEW)?;
+    require_permission(&claims, permissions::patients::VIEW)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -888,6 +1047,7 @@ pub async fn get_refund_receipt_print_data(
     Path(refund_id): Path<Uuid>,
 ) -> Result<Json<RefundReceiptPrintData>, AppError> {
     require_permission(&claims, permissions::billing::invoices::VIEW)?;
+    require_permission(&claims, permissions::patients::VIEW)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -971,6 +1131,7 @@ pub async fn get_insurance_preauth_print_data(
     Path(request_id): Path<Uuid>,
 ) -> Result<Json<InsurancePreauthPrintData>, AppError> {
     require_permission(&claims, permissions::billing::invoices::VIEW)?;
+    require_permission(&claims, permissions::patients::VIEW)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -1095,6 +1256,7 @@ pub async fn get_cashless_claim_print_data(
     Path(claim_id): Path<Uuid>,
 ) -> Result<Json<CashlessClaimPrintData>, AppError> {
     require_permission(&claims, permissions::billing::invoices::VIEW)?;
+    require_permission(&claims, permissions::patients::VIEW)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -1198,6 +1360,7 @@ pub async fn get_package_estimate_print_data(
     Path(estimate_id): Path<Uuid>,
 ) -> Result<Json<PackageEstimatePrintData>, AppError> {
     require_permission(&claims, permissions::billing::invoices::VIEW)?;
+    require_permission(&claims, permissions::patients::VIEW)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -1421,6 +1584,7 @@ pub async fn get_credit_note_print_data(
     Path(credit_note_id): Path<Uuid>,
 ) -> Result<Json<CreditNotePrintData>, AppError> {
     require_permission(&claims, permissions::billing::invoices::VIEW)?;
+    require_permission(&claims, permissions::patients::VIEW)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -1574,6 +1738,7 @@ pub async fn get_package_bill_print_data(
     Path(package_id): Path<Uuid>,
 ) -> Result<Json<PackageBillPrintData>, AppError> {
     require_permission(&claims, permissions::billing::invoices::VIEW)?;
+    require_permission(&claims, permissions::patients::VIEW)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -1757,6 +1922,7 @@ pub async fn get_insurance_claim_print_data(
     Path(claim_id): Path<Uuid>,
 ) -> Result<Json<InsuranceClaimPrintData>, AppError> {
     require_permission(&claims, permissions::insurance::prior_auth::LIST)?;
+    require_permission(&claims, permissions::patients::VIEW)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)

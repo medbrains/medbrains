@@ -78,7 +78,7 @@ pub struct ListAppointmentsQuery {
 pub struct AppointmentWithPatient {
     #[serde(flatten)]
     pub appointment: Appointment,
-    pub patient_name: String,
+    pub patient_name: Option<String>,
     pub doctor_name: String,
 }
 

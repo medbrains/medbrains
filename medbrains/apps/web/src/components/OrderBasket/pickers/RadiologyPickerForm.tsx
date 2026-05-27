@@ -2,7 +2,9 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Button, Checkbox, Group, Select, Stack, TextInput } from "@mantine/core";
 import type { OrderBasketRadiologyFormInput } from "@medbrains/schemas";
 import { orderBasketRadiologyFormSchema } from "@medbrains/schemas";
+import { useHasPermission } from "@medbrains/stores";
 import type { BasketItem, BasketRadiologyItem } from "@medbrains/types";
+import { P } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
 import { Controller, useForm } from "react-hook-form";
 import { radiologyPriorityOptions } from "../../../forms/orderBasket.form";
@@ -13,6 +15,7 @@ interface RadiologyPickerFormProps {
 }
 
 export function RadiologyPickerForm({ onAdd }: RadiologyPickerFormProps) {
+  const canAddRadiology = useHasPermission(P.RADIOLOGY.ORDERS_CREATE);
   const {
     control,
     register,
@@ -36,6 +39,7 @@ export function RadiologyPickerForm({ onAdd }: RadiologyPickerFormProps) {
   const { data: modalities = [] } = useQuery({
     queryKey: ["radiology-modalities"],
     queryFn: () => clinicalSupportService.listRadiologyModalities(),
+    enabled: canAddRadiology,
     staleTime: 60_000,
   });
 
@@ -53,6 +57,7 @@ export function RadiologyPickerForm({ onAdd }: RadiologyPickerFormProps) {
   };
 
   const handleAdd = (values: OrderBasketRadiologyFormInput) => {
+    if (!canAddRadiology) return;
     const item: BasketRadiologyItem = {
       kind: "radiology",
       modality_id: values.modality_id,
@@ -144,7 +149,9 @@ export function RadiologyPickerForm({ onAdd }: RadiologyPickerFormProps) {
       </Group>
       <TextInput label="Notes" {...register("notes")} />
       <Group justify="flex-end">
-        <Button type="submit">Add to basket</Button>
+        <Button type="submit" disabled={!canAddRadiology}>
+          Add to basket
+        </Button>
       </Group>
     </Stack>
   );

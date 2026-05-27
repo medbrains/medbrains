@@ -444,6 +444,7 @@ export function AppointmentsPage() {
   const canUpdate = useHasPermission(P.OPD.APPOINTMENT.UPDATE);
   const canCancel = useHasPermission(P.OPD.APPOINTMENT.CANCEL);
   const canCreateOpdVisit = useHasPermission(P.OPD.VISIT_CREATE);
+  const canViewPatientRecord = useHasPermission(P.PATIENTS.VIEW);
 
   const queryClient = useQueryClient();
   const [modalOpen, setModalOpen] = useState(false);
@@ -704,7 +705,9 @@ export function AppointmentsPage() {
                       </Group>
                     </Table.Td>
                     <Table.Td>
-                      <Text size="sm">{appt.patient_name}</Text>
+                      <Text size="sm" c={canViewPatientRecord ? undefined : "dimmed"}>
+                        {canViewPatientRecord ? (appt.patient_name ?? "Patient") : "Restricted"}
+                      </Text>
                     </Table.Td>
                     <Table.Td>
                       <Text size="sm">{appt.doctor_name}</Text>
@@ -842,7 +845,7 @@ export function AppointmentsPage() {
           <Text size="sm">
             Cancel appointment for{" "}
             <Text span fw={600}>
-              {cancelTarget?.patient_name}
+              {canViewPatientRecord ? (cancelTarget?.patient_name ?? "Patient") : "Restricted"}
             </Text>{" "}
             at {cancelTarget ? formatTime(cancelTarget.slot_start) : ""}?
           </Text>
@@ -895,7 +898,9 @@ export function AppointmentsPage() {
           <Text size="sm">
             Reschedule appointment for{" "}
             <Text span fw={600}>
-              {rescheduleTarget?.patient_name}
+              {canViewPatientRecord
+                ? (rescheduleTarget?.patient_name ?? "Patient")
+                : "Restricted"}
             </Text>{" "}
             with Dr. {rescheduleTarget?.doctor_name}
           </Text>

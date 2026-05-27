@@ -70,6 +70,10 @@ export const opdService = {
     api.listCertificates(...args),
   createCertificate: (...args: Parameters<typeof api.createCertificate>) =>
     api.createCertificate(...args),
+  voidCertificate: (...args: Parameters<typeof api.voidCertificate>) =>
+    api.voidCertificate(...args),
+  getOpdCertificatePrintData: (...args: Parameters<typeof api.getOpdCertificatePrintData>) =>
+    api.getOpdCertificatePrintData(...args),
   listPatientVitalsHistory: (...args: Parameters<typeof api.listPatientVitalsHistory>) =>
     api.listPatientVitalsHistory(...args),
   listPatientVisits: (...args: Parameters<typeof api.listPatientVisits>) =>
@@ -101,6 +105,10 @@ export const opdService = {
     api.createProcedureConsent(...args),
   signProcedureConsent: (...args: Parameters<typeof api.signProcedureConsent>) =>
     api.signProcedureConsent(...args),
+  revokeProcedureConsent: (...args: Parameters<typeof api.revokeProcedureConsent>) =>
+    api.revokeProcedureConsent(...args),
+  getOpdConsentPrintData: (...args: Parameters<typeof api.getOpdConsentPrintData>) =>
+    api.getOpdConsentPrintData(...args),
   getDoctorDocket: (...args: Parameters<typeof api.getDoctorDocket>) =>
     api.getDoctorDocket(...args),
   generateDoctorDocket: (...args: Parameters<typeof api.generateDoctorDocket>) =>

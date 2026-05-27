@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { capitalize, snakeToTitle, truncate } from "./index";
+import {
+  capitalize,
+  fieldAccessText,
+  maskEmail,
+  maskIdentifierKeepLast,
+  maskName,
+  maskPhone,
+  snakeToTitle,
+  truncate,
+} from "./index";
 
 describe("capitalize", () => {
   it("capitalizes the first letter", () => {
@@ -36,5 +45,43 @@ describe("truncate", () => {
 
   it("truncates long strings with ellipsis", () => {
     expect(truncate("hello world", 6)).toBe("hello\u2026");
+  });
+});
+
+describe("maskIdentifierKeepLast", () => {
+  it("masks identifiers while preserving separators and last segment", () => {
+    expect(maskIdentifierKeepLast("AB-1234-5678", 4)).toBe("XX-XXXX-5678");
+  });
+
+  it("masks phone numbers while preserving country separators", () => {
+    expect(maskPhone("+91 98765 43210")).toBe("+XX XXXXX X3210");
+  });
+
+  it("does not invent masked values for empty input", () => {
+    expect(maskIdentifierKeepLast("")).toBe("");
+    expect(maskName("   ")).toBe("");
+  });
+
+  it("masks email local parts while preserving domain context", () => {
+    expect(maskEmail("doctor@example.org")).toBe("dXXXXX@example.org");
+  });
+});
+
+describe("fieldAccessText", () => {
+  it("returns restricted for hidden fields", () => {
+    expect(fieldAccessText("hidden", "9876543210", "phone")).toBe("Restricted");
+  });
+
+  it("returns a masked phone for mask access", () => {
+    expect(fieldAccessText("mask", "9876543210", "phone")).toBe("XXXXXX3210");
+  });
+
+  it("returns raw values for view access", () => {
+    expect(fieldAccessText("view", "9876543210", "phone")).toBe("9876543210");
+  });
+
+  it("returns masked email and amount labels for mask access", () => {
+    expect(fieldAccessText("mask", "billing@example.org", "email")).toBe("bXXXXXX@example.org");
+    expect(fieldAccessText("mask", "₹1,250.00", "amount")).toBe("Amount masked");
   });
 });

@@ -11,7 +11,7 @@ use uuid::Uuid;
 // ── Enums ──────────────────────────────────────────────────
 
 /// Per-user/role access level for a specific field.
-/// Determines whether a field is editable, read-only, or hidden for a given user.
+/// Determines whether a field is editable, read-only, masked, or hidden for a given user.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum FieldAccessLevel {
@@ -20,6 +20,8 @@ pub enum FieldAccessLevel {
     Edit,
     /// User can see the field but cannot modify it (read-only).
     View,
+    /// User can see a masked value but cannot modify or reveal the raw value.
+    Mask,
     /// Field is completely hidden from the user.
     Hidden,
 }

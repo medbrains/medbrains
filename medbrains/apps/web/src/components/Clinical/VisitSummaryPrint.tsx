@@ -1,13 +1,15 @@
-import { Button, Group, Modal, Stack } from "@mantine/core";
-import type {
-  Consultation,
-  Diagnosis,
-  LabOrder,
-  LabTestCatalog,
-  PrescriptionWithItems,
-  Vital,
+import { Alert, Button, Group, Modal, Stack } from "@mantine/core";
+import { useHasAnyPermission, useHasPermission } from "@medbrains/stores";
+import {
+  type Consultation,
+  type Diagnosis,
+  type LabOrder,
+  type LabTestCatalog,
+  P,
+  type PrescriptionWithItems,
+  type Vital,
 } from "@medbrains/types";
-import { IconPrinter } from "@tabler/icons-react";
+import { IconLock, IconPrinter } from "@tabler/icons-react";
 import { useRef } from "react";
 import styles from "./visit-summary-print.module.scss";
 
@@ -29,6 +31,19 @@ interface VisitSummaryPrintProps {
   labCatalog: LabTestCatalog[];
 }
 
+function escapePrintText(value: string) {
+  return value.replace(/[&<>"']/g, (char) => {
+    const entities: Record<string, string> = {
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      '"': "&quot;",
+      "'": "&#39;",
+    };
+    return entities[char] ?? char;
+  });
+}
+
 export function VisitSummaryPrint({
   opened,
   onClose,
@@ -47,6 +62,17 @@ export function VisitSummaryPrint({
   labCatalog,
 }: VisitSummaryPrintProps) {
   const printRef = useRef<HTMLDivElement>(null);
+  const canViewPatient = useHasPermission(P.PATIENTS.VIEW);
+  const canPrintVisitSummary = useHasAnyPermission([
+    P.OPD.QUEUE_VIEW,
+    P.OPD.VISIT_UPDATE,
+    P.OPD.VITALS.LIST,
+    P.OPD.DIAGNOSES.LIST,
+    P.PHARMACY.PRESCRIPTIONS_VIEW,
+    P.LAB.ORDERS_VIEW,
+    P.MRD.CASE_SHEETS_GENERATE,
+  ]);
+  const canPrint = canViewPatient && canPrintVisitSummary;
 
   const getTestName = (testId: string) => {
     const test = labCatalog.find((t) => t.id === testId);
@@ -54,6 +80,7 @@ export function VisitSummaryPrint({
   };
 
   const handlePrint = () => {
+    if (!canPrint) return;
     const content = printRef.current;
     if (!content) return;
 
@@ -64,7 +91,7 @@ export function VisitSummaryPrint({
       <!DOCTYPE html>
       <html>
         <head>
-          <title>Visit Summary — ${patientName}</title>
+          <title>Visit Summary - ${escapePrintText(patientName)}</title>
           <style>
             * { margin: 0; padding: 0; box-sizing: border-box; }
             body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; padding: 24px; color: #111; font-size: 13px; }
@@ -111,230 +138,242 @@ export function VisitSummaryPrint({
   return (
     <Modal opened={opened} onClose={onClose} title="Visit Summary Preview" size="xl">
       <Stack>
+        {!canPrint && (
+          <Alert color="orange" variant="light" icon={<IconLock size={16} />}>
+            Visit summary printing requires patient view and OPD clinical, prescription, lab, or MRD
+            case-sheet permission.
+          </Alert>
+        )}
         <div ref={printRef}>
-          <div className={styles.printContainer}>
-            {/* Hospital Header */}
-            <div className={styles.header}>
-              <p className={styles.hospitalName}>{hospitalName ?? "Hospital"}</p>
-              {hospitalAddress && <p className={styles.hospitalInfo}>{hospitalAddress}</p>}
-              {hospitalPhone && <p className={styles.hospitalInfo}>Tel: {hospitalPhone}</p>}
-            </div>
+          {canPrint && (
+            <div className={styles.printContainer}>
+              {/* Hospital Header */}
+              <div className={styles.header}>
+                <p className={styles.hospitalName}>{hospitalName ?? "Hospital"}</p>
+                {hospitalAddress && <p className={styles.hospitalInfo}>{hospitalAddress}</p>}
+                {hospitalPhone && <p className={styles.hospitalInfo}>Tel: {hospitalPhone}</p>}
+              </div>
 
-            <div className={styles.summaryTitle}>OPD Visit Summary</div>
+              <div className={styles.summaryTitle}>OPD Visit Summary</div>
 
-            {/* Patient Info */}
-            <div className={styles.patientGrid}>
-              <div className={styles.field}>
-                <span className={styles.fieldLabel}>Patient:</span>
-                <span className={styles.fieldValue}>{patientName}</span>
-              </div>
-              <div className={styles.field}>
-                <span className={styles.fieldLabel}>UHID:</span>
-                <span className={styles.fieldValue}>{uhid}</span>
-              </div>
-              <div className={styles.field}>
-                <span className={styles.fieldLabel}>Visit Date:</span>
-                <span className={styles.fieldValue}>{formattedDate}</span>
-              </div>
-              {doctorName && (
+              {/* Patient Info */}
+              <div className={styles.patientGrid}>
                 <div className={styles.field}>
-                  <span className={styles.fieldLabel}>Doctor:</span>
-                  <span className={styles.fieldValue}>Dr. {doctorName}</span>
+                  <span className={styles.fieldLabel}>Patient:</span>
+                  <span className={styles.fieldValue}>{patientName}</span>
                 </div>
-              )}
-            </div>
+                <div className={styles.field}>
+                  <span className={styles.fieldLabel}>UHID:</span>
+                  <span className={styles.fieldValue}>{uhid}</span>
+                </div>
+                <div className={styles.field}>
+                  <span className={styles.fieldLabel}>Visit Date:</span>
+                  <span className={styles.fieldValue}>{formattedDate}</span>
+                </div>
+                {doctorName && (
+                  <div className={styles.field}>
+                    <span className={styles.fieldLabel}>Doctor:</span>
+                    <span className={styles.fieldValue}>Dr. {doctorName}</span>
+                  </div>
+                )}
+              </div>
 
-            {/* Vitals */}
-            {latestVitals && (
-              <>
-                <div className={styles.sectionTitle}>Vitals</div>
-                <div className={styles.vitalsGrid}>
-                  {latestVitals.temperature != null && (
-                    <div className={styles.vitalItem}>
-                      <div className={styles.vitalLabel}>Temp</div>
-                      <div className={styles.vitalValue}>{latestVitals.temperature}°F</div>
-                    </div>
-                  )}
-                  {latestVitals.pulse != null && (
-                    <div className={styles.vitalItem}>
-                      <div className={styles.vitalLabel}>Pulse</div>
-                      <div className={styles.vitalValue}>{latestVitals.pulse}/min</div>
-                    </div>
-                  )}
-                  {latestVitals.systolic_bp != null && (
-                    <div className={styles.vitalItem}>
-                      <div className={styles.vitalLabel}>BP</div>
-                      <div className={styles.vitalValue}>
-                        {latestVitals.systolic_bp}/{latestVitals.diastolic_bp}
+              {/* Vitals */}
+              {latestVitals && (
+                <>
+                  <div className={styles.sectionTitle}>Vitals</div>
+                  <div className={styles.vitalsGrid}>
+                    {latestVitals.temperature != null && (
+                      <div className={styles.vitalItem}>
+                        <div className={styles.vitalLabel}>Temp</div>
+                        <div className={styles.vitalValue}>{latestVitals.temperature}°F</div>
                       </div>
-                    </div>
-                  )}
-                  {latestVitals.spo2 != null && (
-                    <div className={styles.vitalItem}>
-                      <div className={styles.vitalLabel}>SpO2</div>
-                      <div className={styles.vitalValue}>{latestVitals.spo2}%</div>
-                    </div>
-                  )}
-                  {latestVitals.respiratory_rate != null && (
-                    <div className={styles.vitalItem}>
-                      <div className={styles.vitalLabel}>RR</div>
-                      <div className={styles.vitalValue}>{latestVitals.respiratory_rate}/min</div>
-                    </div>
-                  )}
-                  {latestVitals.weight_kg != null && (
-                    <div className={styles.vitalItem}>
-                      <div className={styles.vitalLabel}>Weight</div>
-                      <div className={styles.vitalValue}>{latestVitals.weight_kg} kg</div>
-                    </div>
-                  )}
-                  {latestVitals.height_cm != null && (
-                    <div className={styles.vitalItem}>
-                      <div className={styles.vitalLabel}>Height</div>
-                      <div className={styles.vitalValue}>{latestVitals.height_cm} cm</div>
-                    </div>
-                  )}
-                  {latestVitals.bmi != null && (
-                    <div className={styles.vitalItem}>
-                      <div className={styles.vitalLabel}>BMI</div>
-                      <div className={styles.vitalValue}>{latestVitals.bmi}</div>
-                    </div>
-                  )}
-                </div>
-              </>
-            )}
+                    )}
+                    {latestVitals.pulse != null && (
+                      <div className={styles.vitalItem}>
+                        <div className={styles.vitalLabel}>Pulse</div>
+                        <div className={styles.vitalValue}>{latestVitals.pulse}/min</div>
+                      </div>
+                    )}
+                    {latestVitals.systolic_bp != null && (
+                      <div className={styles.vitalItem}>
+                        <div className={styles.vitalLabel}>BP</div>
+                        <div className={styles.vitalValue}>
+                          {latestVitals.systolic_bp}/{latestVitals.diastolic_bp}
+                        </div>
+                      </div>
+                    )}
+                    {latestVitals.spo2 != null && (
+                      <div className={styles.vitalItem}>
+                        <div className={styles.vitalLabel}>SpO2</div>
+                        <div className={styles.vitalValue}>{latestVitals.spo2}%</div>
+                      </div>
+                    )}
+                    {latestVitals.respiratory_rate != null && (
+                      <div className={styles.vitalItem}>
+                        <div className={styles.vitalLabel}>RR</div>
+                        <div className={styles.vitalValue}>{latestVitals.respiratory_rate}/min</div>
+                      </div>
+                    )}
+                    {latestVitals.weight_kg != null && (
+                      <div className={styles.vitalItem}>
+                        <div className={styles.vitalLabel}>Weight</div>
+                        <div className={styles.vitalValue}>{latestVitals.weight_kg} kg</div>
+                      </div>
+                    )}
+                    {latestVitals.height_cm != null && (
+                      <div className={styles.vitalItem}>
+                        <div className={styles.vitalLabel}>Height</div>
+                        <div className={styles.vitalValue}>{latestVitals.height_cm} cm</div>
+                      </div>
+                    )}
+                    {latestVitals.bmi != null && (
+                      <div className={styles.vitalItem}>
+                        <div className={styles.vitalLabel}>BMI</div>
+                        <div className={styles.vitalValue}>{latestVitals.bmi}</div>
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
 
-            {/* Consultation / SOAP Notes */}
-            {consultation && (
-              <>
-                <div className={styles.sectionTitle}>Consultation Notes</div>
-                {consultation.chief_complaint && (
-                  <div className={styles.soapSection}>
-                    <div className={styles.soapLabel}>Chief Complaint:</div>
-                    <div className={styles.soapContent}>{consultation.chief_complaint}</div>
-                  </div>
-                )}
-                {consultation.examination && (
-                  <div className={styles.soapSection}>
-                    <div className={styles.soapLabel}>Examination:</div>
-                    <div className={styles.soapContent}>{consultation.examination}</div>
-                  </div>
-                )}
-                {consultation.history && (
-                  <div className={styles.soapSection}>
-                    <div className={styles.soapLabel}>Assessment:</div>
-                    <div className={styles.soapContent}>{consultation.history}</div>
-                  </div>
-                )}
-                {consultation.plan && (
-                  <div className={styles.soapSection}>
-                    <div className={styles.soapLabel}>Plan:</div>
-                    <div className={styles.soapContent}>{consultation.plan}</div>
-                  </div>
-                )}
-              </>
-            )}
+              {/* Consultation / SOAP Notes */}
+              {consultation && (
+                <>
+                  <div className={styles.sectionTitle}>Consultation Notes</div>
+                  {consultation.chief_complaint && (
+                    <div className={styles.soapSection}>
+                      <div className={styles.soapLabel}>Chief Complaint:</div>
+                      <div className={styles.soapContent}>{consultation.chief_complaint}</div>
+                    </div>
+                  )}
+                  {consultation.examination && (
+                    <div className={styles.soapSection}>
+                      <div className={styles.soapLabel}>Examination:</div>
+                      <div className={styles.soapContent}>{consultation.examination}</div>
+                    </div>
+                  )}
+                  {consultation.history && (
+                    <div className={styles.soapSection}>
+                      <div className={styles.soapLabel}>Assessment:</div>
+                      <div className={styles.soapContent}>{consultation.history}</div>
+                    </div>
+                  )}
+                  {consultation.plan && (
+                    <div className={styles.soapSection}>
+                      <div className={styles.soapLabel}>Plan:</div>
+                      <div className={styles.soapContent}>{consultation.plan}</div>
+                    </div>
+                  )}
+                </>
+              )}
 
-            {/* Diagnoses */}
-            {diagnoses.length > 0 && (
-              <>
-                <div className={styles.sectionTitle}>Diagnoses</div>
-                <table className={styles.table}>
-                  <thead>
-                    <tr>
-                      <th>Code</th>
-                      <th>Description</th>
-                      <th>Type</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {diagnoses.map((d) => (
-                      <tr key={d.id}>
-                        <td>{d.icd_code ?? "—"}</td>
-                        <td>{d.description}</td>
-                        <td>{d.is_primary ? "Primary" : "Secondary"}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </>
-            )}
-
-            {/* Prescriptions */}
-            {prescriptions.length > 0 && (
-              <>
-                <div className={styles.sectionTitle}>Prescriptions</div>
-                {prescriptions.map((p) => (
-                  <table key={p.prescription.id} className={styles.table}>
+              {/* Diagnoses */}
+              {diagnoses.length > 0 && (
+                <>
+                  <div className={styles.sectionTitle}>Diagnoses</div>
+                  <table className={styles.table}>
                     <thead>
                       <tr>
-                        <th>Drug</th>
-                        <th>Dosage</th>
-                        <th>Frequency</th>
-                        <th>Duration</th>
-                        <th>Route</th>
+                        <th>Code</th>
+                        <th>Description</th>
+                        <th>Type</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {p.items.map((item) => (
-                        <tr key={item.id}>
-                          <td style={{ fontWeight: 600 }}>{item.drug_name}</td>
-                          <td>{item.dosage}</td>
-                          <td>{item.frequency}</td>
-                          <td>{item.duration}</td>
-                          <td>{item.route ?? "—"}</td>
+                      {diagnoses.map((d) => (
+                        <tr key={d.id}>
+                          <td>{d.icd_code ?? "—"}</td>
+                          <td>{d.description}</td>
+                          <td>{d.is_primary ? "Primary" : "Secondary"}</td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
-                ))}
-              </>
-            )}
+                </>
+              )}
 
-            {/* Lab Orders */}
-            {labOrders.length > 0 && (
-              <>
-                <div className={styles.sectionTitle}>Investigations Ordered</div>
-                <table className={styles.table}>
-                  <thead>
-                    <tr>
-                      <th>Test</th>
-                      <th>Priority</th>
-                      <th>Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {labOrders.map((order) => (
-                      <tr key={order.id}>
-                        <td>{getTestName(order.test_id)}</td>
-                        <td>{order.priority.toUpperCase()}</td>
-                        <td>{order.status.replace(/_/g, " ")}</td>
+              {/* Prescriptions */}
+              {prescriptions.length > 0 && (
+                <>
+                  <div className={styles.sectionTitle}>Prescriptions</div>
+                  {prescriptions.map((p) => (
+                    <table key={p.prescription.id} className={styles.table}>
+                      <thead>
+                        <tr>
+                          <th>Drug</th>
+                          <th>Dosage</th>
+                          <th>Frequency</th>
+                          <th>Duration</th>
+                          <th>Route</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {p.items.map((item) => (
+                          <tr key={item.id}>
+                            <td style={{ fontWeight: 600 }}>{item.drug_name}</td>
+                            <td>{item.dosage}</td>
+                            <td>{item.frequency}</td>
+                            <td>{item.duration}</td>
+                            <td>{item.route ?? "—"}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  ))}
+                </>
+              )}
+
+              {/* Lab Orders */}
+              {labOrders.length > 0 && (
+                <>
+                  <div className={styles.sectionTitle}>Investigations Ordered</div>
+                  <table className={styles.table}>
+                    <thead>
+                      <tr>
+                        <th>Test</th>
+                        <th>Priority</th>
+                        <th>Status</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </>
-            )}
+                    </thead>
+                    <tbody>
+                      {labOrders.map((order) => (
+                        <tr key={order.id}>
+                          <td>{getTestName(order.test_id)}</td>
+                          <td>{order.priority.toUpperCase()}</td>
+                          <td>{order.status.replace(/_/g, " ")}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </>
+              )}
 
-            {/* Footer */}
-            <div className={styles.footer}>
-              <div style={{ fontSize: "12px", color: "#555" }}>
-                Printed: {new Date().toLocaleDateString("en-IN")}
-              </div>
-              <div style={{ textAlign: "center" }}>
-                {doctorName && (
-                  <div style={{ fontWeight: 600, marginBottom: 4 }}>Dr. {doctorName}</div>
-                )}
-                <div className={styles.signatureLine}>Signature & Seal</div>
+              {/* Footer */}
+              <div className={styles.footer}>
+                <div style={{ fontSize: "12px", color: "#555" }}>
+                  Printed: {new Date().toLocaleDateString("en-IN")}
+                </div>
+                <div style={{ textAlign: "center" }}>
+                  {doctorName && (
+                    <div style={{ fontWeight: 600, marginBottom: 4 }}>Dr. {doctorName}</div>
+                  )}
+                  <div className={styles.signatureLine}>Signature & Seal</div>
+                </div>
               </div>
             </div>
-          </div>
+          )}
         </div>
 
         <Group justify="flex-end" className={styles.noPrint}>
           <Button variant="subtle" onClick={onClose}>
             Close
           </Button>
-          <Button leftSection={<IconPrinter size={16} />} onClick={handlePrint}>
+          <Button
+            leftSection={<IconPrinter size={16} />}
+            onClick={handlePrint}
+            disabled={!canPrint}
+          >
             Print Summary
           </Button>
         </Group>

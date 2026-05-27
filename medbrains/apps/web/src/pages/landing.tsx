@@ -327,7 +327,7 @@ export function LandingPage() {
 
           <div className={classes.navActions}>
             {user ? (
-              <Button size="sm" onClick={() => navigate("/dashboard")}>
+              <Button size="sm" onClick={() => navigate("/apps")}>
                 Go to Dashboard
               </Button>
             ) : (
@@ -359,7 +359,7 @@ export function LandingPage() {
             everything a modern hospital needs.
           </p>
           <div className={classes.heroCtas}>
-            <Button size="lg" onClick={() => navigate(user ? "/dashboard" : "/onboarding")}>
+            <Button size="lg" onClick={() => navigate(user ? "/apps" : "/onboarding")}>
               Get Started
             </Button>
             <Button

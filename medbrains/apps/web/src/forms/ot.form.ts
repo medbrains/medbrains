@@ -99,6 +99,7 @@ export const OT_POSTOP_RECOVERY_STATUS_OPTIONS: Array<
 
 export const DEFAULT_OT_BOOKING_FORM_VALUES: OtBookingFormInput = {
   patient_id: "",
+  admission_id: "",
   ot_room_id: "",
   primary_surgeon_id: "",
   procedure_name: "",
@@ -245,6 +246,7 @@ export function normalizeOtPostopRecoveryStatus(
 export function toCreateOtBookingRequest(values: OtBookingFormInput): CreateOtBookingRequest {
   return {
     patient_id: values.patient_id.trim(),
+    admission_id: optionalTextFromFormValue(values.admission_id),
     ot_room_id: values.ot_room_id.trim(),
     primary_surgeon_id: values.primary_surgeon_id.trim(),
     procedure_name: values.procedure_name.trim(),

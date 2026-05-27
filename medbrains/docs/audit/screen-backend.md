@@ -82,7 +82,7 @@ Status legend: **RED** = missing handler / unregistered route;
 | `admin/nabh-indicators.tsx` | 158 | `P.QUALITY.INDICATORS_LIST` | 1 | 1 | — | — | — | GREEN |  |
 | `admin/paired-devices.tsx` | 290 | `P.DEVICES.PAIRING.PAIRED_LIST` | 3 | 3 | — | — | — | GREEN |  |
 | `admin/roles.tsx` | 990 | `P.ADMIN.ROLES.LIST` | 7 | 7 | — | — | — | GREEN |  |
-| `admin/settings.tsx` | 53 | `visibleTabs[0]?.requiredPermission` | 0 | 0 | — | — | — | GREEN |  |
+| `admin/settings.tsx` | 272 | `settingsTabPermissions(visibleTabs[0])` | 0 | 0 | — | — | — | GREEN |  |
 | `admin/settings/BedTypesSettings.tsx` | 418 | `—` | 4 | 4 | — | — | — | AMBER |  |
 | `admin/settings/BillingTaxSettings.tsx` | 756 | `—` | 8 | 8 | — | — | — | AMBER |  |
 | `admin/settings/BrandingSettings.tsx` | 238 | `—` | 2 | 2 | — | — | — | AMBER |  |
@@ -92,25 +92,21 @@ Status legend: **RED** = missing handler / unregistered route;
 | `admin/settings/ComplianceSettings.tsx` | 168 | `—` | 2 | 2 | — | — | — | AMBER |  |
 | `admin/settings/ConsultationTemplatesSettings.tsx` | 302 | `—` | 4 | 4 | — | — | — | AMBER |  |
 | `admin/settings/CriticalValueRulesSettings.tsx` | 163 | `—` | 3 | 3 | — | — | — | AMBER |  |
-| `admin/settings/DepartmentHoursSettings.tsx` | 324 | `—` | 2 | 2 | — | — | — | AMBER |  |
 | `admin/settings/DepartmentsSettings.tsx` | 638 | `—` | 4 | 4 | — | — | — | AMBER |  |
 | `admin/settings/DeviceIntegrationsSettings.tsx` | 568 | `—` | 2 | 2 | — | — | — | AMBER |  |
 | `admin/settings/DrugInteractionsSettings.tsx` | 169 | `—` | 3 | 3 | — | — | — | AMBER |  |
 | `admin/settings/FacilitiesSettings.tsx` | 551 | `—` | 4 | 4 | — | — | — | AMBER |  |
 | `admin/settings/GeneralSettings.tsx` | 325 | `—` | 2 | 2 | — | — | — | AMBER |  |
 | `admin/settings/GeoSettings.tsx` | 264 | `—` | 6 | 6 | — | — | — | AMBER |  |
-| `admin/settings/LocationTreeSettings.tsx` | 205 | `—` | 1 | 1 | — | — | — | AMBER |  |
 | `admin/settings/LocationsSettings.tsx` | 430 | `—` | 4 | 4 | — | — | — | AMBER |  |
-| `admin/settings/MasterDataStatusSettings.tsx` | 258 | `—` | 6 | 6 | — | — | — | AMBER |  |
+| `admin/settings/MasterDataStatusSettings.tsx` | 1558 | `—` | 6 | 6 | — | — | — | AMBER |  |
 | `admin/settings/ModulesSettings.tsx` | 175 | `—` | 2 | 2 | — | — | — | AMBER |  |
 | `admin/settings/OfflineModeSettings.tsx` | 220 | `—` | 2 | 2 | — | — | — | AMBER |  |
 | `admin/settings/PrintTemplateSettings.tsx` | 387 | `—` | 2 | 2 | — | — | — | AMBER |  |
 | `admin/settings/SequencesSettings.tsx` | 355 | `—` | 4 | 4 | — | — | — | AMBER |  |
 | `admin/settings/ServicesSettings.tsx` | 488 | `—` | 5 | 5 | — | — | — | AMBER |  |
-| `admin/settings/SetupWizardSettings.tsx` | 181 | `—` | 5 | 5 | — | — | — | AMBER |  |
 | `admin/settings/SystemHealthSettings.tsx` | 292 | `—` | 4 | 4 | — | — | — | AMBER |  |
 | `admin/settings/UnitsLocaleSettings.tsx` | 203 | `—` | 2 | 2 | — | — | — | AMBER |  |
-| `admin/settings/UsersRolesSettings.tsx` | 1046 | `—` | 12 | 12 | — | — | — | AMBER |  |
 | `admin/storage.tsx` | 495 | `P.STORAGE.POLICIES.LIST` | 5 | 5 | — | — | — | GREEN |  |
 | `admin/users.tsx` | 1553 | `P.ADMIN.USERS.LIST` | 8 | 8 | — | — | — | GREEN |  |
 

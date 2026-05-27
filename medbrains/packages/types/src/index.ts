@@ -16,6 +16,154 @@ export interface HealthResponse {
   yottadb: string;
 }
 
+// ABDM ABHA
+export type AbdmEnvironment = "sandbox" | "production";
+
+export interface AbhaIntegrationReadiness {
+  environment: AbdmEnvironment;
+  abha_base_url: string;
+  session_url: string;
+  public_certificate_path: string;
+  login_request_otp_path: string;
+  login_verify_path: string;
+}
+
+export interface AbhaStatusResponse {
+  environment: AbdmEnvironment;
+  configured: boolean;
+  source: string;
+  readiness: AbhaIntegrationReadiness;
+}
+
+export interface AbhaProviderResponse<TResponse> {
+  environment: AbdmEnvironment;
+  request_id: string;
+  response: TResponse;
+}
+
+export interface AbhaSessionTokenRequest {
+  clientId: string;
+  clientSecret: string;
+}
+
+export interface AbhaSessionTokenResponse {
+  accessToken: string;
+  expiresIn: number;
+  refreshToken: string;
+  refreshExpiresIn: number;
+  tokenType: string;
+}
+
+export interface AbhaSessionRequest {
+  environment?: AbdmEnvironment;
+  credentials?: AbhaSessionTokenRequest;
+}
+
+export interface AbhaAuthenticatedRequest<TRequest> {
+  environment?: AbdmEnvironment;
+  access_token: string;
+  request: TRequest;
+}
+
+export interface AbhaPublicCertificateRequest {
+  environment?: AbdmEnvironment;
+  access_token: string;
+}
+
+export interface AbhaPublicCertificateResponse {
+  publicKey: string;
+  encryptionAlgorithm?: string;
+  kid?: string;
+}
+
+export type AbhaLoginHint = "abha-number" | "abha-address" | "mobile";
+export type AbhaOtpSystem = "aadhaar" | "abdm";
+export type AbhaAuthMethod = "otp";
+
+export interface AbhaRequestOtpRequest {
+  scope: string[];
+  loginHint: AbhaLoginHint;
+  loginId: string;
+  otpSystem: AbhaOtpSystem;
+}
+
+export interface AbhaRequestOtpResponse {
+  txnId: string;
+  message?: string;
+}
+
+export interface AbhaVerifyOtpPayload {
+  txnId: string;
+  otpValue: string;
+}
+
+export interface AbhaVerifyOtpAuthData {
+  authMethods: AbhaAuthMethod[];
+  otp: AbhaVerifyOtpPayload;
+}
+
+export interface AbhaVerifyOtpRequest {
+  scope: string[];
+  authData: AbhaVerifyOtpAuthData;
+}
+
+export interface AbhaAuthToken {
+  token: string;
+  expiresIn: number;
+  refreshToken?: string;
+  refreshExpiresIn?: number;
+}
+
+export interface AbhaAccountSummary {
+  ABHANumber?: string;
+  preferredAbhaAddress?: string;
+  name?: string;
+  status?: string;
+  profilePhoto?: string;
+}
+
+export interface AbhaVerifyOtpResponse {
+  txnId: string;
+  authResult?: string;
+  message?: string;
+  token?: AbhaAuthToken;
+  accounts: AbhaAccountSummary[];
+}
+
+// AEBAS / BAS
+export interface AebasDepartmentImport {
+  department_name: string;
+  total_employees: number;
+  average_present: number;
+  average_absent: number;
+  average_leave: number;
+  attendance_percentage?: number;
+}
+
+export interface AebasPeriodImportRequest {
+  period: string;
+  total_employees: number;
+  average_attendance_percentage?: number;
+  total_working_days: number;
+  holidays: number;
+  departments: AebasDepartmentImport[];
+}
+
+export interface AebasStatusResponse {
+  configured: boolean;
+  source?: string;
+  organization_id?: string;
+  unit_code?: string;
+  api_base_url?: string;
+  surfaces: string[];
+}
+
+export interface AebasImportResponse {
+  period: string;
+  department_rows: number;
+  status: string;
+}
+
 // Tenant
 export type HospitalType =
   | "medical_college"
@@ -55,6 +203,10 @@ export interface TenantSummary {
   locale: string;
   currency: string;
   fy_start_month: number;
+  country_id: string | null;
+  state_id: string | null;
+  district_id: string | null;
+  phone_code: string | null;
 }
 
 // User
@@ -535,7 +687,7 @@ export type FieldDataType =
 
 export type RequirementLevel = "mandatory" | "conditional" | "recommended" | "optional";
 
-export type FieldAccessLevel = "edit" | "view" | "hidden";
+export type FieldAccessLevel = "edit" | "view" | "mask" | "hidden";
 
 export type FormStatus = "draft" | "active" | "deprecated";
 
@@ -686,6 +838,345 @@ export interface FieldMasterFull {
   created_at: string;
   updated_at: string;
 }
+
+const SYSTEM_FIELD_TIMESTAMP = "1970-01-01T00:00:00.000Z";
+
+function systemField(
+  module: string,
+  code: string,
+  name: string,
+  dataType: FieldDataType,
+  description: string,
+): FieldMasterFull {
+  return {
+    id: `system:${module}.${code}`,
+    code,
+    name,
+    description,
+    data_type: dataType,
+    default_value: null,
+    placeholder: null,
+    validation: null,
+    ui_component: null,
+    ui_width: null,
+    fhir_path: null,
+    db_table: module,
+    db_column: code.split(".").at(-1) ?? code,
+    condition: null,
+    is_system: true,
+    is_active: true,
+    created_at: SYSTEM_FIELD_TIMESTAMP,
+    updated_at: SYSTEM_FIELD_TIMESTAMP,
+  };
+}
+
+export const FIELD_ACCESS_FIELDS = [
+  systemField("patients", "uhid", "Patient UHID", "text", "Hospital patient identifier"),
+  systemField("patients", "first_name", "Patient first name", "text", "Patient identity field"),
+  systemField("patients", "middle_name", "Patient middle name", "text", "Patient identity field"),
+  systemField("patients", "last_name", "Patient last name", "text", "Patient identity field"),
+  systemField(
+    "patients",
+    "full_name_local",
+    "Patient local-script name",
+    "text",
+    "Patient identity field in local language or script",
+  ),
+  systemField("patients", "phone", "Patient phone", "phone", "Patient contact field"),
+  systemField(
+    "patients",
+    "phone_secondary",
+    "Patient alternate phone",
+    "phone",
+    "Patient alternate contact field",
+  ),
+  systemField("patients", "email", "Patient email", "email", "Patient contact field"),
+  systemField("patients", "date_of_birth", "Patient date of birth", "date", "Patient age field"),
+  systemField("patients", "address", "Patient address", "textarea", "Patient address field"),
+  systemField("patients", "abha_id", "ABHA identifier", "text", "ABDM health identity field"),
+  systemField(
+    "patients",
+    "mlc_number",
+    "Patient MLC number",
+    "text",
+    "Medico-legal patient identifier",
+  ),
+  systemField(
+    "patients",
+    "identifiers.id_number",
+    "Patient external identifier number",
+    "text",
+    "Government and external patient identifier values",
+  ),
+  systemField(
+    "opd",
+    "diagnosis",
+    "OPD diagnosis text",
+    "textarea",
+    "Clinical diagnosis/impression text",
+  ),
+  systemField(
+    "opd",
+    "soap_note",
+    "OPD SOAP note",
+    "textarea",
+    "SOAP, HPI, history, examination, assessment, and treatment-plan clinical notes",
+  ),
+  systemField(
+    "ipd",
+    "admissions.provisional_diagnosis",
+    "IPD provisional diagnosis",
+    "textarea",
+    "Admission diagnosis shown in IPD workspace and admission slip",
+  ),
+  systemField(
+    "ipd",
+    "discharge_summary.final_diagnosis",
+    "IPD final diagnosis",
+    "textarea",
+    "Final diagnosis shown in discharge summary workflow",
+  ),
+  systemField(
+    "ipd",
+    "attenders.name",
+    "IPD attender name",
+    "text",
+    "Attender identity linked to an admission",
+  ),
+  systemField(
+    "ipd",
+    "attenders.relationship",
+    "IPD attender relationship",
+    "text",
+    "Attender relationship to patient",
+  ),
+  systemField(
+    "ipd",
+    "attenders.phone",
+    "IPD attender phone",
+    "phone",
+    "Attender phone or mobile number",
+  ),
+  systemField("ipd", "attenders.address", "IPD attender address", "textarea", "Attender address"),
+  systemField(
+    "ipd",
+    "attenders.id_proof_number",
+    "IPD attender ID proof",
+    "text",
+    "Attender identity proof number",
+  ),
+  systemField(
+    "emergency",
+    "mlc.fir_number",
+    "MLC FIR number",
+    "text",
+    "Medico-legal FIR identifier",
+  ),
+  systemField(
+    "emergency",
+    "mlc.police_station",
+    "MLC police station",
+    "text",
+    "Police station for medico-legal case",
+  ),
+  systemField(
+    "emergency",
+    "mlc.informant_name",
+    "MLC informant name",
+    "text",
+    "Medico-legal informant identity",
+  ),
+  systemField(
+    "emergency",
+    "mlc.informant_relation",
+    "MLC informant relation",
+    "text",
+    "Medico-legal informant relationship to patient or incident",
+  ),
+  systemField(
+    "emergency",
+    "mlc.informant_contact",
+    "MLC informant contact",
+    "phone",
+    "Medico-legal informant contact",
+  ),
+  systemField(
+    "emergency",
+    "mlc.history_of_incident",
+    "MLC incident history",
+    "textarea",
+    "Medico-legal incident narrative",
+  ),
+  systemField(
+    "emergency",
+    "mlc.examination_findings",
+    "MLC examination findings",
+    "textarea",
+    "Medico-legal examination details",
+  ),
+  systemField(
+    "emergency",
+    "mlc.medical_opinion",
+    "MLC medical opinion",
+    "textarea",
+    "Medico-legal clinical opinion",
+  ),
+  systemField(
+    "emergency",
+    "mlc.cause_of_death",
+    "MLC cause of death",
+    "textarea",
+    "Sensitive medico-legal death field",
+  ),
+  systemField(
+    "emergency",
+    "mlc.pocso_report",
+    "POCSO report content",
+    "textarea",
+    "Highly sensitive POCSO report text",
+  ),
+  systemField(
+    "camp",
+    "registrations.person_name",
+    "Camp outreach name",
+    "text",
+    "Unlinked outreach participant name",
+  ),
+  systemField(
+    "camp",
+    "registrations.phone",
+    "Camp outreach phone",
+    "phone",
+    "Unlinked outreach participant phone",
+  ),
+  systemField(
+    "camp",
+    "registrations.id_proof_number",
+    "Camp outreach ID proof",
+    "text",
+    "Unlinked outreach participant ID proof",
+  ),
+  systemField(
+    "pharmacy",
+    "catalog.base_price",
+    "Pharmacy catalog base price",
+    "decimal",
+    "Medicine catalog price",
+  ),
+  systemField(
+    "pharmacy",
+    "pricing.unit_price",
+    "Pharmacy unit price",
+    "decimal",
+    "Dispense/order unit price",
+  ),
+  systemField(
+    "pharmacy",
+    "batches.batch_number",
+    "Pharmacy batch number",
+    "text",
+    "Drug batch or lot number",
+  ),
+  systemField(
+    "pharmacy",
+    "batches.purchase_rate",
+    "Pharmacy purchase rate",
+    "decimal",
+    "Batch purchase price",
+  ),
+  systemField(
+    "pharmacy",
+    "batches.selling_rate",
+    "Pharmacy selling rate",
+    "decimal",
+    "Batch selling price",
+  ),
+  systemField(
+    "pharmacy",
+    "batches.source",
+    "Pharmacy batch source",
+    "text",
+    "Batch procurement/source details",
+  ),
+  systemField(
+    "pharmacy",
+    "ndps.balance_after",
+    "NDPS balance",
+    "decimal",
+    "Controlled substance balance",
+  ),
+  systemField("pharmacy", "ndps.user_ids", "NDPS users", "text", "NDPS action user identifiers"),
+  systemField(
+    "pharmacy",
+    "ndps.witnessed_by",
+    "NDPS witness",
+    "text",
+    "Controlled substance witness identity",
+  ),
+  systemField(
+    "pharmacy",
+    "analytics.value",
+    "Pharmacy analytics values",
+    "decimal",
+    "Financial or stock-value analytics",
+  ),
+  systemField(
+    "pharmacy",
+    "pos.patient_name",
+    "Pharmacy POS walk-in name",
+    "text",
+    "Walk-in customer name",
+  ),
+  systemField(
+    "pharmacy",
+    "pos.patient_phone",
+    "Pharmacy POS walk-in phone",
+    "phone",
+    "Walk-in customer phone",
+  ),
+  systemField(
+    "billing",
+    "amount",
+    "Billing amounts",
+    "decimal",
+    "Invoice, payment, refund, tax, credit, and concession amounts",
+  ),
+  systemField(
+    "billing",
+    "corporate.contact_email",
+    "Corporate contact email",
+    "email",
+    "Corporate/TPA contact email",
+  ),
+  systemField(
+    "billing",
+    "corporate.contact_phone",
+    "Corporate contact phone",
+    "phone",
+    "Corporate/TPA contact phone",
+  ),
+  systemField(
+    "insurance",
+    "verification.member_id",
+    "Insurance member ID",
+    "text",
+    "Insurance policy/member identifier",
+  ),
+  systemField(
+    "insurance",
+    "prior_auth.auth_number",
+    "Prior-auth number",
+    "text",
+    "Insurance prior-authorization number",
+  ),
+  systemField(
+    "insurance",
+    "prior_auth.denial_reason",
+    "Prior-auth denial reason",
+    "textarea",
+    "Payer denial or rejection rationale",
+  ),
+] satisfies FieldMasterFull[];
 
 export interface FieldRegulatoryLinkRow {
   id: string;
@@ -2922,8 +3413,8 @@ export interface QueueEntry {
   called_at: string | null;
   completed_at: string | null;
   patient_id: string;
-  patient_name: string;
-  uhid: string;
+  patient_name: string | null;
+  uhid: string | null;
   visit_type: string | null;
   camp_id: string | null;
   camp_name: string | null;
@@ -2980,6 +3471,7 @@ export interface Vital {
   bmi: string | null;
   notes: string | null;
   recorded_by: string;
+  recorded_at: string;
   created_at: string;
 }
 
@@ -3299,6 +3791,11 @@ export interface TerminologySearchResult {
   corpus_entry_id: string | null;
 }
 
+export interface TerminologySearchResponse {
+  results: TerminologySearchResult[];
+  suggestions: string[];
+}
+
 export interface SearchTerminologyParams {
   system: TerminologySystem;
   q: string;
@@ -3515,6 +4012,10 @@ export interface CreateMedicalCertificateRequest {
   diagnosis?: string;
   remarks?: string;
   body: Record<string, unknown>;
+}
+
+export interface VoidMedicalCertificateRequest {
+  void_reason: string;
 }
 
 // ══════════════════════════════════════════════════════════
@@ -3808,6 +4309,10 @@ export interface CreateConsentRequest {
   witness_designation?: string;
 }
 
+export interface RevokeProcedureConsentRequest {
+  withdrawal_reason: string;
+}
+
 // ══════════════════════════════════════════════════════════
 //  Patient Diagnoses (cross-encounter)
 // ══════════════════════════════════════════════════════════
@@ -3946,7 +4451,7 @@ export interface Appointment {
 }
 
 export interface AppointmentWithPatient extends Appointment {
-  patient_name: string;
+  patient_name: string | null;
   doctor_name: string;
 }
 
@@ -4104,7 +4609,8 @@ export type ChargeSource =
   | "ot"
   | "emergency"
   | "diet"
-  | "cssd";
+  | "cssd"
+  | "ambulance";
 export type PaymentMode =
   | "cash"
   | "card"
@@ -6617,6 +7123,12 @@ export interface PharmacyBatch {
   store_location_id: string | null;
   supplier_info: string | null;
   grn_item_id: string | null;
+  grn_id: string | null;
+  invoice_number: string | null;
+  supplier_batch_number: string | null;
+  purchase_rate: string | null;
+  selling_rate: string | null;
+  vendor_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -6771,6 +7283,10 @@ export interface CreatePharmacyBatchRequest {
   quantity_received: number;
   store_location_id?: string;
   supplier_info?: string;
+  invoice_number?: string;
+  supplier_batch_number?: string;
+  purchase_rate?: number;
+  selling_rate?: number;
 }
 
 export interface CreateStoreAssignmentRequest {
@@ -6792,6 +7308,17 @@ export interface CreatePharmacyReturnRequest {
   patient_id: string;
   quantity_returned: number;
   reason?: string;
+}
+
+export interface CreatePharmacyReturnBatchItemRequest {
+  order_item_id: string;
+  quantity_returned: number;
+  reason?: string;
+}
+
+export interface CreatePharmacyReturnBatchRequest {
+  patient_id: string;
+  items: CreatePharmacyReturnBatchItemRequest[];
 }
 
 export interface ProcessPharmacyReturnRequest {
@@ -6933,7 +7460,7 @@ export interface UpdateAdmissionRequest {
 
 export interface TransferBedRequest {
   bed_id: string;
-  notes?: string;
+  notes: string;
 }
 
 export interface DischargeRequest {
@@ -7097,12 +7624,12 @@ export interface BedDashboardSummary {
 }
 
 export interface BedDashboardRow {
-  bed_id: string;
+  bed_state_id: string;
+  bed_location_id: string;
   bed_name: string;
   ward_id: string | null;
   ward_name: string | null;
-  bed_type: string | null;
-  status: string;
+  bed_status: string;
   patient_name: string | null;
   patient_uhid: string | null;
   admission_id: string | null;
@@ -8411,11 +8938,40 @@ export interface CampTeamMember {
   tenant_id: string;
   camp_id: string;
   employee_id: string;
+  employee_code?: string | null;
+  employee_name?: string | null;
+  department_name?: string | null;
   role_in_camp: string;
   is_confirmed: boolean;
   notes: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface CampStaffOption {
+  id: string;
+  employee_code: string;
+  display_name: string;
+  department_id: string | null;
+  department_name: string | null;
+  designation_name: string | null;
+  status: string;
+}
+
+export interface CampMedicineOption {
+  id: string;
+  code: string;
+  name: string;
+  generic_name: string | null;
+  unit: string | null;
+  current_stock: number;
+  base_price: string;
+  tax_percent: string;
+  drug_schedule: DrugSchedule | null;
+  is_controlled: boolean;
+  is_lasa: boolean;
+  batch_tracking_required: boolean;
+  formulary_status: FormularyStatus;
 }
 
 export interface CampRegistration {
@@ -8507,9 +9063,15 @@ export interface CampBillingRecord {
   standard_amount: number;
   discount_percentage: number | null;
   charged_amount: number;
+  tax_percent: number;
+  tax_amount: number;
+  total_amount: number;
+  sponsor_covered_amount: number;
   is_free: boolean;
   payment_mode: string | null;
   payment_reference: string | null;
+  source_module: string | null;
+  source_entity_id: string | null;
   billed_by: string | null;
   created_at: string;
   updated_at: string;
@@ -8711,6 +9273,9 @@ export interface CampSupplyItem {
   tenant_id: string;
   camp_id: string;
   category: CampSupplyCategory;
+  catalog_item_id: string | null;
+  batch_stock_id: string | null;
+  store_location_id: string | null;
   item_name: string;
   unit: string | null;
   planned_qty: number;
@@ -8719,8 +9284,137 @@ export interface CampSupplyItem {
   returned_qty: number;
   batch_no: string | null;
   expiry_date: string | null;
+  charge_mode: "free" | "paid" | "mixed" | "sponsor_covered";
+  unit_price: number;
+  tax_percent: number;
+  cost_amount: number;
+  sponsor_covered_amount: number;
+  concession_percentage: number;
+  approval_required: boolean;
   is_critical: boolean;
   shortage_notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface UnifiedAsset {
+  tenant_id: string;
+  source_type: string;
+  source_id: string;
+  display_code: string | null;
+  name: string;
+  asset_domain: string;
+  asset_category_id: string | null;
+  asset_category_name: string | null;
+  store_category_id: string | null;
+  store_category_name: string | null;
+  department_id: string | null;
+  location_id: string | null;
+  facility_id: string | null;
+  location_label: string | null;
+  status: string;
+  manufacturer: string | null;
+  model: string | null;
+  serial_number: string | null;
+  barcode_value: string | null;
+  is_active: boolean;
+  is_critical: boolean;
+  camp_eligible: boolean;
+  requires_pm: boolean;
+  requires_calibration: boolean;
+  next_pm_due: string | null;
+  next_calibration_due: string | null;
+  compliance_state: string;
+  open_reservation_count: number;
+}
+
+export interface AssetCategory {
+  id: string;
+  tenant_id: string | null;
+  code: string;
+  name: string;
+  parent_id: string | null;
+  asset_domain: string;
+  description: string | null;
+  regulatory_class: string | null;
+  default_pm_frequency: string | null;
+  default_calibration_frequency: string | null;
+  requires_pm: boolean;
+  requires_calibration: boolean;
+  is_camp_eligible: boolean;
+  is_active: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface StoreCategory {
+  id: string;
+  tenant_id: string | null;
+  code: string;
+  name: string;
+  parent_id: string | null;
+  store_domain: string;
+  description: string | null;
+  requires_batch_tracking: boolean;
+  requires_expiry_tracking: boolean;
+  requires_temperature_log: boolean;
+  requires_license_tracking: boolean;
+  is_camp_source: boolean;
+  is_active: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AssetClassification {
+  id: string;
+  tenant_id: string;
+  source_type: string;
+  source_id: string;
+  asset_category_id: string | null;
+  store_category_id: string | null;
+  asset_domain: string;
+  criticality: "critical" | "high" | "routine" | "low" | string;
+  custody_mode: "asset_tagged" | "serialised" | "pooled" | "non_movable" | string;
+  is_camp_eligible: boolean;
+  tags: string[];
+  notes: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CampAssetReservation {
+  id: string;
+  tenant_id: string;
+  camp_id: string;
+  asset_classification_id: string | null;
+  source_type: string;
+  source_id: string;
+  asset_category_id: string | null;
+  asset_code: string | null;
+  asset_name: string;
+  asset_snapshot: Record<string, unknown>;
+  required_from: string | null;
+  required_to: string | null;
+  quantity: number;
+  status: "requested" | "reserved" | "issued" | "returned" | "damaged" | "lost" | "cancelled";
+  is_critical: boolean;
+  requested_by: string | null;
+  reserved_by: string | null;
+  reserved_at: string | null;
+  issued_by: string | null;
+  issued_to: string | null;
+  issued_at: string | null;
+  returned_by: string | null;
+  returned_at: string | null;
+  issue_condition: string | null;
+  return_condition: string | null;
+  damage_notes: string | null;
+  loss_notes: string | null;
+  reconciliation_notes: string | null;
+  notes: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -8767,6 +9461,60 @@ export interface CampReadinessSummary {
   issue_count: number;
   score: number;
   ready: boolean;
+}
+
+export interface CampPlanningFinancials {
+  planned_budget: string;
+  planned_patient_collection: string;
+  planned_sponsor_coverage: string;
+  planned_cost: string;
+  actual_patient_collection: string;
+  sponsor_receivable: string;
+  sponsor_collected: string;
+  actual_cost: string;
+  profit_loss: string;
+  margin_pct: number;
+  budget_variance: string;
+  budget_variance_pct: number;
+  cash_surplus: string;
+  free_issue_value: string;
+  paid_issue_value: string;
+}
+
+export interface CampPlanningStockSummary {
+  total_items: number;
+  medicine_items: number;
+  approval_required_items: number;
+  shortage_items: number;
+  critical_shortage_items: number;
+  traceability_gap_items: number;
+  supply_return_pending_items: number;
+  asset_reservation_items: number;
+  asset_critical_unissued_items: number;
+  asset_return_pending_items: number;
+  asset_reconciliation_blocked_items: number;
+}
+
+export interface CampPlanningActionItem {
+  code: string;
+  label: string;
+  severity: "success" | "warning" | "danger" | string;
+  status: "ok" | "pending" | "blocked" | string;
+  owner_module: string;
+  evidence: string;
+  blocks_activation: boolean;
+  blocks_closeout: boolean;
+}
+
+export interface CampPlanningSummary {
+  camp_id: string;
+  camp_status: string;
+  readiness: CampReadinessSummary;
+  financials: CampPlanningFinancials;
+  stock: CampPlanningStockSummary;
+  action_items: CampPlanningActionItem[];
+  activation_blocked: boolean;
+  closeout_blocked: boolean;
 }
 
 export interface CampRemoteOperationsResponse {
@@ -8996,14 +9744,33 @@ export interface UpdateCampRemoteChecklistItemRequest {
 
 export interface CreateCampSupplyItemRequest {
   category: CampSupplyItem["category"];
+  catalog_item_id?: string;
+  batch_stock_id?: string;
+  store_location_id?: string;
   item_name: string;
   unit?: string;
   planned_qty?: number;
   packed_qty?: number;
   batch_no?: string;
   expiry_date?: string;
+  charge_mode?: CampSupplyItem["charge_mode"];
+  unit_price?: number;
+  tax_percent?: number;
+  cost_amount?: number;
+  sponsor_covered_amount?: number;
+  concession_percentage?: number;
+  approval_required?: boolean;
   is_critical?: boolean;
   shortage_notes?: string;
+}
+
+export interface BulkCreateCampSupplyItemsRequest {
+  items: CreateCampSupplyItemRequest[];
+}
+
+export interface BulkCreateCampSupplyItemsResponse {
+  count: number;
+  created: CampSupplyItem[];
 }
 
 export interface UpdateCampSupplyItemRequest {
@@ -9011,6 +9778,101 @@ export interface UpdateCampSupplyItemRequest {
   consumed_qty?: number;
   returned_qty?: number;
   shortage_notes?: string;
+}
+
+export interface ListAssetsParams {
+  source_type?: string;
+  source_id?: string;
+  asset_domain?: string;
+  asset_category_id?: string;
+  camp_eligible?: boolean;
+  available_only?: boolean;
+  search?: string;
+}
+
+export interface CreateAssetCategoryRequest {
+  code?: string;
+  name: string;
+  parent_id?: string | null;
+  asset_domain: string;
+  description?: string | null;
+  regulatory_class?: string | null;
+  default_pm_frequency?: string | null;
+  default_calibration_frequency?: string | null;
+  requires_pm?: boolean;
+  requires_calibration?: boolean;
+  is_camp_eligible?: boolean;
+  sort_order?: number;
+}
+
+export type UpdateAssetCategoryRequest = Partial<CreateAssetCategoryRequest> & {
+  is_active?: boolean;
+};
+
+export interface CreateStoreCategoryRequest {
+  code?: string;
+  name: string;
+  parent_id?: string | null;
+  store_domain: string;
+  description?: string | null;
+  requires_batch_tracking?: boolean;
+  requires_expiry_tracking?: boolean;
+  requires_temperature_log?: boolean;
+  requires_license_tracking?: boolean;
+  is_camp_source?: boolean;
+  sort_order?: number;
+}
+
+export type UpdateStoreCategoryRequest = Partial<CreateStoreCategoryRequest> & {
+  is_active?: boolean;
+};
+
+export interface UpsertAssetClassificationRequest {
+  source_type: string;
+  source_id: string;
+  asset_category_id?: string | null;
+  store_category_id?: string | null;
+  asset_domain: string;
+  criticality?: "critical" | "high" | "routine" | "low";
+  custody_mode?: "asset_tagged" | "serialised" | "pooled" | "non_movable";
+  is_camp_eligible?: boolean;
+  tags?: string[];
+  notes?: string | null;
+}
+
+export interface ListCampAssetCandidatesParams {
+  source_type?: string;
+  asset_domain?: string;
+  asset_category_id?: string;
+  search?: string;
+  required_from?: string;
+  required_to?: string;
+}
+
+export interface CreateCampAssetReservationRequest {
+  source_type: string;
+  source_id: string;
+  asset_category_id?: string | null;
+  required_from?: string | null;
+  required_to?: string | null;
+  quantity?: number;
+  is_critical?: boolean;
+  notes?: string | null;
+}
+
+export interface IssueCampAssetRequest {
+  issued_to?: string | null;
+  issue_condition?: string | null;
+  notes?: string | null;
+}
+
+export interface ReturnCampAssetRequest {
+  status?: "returned" | "damaged" | "lost";
+  return_condition?: string | null;
+  damage_notes?: string | null;
+  loss_notes?: string | null;
+  reconciliation_notes?: string | null;
+  notes?: string | null;
 }
 
 export interface CreateCampReferralRequest {
@@ -9092,7 +9954,7 @@ export interface CreateCampScreeningRequest {
 export interface CreateCampLabSampleRequest {
   registration_id: string;
   sample_type: string;
-  test_requested?: string;
+  test_requested: string;
   barcode?: string;
 }
 
@@ -9107,9 +9969,13 @@ export interface CreateCampBillingRequest {
   standard_amount: number;
   discount_percentage?: number;
   charged_amount: number;
+  tax_percent?: number;
+  sponsor_covered_amount?: number;
   is_free?: boolean;
   payment_mode?: string;
   payment_reference?: string;
+  source_module?: string;
+  source_entity_id?: string;
 }
 
 export interface CreateCampFollowupRequest {
@@ -11086,14 +11952,14 @@ export interface CreateResuscitationLogRequest {
 export interface CreateCodeActivationRequest {
   er_visit_id?: string;
   code_type: string;
-  location?: string;
+  location: string;
   response_team?: Record<string, unknown>;
   crash_cart_checklist?: Record<string, unknown>;
   notes?: string;
 }
 
 export interface DeactivateCodeRequest {
-  outcome?: string;
+  outcome: string;
   notes?: string;
 }
 
@@ -11137,6 +12003,11 @@ export interface CreatePoliceIntimationRequest {
   officer_designation?: string;
   officer_contact?: string;
   sent_via?: string;
+  notes?: string;
+}
+
+export interface ConfirmPoliceReceiptRequest {
+  receipt_number: string;
   notes?: string;
 }
 
@@ -14494,6 +15365,113 @@ export interface MrdRetentionPolicy {
   updated_at: string;
 }
 
+export type MrdCaseSheetPacketStatus =
+  | "draft"
+  | "generated"
+  | "printed"
+  | "filed"
+  | "issued"
+  | "returned"
+  | "deficient"
+  | "voided";
+
+export type MrdCaseSheetPacketType = "opd" | "ipd";
+export type MrdCaseSheetPageStatus = "pending" | "available" | "printed" | "deficient" | "waived";
+
+export interface MrdStorageLocation {
+  id: string;
+  tenant_id: string;
+  code: string;
+  name: string;
+  building: string | null;
+  floor: string | null;
+  room: string | null;
+  rack: string | null;
+  shelf: string | null;
+  bin: string | null;
+  barcode: string | null;
+  capacity: number | null;
+  current_count: number;
+  is_active: boolean;
+  notes: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MrdCaseSheetPacket {
+  id: string;
+  tenant_id: string;
+  patient_id: string;
+  encounter_id: string | null;
+  admission_id: string | null;
+  medical_record_id: string | null;
+  packet_number: string;
+  packet_type: MrdCaseSheetPacketType;
+  status: MrdCaseSheetPacketStatus;
+  version: number;
+  page_count: number;
+  document_output_id: string | null;
+  print_job_id: string | null;
+  storage_location_id: string | null;
+  shelf_location: string | null;
+  source_snapshot: Record<string, unknown>;
+  reprint_reason: string | null;
+  notes: string | null;
+  generated_by: string | null;
+  generated_at: string;
+  printed_by: string | null;
+  printed_at: string | null;
+  filed_by: string | null;
+  filed_at: string | null;
+  voided_by: string | null;
+  voided_at: string | null;
+  created_at: string;
+  updated_at: string;
+  patient_name: string | null;
+  uhid: string | null;
+}
+
+export interface MrdCaseSheetPage {
+  id: string;
+  tenant_id: string;
+  packet_id: string;
+  page_code: string;
+  page_title: string;
+  page_order: number;
+  source_module: string | null;
+  source_table: string | null;
+  source_id: string | null;
+  document_output_id: string | null;
+  is_required: boolean;
+  status: MrdCaseSheetPageStatus;
+  completed_at: string | null;
+  printed_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MrdCaseSheetCompletenessItem {
+  code: string;
+  label: string;
+  source_module: string;
+  status: "ok" | "missing" | "warning" | string;
+  required: boolean;
+  evidence_count: number;
+  message: string;
+}
+
+export interface MrdCaseSheetCompletenessResponse {
+  packet_id: string;
+  packet_number: string;
+  packet_type: MrdCaseSheetPacketType;
+  completeness_pct: number;
+  required_total: number;
+  complete_total: number;
+  missing_total: number;
+  items: MrdCaseSheetCompletenessItem[];
+}
+
 export interface CreateMrdRecordRequest {
   patient_id: string;
   record_number?: string;
@@ -14580,6 +15558,53 @@ export interface UpdateMrdRetentionPolicyRequest {
   legal_reference?: string;
   destruction_method?: string;
   is_active?: boolean;
+}
+
+export interface ListMrdCaseSheetPacketsParams {
+  status?: MrdCaseSheetPacketStatus;
+  packet_type?: MrdCaseSheetPacketType;
+  patient_id?: string;
+  encounter_id?: string;
+  admission_id?: string;
+}
+
+export interface CreateMrdStorageLocationRequest {
+  code: string;
+  name: string;
+  building?: string;
+  floor?: string;
+  room?: string;
+  rack?: string;
+  shelf?: string;
+  bin?: string;
+  barcode?: string;
+  capacity?: number;
+  notes?: string;
+}
+
+export interface UpdateMrdStorageLocationRequest {
+  name?: string;
+  building?: string;
+  floor?: string;
+  room?: string;
+  rack?: string;
+  shelf?: string;
+  bin?: string;
+  barcode?: string;
+  capacity?: number;
+  is_active?: boolean;
+  notes?: string;
+}
+
+export interface PrintMrdCaseSheetPacketRequest {
+  printer_id?: string;
+  copies?: number;
+  reprint_reason?: string;
+}
+
+export interface FileMrdCaseSheetPacketRequest {
+  storage_location_id: string;
+  notes?: string;
 }
 
 export interface MrdMorbidityRow {
@@ -15550,6 +16575,29 @@ export type DocumentWatermark =
   | "cancelled";
 
 export type PrintJobStatus = "queued" | "printing" | "completed" | "failed" | "cancelled";
+
+export interface PrintEditorCapabilitiesResponse {
+  paper_formats: string[];
+  block_types: string[];
+  barcode_types: string[];
+  printer_types: string[];
+  connection_types: string[];
+}
+
+export interface MockRenderPrintTemplateRequest {
+  template_code?: string;
+  print_format?: string;
+  layout: Record<string, unknown>;
+  sample_context?: Record<string, unknown>;
+}
+
+export interface MockRenderPrintTemplateResponse {
+  render_id: string;
+  format: string;
+  page_count: number;
+  warnings: string[];
+  preview: Record<string, unknown>;
+}
 
 export interface DocumentTemplate {
   id: string;
@@ -16972,7 +18020,7 @@ export interface CreateTransferRequest {
   to_ward_id?: string;
   from_bed_id?: string;
   to_bed_id?: string;
-  reason?: string;
+  reason: string;
   clinical_summary?: string;
   notes?: string;
 }
@@ -18693,24 +19741,17 @@ export interface PharmacyDispatchStatus {
   status: string;
 }
 
-export interface ReferralTrackingRow {
-  referral_id: string;
-  patient_name: string;
-  from_department: string;
-  to_department: string;
-  referral_date: string;
-  status: string;
-  acknowledged_at: string | null;
-  completed_at: string | null;
-}
-
 export interface FollowupComplianceRow {
   patient_id: string;
-  patient_name: string;
+  patient_name: string | null;
+  uhid: string | null;
+  encounter_id: string;
+  department_id: string | null;
+  doctor_id: string | null;
   last_visit_date: string;
   follow_up_date: string;
   days_overdue: number;
-  department: string;
+  department: string | null;
 }
 
 // IPD
@@ -18735,11 +19776,12 @@ export interface BedTransferRequest {
 export interface ExpectedDischargeRow {
   admission_id: string;
   patient_id: string;
-  patient_name: string;
-  ward: string;
-  bed_number: string;
+  patient_name: string | null;
+  uhid: string | null;
+  ward: string | null;
+  bed_number: string | null;
   expected_discharge_date: string;
-  attending_doctor: string;
+  attending_doctor: string | null;
   days_admitted: number;
 }
 
@@ -18950,6 +19992,8 @@ export interface CopayCalculation {
 
 export interface ErFastInvoiceRequest {
   emergency_visit_id: string;
+  patient_id: string;
+  notes?: string | null;
   additional_charges?: Array<{ description: string; amount: number }>;
 }
 
@@ -18994,7 +20038,7 @@ export interface CreateConcessionRequest {
   concession_percent?: number;
   concession_amount: number;
   final_amount: number;
-  reason?: string;
+  reason: string;
   source_module?: string;
   source_entity_id?: string;
 }
@@ -19017,21 +20061,32 @@ export interface AutoConcessionRule {
 export interface CampAnalytics {
   total_camps: number;
   total_registrations: number;
-  total_screenings: number;
-  conversion_rate: number;
+  total_screened: number;
+  total_referred: number;
+  total_converted: number;
+  conversion_rate_pct: number;
+  screening_yield_pct: number;
+  total_billing: number;
   avg_cost_per_patient: number;
-  followup_compliance: number;
-  by_type: Record<string, number>;
+  followup_scheduled: number;
+  followup_completed: number;
+  followup_compliance_pct: number;
+  by_type?: Record<string, number>;
 }
 
 export interface CampReport {
   camp: Record<string, unknown>;
-  stats: Record<string, number>;
-  registrations: number;
-  screenings: number;
-  lab_samples: number;
-  followups: number;
-  billing_total: number;
+  stats: {
+    total_registrations: number;
+    total_screenings: number;
+    referred: number;
+    converted: number;
+    followups_total: number;
+    followups_completed: number;
+    billing_total: number;
+  };
+  generated_at: string;
+  generated_by: string;
 }
 
 // Facilities
@@ -19583,6 +20638,8 @@ export interface PatientCardPrintData {
 }
 
 export interface WristbandPrintData {
+  document_number: string;
+  is_reprint: boolean;
   patient_name: string;
   uhid: string;
   age: string | null;
@@ -19593,7 +20650,63 @@ export interface WristbandPrintData {
   bed_number: string | null;
   ward_name: string | null;
   doctor_name: string | null;
+  is_critical: boolean;
+  is_mlc: boolean;
   allergies: string[];
+}
+
+export interface OpdCertificatePrintData {
+  document_number: string;
+  is_reprint: boolean;
+  certificate_number: string | null;
+  certificate_type: string;
+  patient_name: string;
+  uhid: string;
+  age: string | null;
+  gender: string;
+  date_of_birth: string | null;
+  phone: string;
+  doctor_name: string | null;
+  department: string | null;
+  encounter_date: string | null;
+  issued_date: string;
+  valid_from: string | null;
+  valid_to: string | null;
+  diagnosis: string | null;
+  remarks: string | null;
+  body: Record<string, unknown>;
+  hospital_name: string | null;
+}
+
+export interface OpdProcedureConsentPrintData {
+  document_number: string;
+  is_reprint: boolean;
+  consent_id: string;
+  consent_type: string;
+  status: string;
+  patient_name: string;
+  uhid: string;
+  age: string | null;
+  gender: string;
+  date_of_birth: string | null;
+  phone: string;
+  doctor_name: string | null;
+  department: string | null;
+  encounter_date: string | null;
+  procedure_name: string;
+  risks_explained: string | null;
+  alternatives_explained: string | null;
+  benefits_explained: string | null;
+  patient_questions: string | null;
+  consented_by_name: string | null;
+  consented_by_relation: string | null;
+  witness_name: string | null;
+  witness_designation: string | null;
+  signed_at: string | null;
+  withdrawn_at: string | null;
+  withdrawal_reason: string | null;
+  created_at: string;
+  hospital_name: string | null;
 }
 
 export interface DeathCertificatePrintData {
@@ -19627,6 +20740,8 @@ export interface DischargeSummaryPrintData {
 }
 
 export interface ReceiptPrintData {
+  document_number: string;
+  is_reprint: boolean;
   receipt_number: string | null;
   patient_name: string;
   uhid: string;
@@ -21479,16 +22594,19 @@ export interface InfantWristbandPrintData {
 export interface CaseSheetCoverPrintData {
   patient_name: string;
   uhid: string;
+  age: string | null;
   age_display: string;
   gender: string;
   admission_number: string;
   admission_date: string;
-  ward_name: string | null;
-  bed_number: string | null;
+  ward_name: string;
+  bed_number: string;
+  attending_doctor: string;
+  department: string;
+  provisional_diagnosis: string | null;
+  final_diagnosis: string | null;
   primary_diagnosis: string | null;
   secondary_diagnoses: string[];
-  attending_doctor: string | null;
-  department: string | null;
   allergies: string[];
   blood_group: string | null;
   emergency_contact_name: string | null;
@@ -22035,45 +23153,64 @@ export interface AmaFormPrintData {
 }
 
 export interface InjuryEntry {
+  injury_number: number;
   injury_type: string;
-  body_part: string;
+  location: string;
   size_cm: string | null;
   description: string;
-  weapon_likely: string | null;
-  age_of_injury: string | null;
+  probable_age: string | null;
+  probable_weapon: string | null;
 }
 
 export interface MlcRegisterPrintData {
   mlc_number: string;
   registration_date: string;
-  registration_time: string | null;
+  registration_time: string;
   patient_name: string;
   uhid: string;
-  age_display: string;
+  age: string | null;
   gender: string;
   address: string | null;
-  phone: string | null;
   brought_by: string | null;
-  brought_by_relationship: string | null;
   police_station: string | null;
-  fir_number: string | null;
-  history_of_incident: string | null;
-  incident_date: string | null;
-  incident_time: string | null;
-  incident_place: string | null;
-  condition_on_arrival: string | null;
-  consciousness_level: string | null;
-  injuries: InjuryEntry[];
-  treatment_given: string | null;
-  outcome: string | null;
-  disposal: string | null;
-  police_intimation_time: string | null;
   police_officer_name: string | null;
-  police_officer_designation: string | null;
-  examining_doctor: string | null;
-  doctor_registration_number: string | null;
-  hospital_name: string;
-  hospital_logo_url: string | null;
+  police_officer_rank: string | null;
+  police_dd_number: string | null;
+  nature_of_case: string;
+  alleged_history: string;
+  date_time_of_incident: string | null;
+  place_of_incident: string | null;
+  weapon_used: string | null;
+  condition_on_arrival: string;
+  injuries_noted: InjuryEntry[];
+  treatment_given: string;
+  samples_collected: string[];
+  samples_handed_to: string | null;
+  opinion: string | null;
+  patient_condition_at_discharge: string | null;
+  examining_doctor: string;
+  examined_at: string;
+}
+
+export interface MlcPoliceIntimationPrintData {
+  intimation_number: string;
+  mlc_number: string;
+  patient_name: string;
+  uhid: string;
+  age: string | null;
+  gender: string;
+  police_station: string;
+  officer_name: string | null;
+  officer_designation: string | null;
+  officer_contact: string | null;
+  sent_at: string;
+  sent_via: string | null;
+  receipt_confirmed: boolean;
+  receipt_confirmed_at: string | null;
+  receipt_number: string | null;
+  notes: string | null;
+  sent_by: string | null;
+  generated_at: string;
 }
 
 export interface WoundEntry {
@@ -22214,63 +23351,54 @@ export interface DeathDeclarationPrintData {
 export interface PoliceVisitEntry {
   visit_date: string;
   officer_name: string;
-  officer_designation: string | null;
+  officer_rank: string;
   purpose: string;
   statement_recorded: boolean;
-  notes: string | null;
 }
 
 export interface SamplePreservedEntry {
   sample_type: string;
-  quantity: string | null;
-  preserved_in: string | null;
-  sealed: boolean;
+  quantity: string;
+  preservation_method: string;
+  collected_date: string;
   handed_to: string | null;
   handed_date: string | null;
 }
 
 export interface MlcDateEntry {
-  entry_date: string;
-  entry_time: string | null;
-  entry_type: string;
-  details: string;
-  entered_by: string | null;
+  event_date: string;
+  event_description: string;
 }
 
 export interface MlcDocumentationPrintData {
   mlc_number: string;
-  case_status: string;
   patient_name: string;
   uhid: string;
-  age_display: string;
+  age: string | null;
   gender: string;
   address: string | null;
-  registration_date: string;
-  case_type: string | null;
+  admission_date: string | null;
+  discharge_date: string | null;
+  final_diagnosis: string;
+  treatment_summary: string;
+  operative_procedures: string[];
+  investigation_summary: string;
+  clinical_findings_at_discharge: string;
+  complications: string | null;
+  prognosis: string;
+  permanent_disability: string | null;
+  disability_percentage: string | null;
   police_station: string | null;
   fir_number: string | null;
-  io_name: string | null;
-  io_contact: string | null;
-  initial_examination: string | null;
-  initial_opinion: string | null;
-  injuries_summary: string | null;
-  treatment_summary: string | null;
-  current_condition: string | null;
-  prognosis: string | null;
+  court_case_number: string | null;
   police_visits: PoliceVisitEntry[];
   samples_preserved: SamplePreservedEntry[];
-  date_entries: MlcDateEntry[];
   certificates_issued: string[];
-  wound_certificate_number: string | null;
-  disability_certificate_number: string | null;
-  final_opinion: string | null;
-  case_closed: boolean;
-  closure_date: string | null;
-  closure_reason: string | null;
-  attending_doctor: string | null;
-  doctor_registration_number: string | null;
-  hospital_name: string;
-  hospital_logo_url: string | null;
+  important_dates: MlcDateEntry[];
+  prepared_by: string;
+  verified_by: string;
+  prepared_at: string;
+  signatures: PrintSignatureData[];
 }
 
 // ── Phase 3: Quality & Safety Print Data ──────────────────────────
@@ -28040,8 +29168,37 @@ export interface PharmacyPosSale {
   store_location_id?: string;
   billing_invoice_id?: string;
   billing_posted_at?: string;
+  status?: string;
+  cancelled_at?: string;
+  cancelled_by?: string;
+  cancel_reason?: string;
+  refund_amount?: number;
   created_at: string;
   updated_at: string;
+}
+
+export interface PharmacyPosSaleItem {
+  id: string;
+  tenant_id: string;
+  pos_sale_id: string;
+  order_item_id?: string;
+  catalog_item_id?: string;
+  drug_name: string;
+  batch_id?: string;
+  batch_number?: string;
+  hsn_code?: string;
+  quantity: number;
+  mrp: number | string;
+  selling_price: number | string;
+  gst_rate: number | string;
+  cgst_amount: number | string;
+  sgst_amount: number | string;
+  igst_amount: number | string;
+  line_total: number | string;
+  created_at: string;
+  is_cancelled?: boolean;
+  cancelled_qty?: number;
+  cancel_reason?: string;
 }
 
 export interface PharmacyPricingTier {
@@ -28113,6 +29270,7 @@ export interface CreatePaymentOrderResponse {
   amount: number;
   currency: string;
   key_id: string;
+  status: string;
 }
 
 export interface VerifyPaymentRequest {
@@ -28148,6 +29306,14 @@ export interface InitiateRefundRequest {
 export interface RefundGatewayResponse {
   transaction: PaymentGatewayTransaction;
   refund_id: string;
+}
+
+export interface RazorpayStatusResponse {
+  configured: boolean;
+  mode: string;
+  source: string;
+  key_id_prefix?: string;
+  webhook_configured: boolean;
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -29091,4 +30257,230 @@ export interface CreateCoverageRequest {
   start_at: string;
   end_at: string;
   reason?: string | null;
+}
+
+// ─── Internal data simulator control plane ───────────────────────────
+
+export interface SimulatorProfileBranches {
+  lab_pct: number;
+  rad_pct: number;
+  ipd_escalation_pct: number;
+  rx_pct: number;
+  dispense_pct: number;
+}
+
+export interface SimulatorProfileTriageMix {
+  red: number;
+  yellow: number;
+  green: number;
+}
+
+export interface SimulatorProfileEr {
+  mlc_pct: number;
+  admit_pct: number;
+  triage_mix: SimulatorProfileTriageMix;
+}
+
+export interface SimulatorProfileHours {
+  opd_open_hour: number;
+  opd_close_hour: number;
+  ipd_admission_start_hour: number;
+  er_24h: boolean;
+}
+
+export interface SimulatorProfileHolidays {
+  respect_holidays: boolean;
+  opd_scale_on_holiday: number;
+  er_scale_on_holiday: number;
+  festival_weight_boost: number;
+}
+
+export interface SimulatorProfileSeasonality {
+  enabled: boolean;
+  region: string;
+}
+
+export interface SimulatorProfileVolumes {
+  opd_count?: number | null;
+  ipd_count?: number | null;
+  er_count?: number | null;
+  lab_count?: number | null;
+  radiology_count?: number | null;
+  pharmacy_count?: number | null;
+}
+
+export interface SimulatorProfileNaturalFlow {
+  enabled: boolean;
+  lookback_days: number;
+  blend: number;
+}
+
+// ─── News / health advisories ────────────────────────────────────────
+
+export type NewsCategory =
+  | "outbreak_alert"
+  | "weather_advisory"
+  | "festival_advisory"
+  | "internal_notice";
+
+export type NewsSeverity = "info" | "warning" | "critical";
+
+export interface NewsArticle {
+  id: string;
+  tenant_id: string;
+  category: NewsCategory;
+  title: string;
+  body: string;
+  severity: NewsSeverity;
+  source?: string | null;
+  icd_boost: string[];
+  is_active: boolean;
+  published_at: string;
+  expires_at?: string | null;
+  created_by?: string | null;
+  created_at: string;
+  updated_at: string;
+  deleted_at?: string | null;
+}
+
+export interface CreateNewsArticleRequest {
+  category: NewsCategory;
+  title: string;
+  body?: string;
+  severity?: NewsSeverity;
+  source?: string;
+  icd_boost?: string[];
+  published_at?: string;
+  expires_at?: string;
+  is_active?: boolean;
+}
+
+export interface UpdateNewsArticleRequest {
+  category?: NewsCategory;
+  title?: string;
+  body?: string;
+  severity?: NewsSeverity;
+  source?: string;
+  icd_boost?: string[];
+  published_at?: string;
+  expires_at?: string;
+  is_active?: boolean;
+}
+
+export interface SimulatorProfile {
+  patients: number;
+  date?: string | null;
+  opd_pct: number;
+  er_pct: number;
+  branches: SimulatorProfileBranches;
+  er: SimulatorProfileEr;
+  case_mix?: Record<string, number> | null;
+  // Day-4 realism — optional so older schedules load unchanged.
+  hours?: SimulatorProfileHours;
+  holidays?: SimulatorProfileHolidays;
+  seasonality?: SimulatorProfileSeasonality;
+  volumes?: SimulatorProfileVolumes;
+  natural_flow?: SimulatorProfileNaturalFlow;
+  approval_mode?: "auto" | "manual";
+}
+
+export interface SimulatorSchedule {
+  id: string;
+  tenant_id: string;
+  name: string;
+  description?: string | null;
+  cron_expr?: string | null;
+  profile: SimulatorProfile;
+  enabled: boolean;
+  created_by?: string | null;
+  last_run_at?: string | null;
+  next_run_at?: string | null;
+  created_at: string;
+  updated_at: string;
+  deleted_at?: string | null;
+}
+
+export interface SimulatorPreviewResponse {
+  date: string;
+  season_label: string;
+  season_icds: string[];
+  holiday_name?: string | null;
+  holiday_kind?: string | null;
+  holiday_icds: string[];
+  news_icds: string[];
+  natural_top_icds: Array<[string, number]>;
+  effective_opd_count: number;
+  effective_er_count: number;
+}
+
+export type SimulatorRunApprovalStatus =
+  | "auto_committed"
+  | "pending_approval"
+  | "approved"
+  | "rejected";
+
+export interface SimulatorRun {
+  id: string;
+  tenant_id: string;
+  schedule_id?: string | null;
+  triggered_by?: string | null;
+  trigger_kind: "manual" | "cron";
+  started_at: string;
+  finished_at?: string | null;
+  status: "running" | "succeeded" | "failed" | "cancelled";
+  summary: SimulatorRunSummary;
+  error?: string | null;
+  created_at: string;
+  approval_status: SimulatorRunApprovalStatus;
+}
+
+export interface SimulatorRunSummary {
+  opd_count?: number;
+  er_count?: number;
+  vitals_count?: number;
+  diagnoses_count?: number;
+  prescription_count?: number;
+  lab_count?: number;
+  radiology_count?: number;
+  pharmacy_count?: number;
+  ipd_admission_count?: number;
+  triage_count?: number;
+  er_admit_count?: number;
+  errors?: number;
+}
+
+export interface SimulatorRunStep {
+  id: string;
+  tenant_id: string;
+  run_id: string;
+  step_type: string;
+  target_id?: string | null;
+  success: boolean;
+  error?: string | null;
+  created_at: string;
+}
+
+export interface SimulatorRunDetail {
+  run: SimulatorRun;
+  steps: SimulatorRunStep[];
+}
+
+export interface CreateSimulatorScheduleRequest {
+  name: string;
+  description?: string;
+  cron_expr?: string;
+  profile: SimulatorProfile;
+  enabled?: boolean;
+}
+
+export interface UpdateSimulatorScheduleRequest {
+  name?: string;
+  description?: string;
+  cron_expr?: string | null;
+  profile?: SimulatorProfile;
+  enabled?: boolean;
+}
+
+export interface SimulatorRunNowResponse {
+  run_id: string;
 }

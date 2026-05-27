@@ -30,7 +30,7 @@ export function PageHeader({
 }: PageHeaderProps) {
   return (
     <div className={styles.wrapper}>
-      <Card className={styles.card} padding={0} radius="md" shadow="xs">
+      <Card component="header" className={styles.card} padding={0} radius="md" shadow="xs">
         <div className={styles.headerGlow} />
         {color ? (
           <div
@@ -67,7 +67,7 @@ export function PageHeader({
                   className={styles.iconTile}
                   variant="light"
                   color={color ?? "primary"}
-                  size={40}
+                  size="var(--mb-page-header-icon-size)"
                   radius="lg"
                 >
                   <span className={styles.iconMotion}>{icon}</span>
@@ -78,23 +78,23 @@ export function PageHeader({
                   className={styles.iconTile}
                   variant="light"
                   color={color ?? "primary"}
-                  size={40}
+                  size="var(--mb-page-header-icon-size)"
                   radius="lg"
                 >
-                  <AnimatedIcon icon={Sparkles} size={19} motion="spark" />
+                  <AnimatedIcon icon={Sparkles} size={15} motion="spark" />
                 </ThemeIcon>
               )}
               <div className={styles.textBlock}>
-                <Title order={3} fw={600} c="var(--mb-text-primary)" lh={1.2}>
+                <Title order={1} size="h4" className={styles.title}>
                   {title}
                 </Title>
                 {subtitle && (
-                  <Text size="sm" c="var(--mb-text-secondary)" mt={2}>
+                  <Text size="xs" className={styles.subtitle}>
                     {subtitle}
                   </Text>
                 )}
                 {description && (
-                  <Text size="sm" c="var(--mb-text-muted)" mt={4} maw={600}>
+                  <Text size="xs" maw={600} className={styles.description}>
                     {description}
                   </Text>
                 )}

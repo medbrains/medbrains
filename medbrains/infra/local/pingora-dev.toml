@@ -3,12 +3,14 @@
 # Local browser/simulator URLs:
 #   https://medbrains.localhost
 #   https://medbrains-desktop.localhost
+#   https://medbrains-simulator.localhost
 #   https://medbrains-icd.localhost
 #
 # Upstreams:
 #   /api/* -> Rust backend on 3000
 #   /ws*   -> edge sync hub on 7811
 #   /*     -> Vite web UI on 5173
+#   medbrains-simulator.localhost -> Simulator Vite UI on 5180
 #   medbrains-icd.localhost -> WHO ICD-API on 8382
 
 http_port = 80
@@ -109,6 +111,17 @@ cache_control = "no-store"
 allowed_methods = ["GET", "OPTIONS"]
 
 [[edge_policies]]
+prefix = "/simulator-vite-hmr"
+class = "websocket"
+upstream = "127.0.0.1:5180"
+body_limit_bytes = 1048576
+upstream_total_timeout_ms = 3600000
+upstream_read_timeout_ms = 3600000
+retry_after_seconds = 5
+cache_control = "no-store"
+allowed_methods = ["GET", "OPTIONS"]
+
+[[edge_policies]]
 prefix = "/assets/"
 class = "assets"
 body_limit_bytes = 1048576
@@ -140,6 +153,15 @@ cert_path = "var/local-https/medbrains.localhost.pem"
 key_path = "var/local-https/medbrains.localhost-key.pem"
 
 [[routes]]
+domain = "medbrains-simulator.localhost"
+upstream = "127.0.0.1:5180"
+cert_path = "var/local-https/medbrains.localhost.pem"
+key_path = "var/local-https/medbrains.localhost-key.pem"
+cors_allowed_origins = [
+  "https://medbrains.localhost",
+]
+
+[[routes]]
 domain = "medbrains-icd.localhost"
 upstream = "127.0.0.1:8382"
 cert_path = "var/local-https/medbrains.localhost.pem"
@@ -147,4 +169,5 @@ key_path = "var/local-https/medbrains.localhost-key.pem"
 cors_allowed_origins = [
   "https://medbrains.localhost",
   "https://medbrains-desktop.localhost",
+  "https://medbrains-simulator.localhost",
 ]

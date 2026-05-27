@@ -1,7 +1,8 @@
 import { Badge, Group, Text } from "@mantine/core";
 import { useDebouncedValue } from "@mantine/hooks";
-import { useHasPermission } from "@medbrains/stores";
+import { useFieldAccess, useHasPermission } from "@medbrains/stores";
 import { P, type PharmacyCatalog } from "@medbrains/types";
+import { fieldAccessText } from "@medbrains/utils";
 import { IconPill } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
@@ -40,6 +41,8 @@ export function DrugSearchSelect({
   const [search, setSearch] = useState("");
   const [debounced] = useDebouncedValue(search, 300);
   const canCreateDrug = useHasPermission(P.PHARMACY.STOCK_MANAGE);
+  const canViewStock = useHasPermission(P.PHARMACY.STOCK_MANAGE);
+  const priceAccess = useFieldAccess("pharmacy.catalog.base_price");
 
   const { data } = useQuery({
     queryKey: ["drug-search", debounced],
@@ -95,15 +98,16 @@ export function DrugSearchSelect({
               </Badge>
             )}
             <Text size="xs" fw={600} c="primary">
-              {"\u20B9"}
-              {d.base_price}
+              {fieldAccessText(priceAccess, `\u20B9${d.base_price}`, "amount")}
             </Text>
-            <Text
-              size="xs"
-              c={Number(d.current_stock) <= Number(d.reorder_level) ? "danger" : "dimmed"}
-            >
-              Stock: {d.current_stock}
-            </Text>
+            {canViewStock && (
+              <Text
+                size="xs"
+                c={Number(d.current_stock) <= Number(d.reorder_level) ? "danger" : "dimmed"}
+              >
+                Stock: {d.current_stock}
+              </Text>
+            )}
           </Group>
         </Group>
       )}

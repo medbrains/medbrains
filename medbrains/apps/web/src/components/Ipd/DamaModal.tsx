@@ -19,7 +19,8 @@ import {
 import { notifications } from "@mantine/notifications";
 import type { IpdDamaFormInput } from "@medbrains/schemas";
 import { ipdDamaFormSchema } from "@medbrains/schemas";
-import type { IpdDamaRequest } from "@medbrains/types";
+import { useHasPermission } from "@medbrains/stores";
+import { type IpdDamaRequest, P } from "@medbrains/types";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Controller, useForm } from "react-hook-form";
 import { clinicalActionsService } from "../../services/clinicalActions.service";
@@ -32,6 +33,7 @@ interface DamaModalProps {
 
 export function DamaModal({ admissionId, opened, onClose }: DamaModalProps) {
   const queryClient = useQueryClient();
+  const canRecordDama = useHasPermission(P.IPD.DISCHARGE_CREATE);
   const {
     control,
     handleSubmit,
@@ -58,7 +60,12 @@ export function DamaModal({ admissionId, opened, onClose }: DamaModalProps) {
   const recordType = watch("record_type");
 
   const mutation = useMutation({
-    mutationFn: (body: IpdDamaRequest) => clinicalActionsService.recordIpdDama(admissionId, body),
+    mutationFn: (body: IpdDamaRequest) => {
+      if (!canRecordDama) {
+        throw new Error("You do not have permission to record DAMA/LAMA");
+      }
+      return clinicalActionsService.recordIpdDama(admissionId, body);
+    },
     onSuccess: () => {
       notifications.show({
         title: recordType === "dama" ? "DAMA recorded" : "LAMA recorded",
@@ -100,6 +107,11 @@ export function DamaModal({ admissionId, opened, onClose }: DamaModalProps) {
           This records a formal refusal of medical care. The patient (or authorised relative) and a
           witness must sign. If this is an MLC, notification will fire to the police liaison.
         </Alert>
+        {!canRecordDama && (
+          <Alert color="danger" variant="light">
+            You can view this workflow, but recording DAMA/LAMA requires IPD discharge permission.
+          </Alert>
+        )}
 
         <Controller
           control={control}
@@ -244,7 +256,12 @@ export function DamaModal({ admissionId, opened, onClose }: DamaModalProps) {
           <Button variant="subtle" onClick={onClose}>
             Cancel
           </Button>
-          <Button color="warning" loading={mutation.isPending} onClick={() => void submit()}>
+          <Button
+            color="warning"
+            loading={mutation.isPending}
+            disabled={!canRecordDama}
+            onClick={() => void submit()}
+          >
             Record refusal
           </Button>
         </Group>

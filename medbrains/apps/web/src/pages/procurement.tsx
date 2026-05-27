@@ -67,7 +67,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Controller, useFieldArray, useForm, useWatch } from "react-hook-form";
-import { DataTable, PageHeader, VendorSearchSelect } from "../components";
+import { DataTable, PageHeader, TableValueBadge, VendorSearchSelect } from "../components";
 import { useRequirePermission } from "../hooks/useRequirePermission";
 import { procurementService } from "../services/procurement.service";
 
@@ -317,18 +317,18 @@ function VendorPanel({ canCreate }: { canCreate: boolean }) {
       key: "status",
       label: "Status",
       render: (row: Vendor) => (
-        <Badge color={vendorStatusColors[row.status] ?? "slate"} variant="light" size="sm">
-          {row.status.replace(/_/g, " ")}
-        </Badge>
+        <TableValueBadge
+          value={row.status}
+          kind="status"
+          color={vendorStatusColors[row.status] ?? "slate"}
+        />
       ),
     },
     {
       key: "vendor_type",
       label: "Type",
       render: (row: Vendor) => (
-        <Badge variant="outline" size="sm">
-          {row.vendor_type}
-        </Badge>
+        <TableValueBadge value={row.vendor_type} kind="store" variant="outline" />
       ),
     },
     { key: "contact_person", label: "Contact", render: (row: Vendor) => row.contact_person ?? "-" },
@@ -647,9 +647,11 @@ function PurchaseOrderPanel({ canCreate }: { canCreate: boolean }) {
       key: "status",
       label: "Status",
       render: (row: PurchaseOrder) => (
-        <Badge color={poStatusColors[row.status] ?? "slate"} variant="light" size="sm">
-          {row.status.replace(/_/g, " ")}
-        </Badge>
+        <TableValueBadge
+          value={row.status}
+          kind="status"
+          color={poStatusColors[row.status] ?? "slate"}
+        />
       ),
     },
     {
@@ -1174,9 +1176,11 @@ function GrnPanel({ canCreate }: { canCreate: boolean }) {
       key: "status",
       label: "Status",
       render: (row: GoodsReceiptNote) => (
-        <Badge color={grnStatusColors[row.status] ?? "slate"} variant="light" size="sm">
-          {row.status.replace(/_/g, " ")}
-        </Badge>
+        <TableValueBadge
+          value={row.status}
+          kind="status"
+          color={grnStatusColors[row.status] ?? "slate"}
+        />
       ),
     },
     {
@@ -1541,9 +1545,11 @@ function RateContractPanel({ canManage }: { canManage: boolean }) {
       key: "status",
       label: "Status",
       render: (row: RateContract) => (
-        <Badge color={rcStatusColors[row.status] ?? "slate"} variant="light" size="sm">
-          {row.status}
-        </Badge>
+        <TableValueBadge
+          value={row.status}
+          kind="status"
+          color={rcStatusColors[row.status] ?? "slate"}
+        />
       ),
     },
     { key: "start_date", label: "Start", render: (row: RateContract) => row.start_date },
@@ -1763,9 +1769,7 @@ function BatchStockPanel() {
       label: "Consignment",
       render: (row: BatchStock) =>
         row.is_consignment ? (
-          <Badge color="orange" size="sm">
-            Yes
-          </Badge>
+          <TableValueBadge value="store" kind="store" color="orange" label="Yes" variant="filled" />
         ) : (
           "-"
         ),
@@ -1812,18 +1816,19 @@ function StoreLocationPanel() {
       key: "location_type",
       label: "Type",
       render: (row: StoreLocation) => (
-        <Badge variant="outline" size="sm">
-          {row.location_type}
-        </Badge>
+        <TableValueBadge value={row.location_type} kind="store" variant="outline" />
       ),
     },
     {
       key: "is_active",
       label: "Active",
       render: (row: StoreLocation) => (
-        <Badge color={row.is_active ? "success" : "slate"} size="sm">
-          {row.is_active ? "Yes" : "No"}
-        </Badge>
+        <TableValueBadge
+          value={row.is_active ? "active" : "inactive"}
+          label={row.is_active ? "Yes" : "No"}
+          color={row.is_active ? "success" : "slate"}
+          variant="filled"
+        />
       ),
     },
     { key: "address", label: "Address", render: (row: StoreLocation) => row.address ?? "-" },
@@ -2138,9 +2143,11 @@ function SupplierPaymentsPanel() {
       key: "status",
       label: "Status",
       render: (row: SupplierPayment) => (
-        <Badge color={paymentStatusColors[row.status] ?? "slate"} variant="light" size="sm">
-          {row.status.replace(/_/g, " ")}
-        </Badge>
+        <TableValueBadge
+          value={row.status}
+          kind="billing"
+          color={paymentStatusColors[row.status] ?? "slate"}
+        />
       ),
     },
     {

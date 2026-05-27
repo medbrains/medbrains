@@ -17,10 +17,10 @@ export function StatCard({ label, value, icon, color = "primary", trend }: StatC
         <Text
           size="xs"
           tt="uppercase"
-          c="var(--mb-text-muted)"
+          c="var(--mb-text-caption)"
           fw={500}
           ff="var(--font-mono, 'JetBrains Mono', monospace)"
-          style={{ letterSpacing: "0.14em", fontSize: 11 }}
+          style={{ fontSize: 11 }}
         >
           {label}
         </Text>
@@ -30,11 +30,11 @@ export function StatCard({ label, value, icon, color = "primary", trend }: StatC
       </Group>
       <Text
         fz={28}
-        fw={400}
+        fw={600}
         lh={1.1}
-        c="var(--mb-text-primary)"
-        ff="var(--font-display, 'Fraunces Variable', Georgia, serif)"
-        style={{ fontVariantNumeric: "lining-nums tabular-nums", letterSpacing: "-0.02em" }}
+        c="var(--mb-text-heading)"
+        ff="var(--font-display)"
+        style={{ fontVariantNumeric: "lining-nums tabular-nums" }}
       >
         {value}
       </Text>
@@ -49,7 +49,7 @@ export function StatCard({ label, value, icon, color = "primary", trend }: StatC
             {Math.abs(trend.value)}%
           </Text>
           {trend.label && (
-            <Text size="xs" c="var(--mb-text-muted)">
+            <Text size="xs" c="var(--mb-text-caption)">
               {trend.label}
             </Text>
           )}

@@ -8,6 +8,8 @@ import type {
   IpdNursingTaskTypeFormValue,
   IpdProgressNoteFormInput,
   IpdProgressNoteTypeFormValue,
+  IpdTransferFormInput,
+  IpdTransferTypeFormValue,
 } from "@medbrains/schemas";
 import { ipdNursingTaskTypeValues, optionalNumberFromFormValue } from "@medbrains/schemas";
 import type {
@@ -28,6 +30,12 @@ export const IPD_ADMISSION_SOURCE_OPTIONS: Array<SelectOption<IpdAdmissionSource
   { value: "direct", label: "Direct" },
   { value: "referral", label: "Referral" },
   { value: "transfer_in", label: "Transfer In" },
+];
+
+export const IPD_TRANSFER_TYPE_OPTIONS: Array<SelectOption<IpdTransferTypeFormValue>> = [
+  { value: "inter_ward", label: "Inter-Ward" },
+  { value: "inter_department", label: "Inter-Department" },
+  { value: "inter_hospital", label: "Inter-Hospital" },
 ];
 
 export const IPD_ASSESSMENT_TYPE_OPTIONS: Array<SelectOption<IpdClinicalAssessmentTypeFormValue>> =
@@ -172,6 +180,12 @@ export const DEFAULT_IPD_PROGRESS_NOTE_VALUES: IpdProgressNoteFormInput = {
   objective: "",
   assessment: "",
   plan: "",
+};
+
+export const DEFAULT_IPD_TRANSFER_VALUES: IpdTransferFormInput = {
+  transfer_type: "inter_ward",
+  reason: "",
+  clinical_summary: "",
 };
 
 export function ipdOptionalText(value: string): string | undefined {

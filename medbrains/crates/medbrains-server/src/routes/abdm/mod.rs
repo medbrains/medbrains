@@ -9,6 +9,7 @@
 //!   HIE bundle requests; we forward to the on-prem
 //!   server over the Headscale tailnet.
 
+pub mod abha;
 pub mod hfr;
 pub mod hip_relay;
 pub mod signature;

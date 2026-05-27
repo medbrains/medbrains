@@ -9,8 +9,20 @@
 .dot {
   border-radius: 50%;
   flex-shrink: 0;
-  box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.1);
-  animation: dotBreathe 2.6s ease-in-out infinite;
+  box-shadow: 0 0 0 3px color-mix(in srgb, currentColor, transparent 72%);
+}
+
+.label {
+  color: var(--mb-text-body);
+  line-height: var(--mb-line-height-caption);
+  font-weight: var(--mb-font-weight-indicator);
+  letter-spacing: var(--mb-letter-spacing);
+}
+
+.icon {
+  color: currentColor;
+  flex-shrink: 0;
+  filter: drop-shadow(0 0 6px color-mix(in srgb, currentColor, transparent 62%));
 }
 
 .sm {
@@ -21,24 +33,6 @@
 
   .label {
     font-size: var(--mantine-font-size-xs);
-  }
-}
-
-@keyframes dotBreathe {
-  0%,
-  100% {
-    transform: scale(1);
-    opacity: 1;
-  }
-  50% {
-    transform: scale(1.18);
-    opacity: 0.82;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .dot {
-    animation: none;
   }
 }
 

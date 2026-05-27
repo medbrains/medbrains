@@ -1,6 +1,7 @@
-import { Button, Group, Stack, Text } from "@mantine/core";
-import type { FoodTiming, PrescriptionItem, TimeOfDay } from "@medbrains/types";
-import { IconPrinter } from "@tabler/icons-react";
+import { Alert, Button, Group, Stack, Text } from "@mantine/core";
+import { useHasPermission } from "@medbrains/stores";
+import { P, type FoodTiming, type PrescriptionItem, type TimeOfDay } from "@medbrains/types";
+import { IconLock, IconPrinter } from "@tabler/icons-react";
 import { useMemo } from "react";
 import {
   foodTimingLabel,
@@ -35,6 +36,11 @@ const ALL_SLOTS: Array<{ slot: TimeOfDay; abbrev: string }> = [
 ];
 
 export function PharmacyLabel({ items, patientName, uhid, date }: PharmacyLabelProps) {
+  const canViewPatient = useHasPermission(P.PATIENTS.VIEW);
+  const canViewPrescription = useHasPermission(P.PHARMACY.PRESCRIPTIONS_VIEW);
+  const canDispense = useHasPermission(P.PHARMACY.DISPENSING_CREATE);
+  const canReviewRx = useHasPermission(P.PHARMACY.RX_QUEUE_REVIEW);
+  const canPrintLabels = canViewPatient && (canViewPrescription || canDispense || canReviewRx);
   const labels = useMemo<LabelData[]>(() => {
     return items.map((item) => {
       const parsed = parseInstructions(item.instructions);
@@ -66,24 +72,33 @@ export function PharmacyLabel({ items, patientName, uhid, date }: PharmacyLabelP
   }, [items]);
 
   const handlePrint = () => {
+    if (!canPrintLabels) return;
     window.print();
   };
 
   return (
     <Stack gap="sm">
+      {!canPrintLabels && (
+        <Alert color="orange" variant="light" icon={<IconLock size={16} />}>
+          Medication label printing requires patient-view plus prescription, dispensing, or Rx-review
+          permission.
+        </Alert>
+      )}
       <Group justify="flex-end" className="no-print">
         <Button
           size="xs"
           variant="light"
           leftSection={<IconPrinter size={14} />}
           onClick={handlePrint}
+          disabled={!canPrintLabels}
         >
           Print Labels
         </Button>
       </Group>
 
-      <div className={classes.labelGrid}>
-        {labels.map((label, idx) => (
+      {canPrintLabels && (
+        <div className={classes.labelGrid}>
+          {labels.map((label, idx) => (
           <div key={idx} className={classes.labelCard}>
             {/* Drug name — large and bold */}
             <div className={classes.labelDrugName}>{label.drug_name}</div>
@@ -131,8 +146,9 @@ export function PharmacyLabel({ items, patientName, uhid, date }: PharmacyLabelP
               {date && ` · ${date}`}
             </div>
           </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
     </Stack>
   );
 }

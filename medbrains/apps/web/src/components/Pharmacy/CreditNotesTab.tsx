@@ -1,5 +1,6 @@
 import {
   ActionIcon,
+  Alert,
   Badge,
   Button,
   Group,
@@ -16,12 +17,16 @@ import {
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
+import { useFieldAccess, useHasPermission } from "@medbrains/stores";
 import type {
   CreatePharmacyCreditNoteRequest,
+  FieldAccessLevel,
   PharmacyCreditNote,
   PharmacyCreditNoteStatus,
   PharmacyCreditNoteType,
 } from "@medbrains/types";
+import { P } from "@medbrains/types";
+import { fieldAccessText } from "@medbrains/utils";
 import { IconCheck, IconLock, IconPlus, IconSearch, IconTrash, IconX } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
@@ -52,6 +57,20 @@ const typeLabels: Record<PharmacyCreditNoteType, string> = {
   damage: "Damage",
 };
 
+function canEditBillingAmount(access: FieldAccessLevel) {
+  return access === "edit";
+}
+
+function canViewBillingAmount(access: FieldAccessLevel) {
+  return access !== "hidden";
+}
+
+function creditAmountText(access: FieldAccessLevel, value: string | number | null | undefined) {
+  if (!canViewBillingAmount(access)) return "Restricted";
+  if (value === null || value === undefined || value === "") return "-";
+  return fieldAccessText(access, `₹${Number(value).toLocaleString()}`, "amount");
+}
+
 interface CreditNoteItem {
   rowId: string;
   drug_id: string;
@@ -77,8 +96,39 @@ const emptyItem = (): CreditNoteItem => ({
   reason: "",
 });
 
-export function CreditNotesTab() {
+interface CreditNotesTabProps {
+  canViewQueue: boolean;
+  canCreate: boolean;
+  canApprove: boolean;
+  canSettle: boolean;
+  canCancel: boolean;
+  canViewPatientRecord: boolean;
+}
+
+export function CreditNotesTab({
+  canViewQueue: parentCanViewQueue,
+  canCreate: parentCanCreate,
+  canApprove: parentCanApprove,
+  canSettle: parentCanSettle,
+  canCancel: parentCanCancel,
+  canViewPatientRecord: parentCanViewPatientRecord,
+}: CreditNotesTabProps) {
   const queryClient = useQueryClient();
+  const billingAmountAccess = useFieldAccess("billing.amount");
+  const hasReturnsList = useHasPermission(P.PHARMACY.RETURNS_LIST);
+  const hasReturnsRequest = useHasPermission(P.PHARMACY.RETURNS_REQUEST);
+  const hasReturnsApprove = useHasPermission(P.PHARMACY.RETURNS_APPROVE);
+  const hasReturnsReject = useHasPermission(P.PHARMACY.RETURNS_REJECT);
+  const hasBillingCreditManage = useHasPermission(P.BILLING.CREDIT_MANAGE);
+  const hasPatientView = useHasPermission(P.PATIENTS.VIEW);
+  const canViewQueue =
+    parentCanViewQueue && (hasReturnsList || hasReturnsApprove || hasReturnsReject);
+  const canCreate = parentCanCreate && hasReturnsRequest;
+  const canApprove = parentCanApprove && hasReturnsApprove;
+  const canSettle = parentCanSettle && hasReturnsApprove && hasBillingCreditManage;
+  const canCancel = parentCanCancel && hasReturnsReject;
+  const canViewPatientRecord = parentCanViewPatientRecord && hasPatientView;
+  const canCreateWithAmountAccess = canCreate && canEditBillingAmount(billingAmountAccess);
   const [filterStatus, setFilterStatus] = useState("all");
   const [createOpened, { open: openCreate, close: closeCreate }] = useDisclosure(false);
 
@@ -88,6 +138,7 @@ export function CreditNotesTab() {
   const { data: creditNotes = [], isLoading } = useQuery({
     queryKey: ["pharmacy-credit-notes", params],
     queryFn: () => pharmacyService.listPharmacyCreditNotes(params),
+    enabled: canViewQueue,
   });
 
   const approveMutation = useMutation({
@@ -138,7 +189,13 @@ export function CreditNotesTab() {
       label: "Patient / Vendor",
       render: (row: PharmacyCreditNote) =>
         row.patient_id ? (
-          <PatientNameCell patientId={row.patient_id} showUhid={false} />
+          canViewPatientRecord ? (
+            <PatientNameCell patientId={row.patient_id} showUhid={false} />
+          ) : (
+            <Text size="sm" c="dimmed">
+              Patient restricted
+            </Text>
+          )
         ) : (
           <Text size="sm">{row.vendor_id?.slice(0, 8) ?? "-"}</Text>
         ),
@@ -153,8 +210,7 @@ export function CreditNotesTab() {
       label: "Amount",
       render: (row: PharmacyCreditNote) => (
         <Text size="sm" fw={700} ff="Fraunces, serif">
-          {"\u20B9"}
-          {Number(row.net_amount).toLocaleString()}
+          {creditAmountText(billingAmountAccess, row.net_amount)}
         </Text>
       ),
     },
@@ -179,7 +235,7 @@ export function CreditNotesTab() {
       label: "Actions",
       render: (row: PharmacyCreditNote) => (
         <Group gap="xs">
-          {row.status === "draft" && (
+          {row.status === "draft" && canApprove && (
             <Tooltip label="Approve">
               <ActionIcon
                 variant="subtle"
@@ -192,7 +248,7 @@ export function CreditNotesTab() {
               </ActionIcon>
             </Tooltip>
           )}
-          {row.status === "approved" && (
+          {row.status === "approved" && canSettle && (
             <Tooltip label="Settle">
               <ActionIcon
                 variant="subtle"
@@ -205,7 +261,7 @@ export function CreditNotesTab() {
               </ActionIcon>
             </Tooltip>
           )}
-          {(row.status === "draft" || row.status === "approved") && (
+          {row.status === "draft" && canCancel && (
             <Tooltip label="Cancel">
               <ActionIcon
                 variant="subtle"
@@ -230,6 +286,7 @@ export function CreditNotesTab() {
           size="xs"
           value={filterStatus}
           onChange={setFilterStatus}
+          disabled={!canViewQueue}
           data={[
             { label: "All", value: "all" },
             { label: "Draft", value: "draft" },
@@ -238,24 +295,62 @@ export function CreditNotesTab() {
             { label: "Cancelled", value: "cancelled" },
           ]}
         />
-        <Button size="xs" leftSection={<IconPlus size={14} />} onClick={openCreate}>
-          New Return
-        </Button>
+        {canCreateWithAmountAccess && (
+          <Button size="xs" leftSection={<IconPlus size={14} />} onClick={openCreate}>
+            New Return
+          </Button>
+        )}
       </Group>
+      {canCreate && !canCreateWithAmountAccess && (
+        <Alert color="yellow" variant="light">
+          This role can request returns, but cannot create a credit note while billing amounts are
+          view-only, masked, or hidden.
+        </Alert>
+      )}
+      {!canCreate && !canApprove && !canSettle && !canCancel && (
+        <Alert color="gray" variant="light">
+          You can view credit notes, but no credit-note actions are available for this role.
+        </Alert>
+      )}
+      {!canViewQueue && (
+        <Alert color="gray" variant="light">
+          Credit-note queue access requires a return list, approval, or rejection role. You can
+          still create a new return credit note if that action is available.
+        </Alert>
+      )}
       <DataTable
         columns={columns}
         data={creditNotes}
-        loading={isLoading}
+        loading={canViewQueue && isLoading}
         rowKey={(row) => row.id}
       />
-      <CreateCreditNoteModal opened={createOpened} onClose={closeCreate} />
+      {canCreateWithAmountAccess && (
+        <CreateCreditNoteModal
+          opened={createOpened}
+          onClose={closeCreate}
+          amountAccess={billingAmountAccess}
+          canViewPatientRecord={canViewPatientRecord}
+        />
+      )}
     </Stack>
   );
 }
 
-function CreateCreditNoteModal({ opened, onClose }: { opened: boolean; onClose: () => void }) {
+function CreateCreditNoteModal({
+  opened,
+  onClose,
+  amountAccess,
+  canViewPatientRecord,
+}: {
+  opened: boolean;
+  onClose: () => void;
+  amountAccess: FieldAccessLevel;
+  canViewPatientRecord: boolean;
+}) {
   const queryClient = useQueryClient();
-  const [noteType, setNoteType] = useState<PharmacyCreditNoteType>("customer_return");
+  const defaultNoteType = canViewPatientRecord ? "customer_return" : "supplier_return";
+  const canEditAmounts = canEditBillingAmount(amountAccess);
+  const [noteType, setNoteType] = useState<PharmacyCreditNoteType>(defaultNoteType);
   const [patientId, setPatientId] = useState("");
   const [vendorId, setVendorId] = useState("");
   const [items, setItems] = useState<CreditNoteItem[]>([emptyItem()]);
@@ -263,6 +358,7 @@ function CreateCreditNoteModal({ opened, onClose }: { opened: boolean; onClose: 
   const [receiptSearch, setReceiptSearch] = useState("");
 
   function lookupReceipt() {
+    if (!canViewPatientRecord) return;
     pharmacyService
       .lookupPosSale(receiptSearch)
       .then((sale) => {
@@ -283,7 +379,7 @@ function CreateCreditNoteModal({ opened, onClose }: { opened: boolean; onClose: 
               reason: "",
             })),
         );
-        setPatientId("");
+        setPatientId(sale.patient_id ?? "");
       })
       .catch(() => {
         notifications.show({
@@ -330,7 +426,7 @@ function CreateCreditNoteModal({ opened, onClose }: { opened: boolean; onClose: 
   });
 
   function resetAndClose() {
-    setNoteType("customer_return");
+    setNoteType(defaultNoteType);
     setPatientId("");
     setVendorId("");
     setItems([emptyItem()]);
@@ -355,6 +451,7 @@ function CreateCreditNoteModal({ opened, onClose }: { opened: boolean; onClose: 
   }
 
   function handleSubmit() {
+    if (!canEditAmounts) return;
     const payload: CreatePharmacyCreditNoteRequest = {
       note_type: noteType,
       items: items.map((item) => ({
@@ -374,6 +471,13 @@ function CreateCreditNoteModal({ opened, onClose }: { opened: boolean; onClose: 
     createMutation.mutate(payload);
   }
 
+  const submitBlocked =
+    !canEditAmounts ||
+    items.length === 0 ||
+    totalAmount <= 0 ||
+    (noteType === "customer_return" && !patientId) ||
+    (noteType === "supplier_return" && !vendorId);
+
   return (
     <Modal opened={opened} onClose={resetAndClose} title="New Return" size="xl">
       <Stack>
@@ -381,15 +485,20 @@ function CreateCreditNoteModal({ opened, onClose }: { opened: boolean; onClose: 
           <Select
             label="Note Type"
             data={[
-              { value: "customer_return", label: "Customer Return" },
+              {
+                value: "customer_return",
+                label: "Customer Return",
+                disabled: !canViewPatientRecord,
+              },
               { value: "supplier_return", label: "Supplier Return" },
               { value: "expiry_write_off", label: "Expiry Write-off" },
               { value: "damage", label: "Damage" },
             ]}
             value={noteType}
-            onChange={(v) => setNoteType((v ?? "customer_return") as PharmacyCreditNoteType)}
+            onChange={(v) => setNoteType((v ?? defaultNoteType) as PharmacyCreditNoteType)}
+            disabled={!canEditAmounts}
           />
-          {noteType === "customer_return" && (
+          {noteType === "customer_return" && canViewPatientRecord && (
             <PatientSearchSelect
               label="Patient"
               value={patientId}
@@ -403,7 +512,7 @@ function CreateCreditNoteModal({ opened, onClose }: { opened: boolean; onClose: 
           )}
         </Group>
 
-        {noteType === "customer_return" && (
+        {noteType === "customer_return" && canViewPatientRecord && (
           <TextInput
             label="Or lookup by Receipt #"
             placeholder="Enter POS receipt number"
@@ -412,7 +521,12 @@ function CreateCreditNoteModal({ opened, onClose }: { opened: boolean; onClose: 
             onChange={(e) => setReceiptSearch(e.currentTarget.value)}
             rightSection={
               receiptSearch && (
-                <ActionIcon size="xs" onClick={lookupReceipt} aria-label="Search receipt">
+                <ActionIcon
+                  size="xs"
+                  onClick={lookupReceipt}
+                  aria-label="Search receipt"
+                  disabled={!canEditAmounts}
+                >
                   <IconSearch size={12} />
                 </ActionIcon>
               )
@@ -420,7 +534,7 @@ function CreateCreditNoteModal({ opened, onClose }: { opened: boolean; onClose: 
           />
         )}
 
-        {noteType === "customer_return" && patientId && (
+        {noteType === "customer_return" && patientId && canViewPatientRecord && (
           <OrderLookupSection
             patientId={patientId}
             onSelectItems={(orderItems) => {
@@ -472,7 +586,7 @@ function CreateCreditNoteModal({ opened, onClose }: { opened: boolean; onClose: 
                       }
                     }}
                     searchable
-                    placeholder="Select drug"
+                    placeholder="Select medicine"
                   />
                 </Table.Td>
                 <Table.Td>
@@ -506,8 +620,7 @@ function CreateCreditNoteModal({ opened, onClose }: { opened: boolean; onClose: 
                 </Table.Td>
                 <Table.Td>
                   <Text size="sm" fw={600}>
-                    {"\u20B9"}
-                    {(item.quantity * item.unit_price).toFixed(2)}
+                    {creditAmountText(amountAccess, item.quantity * item.unit_price)}
                   </Text>
                 </Table.Td>
                 <Table.Td>
@@ -566,14 +679,13 @@ function CreateCreditNoteModal({ opened, onClose }: { opened: boolean; onClose: 
             <Text size="sm">
               Total:{" "}
               <Text component="span" fw={700} ff="Fraunces, serif">
-                {"\u20B9"}
-                {totalAmount.toFixed(2)}
+                {creditAmountText(amountAccess, totalAmount)}
               </Text>
             </Text>
             <Button
               onClick={handleSubmit}
               loading={createMutation.isPending}
-              disabled={items.length === 0 || totalAmount <= 0}
+              disabled={submitBlocked}
             >
               Create Return
             </Button>

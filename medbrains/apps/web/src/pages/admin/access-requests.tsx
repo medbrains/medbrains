@@ -2,12 +2,14 @@ import {
   ActionIcon,
   Badge,
   Button,
+  Card,
   Drawer,
   Group,
   Modal,
   MultiSelect,
   SegmentedControl,
   Select,
+  SimpleGrid,
   Stack,
   Table,
   Text,
@@ -24,9 +26,11 @@ import { P, PERMISSIONS } from "@medbrains/types";
 import {
   IconCheck,
   IconClockHour4,
+  IconGitBranch,
   IconLockAccess,
   IconPlus,
   IconShieldLock,
+  IconUserCheck,
   IconX,
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -52,6 +56,27 @@ const STATUS_OPTIONS = [
   { value: "revoked", label: "Revoked" },
   { value: "expired", label: "Expired" },
 ];
+
+const APPROVAL_LANES = [
+  {
+    title: "Normal access",
+    actor: "Self request",
+    approver: "Access manager",
+    scope: "Temporary module permissions for shift coverage and routine operations",
+  },
+  {
+    title: "Elevated access",
+    actor: "Doctor / nurse / staff",
+    approver: "Hospital admin or super admin",
+    scope: "Admin, security, HR, audit review, NDPS, write-off, concession, PCPNDT, mortality",
+  },
+  {
+    title: "Break-glass",
+    actor: "Doctor / nurse",
+    approver: "Audit reviewer",
+    scope: "Patient-scoped emergency access starts immediately and is reviewed after use",
+  },
+] as const;
 
 function defaultExpiry() {
   return new Date(Date.now() + 8 * 60 * 60 * 1000);
@@ -161,6 +186,32 @@ export function AccessRequestsPage() {
           Default request window: 8 hours
         </Badge>
       </Group>
+
+      <SimpleGrid cols={{ base: 1, md: 3 }}>
+        {APPROVAL_LANES.map((lane) => (
+          <Card key={lane.title} withBorder padding="sm">
+            <Stack gap={6}>
+              <Group gap="xs">
+                <IconGitBranch size={16} />
+                <Text size="sm" fw={700}>
+                  {lane.title}
+                </Text>
+              </Group>
+              <Group gap={6}>
+                <Badge variant="light" leftSection={<IconUserCheck size={12} />}>
+                  {lane.actor}
+                </Badge>
+                <Badge variant="light" color="primary">
+                  {lane.approver}
+                </Badge>
+              </Group>
+              <Text size="xs" c="dimmed">
+                {lane.scope}
+              </Text>
+            </Stack>
+          </Card>
+        ))}
+      </SimpleGrid>
 
       <SegmentedControl value={status} onChange={setStatus} data={STATUS_OPTIONS} />
 

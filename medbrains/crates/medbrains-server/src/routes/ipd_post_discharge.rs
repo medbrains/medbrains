@@ -19,7 +19,11 @@ use medbrains_core::clinical_events::{ClinicalEventEnvelope, ClinicalEventName};
 use medbrains_core::permissions;
 
 use crate::{
-    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
+    error::AppError,
+    middleware::{
+        auth::Claims,
+        authorization::{require_any_permission, require_permission},
+    },
     state::AppState,
 };
 
@@ -68,7 +72,13 @@ pub async fn get_discharge_workflow(
     Extension(claims): Extension<Claims>,
     Path(admission_id): Path<Uuid>,
 ) -> Result<Json<Option<DischargeWorkflow>>, AppError> {
-    require_permission(&claims, permissions::ipd::admissions::VIEW)?;
+    require_any_permission(
+        &claims,
+        &[
+            permissions::ipd::discharge_checklist::LIST,
+            permissions::ipd::discharge_checklist::UPDATE,
+        ],
+    )?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -96,7 +106,7 @@ pub async fn update_discharge_step(
     Path(admission_id): Path<Uuid>,
     Json(body): Json<DischargeStepUpdate>,
 ) -> Result<Json<DischargeWorkflow>, AppError> {
-    require_permission(&claims, permissions::ipd::admissions::UPDATE)?;
+    require_permission(&claims, permissions::ipd::discharge_checklist::UPDATE)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -294,6 +304,7 @@ async fn autobag_discharge_meds(
         store_location_id: None,
         safety_override_reason: None,
         allergy_override_reason: None,
+        is_dummy: None,
     };
 
     // Resolve patient_id from the admission since we didn't carry it
@@ -368,16 +379,67 @@ pub async fn record_dama(
     Path(admission_id): Path<Uuid>,
     Json(body): Json<CreateDamaRequest>,
 ) -> Result<Json<DamaRecord>, AppError> {
-    require_permission(&claims, permissions::ipd::admissions::UPDATE)?;
+    require_permission(&claims, permissions::ipd::discharge::CREATE)?;
     if body.record_type != "dama" && body.record_type != "lama" {
         return Err(AppError::BadRequest(
             "record_type must be 'dama' or 'lama'".to_owned(),
+        ));
+    }
+    if !body.patient_signed.unwrap_or(false) && !body.relative_signed.unwrap_or(false) {
+        return Err(AppError::BadRequest(
+            "Either patient or authorised relative signature is required".to_owned(),
+        ));
+    }
+    if body
+        .risks_explained
+        .as_deref()
+        .unwrap_or("")
+        .trim()
+        .is_empty()
+    {
+        return Err(AppError::BadRequest(
+            "Risks explained is required before recording DAMA/LAMA".to_owned(),
+        ));
+    }
+    if body.witness_name.as_deref().unwrap_or("").trim().is_empty()
+        || !body.witness_signed.unwrap_or(false)
+    {
+        return Err(AppError::BadRequest(
+            "Witness name and signature are required for DAMA/LAMA".to_owned(),
         ));
     }
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+
+    let status = sqlx::query_scalar::<_, String>(
+        "SELECT status::text FROM admissions WHERE id = $1 AND tenant_id = $2 FOR UPDATE",
+    )
+    .bind(admission_id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+
+    if status != "admitted" {
+        return Err(AppError::BadRequest(
+            "DAMA/LAMA can be recorded only for active admitted patients".to_owned(),
+        ));
+    }
+
+    let existing = sqlx::query_scalar::<_, bool>(
+        "SELECT EXISTS(SELECT 1 FROM ipd_dama_records WHERE admission_id = $1 AND tenant_id = $2)",
+    )
+    .bind(admission_id)
+    .bind(claims.tenant_id)
+    .fetch_one(&mut *tx)
+    .await?;
+    if existing {
+        return Err(AppError::BadRequest(
+            "DAMA/LAMA has already been recorded for this admission".to_owned(),
+        ));
+    }
 
     let row = sqlx::query_as::<_, DamaRecord>(
         "INSERT INTO ipd_dama_records \
@@ -567,15 +629,35 @@ pub async fn create_mortality_review(
     Extension(claims): Extension<Claims>,
     Json(body): Json<CreateMortalityReviewRequest>,
 ) -> Result<Json<MortalityReview>, AppError> {
-    require_permission(&claims, permissions::ipd::admissions::UPDATE)?;
+    require_permission(&claims, permissions::ipd::death_records::MANAGE)?;
 
     // NABH expects M&M review within 72h; review_due_at is computed
     // server-side so the dashboard's "overdue" flag is consistent.
     let review_due_at = body.death_at + Duration::hours(72);
+    if body.death_at > Utc::now() + Duration::minutes(5) {
+        return Err(AppError::BadRequest(
+            "Death timestamp cannot be in the future".to_owned(),
+        ));
+    }
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+
+    let status = sqlx::query_scalar::<_, String>(
+        "SELECT status::text FROM admissions WHERE id = $1 AND tenant_id = $2 FOR UPDATE",
+    )
+    .bind(body.admission_id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+
+    if status != "admitted" && status != "deceased" {
+        return Err(AppError::BadRequest(
+            "Death can be recorded only for admitted or already deceased admissions".to_owned(),
+        ));
+    }
 
     let row = sqlx::query_as::<_, MortalityReview>(
         "INSERT INTO ipd_mortality_reviews \
@@ -610,7 +692,7 @@ pub async fn list_mortality_reviews(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<MortalityReview>>, AppError> {
-    require_permission(&claims, permissions::ipd::admissions::LIST)?;
+    require_permission(&claims, permissions::ipd::death_records::MANAGE)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -641,7 +723,12 @@ pub async fn submit_mortality_review(
     Path(id): Path<Uuid>,
     Json(body): Json<SubmitMortalityReviewRequest>,
 ) -> Result<Json<MortalityReview>, AppError> {
-    require_permission(&claims, permissions::ipd::admissions::UPDATE)?;
+    require_permission(&claims, permissions::ipd::death_records::MANAGE)?;
+    if body.review_findings.trim().is_empty() {
+        return Err(AppError::BadRequest(
+            "Mortality review findings are required".to_owned(),
+        ));
+    }
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;

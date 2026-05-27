@@ -3377,7 +3377,7 @@ describe("/emergency endpoints", () => {
 
   it("deactivateCode → PUT /emergency/codes/{param_1}/deactivate", async () => {
     mockOk({});
-    await api.deactivateCode(UUID, { test: "data" });
+    await api.deactivateCode(UUID, { outcome: "resolved" });
     expect(mockFetch).toHaveBeenCalledTimes(1);
     const [url, opts] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/emergency/codes");
@@ -5573,7 +5573,7 @@ describe("/ipd endpoints", () => {
 
   it("transferBed → PUT /ipd/admissions/{param_1}/transfer", async () => {
     mockOk({});
-    await api.transferBed(UUID, { test: "data" });
+    await api.transferBed(UUID, { bed_id: UUID, notes: "Transfer reason" });
     expect(mockFetch).toHaveBeenCalledTimes(1);
     const [url, opts] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/ipd/admissions");
@@ -7741,6 +7741,21 @@ describe("/opd endpoints", () => {
     expect(url.split("?")[0]).toBe("/api/terminology/search");
     expect(url).toContain("system=icd11");
     expect(url).toContain("q=fever");
+    expect(url).toContain("limit=12");
+  });
+
+  it("searchTerminologyWithSuggestions → GET /terminology/search-with-suggestions", async () => {
+    mockOk({});
+    await api.searchTerminologyWithSuggestions({
+      system: "icd11",
+      q: "tee",
+      limit: 12,
+    });
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    const [url] = mockFetch.mock.calls[0];
+    expect(url.split("?")[0]).toBe("/api/terminology/search-with-suggestions");
+    expect(url).toContain("system=icd11");
+    expect(url).toContain("q=tee");
     expect(url).toContain("limit=12");
   });
 

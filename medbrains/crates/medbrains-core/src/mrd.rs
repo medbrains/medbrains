@@ -2,6 +2,7 @@
 
 use chrono::{NaiveDate, NaiveTime};
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use sqlx::FromRow;
 use uuid::Uuid;
 
@@ -135,6 +136,82 @@ pub struct MrdRetentionPolicy {
     pub destruction_method: Option<String>,
     pub is_active: bool,
     pub created_by: Option<Uuid>,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+    pub updated_at: chrono::DateTime<chrono::Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct MrdStorageLocation {
+    pub id: Uuid,
+    pub tenant_id: Uuid,
+    pub code: String,
+    pub name: String,
+    pub building: Option<String>,
+    pub floor: Option<String>,
+    pub room: Option<String>,
+    pub rack: Option<String>,
+    pub shelf: Option<String>,
+    pub bin: Option<String>,
+    pub barcode: Option<String>,
+    pub capacity: Option<i32>,
+    pub current_count: i32,
+    pub is_active: bool,
+    pub notes: Option<String>,
+    pub created_by: Option<Uuid>,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+    pub updated_at: chrono::DateTime<chrono::Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct MrdCaseSheetPacket {
+    pub id: Uuid,
+    pub tenant_id: Uuid,
+    pub patient_id: Uuid,
+    pub encounter_id: Option<Uuid>,
+    pub admission_id: Option<Uuid>,
+    pub medical_record_id: Option<Uuid>,
+    pub packet_number: String,
+    pub packet_type: String,
+    pub status: String,
+    pub version: i32,
+    pub page_count: i32,
+    pub document_output_id: Option<Uuid>,
+    pub print_job_id: Option<Uuid>,
+    pub storage_location_id: Option<Uuid>,
+    pub shelf_location: Option<String>,
+    pub source_snapshot: Value,
+    pub reprint_reason: Option<String>,
+    pub notes: Option<String>,
+    pub generated_by: Option<Uuid>,
+    pub generated_at: chrono::DateTime<chrono::Utc>,
+    pub printed_by: Option<Uuid>,
+    pub printed_at: Option<chrono::DateTime<chrono::Utc>>,
+    pub filed_by: Option<Uuid>,
+    pub filed_at: Option<chrono::DateTime<chrono::Utc>>,
+    pub voided_by: Option<Uuid>,
+    pub voided_at: Option<chrono::DateTime<chrono::Utc>>,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+    pub updated_at: chrono::DateTime<chrono::Utc>,
+    pub patient_name: Option<String>,
+    pub uhid: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct MrdCaseSheetPage {
+    pub id: Uuid,
+    pub tenant_id: Uuid,
+    pub packet_id: Uuid,
+    pub page_code: String,
+    pub page_title: String,
+    pub page_order: i32,
+    pub source_module: Option<String>,
+    pub source_table: Option<String>,
+    pub source_id: Option<Uuid>,
+    pub document_output_id: Option<Uuid>,
+    pub is_required: bool,
+    pub status: String,
+    pub completed_at: Option<chrono::DateTime<chrono::Utc>>,
+    pub printed_at: Option<chrono::DateTime<chrono::Utc>>,
     pub created_at: chrono::DateTime<chrono::Utc>,
     pub updated_at: chrono::DateTime<chrono::Utc>,
 }

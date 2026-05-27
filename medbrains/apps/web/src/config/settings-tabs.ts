@@ -5,14 +5,10 @@ import {
   IconBuildingCommunity,
   IconCash,
   IconChartBar,
-  IconClock,
   IconCloudOff,
-  IconDashboard,
-  IconForms,
   IconHash,
   IconHeartbeat,
   IconHeartRateMonitor,
-  IconListCheck,
   IconMapPin,
   IconMedicalCross,
   IconPalette,
@@ -21,12 +17,10 @@ import {
   IconPrinter,
   IconRuler2,
   IconSettings,
-  IconShield,
   IconShieldCheck,
   IconSitemap,
   IconStethoscope,
   IconTableOptions,
-  IconUsers,
   IconWorld,
 } from "@tabler/icons-react";
 import type { ComponentType } from "react";
@@ -39,7 +33,6 @@ import { ClinicalProtocolsSettings } from "../pages/admin/settings/ClinicalProto
 import { ComplianceSettingsTab } from "../pages/admin/settings/ComplianceSettings";
 import { ConsultationTemplatesSettings } from "../pages/admin/settings/ConsultationTemplatesSettings";
 import { CriticalValueRulesSettings } from "../pages/admin/settings/CriticalValueRulesSettings";
-import { DepartmentHoursSettings } from "../pages/admin/settings/DepartmentHoursSettings";
 import { DepartmentsSettings } from "../pages/admin/settings/DepartmentsSettings";
 import { DeviceIntegrationsSettings } from "../pages/admin/settings/DeviceIntegrationsSettings";
 import { DrugInteractionsSettings } from "../pages/admin/settings/DrugInteractionsSettings";
@@ -47,18 +40,15 @@ import { FacilitiesSettings } from "../pages/admin/settings/FacilitiesSettings";
 import { GeneralSettings } from "../pages/admin/settings/GeneralSettings";
 import { GeoSettings } from "../pages/admin/settings/GeoSettings";
 import { LocationsSettings } from "../pages/admin/settings/LocationsSettings";
-import { LocationTreeSettings } from "../pages/admin/settings/LocationTreeSettings";
 import { MasterDataStatusSettings } from "../pages/admin/settings/MasterDataStatusSettings";
 import { ModulesSettings } from "../pages/admin/settings/ModulesSettings";
 import { OfflineModeSettings } from "../pages/admin/settings/OfflineModeSettings";
 import { PrintTemplateSettings } from "../pages/admin/settings/PrintTemplateSettings";
 import { SequencesSettings } from "../pages/admin/settings/SequencesSettings";
 import { ServicesSettings } from "../pages/admin/settings/ServicesSettings";
-import { SetupWizardSettings } from "../pages/admin/settings/SetupWizardSettings";
 import { StandardsSettings } from "../pages/admin/settings/StandardsSettings";
 import { SystemHealthSettings } from "../pages/admin/settings/SystemHealthSettings";
 import { UnitsLocaleSettings } from "../pages/admin/settings/UnitsLocaleSettings";
-import { UsersRolesSettings } from "../pages/admin/settings/UsersRolesSettings";
 
 export interface SettingsTabConfig {
   value: string;
@@ -67,6 +57,7 @@ export interface SettingsTabConfig {
   /** Icon name string — resolved via SETTINGS_TAB_ICON_MAP */
   icon: string;
   requiredPermission?: string;
+  requiredPermissions?: readonly string[];
   component: ComponentType;
 }
 
@@ -77,6 +68,61 @@ export const SETTINGS_TABS: SettingsTabConfig[] = [
     icon: "IconSettings",
     requiredPermission: "admin.settings.general.manage",
     component: GeneralSettings,
+  },
+  {
+    value: "master-data",
+    i18nKey: "settings.masterData",
+    icon: "IconChartBar",
+    requiredPermissions: [
+      "admin.settings.general.manage",
+      "admin.settings.facilities.list",
+      "admin.settings.locations.list",
+      "admin.settings.departments.list",
+      "admin.doctors.list",
+      "admin.users.list",
+      "admin.settings.modules.manage",
+      "admin.settings.sequences.manage",
+      "admin.settings.services.list",
+      "admin.settings.clinical_masters.list",
+      "admin.settings.bed_types.manage",
+      "admin.settings.billing_tax.manage",
+      "admin.settings.branding.manage",
+      "admin.roles.list",
+      "communications.config.manage",
+      "assets.list",
+      "billing.corporate.list",
+      "billing.invoices.list",
+      "billing.journal.list",
+      "consent.templates.list",
+      "diet.templates.list",
+      "documents.templates.list",
+      "indent.list",
+      "ipd.admissions.list",
+      "ipd.bed_dashboard.view",
+      "ipd.discharge_summary.create",
+      "ipd.discharge_summary.finalize",
+      "ipd.tariffs.list",
+      "ipd.tariffs.manage",
+      "ipd.wards.manage",
+      "lab.orders.list",
+      "lab.reports.view",
+      "mrd.records.list",
+      "opd.procedures.list",
+      "opd.queue.view",
+      "opd.visit.create",
+      "opd.visit.update",
+      "order_sets.templates.list",
+      "ot.rooms.list",
+      "pharmacy.prescriptions.list",
+      "pharmacy.stores.list",
+      "pharmacy.stores.manage",
+      "procurement.rc.list",
+      "procurement.stores.list",
+      "procurement.stores.manage",
+      "procurement.vendors.list",
+      "specialty.other.templates.list",
+    ],
+    component: MasterDataStatusSettings,
   },
   {
     value: "geo",
@@ -107,32 +153,11 @@ export const SETTINGS_TABS: SettingsTabConfig[] = [
     component: LocationsSettings,
   },
   {
-    value: "location-tree",
-    i18nKey: "settings.locationTree",
-    icon: "IconSitemap",
-    requiredPermission: "admin.settings.locations.list",
-    component: LocationTreeSettings,
-  },
-  {
     value: "departments",
     i18nKey: "settings.departments",
     icon: "IconSitemap",
     requiredPermission: "admin.settings.departments.list",
     component: DepartmentsSettings,
-  },
-  {
-    value: "dept-hours",
-    i18nKey: "settings.deptHours",
-    icon: "IconClock",
-    requiredPermission: "admin.settings.departments.list",
-    component: DepartmentHoursSettings,
-  },
-  {
-    value: "users",
-    i18nKey: "settings.users",
-    icon: "IconUsers",
-    requiredPermission: "admin.users.list",
-    component: UsersRolesSettings,
   },
   {
     value: "modules",
@@ -215,28 +240,28 @@ export const SETTINGS_TABS: SettingsTabConfig[] = [
     value: "drug-interactions",
     i18nKey: "settings.drugInteractions",
     icon: "IconAlertTriangle",
-    requiredPermission: "admin.settings.general.manage",
+    requiredPermissions: ["admin.settings.general.manage", "opd.queue.view"],
     component: DrugInteractionsSettings,
   },
   {
     value: "critical-values",
     i18nKey: "settings.criticalValues",
     icon: "IconShieldCheck",
-    requiredPermission: "admin.settings.general.manage",
+    requiredPermissions: ["admin.settings.general.manage", "opd.queue.view"],
     component: CriticalValueRulesSettings,
   },
   {
     value: "clinical-protocols",
     i18nKey: "settings.clinicalProtocols",
     icon: "IconHeartbeat",
-    requiredPermission: "admin.settings.general.manage",
+    requiredPermissions: ["admin.settings.general.manage", "opd.queue.view"],
     component: ClinicalProtocolsSettings,
   },
   {
     value: "consultation-templates",
     i18nKey: "settings.consultationTemplates",
     icon: "IconStethoscope",
-    requiredPermission: "opd.visit.create",
+    requiredPermissions: ["opd.queue.view", "opd.visit.create", "opd.visit.update"],
     component: ConsultationTemplatesSettings,
   },
   {
@@ -245,20 +270,6 @@ export const SETTINGS_TABS: SettingsTabConfig[] = [
     icon: "IconStethoscope",
     requiredPermission: "admin.settings.general.manage",
     component: ClinicalConfigSettings,
-  },
-  {
-    value: "setup-wizard",
-    i18nKey: "settings.setupWizard",
-    icon: "IconListCheck",
-    requiredPermission: "admin.settings.general.manage",
-    component: SetupWizardSettings,
-  },
-  {
-    value: "master-data",
-    i18nKey: "settings.masterData",
-    icon: "IconChartBar",
-    requiredPermission: "admin.settings.general.manage",
-    component: MasterDataStatusSettings,
   },
   {
     value: "system-health",
@@ -284,7 +295,6 @@ export const SETTINGS_TAB_ICON_MAP: Record<string, ComponentType<{ size?: number
   IconMapPin,
   IconSitemap,
   IconTableOptions,
-  IconUsers,
   IconApps,
   IconHash,
   IconMedicalCross,
@@ -294,15 +304,10 @@ export const SETTINGS_TAB_ICON_MAP: Record<string, ComponentType<{ size?: number
   IconPalette,
   IconPlug,
   IconPrinter,
-  IconShield,
   IconShieldCheck,
   IconPill,
   IconAlertTriangle,
   IconStethoscope,
-  IconForms,
-  IconDashboard,
-  IconClock,
-  IconListCheck,
   IconChartBar,
   IconHeartRateMonitor,
   IconCloudOff,

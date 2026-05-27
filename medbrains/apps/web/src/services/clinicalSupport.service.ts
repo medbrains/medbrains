@@ -25,6 +25,9 @@ export const clinicalSupportService = {
     api.updateClinicalCorpusEntry(...args),
   searchTerminology: (...args: Parameters<typeof api.searchTerminology>) =>
     api.searchTerminology(...args),
+  searchTerminologyWithSuggestions: (
+    ...args: Parameters<typeof api.searchTerminologyWithSuggestions>
+  ) => api.searchTerminologyWithSuggestions(...args),
   lookupTerminology: (...args: Parameters<typeof api.lookupTerminology>) =>
     api.lookupTerminology(...args),
   searchSnomed: (...args: Parameters<typeof api.searchSnomed>) => api.searchSnomed(...args),

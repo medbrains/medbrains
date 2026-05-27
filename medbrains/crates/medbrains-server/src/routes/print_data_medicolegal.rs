@@ -2,22 +2,288 @@
 
 use axum::{
     Extension, Json,
-    extract::{Path, State},
+    extract::{Path, Query, State},
 };
+use serde::Deserialize;
+use serde_json::json;
 use uuid::Uuid;
 
 use medbrains_core::permissions;
 use medbrains_core::print_data::{
     AgeEstimationPrintData, AmaFormPrintData, DeathDeclarationPrintData, EpiphysealFusion,
-    InjuryEntry, MlcDateEntry, MlcDocumentationPrintData, MlcRegisterPrintData, PoliceVisitEntry,
-    SamplePreservedEntry, SecondaryCharacters, WoundCertificatePrintData, WoundEntry,
+    InjuryEntry, MlcDateEntry, MlcDocumentationPrintData, MlcPoliceIntimationPrintData,
+    MlcRegisterPrintData, PoliceVisitEntry, SamplePreservedEntry, SecondaryCharacters,
+    WoundCertificatePrintData, WoundEntry,
 };
 
 use crate::{
     error::AppError,
-    middleware::{auth::Claims, authorization::require_permission},
+    middleware::{
+        auth::Claims,
+        authorization::{require_any_permission, require_permission},
+    },
     state::AppState,
 };
+
+#[derive(Debug, Deserialize)]
+pub struct MedicolegalPrintQuery {
+    pub reprint_reason: Option<String>,
+}
+
+const MLC_PRINT_CONTEXT_PERMISSIONS: &[&str] = &[
+    permissions::emergency::mlc::LIST,
+    permissions::emergency::mlc::PRINT,
+    permissions::emergency::mlc::REPRINT,
+];
+const MLC_POLICE_INTIMATION_PRINT_CONTEXT_PERMISSIONS: &[&str] = &[
+    permissions::emergency::mlc_police_intimations::PRINT,
+    permissions::emergency::mlc_police_intimations::REPRINT,
+];
+
+async fn record_mlc_print_output(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    claims: &Claims,
+    source_id: Uuid,
+    patient_id: Uuid,
+    admission_id: Option<Uuid>,
+    document_type: &'static str,
+    title: &'static str,
+    reprint_reason: Option<&str>,
+) -> Result<(), AppError> {
+    let prior_print_count: i64 = sqlx::query_scalar(
+        "SELECT COALESCE(SUM(print_count), 0)::bigint \
+         FROM document_outputs \
+         WHERE tenant_id = $1 \
+           AND module_code = 'emergency' \
+           AND source_table = 'mlc_cases' \
+           AND source_id = $2 \
+           AND title = $3 \
+           AND status <> 'voided'::document_output_status",
+    )
+    .bind(claims.tenant_id)
+    .bind(source_id)
+    .bind(title)
+    .fetch_one(&mut **tx)
+    .await?;
+
+    let is_reprint = prior_print_count > 0;
+    if is_reprint {
+        require_permission(claims, permissions::emergency::mlc::REPRINT)?;
+        if reprint_reason.is_none_or(|value| value.len() < 5) {
+            return Err(AppError::BadRequest(
+                "reprint reason is required after the first MLC print".to_owned(),
+            ));
+        }
+    } else {
+        require_permission(claims, permissions::emergency::mlc::PRINT)?;
+        if reprint_reason.is_some() {
+            return Err(AppError::BadRequest(
+                "MLC packet has not been printed yet".to_owned(),
+            ));
+        }
+    }
+
+    let today = chrono::Utc::now().format("%Y%m%d").to_string();
+    let day_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*)::bigint \
+         FROM document_outputs \
+         WHERE tenant_id = $1 \
+           AND module_code = 'emergency' \
+           AND document_number LIKE 'ER-MLC-' || $2 || '-%'",
+    )
+    .bind(claims.tenant_id)
+    .bind(&today)
+    .fetch_one(&mut **tx)
+    .await?;
+    let document_number = format!("ER-MLC-{today}-{:04}", day_count + 1);
+    let print_action = if is_reprint { "reprint" } else { "print" };
+    let context_snapshot = json!({
+        "document_type": document_type,
+        "action": print_action,
+        "mlc_case_id": source_id,
+        "prior_print_count": prior_print_count,
+        "reprint_reason": reprint_reason,
+    });
+
+    let document_output_id: Uuid = sqlx::query_scalar(
+        "INSERT INTO document_outputs \
+         (tenant_id, module_code, source_table, source_id, patient_id, visit_id, admission_id, \
+          document_number, title, category, status, page_count, print_count, \
+          first_printed_at, last_printed_at, watermark, context_snapshot, generated_by) \
+         VALUES ($1, 'emergency', 'mlc_cases', $2, $3, NULL, $4, \
+          $5, $6, 'custom'::document_template_category, \
+          'printed'::document_output_status, 1, 1, now(), now(), \
+          CASE WHEN $7::bool THEN 'duplicate'::watermark_type ELSE 'none'::watermark_type END, \
+          $8, $9) \
+         RETURNING id",
+    )
+    .bind(claims.tenant_id)
+    .bind(source_id)
+    .bind(patient_id)
+    .bind(admission_id)
+    .bind(&document_number)
+    .bind(title)
+    .bind(is_reprint)
+    .bind(&context_snapshot)
+    .bind(claims.sub)
+    .fetch_one(&mut **tx)
+    .await?;
+
+    let audit_values = json!({
+        "document_output_id": document_output_id,
+        "document_number": document_number,
+        "document_type": document_type,
+        "action": print_action,
+        "mlc_case_id": source_id,
+        "prior_print_count": prior_print_count,
+        "reprint_reason": reprint_reason,
+    });
+    medbrains_db::audit::AuditLogger::log(
+        tx,
+        &medbrains_db::audit::AuditEntry {
+            tenant_id: claims.tenant_id,
+            user_id: Some(claims.sub),
+            action: if is_reprint {
+                "emergency.mlc.reprint"
+            } else {
+                "emergency.mlc.print"
+            },
+            entity_type: "mlc_case",
+            entity_id: Some(source_id),
+            old_values: None,
+            new_values: Some(&audit_values),
+            ip_address: None,
+        },
+    )
+    .await?;
+
+    Ok(())
+}
+
+async fn record_mlc_police_intimation_print_output(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    claims: &Claims,
+    intimation_id: Uuid,
+    mlc_case_id: Uuid,
+    patient_id: Uuid,
+    admission_id: Option<Uuid>,
+    reprint_reason: Option<&str>,
+) -> Result<(), AppError> {
+    let prior_print_count: i64 = sqlx::query_scalar(
+        "SELECT COALESCE(SUM(print_count), 0)::bigint \
+         FROM document_outputs \
+         WHERE tenant_id = $1 \
+           AND module_code = 'emergency' \
+           AND source_table = 'mlc_police_intimations' \
+           AND source_id = $2 \
+           AND title = 'MLC Police Intimation' \
+           AND status <> 'voided'::document_output_status",
+    )
+    .bind(claims.tenant_id)
+    .bind(intimation_id)
+    .fetch_one(&mut **tx)
+    .await?;
+
+    let is_reprint = prior_print_count > 0;
+    if is_reprint {
+        require_permission(
+            claims,
+            permissions::emergency::mlc_police_intimations::REPRINT,
+        )?;
+        if reprint_reason.is_none_or(|value| value.len() < 5) {
+            return Err(AppError::BadRequest(
+                "reprint reason is required after the first police intimation print".to_owned(),
+            ));
+        }
+    } else {
+        require_permission(
+            claims,
+            permissions::emergency::mlc_police_intimations::PRINT,
+        )?;
+        if reprint_reason.is_some() {
+            return Err(AppError::BadRequest(
+                "police intimation has not been printed yet".to_owned(),
+            ));
+        }
+    }
+
+    let today = chrono::Utc::now().format("%Y%m%d").to_string();
+    let day_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*)::bigint \
+         FROM document_outputs \
+         WHERE tenant_id = $1 \
+           AND module_code = 'emergency' \
+           AND document_number LIKE 'ER-MLC-PI-' || $2 || '-%'",
+    )
+    .bind(claims.tenant_id)
+    .bind(&today)
+    .fetch_one(&mut **tx)
+    .await?;
+    let document_number = format!("ER-MLC-PI-{today}-{:04}", day_count + 1);
+    let print_action = if is_reprint { "reprint" } else { "print" };
+    let context_snapshot = json!({
+        "document_type": "mlc_police_intimation",
+        "action": print_action,
+        "mlc_case_id": mlc_case_id,
+        "police_intimation_id": intimation_id,
+        "prior_print_count": prior_print_count,
+        "reprint_reason": reprint_reason,
+    });
+
+    let document_output_id: Uuid = sqlx::query_scalar(
+        "INSERT INTO document_outputs \
+         (tenant_id, module_code, source_table, source_id, patient_id, visit_id, admission_id, \
+          document_number, title, category, status, page_count, print_count, \
+          first_printed_at, last_printed_at, watermark, context_snapshot, generated_by) \
+         VALUES ($1, 'emergency', 'mlc_police_intimations', $2, $3, NULL, $4, \
+          $5, 'MLC Police Intimation', 'custom'::document_template_category, \
+          'printed'::document_output_status, 1, 1, now(), now(), \
+          CASE WHEN $6::bool THEN 'duplicate'::watermark_type ELSE 'none'::watermark_type END, \
+          $7, $8) \
+         RETURNING id",
+    )
+    .bind(claims.tenant_id)
+    .bind(intimation_id)
+    .bind(patient_id)
+    .bind(admission_id)
+    .bind(&document_number)
+    .bind(is_reprint)
+    .bind(&context_snapshot)
+    .bind(claims.sub)
+    .fetch_one(&mut **tx)
+    .await?;
+
+    let audit_values = json!({
+        "document_output_id": document_output_id,
+        "document_number": document_number,
+        "document_type": "mlc_police_intimation",
+        "action": print_action,
+        "mlc_case_id": mlc_case_id,
+        "police_intimation_id": intimation_id,
+        "prior_print_count": prior_print_count,
+        "reprint_reason": reprint_reason,
+    });
+    medbrains_db::audit::AuditLogger::log(
+        tx,
+        &medbrains_db::audit::AuditEntry {
+            tenant_id: claims.tenant_id,
+            user_id: Some(claims.sub),
+            action: if is_reprint {
+                "emergency.mlc_police_intimations.reprint"
+            } else {
+                "emergency.mlc_police_intimations.print"
+            },
+            entity_type: "mlc_police_intimation",
+            entity_id: Some(intimation_id),
+            old_values: None,
+            new_values: Some(&audit_values),
+            ip_address: None,
+        },
+    )
+    .await?;
+
+    Ok(())
+}
 
 // ── Against Medical Advice (AMA) Form ────────────────────
 
@@ -61,6 +327,7 @@ pub async fn get_ama_form_print_data(
     Path(admission_id): Path<Uuid>,
 ) -> Result<Json<AmaFormPrintData>, AppError> {
     require_permission(&claims, permissions::ipd::admissions::VIEW)?;
+    require_permission(&claims, permissions::patients::VIEW)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -171,6 +438,8 @@ pub async fn get_ama_form_print_data(
 
 #[derive(Debug, sqlx::FromRow)]
 struct MlcRegisterRow {
+    patient_id: Uuid,
+    admission_id: Option<Uuid>,
     mlc_number: String,
     registration_date: chrono::NaiveDate,
     registration_time: chrono::NaiveTime,
@@ -202,8 +471,10 @@ pub async fn get_mlc_register_print_data(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Path(case_id): Path<Uuid>,
+    Query(query): Query<MedicolegalPrintQuery>,
 ) -> Result<Json<MlcRegisterPrintData>, AppError> {
-    require_permission(&claims, permissions::emergency::mlc::LIST)?;
+    require_any_permission(&claims, MLC_PRINT_CONTEXT_PERMISSIONS)?;
+    require_permission(&claims, permissions::patients::VIEW)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -211,6 +482,8 @@ pub async fn get_mlc_register_print_data(
 
     let row = sqlx::query_as::<_, MlcRegisterRow>(
         "SELECT \
+           mlc.patient_id, \
+           mlc.admission_id, \
            mlc.mlc_number, \
            mlc.registration_date, \
            mlc.registration_time, \
@@ -274,6 +547,23 @@ pub async fn get_mlc_register_print_data(
     .fetch_all(&mut *tx)
     .await?;
 
+    let reprint_reason = query
+        .reprint_reason
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    record_mlc_print_output(
+        &mut tx,
+        &claims,
+        case_id,
+        row.patient_id,
+        row.admission_id,
+        "mlc_register",
+        "MLC Register Extract",
+        reprint_reason,
+    )
+    .await?;
+
     tx.commit().await?;
 
     Ok(Json(MlcRegisterPrintData {
@@ -306,6 +596,119 @@ pub async fn get_mlc_register_print_data(
         patient_condition_at_discharge: row.patient_condition_at_discharge,
         examining_doctor: row.examining_doctor.unwrap_or_default(),
         examined_at: row.examined_at.format("%d-%b-%Y %H:%M").to_string(),
+    }))
+}
+
+#[derive(Debug, sqlx::FromRow)]
+struct MlcPoliceIntimationPrintRow {
+    mlc_case_id: Uuid,
+    patient_id: Uuid,
+    admission_id: Option<Uuid>,
+    intimation_number: String,
+    mlc_number: String,
+    patient_name: String,
+    uhid: String,
+    age: Option<f64>,
+    gender: String,
+    police_station: String,
+    officer_name: Option<String>,
+    officer_designation: Option<String>,
+    officer_contact: Option<String>,
+    sent_at: chrono::DateTime<chrono::Utc>,
+    sent_via: Option<String>,
+    receipt_confirmed: bool,
+    receipt_confirmed_at: Option<chrono::DateTime<chrono::Utc>>,
+    receipt_number: Option<String>,
+    notes: Option<String>,
+    sent_by: Option<String>,
+}
+
+pub async fn get_mlc_police_intimation_print_data(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(intimation_id): Path<Uuid>,
+    Query(query): Query<MedicolegalPrintQuery>,
+) -> Result<Json<MlcPoliceIntimationPrintData>, AppError> {
+    require_any_permission(&claims, MLC_POLICE_INTIMATION_PRINT_CONTEXT_PERMISSIONS)?;
+    require_permission(&claims, permissions::patients::VIEW)?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
+
+    let row = sqlx::query_as::<_, MlcPoliceIntimationPrintRow>(
+        "SELECT \
+           pi.mlc_case_id, \
+           mlc.patient_id, \
+           mlc.admission_id, \
+           pi.intimation_number, \
+           mlc.mlc_number, \
+           (p.first_name || ' ' || p.last_name) AS patient_name, \
+           p.uhid, \
+           EXTRACT(YEAR FROM age(p.date_of_birth))::float8 AS age, \
+           p.gender::text AS gender, \
+           pi.police_station, \
+           pi.officer_name, \
+           pi.officer_designation, \
+           pi.officer_contact, \
+           pi.sent_at, \
+           pi.sent_via, \
+           pi.receipt_confirmed, \
+           pi.receipt_confirmed_at, \
+           pi.receipt_number, \
+           pi.notes, \
+           sender.full_name AS sent_by \
+         FROM mlc_police_intimations pi \
+         JOIN mlc_cases mlc ON mlc.id = pi.mlc_case_id AND mlc.tenant_id = pi.tenant_id \
+         JOIN patients p ON p.id = mlc.patient_id AND p.tenant_id = mlc.tenant_id \
+         LEFT JOIN users sender ON sender.id = pi.sent_by AND sender.tenant_id = pi.tenant_id \
+         WHERE pi.id = $1 AND pi.tenant_id = $2",
+    )
+    .bind(intimation_id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+
+    let reprint_reason = query
+        .reprint_reason
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    record_mlc_police_intimation_print_output(
+        &mut tx,
+        &claims,
+        intimation_id,
+        row.mlc_case_id,
+        row.patient_id,
+        row.admission_id,
+        reprint_reason,
+    )
+    .await?;
+
+    tx.commit().await?;
+
+    Ok(Json(MlcPoliceIntimationPrintData {
+        intimation_number: row.intimation_number,
+        mlc_number: row.mlc_number,
+        patient_name: row.patient_name,
+        uhid: row.uhid,
+        age: row.age.map(|a| format!("{} yrs", a as i64)),
+        gender: row.gender,
+        police_station: row.police_station,
+        officer_name: row.officer_name,
+        officer_designation: row.officer_designation,
+        officer_contact: row.officer_contact,
+        sent_at: row.sent_at.format("%d-%b-%Y %H:%M").to_string(),
+        sent_via: row.sent_via,
+        receipt_confirmed: row.receipt_confirmed,
+        receipt_confirmed_at: row
+            .receipt_confirmed_at
+            .map(|value| value.format("%d-%b-%Y %H:%M").to_string()),
+        receipt_number: row.receipt_number,
+        notes: row.notes,
+        sent_by: row.sent_by,
+        generated_at: chrono::Utc::now().format("%d-%b-%Y %H:%M").to_string(),
     }))
 }
 
@@ -351,6 +754,7 @@ pub async fn get_wound_certificate_print_data(
     Path(case_id): Path<Uuid>,
 ) -> Result<Json<WoundCertificatePrintData>, AppError> {
     require_permission(&claims, permissions::emergency::mlc::LIST)?;
+    require_permission(&claims, permissions::patients::VIEW)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -512,6 +916,7 @@ pub async fn get_age_estimation_print_data(
     Path(case_id): Path<Uuid>,
 ) -> Result<Json<AgeEstimationPrintData>, AppError> {
     require_permission(&claims, permissions::emergency::mlc::LIST)?;
+    require_permission(&claims, permissions::patients::VIEW)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -673,6 +1078,7 @@ pub async fn get_death_declaration_print_data(
     Path(patient_id): Path<Uuid>,
 ) -> Result<Json<DeathDeclarationPrintData>, AppError> {
     require_permission(&claims, permissions::ipd::admissions::VIEW)?;
+    require_permission(&claims, permissions::patients::VIEW)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -772,6 +1178,8 @@ pub async fn get_death_declaration_print_data(
 
 #[derive(Debug, sqlx::FromRow)]
 struct MlcDocRow {
+    patient_id: Uuid,
+    admission_id: Option<Uuid>,
     mlc_number: String,
     patient_name: String,
     uhid: String,
@@ -800,8 +1208,10 @@ pub async fn get_mlc_documentation_print_data(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Path(case_id): Path<Uuid>,
+    Query(query): Query<MedicolegalPrintQuery>,
 ) -> Result<Json<MlcDocumentationPrintData>, AppError> {
-    require_permission(&claims, permissions::emergency::mlc::LIST)?;
+    require_any_permission(&claims, MLC_PRINT_CONTEXT_PERMISSIONS)?;
+    require_permission(&claims, permissions::patients::VIEW)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -809,6 +1219,8 @@ pub async fn get_mlc_documentation_print_data(
 
     let row = sqlx::query_as::<_, MlcDocRow>(
         "SELECT \
+           mlc.patient_id, \
+           mlc.admission_id, \
            mlc.mlc_number, \
            (p.first_name || ' ' || p.last_name) AS patient_name, \
            p.uhid, \
@@ -901,6 +1313,23 @@ pub async fn get_mlc_documentation_print_data(
         &claims.tenant_id,
         "mlc_certificate",
         case_id,
+    )
+    .await?;
+
+    let reprint_reason = query
+        .reprint_reason
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    record_mlc_print_output(
+        &mut tx,
+        &claims,
+        case_id,
+        row.patient_id,
+        row.admission_id,
+        "mlc_documentation",
+        "MLC Documentation Packet",
+        reprint_reason,
     )
     .await?;
 

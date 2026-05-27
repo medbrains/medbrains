@@ -6,12 +6,17 @@ cd "$ROOT_DIR"
 
 ORIGIN="${DEV_HTTPS_ORIGIN:-https://medbrains.localhost}"
 DESKTOP_ORIGIN="${DEV_DESKTOP_HTTPS_ORIGIN:-https://medbrains-desktop.localhost}"
+SIMULATOR_ORIGIN="${DEV_SIMULATOR_HTTPS_ORIGIN:-https://medbrains-simulator.localhost}"
 ICD_ORIGIN="${DEV_ICD_HTTPS_ORIGIN:-https://medbrains-icd.localhost}"
 DEV_HTTPS_DOMAIN="${DEV_HTTPS_DOMAIN:-${ORIGIN#http://}}"
 DEV_HTTPS_DOMAIN="${DEV_HTTPS_DOMAIN#https://}"
 DEV_HTTPS_DOMAIN="${DEV_HTTPS_DOMAIN%%/*}"
+DEV_SIMULATOR_HTTPS_DOMAIN="${DEV_SIMULATOR_HTTPS_DOMAIN:-${SIMULATOR_ORIGIN#http://}}"
+DEV_SIMULATOR_HTTPS_DOMAIN="${DEV_SIMULATOR_HTTPS_DOMAIN#https://}"
+DEV_SIMULATOR_HTTPS_DOMAIN="${DEV_SIMULATOR_HTTPS_DOMAIN%%/*}"
 export DEV_HTTPS_DOMAIN
-export DEV_HTTPS_ALT_DOMAINS="${DEV_HTTPS_ALT_DOMAINS:-medbrains-desktop.localhost,medbrains-icd.localhost}"
+export DEV_SIMULATOR_HTTPS_DOMAIN
+export DEV_HTTPS_ALT_DOMAINS="${DEV_HTTPS_ALT_DOMAINS:-medbrains-desktop.localhost,medbrains-simulator.localhost,medbrains-icd.localhost}"
 PROXY_CONFIG="${DEV_PROXY_CONFIG:-infra/local/pingora-dev.toml}"
 SKIP_BACKEND_BUILD="${SKIP_BACKEND_BUILD:-false}"
 STOP_STALE_DEV_PORTS="${STOP_STALE_DEV_PORTS:-true}"
@@ -144,6 +149,7 @@ wait_for_port() {
 echo "MedBrains local HTTPS: $ORIGIN"
 echo "  web UI:  $ORIGIN"
 echo "  desktop: $DESKTOP_ORIGIN"
+echo "  simulator: $SIMULATOR_ORIGIN"
 echo "  ICD-API: $ICD_ORIGIN"
 echo "  API:     $ORIGIN/api"
 echo "  health:  $ORIGIN/api/health"
@@ -151,21 +157,25 @@ echo
 echo "Internal service ports are implementation details:"
 echo "  backend -> http://127.0.0.1:3000"
 echo "  vite    -> http://127.0.0.1:5173"
+echo "  simulator vite -> http://127.0.0.1:5180"
 echo "  pingora -> https://0.0.0.0:443"
 echo
 echo "Logs:"
 echo "  backend: $log_dir/backend.log"
 echo "  web:     $log_dir/web.log"
+echo "  simulator: $log_dir/simulator.log"
 echo "  proxy:   $log_dir/proxy.log"
 echo
 
 stop_stale_port_listeners 3000 "backend"
 stop_stale_port_listeners 5173 "Vite web"
+stop_stale_port_listeners 5180 "Vite simulator"
 stop_stale_port_listeners 80 "Pingora HTTP proxy"
 stop_stale_port_listeners 443 "Pingora HTTPS proxy"
 
 require_port_free 3000 "backend"
 require_port_free 5173 "Vite web"
+require_port_free 5180 "Vite simulator"
 require_port_free 80 "Pingora HTTP proxy"
 require_port_free 443 "Pingora HTTPS proxy"
 
@@ -206,13 +216,16 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
-echo "Starting backend, web, and Pingora. Open: $ORIGIN"
+echo "Starting backend, web, simulator, and Pingora. Open: $ORIGIN"
 echo
 
 "$BACKEND_BIN" >"$log_dir/backend.log" 2>&1 &
 backend_pid="$!"
 pnpm dev:web >"$log_dir/web.log" 2>&1 &
 web_pid="$!"
+DEV_SIMULATOR_HTTPS_DOMAIN="$DEV_SIMULATOR_HTTPS_DOMAIN" VITE_DEV_PORT=5180 \
+  pnpm --filter @medbrains/simulator-admin dev >"$log_dir/simulator.log" 2>&1 &
+simulator_pid="$!"
 RUST_LOG="$PROXY_RUST_LOG" sudo -E "$PROXY_BIN" --config "$PROXY_CONFIG" >"$log_dir/proxy.log" 2>&1 &
 proxy_pid="$!"
 
@@ -220,12 +233,15 @@ sleep 2
 
 check_child_started "$backend_pid" "Backend" "$log_dir/backend.log"
 check_child_started "$web_pid" "Vite web" "$log_dir/web.log"
+check_child_started "$simulator_pid" "Vite simulator" "$log_dir/simulator.log"
 check_child_started "$proxy_pid" "Pingora" "$log_dir/proxy.log"
 wait_for_port 3000 "Backend" 15 "$backend_pid" "$log_dir/backend.log"
 wait_for_port 5173 "Vite web" 15 "$web_pid" "$log_dir/web.log"
+wait_for_port 5180 "Vite simulator" 15 "$simulator_pid" "$log_dir/simulator.log"
 wait_for_port 443 "Pingora HTTPS proxy" 15 "$proxy_pid" "$log_dir/proxy.log"
 
 echo "Ready URL: $ORIGIN"
+echo "Simulator URL: $SIMULATOR_ORIGIN"
 echo "Use Ctrl+C to stop all dev services."
 echo
 
@@ -236,5 +252,11 @@ tail -n +1 -f "$log_dir/web.log" \
     -e "s#http://127.0.0.1:5173/#$ORIGIN/#g" \
     -e "s#Network: use --host to expose#Proxy:   $ORIGIN#g" \
     -e "s/^/[web] /" &
+tail -n +1 -f "$log_dir/simulator.log" \
+  | sed -u \
+    -e "s#http://localhost:5180/#$SIMULATOR_ORIGIN/#g" \
+    -e "s#http://127.0.0.1:5180/#$SIMULATOR_ORIGIN/#g" \
+    -e "s#Network: use --host to expose#Proxy:   $SIMULATOR_ORIGIN#g" \
+    -e "s/^/[simulator] /" &
 tail -n +1 -f "$log_dir/proxy.log" | sed -u "s/^/[proxy] /" &
 wait

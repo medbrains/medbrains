@@ -1,6 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   ActionIcon,
+  Alert,
   Badge,
   Button,
   Card,
@@ -80,9 +81,11 @@ import {
   IconX,
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Controller, useForm, useWatch } from "react-hook-form";
+import { useSearchParams } from "react-router";
 import { DataTable, PageHeader, StatusDot } from "../components";
+import { DoctorSearchSelect } from "../components/DoctorSearchSelect";
 import { PatientContextBanner } from "../components/Patient/PatientContextBanner";
 import { PatientNameCell } from "../components/PatientNameCell";
 import { PatientSearchSelect } from "../components/PatientSearchSelect";
@@ -135,12 +138,78 @@ const bookingStatusColors: Record<string, string> = {
   postponed: "orange",
 };
 
-export function OtPage() {
-  useRequirePermission(P.OT.BOOKINGS_LIST);
+function OtRestrictedValue() {
+  return (
+    <Text span size="sm" c="dimmed">
+      Restricted
+    </Text>
+  );
+}
 
+function OtPatientCell({
+  patientId,
+  canViewPatientRecord,
+}: {
+  patientId: string;
+  canViewPatientRecord: boolean;
+}) {
+  if (!canViewPatientRecord) return <OtRestrictedValue />;
+  return <PatientNameCell patientId={patientId} showUhid={false} />;
+}
+
+export function OtPage() {
+  useRequirePermission([
+    P.OT.BOOKINGS_LIST,
+    P.OT.BOOKINGS_CREATE,
+    P.OT.ROOMS_LIST,
+    P.OT.ROOMS_MANAGE,
+    P.OT.PREFERENCES_LIST,
+    P.OT.PREFERENCES_MANAGE,
+    P.OT.REPORTS_VIEW,
+  ]);
+
+  const [searchParams, setSearchParams] = useSearchParams();
+  const canListBookings = useHasPermission(P.OT.BOOKINGS_LIST);
   const canCreateBooking = useHasPermission(P.OT.BOOKINGS_CREATE);
+  const canViewRooms = useHasPermission(P.OT.ROOMS_LIST);
   const canManageRooms = useHasPermission(P.OT.ROOMS_MANAGE);
+  const canViewPrefs = useHasPermission(P.OT.PREFERENCES_LIST);
   const canManagePrefs = useHasPermission(P.OT.PREFERENCES_MANAGE);
+  const canViewReports = useHasPermission(P.OT.REPORTS_VIEW);
+  const visibleTabs = useMemo(
+    () =>
+      [
+        { value: "schedule", label: "Schedule", visible: canListBookings },
+        { value: "bookings", label: "Bookings", visible: canListBookings || canCreateBooking },
+        { value: "rooms", label: "Rooms", visible: canViewRooms || canManageRooms },
+        {
+          value: "preferences",
+          label: "Surgeon Preferences",
+          visible: canViewPrefs || canManagePrefs,
+        },
+        { value: "reports", label: "Reports", visible: canViewReports },
+      ].filter((tab) => tab.visible),
+    [
+      canListBookings,
+      canCreateBooking,
+      canViewRooms,
+      canManageRooms,
+      canViewPrefs,
+      canManagePrefs,
+      canViewReports,
+    ],
+  );
+  const defaultTab = visibleTabs[0]?.value ?? "bookings";
+  const requestedTab = searchParams.get("tab");
+  const selectedTab = visibleTabs.some((tab) => tab.value === requestedTab)
+    ? (requestedTab ?? defaultTab)
+    : defaultTab;
+  const setSelectedTab = (value: string | null) => {
+    const params = new URLSearchParams(searchParams);
+    params.set("tab", value ?? defaultTab);
+    params.delete("action");
+    setSearchParams(params, { replace: true });
+  };
 
   return (
     <div>
@@ -151,32 +220,44 @@ export function OtPage() {
         color="violet"
       />
 
-      <Tabs defaultValue="schedule">
+      <Tabs value={selectedTab} onChange={setSelectedTab}>
         <Tabs.List>
-          <Tabs.Tab value="schedule">Schedule</Tabs.Tab>
-          <Tabs.Tab value="bookings">Bookings</Tabs.Tab>
-          <Tabs.Tab value="rooms">Rooms</Tabs.Tab>
-          <Tabs.Tab value="preferences">Surgeon Preferences</Tabs.Tab>
-          <Tabs.Tab value="reports" leftSection={<IconChartBar size={16} />}>
-            Reports
-          </Tabs.Tab>
+          {visibleTabs.map((tab) => (
+            <Tabs.Tab
+              key={tab.value}
+              value={tab.value}
+              leftSection={tab.value === "reports" ? <IconChartBar size={16} /> : undefined}
+            >
+              {tab.label}
+            </Tabs.Tab>
+          ))}
         </Tabs.List>
 
-        <Tabs.Panel value="schedule" pt="md">
-          <ScheduleTab />
-        </Tabs.Panel>
-        <Tabs.Panel value="bookings" pt="md">
-          <BookingsTab canCreate={canCreateBooking} />
-        </Tabs.Panel>
-        <Tabs.Panel value="rooms" pt="md">
-          <RoomsTab canManage={canManageRooms} />
-        </Tabs.Panel>
-        <Tabs.Panel value="preferences" pt="md">
-          <PreferencesTab canManage={canManagePrefs} />
-        </Tabs.Panel>
-        <Tabs.Panel value="reports" pt="md">
-          <OtReportsTab />
-        </Tabs.Panel>
+        {canListBookings && (
+          <Tabs.Panel value="schedule" pt="md">
+            <ScheduleTab />
+          </Tabs.Panel>
+        )}
+        {(canListBookings || canCreateBooking) && (
+          <Tabs.Panel value="bookings" pt="md">
+            <BookingsTab canCreate={canCreateBooking} canList={canListBookings} />
+          </Tabs.Panel>
+        )}
+        {(canViewRooms || canManageRooms) && (
+          <Tabs.Panel value="rooms" pt="md">
+            <RoomsTab canManage={canManageRooms} />
+          </Tabs.Panel>
+        )}
+        {(canViewPrefs || canManagePrefs) && (
+          <Tabs.Panel value="preferences" pt="md">
+            <PreferencesTab canManage={canManagePrefs} />
+          </Tabs.Panel>
+        )}
+        {canViewReports && (
+          <Tabs.Panel value="reports" pt="md">
+            <OtReportsTab />
+          </Tabs.Panel>
+        )}
       </Tabs>
     </div>
   );
@@ -187,6 +268,7 @@ export function OtPage() {
 function ScheduleTab() {
   const [date, setDate] = useState<string | null>(new Date().toISOString().slice(0, 10));
   const [roomId, setRoomId] = useState<string | null>(null);
+  const canViewPatientRecord = useHasPermission(P.PATIENTS.VIEW);
 
   const { data: rooms } = useQuery({
     queryKey: ["ot-rooms"],
@@ -231,7 +313,7 @@ function ScheduleTab() {
           <Table.Tr>
             <Table.Th>Time</Table.Th>
             <Table.Th>Procedure</Table.Th>
-            <Table.Th>Patient ID</Table.Th>
+            <Table.Th>Patient</Table.Th>
             <Table.Th>Priority</Table.Th>
             <Table.Th>Status</Table.Th>
           </Table.Tr>
@@ -260,7 +342,10 @@ function ScheduleTab() {
                 </Text>
               </Table.Td>
               <Table.Td>
-                <PatientNameCell patientId={b.patient_id} showUhid={false} />
+                <OtPatientCell
+                  patientId={b.patient_id}
+                  canViewPatientRecord={canViewPatientRecord}
+                />
               </Table.Td>
               <Table.Td>
                 <Badge
@@ -299,20 +384,46 @@ function ScheduleTab() {
 
 // ── Bookings Tab ───────────────────────────────────────
 
-function BookingsTab({ canCreate }: { canCreate: boolean }) {
+function BookingsTab({ canCreate, canList }: { canCreate: boolean; canList: boolean }) {
   const [page, setPage] = useState(1);
   const [filterStatus, setFilterStatus] = useState<string | null>(null);
-  const [createOpened, { open: openCreate, close: closeCreate }] = useDisclosure(false);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const canViewPatientRecord = useHasPermission(P.PATIENTS.VIEW);
+  const admissionId = searchParams.get("admission_id") ?? "";
+  const patientId = searchParams.get("patient_id") ?? "";
+  const isIpdLinked = searchParams.get("from") === "ipd" && admissionId.length > 0;
+  const defaultBookingValues = useMemo<OtBookingFormInput>(
+    () => ({
+      ...DEFAULT_OT_BOOKING_FORM_VALUES,
+      patient_id: patientId,
+      admission_id: admissionId,
+    }),
+    [admissionId, patientId],
+  );
+  const [createOpened, { open: openCreate, close: closeCreate }] = useDisclosure(
+    canCreate && searchParams.get("action") === "new",
+  );
   const [detailId, setDetailId] = useState<string | null>(null);
   const [detailOpened, { open: openDetail, close: closeDetail }] = useDisclosure(false);
 
   const params: Record<string, string> = { page: String(page), per_page: "20" };
   if (filterStatus) params.status = filterStatus;
+  if (admissionId) params.admission_id = admissionId;
 
   const { data, isLoading } = useQuery({
     queryKey: ["ot-bookings", params],
     queryFn: () => otService.listOtBookings(params),
+    enabled: canList,
   });
+
+  const closeCreateAndClearAction = () => {
+    closeCreate();
+    if (searchParams.get("action")) {
+      const params = new URLSearchParams(searchParams);
+      params.delete("action");
+      setSearchParams(params, { replace: true });
+    }
+  };
 
   const columns = [
     {
@@ -327,7 +438,9 @@ function BookingsTab({ canCreate }: { canCreate: boolean }) {
     {
       key: "patient_id",
       label: "Patient",
-      render: (r: OtBooking) => <PatientNameCell patientId={r.patient_id} showUhid={false} />,
+      render: (r: OtBooking) => (
+        <OtPatientCell patientId={r.patient_id} canViewPatientRecord={canViewPatientRecord} />
+      ),
     },
     {
       key: "scheduled_date",
@@ -400,17 +513,36 @@ function BookingsTab({ canCreate }: { canCreate: boolean }) {
         )}
       </Group>
 
-      <DataTable
-        columns={columns}
-        data={data?.bookings ?? []}
-        loading={isLoading}
-        page={page}
-        totalPages={data ? Math.ceil(data.total / data.per_page) : 1}
-        onPageChange={setPage}
-        rowKey={(r) => r.id}
-      />
+      {isIpdLinked && (
+        <Alert color="violet" variant="light">
+          Showing OT work for the linked IPD admission. New bookings from here keep the admission
+          and patient context attached for ward billing and clinical notes.
+        </Alert>
+      )}
 
-      <CreateBookingDrawer opened={createOpened} onClose={closeCreate} />
+      {canList ? (
+        <DataTable
+          columns={columns}
+          data={data?.bookings ?? []}
+          loading={isLoading}
+          page={page}
+          totalPages={data ? Math.ceil(data.total / data.per_page) : 1}
+          onPageChange={setPage}
+          rowKey={(r) => r.id}
+        />
+      ) : (
+        <Alert color="warning" variant="light">
+          This role can create OT bookings, but the OT booking list stays hidden until
+          `ot.bookings.list` is granted.
+        </Alert>
+      )}
+
+      <CreateBookingDrawer
+        opened={createOpened}
+        onClose={closeCreateAndClearAction}
+        defaultValues={defaultBookingValues}
+        canViewPatientRecord={canViewPatientRecord}
+      />
 
       <Drawer
         opened={detailOpened}
@@ -425,7 +557,17 @@ function BookingsTab({ canCreate }: { canCreate: boolean }) {
   );
 }
 
-function CreateBookingDrawer({ opened, onClose }: { opened: boolean; onClose: () => void }) {
+function CreateBookingDrawer({
+  opened,
+  onClose,
+  defaultValues,
+  canViewPatientRecord,
+}: {
+  opened: boolean;
+  onClose: () => void;
+  defaultValues: OtBookingFormInput;
+  canViewPatientRecord: boolean;
+}) {
   const queryClient = useQueryClient();
   const {
     control,
@@ -435,18 +577,29 @@ function CreateBookingDrawer({ opened, onClose }: { opened: boolean; onClose: ()
     formState: { errors },
   } = useForm<OtBookingFormInput>({
     resolver: zodResolver(otBookingFormSchema),
-    defaultValues: DEFAULT_OT_BOOKING_FORM_VALUES,
+    defaultValues,
   });
   const selectedPatientId = watch("patient_id");
+  const linkedAdmissionId = watch("admission_id");
+  const { data: rooms } = useQuery({
+    queryKey: ["ot-rooms"],
+    queryFn: () => otService.listOtRooms(),
+    enabled: opened,
+  });
+  const roomOptions = (rooms ?? []).map((room: OtRoom) => ({
+    value: room.id,
+    label: `${room.name} (${room.code})`,
+  }));
 
   const mutation = useMutation({
     mutationFn: (values: OtBookingFormInput) =>
       otService.createOtBooking(toCreateOtBookingRequest(values)),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["ot-bookings"] });
+      void queryClient.invalidateQueries({ queryKey: ["ot-schedule"] });
       notifications.show({ title: "Created", message: "OT booking created", color: "success" });
       onClose();
-      reset(DEFAULT_OT_BOOKING_FORM_VALUES);
+      reset(defaultValues);
     },
     onError: () =>
       notifications.show({ title: "Error", message: "Failed to create booking", color: "danger" }),
@@ -455,6 +608,23 @@ function CreateBookingDrawer({ opened, onClose }: { opened: boolean; onClose: ()
   return (
     <Drawer opened={opened} onClose={onClose} title="New OT Booking" position="right" size="xl">
       <Stack component="form" onSubmit={handleSubmit((values) => mutation.mutate(values))}>
+        {linkedAdmissionId && (
+          <Alert color="violet" variant="light">
+            This booking is linked to IPD admission {linkedAdmissionId.slice(0, 8)}. OT notes,
+            consumables, and billing can reconcile against the admission context.
+          </Alert>
+        )}
+        <Controller
+          control={control}
+          name="admission_id"
+          render={({ field }) =>
+            linkedAdmissionId ? (
+              <TextInput label="Linked IPD Admission" readOnly {...field} />
+            ) : (
+              <input type="hidden" {...field} />
+            )
+          }
+        />
         <Controller
           control={control}
           name="patient_id"
@@ -467,22 +637,40 @@ function CreateBookingDrawer({ opened, onClose }: { opened: boolean; onClose: ()
             />
           )}
         />
-        <PatientContextBanner patientId={selectedPatientId} hideLoadingState />
+        {canViewPatientRecord ? (
+          <PatientContextBanner patientId={selectedPatientId} hideLoadingState />
+        ) : (
+          selectedPatientId && (
+            <Alert color="warning" variant="light">
+              Patient identity is restricted for this role. The booking will keep the linked patient
+              id without displaying the patient profile.
+            </Alert>
+          )
+        )}
         <Controller
           control={control}
           name="ot_room_id"
           render={({ field }) => (
-            <TextInput label="OT Room ID" required {...field} error={errors.ot_room_id?.message} />
+            <Select
+              label="OT Room"
+              data={roomOptions}
+              value={field.value}
+              onChange={(value) => field.onChange(value ?? "")}
+              required
+              searchable
+              error={errors.ot_room_id?.message}
+            />
           )}
         />
         <Controller
           control={control}
           name="primary_surgeon_id"
           render={({ field }) => (
-            <TextInput
-              label="Primary Surgeon ID"
+            <DoctorSearchSelect
+              label="Primary Surgeon"
+              value={field.value}
+              onChange={field.onChange}
               required
-              {...field}
               error={errors.primary_surgeon_id?.message}
             />
           )}

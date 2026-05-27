@@ -96,6 +96,9 @@ Does the response leak patient PHI?
 | Amend results | `lab.results.amend` | Senior tech only | group_member of `lab_seniors` | Amendments are auditable |
 | Lab catalog | `lab.tests.list` | Tenant-wide read | Tenant-wide | Reference data, no PHI |
 | QC results | `lab.qc.list` | lab_tech, audit_officer | Tenant-wide read; mutate requires `lab.qc.manage` | NABL 7.3 quality control |
+| Ingest analyzer/device messages | `devices.messages.ingest` | Bridge-agent service account only | Configured device -> facility/lab scope | Real devices must not post as normal users; raw HL7/ASTM/serial messages are quarantined and reconciled before release |
+| View/retry raw device messages | `devices.messages.view` / `devices.messages.retry` | Lab supervisor, biomedical engineer, integration admin | Facility/lab scope | Operational troubleshooting without broad patient chart access |
+| Lab images/evidence | `lab.images.view` / `lab.images.upload` / `lab.images.release` | Ordering doctor view after release; lab tech upload; senior lab release | Patient/encounter view + sample/result linkage | Microscopy, analyzer plots, specimen photos, scanned requisitions, and PDFs must be linked to verified results and audited |
 
 ---
 
@@ -111,7 +114,9 @@ Does the response leak patient PHI?
 | Stock — write | `pharmacy.stock.manage` | Pharmacist | Tenant-wide (admin within their dispensary by separate scope on dispensary_id) | Standard inventory ops |
 | NDPS register | `pharmacy.ndps.list` | Pharmacist (controlled-substances), audit_officer | Tenant-wide for audit; entries require dual-sign | NDPS Act schedule X |
 | OTC sale | `pharmacy.pos.create` | Pharmacist, billing_clerk | Tenant-wide (no patient) | Walk-in retail |
-| Returns | `pharmacy.returns.create` | Pharmacist | view on the source order | |
+| Return request | `pharmacy.returns.request` | Pharmacist | view on the source order | Request-only users can submit returns without queue/list authority |
+| Return queue/review | `pharmacy.returns.list` / `pharmacy.returns.approve` / `pharmacy.returns.reject` | Pharmacist supervisor, audit officer | dispensary / tenant audit scope | Approval and rejection are separate from request creation |
+| Return stock disposition | `pharmacy.returns.restock` / `pharmacy.returns.destroy` | Pharmacist supervisor, inventory controller | controlled by store/dispensary scope | Usable stock return and unusable destruction need separate audit trails |
 
 ---
 
@@ -123,6 +128,8 @@ Does the response leak patient PHI?
 | Create order | `radiology.orders.create` | Doctor | view on patient | |
 | Modify modality slot | `radiology.scheduling.update` | Radiology coordinator | dept_member of radiology | |
 | Read images (DICOM) | `radiology.images.view` | Ordering doctor + radiologist | view + group_member of `radiologists` | DICOM viewer access |
+| Manage PACS/modality integration | `radiology.pacs.manage` | Radiology admin, integration admin, biomedical engineer | Facility/modality scope | Configure AE titles, PACS endpoints, DICOMweb, modality worklist, routing, and credentials |
+| Share/export imaging | `radiology.images.share` / `radiology.images.export` | Radiologist, MRD, authorized doctor | Patient-context view + explicit export permission | Export is a high-risk PHI action and must create audit evidence |
 | Reporting | `radiology.reports.create` | Radiologist only | group_member of `radiologists` | Final read |
 
 ---
@@ -147,9 +154,9 @@ Does the response leak patient PHI?
 | Action | Permission | Default | Scope | Why |
 |---|---|---|---|---|
 | Triage | `emergency.triage.create` | ER nurse, ER doctor | dept_member of ER | |
-| Code blue activation | `emergency.code_blue.activate` | Any clinical | dept_member of any clinical dept | Speed > permission; logged + reviewed post-event |
-| MLC documentation | `emergency.mlc.create` | ER doctor + audit_officer | attending on encounter + group_member of `mlc_signatories` | IPC § 39 mandatory reporting |
-| Police intimation | `emergency.mlc.update` | Audit officer + admin only | group_member of `mlc_signatories` | Sensitive interaction with law enforcement |
+| Code activation | `emergency.codes.create`, `emergency.codes.update` | Any clinical | dept_member of any clinical dept | Speed > permission; logged + reviewed post-event |
+| MLC documentation | `emergency.mlc.create`, `emergency.mlc_documents.*.create` | ER doctor + audit_officer | attending on encounter + group_member of `mlc_signatories` | IPC § 39 mandatory reporting |
+| Police intimation | `emergency.mlc_police_intimations.create`, `emergency.mlc_police_intimations.confirm` | Audit officer + admin only | group_member of `mlc_signatories` | Sensitive interaction with law enforcement; receipt/reference number required on confirmation |
 | Death certificate | `emergency.death_certificate.create` | Attending + medical_director | attending + group_member of `death_certificate_signers` | MTP/MCB act |
 
 ---

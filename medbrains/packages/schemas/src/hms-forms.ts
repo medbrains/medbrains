@@ -375,6 +375,11 @@ export const billingChargeSourceValues = [
   "pharmacy",
   "radiology",
   "procedure",
+  "ot",
+  "emergency",
+  "diet",
+  "cssd",
+  "ambulance",
   "manual",
 ] as const;
 export const billingPaymentModeValues = [
@@ -570,6 +575,55 @@ export const campIdProofTypeValues = [
   "other",
 ] as const;
 export const campFollowupTypeValues = ["phone_call", "hospital_visit", "home_visit"] as const;
+export const assetDomainValues = [
+  "biomedical",
+  "diagnostic_monitoring",
+  "therapeutic_life_support",
+  "lab",
+  "imaging",
+  "ot_cssd",
+  "dental_ent_ophthalmology",
+  "facility_utility",
+  "fire_safety",
+  "it_device",
+  "furniture_fixture",
+  "mobility_transport",
+  "housekeeping_laundry",
+  "kitchen_dietary",
+  "security_surveillance",
+  "teaching_simulation",
+  "camp_mobile",
+  "general",
+] as const;
+export const storeDomainValues = [
+  "pharmacy",
+  "ndps_controlled",
+  "medical_consumables",
+  "surgical_consumables",
+  "lab_reagents",
+  "cssd_sterile",
+  "linen_laundry",
+  "kitchen_dietary",
+  "housekeeping",
+  "biomedical_spares",
+  "it_store",
+  "maintenance_engineering",
+  "ppe_infection_control",
+  "biomedical_waste",
+  "blood_bank",
+  "radiology_contrast",
+  "stationery_forms",
+  "camp_mobile",
+  "general",
+] as const;
+export const assetCriticalityValues = ["critical", "high", "routine", "low"] as const;
+export const assetCustodyModeValues = [
+  "asset_tagged",
+  "serialised",
+  "pooled",
+  "non_movable",
+] as const;
+export const campAssetReturnStatusValues = ["returned", "damaged", "lost"] as const;
 export const dietTypeValues = [
   "regular",
   "diabetic",
@@ -701,6 +755,25 @@ export const emergencyCodeTypeValues = [
   "code_silver",
   "code_black",
 ] as const;
+export const emergencyCodeDeactivateOutcomeValues = [
+  "resolved",
+  "stable",
+  "rosc",
+  "transferred",
+  "expired",
+  "false_alarm",
+  "escalated",
+] as const;
+export const emergencyResuscitationLogTypeValues = [
+  "medication",
+  "fluid",
+  "procedure",
+  "airway",
+  "cpr",
+  "defibrillation",
+  "vitals",
+  "note",
+] as const;
 export const emergencyMlcCaseTypeValues = [
   "assault",
   "rta",
@@ -711,6 +784,20 @@ export const emergencyMlcCaseTypeValues = [
   "unknown",
 ] as const;
 export const emergencyMlcBroughtByValues = ["police", "ambulance", "bystander", "self"] as const;
+export const emergencyMlcPoliceSentViaValues = [
+  "phone",
+  "written_memo",
+  "email",
+  "police_portal",
+  "in_person",
+] as const;
+export const emergencyMlcStatusValues = [
+  "registered",
+  "under_investigation",
+  "opinion_given",
+  "court_pending",
+  "closed",
+] as const;
 export const emergencyMassCasualtyTypeValues = [
   "natural_disaster",
   "industrial",
@@ -718,6 +805,7 @@ export const emergencyMassCasualtyTypeValues = [
   "violence",
   "other",
 ] as const;
+export const emergencyMassCasualtyStatusValues = ["activated", "ongoing", "scaling_down"] as const;
 export const orderSetContextValues = [
   "general",
   "admission",
@@ -730,6 +818,8 @@ export const schedulingPriorityValues = ["low", "normal", "high", "urgent"] as c
 export const schedulingResourceTypeValues = ["doctor", "room", "equipment"] as const;
 export const opdLabOrderPriorityFormSchema = z.enum(["routine", "urgent", "stat"]);
 export const opdProcedureOrderPriorityFormSchema = z.enum(["routine", "urgent", "stat"]);
+export const opdReferralUrgencyFormSchema = z.enum(["routine", "urgent", "emergency"]);
+export const opdReferralUrgencyValues = opdReferralUrgencyFormSchema.options;
 export const opdReminderPriorityFormSchema = z.enum(["low", "normal", "high", "urgent"]);
 export const opdReminderTypeFormSchema = z.enum([
   "follow_up",
@@ -1008,6 +1098,11 @@ export const ipdAdmissionSourceFormSchema = z.enum([
   "referral",
   "transfer_in",
 ]);
+export const ipdTransferTypeFormSchema = z.enum([
+  "inter_ward",
+  "inter_department",
+  "inter_hospital",
+]);
 export const ipdClinicalAssessmentTypeFormSchema = z.enum([
   "morse_fall_scale",
   "braden_scale",
@@ -1039,6 +1134,11 @@ export const labB2bClientTypeFormSchema = z.enum(labB2bClientTypeValues);
 export const campTypeFormSchema = z.enum(campTypeValues);
 export const campIdProofTypeFormSchema = z.enum(campIdProofTypeValues);
 export const campFollowupTypeFormSchema = z.enum(campFollowupTypeValues);
+export const assetDomainFormSchema = z.enum(assetDomainValues);
+export const storeDomainFormSchema = z.enum(storeDomainValues);
+export const assetCriticalityFormSchema = z.enum(assetCriticalityValues);
+export const assetCustodyModeFormSchema = z.enum(assetCustodyModeValues);
+export const campAssetReturnStatusFormSchema = z.enum(campAssetReturnStatusValues);
 export const dietTypeFormSchema = z.enum(dietTypeValues);
 export const mealTypeFormSchema = z.enum(mealTypeValues);
 export const mealPrepStatusFormSchema = z.enum(mealPrepStatusValues);
@@ -1061,9 +1161,16 @@ export const ambulanceShiftPatternFormSchema = z.enum(ambulanceShiftPatternValue
 export const ambulanceMaintenanceTypeFormSchema = z.enum(ambulanceMaintenanceTypeValues);
 export const emergencyArrivalModeFormSchema = z.enum(emergencyArrivalModeValues);
 export const emergencyCodeTypeFormSchema = z.enum(emergencyCodeTypeValues);
+export const emergencyCodeDeactivateOutcomeFormSchema = z.enum(
+  emergencyCodeDeactivateOutcomeValues,
+);
+export const emergencyResuscitationLogTypeFormSchema = z.enum(emergencyResuscitationLogTypeValues);
 export const emergencyMlcCaseTypeFormSchema = z.enum(emergencyMlcCaseTypeValues);
 export const emergencyMlcBroughtByFormSchema = z.enum(emergencyMlcBroughtByValues);
+export const emergencyMlcPoliceSentViaFormSchema = z.enum(emergencyMlcPoliceSentViaValues);
+export const emergencyMlcStatusFormSchema = z.enum(emergencyMlcStatusValues);
 export const emergencyMassCasualtyTypeFormSchema = z.enum(emergencyMassCasualtyTypeValues);
+export const emergencyMassCasualtyStatusFormSchema = z.enum(emergencyMassCasualtyStatusValues);
 export const orderSetContextFormSchema = z.enum(orderSetContextValues);
 export const orderSetItemTypeFormSchema = z.enum(orderSetItemTypeValues);
 export const schedulingPriorityFormSchema = z.enum(schedulingPriorityValues);
@@ -1103,6 +1210,17 @@ export const pharmacyPosPaymentModeFormSchema = z.enum([
   "credit",
 ]);
 export const pharmacyPosPaymentModeValues = pharmacyPosPaymentModeFormSchema.options;
+
+export const pharmacyCashDrawerOpenFormSchema = z.object({
+  pharmacy_location_id: requiredTrimmed("Pharmacy location is required"),
+  opening_float: nonNegativeNumber("Opening float cannot be negative"),
+  notes: z.string(),
+});
+
+export const pharmacyCashDrawerCloseFormSchema = z.object({
+  actual_close_amount: nonNegativeNumber("Actual counted cash cannot be negative"),
+  variance_reason: z.string(),
+});
 
 export function toGenderFormValue(value: string | null): GenderFormValue {
   return genderFormSchema.catch("unknown").parse(value ?? "unknown");
@@ -1254,36 +1372,6 @@ const requiredNullableIsoDate = (message: string) =>
     .nullable()
     .refine((value) => !!value && isoDatePattern.test(value), message);
 
-const timeTextField = z.string().refine((value) => {
-  const trimmed = value.trim();
-  return trimmed.length === 0 || /^([01]\d|2[0-3]):[0-5]\d$/.test(trimmed);
-}, "Use HH:mm time");
-
-const departmentTimeSlotFormSchema = z
-  .object({
-    start: timeTextField,
-    end: timeTextField,
-  })
-  .superRefine((value, ctx) => {
-    const hasStart = value.start.trim().length > 0;
-    const hasEnd = value.end.trim().length > 0;
-    if (hasStart !== hasEnd) {
-      const path = hasStart ? "end" : "start";
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: [path],
-        message: "Enter both start and end time",
-      });
-    }
-    if (hasStart && hasEnd && value.start >= value.end) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["end"],
-        message: "End time must be after start time",
-      });
-    }
-  });
-
 export const miniRegisterPatientFormSchema = z.object({
   first_name: requiredTrimmed("First name is required", 100),
   last_name: requiredTrimmed("Last name / initial is required", 100),
@@ -1359,9 +1447,10 @@ export const patientMergeFormSchema = z.object({
 export const patientRegistrationFormSchema = z
   .object({
     prefix: z.string().optional(),
-    first_name: requiredTrimmed("First name is required", 100),
+    first_name: z.string().max(100, "First name must be at most 100 characters"),
     middle_name: z.string().optional(),
-    last_name: requiredTrimmed("Last name is required", 100),
+    last_name: z.string().max(100, "Last name must be at most 100 characters"),
+    is_unknown_patient: z.boolean().optional(),
     suffix: z.string().optional(),
     date_of_birth: z.date().nullable().optional(),
     age_years: z.number().int().min(0).max(125).optional(),
@@ -1370,7 +1459,7 @@ export const patientRegistrationFormSchema = z
     marital_status: maritalStatusFormSchema.optional(),
     religion: z.string().optional(),
     occupation: z.string().optional(),
-    phone: requiredPhone,
+    phone: optionalPhone,
     phone_secondary: optionalPhone.optional(),
     email: optionalEmail,
     father_name: z.string().optional(),
@@ -1403,6 +1492,7 @@ export const patientRegistrationFormSchema = z
     is_medico_legal: z.boolean().optional(),
     mlc_number: z.string().optional(),
     is_vip: z.boolean().optional(),
+    allergy_status: z.enum(["not_asked_yet", "no_known_allergies", "known_allergies"]).optional(),
     known_allergies: z.string().optional(),
     drug_allergies: z.string().optional(),
     line1: z.string().optional(),
@@ -1429,8 +1519,59 @@ export const patientRegistrationFormSchema = z
     secondary_insurance_provider: z.string().optional(),
     secondary_insurance_policy_no: z.string().optional(),
     attendant_passes_count: optionalNonNegativeIntegerString,
+    create_opd_visit: z.boolean().optional(),
+    open_opd_after_registration: z.boolean().optional(),
   })
   .superRefine((value, ctx) => {
+    if (!value.is_unknown_patient) {
+      if (!hasTrimmedValue(value.first_name)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["first_name"],
+          message: "First name is required",
+        });
+      }
+      if (!hasTrimmedValue(value.last_name)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["last_name"],
+          message: "Last name is required",
+        });
+      }
+      if (!hasTrimmedValue(value.phone)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["phone"],
+          message: "Phone is required",
+        });
+      }
+      if (!value.date_of_birth && typeof value.age_years !== "number") {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["age_years"],
+          message: "Enter age or pick date of birth",
+        });
+      }
+      if (!value.gender || value.gender === "unknown") {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["gender"],
+          message: "Gender is required",
+        });
+      }
+    }
+
+    if (
+      !value.allergy_status ||
+      !["not_asked_yet", "no_known_allergies", "known_allergies"].includes(value.allergy_status)
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["allergy_status"],
+        message: "Confirm allergy state (Not asked / No known / Known)",
+      });
+    }
+
     const isCamp = value.registration_type === "camp" || value.registration_source === "camp";
     if (isCamp && !value.camp_id && !hasTrimmedValue(value.camp_name)) {
       ctx.addIssue({
@@ -1474,6 +1615,22 @@ export const patientRegistrationFormSchema = z
         code: z.ZodIssueCode.custom,
         path: ["mlc_number"],
         message: "MLC number is required for medico-legal patients",
+      });
+    }
+
+    if (value.create_opd_visit && !hasTrimmedValue(value.department_id)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["department_id"],
+        message: "Select a department to send the patient to OPD",
+      });
+    }
+
+    if (value.create_opd_visit && isCamp && !hasTrimmedValue(value.camp_id)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["camp_id"],
+        message: "Select an existing camp before sending camp patient to OPD",
       });
     }
   });
@@ -1597,6 +1754,19 @@ export const pharmacyNdpsEntryFormSchema = z.object({
   witnessed_by: z.string(),
 });
 
+export const pharmacyReturnRequestItemFormSchema = z.object({
+  order_item_id: requiredTrimmed("Select a dispensed medicine"),
+  quantity_returned: positiveFormInteger,
+  reason: z.string(),
+});
+
+export const pharmacyReturnRequestFormSchema = z.object({
+  patient_id: requiredTrimmed("Select a patient"),
+  items: z
+    .array(pharmacyReturnRequestItemFormSchema)
+    .min(1, "Select at least one dispensed medicine"),
+});
+
 export const pharmacyPosSaleItemFormSchema = z.object({
   catalog_item_id: requiredTrimmed("Select a drug"),
   drug_name: requiredTrimmed("Drug name is required"),
@@ -1616,6 +1786,50 @@ export const pharmacyPosSaleFormSchema = z.object({
   }, "Discount cannot exceed 100%"),
   items: z.array(pharmacyPosSaleItemFormSchema).min(1, "Add at least one medicine"),
 });
+
+export const pharmacyPosReturnItemFormSchema = z.object({
+  item_id: requiredTrimmed("Sale item is required"),
+  drug_name: requiredTrimmed("Drug name is required"),
+  batch_number: z.string(),
+  max_qty: nonNegativeNumber("Returnable quantity cannot be negative"),
+  return_qty: optionalNonNegativeIntegerNumber("Return quantity must be a whole number"),
+  unit_price: nonNegativeNumber("Unit price cannot be negative"),
+});
+
+export const pharmacyPosReturnFormSchema = z
+  .object({
+    reason: requiredTrimmed("Return reason is required", 255).refine(
+      (value) => value.trim().length >= 3,
+      "Enter at least 3 characters",
+    ),
+    items: z.array(pharmacyPosReturnItemFormSchema),
+  })
+  .superRefine((value, ctx) => {
+    let hasReturn = false;
+
+    value.items.forEach((item, index) => {
+      const returnQty = Number(item.return_qty || 0);
+      const maxQty = Number(item.max_qty || 0);
+      if (returnQty > 0) {
+        hasReturn = true;
+      }
+      if (returnQty > maxQty) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["items", index, "return_qty"],
+          message: "Return quantity cannot exceed remaining sale quantity",
+        });
+      }
+    });
+
+    if (!hasReturn) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["items"],
+        message: "Select at least one medicine to return",
+      });
+    }
+  });
 
 export const pharmacyRxReviewActionFormSchema = z.enum(["approved", "rejected", "on_hold"]);
 export const pharmacyRxReviewActionValues = pharmacyRxReviewActionFormSchema.options;
@@ -1701,10 +1915,20 @@ export const billingPaymentFormSchema = z.object({
   reference_number: z.string(),
 });
 
+export const billingCreateInvoiceFormSchema = z.object({
+  patient_id: requiredTrimmed("Patient is required"),
+  encounter_id: z.string(),
+  notes: z.string(),
+});
+
 export const billingDiscountFormSchema = z.object({
   discount_type: billingDiscountTypeFormSchema,
   discount_value: positiveNumber("Discount value must be greater than zero"),
   reason: z.string(),
+});
+
+export const billingErFastInvoiceFormSchema = z.object({
+  emergency_visit_id: requiredTrimmed("Emergency visit is required"),
 });
 
 export const billingChargeMasterFormSchema = z.object({
@@ -1725,10 +1949,21 @@ export const billingRefundFormSchema = z.object({
   reference_number: z.string(),
 });
 
+export const billingReceiptReprintFormSchema = z.object({
+  reprint_reason: requiredTrimmed("Reprint reason is required", 255).refine(
+    (value) => value.trim().length >= 5,
+    "Enter at least 5 characters",
+  ),
+});
+
 export const billingCreditNoteFormSchema = z.object({
   invoice_id: requiredTrimmed("Invoice is required"),
   amount: positiveNumber("Credit note amount must be greater than zero"),
   reason: requiredTrimmed("Credit note reason is required", 255),
+});
+
+export const billingCreditNoteApplyFormSchema = z.object({
+  invoice_id: requiredTrimmed("Target invoice is required"),
 });
 
 export const billingWriteOffFormSchema = z.object({
@@ -1857,7 +2092,7 @@ export const billingTpaRateCardFormSchema = z
     tpa_name: requiredTrimmed("TPA name is required", 255),
     insurance_provider: requiredTrimmed("Insurance provider is required", 255),
     scheme_type: z.union([billingInsuranceSchemeTypeFormSchema, z.literal("")]),
-    rate_plan_id: z.string(),
+    rate_plan_id: requiredTrimmed("Rate plan is required"),
     valid_from: optionalIsoDateString,
     valid_to: optionalIsoDateString,
     is_active: z.boolean(),
@@ -1873,6 +2108,14 @@ export const billingTpaRateCardFormSchema = z
       });
     }
   });
+
+export const billingConcessionFormSchema = z.object({
+  invoice_id: requiredTrimmed("Invoice is required"),
+  invoice_item_id: requiredTrimmed("Invoice item is required"),
+  concession_type: requiredTrimmed("Concession type is required", 80),
+  concession_amount: positiveNumber("Concession amount must be greater than zero"),
+  reason: requiredTrimmed("Reason is required", 255),
+});
 
 export const billingCreditPatientFormSchema = z.object({
   patient_id: requiredTrimmed("Patient is required"),
@@ -2010,6 +2253,65 @@ export const ipdAdmissionFormSchema = z.object({
   admission_height_cm: optionalNumericFormValue("Height must be between 0 and 300", 0, 300),
   expected_discharge_date: z.string(),
   notes: z.string(),
+});
+
+export const ipdAdmissionReprintFormSchema = z.object({
+  reprint_reason: requiredTrimmed("Reprint reason is required", 255).refine(
+    (value) => value.trim().length >= 5,
+    "Enter at least 5 characters",
+  ),
+});
+
+export const ipdTariffConfigFormSchema = z.object({
+  daily_rate: nonNegativeNumber("Room daily rate cannot be negative"),
+  nursing_charge: nonNegativeNumber("Nursing charge cannot be negative"),
+  deposit_required: nonNegativeNumber("Deposit cannot be negative"),
+  billing_alert_threshold: optionalNumericFormValue("Billing threshold cannot be negative", 0),
+  auto_billing_enabled: z.boolean(),
+});
+
+export const ipdWristbandReprintFormSchema = z.object({
+  reprint_reason: requiredTrimmed("Reprint reason is required", 255).refine(
+    (value) => value.trim().length >= 5,
+    "Enter at least 5 characters",
+  ),
+});
+
+export const ipdTransferFormSchema = z.object({
+  transfer_type: ipdTransferTypeFormSchema,
+  reason: requiredTrimmed("Reason for transfer is required", 500).refine(
+    (value) => value.trim().length >= 3,
+    "Enter at least 3 characters",
+  ),
+  clinical_summary: z.string().max(2000, "Clinical summary must be at most 2000 characters"),
+});
+
+export const opdCertificateVoidFormSchema = z.object({
+  void_reason: requiredTrimmed("Void reason is required", 255).refine(
+    (value) => value.trim().length >= 5,
+    "Enter at least 5 characters",
+  ),
+});
+
+export const opdCertificateReprintFormSchema = z.object({
+  reprint_reason: requiredTrimmed("Reprint reason is required", 255).refine(
+    (value) => value.trim().length >= 5,
+    "Enter at least 5 characters",
+  ),
+});
+
+export const opdConsentRevokeFormSchema = z.object({
+  withdrawal_reason: requiredTrimmed("Withdrawal reason is required", 255).refine(
+    (value) => value.trim().length >= 5,
+    "Enter at least 5 characters",
+  ),
+});
+
+export const opdConsentReprintFormSchema = z.object({
+  reprint_reason: requiredTrimmed("Reprint reason is required", 255).refine(
+    (value) => value.trim().length >= 5,
+    "Enter at least 5 characters",
+  ),
 });
 
 export const ipdProgressNoteFormSchema = z.object({
@@ -2473,7 +2775,101 @@ export const campCreateFormSchema = z
     name: requiredTrimmed("Camp name is required", 255),
     camp_type: campTypeFormSchema,
     organizing_department_id: z.string().nullable(),
+    supporting_department_ids: z.array(z.string()),
     coordinator_id: z.string().nullable(),
+    planned_doctor_ids: z.array(z.string()),
+    planned_staff_ids: z.array(z.string()),
+    external_people: z.array(z.string()),
+    service_lines: z.array(z.string()),
+    service_offerings: z.array(
+      z.object({
+        service_line: z.string(),
+        label: z.string(),
+        charge_mode: z.enum(["free", "paid", "mixed", "sponsor_covered"]),
+        planned_qty: optionalNumericFormValue("Planned quantity cannot be negative", 0),
+        patient_rate: optionalNumericFormValue("Patient price cannot be negative", 0),
+        camp_cost: optionalNumericFormValue("Camp cost cannot be negative", 0),
+        concession_percentage: optionalNumericFormValue(
+          "Concession must be between 0 and 100",
+          0,
+          100,
+        ),
+        is_billable: z.boolean(),
+        notes: z.string(),
+      }),
+    ),
+    doctor_engagements: z.array(
+      z.object({
+        doctor_id: z.string(),
+        doctor_name: z.string(),
+        charge_mode: z.enum(["free", "paid", "mixed", "sponsor_covered"]),
+        expected_consults: optionalNumericFormValue("Expected consults cannot be negative", 0),
+        consultation_fee: optionalNumericFormValue("Consultation fee cannot be negative", 0),
+        salary_amount: optionalNumericFormValue("Doctor salary cannot be negative", 0),
+        sponsor_covered_amount: optionalNumericFormValue("Sponsor amount cannot be negative", 0),
+        concession_percentage: optionalNumericFormValue(
+          "Concession must be between 0 and 100",
+          0,
+          100,
+        ),
+        notes: z.string(),
+      }),
+    ),
+    planned_medicines: z.array(z.string()),
+    planned_medicine_ids: z.array(z.string()),
+    planned_medicine_refs: z.array(
+      z.object({
+        catalog_item_id: z.string(),
+        medicine_name: z.string(),
+        generic_name: z.string().nullable().optional(),
+        unit: z.string().nullable().optional(),
+        current_stock: z.number().optional(),
+        store_location_id: z.string().nullable().optional(),
+        store_name: z.string().nullable().optional(),
+        batch_id: z.string().nullable().optional(),
+        batch_number: z.string().nullable().optional(),
+        expiry_date: z.string().nullable().optional(),
+        planned_qty: optionalNumericFormValue("Planned quantity cannot be negative", 0),
+        reserved_qty: optionalNumericFormValue("Reserved quantity cannot be negative", 0),
+        issue_qty: optionalNumericFormValue("Issue quantity cannot be negative", 0),
+        free_qty: optionalNumericFormValue("Free quantity cannot be negative", 0),
+        paid_qty: optionalNumericFormValue("Paid quantity cannot be negative", 0),
+        consumed_qty: optionalNumericFormValue("Consumed quantity cannot be negative", 0),
+        return_qty: optionalNumericFormValue("Return quantity cannot be negative", 0),
+        damaged_qty: optionalNumericFormValue("Damaged quantity cannot be negative", 0),
+        unit_price: optionalNumericFormValue("Patient price cannot be negative", 0),
+        tax_percent: optionalNumericFormValue("GST/tax must be between 0 and 100", 0, 100),
+        cost_amount: optionalNumericFormValue("Camp cost cannot be negative", 0),
+        sponsor_covered_amount: optionalNumericFormValue("Sponsor amount cannot be negative", 0),
+        concession_percentage: optionalNumericFormValue(
+          "Concession must be between 0 and 100",
+          0,
+          100,
+        ),
+        charge_mode: z.enum(["free", "paid", "mixed", "sponsor_covered"]),
+        approval_required: z.boolean(),
+        stock_source_notes: z.string(),
+      }),
+    ),
+    camp_charge_mode: z.enum(["free", "paid", "mixed", "sponsor_covered"]),
+    department_charge_mode: z.enum(["free", "paid", "mixed", "sponsor_covered"]),
+    doctor_charge_mode: z.enum(["free", "paid", "mixed", "sponsor_covered"]),
+    medicine_charge_mode: z.enum(["free", "paid", "mixed", "sponsor_covered"]),
+    free_medicine_approval_required: z.boolean(),
+    service_policy_notes: z.string(),
+    budget_doctor_amount: optionalNumericFormValue("Doctor budget cannot be negative", 0),
+    budget_medicine_amount: optionalNumericFormValue("Medicine budget cannot be negative", 0),
+    budget_diagnostics_amount: optionalNumericFormValue("Diagnostics budget cannot be negative", 0),
+    budget_consumables_amount: optionalNumericFormValue("Consumables budget cannot be negative", 0),
+    budget_transport_amount: optionalNumericFormValue("Transport budget cannot be negative", 0),
+    budget_food_amount: optionalNumericFormValue("Food budget cannot be negative", 0),
+    budget_other_amount: optionalNumericFormValue("Other budget cannot be negative", 0),
+    sponsor_covered_amount: optionalNumericFormValue("Sponsor amount cannot be negative", 0),
+    patient_expected_collection: optionalNumericFormValue(
+      "Expected patient collection cannot be negative",
+      0,
+    ),
+    budget_notes: z.string(),
     scheduled_date: optionalIsoDateString.refine(
       (value) => value.trim().length > 0,
       "Scheduled date is required",
@@ -2504,6 +2900,217 @@ export const campCreateFormSchema = z
     }
   });
 
+export const campServicePlanFormSchema = z
+  .object({
+    service_lines: z.array(z.string()).default([]),
+    supporting_department_ids: z.array(z.string()).default([]),
+    planned_doctor_ids: z.array(z.string()).default([]),
+    planned_staff_ids: z.array(z.string()).default([]),
+    external_people: z.array(z.string()).default([]),
+    planned_medicines: z.array(z.string()).default([]),
+    planned_medicine_ids: z.array(z.string()).default([]),
+    planned_medicine_refs: z
+      .array(
+        z.object({
+          catalog_item_id: z.string(),
+          medicine_name: z.string(),
+          generic_name: z.string().nullable().optional(),
+          unit: z.string().nullable().optional(),
+          current_stock: z.number().optional(),
+          store_location_id: z.string().nullable().optional(),
+          store_name: z.string().nullable().optional(),
+          batch_id: z.string().nullable().optional(),
+          batch_number: z.string().nullable().optional(),
+          expiry_date: z.string().nullable().optional(),
+          planned_qty: z.number().default(0),
+          reserved_qty: z.number().default(0),
+          issue_qty: z.number().default(0),
+          free_qty: z.number().default(0),
+          paid_qty: z.number().default(0),
+          consumed_qty: z.number().default(0),
+          return_qty: z.number().default(0),
+          damaged_qty: z.number().default(0),
+          unit_price: z.number().default(0),
+          tax_percent: z.number().default(0),
+          cost_amount: z.number().default(0),
+          sponsor_covered_amount: z.number().default(0),
+          concession_percentage: z.number().default(0),
+          charge_mode: z.string().optional(),
+          approval_required: z.boolean().optional(),
+          stock_source_notes: z.string().default(""),
+        }),
+      )
+      .default([]),
+    service_offerings: z
+      .array(
+        z.object({
+          service_line: z.string(),
+          label: z.string(),
+          charge_mode: z.string().default("free"),
+          planned_qty: z.number().default(0),
+          patient_rate: z.number().default(0),
+          camp_cost: z.number().default(0),
+          concession_percentage: z.number().default(0),
+          is_billable: z.boolean().default(false),
+          notes: z.string().default(""),
+        }),
+      )
+      .default([]),
+    doctor_engagements: z
+      .array(
+        z.object({
+          doctor_id: z.string(),
+          doctor_name: z.string(),
+          charge_mode: z.string().default("free"),
+          expected_consults: z.number().default(0),
+          consultation_fee: z.number().default(0),
+          salary_amount: z.number().default(0),
+          sponsor_covered_amount: z.number().default(0),
+          concession_percentage: z.number().default(0),
+          notes: z.string().default(""),
+        }),
+      )
+      .default([]),
+    camp_charge_mode: z.string().default("free"),
+    department_charge_mode: z.string().default("free"),
+    doctor_charge_mode: z.string().default("free"),
+    medicine_charge_mode: z.string().default("free"),
+    free_medicine_approval_required: z.boolean().default(true),
+    service_policy_notes: z.string().default(""),
+    budget_components: z
+      .array(
+        z.object({
+          category: z.string(),
+          label: z.string(),
+          planned_amount: z.number().default(0),
+          sponsor_covered_amount: z.number().default(0),
+          patient_pay_amount: z.number().default(0),
+          notes: z.string().default(""),
+        }),
+      )
+      .default([]),
+    budget_notes: z.string().default(""),
+  })
+  .catch({
+    service_lines: [],
+    supporting_department_ids: [],
+    planned_doctor_ids: [],
+    planned_staff_ids: [],
+    external_people: [],
+    planned_medicines: [],
+    planned_medicine_ids: [],
+    planned_medicine_refs: [],
+    service_offerings: [],
+    doctor_engagements: [],
+    camp_charge_mode: "free",
+    department_charge_mode: "free",
+    doctor_charge_mode: "free",
+    medicine_charge_mode: "free",
+    free_medicine_approval_required: true,
+    service_policy_notes: "",
+    budget_components: [],
+    budget_notes: "",
+  });
+
+export const campServicePlanEditorSchema = z.object({
+  organizing_department_id: z.string().nullable(),
+  coordinator_id: z.string().nullable(),
+  service_lines: z.array(z.string()),
+  supporting_department_ids: z.array(z.string()),
+  planned_doctor_ids: z.array(z.string()),
+  planned_staff_ids: z.array(z.string()),
+  external_people: z.array(z.string()),
+  planned_medicines: z.array(z.string()),
+  planned_medicine_ids: z.array(z.string()),
+  planned_medicine_refs: z.array(
+    z.object({
+      catalog_item_id: z.string(),
+      medicine_name: z.string(),
+      generic_name: z.string().nullable().optional(),
+      unit: z.string().nullable().optional(),
+      current_stock: z.number().optional(),
+      store_location_id: z.string().nullable().optional(),
+      store_name: z.string().nullable().optional(),
+      batch_id: z.string().nullable().optional(),
+      batch_number: z.string().nullable().optional(),
+      expiry_date: z.string().nullable().optional(),
+      planned_qty: optionalNumericFormValue("Planned quantity cannot be negative", 0),
+      reserved_qty: optionalNumericFormValue("Reserved quantity cannot be negative", 0),
+      issue_qty: optionalNumericFormValue("Issue quantity cannot be negative", 0),
+      free_qty: optionalNumericFormValue("Free quantity cannot be negative", 0),
+      paid_qty: optionalNumericFormValue("Paid quantity cannot be negative", 0),
+      consumed_qty: optionalNumericFormValue("Consumed quantity cannot be negative", 0),
+      return_qty: optionalNumericFormValue("Return quantity cannot be negative", 0),
+      damaged_qty: optionalNumericFormValue("Damaged quantity cannot be negative", 0),
+      unit_price: optionalNumericFormValue("Patient price cannot be negative", 0),
+      tax_percent: optionalNumericFormValue("GST/tax must be between 0 and 100", 0, 100),
+      cost_amount: optionalNumericFormValue("Camp cost cannot be negative", 0),
+      sponsor_covered_amount: optionalNumericFormValue("Sponsor amount cannot be negative", 0),
+      concession_percentage: optionalNumericFormValue(
+        "Concession must be between 0 and 100",
+        0,
+        100,
+      ),
+      charge_mode: z.enum(["free", "paid", "mixed", "sponsor_covered"]),
+      approval_required: z.boolean(),
+      stock_source_notes: z.string(),
+    }),
+  ),
+  service_offerings: z.array(
+    z.object({
+      service_line: z.string(),
+      label: z.string(),
+      charge_mode: z.enum(["free", "paid", "mixed", "sponsor_covered"]),
+      planned_qty: optionalNumericFormValue("Planned quantity cannot be negative", 0),
+      patient_rate: optionalNumericFormValue("Patient price cannot be negative", 0),
+      camp_cost: optionalNumericFormValue("Camp cost cannot be negative", 0),
+      concession_percentage: optionalNumericFormValue(
+        "Concession must be between 0 and 100",
+        0,
+        100,
+      ),
+      is_billable: z.boolean(),
+      notes: z.string(),
+    }),
+  ),
+  doctor_engagements: z.array(
+    z.object({
+      doctor_id: z.string(),
+      doctor_name: z.string(),
+      charge_mode: z.enum(["free", "paid", "mixed", "sponsor_covered"]),
+      expected_consults: optionalNumericFormValue("Expected consults cannot be negative", 0),
+      consultation_fee: optionalNumericFormValue("Consultation fee cannot be negative", 0),
+      salary_amount: optionalNumericFormValue("Doctor salary cannot be negative", 0),
+      sponsor_covered_amount: optionalNumericFormValue("Sponsor amount cannot be negative", 0),
+      concession_percentage: optionalNumericFormValue(
+        "Concession must be between 0 and 100",
+        0,
+        100,
+      ),
+      notes: z.string(),
+    }),
+  ),
+  camp_charge_mode: z.enum(["free", "paid", "mixed", "sponsor_covered"]),
+  department_charge_mode: z.enum(["free", "paid", "mixed", "sponsor_covered"]),
+  doctor_charge_mode: z.enum(["free", "paid", "mixed", "sponsor_covered"]),
+  medicine_charge_mode: z.enum(["free", "paid", "mixed", "sponsor_covered"]),
+  free_medicine_approval_required: z.boolean(),
+  service_policy_notes: z.string(),
+  budget_doctor_amount: optionalNumericFormValue("Doctor budget cannot be negative", 0),
+  budget_medicine_amount: optionalNumericFormValue("Medicine budget cannot be negative", 0),
+  budget_diagnostics_amount: optionalNumericFormValue("Diagnostics budget cannot be negative", 0),
+  budget_consumables_amount: optionalNumericFormValue("Consumables budget cannot be negative", 0),
+  budget_transport_amount: optionalNumericFormValue("Transport budget cannot be negative", 0),
+  budget_food_amount: optionalNumericFormValue("Food budget cannot be negative", 0),
+  budget_other_amount: optionalNumericFormValue("Other budget cannot be negative", 0),
+  sponsor_covered_amount: optionalNumericFormValue("Sponsor amount cannot be negative", 0),
+  patient_expected_collection: optionalNumericFormValue(
+    "Expected patient collection cannot be negative",
+    0,
+  ),
+  budget_notes: z.string(),
+});
+
 export const campRegistrationFormSchema = z.object({
   person_name: requiredTrimmed("Person name is required", 255),
   age: optionalNonNegativeIntegerNumber("Age must be a whole number").refine((value) => {
@@ -2523,10 +3130,169 @@ export const campRegistrationFormSchema = z.object({
   is_walk_in: z.boolean(),
 });
 
+const campSupplyCategoryFormSchema = z.union([
+  z.literal("equipment"),
+  z.literal("consumable"),
+  z.literal("medicine"),
+  z.literal("ppe"),
+  z.literal("biomedical_waste"),
+  z.literal("document"),
+  z.literal("it"),
+  z.literal("other"),
+]);
+
+const formValueToNumber = (value: z.infer<typeof formNumberValue>) => {
+  if (typeof value === "number") return value;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
+export const campSupplyItemFormSchema = z
+  .object({
+    category: campSupplyCategoryFormSchema,
+    catalog_item_id: z.string(),
+    batch_stock_id: z.string(),
+    store_location_id: z.string(),
+    item_name: requiredTrimmed("Item name is required", 255),
+    unit: z.string(),
+    planned_qty: optionalNumericFormValue("Planned quantity cannot be negative", 0),
+    packed_qty: optionalNumericFormValue("Packed quantity cannot be negative", 0),
+    batch_no: z.string(),
+    expiry_date: z.string(),
+    charge_mode: z.enum(["free", "paid", "mixed", "sponsor_covered"]),
+    unit_price: optionalNumericFormValue("Patient price cannot be negative", 0),
+    tax_percent: optionalNumericFormValue("GST/tax must be between 0 and 100", 0, 100),
+    cost_amount: optionalNumericFormValue("Camp cost cannot be negative", 0),
+    sponsor_covered_amount: optionalNumericFormValue("Sponsor amount cannot be negative", 0),
+    concession_percentage: optionalNumericFormValue("Concession must be between 0 and 100", 0, 100),
+    approval_required: z.boolean(),
+    is_critical: z.boolean(),
+    shortage_notes: z.string(),
+  })
+  .superRefine((value, ctx) => {
+    const packedQty = formValueToNumber(value.packed_qty);
+    if (value.category !== "medicine" || packedQty <= 0) {
+      return;
+    }
+    if (value.batch_no.trim().length === 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["batch_no"],
+        message: "Batch number is required when medicine is packed for camp",
+      });
+    }
+    if (value.expiry_date.trim().length === 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["expiry_date"],
+        message: "Expiry date is required when medicine is packed for camp",
+      });
+    }
+  });
+
+export const assetCategoryFormSchema = z.object({
+  code: z.string(),
+  name: requiredTrimmed("Asset category name is required", 120),
+  parent_id: z.string(),
+  asset_domain: assetDomainFormSchema,
+  description: z.string(),
+  regulatory_class: z.string(),
+  default_pm_frequency: z.string(),
+  default_calibration_frequency: z.string(),
+  requires_pm: z.boolean(),
+  requires_calibration: z.boolean(),
+  is_camp_eligible: z.boolean(),
+  is_active: z.boolean(),
+  sort_order: optionalNumericFormValue("Sort order cannot be negative", 0),
+});
+
+export const storeCategoryFormSchema = z.object({
+  code: z.string(),
+  name: requiredTrimmed("Store category name is required", 120),
+  parent_id: z.string(),
+  store_domain: storeDomainFormSchema,
+  description: z.string(),
+  requires_batch_tracking: z.boolean(),
+  requires_expiry_tracking: z.boolean(),
+  requires_temperature_log: z.boolean(),
+  requires_license_tracking: z.boolean(),
+  is_camp_source: z.boolean(),
+  is_active: z.boolean(),
+  sort_order: optionalNumericFormValue("Sort order cannot be negative", 0),
+});
+
+export const assetClassificationFormSchema = z.object({
+  source_type: requiredTrimmed("Source type is required", 80),
+  source_id: requiredTrimmed("Source id is required", 80),
+  asset_category_id: z.string(),
+  store_category_id: z.string(),
+  asset_domain: assetDomainFormSchema,
+  criticality: assetCriticalityFormSchema,
+  custody_mode: assetCustodyModeFormSchema,
+  is_camp_eligible: z.boolean(),
+  tags: z.array(z.string()),
+  notes: z.string(),
+});
+
+export const campAssetReservationFormSchema = z.object({
+  asset_key: requiredTrimmed("Asset selection is required", 180),
+  required_from: z.string(),
+  required_to: z.string(),
+  quantity: optionalNumericFormValue("Quantity must be greater than zero", 1),
+  is_critical: z.boolean(),
+  notes: z.string(),
+});
+
+export const campAssetIssueFormSchema = z.object({
+  issued_to: z.string(),
+  issue_condition: z.string(),
+  notes: z.string(),
+});
+
+export const campAssetReturnFormSchema = z.object({
+  status: campAssetReturnStatusFormSchema,
+  return_condition: z.string(),
+  damage_notes: z.string(),
+  loss_notes: z.string(),
+  reconciliation_notes: z.string(),
+  notes: z.string(),
+});
+
 export const campClinicalVisitFormSchema = z.object({
   department_id: requiredNullableString("Select the department for this clinical visit"),
   doctor_id: z.string().nullable(),
 });
+
+export const campBillingFormSchema = z
+  .object({
+    registration_id: requiredTrimmed("Select a camp registration"),
+    item_key: z.string(),
+    service_description: requiredTrimmed("Service description is required", 255),
+    standard_amount: optionalNumericFormValue("Standard amount cannot be negative", 0),
+    discount_percentage: optionalNumericFormValue("Discount must be between 0 and 100", 0, 100),
+    tax_percent: optionalNumericFormValue("GST/tax must be between 0 and 100", 0, 100),
+    sponsor_covered_amount: optionalNumericFormValue("Sponsor amount cannot be negative", 0),
+    is_free: z.boolean(),
+    payment_mode: z.union([billingPaymentModeFormSchema, z.literal("")]),
+    payment_reference: z.string(),
+    source_module: z.string(),
+    source_entity_id: z.string(),
+  })
+  .superRefine((value, ctx) => {
+    const amount = formValueToNumber(value.standard_amount);
+    const discount = formValueToNumber(value.discount_percentage);
+    const sponsor = formValueToNumber(value.sponsor_covered_amount);
+    const taxPercent = formValueToNumber(value.tax_percent);
+    const taxable = Math.max(0, amount - (amount * discount) / 100 - sponsor);
+    const payable = taxable + (taxable * taxPercent) / 100;
+    if (!value.is_free && payable > 0 && value.payment_mode.trim().length === 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["payment_mode"],
+        message: "Select payment mode for paid camp services",
+      });
+    }
+  });
 
 export const campScreeningFormSchema = z.object({
   registration_id: requiredTrimmed("Select a camp registration"),
@@ -2574,7 +3340,7 @@ export const campScreeningFormSchema = z.object({
 export const campLabSampleFormSchema = z.object({
   registration_id: requiredTrimmed("Select a camp registration"),
   sample_type: requiredTrimmed("Sample type is required", 80),
-  test_requested: z.string(),
+  test_requested: requiredTrimmed("Select the requested lab test", 255),
   barcode: z.string(),
 });
 
@@ -2828,9 +3594,68 @@ export const erAdmitFormSchema = z.object({
 
 export const emergencyCodeActivationFormSchema = z.object({
   code_type: emergencyCodeTypeFormSchema,
-  location: z.string(),
+  location: requiredTrimmed("Location is required", 255),
   notes: z.string(),
 });
+
+export const emergencyCodeDeactivateFormSchema = z.object({
+  outcome: emergencyCodeDeactivateOutcomeFormSchema,
+  notes: z.string(),
+});
+
+export const emergencyResuscitationLogFormSchema = z
+  .object({
+    er_visit_id: requiredTrimmed("ER visit is required"),
+    log_type: emergencyResuscitationLogTypeFormSchema,
+    medication_name: z.string(),
+    dose: z.string(),
+    route: z.string(),
+    fluid_name: z.string(),
+    fluid_volume_ml: optionalNonNegativeIntegerNumber("Fluid volume must be a whole number"),
+    procedure_name: z.string(),
+    procedure_notes: z.string(),
+    notes: z.string(),
+  })
+  .superRefine((value, ctx) => {
+    const requireText = (
+      path: "medication_name" | "dose" | "route" | "fluid_name" | "procedure_name" | "notes",
+      message: string,
+    ) => {
+      if (!hasTrimmedValue(value[path])) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: [path], message });
+      }
+    };
+
+    if (value.log_type === "medication") {
+      requireText("medication_name", "Medication is required");
+      requireText("dose", "Dose is required");
+      requireText("route", "Route is required");
+    }
+
+    if (value.log_type === "fluid") {
+      requireText("fluid_name", "Fluid is required");
+      requireText("route", "Route is required");
+      const volume = value.fluid_volume_ml;
+      const hasVolume =
+        typeof volume === "number" || (typeof volume === "string" && volume.trim().length > 0);
+      const parsedVolume = typeof volume === "number" ? volume : Number(volume);
+      if (!hasVolume || !Number.isInteger(parsedVolume) || parsedVolume <= 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["fluid_volume_ml"],
+          message: "Enter a fluid volume greater than 0 ml",
+        });
+      }
+    }
+
+    if (["procedure", "airway", "cpr", "defibrillation"].includes(value.log_type)) {
+      requireText("procedure_name", "Procedure/action is required");
+    }
+
+    if (value.log_type === "vitals" || value.log_type === "note") {
+      requireText("notes", "Clinical notes are required");
+    }
+  });
 
 export const mlcCaseFormSchema = z.object({
   patient_id: requiredTrimmed("Patient is required"),
@@ -2846,6 +3671,16 @@ export const mlcCaseFormSchema = z.object({
   is_death_case: z.boolean(),
 });
 
+export const mlcCaseUpdateFormSchema = z.object({
+  status: emergencyMlcStatusFormSchema,
+  case_type: z.union([emergencyMlcCaseTypeFormSchema, z.literal("")]),
+  fir_number: z.string(),
+  police_station: z.string(),
+  examination_findings: z.string(),
+  medical_opinion: z.string(),
+  cause_of_death: z.string(),
+});
+
 export const massCasualtyEventFormSchema = z.object({
   event_name: requiredTrimmed("Event name is required", 255),
   event_type: z.union([emergencyMassCasualtyTypeFormSchema, z.literal("")]),
@@ -2853,6 +3688,12 @@ export const massCasualtyEventFormSchema = z.object({
   estimated_casualties: optionalNonNegativeIntegerNumber(
     "Estimated casualties must be a whole number",
   ),
+  notes: z.string(),
+});
+
+export const massCasualtyEventUpdateFormSchema = z.object({
+  status: emergencyMassCasualtyStatusFormSchema,
+  actual_casualties: optionalNonNegativeIntegerNumber("Actual casualties must be a whole number"),
   notes: z.string(),
 });
 
@@ -3002,6 +3843,22 @@ export const opdProcedureOrderFormSchema = z.object({
   notes: z.string(),
 });
 
+export const opdReferralFormSchema = z.object({
+  to_department_id: requiredNullableString("Referral department is required"),
+  urgency: opdReferralUrgencyFormSchema,
+  reason: requiredTrimmed("Reason is required", 1000),
+  clinical_notes: z.string(),
+});
+
+export const opdPreAuthFormSchema = z.object({
+  insurance_provider: requiredTrimmed("Insurance provider is required", 255),
+  policy_number: z.string().max(120, "Policy number must be at most 120 characters"),
+  procedure_codes: z.string().max(1000, "Procedure codes must be at most 1000 characters"),
+  diagnosis_codes: z.string().max(1000, "Diagnosis codes must be at most 1000 characters"),
+  estimated_cost: optionalNumericText("Enter a valid non-negative amount", 0),
+  notes: z.string().max(2000, "Notes must be at most 2000 characters"),
+});
+
 export const opdReminderFormSchema = z.object({
   reminder_type: opdReminderTypeFormSchema,
   reminder_date: requiredIsoDate("Reminder date is required"),
@@ -3051,6 +3908,7 @@ export const otConsumableFormSchema = z
 
 export const otBookingFormSchema = z.object({
   patient_id: requiredTrimmed("Patient is required"),
+  admission_id: z.string(),
   ot_room_id: requiredTrimmed("OT room is required"),
   primary_surgeon_id: requiredTrimmed("Primary surgeon is required"),
   procedure_name: requiredTrimmed("Procedure name is required", 255),
@@ -3289,16 +4147,6 @@ export const facilitySettingsFormSchema = createFacilityFormSchema.extend({
   shared_hr: z.boolean(),
 });
 
-export const departmentHoursSettingsFormSchema = z.object({
-  monday: departmentTimeSlotFormSchema,
-  tuesday: departmentTimeSlotFormSchema,
-  wednesday: departmentTimeSlotFormSchema,
-  thursday: departmentTimeSlotFormSchema,
-  friday: departmentTimeSlotFormSchema,
-  saturday: departmentTimeSlotFormSchema,
-  sunday: departmentTimeSlotFormSchema,
-});
-
 export const sequenceSettingsFormSchema = z.object({
   seq_type: requiredTrimmed("Sequence type is required", 50).refine(
     (value) => /^[a-z][a-z0-9_]*$/.test(value.trim()),
@@ -3509,6 +4357,31 @@ export const mlcCourtSummonsFormSchema = z.object({
   case_number: requiredTrimmed("Case number is required", 120),
   status: courtSummonsStatusFormSchema,
   notes: z.string(),
+});
+
+export const mlcPoliceIntimationFormSchema = z.object({
+  police_station: requiredTrimmed("Police station is required", 200),
+  officer_name: z.string(),
+  officer_designation: z.string(),
+  officer_contact: z.string(),
+  sent_via: emergencyMlcPoliceSentViaFormSchema,
+  notes: z.string(),
+});
+
+export const mlcPoliceReceiptConfirmationFormSchema = z.object({
+  receipt_number: requiredTrimmed("Receipt/reference number is required", 120),
+  notes: z.string(),
+});
+
+export const mlcPrintPacketTypeValues = ["documentation", "register"] as const;
+export const mlcPrintPacketTypeFormSchema = z.enum(mlcPrintPacketTypeValues);
+
+export const mlcPrintReprintFormSchema = z.object({
+  packet_type: mlcPrintPacketTypeFormSchema,
+  reprint_reason: requiredTrimmed("Reprint reason is required", 255).refine(
+    (value) => value.trim().length >= 5,
+    "Enter at least 5 characters",
+  ),
 });
 
 export const bmwTransportManifestFormSchema = z.object({
@@ -4037,6 +4910,7 @@ export type BillingGstrReturnTypeFormValue = z.infer<typeof billingGstrReturnTyp
 export type BillingErpTargetSystemFormValue = z.infer<typeof billingErpTargetSystemFormSchema>;
 export type BillingErpExportTypeFormValue = z.infer<typeof billingErpExportTypeFormSchema>;
 export type IpdAdmissionSourceFormValue = z.infer<typeof ipdAdmissionSourceFormSchema>;
+export type IpdTransferTypeFormValue = z.infer<typeof ipdTransferTypeFormSchema>;
 export type IpdClinicalAssessmentTypeFormValue = z.infer<
   typeof ipdClinicalAssessmentTypeFormSchema
 >;
@@ -4078,10 +4952,23 @@ export type AmbulanceShiftPatternFormValue = z.infer<typeof ambulanceShiftPatter
 export type AmbulanceMaintenanceTypeFormValue = z.infer<typeof ambulanceMaintenanceTypeFormSchema>;
 export type EmergencyArrivalModeFormValue = z.infer<typeof emergencyArrivalModeFormSchema>;
 export type EmergencyCodeTypeFormValue = z.infer<typeof emergencyCodeTypeFormSchema>;
+export type EmergencyCodeDeactivateOutcomeFormValue = z.infer<
+  typeof emergencyCodeDeactivateOutcomeFormSchema
+>;
+export type EmergencyResuscitationLogTypeFormValue = z.infer<
+  typeof emergencyResuscitationLogTypeFormSchema
+>;
 export type EmergencyMlcCaseTypeFormValue = z.infer<typeof emergencyMlcCaseTypeFormSchema>;
 export type EmergencyMlcBroughtByFormValue = z.infer<typeof emergencyMlcBroughtByFormSchema>;
+export type EmergencyMlcPoliceSentViaFormValue = z.infer<
+  typeof emergencyMlcPoliceSentViaFormSchema
+>;
+export type EmergencyMlcStatusFormValue = z.infer<typeof emergencyMlcStatusFormSchema>;
 export type EmergencyMassCasualtyTypeFormValue = z.infer<
   typeof emergencyMassCasualtyTypeFormSchema
+>;
+export type EmergencyMassCasualtyStatusFormValue = z.infer<
+  typeof emergencyMassCasualtyStatusFormSchema
 >;
 export type OrderSetContextFormValue = z.infer<typeof orderSetContextFormSchema>;
 export type OrderSetItemTypeFormValue = z.infer<typeof orderSetItemTypeFormSchema>;
@@ -4152,6 +5039,7 @@ export type PatientRegistrationInitialValues = Partial<
   Omit<PatientRegistrationFormInput, "date_of_birth">
 > & {
   date_of_birth?: string | Date | null;
+  is_dob_estimated?: boolean;
 };
 export type MiniAddDrugFormInput = z.infer<typeof miniAddDrugFormSchema>;
 export type PharmacyCatalogFormInput = z.infer<typeof pharmacyCatalogFormSchema>;
@@ -4161,8 +5049,12 @@ export type OrderBasketLabFormInput = z.infer<typeof orderBasketLabFormSchema>;
 export type OrderBasketRadiologyFormInput = z.infer<typeof orderBasketRadiologyFormSchema>;
 export type PharmacyStockTransactionFormInput = z.infer<typeof pharmacyStockTransactionFormSchema>;
 export type PharmacyNdpsEntryFormInput = z.infer<typeof pharmacyNdpsEntryFormSchema>;
+export type PharmacyReturnRequestFormInput = z.infer<typeof pharmacyReturnRequestFormSchema>;
 export type PharmacyPosPaymentModeFormValue = z.infer<typeof pharmacyPosPaymentModeFormSchema>;
 export type PharmacyPosSaleFormInput = z.infer<typeof pharmacyPosSaleFormSchema>;
+export type PharmacyPosReturnFormInput = z.infer<typeof pharmacyPosReturnFormSchema>;
+export type PharmacyCashDrawerOpenFormInput = z.infer<typeof pharmacyCashDrawerOpenFormSchema>;
+export type PharmacyCashDrawerCloseFormInput = z.infer<typeof pharmacyCashDrawerCloseFormSchema>;
 export type PharmacyRxReviewFormInput = z.infer<typeof pharmacyRxReviewFormSchema>;
 export type PharmacyRxReviewItemFormInput = z.infer<typeof pharmacyRxReviewItemFormSchema>;
 export type MiniAddVendorFormInput = z.infer<typeof miniAddVendorFormSchema>;
@@ -4170,10 +5062,14 @@ export type SubscribePackageFormInput = z.infer<typeof subscribePackageFormSchem
 export type PaymentFormInput = z.infer<typeof paymentFormSchema>;
 export type BillingInvoiceItemFormInput = z.infer<typeof billingInvoiceItemFormSchema>;
 export type BillingPaymentFormInput = z.infer<typeof billingPaymentFormSchema>;
+export type BillingCreateInvoiceFormInput = z.infer<typeof billingCreateInvoiceFormSchema>;
 export type BillingDiscountFormInput = z.infer<typeof billingDiscountFormSchema>;
+export type BillingErFastInvoiceFormInput = z.infer<typeof billingErFastInvoiceFormSchema>;
 export type BillingChargeMasterFormInput = z.infer<typeof billingChargeMasterFormSchema>;
 export type BillingRefundFormInput = z.infer<typeof billingRefundFormSchema>;
+export type BillingReceiptReprintFormInput = z.infer<typeof billingReceiptReprintFormSchema>;
 export type BillingCreditNoteFormInput = z.infer<typeof billingCreditNoteFormSchema>;
+export type BillingCreditNoteApplyFormInput = z.infer<typeof billingCreditNoteApplyFormSchema>;
 export type BillingWriteOffFormInput = z.infer<typeof billingWriteOffFormSchema>;
 export type BillingPackageFormInput = z.infer<typeof billingPackageFormSchema>;
 export type BillingPackageItemFormInput = z.infer<typeof billingPackageItemFormSchema>;
@@ -4190,6 +5086,7 @@ export type BillingCorporateEnrollmentFormInput = z.infer<
 export type BillingDayCloseFormInput = z.infer<typeof billingDayCloseFormSchema>;
 export type BillingInsuranceClaimFormInput = z.infer<typeof billingInsuranceClaimFormSchema>;
 export type BillingTpaRateCardFormInput = z.infer<typeof billingTpaRateCardFormSchema>;
+export type BillingConcessionFormInput = z.infer<typeof billingConcessionFormSchema>;
 export type BillingCreditPatientFormInput = z.infer<typeof billingCreditPatientFormSchema>;
 export type BillingTdsFormInput = z.infer<typeof billingTdsFormSchema>;
 export type BillingGstrFormInput = z.infer<typeof billingGstrFormSchema>;
@@ -4197,6 +5094,14 @@ export type BillingErpExportFormInput = z.infer<typeof billingErpExportFormSchem
 export type BillingJournalLineFormInput = z.infer<typeof billingJournalLineFormSchema>;
 export type BillingJournalEntryFormInput = z.infer<typeof billingJournalEntryFormSchema>;
 export type IpdAdmissionFormInput = z.infer<typeof ipdAdmissionFormSchema>;
+export type IpdAdmissionReprintFormInput = z.infer<typeof ipdAdmissionReprintFormSchema>;
+export type IpdTariffConfigFormInput = z.infer<typeof ipdTariffConfigFormSchema>;
+export type IpdWristbandReprintFormInput = z.infer<typeof ipdWristbandReprintFormSchema>;
+export type IpdTransferFormInput = z.infer<typeof ipdTransferFormSchema>;
+export type OpdCertificateVoidFormInput = z.infer<typeof opdCertificateVoidFormSchema>;
+export type OpdCertificateReprintFormInput = z.infer<typeof opdCertificateReprintFormSchema>;
+export type OpdConsentRevokeFormInput = z.infer<typeof opdConsentRevokeFormSchema>;
+export type OpdConsentReprintFormInput = z.infer<typeof opdConsentReprintFormSchema>;
 export type IpdNursingTaskFormInput = z.infer<typeof ipdNursingTaskFormSchema>;
 export type IpdProgressNoteFormInput = z.infer<typeof ipdProgressNoteFormSchema>;
 export type IpdClinicalAssessmentFormInput = z.infer<typeof ipdClinicalAssessmentFormSchema>;
@@ -4230,8 +5135,18 @@ export type LabMolecularReportFormInput = z.infer<typeof labMolecularReportFormS
 export type LabB2bClientFormInput = z.infer<typeof labB2bClientFormSchema>;
 export type LabB2bRateFormInput = z.infer<typeof labB2bRateFormSchema>;
 export type CampCreateFormInput = z.infer<typeof campCreateFormSchema>;
+export type CampServicePlanFormInput = z.infer<typeof campServicePlanFormSchema>;
+export type CampServicePlanEditorInput = z.infer<typeof campServicePlanEditorSchema>;
+export type CampSupplyItemFormInput = z.infer<typeof campSupplyItemFormSchema>;
+export type AssetCategoryFormInput = z.infer<typeof assetCategoryFormSchema>;
+export type StoreCategoryFormInput = z.infer<typeof storeCategoryFormSchema>;
+export type AssetClassificationFormInput = z.infer<typeof assetClassificationFormSchema>;
+export type CampAssetReservationFormInput = z.infer<typeof campAssetReservationFormSchema>;
+export type CampAssetIssueFormInput = z.infer<typeof campAssetIssueFormSchema>;
+export type CampAssetReturnFormInput = z.infer<typeof campAssetReturnFormSchema>;
 export type CampRegistrationFormInput = z.infer<typeof campRegistrationFormSchema>;
 export type CampClinicalVisitFormInput = z.infer<typeof campClinicalVisitFormSchema>;
+export type CampBillingFormInput = z.infer<typeof campBillingFormSchema>;
 export type CampScreeningFormInput = z.infer<typeof campScreeningFormSchema>;
 export type CampLabSampleFormInput = z.infer<typeof campLabSampleFormSchema>;
 export type CampFollowupFormInput = z.infer<typeof campFollowupFormSchema>;
@@ -4261,8 +5176,14 @@ export type AmbulanceMaintenanceFormInput = z.infer<typeof ambulanceMaintenanceF
 export type ErVisitFormInput = z.infer<typeof erVisitFormSchema>;
 export type ErAdmitFormInput = z.infer<typeof erAdmitFormSchema>;
 export type EmergencyCodeActivationFormInput = z.infer<typeof emergencyCodeActivationFormSchema>;
+export type EmergencyCodeDeactivateFormInput = z.infer<typeof emergencyCodeDeactivateFormSchema>;
+export type EmergencyResuscitationLogFormInput = z.infer<
+  typeof emergencyResuscitationLogFormSchema
+>;
 export type MlcCaseFormInput = z.infer<typeof mlcCaseFormSchema>;
+export type MlcCaseUpdateFormInput = z.infer<typeof mlcCaseUpdateFormSchema>;
 export type MassCasualtyEventFormInput = z.infer<typeof massCasualtyEventFormSchema>;
+export type MassCasualtyEventUpdateFormInput = z.infer<typeof massCasualtyEventUpdateFormSchema>;
 export type OrderSetTemplateFormInput = z.infer<typeof orderSetTemplateFormSchema>;
 export type OrderSetItemFormInput = z.infer<typeof orderSetItemFormSchema>;
 export type SchedulingWaitlistFormInput = z.infer<typeof schedulingWaitlistFormSchema>;
@@ -4277,6 +5198,9 @@ export type ShareGrantFormInput = z.infer<typeof shareGrantFormSchema>;
 export type SignatureCaptureFormInput = z.infer<typeof signatureCaptureFormSchema>;
 export type OpdLabOrderFormInput = z.infer<typeof opdLabOrderFormSchema>;
 export type OpdProcedureOrderFormInput = z.infer<typeof opdProcedureOrderFormSchema>;
+export type OpdReferralFormInput = z.infer<typeof opdReferralFormSchema>;
+export type OpdReferralUrgencyFormValue = z.infer<typeof opdReferralUrgencyFormSchema>;
+export type OpdPreAuthFormInput = z.infer<typeof opdPreAuthFormSchema>;
 export type OpdReminderFormInput = z.infer<typeof opdReminderFormSchema>;
 export type OpdFeedbackFormInput = z.infer<typeof opdFeedbackFormSchema>;
 export type OpdProcedureConsentFormInput = z.infer<typeof opdProcedureConsentFormSchema>;
@@ -4302,7 +5226,6 @@ export type MiniDepartmentFormInput = z.infer<typeof miniDepartmentFormSchema>;
 export type CreateDepartmentFormInput = z.infer<typeof createDepartmentFormSchema>;
 export type CreateFacilityFormInput = z.infer<typeof createFacilityFormSchema>;
 export type FacilitySettingsFormInput = z.infer<typeof facilitySettingsFormSchema>;
-export type DepartmentHoursSettingsFormInput = z.infer<typeof departmentHoursSettingsFormSchema>;
 export type SequenceSettingsFormInput = z.infer<typeof sequenceSettingsFormSchema>;
 export type GeneralSettingsFormInput = z.infer<typeof generalSettingsFormSchema>;
 export type BrandingSettingsFormInput = z.infer<typeof brandingSettingsFormSchema>;
@@ -4325,6 +5248,12 @@ export type MlcSbarFormInput = z.infer<typeof mlcSbarFormSchema>;
 export type MlcAgeEstimationFormInput = z.infer<typeof mlcAgeEstimationFormSchema>;
 export type MlcPocsoReportFormInput = z.infer<typeof mlcPocsoReportFormSchema>;
 export type MlcCourtSummonsFormInput = z.infer<typeof mlcCourtSummonsFormSchema>;
+export type MlcPoliceIntimationFormInput = z.infer<typeof mlcPoliceIntimationFormSchema>;
+export type MlcPoliceReceiptConfirmationFormInput = z.infer<
+  typeof mlcPoliceReceiptConfirmationFormSchema
+>;
+export type MlcPrintPacketTypeFormValue = z.infer<typeof mlcPrintPacketTypeFormSchema>;
+export type MlcPrintReprintFormInput = z.infer<typeof mlcPrintReprintFormSchema>;
 export type BmwTransportManifestFormInput = z.infer<typeof bmwTransportManifestFormSchema>;
 export type ProcurementVendorFormInput = z.infer<typeof procurementVendorFormSchema>;
 export type ProcurementPurchaseOrderFormInput = z.infer<typeof procurementPurchaseOrderFormSchema>;

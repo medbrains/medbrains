@@ -410,6 +410,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         tracing::info!("outbox worker spawned");
     }
 
+    // Simulator cron scheduler — fires enabled simulator_schedules with
+    // a cron expression every 30 seconds. Disabled via env var if needed.
+    if std::env::var("MEDBRAINS_DISABLE_SIMULATOR_SCHEDULER").as_deref() != Ok("true") {
+        medbrains_server::services::simulator::scheduler::spawn(db_pool.clone());
+    } else {
+        tracing::warn!("MEDBRAINS_DISABLE_SIMULATOR_SCHEDULER=true — scheduler NOT spawned");
+    }
+
     // Start server
     let addr: SocketAddr = config.bind_addr().parse()?;
     let listener = tokio::net::TcpListener::bind(addr).await?;

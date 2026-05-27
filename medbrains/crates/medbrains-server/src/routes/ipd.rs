@@ -7,6 +7,7 @@ use axum::{
 use chrono::{NaiveDate, NaiveTime, Utc};
 use medbrains_core::clinical_events::{ClinicalEventEnvelope, ClinicalEventName};
 use medbrains_core::encounter::Encounter;
+use medbrains_core::form::FieldAccessLevel;
 use medbrains_core::ipd::{
     Admission, AdmissionAttender, AdmissionChecklist, AdmissionPrintData, AdmissionStatus,
     BedReservation, BedTurnaroundLog, BillingSummaryResponse, DeptChargeGroup,
@@ -15,17 +16,23 @@ use medbrains_core::ipd::{
     IpdClinicalAssessment, IpdClinicalDocumentation, IpdDeathSummary, IpdDischargeChecklist,
     IpdDischargeSummary, IpdDischargeTatLog, IpdHandoverReport, IpdIntakeOutput,
     IpdMedicationAdministration, IpdNursingAssessment, IpdProgressNote, IpdTransferLog,
-    LabOrderSummary, LabResultSummary, MarStatus, NursingShift, NursingTask, RadiologyOrderSummary,
-    RestraintMonitoringLog, Ward, WardBedMapping,
+    LabOrderSummary, LabResultSummary, MarStatus, NursingShift, NursingTask, ProgressNoteType,
+    RadiologyOrderSummary, RestraintMonitoringLog, Ward, WardBedMapping,
 };
 use medbrains_core::permissions;
+use medbrains_core::privacy::{mask_free_text, mask_identifier_keep_last, mask_name, mask_phone};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use uuid::Uuid;
 
 use crate::{
-    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
+    error::AppError,
+    middleware::{
+        auth::Claims,
+        authorization::{is_bypass_role, require_any_permission, require_permission},
+        field_access,
+    },
     state::AppState,
 };
 
@@ -41,6 +48,11 @@ pub struct ListAdmissionsQuery {
     pub department_id: Option<Uuid>,
     pub doctor_id: Option<Uuid>,
     pub patient_id: Option<Uuid>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct AdmissionPrintQuery {
+    pub reprint_reason: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -81,6 +93,9 @@ pub struct CreateAdmissionRequest {
     pub admission_height_cm: Option<Decimal>,
     pub expected_discharge_date: Option<NaiveDate>,
     pub ward_id: Option<Uuid>,
+    /// Internal training / simulator flag. See OPD CreateEncounterRequest.
+    #[serde(default)]
+    pub is_dummy: Option<bool>,
 }
 
 #[derive(Debug, Serialize)]
@@ -112,6 +127,159 @@ pub struct TransferBedRequest {
 pub struct DischargeRequest {
     pub discharge_type: String,
     pub discharge_summary: Option<String>,
+}
+
+#[derive(Debug, sqlx::FromRow)]
+struct BedOccupancyState {
+    pub ward_id: Option<Uuid>,
+    pub status: String,
+    pub admission_id: Option<Uuid>,
+}
+
+#[derive(Debug, sqlx::FromRow)]
+struct TransferAdmissionSnapshot {
+    pub patient_id: Uuid,
+    pub encounter_id: Uuid,
+    pub from_bed_id: Option<Uuid>,
+    pub from_ward_id: Option<Uuid>,
+}
+
+async fn lock_available_bed_for_assignment(
+    conn: &mut sqlx::PgConnection,
+    tenant_id: Uuid,
+    bed_id: Uuid,
+    patient_id: Uuid,
+) -> Result<BedOccupancyState, AppError> {
+    let bed = sqlx::query_as::<_, BedOccupancyState>(
+        "SELECT ward_id, status::text AS status, admission_id \
+         FROM bed_states \
+         WHERE location_id = $1 AND tenant_id = $2 \
+         FOR UPDATE",
+    )
+    .bind(bed_id)
+    .bind(tenant_id)
+    .fetch_optional(&mut *conn)
+    .await?
+    .ok_or_else(|| AppError::BadRequest("Target bed is not configured".to_owned()))?;
+
+    if bed.status != "vacant_clean" || bed.admission_id.is_some() {
+        return Err(AppError::BadRequest(
+            "Target bed is not vacant and clean".to_owned(),
+        ));
+    }
+
+    let reserved_for_other_patient = sqlx::query_scalar::<_, bool>(
+        "SELECT EXISTS( \
+           SELECT 1 FROM bed_reservations \
+           WHERE tenant_id = $1 AND bed_id = $2 \
+             AND status IN ('active', 'confirmed') \
+             AND reserved_until > NOW() \
+             AND patient_id <> $3 \
+         )",
+    )
+    .bind(tenant_id)
+    .bind(bed_id)
+    .bind(patient_id)
+    .fetch_one(&mut *conn)
+    .await?;
+
+    if reserved_for_other_patient {
+        return Err(AppError::BadRequest(
+            "Target bed is reserved for another patient".to_owned(),
+        ));
+    }
+
+    Ok(bed)
+}
+
+async fn occupy_admission_bed(
+    conn: &mut sqlx::PgConnection,
+    tenant_id: Uuid,
+    bed_id: Uuid,
+    patient_id: Uuid,
+    admission_id: Uuid,
+    ward_id: Option<Uuid>,
+    changed_by: Uuid,
+    reason: &str,
+) -> Result<(), AppError> {
+    sqlx::query(
+        "UPDATE bed_states SET \
+           status = 'occupied'::bed_status, \
+           patient_id = $3, \
+           admission_id = $4, \
+           ward_id = COALESCE($5, ward_id), \
+           changed_by = $6, \
+           reason = $7, \
+           changed_at = NOW(), \
+           reserved_for_patient = NULL, \
+           reserved_until = NULL \
+         WHERE location_id = $1 AND tenant_id = $2",
+    )
+    .bind(bed_id)
+    .bind(tenant_id)
+    .bind(patient_id)
+    .bind(admission_id)
+    .bind(ward_id)
+    .bind(changed_by)
+    .bind(reason)
+    .execute(&mut *conn)
+    .await?;
+
+    sqlx::query(
+        "UPDATE bed_reservations SET status = 'fulfilled'::bed_reservation_status \
+         WHERE tenant_id = $1 AND bed_id = $2 AND patient_id = $3 \
+           AND status IN ('active', 'confirmed') \
+           AND reserved_until > NOW()",
+    )
+    .bind(tenant_id)
+    .bind(bed_id)
+    .bind(patient_id)
+    .execute(&mut *conn)
+    .await?;
+
+    Ok(())
+}
+
+async fn release_admission_bed(
+    conn: &mut sqlx::PgConnection,
+    tenant_id: Uuid,
+    bed_id: Uuid,
+    admission_id: Uuid,
+    changed_by: Uuid,
+    reason: &str,
+) -> Result<(), AppError> {
+    sqlx::query(
+        "UPDATE bed_states SET \
+           status = 'vacant_dirty'::bed_status, \
+           patient_id = NULL, \
+           admission_id = NULL, \
+           changed_by = $4, \
+           reason = $5, \
+           changed_at = NOW(), \
+           cleaning_started_at = NULL, \
+           cleaning_completed_at = NULL \
+         WHERE location_id = $1 AND tenant_id = $2 AND admission_id = $3",
+    )
+    .bind(bed_id)
+    .bind(tenant_id)
+    .bind(admission_id)
+    .bind(changed_by)
+    .bind(reason)
+    .execute(&mut *conn)
+    .await?;
+
+    sqlx::query(
+        "INSERT INTO bed_turnaround_log (tenant_id, bed_id, admission_id, notes) \
+         VALUES ($1, $2, $3, $4)",
+    )
+    .bind(tenant_id)
+    .bind(bed_id)
+    .bind(admission_id)
+    .bind(reason)
+    .execute(&mut *conn)
+    .await?;
+
+    Ok(())
 }
 
 #[derive(Debug, Deserialize)]
@@ -383,6 +551,555 @@ pub struct CreateAttenderRequest {
     pub is_primary: Option<bool>,
 }
 
+const IPD_ATTENDER_NAME_FIELD: &str = "ipd.attenders.name";
+const IPD_ATTENDER_RELATIONSHIP_FIELD: &str = "ipd.attenders.relationship";
+const IPD_ATTENDER_PHONE_FIELD: &str = "ipd.attenders.phone";
+const IPD_ATTENDER_ALT_PHONE_FIELD: &str = "ipd.attenders.alt_phone";
+const IPD_ATTENDER_ADDRESS_FIELD: &str = "ipd.attenders.address";
+const IPD_ATTENDER_ID_PROOF_FIELD: &str = "ipd.attenders.id_proof_number";
+const IPD_ADMISSION_PROVISIONAL_DIAGNOSIS_FIELD: &str = "ipd.admissions.provisional_diagnosis";
+const IPD_DISCHARGE_FINAL_DIAGNOSIS_FIELD: &str = "ipd.discharge_summary.final_diagnosis";
+const IPD_BILLING_AMOUNT_FIELD: &str = "billing.amount";
+const MLC_FIR_NUMBER_FIELD: &str = "emergency.mlc.fir_number";
+const MLC_POLICE_STATION_FIELD: &str = "emergency.mlc.police_station";
+const MLC_INFORMANT_NAME_FIELD: &str = "emergency.mlc.informant_name";
+const MLC_INFORMANT_RELATION_FIELD: &str = "emergency.mlc.informant_relation";
+const MLC_INFORMANT_CONTACT_FIELD: &str = "emergency.mlc.informant_contact";
+const MLC_HISTORY_FIELD: &str = "emergency.mlc.history_of_incident";
+const MLC_EXAMINATION_FIELD: &str = "emergency.mlc.examination_findings";
+const MLC_MEDICAL_OPINION_FIELD: &str = "emergency.mlc.medical_opinion";
+const MLC_CAUSE_OF_DEATH_FIELD: &str = "emergency.mlc.cause_of_death";
+const IPD_ADMISSION_WORKSPACE_PERMISSIONS: &[&str] = &[
+    permissions::ipd::admissions::VIEW,
+    permissions::ipd::admissions::UPDATE,
+    permissions::ipd::admissions::PRINT,
+    permissions::ipd::admissions::REPRINT,
+    permissions::ipd::attenders::MANAGE,
+    permissions::ipd::wristband::PRINT,
+    permissions::ipd::wristband::REPRINT,
+    permissions::ipd::discharge::CREATE,
+    permissions::ipd::progress_notes::LIST,
+    permissions::ipd::progress_notes::CREATE,
+    permissions::ipd::assessments::LIST,
+    permissions::ipd::assessments::CREATE,
+    permissions::ipd::mar::LIST,
+    permissions::ipd::mar::CREATE,
+    permissions::ipd::mar::UPDATE,
+    permissions::ipd::io_chart::LIST,
+    permissions::ipd::io_chart::CREATE,
+    permissions::ipd::nursing_assessment::LIST,
+    permissions::ipd::nursing_assessment::CREATE,
+    permissions::ipd::care_plans::LIST,
+    permissions::ipd::care_plans::CREATE,
+    permissions::ipd::handover::LIST,
+    permissions::ipd::handover::CREATE,
+    permissions::ipd::discharge_checklist::LIST,
+    permissions::ipd::discharge_checklist::UPDATE,
+    permissions::ipd::discharge_summary::CREATE,
+    permissions::ipd::discharge_summary::FINALIZE,
+    permissions::ipd::clinical_docs::LIST,
+    permissions::ipd::clinical_docs::CREATE,
+    permissions::ipd::transfers::CREATE,
+    permissions::ipd::death_records::MANAGE,
+    permissions::ipd::birth_records::MANAGE,
+    permissions::ipd::discharge_tat::VIEW,
+    permissions::ipd::discharge_tat::UPDATE,
+    permissions::ipd::discharge_tat::BILLING_UPDATE,
+    permissions::ipd::discharge_tat::PHARMACY_UPDATE,
+    permissions::ipd::discharge_tat::NURSING_UPDATE,
+    permissions::ipd::discharge_tat::DOCTOR_UPDATE,
+    permissions::ipd::discharge_tat::COMPLETE,
+    permissions::pharmacy::prescriptions::LIST,
+    permissions::pharmacy::dispensing::CREATE,
+    permissions::billing::invoices::LIST,
+    permissions::billing::invoices::VIEW,
+    permissions::billing::advances::LIST,
+    permissions::billing::corporate::LIST,
+    permissions::consent::signatures::LIST,
+    permissions::emergency::mlc::LIST,
+    permissions::lab::orders::LIST,
+    permissions::lab::orders::VIEW,
+    permissions::lab::reports::VIEW,
+    permissions::lab::orders::CREATE,
+    permissions::opd::diagnoses::LIST,
+    permissions::opd::diagnoses::CREATE,
+    permissions::opd::diagnoses::UPDATE,
+    permissions::opd::diagnoses::DELETE,
+    permissions::radiology::orders::LIST,
+    permissions::radiology::orders::VIEW,
+    permissions::radiology::orders::CREATE,
+    permissions::ot::bookings::LIST,
+    permissions::ot::bookings::CREATE,
+    permissions::diet::orders::LIST,
+    permissions::diet::orders::CREATE,
+    permissions::bedside::VIEW,
+    permissions::bedside::REQUEST,
+    permissions::bedside::videos::LIST,
+    permissions::bedside::videos::MANAGE,
+    permissions::bedside::feedback::LIST,
+    permissions::bedside::feedback::CREATE,
+    permissions::bedside::sessions::LIST,
+    permissions::bedside::sessions::MANAGE,
+    permissions::nurse::dashboard::VIEW,
+    permissions::nurse::mar::VIEW,
+    permissions::nurse::vitals::VIEW,
+    permissions::nurse::vitals::RECORD,
+    permissions::nurse::intake_output::VIEW,
+    permissions::nurse::intake_output::RECORD,
+    permissions::nurse::pain::VIEW,
+    permissions::nurse::pain::RECORD,
+    permissions::nurse::fall_risk::VIEW,
+    permissions::nurse::fall_risk::RECORD,
+    permissions::nurse::wound::VIEW,
+    permissions::nurse::wound::RECORD,
+    permissions::nurse::handoff::VIEW,
+    permissions::nurse::handoff::RECORD,
+    permissions::nurse::equipment::VIEW,
+    permissions::nurse::equipment::RECORD,
+    permissions::nurse::code_blue::VIEW,
+    permissions::nurse::code_blue::RECORD,
+    permissions::indent::LIST,
+    permissions::indent::CONSUMABLES_LIST,
+    permissions::assets::LIST,
+    permissions::bme::equipment::LIST,
+    permissions::infection_control::surveillance::LIST,
+    permissions::infection_control::biowaste::LIST,
+    permissions::facilities::gas::LIST,
+    permissions::mrd::case_sheets::GENERATE,
+    permissions::specialty::palliative::mortuary::LIST,
+    permissions::specialty::palliative::mortuary::MANAGE,
+];
+const IPD_ADMISSION_TASK_CONTEXT_PERMISSIONS: &[&str] = &[
+    permissions::ipd::admissions::VIEW,
+    permissions::ipd::nursing_assessment::LIST,
+    permissions::ipd::nursing_assessment::CREATE,
+];
+
+fn claims_have_any_permission(claims: &Claims, permissions: &[&str]) -> bool {
+    is_bypass_role(claims)
+        || permissions.iter().any(|permission| {
+            claims
+                .permissions
+                .iter()
+                .any(|granted| granted == permission)
+        })
+}
+
+fn resolved_attender_field_access(
+    restricted: &std::collections::HashMap<String, FieldAccessLevel>,
+    field: &str,
+    fallback: Option<&str>,
+) -> FieldAccessLevel {
+    restricted
+        .get(field)
+        .copied()
+        .or_else(|| fallback.and_then(|fallback_field| restricted.get(fallback_field).copied()))
+        .unwrap_or(FieldAccessLevel::Edit)
+}
+
+fn can_write_attender_field(level: FieldAccessLevel) -> bool {
+    level == FieldAccessLevel::Edit
+}
+
+fn should_hide_attender_field(level: FieldAccessLevel) -> bool {
+    level == FieldAccessLevel::Hidden
+}
+
+fn should_mask_attender_field(level: FieldAccessLevel) -> bool {
+    level == FieldAccessLevel::Mask
+}
+
+fn billing_amount_access(
+    restricted: &std::collections::HashMap<String, FieldAccessLevel>,
+) -> FieldAccessLevel {
+    resolved_attender_field_access(restricted, IPD_BILLING_AMOUNT_FIELD, None)
+}
+
+fn should_scrub_ipd_billing_amount(
+    restricted: &std::collections::HashMap<String, FieldAccessLevel>,
+) -> bool {
+    matches!(
+        billing_amount_access(restricted),
+        FieldAccessLevel::Mask | FieldAccessLevel::Hidden
+    )
+}
+
+fn has_attender_text(value: &Option<String>) -> bool {
+    value.as_deref().is_some_and(|text| !text.trim().is_empty())
+}
+
+async fn resolve_ipd_restricted_fields(
+    state: &AppState,
+    claims: &Claims,
+) -> Result<std::collections::HashMap<String, FieldAccessLevel>, AppError> {
+    field_access::resolve_restricted_fields(&state.db, claims.tenant_id, claims.sub, &claims.role)
+        .await
+}
+
+fn validate_attender_write_access(
+    body: &CreateAttenderRequest,
+    restricted: &std::collections::HashMap<String, FieldAccessLevel>,
+) -> Result<(), AppError> {
+    let mut violations = Vec::new();
+    let name_access = resolved_attender_field_access(restricted, IPD_ATTENDER_NAME_FIELD, None);
+    let relationship_access =
+        resolved_attender_field_access(restricted, IPD_ATTENDER_RELATIONSHIP_FIELD, None);
+    let phone_access = resolved_attender_field_access(restricted, IPD_ATTENDER_PHONE_FIELD, None);
+    let alt_phone_access = resolved_attender_field_access(
+        restricted,
+        IPD_ATTENDER_ALT_PHONE_FIELD,
+        Some(IPD_ATTENDER_PHONE_FIELD),
+    );
+    let address_access =
+        resolved_attender_field_access(restricted, IPD_ATTENDER_ADDRESS_FIELD, None);
+    let id_proof_access =
+        resolved_attender_field_access(restricted, IPD_ATTENDER_ID_PROOF_FIELD, None);
+
+    if !can_write_attender_field(name_access) {
+        violations.push("name");
+    }
+    if !can_write_attender_field(relationship_access) {
+        violations.push("relationship");
+    }
+    if has_attender_text(&body.phone) && !can_write_attender_field(phone_access) {
+        violations.push("phone");
+    }
+    if has_attender_text(&body.alt_phone) && !can_write_attender_field(alt_phone_access) {
+        violations.push("alt_phone");
+    }
+    if has_attender_text(&body.address) && !can_write_attender_field(address_access) {
+        violations.push("address");
+    }
+    if (has_attender_text(&body.id_proof_type) || has_attender_text(&body.id_proof_number))
+        && !can_write_attender_field(id_proof_access)
+    {
+        violations.push("id_proof");
+    }
+
+    if violations.is_empty() {
+        return Ok(());
+    }
+
+    Err(AppError::BadRequest(format!(
+        "Cannot write restricted IPD attender fields: {}",
+        violations.join(", ")
+    )))
+}
+
+fn filter_attender_response(
+    mut row: AdmissionAttender,
+    restricted: &std::collections::HashMap<String, FieldAccessLevel>,
+) -> AdmissionAttender {
+    let name_access = resolved_attender_field_access(restricted, IPD_ATTENDER_NAME_FIELD, None);
+    let relationship_access =
+        resolved_attender_field_access(restricted, IPD_ATTENDER_RELATIONSHIP_FIELD, None);
+    let phone_access = resolved_attender_field_access(restricted, IPD_ATTENDER_PHONE_FIELD, None);
+    let alt_phone_access = resolved_attender_field_access(
+        restricted,
+        IPD_ATTENDER_ALT_PHONE_FIELD,
+        Some(IPD_ATTENDER_PHONE_FIELD),
+    );
+    let address_access =
+        resolved_attender_field_access(restricted, IPD_ATTENDER_ADDRESS_FIELD, None);
+    let id_proof_access =
+        resolved_attender_field_access(restricted, IPD_ATTENDER_ID_PROOF_FIELD, None);
+
+    if should_hide_attender_field(name_access) {
+        row.name = "Restricted".to_owned();
+    } else if should_mask_attender_field(name_access) {
+        row.name = mask_name(&row.name);
+    }
+    if should_hide_attender_field(relationship_access) {
+        row.relationship = "Restricted".to_owned();
+    } else if should_mask_attender_field(relationship_access) {
+        row.relationship = mask_free_text(&row.relationship);
+    }
+    if should_hide_attender_field(phone_access) {
+        row.phone = None;
+        row.alt_phone = None;
+    } else if should_mask_attender_field(phone_access) {
+        row.phone = row.phone.map(|value| mask_phone(&value));
+        row.alt_phone = row.alt_phone.map(|value| mask_phone(&value));
+    } else if should_hide_attender_field(alt_phone_access) {
+        row.alt_phone = None;
+    } else if should_mask_attender_field(alt_phone_access) {
+        row.alt_phone = row.alt_phone.map(|value| mask_phone(&value));
+    }
+    if should_hide_attender_field(address_access) {
+        row.address = None;
+    } else if should_mask_attender_field(address_access) {
+        row.address = row.address.map(|value| mask_free_text(&value));
+    }
+    if should_hide_attender_field(id_proof_access) {
+        row.id_proof_type = None;
+        row.id_proof_number = None;
+    } else if should_mask_attender_field(id_proof_access) {
+        row.id_proof_number = row
+            .id_proof_number
+            .map(|value| mask_identifier_keep_last(&value, 4));
+    }
+
+    row
+}
+
+fn filter_admission_response(
+    mut row: Admission,
+    restricted: &std::collections::HashMap<String, FieldAccessLevel>,
+) -> Admission {
+    let diagnosis_access =
+        resolved_attender_field_access(restricted, IPD_ADMISSION_PROVISIONAL_DIAGNOSIS_FIELD, None);
+    if should_hide_attender_field(diagnosis_access) {
+        row.provisional_diagnosis = None;
+    } else if should_mask_attender_field(diagnosis_access) {
+        row.provisional_diagnosis = row
+            .provisional_diagnosis
+            .map(|value| mask_free_text(&value));
+    }
+    if should_scrub_ipd_billing_amount(restricted) {
+        row.deposit_amount = None;
+        row.estimated_cost = None;
+    }
+    row
+}
+
+fn filter_admission_row_response(
+    mut row: AdmissionRow,
+    can_view_patient_identity: bool,
+) -> AdmissionRow {
+    if !can_view_patient_identity {
+        row.patient_name = "Restricted".to_owned();
+        row.uhid = "Restricted".to_owned();
+    }
+    row
+}
+
+fn filter_ip_type_configuration_response(
+    mut row: IpTypeConfiguration,
+    restricted: &std::collections::HashMap<String, FieldAccessLevel>,
+) -> IpTypeConfiguration {
+    if should_scrub_ipd_billing_amount(restricted) {
+        row.daily_rate = Decimal::ZERO;
+        row.nursing_charge = Decimal::ZERO;
+        row.deposit_required = Decimal::ZERO;
+        row.billing_alert_threshold = None;
+    }
+    row
+}
+
+fn filter_estimated_cost_response(
+    mut row: EstimatedCostResponse,
+    restricted: &std::collections::HashMap<String, FieldAccessLevel>,
+) -> EstimatedCostResponse {
+    if should_scrub_ipd_billing_amount(restricted) {
+        row.daily_rate = Decimal::ZERO;
+        row.nursing_charge = Decimal::ZERO;
+        row.room_total = Decimal::ZERO;
+        row.nursing_total = Decimal::ZERO;
+        row.deposit_required = Decimal::ZERO;
+        row.total_estimated = Decimal::ZERO;
+    }
+    row
+}
+
+fn filter_billing_summary_response(
+    mut row: BillingSummaryResponse,
+    restricted: &std::collections::HashMap<String, FieldAccessLevel>,
+) -> BillingSummaryResponse {
+    if should_scrub_ipd_billing_amount(restricted) {
+        row.charges_by_dept = row
+            .charges_by_dept
+            .into_iter()
+            .map(|mut charge| {
+                charge.total = Decimal::ZERO;
+                charge
+            })
+            .collect();
+        row.total_charges = Decimal::ZERO;
+        row.total_payments = Decimal::ZERO;
+        row.outstanding_balance = Decimal::ZERO;
+    }
+    row
+}
+
+fn filter_receipt_amount_response(
+    mut row: medbrains_core::billing::Receipt,
+    restricted: &std::collections::HashMap<String, FieldAccessLevel>,
+) -> medbrains_core::billing::Receipt {
+    if should_scrub_ipd_billing_amount(restricted) {
+        row.amount = Decimal::ZERO;
+    }
+    row
+}
+
+fn filter_admission_print_data_response(
+    mut row: AdmissionPrintData,
+    restricted: &std::collections::HashMap<String, FieldAccessLevel>,
+) -> AdmissionPrintData {
+    let diagnosis_access =
+        resolved_attender_field_access(restricted, IPD_ADMISSION_PROVISIONAL_DIAGNOSIS_FIELD, None);
+    if should_hide_attender_field(diagnosis_access) {
+        row.provisional_diagnosis = None;
+    } else if should_mask_attender_field(diagnosis_access) {
+        row.provisional_diagnosis = row
+            .provisional_diagnosis
+            .map(|value| mask_free_text(&value));
+    }
+    row
+}
+
+fn filter_discharge_summary_response(
+    mut row: IpdDischargeSummary,
+    restricted: &std::collections::HashMap<String, FieldAccessLevel>,
+) -> IpdDischargeSummary {
+    let diagnosis_access =
+        resolved_attender_field_access(restricted, IPD_DISCHARGE_FINAL_DIAGNOSIS_FIELD, None);
+    if should_hide_attender_field(diagnosis_access) {
+        row.final_diagnosis = None;
+    } else if should_mask_attender_field(diagnosis_access) {
+        row.final_diagnosis = row.final_diagnosis.map(|value| mask_free_text(&value));
+    }
+    row
+}
+
+fn has_ipd_text(value: &Option<String>) -> bool {
+    value.as_deref().is_some_and(|text| !text.trim().is_empty())
+}
+
+fn has_ip_type_amount_change(
+    daily_rate: Option<Decimal>,
+    nursing_charge: Option<Decimal>,
+    deposit_required: Option<Decimal>,
+    billing_alert_threshold: Option<Decimal>,
+) -> bool {
+    daily_rate.is_some()
+        || nursing_charge.is_some()
+        || deposit_required.is_some()
+        || billing_alert_threshold.is_some()
+}
+
+fn validate_ip_type_amount_write_access(
+    daily_rate: Option<Decimal>,
+    nursing_charge: Option<Decimal>,
+    deposit_required: Option<Decimal>,
+    billing_alert_threshold: Option<Decimal>,
+    restricted: &std::collections::HashMap<String, FieldAccessLevel>,
+) -> Result<(), AppError> {
+    if !has_ip_type_amount_change(
+        daily_rate,
+        nursing_charge,
+        deposit_required,
+        billing_alert_threshold,
+    ) || billing_amount_access(restricted) == FieldAccessLevel::Edit
+    {
+        return Ok(());
+    }
+    Err(AppError::BadRequest(
+        "Cannot write restricted IPD billing amount fields".to_owned(),
+    ))
+}
+
+fn ip_type_room_charge_code(ip_type: IpType) -> &'static str {
+    match ip_type {
+        IpType::General => "ROOM_GEN",
+        IpType::SemiPrivate => "ROOM_SEMI",
+        IpType::Private => "ROOM_PVT",
+        IpType::Deluxe => "ROOM_DELUXE",
+        IpType::Suite => "ROOM_SUITE",
+        IpType::Icu => "ROOM_ICU",
+        IpType::Nicu => "ROOM_NICU",
+        IpType::Picu => "ROOM_PICU",
+        IpType::Hdu => "ROOM_HDU",
+        IpType::Isolation => "ROOM_ISO",
+        IpType::Nursery => "ROOM_NURSERY",
+    }
+}
+
+fn validate_discharge_summary_write_access(
+    final_diagnosis: &Option<String>,
+    restricted: &std::collections::HashMap<String, FieldAccessLevel>,
+) -> Result<(), AppError> {
+    if !has_ipd_text(final_diagnosis) {
+        return Ok(());
+    }
+    let diagnosis_access =
+        resolved_attender_field_access(restricted, IPD_DISCHARGE_FINAL_DIAGNOSIS_FIELD, None);
+    if can_write_attender_field(diagnosis_access) {
+        return Ok(());
+    }
+    Err(AppError::BadRequest(
+        "Cannot write restricted IPD discharge diagnosis fields".to_owned(),
+    ))
+}
+
+fn filter_ipd_mlc_case_response(
+    mut row: medbrains_core::emergency::MlcCase,
+    restricted: &std::collections::HashMap<String, FieldAccessLevel>,
+) -> medbrains_core::emergency::MlcCase {
+    let fir_access = resolved_attender_field_access(restricted, MLC_FIR_NUMBER_FIELD, None);
+    if should_hide_attender_field(fir_access) {
+        row.fir_number = None;
+    } else if should_mask_attender_field(fir_access) {
+        row.fir_number = row
+            .fir_number
+            .map(|value| mask_identifier_keep_last(&value, 4));
+    }
+    let police_access = resolved_attender_field_access(restricted, MLC_POLICE_STATION_FIELD, None);
+    if should_hide_attender_field(police_access) {
+        row.police_station = None;
+    } else if should_mask_attender_field(police_access) {
+        row.police_station = row.police_station.map(|value| mask_free_text(&value));
+    }
+    let informant_name_access =
+        resolved_attender_field_access(restricted, MLC_INFORMANT_NAME_FIELD, None);
+    if should_hide_attender_field(informant_name_access) {
+        row.informant_name = None;
+    } else if should_mask_attender_field(informant_name_access) {
+        row.informant_name = row.informant_name.map(|value| mask_name(&value));
+    }
+    let informant_relation_access =
+        resolved_attender_field_access(restricted, MLC_INFORMANT_RELATION_FIELD, None);
+    if should_hide_attender_field(informant_relation_access) {
+        row.informant_relation = None;
+    } else if should_mask_attender_field(informant_relation_access) {
+        row.informant_relation = row.informant_relation.map(|value| mask_free_text(&value));
+    }
+    let informant_contact_access =
+        resolved_attender_field_access(restricted, MLC_INFORMANT_CONTACT_FIELD, None);
+    if should_hide_attender_field(informant_contact_access) {
+        row.informant_contact = None;
+    } else if should_mask_attender_field(informant_contact_access) {
+        row.informant_contact = row.informant_contact.map(|value| mask_phone(&value));
+    }
+    let history_access = resolved_attender_field_access(restricted, MLC_HISTORY_FIELD, None);
+    if should_hide_attender_field(history_access) {
+        row.history_of_incident = None;
+    } else if should_mask_attender_field(history_access) {
+        row.history_of_incident = row.history_of_incident.map(|value| mask_free_text(&value));
+    }
+    let examination_access =
+        resolved_attender_field_access(restricted, MLC_EXAMINATION_FIELD, None);
+    if should_hide_attender_field(examination_access) {
+        row.examination_findings = None;
+    } else if should_mask_attender_field(examination_access) {
+        row.examination_findings = row.examination_findings.map(|value| mask_free_text(&value));
+    }
+    let opinion_access =
+        resolved_attender_field_access(restricted, MLC_MEDICAL_OPINION_FIELD, None);
+    if should_hide_attender_field(opinion_access) {
+        row.medical_opinion = None;
+    } else if should_mask_attender_field(opinion_access) {
+        row.medical_opinion = row.medical_opinion.map(|value| mask_free_text(&value));
+    }
+    let cause_access = resolved_attender_field_access(restricted, MLC_CAUSE_OF_DEATH_FIELD, None);
+    if should_hide_attender_field(cause_access) {
+        row.cause_of_death = None;
+    } else if should_mask_attender_field(cause_access) {
+        row.cause_of_death = row.cause_of_death.map(|value| mask_free_text(&value));
+    }
+
+    row
+}
+
 // ── Phase 2: Discharge Summary ───────────────────────────
 
 #[derive(Debug, Deserialize)]
@@ -478,6 +1195,8 @@ pub async fn list_admissions(
     Query(params): Query<ListAdmissionsQuery>,
 ) -> Result<Json<AdmissionListResponse>, AppError> {
     require_permission(&claims, permissions::ipd::admissions::LIST)?;
+    let can_view_patient_identity =
+        claims_have_any_permission(&claims, &[permissions::patients::VIEW]);
 
     let page = params.page.unwrap_or(1).max(1);
     let per_page = params.per_page.unwrap_or(20).clamp(1, 100);
@@ -608,7 +1327,10 @@ pub async fn list_admissions(
         .bind(per_page)
         .bind(offset)
         .fetch_all(&mut *tx)
-        .await?;
+        .await?
+        .into_iter()
+        .map(|row| filter_admission_row_response(row, can_view_patient_identity))
+        .collect();
 
     tx.commit().await?;
 
@@ -637,12 +1359,24 @@ pub async fn create_admission(
 
     let today = crate::hospital_time::tenant_local_today(&mut *tx, claims.tenant_id).await?;
     let doctor_id = body.doctor_id.unwrap_or(claims.sub);
+    let is_dummy = body.is_dummy.unwrap_or(false) && is_bypass_role(&claims);
+    let target_bed = if let Some(bed_id) = body.bed_id {
+        Some(
+            lock_available_bed_for_assignment(&mut *tx, claims.tenant_id, bed_id, body.patient_id)
+                .await?,
+        )
+    } else {
+        None
+    };
+    let effective_ward_id = body
+        .ward_id
+        .or_else(|| target_bed.as_ref().and_then(|bed| bed.ward_id));
 
     let encounter = sqlx::query_as::<_, Encounter>(
         "INSERT INTO encounters \
            (tenant_id, patient_id, encounter_type, status, department_id, doctor_id, \
-            encounter_date, notes, attributes) \
-         VALUES ($1, $2, 'ipd'::encounter_type, 'open'::encounter_status, $3, $4, $5, $6, '{}') \
+            encounter_date, notes, attributes, is_dummy) \
+         VALUES ($1, $2, 'ipd'::encounter_type, 'open'::encounter_status, $3, $4, $5, $6, '{}', $7) \
          RETURNING *",
     )
     .bind(claims.tenant_id)
@@ -651,6 +1385,7 @@ pub async fn create_admission(
     .bind(doctor_id)
     .bind(today)
     .bind(&body.notes)
+    .bind(is_dummy)
     .fetch_one(&mut *tx)
     .await?;
 
@@ -658,9 +1393,9 @@ pub async fn create_admission(
         "INSERT INTO admissions \
            (tenant_id, encounter_id, patient_id, bed_id, admitting_doctor, status, admitted_at, \
             admission_source, referral_from, referral_doctor, referral_notes, \
-            admission_weight_kg, admission_height_cm, expected_discharge_date, ward_id) \
+            admission_weight_kg, admission_height_cm, expected_discharge_date, ward_id, is_dummy) \
          VALUES ($1, $2, $3, $4, $5, 'admitted'::admission_status, NOW(), \
-                 $6::admission_source, $7, $8, $9, $10, $11, $12, $13) \
+                 $6::admission_source, $7, $8, $9, $10, $11, $12, $13, $14) \
          RETURNING *",
     )
     .bind(claims.tenant_id)
@@ -675,21 +1410,22 @@ pub async fn create_admission(
     .bind(body.admission_weight_kg)
     .bind(body.admission_height_cm)
     .bind(body.expected_discharge_date)
-    .bind(body.ward_id)
+    .bind(effective_ward_id)
+    .bind(is_dummy)
     .fetch_one(&mut *tx)
     .await?;
 
-    // Update bed_states with ward_id and admission_id
     if let Some(bid) = body.bed_id {
-        sqlx::query(
-            "UPDATE bed_states SET ward_id = $3, admission_id = $4 \
-             WHERE location_id = $1 AND tenant_id = $2",
+        occupy_admission_bed(
+            &mut *tx,
+            claims.tenant_id,
+            bid,
+            admission.patient_id,
+            admission.id,
+            effective_ward_id,
+            claims.sub,
+            "IPD admission",
         )
-        .bind(bid)
-        .bind(claims.tenant_id)
-        .bind(body.ward_id)
-        .bind(admission.id)
-        .execute(&mut *tx)
         .await?;
     }
 
@@ -715,19 +1451,6 @@ pub async fn create_admission(
     }
 
     tx.commit().await?;
-
-    // Enrich payload with names for orchestration
-    let patient_info = sqlx::query_as::<_, (String, String)>(
-        "SELECT first_name || ' ' || last_name, uhid FROM patients WHERE id = $1",
-    )
-    .bind(admission.patient_id)
-    .fetch_optional(&state.db)
-    .await
-    .ok()
-    .flatten();
-
-    let (patient_name, uhid) =
-        patient_info.unwrap_or_else(|| ("Unknown".to_owned(), "N/A".to_owned()));
 
     let doctor_name = sqlx::query_scalar::<_, String>("SELECT full_name FROM users WHERE id = $1")
         .bind(admission.admitting_doctor)
@@ -771,8 +1494,6 @@ pub async fn create_admission(
         serde_json::json!({
             "admission_id": admission.id,
             "patient_id": admission.patient_id,
-            "patient_name": patient_name,
-            "uhid": uhid,
             "doctor_name": doctor_name,
             "department_name": department_name,
             "ward_name": ward_name,
@@ -781,9 +1502,11 @@ pub async fn create_admission(
     )
     .await;
 
+    let restricted_fields = resolve_ipd_restricted_fields(&state, &claims).await?;
+
     Ok(Json(CreateAdmissionResponse {
         encounter,
-        admission,
+        admission: filter_admission_response(admission, &restricted_fields),
     }))
 }
 
@@ -796,22 +1519,24 @@ pub async fn get_admission(
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<AdmissionDetailResponse>, AppError> {
-    require_permission(&claims, permissions::ipd::admissions::VIEW)?;
+    require_any_permission(&claims, IPD_ADMISSION_WORKSPACE_PERMISSIONS)?;
 
-    // ── ReBAC pre-check — must hold `view` on the specific admission ─
-    let authz_ctx = crate::middleware::authorization::authz_context(&claims);
-    let allowed = state
-        .authz
-        .check(
-            &authz_ctx,
-            medbrains_authz::Relation::Viewer,
-            "admission",
-            id,
-        )
-        .await
-        .unwrap_or(false);
-    if !allowed {
-        return Err(AppError::NotFound);
+    if claims_have_any_permission(&claims, &[permissions::ipd::admissions::VIEW]) {
+        // ── ReBAC pre-check — must hold `view` on the specific admission ─
+        let authz_ctx = crate::middleware::authorization::authz_context(&claims);
+        let allowed = state
+            .authz
+            .check(
+                &authz_ctx,
+                medbrains_authz::Relation::Viewer,
+                "admission",
+                id,
+            )
+            .await
+            .unwrap_or(false);
+        if !allowed {
+            return Err(AppError::NotFound);
+        }
     }
 
     let mut tx = state.db.begin().await?;
@@ -833,19 +1558,24 @@ pub async fn get_admission(
             .fetch_one(&mut *tx)
             .await?;
 
-    let tasks = sqlx::query_as::<_, NursingTask>(
-        "SELECT * FROM nursing_tasks WHERE admission_id = $1 AND tenant_id = $2 \
-         ORDER BY created_at ASC",
-    )
-    .bind(id)
-    .bind(claims.tenant_id)
-    .fetch_all(&mut *tx)
-    .await?;
+    let tasks = if claims_have_any_permission(&claims, IPD_ADMISSION_TASK_CONTEXT_PERMISSIONS) {
+        sqlx::query_as::<_, NursingTask>(
+            "SELECT * FROM nursing_tasks WHERE admission_id = $1 AND tenant_id = $2 \
+             ORDER BY created_at ASC",
+        )
+        .bind(id)
+        .bind(claims.tenant_id)
+        .fetch_all(&mut *tx)
+        .await?
+    } else {
+        Vec::new()
+    };
 
     tx.commit().await?;
+    let restricted_fields = resolve_ipd_restricted_fields(&state, &claims).await?;
 
     Ok(Json(AdmissionDetailResponse {
-        admission,
+        admission: filter_admission_response(admission, &restricted_fields),
         encounter,
         tasks,
     }))
@@ -861,7 +1591,12 @@ pub async fn update_admission(
     Path(id): Path<Uuid>,
     Json(body): Json<UpdateAdmissionRequest>,
 ) -> Result<Json<Admission>, AppError> {
-    require_permission(&claims, permissions::ipd::admissions::CREATE)?;
+    require_permission(&claims, permissions::ipd::admissions::UPDATE)?;
+    if body.bed_id.is_some() {
+        return Err(AppError::BadRequest(
+            "Use the admission transfer endpoint to move beds so transfer reason, audit, and charge impact are recorded".to_owned(),
+        ));
+    }
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -894,7 +1629,11 @@ pub async fn update_admission(
 
     tx.commit().await?;
 
-    Ok(Json(admission))
+    let restricted_fields = resolve_ipd_restricted_fields(&state, &claims).await?;
+    Ok(Json(filter_admission_response(
+        admission,
+        &restricted_fields,
+    )))
 }
 
 // ══════════════════════════════════════════════════════════
@@ -907,41 +1646,86 @@ pub async fn transfer_bed(
     Path(id): Path<Uuid>,
     Json(body): Json<TransferBedRequest>,
 ) -> Result<Json<Admission>, AppError> {
-    require_permission(&claims, permissions::ipd::beds::MANAGE)?;
+    require_permission(&claims, permissions::ipd::transfers::CREATE)?;
+    let transfer_reason = body
+        .notes
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| AppError::BadRequest("Transfer reason is required".to_owned()))?
+        .to_owned();
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
-    let previous = sqlx::query!(
-        "SELECT patient_id, encounter_id, bed_id AS \"from_bed_id?\", ward_id AS \"from_ward_id?\" \
+    let previous = sqlx::query_as::<_, TransferAdmissionSnapshot>(
+        "SELECT patient_id, encounter_id, bed_id AS from_bed_id, ward_id AS from_ward_id \
          FROM admissions \
-         WHERE id = $1 AND tenant_id = $2 AND status = 'admitted'::admission_status",
-        id,
-        claims.tenant_id,
+         WHERE id = $1 AND tenant_id = $2 AND status = 'admitted'::admission_status \
+         FOR UPDATE",
     )
+    .bind(id)
+    .bind(claims.tenant_id)
     .fetch_optional(&mut *tx)
     .await?
     .ok_or(AppError::NotFound)?;
 
+    if previous.from_bed_id == Some(body.bed_id) {
+        return Err(AppError::BadRequest(
+            "Target bed is already assigned to this admission".to_owned(),
+        ));
+    }
+
+    let target_bed = lock_available_bed_for_assignment(
+        &mut *tx,
+        claims.tenant_id,
+        body.bed_id,
+        previous.patient_id,
+    )
+    .await?;
+    let target_ward_id = target_bed.ward_id;
+
+    if let Some(from_bed_id) = previous.from_bed_id {
+        release_admission_bed(
+            &mut *tx,
+            claims.tenant_id,
+            from_bed_id,
+            id,
+            claims.sub,
+            "IPD bed transfer",
+        )
+        .await?;
+    }
+
     let admission = sqlx::query_as::<_, Admission>(
         "UPDATE admissions SET \
            bed_id = $3, \
-           status = 'transferred'::admission_status \
+           ward_id = COALESCE($4, ward_id), \
+           updated_at = NOW() \
          WHERE id = $1 AND tenant_id = $2 AND status = 'admitted'::admission_status \
          RETURNING *",
     )
     .bind(id)
     .bind(claims.tenant_id)
     .bind(body.bed_id)
+    .bind(target_ward_id)
     .fetch_optional(&mut *tx)
     .await?
     .ok_or_else(|| AppError::NotFound)?;
 
-    let transfer_reason = body
-        .notes
-        .clone()
-        .unwrap_or_else(|| "Bed transfer".to_owned());
+    occupy_admission_bed(
+        &mut *tx,
+        claims.tenant_id,
+        body.bed_id,
+        admission.patient_id,
+        admission.id,
+        target_ward_id,
+        claims.sub,
+        "IPD bed transfer",
+    )
+    .await?;
+
     let transfer_id = sqlx::query_scalar!(
         "INSERT INTO ipd_transfer_logs \
            (tenant_id, admission_id, transfer_type, from_ward_id, to_ward_id, \
@@ -951,7 +1735,7 @@ pub async fn transfer_bed(
         claims.tenant_id,
         id,
         previous.from_ward_id,
-        admission.ward_id,
+        target_ward_id,
         previous.from_bed_id,
         body.bed_id,
         &transfer_reason,
@@ -999,7 +1783,11 @@ pub async fn transfer_bed(
 
     tx.commit().await?;
 
-    Ok(Json(admission))
+    let restricted_fields = resolve_ipd_restricted_fields(&state, &claims).await?;
+    Ok(Json(filter_admission_response(
+        admission,
+        &restricted_fields,
+    )))
 }
 
 // ══════════════════════════════════════════════════════════
@@ -1055,53 +1843,81 @@ pub async fn discharge_patient(
     .execute(&mut *tx)
     .await?;
 
+    if let Some(bed_id) = admission.bed_id {
+        release_admission_bed(
+            &mut *tx,
+            claims.tenant_id,
+            bed_id,
+            admission.id,
+            claims.sub,
+            "IPD discharge",
+        )
+        .await?;
+    }
+
     // Auto-billing: charge room/bed for length of stay
     if super::billing::is_auto_billing_enabled(&mut tx, &claims.tenant_id, "ipd_room").await? {
-        if let Some(bed_id) = admission.bed_id {
-            let los_hours = (Utc::now() - admission.admitted_at).num_hours();
-            #[allow(clippy::cast_precision_loss)]
-            let los_days = ((los_hours as f64) / 24.0).ceil() as i32;
-            let los_days = los_days.max(1);
+        let los_hours = (Utc::now() - admission.admitted_at).num_hours();
+        #[allow(clippy::cast_precision_loss)]
+        let los_days = ((los_hours as f64) / 24.0).ceil() as i32;
+        let los_days = los_days.max(1);
+        let ip_type = admission.ip_type.unwrap_or(IpType::General);
+        let charge_code = ip_type_room_charge_code(ip_type);
+        let config = sqlx::query_as::<_, IpTypeConfiguration>(
+            "SELECT * FROM ip_type_configurations \
+             WHERE ip_type = $1 AND tenant_id = $2 AND is_active = true \
+             LIMIT 1",
+        )
+        .bind(ip_type)
+        .bind(claims.tenant_id)
+        .fetch_optional(&mut *tx)
+        .await?;
+        let charge_master_tax = sqlx::query_scalar::<_, Decimal>(
+            "SELECT tax_percent FROM charge_master \
+             WHERE tenant_id = $1 AND code = $2 AND is_active = true \
+             LIMIT 1",
+        )
+        .bind(claims.tenant_id)
+        .bind(charge_code)
+        .fetch_optional(&mut *tx)
+        .await?
+        .unwrap_or_default();
+        let configured_rate = config
+            .as_ref()
+            .map(|row| row.daily_rate + row.nursing_charge)
+            .filter(|rate| *rate > Decimal::ZERO);
+        let tax_percent_override = configured_rate.as_ref().map(|_| charge_master_tax);
+        let day_label = if los_days == 1 { "day" } else { "days" };
+        let description = match config.as_ref() {
+            Some(row) => format!(
+                "Room and nursing charges - {} ({los_days} {day_label})",
+                row.label
+            ),
+            None => {
+                if los_days == 1 {
+                    "Room charges (1 day)".to_owned()
+                } else {
+                    format!("Room charges ({los_days} days)")
+                }
+            }
+        };
 
-            let bed_type = sqlx::query_scalar::<_, String>(
-                "SELECT COALESCE(bt.code, 'general') \
-                 FROM locations l \
-                 LEFT JOIN bed_types bt ON bt.id = l.bed_type_id AND bt.tenant_id = l.tenant_id \
-                 WHERE l.id = $1 AND l.tenant_id = $2",
-            )
-            .bind(bed_id)
-            .bind(claims.tenant_id)
-            .fetch_optional(&mut *tx)
-            .await?;
-
-            let charge_code = bed_type.map_or_else(
-                || "ROOM-GENERAL".to_owned(),
-                |t| format!("ROOM-{}", t.to_uppercase()),
-            );
-
-            let desc = if los_days == 1 {
-                "Room charges (1 day)".to_owned()
-            } else {
-                format!("Room charges ({los_days} days)")
-            };
-
-            let _ = super::billing::auto_charge(
-                &mut tx,
-                &claims.tenant_id,
-                super::billing::AutoChargeInput {
-                    patient_id: admission.patient_id,
-                    encounter_id: Some(admission.encounter_id),
-                    charge_code,
-                    source: "ipd".to_owned(),
-                    source_id: admission.id,
-                    quantity: los_days,
-                    description_override: Some(desc),
-                    unit_price_override: None,
-                    tax_percent_override: None,
-                },
-            )
-            .await;
-        }
+        let _ = super::billing::auto_charge(
+            &mut tx,
+            &claims.tenant_id,
+            super::billing::AutoChargeInput {
+                patient_id: admission.patient_id,
+                encounter_id: Some(admission.encounter_id),
+                charge_code: charge_code.to_owned(),
+                source: "ipd".to_owned(),
+                source_id: admission.id,
+                quantity: los_days,
+                description_override: Some(description),
+                unit_price_override: configured_rate,
+                tax_percent_override,
+            },
+        )
+        .await;
     }
 
     let event = ClinicalEventEnvelope::new(
@@ -1123,19 +1939,6 @@ pub async fn discharge_patient(
     crate::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
 
     tx.commit().await?;
-
-    // Enrich payload with patient details for orchestration
-    let patient_info = sqlx::query_as::<_, (String, String)>(
-        "SELECT first_name || ' ' || last_name, uhid FROM patients WHERE id = $1",
-    )
-    .bind(admission.patient_id)
-    .fetch_optional(&state.db)
-    .await
-    .ok()
-    .flatten();
-
-    let (patient_name, uhid) =
-        patient_info.unwrap_or_else(|| ("Unknown".to_owned(), "N/A".to_owned()));
 
     let los_hours_total = admission
         .discharged_at
@@ -1163,8 +1966,6 @@ pub async fn discharge_patient(
             "admission_id": admission.id,
             "patient_id": admission.patient_id,
             "encounter_id": admission.encounter_id,
-            "patient_name": patient_name,
-            "uhid": uhid,
             "discharge_type": format!("{:?}", admission.discharge_type),
             "total_bill": total_bill,
             "length_of_stay": length_of_stay,
@@ -1172,7 +1973,11 @@ pub async fn discharge_patient(
     )
     .await;
 
-    Ok(Json(admission))
+    let restricted_fields = resolve_ipd_restricted_fields(&state, &claims).await?;
+    Ok(Json(filter_admission_response(
+        admission,
+        &restricted_fields,
+    )))
 }
 
 // ══════════════════════════════════════════════════════════
@@ -1215,7 +2020,7 @@ pub async fn create_nursing_task(
     Path(id): Path<Uuid>,
     Json(body): Json<CreateNursingTaskRequest>,
 ) -> Result<Json<NursingTask>, AppError> {
-    require_permission(&claims, permissions::ipd::admissions::CREATE)?;
+    require_permission(&claims, permissions::ipd::nursing_assessment::CREATE)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -1231,6 +2036,25 @@ pub async fn create_nursing_task(
 
     if !exists {
         return Err(AppError::NotFound);
+    }
+
+    if let Some(assigned_to) = body.assigned_to {
+        let assigned_user_exists = sqlx::query_scalar::<_, bool>(
+            "SELECT EXISTS( \
+                 SELECT 1 FROM users \
+                 WHERE id = $1 AND tenant_id = $2 AND is_active = true \
+             )",
+        )
+        .bind(assigned_to)
+        .bind(claims.tenant_id)
+        .fetch_one(&mut *tx)
+        .await?;
+
+        if !assigned_user_exists {
+            return Err(AppError::BadRequest(
+                "assigned user must be an active staff user for this tenant".to_owned(),
+            ));
+        }
     }
 
     let task = sqlx::query_as::<_, NursingTask>(
@@ -1265,7 +2089,7 @@ pub async fn update_nursing_task(
     Path((id, tid)): Path<(Uuid, Uuid)>,
     Json(body): Json<UpdateNursingTaskRequest>,
 ) -> Result<Json<NursingTask>, AppError> {
-    require_permission(&claims, permissions::ipd::admissions::CREATE)?;
+    require_permission(&claims, permissions::ipd::nursing_assessment::CREATE)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -1276,6 +2100,25 @@ pub async fn update_nursing_task(
     } else {
         (None, None)
     };
+
+    if let Some(assigned_to) = body.assigned_to {
+        let assigned_user_exists = sqlx::query_scalar::<_, bool>(
+            "SELECT EXISTS( \
+                 SELECT 1 FROM users \
+                 WHERE id = $1 AND tenant_id = $2 AND is_active = true \
+             )",
+        )
+        .bind(assigned_to)
+        .bind(claims.tenant_id)
+        .fetch_one(&mut *tx)
+        .await?;
+
+        if !assigned_user_exists {
+            return Err(AppError::BadRequest(
+                "assigned user must be an active staff user for this tenant".to_owned(),
+            ));
+        }
+    }
 
     let task = sqlx::query_as::<_, NursingTask>(
         "UPDATE nursing_tasks SET \
@@ -1356,6 +2199,20 @@ pub async fn create_progress_note(
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
+    let admission =
+        sqlx::query_as::<_, Admission>("SELECT * FROM admissions WHERE id = $1 AND tenant_id = $2")
+            .bind(id)
+            .bind(claims.tenant_id)
+            .fetch_optional(&mut *tx)
+            .await?
+            .ok_or_else(|| AppError::NotFound)?;
+
+    if body.note_type.trim() == "doctor_round" && admission.status != AdmissionStatus::Admitted {
+        return Err(AppError::BadRequest(
+            "Doctor rounds can only be recorded for active admissions".to_owned(),
+        ));
+    }
+
     let note = sqlx::query_as::<_, IpdProgressNote>(
         "INSERT INTO ipd_progress_notes \
            (tenant_id, admission_id, note_type, author_id, note_date, \
@@ -1377,9 +2234,78 @@ pub async fn create_progress_note(
     .fetch_one(&mut *tx)
     .await?;
 
+    if note.note_type == ProgressNoteType::DoctorRound {
+        best_effort_auto_bill_doctor_round_in_tx(&mut tx, &claims, &admission, &note).await?;
+    }
+
     tx.commit().await?;
 
     Ok(Json(note))
+}
+
+async fn best_effort_auto_bill_doctor_round_in_tx(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    claims: &Claims,
+    admission: &Admission,
+    note: &IpdProgressNote,
+) -> Result<(), AppError> {
+    sqlx::query("SAVEPOINT ipd_doctor_round_auto_bill")
+        .execute(&mut **tx)
+        .await?;
+
+    match auto_bill_doctor_round_in_tx(tx, claims, admission, note).await {
+        Ok(()) => {
+            sqlx::query("RELEASE SAVEPOINT ipd_doctor_round_auto_bill")
+                .execute(&mut **tx)
+                .await?;
+        }
+        Err(error) => {
+            sqlx::query("ROLLBACK TO SAVEPOINT ipd_doctor_round_auto_bill")
+                .execute(&mut **tx)
+                .await?;
+            sqlx::query("RELEASE SAVEPOINT ipd_doctor_round_auto_bill")
+                .execute(&mut **tx)
+                .await?;
+            tracing::warn!(
+                error = %error,
+                admission_id = %admission.id,
+                note_id = %note.id,
+                "IPD doctor-round auto-billing failed; continuing with progress-note creation"
+            );
+        }
+    }
+
+    Ok(())
+}
+
+async fn auto_bill_doctor_round_in_tx(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    claims: &Claims,
+    admission: &Admission,
+    note: &IpdProgressNote,
+) -> Result<(), AppError> {
+    if !super::billing::is_auto_billing_enabled(tx, &claims.tenant_id, "ipd_doctor_round").await? {
+        return Ok(());
+    }
+
+    super::billing::auto_charge(
+        tx,
+        &claims.tenant_id,
+        super::billing::AutoChargeInput {
+            patient_id: admission.patient_id,
+            encounter_id: Some(admission.encounter_id),
+            charge_code: "CON_SPECIALIST".to_owned(),
+            source: "ipd".to_owned(),
+            source_id: note.id,
+            quantity: 1,
+            description_override: Some(format!("IPD doctor round - {}", note.note_date)),
+            unit_price_override: None,
+            tax_percent_override: None,
+        },
+    )
+    .await?;
+
+    Ok(())
 }
 
 // ══════════════════════════════════════════════════════════
@@ -2251,7 +3177,17 @@ pub async fn list_wards(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<WardListRow>>, AppError> {
-    require_permission(&claims, permissions::ipd::admissions::LIST)?;
+    require_any_permission(
+        &claims,
+        &[
+            permissions::ipd::admissions::LIST,
+            permissions::ipd::admissions::CREATE,
+            permissions::ipd::transfers::CREATE,
+            permissions::ipd::wards::MANAGE,
+            permissions::ipd::beds::MANAGE,
+            permissions::ipd::bed_dashboard::VIEW,
+        ],
+    )?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -2285,7 +3221,15 @@ pub async fn get_ward(
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<Ward>, AppError> {
-    require_permission(&claims, permissions::ipd::admissions::LIST)?;
+    require_any_permission(
+        &claims,
+        &[
+            permissions::ipd::admissions::LIST,
+            permissions::ipd::wards::MANAGE,
+            permissions::ipd::beds::MANAGE,
+            permissions::ipd::bed_dashboard::VIEW,
+        ],
+    )?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -2374,7 +3318,17 @@ pub async fn list_ward_beds(
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<Vec<WardBedRow>>, AppError> {
-    require_permission(&claims, permissions::ipd::admissions::LIST)?;
+    require_any_permission(
+        &claims,
+        &[
+            permissions::ipd::admissions::LIST,
+            permissions::ipd::wards::MANAGE,
+            permissions::ipd::beds::MANAGE,
+            permissions::ipd::bed_dashboard::VIEW,
+        ],
+    )?;
+    let can_view_patient_identity =
+        claims_have_any_permission(&claims, &[permissions::patients::VIEW]);
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -2384,8 +3338,8 @@ pub async fn list_ward_beds(
         "SELECT wbm.id AS mapping_id, wbm.bed_location_id, \
                l.name AS bed_name, bt.name AS bed_type_name, \
                bs.status AS bed_status, \
-               CONCAT(p.first_name, ' ', COALESCE(p.last_name, '')) AS patient_name, \
-               p.uhid AS patient_uhid, \
+               CASE WHEN $3::bool THEN CONCAT(p.first_name, ' ', COALESCE(p.last_name, '')) ELSE NULL END AS patient_name, \
+               CASE WHEN $3::bool THEN p.uhid ELSE NULL END AS patient_uhid, \
                wbm.sort_order \
          FROM ward_bed_mappings wbm \
          JOIN locations l ON l.id = wbm.bed_location_id \
@@ -2398,6 +3352,7 @@ pub async fn list_ward_beds(
     )
     .bind(id)
     .bind(claims.tenant_id)
+    .bind(can_view_patient_identity)
     .fetch_all(&mut *tx)
     .await?;
 
@@ -2412,23 +3367,34 @@ pub async fn assign_bed_to_ward(
     Path(ward_id): Path<Uuid>,
     Json(body): Json<AssignBedToWardRequest>,
 ) -> Result<Json<WardBedMapping>, AppError> {
-    require_permission(&claims, permissions::ipd::wards::MANAGE)?;
+    require_any_permission(
+        &claims,
+        &[
+            permissions::ipd::wards::MANAGE,
+            permissions::ipd::beds::MANAGE,
+        ],
+    )?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
     let mapping = sqlx::query_as::<_, WardBedMapping>(
-        "INSERT INTO ward_bed_mappings (tenant_id, ward_id, bed_location_id, bed_type_id, sort_order) \
-         VALUES ($1, $2, $3, $4, $5) RETURNING *",
+        "INSERT INTO ward_bed_mappings \
+         (tenant_id, ward_id, bed_location_id, bed_type_id, sort_order) \
+         SELECT $1, $2, l.id, COALESCE($4::uuid, l.bed_type_id), $5 \
+         FROM locations l \
+         WHERE l.id = $3 AND l.tenant_id = $1 \
+         RETURNING *",
     )
     .bind(claims.tenant_id)
     .bind(ward_id)
     .bind(body.bed_location_id)
     .bind(body.bed_type_id)
     .bind(body.sort_order.unwrap_or(0))
-    .fetch_one(&mut *tx)
-    .await?;
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
 
     sqlx::query!(
         "INSERT INTO bed_states (tenant_id, location_id) \
@@ -2471,7 +3437,13 @@ pub async fn remove_bed_from_ward(
     Extension(claims): Extension<Claims>,
     Path((ward_id, mapping_id)): Path<(Uuid, Uuid)>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    require_permission(&claims, permissions::ipd::wards::MANAGE)?;
+    require_any_permission(
+        &claims,
+        &[
+            permissions::ipd::wards::MANAGE,
+            permissions::ipd::beds::MANAGE,
+        ],
+    )?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -2581,13 +3553,15 @@ pub async fn bed_dashboard_beds(
     Query(params): Query<BedDashboardQuery>,
 ) -> Result<Json<Vec<BedDashboardRow>>, AppError> {
     require_permission(&claims, permissions::ipd::bed_dashboard::VIEW)?;
+    let can_view_patient_identity =
+        claims_have_any_permission(&claims, &[permissions::patients::VIEW]);
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
     let mut conditions = vec!["bs.tenant_id = $1".to_owned()];
-    let mut idx: usize = 2;
+    let mut idx: usize = 3;
 
     if params.ward_id.is_some() {
         conditions.push(format!("bs.ward_id = ${idx}"));
@@ -2602,8 +3576,8 @@ pub async fn bed_dashboard_beds(
         "SELECT bs.id AS bed_state_id, bs.location_id AS bed_location_id, \
                l.name AS bed_name, bs.ward_id, w.name AS ward_name, \
                bs.status AS bed_status, \
-               CONCAT(p.first_name, ' ', COALESCE(p.last_name, '')) AS patient_name, \
-               p.uhid AS patient_uhid, bs.admission_id \
+               CASE WHEN $2::bool THEN CONCAT(p.first_name, ' ', COALESCE(p.last_name, '')) ELSE NULL END AS patient_name, \
+               CASE WHEN $2::bool THEN p.uhid ELSE NULL END AS patient_uhid, bs.admission_id \
          FROM bed_states bs \
          JOIN locations l ON l.id = bs.location_id \
          LEFT JOIN wards w ON w.id = bs.ward_id \
@@ -2614,7 +3588,9 @@ pub async fn bed_dashboard_beds(
          ORDER BY w.name NULLS LAST, l.name"
     );
 
-    let mut q = sqlx::query_as::<_, BedDashboardRow>(&sql).bind(claims.tenant_id);
+    let mut q = sqlx::query_as::<_, BedDashboardRow>(&sql)
+        .bind(claims.tenant_id)
+        .bind(can_view_patient_identity);
     if let Some(wid) = params.ward_id {
         q = q.bind(wid);
     }
@@ -2669,7 +3645,20 @@ pub async fn list_attenders(
     Extension(claims): Extension<Claims>,
     Path(admission_id): Path<Uuid>,
 ) -> Result<Json<Vec<AdmissionAttender>>, AppError> {
-    require_permission(&claims, permissions::ipd::admissions::VIEW)?;
+    require_any_permission(
+        &claims,
+        &[
+            permissions::ipd::admissions::VIEW,
+            permissions::ipd::attenders::MANAGE,
+        ],
+    )?;
+    let restricted_fields = field_access::resolve_restricted_fields(
+        &state.db,
+        claims.tenant_id,
+        claims.sub,
+        &claims.role,
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -2687,7 +3676,11 @@ pub async fn list_attenders(
 
     tx.commit().await?;
 
-    Ok(Json(rows))
+    Ok(Json(
+        rows.into_iter()
+            .map(|row| filter_attender_response(row, &restricted_fields))
+            .collect(),
+    ))
 }
 
 pub async fn create_attender(
@@ -2696,7 +3689,15 @@ pub async fn create_attender(
     Path(admission_id): Path<Uuid>,
     Json(body): Json<CreateAttenderRequest>,
 ) -> Result<Json<AdmissionAttender>, AppError> {
-    require_permission(&claims, permissions::ipd::admissions::CREATE)?;
+    require_permission(&claims, permissions::ipd::attenders::MANAGE)?;
+    let restricted_fields = field_access::resolve_restricted_fields(
+        &state.db,
+        claims.tenant_id,
+        claims.sub,
+        &claims.role,
+    )
+    .await?;
+    validate_attender_write_access(&body, &restricted_fields)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -2723,7 +3724,7 @@ pub async fn create_attender(
 
     tx.commit().await?;
 
-    Ok(Json(row))
+    Ok(Json(filter_attender_response(row, &restricted_fields)))
 }
 
 pub async fn delete_attender(
@@ -2731,7 +3732,7 @@ pub async fn delete_attender(
     Extension(claims): Extension<Claims>,
     Path((admission_id, attender_id)): Path<(Uuid, Uuid)>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    require_permission(&claims, permissions::ipd::admissions::CREATE)?;
+    require_permission(&claims, permissions::ipd::attenders::MANAGE)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -2814,7 +3815,14 @@ pub async fn get_discharge_summary(
     Extension(claims): Extension<Claims>,
     Path(admission_id): Path<Uuid>,
 ) -> Result<Json<Option<IpdDischargeSummary>>, AppError> {
-    require_permission(&claims, permissions::ipd::admissions::VIEW)?;
+    require_any_permission(
+        &claims,
+        &[
+            permissions::ipd::admissions::VIEW,
+            permissions::ipd::discharge_summary::CREATE,
+            permissions::ipd::discharge_summary::FINALIZE,
+        ],
+    )?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -2831,7 +3839,10 @@ pub async fn get_discharge_summary(
 
     tx.commit().await?;
 
-    Ok(Json(row))
+    let restricted_fields = resolve_ipd_restricted_fields(&state, &claims).await?;
+    Ok(Json(row.map(|summary| {
+        filter_discharge_summary_response(summary, &restricted_fields)
+    })))
 }
 
 pub async fn create_discharge_summary(
@@ -2841,6 +3852,8 @@ pub async fn create_discharge_summary(
     Json(body): Json<CreateDischargeSummaryRequest>,
 ) -> Result<Json<IpdDischargeSummary>, AppError> {
     require_permission(&claims, permissions::ipd::discharge_summary::CREATE)?;
+    let restricted_fields = resolve_ipd_restricted_fields(&state, &claims).await?;
+    validate_discharge_summary_write_access(&body.final_diagnosis, &restricted_fields)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -2888,7 +3901,10 @@ pub async fn create_discharge_summary(
 
     tx.commit().await?;
 
-    Ok(Json(row))
+    Ok(Json(filter_discharge_summary_response(
+        row,
+        &restricted_fields,
+    )))
 }
 
 pub async fn update_discharge_summary(
@@ -2898,6 +3914,8 @@ pub async fn update_discharge_summary(
     Json(body): Json<UpdateDischargeSummaryRequest>,
 ) -> Result<Json<IpdDischargeSummary>, AppError> {
     require_permission(&claims, permissions::ipd::discharge_summary::CREATE)?;
+    let restricted_fields = resolve_ipd_restricted_fields(&state, &claims).await?;
+    validate_discharge_summary_write_access(&body.final_diagnosis, &restricted_fields)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -2959,7 +3977,10 @@ pub async fn update_discharge_summary(
 
     tx.commit().await?;
 
-    Ok(Json(row))
+    Ok(Json(filter_discharge_summary_response(
+        row,
+        &restricted_fields,
+    )))
 }
 
 pub async fn finalize_discharge_summary(
@@ -2992,7 +4013,11 @@ pub async fn finalize_discharge_summary(
 
     tx.commit().await?;
 
-    Ok(Json(row))
+    let restricted_fields = resolve_ipd_restricted_fields(&state, &claims).await?;
+    Ok(Json(filter_discharge_summary_response(
+        row,
+        &restricted_fields,
+    )))
 }
 
 // ══════════════════════════════════════════════════════════
@@ -3287,7 +4312,7 @@ pub struct CreateTransferRequest {
     pub to_ward_id: Option<Uuid>,
     pub from_bed_id: Option<Uuid>,
     pub to_bed_id: Option<Uuid>,
-    pub reason: Option<String>,
+    pub reason: String,
     pub clinical_summary: Option<String>,
     pub notes: Option<String>,
 }
@@ -3366,6 +4391,51 @@ pub struct UpdateDischargeTatRequest {
     pub notes: Option<String>,
 }
 
+fn required_discharge_tat_update_permissions(
+    body: &UpdateDischargeTatRequest,
+) -> Result<Vec<&'static str>, AppError> {
+    let mut permissions = Vec::new();
+    if body.billing_cleared_at.is_some() {
+        permissions.push(permissions::ipd::discharge_tat::BILLING_UPDATE);
+    }
+    if body.pharmacy_cleared_at.is_some() {
+        permissions.push(permissions::ipd::discharge_tat::PHARMACY_UPDATE);
+    }
+    if body.nursing_cleared_at.is_some() {
+        permissions.push(permissions::ipd::discharge_tat::NURSING_UPDATE);
+    }
+    if body.doctor_cleared_at.is_some() {
+        permissions.push(permissions::ipd::discharge_tat::DOCTOR_UPDATE);
+    }
+    if body.discharge_completed_at.is_some() {
+        permissions.push(permissions::ipd::discharge_tat::COMPLETE);
+    }
+    if body
+        .notes
+        .as_ref()
+        .is_some_and(|notes| !notes.trim().is_empty())
+    {
+        permissions.push(permissions::ipd::discharge_tat::UPDATE);
+    }
+    if permissions.is_empty() {
+        return Err(AppError::BadRequest(
+            "Provide at least one discharge TAT milestone or note".to_owned(),
+        ));
+    }
+    Ok(permissions)
+}
+
+fn parse_discharge_tat_timestamp(
+    value: Option<&String>,
+    field_name: &str,
+) -> Result<Option<chrono::DateTime<Utc>>, AppError> {
+    value.map_or(Ok(None), |raw| {
+        raw.parse::<chrono::DateTime<Utc>>().map(Some).map_err(|_| {
+            AppError::BadRequest(format!("{field_name} must be a valid RFC3339 timestamp"))
+        })
+    })
+}
+
 #[derive(Debug, Deserialize)]
 pub struct ListTurnaroundQuery {
     pub from: Option<NaiveDate>,
@@ -3380,7 +4450,13 @@ pub async fn list_ip_types(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<IpTypeConfiguration>>, AppError> {
-    require_permission(&claims, permissions::ipd::admissions::LIST)?;
+    require_any_permission(
+        &claims,
+        &[
+            permissions::ipd::tariffs::LIST,
+            permissions::ipd::tariffs::MANAGE,
+        ],
+    )?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -3396,7 +4472,12 @@ pub async fn list_ip_types(
     .await?;
 
     tx.commit().await?;
-    Ok(Json(rows))
+    let restricted_fields = resolve_ipd_restricted_fields(&state, &claims).await?;
+    Ok(Json(
+        rows.into_iter()
+            .map(|row| filter_ip_type_configuration_response(row, &restricted_fields))
+            .collect(),
+    ))
 }
 
 pub async fn create_ip_type(
@@ -3404,7 +4485,15 @@ pub async fn create_ip_type(
     Extension(claims): Extension<Claims>,
     Json(body): Json<CreateIpTypeConfigRequest>,
 ) -> Result<Json<IpTypeConfiguration>, AppError> {
-    require_permission(&claims, permissions::ipd::wards::MANAGE)?;
+    require_permission(&claims, permissions::ipd::tariffs::MANAGE)?;
+    let restricted_fields = resolve_ipd_restricted_fields(&state, &claims).await?;
+    validate_ip_type_amount_write_access(
+        body.daily_rate,
+        body.nursing_charge,
+        body.deposit_required,
+        body.billing_alert_threshold,
+        &restricted_fields,
+    )?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -3429,7 +4518,10 @@ pub async fn create_ip_type(
     .await?;
 
     tx.commit().await?;
-    Ok(Json(row))
+    Ok(Json(filter_ip_type_configuration_response(
+        row,
+        &restricted_fields,
+    )))
 }
 
 pub async fn update_ip_type(
@@ -3438,7 +4530,15 @@ pub async fn update_ip_type(
     Path(id): Path<Uuid>,
     Json(body): Json<UpdateIpTypeConfigRequest>,
 ) -> Result<Json<IpTypeConfiguration>, AppError> {
-    require_permission(&claims, permissions::ipd::wards::MANAGE)?;
+    require_permission(&claims, permissions::ipd::tariffs::MANAGE)?;
+    let restricted_fields = resolve_ipd_restricted_fields(&state, &claims).await?;
+    validate_ip_type_amount_write_access(
+        body.daily_rate,
+        body.nursing_charge,
+        body.deposit_required,
+        body.billing_alert_threshold,
+        &restricted_fields,
+    )?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -3471,7 +4571,10 @@ pub async fn update_ip_type(
     .ok_or_else(|| AppError::NotFound)?;
 
     tx.commit().await?;
-    Ok(Json(row))
+    Ok(Json(filter_ip_type_configuration_response(
+        row,
+        &restricted_fields,
+    )))
 }
 
 // ══════════════════════════════════════════════════════════
@@ -3483,7 +4586,15 @@ pub async fn list_admission_checklist(
     Extension(claims): Extension<Claims>,
     Path(admission_id): Path<Uuid>,
 ) -> Result<Json<Vec<AdmissionChecklist>>, AppError> {
-    require_permission(&claims, permissions::ipd::admissions::VIEW)?;
+    require_any_permission(
+        &claims,
+        &[
+            permissions::ipd::admissions::VIEW,
+            permissions::ipd::discharge_checklist::LIST,
+            permissions::ipd::discharge_checklist::UPDATE,
+            permissions::ipd::clinical_docs::CREATE,
+        ],
+    )?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -3509,7 +4620,13 @@ pub async fn create_admission_checklist_items(
     Path(admission_id): Path<Uuid>,
     Json(body): Json<CreateChecklistItemsRequest>,
 ) -> Result<Json<Vec<AdmissionChecklist>>, AppError> {
-    require_permission(&claims, permissions::ipd::admissions::CREATE)?;
+    require_any_permission(
+        &claims,
+        &[
+            permissions::ipd::discharge_checklist::UPDATE,
+            permissions::ipd::clinical_docs::CREATE,
+        ],
+    )?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -3542,7 +4659,13 @@ pub async fn toggle_checklist_item(
     Path((_admission_id, item_id)): Path<(Uuid, Uuid)>,
     Json(body): Json<ToggleChecklistRequest>,
 ) -> Result<Json<AdmissionChecklist>, AppError> {
-    require_permission(&claims, permissions::ipd::admissions::CREATE)?;
+    require_any_permission(
+        &claims,
+        &[
+            permissions::ipd::discharge_checklist::UPDATE,
+            permissions::ipd::clinical_docs::CREATE,
+        ],
+    )?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -4065,7 +5188,14 @@ pub async fn list_transfers(
     Extension(claims): Extension<Claims>,
     Path(admission_id): Path<Uuid>,
 ) -> Result<Json<Vec<IpdTransferLog>>, AppError> {
-    require_permission(&claims, permissions::ipd::admissions::VIEW)?;
+    require_any_permission(
+        &claims,
+        &[
+            permissions::ipd::admissions::VIEW,
+            permissions::ipd::transfers::CREATE,
+            permissions::ipd::beds::MANAGE,
+        ],
+    )?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -4092,19 +5222,46 @@ pub async fn create_transfer(
     Json(body): Json<CreateTransferRequest>,
 ) -> Result<Json<IpdTransferLog>, AppError> {
     require_permission(&claims, permissions::ipd::transfers::CREATE)?;
+    let transfer_type = match body.transfer_type.as_str() {
+        "inter_ward" | "inter_department" | "inter_hospital" => body.transfer_type,
+        _ => return Err(AppError::BadRequest("Invalid transfer type".to_owned())),
+    };
+    let transfer_reason = body.reason.trim();
+    if transfer_reason.len() < 3 {
+        return Err(AppError::BadRequest(
+            "Transfer reason must be at least 3 characters".to_owned(),
+        ));
+    }
+    let transfer_reason = transfer_reason.to_owned();
+    let clinical_summary = body
+        .clinical_summary
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_owned);
+    let transfer_notes = body
+        .notes
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_owned);
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
-    let admission_context = sqlx::query!(
-        "SELECT patient_id, encounter_id FROM admissions WHERE id = $1 AND tenant_id = $2",
-        admission_id,
-        claims.tenant_id,
-    )
-    .fetch_optional(&mut *tx)
-    .await?
-    .ok_or(AppError::NotFound)?;
+    let admission_context =
+        sqlx::query_as::<_, Admission>("SELECT * FROM admissions WHERE id = $1 AND tenant_id = $2")
+            .bind(admission_id)
+            .bind(claims.tenant_id)
+            .fetch_optional(&mut *tx)
+            .await?
+            .ok_or(AppError::NotFound)?;
+    if admission_context.status != AdmissionStatus::Admitted {
+        return Err(AppError::BadRequest(
+            "Transfers can only be logged for admitted patients".to_owned(),
+        ));
+    }
 
     let row = sqlx::query_as::<_, IpdTransferLog>(
         "INSERT INTO ipd_transfer_logs \
@@ -4114,15 +5271,15 @@ pub async fn create_transfer(
     )
     .bind(claims.tenant_id)
     .bind(admission_id)
-    .bind(&body.transfer_type)
+    .bind(&transfer_type)
     .bind(body.from_ward_id)
     .bind(body.to_ward_id)
     .bind(body.from_bed_id)
     .bind(body.to_bed_id)
-    .bind(&body.reason)
-    .bind(&body.clinical_summary)
+    .bind(&transfer_reason)
+    .bind(&clinical_summary)
     .bind(claims.sub)
-    .bind(&body.notes)
+    .bind(&transfer_notes)
     .fetch_one(&mut *tx)
     .await?;
 
@@ -4420,7 +5577,18 @@ pub async fn get_discharge_tat(
     Extension(claims): Extension<Claims>,
     Path(admission_id): Path<Uuid>,
 ) -> Result<Json<Option<IpdDischargeTatLog>>, AppError> {
-    require_permission(&claims, permissions::ipd::discharge_tat::VIEW)?;
+    require_any_permission(
+        &claims,
+        &[
+            permissions::ipd::discharge_tat::VIEW,
+            permissions::ipd::discharge_tat::UPDATE,
+            permissions::ipd::discharge_tat::BILLING_UPDATE,
+            permissions::ipd::discharge_tat::PHARMACY_UPDATE,
+            permissions::ipd::discharge_tat::NURSING_UPDATE,
+            permissions::ipd::discharge_tat::DOCTOR_UPDATE,
+            permissions::ipd::discharge_tat::COMPLETE,
+        ],
+    )?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -4444,7 +5612,7 @@ pub async fn initiate_discharge_tat(
     Extension(claims): Extension<Claims>,
     Path(admission_id): Path<Uuid>,
 ) -> Result<Json<IpdDischargeTatLog>, AppError> {
-    require_permission(&claims, permissions::ipd::discharge::CREATE)?;
+    require_permission(&claims, permissions::ipd::discharge_tat::UPDATE)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -4473,30 +5641,76 @@ pub async fn update_discharge_tat(
     Path(admission_id): Path<Uuid>,
     Json(body): Json<UpdateDischargeTatRequest>,
 ) -> Result<Json<IpdDischargeTatLog>, AppError> {
-    require_permission(&claims, permissions::ipd::discharge_tat::VIEW)?;
+    let required_permissions = required_discharge_tat_update_permissions(&body)?;
+    for permission in required_permissions {
+        require_permission(&claims, permission)?;
+    }
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
-    let billing_ts: Option<chrono::DateTime<Utc>> = body
-        .billing_cleared_at
-        .as_ref()
-        .and_then(|s| s.parse().ok());
-    let pharmacy_ts: Option<chrono::DateTime<Utc>> = body
-        .pharmacy_cleared_at
-        .as_ref()
-        .and_then(|s| s.parse().ok());
-    let nursing_ts: Option<chrono::DateTime<Utc>> = body
-        .nursing_cleared_at
-        .as_ref()
-        .and_then(|s| s.parse().ok());
-    let doctor_ts: Option<chrono::DateTime<Utc>> =
-        body.doctor_cleared_at.as_ref().and_then(|s| s.parse().ok());
-    let completed_ts: Option<chrono::DateTime<Utc>> = body
-        .discharge_completed_at
-        .as_ref()
-        .and_then(|s| s.parse().ok());
+    let billing_ts =
+        parse_discharge_tat_timestamp(body.billing_cleared_at.as_ref(), "billing_cleared_at")?;
+    let pharmacy_ts =
+        parse_discharge_tat_timestamp(body.pharmacy_cleared_at.as_ref(), "pharmacy_cleared_at")?;
+    let nursing_ts =
+        parse_discharge_tat_timestamp(body.nursing_cleared_at.as_ref(), "nursing_cleared_at")?;
+    let doctor_ts =
+        parse_discharge_tat_timestamp(body.doctor_cleared_at.as_ref(), "doctor_cleared_at")?;
+    let completed_ts = parse_discharge_tat_timestamp(
+        body.discharge_completed_at.as_ref(),
+        "discharge_completed_at",
+    )?;
+
+    if completed_ts.is_some() {
+        let existing_clearances = sqlx::query_as::<
+            _,
+            (
+                Option<chrono::DateTime<Utc>>,
+                Option<chrono::DateTime<Utc>>,
+                Option<chrono::DateTime<Utc>>,
+                Option<chrono::DateTime<Utc>>,
+            ),
+        >(
+            "SELECT billing_cleared_at, pharmacy_cleared_at, nursing_cleared_at, doctor_cleared_at \
+             FROM ipd_discharge_tat_log WHERE admission_id = $1 AND tenant_id = $2 FOR UPDATE",
+        )
+        .bind(admission_id)
+        .bind(claims.tenant_id)
+        .fetch_optional(&mut *tx)
+        .await?
+        .ok_or_else(|| AppError::NotFound)?;
+
+        let missing_clearances = [
+            (
+                "billing",
+                billing_ts.as_ref().or(existing_clearances.0.as_ref()),
+            ),
+            (
+                "pharmacy",
+                pharmacy_ts.as_ref().or(existing_clearances.1.as_ref()),
+            ),
+            (
+                "nursing",
+                nursing_ts.as_ref().or(existing_clearances.2.as_ref()),
+            ),
+            (
+                "doctor",
+                doctor_ts.as_ref().or(existing_clearances.3.as_ref()),
+            ),
+        ]
+        .into_iter()
+        .filter_map(|(label, value)| value.is_none().then_some(label))
+        .collect::<Vec<_>>();
+
+        if !missing_clearances.is_empty() {
+            return Err(AppError::BadRequest(format!(
+                "Cannot complete discharge TAT before {} clearance",
+                missing_clearances.join(", ")
+            )));
+        }
+    }
 
     let row = sqlx::query_as::<_, IpdDischargeTatLog>(
         "UPDATE ipd_discharge_tat_log SET \
@@ -4544,7 +5758,16 @@ pub async fn list_available_beds(
     Extension(claims): Extension<Claims>,
     Query(q): Query<AvailableBedsQuery>,
 ) -> Result<Json<Vec<AvailableBed>>, AppError> {
-    require_permission(&claims, permissions::ipd::admissions::VIEW)?;
+    require_any_permission(
+        &claims,
+        &[
+            permissions::ipd::admissions::VIEW,
+            permissions::ipd::admissions::CREATE,
+            permissions::ipd::transfers::CREATE,
+            permissions::ipd::wards::MANAGE,
+            permissions::ipd::beds::MANAGE,
+        ],
+    )?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -4600,7 +5823,17 @@ pub async fn get_investigations(
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<InvestigationsResponse>, AppError> {
-    require_permission(&claims, permissions::ipd::admissions::VIEW)?;
+    require_any_permission(
+        &claims,
+        &[
+            permissions::ipd::admissions::VIEW,
+            permissions::lab::orders::LIST,
+            permissions::lab::orders::VIEW,
+            permissions::lab::reports::VIEW,
+            permissions::radiology::orders::LIST,
+            permissions::radiology::orders::VIEW,
+        ],
+    )?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -4678,7 +5911,13 @@ pub async fn get_estimated_cost(
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<EstimatedCostResponse>, AppError> {
-    require_permission(&claims, permissions::ipd::admissions::VIEW)?;
+    require_any_permission(
+        &claims,
+        &[
+            permissions::billing::invoices::LIST,
+            permissions::billing::invoices::VIEW,
+        ],
+    )?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -4716,7 +5955,8 @@ pub async fn get_estimated_cost(
     let nursing_total = nursing_charge * days_dec;
     let total_estimated = room_total + nursing_total;
 
-    Ok(Json(EstimatedCostResponse {
+    let restricted_fields = resolve_ipd_restricted_fields(&state, &claims).await?;
+    let estimate = EstimatedCostResponse {
         daily_rate,
         nursing_charge,
         estimated_days,
@@ -4724,7 +5964,11 @@ pub async fn get_estimated_cost(
         nursing_total,
         deposit_required,
         total_estimated,
-    }))
+    };
+    Ok(Json(filter_estimated_cost_response(
+        estimate,
+        &restricted_fields,
+    )))
 }
 
 /// GET /api/ipd/admissions/{id}/advances
@@ -4733,7 +5977,7 @@ pub async fn get_admission_advances(
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<Vec<medbrains_core::billing::Receipt>>, AppError> {
-    require_permission(&claims, permissions::ipd::admissions::VIEW)?;
+    require_permission(&claims, permissions::billing::advances::LIST)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -4758,7 +6002,12 @@ pub async fn get_admission_advances(
     .await?;
 
     tx.commit().await?;
-    Ok(Json(rows))
+    let restricted_fields = resolve_ipd_restricted_fields(&state, &claims).await?;
+    Ok(Json(
+        rows.into_iter()
+            .map(|row| filter_receipt_amount_response(row, &restricted_fields))
+            .collect(),
+    ))
 }
 
 /// GET /api/ipd/admissions/{id}/prior-auth
@@ -4767,7 +6016,7 @@ pub async fn get_admission_prior_auth(
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<Vec<medbrains_core::insurance::PriorAuthRequest>>, AppError> {
-    require_permission(&claims, permissions::ipd::admissions::VIEW)?;
+    require_permission(&claims, permissions::billing::corporate::LIST)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -4803,11 +6052,24 @@ pub async fn link_mlc(
     Path(id): Path<Uuid>,
     Json(body): Json<LinkMlcRequest>,
 ) -> Result<Json<Admission>, AppError> {
-    require_permission(&claims, permissions::ipd::admissions::CREATE)?;
+    require_permission(&claims, permissions::ipd::admissions::UPDATE)?;
+    require_permission(&claims, permissions::emergency::mlc::LIST)?;
+    require_permission(&claims, permissions::emergency::mlc::UPDATE)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+
+    let mlc_exists = sqlx::query_scalar::<_, bool>(
+        "SELECT EXISTS(SELECT 1 FROM mlc_cases WHERE id = $1 AND tenant_id = $2)",
+    )
+    .bind(body.mlc_case_id)
+    .bind(claims.tenant_id)
+    .fetch_one(&mut *tx)
+    .await?;
+    if !mlc_exists {
+        return Err(AppError::NotFound);
+    }
 
     let adm = sqlx::query_as::<_, Admission>(
         "UPDATE admissions SET mlc_case_id = $1, updated_at = now() \
@@ -4820,7 +6082,8 @@ pub async fn link_mlc(
     .await?;
 
     tx.commit().await?;
-    Ok(Json(adm))
+    let restricted_fields = resolve_ipd_restricted_fields(&state, &claims).await?;
+    Ok(Json(filter_admission_response(adm, &restricted_fields)))
 }
 
 /// GET /api/ipd/admissions/{id}/mlc
@@ -4829,7 +6092,14 @@ pub async fn get_admission_mlc(
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<Option<medbrains_core::emergency::MlcCase>>, AppError> {
-    require_permission(&claims, permissions::ipd::admissions::VIEW)?;
+    require_permission(&claims, permissions::emergency::mlc::LIST)?;
+    let restricted_fields = field_access::resolve_restricted_fields(
+        &state.db,
+        claims.tenant_id,
+        claims.sub,
+        &claims.role,
+    )
+    .await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -4856,7 +6126,9 @@ pub async fn get_admission_mlc(
     };
 
     tx.commit().await?;
-    Ok(Json(mlc))
+    Ok(Json(mlc.map(|row| {
+        filter_ipd_mlc_case_response(row, &restricted_fields)
+    })))
 }
 
 /// GET /api/ipd/admissions/{id}/billing-summary
@@ -4865,7 +6137,13 @@ pub async fn get_billing_summary(
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<BillingSummaryResponse>, AppError> {
-    require_permission(&claims, permissions::ipd::admissions::VIEW)?;
+    require_any_permission(
+        &claims,
+        &[
+            permissions::billing::invoices::LIST,
+            permissions::billing::invoices::VIEW,
+        ],
+    )?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -4915,12 +6193,17 @@ pub async fn get_billing_summary(
     let total_charges = totals.total_charges.unwrap_or(Decimal::ZERO);
     let total_payments = totals.total_payments.unwrap_or(Decimal::ZERO);
 
-    Ok(Json(BillingSummaryResponse {
+    let restricted_fields = resolve_ipd_restricted_fields(&state, &claims).await?;
+    let summary = BillingSummaryResponse {
         charges_by_dept,
         total_charges,
         total_payments,
         outstanding_balance: total_charges - total_payments,
-    }))
+    };
+    Ok(Json(filter_billing_summary_response(
+        summary,
+        &restricted_fields,
+    )))
 }
 
 /// GET /api/ipd/admissions/{id}/print
@@ -4928,15 +6211,70 @@ pub async fn get_admission_print_data(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
+    Query(query): Query<AdmissionPrintQuery>,
 ) -> Result<Json<AdmissionPrintData>, AppError> {
-    require_permission(&claims, permissions::ipd::admissions::VIEW)?;
+    require_permission(&claims, permissions::ipd::admissions::PRINT)?;
+    require_permission(&claims, permissions::patients::VIEW)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
-    let data = sqlx::query_as::<_, AdmissionPrintData>(
+    let prior_print_count: i64 = sqlx::query_scalar(
+        "SELECT COALESCE(SUM(print_count), 0)::bigint \
+         FROM document_outputs \
+         WHERE tenant_id = $1 \
+           AND module_code = 'ipd' \
+           AND source_table = 'admissions' \
+           AND source_id = $2 \
+           AND title = 'IPD Admission Slip' \
+           AND status <> 'voided'::document_output_status",
+    )
+    .bind(claims.tenant_id)
+    .bind(id)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    let reprint_reason = query
+        .reprint_reason
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    let is_reprint = prior_print_count > 0;
+    if is_reprint {
+        require_permission(&claims, permissions::ipd::admissions::REPRINT)?;
+        if reprint_reason.is_none_or(|value| value.len() < 5) {
+            return Err(AppError::BadRequest(
+                "reprint reason is required after the first admission slip print".to_owned(),
+            ));
+        }
+    } else if reprint_reason.is_some() {
+        return Err(AppError::BadRequest(
+            "admission slip has not been printed yet".to_owned(),
+        ));
+    }
+
+    #[derive(sqlx::FromRow)]
+    struct AdmissionPrintRow {
+        patient_id: Uuid,
+        encounter_id: Uuid,
+        patient_name: String,
+        uhid: String,
+        age: Option<i32>,
+        gender: Option<String>,
+        admission_date: chrono::DateTime<Utc>,
+        bed_number: Option<String>,
+        ward_name: Option<String>,
+        department_name: Option<String>,
+        doctor_name: Option<String>,
+        ip_type: Option<String>,
+        provisional_diagnosis: Option<String>,
+    }
+
+    let row = sqlx::query_as::<_, AdmissionPrintRow>(
         "SELECT \
+           a.patient_id, \
+           a.encounter_id, \
            p.first_name || ' ' || p.last_name AS patient_name, \
            p.uhid, \
            EXTRACT(YEAR FROM age(p.date_of_birth))::int AS age, \
@@ -4962,8 +6300,98 @@ pub async fn get_admission_print_data(
     .fetch_one(&mut *tx)
     .await?;
 
+    let today = Utc::now().format("%Y%m%d").to_string();
+    let document_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*)::bigint \
+         FROM document_outputs \
+         WHERE tenant_id = $1 \
+           AND document_number LIKE 'IPD-ADM-' || $2 || '-%'",
+    )
+    .bind(claims.tenant_id)
+    .bind(&today)
+    .fetch_one(&mut *tx)
+    .await?;
+    let document_number = format!("IPD-ADM-{today}-{:04}", document_count + 1);
+    let print_action = if is_reprint { "reprint" } else { "print" };
+    let context_snapshot = json!({
+        "document_type": "ipd_admission_slip",
+        "action": print_action,
+        "admission_id": id,
+        "patient_id": row.patient_id,
+        "encounter_id": row.encounter_id,
+        "prior_print_count": prior_print_count,
+        "reprint_reason": reprint_reason,
+    });
+
+    let document_output_id: Uuid = sqlx::query_scalar(
+        "INSERT INTO document_outputs \
+         (tenant_id, module_code, source_table, source_id, patient_id, visit_id, admission_id, \
+          document_number, title, category, status, page_count, print_count, \
+          first_printed_at, last_printed_at, watermark, context_snapshot, generated_by) \
+         VALUES ($1, 'ipd', 'admissions', $2, $3, $4, $2, \
+          $5, 'IPD Admission Slip', 'custom'::document_template_category, \
+          'printed'::document_output_status, 1, 1, now(), now(), \
+          CASE WHEN $6::bool THEN 'duplicate'::watermark_type ELSE 'none'::watermark_type END, \
+          $7, $8) \
+         RETURNING id",
+    )
+    .bind(claims.tenant_id)
+    .bind(id)
+    .bind(row.patient_id)
+    .bind(row.encounter_id)
+    .bind(&document_number)
+    .bind(is_reprint)
+    .bind(&context_snapshot)
+    .bind(claims.sub)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    let audit_values = json!({
+        "document_output_id": document_output_id,
+        "document_number": document_number,
+        "document_type": "ipd_admission_slip",
+        "action": print_action,
+        "prior_print_count": prior_print_count,
+        "reprint_reason": reprint_reason,
+    });
+    medbrains_db::audit::AuditLogger::log(
+        &mut tx,
+        &medbrains_db::audit::AuditEntry {
+            tenant_id: claims.tenant_id,
+            user_id: Some(claims.sub),
+            action: if is_reprint {
+                "ipd.admission_slip.reprint"
+            } else {
+                "ipd.admission_slip.print"
+            },
+            entity_type: "admission",
+            entity_id: Some(id),
+            old_values: None,
+            new_values: Some(&audit_values),
+            ip_address: None,
+        },
+    )
+    .await?;
+
     tx.commit().await?;
-    Ok(Json(data))
+    let restricted_fields = resolve_ipd_restricted_fields(&state, &claims).await?;
+    let print_data = AdmissionPrintData {
+        patient_name: row.patient_name,
+        uhid: row.uhid,
+        age: row.age,
+        gender: row.gender,
+        admission_date: row.admission_date,
+        bed_number: row.bed_number,
+        ward_name: row.ward_name,
+        department_name: row.department_name,
+        doctor_name: row.doctor_name,
+        ip_type: row.ip_type,
+        provisional_diagnosis: row.provisional_diagnosis,
+    };
+    Ok(Json(filter_admission_print_data_response(
+        print_data,
+        &restricted_fields,
+    )))
 }
 
 /// GET /api/ipd/admissions/{id}/diet-orders
@@ -4972,7 +6400,7 @@ pub async fn get_admission_diet_orders(
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<Vec<medbrains_core::diet::DietOrder>>, AppError> {
-    require_permission(&claims, permissions::ipd::admissions::VIEW)?;
+    require_permission(&claims, permissions::diet::orders::LIST)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -4998,7 +6426,7 @@ pub async fn get_admission_consents(
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<Vec<medbrains_core::consultation::ProcedureConsent>>, AppError> {
-    require_permission(&claims, permissions::ipd::admissions::VIEW)?;
+    require_permission(&claims, permissions::consent::signatures::LIST)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -5139,6 +6567,27 @@ pub async fn bed_transfer(
     Json(body): Json<StructuredBedTransferRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_permission(&claims, permissions::ipd::transfers::CREATE)?;
+    let transfer_type = match body.transfer_type.as_deref().unwrap_or("inter_ward") {
+        "inter_ward" | "inter_department" | "inter_hospital" => body
+            .transfer_type
+            .as_deref()
+            .unwrap_or("inter_ward")
+            .to_owned(),
+        _ => return Err(AppError::BadRequest("Invalid transfer type".to_owned())),
+    };
+    let transfer_reason = body.reason.trim();
+    if transfer_reason.len() < 3 {
+        return Err(AppError::BadRequest(
+            "Transfer reason must be at least 3 characters".to_owned(),
+        ));
+    }
+    let transfer_reason = transfer_reason.to_owned();
+    let transfer_notes = body
+        .notes
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_owned);
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -5147,7 +6596,8 @@ pub async fn bed_transfer(
     // Get current admission with current bed
     let adm = sqlx::query_as::<_, Admission>(
         "SELECT * FROM admissions \
-         WHERE id = $1 AND tenant_id = $2 AND status = 'admitted'::admission_status",
+         WHERE id = $1 AND tenant_id = $2 AND status = 'admitted'::admission_status \
+         FOR UPDATE",
     )
     .bind(admission_id)
     .bind(claims.tenant_id)
@@ -5156,38 +6606,80 @@ pub async fn bed_transfer(
     .ok_or(AppError::NotFound)?;
 
     let from_bed_id = adm.bed_id;
+    if from_bed_id == Some(body.to_bed_id) {
+        return Err(AppError::BadRequest(
+            "Target bed is already assigned to this admission".to_owned(),
+        ));
+    }
+    let target_bed = lock_available_bed_for_assignment(
+        &mut *tx,
+        claims.tenant_id,
+        body.to_bed_id,
+        adm.patient_id,
+    )
+    .await?;
+    let target_ward_id = target_bed.ward_id;
 
     // Log the transfer in the canonical IPD transfer table.
-    let transfer_id = sqlx::query_scalar!(
+    let transfer_id = sqlx::query_scalar::<_, Uuid>(
         "INSERT INTO ipd_transfer_logs \
          (tenant_id, admission_id, transfer_type, from_ward_id, to_ward_id, \
           from_bed_id, to_bed_id, reason, transferred_by, notes) \
-         VALUES ($1, $2, COALESCE($3::text, 'inter_ward')::transfer_type, \
-                 $4, NULL, $5, $6, $7, $8, $9) \
+         VALUES ($1, $2, $3::transfer_type, \
+                 $4, $5, $6, $7, $8, $9, $10) \
          RETURNING id",
-        claims.tenant_id,
-        admission_id,
-        body.transfer_type.as_deref(),
-        adm.ward_id,
-        from_bed_id,
-        body.to_bed_id,
-        &body.reason,
-        claims.sub,
-        body.notes.as_deref(),
     )
+    .bind(claims.tenant_id)
+    .bind(admission_id)
+    .bind(&transfer_type)
+    .bind(adm.ward_id)
+    .bind(target_ward_id)
+    .bind(from_bed_id)
+    .bind(body.to_bed_id)
+    .bind(&transfer_reason)
+    .bind(claims.sub)
+    .bind(transfer_notes.as_deref())
     .fetch_one(&mut *tx)
     .await?;
 
+    if let Some(old_bed_id) = from_bed_id {
+        release_admission_bed(
+            &mut *tx,
+            claims.tenant_id,
+            old_bed_id,
+            admission_id,
+            claims.sub,
+            "IPD bed transfer",
+        )
+        .await?;
+    }
+
     // Update admission bed
     let updated = sqlx::query_as::<_, Admission>(
-        "UPDATE admissions SET bed_id = $3, updated_at = NOW() \
+        "UPDATE admissions SET \
+           bed_id = $3, \
+           ward_id = COALESCE($4, ward_id), \
+           updated_at = NOW() \
          WHERE id = $1 AND tenant_id = $2 \
          RETURNING *",
     )
     .bind(admission_id)
     .bind(claims.tenant_id)
     .bind(body.to_bed_id)
+    .bind(target_ward_id)
     .fetch_one(&mut *tx)
+    .await?;
+
+    occupy_admission_bed(
+        &mut *tx,
+        claims.tenant_id,
+        body.to_bed_id,
+        updated.patient_id,
+        updated.id,
+        target_ward_id,
+        claims.sub,
+        "IPD bed transfer",
+    )
     .await?;
 
     let event = ClinicalEventEnvelope::new(
@@ -5204,8 +6696,8 @@ pub async fn bed_transfer(
             "to_bed_id": body.to_bed_id,
             "from_ward_id": adm.ward_id,
             "to_ward_id": updated.ward_id,
-            "transfer_type": body.transfer_type.as_deref().unwrap_or("inter_ward"),
-            "reason": body.reason.as_str(),
+            "transfer_type": transfer_type.as_str(),
+            "reason": transfer_reason.as_str(),
         }),
     )
     .with_patient(adm.patient_id)
@@ -5216,12 +6708,13 @@ pub async fn bed_transfer(
     tx.commit().await?;
 
     Ok(Json(json!({
+        "success": true,
         "admission_id": updated.id,
         "transfer_id": transfer_id,
         "from_bed_id": from_bed_id,
         "to_bed_id": body.to_bed_id,
-        "transfer_type": body.transfer_type.as_deref().unwrap_or("inter_ward"),
-        "reason": body.reason,
+        "transfer_type": transfer_type,
+        "reason": transfer_reason,
         "transferred_by": claims.sub,
         "transferred_at": Utc::now(),
     })))
@@ -5237,12 +6730,11 @@ pub struct ExpectedDischargeRow {
     pub patient_id: Uuid,
     pub patient_name: Option<String>,
     pub uhid: Option<String>,
-    pub bed_id: Option<Uuid>,
-    pub department_id: Option<Uuid>,
-    pub attending_doctor_id: Option<Uuid>,
-    pub admitted_at: chrono::DateTime<Utc>,
-    pub expected_discharge_date: Option<NaiveDate>,
-    pub days_until_discharge: Option<i32>,
+    pub ward: Option<String>,
+    pub bed_number: Option<String>,
+    pub expected_discharge_date: NaiveDate,
+    pub attending_doctor: Option<String>,
+    pub days_admitted: i32,
 }
 
 pub async fn expected_discharges(
@@ -5250,6 +6742,8 @@ pub async fn expected_discharges(
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<ExpectedDischargeRow>>, AppError> {
     require_permission(&claims, permissions::ipd::admissions::LIST)?;
+    let can_view_patient_identity =
+        claims_have_any_permission(&claims, &[permissions::patients::VIEW]);
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -5258,13 +6752,18 @@ pub async fn expected_discharges(
 
     let rows = sqlx::query_as::<_, ExpectedDischargeRow>(
         "SELECT a.id AS admission_id, a.patient_id, \
-         (p.first_name || ' ' || p.last_name) AS patient_name, p.uhid, \
-         a.bed_id, e.department_id, a.admitting_doctor AS attending_doctor_id, \
-         a.admitted_at, a.expected_discharge_date, \
-         (a.expected_discharge_date - $2::date)::int AS days_until_discharge \
+         CASE WHEN $3::bool THEN (p.first_name || ' ' || p.last_name) ELSE NULL END AS patient_name, \
+         CASE WHEN $3::bool THEN p.uhid ELSE NULL END AS uhid, \
+         w.name AS ward, \
+         l.name AS bed_number, \
+         a.expected_discharge_date, \
+         u.full_name AS attending_doctor, \
+         ($2::date - a.admitted_at::date)::int AS days_admitted \
          FROM admissions a \
          JOIN patients p ON p.id = a.patient_id AND p.tenant_id = a.tenant_id \
-         LEFT JOIN encounters e ON e.id = a.encounter_id AND e.tenant_id = a.tenant_id \
+         LEFT JOIN wards w ON w.id = a.ward_id AND w.tenant_id = a.tenant_id \
+         LEFT JOIN locations l ON l.id = a.bed_id AND l.tenant_id = a.tenant_id \
+         LEFT JOIN users u ON u.id = a.admitting_doctor AND u.tenant_id = a.tenant_id \
          WHERE a.tenant_id = $1 \
            AND a.status = 'admitted'::admission_status \
            AND a.expected_discharge_date IS NOT NULL \
@@ -5273,6 +6772,7 @@ pub async fn expected_discharges(
     )
     .bind(claims.tenant_id)
     .bind(today)
+    .bind(can_view_patient_identity)
     .fetch_all(&mut *tx)
     .await?;
 

@@ -54,6 +54,12 @@ pub struct PharmacyBatch {
     pub store_location_id: Option<Uuid>,
     pub supplier_info: Option<String>,
     pub grn_item_id: Option<Uuid>,
+    pub grn_id: Option<Uuid>,
+    pub invoice_number: Option<String>,
+    pub supplier_batch_number: Option<String>,
+    pub purchase_rate: Option<rust_decimal::Decimal>,
+    pub selling_rate: Option<rust_decimal::Decimal>,
+    pub vendor_id: Option<Uuid>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }

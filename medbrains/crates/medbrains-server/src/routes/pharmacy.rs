@@ -14,25 +14,31 @@ use medbrains_core::pharmacy::{
 };
 use medbrains_core::pharmacy_phase2::{
     DeadStockRow, DrugUtilizationRow, NdpsRegisterEntry, NearExpiryRow, PharmacyAbcVedRow,
-    PharmacyBatch, PharmacyConsumptionRow, PharmacyReturn, PharmacyStoreAssignment,
-    PharmacyTransferRequest,
+    PharmacyBatch, PharmacyConsumptionRow, PharmacyReturn, PharmacyReturnStatus,
+    PharmacyStoreAssignment, PharmacyTransferRequest,
 };
 use medbrains_core::pharmacy_phase3::{
     PharmacyAllergyCheckLog, PharmacyPaymentMode, PharmacyPosSale, PharmacyPosSaleItem,
     PharmacyPrescriptionRx, PharmacyPricingTier, PharmacyStockReconciliation, PosDaySummary,
     RxQueueRow,
 };
+use medbrains_core::privacy::{mask_name, mask_phone};
 use rust_decimal::{Decimal, prelude::ToPrimitive};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+use std::collections::HashMap;
 use uuid::Uuid;
 
 use crate::{
     error::AppError,
-    middleware::auth::Claims,
-    middleware::authorization::{is_bypass_role, require_permission},
+    middleware::{
+        auth::Claims,
+        authorization::{is_bypass_role, require_any_permission, require_permission},
+        field_access,
+    },
     state::AppState,
 };
+use medbrains_core::form::FieldAccessLevel;
 
 // ══════════════════════════════════════════════════════════
 //  Request / Response types
@@ -84,6 +90,9 @@ pub struct CreateOrderRequest {
     /// "test dose under monitoring", "sensitivity confirmed false on
     /// re-challenge"). Empty / absent → strict allergy check.
     pub allergy_override_reason: Option<String>,
+    /// Internal training / simulator flag. See OPD CreateEncounterRequest.
+    #[serde(default)]
+    pub is_dummy: Option<bool>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -250,6 +259,14 @@ fn can_override_medication_safety(claims: &Claims) -> bool {
             .any(|p| p == permissions::pharmacy::safety::OVERRIDE)
 }
 
+fn can_view_patient_identity(claims: &Claims) -> bool {
+    is_bypass_role(claims)
+        || claims
+            .permissions
+            .iter()
+            .any(|permission| permission == permissions::patients::VIEW)
+}
+
 fn medication_safety_severity_str(severity: MedicationSafetySeverity) -> &'static str {
     match severity {
         MedicationSafetySeverity::Warn => "warn",
@@ -259,6 +276,426 @@ fn medication_safety_severity_str(severity: MedicationSafetySeverity) -> &'stati
 
 fn decimal_as_f64(value: Decimal) -> f64 {
     value.to_f64().unwrap_or(0.0)
+}
+
+const PHARMACY_CATALOG_BASE_PRICE_FIELD: &str = "pharmacy.catalog.base_price";
+const PHARMACY_PRICING_UNIT_PRICE_FIELD: &str = "pharmacy.pricing.unit_price";
+const PHARMACY_BATCH_NUMBER_FIELD: &str = "pharmacy.batches.batch_number";
+const PHARMACY_BATCH_PURCHASE_RATE_FIELD: &str = "pharmacy.batches.purchase_rate";
+const PHARMACY_BATCH_SELLING_RATE_FIELD: &str = "pharmacy.batches.selling_rate";
+const PHARMACY_BATCH_SOURCE_FIELD: &str = "pharmacy.batches.source";
+const PHARMACY_NDPS_BALANCE_FIELD: &str = "pharmacy.ndps.balance_after";
+const PHARMACY_NDPS_USER_IDS_FIELD: &str = "pharmacy.ndps.user_ids";
+const PHARMACY_NDPS_WITNESS_FIELD: &str = "pharmacy.ndps.witnessed_by";
+const PHARMACY_ANALYTICS_VALUE_FIELD: &str = "pharmacy.analytics.value";
+const PHARMACY_POS_PATIENT_NAME_FIELD: &str = "pharmacy.pos.patient_name";
+const PHARMACY_POS_PATIENT_PHONE_FIELD: &str = "pharmacy.pos.patient_phone";
+
+async fn resolve_pharmacy_restricted_fields(
+    state: &AppState,
+    claims: &Claims,
+) -> Result<HashMap<String, FieldAccessLevel>, AppError> {
+    field_access::resolve_restricted_fields(&state.db, claims.tenant_id, claims.sub, &claims.role)
+        .await
+}
+
+fn pharmacy_field_access(
+    restricted: &HashMap<String, FieldAccessLevel>,
+    field: &str,
+) -> FieldAccessLevel {
+    restricted
+        .get(field)
+        .copied()
+        .unwrap_or(FieldAccessLevel::Edit)
+}
+
+fn should_hide_pharmacy_field(restricted: &HashMap<String, FieldAccessLevel>, field: &str) -> bool {
+    pharmacy_field_access(restricted, field) == FieldAccessLevel::Hidden
+}
+
+fn should_mask_pharmacy_field(restricted: &HashMap<String, FieldAccessLevel>, field: &str) -> bool {
+    pharmacy_field_access(restricted, field) == FieldAccessLevel::Mask
+}
+
+fn should_scrub_pharmacy_field(
+    restricted: &HashMap<String, FieldAccessLevel>,
+    field: &str,
+) -> bool {
+    matches!(
+        pharmacy_field_access(restricted, field),
+        FieldAccessLevel::Mask | FieldAccessLevel::Hidden
+    )
+}
+
+fn should_scrub_pharmacy_pos_amount(restricted: &HashMap<String, FieldAccessLevel>) -> bool {
+    should_scrub_pharmacy_field(restricted, PHARMACY_PRICING_UNIT_PRICE_FIELD)
+        || should_scrub_pharmacy_field(restricted, PHARMACY_ANALYTICS_VALUE_FIELD)
+}
+
+fn can_write_pharmacy_field(restricted: &HashMap<String, FieldAccessLevel>, field: &str) -> bool {
+    pharmacy_field_access(restricted, field) == FieldAccessLevel::Edit
+}
+
+fn has_pharmacy_text(value: &Option<String>) -> bool {
+    value.as_deref().is_some_and(|text| !text.trim().is_empty())
+}
+
+fn validate_pos_sale_field_access(
+    body: &CreatePosSaleRequest,
+    restricted: &HashMap<String, FieldAccessLevel>,
+) -> Result<(), AppError> {
+    let mut violations = Vec::new();
+    if has_pharmacy_text(&body.patient_name)
+        && !can_write_pharmacy_field(restricted, PHARMACY_POS_PATIENT_NAME_FIELD)
+    {
+        violations.push("patient_name");
+    }
+    if has_pharmacy_text(&body.patient_phone)
+        && !can_write_pharmacy_field(restricted, PHARMACY_POS_PATIENT_PHONE_FIELD)
+    {
+        violations.push("patient_phone");
+    }
+
+    if violations.is_empty() {
+        return Ok(());
+    }
+
+    Err(AppError::BadRequest(format!(
+        "Cannot write restricted pharmacy POS fields: {}",
+        violations.join(", ")
+    )))
+}
+
+fn validate_catalog_price_write(
+    base_price: Option<Decimal>,
+    restricted: &HashMap<String, FieldAccessLevel>,
+    allow_zero_default: bool,
+) -> Result<(), AppError> {
+    let writes_restricted_price = base_price.is_some_and(|price| {
+        if allow_zero_default {
+            price != Decimal::ZERO
+        } else {
+            true
+        }
+    });
+
+    if writes_restricted_price
+        && !can_write_pharmacy_field(restricted, PHARMACY_CATALOG_BASE_PRICE_FIELD)
+    {
+        return Err(AppError::BadRequest(
+            "Cannot write restricted pharmacy catalog price".to_owned(),
+        ));
+    }
+
+    Ok(())
+}
+
+fn filter_pharmacy_catalog_response(
+    mut row: PharmacyCatalog,
+    restricted: &HashMap<String, FieldAccessLevel>,
+) -> PharmacyCatalog {
+    if should_scrub_pharmacy_field(restricted, PHARMACY_CATALOG_BASE_PRICE_FIELD) {
+        row.base_price = Decimal::ZERO;
+    }
+    row
+}
+
+fn filter_pharmacy_pos_sale_response(
+    mut row: PharmacyPosSale,
+    restricted: &HashMap<String, FieldAccessLevel>,
+) -> PharmacyPosSale {
+    if should_hide_pharmacy_field(restricted, PHARMACY_POS_PATIENT_NAME_FIELD) {
+        row.patient_name = None;
+    } else if should_mask_pharmacy_field(restricted, PHARMACY_POS_PATIENT_NAME_FIELD) {
+        row.patient_name = row.patient_name.map(|value| mask_name(&value));
+    }
+    if should_hide_pharmacy_field(restricted, PHARMACY_POS_PATIENT_PHONE_FIELD) {
+        row.patient_phone = None;
+    } else if should_mask_pharmacy_field(restricted, PHARMACY_POS_PATIENT_PHONE_FIELD) {
+        row.patient_phone = row.patient_phone.map(|value| mask_phone(&value));
+    }
+    if should_scrub_pharmacy_pos_amount(restricted) {
+        row.subtotal = Decimal::ZERO;
+        row.discount_amount = Decimal::ZERO;
+        row.discount_percent = None;
+        row.gst_amount = Decimal::ZERO;
+        row.total_amount = Decimal::ZERO;
+        row.amount_received = Decimal::ZERO;
+        row.change_due = Decimal::ZERO;
+        if row.refund_amount.is_some() {
+            row.refund_amount = Some(Decimal::ZERO);
+        }
+    }
+    row
+}
+
+fn filter_pharmacy_pos_sale_item_response(
+    mut row: PharmacyPosSaleItem,
+    restricted: &HashMap<String, FieldAccessLevel>,
+) -> PharmacyPosSaleItem {
+    if should_scrub_pharmacy_field(restricted, PHARMACY_PRICING_UNIT_PRICE_FIELD) {
+        row.mrp = Decimal::ZERO;
+        row.selling_price = Decimal::ZERO;
+        row.cgst_amount = Decimal::ZERO;
+        row.sgst_amount = Decimal::ZERO;
+        row.igst_amount = Decimal::ZERO;
+        row.line_total = Decimal::ZERO;
+    }
+    if should_scrub_pharmacy_field(restricted, PHARMACY_BATCH_NUMBER_FIELD) {
+        row.batch_id = None;
+        row.batch_number = None;
+    }
+    row
+}
+
+fn filter_pharmacy_order_item_response(
+    mut row: PharmacyOrderItem,
+    restricted: &HashMap<String, FieldAccessLevel>,
+) -> PharmacyOrderItem {
+    if should_scrub_pharmacy_field(restricted, PHARMACY_PRICING_UNIT_PRICE_FIELD) {
+        row.unit_price = Decimal::ZERO;
+        row.total_price = Decimal::ZERO;
+    }
+    if should_scrub_pharmacy_field(restricted, PHARMACY_BATCH_NUMBER_FIELD) {
+        row.batch_number = None;
+        row.batch_stock_id = None;
+    }
+    row
+}
+
+fn filter_pharmacy_order_detail_response(
+    mut detail: OrderDetailResponse,
+    restricted: &HashMap<String, FieldAccessLevel>,
+) -> OrderDetailResponse {
+    detail.items = detail
+        .items
+        .into_iter()
+        .map(|row| filter_pharmacy_order_item_response(row, restricted))
+        .collect();
+    detail
+}
+
+fn filter_pharmacy_batch_response(
+    mut row: PharmacyBatch,
+    restricted: &HashMap<String, FieldAccessLevel>,
+) -> PharmacyBatch {
+    if should_scrub_pharmacy_field(restricted, PHARMACY_BATCH_NUMBER_FIELD) {
+        row.batch_number = "Restricted".to_owned();
+        row.supplier_batch_number = None;
+    }
+    if should_scrub_pharmacy_field(restricted, PHARMACY_BATCH_PURCHASE_RATE_FIELD) {
+        row.purchase_rate = None;
+    }
+    if should_scrub_pharmacy_field(restricted, PHARMACY_BATCH_SELLING_RATE_FIELD) {
+        row.selling_rate = None;
+    }
+    if should_scrub_pharmacy_field(restricted, PHARMACY_BATCH_SOURCE_FIELD) {
+        row.supplier_info = None;
+        row.grn_item_id = None;
+        row.grn_id = None;
+        row.invoice_number = None;
+        row.vendor_id = None;
+    }
+    row
+}
+
+fn filter_ndps_entry_response(
+    mut row: NdpsRegisterEntry,
+    restricted: &HashMap<String, FieldAccessLevel>,
+) -> NdpsRegisterEntry {
+    if should_scrub_pharmacy_field(restricted, PHARMACY_NDPS_BALANCE_FIELD) {
+        row.balance_after = 0;
+    }
+    if should_scrub_pharmacy_field(restricted, PHARMACY_NDPS_USER_IDS_FIELD) {
+        row.dispensed_by = None;
+    }
+    if should_scrub_pharmacy_field(restricted, PHARMACY_NDPS_WITNESS_FIELD) {
+        row.witnessed_by = None;
+    }
+    row
+}
+
+fn filter_ndps_balance_response(
+    mut row: NdpsBalanceRow,
+    restricted: &HashMap<String, FieldAccessLevel>,
+) -> NdpsBalanceRow {
+    if should_scrub_pharmacy_field(restricted, PHARMACY_NDPS_BALANCE_FIELD) {
+        row.balance = 0;
+    }
+    row
+}
+
+fn filter_near_expiry_response(
+    mut row: NearExpiryRow,
+    restricted: &HashMap<String, FieldAccessLevel>,
+) -> NearExpiryRow {
+    if should_scrub_pharmacy_field(restricted, PHARMACY_BATCH_NUMBER_FIELD) {
+        row.batch_number = "Restricted".to_owned();
+    }
+    row
+}
+
+fn filter_dead_stock_response(
+    mut row: DeadStockRow,
+    restricted: &HashMap<String, FieldAccessLevel>,
+) -> DeadStockRow {
+    if should_scrub_pharmacy_field(restricted, PHARMACY_ANALYTICS_VALUE_FIELD) {
+        row.stock_value = Decimal::ZERO;
+    }
+    row
+}
+
+fn filter_consumption_response(
+    mut row: PharmacyConsumptionRow,
+    restricted: &HashMap<String, FieldAccessLevel>,
+) -> PharmacyConsumptionRow {
+    if should_scrub_pharmacy_field(restricted, PHARMACY_ANALYTICS_VALUE_FIELD) {
+        row.total_value = Decimal::ZERO;
+    }
+    row
+}
+
+fn filter_abc_ved_response(
+    mut row: PharmacyAbcVedRow,
+    restricted: &HashMap<String, FieldAccessLevel>,
+) -> PharmacyAbcVedRow {
+    if should_scrub_pharmacy_field(restricted, PHARMACY_ANALYTICS_VALUE_FIELD) {
+        row.annual_value = Decimal::ZERO;
+    }
+    row
+}
+
+fn scrub_json_numeric_fields(value: &mut serde_json::Value, fields: &[&str]) {
+    match value {
+        serde_json::Value::Array(rows) => {
+            for row in rows {
+                scrub_json_numeric_fields(row, fields);
+            }
+        }
+        serde_json::Value::Object(map) => {
+            for field in fields {
+                if map.contains_key(*field) {
+                    map.insert((*field).to_owned(), json!(0));
+                }
+            }
+            for nested in map.values_mut() {
+                scrub_json_numeric_fields(nested, fields);
+            }
+        }
+        _ => {}
+    }
+}
+
+fn scrub_json_fields_with_value(
+    value: &mut serde_json::Value,
+    fields: &[&str],
+    replacement: &serde_json::Value,
+) {
+    match value {
+        serde_json::Value::Array(rows) => {
+            for row in rows {
+                scrub_json_fields_with_value(row, fields, replacement);
+            }
+        }
+        serde_json::Value::Object(map) => {
+            for field in fields {
+                if map.contains_key(*field) {
+                    map.insert((*field).to_owned(), replacement.clone());
+                }
+            }
+            for nested in map.values_mut() {
+                scrub_json_fields_with_value(nested, fields, replacement);
+            }
+        }
+        _ => {}
+    }
+}
+
+fn filter_pharmacy_transfer_response(
+    mut row: PharmacyTransferRequest,
+    restricted: &HashMap<String, FieldAccessLevel>,
+) -> PharmacyTransferRequest {
+    if should_scrub_pharmacy_field(restricted, PHARMACY_PRICING_UNIT_PRICE_FIELD) {
+        scrub_json_numeric_fields(
+            &mut row.items,
+            &[
+                "base_price",
+                "unit_price",
+                "total_price",
+                "price",
+                "mrp",
+                "amount",
+            ],
+        );
+    }
+    if should_scrub_pharmacy_field(restricted, PHARMACY_BATCH_NUMBER_FIELD) {
+        scrub_json_fields_with_value(
+            &mut row.items,
+            &[
+                "batch_number",
+                "supplier_batch_number",
+                "batch_stock_id",
+                "batch_id",
+            ],
+            &serde_json::Value::Null,
+        );
+    }
+    if should_scrub_pharmacy_field(restricted, PHARMACY_BATCH_PURCHASE_RATE_FIELD) {
+        scrub_json_numeric_fields(&mut row.items, &["purchase_rate"]);
+    }
+    if should_scrub_pharmacy_field(restricted, PHARMACY_BATCH_SELLING_RATE_FIELD) {
+        scrub_json_numeric_fields(&mut row.items, &["selling_rate"]);
+    }
+    if should_scrub_pharmacy_field(restricted, PHARMACY_BATCH_SOURCE_FIELD) {
+        scrub_json_fields_with_value(
+            &mut row.items,
+            &[
+                "supplier_info",
+                "grn_item_id",
+                "grn_id",
+                "invoice_number",
+                "vendor_id",
+            ],
+            &serde_json::Value::Null,
+        );
+    }
+    row
+}
+
+fn filter_pharmacy_analytics_json_response(
+    mut value: serde_json::Value,
+    restricted: &HashMap<String, FieldAccessLevel>,
+) -> serde_json::Value {
+    if should_scrub_pharmacy_field(restricted, PHARMACY_ANALYTICS_VALUE_FIELD) {
+        scrub_json_numeric_fields(
+            &mut value,
+            &[
+                "revenue",
+                "gst",
+                "cash",
+                "card",
+                "upi",
+                "cost",
+                "selling",
+                "margin_percent",
+            ],
+        );
+    }
+    value
+}
+
+fn filter_pos_day_summary_response(
+    mut row: PosDaySummary,
+    restricted: &HashMap<String, FieldAccessLevel>,
+) -> PosDaySummary {
+    if should_scrub_pharmacy_pos_amount(restricted) {
+        row.total_revenue = Decimal::ZERO;
+        row.cash_total = Decimal::ZERO;
+        row.card_total = Decimal::ZERO;
+        row.upi_total = Decimal::ZERO;
+        row.gst_collected = Decimal::ZERO;
+    }
+    row
 }
 
 fn first_number(text: &str) -> Option<f64> {
@@ -834,6 +1271,10 @@ pub struct CreateBatchRequest {
     pub quantity_received: i32,
     pub store_location_id: Option<Uuid>,
     pub supplier_info: Option<String>,
+    pub invoice_number: Option<String>,
+    pub supplier_batch_number: Option<String>,
+    pub purchase_rate: Option<Decimal>,
+    pub selling_rate: Option<Decimal>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -871,6 +1312,19 @@ pub struct ListTransfersQuery {
 pub struct CreateReturnRequest {
     pub order_item_id: Uuid,
     pub patient_id: Uuid,
+    pub quantity_returned: i32,
+    pub reason: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CreateReturnBatchRequest {
+    pub patient_id: Uuid,
+    pub items: Vec<CreateReturnBatchItemRequest>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CreateReturnBatchItemRequest {
+    pub order_item_id: Uuid,
     pub quantity_returned: i32,
     pub reason: Option<String>,
 }
@@ -1018,13 +1472,17 @@ pub async fn create_order(
     Json(body): Json<CreateOrderRequest>,
 ) -> Result<Json<OrderDetailResponse>, AppError> {
     require_permission(&claims, permissions::pharmacy::dispensing::CREATE)?;
+    let restricted_fields = resolve_pharmacy_restricted_fields(&state, &claims).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
     let result = create_order_in_tx(&mut tx, &claims, &body).await?;
     tx.commit().await?;
-    Ok(Json(result))
+    Ok(Json(filter_pharmacy_order_detail_response(
+        result,
+        &restricted_fields,
+    )))
 }
 
 /// Transaction-scoped sibling of `create_order`. Used by order basket so
@@ -1132,6 +1590,15 @@ pub async fn create_order_in_tx(
     )
     .fetch_one(&mut **tx)
     .await?;
+
+    // is_dummy is patched via a separate UPDATE so we don't have to
+    // re-run `cargo sqlx prepare` for the macro above.
+    if body.is_dummy.unwrap_or(false) && is_bypass_role(claims) {
+        sqlx::query("UPDATE pharmacy_orders SET is_dummy = true WHERE id = $1")
+            .bind(order.id)
+            .execute(&mut **tx)
+            .await?;
+    }
 
     let mut items = Vec::with_capacity(body.items.len());
     for item in &body.items {
@@ -1421,6 +1888,7 @@ pub async fn get_order(
     Path(id): Path<Uuid>,
 ) -> Result<Json<OrderDetailResponse>, AppError> {
     require_permission(&claims, permissions::pharmacy::prescriptions::VIEW)?;
+    let restricted_fields = resolve_pharmacy_restricted_fields(&state, &claims).await?;
 
     // ── ReBAC pre-check — must hold `view` on the pharmacy_order ─
     let authz_ctx = crate::middleware::authorization::authz_context(&claims);
@@ -1462,7 +1930,10 @@ pub async fn get_order(
     .await?;
 
     tx.commit().await?;
-    Ok(Json(OrderDetailResponse { order, items }))
+    Ok(Json(filter_pharmacy_order_detail_response(
+        OrderDetailResponse { order, items },
+        &restricted_fields,
+    )))
 }
 
 async fn fetch_order_detail_in_tx(
@@ -1593,7 +2064,8 @@ pub async fn update_order_item(
     Path((order_id, item_id)): Path<(Uuid, Uuid)>,
     Json(body): Json<UpdateOrderItemRequest>,
 ) -> Result<Json<OrderDetailResponse>, AppError> {
-    require_permission(&claims, permissions::pharmacy::dispensing::CREATE)?;
+    require_permission(&claims, permissions::pharmacy::dispensing::PARTIAL)?;
+    let restricted_fields = resolve_pharmacy_restricted_fields(&state, &claims).await?;
 
     if body.quantity <= 0 {
         return Err(AppError::BadRequest(
@@ -1662,7 +2134,10 @@ pub async fn update_order_item(
 
     let detail = fetch_order_detail_in_tx(&mut tx, &claims.tenant_id, order_id).await?;
     tx.commit().await?;
-    Ok(Json(detail))
+    Ok(Json(filter_pharmacy_order_detail_response(
+        detail,
+        &restricted_fields,
+    )))
 }
 
 // ══════════════════════════════════════════════════════════
@@ -1674,7 +2149,8 @@ pub async fn remove_order_item(
     Extension(claims): Extension<Claims>,
     Path((order_id, item_id)): Path<(Uuid, Uuid)>,
 ) -> Result<Json<OrderDetailResponse>, AppError> {
-    require_permission(&claims, permissions::pharmacy::dispensing::CREATE)?;
+    require_permission(&claims, permissions::pharmacy::dispensing::PARTIAL)?;
+    let restricted_fields = resolve_pharmacy_restricted_fields(&state, &claims).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -1754,7 +2230,10 @@ pub async fn remove_order_item(
 
     let detail = fetch_order_detail_in_tx(&mut tx, &claims.tenant_id, order_id).await?;
     tx.commit().await?;
-    Ok(Json(detail))
+    Ok(Json(filter_pharmacy_order_detail_response(
+        detail,
+        &restricted_fields,
+    )))
 }
 
 // ══════════════════════════════════════════════════════════
@@ -1801,7 +2280,7 @@ pub async fn dispense_order(
     .await?;
 
     // Build a lookup for batch info from the request
-    let batch_map: std::collections::HashMap<Uuid, &DispenseItemInput> = body
+    let batch_map: HashMap<Uuid, &DispenseItemInput> = body
         .items
         .as_deref()
         .unwrap_or_default()
@@ -1983,17 +2462,6 @@ pub async fn dispense_order(
 
     tx.commit().await?;
 
-    // Enrich payload with names for orchestration
-    let dispensed_patient_name = sqlx::query_scalar::<_, String>(
-        "SELECT first_name || ' ' || last_name FROM patients WHERE id = $1",
-    )
-    .bind(order.patient_id)
-    .fetch_optional(&state.db)
-    .await
-    .ok()
-    .flatten()
-    .unwrap_or_else(|| "Unknown".to_owned());
-
     let total_amount: Decimal = items.iter().map(|i| i.total_price).sum();
 
     // Emit integration event
@@ -2005,7 +2473,6 @@ pub async fn dispense_order(
         serde_json::json!({
             "order_id": order.id,
             "patient_id": order.patient_id,
-            "patient_name": dispensed_patient_name,
             "items_count": items.len(),
             "total_amount": total_amount.to_string(),
         }),
@@ -2134,7 +2601,7 @@ pub async fn cancel_order(
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<PharmacyOrder>, AppError> {
-    require_permission(&claims, permissions::pharmacy::dispensing::CREATE)?;
+    require_permission(&claims, permissions::pharmacy::dispensing::CANCEL)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -2336,6 +2803,7 @@ pub async fn create_otc_sale(
     Json(body): Json<OtcSaleRequest>,
 ) -> Result<Json<OrderDetailResponse>, AppError> {
     require_permission(&claims, permissions::pharmacy::dispensing::CREATE)?;
+    let restricted_fields = resolve_pharmacy_restricted_fields(&state, &claims).await?;
 
     if body.items.is_empty() {
         return Err(AppError::BadRequest(
@@ -2402,7 +2870,10 @@ pub async fn create_otc_sale(
     }
 
     tx.commit().await?;
-    Ok(Json(OrderDetailResponse { order, items }))
+    Ok(Json(filter_pharmacy_order_detail_response(
+        OrderDetailResponse { order, items },
+        &restricted_fields,
+    )))
 }
 
 // ══════════════════════════════════════════════════════════
@@ -2415,6 +2886,7 @@ pub async fn create_discharge_dispensing(
     Json(body): Json<DischargeMedsRequest>,
 ) -> Result<Json<OrderDetailResponse>, AppError> {
     require_permission(&claims, permissions::pharmacy::dispensing::CREATE)?;
+    let restricted_fields = resolve_pharmacy_restricted_fields(&state, &claims).await?;
 
     if body.items.is_empty() {
         return Err(AppError::BadRequest(
@@ -2465,7 +2937,10 @@ pub async fn create_discharge_dispensing(
     }
 
     tx.commit().await?;
-    Ok(Json(OrderDetailResponse { order, items }))
+    Ok(Json(filter_pharmacy_order_detail_response(
+        OrderDetailResponse { order, items },
+        &restricted_fields,
+    )))
 }
 
 // ══════════════════════════════════════════════════════════
@@ -2485,7 +2960,27 @@ pub async fn list_catalog(
     Extension(claims): Extension<Claims>,
     Query(q): Query<CatalogQuery>,
 ) -> Result<Json<Vec<PharmacyCatalog>>, AppError> {
-    require_permission(&claims, permissions::pharmacy::prescriptions::LIST)?;
+    require_any_permission(
+        &claims,
+        &[
+            permissions::pharmacy::prescriptions::LIST,
+            permissions::pharmacy::prescriptions::VIEW,
+            permissions::pharmacy::dispensing::CREATE,
+            permissions::pharmacy::dispensing::PARTIAL,
+            permissions::pharmacy::stock::MANAGE,
+            permissions::pharmacy::ndps::MANAGE,
+            permissions::pharmacy::stores::MANAGE,
+            permissions::pharmacy::returns::REQUEST,
+            permissions::pharmacy::rx_queue::LIST,
+            permissions::pharmacy::rx_queue::REVIEW,
+            permissions::pharmacy::pos::CREATE,
+            permissions::pharmacy::safety::VIEW,
+            permissions::opd::visit::UPDATE,
+            permissions::patients::CREATE,
+            permissions::patients::UPDATE,
+        ],
+    )?;
+    let restricted_fields = resolve_pharmacy_restricted_fields(&state, &claims).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -2511,7 +3006,11 @@ pub async fn list_catalog(
     .await?;
 
     tx.commit().await?;
-    Ok(Json(rows))
+    Ok(Json(
+        rows.into_iter()
+            .map(|row| filter_pharmacy_catalog_response(row, &restricted_fields))
+            .collect(),
+    ))
 }
 
 pub async fn create_catalog_entry(
@@ -2520,6 +3019,8 @@ pub async fn create_catalog_entry(
     Json(body): Json<CreateCatalogRequest>,
 ) -> Result<Json<PharmacyCatalog>, AppError> {
     require_permission(&claims, permissions::pharmacy::stock::MANAGE)?;
+    let restricted_fields = resolve_pharmacy_restricted_fields(&state, &claims).await?;
+    validate_catalog_price_write(Some(body.base_price), &restricted_fields, true)?;
 
     let tax_pct = body.tax_percent.unwrap_or(Decimal::ZERO);
     let stock = body.current_stock.unwrap_or(0);
@@ -2575,7 +3076,10 @@ pub async fn create_catalog_entry(
     .await?;
 
     tx.commit().await?;
-    Ok(Json(row))
+    Ok(Json(filter_pharmacy_catalog_response(
+        row,
+        &restricted_fields,
+    )))
 }
 
 pub async fn update_catalog_entry(
@@ -2585,6 +3089,8 @@ pub async fn update_catalog_entry(
     Json(body): Json<UpdateCatalogRequest>,
 ) -> Result<Json<PharmacyCatalog>, AppError> {
     require_permission(&claims, permissions::pharmacy::stock::MANAGE)?;
+    let restricted_fields = resolve_pharmacy_restricted_fields(&state, &claims).await?;
+    validate_catalog_price_write(body.base_price, &restricted_fields, false)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -2648,7 +3154,15 @@ pub async fn update_catalog_entry(
     .await?;
 
     tx.commit().await?;
-    row.map_or_else(|| Err(AppError::NotFound), |r| Ok(Json(r)))
+    row.map_or_else(
+        || Err(AppError::NotFound),
+        |r| {
+            Ok(Json(filter_pharmacy_catalog_response(
+                r,
+                &restricted_fields,
+            )))
+        },
+    )
 }
 
 // ══════════════════════════════════════════════════════════
@@ -2661,6 +3175,7 @@ pub async fn list_stock(
     Query(params): Query<ListStockQuery>,
 ) -> Result<Json<Vec<PharmacyCatalog>>, AppError> {
     require_permission(&claims, permissions::pharmacy::stock::MANAGE)?;
+    let restricted_fields = resolve_pharmacy_restricted_fields(&state, &claims).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -2682,7 +3197,11 @@ pub async fn list_stock(
         .await?;
 
     tx.commit().await?;
-    Ok(Json(rows))
+    Ok(Json(
+        rows.into_iter()
+            .map(|row| filter_pharmacy_catalog_response(row, &restricted_fields))
+            .collect(),
+    ))
 }
 
 pub async fn create_stock_transaction(
@@ -2747,7 +3266,14 @@ pub async fn list_ndps_entries(
     Extension(claims): Extension<Claims>,
     Query(params): Query<ListNdpsQuery>,
 ) -> Result<Json<NdpsListResponse>, AppError> {
-    require_permission(&claims, permissions::pharmacy::ndps::LIST)?;
+    require_any_permission(
+        &claims,
+        &[
+            permissions::pharmacy::ndps::LIST,
+            permissions::pharmacy::ndps::MANAGE,
+        ],
+    )?;
+    let restricted_fields = resolve_pharmacy_restricted_fields(&state, &claims).await?;
 
     let page = params.page.unwrap_or(1).max(1);
     let per_page = params.per_page.unwrap_or(20).clamp(1, 100);
@@ -2819,7 +3345,10 @@ pub async fn list_ndps_entries(
 
     tx.commit().await?;
     Ok(Json(NdpsListResponse {
-        entries,
+        entries: entries
+            .into_iter()
+            .map(|row| filter_ndps_entry_response(row, &restricted_fields))
+            .collect(),
         total,
         page,
         per_page,
@@ -2832,10 +3361,34 @@ pub async fn create_ndps_entry(
     Json(body): Json<CreateNdpsEntryRequest>,
 ) -> Result<Json<NdpsRegisterEntry>, AppError> {
     require_permission(&claims, permissions::pharmacy::ndps::MANAGE)?;
+    let restricted_fields = resolve_pharmacy_restricted_fields(&state, &claims).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+
+    #[derive(sqlx::FromRow)]
+    struct NdpsCatalogCheck {
+        drug_schedule: Option<String>,
+        is_controlled: bool,
+    }
+
+    let catalog = sqlx::query_as::<_, NdpsCatalogCheck>(
+        "SELECT drug_schedule, is_controlled FROM pharmacy_catalog \
+         WHERE id = $1 AND tenant_id = $2 AND is_active = true",
+    )
+    .bind(body.catalog_item_id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+
+    if !catalog.is_controlled && !matches!(catalog.drug_schedule.as_deref(), Some("NDPS" | "X")) {
+        return Err(AppError::BadRequest(
+            "NDPS register entries require a controlled, NDPS, or Schedule X catalog item"
+                .to_owned(),
+        ));
+    }
 
     // Calculate current balance
     let current_balance = sqlx::query_scalar::<_, Option<i64>>(
@@ -2855,6 +3408,11 @@ pub async fn create_ndps_entry(
         _ => return Err(AppError::BadRequest("Invalid NDPS action".to_owned())),
     };
     let new_balance = current_balance + delta;
+    if new_balance < 0 {
+        return Err(AppError::Conflict(
+            "Insufficient NDPS balance for this register action".to_owned(),
+        ));
+    }
 
     let entry = sqlx::query_as::<_, NdpsRegisterEntry>(
         "INSERT INTO pharmacy_ndps_register \
@@ -2874,14 +3432,21 @@ pub async fn create_ndps_entry(
     .await?;
 
     tx.commit().await?;
-    Ok(Json(entry))
+    Ok(Json(filter_ndps_entry_response(entry, &restricted_fields)))
 }
 
 pub async fn ndps_balance(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<NdpsReportResponse>, AppError> {
-    require_permission(&claims, permissions::pharmacy::ndps::LIST)?;
+    require_any_permission(
+        &claims,
+        &[
+            permissions::pharmacy::ndps::LIST,
+            permissions::pharmacy::ndps::MANAGE,
+        ],
+    )?;
+    let restricted_fields = resolve_pharmacy_restricted_fields(&state, &claims).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -2902,14 +3467,25 @@ pub async fn ndps_balance(
     .await?;
 
     tx.commit().await?;
-    Ok(Json(NdpsReportResponse { entries: rows }))
+    Ok(Json(NdpsReportResponse {
+        entries: rows
+            .into_iter()
+            .map(|row| filter_ndps_balance_response(row, &restricted_fields))
+            .collect(),
+    }))
 }
 
 pub async fn ndps_report(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<NdpsReportResponse>, AppError> {
-    require_permission(&claims, permissions::pharmacy::ndps::LIST)?;
+    require_any_permission(
+        &claims,
+        &[
+            permissions::pharmacy::ndps::LIST,
+            permissions::pharmacy::ndps::MANAGE,
+        ],
+    )?;
 
     // Reuse balance endpoint — same aggregation
     let result = ndps_balance(State(state), Extension(claims)).await?;
@@ -2926,6 +3502,7 @@ pub async fn list_batches(
     Query(params): Query<ListBatchesQuery>,
 ) -> Result<Json<Vec<PharmacyBatch>>, AppError> {
     require_permission(&claims, permissions::pharmacy::stock::MANAGE)?;
+    let restricted_fields = resolve_pharmacy_restricted_fields(&state, &claims).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -2970,7 +3547,11 @@ pub async fn list_batches(
     let rows = q.fetch_all(&mut *tx).await?;
 
     tx.commit().await?;
-    Ok(Json(rows))
+    Ok(Json(
+        rows.into_iter()
+            .map(|row| filter_pharmacy_batch_response(row, &restricted_fields))
+            .collect(),
+    ))
 }
 
 pub async fn create_batch(
@@ -2979,6 +3560,12 @@ pub async fn create_batch(
     Json(body): Json<CreateBatchRequest>,
 ) -> Result<Json<PharmacyBatch>, AppError> {
     require_permission(&claims, permissions::pharmacy::stock::MANAGE)?;
+    let restricted_fields = resolve_pharmacy_restricted_fields(&state, &claims).await?;
+    if body.quantity_received <= 0 {
+        return Err(AppError::BadRequest(
+            "quantity_received must be greater than zero".to_owned(),
+        ));
+    }
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -2987,8 +3574,9 @@ pub async fn create_batch(
     let batch = sqlx::query_as::<_, PharmacyBatch>(
         "INSERT INTO pharmacy_batches \
          (tenant_id, catalog_item_id, batch_number, expiry_date, manufacture_date, \
-          quantity_received, quantity_on_hand, store_location_id, supplier_info) \
-         VALUES ($1, $2, $3, $4, $5, $6, $6, $7, $8) RETURNING *",
+          quantity_received, quantity_on_hand, store_location_id, supplier_info, \
+          invoice_number, supplier_batch_number, purchase_rate, selling_rate) \
+         VALUES ($1, $2, $3, $4, $5, $6, $6, $7, $8, $9, $10, $11, $12) RETURNING *",
     )
     .bind(claims.tenant_id)
     .bind(body.catalog_item_id)
@@ -2998,6 +3586,10 @@ pub async fn create_batch(
     .bind(body.quantity_received)
     .bind(body.store_location_id)
     .bind(&body.supplier_info)
+    .bind(&body.invoice_number)
+    .bind(&body.supplier_batch_number)
+    .bind(body.purchase_rate)
+    .bind(body.selling_rate)
     .fetch_one(&mut *tx)
     .await?;
 
@@ -3028,7 +3620,10 @@ pub async fn create_batch(
     .await?;
 
     tx.commit().await?;
-    Ok(Json(batch))
+    Ok(Json(filter_pharmacy_batch_response(
+        batch,
+        &restricted_fields,
+    )))
 }
 
 pub async fn near_expiry_report(
@@ -3037,6 +3632,7 @@ pub async fn near_expiry_report(
     Query(params): Query<NearExpiryQuery>,
 ) -> Result<Json<Vec<NearExpiryRow>>, AppError> {
     require_permission(&claims, permissions::pharmacy::stock::MANAGE)?;
+    let restricted_fields = resolve_pharmacy_restricted_fields(&state, &claims).await?;
 
     let days = params.days.unwrap_or(90);
 
@@ -3059,7 +3655,11 @@ pub async fn near_expiry_report(
     .await?;
 
     tx.commit().await?;
-    Ok(Json(rows))
+    Ok(Json(
+        rows.into_iter()
+            .map(|row| filter_near_expiry_response(row, &restricted_fields))
+            .collect(),
+    ))
 }
 
 pub async fn dead_stock_report(
@@ -3068,6 +3668,7 @@ pub async fn dead_stock_report(
     Query(params): Query<DeadStockQuery>,
 ) -> Result<Json<Vec<DeadStockRow>>, AppError> {
     require_permission(&claims, permissions::pharmacy::analytics::VIEW)?;
+    let restricted_fields = resolve_pharmacy_restricted_fields(&state, &claims).await?;
 
     let idle_days = params.idle_days.unwrap_or(90);
 
@@ -3094,7 +3695,11 @@ pub async fn dead_stock_report(
     .await?;
 
     tx.commit().await?;
-    Ok(Json(rows))
+    Ok(Json(
+        rows.into_iter()
+            .map(|row| filter_dead_stock_response(row, &restricted_fields))
+            .collect(),
+    ))
 }
 
 // ══════════════════════════════════════════════════════════
@@ -3105,7 +3710,13 @@ pub async fn list_store_assignments(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<PharmacyStoreAssignment>>, AppError> {
-    require_permission(&claims, permissions::pharmacy::stores::LIST)?;
+    require_any_permission(
+        &claims,
+        &[
+            permissions::pharmacy::stores::LIST,
+            permissions::pharmacy::stores::MANAGE,
+        ],
+    )?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -3156,6 +3767,7 @@ pub async fn create_transfer(
     Json(body): Json<CreateTransferRequest>,
 ) -> Result<Json<PharmacyTransferRequest>, AppError> {
     require_permission(&claims, permissions::pharmacy::stores::MANAGE)?;
+    let restricted_fields = resolve_pharmacy_restricted_fields(&state, &claims).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -3176,7 +3788,10 @@ pub async fn create_transfer(
     .await?;
 
     tx.commit().await?;
-    Ok(Json(row))
+    Ok(Json(filter_pharmacy_transfer_response(
+        row,
+        &restricted_fields,
+    )))
 }
 
 pub async fn approve_transfer(
@@ -3185,6 +3800,7 @@ pub async fn approve_transfer(
     Path(id): Path<Uuid>,
 ) -> Result<Json<PharmacyTransferRequest>, AppError> {
     require_permission(&claims, permissions::pharmacy::stores::MANAGE)?;
+    let restricted_fields = resolve_pharmacy_restricted_fields(&state, &claims).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -3204,7 +3820,10 @@ pub async fn approve_transfer(
     .ok_or(AppError::NotFound)?;
 
     tx.commit().await?;
-    Ok(Json(row))
+    Ok(Json(filter_pharmacy_transfer_response(
+        row,
+        &restricted_fields,
+    )))
 }
 
 pub async fn list_transfers(
@@ -3212,7 +3831,14 @@ pub async fn list_transfers(
     Extension(claims): Extension<Claims>,
     Query(params): Query<ListTransfersQuery>,
 ) -> Result<Json<Vec<PharmacyTransferRequest>>, AppError> {
-    require_permission(&claims, permissions::pharmacy::stores::LIST)?;
+    require_any_permission(
+        &claims,
+        &[
+            permissions::pharmacy::stores::LIST,
+            permissions::pharmacy::stores::MANAGE,
+        ],
+    )?;
+    let restricted_fields = resolve_pharmacy_restricted_fields(&state, &claims).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -3238,7 +3864,11 @@ pub async fn list_transfers(
     };
 
     tx.commit().await?;
-    Ok(Json(rows))
+    Ok(Json(
+        rows.into_iter()
+            .map(|row| filter_pharmacy_transfer_response(row, &restricted_fields))
+            .collect(),
+    ))
 }
 
 // ══════════════════════════════════════════════════════════
@@ -3249,7 +3879,16 @@ pub async fn list_returns(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<PharmacyReturn>>, AppError> {
-    require_permission(&claims, permissions::pharmacy::returns::LIST)?;
+    require_any_permission(
+        &claims,
+        &[
+            permissions::pharmacy::returns::LIST,
+            permissions::pharmacy::returns::APPROVE,
+            permissions::pharmacy::returns::RESTOCK,
+            permissions::pharmacy::returns::DESTROY,
+            permissions::pharmacy::returns::REJECT,
+        ],
+    )?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -3271,27 +3910,152 @@ pub async fn create_return(
     Extension(claims): Extension<Claims>,
     Json(body): Json<CreateReturnRequest>,
 ) -> Result<Json<PharmacyReturn>, AppError> {
-    require_permission(&claims, permissions::pharmacy::returns::LIST)?;
+    require_permission(&claims, permissions::pharmacy::returns::REQUEST)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+
+    let row = create_return_in_tx(&mut tx, claims.tenant_id, &body).await?;
+
+    tx.commit().await?;
+    Ok(Json(row))
+}
+
+pub async fn create_return_batch(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Json(body): Json<CreateReturnBatchRequest>,
+) -> Result<Json<Vec<PharmacyReturn>>, AppError> {
+    require_permission(&claims, permissions::pharmacy::returns::REQUEST)?;
+
+    if body.items.is_empty() {
+        return Err(AppError::BadRequest(
+            "Select at least one dispensed medicine for return".to_owned(),
+        ));
+    }
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
+
+    let mut rows = Vec::with_capacity(body.items.len());
+    for item in body.items {
+        let request = CreateReturnRequest {
+            order_item_id: item.order_item_id,
+            patient_id: body.patient_id,
+            quantity_returned: item.quantity_returned,
+            reason: item.reason,
+        };
+        rows.push(create_return_in_tx(&mut tx, claims.tenant_id, &request).await?);
+    }
+
+    tx.commit().await?;
+    Ok(Json(rows))
+}
+
+async fn create_return_in_tx(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: Uuid,
+    body: &CreateReturnRequest,
+) -> Result<PharmacyReturn, AppError> {
+    if body.quantity_returned <= 0 {
+        return Err(AppError::BadRequest(
+            "Return quantity must be greater than zero".to_owned(),
+        ));
+    }
+
+    let Some((order_patient_id, order_status, ordered_quantity, already_requested)) =
+        sqlx::query_as::<_, (Uuid, String, i32, i32)>(
+            "SELECT o.patient_id, o.status, oi.quantity, \
+                    COALESCE(SUM(pr.quantity_returned) \
+                      FILTER (WHERE pr.status <> 'rejected'), 0)::integer \
+             FROM pharmacy_order_items oi \
+             JOIN pharmacy_orders o ON o.id = oi.order_id AND o.tenant_id = oi.tenant_id \
+             LEFT JOIN pharmacy_returns pr ON pr.order_item_id = oi.id \
+               AND pr.tenant_id = oi.tenant_id \
+             WHERE oi.id = $1 AND oi.tenant_id = $2 AND oi.removed_at IS NULL \
+             GROUP BY o.patient_id, o.status, oi.quantity",
+        )
+        .bind(body.order_item_id)
+        .bind(tenant_id)
+        .fetch_optional(&mut **tx)
+        .await?
+    else {
+        return Err(AppError::NotFound);
+    };
+
+    if order_patient_id != body.patient_id {
+        return Err(AppError::BadRequest(
+            "return patient does not match the pharmacy order".to_owned(),
+        ));
+    }
+
+    if order_status != "dispensed" {
+        return Err(AppError::Conflict(
+            "Only dispensed pharmacy items can be returned".to_owned(),
+        ));
+    }
+
+    let remaining_quantity = ordered_quantity - already_requested;
+    if body.quantity_returned > remaining_quantity {
+        return Err(AppError::Conflict(format!(
+            "Return quantity exceeds remaining dispensed quantity. Remaining: {remaining_quantity}"
+        )));
+    }
 
     let row = sqlx::query_as::<_, PharmacyReturn>(
         "INSERT INTO pharmacy_returns \
          (tenant_id, order_item_id, patient_id, quantity_returned, reason) \
          VALUES ($1, $2, $3, $4, $5) RETURNING *",
     )
-    .bind(claims.tenant_id)
+    .bind(tenant_id)
     .bind(body.order_item_id)
     .bind(body.patient_id)
     .bind(body.quantity_returned)
     .bind(&body.reason)
-    .fetch_one(&mut *tx)
+    .fetch_one(&mut **tx)
     .await?;
 
-    tx.commit().await?;
-    Ok(Json(row))
+    Ok(row)
+}
+
+fn required_pharmacy_return_permission(status: &str) -> Result<&'static str, AppError> {
+    match status {
+        "approved" => Ok(permissions::pharmacy::returns::APPROVE),
+        "returned_to_stock" => Ok(permissions::pharmacy::returns::RESTOCK),
+        "destroyed" => Ok(permissions::pharmacy::returns::DESTROY),
+        "rejected" => Ok(permissions::pharmacy::returns::REJECT),
+        _ => Err(AppError::BadRequest("Invalid return status".to_owned())),
+    }
+}
+
+fn required_pharmacy_return_extra_permission(status: &str) -> Option<&'static str> {
+    match status {
+        "approved" => Some(permissions::pharmacy::dispensing::VOID),
+        _ => None,
+    }
+}
+
+fn ensure_pharmacy_return_transition(
+    current: &PharmacyReturnStatus,
+    next_status: &str,
+) -> Result<(), AppError> {
+    let allowed = match current {
+        PharmacyReturnStatus::Requested => matches!(next_status, "approved" | "rejected"),
+        PharmacyReturnStatus::Approved => matches!(next_status, "returned_to_stock" | "destroyed"),
+        PharmacyReturnStatus::ReturnedToStock
+        | PharmacyReturnStatus::Destroyed
+        | PharmacyReturnStatus::Rejected => false,
+    };
+
+    if allowed {
+        return Ok(());
+    }
+
+    Err(AppError::Conflict(
+        "Invalid pharmacy return status transition".to_owned(),
+    ))
 }
 
 pub async fn process_return(
@@ -3300,22 +4064,34 @@ pub async fn process_return(
     Path(id): Path<Uuid>,
     Json(body): Json<ProcessReturnRequest>,
 ) -> Result<Json<PharmacyReturn>, AppError> {
-    require_permission(&claims, permissions::pharmacy::returns::MANAGE)?;
-
-    let new_status = match body.status.as_str() {
-        "approved" | "returned_to_stock" | "destroyed" | "rejected" => &body.status,
-        _ => return Err(AppError::BadRequest("Invalid return status".to_owned())),
-    };
+    let new_status = body.status.as_str();
+    let required_permission = required_pharmacy_return_permission(new_status)?;
+    require_permission(&claims, required_permission)?;
+    if let Some(extra_permission) = required_pharmacy_return_extra_permission(new_status) {
+        require_permission(&claims, extra_permission)?;
+    }
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
+    let existing = sqlx::query_as::<_, PharmacyReturn>(
+        "SELECT * FROM pharmacy_returns WHERE id = $1 AND tenant_id = $2 FOR UPDATE",
+    )
+    .bind(id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+    ensure_pharmacy_return_transition(&existing.status, new_status)?;
+
     let restocked = new_status == "returned_to_stock";
 
     let row = sqlx::query_as::<_, PharmacyReturn>(
         "UPDATE pharmacy_returns SET \
-         status = $3::pharmacy_return_status, approved_by = $4, restocked = $5, \
+         status = $3::pharmacy_return_status, \
+         approved_by = CASE WHEN $3 = 'approved' THEN $4 ELSE approved_by END, \
+         restocked = CASE WHEN $5 THEN true ELSE restocked END, \
          updated_at = now() \
          WHERE id = $1 AND tenant_id = $2 \
          RETURNING *",
@@ -3329,17 +4105,24 @@ pub async fn process_return(
     .await?
     .ok_or(AppError::NotFound)?;
 
-    let order_item = sqlx::query_as::<_, PharmacyOrderItem>(
-        "SELECT * FROM pharmacy_order_items \
-         WHERE id = $1 AND tenant_id = $2 AND removed_at IS NULL",
-    )
-    .bind(row.order_item_id)
-    .bind(claims.tenant_id)
-    .fetch_optional(&mut *tx)
-    .await?;
+    let order_item = if new_status == "rejected" {
+        None
+    } else {
+        Some(
+            sqlx::query_as::<_, PharmacyOrderItem>(
+                "SELECT * FROM pharmacy_order_items \
+                 WHERE id = $1 AND tenant_id = $2 AND removed_at IS NULL",
+            )
+            .bind(row.order_item_id)
+            .bind(claims.tenant_id)
+            .fetch_optional(&mut *tx)
+            .await?
+            .ok_or(AppError::NotFound)?,
+        )
+    };
 
     if let Some(oi) = order_item {
-        if new_status != "rejected" {
+        if new_status == "approved" {
             super::billing::reverse_auto_charge_quantity_for_source(
                 &mut tx,
                 &claims.tenant_id,
@@ -3351,6 +4134,16 @@ pub async fn process_return(
                 "pharmacy_return",
                 row.id,
             )
+            .await?;
+
+            sqlx::query(
+                "UPDATE pharmacy_order_items SET quantity_returned = quantity_returned + $1 \
+                 WHERE id = $2 AND tenant_id = $3",
+            )
+            .bind(row.quantity_returned)
+            .bind(row.order_item_id)
+            .bind(claims.tenant_id)
+            .execute(&mut *tx)
             .await?;
         }
 
@@ -3381,17 +4174,6 @@ pub async fn process_return(
                     .execute(&mut *tx)
                     .await?;
                 }
-
-                // Update quantity_returned on order item
-                sqlx::query(
-                    "UPDATE pharmacy_order_items SET quantity_returned = quantity_returned + $1 \
-                     WHERE id = $2 AND tenant_id = $3",
-                )
-                .bind(row.quantity_returned)
-                .bind(row.order_item_id)
-                .bind(claims.tenant_id)
-                .execute(&mut *tx)
-                .await?;
             }
         }
     }
@@ -3410,6 +4192,7 @@ pub async fn consumption_analysis(
     Query(params): Query<ConsumptionQuery>,
 ) -> Result<Json<Vec<PharmacyConsumptionRow>>, AppError> {
     require_permission(&claims, permissions::pharmacy::analytics::VIEW)?;
+    let restricted_fields = resolve_pharmacy_restricted_fields(&state, &claims).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -3470,7 +4253,11 @@ pub async fn consumption_analysis(
     let rows = q.fetch_all(&mut *tx).await?;
 
     tx.commit().await?;
-    Ok(Json(rows))
+    Ok(Json(
+        rows.into_iter()
+            .map(|row| filter_consumption_response(row, &restricted_fields))
+            .collect(),
+    ))
 }
 
 pub async fn abc_ved_analysis(
@@ -3478,6 +4265,7 @@ pub async fn abc_ved_analysis(
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<PharmacyAbcVedRow>>, AppError> {
     require_permission(&claims, permissions::pharmacy::analytics::VIEW)?;
+    let restricted_fields = resolve_pharmacy_restricted_fields(&state, &claims).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -3518,7 +4306,11 @@ pub async fn abc_ved_analysis(
     .await?;
 
     tx.commit().await?;
-    Ok(Json(rows))
+    Ok(Json(
+        rows.into_iter()
+            .map(|row| filter_abc_ved_response(row, &restricted_fields))
+            .collect(),
+    ))
 }
 
 pub async fn drug_utilization_review(
@@ -3559,6 +4351,7 @@ pub async fn drug_utilization_review(
 #[derive(Debug, Deserialize)]
 pub struct CheckDrugInteractionsRequest {
     pub patient_id: Uuid,
+    #[serde(alias = "drug_id")]
     pub new_drug_id: Uuid,
 }
 
@@ -3576,7 +4369,14 @@ pub async fn check_drug_interactions(
     Extension(claims): Extension<Claims>,
     Json(body): Json<CheckDrugInteractionsRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    require_permission(&claims, permissions::pharmacy::prescriptions::VIEW)?;
+    require_any_permission(
+        &claims,
+        &[
+            permissions::pharmacy::prescriptions::VIEW,
+            permissions::pharmacy::safety::VIEW,
+            permissions::pharmacy::rx_queue::REVIEW,
+        ],
+    )?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -3596,7 +4396,7 @@ pub async fn check_drug_interactions(
            ((lower(di.drug_a_name) = lower(oi.drug_name) AND lower(di.drug_b_name) = lower(nc.name)) OR \
             (lower(di.drug_b_name) = lower(oi.drug_name) AND lower(di.drug_a_name) = lower(nc.name))) \
          WHERE o.patient_id = $1 AND o.tenant_id = $2 \
-           AND o.status IN ('pending', 'dispensed') \
+           AND o.status IN ('ordered', 'dispensed') \
            AND o.created_at >= now() - interval '30 days' \
            AND di.id IS NOT NULL \
          ORDER BY di.severity DESC",
@@ -3609,18 +4409,20 @@ pub async fn check_drug_interactions(
 
     tx.commit().await?;
 
-    Ok(Json(json!({
-        "patient_id": body.patient_id,
-        "new_drug_id": body.new_drug_id,
-        "interactions_found": active_drugs.len(),
-        "interactions": active_drugs.iter().map(|d| json!({
-            "existing_drug_id": d.existing_drug_id,
-            "existing_drug_name": d.existing_drug_name,
-            "new_drug_name": d.new_drug_name,
-            "severity": d.severity,
-            "description": d.description,
-        })).collect::<Vec<_>>(),
-    })))
+    Ok(Json(json!(
+        active_drugs
+            .iter()
+            .map(|drug| json!({
+                "interacting_drug": drug.existing_drug_name,
+                "interaction_type": "drug_drug",
+                "severity": drug.severity.as_deref().unwrap_or("moderate"),
+                "description": drug
+                    .description
+                    .as_deref()
+                    .unwrap_or("Potential interaction with active medication"),
+            }))
+            .collect::<Vec<_>>()
+    )))
 }
 
 // ══════════════════════════════════════════════════════════
@@ -3692,7 +4494,14 @@ pub async fn formulary_check(
     Extension(claims): Extension<Claims>,
     Json(body): Json<FormularyCheckRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    require_permission(&claims, permissions::pharmacy::prescriptions::VIEW)?;
+    require_any_permission(
+        &claims,
+        &[
+            permissions::pharmacy::prescriptions::VIEW,
+            permissions::pharmacy::safety::VIEW,
+            permissions::pharmacy::rx_queue::REVIEW,
+        ],
+    )?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -3714,11 +4523,15 @@ pub async fn formulary_check(
     match drug {
         Some(d) => {
             let is_formulary = d.formulary_status.as_deref() == Some("approved");
+            let requires_approval = d.formulary_status.as_deref() == Some("restricted")
+                || d.is_controlled.unwrap_or(false);
             Ok(Json(json!({
                 "drug_id": d.id,
-                "name": d.name,
+                "drug_name": d.name,
                 "generic_name": d.generic_name,
-                "is_in_formulary": is_formulary,
+                "is_formulary": is_formulary,
+                "requires_approval": requires_approval,
+                "alternative_drugs": [],
                 "formulary_status": d.formulary_status,
                 "drug_schedule": d.drug_schedule,
                 "is_controlled": d.is_controlled,
@@ -3727,7 +4540,10 @@ pub async fn formulary_check(
         }
         None => Ok(Json(json!({
             "drug_id": body.drug_id,
-            "is_in_formulary": false,
+            "drug_name": "Unknown medicine",
+            "is_formulary": false,
+            "requires_approval": true,
+            "alternative_drugs": [],
             "error": "Drug not found in catalog",
         }))),
     }
@@ -3743,7 +4559,13 @@ pub async fn list_rx_queue(
     Extension(claims): Extension<Claims>,
     Query(params): Query<RxQueueQuery>,
 ) -> Result<Json<Vec<RxQueueRow>>, AppError> {
-    require_permission(&claims, permissions::pharmacy::rx_queue::LIST)?;
+    require_any_permission(
+        &claims,
+        &[
+            permissions::pharmacy::rx_queue::LIST,
+            permissions::pharmacy::rx_queue::REVIEW,
+        ],
+    )?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -3751,7 +4573,7 @@ pub async fn list_rx_queue(
 
     let status_filter = params.status.as_deref().unwrap_or("pending_review");
 
-    let rows = sqlx::query_as::<_, RxQueueRow>(
+    let mut rows = sqlx::query_as::<_, RxQueueRow>(
         "SELECT pr.id, pr.prescription_id, pr.patient_id,
                 p.first_name || ' ' || p.last_name AS patient_name,
                 u.full_name AS doctor_name,
@@ -3773,6 +4595,12 @@ pub async fn list_rx_queue(
     .fetch_all(&mut *tx)
     .await?;
 
+    if !can_view_patient_identity(&claims) {
+        for row in &mut rows {
+            row.patient_name = "Restricted".to_owned();
+        }
+    }
+
     tx.commit().await?;
     Ok(Json(rows))
 }
@@ -3783,7 +4611,13 @@ pub async fn get_rx_detail(
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    require_permission(&claims, permissions::pharmacy::rx_queue::LIST)?;
+    require_any_permission(
+        &claims,
+        &[
+            permissions::pharmacy::rx_queue::LIST,
+            permissions::pharmacy::rx_queue::REVIEW,
+        ],
+    )?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -3796,6 +4630,22 @@ pub async fn get_rx_detail(
     .fetch_optional(&mut *tx)
     .await?
     .ok_or(AppError::NotFound)?;
+
+    // Camp pharmacy is always free for the patient — sponsor / hospital
+    // absorbs the cost. Zero out unit_price and tax so the approval modal
+    // shows ₹0 instead of catalog MRP.
+    let is_camp_rx = sqlx::query_scalar::<_, bool>(
+        "SELECT EXISTS (
+             SELECT 1 FROM encounters e
+             WHERE e.id = $1
+               AND e.tenant_id = $2
+               AND (e.visit_type = 'camp' OR (e.attributes ->> 'camp_id') IS NOT NULL)
+         )",
+    )
+    .bind(rx.encounter_id)
+    .bind(claims.tenant_id)
+    .fetch_one(&mut *tx)
+    .await?;
 
     // Fetch prescription items with a pharmacist-facing quantity + price
     // estimate. Final quantity remains editable before approval, but defaulting
@@ -3841,8 +4691,13 @@ pub async fn get_rx_detail(
         .map(|item| {
             let quantity =
                 estimate_rx_dispense_quantity(&item.dosage, &item.frequency, &item.duration);
-            let taxable_amount = item.unit_price * Decimal::from(quantity);
-            let tax_amount = taxable_amount * item.tax_percent / Decimal::from(100);
+            let (unit_price, tax_percent) = if is_camp_rx {
+                (Decimal::ZERO, Decimal::ZERO)
+            } else {
+                (item.unit_price, item.tax_percent)
+            };
+            let taxable_amount = unit_price * Decimal::from(quantity);
+            let tax_amount = taxable_amount * tax_percent / Decimal::from(100);
             let line_total = taxable_amount + tax_amount;
 
             json!({
@@ -3855,8 +4710,8 @@ pub async fn get_rx_detail(
                 "instructions": item.instructions,
                 "quantity": quantity,
                 "catalog_item_id": item.catalog_item_id,
-                "unit_price": decimal_as_f64(item.unit_price),
-                "tax_percent": decimal_as_f64(item.tax_percent),
+                "unit_price": decimal_as_f64(unit_price),
+                "tax_percent": decimal_as_f64(tax_percent),
                 "taxable_amount": decimal_as_f64(taxable_amount),
                 "tax_amount": decimal_as_f64(tax_amount),
                 "line_total": decimal_as_f64(line_total),
@@ -4209,6 +5064,8 @@ pub async fn create_pos_sale(
     Json(body): Json<CreatePosSaleRequest>,
 ) -> Result<Json<PharmacyPosSale>, AppError> {
     require_permission(&claims, permissions::pharmacy::pos::CREATE)?;
+    let restricted_fields = resolve_pharmacy_restricted_fields(&state, &claims).await?;
+    validate_pos_sale_field_access(&body, &restricted_fields)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -4473,7 +5330,10 @@ pub async fn create_pos_sale(
     };
 
     tx.commit().await?;
-    Ok(Json(sale))
+    Ok(Json(filter_pharmacy_pos_sale_response(
+        sale,
+        &restricted_fields,
+    )))
 }
 
 /// GET /api/pharmacy/pos/sales
@@ -4482,7 +5342,15 @@ pub async fn list_pos_sales(
     Extension(claims): Extension<Claims>,
     Query(params): Query<PosSalesQuery>,
 ) -> Result<Json<Vec<PharmacyPosSale>>, AppError> {
-    require_permission(&claims, permissions::pharmacy::pos::VIEW)?;
+    require_any_permission(
+        &claims,
+        &[
+            permissions::pharmacy::pos::VIEW,
+            permissions::pharmacy::pos::CANCEL,
+            permissions::pharmacy::pos::RETURN,
+        ],
+    )?;
+    let restricted_fields = resolve_pharmacy_restricted_fields(&state, &claims).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -4502,7 +5370,47 @@ pub async fn list_pos_sales(
     .await?;
 
     tx.commit().await?;
-    Ok(Json(rows))
+    Ok(Json(
+        rows.into_iter()
+            .map(|row| filter_pharmacy_pos_sale_response(row, &restricted_fields))
+            .collect(),
+    ))
+}
+
+/// GET /api/pharmacy/pos/sales/{id}/items
+pub async fn list_pos_sale_items(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<Vec<PharmacyPosSaleItem>>, AppError> {
+    require_any_permission(
+        &claims,
+        &[
+            permissions::pharmacy::pos::VIEW,
+            permissions::pharmacy::pos::RETURN,
+        ],
+    )?;
+    let restricted_fields = resolve_pharmacy_restricted_fields(&state, &claims).await?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
+
+    let rows = sqlx::query_as::<_, PharmacyPosSaleItem>(
+        "SELECT * FROM pharmacy_pos_sale_items WHERE pos_sale_id = $1 AND tenant_id = $2 \
+         ORDER BY created_at, drug_name",
+    )
+    .bind(id)
+    .bind(claims.tenant_id)
+    .fetch_all(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+    Ok(Json(
+        rows.into_iter()
+            .map(|row| filter_pharmacy_pos_sale_item_response(row, &restricted_fields))
+            .collect(),
+    ))
 }
 
 /// GET /api/pharmacy/pos/day-summary
@@ -4511,6 +5419,7 @@ pub async fn pos_day_summary(
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<PosDaySummary>, AppError> {
     require_permission(&claims, permissions::pharmacy::pos::VIEW)?;
+    let restricted_fields = resolve_pharmacy_restricted_fields(&state, &claims).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -4532,7 +5441,10 @@ pub async fn pos_day_summary(
     .await?;
 
     tx.commit().await?;
-    Ok(Json(summary))
+    Ok(Json(filter_pos_day_summary_response(
+        summary,
+        &restricted_fields,
+    )))
 }
 
 /// PUT /api/pharmacy/pos/sales/{id}/cancel — Full cancel POS sale, restore stock
@@ -4542,7 +5454,7 @@ pub async fn cancel_pos_sale(
     Path(id): Path<Uuid>,
     Json(body): Json<CancelPosSaleRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    require_permission(&claims, permissions::pharmacy::pos::CREATE)?;
+    require_permission(&claims, permissions::pharmacy::pos::CANCEL)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -4556,6 +5468,18 @@ pub async fn cancel_pos_sale(
     .fetch_optional(&mut *tx)
     .await?
     .ok_or(AppError::NotFound)?;
+    let sale_status = sale.status.as_deref().unwrap_or("completed");
+    if matches!(sale_status, "cancelled" | "refunded") {
+        return Err(AppError::Conflict(
+            "POS sale is already cancelled or refunded".to_owned(),
+        ));
+    }
+    let already_refunded = sale.refund_amount.unwrap_or(Decimal::ZERO);
+    let remaining_refund = if sale.total_amount > already_refunded {
+        sale.total_amount - already_refunded
+    } else {
+        Decimal::ZERO
+    };
 
     // Get sale items
     let items = sqlx::query_as::<_, PharmacyPosSaleItem>(
@@ -4568,12 +5492,16 @@ pub async fn cancel_pos_sale(
 
     // Restore stock for each item
     for item in &items {
+        let remaining_qty = item.quantity - item.cancelled_qty.unwrap_or(0);
+        if remaining_qty <= 0 {
+            continue;
+        }
         if let Some(catalog_id) = item.catalog_item_id {
             sqlx::query(
                 "UPDATE pharmacy_catalog SET current_stock = current_stock + $1 \
                  WHERE id = $2 AND tenant_id = $3",
             )
-            .bind(item.quantity)
+            .bind(remaining_qty)
             .bind(catalog_id)
             .bind(claims.tenant_id)
             .execute(&mut *tx)
@@ -4585,7 +5513,7 @@ pub async fn cancel_pos_sale(
                     "UPDATE pharmacy_batches SET quantity_on_hand = quantity_on_hand + $1, \
                      quantity_dispensed = quantity_dispensed - $1 WHERE id = $2",
                 )
-                .bind(item.quantity)
+                .bind(remaining_qty)
                 .bind(batch_id)
                 .execute(&mut *tx)
                 .await?;
@@ -4599,7 +5527,7 @@ pub async fn cancel_pos_sale(
             )
             .bind(claims.tenant_id)
             .bind(catalog_id)
-            .bind(item.quantity)
+            .bind(remaining_qty)
             .bind(id)
             .bind(claims.sub)
             .execute(&mut *tx)
@@ -4630,26 +5558,28 @@ pub async fn cancel_pos_sale(
     .execute(&mut *tx)
     .await?;
 
-    // Create refund payment transaction
-    sqlx::query(
-        "INSERT INTO pharmacy_payment_transactions \
-         (tenant_id, pos_sale_id, payment_mode, amount, reference_number, created_by) \
-         VALUES ($1, $2, 'cash', -$3, $4, $5)",
-    )
-    .bind(claims.tenant_id)
-    .bind(id)
-    .bind(sale.total_amount)
-    .bind(format!(
-        "REFUND-{}",
-        sale.receipt_number.as_deref().unwrap_or("N/A")
-    ))
-    .bind(claims.sub)
-    .execute(&mut *tx)
-    .await?;
+    // Create refund payment transaction for the not-yet-refunded amount.
+    if remaining_refund > Decimal::ZERO {
+        sqlx::query(
+            "INSERT INTO pharmacy_payment_transactions \
+             (tenant_id, pos_sale_id, payment_mode, amount, reference_number, created_by) \
+             VALUES ($1, $2, 'cash', -$3, $4, $5)",
+        )
+        .bind(claims.tenant_id)
+        .bind(id)
+        .bind(remaining_refund)
+        .bind(format!(
+            "REFUND-{}",
+            sale.receipt_number.as_deref().unwrap_or("N/A")
+        ))
+        .bind(claims.sub)
+        .execute(&mut *tx)
+        .await?;
+    }
 
     tx.commit().await?;
     Ok(Json(
-        json!({ "status": "cancelled", "refund_amount": sale.total_amount.to_string() }),
+        json!({ "status": "cancelled", "refund_amount": remaining_refund.to_string() }),
     ))
 }
 
@@ -4673,11 +5603,26 @@ pub async fn return_pos_items(
     Path(id): Path<Uuid>,
     Json(body): Json<ReturnPosItemsRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    require_permission(&claims, permissions::pharmacy::pos::CREATE)?;
+    require_permission(&claims, permissions::pharmacy::pos::RETURN)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+
+    let sale = sqlx::query_as::<_, PharmacyPosSale>(
+        "SELECT * FROM pharmacy_pos_sales WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+    let sale_status = sale.status.as_deref().unwrap_or("completed");
+    if matches!(sale_status, "cancelled" | "refunded") {
+        return Err(AppError::Conflict(
+            "POS sale is already cancelled or refunded".to_owned(),
+        ));
+    }
 
     let mut total_refund = Decimal::ZERO;
 
@@ -4694,7 +5639,8 @@ pub async fn return_pos_items(
         .await?
         .ok_or(AppError::NotFound)?;
 
-        let return_qty = ret_item.return_qty.min(item.quantity);
+        let remaining_qty = item.quantity - item.cancelled_qty.unwrap_or(0);
+        let return_qty = ret_item.return_qty.min(remaining_qty);
         if return_qty <= 0 {
             continue;
         }
@@ -4703,7 +5649,7 @@ pub async fn return_pos_items(
         total_refund += refund_amount;
 
         // Mark item as partially/fully cancelled
-        let is_full = return_qty >= item.quantity;
+        let is_full = return_qty >= remaining_qty;
         sqlx::query(
             "UPDATE pharmacy_pos_sale_items SET \
              is_cancelled = $3, cancelled_qty = COALESCE(cancelled_qty, 0) + $4, \
@@ -5020,6 +5966,7 @@ pub async fn daily_sales_summary(
     Query(params): Query<AnalyticsDateQuery>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_permission(&claims, permissions::pharmacy::analytics::VIEW)?;
+    let restricted_fields = resolve_pharmacy_restricted_fields(&state, &claims).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -5047,7 +5994,10 @@ pub async fn daily_sales_summary(
     .await?;
 
     tx.commit().await?;
-    Ok(Json(json!({ "sales": rows })))
+    Ok(Json(filter_pharmacy_analytics_json_response(
+        json!({ "sales": rows }),
+        &restricted_fields,
+    )))
 }
 
 /// GET /api/pharmacy/analytics/fill-rate
@@ -5087,6 +6037,7 @@ pub async fn margin_analysis(
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_permission(&claims, permissions::pharmacy::analytics::VIEW)?;
+    let restricted_fields = resolve_pharmacy_restricted_fields(&state, &claims).await?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -5112,7 +6063,10 @@ pub async fn margin_analysis(
     .await?;
 
     tx.commit().await?;
-    Ok(Json(json!({ "margins": rows })))
+    Ok(Json(filter_pharmacy_analytics_json_response(
+        json!({ "margins": rows }),
+        &restricted_fields,
+    )))
 }
 
 // ── Phase 3 Request Types ────────────────────────────────

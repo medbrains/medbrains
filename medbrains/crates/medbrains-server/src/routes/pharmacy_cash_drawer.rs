@@ -7,13 +7,18 @@ use axum::{
     extract::{Path, Query, State},
 };
 use chrono::{DateTime, Utc};
+use medbrains_core::form::FieldAccessLevel;
 use medbrains_core::permissions;
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use uuid::Uuid;
 
 use crate::{
-    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
+    error::AppError,
+    middleware::auth::Claims,
+    middleware::authorization::{require_any_permission, require_permission},
+    middleware::field_access,
     state::AppState,
 };
 
@@ -43,12 +48,43 @@ pub struct OpenDrawerRequest {
     pub notes: Option<String>,
 }
 
+const BILLING_AMOUNT_FIELD: &str = "billing.amount";
+
+async fn resolve_pharmacy_finance_restricted_fields(
+    state: &AppState,
+    claims: &Claims,
+) -> Result<HashMap<String, FieldAccessLevel>, AppError> {
+    field_access::resolve_restricted_fields(&state.db, claims.tenant_id, claims.sub, &claims.role)
+        .await
+}
+
+fn can_write_pharmacy_finance_amount(restricted: &HashMap<String, FieldAccessLevel>) -> bool {
+    restricted
+        .get(BILLING_AMOUNT_FIELD)
+        .copied()
+        .unwrap_or(FieldAccessLevel::Edit)
+        == FieldAccessLevel::Edit
+}
+
+fn validate_pharmacy_finance_amount_write_access(
+    restricted: &HashMap<String, FieldAccessLevel>,
+) -> Result<(), AppError> {
+    if can_write_pharmacy_finance_amount(restricted) {
+        return Ok(());
+    }
+    Err(AppError::BadRequest(
+        "Cannot write restricted pharmacy finance amount fields".to_owned(),
+    ))
+}
+
 pub async fn open_drawer(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Json(body): Json<OpenDrawerRequest>,
 ) -> Result<Json<CashDrawer>, AppError> {
     require_permission(&claims, permissions::pharmacy_finance::cash_drawer::OPEN)?;
+    let restricted_fields = resolve_pharmacy_finance_restricted_fields(&state, &claims).await?;
+    validate_pharmacy_finance_amount_write_access(&restricted_fields)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -100,6 +136,8 @@ pub async fn close_drawer(
     Json(body): Json<CloseDrawerRequest>,
 ) -> Result<Json<CashDrawer>, AppError> {
     require_permission(&claims, permissions::pharmacy_finance::cash_drawer::CLOSE)?;
+    let restricted_fields = resolve_pharmacy_finance_restricted_fields(&state, &claims).await?;
+    validate_pharmacy_finance_amount_write_access(&restricted_fields)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -158,7 +196,14 @@ pub async fn get_my_active_drawer(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Option<CashDrawer>>, AppError> {
-    require_permission(&claims, permissions::pharmacy_finance::cash_drawer::VIEW)?;
+    require_any_permission(
+        &claims,
+        &[
+            permissions::pharmacy_finance::cash_drawer::VIEW,
+            permissions::pharmacy_finance::cash_drawer::OPEN,
+            permissions::pharmacy_finance::cash_drawer::CLOSE,
+        ],
+    )?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;

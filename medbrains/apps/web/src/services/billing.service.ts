@@ -17,6 +17,9 @@ export const billingService = {
   removeDiscount: (...args: Parameters<typeof api.removeDiscount>) => api.removeDiscount(...args),
   generateReceipt: (...args: Parameters<typeof api.generateReceipt>) =>
     api.generateReceipt(...args),
+  listReceipts: (...args: Parameters<typeof api.listReceipts>) => api.listReceipts(...args),
+  getReceiptPrintData: (...args: Parameters<typeof api.getReceiptPrintData>) =>
+    api.getReceiptPrintData(...args),
   listChargeMaster: (...args: Parameters<typeof api.listChargeMaster>) =>
     api.listChargeMaster(...args),
   createChargeMaster: (...args: Parameters<typeof api.createChargeMaster>) =>
@@ -150,6 +153,8 @@ export const billingService = {
   exportToErp: (...args: Parameters<typeof api.exportToErp>) => api.exportToErp(...args),
   listConcessions: (...args: Parameters<typeof api.listConcessions>) =>
     api.listConcessions(...args),
+  createConcession: (...args: Parameters<typeof api.createConcession>) =>
+    api.createConcession(...args),
   getAutoConcessionRules: (...args: Parameters<typeof api.getAutoConcessionRules>) =>
     api.getAutoConcessionRules(...args),
   approveConcession: (...args: Parameters<typeof api.approveConcession>) =>

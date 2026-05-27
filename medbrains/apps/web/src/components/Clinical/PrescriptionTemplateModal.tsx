@@ -12,6 +12,7 @@ interface PrescriptionTemplateModalProps {
   onTemplateSharedChange: (val: boolean) => void;
   itemCount: number;
   onSave: () => void;
+  canSaveTemplate: boolean;
   isSaving: boolean;
 }
 
@@ -26,16 +27,18 @@ export function PrescriptionTemplateModal({
   onTemplateSharedChange,
   itemCount,
   onSave,
+  canSaveTemplate,
   isSaving,
 }: PrescriptionTemplateModalProps) {
   return (
-    <Modal opened={opened} onClose={onClose} title="Save Prescription Template" size="sm">
+    <Modal opened={opened} onClose={onClose} title="Save Prescription Set" size="sm">
       <Stack gap="sm">
         <TextInput
-          label="Template Name"
+          label="Set Name"
           placeholder="e.g. Hypertension Standard"
           value={templateName}
           onChange={(e) => onTemplateNameChange(e.currentTarget.value)}
+          disabled={!canSaveTemplate}
           required
         />
         <Textarea
@@ -43,14 +46,16 @@ export function PrescriptionTemplateModal({
           placeholder="Optional description"
           value={templateDesc}
           onChange={(e) => onTemplateDescChange(e.currentTarget.value)}
+          disabled={!canSaveTemplate}
           autosize
           minRows={2}
         />
         <Switch
           label="Share with department"
-          description="Other doctors in your department can use this template"
+          description="Other doctors in your department can use this saved prescription set"
           checked={templateShared}
           onChange={(e) => onTemplateSharedChange(e.currentTarget.checked)}
+          disabled={!canSaveTemplate}
         />
         <Text size="xs" c="dimmed">
           {itemCount} medication{itemCount !== 1 ? "s" : ""} will be saved
@@ -62,10 +67,10 @@ export function PrescriptionTemplateModal({
           <Button
             onClick={onSave}
             loading={isSaving}
-            disabled={!templateName.trim()}
+            disabled={!canSaveTemplate || !templateName.trim()}
             leftSection={<IconDeviceFloppy size={14} />}
           >
-            Save Template
+            Save Set
           </Button>
         </Group>
       </Stack>

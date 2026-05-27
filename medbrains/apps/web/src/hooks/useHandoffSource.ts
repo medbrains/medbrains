@@ -4,17 +4,13 @@
  * CRDT-backed via medbrains-edge when on.
  *
  * Backend endpoints expected (REST path):
- *   GET  /nurse-handoff/shifts/{shift_id}/entries
- *   POST /nurse-handoff/shifts/{shift_id}/entries
+ *   GET  /clinical/handoff-entries/shifts/{shift_id}
+ *   POST /clinical/handoff-entries/shifts/{shift_id}
  *
- * Until the REST endpoints exist, this hook keeps the unified
- * surface but the REST path returns an empty list + posts will fail.
- * Pages can render the offline path immediately by setting
- * tenant.offline_mode=true; the REST path lights up when nurse
- * handoff routes ship.
  */
 
 import { type CrdtConnectionStatus, useAppendOnlyCrdtList } from "@medbrains/crdt";
+import { api } from "@medbrains/api";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback } from "react";
 import { useTenantConfig } from "../providers/TenantConfigProvider";
@@ -45,27 +41,16 @@ export function useHandoffSource(shiftId: string): HandoffSourceResult {
   return useHandoffRest(shiftId, config.authorName);
 }
 
-// ── REST (placeholder; activates when /nurse-handoff routes ship) ──
-
-interface HandoffApi {
-  list: (shiftId: string) => Promise<HandoffEntry[]>;
-  create: (shiftId: string, entry: HandoffEntryInput) => Promise<HandoffEntry>;
-}
-
-const handoffApiStub: HandoffApi = {
-  list: async () => [],
-  create: async (_id, e) => ({ ts: Date.now(), author: "stub", ...e }) as HandoffEntry,
-};
-
 function useHandoffRest(shiftId: string, _authorName: string): HandoffSourceResult {
   const qc = useQueryClient();
   const query = useQuery<HandoffEntry[]>({
     queryKey: ["handoff", shiftId],
-    queryFn: () => handoffApiStub.list(shiftId),
+    queryFn: async () => (await api.listClinicalHandoffEntries(shiftId)).map(toHandoffEntry),
     enabled: !!shiftId,
   });
   const mutation = useMutation({
-    mutationFn: (e: HandoffEntryInput) => handoffApiStub.create(shiftId, e),
+    mutationFn: async (entry: HandoffEntryInput) =>
+      toHandoffEntry(await api.createClinicalHandoffEntry(shiftId, entry)),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["handoff", shiftId] }),
   });
   const append = useCallback((e: HandoffEntryInput) => mutation.mutate(e), [mutation]);
@@ -75,6 +60,21 @@ function useHandoffRest(shiftId: string, _authorName: string): HandoffSourceResu
     status: query.isLoading ? "loading" : query.isError ? "error" : "online",
     ready: !query.isLoading,
     unsyncedOps: mutation.isPending ? 1 : 0,
+  };
+}
+
+type ClinicalHandoffEntry = Awaited<ReturnType<typeof api.listClinicalHandoffEntries>>[number];
+
+function toHandoffEntry(entry: ClinicalHandoffEntry): HandoffEntry {
+  return {
+    id: entry.id,
+    shift_id: entry.shift_id,
+    author_user_id: entry.author_user_id,
+    authored_at: entry.authored_at,
+    ts: new Date(entry.authored_at).getTime(),
+    author: entry.author_name,
+    note: entry.note,
+    category: entry.category,
   };
 }
 

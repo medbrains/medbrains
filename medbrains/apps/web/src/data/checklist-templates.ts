@@ -122,7 +122,50 @@ export const MRD_DEFICIENCY_26: ChecklistTemplate = {
   ],
 };
 
+export const MEDICAL_CASE_SHEET_10: ChecklistTemplate = {
+  key: "medical-case-sheet-10",
+  title: "Medical Case Sheet Pack (10 sheets)",
+  description:
+    "MRD receipt checklist for non-surgical IP admissions, based on the NABH workflow sample pack.",
+  items: [
+    { item_label: "Admission advice slip", category: "Admission" },
+    { item_label: "Graphic TPR chart", category: "Vitals" },
+    { item_label: "Initial nursing assessment form", category: "Nursing" },
+    { item_label: "General consent for inpatient admission", category: "Consent" },
+    { item_label: "In-patient drug chart", category: "Medication" },
+    { item_label: "In-patient case sheet", category: "Clinical" },
+    { item_label: "Doctor's notes - minimum 2 entries", category: "Clinical" },
+    { item_label: "Nursing process notes - minimum 2 entries", category: "Nursing" },
+    { item_label: "Against medical advice form, if applicable", category: "Discharge" },
+    { item_label: "Billing chart", category: "Billing" },
+  ],
+};
+
+export const SURGICAL_CASE_SHEET_13: ChecklistTemplate = {
+  key: "surgical-case-sheet-13",
+  title: "Surgical Case Sheet Pack (13 sheets)",
+  description:
+    "MRD receipt checklist for surgical IP admissions, based on the NABH workflow sample pack.",
+  items: [
+    { item_label: "Admission advice slip", category: "Admission" },
+    { item_label: "Graphic TPR chart", category: "Vitals" },
+    { item_label: "IP admission slip", category: "Admission" },
+    { item_label: "General consent for inpatient admission", category: "Consent" },
+    { item_label: "Initial nursing assessment form", category: "Nursing" },
+    { item_label: "Consent form for surgery", category: "Consent" },
+    { item_label: "In-patient case sheet", category: "Clinical" },
+    { item_label: "Doctor's notes - minimum 2 entries", category: "Clinical" },
+    { item_label: "Consent for anaesthesia", category: "Consent" },
+    { item_label: "Pre-operative checklist", category: "OT" },
+    { item_label: "Operation notes", category: "OT" },
+    { item_label: "Nursing progress notes - minimum 2 entries", category: "Nursing" },
+    { item_label: "Medication chart", category: "Medication" },
+  ],
+};
+
 export const ALL_TEMPLATES: ChecklistTemplate[] = [
+  MEDICAL_CASE_SHEET_10,
+  SURGICAL_CASE_SHEET_13,
   PREOP_CHECKLIST_27,
   ADMISSION_ADVICE_12,
   MRD_DEFICIENCY_26,

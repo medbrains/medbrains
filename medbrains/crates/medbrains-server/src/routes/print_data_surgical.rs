@@ -42,6 +42,8 @@ struct CaseSheetCoverRow {
     emergency_contact_phone: Option<String>,
     insurance_provider: Option<String>,
     policy_number: Option<String>,
+    hospital_name: String,
+    hospital_logo_url: Option<String>,
 }
 
 pub async fn get_case_sheet_cover_print_data(
@@ -73,9 +75,12 @@ pub async fn get_case_sheet_cover_print_data(
            p.emergency_contact_name, \
            p.emergency_contact_phone, \
            ins.payer_name AS insurance_provider, \
-           ins.policy_number \
+           ins.policy_number, \
+           t.name AS hospital_name, \
+           t.logo_url AS hospital_logo_url \
          FROM admissions a \
          JOIN patients p ON p.id = a.patient_id AND p.tenant_id = a.tenant_id \
+         JOIN tenants t ON t.id = a.tenant_id \
          LEFT JOIN wards w ON w.id = a.ward_id AND w.tenant_id = a.tenant_id \
          LEFT JOIN locations l ON l.id = a.bed_id AND l.tenant_id = a.tenant_id \
          LEFT JOIN users doc ON doc.id = a.admitting_doctor \
@@ -100,10 +105,17 @@ pub async fn get_case_sheet_cover_print_data(
 
     tx.commit().await?;
 
+    let age = row.age.map(|a| format!("{} yrs", a as i64));
+    let primary_diagnosis = row
+        .final_diagnosis
+        .clone()
+        .or(row.provisional_diagnosis.clone());
+
     Ok(Json(CaseSheetCoverPrintData {
         patient_name: row.patient_name,
         uhid: row.uhid,
-        age: row.age.map(|a| format!("{} yrs", a as i64)),
+        age: age.clone(),
+        age_display: age.unwrap_or_else(|| "N/A".to_owned()),
         gender: row.gender,
         admission_number: row.admission_number,
         admission_date: row.admission_date.format("%d-%b-%Y").to_string(),
@@ -113,12 +125,16 @@ pub async fn get_case_sheet_cover_print_data(
         department: row.department.unwrap_or_default(),
         provisional_diagnosis: row.provisional_diagnosis,
         final_diagnosis: row.final_diagnosis,
+        primary_diagnosis,
+        secondary_diagnoses: Vec::new(),
         allergies,
         blood_group: row.blood_group,
         emergency_contact_name: row.emergency_contact_name,
         emergency_contact_phone: row.emergency_contact_phone,
         insurance_provider: row.insurance_provider,
         policy_number: row.policy_number,
+        hospital_name: row.hospital_name,
+        hospital_logo_url: row.hospital_logo_url,
     }))
 }
 

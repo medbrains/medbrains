@@ -37,7 +37,7 @@ import type {
   WidgetAccessLevel,
   WidgetTemplate,
 } from "@medbrains/types";
-import { buildPermissionTree, P, PERMISSIONS } from "@medbrains/types";
+import { buildPermissionTree, FIELD_ACCESS_FIELDS, P, PERMISSIONS } from "@medbrains/types";
 import {
   IconCheck,
   IconInfoCircle,
@@ -716,7 +716,7 @@ function UserPermissionOverrideDrawer({
     setWidgetFilter("");
   }
 
-  const allFields = useMemo<FieldMasterFull[]>(() => [], []);
+  const allFields = useMemo<FieldMasterFull[]>(() => FIELD_ACCESS_FIELDS, []);
   const fieldsLoading = false;
   const widgetTemplates = useMemo<WidgetTemplate[]>(() => [], []);
 
@@ -1160,6 +1160,7 @@ function UserPermissionOverrideDrawer({
                                     data={[
                                       { label: "Edit", value: "edit" },
                                       { label: "View", value: "view" },
+                                      { label: "Mask", value: "mask" },
                                       { label: "Hidden", value: "hidden" },
                                     ]}
                                     style={{ flexShrink: 0 }}

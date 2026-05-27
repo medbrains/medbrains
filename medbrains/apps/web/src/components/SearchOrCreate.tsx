@@ -89,7 +89,15 @@ export function SearchOrCreate<T>({
 
   return (
     <>
-      <Combobox store={combobox} onOptionSubmit={handleSelect}>
+      <Combobox
+        store={combobox}
+        onOptionSubmit={handleSelect}
+        middlewares={{ flip: true, shift: true, size: true }}
+        position="bottom-start"
+        shadow="lg"
+        withinPortal
+        zIndex={3000}
+      >
         <Combobox.Target>
           <InputBase
             label={label}
@@ -126,7 +134,7 @@ export function SearchOrCreate<T>({
           />
         </Combobox.Target>
         <Combobox.Dropdown>
-          <Combobox.Options>
+          <Combobox.Options mah={280} style={{ overflowY: "auto" }}>
             {items.length > 0 ? (
               items.map((item) => (
                 <Combobox.Option key={getItemValue(item)} value={getItemValue(item)}>

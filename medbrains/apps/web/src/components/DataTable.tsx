@@ -27,6 +27,7 @@ interface DataTableProps<T> {
   onPageChange?: (page: number) => void;
   rowKey: (row: T) => string;
   toolbar?: ReactNode;
+  tableActions?: ReactNode;
   rowStyle?: (row: T) => CSSProperties | undefined;
   onRowClick?: (row: T) => void;
 }
@@ -46,6 +47,7 @@ export function DataTable<T>({
   onPageChange,
   rowKey,
   toolbar,
+  tableActions,
   rowStyle,
   onRowClick,
 }: DataTableProps<T>) {
@@ -72,17 +74,27 @@ export function DataTable<T>({
     </Table.Thead>
   );
 
+  const headerToolbar =
+    toolbar || tableActions ? (
+      <>
+        <Box px="md" py="sm" className={styles.toolbar}>
+          <Group justify="space-between" align="center" gap="sm" wrap="wrap">
+            {toolbar && <Box className={styles.toolbarContent}>{toolbar}</Box>}
+            {tableActions && (
+              <Group gap="xs" className={styles.tableActions}>
+                {tableActions}
+              </Group>
+            )}
+          </Group>
+        </Box>
+        <Divider />
+      </>
+    ) : null;
+
   if (loading) {
     return (
       <Card padding={0} className={styles.card}>
-        {toolbar && (
-          <>
-            <Box px="md" py="sm" className={styles.toolbar}>
-              {toolbar}
-            </Box>
-            <Divider />
-          </>
-        )}
+        {headerToolbar}
         <Table>
           {headerRow}
           <Table.Tbody>
@@ -104,14 +116,7 @@ export function DataTable<T>({
   if (data.length === 0 && emptyIcon) {
     return (
       <Card padding={0} className={styles.card}>
-        {toolbar && (
-          <>
-            <Box px="md" py="sm" className={styles.toolbar}>
-              {toolbar}
-            </Box>
-            <Divider />
-          </>
-        )}
+        {headerToolbar}
         <Box py="xl" px="md">
           <EmptyState
             icon={emptyIcon}
@@ -126,14 +131,7 @@ export function DataTable<T>({
 
   return (
     <Card padding={0} className={styles.card}>
-      {toolbar && (
-        <>
-          <Box px="md" py="sm" className={styles.toolbar}>
-            {toolbar}
-          </Box>
-          <Divider />
-        </>
-      )}
+      {headerToolbar}
       <div className={styles.tableWrapper}>
         <Table>
           {headerRow}

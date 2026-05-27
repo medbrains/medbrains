@@ -11,12 +11,14 @@ import {
   useCombobox,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
-import type {
-  ComplianceSettings,
-  FoodTiming,
-  PharmacyCatalog,
-  PrescriptionItemInput,
-  TimeOfDay,
+import { useHasPermission } from "@medbrains/stores";
+import {
+  type ComplianceSettings,
+  type FoodTiming,
+  P,
+  type PharmacyCatalog,
+  type PrescriptionItemInput,
+  type TimeOfDay,
 } from "@medbrains/types";
 import { IconChevronDown, IconChevronUp, IconClock, IconPlus } from "@tabler/icons-react";
 import { useMemo, useState } from "react";
@@ -49,16 +51,21 @@ export const ROUTES = [
 interface PrescriptionItemEntryProps {
   drugCatalog: PharmacyCatalog[];
   compliance: ComplianceSettings;
+  canAddItem: boolean;
   onAdd: (item: PrescriptionItemInput) => void;
 }
 
 export function PrescriptionItemEntry({
   drugCatalog,
   compliance,
+  canAddItem,
   onAdd,
 }: PrescriptionItemEntryProps) {
   const { t } = useTranslation("clinical");
   const combobox = useCombobox({ onDropdownClose: () => combobox.resetSelectedOption() });
+  const hasPrescriptionWritePermission = useHasPermission(P.OPD.VISIT_UPDATE);
+  const canViewStockDetail = useHasPermission(P.PHARMACY.STOCK_MANAGE);
+  const canWritePrescription = canAddItem && hasPrescriptionWritePermission;
 
   // Drug fields
   const [drugName, setDrugName] = useState("");
@@ -91,6 +98,7 @@ export function PrescriptionItemEntry({
   }, [drugCatalog, drugSearch]);
 
   const handleDrugSelect = (drugId: string) => {
+    if (!canWritePrescription) return;
     const drug = drugCatalog.find((d) => d.id === drugId);
     if (drug) {
       const label = drug.generic_name ? `${drug.name} (${drug.generic_name})` : drug.name;
@@ -101,22 +109,23 @@ export function PrescriptionItemEntry({
 
       const warnings: string[] = [];
       if (compliance.show_controlled_warnings && drug.is_controlled)
-        warnings.push("Controlled substance \u2014 NDPS register required");
-      if (drug.drug_schedule === "X")
-        warnings.push("Schedule X \u2014 duplicate prescription required");
+        warnings.push("Controlled substance - NDPS register required");
+      if (drug.drug_schedule === "X") warnings.push("Schedule X - duplicate prescription required");
       if (drug.formulary_status === "non_formulary" && compliance.enforce_formulary)
-        warnings.push("Non-formulary drug \u2014 DTC approval may be required");
+        warnings.push("Non-formulary drug - DTC approval may be required");
       if (drug.black_box_warning) warnings.push(drug.black_box_warning);
       if (drug.current_stock <= 0) {
         warnings.push(
-          "Out of stock now \u2014 prescription is allowed; pharmacy will arrange, substitute, or partial-fill",
+          "Out of stock now - prescription is allowed; pharmacy will arrange, substitute, or partial-fill",
         );
       } else if (drug.reorder_level > 0 && drug.current_stock <= drug.reorder_level) {
         warnings.push(
-          `Low stock \u2014 ${drug.current_stock} ${drug.unit ?? "units"} available in pharmacy`,
+          canViewStockDetail
+            ? `Low stock - ${drug.current_stock} ${drug.unit ?? "units"} available in pharmacy`
+            : "Low stock - pharmacy can review availability before dispensing",
         );
       }
-      setDrugWarning(warnings.length > 0 ? warnings.join(" \u2022 ") : null);
+      setDrugWarning(warnings.length > 0 ? warnings.join(" | ") : null);
     }
     combobox.closeDropdown();
   };
@@ -135,10 +144,11 @@ export function PrescriptionItemEntry({
     setCustomInstruction("");
   };
 
-  const canAddItem = drugName.trim() && dosage.trim() && frequency && duration.trim();
+  const canSubmitItem =
+    canWritePrescription && drugName.trim() && dosage.trim() && frequency && duration.trim();
 
   const handleAddItem = () => {
-    if (!canAddItem) return;
+    if (!canSubmitItem) return;
 
     // Build structured timing instructions
     const hasTiming = foodTiming !== "any" || timeSlots.length > 0 || customInstruction.trim();
@@ -163,7 +173,7 @@ export function PrescriptionItemEntry({
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey && canAddItem) {
+    if (e.key === "Enter" && !e.shiftKey && canSubmitItem) {
       e.preventDefault();
       handleAddItem();
     }
@@ -173,11 +183,20 @@ export function PrescriptionItemEntry({
     <>
       {/* Drug entry row */}
       <Group gap="xs" align="flex-end" wrap="nowrap">
-        <Combobox store={combobox} onOptionSubmit={handleDrugSelect}>
+        <Combobox
+          store={combobox}
+          onOptionSubmit={handleDrugSelect}
+          middlewares={{ flip: true, shift: true, size: true }}
+          position="bottom-start"
+          shadow="lg"
+          withinPortal
+          zIndex={3000}
+        >
           <Combobox.Target>
             <InputBase
               placeholder={t("prescription.drugName")}
               value={drugSearch}
+              disabled={!canWritePrescription}
               onChange={(e) => {
                 setDrugSearch(e.currentTarget.value);
                 setDrugName(e.currentTarget.value);
@@ -196,9 +215,14 @@ export function PrescriptionItemEntry({
             />
           </Combobox.Target>
           <Combobox.Dropdown>
-            <Combobox.Options>
+            <Combobox.Options mah={320} style={{ overflowY: "auto" }}>
               {filteredDrugs.map((drug) => (
-                <DrugOption key={drug.id} drug={drug} compliance={compliance} />
+                <DrugOption
+                  key={drug.id}
+                  drug={drug}
+                  compliance={compliance}
+                  canViewStockDetail={canViewStockDetail}
+                />
               ))}
               {filteredDrugs.length === 0 && drugSearch.trim() && (
                 <Combobox.Empty>
@@ -211,6 +235,7 @@ export function PrescriptionItemEntry({
         <TextInput
           placeholder={t("prescription.dosage")}
           value={dosage}
+          disabled={!canWritePrescription}
           onChange={(e) => setDosage(e.currentTarget.value)}
           onKeyDown={handleKeyDown}
           w={100}
@@ -221,6 +246,7 @@ export function PrescriptionItemEntry({
           data={FREQUENCIES}
           value={frequency}
           onChange={setFrequency}
+          disabled={!canWritePrescription}
           w={160}
           size="sm"
           searchable
@@ -228,6 +254,7 @@ export function PrescriptionItemEntry({
         <TextInput
           placeholder={t("prescription.duration")}
           value={duration}
+          disabled={!canWritePrescription}
           onChange={(e) => setDuration(e.currentTarget.value)}
           onKeyDown={handleKeyDown}
           w={100}
@@ -238,6 +265,7 @@ export function PrescriptionItemEntry({
           data={ROUTES}
           value={route}
           onChange={setRoute}
+          disabled={!canWritePrescription}
           w={120}
           size="sm"
           clearable
@@ -246,7 +274,7 @@ export function PrescriptionItemEntry({
           size="sm"
           leftSection={<IconPlus size={14} />}
           onClick={handleAddItem}
-          disabled={!canAddItem}
+          disabled={!canSubmitItem}
         >
           {t("common:add")}
         </Button>
@@ -264,13 +292,14 @@ export function PrescriptionItemEntry({
         variant="subtle"
         size="xs"
         onClick={toggleTiming}
+        disabled={!canWritePrescription}
         leftSection={<IconClock size={14} />}
         rightSection={timingOpen ? <IconChevronUp size={14} /> : <IconChevronDown size={14} />}
         style={{ alignSelf: "flex-start" }}
       >
         Timing & Instructions
       </Button>
-      <Collapse expanded={timingOpen}>
+      <Collapse expanded={timingOpen && canWritePrescription}>
         <MedicationTimingPicker
           foodTiming={foodTiming}
           onFoodTimingChange={setFoodTiming}
@@ -289,9 +318,11 @@ export function PrescriptionItemEntry({
 function DrugOption({
   drug,
   compliance,
+  canViewStockDetail,
 }: {
   drug: PharmacyCatalog;
   compliance: ComplianceSettings;
+  canViewStockDetail: boolean;
 }) {
   return (
     <Combobox.Option value={drug.id}>
@@ -318,7 +349,7 @@ function DrugOption({
                   : "dimmed"
             }
           >
-            Stock {drug.current_stock} {drug.unit ?? "units"}
+            {stockAvailabilityText(drug, canViewStockDetail)}
           </Text>
         </div>
         <Group gap={2}>
@@ -383,4 +414,20 @@ function DrugOption({
       </Group>
     </Combobox.Option>
   );
+}
+
+function stockAvailabilityText(drug: PharmacyCatalog, canViewStockDetail: boolean) {
+  if (canViewStockDetail) {
+    return `Stock ${drug.current_stock} ${drug.unit ?? "units"}`;
+  }
+
+  if (drug.current_stock <= 0) {
+    return "Stock unavailable";
+  }
+
+  if (drug.reorder_level > 0 && drug.current_stock <= drug.reorder_level) {
+    return "Low stock";
+  }
+
+  return "Available";
 }

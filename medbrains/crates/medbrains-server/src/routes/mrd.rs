@@ -6,7 +6,8 @@ use axum::{
 };
 use chrono::{NaiveDate, NaiveTime, Utc};
 use medbrains_core::mrd::{
-    MrdBirthRegister, MrdDeathRegister, MrdMedicalRecord, MrdRecordMovement, MrdRetentionPolicy,
+    MrdBirthRegister, MrdCaseSheetPacket, MrdCaseSheetPage, MrdDeathRegister, MrdMedicalRecord,
+    MrdRecordMovement, MrdRetentionPolicy, MrdStorageLocation,
 };
 use medbrains_core::permissions;
 use serde::{Deserialize, Serialize};
@@ -142,6 +143,83 @@ pub struct UpdateRetentionPolicyRequest {
     pub legal_reference: Option<String>,
     pub destruction_method: Option<String>,
     pub is_active: Option<bool>,
+}
+
+// ── Case Sheet Packets and Storage ─────────────────────────
+
+#[derive(Debug, Deserialize)]
+pub struct ListCaseSheetPacketsQuery {
+    pub status: Option<String>,
+    pub packet_type: Option<String>,
+    pub patient_id: Option<Uuid>,
+    pub encounter_id: Option<Uuid>,
+    pub admission_id: Option<Uuid>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct PrintCaseSheetPacketRequest {
+    pub printer_id: Option<Uuid>,
+    pub copies: Option<i32>,
+    pub reprint_reason: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct FileCaseSheetPacketRequest {
+    pub storage_location_id: Uuid,
+    pub notes: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct MrdCaseSheetCompletenessItem {
+    pub code: String,
+    pub label: String,
+    pub source_module: String,
+    pub status: String,
+    pub required: bool,
+    pub evidence_count: i64,
+    pub message: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct MrdCaseSheetCompletenessResponse {
+    pub packet_id: Uuid,
+    pub packet_number: String,
+    pub packet_type: String,
+    pub completeness_pct: f64,
+    pub required_total: i64,
+    pub complete_total: i64,
+    pub missing_total: i64,
+    pub items: Vec<MrdCaseSheetCompletenessItem>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CreateStorageLocationRequest {
+    pub code: String,
+    pub name: String,
+    pub building: Option<String>,
+    pub floor: Option<String>,
+    pub room: Option<String>,
+    pub rack: Option<String>,
+    pub shelf: Option<String>,
+    pub bin: Option<String>,
+    pub barcode: Option<String>,
+    pub capacity: Option<i32>,
+    pub notes: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateStorageLocationRequest {
+    pub name: Option<String>,
+    pub building: Option<String>,
+    pub floor: Option<String>,
+    pub room: Option<String>,
+    pub rack: Option<String>,
+    pub shelf: Option<String>,
+    pub bin: Option<String>,
+    pub barcode: Option<String>,
+    pub capacity: Option<i32>,
+    pub is_active: Option<bool>,
+    pub notes: Option<String>,
 }
 
 // ── Stats ──────────────────────────────────────────────────
@@ -770,6 +848,1453 @@ pub async fn update_retention_policy(
     .fetch_one(&mut *tx)
     .await?;
 
+    tx.commit().await?;
+    Ok(Json(row))
+}
+
+// ══════════════════════════════════════════════════════════
+//  Handlers — Case Sheet Packets and Storage
+// ══════════════════════════════════════════════════════════
+
+#[derive(Debug, sqlx::FromRow)]
+struct SequenceRow {
+    current_val: i64,
+    prefix: String,
+    pad_width: i32,
+}
+
+#[derive(Debug, sqlx::FromRow)]
+struct RecordIdRow {
+    id: Uuid,
+}
+
+#[derive(Debug, sqlx::FromRow)]
+struct OpdCaseSheetSourceRow {
+    patient_id: Uuid,
+    patient_name: String,
+    uhid: String,
+    encounter_date: NaiveDate,
+    department_name: Option<String>,
+    doctor_name: Option<String>,
+    chief_complaint: Option<String>,
+    history: Option<String>,
+    hpi: Option<String>,
+    examination: Option<String>,
+    plan: Option<String>,
+}
+
+#[derive(Debug, sqlx::FromRow)]
+struct IpdCaseSheetSourceRow {
+    patient_id: Uuid,
+    patient_name: String,
+    uhid: String,
+    admitted_at: chrono::DateTime<Utc>,
+    discharged_at: Option<chrono::DateTime<Utc>>,
+    department_name: Option<String>,
+    doctor_name: Option<String>,
+    ward_name: Option<String>,
+    bed_name: Option<String>,
+    provisional_diagnosis: Option<String>,
+    discharge_summary: Option<String>,
+}
+
+#[derive(Debug, sqlx::FromRow)]
+struct CaseSheetAdmissionRefRow {
+    encounter_id: Uuid,
+    status: String,
+}
+
+async fn generate_sequence_number(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: Uuid,
+    seq_type: &str,
+    prefix: &str,
+    default_pad_width: usize,
+) -> Result<String, AppError> {
+    let pad_width_i32 = i32::try_from(default_pad_width)
+        .map_err(|_| AppError::Internal("invalid sequence pad width".to_owned()))?;
+
+    sqlx::query(
+        "INSERT INTO sequences (tenant_id, seq_type, prefix, current_val, pad_width) \
+         VALUES ($1, $2, $3, 0, $4) \
+         ON CONFLICT (tenant_id, seq_type) DO NOTHING",
+    )
+    .bind(tenant_id)
+    .bind(seq_type)
+    .bind(prefix)
+    .bind(pad_width_i32)
+    .execute(&mut **tx)
+    .await?;
+
+    let seq = sqlx::query_as::<_, SequenceRow>(
+        "UPDATE sequences SET current_val = current_val + 1 \
+         WHERE tenant_id = $1 AND seq_type = $2 \
+         RETURNING current_val, prefix, pad_width",
+    )
+    .bind(tenant_id)
+    .bind(seq_type)
+    .fetch_one(&mut **tx)
+    .await?;
+
+    let pad = match usize::try_from(seq.pad_width) {
+        Ok(value) if value > 0 => value,
+        _ => default_pad_width,
+    };
+
+    Ok(format!("{}{:0>pad$}", seq.prefix, seq.current_val))
+}
+
+async fn find_or_create_medical_record(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    claims: &Claims,
+    patient_id: Uuid,
+    record_type: &str,
+) -> Result<Uuid, AppError> {
+    if let Some(row) = sqlx::query_as::<_, RecordIdRow>(
+        "SELECT id FROM mrd_medical_records \
+         WHERE tenant_id = $1 AND patient_id = $2 AND record_type = $3 \
+           AND status <> 'destroyed'::mrd_record_status \
+         ORDER BY created_at DESC LIMIT 1",
+    )
+    .bind(claims.tenant_id)
+    .bind(patient_id)
+    .bind(record_type)
+    .fetch_optional(&mut **tx)
+    .await?
+    {
+        return Ok(row.id);
+    }
+
+    let record_number =
+        generate_sequence_number(tx, claims.tenant_id, "MRD_RECORD", "MRD", 6).await?;
+
+    let row = sqlx::query_as::<_, RecordIdRow>(
+        "INSERT INTO mrd_medical_records \
+         (tenant_id, patient_id, record_number, record_type, volume_number, \
+          retention_years, created_by) \
+         VALUES ($1, $2, $3, $4, 1, 5, $5) \
+         RETURNING id",
+    )
+    .bind(claims.tenant_id)
+    .bind(patient_id)
+    .bind(record_number)
+    .bind(record_type)
+    .bind(claims.sub)
+    .fetch_one(&mut **tx)
+    .await?;
+
+    Ok(row.id)
+}
+
+fn packet_select_sql() -> &'static str {
+    "SELECT p.*, \
+       concat_ws(' ', pt.first_name, pt.last_name) AS patient_name, \
+       pt.uhid \
+     FROM mrd_case_sheet_packets p \
+     JOIN patients pt ON pt.id = p.patient_id AND pt.tenant_id = p.tenant_id"
+}
+
+async fn fetch_case_sheet_packet(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: Uuid,
+    packet_id: Uuid,
+) -> Result<MrdCaseSheetPacket, AppError> {
+    sqlx::query_as::<_, MrdCaseSheetPacket>(&format!(
+        "{} WHERE p.id = $1 AND p.tenant_id = $2",
+        packet_select_sql()
+    ))
+    .bind(packet_id)
+    .bind(tenant_id)
+    .fetch_optional(&mut **tx)
+    .await?
+    .ok_or(AppError::NotFound)
+}
+
+async fn count_case_sheet_evidence(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    sql: &str,
+    tenant_id: Uuid,
+    source_id: Uuid,
+) -> Result<i64, AppError> {
+    let count = sqlx::query_scalar::<_, i64>(sql)
+        .bind(tenant_id)
+        .bind(source_id)
+        .fetch_one(&mut **tx)
+        .await?;
+    Ok(count)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn push_completeness_item(
+    items: &mut Vec<MrdCaseSheetCompletenessItem>,
+    code: &str,
+    label: &str,
+    source_module: &str,
+    required: bool,
+    evidence_count: i64,
+    ok_message: &str,
+    missing_message: &str,
+) {
+    let is_complete = evidence_count > 0;
+    let status = if is_complete {
+        "ok"
+    } else if required {
+        "missing"
+    } else {
+        "warning"
+    };
+    let message = if is_complete {
+        ok_message
+    } else {
+        missing_message
+    };
+
+    items.push(MrdCaseSheetCompletenessItem {
+        code: code.to_owned(),
+        label: label.to_owned(),
+        source_module: source_module.to_owned(),
+        status: status.to_owned(),
+        required,
+        evidence_count,
+        message: message.to_owned(),
+    });
+}
+
+async fn create_case_sheet_pages(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: Uuid,
+    packet_id: Uuid,
+    source_id: Uuid,
+    packet_type: &str,
+) -> Result<i32, AppError> {
+    let pages: &[(&str, &str, &str, &str)] = if packet_type == "opd" {
+        &[
+            ("opd-cover", "OPD case sheet cover", "opd", "encounters"),
+            (
+                "opd-datewise-soap",
+                "Datewise SOAP notes consolidation",
+                "opd",
+                "consultations",
+            ),
+            (
+                "opd-history",
+                "Chief complaint and history",
+                "opd",
+                "consultations",
+            ),
+            (
+                "opd-exam",
+                "Examination and assessment",
+                "opd",
+                "consultations",
+            ),
+            (
+                "opd-diagnosis",
+                "Diagnosis and ICD coding",
+                "opd",
+                "diagnoses",
+            ),
+            (
+                "opd-orders",
+                "Prescriptions and investigations",
+                "opd",
+                "orders",
+            ),
+            ("opd-advice", "Advice and follow-up", "opd", "encounters"),
+        ]
+    } else {
+        &[
+            ("ipd-cover", "IPD case sheet cover", "ipd", "admissions"),
+            ("ipd-admission-note", "Admission note", "ipd", "admissions"),
+            (
+                "ipd-datewise-soap",
+                "Datewise SOAP progress notes consolidation",
+                "ipd",
+                "ipd_progress_notes",
+            ),
+            (
+                "ipd-nursing",
+                "Nursing assessment",
+                "ipd",
+                "mrd_form_records",
+            ),
+            (
+                "ipd-progress",
+                "Progress notes",
+                "ipd",
+                "ipd_progress_notes",
+            ),
+            (
+                "ipd-vitals",
+                "Vitals and I/O chart",
+                "ipd",
+                "mrd_form_records",
+            ),
+            (
+                "ipd-mar",
+                "Medication administration record",
+                "ipd",
+                "ipd_mar",
+            ),
+            (
+                "ipd-consents",
+                "Consents and legal forms",
+                "ipd",
+                "consents",
+            ),
+            ("ipd-ot", "OT and anesthesia records", "ipd", "ot_records"),
+            ("ipd-investigations", "Investigations", "ipd", "orders"),
+            (
+                "ipd-discharge",
+                "Discharge checklist and summary",
+                "ipd",
+                "discharge_summaries",
+            ),
+        ]
+    };
+
+    let mut page_order = 1_i32;
+    for (page_code, page_title, source_module, source_table) in pages {
+        sqlx::query(
+            "INSERT INTO mrd_case_sheet_pages \
+             (tenant_id, packet_id, page_code, page_title, page_order, \
+              source_module, source_table, source_id, status) \
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'available') \
+             ON CONFLICT (packet_id, page_code) DO UPDATE SET \
+               page_title = EXCLUDED.page_title, \
+               page_order = EXCLUDED.page_order, \
+               source_module = EXCLUDED.source_module, \
+               source_table = EXCLUDED.source_table, \
+               source_id = EXCLUDED.source_id, \
+               status = EXCLUDED.status",
+        )
+        .bind(tenant_id)
+        .bind(packet_id)
+        .bind(*page_code)
+        .bind(*page_title)
+        .bind(page_order)
+        .bind(*source_module)
+        .bind(*source_table)
+        .bind(source_id)
+        .execute(&mut **tx)
+        .await?;
+        page_order += 1;
+    }
+
+    Ok(page_order - 1)
+}
+
+pub async fn list_storage_locations(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+) -> Result<Json<Vec<MrdStorageLocation>>, AppError> {
+    require_permission(&claims, permissions::mrd::records::LIST)?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
+
+    let rows = sqlx::query_as::<_, MrdStorageLocation>(
+        "SELECT * FROM mrd_storage_locations \
+         WHERE tenant_id = $1 ORDER BY is_active DESC, code",
+    )
+    .bind(claims.tenant_id)
+    .fetch_all(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+    Ok(Json(rows))
+}
+
+pub async fn create_storage_location(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Json(body): Json<CreateStorageLocationRequest>,
+) -> Result<Json<MrdStorageLocation>, AppError> {
+    require_permission(&claims, permissions::mrd::storage::MANAGE)?;
+
+    let code = body.code.trim();
+    let name = body.name.trim();
+    if code.is_empty() || name.is_empty() {
+        return Err(AppError::BadRequest(
+            "storage location code and name are required".to_owned(),
+        ));
+    }
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
+
+    let row = sqlx::query_as::<_, MrdStorageLocation>(
+        "INSERT INTO mrd_storage_locations \
+         (tenant_id, code, name, building, floor, room, rack, shelf, bin, barcode, \
+          capacity, notes, created_by) \
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) \
+         RETURNING *",
+    )
+    .bind(claims.tenant_id)
+    .bind(code)
+    .bind(name)
+    .bind(&body.building)
+    .bind(&body.floor)
+    .bind(&body.room)
+    .bind(&body.rack)
+    .bind(&body.shelf)
+    .bind(&body.bin)
+    .bind(&body.barcode)
+    .bind(body.capacity)
+    .bind(&body.notes)
+    .bind(claims.sub)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+    Ok(Json(row))
+}
+
+pub async fn update_storage_location(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<UpdateStorageLocationRequest>,
+) -> Result<Json<MrdStorageLocation>, AppError> {
+    require_permission(&claims, permissions::mrd::storage::MANAGE)?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
+
+    let row = sqlx::query_as::<_, MrdStorageLocation>(
+        "UPDATE mrd_storage_locations SET \
+           name = COALESCE($3, name), \
+           building = COALESCE($4, building), \
+           floor = COALESCE($5, floor), \
+           room = COALESCE($6, room), \
+           rack = COALESCE($7, rack), \
+           shelf = COALESCE($8, shelf), \
+           bin = COALESCE($9, bin), \
+           barcode = COALESCE($10, barcode), \
+           capacity = COALESCE($11, capacity), \
+           is_active = COALESCE($12, is_active), \
+           notes = COALESCE($13, notes) \
+         WHERE id = $1 AND tenant_id = $2 \
+         RETURNING *",
+    )
+    .bind(id)
+    .bind(claims.tenant_id)
+    .bind(&body.name)
+    .bind(&body.building)
+    .bind(&body.floor)
+    .bind(&body.room)
+    .bind(&body.rack)
+    .bind(&body.shelf)
+    .bind(&body.bin)
+    .bind(&body.barcode)
+    .bind(body.capacity)
+    .bind(body.is_active)
+    .bind(&body.notes)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+
+    tx.commit().await?;
+    Ok(Json(row))
+}
+
+pub async fn list_case_sheet_packets(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Query(q): Query<ListCaseSheetPacketsQuery>,
+) -> Result<Json<Vec<MrdCaseSheetPacket>>, AppError> {
+    require_permission(&claims, permissions::mrd::case_sheets::VIEW)?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
+
+    let rows = sqlx::query_as::<_, MrdCaseSheetPacket>(&format!(
+        "{} WHERE p.tenant_id = $1 \
+           AND ($2::text IS NULL OR p.status = $2::text) \
+           AND ($3::text IS NULL OR p.packet_type = $3::text) \
+           AND ($4::uuid IS NULL OR p.patient_id = $4) \
+           AND ($5::uuid IS NULL OR p.encounter_id = $5) \
+           AND ($6::uuid IS NULL OR p.admission_id = $6) \
+         ORDER BY p.created_at DESC LIMIT 500",
+        packet_select_sql()
+    ))
+    .bind(claims.tenant_id)
+    .bind(q.status)
+    .bind(q.packet_type)
+    .bind(q.patient_id)
+    .bind(q.encounter_id)
+    .bind(q.admission_id)
+    .fetch_all(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+    Ok(Json(rows))
+}
+
+pub async fn get_case_sheet_packet(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<MrdCaseSheetPacket>, AppError> {
+    require_permission(&claims, permissions::mrd::case_sheets::VIEW)?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
+    let row = fetch_case_sheet_packet(&mut tx, claims.tenant_id, id).await?;
+    tx.commit().await?;
+    Ok(Json(row))
+}
+
+pub async fn list_case_sheet_pages(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(packet_id): Path<Uuid>,
+) -> Result<Json<Vec<MrdCaseSheetPage>>, AppError> {
+    require_permission(&claims, permissions::mrd::case_sheets::VIEW)?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
+
+    let rows = sqlx::query_as::<_, MrdCaseSheetPage>(
+        "SELECT * FROM mrd_case_sheet_pages \
+         WHERE tenant_id = $1 AND packet_id = $2 ORDER BY page_order",
+    )
+    .bind(claims.tenant_id)
+    .bind(packet_id)
+    .fetch_all(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+    Ok(Json(rows))
+}
+
+pub async fn get_case_sheet_completeness(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(packet_id): Path<Uuid>,
+) -> Result<Json<MrdCaseSheetCompletenessResponse>, AppError> {
+    require_permission(&claims, permissions::mrd::case_sheets::VIEW)?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
+
+    let packet = fetch_case_sheet_packet(&mut tx, claims.tenant_id, packet_id).await?;
+    let pages = sqlx::query_as::<_, MrdCaseSheetPage>(
+        "SELECT * FROM mrd_case_sheet_pages \
+         WHERE tenant_id = $1 AND packet_id = $2 ORDER BY page_order",
+    )
+    .bind(claims.tenant_id)
+    .bind(packet_id)
+    .fetch_all(&mut *tx)
+    .await?;
+
+    let mut items = Vec::new();
+    let page_evidence = pages
+        .iter()
+        .filter(|page| {
+            page.is_required && matches!(page.status.as_str(), "available" | "printed" | "waived")
+        })
+        .count();
+    push_completeness_item(
+        &mut items,
+        "packet_pages",
+        "Case sheet packet pages generated",
+        "mrd",
+        true,
+        i64::try_from(page_evidence).unwrap_or(0),
+        "Required packet page placeholders are generated",
+        "Required packet pages are missing or deficient",
+    );
+
+    if let Some(encounter_id) = packet.encounter_id {
+        let encounter_count = count_case_sheet_evidence(
+            &mut tx,
+            "SELECT COUNT(*)::bigint FROM encounters WHERE tenant_id = $1 AND id = $2",
+            claims.tenant_id,
+            encounter_id,
+        )
+        .await?;
+        push_completeness_item(
+            &mut items,
+            "opd_encounter",
+            "OPD encounter header",
+            "opd",
+            true,
+            encounter_count,
+            "Encounter demographic, department, and doctor linkage is present",
+            "Encounter header is missing",
+        );
+
+        let consultation_count = count_case_sheet_evidence(
+            &mut tx,
+            "SELECT COUNT(*)::bigint FROM consultations WHERE tenant_id = $1 AND encounter_id = $2",
+            claims.tenant_id,
+            encounter_id,
+        )
+        .await?;
+        push_completeness_item(
+            &mut items,
+            "opd_consultation",
+            "Chief complaint, history, examination, and plan",
+            "opd",
+            true,
+            consultation_count,
+            "Consultation note exists",
+            "Consultation note is missing",
+        );
+
+        push_completeness_item(
+            &mut items,
+            "opd_datewise_soap",
+            "Datewise SOAP notes consolidation",
+            "opd",
+            true,
+            consultation_count,
+            "SOAP note is available for MRD datewise consolidation",
+            "SOAP note is missing for MRD datewise consolidation",
+        );
+
+        let diagnosis_count = count_case_sheet_evidence(
+            &mut tx,
+            "SELECT COUNT(*)::bigint FROM diagnoses WHERE tenant_id = $1 AND encounter_id = $2",
+            claims.tenant_id,
+            encounter_id,
+        )
+        .await?;
+        push_completeness_item(
+            &mut items,
+            "diagnosis_icd",
+            "Diagnosis and ICD coding",
+            "clinical",
+            true,
+            diagnosis_count,
+            "Diagnosis rows are linked to the encounter",
+            "Diagnosis/ICD rows are missing",
+        );
+
+        let prescription_count = count_case_sheet_evidence(
+            &mut tx,
+            "SELECT COUNT(*)::bigint \
+             FROM prescription_items pi \
+             JOIN prescriptions p ON p.id = pi.prescription_id AND p.tenant_id = pi.tenant_id \
+             WHERE p.tenant_id = $1 AND p.encounter_id = $2",
+            claims.tenant_id,
+            encounter_id,
+        )
+        .await?;
+        push_completeness_item(
+            &mut items,
+            "opd_prescription",
+            "Prescription orders",
+            "opd",
+            false,
+            prescription_count,
+            "Prescription rows are linked",
+            "No prescription rows are linked",
+        );
+
+        let pharmacy_trace_count = count_case_sheet_evidence(
+            &mut tx,
+            "SELECT COUNT(*)::bigint \
+             FROM pharmacy_order_items oi \
+             JOIN pharmacy_orders o ON o.id = oi.order_id AND o.tenant_id = oi.tenant_id \
+             WHERE o.tenant_id = $1 AND o.encounter_id = $2 AND o.status = 'dispensed' \
+               AND (oi.batch_stock_id IS NOT NULL OR NULLIF(trim(COALESCE(oi.batch_number, '')), '') IS NOT NULL) \
+               AND oi.expiry_date IS NOT NULL",
+            claims.tenant_id,
+            encounter_id,
+        )
+        .await?;
+        push_completeness_item(
+            &mut items,
+            "pharmacy_dispense_traceability",
+            "Pharmacy dispense batch and expiry evidence",
+            "pharmacy",
+            prescription_count > 0,
+            pharmacy_trace_count,
+            "Dispensed pharmacy rows carry batch and expiry evidence",
+            "Prescribed medicines are not fully dispensed with batch/expiry evidence",
+        );
+
+        let lab_count = count_case_sheet_evidence(
+            &mut tx,
+            "SELECT COUNT(*)::bigint FROM lab_orders WHERE tenant_id = $1 AND encounter_id = $2",
+            claims.tenant_id,
+            encounter_id,
+        )
+        .await?;
+        push_completeness_item(
+            &mut items,
+            "lab_orders",
+            "Lab investigations",
+            "lab",
+            false,
+            lab_count,
+            "Lab orders are linked",
+            "No lab investigation rows are linked",
+        );
+
+        let radiology_count = count_case_sheet_evidence(
+            &mut tx,
+            "SELECT COUNT(*)::bigint FROM radiology_orders WHERE tenant_id = $1 AND encounter_id = $2",
+            claims.tenant_id,
+            encounter_id,
+        )
+        .await?;
+        push_completeness_item(
+            &mut items,
+            "radiology_orders",
+            "Radiology investigations",
+            "radiology",
+            false,
+            radiology_count,
+            "Radiology orders are linked",
+            "No radiology investigation rows are linked",
+        );
+
+        let invoice_count = count_case_sheet_evidence(
+            &mut tx,
+            "SELECT COUNT(*)::bigint FROM invoices WHERE tenant_id = $1 AND encounter_id = $2",
+            claims.tenant_id,
+            encounter_id,
+        )
+        .await?;
+        push_completeness_item(
+            &mut items,
+            "billing_invoice",
+            "Billing invoice linkage",
+            "billing",
+            false,
+            invoice_count,
+            "Billing invoices are linked to the encounter",
+            "No billing invoice is linked to the encounter",
+        );
+
+        let consent_count = count_case_sheet_evidence(
+            &mut tx,
+            "SELECT COUNT(*)::bigint FROM procedure_consents \
+             WHERE tenant_id = $1 AND encounter_id = $2 AND status = 'signed'",
+            claims.tenant_id,
+            encounter_id,
+        )
+        .await?;
+        push_completeness_item(
+            &mut items,
+            "procedure_consents",
+            "Procedure/investigation consents",
+            "consent",
+            false,
+            consent_count,
+            "Signed consent rows are linked",
+            "No signed consent rows are linked",
+        );
+    }
+
+    if let Some(admission_id) = packet.admission_id {
+        let admission = sqlx::query_as::<_, CaseSheetAdmissionRefRow>(
+            "SELECT encounter_id, status::text FROM admissions WHERE tenant_id = $1 AND id = $2",
+        )
+        .bind(claims.tenant_id)
+        .bind(admission_id)
+        .fetch_one(&mut *tx)
+        .await?;
+
+        let admission_count = count_case_sheet_evidence(
+            &mut tx,
+            "SELECT COUNT(*)::bigint FROM admissions WHERE tenant_id = $1 AND id = $2",
+            claims.tenant_id,
+            admission_id,
+        )
+        .await?;
+        push_completeness_item(
+            &mut items,
+            "ipd_admission",
+            "IPD admission header",
+            "ipd",
+            true,
+            admission_count,
+            "Admission, bed, and treating doctor linkage is present",
+            "Admission header is missing",
+        );
+
+        let progress_count = count_case_sheet_evidence(
+            &mut tx,
+            "SELECT COUNT(*)::bigint FROM ipd_progress_notes WHERE tenant_id = $1 AND admission_id = $2",
+            claims.tenant_id,
+            admission_id,
+        )
+        .await?;
+        push_completeness_item(
+            &mut items,
+            "ipd_progress_notes",
+            "IPD progress notes",
+            "ipd",
+            true,
+            progress_count,
+            "Progress notes are linked",
+            "Progress notes are missing",
+        );
+
+        push_completeness_item(
+            &mut items,
+            "ipd_datewise_soap",
+            "Datewise SOAP/progress notes consolidation",
+            "ipd",
+            true,
+            progress_count,
+            "Datewise SOAP/progress notes are available for MRD consolidation",
+            "Datewise SOAP/progress notes are missing for MRD consolidation",
+        );
+
+        let nursing_count = count_case_sheet_evidence(
+            &mut tx,
+            "SELECT COUNT(*)::bigint FROM ipd_nursing_assessments WHERE tenant_id = $1 AND admission_id = $2",
+            claims.tenant_id,
+            admission_id,
+        )
+        .await?;
+        push_completeness_item(
+            &mut items,
+            "ipd_nursing_assessment",
+            "Nursing assessment",
+            "ipd",
+            true,
+            nursing_count,
+            "Nursing assessment rows are linked",
+            "Nursing assessment is missing",
+        );
+
+        let mar_count = count_case_sheet_evidence(
+            &mut tx,
+            "SELECT COUNT(*)::bigint FROM ipd_medication_administration WHERE tenant_id = $1 AND admission_id = $2",
+            claims.tenant_id,
+            admission_id,
+        )
+        .await?;
+        push_completeness_item(
+            &mut items,
+            "ipd_mar",
+            "Medication administration record",
+            "ipd",
+            true,
+            mar_count,
+            "Medication administration rows are linked",
+            "Medication administration record is missing",
+        );
+
+        let chart_count = count_case_sheet_evidence(
+            &mut tx,
+            "SELECT COUNT(*)::bigint FROM mrd_form_records \
+             WHERE tenant_id = $1 AND admission_id = $2 \
+               AND form_type IN ('vitals_chart', 'io_chart')",
+            claims.tenant_id,
+            admission_id,
+        )
+        .await?;
+        push_completeness_item(
+            &mut items,
+            "ipd_vitals_io",
+            "Vitals and intake/output chart",
+            "mrd",
+            true,
+            chart_count,
+            "Vitals/I-O chart rows are linked",
+            "Vitals/I-O chart rows are missing",
+        );
+
+        let investigation_count = count_case_sheet_evidence(
+            &mut tx,
+            "SELECT \
+               ((SELECT COUNT(*) FROM lab_orders WHERE tenant_id = $1 AND encounter_id = $2) + \
+                (SELECT COUNT(*) FROM radiology_orders WHERE tenant_id = $1 AND encounter_id = $2))::bigint",
+            claims.tenant_id,
+            admission.encounter_id,
+        )
+        .await?;
+        push_completeness_item(
+            &mut items,
+            "ipd_investigations",
+            "IPD investigations",
+            "lab/radiology",
+            false,
+            investigation_count,
+            "Investigation rows are linked",
+            "No investigation rows are linked",
+        );
+
+        let patient_consent_count = count_case_sheet_evidence(
+            &mut tx,
+            "SELECT COUNT(*)::bigint FROM patient_consents \
+             WHERE tenant_id = $1 AND patient_id = $2 AND consent_status = 'granted'",
+            claims.tenant_id,
+            packet.patient_id,
+        )
+        .await?;
+        let procedure_consent_count = count_case_sheet_evidence(
+            &mut tx,
+            "SELECT COUNT(*)::bigint FROM procedure_consents \
+             WHERE tenant_id = $1 AND encounter_id = $2 AND status = 'signed'",
+            claims.tenant_id,
+            admission.encounter_id,
+        )
+        .await?;
+        push_completeness_item(
+            &mut items,
+            "ipd_consents",
+            "Patient and procedure consents",
+            "consent",
+            true,
+            patient_consent_count + procedure_consent_count,
+            "Consent rows are linked",
+            "Patient/procedure consents are missing",
+        );
+
+        let invoice_count = count_case_sheet_evidence(
+            &mut tx,
+            "SELECT COUNT(*)::bigint FROM invoices WHERE tenant_id = $1 AND admission_id = $2",
+            claims.tenant_id,
+            admission_id,
+        )
+        .await?;
+        push_completeness_item(
+            &mut items,
+            "ipd_billing",
+            "IPD billing invoice linkage",
+            "billing",
+            false,
+            invoice_count,
+            "Billing invoices are linked to the admission",
+            "No billing invoice is linked to the admission",
+        );
+
+        let discharge_required = admission.status == "discharged";
+        let discharge_summary_count = count_case_sheet_evidence(
+            &mut tx,
+            "SELECT COUNT(*)::bigint FROM ipd_discharge_summaries \
+             WHERE tenant_id = $1 AND admission_id = $2 AND status = 'finalized'",
+            claims.tenant_id,
+            admission_id,
+        )
+        .await?;
+        push_completeness_item(
+            &mut items,
+            "ipd_discharge_summary",
+            "Discharge checklist and summary",
+            "ipd",
+            discharge_required,
+            discharge_summary_count,
+            "Finalized discharge summary is linked",
+            "Finalized discharge summary is missing",
+        );
+
+        let discharge_checklist_count = count_case_sheet_evidence(
+            &mut tx,
+            "SELECT COUNT(*)::bigint FROM ipd_discharge_checklists \
+             WHERE tenant_id = $1 AND admission_id = $2 AND status = 'completed'",
+            claims.tenant_id,
+            admission_id,
+        )
+        .await?;
+        push_completeness_item(
+            &mut items,
+            "ipd_discharge_checklist",
+            "Completed discharge checklist",
+            "ipd",
+            discharge_required,
+            discharge_checklist_count,
+            "Completed discharge checklist rows are linked",
+            "Discharge checklist completion is missing",
+        );
+    }
+
+    let required_total =
+        i64::try_from(items.iter().filter(|item| item.required).count()).unwrap_or(0);
+    let complete_total = i64::try_from(
+        items
+            .iter()
+            .filter(|item| item.required && item.status == "ok")
+            .count(),
+    )
+    .unwrap_or(0);
+    let missing_total = required_total - complete_total;
+    let completeness_pct = if required_total == 0 {
+        100.0
+    } else {
+        (complete_total as f64 / required_total as f64 * 100.0).round()
+    };
+
+    tx.commit().await?;
+    Ok(Json(MrdCaseSheetCompletenessResponse {
+        packet_id,
+        packet_number: packet.packet_number,
+        packet_type: packet.packet_type,
+        completeness_pct,
+        required_total,
+        complete_total,
+        missing_total,
+        items,
+    }))
+}
+
+pub async fn generate_opd_case_sheet_packet(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(encounter_id): Path<Uuid>,
+) -> Result<Json<MrdCaseSheetPacket>, AppError> {
+    require_permission(&claims, permissions::mrd::case_sheets::GENERATE)?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
+
+    let source = sqlx::query_as::<_, OpdCaseSheetSourceRow>(
+        "SELECT e.patient_id, concat_ws(' ', p.first_name, p.last_name) AS patient_name, \
+           p.uhid, e.encounter_date, d.name AS department_name, u.full_name AS doctor_name, \
+           c.chief_complaint, c.history, c.hpi, c.examination, c.plan \
+         FROM encounters e \
+         JOIN patients p ON p.id = e.patient_id AND p.tenant_id = e.tenant_id \
+         LEFT JOIN departments d ON d.id = e.department_id AND d.tenant_id = e.tenant_id \
+         LEFT JOIN users u ON u.id = e.doctor_id AND u.tenant_id = e.tenant_id \
+         LEFT JOIN LATERAL ( \
+           SELECT * FROM consultations c \
+           WHERE c.encounter_id = e.id AND c.tenant_id = e.tenant_id \
+           ORDER BY c.updated_at DESC LIMIT 1 \
+         ) c ON true \
+         WHERE e.id = $1 AND e.tenant_id = $2",
+    )
+    .bind(encounter_id)
+    .bind(claims.tenant_id)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    let diagnoses: Vec<String> = sqlx::query_scalar(
+        "SELECT COALESCE(icd_code || ' ', '') || description \
+         FROM diagnoses WHERE tenant_id = $1 AND encounter_id = $2 ORDER BY is_primary DESC, created_at",
+    )
+    .bind(claims.tenant_id)
+    .bind(encounter_id)
+    .fetch_all(&mut *tx)
+    .await?;
+
+    let version: i32 = sqlx::query_scalar(
+        "SELECT COALESCE(MAX(version), 0) + 1 FROM mrd_case_sheet_packets \
+         WHERE tenant_id = $1 AND packet_type = 'opd' AND encounter_id = $2",
+    )
+    .bind(claims.tenant_id)
+    .bind(encounter_id)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    let medical_record_id =
+        find_or_create_medical_record(&mut tx, &claims, source.patient_id, "opd").await?;
+    let packet_number =
+        generate_sequence_number(&mut tx, claims.tenant_id, "MRD_CASESHEET", "CS-", 6).await?;
+    let datewise_soap_notes: serde_json::Value = sqlx::query_scalar(
+        "SELECT COALESCE(jsonb_agg(jsonb_build_object( \
+           'date', e.encounter_date, \
+           'encounter_id', e.id, \
+           'department', d.name, \
+           'doctor', u.full_name, \
+           'subjective', concat_ws(E'\\n', NULLIF(c.chief_complaint, ''), NULLIF(c.history, ''), NULLIF(c.hpi, '')), \
+           'objective', c.examination, \
+           'assessment', ( \
+             SELECT string_agg(COALESCE(dx.icd_code || ' ', '') || dx.description, '; ' ORDER BY dx.is_primary DESC, dx.created_at) \
+             FROM diagnoses dx \
+             WHERE dx.tenant_id = c.tenant_id AND dx.encounter_id = c.encounter_id \
+           ), \
+           'plan', c.plan, \
+           'source', 'opd_consultation', \
+           'updated_at', c.updated_at \
+         ) ORDER BY e.encounter_date, c.created_at), '[]'::jsonb) \
+         FROM consultations c \
+         JOIN encounters e ON e.id = c.encounter_id AND e.tenant_id = c.tenant_id \
+         LEFT JOIN departments d ON d.id = e.department_id AND d.tenant_id = e.tenant_id \
+         LEFT JOIN users u ON u.id = c.doctor_id AND u.tenant_id = c.tenant_id \
+         WHERE c.tenant_id = $1 AND c.encounter_id = $2",
+    )
+    .bind(claims.tenant_id)
+    .bind(encounter_id)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    let snapshot = serde_json::json!({
+        "source": "opd",
+        "encounter_id": encounter_id,
+        "patient_id": source.patient_id,
+        "patient_name": source.patient_name,
+        "uhid": source.uhid,
+        "encounter_date": source.encounter_date,
+        "department": source.department_name,
+        "doctor": source.doctor_name,
+        "chief_complaint": source.chief_complaint,
+        "history": source.history,
+        "hpi": source.hpi,
+        "examination": source.examination,
+        "plan": source.plan,
+        "diagnoses": diagnoses,
+        "datewise_soap_notes": datewise_soap_notes,
+    });
+
+    let inserted = sqlx::query_as::<_, RecordIdRow>(
+        "INSERT INTO mrd_case_sheet_packets \
+         (tenant_id, patient_id, encounter_id, medical_record_id, packet_number, packet_type, \
+          status, version, page_count, source_snapshot, generated_by) \
+         VALUES ($1, $2, $3, $4, $5, 'opd', 'generated', $6, 0, $7, $8) \
+         RETURNING id",
+    )
+    .bind(claims.tenant_id)
+    .bind(source.patient_id)
+    .bind(encounter_id)
+    .bind(medical_record_id)
+    .bind(packet_number)
+    .bind(version)
+    .bind(&snapshot)
+    .bind(claims.sub)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    let page_count =
+        create_case_sheet_pages(&mut tx, claims.tenant_id, inserted.id, encounter_id, "opd")
+            .await?;
+    sqlx::query("UPDATE mrd_case_sheet_packets SET page_count = $2 WHERE id = $1")
+        .bind(inserted.id)
+        .bind(page_count)
+        .execute(&mut *tx)
+        .await?;
+
+    let row = fetch_case_sheet_packet(&mut tx, claims.tenant_id, inserted.id).await?;
+    tx.commit().await?;
+    Ok(Json(row))
+}
+
+pub async fn generate_ipd_case_sheet_packet(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(admission_id): Path<Uuid>,
+) -> Result<Json<MrdCaseSheetPacket>, AppError> {
+    require_permission(&claims, permissions::mrd::case_sheets::GENERATE)?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
+
+    let source = sqlx::query_as::<_, IpdCaseSheetSourceRow>(
+        "SELECT a.patient_id, concat_ws(' ', p.first_name, p.last_name) AS patient_name, \
+           p.uhid, a.admitted_at, a.discharged_at, d.name AS department_name, \
+           u.full_name AS doctor_name, w.name AS ward_name, l.name AS bed_name, \
+           a.provisional_diagnosis, a.discharge_summary \
+         FROM admissions a \
+         JOIN patients p ON p.id = a.patient_id AND p.tenant_id = a.tenant_id \
+         JOIN encounters e ON e.id = a.encounter_id AND e.tenant_id = a.tenant_id \
+         LEFT JOIN departments d ON d.id = e.department_id AND d.tenant_id = a.tenant_id \
+         LEFT JOIN users u ON u.id = a.admitting_doctor AND u.tenant_id = a.tenant_id \
+         LEFT JOIN wards w ON w.id = a.ward_id AND w.tenant_id = a.tenant_id \
+         LEFT JOIN locations l ON l.id = a.bed_id AND l.tenant_id = a.tenant_id \
+         WHERE a.id = $1 AND a.tenant_id = $2",
+    )
+    .bind(admission_id)
+    .bind(claims.tenant_id)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    let version: i32 = sqlx::query_scalar(
+        "SELECT COALESCE(MAX(version), 0) + 1 FROM mrd_case_sheet_packets \
+         WHERE tenant_id = $1 AND packet_type = 'ipd' AND admission_id = $2",
+    )
+    .bind(claims.tenant_id)
+    .bind(admission_id)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    let medical_record_id =
+        find_or_create_medical_record(&mut tx, &claims, source.patient_id, "ipd").await?;
+    let packet_number =
+        generate_sequence_number(&mut tx, claims.tenant_id, "MRD_CASESHEET", "CS-", 6).await?;
+    let datewise_soap_notes: serde_json::Value = sqlx::query_scalar(
+        "SELECT COALESCE(jsonb_agg(jsonb_build_object( \
+           'date', n.note_date, \
+           'note_type', n.note_type::text, \
+           'author', u.full_name, \
+           'subjective', n.subjective, \
+           'objective', n.objective, \
+           'assessment', n.assessment, \
+           'plan', n.plan, \
+           'is_addendum', n.is_addendum, \
+           'parent_note_id', n.parent_note_id, \
+           'created_at', n.created_at \
+         ) ORDER BY n.note_date, n.created_at), '[]'::jsonb) \
+         FROM ipd_progress_notes n \
+         LEFT JOIN users u ON u.id = n.author_id AND u.tenant_id = n.tenant_id \
+         WHERE n.tenant_id = $1 AND n.admission_id = $2",
+    )
+    .bind(claims.tenant_id)
+    .bind(admission_id)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    let snapshot = serde_json::json!({
+        "source": "ipd",
+        "admission_id": admission_id,
+        "patient_id": source.patient_id,
+        "patient_name": source.patient_name,
+        "uhid": source.uhid,
+        "admitted_at": source.admitted_at,
+        "discharged_at": source.discharged_at,
+        "department": source.department_name,
+        "doctor": source.doctor_name,
+        "ward": source.ward_name,
+        "bed": source.bed_name,
+        "provisional_diagnosis": source.provisional_diagnosis,
+        "discharge_summary": source.discharge_summary,
+        "datewise_soap_notes": datewise_soap_notes,
+    });
+
+    let inserted = sqlx::query_as::<_, RecordIdRow>(
+        "INSERT INTO mrd_case_sheet_packets \
+         (tenant_id, patient_id, admission_id, medical_record_id, packet_number, packet_type, \
+          status, version, page_count, source_snapshot, generated_by) \
+         VALUES ($1, $2, $3, $4, $5, 'ipd', 'generated', $6, 0, $7, $8) \
+         RETURNING id",
+    )
+    .bind(claims.tenant_id)
+    .bind(source.patient_id)
+    .bind(admission_id)
+    .bind(medical_record_id)
+    .bind(packet_number)
+    .bind(version)
+    .bind(&snapshot)
+    .bind(claims.sub)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    let page_count =
+        create_case_sheet_pages(&mut tx, claims.tenant_id, inserted.id, admission_id, "ipd")
+            .await?;
+    sqlx::query("UPDATE mrd_case_sheet_packets SET page_count = $2 WHERE id = $1")
+        .bind(inserted.id)
+        .bind(page_count)
+        .execute(&mut *tx)
+        .await?;
+
+    let row = fetch_case_sheet_packet(&mut tx, claims.tenant_id, inserted.id).await?;
+    tx.commit().await?;
+    Ok(Json(row))
+}
+
+pub async fn print_case_sheet_packet(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<PrintCaseSheetPacketRequest>,
+) -> Result<Json<MrdCaseSheetPacket>, AppError> {
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
+
+    let packet = fetch_case_sheet_packet(&mut tx, claims.tenant_id, id).await?;
+    if packet.printed_at.is_some() {
+        require_permission(&claims, permissions::mrd::case_sheets::REPRINT)?;
+        if body
+            .reprint_reason
+            .as_deref()
+            .map(str::trim)
+            .unwrap_or_default()
+            .is_empty()
+        {
+            return Err(AppError::BadRequest(
+                "reprint reason is required for already printed case sheets".to_owned(),
+            ));
+        }
+    } else {
+        require_permission(&claims, permissions::mrd::case_sheets::PRINT)?;
+    }
+
+    let copies = body.copies.unwrap_or(1);
+    if !(1..=10).contains(&copies) {
+        return Err(AppError::BadRequest(
+            "copies must be between 1 and 10".to_owned(),
+        ));
+    }
+
+    let today = Utc::now().format("%Y%m%d").to_string();
+    let count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*)::bigint FROM document_outputs \
+         WHERE tenant_id = $1 AND document_number LIKE 'DOC-' || $2 || '-%'",
+    )
+    .bind(claims.tenant_id)
+    .bind(&today)
+    .fetch_one(&mut *tx)
+    .await?;
+    let document_number = format!("DOC-{today}-{:04}", count + 1);
+    let title = format!(
+        "{} Case Sheet {}",
+        packet.packet_type.to_uppercase(),
+        packet.packet_number
+    );
+
+    let document_output_id: Uuid = sqlx::query_scalar(
+        "INSERT INTO document_outputs \
+         (tenant_id, module_code, source_table, source_id, patient_id, visit_id, admission_id, \
+          document_number, title, category, status, page_count, print_count, \
+          first_printed_at, last_printed_at, watermark, context_snapshot, generated_by) \
+         VALUES ($1, 'mrd', 'mrd_case_sheet_packets', $2, $3, $4, $5, \
+          $6, $7, 'custom'::document_template_category, 'printed'::document_output_status, \
+          $8, $9, now(), now(), \
+          CASE WHEN $10::bool THEN 'duplicate'::watermark_type ELSE 'none'::watermark_type END, \
+          $11, $12) \
+         RETURNING id",
+    )
+    .bind(claims.tenant_id)
+    .bind(id)
+    .bind(packet.patient_id)
+    .bind(packet.encounter_id)
+    .bind(packet.admission_id)
+    .bind(&document_number)
+    .bind(&title)
+    .bind(packet.page_count)
+    .bind(copies)
+    .bind(packet.printed_at.is_some())
+    .bind(&packet.source_snapshot)
+    .bind(claims.sub)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    let print_job_id: Option<Uuid> = if let Some(printer_id) = body.printer_id {
+        Some(
+            sqlx::query_scalar(
+                "INSERT INTO print_jobs \
+                 (tenant_id, document_output_id, printer_id, status, copies, submitted_by) \
+                 VALUES ($1, $2, $3, 'queued'::print_job_status, $4, $5) \
+                 RETURNING id",
+            )
+            .bind(claims.tenant_id)
+            .bind(document_output_id)
+            .bind(printer_id)
+            .bind(copies)
+            .bind(claims.sub)
+            .fetch_one(&mut *tx)
+            .await?,
+        )
+    } else {
+        None
+    };
+
+    sqlx::query(
+        "UPDATE mrd_case_sheet_packets SET \
+           status = 'printed', document_output_id = $2, print_job_id = $3, \
+           printed_by = $4, printed_at = now(), reprint_reason = $5 \
+         WHERE id = $1 AND tenant_id = $6",
+    )
+    .bind(id)
+    .bind(document_output_id)
+    .bind(print_job_id)
+    .bind(claims.sub)
+    .bind(&body.reprint_reason)
+    .bind(claims.tenant_id)
+    .execute(&mut *tx)
+    .await?;
+
+    sqlx::query(
+        "UPDATE mrd_case_sheet_pages SET status = 'printed', printed_at = now() \
+         WHERE tenant_id = $1 AND packet_id = $2 AND status = 'available'",
+    )
+    .bind(claims.tenant_id)
+    .bind(id)
+    .execute(&mut *tx)
+    .await?;
+
+    let row = fetch_case_sheet_packet(&mut tx, claims.tenant_id, id).await?;
+    tx.commit().await?;
+    Ok(Json(row))
+}
+
+pub async fn file_case_sheet_packet(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<FileCaseSheetPacketRequest>,
+) -> Result<Json<MrdCaseSheetPacket>, AppError> {
+    require_permission(&claims, permissions::mrd::case_sheets::FILE)?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
+
+    let packet = fetch_case_sheet_packet(&mut tx, claims.tenant_id, id).await?;
+    if packet.printed_at.is_none() {
+        return Err(AppError::BadRequest(
+            "case sheet must be printed before it can be filed".to_owned(),
+        ));
+    }
+    if packet.status == "filed" {
+        return Err(AppError::BadRequest(
+            "case sheet is already filed; use MRD movement/retrieval to relocate it".to_owned(),
+        ));
+    }
+
+    let location = sqlx::query_as::<_, MrdStorageLocation>(
+        "SELECT * FROM mrd_storage_locations \
+         WHERE id = $1 AND tenant_id = $2 AND is_active = true",
+    )
+    .bind(body.storage_location_id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or_else(|| AppError::BadRequest("active shelf location is required".to_owned()))?;
+    if let Some(capacity) = location.capacity {
+        if location.current_count >= capacity {
+            return Err(AppError::BadRequest(
+                "selected shelf location is already at capacity".to_owned(),
+            ));
+        }
+    }
+
+    let shelf_location = format!("{} - {}", location.code, location.name);
+
+    sqlx::query(
+        "UPDATE mrd_case_sheet_packets SET \
+           status = 'filed', storage_location_id = $2, shelf_location = $3, \
+           filed_by = $4, filed_at = now(), notes = COALESCE($5, notes) \
+         WHERE id = $1 AND tenant_id = $6",
+    )
+    .bind(id)
+    .bind(location.id)
+    .bind(&shelf_location)
+    .bind(claims.sub)
+    .bind(&body.notes)
+    .bind(claims.tenant_id)
+    .execute(&mut *tx)
+    .await?;
+
+    if let Some(medical_record_id) = packet.medical_record_id {
+        sqlx::query(
+            "UPDATE mrd_medical_records SET shelf_location = $2, last_accessed_at = now() \
+             WHERE id = $1 AND tenant_id = $3",
+        )
+        .bind(medical_record_id)
+        .bind(&shelf_location)
+        .bind(claims.tenant_id)
+        .execute(&mut *tx)
+        .await?;
+    }
+
+    sqlx::query(
+        "UPDATE mrd_storage_locations SET current_count = current_count + 1 \
+         WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(location.id)
+    .bind(claims.tenant_id)
+    .execute(&mut *tx)
+    .await?;
+
+    let row = fetch_case_sheet_packet(&mut tx, claims.tenant_id, id).await?;
     tx.commit().await?;
     Ok(Json(row))
 }
