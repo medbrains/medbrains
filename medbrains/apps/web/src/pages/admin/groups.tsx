@@ -11,7 +11,7 @@ import {
   ActionIcon,
   Badge,
   Button,
-  Drawer,
+  Card,
   Group,
   Modal,
   MultiSelect,
@@ -66,7 +66,7 @@ export default function GroupsPage() {
   const qc = useQueryClient();
   const [editTarget, setEditTarget] = useState<GroupRow | null>(null);
   const [createOpened, { open: openCreate, close: closeCreate }] = useDisclosure(false);
-  const [memberDrawerGroup, setMemberDrawerGroup] = useState<GroupRow | null>(null);
+  const [memberPanelGroup, setMemberPanelGroup] = useState<GroupRow | null>(null);
 
   const groupsQuery = useQuery({
     queryKey: ["access-groups"],
@@ -107,7 +107,7 @@ export default function GroupsPage() {
         </Table.Thead>
         <Table.Tbody>
           {(groupsQuery.data ?? []).map((g) => (
-            <Table.Tr key={g.id}>
+            <Table.Tr key={g.id} data-selected={memberPanelGroup?.id === g.id || undefined}>
               <Table.Td>
                 <Text size="sm" ff="monospace">
                   {g.code}
@@ -142,7 +142,7 @@ export default function GroupsPage() {
               <Table.Td>
                 <Group gap="xs">
                   <Tooltip label="Members">
-                    <ActionIcon variant="subtle" onClick={() => setMemberDrawerGroup(g)}>
+                    <ActionIcon variant="subtle" onClick={() => setMemberPanelGroup(g)}>
                       <IconUsers size={16} />
                     </ActionIcon>
                   </Tooltip>
@@ -177,11 +177,13 @@ export default function GroupsPage() {
         target={editTarget}
       />
 
-      <GroupMembersDrawer
-        key={memberDrawerGroup?.id ?? "members-closed"}
-        group={memberDrawerGroup}
-        onClose={() => setMemberDrawerGroup(null)}
-      />
+      {memberPanelGroup && (
+        <GroupMembersPanel
+          key={memberPanelGroup.id}
+          group={memberPanelGroup}
+          onClose={() => setMemberPanelGroup(null)}
+        />
+      )}
     </Stack>
   );
 }
@@ -299,9 +301,9 @@ function GroupFormModal({
   );
 }
 
-// ── Members drawer ─────────────────────────────────────────────────
+// ── Inline members panel ────────────────────────────────────────────
 
-function GroupMembersDrawer({ group, onClose }: { group: GroupRow | null; onClose: () => void }) {
+function GroupMembersPanel({ group, onClose }: { group: GroupRow; onClose: () => void }) {
   const qc = useQueryClient();
   const form = useForm<AccessGroupMemberFormInput>({
     resolver: zodResolver(accessGroupMemberFormSchema),
@@ -312,55 +314,55 @@ function GroupMembersDrawer({ group, onClose }: { group: GroupRow | null; onClos
   const usersQuery = useQuery({
     queryKey: ["setup-users"],
     queryFn: () => adminAccessService.listUsers(),
-    enabled: !!group,
   });
 
   const membersQuery = useQuery({
-    queryKey: ["access-group-members", group?.id],
-    queryFn: () => adminAccessService.listAccessGroupMembers(group?.id ?? ""),
-    enabled: !!group,
+    queryKey: ["access-group-members", group.id],
+    queryFn: () => adminAccessService.listAccessGroupMembers(group.id),
   });
 
   const addMutation = useMutation({
-    mutationFn: (values: AccessGroupMemberFormInput) => {
-      if (!group) throw new Error("No access group selected");
-      return adminAccessService.addAccessGroupMember(
-        group.id,
-        accessGroupMemberFormToRequest(values),
-      );
-    },
+    mutationFn: (values: AccessGroupMemberFormInput) =>
+      adminAccessService.addAccessGroupMember(group.id, accessGroupMemberFormToRequest(values)),
     onSuccess: () => {
       notifications.show({ message: "Member added", color: "green" });
-      qc.invalidateQueries({ queryKey: ["access-group-members", group?.id] });
+      qc.invalidateQueries({ queryKey: ["access-group-members", group.id] });
       form.reset(defaultAccessGroupMemberFormValues);
     },
     onError: (e: Error) => notifications.show({ message: e.message, color: "red" }),
   });
 
   const removeMutation = useMutation({
-    mutationFn: (uid: string) => {
-      if (!group) throw new Error("No access group selected");
-      return adminAccessService.removeAccessGroupMember(group.id, uid);
-    },
+    mutationFn: (uid: string) => adminAccessService.removeAccessGroupMember(group.id, uid),
     onSuccess: () => {
       notifications.show({ message: "Member removed", color: "green" });
-      qc.invalidateQueries({ queryKey: ["access-group-members", group?.id] });
+      qc.invalidateQueries({ queryKey: ["access-group-members", group.id] });
     },
     onError: (e: Error) => notifications.show({ message: e.message, color: "red" }),
   });
 
   return (
-    <Drawer
-      opened={group !== null}
-      onClose={() => {
-        form.reset(defaultAccessGroupMemberFormValues);
-        onClose();
-      }}
-      position="right"
-      size="lg"
-      title={<Title order={4}>{group?.name} — members</Title>}
-    >
+    <Card withBorder padding="md">
       <Stack gap="md">
+        <Group justify="space-between" align="flex-start">
+          <Stack gap={2}>
+            <Title order={4}>{group.name} members</Title>
+            <Text size="sm" c="dimmed">
+              Membership writes bump permission versions and publish access_group member tuples for
+              SpiceDB-backed resource scope.
+            </Text>
+          </Stack>
+          <Button
+            variant="default"
+            onClick={() => {
+              form.reset(defaultAccessGroupMemberFormValues);
+              onClose();
+            }}
+          >
+            Close
+          </Button>
+        </Group>
+
         <Stack gap="sm">
           <Title order={5}>Add member</Title>
           <Stack
@@ -461,6 +463,6 @@ function GroupMembersDrawer({ group, onClose }: { group: GroupRow | null; onClos
           )}
         </Stack>
       </Stack>
-    </Drawer>
+    </Card>
   );
 }
