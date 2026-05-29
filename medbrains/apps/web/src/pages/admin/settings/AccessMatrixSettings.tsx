@@ -28,7 +28,13 @@ import type {
   SetupUser,
   WidgetAccessLevel,
 } from "@medbrains/types";
-import { ACCESS_MATRIX_SURFACES, FIELD_ACCESS_FIELDS, P, PERMISSIONS } from "@medbrains/types";
+import {
+  ACCESS_MATRIX_SURFACES,
+  CORE_PATIENT_JOURNEY_ACTIONS,
+  FIELD_ACCESS_FIELDS,
+  P,
+  PERMISSIONS,
+} from "@medbrains/types";
 import {
   IconDeviceFloppy,
   IconSearch,
@@ -39,9 +45,14 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { useSearchParams } from "react-router";
-import { NAV_GROUPS } from "../../../config/navigation";
-import { usePacedQueryValue } from "../../../hooks/usePacedQueryValue";
-import { adminAccessService } from "../../../services/adminAccess.service";
+import { NAV_GROUPS } from "@/config/navigation";
+import { usePacedQueryValue } from "@/hooks/usePacedQueryValue";
+import { adminAccessService } from "@/services/adminAccess.service";
+import {
+  buildJourneyActionCoverage,
+  JOURNEY_ACTION_COVERAGE_GAP_LABELS,
+  summarizeJourneyActionCoverage,
+} from "./access-matrix-actions";
 import { buildNavRouteCoverage, summarizeNavRouteCoverage } from "./access-matrix-coverage";
 import {
   buildPrintableCoverage,
@@ -1631,6 +1642,14 @@ function SurfaceCoverageMatrix() {
     () => summarizePrintableCoverage(printableCoverageRows),
     [printableCoverageRows],
   );
+  const journeyActionCoverageRows = useMemo(
+    () => buildJourneyActionCoverage(CORE_PATIENT_JOURNEY_ACTIONS, ACCESS_MATRIX_SURFACES),
+    [],
+  );
+  const journeyActionCoverageSummary = useMemo(
+    () => summarizeJourneyActionCoverage(journeyActionCoverageRows),
+    [journeyActionCoverageRows],
+  );
 
   return (
     <Stack gap="md">
@@ -1719,6 +1738,17 @@ function SurfaceCoverageMatrix() {
           <Text size="xs" c="dimmed">
             {printableCoverageSummary.customerOfficeRequired} customer-office,{" "}
             {printableCoverageSummary.printerRequired} printer required
+          </Text>
+        </Card>
+        <Card withBorder padding="sm">
+          <Text size="xs" c="dimmed" fw={700} tt="uppercase">
+            Action Matrix
+          </Text>
+          <Text fw={700}>
+            {journeyActionCoverageSummary.covered}/{journeyActionCoverageSummary.total}
+          </Text>
+          <Text size="xs" c="dimmed">
+            {journeyActionCoverageSummary.gaps} handoff action gaps
           </Text>
         </Card>
       </SimpleGrid>
@@ -1814,6 +1844,133 @@ function SurfaceCoverageMatrix() {
                       <Badge color={workflow.permissions.size > 0 ? "teal" : "red"} variant="light">
                         {workflow.permissions.size}
                       </Badge>
+                    </Table.Td>
+                  </Table.Tr>
+                ))}
+              </Table.Tbody>
+            </Table>
+          </ScrollArea.Autosize>
+        </Stack>
+      </Card>
+
+      <Card withBorder padding="md">
+        <Stack gap="sm">
+          <Group justify="space-between" align="flex-start">
+            <Stack gap={2}>
+              <Text fw={700}>Journey Action Coverage</Text>
+              <Text size="sm" c="dimmed">
+                Compares patient handoff buttons against access-matrix surfaces so permissions and
+                event activation stay aligned across registration, OPD, IPD, ER, camp, pharmacy and
+                billing.
+              </Text>
+            </Stack>
+            <Badge
+              color={journeyActionCoverageSummary.gaps > 0 ? "orange" : "green"}
+              variant="light"
+            >
+              {journeyActionCoverageSummary.gaps} action gaps
+            </Badge>
+          </Group>
+
+          <ScrollArea.Autosize mah={360}>
+            <Table stickyHeader highlightOnHover verticalSpacing="xs">
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th>Action</Table.Th>
+                  <Table.Th>Permissions</Table.Th>
+                  <Table.Th>Events</Table.Th>
+                  <Table.Th>Mapped surfaces</Table.Th>
+                  <Table.Th>Gaps</Table.Th>
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
+                {journeyActionCoverageRows.map((row) => (
+                  <Table.Tr key={row.actionId}>
+                    <Table.Td>
+                      <Group gap={6} mb={2}>
+                        <Badge variant="light">{row.module}</Badge>
+                        {row.surfaces.map((surface) => (
+                          <Badge key={surface} color="gray" variant="light">
+                            {surface}
+                          </Badge>
+                        ))}
+                      </Group>
+                      <Text size="sm" fw={600}>
+                        {row.label}
+                      </Text>
+                      <Text size="xs" ff="var(--font-mono, monospace)" c="dimmed">
+                        {row.actionId}
+                      </Text>
+                    </Table.Td>
+                    <Table.Td>
+                      <Group gap={4}>
+                        {row.requiredPermissions.map((permission) => (
+                          <Tooltip key={permission} label={permissionLabel(permission)}>
+                            <Badge
+                              color={
+                                row.missingPermissions.includes(permission) ? "orange" : "teal"
+                              }
+                              variant="light"
+                            >
+                              {permission}
+                            </Badge>
+                          </Tooltip>
+                        ))}
+                      </Group>
+                    </Table.Td>
+                    <Table.Td>
+                      <Group gap={4}>
+                        {row.activationEvents.map((eventName) => (
+                          <Badge
+                            key={eventName}
+                            color={
+                              row.missingActivationEvents.includes(eventName) ? "orange" : "blue"
+                            }
+                            variant="light"
+                          >
+                            {eventName}
+                          </Badge>
+                        ))}
+                      </Group>
+                    </Table.Td>
+                    <Table.Td>
+                      {row.matchedSurfaceIds.length > 0 ? (
+                        <Stack gap={4}>
+                          <Group gap={4}>
+                            {row.matchedSurfaceKinds.map((kind) => (
+                              <Badge key={kind} color="gray" variant="light">
+                                {kind}
+                              </Badge>
+                            ))}
+                          </Group>
+                          <Group gap={4}>
+                            {row.matchedSurfaceIds.map((surfaceId) => (
+                              <Badge key={surfaceId} color="blue" variant="light">
+                                {surfaceId}
+                              </Badge>
+                            ))}
+                          </Group>
+                        </Stack>
+                      ) : (
+                        <Badge color="red" variant="light">
+                          no surface
+                        </Badge>
+                      )}
+                    </Table.Td>
+                    <Table.Td>
+                      {row.gaps.length > 0 ? (
+                        <Group gap={4}>
+                          {row.gaps.map((gap) => (
+                            <Badge key={gap} color="orange" variant="light">
+                              {JOURNEY_ACTION_COVERAGE_GAP_LABELS[gap]}
+                            </Badge>
+                          ))}
+                        </Group>
+                      ) : (
+                        <Badge color="green" variant="light">
+                          complete
+                        </Badge>
+                      )}
                     </Table.Td>
                   </Table.Tr>
                 ))}

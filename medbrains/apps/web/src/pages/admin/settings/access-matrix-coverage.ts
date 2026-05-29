@@ -1,5 +1,5 @@
 import type { AccessMatrixSurface } from "@medbrains/types";
-import type { NavGroupConfig, NavItemConfig } from "../../../config/navigation";
+import type { NavGroupConfig, NavItemConfig } from "@/config/navigation";
 
 export type NavRouteCoverageStatus = "covered" | "permission-gap" | "unmapped";
 
