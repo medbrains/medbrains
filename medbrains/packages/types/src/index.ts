@@ -16776,6 +16776,41 @@ export interface DocumentOutputStats {
   by_status: Record<string, number>;
 }
 
+export type PrinterConnectionType = "network" | "usb" | "agent" | "browser";
+export type PrinterType = "laser" | "thermal" | "label" | "wristband" | "virtual";
+
+export interface PrinterConfig {
+  id: string;
+  tenant_id: string;
+  name: string;
+  printer_type: string;
+  connection_type: string | null;
+  connection_string: string | null;
+  department_id: string | null;
+  default_format: DocumentPrintFormat;
+  capabilities: Record<string, unknown> | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PrintJob {
+  id: string;
+  tenant_id: string;
+  document_output_id: string;
+  printer_id: string | null;
+  status: PrintJobStatus;
+  copies: number;
+  priority: number;
+  department_id: string | null;
+  submitted_by: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+  error_message: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 // Request types
 export interface CreateDocumentTemplateRequest {
   code: string;
@@ -16873,6 +16908,21 @@ export interface AddDocumentSignatureRequest {
   biometric_hash?: string;
   aadhaar_ref?: string;
   thumb_impression?: boolean;
+}
+
+export interface CreatePrinterRequest {
+  name: string;
+  printer_type?: PrinterType | string;
+  connection_type?: PrinterConnectionType | string;
+  connection_string?: string;
+  department_id?: string;
+  default_format?: DocumentPrintFormat;
+  capabilities?: Record<string, unknown>;
+}
+
+export interface UpdatePrintJobRequest {
+  status: PrintJobStatus;
+  error_message?: string;
 }
 
 export interface CreateReviewScheduleRequest {

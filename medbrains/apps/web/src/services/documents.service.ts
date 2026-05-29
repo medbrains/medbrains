@@ -20,4 +20,8 @@ export const documentsService = {
   createReviewSchedule: (...args: Parameters<typeof api.createReviewSchedule>) =>
     api.createReviewSchedule(...args),
   markReviewed: (...args: Parameters<typeof api.markReviewed>) => api.markReviewed(...args),
+  listPrinters: (...args: Parameters<typeof api.listPrinters>) => api.listPrinters(...args),
+  createPrinter: (...args: Parameters<typeof api.createPrinter>) => api.createPrinter(...args),
+  listPrintJobs: (...args: Parameters<typeof api.listPrintJobs>) => api.listPrintJobs(...args),
+  updatePrintJob: (...args: Parameters<typeof api.updatePrintJob>) => api.updatePrintJob(...args),
 };

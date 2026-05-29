@@ -610,6 +610,7 @@ import type {
   CreatePreopAssessmentRequest,
   CreatePrescriptionRequest,
   CreatePrescriptionTemplateRequest,
+  CreatePrinterRequest,
   CreatePriorAuthRequestBody,
   CreateProcedureOrderRequest,
   CreateProficiencyTestRequest,
@@ -1341,6 +1342,8 @@ import type {
   PrescriptionWithItems,
   PressureUlcerRiskPrintData,
   PrintEditorCapabilitiesResponse,
+  PrinterConfig,
+  PrintJob,
   PrintMrdCaseSheetPacketRequest,
   PrintTemplateRequest,
   PriorAuthAppeal,
@@ -1723,6 +1726,7 @@ import type {
   UpdatePreopAssessmentRequest,
   UpdatePrescriptionRequest,
   UpdatePrimaryNurseRequest,
+  UpdatePrintJobRequest,
   UpdatePriorAuthRequestBody,
   UpdateProgressNoteRequest,
   UpdateQualityIncidentRequest,
@@ -8842,15 +8846,15 @@ export const api = {
     }),
 
   // Printers & Print Jobs
-  listPrinters: () => request<unknown[]>("/documents/printers"),
-  createPrinter: (data: Record<string, unknown>) =>
-    request<unknown>("/documents/printers", {
+  listPrinters: () => request<PrinterConfig[]>("/documents/printers"),
+  createPrinter: (data: CreatePrinterRequest) =>
+    request<PrinterConfig>("/documents/printers", {
       method: "POST",
       body: JSON.stringify(data),
     }),
-  listPrintJobs: () => request<unknown[]>("/documents/print-jobs"),
-  updatePrintJob: (id: string, data: Record<string, unknown>) =>
-    request<unknown>(`/documents/print-jobs/${id}`, {
+  listPrintJobs: () => request<PrintJob[]>("/documents/print-jobs"),
+  updatePrintJob: (id: string, data: UpdatePrintJobRequest) =>
+    request<PrintJob>(`/documents/print-jobs/${id}`, {
       method: "PUT",
       body: JSON.stringify(data),
     }),

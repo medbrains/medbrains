@@ -4395,6 +4395,56 @@ export const mlcPrintReprintFormSchema = z.object({
   ),
 });
 
+export const documentPrintFormatValues = [
+  "a4_portrait",
+  "a4_landscape",
+  "a5_portrait",
+  "a5_landscape",
+  "thermal_80mm",
+  "thermal_58mm",
+  "label_50x25mm",
+  "wristband",
+  "custom",
+] as const;
+
+export const printerTypeValues = ["laser", "thermal", "label", "wristband", "virtual"] as const;
+export const printerConnectionTypeValues = ["network", "usb", "agent", "browser"] as const;
+export const printCopyModeValues = [
+  "customer",
+  "office",
+  "clinical",
+  "mrd",
+  "lab",
+  "pharmacy",
+  "duplicate",
+] as const;
+export const logicalPrinterProfileValues = [
+  "opd-a4",
+  "opd-summary",
+  "ipd-a4",
+  "wristband-label",
+  "emergency-a4",
+  "mlc-secure-printer",
+  "camp-token-thermal",
+  "camp-a4",
+  "pharmacy-receipt-80mm",
+  "pharmacy-drug-label",
+  "billing-receipt-80mm",
+  "billing-a4",
+  "mrd-a4",
+  "mrd-record-room",
+] as const;
+
+export const createPrinterFormSchema = z.object({
+  name: requiredTrimmed("Printer name is required", 120),
+  printer_type: z.enum(printerTypeValues),
+  connection_type: z.enum(printerConnectionTypeValues),
+  connection_string: z.string().max(300, "Connection string is too long"),
+  default_format: z.enum(documentPrintFormatValues),
+  profile_code: z.enum(logicalPrinterProfileValues),
+  copy_modes: z.array(z.enum(printCopyModeValues)).min(1, "Select at least one copy type"),
+});
+
 export const bmwTransportManifestFormSchema = z.object({
   department_id: requiredTrimmed("Department ID is required"),
   waste_category: biowasteCategoryFormSchema,
@@ -5266,6 +5316,7 @@ export type MlcPoliceReceiptConfirmationFormInput = z.infer<
 >;
 export type MlcPrintPacketTypeFormValue = z.infer<typeof mlcPrintPacketTypeFormSchema>;
 export type MlcPrintReprintFormInput = z.infer<typeof mlcPrintReprintFormSchema>;
+export type CreatePrinterFormInput = z.infer<typeof createPrinterFormSchema>;
 export type BmwTransportManifestFormInput = z.infer<typeof bmwTransportManifestFormSchema>;
 export type ProcurementVendorFormInput = z.infer<typeof procurementVendorFormSchema>;
 export type ProcurementPurchaseOrderFormInput = z.infer<typeof procurementPurchaseOrderFormSchema>;
