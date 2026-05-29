@@ -191,7 +191,9 @@ export function DataTable<T>({
   virtualOverscan = DEFAULT_VIRTUAL_OVERSCAN,
   tableMaxHeight,
 }: DataTableProps<T>) {
-  const permissionState = usePermissionStore();
+  const hasAllPermissions = usePermissionStore((state) => state.hasAllPermissions);
+  const hasAnyPermission = usePermissionStore((state) => state.hasAnyPermission);
+  const getFieldAccess = usePermissionStore((state) => state.getFieldAccess);
   const tableWrapperRef = useRef<HTMLDivElement | null>(null);
   const scrollFrameRef = useRef<number | null>(null);
   const pendingScrollPositionRef = useRef({ scrollTop: 0, viewportHeight: 0 });
@@ -206,16 +208,11 @@ export function DataTable<T>({
     () =>
       columns
         .map((column) => ({
-          access: resolveColumnAccess(
-            column,
-            permissionState.hasAllPermissions,
-            permissionState.hasAnyPermission,
-            permissionState.getFieldAccess,
-          ),
+          access: resolveColumnAccess(column, hasAllPermissions, hasAnyPermission, getFieldAccess),
           column,
         }))
         .filter(({ access, column }) => isColumnVisible(column, access)),
-    [columns, permissionState],
+    [columns, getFieldAccess, hasAllPermissions, hasAnyPermission],
   );
   const visibleColumnCount = columnsWithAccess.length;
   const virtualWindow = useMemo(() => {

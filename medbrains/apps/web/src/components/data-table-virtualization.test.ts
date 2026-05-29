@@ -53,4 +53,20 @@ describe("resolveDataTableVirtualWindow", () => {
     expect(window.topSpacerHeight).toBe(111 * 40);
     expect(window.bottomSpacerHeight).toBe(0);
   });
+
+  it("clamps invalid row height and overscan values", () => {
+    const window = resolveDataTableVirtualWindow({
+      data: rows,
+      enabled: true,
+      overscan: -2,
+      rowHeight: 0,
+      scrollTop: 5,
+      viewportHeight: 5,
+    });
+
+    expect(window.rows).toEqual(rows.slice(5, 10));
+    expect(window.startIndex).toBe(5);
+    expect(window.topSpacerHeight).toBe(5);
+    expect(window.bottomSpacerHeight).toBe(110);
+  });
 });

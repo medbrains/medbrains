@@ -33,16 +33,18 @@ export function resolveDataTableVirtualWindow<T>({
     };
   }
 
-  const measuredViewportHeight = viewportHeight || rowHeight * FALLBACK_VIEWPORT_ROWS;
-  const visibleCount = Math.ceil(measuredViewportHeight / rowHeight);
-  const windowSize = Math.max(1, visibleCount + overscan * 2);
-  const scrollStart = Math.max(0, Math.floor(scrollTop / rowHeight) - overscan);
+  const safeRowHeight = Math.max(1, rowHeight);
+  const safeOverscan = Math.max(0, overscan);
+  const measuredViewportHeight = viewportHeight || safeRowHeight * FALLBACK_VIEWPORT_ROWS;
+  const visibleCount = Math.ceil(measuredViewportHeight / safeRowHeight);
+  const windowSize = Math.max(1, visibleCount + safeOverscan * 2);
+  const scrollStart = Math.max(0, Math.floor(scrollTop / safeRowHeight) - safeOverscan);
   const maxStart = Math.max(0, data.length - windowSize);
   const startIndex = Math.min(scrollStart, maxStart);
   const endIndex = Math.min(data.length, startIndex + windowSize);
   const rowCount = endIndex - startIndex;
-  const topSpacerHeight = startIndex * rowHeight;
-  const bottomSpacerHeight = Math.max(0, (data.length - startIndex - rowCount) * rowHeight);
+  const topSpacerHeight = startIndex * safeRowHeight;
+  const bottomSpacerHeight = Math.max(0, (data.length - startIndex - rowCount) * safeRowHeight);
 
   return {
     bottomSpacerHeight,
