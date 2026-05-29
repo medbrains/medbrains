@@ -39,8 +39,10 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { useSearchParams } from "react-router";
+import { NAV_GROUPS } from "../../../config/navigation";
 import { usePacedQueryValue } from "../../../hooks/usePacedQueryValue";
 import { adminAccessService } from "../../../services/adminAccess.service";
+import { buildNavRouteCoverage, summarizeNavRouteCoverage } from "./access-matrix-coverage";
 
 const FIELD_LEVELS: { label: string; value: FieldAccessLevel }[] = [
   { label: "Edit", value: "edit" },
@@ -1610,6 +1612,15 @@ function SurfaceCoverageMatrix() {
       surface.printCopies.length === 0 ||
       (surface.requiresPrinter && surface.printerProfiles.length === 0),
   );
+  const routeCoverageRows = useMemo(
+    () => buildNavRouteCoverage(NAV_GROUPS, ACCESS_MATRIX_SURFACES),
+    [],
+  );
+  const routeCoverageSummary = useMemo(
+    () => summarizeNavRouteCoverage(routeCoverageRows),
+    [routeCoverageRows],
+  );
+  const routeCoverageGapRows = routeCoverageRows.filter((row) => row.status !== "covered");
 
   return (
     <Stack gap="md">
@@ -1621,7 +1632,7 @@ function SurfaceCoverageMatrix() {
         </Text>
       </Alert>
 
-      <SimpleGrid cols={{ base: 1, sm: 2, lg: 6 }}>
+      <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }}>
         <Card withBorder padding="sm">
           <Text size="xs" c="dimmed" fw={700} tt="uppercase">
             Surfaces
@@ -1675,6 +1686,17 @@ function SurfaceCoverageMatrix() {
           <Text size="xs" c="dimmed">
             {customerCopySurfaces.length} customer / {officeCopySurfaces.length} office,{" "}
             {printRoutingGapSurfaces.length} gaps
+          </Text>
+        </Card>
+        <Card withBorder padding="sm">
+          <Text size="xs" c="dimmed" fw={700} tt="uppercase">
+            Route Coverage
+          </Text>
+          <Text fw={700}>
+            {routeCoverageSummary.covered}/{routeCoverageSummary.total}
+          </Text>
+          <Text size="xs" c="dimmed">
+            {routeCoverageSummary.unmapped} unmapped, {routeCoverageSummary.permissionGaps} gaps
           </Text>
         </Card>
       </SimpleGrid>
@@ -1776,6 +1798,101 @@ function SurfaceCoverageMatrix() {
               </Table.Tbody>
             </Table>
           </ScrollArea.Autosize>
+        </Stack>
+      </Card>
+
+      <Card withBorder padding="md">
+        <Stack gap="sm">
+          <Group justify="space-between" align="flex-start">
+            <Stack gap={2}>
+              <Text fw={700}>Navigation Route Coverage</Text>
+              <Text size="sm" c="dimmed">
+                Checks sidebar routes against the access-surface registry so screens do not stay
+                outside role, group, individual, masking, printable, and printer governance.
+              </Text>
+            </Stack>
+            <Badge color={routeCoverageSummary.blocked > 0 ? "orange" : "green"} variant="light">
+              {routeCoverageSummary.blocked} route gaps
+            </Badge>
+          </Group>
+
+          {routeCoverageGapRows.length === 0 ? (
+            <Alert color="green" variant="light">
+              All navigation routes are mapped to access-matrix surfaces with matching permission
+              requirements.
+            </Alert>
+          ) : (
+            <ScrollArea.Autosize mah={360}>
+              <Table stickyHeader highlightOnHover verticalSpacing="xs">
+                <Table.Thead>
+                  <Table.Tr>
+                    <Table.Th>Route</Table.Th>
+                    <Table.Th>Required permissions</Table.Th>
+                    <Table.Th>Mapped surfaces</Table.Th>
+                    <Table.Th>Missing</Table.Th>
+                  </Table.Tr>
+                </Table.Thead>
+                <Table.Tbody>
+                  {routeCoverageGapRows.map((row) => (
+                    <Table.Tr key={row.path}>
+                      <Table.Td>
+                        <Text size="xs" ff="var(--font-mono, monospace)">
+                          {row.path}
+                        </Text>
+                        <Text size="xs" c="dimmed">
+                          {row.labelKey}
+                        </Text>
+                      </Table.Td>
+                      <Table.Td>
+                        <Group gap={4}>
+                          {row.requiredPermissions.map((permission) => (
+                            <Tooltip key={permission} label={permissionLabel(permission)}>
+                              <Badge color="teal" variant="light">
+                                {permission}
+                              </Badge>
+                            </Tooltip>
+                          ))}
+                        </Group>
+                      </Table.Td>
+                      <Table.Td>
+                        {row.surfaceIds.length > 0 ? (
+                          <Group gap={4}>
+                            {row.surfaceIds.map((surfaceId) => (
+                              <Badge key={surfaceId} color="blue" variant="light">
+                                {surfaceId}
+                              </Badge>
+                            ))}
+                          </Group>
+                        ) : (
+                          <Badge color="red" variant="light">
+                            no surface
+                          </Badge>
+                        )}
+                      </Table.Td>
+                      <Table.Td>
+                        {row.missingPermissions.length > 0 ? (
+                          <Group gap={4}>
+                            {row.missingPermissions.map((permission) => (
+                              <Badge key={permission} color="orange" variant="light">
+                                {permission}
+                              </Badge>
+                            ))}
+                          </Group>
+                        ) : (
+                          <Badge
+                            color={row.status === "unmapped" ? "red" : "green"}
+                            variant="light"
+                          >
+                            {row.status}
+                          </Badge>
+                        )}
+                      </Table.Td>
+                    </Table.Tr>
+                  ))}
+                </Table.Tbody>
+              </Table>
+            </ScrollArea.Autosize>
+          )}
         </Stack>
       </Card>
 
