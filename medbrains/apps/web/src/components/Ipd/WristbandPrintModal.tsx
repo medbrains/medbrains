@@ -26,6 +26,11 @@ interface WristbandPrintModalProps {
   canReprint: boolean;
 }
 
+const WRISTBAND_PRINT_ROUTE = {
+  label: "Clinical copy",
+  printerProfile: "Wristband label printer",
+} as const;
+
 export function WristbandPrintModal({
   admissionId,
   opened,
@@ -86,6 +91,7 @@ export function WristbandPrintModal({
             .row { font-size: 7pt; }
             .uhid { font-size: 9pt; letter-spacing: 0.5mm; }
             .badges { font-size: 6pt; color: #c8102e; }
+            .route { font-size: 5pt; color: #555; }
           </style>
         </head>
         <body onload="window.print(); window.close();">
@@ -157,6 +163,9 @@ export function WristbandPrintModal({
                     `⚕ ALLERGY: ${printData.allergies.join(", ").slice(0, 30)}`}
                 </div>
               )}
+              <div className="route" style={{ fontSize: "5pt", color: "#555" }}>
+                {WRISTBAND_PRINT_ROUTE.label} · {WRISTBAND_PRINT_ROUTE.printerProfile}
+              </div>
             </div>
           </div>
         )}
@@ -164,6 +173,12 @@ export function WristbandPrintModal({
         {printData && (
           <Group gap="xs">
             <Badge variant="light">{printData.document_number}</Badge>
+            <Badge color="violet" variant="light">
+              {WRISTBAND_PRINT_ROUTE.label}
+            </Badge>
+            <Badge color="blue" variant="light">
+              {WRISTBAND_PRINT_ROUTE.printerProfile}
+            </Badge>
             {printData.is_reprint && (
               <Badge color="orange" variant="light">
                 Duplicate

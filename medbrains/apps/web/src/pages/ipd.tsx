@@ -124,7 +124,7 @@ import {
   IconUserOff,
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useParams, useSearchParams } from "react-router";
@@ -182,6 +182,7 @@ import {
 import { useHashTabs } from "../hooks/useHashTabs";
 import { useRequirePermission } from "../hooks/useRequirePermission";
 import { ipdService } from "../services/ipd.service";
+import { buildCopyPrintHtml, copyPrintStyles } from "../utils/printCopies";
 
 const statusColors: Record<string, string> = {
   admitted: "success",
@@ -5213,7 +5214,14 @@ function ConsentsTab({ admissionId }: { admissionId: string }) {
 
 // ── Admission Print ────────────────────────────────────
 
+const IPD_ADMISSION_PRINT_COPIES = [
+  { label: "Office copy", printerProfile: "IPD A4 / admission desk printer" },
+  { label: "Clinical copy", printerProfile: "IPD A4 / ward printer" },
+  { label: "MRD copy", printerProfile: "MRD record room printer" },
+] as const;
+
 function PrintAdmissionButton({ admissionId }: { admissionId: string }) {
+  const printRef = useRef<HTMLDivElement | null>(null);
   const [printing, setPrinting] = useState(false);
   const { data } = useQuery({
     queryKey: ["ipd-print", admissionId],
@@ -5222,6 +5230,38 @@ function PrintAdmissionButton({ admissionId }: { admissionId: string }) {
   });
 
   const printData = data as AdmissionPrintData | undefined;
+
+  const handlePrint = () => {
+    if (!printRef.current || !printData) return;
+    const printWindow = window.open("", "_blank", "width=800,height=900");
+    if (!printWindow) return;
+
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Admission Slip - ${printData.uhid}</title>
+          <style>
+            * { box-sizing: border-box; }
+            body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; padding: 24px; color: #111; font-size: 13px; }
+            .admission-slip { border: 1px solid #ccc; border-radius: 4px; padding: 16px; }
+            .title { text-align: center; font-size: 18px; font-weight: 700; margin-bottom: 16px; text-transform: uppercase; }
+            .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 20px; }
+            .label { color: #555; font-size: 11px; text-transform: uppercase; }
+            .value { font-weight: 600; margin-top: 2px; }
+            .diagnosis { margin-top: 16px; border-top: 1px solid #ddd; padding-top: 12px; }
+            ${copyPrintStyles()}
+            @media print { body { padding: 0; } }
+          </style>
+        </head>
+        <body>
+          ${buildCopyPrintHtml(printRef.current.innerHTML, IPD_ADMISSION_PRINT_COPIES)}
+          <script>window.onload = function() { window.print(); window.close(); }</script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+  };
 
   if (!printing) {
     return (
@@ -5245,82 +5285,95 @@ function PrintAdmissionButton({ admissionId }: { admissionId: string }) {
 
   return (
     <Drawer opened onClose={() => setPrinting(false)} title="Admission Slip" size="md">
-      <Stack p="md" id="admission-slip-print">
-        <Text ta="center" fw={700} size="lg">
-          Admission Slip
-        </Text>
-        <SimpleGrid cols={2}>
-          <div>
-            <Text size="xs" c="dimmed">
-              Patient Name
-            </Text>
-            <Text fw={500}>{printData.patient_name}</Text>
-          </div>
-          <div>
-            <Text size="xs" c="dimmed">
-              UHID
-            </Text>
-            <Text fw={500}>{printData.uhid}</Text>
-          </div>
-          <div>
-            <Text size="xs" c="dimmed">
-              Age
-            </Text>
-            <Text>{printData.age ?? "—"}</Text>
-          </div>
-          <div>
-            <Text size="xs" c="dimmed">
-              Gender
-            </Text>
-            <Text>{printData.gender ?? "—"}</Text>
-          </div>
-          <div>
-            <Text size="xs" c="dimmed">
-              Admission Date
-            </Text>
-            <Text>{new Date(printData.admission_date).toLocaleString()}</Text>
-          </div>
-          <div>
-            <Text size="xs" c="dimmed">
-              Ward
-            </Text>
-            <Text>{printData.ward_name ?? "—"}</Text>
-          </div>
-          <div>
-            <Text size="xs" c="dimmed">
-              Bed
-            </Text>
-            <Text>{printData.bed_number ?? "—"}</Text>
-          </div>
-          <div>
-            <Text size="xs" c="dimmed">
-              Department
-            </Text>
-            <Text>{printData.department_name ?? "—"}</Text>
-          </div>
-          <div>
-            <Text size="xs" c="dimmed">
-              Attending Doctor
-            </Text>
-            <Text>{printData.doctor_name ?? "—"}</Text>
-          </div>
-          <div>
-            <Text size="xs" c="dimmed">
-              IP Type
-            </Text>
-            <Text>{printData.ip_type ?? "—"}</Text>
-          </div>
-        </SimpleGrid>
-        {printData.provisional_diagnosis && (
-          <div>
-            <Text size="xs" c="dimmed">
-              Provisional Diagnosis
-            </Text>
-            <Text>{printData.provisional_diagnosis}</Text>
-          </div>
-        )}
-        <Button mt="md" onClick={() => window.print()}>
-          Print
+      <Stack p="md">
+        <Group gap={6}>
+          {IPD_ADMISSION_PRINT_COPIES.map((copy) => (
+            <Badge key={copy.label} color="violet" variant="light">
+              {copy.label}
+            </Badge>
+          ))}
+        </Group>
+        <Stack ref={printRef} className="admission-slip" p="md" id="admission-slip-print">
+          <Text ta="center" fw={700} size="lg" className="title">
+            Admission Slip
+          </Text>
+          <SimpleGrid cols={2} className="grid">
+            <div>
+              <Text size="xs" c="dimmed" className="label">
+                Patient Name
+              </Text>
+              <Text fw={500} className="value">
+                {printData.patient_name}
+              </Text>
+            </div>
+            <div>
+              <Text size="xs" c="dimmed" className="label">
+                UHID
+              </Text>
+              <Text fw={500} className="value">
+                {printData.uhid}
+              </Text>
+            </div>
+            <div>
+              <Text size="xs" c="dimmed" className="label">
+                Age
+              </Text>
+              <Text className="value">{printData.age ?? "—"}</Text>
+            </div>
+            <div>
+              <Text size="xs" c="dimmed" className="label">
+                Gender
+              </Text>
+              <Text className="value">{printData.gender ?? "—"}</Text>
+            </div>
+            <div>
+              <Text size="xs" c="dimmed" className="label">
+                Admission Date
+              </Text>
+              <Text className="value">{new Date(printData.admission_date).toLocaleString()}</Text>
+            </div>
+            <div>
+              <Text size="xs" c="dimmed" className="label">
+                Ward
+              </Text>
+              <Text className="value">{printData.ward_name ?? "—"}</Text>
+            </div>
+            <div>
+              <Text size="xs" c="dimmed" className="label">
+                Bed
+              </Text>
+              <Text className="value">{printData.bed_number ?? "—"}</Text>
+            </div>
+            <div>
+              <Text size="xs" c="dimmed" className="label">
+                Department
+              </Text>
+              <Text className="value">{printData.department_name ?? "—"}</Text>
+            </div>
+            <div>
+              <Text size="xs" c="dimmed" className="label">
+                Attending Doctor
+              </Text>
+              <Text className="value">{printData.doctor_name ?? "—"}</Text>
+            </div>
+            <div>
+              <Text size="xs" c="dimmed" className="label">
+                IP Type
+              </Text>
+              <Text className="value">{printData.ip_type ?? "—"}</Text>
+            </div>
+          </SimpleGrid>
+          {printData.provisional_diagnosis && (
+            <div className="diagnosis">
+              <Text size="xs" c="dimmed" className="label">
+                Provisional Diagnosis
+              </Text>
+              <Text className="value">{printData.provisional_diagnosis}</Text>
+            </div>
+          )}
+        </Stack>
+        <Button mt="md" leftSection={<IconPrinter size={16} />} onClick={handlePrint}>
+          Print admission packet
         </Button>
       </Stack>
     </Drawer>
