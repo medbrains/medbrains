@@ -15,7 +15,13 @@ import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import type { PatientRegistrationInitialValues } from "@medbrains/schemas";
 import { useHasPermission } from "@medbrains/stores";
-import type { CreatePatientRequest, MpiMatchResult, Patient } from "@medbrains/types";
+import type {
+  ClinicalJourneyActionId,
+  ClinicalJourneyContext,
+  CreatePatientRequest,
+  MpiMatchResult,
+  Patient,
+} from "@medbrains/types";
 import { P } from "@medbrains/types";
 import {
   IconAlertTriangle,
@@ -38,6 +44,7 @@ import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useSearchParams } from "react-router";
 import { type Column, DataTable, PageHeader, StatusDot } from "../components";
+import { PatientJourneyActions } from "../components/Patient/PatientJourneyActions";
 import {
   PatientRegisterForm,
   type PatientRegistrationLinkedServicesOptions,
@@ -49,6 +56,16 @@ import { opdService } from "../services/opd.service";
 import { patientsService } from "../services/patients.service";
 
 const PER_PAGE = 20;
+
+const DIRECTORY_HIDDEN_JOURNEY_ACTIONS = [
+  "patient.edit",
+  "patient.share",
+  "patient.print_card",
+  "orders.medication",
+  "orders.lab",
+  "orders.radiology",
+  "pharmacy.open_patient_queue",
+] satisfies readonly ClinicalJourneyActionId[];
 
 // #region Helpers
 
@@ -180,6 +197,13 @@ function registrationQueueNotes(req: CreatePatientRequest): string {
 
 function patientRegistrationName(req: CreatePatientRequest): string {
   return [req.first_name, req.last_name].filter(Boolean).join(" ").trim() || req.phone;
+}
+
+function directoryJourneyContext(patient: Patient): ClinicalJourneyContext {
+  return {
+    patientId: patient.id,
+    isDeceased: patient.is_deceased,
+  };
 }
 
 function patientAddressText(address: CreatePatientRequest["address"]): string | undefined {
@@ -378,6 +402,17 @@ export function PatientsPage() {
       },
     },
     {
+      key: "next_actions",
+      label: "Next Actions",
+      render: (row: Patient) => (
+        <PatientJourneyActions
+          context={directoryJourneyContext(row)}
+          hiddenActionIds={DIRECTORY_HIDDEN_JOURNEY_ACTIONS}
+          size="xs"
+        />
+      ),
+    },
+    {
       key: "actions",
       label: "",
       requiredPermissions: [P.PATIENTS.VIEW],
@@ -422,7 +457,7 @@ export function PatientsPage() {
         onPageChange={setPage}
         virtualized="auto"
         virtualizeAt={40}
-        virtualRowHeight={56}
+        virtualRowHeight={72}
         tableMaxHeight="calc(100vh - 320px)"
         toolbar={
           <TextInput
