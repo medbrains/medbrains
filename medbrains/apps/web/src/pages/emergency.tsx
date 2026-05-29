@@ -145,6 +145,7 @@ import {
   type CreatePoliceIntimationInput,
   emergencyService,
 } from "../services/emergency.service";
+import { buildCopyPrintHtml, copyPrintStyles, type PrintCopyRoute } from "../utils/printCopies";
 
 const CRASH_CART_ITEMS = [
   { key: "defibrillator_present", label: "Defibrillator present and functional" },
@@ -179,7 +180,11 @@ function renderSensitiveValue(access: FieldAccessLevel, value: string | null | u
   return fieldAccessText(access, value);
 }
 
-function printHtmlElement(title: string, element: HTMLElement | null) {
+function printHtmlElement(
+  title: string,
+  element: HTMLElement | null,
+  copies: readonly PrintCopyRoute[],
+) {
   if (!element) {
     return;
   }
@@ -199,10 +204,11 @@ function printHtmlElement(title: string, element: HTMLElement | null) {
           .print-value { font-size: 14px; font-weight: 600; white-space: pre-wrap; }
           .print-section { margin-top: 18px; padding-top: 12px; border-top: 1px solid #dfe7e2; }
           .duplicate { color: #b45309; font-weight: 700; }
+          ${copyPrintStyles()}
         </style>
       </head>
       <body onload="window.print(); window.close();">
-        ${element.innerHTML}
+        ${buildCopyPrintHtml(element.innerHTML, copies)}
       </body>
     </html>
   `);
@@ -2624,6 +2630,31 @@ type MlcPrintPreview =
   | { packetType: "register"; data: MlcRegisterPrintData }
   | { packetType: "police-intimation"; data: MlcPoliceIntimationPrintData };
 
+type MlcPrintAction = "print" | "reprint";
+
+const MLC_PACKET_PRINT_COPIES: readonly PrintCopyRoute[] = [
+  { label: "Office copy", printerProfile: "Emergency A4" },
+  { label: "Police copy", printerProfile: "MLC secure printer" },
+  { label: "MRD copy", printerProfile: "MRD record room printer" },
+];
+
+const MLC_POLICE_INTIMATION_PRINT_COPIES: readonly PrintCopyRoute[] = [
+  { label: "Police copy", printerProfile: "MLC secure printer" },
+  { label: "Office copy", printerProfile: "Emergency A4" },
+  { label: "MRD copy", printerProfile: "MRD record room printer" },
+];
+
+const MLC_REPRINT_COPIES: readonly PrintCopyRoute[] = [
+  { label: "Duplicate / reprint copy", printerProfile: "MLC secure printer" },
+];
+
+function mlcPrintCopies(packetType: MlcPrintPreview["packetType"], action: MlcPrintAction) {
+  if (action === "reprint") return MLC_REPRINT_COPIES;
+  return packetType === "police-intimation"
+    ? MLC_POLICE_INTIMATION_PRINT_COPIES
+    : MLC_PACKET_PRINT_COPIES;
+}
+
 function printDisplayValue(value: string | number | boolean | null | undefined) {
   if (value === null || value === undefined) {
     return "---";
@@ -3351,6 +3382,9 @@ function MlcCaseDetail({
       : mlcPrintPreview?.packetType === "register"
         ? "MLC Register Extract"
         : "MLC Documentation Packet";
+  const mlcActivePrintCopies = mlcPrintPreview
+    ? mlcPrintCopies(mlcPrintPreview.packetType, lastMlcPrintAction)
+    : [];
 
   return (
     <>
@@ -4084,13 +4118,22 @@ function MlcCaseDetail({
                 )}
               </Stack>
             </Box>
+            <Group gap={6}>
+              {mlcActivePrintCopies.map((copy) => (
+                <Badge key={copy.label} color="violet" variant="light">
+                  {copy.label} · {copy.printerProfile}
+                </Badge>
+              ))}
+            </Group>
             <Group justify="flex-end">
               <Button variant="default" onClick={closeMlcPrintPreviewModal}>
                 Close
               </Button>
               <Button
                 leftSection={<IconPrinter size={14} />}
-                onClick={() => printHtmlElement(mlcPrintPreviewTitle, mlcPrintRef.current)}
+                onClick={() =>
+                  printHtmlElement(mlcPrintPreviewTitle, mlcPrintRef.current, mlcActivePrintCopies)
+                }
               >
                 {lastMlcPrintAction === "reprint" ? "Print Duplicate" : "Print"}
               </Button>
