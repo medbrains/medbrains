@@ -1,4 +1,4 @@
-import type { PatientVisitRow } from "@medbrains/types";
+import type { ClinicalJourneyContext, PatientVisitRow } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
 import { ScrollView, StyleSheet, View } from "react-native";
 import {
@@ -14,6 +14,7 @@ import {
   useTheme,
 } from "react-native-paper";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { PatientJourneyActions } from "../../components";
 import { patientService } from "../../services/patient.service";
 
 interface PatientDetailScreenProps {
@@ -26,6 +27,8 @@ interface PatientDetailScreenProps {
     navigate: (screen: string, params?: Record<string, unknown>) => void;
   };
 }
+
+const ACTIVE_VISIT_STATUSES = new Set<PatientVisitRow["status"]>(["open", "in_progress"]);
 
 function calculateAge(dob?: string | null): string {
   if (!dob) return "Unknown";
@@ -96,6 +99,16 @@ export function PatientDetailScreen({ route, navigation }: PatientDetailScreenPr
   };
 
   const visitsList: PatientVisitRow[] = visits || [];
+  const activeOpdVisit = visitsList.find(
+    (visit) => visit.encounter_type === "opd" && ACTIVE_VISIT_STATUSES.has(visit.status),
+  );
+  const activeEncounterId = activeOpdVisit?.id ?? null;
+  const journeyContext: ClinicalJourneyContext = {
+    patientId,
+    isDeceased: patient.is_deceased,
+    activeEncounterId,
+    activeOrderContext: activeEncounterId ? "opd" : null,
+  };
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
@@ -144,33 +157,40 @@ export function PatientDetailScreen({ route, navigation }: PatientDetailScreenPr
           )}
         </Surface>
 
-        {/* Quick Actions */}
-        <View style={styles.actionsRow}>
-          <Button
-            mode="contained"
-            icon="clipboard-plus"
-            onPress={() => navigation.navigate("Vitals", { patientId })}
-            style={styles.actionButton}
-          >
-            Vitals
-          </Button>
-          <Button
-            mode="contained"
-            icon="pill"
-            onPress={() => navigation.navigate("Prescription", { patientId })}
-            style={styles.actionButton}
-          >
-            Rx
-          </Button>
-          <Button
-            mode="contained"
-            icon="flask"
-            onPress={() => navigation.navigate("LabOrder", { patientId })}
-            style={styles.actionButton}
-          >
-            Lab
-          </Button>
-        </View>
+        <Surface style={styles.actionsPanel} elevation={1}>
+          <View style={styles.actionsHeader}>
+            <Text variant="titleSmall" style={styles.actionsTitle}>
+              Care Actions
+            </Text>
+            {activeOpdVisit && (
+              <Chip compact icon="stethoscope" mode="outlined">
+                Active OPD
+              </Chip>
+            )}
+          </View>
+          <View style={styles.actionsRow}>
+            <Button
+              mode="contained-tonal"
+              icon="clipboard-plus"
+              disabled={!activeEncounterId}
+              onPress={() =>
+                navigation.navigate("Vitals", {
+                  encounterId: activeEncounterId ?? undefined,
+                  patientId,
+                })
+              }
+              style={styles.actionButton}
+            >
+              Vitals
+            </Button>
+          </View>
+          {!activeEncounterId && (
+            <Text variant="bodySmall" style={styles.actionsHint}>
+              Open an OPD encounter before recording vitals, notes, prescriptions, or lab orders.
+            </Text>
+          )}
+          <PatientJourneyActions context={journeyContext} navigation={navigation} />
+        </Surface>
 
         {/* Allergies Alert */}
         {allergies && allergies.length > 0 && (
@@ -324,14 +344,32 @@ const styles = StyleSheet.create({
   contactIcon: {
     backgroundColor: "#e7f5ff",
   },
+  actionsPanel: {
+    marginTop: 16,
+    padding: 16,
+    borderRadius: 12,
+  },
+  actionsHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 12,
+  },
+  actionsTitle: {
+    fontWeight: "600",
+  },
   actionsRow: {
     flexDirection: "row",
     gap: 12,
-    marginTop: 16,
+    marginTop: 12,
   },
   actionButton: {
     flex: 1,
     borderRadius: 12,
+  },
+  actionsHint: {
+    marginTop: 8,
+    opacity: 0.65,
   },
   alertCard: {
     marginTop: 16,
