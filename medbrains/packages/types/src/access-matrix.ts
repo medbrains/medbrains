@@ -19,6 +19,7 @@ export type AccessMatrixPrintCopy =
   | "mrd"
   | "lab"
   | "pharmacy"
+  | "police"
   | "duplicate";
 
 export type AccessMatrixMaskingBehavior =
@@ -43,6 +44,7 @@ export interface AccessMatrixSurface {
   activatesAfter: readonly string[];
   platforms: readonly AccessMatrixPlatform[];
   masking: AccessMatrixMaskingBehavior;
+  printArtifacts: readonly string[];
   printCopies: readonly AccessMatrixPrintCopy[];
   printerProfiles: readonly string[];
   requiresPrinter: boolean;
@@ -54,6 +56,7 @@ type SurfaceInput = Omit<
   | "activatesAfter"
   | "fieldAccessKeys"
   | "platforms"
+  | "printArtifacts"
   | "printCopies"
   | "printerProfiles"
   | "requiresPrinter"
@@ -62,6 +65,7 @@ type SurfaceInput = Omit<
   activatesAfter?: readonly string[];
   fieldAccessKeys?: readonly string[];
   platforms?: readonly AccessMatrixPlatform[];
+  printArtifacts?: readonly string[];
   printCopies?: readonly AccessMatrixPrintCopy[];
   printerProfiles?: readonly string[];
   requiresPrinter?: boolean;
@@ -73,6 +77,7 @@ function surface(input: SurfaceInput): AccessMatrixSurface {
     activatesAfter: [],
     fieldAccessKeys: [],
     platforms: ["web"],
+    printArtifacts: [],
     printCopies: [],
     printerProfiles: [],
     requiresPrinter: false,
@@ -239,6 +244,24 @@ export const ACCESS_MATRIX_SURFACES: readonly AccessMatrixSurface[] = [
     standardRefs: ["DPDP Act correction rights"],
   }),
   surface({
+    id: "patients.registration.printables",
+    module: "patients",
+    area: "Patient Registration",
+    label: "Registration slip, patient card and identity printables",
+    kind: "print",
+    route: "/patients/:id#overview",
+    requiredPermissions: [P.PATIENTS.VIEW],
+    fieldAccessKeys: PATIENT_REGISTRATION_FIELDS,
+    masking: "identity",
+    activatesAfter: ["patient.created"],
+    platforms: ["web", "mobile", "kiosk"],
+    printArtifacts: ["Registration slip", "Patient card"],
+    printCopies: ["customer", "office"],
+    printerProfiles: ["registration-a4", "patient-card"],
+    requiresPrinter: true,
+    standardRefs: ["IPSG two identifiers", "patient card QR/ABHA print"],
+  }),
+  surface({
     id: "opd.queue.screen",
     module: "opd",
     area: "OPD Queue",
@@ -279,6 +302,24 @@ export const ACCESS_MATRIX_SURFACES: readonly AccessMatrixSurface[] = [
     activatesAfter: ["patient.created"],
     platforms: ["web", "mobile", "kiosk"],
     standardRefs: ["NABH AAC registration to encounter"],
+  }),
+  surface({
+    id: "opd.queue.token_printables",
+    module: "opd",
+    area: "OPD Queue",
+    label: "Queue token and appointment slip printables",
+    kind: "print",
+    route: "/opd",
+    requiredPermissions: [P.OPD.QUEUE_VIEW],
+    fieldAccessKeys: PATIENT_IDENTITY_FIELDS,
+    masking: "identity",
+    activatesAfter: ["opd.encounter.created"],
+    platforms: ["web", "mobile", "kiosk"],
+    printArtifacts: ["Queue token slip", "Appointment confirmation slip"],
+    printCopies: ["customer", "office"],
+    printerProfiles: ["opd-token-thermal", "opd-a4"],
+    requiresPrinter: true,
+    standardRefs: ["NABH AAC access and continuity", "IPSG patient identification"],
   }),
   surface({
     id: "opd.vitals.route",
@@ -373,10 +414,39 @@ export const ACCESS_MATRIX_SURFACES: readonly AccessMatrixSurface[] = [
     masking: "clinical",
     activatesAfter: ["opd.encounter.created"],
     platforms: ["web", "mobile"],
-    printCopies: ["customer", "clinical"],
+    printArtifacts: ["OPD prescription", "OPD consultation summary", "Follow-up reminder slip"],
+    printCopies: ["customer", "clinical", "pharmacy"],
     printerProfiles: ["opd-a4", "opd-summary"],
     requiresPrinter: true,
     standardRefs: ["NABH COP OPD record", "IPSG patient identification"],
+  }),
+  surface({
+    id: "opd.encounter.certificate_consent_printables",
+    module: "opd",
+    area: "OPD Encounter",
+    label: "Certificates, referral letters and consent printables",
+    kind: "print",
+    route: "/opd/encounters/:encounterId#certificates",
+    requiredPermissions: [
+      P.OPD.CERTIFICATES.PRINT,
+      P.OPD.CERTIFICATES.REPRINT,
+      P.OPD.CONSENTS.PRINT,
+      P.OPD.CONSENTS.REPRINT,
+    ],
+    fieldAccessKeys: [...PATIENT_IDENTITY_FIELDS, "opd.diagnosis"],
+    masking: "clinical",
+    activatesAfter: ["opd.certificate.created", "opd.consent.signed"],
+    platforms: ["web", "mobile"],
+    printArtifacts: [
+      "Medical certificate",
+      "Fitness certificate",
+      "Referral letter",
+      "Consent form",
+    ],
+    printCopies: ["customer", "office", "clinical", "duplicate"],
+    printerProfiles: ["opd-certificate-a4", "consent-a4"],
+    requiresPrinter: true,
+    standardRefs: ["NABH patient rights", "consent print audit"],
   }),
   surface({
     id: "ipd.admissions.screen",
@@ -464,6 +534,34 @@ export const ACCESS_MATRIX_SURFACES: readonly AccessMatrixSurface[] = [
     standardRefs: ["NABH AAC discharge process"],
   }),
   surface({
+    id: "ipd.detail.discharge_printables",
+    module: "ipd",
+    area: "IPD Workspace",
+    label: "Discharge, transfer, death and DAMA/LAMA printables",
+    kind: "print",
+    route: "/ipd/admissions/:admissionId#discharge-summary",
+    requiredPermissions: [P.IPD.DISCHARGE_SUMMARY_FINALIZE, P.IPD.DISCHARGE_CHECKLIST_LIST],
+    fieldAccessKeys: [
+      ...PATIENT_IDENTITY_FIELDS,
+      "ipd.discharge_summary.final_diagnosis",
+      "ipd.admissions.provisional_diagnosis",
+    ],
+    masking: "clinical",
+    activatesAfter: ["ipd.discharge.initiated", "ipd.discharge.finalized"],
+    platforms: ["web", "mobile"],
+    printArtifacts: [
+      "Discharge summary",
+      "Death summary",
+      "Transfer summary",
+      "DAMA/LAMA form",
+      "Take-home medication list",
+    ],
+    printCopies: ["customer", "office", "clinical", "mrd", "duplicate"],
+    printerProfiles: ["ipd-discharge-a4", "mrd-a4"],
+    requiresPrinter: true,
+    standardRefs: ["NABH AAC discharge process", "ICD-coded discharge summary"],
+  }),
+  surface({
     id: "ipd.detail.action_bar",
     module: "ipd",
     area: "IPD Workspace",
@@ -483,12 +581,23 @@ export const ACCESS_MATRIX_SURFACES: readonly AccessMatrixSurface[] = [
     label: "Admission sheet, case-sheet cover and wristband printables",
     kind: "print",
     route: "/ipd/admissions/:admissionId#overview",
-    requiredPermissions: [P.IPD.ADMISSIONS_PRINT, P.IPD.WRISTBAND_PRINT],
+    requiredPermissions: [
+      P.IPD.ADMISSIONS_PRINT,
+      P.IPD.ADMISSIONS_REPRINT,
+      P.IPD.WRISTBAND_PRINT,
+      P.IPD.WRISTBAND_REPRINT,
+    ],
     fieldAccessKeys: [...PATIENT_IDENTITY_FIELDS, "ipd.admissions.provisional_diagnosis"],
     masking: "clinical",
     activatesAfter: ["bed.assigned"],
     platforms: ["web", "kiosk"],
-    printCopies: ["clinical", "mrd"],
+    printArtifacts: [
+      "Admission sheet",
+      "Case-sheet cover page",
+      "Patient wristband",
+      "Admission consent",
+    ],
+    printCopies: ["customer", "office", "clinical", "mrd", "duplicate"],
     printerProfiles: ["ipd-a4", "wristband-label"],
     requiresPrinter: true,
     standardRefs: ["IPSG patient identification", "NABH inpatient case sheet"],
@@ -575,7 +684,8 @@ export const ACCESS_MATRIX_SURFACES: readonly AccessMatrixSurface[] = [
     masking: "regulatory",
     activatesAfter: ["mlc.created", "emergency.mlc_police_intimation.created"],
     platforms: ["web"],
-    printCopies: ["office", "clinical", "duplicate"],
+    printArtifacts: ["MLC certificate", "Police intimation", "MLC register extract"],
+    printCopies: ["office", "clinical", "police", "duplicate"],
     printerProfiles: ["emergency-a4", "mlc-secure-printer"],
     requiresPrinter: true,
     standardRefs: ["MLC SOP", "police intimation audit"],
@@ -648,6 +758,7 @@ export const ACCESS_MATRIX_SURFACES: readonly AccessMatrixSurface[] = [
     masking: "identity",
     activatesAfter: ["camp.registration.created"],
     platforms: ["web", "mobile", "kiosk"],
+    printArtifacts: ["Camp token", "Registration slip", "Follow-up advice slip"],
     printCopies: ["customer", "office"],
     printerProfiles: ["camp-token-thermal", "camp-a4"],
     requiresPrinter: true,
@@ -771,10 +882,57 @@ export const ACCESS_MATRIX_SURFACES: readonly AccessMatrixSurface[] = [
     masking: "clinical",
     activatesAfter: ["pharmacy.order.dispensed"],
     platforms: ["web", "mobile"],
-    printCopies: ["customer", "pharmacy", "office"],
+    printArtifacts: [
+      "Dispense receipt",
+      "Drug label",
+      "Controlled-drug register copy",
+      "Counseling slip",
+    ],
+    printCopies: ["customer", "pharmacy", "office", "duplicate"],
     printerProfiles: ["pharmacy-receipt-80mm", "pharmacy-drug-label"],
     requiresPrinter: true,
     standardRefs: ["Drugs and Cosmetics Act", "batch traceability", "NDPS where applicable"],
+  }),
+  surface({
+    id: "lab.report.printables",
+    module: "lab",
+    area: "Laboratory",
+    label: "Lab report and investigation requisition printables",
+    kind: "print",
+    route: "/lab?tab=reports",
+    requiredPermissions: [P.LAB.REPORTS_VIEW],
+    fieldAccessKeys: [...PATIENT_IDENTITY_FIELDS, "lab.results", "lab.critical_flag"],
+    masking: "clinical",
+    activatesAfter: ["lab.result.verified"],
+    platforms: ["web", "mobile"],
+    printArtifacts: [
+      "Lab report",
+      "Cumulative lab report",
+      "Microbiology culture sensitivity report",
+      "Investigation requisition form",
+    ],
+    printCopies: ["customer", "office", "lab", "duplicate"],
+    printerProfiles: ["lab-report-a4"],
+    requiresPrinter: true,
+    standardRefs: ["NABL report print", "LOINC result coding"],
+  }),
+  surface({
+    id: "radiology.report.printables",
+    module: "radiology",
+    area: "Radiology",
+    label: "Radiology report and key image printables",
+    kind: "print",
+    route: "/radiology?tab=reports",
+    requiredPermissions: [P.RADIOLOGY.ORDERS_VIEW],
+    fieldAccessKeys: [...PATIENT_IDENTITY_FIELDS, "radiology.report"],
+    masking: "clinical",
+    activatesAfter: ["radiology.report.verified"],
+    platforms: ["web", "mobile"],
+    printArtifacts: ["Radiology report", "Key image sheet", "Investigation requisition form"],
+    printCopies: ["customer", "office", "clinical", "duplicate"],
+    printerProfiles: ["radiology-report-a4"],
+    requiresPrinter: true,
+    standardRefs: ["DICOM image reference", "AERB radiation safety where applicable"],
   }),
   surface({
     id: "billing.invoices.screen",
@@ -844,6 +1002,16 @@ export const ACCESS_MATRIX_SURFACES: readonly AccessMatrixSurface[] = [
     masking: "financial",
     activatesAfter: ["billing.payment.received", "billing.invoice.finalized"],
     platforms: ["web", "mobile", "kiosk"],
+    printArtifacts: [
+      "OPD bill",
+      "IPD interim bill",
+      "IPD final bill",
+      "Payment receipt",
+      "Refund receipt",
+      "Credit note",
+      "GST invoice",
+      "TPA claim copy",
+    ],
     printCopies: ["customer", "office", "duplicate"],
     printerProfiles: ["billing-receipt-80mm", "billing-a4"],
     requiresPrinter: true,
@@ -932,7 +1100,18 @@ export const ACCESS_MATRIX_SURFACES: readonly AccessMatrixSurface[] = [
     masking: "clinical",
     activatesAfter: ["mrd.case_sheet.generated", "mrd.case_sheet.printed"],
     platforms: ["web"],
-    printCopies: ["clinical", "mrd", "duplicate"],
+    printArtifacts: [
+      "Case-sheet cover page",
+      "History and physical examination sheet",
+      "Progress notes sheet",
+      "MAR chart",
+      "Vital signs chart",
+      "Intake-output chart",
+      "Discharge checklist",
+      "MLC documentation form",
+      "OPD recent case-sheet packet",
+    ],
+    printCopies: ["office", "clinical", "mrd", "duplicate"],
     printerProfiles: ["mrd-a4", "mrd-record-room"],
     requiresPrinter: true,
     standardRefs: ["MRD duplicate watermark", "SOC 2 print audit evidence"],

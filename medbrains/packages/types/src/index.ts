@@ -3,6 +3,7 @@
 export type {
   AccessMatrixMaskingBehavior,
   AccessMatrixPlatform,
+  AccessMatrixPrintCopy,
   AccessMatrixSurface,
   AccessMatrixSurfaceKind,
 } from "./access-matrix.js";
@@ -1157,6 +1158,27 @@ export const FIELD_ACCESS_FIELDS = [
     "Pharmacy POS walk-in phone",
     "phone",
     "Walk-in customer phone",
+  ),
+  systemField(
+    "lab",
+    "results",
+    "Lab report results",
+    "json",
+    "Verified lab result values, units, ranges, flags, and signer details for printable reports",
+  ),
+  systemField(
+    "lab",
+    "critical_flag",
+    "Lab critical flag",
+    "text",
+    "Critical or abnormal result marker shown on lab report printouts",
+  ),
+  systemField(
+    "radiology",
+    "report",
+    "Radiology report",
+    "textarea",
+    "Verified radiology findings, impression, and radiologist signature for printable reports",
   ),
   systemField(
     "mrd",

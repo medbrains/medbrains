@@ -130,9 +130,15 @@ const CONNECTION_TYPE_LABELS: Record<(typeof printerConnectionTypeValues)[number
 
 const LOGICAL_PRINTER_PROFILE_LABELS: Record<(typeof logicalPrinterProfileValues)[number], string> =
   {
+    "registration-a4": "Registration A4",
+    "patient-card": "Patient card",
+    "opd-token-thermal": "OPD token thermal",
     "opd-a4": "OPD A4 summary",
     "opd-summary": "OPD visit summary",
+    "opd-certificate-a4": "OPD certificate A4",
+    "consent-a4": "Consent form A4",
     "ipd-a4": "IPD A4 case sheet",
+    "ipd-discharge-a4": "IPD discharge A4",
     "wristband-label": "Wristband label",
     "emergency-a4": "Emergency A4",
     "mlc-secure-printer": "MLC secure printer",
@@ -140,6 +146,8 @@ const LOGICAL_PRINTER_PROFILE_LABELS: Record<(typeof logicalPrinterProfileValues
     "camp-a4": "Camp A4",
     "pharmacy-receipt-80mm": "Pharmacy receipt 80mm",
     "pharmacy-drug-label": "Pharmacy drug label",
+    "lab-report-a4": "Lab report A4",
+    "radiology-report-a4": "Radiology report A4",
     "billing-receipt-80mm": "Billing receipt 80mm",
     "billing-a4": "Billing A4",
     "mrd-a4": "MRD A4",
@@ -153,6 +161,7 @@ const PRINT_COPY_MODE_LABELS: Record<(typeof printCopyModeValues)[number], strin
   mrd: "MRD copy",
   lab: "Lab copy",
   pharmacy: "Pharmacy copy",
+  police: "Police copy",
   duplicate: "Duplicate/reprint",
 };
 

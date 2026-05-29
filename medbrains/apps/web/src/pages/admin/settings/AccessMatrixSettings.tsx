@@ -65,7 +65,7 @@ const CRITICAL_WORKFLOW_EXPECTATIONS: {
     key: "registration",
     label: "Patient registration",
     modules: ["patients"],
-    requiredKinds: ["screen", "tab", "column", "input", "action"],
+    requiredKinds: ["screen", "tab", "column", "input", "action", "print"],
   },
   {
     key: "opd",
@@ -83,19 +83,19 @@ const CRITICAL_WORKFLOW_EXPECTATIONS: {
     key: "emergency",
     label: "Emergency care",
     modules: ["emergency"],
-    requiredKinds: ["screen", "table", "input", "action"],
+    requiredKinds: ["screen", "table", "input", "action", "print"],
   },
   {
     key: "camp",
     label: "Camp workflow",
     modules: ["camp"],
-    requiredKinds: ["screen", "tab", "input", "action"],
+    requiredKinds: ["screen", "tab", "input", "action", "print"],
   },
   {
     key: "pharmacy",
     label: "Pharmacy",
     modules: ["pharmacy"],
-    requiredKinds: ["screen", "table", "column", "input", "action"],
+    requiredKinds: ["screen", "table", "column", "input", "action", "print"],
   },
   {
     key: "billing",
@@ -316,6 +316,11 @@ function permissionLabel(code: string) {
   return PERMISSIONS.find((permission) => permission.code === code)?.label ?? code;
 }
 
+function printCopyLabel(copy: string) {
+  if (copy === "duplicate") return "Duplicate/reprint";
+  return `${copy.replace(/_/g, " ")} copy`;
+}
+
 function fieldByKey() {
   return new Map(FIELD_ACCESS_FIELDS.map((field) => [fieldKey(field), field]));
 }
@@ -342,6 +347,9 @@ function surfaceMatches(
     ...surface.requiredPermissions,
     ...surface.fieldAccessKeys,
     ...surface.activatesAfter,
+    ...surface.printArtifacts,
+    ...surface.printCopies,
+    ...surface.printerProfiles,
     ...surface.standardRefs,
   ]
     .join(" ")
@@ -1299,6 +1307,20 @@ function SurfaceCoverageMatrix() {
   );
   const printSurfaces = ACCESS_MATRIX_SURFACES.filter((surface) => surface.kind === "print");
   const printerRequiredSurfaces = printSurfaces.filter((surface) => surface.requiresPrinter);
+  const printArtifacts = new Set(printSurfaces.flatMap((surface) => [...surface.printArtifacts]));
+  const copyMappedSurfaces = printSurfaces.filter((surface) => surface.printCopies.length > 0);
+  const customerCopySurfaces = printSurfaces.filter((surface) =>
+    surface.printCopies.includes("customer"),
+  );
+  const officeCopySurfaces = printSurfaces.filter((surface) =>
+    surface.printCopies.includes("office"),
+  );
+  const printRoutingGapSurfaces = printSurfaces.filter(
+    (surface) =>
+      surface.printArtifacts.length === 0 ||
+      surface.printCopies.length === 0 ||
+      (surface.requiresPrinter && surface.printerProfiles.length === 0),
+  );
 
   return (
     <Stack gap="md">
@@ -1310,7 +1332,7 @@ function SurfaceCoverageMatrix() {
         </Text>
       </Alert>
 
-      <SimpleGrid cols={{ base: 1, sm: 2, lg: 5 }}>
+      <SimpleGrid cols={{ base: 1, sm: 2, lg: 6 }}>
         <Card withBorder padding="sm">
           <Text size="xs" c="dimmed" fw={700} tt="uppercase">
             Surfaces
@@ -1353,7 +1375,17 @@ function SurfaceCoverageMatrix() {
           </Text>
           <Text fw={700}>{printSurfaces.length}</Text>
           <Text size="xs" c="dimmed">
-            {printerRequiredSurfaces.length} require printer profile
+            {printArtifacts.size} sheets, {printerRequiredSurfaces.length} printer mapped
+          </Text>
+        </Card>
+        <Card withBorder padding="sm">
+          <Text size="xs" c="dimmed" fw={700} tt="uppercase">
+            Copy Routes
+          </Text>
+          <Text fw={700}>{copyMappedSurfaces.length}</Text>
+          <Text size="xs" c="dimmed">
+            {customerCopySurfaces.length} customer / {officeCopySurfaces.length} office,{" "}
+            {printRoutingGapSurfaces.length} gaps
           </Text>
         </Card>
       </SimpleGrid>
@@ -1594,10 +1626,23 @@ function SurfaceCoverageMatrix() {
                       {surface.kind === "print" || surface.requiresPrinter ? (
                         <Stack gap={4}>
                           <Group gap={4}>
+                            {surface.printArtifacts.length > 0 ? (
+                              surface.printArtifacts.map((artifact) => (
+                                <Badge key={artifact} color="gray" variant="light">
+                                  {artifact}
+                                </Badge>
+                              ))
+                            ) : (
+                              <Badge color="orange" variant="light">
+                                sheet not mapped
+                              </Badge>
+                            )}
+                          </Group>
+                          <Group gap={4}>
                             {surface.printCopies.length > 0 ? (
                               surface.printCopies.map((copy) => (
                                 <Badge key={copy} color="violet" variant="light">
-                                  {copy}
+                                  {printCopyLabel(copy)}
                                 </Badge>
                               ))
                             ) : (
