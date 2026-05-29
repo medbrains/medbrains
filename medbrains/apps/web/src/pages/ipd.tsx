@@ -53,6 +53,7 @@ import type {
   BedTurnaroundLog,
   BillingSummaryResponse,
   CensusWardRow,
+  ClinicalJourneyContext,
   CreateAdmissionResponse,
   CreateBirthRecordRequest,
   CreateClinicalDocRequest,
@@ -113,7 +114,6 @@ import {
   IconEye,
   IconFileDescription,
   IconFlask,
-  IconHeartRateMonitor,
   IconLayoutGrid,
   IconLink,
   IconPencil,
@@ -145,13 +145,13 @@ import { DischargeWorkflowWizard } from "../components/Ipd/DischargeWorkflowWiza
 import { MarkDeathModal } from "../components/Ipd/MarkDeathModal";
 import { TransferOutModal } from "../components/Ipd/TransferOutModal";
 import { WristbandPrintModal } from "../components/Ipd/WristbandPrintModal";
-import { OrderBasketChip } from "../components/OrderBasket/OrderBasketChip";
 import {
   type OrderBasketTab,
   OrderBasketWorkspace,
 } from "../components/OrderBasket/OrderBasketWorkspace";
 import { PatientContextBanner } from "../components/Patient/PatientContextBanner";
 import { PatientFlowNavigator } from "../components/Patient/PatientFlowNavigator";
+import { PatientJourneyActions } from "../components/Patient/PatientJourneyActions";
 import { PatientSearchSelect } from "../components/PatientSearchSelect";
 import { WardSelect } from "../components/WardSelect";
 import { ALL_TEMPLATES, type ChecklistTemplate } from "../data/checklist-templates";
@@ -746,6 +746,13 @@ function AdmissionDetail({
   const detail = data as AdmissionDetailResponse;
   const adm = detail.admission;
   const admissionIsActive = adm.status === "admitted";
+  const journeyContext: ClinicalJourneyContext = {
+    patientId: adm.patient_id,
+    activeEncounterId: adm.encounter_id,
+    activeAdmissionId: adm.id,
+    activeAdmissionStatus: adm.status,
+    activeOrderContext: "ipd",
+  };
 
   return (
     <Stack>
@@ -753,7 +760,9 @@ function AdmissionDetail({
       <PatientFlowNavigator
         patientId={adm.patient_id}
         active="ipd"
+        activeEncounterId={adm.encounter_id}
         activeAdmissionId={adm.id}
+        activeAdmissionStatus={adm.status}
         compact
       />
       <Group justify="space-between">
@@ -774,21 +783,13 @@ function AdmissionDetail({
           <Badge color={statusColors[adm.status] ?? "slate"} variant="light" size="lg">
             {adm.status}
           </Badge>
-          {canOrder && admissionIsActive && (
-            <OrderBasketChip onClick={() => openOrderBasket("drug")} />
-          )}
-          {canOrder && !admissionIsActive && (
-            <Tooltip label="Orders are available only for active admissions">
-              <Button
-                size="xs"
-                variant="subtle"
-                leftSection={<IconHeartRateMonitor size={14} />}
-                disabled
-              >
-                Orders
-              </Button>
-            </Tooltip>
-          )}
+          <PatientJourneyActions
+            context={journeyContext}
+            localOrderContext="ipd"
+            hiddenActionIds={["ipd.open_admission", "ipd.admit"]}
+            size="xs"
+            onOpenOrderBasket={openOrderBasket}
+          />
           <PrintAdmissionButton admissionId={admissionId} />
           {canCreateDischargeSummary && admissionIsActive && (
             <Tooltip label="Generate Discharge Summary">

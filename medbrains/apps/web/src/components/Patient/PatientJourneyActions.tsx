@@ -4,6 +4,7 @@ import type {
   ClinicalJourneyActionId,
   ClinicalJourneyActionIntent,
   ClinicalJourneyContext,
+  ClinicalOrderContext,
   ResolvedClinicalJourneyAction,
 } from "@medbrains/types";
 import { resolveClinicalJourneyActions } from "@medbrains/types";
@@ -23,13 +24,17 @@ import {
 import { useNavigate } from "react-router";
 
 type PatientOrderTab = "drug" | "lab" | "radiology";
+type PatientJourneyActionSize = "xs" | "sm";
 
 interface PatientJourneyActionsProps {
   context: ClinicalJourneyContext;
-  onEdit: () => void;
-  onOpenOrderBasket: (tab: PatientOrderTab) => void;
-  onShare: () => void;
-  onPrintPatientCard: () => void;
+  localOrderContext?: ClinicalOrderContext;
+  hiddenActionIds?: readonly ClinicalJourneyActionId[];
+  size?: PatientJourneyActionSize;
+  onEdit?: () => void;
+  onOpenOrderBasket?: (tab: PatientOrderTab) => void;
+  onShare?: () => void;
+  onPrintPatientCard?: () => void;
 }
 
 const ORDER_TABS: Partial<Record<ClinicalJourneyActionId, PatientOrderTab>> = {
@@ -89,8 +94,32 @@ function actionVariant(intent: ClinicalJourneyActionIntent) {
   return intent === "primary" ? "filled" : "light";
 }
 
+function supportsAction(
+  actionId: ClinicalJourneyActionId,
+  handlers: Pick<
+    PatientJourneyActionsProps,
+    "onOpenOrderBasket" | "onPrintPatientCard" | "onShare"
+  >,
+) {
+  switch (actionId) {
+    case "patient.share":
+      return Boolean(handlers.onShare);
+    case "patient.print_card":
+      return Boolean(handlers.onPrintPatientCard);
+    case "orders.medication":
+    case "orders.lab":
+    case "orders.radiology":
+      return Boolean(handlers.onOpenOrderBasket);
+    default:
+      return true;
+  }
+}
+
 export function PatientJourneyActions({
   context,
+  localOrderContext,
+  hiddenActionIds = [],
+  size = "sm",
   onEdit,
   onOpenOrderBasket,
   onShare,
@@ -98,12 +127,21 @@ export function PatientJourneyActions({
 }: PatientJourneyActionsProps) {
   const navigate = useNavigate();
   const hasPermission = usePermissionStore((state) => state.hasPermission);
-  const actions = resolveClinicalJourneyActions(context, hasPermission, "web");
+  const hiddenActions = new Set(hiddenActionIds);
+  const actions = resolveClinicalJourneyActions(context, hasPermission, "web").filter(
+    (action) =>
+      !hiddenActions.has(action.id) &&
+      supportsAction(action.id, { onOpenOrderBasket, onPrintPatientCard, onShare }),
+  );
 
   function handleAction(actionId: ClinicalJourneyActionId) {
     switch (actionId) {
       case "patient.edit":
-        onEdit();
+        if (onEdit) {
+          onEdit();
+          return;
+        }
+        navigate(`/patients/${context.patientId}/edit`);
         return;
       case "opd.open_visit":
         navigate(
@@ -115,13 +153,17 @@ export function PatientJourneyActions({
       case "orders.medication":
       case "orders.lab":
       case "orders.radiology": {
+        const tab = ORDER_TABS[actionId];
+        if (tab && onOpenOrderBasket && context.activeOrderContext === localOrderContext) {
+          onOpenOrderBasket(tab);
+          return;
+        }
         if (context.activeOrderContext === "ipd" && context.activeAdmissionId) {
           navigate(`/ipd/admissions/${context.activeAdmissionId}#overview`);
           return;
         }
-        const tab = ORDER_TABS[actionId];
         if (tab) {
-          onOpenOrderBasket(tab);
+          onOpenOrderBasket?.(tab);
         }
         return;
       }
@@ -150,10 +192,10 @@ export function PatientJourneyActions({
         navigate(`/pharmacy?tab=orders&patient_id=${context.patientId}`);
         return;
       case "patient.share":
-        onShare();
+        onShare?.();
         return;
       case "patient.print_card":
-        onPrintPatientCard();
+        onPrintPatientCard?.();
         return;
     }
   }
@@ -164,6 +206,7 @@ export function PatientJourneyActions({
         <PatientJourneyActionButton
           key={action.id}
           action={action}
+          size={size}
           onClick={() => handleAction(action.id)}
         />
       ))}
@@ -173,9 +216,11 @@ export function PatientJourneyActions({
 
 function PatientJourneyActionButton({
   action,
+  size,
   onClick,
 }: {
   action: ResolvedClinicalJourneyAction;
+  size: PatientJourneyActionSize;
   onClick: () => void;
 }) {
   const disabled = !action.enabled;
@@ -186,6 +231,7 @@ function PatientJourneyActionButton({
       <ActionIcon
         variant="light"
         color={actionColor(action.intent)}
+        size={size}
         onClick={onClick}
         disabled={disabled}
         aria-label={action.label}
@@ -206,7 +252,7 @@ function PatientJourneyActionButton({
     <Button
       variant={actionVariant(action.intent)}
       color={actionColor(action.intent)}
-      size="sm"
+      size={size}
       leftSection={actionIcon(action.id)}
       onClick={onClick}
       disabled={disabled}
