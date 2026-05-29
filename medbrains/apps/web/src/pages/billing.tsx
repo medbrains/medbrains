@@ -95,6 +95,7 @@ import type {
   BillingPackage,
   BillingSummaryReport,
   ChargeMaster,
+  ClinicalJourneyContext,
   CopayCalculation,
   CorporateClient,
   CorporateEnrollment,
@@ -197,6 +198,7 @@ import {
 import { EmployeeSearchSelect } from "../components/EmployeeSearchSelect";
 import { PatientContextBanner } from "../components/Patient/PatientContextBanner";
 import { PatientFlowNavigator } from "../components/Patient/PatientFlowNavigator";
+import { PatientJourneyActions } from "../components/Patient/PatientJourneyActions";
 import { PatientNameCell } from "../components/PatientNameCell";
 import { PatientSearchSelect } from "../components/PatientSearchSelect";
 import { PaymentModal, type PaymentModalSettlement } from "../components/PaymentModal";
@@ -1035,6 +1037,11 @@ function InvoiceDetail({
   const inv = detail.invoice;
   const displayStatus = invoiceDisplayStatus(inv);
   const balance = invoiceBalance(inv);
+  const journeyContext: ClinicalJourneyContext = {
+    patientId: inv.patient_id,
+    activeEncounterId: inv.encounter_id,
+    activeOrderContext: inv.encounter_id ? "opd" : null,
+  };
   const canRecordPayment =
     canPay && (displayStatus === "issued" || displayStatus === "partially_paid") && balance > 0;
   const openPaymentForm = () => {
@@ -1101,7 +1108,29 @@ function InvoiceDetail({
         </Text>
       </Group>
       <PatientContextBanner patientId={inv.patient_id} hideLoadingState />
-      <PatientFlowNavigator patientId={inv.patient_id} active="billing" compact />
+      <PatientFlowNavigator
+        patientId={inv.patient_id}
+        active="billing"
+        activeEncounterId={inv.encounter_id}
+        compact
+      />
+      <Card withBorder padding="sm">
+        <Group justify="space-between" gap="sm" align="center">
+          <Stack gap={2}>
+            <Text size="xs" fw={700} c="dimmed" tt="uppercase">
+              Patient handoff
+            </Text>
+            <Text size="xs" c="dimmed">
+              Move from billing to clinical context, pharmacy, or follow-up without re-searching.
+            </Text>
+          </Stack>
+          <PatientJourneyActions
+            context={journeyContext}
+            hiddenActionIds={["billing.open_ledger"]}
+            size="xs"
+          />
+        </Group>
+      </Card>
       {(Number(inv.cgst_amount ?? 0) > 0 ||
         Number(inv.sgst_amount ?? 0) > 0 ||
         Number(inv.igst_amount ?? 0) > 0) && (
