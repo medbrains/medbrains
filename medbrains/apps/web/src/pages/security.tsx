@@ -60,10 +60,10 @@ import {
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Controller, useForm } from "react-hook-form";
-import { DataTable, PageHeader } from "../components";
-import type { Column } from "../components/DataTable";
-import { PatientNameCell } from "../components/PatientNameCell";
-import { PatientSearchSelect } from "../components/PatientSearchSelect";
+import { DataTable, PageHeader } from "@/components";
+import type { Column } from "@/components/DataTable";
+import { PatientNameCell } from "@/components/PatientNameCell";
+import { PatientSearchSelect } from "@/components/PatientSearchSelect";
 import {
   defaultSecurityAccessCardFormValues,
   defaultSecurityAccessLogFormValues,
@@ -79,9 +79,9 @@ import {
   securityIncidentFormToRequest,
   securityPatientTagFormToRequest,
   securityZoneFormToRequest,
-} from "../forms/security.form";
-import { useRequirePermission } from "../hooks/useRequirePermission";
-import { securityService } from "../services/security.service";
+} from "@/forms/security.form";
+import { useRequirePermission } from "@/hooks/useRequirePermission";
+import { securityService } from "@/services/security.service";
 
 // ── Constants ──────────────────────────────────────────
 

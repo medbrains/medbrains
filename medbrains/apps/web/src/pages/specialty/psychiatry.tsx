@@ -27,11 +27,11 @@ import { P } from "@medbrains/types";
 import { IconPencil, IconPlus, IconShieldOff } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { DataTable, PageHeader } from "../../components";
-import type { Column } from "../../components/DataTable";
-import { PatientNameCell } from "../../components/PatientNameCell";
-import { useRequirePermission } from "../../hooks/useRequirePermission";
-import { specialtyService } from "../../services/specialty.service";
+import { DataTable, PageHeader } from "@/components";
+import type { Column } from "@/components/DataTable";
+import { PatientNameCell } from "@/components/PatientNameCell";
+import { useRequirePermission } from "@/hooks/useRequirePermission";
+import { specialtyService } from "@/services/specialty.service";
 
 const ADMISSION_CATEGORIES: { value: PsychAdmissionCategory; label: string }[] = [
   { value: "independent", label: "Independent" },

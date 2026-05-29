@@ -21,15 +21,15 @@ import {
   DEFAULT_LOGIN_FORM_VALUES,
   type LoginFormInput,
   loginFormSchema,
-} from "../forms/login.form";
+} from "@/forms/login.form";
 import {
   defaultDesktopApiBase,
   getStoredDesktopApiBase,
   isTauriDesktopRuntime,
   normalizeDesktopApiBase,
   setStoredDesktopApiBase,
-} from "../lib/desktop-runtime";
-import { sessionService } from "../services/session.service";
+} from "@/lib/desktop-runtime";
+import { sessionService } from "@/services/session.service";
 import classes from "./login.module.scss";
 
 export function LoginPage() {

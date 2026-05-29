@@ -1,6 +1,6 @@
 import { IconInbox } from "@tabler/icons-react";
 import { describe, expect, it, vi } from "vitest";
-import { render, screen, userEvent } from "../test/test-utils";
+import { render, screen, userEvent } from "@/test/test-utils";
 import { EmptyState } from "./EmptyState";
 
 describe("EmptyState", () => {

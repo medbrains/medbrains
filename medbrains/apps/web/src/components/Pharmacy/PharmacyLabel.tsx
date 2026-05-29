@@ -7,13 +7,13 @@ import {
   foodTimingLabel,
   frequencyToDefaultSlots,
   parseInstructions,
-} from "../../lib/medication-timing-utils";
+} from "@/lib/medication-timing-utils";
 import {
   buildCopyPrintHtml,
   copyPrintStyles,
   PRINT_COPY_PACKETS,
   printCopyRouteLabel,
-} from "../../utils/printCopies";
+} from "@/utils/printCopies";
 import classes from "./pharmacy-dispensing.module.scss";
 
 interface PharmacyLabelProps {

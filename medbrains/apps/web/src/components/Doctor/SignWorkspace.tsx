@@ -36,7 +36,7 @@ import {
 } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { signoffService } from "../../services/signoff.service";
+import { signoffService } from "@/services/signoff.service";
 
 interface SignWorkspaceProps {
   opened: boolean;

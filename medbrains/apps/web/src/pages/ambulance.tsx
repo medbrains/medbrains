@@ -62,8 +62,8 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
-import { DataTable, PageHeader } from "../components";
-import type { Column } from "../components/DataTable";
+import { DataTable, PageHeader } from "@/components";
+import type { Column } from "@/components/DataTable";
 import {
   ambulanceFuelTypeOptions,
   ambulanceLicenseTypeOptions,
@@ -76,9 +76,9 @@ import {
   ambulanceTripTypeOptions,
   ambulanceTypeOptions,
   normalizeAmbulanceFuelType,
-} from "../forms/ambulance.form";
-import { useRequirePermission } from "../hooks/useRequirePermission";
-import { ambulanceService } from "../services/ambulance.service";
+} from "@/forms/ambulance.form";
+import { useRequirePermission } from "@/hooks/useRequirePermission";
+import { ambulanceService } from "@/services/ambulance.service";
 
 // ── Constants ───────────────────────────────────────────
 

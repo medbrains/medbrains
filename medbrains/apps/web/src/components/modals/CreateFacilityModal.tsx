@@ -7,7 +7,7 @@ import type { Facility } from "@medbrains/types";
 import { IconCheck } from "@tabler/icons-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Controller, useForm } from "react-hook-form";
-import { adminAccessService } from "../../services/adminAccess.service";
+import { adminAccessService } from "@/services/adminAccess.service";
 
 const FACILITY_TYPE_OPTIONS = [
   { value: "main_hospital", label: "Main Hospital" },

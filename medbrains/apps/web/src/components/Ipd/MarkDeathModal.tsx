@@ -18,8 +18,8 @@ import { useHasPermission } from "@medbrains/stores";
 import { type IpdMortalityCreate, P } from "@medbrains/types";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Controller, useForm } from "react-hook-form";
-import { clinicalActionsService } from "../../services/clinicalActions.service";
-import { Icd11CodeSelect } from "../Clinical/Icd11CodeSelect";
+import { Icd11CodeSelect } from "@/components/Clinical/Icd11CodeSelect";
+import { clinicalActionsService } from "@/services/clinicalActions.service";
 
 interface MarkDeathModalProps {
   admissionId: string;

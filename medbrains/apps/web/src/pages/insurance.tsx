@@ -49,10 +49,10 @@ import {
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { DataTable, PageHeader } from "../components";
-import { PatientNameCell } from "../components/PatientNameCell";
-import { useRequirePermission } from "../hooks/useRequirePermission";
-import { insuranceService } from "../services/insurance.service";
+import { DataTable, PageHeader } from "@/components";
+import { PatientNameCell } from "@/components/PatientNameCell";
+import { useRequirePermission } from "@/hooks/useRequirePermission";
+import { insuranceService } from "@/services/insurance.service";
 
 // ── Color maps ─────────────────────────────────────────
 

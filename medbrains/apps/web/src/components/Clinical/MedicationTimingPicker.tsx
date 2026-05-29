@@ -12,7 +12,7 @@ import {
   IconToolsKitchen2,
 } from "@tabler/icons-react";
 import { useEffect } from "react";
-import { frequencyToDefaultSlots } from "../../lib/medication-timing-utils";
+import { frequencyToDefaultSlots } from "@/lib/medication-timing-utils";
 import classes from "./medication-timing.module.scss";
 
 interface MedicationTimingPickerProps {

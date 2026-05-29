@@ -61,16 +61,16 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
-import { DataTable, PageHeader, StatCard } from "../components";
-import type { Column } from "../components/DataTable";
-import { useRequirePermission } from "../hooks/useRequirePermission";
+import { DataTable, PageHeader, StatCard } from "@/components";
+import type { Column } from "@/components/DataTable";
+import { useRequirePermission } from "@/hooks/useRequirePermission";
 import {
   type AssignTransportInput,
   type CreateAlertThresholdInput,
   type CreateTransportInput,
   commandCenterService,
   type UpdateAlertThresholdInput,
-} from "../services/commandCenter.service";
+} from "@/services/commandCenter.service";
 
 // ── Constants ──────────────────────────────────────────
 

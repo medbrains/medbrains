@@ -51,10 +51,10 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
-import { PageHeader } from "../components/PageHeader";
-import { useRequirePermission } from "../hooks/useRequirePermission";
-import { parseDate, toDateString, todayDateString } from "../lib/date-utils";
-import { appointmentsService } from "../services/appointments.service";
+import { PageHeader } from "@/components/PageHeader";
+import { useRequirePermission } from "@/hooks/useRequirePermission";
+import { parseDate, toDateString, todayDateString } from "@/lib/date-utils";
+import { appointmentsService } from "@/services/appointments.service";
 
 // ── Helpers ────────────────────────────────────────────────
 
@@ -898,9 +898,7 @@ export function AppointmentsPage() {
           <Text size="sm">
             Reschedule appointment for{" "}
             <Text span fw={600}>
-              {canViewPatientRecord
-                ? (rescheduleTarget?.patient_name ?? "Patient")
-                : "Restricted"}
+              {canViewPatientRecord ? (rescheduleTarget?.patient_name ?? "Patient") : "Restricted"}
             </Text>{" "}
             with Dr. {rescheduleTarget?.doctor_name}
           </Text>

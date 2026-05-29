@@ -23,7 +23,7 @@ import {
 import { IconChevronDown, IconChevronUp, IconClock, IconPlus } from "@tabler/icons-react";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { serializeTiming } from "../../lib/medication-timing-utils";
+import { serializeTiming } from "@/lib/medication-timing-utils";
 import { MedicationTimingPicker } from "./MedicationTimingPicker";
 
 export const FREQUENCIES = [

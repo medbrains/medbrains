@@ -3,7 +3,7 @@ import { IconAlertTriangle, IconHome, IconRefresh } from "@tabler/icons-react";
 import type { ErrorInfo, ReactNode } from "react";
 import { Component } from "react";
 import { useLocation } from "react-router";
-import { sessionService } from "../services/session.service";
+import { sessionService } from "@/services/session.service";
 
 type BoundaryState = {
   error: Error | null;

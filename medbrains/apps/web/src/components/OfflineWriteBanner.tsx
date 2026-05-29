@@ -9,7 +9,7 @@
  */
 
 import { Alert } from "@mantine/core";
-import { useTenantConfigOptional } from "../providers/TenantConfigProvider";
+import { useTenantConfigOptional } from "@/providers/TenantConfigProvider";
 
 interface OfflineWriteBannerProps {
   /** Short noun describing what's locked, e.g. "role permissions". */

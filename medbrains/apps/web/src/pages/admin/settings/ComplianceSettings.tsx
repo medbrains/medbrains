@@ -4,7 +4,7 @@ import type { ComplianceSettings as ComplianceFlags, TenantSettingsRow } from "@
 import { IconAlertTriangle, IconShieldCheck } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo } from "react";
-import { tenantSettingsService } from "../../../services/tenantSettings.service";
+import { tenantSettingsService } from "@/services/tenantSettings.service";
 
 const DEFAULT_COMPLIANCE: ComplianceFlags = {
   enforce_drug_scheduling: false,

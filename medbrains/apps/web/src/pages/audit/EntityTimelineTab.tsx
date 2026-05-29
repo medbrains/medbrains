@@ -22,7 +22,7 @@ import {
 } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { auditService } from "../../services/audit.service";
+import { auditService } from "@/services/audit.service";
 
 // ── Constants ──────────────────────────────────────────
 

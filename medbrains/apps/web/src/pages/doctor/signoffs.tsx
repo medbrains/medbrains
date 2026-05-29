@@ -9,10 +9,10 @@ import { P, type PendingSignoffEntry } from "@medbrains/types";
 import { IconAlertTriangle, IconClipboardCheck, IconSignature } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { SignWorkspace } from "../../components/Doctor/SignWorkspace";
-import { PageHeader } from "../../components/PageHeader";
-import { useRequirePermission } from "../../hooks/useRequirePermission";
-import { signoffService } from "../../services/signoff.service";
+import { SignWorkspace } from "@/components/Doctor/SignWorkspace";
+import { PageHeader } from "@/components/PageHeader";
+import { useRequirePermission } from "@/hooks/useRequirePermission";
+import { signoffService } from "@/services/signoff.service";
 
 export function SignoffsPage() {
   useRequirePermission(P.DOCTOR.SIGNOFFS.VIEW_OWN);

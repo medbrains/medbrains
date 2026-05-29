@@ -4,9 +4,9 @@ import { Badge, Card, Group, Stack, Text, Title, Tooltip } from "@mantine/core";
 import type { NabhIndicator } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
-import { PageHeader } from "../../components";
-import { useRequirePermission } from "../../hooks/useRequirePermission";
-import { reportsService } from "../../services/reports.service";
+import { PageHeader } from "@/components";
+import { useRequirePermission } from "@/hooks/useRequirePermission";
+import { reportsService } from "@/services/reports.service";
 
 const CATEGORY_LABELS: Record<string, { label: string; tone: string }> = {
   access: { label: "Access & flow", tone: "primary" },

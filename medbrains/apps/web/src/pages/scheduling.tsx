@@ -67,8 +67,8 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
-import { DataTable, PageHeader } from "../components";
-import type { Column } from "../components/DataTable";
+import { DataTable, PageHeader } from "@/components";
+import type { Column } from "@/components/DataTable";
 import {
   schedulingInteger,
   schedulingNumber,
@@ -77,9 +77,9 @@ import {
   schedulingResourceTypeOptions,
   toDateInputValue,
   toIsoDateInputValue,
-} from "../forms/scheduling.form";
-import { useRequirePermission } from "../hooks/useRequirePermission";
-import { schedulingService } from "../services/scheduling.service";
+} from "@/forms/scheduling.form";
+import { useRequirePermission } from "@/hooks/useRequirePermission";
+import { schedulingService } from "@/services/scheduling.service";
 
 // ── Constants ──────────────────────────────────────────
 

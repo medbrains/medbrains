@@ -11,7 +11,7 @@
 
 import { Badge, Group, Stack, Text, Textarea } from "@mantine/core";
 import { useEffect, useRef, useState } from "react";
-import { useNotesSource } from "../../hooks/useNotesSource";
+import { useNotesSource } from "@/hooks/useNotesSource";
 
 interface NotesPanelProps {
   patientId: string;

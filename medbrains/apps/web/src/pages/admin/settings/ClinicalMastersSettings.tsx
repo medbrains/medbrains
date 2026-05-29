@@ -43,7 +43,7 @@ import {
   type CreateMasterItemInput,
   clinicalMastersService,
   type UpdateMasterItemInput,
-} from "../../../services/clinicalMasters.service";
+} from "@/services/clinicalMasters.service";
 
 // ── Generic Master Item Modal ──────────────────────────────
 

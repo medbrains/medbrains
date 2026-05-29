@@ -9,8 +9,8 @@ import { IconAlertTriangle, IconCheck, IconUserPlus } from "@tabler/icons-react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { Controller, useForm } from "react-hook-form";
-import { type CreatePatientInput, patientsService } from "../../services/patients.service";
-import { useProtectedFieldAccess } from "../PermissionedFieldValue";
+import { useProtectedFieldAccess } from "@/components/PermissionedFieldValue";
+import { type CreatePatientInput, patientsService } from "@/services/patients.service";
 
 interface MiniRegisterPatientProps {
   searchText: string;

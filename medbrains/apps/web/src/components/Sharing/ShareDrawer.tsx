@@ -54,7 +54,7 @@ import { IconShare, IconShieldLock, IconUserCheck, IconUsersGroup } from "@table
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { Controller, useForm } from "react-hook-form";
-import { type SharingSubjects, sharingService } from "../../services/sharing.service";
+import { type SharingSubjects, sharingService } from "@/services/sharing.service";
 
 interface Props {
   opened: boolean;

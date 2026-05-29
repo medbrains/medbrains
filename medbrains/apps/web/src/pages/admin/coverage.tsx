@@ -23,9 +23,9 @@ import { notifications } from "@mantine/notifications";
 import { IconPlus, IconTrash, IconUserCheck } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { PageHeader } from "../../components/PageHeader";
-import { useRequirePermission } from "../../hooks/useRequirePermission";
-import { adminDoctorsService } from "../../services/adminDoctors.service";
+import { PageHeader } from "@/components/PageHeader";
+import { useRequirePermission } from "@/hooks/useRequirePermission";
+import { adminDoctorsService } from "@/services/adminDoctors.service";
 
 export function AdminCoveragePage() {
   useRequirePermission("admin.coverage.list");

@@ -33,7 +33,7 @@ import { buildPermissionTree, PERMISSIONS } from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { Controller, FormProvider, useForm, useFormContext } from "react-hook-form";
-import { adminAccessService } from "../../services/adminAccess.service";
+import { adminAccessService } from "@/services/adminAccess.service";
 
 interface Props {
   opened: boolean;

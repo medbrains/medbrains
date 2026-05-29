@@ -35,16 +35,16 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 
-import { PageHeader } from "../../components";
+import { PageHeader } from "@/components";
 import {
   accessGroupFormToRequest,
   accessGroupMemberFormToRequest,
   accessGroupRowToFormValues,
   defaultAccessGroupFormValues,
   defaultAccessGroupMemberFormValues,
-} from "../../forms/admin-groups.form";
-import { useRequirePermission } from "../../hooks/useRequirePermission";
-import { adminAccessService } from "../../services/adminAccess.service";
+} from "@/forms/admin-groups.form";
+import { useRequirePermission } from "@/hooks/useRequirePermission";
+import { adminAccessService } from "@/services/adminAccess.service";
 
 interface GroupRow {
   id: string;

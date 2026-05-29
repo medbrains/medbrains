@@ -28,7 +28,7 @@ import { useAuthStore } from "@medbrains/stores";
 import type { TenantSettingsRow } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
 import { createContext, type ReactNode, useContext, useMemo } from "react";
-import { tenantSettingsService } from "../services/tenantSettings.service";
+import { tenantSettingsService } from "@/services/tenantSettings.service";
 
 const DEVICE_ID_KEY = "medbrains-crdt-device-id";
 

@@ -36,9 +36,9 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 
-import { PageHeader } from "../../components";
-import { useRequirePermission } from "../../hooks/useRequirePermission";
-import { adminAccessService } from "../../services/adminAccess.service";
+import { PageHeader } from "@/components";
+import { useRequirePermission } from "@/hooks/useRequirePermission";
+import { adminAccessService } from "@/services/adminAccess.service";
 
 const STATUS_COLOR: Record<IamAccessRequest["status"], string> = {
   pending: "warning",

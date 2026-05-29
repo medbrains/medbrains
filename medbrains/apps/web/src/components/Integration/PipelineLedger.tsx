@@ -14,7 +14,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useNavigate } from "react-router";
-import { integrationService } from "../../services/integration.service";
+import { integrationService } from "@/services/integration.service";
 import s from "./PipelineLedger.module.scss";
 import { Sparkline } from "./Sparkline";
 

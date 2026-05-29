@@ -22,16 +22,16 @@ import { P } from "@medbrains/types";
 import { IconUserCog } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
-import { PageHeader } from "../../components/PageHeader";
+import { PageHeader } from "@/components/PageHeader";
 import {
   DEFAULT_DOCTOR_PROFILE_FORM_VALUES,
   type DoctorProfileFormInput,
   doctorProfileFormSchema,
   toDoctorProfileFormValues,
   toUpdateMyDoctorProfileRequest,
-} from "../../forms/doctor-profile.form";
-import { useRequirePermission } from "../../hooks/useRequirePermission";
-import { doctorService } from "../../services/doctor.service";
+} from "@/forms/doctor-profile.form";
+import { useRequirePermission } from "@/hooks/useRequirePermission";
+import { doctorService } from "@/services/doctor.service";
 
 export function DoctorProfilePage() {
   useRequirePermission(P.DOCTOR.PROFILE.VIEW_OWN);

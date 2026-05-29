@@ -28,9 +28,9 @@ import { useHasPermission } from "@medbrains/stores";
 import { P } from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { PageHeader } from "../../components";
-import { useRequirePermission } from "../../hooks/useRequirePermission";
-import { adminDevicesService, type PairingToken } from "../../services/adminDevices.service";
+import { PageHeader } from "@/components";
+import { useRequirePermission } from "@/hooks/useRequirePermission";
+import { adminDevicesService, type PairingToken } from "@/services/adminDevices.service";
 
 type AppVariant = "staff" | "tv" | "vendor";
 

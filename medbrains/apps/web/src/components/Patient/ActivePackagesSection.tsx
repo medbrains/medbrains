@@ -34,7 +34,7 @@ import { IconPackage, IconPlus, IconRefresh, IconShoppingBag } from "@tabler/ico
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
-import { patientPackagesService } from "../../services/patientPackages.service";
+import { patientPackagesService } from "@/services/patientPackages.service";
 
 interface ActivePackagesSectionProps {
   patientId: string;

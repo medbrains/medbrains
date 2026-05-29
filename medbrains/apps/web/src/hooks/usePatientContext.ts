@@ -4,7 +4,7 @@
 
 import type { PatientContext } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
-import { patientsService } from "../services/patients.service";
+import { patientsService } from "@/services/patients.service";
 
 export function patientContextQueryKey(patientId: string | null | undefined) {
   return ["patient-context", patientId] as const;

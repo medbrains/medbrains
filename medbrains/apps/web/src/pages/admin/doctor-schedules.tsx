@@ -44,11 +44,11 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import dayjs from "dayjs";
 import { useMemo, useState } from "react";
-import { PageHeader } from "../../components/PageHeader";
-import { useRequirePermission } from "../../hooks/useRequirePermission";
-import { nextOccurrence, toDateString } from "../../lib/date-utils";
-import { adminAccessService } from "../../services/adminAccess.service";
-import { schedulingService } from "../../services/scheduling.service";
+import { PageHeader } from "@/components/PageHeader";
+import { useRequirePermission } from "@/hooks/useRequirePermission";
+import { nextOccurrence, toDateString } from "@/lib/date-utils";
+import { adminAccessService } from "@/services/adminAccess.service";
+import { schedulingService } from "@/services/scheduling.service";
 
 // ── Helpers ────────────────────────────────────────────────
 

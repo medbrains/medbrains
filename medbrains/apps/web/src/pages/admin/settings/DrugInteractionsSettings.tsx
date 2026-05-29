@@ -25,8 +25,8 @@ import {
   DEFAULT_DRUG_INTERACTION_FORM_VALUES,
   DRUG_INTERACTION_SEVERITY_OPTIONS,
   toCreateDrugInteractionRequest,
-} from "../../../forms/clinical-settings.form";
-import { clinicalMastersService } from "../../../services/clinicalMasters.service";
+} from "@/forms/clinical-settings.form";
+import { clinicalMastersService } from "@/services/clinicalMasters.service";
 
 const SEVERITY_COLORS: Record<string, string> = {
   minor: "warning",

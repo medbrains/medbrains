@@ -4,7 +4,7 @@ import { P, type Vendor } from "@medbrains/types";
 import { IconPlus, IconTruck } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { procurementService } from "../services/procurement.service";
+import { procurementService } from "@/services/procurement.service";
 import { MiniAddVendor } from "./Procurement/MiniAddVendor";
 import { SearchOrCreate } from "./SearchOrCreate";
 

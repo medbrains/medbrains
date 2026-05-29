@@ -36,8 +36,8 @@ import type { ReactNode } from "react";
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Outlet, useLocation, useNavigate } from "react-router";
-import { AnimatedIcon } from "../components/AnimatedIcon";
-import { PageSkeleton } from "../components/PageSkeleton";
+import { AnimatedIcon } from "@/components/AnimatedIcon";
+import { PageSkeleton } from "@/components/PageSkeleton";
 import {
   APP_WORKSPACES,
   type AppWorkspaceConfig,
@@ -48,9 +48,9 @@ import {
   resolveIcon,
   WORKSPACE_STORAGE_KEY,
   workspaceHasPermission,
-} from "../config/navigation";
-import { preloadRoute } from "../lib/route-preload";
-import { sessionService } from "../services/session.service";
+} from "@/config/navigation";
+import { preloadRoute } from "@/lib/route-preload";
+import { sessionService } from "@/services/session.service";
 import classes from "./AppLayout.module.scss";
 
 // ── Resolved nav item (with ReactNode icon + label string) ──

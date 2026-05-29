@@ -4,7 +4,7 @@ import type { FieldAccessLevel, PharmacyCatalog } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import { fieldAccessText } from "@medbrains/utils";
 import { IconTrash } from "@tabler/icons-react";
-import { DrugSearchSelect } from "../DrugSearchSelect";
+import { DrugSearchSelect } from "@/components/DrugSearchSelect";
 
 export interface MedicineOrderLineValue {
   catalog_item_id?: string;

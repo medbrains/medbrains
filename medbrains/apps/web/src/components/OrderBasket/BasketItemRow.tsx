@@ -3,8 +3,8 @@ import { useHasPermission } from "@medbrains/stores";
 import type { BasketItem, BasketWarning } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import { IconAlertTriangle, IconTrash } from "@tabler/icons-react";
-import { instructionsDisplayText } from "../../lib/medication-timing-utils";
-import { DrugRxComposer } from "../inputs/DrugRxComposer";
+import { DrugRxComposer } from "@/components/inputs/DrugRxComposer";
+import { instructionsDisplayText } from "@/lib/medication-timing-utils";
 
 interface BasketItemRowProps {
   item: BasketItem;

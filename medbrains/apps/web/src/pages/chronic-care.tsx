@@ -65,12 +65,12 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
-import { DataTable, PageHeader } from "../components";
-import { Icd11CodeSelect } from "../components/Clinical/Icd11CodeSelect";
-import type { Column } from "../components/DataTable";
-import { PatientSearchSelect } from "../components/PatientSearchSelect";
-import { useRequirePermission } from "../hooks/useRequirePermission";
-import { chronicCareService } from "../services/chronicCare.service";
+import { DataTable, PageHeader } from "@/components";
+import { Icd11CodeSelect } from "@/components/Clinical/Icd11CodeSelect";
+import type { Column } from "@/components/DataTable";
+import { PatientSearchSelect } from "@/components/PatientSearchSelect";
+import { useRequirePermission } from "@/hooks/useRequirePermission";
+import { chronicCareService } from "@/services/chronicCare.service";
 
 // ── Constants ──────────────────────────────────────────
 

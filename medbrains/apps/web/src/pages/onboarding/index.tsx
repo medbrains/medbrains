@@ -15,7 +15,7 @@ import { IconArrowLeft, IconBuildingHospital } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useCallback, useRef, useState } from "react";
 import { useNavigate } from "react-router";
-import { onboardingService } from "../../services/onboarding.service";
+import { onboardingService } from "@/services/onboarding.service";
 
 import { AdminStep } from "./AdminStep";
 import { BedConfigStep } from "./BedConfigStep";

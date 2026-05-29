@@ -5,7 +5,7 @@ import { type LabTestCatalog, P } from "@medbrains/types";
 import { IconMicroscope } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { lookupsService } from "../services/lookups.service";
+import { lookupsService } from "@/services/lookups.service";
 import { MiniAddLabTest } from "./Lab/MiniAddLabTest";
 import { SearchOrCreate } from "./SearchOrCreate";
 

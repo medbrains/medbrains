@@ -3,7 +3,7 @@ import { useOnboardingStore } from "@medbrains/stores";
 import type { RegulatoryBody } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { onboardingService } from "../../services/onboarding.service";
+import { onboardingService } from "@/services/onboarding.service";
 import classes from "./onboarding.module.scss";
 
 interface Props {

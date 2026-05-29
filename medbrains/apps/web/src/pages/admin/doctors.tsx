@@ -62,10 +62,10 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
-import { PageHeader } from "../../components/PageHeader";
-import { usePacedQueryValue } from "../../hooks/usePacedQueryValue";
-import { useRequirePermission } from "../../hooks/useRequirePermission";
-import { adminDoctorsService } from "../../services/adminDoctors.service";
+import { PageHeader } from "@/components/PageHeader";
+import { usePacedQueryValue } from "@/hooks/usePacedQueryValue";
+import { useRequirePermission } from "@/hooks/useRequirePermission";
+import { adminDoctorsService } from "@/services/adminDoctors.service";
 
 export function AdminDoctorsPage() {
   useRequirePermission("admin.doctors.list");

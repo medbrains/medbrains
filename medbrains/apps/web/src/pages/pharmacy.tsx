@@ -119,21 +119,21 @@ import {
   StatusDot,
   TableValueBadge,
   useClinicalEmit,
-} from "../components";
-import { DrugSearchSelect } from "../components/DrugSearchSelect";
-import { PatientContextBanner } from "../components/Patient/PatientContextBanner";
-import { PatientFlowNavigator } from "../components/Patient/PatientFlowNavigator";
-import { PatientJourneyActions } from "../components/Patient/PatientJourneyActions";
-import { PatientNameCell } from "../components/PatientNameCell";
-import { PatientSearchSelect } from "../components/PatientSearchSelect";
-import { CreditNotesTab } from "../components/Pharmacy/CreditNotesTab";
+} from "@/components";
+import { DrugSearchSelect } from "@/components/DrugSearchSelect";
+import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
+import { PatientFlowNavigator } from "@/components/Patient/PatientFlowNavigator";
+import { PatientJourneyActions } from "@/components/Patient/PatientJourneyActions";
+import { PatientNameCell } from "@/components/PatientNameCell";
+import { PatientSearchSelect } from "@/components/PatientSearchSelect";
+import { CreditNotesTab } from "@/components/Pharmacy/CreditNotesTab";
 import {
   MedicineOrderLineCard,
   type MedicineOrderLineValue,
-} from "../components/Pharmacy/MedicineOrderLineCard";
-import { PharmacyDispensingView } from "../components/Pharmacy/PharmacyDispensingView";
-import { PharmacyLabel } from "../components/Pharmacy/PharmacyLabel";
-import { StoreIndentsTab } from "../components/Pharmacy/StoreIndentsTab";
+} from "@/components/Pharmacy/MedicineOrderLineCard";
+import { PharmacyDispensingView } from "@/components/Pharmacy/PharmacyDispensingView";
+import { PharmacyLabel } from "@/components/Pharmacy/PharmacyLabel";
+import { StoreIndentsTab } from "@/components/Pharmacy/StoreIndentsTab";
 import {
   awareCategoryOptions,
   drugScheduleOptions,
@@ -143,11 +143,11 @@ import {
   ndpsActionOptions,
   optionalFormText,
   pharmacyPosPaymentModeOptions,
-} from "../forms/pharmacy.form";
-import { usePatientName } from "../hooks/usePatientName";
-import { useRequirePermission } from "../hooks/useRequirePermission";
-import { instructionsDisplayText } from "../lib/medication-timing-utils";
-import { pharmacyService } from "../services/pharmacy.service";
+} from "@/forms/pharmacy.form";
+import { usePatientName } from "@/hooks/usePatientName";
+import { useRequirePermission } from "@/hooks/useRequirePermission";
+import { instructionsDisplayText } from "@/lib/medication-timing-utils";
+import { pharmacyService } from "@/services/pharmacy.service";
 import styles from "./pharmacy.module.scss";
 
 const statusColors: Record<string, string> = {

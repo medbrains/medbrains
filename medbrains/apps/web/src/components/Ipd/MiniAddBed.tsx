@@ -4,8 +4,8 @@ import type { AvailableBed } from "@medbrains/types";
 import { IconBed, IconCheck } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { ipdService } from "../../services/ipd.service";
-import { settingsSetupService } from "../../services/settingsSetup.service";
+import { ipdService } from "@/services/ipd.service";
+import { settingsSetupService } from "@/services/settingsSetup.service";
 
 interface MiniAddBedProps {
   searchText: string;

@@ -80,21 +80,21 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { useNavigate, useParams } from "react-router";
-import { PrescriptionViews } from "../components/Clinical";
-import { NotesPanel } from "../components/crdt/NotesPanel";
-import { DrugSearchSelect } from "../components/DrugSearchSelect";
+import { PrescriptionViews } from "@/components/Clinical";
+import { NotesPanel } from "@/components/crdt/NotesPanel";
+import { DrugSearchSelect } from "@/components/DrugSearchSelect";
 import {
   type OrderBasketTab,
   OrderBasketWorkspace,
-} from "../components/OrderBasket/OrderBasketWorkspace";
-import { PageHeader } from "../components/PageHeader";
-import { ActivePackagesSection } from "../components/Patient/ActivePackagesSection";
-import { PatientContextBanner } from "../components/Patient/PatientContextBanner";
-import { PatientFlowNavigator } from "../components/Patient/PatientFlowNavigator";
-import { PatientJourneyActions } from "../components/Patient/PatientJourneyActions";
-import { PatientNameCell } from "../components/PatientNameCell";
-import { PatientSearchSelect } from "../components/PatientSearchSelect";
-import { ShareDrawer } from "../components/Sharing/ShareDrawer";
+} from "@/components/OrderBasket/OrderBasketWorkspace";
+import { PageHeader } from "@/components/PageHeader";
+import { ActivePackagesSection } from "@/components/Patient/ActivePackagesSection";
+import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
+import { PatientFlowNavigator } from "@/components/Patient/PatientFlowNavigator";
+import { PatientJourneyActions } from "@/components/Patient/PatientJourneyActions";
+import { PatientNameCell } from "@/components/PatientNameCell";
+import { PatientSearchSelect } from "@/components/PatientSearchSelect";
+import { ShareDrawer } from "@/components/Sharing/ShareDrawer";
 import {
   DEFAULT_PATIENT_ALLERGY_FORM_VALUES,
   DEFAULT_PATIENT_DOCUMENT_FORM_VALUES,
@@ -108,11 +108,11 @@ import {
   toCreatePatientAllergyRequest,
   toCreatePatientDocumentRequest,
   toMergePatientRequest,
-} from "../forms/patient-detail.form";
-import { useHashTabs } from "../hooks/useHashTabs";
-import { useRequirePermission } from "../hooks/useRequirePermission";
-import { patientDetailService } from "../services/patientDetail.service";
-import { buildCopyPrintHtml, copyPrintStyles, PRINT_COPY_PACKETS } from "../utils/printCopies";
+} from "@/forms/patient-detail.form";
+import { useHashTabs } from "@/hooks/useHashTabs";
+import { useRequirePermission } from "@/hooks/useRequirePermission";
+import { patientDetailService } from "@/services/patientDetail.service";
+import { buildCopyPrintHtml, copyPrintStyles, PRINT_COPY_PACKETS } from "@/utils/printCopies";
 
 // ── Helpers ────────────────────────────────────────────────
 

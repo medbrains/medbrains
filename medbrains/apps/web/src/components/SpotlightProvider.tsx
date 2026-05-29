@@ -19,7 +19,7 @@ import {
 import { type ReactNode, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router";
-import { NAV_GROUPS, type NavItemConfig, resolveIcon } from "../config/navigation";
+import { NAV_GROUPS, type NavItemConfig, resolveIcon } from "@/config/navigation";
 import styles from "./SpotlightProvider.module.scss";
 
 interface SpotlightEntry {

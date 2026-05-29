@@ -58,16 +58,16 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
-import { DataTable, PageHeader } from "../components";
-import type { Column } from "../components/DataTable";
-import { DepartmentSelect } from "../components/DepartmentSelect";
-import { EmployeeSearchSelect } from "../components/EmployeeSearchSelect";
-import { PatientContextBanner } from "../components/Patient/PatientContextBanner";
-import { PatientSearchSelect } from "../components/PatientSearchSelect";
-import { useHashTabs } from "../hooks/useHashTabs";
-import { useRequirePermission } from "../hooks/useRequirePermission";
-import { mrdService } from "../services/mrd.service";
-import { PRINT_COPY_PACKETS, printCopyRouteLabel } from "../utils/printCopies";
+import { DataTable, PageHeader } from "@/components";
+import type { Column } from "@/components/DataTable";
+import { DepartmentSelect } from "@/components/DepartmentSelect";
+import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
+import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
+import { PatientSearchSelect } from "@/components/PatientSearchSelect";
+import { useHashTabs } from "@/hooks/useHashTabs";
+import { useRequirePermission } from "@/hooks/useRequirePermission";
+import { mrdService } from "@/services/mrd.service";
+import { PRINT_COPY_PACKETS, printCopyRouteLabel } from "@/utils/printCopies";
 
 // ── Helpers ──────────────────────────────────────────────
 

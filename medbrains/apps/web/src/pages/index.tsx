@@ -12,7 +12,7 @@ import {
 } from "@mantine/core";
 import type { HealthResponse } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
-import { sessionService } from "../services/session.service";
+import { sessionService } from "@/services/session.service";
 
 function StatusBadge({ label, status }: { label: string; status: string }) {
   const isConnected = status === "connected" || status === "ok";

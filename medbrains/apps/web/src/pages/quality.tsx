@@ -87,12 +87,12 @@ import {
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { DataTable, PageHeader } from "../components";
-import { Icd11CodeSelect } from "../components/Clinical/Icd11CodeSelect";
-import { DepartmentSelect } from "../components/DepartmentSelect";
-import { PatientSearchSelect } from "../components/PatientSearchSelect";
-import { useRequirePermission } from "../hooks/useRequirePermission";
-import { qualityService } from "../services/quality.service";
+import { DataTable, PageHeader } from "@/components";
+import { Icd11CodeSelect } from "@/components/Clinical/Icd11CodeSelect";
+import { DepartmentSelect } from "@/components/DepartmentSelect";
+import { PatientSearchSelect } from "@/components/PatientSearchSelect";
+import { useRequirePermission } from "@/hooks/useRequirePermission";
+import { qualityService } from "@/services/quality.service";
 import classes from "./quality.module.scss";
 
 // ── Color Maps ──────────────────────────────────────────

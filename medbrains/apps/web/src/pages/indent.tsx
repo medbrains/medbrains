@@ -73,11 +73,11 @@ import {
   PageHeader,
   StatusDot,
   useClinicalEmit,
-} from "../components";
-import { PatientNameCell } from "../components/PatientNameCell";
-import { PatientSearchSelect } from "../components/PatientSearchSelect";
-import { useRequirePermission } from "../hooks/useRequirePermission";
-import { indentService } from "../services/indent.service";
+} from "@/components";
+import { PatientNameCell } from "@/components/PatientNameCell";
+import { PatientSearchSelect } from "@/components/PatientSearchSelect";
+import { useRequirePermission } from "@/hooks/useRequirePermission";
+import { indentService } from "@/services/indent.service";
 
 type CreateIndentFormItem = CreateIndentItemInput & { row_key: string };
 

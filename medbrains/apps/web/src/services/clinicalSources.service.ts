@@ -1,5 +1,5 @@
 import { api } from "@medbrains/api";
-import type { TriageEntry, TriageEntryInput } from "../hooks/useTriageSource";
+import type { TriageEntry, TriageEntryInput } from "@/hooks/useTriageSource";
 
 interface NarrativeNotes {
   text: string;

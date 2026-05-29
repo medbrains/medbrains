@@ -43,17 +43,17 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useSearchParams } from "react-router";
-import { type Column, DataTable, PageHeader, StatusDot } from "../components";
-import { PatientJourneyActions } from "../components/Patient/PatientJourneyActions";
+import { type Column, DataTable, PageHeader, StatusDot } from "@/components";
+import { PatientJourneyActions } from "@/components/Patient/PatientJourneyActions";
 import {
   PatientRegisterForm,
   type PatientRegistrationLinkedServicesOptions,
-} from "../components/Patient/PatientRegisterForm";
-import { usePacedQueryValue } from "../hooks/usePacedQueryValue";
-import { useRequirePermission } from "../hooks/useRequirePermission";
-import { campService } from "../services/camp.service";
-import { opdService } from "../services/opd.service";
-import { patientsService } from "../services/patients.service";
+} from "@/components/Patient/PatientRegisterForm";
+import { usePacedQueryValue } from "@/hooks/usePacedQueryValue";
+import { useRequirePermission } from "@/hooks/useRequirePermission";
+import { campService } from "@/services/camp.service";
+import { opdService } from "@/services/opd.service";
+import { patientsService } from "@/services/patients.service";
 
 const PER_PAGE = 20;
 

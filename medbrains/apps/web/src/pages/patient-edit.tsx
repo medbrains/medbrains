@@ -4,10 +4,10 @@ import type { CreatePatientRequest, UpdatePatientRequest } from "@medbrains/type
 import { P } from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router";
-import { PageHeader } from "../components";
-import { PatientRegisterForm } from "../components/Patient/PatientRegisterForm";
-import { useRequirePermission } from "../hooks/useRequirePermission";
-import { patientsService } from "../services/patients.service";
+import { PageHeader } from "@/components";
+import { PatientRegisterForm } from "@/components/Patient/PatientRegisterForm";
+import { useRequirePermission } from "@/hooks/useRequirePermission";
+import { patientsService } from "@/services/patients.service";
 
 export function PatientEditPage() {
   useRequirePermission(P.PATIENTS.UPDATE);

@@ -2,7 +2,7 @@ import { Select } from "@mantine/core";
 import type { WardListRow } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
-import { lookupsService } from "../services/lookups.service";
+import { lookupsService } from "@/services/lookups.service";
 
 interface WardSelectProps {
   value: string;

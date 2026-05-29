@@ -18,7 +18,7 @@ import { IconArrowRight, IconHeartbeat, IconPlus, IconTrash } from "@tabler/icon
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router";
-import { tenantSettingsService } from "../../../services/tenantSettings.service";
+import { tenantSettingsService } from "@/services/tenantSettings.service";
 
 /* ------------------------------------------------------------------ */
 /*  Constants                                                          */

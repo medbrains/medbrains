@@ -39,7 +39,7 @@ import { IconAlertCircle, IconCheck, IconCloudOff, IconDeviceFloppy } from "@tab
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { Controller, useForm } from "react-hook-form";
-import { tenantSettingsService } from "../../../services/tenantSettings.service";
+import { tenantSettingsService } from "@/services/tenantSettings.service";
 
 const EMPTY_FORM: OfflineModeSettingsFormInput = {
   offlineMode: false,

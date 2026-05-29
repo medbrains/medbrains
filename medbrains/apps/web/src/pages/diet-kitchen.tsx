@@ -69,9 +69,9 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { useSearchParams } from "react-router";
-import { DataTable, PageHeader } from "../components";
-import { PatientContextBanner } from "../components/Patient/PatientContextBanner";
-import { PatientSearchSelect } from "../components/PatientSearchSelect";
+import { DataTable, PageHeader } from "@/components";
+import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
+import { PatientSearchSelect } from "@/components/PatientSearchSelect";
 import {
   dietOptionalInteger,
   dietOptionalNumber,
@@ -79,10 +79,10 @@ import {
   dietTypeOptions,
   kitchenAuditTypeOptions,
   mealTypeOptions,
-} from "../forms/diet-kitchen.form";
-import { usePatientContext } from "../hooks/usePatientContext";
-import { useRequirePermission } from "../hooks/useRequirePermission";
-import { dietKitchenService } from "../services/diet-kitchen.service";
+} from "@/forms/diet-kitchen.form";
+import { usePatientContext } from "@/hooks/usePatientContext";
+import { useRequirePermission } from "@/hooks/useRequirePermission";
+import { dietKitchenService } from "@/services/diet-kitchen.service";
 
 const ORDER_STATUS_COLORS: Record<string, string> = {
   active: "success",

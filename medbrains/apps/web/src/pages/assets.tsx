@@ -46,10 +46,10 @@ import {
   ipdContextFromSearchParams,
   PageHeader,
   TableValueBadge,
-} from "../components";
-import type { Column } from "../components/DataTable";
-import { useRequirePermission } from "../hooks/useRequirePermission";
-import { assetsService } from "../services/assets.service";
+} from "@/components";
+import type { Column } from "@/components/DataTable";
+import { useRequirePermission } from "@/hooks/useRequirePermission";
+import { assetsService } from "@/services/assets.service";
 
 const assetDomainOptions = assetDomainValues.map((value) => ({
   value,

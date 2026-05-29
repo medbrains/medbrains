@@ -22,8 +22,8 @@ import { IconCheck, IconHistory, IconList, IconSettings, IconX } from "@tabler/i
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
-import { type Column, DataTable } from "../components/DataTable";
-import { PageHeader } from "../components/PageHeader";
+import { type Column, DataTable } from "@/components/DataTable";
+import { PageHeader } from "@/components/PageHeader";
 import {
   DEFAULT_RETROSPECTIVE_REVIEW_FORM_VALUES,
   DEFAULT_RETROSPECTIVE_SETTINGS_FORM_VALUES,
@@ -34,9 +34,9 @@ import {
   toRetrospectiveReviewRequest,
   toRetrospectiveSettingsFormValues,
   toRetrospectiveSettingsRequest,
-} from "../forms/retrospective.form";
-import { useRequirePermission } from "../hooks/useRequirePermission";
-import { retrospectiveService } from "../services/retrospective.service";
+} from "@/forms/retrospective.form";
+import { useRequirePermission } from "@/hooks/useRequirePermission";
+import { retrospectiveService } from "@/services/retrospective.service";
 
 // ── Status badge helpers ──
 

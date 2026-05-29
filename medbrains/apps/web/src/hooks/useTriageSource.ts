@@ -9,8 +9,8 @@
 import { type CrdtConnectionStatus, useAppendOnlyCrdtList } from "@medbrains/crdt";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback } from "react";
-import { useTenantConfig } from "../providers/TenantConfigProvider";
-import { clinicalSourcesService } from "../services/clinicalSources.service";
+import { useTenantConfig } from "@/providers/TenantConfigProvider";
+import { clinicalSourcesService } from "@/services/clinicalSources.service";
 
 export interface TriageEntry extends Record<string, unknown> {
   ts: number;

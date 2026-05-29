@@ -64,11 +64,11 @@ import {
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { DataTable, PageHeader, StatusDot } from "../components";
-import { PatientNameCell } from "../components/PatientNameCell";
-import { PatientSearchSelect } from "../components/PatientSearchSelect";
-import { useRequirePermission } from "../hooks/useRequirePermission";
-import { bloodBankService } from "../services/bloodBank.service";
+import { DataTable, PageHeader, StatusDot } from "@/components";
+import { PatientNameCell } from "@/components/PatientNameCell";
+import { PatientSearchSelect } from "@/components/PatientSearchSelect";
+import { useRequirePermission } from "@/hooks/useRequirePermission";
+import { bloodBankService } from "@/services/bloodBank.service";
 
 type UpdateBbLookbackPayload = { id: string } & UpdateBbLookbackRequest;
 type UpdateBbCampaignPayload = { id: string } & UpdateBbCampaignRequest;

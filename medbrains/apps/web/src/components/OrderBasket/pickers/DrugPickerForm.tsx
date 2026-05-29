@@ -15,11 +15,11 @@ import { P } from "@medbrains/types";
 import { IconChevronDown, IconChevronUp, IconClock } from "@tabler/icons-react";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
-import { drugFrequencyOptions, formNumberOrFallback } from "../../../forms/orderBasket.form";
-import { serializeTiming } from "../../../lib/medication-timing-utils";
-import { MedicationTimingPicker } from "../../Clinical/MedicationTimingPicker";
-import { DrugRxComposer } from "../../inputs/DrugRxComposer";
-import { MedicineOrderLineCard } from "../../Pharmacy/MedicineOrderLineCard";
+import { MedicationTimingPicker } from "@/components/Clinical/MedicationTimingPicker";
+import { DrugRxComposer } from "@/components/inputs/DrugRxComposer";
+import { MedicineOrderLineCard } from "@/components/Pharmacy/MedicineOrderLineCard";
+import { drugFrequencyOptions, formNumberOrFallback } from "@/forms/orderBasket.form";
+import { serializeTiming } from "@/lib/medication-timing-utils";
 
 const ORDER_BASKET_FREQUENCY_OPTIONS = drugFrequencyOptions.map((option) => ({
   ...option,

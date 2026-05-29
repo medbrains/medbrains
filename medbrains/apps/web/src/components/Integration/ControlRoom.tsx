@@ -1,7 +1,7 @@
 import { Button } from "@mantine/core";
 import { IconAlertTriangle } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
-import { integrationService } from "../../services/integration.service";
+import { integrationService } from "@/services/integration.service";
 import s from "./ControlRoom.module.scss";
 
 /** Pulse stat cell with optional mini bar chart. */

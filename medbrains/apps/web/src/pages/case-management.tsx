@@ -66,9 +66,9 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
-import { DataTable, PageHeader } from "../components";
-import type { Column } from "../components/DataTable";
-import { PatientSearchSelect } from "../components/PatientSearchSelect";
+import { DataTable, PageHeader } from "@/components";
+import type { Column } from "@/components/DataTable";
+import { PatientSearchSelect } from "@/components/PatientSearchSelect";
 import {
   caseOptionalText,
   casePriorityOptions,
@@ -79,9 +79,9 @@ import {
   toCasePriorityFormValue,
   toCaseReferralStatusFormValue,
   toCaseStatusFormValue,
-} from "../forms/case-management.form";
-import { useRequirePermission } from "../hooks/useRequirePermission";
-import { caseManagementService } from "../services/case-management.service";
+} from "@/forms/case-management.form";
+import { useRequirePermission } from "@/hooks/useRequirePermission";
+import { caseManagementService } from "@/services/case-management.service";
 
 const STATUS_COLORS: Record<string, string> = {
   assigned: "primary",

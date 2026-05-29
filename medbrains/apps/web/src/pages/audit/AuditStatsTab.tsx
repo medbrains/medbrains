@@ -1,7 +1,7 @@
 import { Badge, Card, SimpleGrid, Stack, Table, Text } from "@mantine/core";
 import type { ActionCount, ModuleCount, UserActionCount } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
-import { auditService } from "../../services/audit.service";
+import { auditService } from "@/services/audit.service";
 
 // ── Constants ──────────────────────────────────────────
 

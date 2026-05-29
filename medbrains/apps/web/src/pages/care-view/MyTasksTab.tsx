@@ -4,9 +4,9 @@ import type { MedAdminItem, MyTasksResponse, NurseTaskItem } from "@medbrains/ty
 import { IconCheck } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { DataTable } from "../../components";
-import type { Column } from "../../components/DataTable";
-import { careViewService } from "../../services/careView.service";
+import { DataTable } from "@/components";
+import type { Column } from "@/components/DataTable";
+import { careViewService } from "@/services/careView.service";
 
 export function MyTasksTab({ wardId, canManage }: { wardId: string | null; canManage: boolean }) {
   const [segment, setSegment] = useState("medications");

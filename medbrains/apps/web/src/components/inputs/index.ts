@@ -7,9 +7,9 @@ export {
   detectPhoneCountryCode,
   formatPhoneWithCountryCode,
   normalizePhoneCountryCode,
+  type PhoneCountryOption,
   phoneCountryOptions,
   stripPhoneCountryCode,
-  type PhoneCountryOption,
 } from "./CountryPhoneInput";
 export { DrugRxComposer, type DrugToken } from "./DrugRxComposer";
 export { ShiftTimePicker } from "./ShiftTimePicker";

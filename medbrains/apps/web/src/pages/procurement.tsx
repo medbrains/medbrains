@@ -67,9 +67,9 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Controller, useFieldArray, useForm, useWatch } from "react-hook-form";
-import { DataTable, PageHeader, TableValueBadge, VendorSearchSelect } from "../components";
-import { useRequirePermission } from "../hooks/useRequirePermission";
-import { procurementService } from "../services/procurement.service";
+import { DataTable, PageHeader, TableValueBadge, VendorSearchSelect } from "@/components";
+import { useRequirePermission } from "@/hooks/useRequirePermission";
+import { procurementService } from "@/services/procurement.service";
 
 // ── Status colors ────────────────────────────────────────────
 

@@ -135,13 +135,13 @@ import {
   PageHeader,
   StatusDot,
   useClinicalEmit,
-} from "../components";
-import { Icd11CodeSelect } from "../components/Clinical/Icd11CodeSelect";
-import { EncounterSelect } from "../components/EncounterSelect";
-import { LabTestSearchSelect } from "../components/LabTestSearchSelect";
-import { PatientContextBanner } from "../components/Patient/PatientContextBanner";
-import { PatientNameCell } from "../components/PatientNameCell";
-import { PatientSearchSelect } from "../components/PatientSearchSelect";
+} from "@/components";
+import { Icd11CodeSelect } from "@/components/Clinical/Icd11CodeSelect";
+import { EncounterSelect } from "@/components/EncounterSelect";
+import { LabTestSearchSelect } from "@/components/LabTestSearchSelect";
+import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
+import { PatientNameCell } from "@/components/PatientNameCell";
+import { PatientSearchSelect } from "@/components/PatientSearchSelect";
 import {
   labB2bClientTypeOptions,
   labBethesdaCategoryOptions,
@@ -156,10 +156,10 @@ import {
   labOptionalNumber,
   labOptionalText,
   labSampleTypeOptions,
-} from "../forms/lab.form";
-import { useRequirePermission } from "../hooks/useRequirePermission";
-import { labService } from "../services/lab.service";
-import { buildCopyPrintHtml, copyPrintStyles, PRINT_COPY_PACKETS } from "../utils/printCopies";
+} from "@/forms/lab.form";
+import { useRequirePermission } from "@/hooks/useRequirePermission";
+import { labService } from "@/services/lab.service";
+import { buildCopyPrintHtml, copyPrintStyles, PRINT_COPY_PACKETS } from "@/utils/printCopies";
 
 const statusColors: Record<string, string> = {
   ordered: "primary",

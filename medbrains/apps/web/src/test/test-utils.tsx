@@ -3,7 +3,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { type RenderOptions, render } from "@testing-library/react";
 import type { ReactElement, ReactNode } from "react";
 import { MemoryRouter } from "react-router";
-import { cssVariableResolver, theme } from "../theme";
+import { cssVariableResolver, theme } from "@/theme";
 
 interface RenderWithRouteOptions extends Omit<RenderOptions, "wrapper"> {
   /** Initial pathname (e.g. "/patients/<uuid>") for MemoryRouter. */

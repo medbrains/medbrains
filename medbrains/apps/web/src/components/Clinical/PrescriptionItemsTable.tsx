@@ -3,7 +3,7 @@ import { useHasPermission } from "@medbrains/stores";
 import { P, type PharmacyCatalog, type PrescriptionItemInput } from "@medbrains/types";
 import { IconDeviceFloppy, IconPill, IconX } from "@tabler/icons-react";
 import { useTranslation } from "react-i18next";
-import { instructionsDisplayText } from "../../lib/medication-timing-utils";
+import { instructionsDisplayText } from "@/lib/medication-timing-utils";
 import styles from "./prescription-writer.module.scss";
 
 interface PrescriptionItemsTableProps {

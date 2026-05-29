@@ -21,7 +21,7 @@ import {
 } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { type DragEvent, useMemo, useState } from "react";
-import { integrationService } from "../../services/integration.service";
+import { integrationService } from "@/services/integration.service";
 
 const NODE_TYPE_ICONS: Record<PipelineNodeType, typeof IconBolt> = {
   trigger: IconBolt,

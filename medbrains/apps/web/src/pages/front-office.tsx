@@ -62,8 +62,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type ReactNode, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { useNavigate } from "react-router";
-import { DataTable, PageHeader, TableValueBadge } from "../components";
-import type { Column } from "../components/DataTable";
+import { DataTable, PageHeader, TableValueBadge } from "@/components";
+import type { Column } from "@/components/DataTable";
 import {
   DAY_OPTIONS,
   DEFAULT_DISPLAY_CONFIG_FORM_VALUES,
@@ -95,9 +95,9 @@ import {
   toUpsertVisitingHoursRequest,
   VISITOR_CATEGORY_OPTIONS,
   VISITOR_ID_TYPE_OPTIONS,
-} from "../forms/front-office.form";
-import { useRequirePermission } from "../hooks/useRequirePermission";
-import { frontOfficeService } from "../services/frontOffice.service";
+} from "@/forms/front-office.form";
+import { useRequirePermission } from "@/hooks/useRequirePermission";
+import { frontOfficeService } from "@/services/frontOffice.service";
 
 // ── Constants ──────────────────────────────────────────
 

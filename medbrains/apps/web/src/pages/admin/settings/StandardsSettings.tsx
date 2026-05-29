@@ -27,11 +27,11 @@ import {
 } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
-import { clinicalSupportService } from "../../../services/clinicalSupport.service";
-import { labCatalogService } from "../../../services/labCatalog.service";
-import { pharmacyCatalogService } from "../../../services/pharmacyCatalog.service";
-import { radiologyService } from "../../../services/radiology.service";
-import { standardsService } from "../../../services/standards.service";
+import { clinicalSupportService } from "@/services/clinicalSupport.service";
+import { labCatalogService } from "@/services/labCatalog.service";
+import { pharmacyCatalogService } from "@/services/pharmacyCatalog.service";
+import { radiologyService } from "@/services/radiology.service";
+import { standardsService } from "@/services/standards.service";
 
 type ReadinessStatus = "ready" | "partial" | "missing" | "blocked" | "loading";
 

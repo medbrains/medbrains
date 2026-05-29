@@ -16,7 +16,7 @@ import {
   copyPrintStyles,
   PRINT_COPY_PACKETS,
   printCopyRouteLabel,
-} from "../../utils/printCopies";
+} from "@/utils/printCopies";
 import styles from "./visit-summary-print.module.scss";
 
 interface VisitSummaryPrintProps {

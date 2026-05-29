@@ -9,7 +9,7 @@
  */
 
 import { expect, test } from "@playwright/test";
-import { NAV_GROUPS, type NavItemConfig } from "../../src/config/navigation";
+import { NAV_GROUPS, type NavItemConfig } from "@/config/navigation";
 import { navigateTo, routeApiDirect } from "../helpers";
 
 interface PageCase {

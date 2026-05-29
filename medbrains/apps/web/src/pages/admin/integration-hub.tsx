@@ -2,9 +2,9 @@ import { Alert, Badge, Card, Group, Stack, Table, Text } from "@mantine/core";
 import { P } from "@medbrains/types";
 import { IconInfoCircle } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
-import { PageHeader } from "../../components/PageHeader";
-import { useRequirePermission } from "../../hooks/useRequirePermission";
-import { integrationService } from "../../services/integration.service";
+import { PageHeader } from "@/components/PageHeader";
+import { useRequirePermission } from "@/hooks/useRequirePermission";
+import { integrationService } from "@/services/integration.service";
 
 export function IntegrationHubPage() {
   useRequirePermission(P.INTEGRATION.LIST);

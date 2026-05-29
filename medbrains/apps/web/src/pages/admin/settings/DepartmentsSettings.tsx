@@ -17,9 +17,9 @@ import type { DepartmentRow, WorkingHours } from "@medbrains/types";
 import { IconCheck, IconClock, IconPencil, IconPlus, IconTrash } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { CreateDepartmentModal, SelectLabel } from "../../../components";
-import { useCreateInline } from "../../../hooks/useCreateInline";
-import { settingsSetupService } from "../../../services/settingsSetup.service";
+import { CreateDepartmentModal, SelectLabel } from "@/components";
+import { useCreateInline } from "@/hooks/useCreateInline";
+import { settingsSetupService } from "@/services/settingsSetup.service";
 
 // ── Constants ─────────────────────────────────────────────
 

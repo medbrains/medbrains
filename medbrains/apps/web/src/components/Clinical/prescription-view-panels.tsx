@@ -6,7 +6,7 @@ import {
   frequencyToDefaultSlots,
   instructionsDisplayText,
   parseInstructions,
-} from "../../lib/medication-timing-utils";
+} from "@/lib/medication-timing-utils";
 
 // ── Shared types & helpers ─────────────────────────────────────
 

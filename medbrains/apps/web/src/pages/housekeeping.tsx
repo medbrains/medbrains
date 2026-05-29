@@ -74,12 +74,12 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
-import { DataTable, PageHeader } from "../components";
-import { useRequirePermission } from "../hooks/useRequirePermission";
+import { DataTable, PageHeader } from "@/components";
+import { useRequirePermission } from "@/hooks/useRequirePermission";
 import {
   type CreateBiowasteRecordInput,
   housekeepingService,
-} from "../services/housekeeping.service";
+} from "@/services/housekeeping.service";
 
 // ── Constants ──────────────────────────────────────────
 

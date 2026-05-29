@@ -59,10 +59,10 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useSearchParams } from "react-router";
-import { DataTable, IpdContextStrip, ipdContextFromSearchParams, PageHeader } from "../components";
-import type { Column } from "../components/DataTable";
-import { useRequirePermission } from "../hooks/useRequirePermission";
-import { facilitiesService } from "../services/facilities.service";
+import { DataTable, IpdContextStrip, ipdContextFromSearchParams, PageHeader } from "@/components";
+import type { Column } from "@/components/DataTable";
+import { useRequirePermission } from "@/hooks/useRequirePermission";
+import { facilitiesService } from "@/services/facilities.service";
 
 // ── Constants ──────────────────────────────────────────
 

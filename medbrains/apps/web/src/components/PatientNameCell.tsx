@@ -6,7 +6,7 @@ import {
   IconUserCheck,
   IconUserQuestion,
 } from "@tabler/icons-react";
-import { usePatientName } from "../hooks/usePatientName";
+import { usePatientName } from "@/hooks/usePatientName";
 import { PermissionedFieldValue, useProtectedFieldValue } from "./PermissionedFieldValue";
 import styles from "./patient-name-cell.module.scss";
 

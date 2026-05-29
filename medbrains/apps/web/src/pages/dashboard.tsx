@@ -34,9 +34,9 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router";
-import { PageHeader, StatCard } from "../components";
-import { useRequirePermission } from "../hooks/useRequirePermission";
-import { dashboardService } from "../services/dashboard.service";
+import { PageHeader, StatCard } from "@/components";
+import { useRequirePermission } from "@/hooks/useRequirePermission";
+import { dashboardService } from "@/services/dashboard.service";
 
 export function DashboardPage() {
   useRequirePermission(P.DASHBOARD.VIEW);

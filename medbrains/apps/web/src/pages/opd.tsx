@@ -156,16 +156,16 @@ import {
   useClinicalEmit,
   VisitSummaryPrint,
   VitalsRecorder,
-} from "../components";
-import { Icd11CodeSelect } from "../components/Clinical/Icd11CodeSelect";
-import { OrderBasketChip } from "../components/OrderBasket/OrderBasketChip";
+} from "@/components";
+import { Icd11CodeSelect } from "@/components/Clinical/Icd11CodeSelect";
+import { OrderBasketChip } from "@/components/OrderBasket/OrderBasketChip";
 import {
   type OrderBasketTab,
   OrderBasketWorkspace,
-} from "../components/OrderBasket/OrderBasketWorkspace";
-import { PatientContextBanner } from "../components/Patient/PatientContextBanner";
-import { PatientFlowNavigator } from "../components/Patient/PatientFlowNavigator";
-import { PatientJourneyActions } from "../components/Patient/PatientJourneyActions";
+} from "@/components/OrderBasket/OrderBasketWorkspace";
+import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
+import { PatientFlowNavigator } from "@/components/Patient/PatientFlowNavigator";
+import { PatientJourneyActions } from "@/components/Patient/PatientJourneyActions";
 import {
   DEFAULT_OPD_CONSENT_FORM_VALUES,
   DEFAULT_OPD_FEEDBACK_FORM_VALUES,
@@ -188,14 +188,14 @@ import {
   toCreateLabOrderRequest,
   toCreateProcedureOrderRequest,
   toCreateReminderRequest,
-} from "../forms/opd.form";
-import { useHashTabs } from "../hooks/useHashTabs";
-import { useRequirePermission } from "../hooks/useRequirePermission";
-import { useVitalsSource } from "../hooks/useVitalsSource";
-import { toDateString, todayDateString } from "../lib/date-utils";
-import { campService } from "../services/camp.service";
-import { mrdService } from "../services/mrd.service";
-import { opdService } from "../services/opd.service";
+} from "@/forms/opd.form";
+import { useHashTabs } from "@/hooks/useHashTabs";
+import { useRequirePermission } from "@/hooks/useRequirePermission";
+import { useVitalsSource } from "@/hooks/useVitalsSource";
+import { toDateString, todayDateString } from "@/lib/date-utils";
+import { campService } from "@/services/camp.service";
+import { mrdService } from "@/services/mrd.service";
+import { opdService } from "@/services/opd.service";
 
 const statusColors: Record<string, string> = {
   waiting: "primary",

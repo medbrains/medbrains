@@ -25,8 +25,8 @@ import {
   CLINICAL_PROTOCOL_CATEGORY_OPTIONS,
   DEFAULT_CLINICAL_PROTOCOL_FORM_VALUES,
   toCreateClinicalProtocolRequest,
-} from "../../../forms/clinical-settings.form";
-import { clinicalMastersService } from "../../../services/clinicalMasters.service";
+} from "@/forms/clinical-settings.form";
+import { clinicalMastersService } from "@/services/clinicalMasters.service";
 
 export function ClinicalProtocolsSettings() {
   const canManage = useHasPermission(P.ADMIN.SETTINGS.GENERAL.MANAGE);

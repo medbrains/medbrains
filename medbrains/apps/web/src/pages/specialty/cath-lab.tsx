@@ -27,13 +27,13 @@ import { P } from "@medbrains/types";
 import { IconPencil, IconPlus } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { DataTable, PageHeader } from "../../components";
-import type { Column } from "../../components/DataTable";
-import { EmployeeSearchSelect } from "../../components/EmployeeSearchSelect";
-import { PatientNameCell } from "../../components/PatientNameCell";
-import { PatientSearchSelect } from "../../components/PatientSearchSelect";
-import { useRequirePermission } from "../../hooks/useRequirePermission";
-import { specialtyService } from "../../services/specialty.service";
+import { DataTable, PageHeader } from "@/components";
+import type { Column } from "@/components/DataTable";
+import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
+import { PatientNameCell } from "@/components/PatientNameCell";
+import { PatientSearchSelect } from "@/components/PatientSearchSelect";
+import { useRequirePermission } from "@/hooks/useRequirePermission";
+import { specialtyService } from "@/services/specialty.service";
 
 const PROCEDURE_TYPES: { value: CathProcedureType; label: string }[] = [
   { value: "diagnostic_cath", label: "Diagnostic Catheterization" },

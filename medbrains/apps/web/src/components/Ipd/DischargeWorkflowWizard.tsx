@@ -9,7 +9,7 @@ import { Alert, Badge, Button, Card, Group, Stack, Text } from "@mantine/core";
 import { useHasPermission } from "@medbrains/stores";
 import { type IpdDischargeStep, type IpdDischargeWorkflow, P } from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ipdService } from "../../services/ipd.service";
+import { ipdService } from "@/services/ipd.service";
 
 const STEPS: { key: IpdDischargeStep; label: string; description: string }[] = [
   {

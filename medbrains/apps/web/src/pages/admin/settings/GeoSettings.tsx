@@ -11,8 +11,8 @@ import {
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { PinCodeInput } from "../../../components/PinCodeInput";
-import { tenantSettingsService } from "../../../services/tenantSettings.service";
+import { PinCodeInput } from "@/components/PinCodeInput";
+import { tenantSettingsService } from "@/services/tenantSettings.service";
 
 // ── GeoSettings ──────────────────────────────────────────
 

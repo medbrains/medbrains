@@ -13,7 +13,7 @@ import type {
 import { IconAlertTriangle, IconCheck, IconRocket } from "@tabler/icons-react";
 import { useMutation } from "@tanstack/react-query";
 import { useNavigate } from "react-router";
-import { onboardingService } from "../../services/onboarding.service";
+import { onboardingService } from "@/services/onboarding.service";
 import classes from "./onboarding.module.scss";
 
 interface Props {

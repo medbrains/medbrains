@@ -33,9 +33,9 @@ import {
 } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { PageHeader } from "../components";
-import { useRequirePermission } from "../hooks/useRequirePermission";
-import { lmsService } from "../services/lms.service";
+import { PageHeader } from "@/components";
+import { useRequirePermission } from "@/hooks/useRequirePermission";
+import { lmsService } from "@/services/lms.service";
 
 // ── Constants ──────────────────────────────────────────
 

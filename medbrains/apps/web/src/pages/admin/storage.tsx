@@ -26,13 +26,13 @@ import { P } from "@medbrains/types";
 import { IconArchive, IconChartDonut, IconHistory, IconSettings } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { DataTable, PageHeader } from "../../components";
-import { useRequirePermission } from "../../hooks/useRequirePermission";
+import { DataTable, PageHeader } from "@/components";
+import { useRequirePermission } from "@/hooks/useRequirePermission";
 import {
   type StoragePolicy as Policy,
   storageService,
   type StorageTransition as Transition,
-} from "../../services/storage.service";
+} from "@/services/storage.service";
 
 const TIER_TONE: Record<string, string> = {
   hot: "green",

@@ -84,11 +84,11 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { Controller, useForm, useWatch } from "react-hook-form";
 import { useSearchParams } from "react-router";
-import { DataTable, PageHeader, StatusDot } from "../components";
-import { DoctorSearchSelect } from "../components/DoctorSearchSelect";
-import { PatientContextBanner } from "../components/Patient/PatientContextBanner";
-import { PatientNameCell } from "../components/PatientNameCell";
-import { PatientSearchSelect } from "../components/PatientSearchSelect";
+import { DataTable, PageHeader, StatusDot } from "@/components";
+import { DoctorSearchSelect } from "@/components/DoctorSearchSelect";
+import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
+import { PatientNameCell } from "@/components/PatientNameCell";
+import { PatientSearchSelect } from "@/components/PatientSearchSelect";
 import {
   DEFAULT_OT_ANESTHESIA_RECORD_FORM_VALUES,
   DEFAULT_OT_BOOKING_FORM_VALUES,
@@ -125,9 +125,9 @@ import {
   toUpdateOtBookingStatusRequest,
   toUpdatePostopRecordRequest,
   toUpdatePreopAssessmentRequest,
-} from "../forms/ot.form";
-import { useRequirePermission } from "../hooks/useRequirePermission";
-import { otService } from "../services/ot.service";
+} from "@/forms/ot.form";
+import { useRequirePermission } from "@/hooks/useRequirePermission";
+import { otService } from "@/services/ot.service";
 
 const bookingStatusColors: Record<string, string> = {
   requested: "warning",

@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { NAV_GROUPS } from "../../src/config/navigation";
+import { NAV_GROUPS } from "@/config/navigation";
 import { installMockApi, seedMockSession } from "./mockApi";
 
 interface ModuleTarget {

@@ -197,14 +197,14 @@ import {
   PageHeader,
   StatusDot,
   useClinicalEmit,
-} from "../components";
-import { EmployeeSearchSelect } from "../components/EmployeeSearchSelect";
-import { PatientContextBanner } from "../components/Patient/PatientContextBanner";
-import { PatientFlowNavigator } from "../components/Patient/PatientFlowNavigator";
-import { PatientJourneyActions } from "../components/Patient/PatientJourneyActions";
-import { PatientNameCell } from "../components/PatientNameCell";
-import { PatientSearchSelect } from "../components/PatientSearchSelect";
-import { PaymentModal, type PaymentModalSettlement } from "../components/PaymentModal";
+} from "@/components";
+import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
+import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
+import { PatientFlowNavigator } from "@/components/Patient/PatientFlowNavigator";
+import { PatientJourneyActions } from "@/components/Patient/PatientJourneyActions";
+import { PatientNameCell } from "@/components/PatientNameCell";
+import { PatientSearchSelect } from "@/components/PatientSearchSelect";
+import { PaymentModal, type PaymentModalSettlement } from "@/components/PaymentModal";
 import {
   billingAdvancePurposeOptions,
   billingChargeSourceOptions,
@@ -225,15 +225,15 @@ import {
   billingServiceCategoryOptions,
   billingTdsQuarterOptions,
   billingTdsSectionOptions,
-} from "../forms/billing.form";
-import { useRequirePermission } from "../hooks/useRequirePermission";
-import { billingService } from "../services/billing.service";
+} from "@/forms/billing.form";
+import { useRequirePermission } from "@/hooks/useRequirePermission";
+import { billingService } from "@/services/billing.service";
 import {
   buildCopyPrintHtml,
   copyPrintStyles,
   PRINT_COPY_PACKETS,
   printCopyRouteLabel,
-} from "../utils/printCopies";
+} from "@/utils/printCopies";
 
 const statusColors: Record<string, string> = {
   draft: "slate",

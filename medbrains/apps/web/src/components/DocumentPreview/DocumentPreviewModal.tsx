@@ -6,7 +6,7 @@ import { P } from "@medbrains/types";
 import { IconBan, IconDownload, IconPrinter, IconSignature } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef } from "react";
-import { documentPreviewService } from "../../services/documentPreview.service";
+import { documentPreviewService } from "@/services/documentPreview.service";
 
 interface DocumentPreviewModalProps {
   opened: boolean;

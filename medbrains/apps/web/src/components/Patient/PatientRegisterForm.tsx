@@ -33,6 +33,17 @@ import { IconCalendarMonth } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
+import { Icd11CodeSelect } from "@/components/Clinical/Icd11CodeSelect";
+import { ClinicalForm, FormRow, FormSection } from "@/components/ClinicalForm";
+import {
+  AllergyField,
+  buildPhoneCountryOptions,
+  CountryPhoneInput,
+  defaultPhoneCountryCode,
+  detectPhoneCountryCode,
+  formatPhoneWithCountryCode,
+  stripPhoneCountryCode,
+} from "@/components/inputs";
 import {
   bloodGroupOptions,
   campReferenceLabel,
@@ -47,21 +58,10 @@ import {
   registrationSourceOptions,
   registrationTypeOptions,
   trimOrUndefined,
-} from "../../forms/patientRegistration.form";
-import { lookupsService } from "../../services/lookups.service";
-import { patientsService } from "../../services/patients.service";
-import { tenantSettingsService } from "../../services/tenantSettings.service";
-import { Icd11CodeSelect } from "../Clinical/Icd11CodeSelect";
-import { ClinicalForm, FormRow, FormSection } from "../ClinicalForm";
-import {
-  AllergyField,
-  buildPhoneCountryOptions,
-  CountryPhoneInput,
-  defaultPhoneCountryCode,
-  detectPhoneCountryCode,
-  formatPhoneWithCountryCode,
-  stripPhoneCountryCode,
-} from "../inputs";
+} from "@/forms/patientRegistration.form";
+import { lookupsService } from "@/services/lookups.service";
+import { patientsService } from "@/services/patients.service";
+import { tenantSettingsService } from "@/services/tenantSettings.service";
 import { AbhaLinkPanel } from "./AbhaLinkPanel";
 
 interface PatientRegisterFormProps {

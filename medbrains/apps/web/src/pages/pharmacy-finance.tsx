@@ -28,9 +28,9 @@ import { fieldAccessText } from "@medbrains/utils";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
-import { PageHeader } from "../components";
-import { useRequirePermission } from "../hooks/useRequirePermission";
-import { pharmacyFinanceService } from "../services/pharmacyFinance.service";
+import { PageHeader } from "@/components";
+import { useRequirePermission } from "@/hooks/useRequirePermission";
+import { pharmacyFinanceService } from "@/services/pharmacyFinance.service";
 
 interface CashDrawerRow {
   id: string;

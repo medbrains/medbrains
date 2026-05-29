@@ -5,9 +5,9 @@ import type { AccessLogEntry, AccessLogQuery } from "@medbrains/types";
 import { IconSearch } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { DataTable } from "../../components";
-import type { Column } from "../../components/DataTable";
-import { auditService } from "../../services/audit.service";
+import { DataTable } from "@/components";
+import type { Column } from "@/components/DataTable";
+import { auditService } from "@/services/audit.service";
 
 // ── Constants ──────────────────────────────────────────
 

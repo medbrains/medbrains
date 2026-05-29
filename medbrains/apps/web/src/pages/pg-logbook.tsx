@@ -26,10 +26,10 @@ import { P } from "@medbrains/types";
 import { IconBook, IconCheck, IconPlus } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { PageHeader } from "../components";
-import { Icd11CodeSelect } from "../components/Clinical/Icd11CodeSelect";
-import { useRequirePermission } from "../hooks/useRequirePermission";
-import { pgLogbookService } from "../services/pgLogbook.service";
+import { PageHeader } from "@/components";
+import { Icd11CodeSelect } from "@/components/Clinical/Icd11CodeSelect";
+import { useRequirePermission } from "@/hooks/useRequirePermission";
+import { pgLogbookService } from "@/services/pgLogbook.service";
 
 const ENTRY_TYPES = [
   { value: "case", label: "Case" },

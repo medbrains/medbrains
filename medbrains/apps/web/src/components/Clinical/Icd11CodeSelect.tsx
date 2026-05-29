@@ -1,15 +1,15 @@
 import {
-  Loader,
-  Select,
   type ComboboxData,
   type ComboboxItem,
+  Loader,
+  Select,
   type SelectProps,
 } from "@mantine/core";
 import type { TerminologySearchResult } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { usePacedQueryValue } from "../../hooks/usePacedQueryValue";
-import { clinicalSupportService } from "../../services/clinicalSupport.service";
+import { usePacedQueryValue } from "@/hooks/usePacedQueryValue";
+import { clinicalSupportService } from "@/services/clinicalSupport.service";
 
 function isIcd11CodeFragment(value: string) {
   const query = value.trim();

@@ -23,10 +23,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { useNavigate } from "react-router";
-import { PageHeader } from "../../components";
-import { OfflineWriteBanner } from "../../components/OfflineWriteBanner";
-import { useRequirePermission } from "../../hooks/useRequirePermission";
-import { adminAccessService } from "../../services/adminAccess.service";
+import { PageHeader } from "@/components";
+import { OfflineWriteBanner } from "@/components/OfflineWriteBanner";
+import { useRequirePermission } from "@/hooks/useRequirePermission";
+import { adminAccessService } from "@/services/adminAccess.service";
 
 // ── Edit Role Modal ────────────────────────────────────────
 

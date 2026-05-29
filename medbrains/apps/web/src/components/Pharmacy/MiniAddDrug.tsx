@@ -12,7 +12,7 @@ import { Controller, useForm } from "react-hook-form";
 import {
   type CreatePharmacyCatalogInput,
   pharmacyCatalogService,
-} from "../../services/pharmacyCatalog.service";
+} from "@/services/pharmacyCatalog.service";
 
 interface MiniAddDrugProps {
   searchText: string;

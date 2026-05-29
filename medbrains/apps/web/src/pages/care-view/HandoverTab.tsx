@@ -3,7 +3,7 @@ import type { HandoverSummaryResponse } from "@medbrains/types";
 import { IconClipboardList, IconPrinter } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { careViewService } from "../../services/careView.service";
+import { careViewService } from "@/services/careView.service";
 import { SHIFTS } from "./shared";
 
 export function HandoverTab({ wardId }: { wardId: string | null }) {

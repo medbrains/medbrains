@@ -44,8 +44,8 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { instructionsDisplayText } from "../../lib/medication-timing-utils";
-import { clinicalSupportService } from "../../services/clinicalSupport.service";
+import { instructionsDisplayText } from "@/lib/medication-timing-utils";
+import { clinicalSupportService } from "@/services/clinicalSupport.service";
 import { PrescriptionItemEntry } from "./PrescriptionItemEntry";
 import { PrescriptionItemsTable } from "./PrescriptionItemsTable";
 import { PrescriptionTemplateModal } from "./PrescriptionTemplateModal";

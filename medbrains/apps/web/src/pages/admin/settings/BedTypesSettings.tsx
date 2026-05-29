@@ -20,7 +20,7 @@ import { IconCheck, IconPencil, IconPlus, IconTrash } from "@tabler/icons-react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
-import { settingsSetupService } from "../../../services/settingsSetup.service";
+import { settingsSetupService } from "@/services/settingsSetup.service";
 
 const EMPTY_FORM: BedTypeSettingsFormInput = {
   code: "",

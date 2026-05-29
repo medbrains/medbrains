@@ -50,10 +50,10 @@ import {
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { DataTable, PageHeader } from "../components";
-import { EmployeeSearchSelect } from "../components/EmployeeSearchSelect";
-import { useRequirePermission } from "../hooks/useRequirePermission";
-import { hrService } from "../services/hr.service";
+import { DataTable, PageHeader } from "@/components";
+import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
+import { useRequirePermission } from "@/hooks/useRequirePermission";
+import { hrService } from "@/services/hr.service";
 
 // ── Status colors ────────────────────────────────────────────
 

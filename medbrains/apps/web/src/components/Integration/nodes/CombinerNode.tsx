@@ -1,6 +1,6 @@
 import { Select, Text } from "@mantine/core";
 import { Handle, type NodeProps, Position } from "@xyflow/react";
-import type { CombinerNodeData } from "../mapperSync";
+import type { CombinerNodeData } from "@/components/Integration/mapperSync";
 
 const COMBINE_OPTIONS = [
   { value: "concat", label: "Concat" },

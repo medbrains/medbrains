@@ -66,11 +66,11 @@ import {
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { DataTable, PageHeader } from "../components";
-import { DoctorSearchSelect } from "../components/DoctorSearchSelect";
-import { PatientSearchSelect } from "../components/PatientSearchSelect";
-import { useRequirePermission } from "../hooks/useRequirePermission";
-import { regulatoryService } from "../services/regulatory.service";
+import { DataTable, PageHeader } from "@/components";
+import { DoctorSearchSelect } from "@/components/DoctorSearchSelect";
+import { PatientSearchSelect } from "@/components/PatientSearchSelect";
+import { useRequirePermission } from "@/hooks/useRequirePermission";
+import { regulatoryService } from "@/services/regulatory.service";
 
 const severityColors: Record<string, string> = {
   mild: "primary",

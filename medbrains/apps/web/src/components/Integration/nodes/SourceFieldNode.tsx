@@ -1,6 +1,6 @@
 import { Badge, Text } from "@mantine/core";
 import { Handle, type NodeProps, Position } from "@xyflow/react";
-import type { SourceFieldNodeData } from "../mapperSync";
+import type { SourceFieldNodeData } from "@/components/Integration/mapperSync";
 
 export function SourceFieldNode({ data, selected }: NodeProps) {
   const nodeData = data as unknown as SourceFieldNodeData;

@@ -8,7 +8,7 @@ import {
   copyPrintStyles,
   PRINT_COPY_PACKETS,
   printCopyRouteLabel,
-} from "../../utils/printCopies";
+} from "@/utils/printCopies";
 import styles from "./prescription-print.module.scss";
 
 interface PrescriptionPrintProps {

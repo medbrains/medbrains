@@ -115,15 +115,15 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useParams, useSearchParams } from "react-router";
-import { DataTable, PageHeader, TableValueBadge } from "../components";
-import { BedSelect } from "../components/BedSelect";
-import { TriagePanel } from "../components/crdt/TriagePanel";
-import { DoctorSearchSelect } from "../components/DoctorSearchSelect";
-import { PatientContextBanner } from "../components/Patient/PatientContextBanner";
-import { PatientFlowNavigator } from "../components/Patient/PatientFlowNavigator";
-import { PatientJourneyActions } from "../components/Patient/PatientJourneyActions";
-import { PatientNameCell } from "../components/PatientNameCell";
-import { PatientSearchSelect } from "../components/PatientSearchSelect";
+import { DataTable, PageHeader, TableValueBadge } from "@/components";
+import { BedSelect } from "@/components/BedSelect";
+import { TriagePanel } from "@/components/crdt/TriagePanel";
+import { DoctorSearchSelect } from "@/components/DoctorSearchSelect";
+import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
+import { PatientFlowNavigator } from "@/components/Patient/PatientFlowNavigator";
+import { PatientJourneyActions } from "@/components/Patient/PatientJourneyActions";
+import { PatientNameCell } from "@/components/PatientNameCell";
+import { PatientSearchSelect } from "@/components/PatientSearchSelect";
 import {
   emergencyArrivalModeOptions,
   emergencyCodeDeactivateOutcomeOptions,
@@ -137,21 +137,21 @@ import {
   emergencyOptionalInteger,
   emergencyOptionalText,
   emergencyResuscitationLogTypeOptions,
-} from "../forms/emergency.form";
-import { useRequirePermission } from "../hooks/useRequirePermission";
+} from "@/forms/emergency.form";
+import { useRequirePermission } from "@/hooks/useRequirePermission";
 import {
   type ConfirmPoliceReceiptInput,
   type CreateMlcDocumentInput,
   type CreatePoliceIntimationInput,
   emergencyService,
-} from "../services/emergency.service";
+} from "@/services/emergency.service";
 import {
   buildCopyPrintHtml,
   copyPrintStyles,
   PRINT_COPY_PACKETS,
   type PrintCopyRoute,
   printCopyRouteLabel,
-} from "../utils/printCopies";
+} from "@/utils/printCopies";
 
 const CRASH_CART_ITEMS = [
   { key: "defibrillator_present", label: "Defibrillator present and functional" },

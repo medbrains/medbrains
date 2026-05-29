@@ -27,9 +27,9 @@ import {
 } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router";
-import { PageHeader } from "../../components/PageHeader";
-import { useRequirePermission } from "../../hooks/useRequirePermission";
-import { doctorService } from "../../services/doctor.service";
+import { PageHeader } from "@/components/PageHeader";
+import { useRequirePermission } from "@/hooks/useRequirePermission";
+import { doctorService } from "@/services/doctor.service";
 
 export function MyDayPage() {
   useRequirePermission(P.DOCTOR.DASHBOARD.VIEW_OWN);

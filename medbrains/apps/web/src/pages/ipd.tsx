@@ -139,25 +139,25 @@ import {
   PrescriptionViews,
   StatusDot,
   useClinicalEmit,
-} from "../components";
-import { BedSelect } from "../components/BedSelect";
-import { DepartmentSelect } from "../components/DepartmentSelect";
-import { DoctorSearchSelect } from "../components/DoctorSearchSelect";
-import { DamaModal } from "../components/Ipd/DamaModal";
-import { DischargeWorkflowWizard } from "../components/Ipd/DischargeWorkflowWizard";
-import { MarkDeathModal } from "../components/Ipd/MarkDeathModal";
-import { TransferOutModal } from "../components/Ipd/TransferOutModal";
-import { WristbandPrintModal } from "../components/Ipd/WristbandPrintModal";
+} from "@/components";
+import { BedSelect } from "@/components/BedSelect";
+import { DepartmentSelect } from "@/components/DepartmentSelect";
+import { DoctorSearchSelect } from "@/components/DoctorSearchSelect";
+import { DamaModal } from "@/components/Ipd/DamaModal";
+import { DischargeWorkflowWizard } from "@/components/Ipd/DischargeWorkflowWizard";
+import { MarkDeathModal } from "@/components/Ipd/MarkDeathModal";
+import { TransferOutModal } from "@/components/Ipd/TransferOutModal";
+import { WristbandPrintModal } from "@/components/Ipd/WristbandPrintModal";
 import {
   type OrderBasketTab,
   OrderBasketWorkspace,
-} from "../components/OrderBasket/OrderBasketWorkspace";
-import { PatientContextBanner } from "../components/Patient/PatientContextBanner";
-import { PatientFlowNavigator } from "../components/Patient/PatientFlowNavigator";
-import { PatientJourneyActions } from "../components/Patient/PatientJourneyActions";
-import { PatientSearchSelect } from "../components/PatientSearchSelect";
-import { WardSelect } from "../components/WardSelect";
-import { ALL_TEMPLATES, type ChecklistTemplate } from "../data/checklist-templates";
+} from "@/components/OrderBasket/OrderBasketWorkspace";
+import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
+import { PatientFlowNavigator } from "@/components/Patient/PatientFlowNavigator";
+import { PatientJourneyActions } from "@/components/Patient/PatientJourneyActions";
+import { PatientSearchSelect } from "@/components/PatientSearchSelect";
+import { WardSelect } from "@/components/WardSelect";
+import { ALL_TEMPLATES, type ChecklistTemplate } from "@/data/checklist-templates";
 import {
   bradenRiskLevel,
   calculateBradenTotal,
@@ -181,17 +181,17 @@ import {
   toCreateAssessmentRequest,
   toCreateAttenderRequest,
   toCreateProgressNoteRequest,
-} from "../forms/ipd.form";
-import { useHashTabs } from "../hooks/useHashTabs";
-import { useRequirePermission } from "../hooks/useRequirePermission";
-import { ipdService } from "../services/ipd.service";
-import { mrdService } from "../services/mrd.service";
+} from "@/forms/ipd.form";
+import { useHashTabs } from "@/hooks/useHashTabs";
+import { useRequirePermission } from "@/hooks/useRequirePermission";
+import { ipdService } from "@/services/ipd.service";
+import { mrdService } from "@/services/mrd.service";
 import {
   buildCopyPrintHtml,
   copyPrintStyles,
   PRINT_COPY_PACKETS,
   printCopyRouteLabel,
-} from "../utils/printCopies";
+} from "@/utils/printCopies";
 
 const statusColors: Record<string, string> = {
   admitted: "success",

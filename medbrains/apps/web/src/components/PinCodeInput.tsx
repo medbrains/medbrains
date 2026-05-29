@@ -3,7 +3,7 @@ import type { PincodeResult } from "@medbrains/types";
 import { IconMapPin, IconSearch } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { lookupsService } from "../services/lookups.service";
+import { lookupsService } from "@/services/lookups.service";
 
 interface PinCodeInputProps {
   /** Called when the user selects a result row. */

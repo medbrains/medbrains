@@ -29,12 +29,12 @@ import { P } from "@medbrains/types";
 import { IconPlus } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { DataTable, PageHeader } from "../../components";
-import type { Column } from "../../components/DataTable";
-import { PatientNameCell } from "../../components/PatientNameCell";
-import { PatientSearchSelect } from "../../components/PatientSearchSelect";
-import { useRequirePermission } from "../../hooks/useRequirePermission";
-import { specialtyService } from "../../services/specialty.service";
+import { DataTable, PageHeader } from "@/components";
+import type { Column } from "@/components/DataTable";
+import { PatientNameCell } from "@/components/PatientNameCell";
+import { PatientSearchSelect } from "@/components/PatientSearchSelect";
+import { useRequirePermission } from "@/hooks/useRequirePermission";
+import { specialtyService } from "@/services/specialty.service";
 
 export function OtherSpecialtiesPage() {
   useRequirePermission(P.SPECIALTY.OTHER.RECORDS_LIST);

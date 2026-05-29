@@ -3,7 +3,7 @@ import { notifications } from "@mantine/notifications";
 import { useOnboardingStore } from "@medbrains/stores";
 import { IconCheck, IconDatabase } from "@tabler/icons-react";
 import { useState } from "react";
-import { onboardingService } from "../../services/onboarding.service";
+import { onboardingService } from "@/services/onboarding.service";
 import classes from "./onboarding.module.scss";
 
 interface Props {

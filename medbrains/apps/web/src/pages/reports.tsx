@@ -36,12 +36,12 @@ import {
 } from "@tabler/icons-react";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { type ComponentType, useMemo, useState } from "react";
-import { PageHeader } from "../components";
-import { NabhIndicatorMatrix } from "../components/Reports/NabhIndicatorMatrix";
-import { type EChartsCoreOption, ReportChart } from "../components/Reports/ReportChart";
-import { ReportDetailPanel } from "../components/Reports/ReportDetailPanel";
-import { useRequirePermission } from "../hooks/useRequirePermission";
-import { reportsService } from "../services/reports.service";
+import { PageHeader } from "@/components";
+import { NabhIndicatorMatrix } from "@/components/Reports/NabhIndicatorMatrix";
+import { type EChartsCoreOption, ReportChart } from "@/components/Reports/ReportChart";
+import { ReportDetailPanel } from "@/components/Reports/ReportDetailPanel";
+import { useRequirePermission } from "@/hooks/useRequirePermission";
+import { reportsService } from "@/services/reports.service";
 import styles from "./reports.module.scss";
 
 type ReportPriority = "P1" | "P2" | "P3";

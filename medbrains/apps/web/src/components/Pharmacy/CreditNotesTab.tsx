@@ -30,11 +30,11 @@ import { fieldAccessText } from "@medbrains/utils";
 import { IconCheck, IconLock, IconPlus, IconSearch, IconTrash, IconX } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { pharmacyService } from "../../services/pharmacy.service";
-import { DataTable } from "../DataTable";
-import { PatientNameCell } from "../PatientNameCell";
-import { PatientSearchSelect } from "../PatientSearchSelect";
-import { VendorSearchSelect } from "../VendorSearchSelect";
+import { DataTable } from "@/components/DataTable";
+import { PatientNameCell } from "@/components/PatientNameCell";
+import { PatientSearchSelect } from "@/components/PatientSearchSelect";
+import { VendorSearchSelect } from "@/components/VendorSearchSelect";
+import { pharmacyService } from "@/services/pharmacy.service";
 
 const statusColors: Record<PharmacyCreditNoteStatus, string> = {
   draft: "gray",

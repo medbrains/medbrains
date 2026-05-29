@@ -11,12 +11,12 @@ import {
 } from "@mantine/core";
 import { P } from "@medbrains/types";
 import { IconFileTypeXml } from "@tabler/icons-react";
-import chestXrayPaDemoDicom from "../assets/demo-dicom/chest-xray-pa-demo.dcm?url";
-import ctBrainPlainDemoDicom from "../assets/demo-dicom/ct-brain-plain-demo.dcm?url";
-import leftHandXrayDemoDicom from "../assets/demo-dicom/left-hand-xray-demo.dcm?url";
-import mriRightKneeDemoDicom from "../assets/demo-dicom/mri-right-knee-demo.dcm?url";
-import usAbdomenDemoDicom from "../assets/demo-dicom/us-abdomen-demo.dcm?url";
-import { useRequirePermission } from "../hooks/useRequirePermission";
+import chestXrayPaDemoDicom from "@/assets/demo-dicom/chest-xray-pa-demo.dcm?url";
+import ctBrainPlainDemoDicom from "@/assets/demo-dicom/ct-brain-plain-demo.dcm?url";
+import leftHandXrayDemoDicom from "@/assets/demo-dicom/left-hand-xray-demo.dcm?url";
+import mriRightKneeDemoDicom from "@/assets/demo-dicom/mri-right-knee-demo.dcm?url";
+import usAbdomenDemoDicom from "@/assets/demo-dicom/us-abdomen-demo.dcm?url";
+import { useRequirePermission } from "@/hooks/useRequirePermission";
 
 const fixtures = [
   {

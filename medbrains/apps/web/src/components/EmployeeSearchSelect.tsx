@@ -4,7 +4,7 @@ import type { Employee } from "@medbrains/types";
 import { IconSearch } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { lookupsService } from "../services/lookups.service";
+import { lookupsService } from "@/services/lookups.service";
 
 interface EmployeeSearchSelectProps {
   value: string;

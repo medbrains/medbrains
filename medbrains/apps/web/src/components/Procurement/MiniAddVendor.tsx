@@ -16,7 +16,7 @@ import { IconCheck, IconTruck } from "@tabler/icons-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { Controller, useForm } from "react-hook-form";
-import { procurementService } from "../../services/procurement.service";
+import { procurementService } from "@/services/procurement.service";
 
 interface MiniAddVendorProps {
   searchText: string;

@@ -7,8 +7,8 @@ import type { BasketItem, BasketLabItem, LabTestCatalog } from "@medbrains/types
 import { P } from "@medbrains/types";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
-import { labPriorityOptions } from "../../../forms/orderBasket.form";
-import { LabTestSearchSelect } from "../../LabTestSearchSelect";
+import { LabTestSearchSelect } from "@/components/LabTestSearchSelect";
+import { labPriorityOptions } from "@/forms/orderBasket.form";
 
 interface LabPickerFormProps {
   onAdd: (item: BasketItem) => void;

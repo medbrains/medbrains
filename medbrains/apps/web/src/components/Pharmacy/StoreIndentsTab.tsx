@@ -32,8 +32,8 @@ import {
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { pharmacyService } from "../../services/pharmacy.service";
-import { DataTable } from "../DataTable";
+import { DataTable } from "@/components/DataTable";
+import { pharmacyService } from "@/services/pharmacy.service";
 
 const statusColors: Record<PharmacyStoreIndentStatus, string> = {
   pending: "yellow",

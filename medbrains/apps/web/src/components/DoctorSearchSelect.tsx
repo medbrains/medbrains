@@ -4,7 +4,7 @@ import { P, type SetupUser } from "@medbrains/types";
 import { IconPlus, IconStethoscope } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { lookupsService } from "../services/lookups.service";
+import { lookupsService } from "@/services/lookups.service";
 import { MiniCreateDoctor } from "./admin/MiniCreateDoctor";
 import { SearchOrCreate } from "./SearchOrCreate";
 

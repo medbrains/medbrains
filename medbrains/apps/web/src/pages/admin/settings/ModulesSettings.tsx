@@ -13,7 +13,7 @@ import { notifications } from "@mantine/notifications";
 import type { ModuleConfig } from "@medbrains/types";
 import { IconCheck } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { settingsSetupService } from "../../../services/settingsSetup.service";
+import { settingsSetupService } from "@/services/settingsSetup.service";
 
 // Core modules that cannot be disabled by the user.
 // These are fundamental to the system and must always remain enabled.

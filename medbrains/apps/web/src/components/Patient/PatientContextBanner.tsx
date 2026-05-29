@@ -22,8 +22,8 @@ import {
   IconStarFilled,
   IconUserExclamation,
 } from "@tabler/icons-react";
-import { usePatientContext } from "../../hooks/usePatientContext";
-import { useProtectedFieldValue } from "../PermissionedFieldValue";
+import { useProtectedFieldValue } from "@/components/PermissionedFieldValue";
+import { usePatientContext } from "@/hooks/usePatientContext";
 
 interface PatientContextBannerProps {
   patientId: string | null | undefined;

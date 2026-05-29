@@ -5,7 +5,7 @@ import type { TenantSettingsRow } from "@medbrains/types";
 import { IconCheck, IconRuler2 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo } from "react";
-import { tenantSettingsService } from "../../../services/tenantSettings.service";
+import { tenantSettingsService } from "@/services/tenantSettings.service";
 
 export function UnitsLocaleSettings() {
   const queryClient = useQueryClient();

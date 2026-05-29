@@ -6,7 +6,7 @@ import { fieldAccessText } from "@medbrains/utils";
 import { IconSearch, IconUserPlus } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { lookupsService } from "../services/lookups.service";
+import { lookupsService } from "@/services/lookups.service";
 import { MiniRegisterPatient } from "./Patient/MiniRegisterPatient";
 import { useProtectedFieldAccess } from "./PermissionedFieldValue";
 import { SearchOrCreate } from "./SearchOrCreate";

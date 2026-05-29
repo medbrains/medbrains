@@ -50,14 +50,14 @@ import {
   PageHeader,
   StatusDot,
   useClinicalEmit,
-} from "../components";
-import { PatientContextBanner } from "../components/Patient/PatientContextBanner";
-import { PatientNameCell } from "../components/PatientNameCell";
-import { PatientSearchSelect } from "../components/PatientSearchSelect";
-import { radiologyOptionalText, radiologyPriorityOptions } from "../forms/radiology.form";
-import { useRequirePermission } from "../hooks/useRequirePermission";
-import { radiologyService } from "../services/radiology.service";
-import { buildCopyPrintHtml, copyPrintStyles, PRINT_COPY_PACKETS } from "../utils/printCopies";
+} from "@/components";
+import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
+import { PatientNameCell } from "@/components/PatientNameCell";
+import { PatientSearchSelect } from "@/components/PatientSearchSelect";
+import { radiologyOptionalText, radiologyPriorityOptions } from "@/forms/radiology.form";
+import { useRequirePermission } from "@/hooks/useRequirePermission";
+import { radiologyService } from "@/services/radiology.service";
+import { buildCopyPrintHtml, copyPrintStyles, PRINT_COPY_PACKETS } from "@/utils/printCopies";
 
 const statusColors: Record<string, string> = {
   ordered: "primary",

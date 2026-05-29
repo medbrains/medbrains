@@ -24,7 +24,7 @@ import {
 } from "@tabler/icons-react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { settingsSetupService } from "../../../services/settingsSetup.service";
+import { settingsSetupService } from "@/services/settingsSetup.service";
 
 // ── Completeness thresholds ──────────────────────────────
 

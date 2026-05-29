@@ -17,7 +17,7 @@ import {
   frequencyToDefaultSlots,
   parseInstructions,
   ROUTE_COLORS,
-} from "../../lib/medication-timing-utils";
+} from "@/lib/medication-timing-utils";
 import classes from "./pharmacy-dispensing.module.scss";
 
 interface PharmacyDispensingViewProps {

@@ -4,7 +4,7 @@ import { IconArrowRight, IconCopy, IconPencil, IconPlus } from "@tabler/icons-re
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { useNavigate } from "react-router";
-import { integrationService } from "../../services/integration.service";
+import { integrationService } from "@/services/integration.service";
 import s from "./RecipeShelf.module.scss";
 
 /** Group definitions — maps pipeline trigger events to clinical domains. */

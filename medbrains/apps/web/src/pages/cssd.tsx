@@ -71,8 +71,8 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
-import { DataTable, PageHeader } from "../components";
-import { PatientSearchSelect } from "../components/PatientSearchSelect";
+import { DataTable, PageHeader } from "@/components";
+import { PatientSearchSelect } from "@/components/PatientSearchSelect";
 import {
   cssdIndicatorTypeOptions,
   cssdInstrumentCategoryOptions,
@@ -81,9 +81,9 @@ import {
   cssdOptionalInteger,
   cssdOptionalNumber,
   cssdOptionalText,
-} from "../forms/cssd.form";
-import { useRequirePermission } from "../hooks/useRequirePermission";
-import { cssdService } from "../services/cssd.service";
+} from "@/forms/cssd.form";
+import { useRequirePermission } from "@/hooks/useRequirePermission";
+import { cssdService } from "@/services/cssd.service";
 
 // ── Label Maps ──────────────────────────────────────────
 

@@ -69,12 +69,12 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { useSearchParams } from "react-router";
-import { DataTable, IpdContextStrip, ipdContextFromSearchParams, PageHeader } from "../components";
-import { DepartmentSelect } from "../components/DepartmentSelect";
-import { EmployeeSearchSelect } from "../components/EmployeeSearchSelect";
-import { PatientSearchSelect } from "../components/PatientSearchSelect";
-import { useRequirePermission } from "../hooks/useRequirePermission";
-import { infectionControlService } from "../services/infectionControl.service";
+import { DataTable, IpdContextStrip, ipdContextFromSearchParams, PageHeader } from "@/components";
+import { DepartmentSelect } from "@/components/DepartmentSelect";
+import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
+import { PatientSearchSelect } from "@/components/PatientSearchSelect";
+import { useRequirePermission } from "@/hooks/useRequirePermission";
+import { infectionControlService } from "@/services/infectionControl.service";
 
 // ── Color Maps ──────────────────────────────────────────
 

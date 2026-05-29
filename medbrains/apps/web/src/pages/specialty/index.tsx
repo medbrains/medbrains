@@ -10,8 +10,8 @@ import {
   IconStretching,
 } from "@tabler/icons-react";
 import { useNavigate } from "react-router";
-import { PageHeader } from "../../components";
-import { useRequirePermission } from "../../hooks/useRequirePermission";
+import { PageHeader } from "@/components";
+import { useRequirePermission } from "@/hooks/useRequirePermission";
 
 const SPECIALTIES = [
   {

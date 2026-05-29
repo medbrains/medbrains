@@ -29,7 +29,7 @@ import {
   IconStack2,
 } from "@tabler/icons-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { orderBasketService } from "../../services/orderBasket.service";
+import { orderBasketService } from "@/services/orderBasket.service";
 import { BasketItemRow } from "./BasketItemRow";
 import { DrugPickerForm } from "./pickers/DrugPickerForm";
 import { LabPickerForm } from "./pickers/LabPickerForm";

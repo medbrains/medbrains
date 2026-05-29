@@ -17,8 +17,8 @@ import { P, type WristbandPrintData } from "@medbrains/types";
 import { useMutation } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
-import { ipdService } from "../../services/ipd.service";
-import { PRINT_COPY_ROUTES, printCopyRouteLabel } from "../../utils/printCopies";
+import { ipdService } from "@/services/ipd.service";
+import { PRINT_COPY_ROUTES, printCopyRouteLabel } from "@/utils/printCopies";
 
 interface WristbandPrintModalProps {
   admissionId: string;

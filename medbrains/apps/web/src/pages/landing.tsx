@@ -144,7 +144,7 @@ export function LandingPage() {
   // Lazy-load features JSON only when modal opens
   useEffect(() => {
     if (modalOpened && allFeatures.length === 0) {
-      import("../data/features.json").then((mod) => {
+      import("@/data/features.json").then((mod) => {
         setAllFeatures(mod.default as FeatureEntry[]);
       });
     }

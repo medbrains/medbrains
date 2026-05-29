@@ -16,9 +16,9 @@ import { type BreakGlassEventSummary, P } from "@medbrains/types";
 import { IconEye, IconShieldLock } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { type Column, DataTable } from "../../components/DataTable";
-import { formatDateTime } from "../../lib/date-utils";
-import { auditService } from "../../services/audit.service";
+import { type Column, DataTable } from "@/components/DataTable";
+import { formatDateTime } from "@/lib/date-utils";
+import { auditService } from "@/services/audit.service";
 
 type BreakGlassFilter = "all" | "active" | "needs_review" | "reviewed";
 

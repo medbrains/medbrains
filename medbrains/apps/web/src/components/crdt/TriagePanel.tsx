@@ -9,7 +9,7 @@
 
 import { Badge, Button, Card, Group, Select, Stack, Text, Textarea, Timeline } from "@mantine/core";
 import { useState } from "react";
-import { type TriageEntryInput, useTriageSource } from "../../hooks/useTriageSource";
+import { type TriageEntryInput, useTriageSource } from "@/hooks/useTriageSource";
 
 interface TriagePanelProps {
   visitId: string;

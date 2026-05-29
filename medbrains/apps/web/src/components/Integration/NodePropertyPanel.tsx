@@ -27,7 +27,7 @@ import {
 } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
-import { integrationService } from "../../services/integration.service";
+import { integrationService } from "@/services/integration.service";
 import { FieldMappingEditor } from "./FieldMappingEditor";
 
 const NODE_TYPE_ICONS: Record<string, typeof IconBolt> = {

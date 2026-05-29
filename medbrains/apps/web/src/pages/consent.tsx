@@ -46,12 +46,12 @@ import {
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { DataTable, PageHeader } from "../components";
-import type { Column } from "../components/DataTable";
-import { PatientContextBanner } from "../components/Patient/PatientContextBanner";
-import { PatientNameCell } from "../components/PatientNameCell";
-import { useRequirePermission } from "../hooks/useRequirePermission";
-import { consentService } from "../services/consent.service";
+import { DataTable, PageHeader } from "@/components";
+import type { Column } from "@/components/DataTable";
+import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
+import { PatientNameCell } from "@/components/PatientNameCell";
+import { useRequirePermission } from "@/hooks/useRequirePermission";
+import { consentService } from "@/services/consent.service";
 
 // ── Constants ──────────────────────────────────────────
 

@@ -31,14 +31,14 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type ReactNode, useState } from "react";
 import { useSearchParams } from "react-router";
-import { PageHeader, VitalsRecorder } from "../components";
-import { HandoffPanel } from "../components/crdt/HandoffPanel";
-import { NursingNotesPanel } from "../components/crdt/NursingNotesPanel";
-import { EncounterSelect } from "../components/EncounterSelect";
-import { PatientContextBanner } from "../components/Patient/PatientContextBanner";
-import { useRequirePermission } from "../hooks/useRequirePermission";
-import { adminAccessService } from "../services/adminAccess.service";
-import { nurseActivitiesService } from "../services/nurseActivities.service";
+import { PageHeader, VitalsRecorder } from "@/components";
+import { HandoffPanel } from "@/components/crdt/HandoffPanel";
+import { NursingNotesPanel } from "@/components/crdt/NursingNotesPanel";
+import { EncounterSelect } from "@/components/EncounterSelect";
+import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
+import { useRequirePermission } from "@/hooks/useRequirePermission";
+import { adminAccessService } from "@/services/adminAccess.service";
+import { nurseActivitiesService } from "@/services/nurseActivities.service";
 
 interface MarRow {
   id: string;

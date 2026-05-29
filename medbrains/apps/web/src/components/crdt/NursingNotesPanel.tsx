@@ -6,7 +6,7 @@
 
 import { Badge, Group, Stack, Text, Textarea } from "@mantine/core";
 import { useEffect, useRef, useState } from "react";
-import { useNursingNotesSource } from "../../hooks/useNursingNotesSource";
+import { useNursingNotesSource } from "@/hooks/useNursingNotesSource";
 
 interface NursingNotesPanelProps {
   shiftId: string;

@@ -43,7 +43,7 @@ import {
 } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useCallback, useMemo, useState } from "react";
-import { integrationService } from "../../services/integration.service";
+import { integrationService } from "@/services/integration.service";
 import { MappingRow } from "./MappingRow";
 import { VisualFieldMapper } from "./VisualFieldMapper";
 

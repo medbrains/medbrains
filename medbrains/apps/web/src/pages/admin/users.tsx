@@ -49,12 +49,12 @@ import {
   PageHeader,
   SelectLabel,
   StatusDot,
-} from "../../components";
-import { UserCreateDrawer } from "../../components/admin/UserCreateDrawer";
-import { OfflineWriteBanner } from "../../components/OfflineWriteBanner";
-import { useCreateInline } from "../../hooks/useCreateInline";
-import { useRequirePermission } from "../../hooks/useRequirePermission";
-import { adminAccessService, type CreateSetupUserInput } from "../../services/adminAccess.service";
+} from "@/components";
+import { UserCreateDrawer } from "@/components/admin/UserCreateDrawer";
+import { OfflineWriteBanner } from "@/components/OfflineWriteBanner";
+import { useCreateInline } from "@/hooks/useCreateInline";
+import { useRequirePermission } from "@/hooks/useRequirePermission";
+import { adminAccessService, type CreateSetupUserInput } from "@/services/adminAccess.service";
 
 // ── Constants ─────────────────────────────────────────────
 

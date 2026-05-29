@@ -4,7 +4,7 @@ import { IconPlus, IconSearch } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router";
-import { integrationService } from "../../services/integration.service";
+import { integrationService } from "@/services/integration.service";
 
 const PHASE_COLORS: Record<string, string> = {
   before: "yellow",

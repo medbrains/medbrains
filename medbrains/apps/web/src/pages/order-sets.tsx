@@ -43,19 +43,19 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
-import { DataTable, PageHeader } from "../components";
-import { Icd11CodeSelect } from "../components/Clinical/Icd11CodeSelect";
-import type { Column } from "../components/DataTable";
-import { PatientNameCell } from "../components/PatientNameCell";
+import { DataTable, PageHeader } from "@/components";
+import { Icd11CodeSelect } from "@/components/Clinical/Icd11CodeSelect";
+import type { Column } from "@/components/DataTable";
+import { PatientNameCell } from "@/components/PatientNameCell";
 import {
   orderSetContextOptions,
   orderSetItemTypeOptions,
   orderSetOptionalInteger,
   orderSetOptionalText,
   parseTriggerDiagnoses,
-} from "../forms/order-sets.form";
-import { useRequirePermission } from "../hooks/useRequirePermission";
-import { orderSetsService } from "../services/order-sets.service";
+} from "@/forms/order-sets.form";
+import { useRequirePermission } from "@/hooks/useRequirePermission";
+import { orderSetsService } from "@/services/order-sets.service";
 
 // ── Constants ──────────────────────────────────────────
 

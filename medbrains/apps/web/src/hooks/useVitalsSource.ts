@@ -15,8 +15,8 @@ import { type CrdtConnectionStatus, useAppendOnlyCrdtList } from "@medbrains/crd
 import type { CreateVitalRequest, Vital } from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback } from "react";
-import { useTenantConfig } from "../providers/TenantConfigProvider";
-import { opdService } from "../services/opd.service";
+import { useTenantConfig } from "@/providers/TenantConfigProvider";
+import { opdService } from "@/services/opd.service";
 
 export type VitalsSourceMode = "rest" | "crdt";
 

@@ -7,9 +7,9 @@
  */
 
 import { HttpResponse, http } from "msw";
-import { authMeFixture } from "../__fixtures__/auth";
-import { patientFixture } from "../__fixtures__/patient";
-import { SEED } from "../__fixtures__/seed";
+import { authMeFixture } from "@/__fixtures__/auth";
+import { patientFixture } from "@/__fixtures__/patient";
+import { SEED } from "@/__fixtures__/seed";
 
 const API = "*/api";
 

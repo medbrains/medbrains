@@ -10,7 +10,7 @@ import {
   schedulingPriorityValues,
   schedulingResourceTypeValues,
 } from "@medbrains/schemas";
-import { parseDate, toDateString } from "../lib/date-utils";
+import { parseDate, toDateString } from "@/lib/date-utils";
 
 const priorityLabels: Record<SchedulingPriorityFormValue, string> = {
   low: "Low",

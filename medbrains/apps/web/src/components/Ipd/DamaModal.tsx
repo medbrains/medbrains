@@ -23,7 +23,7 @@ import { useHasPermission } from "@medbrains/stores";
 import { type IpdDamaRequest, P } from "@medbrains/types";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Controller, useForm } from "react-hook-form";
-import { clinicalActionsService } from "../../services/clinicalActions.service";
+import { clinicalActionsService } from "@/services/clinicalActions.service";
 
 interface DamaModalProps {
   admissionId: string;

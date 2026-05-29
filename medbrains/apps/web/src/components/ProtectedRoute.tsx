@@ -1,7 +1,7 @@
 import { useAuthStore, useLocaleStore, usePermissionStore } from "@medbrains/stores";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Navigate } from "react-router";
-import { sessionService } from "../services/session.service";
+import { sessionService } from "@/services/session.service";
 import { PageSkeleton } from "./PageSkeleton";
 
 /** Subscribe to Zustand persist hydration state without polling */

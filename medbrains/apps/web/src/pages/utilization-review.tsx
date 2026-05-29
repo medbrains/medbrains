@@ -53,16 +53,16 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
-import { DataTable, PageHeader } from "../components";
-import type { Column } from "../components/DataTable";
-import { PatientSearchSelect } from "../components/PatientSearchSelect";
-import { useRequirePermission } from "../hooks/useRequirePermission";
+import { DataTable, PageHeader } from "@/components";
+import type { Column } from "@/components/DataTable";
+import { PatientSearchSelect } from "@/components/PatientSearchSelect";
+import { useRequirePermission } from "@/hooks/useRequirePermission";
 import {
   type CreateUrCommunicationInput,
   type CreateUrConversionInput,
   type CreateUrReviewInput,
   utilizationReviewService,
-} from "../services/utilizationReview.service";
+} from "@/services/utilizationReview.service";
 
 // ── Color maps ─────────────────────────────────────────
 

@@ -48,9 +48,9 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useSearchParams } from "react-router";
-import { PageHeader } from "../components/PageHeader";
-import { useRequirePermission } from "../hooks/useRequirePermission";
-import { bedsideService } from "../services/bedside.service";
+import { PageHeader } from "@/components/PageHeader";
+import { useRequirePermission } from "@/hooks/useRequirePermission";
+import { bedsideService } from "@/services/bedside.service";
 
 // ── Helpers ──
 

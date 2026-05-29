@@ -36,10 +36,10 @@ import {
   terminologySearchPlaceholder,
   terminologySourceLabel,
   terminologySystemLabel,
-} from "../../domain/clinical/terminology-policy";
-import { usePacedQueryValue } from "../../hooks/usePacedQueryValue";
-import { todayDateString } from "../../lib/date-utils";
-import { clinicalSupportService } from "../../services/clinicalSupport.service";
+} from "@/domain/clinical/terminology-policy";
+import { usePacedQueryValue } from "@/hooks/usePacedQueryValue";
+import { todayDateString } from "@/lib/date-utils";
+import { clinicalSupportService } from "@/services/clinicalSupport.service";
 import styles from "./diagnosis-panel.module.scss";
 import { Icd11CodeSelect } from "./Icd11CodeSelect";
 

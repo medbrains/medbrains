@@ -30,8 +30,8 @@ import {
   getWeightConfig,
   heightToCm,
   weightToKg,
-} from "../../lib/vital-units";
-import { clinicalSupportService } from "../../services/clinicalSupport.service";
+} from "@/lib/vital-units";
+import { clinicalSupportService } from "@/services/clinicalSupport.service";
 import styles from "./vitals-recorder.module.scss";
 
 type RangeLevel = "normal" | "borderline" | "critical";

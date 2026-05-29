@@ -1,8 +1,8 @@
 import { Badge, Text } from "@mantine/core";
 import type { MappingOperationType } from "@medbrains/types";
 import { Handle, type NodeProps, Position } from "@xyflow/react";
-import type { OperationNodeData } from "../mapperSync";
-import { getConfigSummary, getDescriptor } from "../operationRegistry";
+import type { OperationNodeData } from "@/components/Integration/mapperSync";
+import { getConfigSummary, getDescriptor } from "@/components/Integration/operationRegistry";
 
 const CATEGORY_COLORS: Record<string, string> = {
   string: "primary",

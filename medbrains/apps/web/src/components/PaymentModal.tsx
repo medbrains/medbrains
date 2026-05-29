@@ -28,7 +28,7 @@ import {
 import { useMutation } from "@tanstack/react-query";
 import { useCallback, useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
-import { paymentsService } from "../services/payments.service";
+import { paymentsService } from "@/services/payments.service";
 
 declare global {
   interface Window {

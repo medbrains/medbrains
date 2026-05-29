@@ -1,6 +1,6 @@
 import { P } from "@medbrains/types";
 import { useState } from "react";
-import { useRequirePermission } from "../hooks/useRequirePermission";
+import { useRequirePermission } from "@/hooks/useRequirePermission";
 import s from "./components-inputs.module.scss";
 
 const cx = (...parts: Array<string | false | undefined>): string => parts.filter(Boolean).join(" ");

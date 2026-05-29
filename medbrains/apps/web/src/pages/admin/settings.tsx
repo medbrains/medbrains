@@ -17,10 +17,10 @@ import { P } from "@medbrains/types";
 import { IconSearch } from "@tabler/icons-react";
 import { createElement, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { PageHeader } from "../../components";
-import { SETTINGS_TAB_ICON_MAP, SETTINGS_TABS } from "../../config/settings-tabs";
-import { useHashTabs } from "../../hooks/useHashTabs";
-import { useRequirePermission } from "../../hooks/useRequirePermission";
+import { PageHeader } from "@/components";
+import { SETTINGS_TAB_ICON_MAP, SETTINGS_TABS } from "@/config/settings-tabs";
+import { useHashTabs } from "@/hooks/useHashTabs";
+import { useRequirePermission } from "@/hooks/useRequirePermission";
 
 const SETTINGS_GROUP_ORDER = [
   "Start",

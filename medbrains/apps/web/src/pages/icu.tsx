@@ -73,8 +73,8 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { Controller, useForm, useWatch } from "react-hook-form";
-import { DataTable, PageHeader } from "../components";
-import { PatientSearchSelect } from "../components/PatientSearchSelect";
+import { DataTable, PageHeader } from "@/components";
+import { PatientSearchSelect } from "@/components/PatientSearchSelect";
 import {
   DEFAULT_ICU_BUNDLE_CHECK_FORM_VALUES,
   DEFAULT_ICU_DEVICE_FORM_VALUES,
@@ -98,9 +98,9 @@ import {
   toCreateIcuNutritionRequest,
   toCreateIcuScoreRequest,
   toCreateIcuVentilatorRequest,
-} from "../forms/icu.form";
-import { useRequirePermission } from "../hooks/useRequirePermission";
-import { icuService } from "../services/icu.service";
+} from "@/forms/icu.form";
+import { useRequirePermission } from "@/hooks/useRequirePermission";
+import { icuService } from "@/services/icu.service";
 
 // ── Shared admission selector ──────────────────────────────
 

@@ -24,8 +24,8 @@ import { IconPlus, IconTrash } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
-import { clinicalTemplatesService } from "../../../services/clinicalTemplates.service";
-import { settingsSetupService } from "../../../services/settingsSetup.service";
+import { clinicalTemplatesService } from "@/services/clinicalTemplates.service";
+import { settingsSetupService } from "@/services/settingsSetup.service";
 
 const EMPTY_FORM: ConsultationTemplateSettingsFormInput = {
   name: "",

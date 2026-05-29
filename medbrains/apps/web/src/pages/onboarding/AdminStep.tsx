@@ -20,7 +20,7 @@ import { useMutation } from "@tanstack/react-query";
 import type { MutableRefObject } from "react";
 import { useEffect, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
-import { onboardingService } from "../../services/onboarding.service";
+import { onboardingService } from "@/services/onboarding.service";
 import classes from "./onboarding.module.scss";
 
 interface Props {

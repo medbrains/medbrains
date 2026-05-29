@@ -7,8 +7,8 @@ import {
   IconFlask,
   IconHeartbeat,
 } from "@tabler/icons-react";
-import { PageHeader } from "../components";
-import { useRequirePermission } from "../hooks/useRequirePermission";
+import { PageHeader } from "@/components";
+import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { ClinicalTab } from "./analytics/ClinicalTab";
 import { IpdCensusTab } from "./analytics/IpdCensusTab";
 import { LabTatTab } from "./analytics/LabTatTab";

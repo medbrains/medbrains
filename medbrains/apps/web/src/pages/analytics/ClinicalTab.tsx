@@ -5,9 +5,9 @@ import { DateInput } from "@mantine/dates";
 import type { ClinicalIndicatorRow, ErVolumeRow, OtUtilizationRow } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { DataTable } from "../../components";
-import type { Column } from "../../components/DataTable";
-import { analyticsService } from "../../services/analytics.service";
+import { DataTable } from "@/components";
+import type { Column } from "@/components/DataTable";
+import { analyticsService } from "@/services/analytics.service";
 
 // ── Helpers ──────────────────────────────────────────────
 

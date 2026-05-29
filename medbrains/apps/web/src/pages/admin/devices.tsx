@@ -31,9 +31,9 @@ import {
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { PageHeader } from "../../components/PageHeader";
-import { useRequirePermission } from "../../hooks/useRequirePermission";
-import { adminDevicesService } from "../../services/adminDevices.service";
+import { PageHeader } from "@/components/PageHeader";
+import { useRequirePermission } from "@/hooks/useRequirePermission";
+import { adminDevicesService } from "@/services/adminDevices.service";
 
 // Types inlined until @medbrains/types rebuild propagates
 interface DeviceAdapterCatalog {

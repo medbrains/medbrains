@@ -7,7 +7,7 @@ import { IconCheck, IconDeviceFloppy } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { Controller, useForm } from "react-hook-form";
-import { tenantSettingsService } from "../../../services/tenantSettings.service";
+import { tenantSettingsService } from "@/services/tenantSettings.service";
 
 const TIMEZONE_OPTIONS = [
   { value: "Asia/Kolkata", label: "Asia/Kolkata (IST, UTC+5:30)" },

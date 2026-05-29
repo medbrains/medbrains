@@ -28,9 +28,9 @@ import { fieldAccessText } from "@medbrains/utils";
 import { IconList, IconPackage, IconPlus, IconTrash } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { PageHeader } from "../../components/PageHeader";
-import { useRequirePermission } from "../../hooks/useRequirePermission";
-import { patientPackagesService } from "../../services/patientPackages.service";
+import { PageHeader } from "@/components/PageHeader";
+import { useRequirePermission } from "@/hooks/useRequirePermission";
+import { patientPackagesService } from "@/services/patientPackages.service";
 
 type InclusionType = "consultation" | "lab" | "procedure" | "service";
 
@@ -65,8 +65,7 @@ export function AdminDoctorPackagesPage() {
   const queryClient = useQueryClient();
   const billingAmountAccess = useFieldAccess("billing.amount");
   const canManagePackageMasters = useHasPermission(P.ADMIN.DOCTOR_PACKAGES.MANAGE);
-  const canCreatePackages =
-    canManagePackageMasters && canEditBillingAmount(billingAmountAccess);
+  const canCreatePackages = canManagePackageMasters && canEditBillingAmount(billingAmountAccess);
   const [createOpen, createHandlers] = useDisclosure(false);
   const [editPackageId, setEditPackageId] = useState<string | null>(null);
   const [showInactive, setShowInactive] = useState(false);

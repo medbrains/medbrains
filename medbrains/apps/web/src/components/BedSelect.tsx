@@ -4,7 +4,7 @@ import { type AvailableBed, P } from "@medbrains/types";
 import { IconBed, IconPlus } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { lookupsService } from "../services/lookups.service";
+import { lookupsService } from "@/services/lookups.service";
 import { MiniAddBed } from "./Ipd/MiniAddBed";
 import { SearchOrCreate } from "./SearchOrCreate";
 

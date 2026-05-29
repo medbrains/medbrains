@@ -12,7 +12,7 @@ import {
 } from "@mantine/core";
 import type { ExecutionStatus, IntegrationExecution } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
-import { integrationService } from "../../services/integration.service";
+import { integrationService } from "@/services/integration.service";
 
 interface ExecutionPanelProps {
   pipelineId: string | null;

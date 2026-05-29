@@ -19,9 +19,9 @@ import { P } from "@medbrains/types";
 import { IconDownload, IconSearch, IconShieldCheck } from "@tabler/icons-react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { DataTable } from "../../components";
-import type { Column } from "../../components/DataTable";
-import { auditService } from "../../services/audit.service";
+import { DataTable } from "@/components";
+import type { Column } from "@/components/DataTable";
+import { auditService } from "@/services/audit.service";
 
 // ── Constants ──────────────────────────────────────────
 

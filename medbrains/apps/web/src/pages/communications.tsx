@@ -55,11 +55,11 @@ import {
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { DataTable, PageHeader } from "../components";
-import type { Column } from "../components/DataTable";
-import { EmployeeSearchSelect } from "../components/EmployeeSearchSelect";
-import { useRequirePermission } from "../hooks/useRequirePermission";
-import { communicationsService } from "../services/communications.service";
+import { DataTable, PageHeader } from "@/components";
+import type { Column } from "@/components/DataTable";
+import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
+import { useRequirePermission } from "@/hooks/useRequirePermission";
+import { communicationsService } from "@/services/communications.service";
 
 const CHANNEL_COLORS: Record<string, string> = {
   sms: "blue",

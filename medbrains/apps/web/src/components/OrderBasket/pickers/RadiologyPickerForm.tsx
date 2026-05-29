@@ -7,8 +7,8 @@ import type { BasketItem, BasketRadiologyItem } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
 import { Controller, useForm } from "react-hook-form";
-import { radiologyPriorityOptions } from "../../../forms/orderBasket.form";
-import { clinicalSupportService } from "../../../services/clinicalSupport.service";
+import { radiologyPriorityOptions } from "@/forms/orderBasket.form";
+import { clinicalSupportService } from "@/services/clinicalSupport.service";
 
 interface RadiologyPickerFormProps {
   onAdd: (item: BasketItem) => void;

@@ -63,10 +63,10 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
-import { DataTable, PageHeader } from "../components";
-import { DocumentPreviewModal } from "../components/DocumentPreview/DocumentPreviewModal";
-import { useRequirePermission } from "../hooks/useRequirePermission";
-import { documentsService } from "../services/documents.service";
+import { DataTable, PageHeader } from "@/components";
+import { DocumentPreviewModal } from "@/components/DocumentPreview/DocumentPreviewModal";
+import { useRequirePermission } from "@/hooks/useRequirePermission";
+import { documentsService } from "@/services/documents.service";
 
 // ── Constants ────────────────────────────────────────────
 

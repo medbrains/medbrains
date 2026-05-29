@@ -6,7 +6,7 @@ import { fieldAccessText } from "@medbrains/utils";
 import { IconPill } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { lookupsService } from "../services/lookups.service";
+import { lookupsService } from "@/services/lookups.service";
 import { MiniAddDrug } from "./Pharmacy/MiniAddDrug";
 import { SearchOrCreate } from "./SearchOrCreate";
 

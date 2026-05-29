@@ -13,8 +13,8 @@ import {
   resolveIcon,
   WORKSPACE_STORAGE_KEY,
   workspaceHasPermission,
-} from "../config/navigation";
-import { useRequirePermission } from "../hooks/useRequirePermission";
+} from "@/config/navigation";
+import { useRequirePermission } from "@/hooks/useRequirePermission";
 import classes from "./apps.module.scss";
 
 function pathMatchesWorkspacePattern(path: string, pattern: string) {

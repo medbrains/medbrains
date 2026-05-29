@@ -3,9 +3,9 @@ import { useDisclosure } from "@mantine/hooks";
 import type { PatientCardRow, VitalsChecklistRow, WardGridResponse } from "@medbrains/types";
 import { IconHeartbeat, IconTemperature } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
-import { DataTable } from "../../components";
-import type { Column } from "../../components/DataTable";
-import { careViewService } from "../../services/careView.service";
+import { DataTable } from "@/components";
+import type { Column } from "@/components/DataTable";
+import { careViewService } from "@/services/careView.service";
 import { fallRiskColor, news2Color, urgencyColor } from "./shared";
 
 export function PatientGridTab({ wardId }: { wardId: string | null }) {

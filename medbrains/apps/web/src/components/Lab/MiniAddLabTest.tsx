@@ -8,7 +8,7 @@ import { IconCheck, IconMicroscope } from "@tabler/icons-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { Controller, useForm } from "react-hook-form";
-import { type CreateLabCatalogInput, labCatalogService } from "../../services/labCatalog.service";
+import { type CreateLabCatalogInput, labCatalogService } from "@/services/labCatalog.service";
 
 interface MiniAddLabTestProps {
   searchText: string;

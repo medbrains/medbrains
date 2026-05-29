@@ -25,8 +25,8 @@ import {
   CRITICAL_VALUE_GENDER_OPTIONS,
   DEFAULT_CRITICAL_VALUE_RULE_FORM_VALUES,
   toCreateCriticalValueRuleRequest,
-} from "../../../forms/clinical-settings.form";
-import { clinicalMastersService } from "../../../services/clinicalMasters.service";
+} from "@/forms/clinical-settings.form";
+import { clinicalMastersService } from "@/services/clinicalMasters.service";
 
 export function CriticalValueRulesSettings() {
   const canManage = useHasPermission(P.ADMIN.SETTINGS.GENERAL.MANAGE);

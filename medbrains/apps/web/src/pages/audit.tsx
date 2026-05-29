@@ -9,8 +9,8 @@ import {
   IconShieldLock,
   IconUserSearch,
 } from "@tabler/icons-react";
-import { PageHeader } from "../components";
-import { useRequirePermission } from "../hooks/useRequirePermission";
+import { PageHeader } from "@/components";
+import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { AccessLogTab } from "./audit/AccessLogTab";
 import { AuditLogTab } from "./audit/AuditLogTab";
 import { AuditStatsTab } from "./audit/AuditStatsTab";

@@ -55,8 +55,8 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
-import { DataTable, PageHeader } from "../components";
-import type { Column } from "../components/DataTable";
+import { DataTable, PageHeader } from "@/components";
+import type { Column } from "@/components/DataTable";
 import {
   defaultQueueTokenFormValues,
   defaultTvAnnouncementFormValues,
@@ -66,9 +66,9 @@ import {
   tvDisplayFormToCreateRequest,
   tvDisplayFormToUpdateRequest,
   tvDisplayToForm,
-} from "../forms/tv-displays.form";
-import { useRequirePermission } from "../hooks/useRequirePermission";
-import { tvDisplaysService } from "../services/tvDisplays.service";
+} from "@/forms/tv-displays.form";
+import { useRequirePermission } from "@/hooks/useRequirePermission";
+import { tvDisplaysService } from "@/services/tvDisplays.service";
 
 // ── Constants ──────────────────────────────────────────
 

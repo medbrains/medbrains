@@ -3,7 +3,7 @@
 
 import type { Gender } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
-import { patientsService } from "../services/patients.service";
+import { patientsService } from "@/services/patients.service";
 
 export interface PatientNameInfo {
   id: string;

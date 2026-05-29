@@ -9,7 +9,7 @@
 
 import { Badge, Button, Card, Group, Select, Stack, Text, Textarea, Timeline } from "@mantine/core";
 import { useState } from "react";
-import { type HandoffEntryInput, useHandoffSource } from "../../hooks/useHandoffSource";
+import { type HandoffEntryInput, useHandoffSource } from "@/hooks/useHandoffSource";
 
 interface HandoffPanelProps {
   shiftId: string;

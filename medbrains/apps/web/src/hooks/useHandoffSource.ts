@@ -9,11 +9,11 @@
  *
  */
 
-import { type CrdtConnectionStatus, useAppendOnlyCrdtList } from "@medbrains/crdt";
 import { api } from "@medbrains/api";
+import { type CrdtConnectionStatus, useAppendOnlyCrdtList } from "@medbrains/crdt";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback } from "react";
-import { useTenantConfig } from "../providers/TenantConfigProvider";
+import { useTenantConfig } from "@/providers/TenantConfigProvider";
 
 export interface HandoffEntry extends Record<string, unknown> {
   ts: number;

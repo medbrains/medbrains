@@ -1,7 +1,7 @@
 import { Checkbox, Group, SimpleGrid, Stack, Text, TextInput } from "@mantine/core";
 import type { ReviewOfSystems as ROSType, TenantSettingsRow } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
-import { clinicalSupportService } from "../../services/clinicalSupport.service";
+import { clinicalSupportService } from "@/services/clinicalSupport.service";
 
 interface ReviewOfSystemsProps {
   data: ROSType;

@@ -18,8 +18,8 @@ import type { OnboardingDepartment, WorkingHours } from "@medbrains/types";
 import { IconClock, IconCopy, IconPlus, IconTrash, IconUpload } from "@tabler/icons-react";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
-import { CsvImportModal } from "../../components";
-import { onboardingService } from "../../services/onboarding.service";
+import { CsvImportModal } from "@/components";
+import { onboardingService } from "@/services/onboarding.service";
 import classes from "./onboarding.module.scss";
 
 interface Props {

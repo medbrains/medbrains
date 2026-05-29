@@ -28,7 +28,7 @@ import {
 } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { reportsService } from "../../services/reports.service";
+import { reportsService } from "@/services/reports.service";
 
 const CATEGORY_LABELS: Record<string, { label: string; color: string }> = {
   access: { label: "Access & flow", color: "blue" },

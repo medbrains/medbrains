@@ -2,7 +2,7 @@
 
 import type { AccessMatrixSurface } from "@medbrains/types";
 import { describe, expect, it } from "vitest";
-import type { NavGroupConfig } from "../../../config/navigation";
+import type { NavGroupConfig } from "@/config/navigation";
 import {
   buildNavRouteCoverage,
   flattenNavRoutes,

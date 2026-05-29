@@ -2,8 +2,8 @@ import { Badge, Card, Group, Select, SimpleGrid, Stack, Text } from "@mantine/co
 import type { JobQueueRow, JobStats } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { integrationService } from "../../services/integration.service";
-import { DataTable } from "../DataTable";
+import { DataTable } from "@/components/DataTable";
+import { integrationService } from "@/services/integration.service";
 
 const STATUS_COLORS: Record<string, string> = {
   pending: "blue",

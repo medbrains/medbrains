@@ -19,8 +19,8 @@ import type { OnboardingDepartment, OnboardingRole, OnboardingUser } from "@medb
 import { IconPlus, IconStethoscope, IconTrash, IconUpload, IconUser } from "@tabler/icons-react";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
-import { CsvImportModal, SelectLabel } from "../../components";
-import { onboardingService } from "../../services/onboarding.service";
+import { CsvImportModal, SelectLabel } from "@/components";
+import { onboardingService } from "@/services/onboarding.service";
 import classes from "./onboarding.module.scss";
 
 interface Props {
