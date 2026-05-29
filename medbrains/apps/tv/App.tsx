@@ -6,17 +6,27 @@
  * medbrains-create-mobile-app (variant: tv).
  */
 
-import { api, configureNativeAuth, setApiBase } from "@medbrains/api";
+import {
+  api,
+  clearNativeAuthTokens,
+  configureNativeAuth,
+  setApiBase,
+  setNativeAuthSession,
+} from "@medbrains/api";
 import { PaperProvider } from "react-native-paper";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import {
   ExpoSecureStoreAdapter,
   LoginScreen,
+  SECRET_KEYS,
   Shell,
   buildForestCopperTheme,
+  useAuthStore,
 } from "@medbrains/mobile-shell";
+import type { SecretStore } from "@medbrains/mobile-shell";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { useEffect } from "react";
 import { config } from "./src/config";
 import { Navigator } from "./src/navigator";
 import { MODULES } from "./src/modules";
@@ -36,12 +46,42 @@ const queryClient = new QueryClient({
   },
 });
 
+function NativeAuthBridge({ store }: { store: SecretStore }) {
+  const identity = useAuthStore((state) => state.identity);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function syncNativeAuthSession() {
+      if (!identity?.jwt) {
+        clearNativeAuthTokens();
+        return;
+      }
+
+      const refreshToken = await store.getItem(SECRET_KEYS.refreshToken, {
+        requireAuthentication: false,
+      });
+      if (!cancelled) {
+        setNativeAuthSession(identity.jwt, refreshToken);
+      }
+    }
+
+    void syncNativeAuthSession();
+    return () => {
+      cancelled = true;
+    };
+  }, [identity?.jwt, store]);
+
+  return null;
+}
+
 export default function App() {
   return (
     <SafeAreaProvider>
       <PaperProvider theme={theme}>
         <QueryClientProvider client={queryClient}>
           <StatusBar style="dark" />
+          <NativeAuthBridge store={secretStore} />
           <Shell
             variant="tv"
             modules={MODULES}

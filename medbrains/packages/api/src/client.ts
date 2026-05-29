@@ -1993,27 +1993,42 @@ function persistNativeAuthTokens(): void {
   }
 }
 
-function setNativeAuthTokens(accessToken?: string | null, refreshToken?: string | null): void {
-  nativeAccessToken = accessToken ?? null;
-  nativeRefreshToken = refreshToken ?? null;
-
-  if (!nativeAccessToken || !nativeRefreshToken) {
-    clearNativeAuthTokens();
-    return;
-  }
-
-  persistNativeAuthTokens();
-}
-
-export function clearNativeAuthTokens(): void {
-  nativeAccessToken = null;
-  nativeRefreshToken = null;
+function clearPersistedNativeAuthTokens(): void {
   if (!canUseBrowserStorage()) return;
   try {
     window.localStorage.removeItem(NATIVE_AUTH_STORAGE_KEY);
   } catch {
     // Storage may be disabled in hardened webviews.
   }
+}
+
+function setNativeAuthTokens(accessToken?: string | null, refreshToken?: string | null): void {
+  nativeAccessToken = accessToken ?? null;
+  nativeRefreshToken = refreshToken ?? null;
+
+  if (!nativeAccessToken) {
+    clearNativeAuthTokens();
+    return;
+  }
+
+  if (nativeRefreshToken) {
+    persistNativeAuthTokens();
+  } else {
+    clearPersistedNativeAuthTokens();
+  }
+}
+
+export function setNativeAuthSession(
+  accessToken?: string | null,
+  refreshToken?: string | null,
+): void {
+  setNativeAuthTokens(accessToken, refreshToken);
+}
+
+export function clearNativeAuthTokens(): void {
+  nativeAccessToken = null;
+  nativeRefreshToken = null;
+  clearPersistedNativeAuthTokens();
 }
 
 export function configureNativeAuth(clientName: string | null): void {
