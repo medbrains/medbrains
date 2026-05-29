@@ -37,7 +37,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useSearchParams } from "react-router";
-import { DataTable, PageHeader, StatusDot } from "../components";
+import { type Column, DataTable, PageHeader, StatusDot } from "../components";
 import {
   PatientRegisterForm,
   type PatientRegistrationLinkedServicesOptions,
@@ -237,6 +237,9 @@ export function PatientsPage() {
     {
       key: "uhid",
       label: "UHID",
+      fieldAccessKey: "patients.uhid",
+      accessor: (row: Patient) => row.uhid,
+      fieldKind: "identifier",
       render: (row: Patient) => (
         <Text fw={600} size="sm">
           {row.uhid}
@@ -246,6 +249,9 @@ export function PatientsPage() {
     {
       key: "name",
       label: "Name",
+      fieldAccessKeys: ["patients.first_name", "patients.middle_name", "patients.last_name"],
+      accessor: buildFullName,
+      fieldKind: "name",
       render: (row: Patient) => {
         const fullName = buildFullName(row);
 
@@ -277,6 +283,9 @@ export function PatientsPage() {
     {
       key: "phone",
       label: "Phone",
+      fieldAccessKey: "patients.phone",
+      accessor: (row: Patient) => row.phone,
+      fieldKind: "phone",
       render: (row: Patient) => row.phone || "-",
     },
     {
@@ -343,6 +352,10 @@ export function PatientsPage() {
     {
       key: "payment_pending",
       label: "Payment",
+      requiredPermissions: [P.BILLING.INVOICES_LIST],
+      fieldAccessKey: "billing.amount",
+      accessor: (row: Patient) => row.outstanding_balance ?? 0,
+      fieldKind: "money",
       render: (row: Patient) => {
         const balance = Number(row.outstanding_balance ?? 0);
         const pendingCount = row.pending_invoice_count ?? 0;
@@ -367,6 +380,7 @@ export function PatientsPage() {
     {
       key: "actions",
       label: "",
+      requiredPermissions: [P.PATIENTS.VIEW],
       render: (row: Patient) => (
         <Tooltip label="Full profile">
           <ActionIcon variant="subtle" color="teal" onClick={() => navigate(`/patients/${row.id}`)}>
@@ -375,7 +389,7 @@ export function PatientsPage() {
         </Tooltip>
       ),
     },
-  ];
+  ] satisfies Column<Patient>[];
 
   return (
     <div>
@@ -406,6 +420,10 @@ export function PatientsPage() {
         totalPages={totalPages}
         perPage={PER_PAGE}
         onPageChange={setPage}
+        virtualized="auto"
+        virtualizeAt={40}
+        virtualRowHeight={56}
+        tableMaxHeight="calc(100vh - 320px)"
         toolbar={
           <TextInput
             placeholder="Search by UHID, name, or phone..."

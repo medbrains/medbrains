@@ -185,8 +185,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Controller, useFieldArray, useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
+import { useNavigate, useParams, useSearchParams } from "react-router";
 import {
   ClinicalEventProvider,
+  type Column,
   DataTable,
   PageHeader,
   StatusDot,
@@ -194,6 +196,7 @@ import {
 } from "../components";
 import { EmployeeSearchSelect } from "../components/EmployeeSearchSelect";
 import { PatientContextBanner } from "../components/Patient/PatientContextBanner";
+import { PatientFlowNavigator } from "../components/Patient/PatientFlowNavigator";
 import { PatientNameCell } from "../components/PatientNameCell";
 import { PatientSearchSelect } from "../components/PatientSearchSelect";
 import { PaymentModal, type PaymentModalSettlement } from "../components/PaymentModal";
@@ -229,6 +232,46 @@ const statusColors: Record<string, string> = {
   cancelled: "danger",
   refunded: "orange",
 };
+
+const BILLING_INVOICE_STATUS_OPTIONS = [
+  { value: "draft", label: "Draft" },
+  { value: "issued", label: "Issued" },
+  { value: "partially_paid", label: "Partially Paid" },
+  { value: "paid", label: "Paid" },
+  { value: "cancelled", label: "Cancelled" },
+] as const;
+
+const BILLING_TAB_VALUES = [
+  "invoices",
+  "charge-master",
+  "packages",
+  "rate-plans",
+  "refunds",
+  "insurance",
+  "advances",
+  "corporate",
+  "reports",
+  "day-close",
+  "audit-log",
+  "credit-patients",
+  "gst-tds",
+  "journal",
+  "bank-recon",
+  "financial-mis",
+  "erp-export",
+  "concessions",
+  "settings",
+] as const;
+
+function isBillingTab(value: string | null): value is (typeof BILLING_TAB_VALUES)[number] {
+  return Boolean(value && (BILLING_TAB_VALUES as readonly string[]).includes(value));
+}
+
+function isInvoiceStatus(
+  value: string | null,
+): value is (typeof BILLING_INVOICE_STATUS_OPTIONS)[number]["value"] {
+  return Boolean(value && BILLING_INVOICE_STATUS_OPTIONS.some((option) => option.value === value));
+}
 
 function money(value: number | string | null | undefined): string {
   const parsed = Number(value ?? 0);
@@ -267,10 +310,56 @@ export function BillingPage() {
   );
 }
 
-function BillingPageInner() {
-  const { t } = useTranslation("billing");
+export function BillingInvoiceDetailPage() {
+  useRequirePermission(P.BILLING.INVOICES_VIEW);
+
+  const navigate = useNavigate();
+  const { invoiceId } = useParams<{ invoiceId: string }>();
   const canCreate = useHasPermission(P.BILLING.INVOICES_CREATE);
   const canPay = useHasPermission(P.BILLING.PAYMENTS_CREATE);
+
+  if (!invoiceId) {
+    return (
+      <ClinicalEventProvider moduleCode="billing" contextCode="billing-invoice-detail">
+        <Stack>
+          <PageHeader
+            title="Invoice"
+            subtitle="Invoice route is missing an invoice identifier."
+            actions={
+              <Button variant="subtle" onClick={() => navigate("/billing")}>
+                Back to Billing
+              </Button>
+            }
+          />
+          <Alert color="danger">Unable to open invoice without an invoice ID.</Alert>
+        </Stack>
+      </ClinicalEventProvider>
+    );
+  }
+
+  return (
+    <ClinicalEventProvider moduleCode="billing" contextCode="billing-invoice-detail">
+      <Stack>
+        <PageHeader
+          title="Invoice detail"
+          subtitle="Charges, discounts, copay, payments, receipts, and audit context."
+          actions={
+            <Button variant="subtle" onClick={() => navigate("/billing")}>
+              Back to Billing
+            </Button>
+          }
+        />
+        <InvoiceDetail invoiceId={invoiceId} canCreate={canCreate} canPay={canPay} />
+      </Stack>
+    </ClinicalEventProvider>
+  );
+}
+
+function BillingPageInner() {
+  const { t } = useTranslation("billing");
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const canCreate = useHasPermission(P.BILLING.INVOICES_CREATE);
   const canDayClose = useHasPermission(P.BILLING.DAY_CLOSE_CREATE);
   const canWriteOff = useHasPermission(P.BILLING.WRITE_OFF_CREATE);
   const canAudit = useHasPermission(P.BILLING.AUDIT_VIEW);
@@ -285,14 +374,53 @@ function BillingPageInner() {
   const canApproveConcessions = useHasPermission(P.BILLING.CONCESSIONS_APPROVE);
 
   const [page, setPage] = useState(1);
-  const [filterStatus, setFilterStatus] = useState<string | null>(null);
-  const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null);
   const [createOpened, { open: openCreate, close: closeCreate }] = useDisclosure(false);
-  const [detailOpened, { open: openDetail, close: closeDetail }] = useDisclosure(false);
   const [erInvoiceOpened, { open: openErInvoice, close: closeErInvoice }] = useDisclosure(false);
+  const visibleBillingTabs = new Set<string>([
+    "invoices",
+    "charge-master",
+    "packages",
+    "rate-plans",
+    "refunds",
+    "insurance",
+    "advances",
+    "corporate",
+    "reports",
+    ...(canDayClose ? ["day-close"] : []),
+    ...(canAudit ? ["audit-log"] : []),
+    ...(canCredit ? ["credit-patients"] : []),
+    ...(canGst ? ["gst-tds"] : []),
+    ...(canJournal ? ["journal"] : []),
+    ...(canBankRecon ? ["bank-recon"] : []),
+    "financial-mis",
+    ...(canErp ? ["erp-export"] : []),
+    ...(canConcessions ? ["concessions"] : []),
+    "settings",
+  ]);
+  const requestedTab = searchParams.get("tab");
+  const selectedTab =
+    isBillingTab(requestedTab) && visibleBillingTabs.has(requestedTab) ? requestedTab : "invoices";
+  const patientFilterId = searchParams.get("patient_id")?.trim() || null;
+  const requestedStatus = searchParams.get("status");
+  const filterStatus = isInvoiceStatus(requestedStatus) ? requestedStatus : null;
+
+  const setBillingParam = (key: string, value: string | null) => {
+    const next = new URLSearchParams(searchParams);
+    if (value) {
+      next.set(key, value);
+    } else {
+      next.delete(key);
+    }
+    setSearchParams(next, { replace: true });
+  };
+
+  const setSelectedTab = (value: string | null) => {
+    setBillingParam("tab", value && visibleBillingTabs.has(value) ? value : "invoices");
+  };
 
   const params: Record<string, string> = { page: String(page), per_page: "20" };
   if (filterStatus) params.status = filterStatus;
+  if (patientFilterId) params.patient_id = patientFilterId;
 
   const queryClient = useQueryClient();
 
@@ -364,11 +492,17 @@ function BillingPageInner() {
     {
       key: "total_amount",
       label: "Total",
+      fieldAccessKey: "billing.amount",
+      accessor: (row: Invoice) => row.total_amount,
+      fieldKind: "money",
       render: (row: Invoice) => <Text size="sm">₹{money(row.total_amount)}</Text>,
     },
     {
       key: "paid_amount",
       label: "Paid",
+      fieldAccessKey: "billing.amount",
+      accessor: (row: Invoice) => row.paid_amount,
+      fieldKind: "money",
       render: (row: Invoice) => {
         const paid = Number(row.paid_amount);
         const total = Number(row.total_amount);
@@ -388,6 +522,9 @@ function BillingPageInner() {
     {
       key: "balance",
       label: "Balance",
+      fieldAccessKey: "billing.amount",
+      accessor: invoiceBalance,
+      fieldKind: "money",
       render: (row: Invoice) => {
         const balance = invoiceBalance(row);
         return (
@@ -407,15 +544,14 @@ function BillingPageInner() {
     {
       key: "actions",
       label: "Actions",
+      requiredPermissions: [P.BILLING.INVOICES_VIEW],
       render: (row: Invoice) => (
         <Group gap={4}>
           <Tooltip label="View">
             <ActionIcon
               variant="subtle"
-              onClick={() => {
-                setSelectedInvoiceId(row.id);
-                openDetail();
-              }}
+              onClick={() => navigate(`/billing/invoices/${row.id}`)}
+              aria-label={`Open invoice ${row.invoice_number}`}
             >
               <IconEye size={16} />
             </ActionIcon>
@@ -435,7 +571,7 @@ function BillingPageInner() {
         </Group>
       ),
     },
-  ];
+  ] satisfies Column<Invoice>[];
 
   return (
     <div>
@@ -463,7 +599,24 @@ function BillingPageInner() {
         }
       />
 
-      <Tabs defaultValue="invoices">
+      {patientFilterId && (
+        <Stack gap="xs" mb="md">
+          <PatientContextBanner patientId={patientFilterId} hideLoadingState />
+          <Group justify="space-between" align="center">
+            <PatientFlowNavigator patientId={patientFilterId} active="billing" compact />
+            <Button
+              variant="subtle"
+              size="xs"
+              leftSection={<IconX size={14} />}
+              onClick={() => setBillingParam("patient_id", null)}
+            >
+              All billing
+            </Button>
+          </Group>
+        </Stack>
+      )}
+
+      <Tabs value={selectedTab} onChange={setSelectedTab} keepMounted={false}>
         <Tabs.List mb="md">
           <Tabs.Tab value="invoices" leftSection={<IconFileInvoice size={14} />}>
             {t("invoices")}
@@ -544,15 +697,12 @@ function BillingPageInner() {
           <Group mb="md">
             <Select
               placeholder="Status"
-              data={[
-                { value: "draft", label: "Draft" },
-                { value: "issued", label: "Issued" },
-                { value: "partially_paid", label: "Partially Paid" },
-                { value: "paid", label: "Paid" },
-                { value: "cancelled", label: "Cancelled" },
-              ]}
+              data={BILLING_INVOICE_STATUS_OPTIONS}
               value={filterStatus}
-              onChange={setFilterStatus}
+              onChange={(value) => {
+                setPage(1);
+                setBillingParam("status", value);
+              }}
               clearable
               w={180}
             />
@@ -565,6 +715,10 @@ function BillingPageInner() {
             totalPages={data ? Math.ceil(data.total / data.per_page) : 1}
             onPageChange={setPage}
             rowKey={(row) => row.id}
+            virtualized="auto"
+            virtualizeAt={40}
+            virtualRowHeight={58}
+            tableMaxHeight="calc(100vh - 360px)"
           />
         </Tabs.Panel>
 
@@ -659,21 +813,6 @@ function BillingPageInner() {
 
       <CreateInvoiceDrawer opened={createOpened} onClose={closeCreate} />
       <ErFastInvoiceModal opened={erInvoiceOpened} onClose={closeErInvoice} />
-
-      <Drawer
-        opened={detailOpened}
-        onClose={() => {
-          closeDetail();
-          setSelectedInvoiceId(null);
-        }}
-        title="Invoice Detail"
-        position="right"
-        size="min(100%, 1040px)"
-      >
-        {selectedInvoiceId && (
-          <InvoiceDetail invoiceId={selectedInvoiceId} canCreate={canCreate} canPay={canPay} />
-        )}
-      </Drawer>
     </div>
   );
 }
@@ -962,6 +1101,7 @@ function InvoiceDetail({
         </Text>
       </Group>
       <PatientContextBanner patientId={inv.patient_id} hideLoadingState />
+      <PatientFlowNavigator patientId={inv.patient_id} active="billing" compact />
       {(Number(inv.cgst_amount ?? 0) > 0 ||
         Number(inv.sgst_amount ?? 0) > 0 ||
         Number(inv.igst_amount ?? 0) > 0) && (
@@ -1666,7 +1806,22 @@ function CopayBreakdown({ invoiceId }: { invoiceId: string }) {
 function ErFastInvoiceModal({ opened, onClose }: { opened: boolean; onClose: () => void }) {
   const queryClient = useQueryClient();
   const emit = useClinicalEmit();
-  const [emergencyVisitId, setEmergencyVisitId] = useState("");
+  const {
+    control,
+    register,
+    handleSubmit,
+    reset,
+    watch,
+    formState: { errors },
+  } = useForm<ErFastInvoiceRequest>({
+    defaultValues: {
+      emergency_visit_id: "",
+      patient_id: "",
+      notes: "",
+    },
+  });
+  const emergencyVisitId = watch("emergency_visit_id");
+  const patientId = watch("patient_id");
 
   const createMutation = useMutation({
     mutationFn: (data: ErFastInvoiceRequest) => billingService.erFastInvoice(data),
@@ -1679,7 +1834,7 @@ function ErFastInvoiceModal({ opened, onClose }: { opened: boolean; onClose: () 
       });
       emit("invoice.created", { invoice_id: (result as Invoice).id });
       onClose();
-      setEmergencyVisitId("");
+      reset();
     },
     onError: () => {
       notifications.show({
@@ -1689,10 +1844,26 @@ function ErFastInvoiceModal({ opened, onClose }: { opened: boolean; onClose: () 
       });
     },
   });
+  const submitFastInvoice = handleSubmit((values) => {
+    createMutation.mutate({
+      emergency_visit_id: values.emergency_visit_id.trim(),
+      patient_id: values.patient_id.trim(),
+      notes: values.notes?.trim() || null,
+    });
+  });
 
   return (
-    <Drawer opened={opened} onClose={onClose} title="ER Fast Invoice" position="right" size="xl">
-      <Stack>
+    <Drawer
+      opened={opened}
+      onClose={() => {
+        onClose();
+        reset();
+      }}
+      title="ER Fast Invoice"
+      position="right"
+      size="xl"
+    >
+      <Stack component="form" onSubmit={submitFastInvoice}>
         <Alert color="danger" variant="light" title="Emergency Department Fast Billing">
           <Text size="sm">
             Creates an invoice with standard ER charges for the specified emergency visit.
@@ -1702,15 +1873,29 @@ function ErFastInvoiceModal({ opened, onClose }: { opened: boolean; onClose: () 
         <TextInput
           label="Emergency Visit ID"
           placeholder="Enter emergency visit UUID"
-          value={emergencyVisitId}
-          onChange={(e) => setEmergencyVisitId(e.currentTarget.value)}
+          error={errors.emergency_visit_id?.message}
+          {...register("emergency_visit_id", { required: "Emergency visit is required" })}
           required
         />
+        <Controller
+          control={control}
+          name="patient_id"
+          rules={{ required: "Patient is required" }}
+          render={({ field }) => (
+            <PatientSearchSelect
+              value={field.value}
+              onChange={field.onChange}
+              error={errors.patient_id?.message}
+              required
+            />
+          )}
+        />
+        <Textarea label="Notes" {...register("notes")} />
         <Button
+          type="submit"
           color="danger"
-          onClick={() => createMutation.mutate({ emergency_visit_id: emergencyVisitId })}
           loading={createMutation.isPending}
-          disabled={!emergencyVisitId.trim()}
+          disabled={!emergencyVisitId.trim() || !patientId.trim()}
           leftSection={<IconAmbulance size={16} />}
         >
           Create ER Invoice

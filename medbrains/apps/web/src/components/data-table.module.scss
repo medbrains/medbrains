@@ -28,6 +28,17 @@
   max-height: calc(100vh - 280px);
 }
 
+.tableWrapper[data-virtualized="true"] {
+  contain: layout paint;
+  will-change: scroll-position;
+}
+
+.virtualSpacerCell {
+  padding: 0;
+  border: 0;
+  line-height: 0;
+}
+
 .stickyHead {
   position: sticky;
   top: 0;

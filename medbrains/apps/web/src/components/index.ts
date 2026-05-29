@@ -18,6 +18,7 @@ export {
   useClinicalEmit,
 } from "./ClinicalEventProvider";
 export { CsvImportModal } from "./CsvImportModal";
+export type { Column, ColumnAccessState } from "./DataTable";
 export { DataTable } from "./DataTable";
 export { DepartmentSelect } from "./DepartmentSelect";
 export { DetailSection } from "./DetailSection";
@@ -40,8 +41,17 @@ export { PageHeader } from "./PageHeader";
 export { PageSkeleton } from "./PageSkeleton";
 export type { AbhaLinkPanelProps, AbhaLinkStatus } from "./Patient/AbhaLinkPanel";
 export { AbhaLinkPanel } from "./Patient/AbhaLinkPanel";
+export type { PatientFlowModule } from "./Patient/PatientFlowNavigator";
+export { PatientFlowNavigator } from "./Patient/PatientFlowNavigator";
+export { PatientJourneyActions } from "./Patient/PatientJourneyActions";
 export { PatientSearchSelect } from "./PatientSearchSelect";
 export { PaymentModal } from "./PaymentModal";
+export type { PermissionedFieldKind } from "./PermissionedFieldValue";
+export {
+  PermissionedFieldValue,
+  useProtectedFieldAccess,
+  useProtectedFieldValue,
+} from "./PermissionedFieldValue";
 export { ProtectedRoute } from "./ProtectedRoute";
 export { SearchOrCreate } from "./SearchOrCreate";
 export { SelectLabel } from "./SelectLabel";
