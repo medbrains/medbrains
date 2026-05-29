@@ -39,6 +39,14 @@
   line-height: 0;
 }
 
+.virtualRow {
+  contain: layout paint;
+
+  > td {
+    height: inherit;
+  }
+}
+
 .stickyHead {
   position: sticky;
   top: 0;

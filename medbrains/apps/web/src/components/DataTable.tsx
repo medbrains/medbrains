@@ -12,6 +12,7 @@ import {
   useState,
 } from "react";
 import styles from "./data-table.module.scss";
+import { resolveDataTableVirtualWindow } from "./data-table-virtualization";
 import { EmptyState } from "./EmptyState";
 import { type PermissionedFieldKind, PermissionedFieldValue } from "./PermissionedFieldValue";
 
@@ -217,44 +218,16 @@ export function DataTable<T>({
     [columns, permissionState],
   );
   const visibleColumnCount = columnsWithAccess.length;
-  const measuredViewportHeight = viewportHeight || virtualRowHeight * 10;
   const virtualWindow = useMemo(() => {
-    if (!shouldVirtualize) {
-      return {
-        bottomSpacerHeight: 0,
-        rows: data,
-        startIndex: 0,
-        topSpacerHeight: 0,
-      };
-    }
-
-    const visibleCount = Math.ceil(measuredViewportHeight / virtualRowHeight);
-    const windowSize = Math.max(1, visibleCount + virtualOverscan * 2);
-    const scrollStart = Math.max(0, Math.floor(scrollTop / virtualRowHeight) - virtualOverscan);
-    const maxStart = Math.max(0, data.length - windowSize);
-    const startIndex = Math.min(scrollStart, maxStart);
-    const endIndex = Math.min(data.length, startIndex + windowSize);
-    const rowCount = endIndex - startIndex;
-    const topSpacerHeight = startIndex * virtualRowHeight;
-    const bottomSpacerHeight = Math.max(
-      0,
-      (data.length - startIndex - rowCount) * virtualRowHeight,
-    );
-
-    return {
-      bottomSpacerHeight,
-      rows: data.slice(startIndex, endIndex),
-      startIndex,
-      topSpacerHeight,
-    };
-  }, [
-    data,
-    measuredViewportHeight,
-    scrollTop,
-    shouldVirtualize,
-    virtualOverscan,
-    virtualRowHeight,
-  ]);
+    return resolveDataTableVirtualWindow({
+      data,
+      enabled: shouldVirtualize,
+      overscan: virtualOverscan,
+      rowHeight: virtualRowHeight,
+      scrollTop,
+      viewportHeight,
+    });
+  }, [data, scrollTop, shouldVirtualize, viewportHeight, virtualOverscan, virtualRowHeight]);
   const setTableWrapperRef = useCallback((node: HTMLDivElement | null) => {
     tableWrapperRef.current = node;
     if (node) {
@@ -370,7 +343,7 @@ export function DataTable<T>({
     return (
       <Card padding={0} className={styles.card}>
         {headerToolbar}
-        <Table>
+        <Table aria-busy={loading ? "true" : undefined}>
           {headerRow}
           <Table.Tbody>
             {SKELETON_ROW_KEYS.map((key) => (
@@ -414,25 +387,33 @@ export function DataTable<T>({
         style={tableWrapperStyle}
         data-virtualized={shouldVirtualize ? "true" : undefined}
       >
-        <Table>
+        <Table aria-rowcount={totalItems}>
           {headerRow}
           <Table.Tbody>
             {spacerRow(virtualWindow.topSpacerHeight, visibleColumnCount, "virtual-top-spacer")}
-            {virtualWindow.rows.map((row) => (
-              <Table.Tr
-                key={rowKey(row)}
-                style={{
-                  height: shouldVirtualize ? virtualRowHeight : undefined,
-                  ...rowStyle?.(row),
-                  cursor: onRowClick ? "pointer" : undefined,
-                }}
-                onClick={onRowClick ? () => onRowClick(row) : undefined}
-              >
-                {columnsWithAccess.map(({ access, column }) => (
-                  <Table.Td key={column.key}>{renderCell(row, column, access)}</Table.Td>
-                ))}
-              </Table.Tr>
-            ))}
+            {virtualWindow.rows.map((row, visibleIndex) => {
+              const rowIndex = virtualWindow.startIndex + visibleIndex;
+              const globalRowIndex = (page - 1) * perPage + rowIndex + 1;
+
+              return (
+                <Table.Tr
+                  key={rowKey(row)}
+                  aria-rowindex={globalRowIndex}
+                  className={shouldVirtualize ? styles.virtualRow : undefined}
+                  data-clickable={onRowClick ? "true" : undefined}
+                  style={{
+                    height: shouldVirtualize ? virtualRowHeight : undefined,
+                    ...rowStyle?.(row),
+                    cursor: onRowClick ? "pointer" : undefined,
+                  }}
+                  onClick={onRowClick ? () => onRowClick(row) : undefined}
+                >
+                  {columnsWithAccess.map(({ access, column }) => (
+                    <Table.Td key={column.key}>{renderCell(row, column, access)}</Table.Td>
+                  ))}
+                </Table.Tr>
+              );
+            })}
             {spacerRow(
               virtualWindow.bottomSpacerHeight,
               visibleColumnCount,
