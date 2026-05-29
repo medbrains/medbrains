@@ -130,6 +130,7 @@ import { useTranslation } from "react-i18next";
 import { useNavigate, useParams, useSearchParams } from "react-router";
 import {
   ClinicalEventProvider,
+  type Column,
   DataTable,
   PageHeader,
   PrescriptionViews,
@@ -319,6 +320,10 @@ function AdmissionsTab() {
     {
       key: "patient_name",
       label: "Patient",
+      fieldAccessKeys: ["patients.uhid", "patients.first_name", "patients.last_name"],
+      accessor: (row: AdmissionRow) => row.patient_name,
+      fieldKind: "name",
+      hiddenLabel: "Patient restricted",
       render: (row: AdmissionRow) => (
         <Stack gap={0}>
           <Text size="sm" fw={500}>
@@ -352,6 +357,7 @@ function AdmissionsTab() {
     {
       key: "actions",
       label: "Actions",
+      requiredPermissions: [P.IPD.ADMISSIONS_VIEW],
       render: (row: AdmissionRow) => (
         <Tooltip label="View details">
           <ActionIcon
@@ -364,7 +370,7 @@ function AdmissionsTab() {
         </Tooltip>
       ),
     },
-  ];
+  ] satisfies Column<AdmissionRow>[];
 
   return (
     <>
@@ -398,6 +404,10 @@ function AdmissionsTab() {
         totalPages={data ? Math.ceil(data.total / data.per_page) : 1}
         onPageChange={setPage}
         rowKey={(row) => row.id}
+        virtualized="auto"
+        virtualizeAt={40}
+        virtualRowHeight={58}
+        tableMaxHeight="calc(100vh - 360px)"
       />
     </>
   );

@@ -138,6 +138,7 @@ import { useTranslation } from "react-i18next";
 import { useNavigate, useParams, useSearchParams } from "react-router";
 import {
   ClinicalEventProvider,
+  type Column,
   DataTable,
   DiagnosisPanel,
   DoctorSearchSelect,
@@ -895,6 +896,10 @@ function OpdPageInner() {
     {
       key: "patient_name",
       label: "Patient",
+      fieldAccessKeys: ["patients.uhid", "patients.first_name", "patients.last_name"],
+      accessor: (row: QueueEntry) => row.patient_name ?? row.uhid,
+      fieldKind: "name",
+      hiddenLabel: "Patient restricted",
       render: (row: QueueEntry) => (
         <Stack gap={0}>
           <Text size="sm" fw={500}>
@@ -934,6 +939,8 @@ function OpdPageInner() {
     {
       key: "actions",
       label: "Actions",
+      requiredPermissions: [P.OPD.QUEUE_VIEW, P.OPD.VISIT_UPDATE, P.OPD.VITALS.CREATE],
+      permissionMode: "any",
       render: (row: QueueEntry) => (
         <Group gap="xs">
           {canRecordVitals && canRecordVitalsFromQueue(row) && (
@@ -1015,7 +1022,7 @@ function OpdPageInner() {
         </Group>
       ),
     },
-  ];
+  ] satisfies Column<QueueEntry>[];
 
   return (
     <div>
@@ -1137,7 +1144,16 @@ function OpdPageInner() {
               <Tabs.Tab value="camp">Camp</Tabs.Tab>
             </Tabs.List>
           </Tabs>
-          <DataTable columns={columns} data={queue} loading={isLoading} rowKey={(row) => row.id} />
+          <DataTable
+            columns={columns}
+            data={queue}
+            loading={isLoading}
+            rowKey={(row) => row.id}
+            virtualized="auto"
+            virtualizeAt={40}
+            virtualRowHeight={58}
+            tableMaxHeight="calc(100vh - 410px)"
+          />
         </Tabs.Panel>
 
         <Tabs.Panel value="referral-tracking">

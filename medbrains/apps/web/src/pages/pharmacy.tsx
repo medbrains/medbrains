@@ -111,6 +111,7 @@ import { useTranslation } from "react-i18next";
 import { useNavigate, useParams, useSearchParams } from "react-router";
 import {
   ClinicalEventProvider,
+  type Column,
   DataTable,
   PageHeader,
   PrescriptionViews,
@@ -1192,6 +1193,11 @@ function PharmacyOrdersTab({
     {
       key: "patient_id",
       label: "Patient",
+      requiredPermissions: [P.PHARMACY.PRESCRIPTIONS_LIST],
+      fieldAccessKeys: ["patients.uhid", "patients.first_name", "patients.last_name"],
+      accessor: (row: PharmacyOrder) => row.patient_id,
+      fieldKind: "identifier",
+      hiddenLabel: "Patient restricted",
       render: (row: PharmacyOrder) => (
         <PharmacyPatientCell
           patientId={row.patient_id}
@@ -1235,6 +1241,12 @@ function PharmacyOrdersTab({
     {
       key: "actions",
       label: "Actions",
+      requiredPermissions: [
+        P.PHARMACY.PRESCRIPTIONS_VIEW,
+        P.PHARMACY.DISPENSING_CREATE,
+        P.PHARMACY.DISPENSING_CANCEL,
+      ],
+      permissionMode: "any",
       render: (row: PharmacyOrder) => (
         <Group gap="xs">
           <Tooltip label={canViewOrderDetail ? "View" : "No permission to view order detail"}>
@@ -1282,7 +1294,7 @@ function PharmacyOrdersTab({
         </Group>
       ),
     },
-  ];
+  ] satisfies Column<PharmacyOrder>[];
 
   return (
     <Stack>
@@ -1353,6 +1365,10 @@ function PharmacyOrdersTab({
             totalPages={data ? Math.ceil(data.total / data.per_page) : 1}
             onPageChange={setPage}
             rowKey={(row) => row.id}
+            virtualized="auto"
+            virtualizeAt={40}
+            virtualRowHeight={58}
+            tableMaxHeight="calc(100vh - 360px)"
           />
         </Stack>
       ) : (
