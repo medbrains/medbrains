@@ -8,6 +8,26 @@
 - No PHI in clear on the wire or at rest. No secrets in code/images/env files.
 
 ## 1. UX REQUIREMENTS
+- Concept correction: do not build a Microsoft Teams clone, and do not turn every workflow into
+  tabs. MedBrains should feel like a clinical command workspace: patient context is always
+  visible, clinical/operational modules are deep-linkable, and actions become available only when
+  the patient state and permissions make them valid.
+- Route/tab/drawer rule:
+  - Use routes for durable records and workspaces: patient record, OPD encounter, IPD admission,
+    emergency visit, pharmacy order, bill/invoice, camp workspace, settings pages, reports.
+  - Use tabs for stable sections inside a durable workspace: notes, orders, MAR, billing, timeline,
+    audit, configuration categories.
+  - Use drawers/modals only for short transient tasks: quick create, confirmation, filters, small
+    forms, scan/print/reprint, one-step routing. Do not hide full workflows in drawers.
+- Product model: patient-centric first, module-aware second. The user should be able to move from
+  Registration -> OPD -> IPD/Emergency -> Pharmacy -> Billing -> Reports without re-searching the
+  patient or losing context, but each module still owns its own route, permissions, events, and
+  audit trail.
+- Enterprise layout: quiet dense workspace, not marketing UI. Prefer predictable rails, top context
+  bars, compact action panels, virtualized tables, status chips, and explainable disabled actions.
+  Avoid decorative dashboards, oversized hero sections, and visual noise in operational screens.
+- Drawers are not banned; drawer misuse is banned. If a user must bookmark it, share it, audit it,
+  reopen it later, or continue the work across modules, it must be a route.
 - No navigation drawer. Use responsive nav: bottom nav (compact), collapsed rail (medium), expanded rail (desktop), D-pad rail (TV).
 - Each module is a route (deep-linkable, back-safe), not a menu item.
 - Sub-views inside a module = in-screen tabs, not nested drawers.
