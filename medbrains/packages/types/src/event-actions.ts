@@ -36,6 +36,7 @@ export interface ClinicalJourneyContext {
   activeEmergencyVisitId?: string | null;
   activeOrderContext?: ClinicalOrderContext | null;
   hasPendingConsent?: boolean;
+  completedEvents?: readonly string[];
 }
 
 export interface ClinicalJourneyActionDefinition {
@@ -73,6 +74,43 @@ function requireOrderContext(context: ClinicalJourneyContext): string | null {
   if (context.activeOrderContext === "opd" && context.activeEncounterId) return null;
   if (context.activeOrderContext === "ipd" && activeAdmissionIsOpen(context)) return null;
   return "Start an OPD visit or use an active IPD admission before ordering";
+}
+
+function eventLabel(eventName: string) {
+  return eventName.replace(/\./g, " ");
+}
+
+export function inferClinicalJourneyEventNames(context: ClinicalJourneyContext): readonly string[] {
+  const events = new Set(context.completedEvents ?? []);
+
+  if (context.patientId) {
+    events.add("patient.created");
+  }
+  if (context.activeEncounterId) {
+    events.add("opd.encounter.created");
+  }
+  if (context.activeAdmissionId) {
+    events.add("bed.assigned");
+  }
+  if (context.activeEmergencyVisitId) {
+    events.add("emergency.visit.created");
+  }
+
+  return [...events];
+}
+
+function activationDisabledReason(
+  action: ClinicalJourneyActionDefinition,
+  context: ClinicalJourneyContext,
+): string | null {
+  if (action.activatesAfter.length === 0) return null;
+
+  const completedEvents = new Set(inferClinicalJourneyEventNames(context));
+  if (action.activatesAfter.some((eventName) => completedEvents.has(eventName))) {
+    return null;
+  }
+
+  return `Available after ${action.activatesAfter.map(eventLabel).join(" or ")}`;
 }
 
 export const CORE_PATIENT_JOURNEY_ACTIONS: readonly ClinicalJourneyActionDefinition[] = [
@@ -275,7 +313,8 @@ export function resolveClinicalJourneyActions(
         : action.requiredPermissions.every((permission) => hasPermission(permission)),
     )
     .map((action) => {
-      const disabledReasonText = action.disabledReason(context);
+      const disabledReasonText =
+        action.disabledReason(context) ?? activationDisabledReason(action, context);
       return {
         ...action,
         enabled: disabledReasonText === null,

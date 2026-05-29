@@ -22,6 +22,8 @@ import {
   IconStethoscope,
 } from "@tabler/icons-react";
 import { useNavigate } from "react-router";
+import { useClinicalEventStore } from "../clinical-event-store";
+import { mergeJourneyEventNames } from "./patient-journey-events";
 
 type PatientOrderTab = "drug" | "lab" | "radiology";
 type PatientJourneyActionSize = "xs" | "sm";
@@ -156,8 +158,13 @@ export function PatientJourneyActions({
 }: PatientJourneyActionsProps) {
   const navigate = useNavigate();
   const hasPermission = usePermissionStore((state) => state.hasPermission);
+  const recentEvents = useClinicalEventStore((state) => state.recentEvents);
+  const journeyContext: ClinicalJourneyContext = {
+    ...context,
+    completedEvents: mergeJourneyEventNames(context, recentEvents),
+  };
   const hiddenActions = new Set(hiddenActionIds);
-  const actions = resolveClinicalJourneyActions(context, hasPermission, "web").filter(
+  const actions = resolveClinicalJourneyActions(journeyContext, hasPermission, "web").filter(
     (action) =>
       !hiddenActions.has(action.id) &&
       supportsAction(action.id, { onOpenOrderBasket, onPrintPatientCard, onShare }),
@@ -170,25 +177,25 @@ export function PatientJourneyActions({
           onEdit();
           return;
         }
-        navigate(`/patients/${context.patientId}/edit`);
+        navigate(`/patients/${journeyContext.patientId}/edit`);
         return;
       case "opd.open_visit":
         navigate(
-          context.activeEncounterId
-            ? `/opd/encounters/${context.activeEncounterId}#consultation`
-            : `/opd/new?patient_id=${context.patientId}`,
+          journeyContext.activeEncounterId
+            ? `/opd/encounters/${journeyContext.activeEncounterId}#consultation`
+            : `/opd/new?patient_id=${journeyContext.patientId}`,
         );
         return;
       case "orders.medication":
       case "orders.lab":
       case "orders.radiology": {
         const tab = ORDER_TABS[actionId];
-        if (tab && onOpenOrderBasket && context.activeOrderContext === localOrderContext) {
+        if (tab && onOpenOrderBasket && journeyContext.activeOrderContext === localOrderContext) {
           onOpenOrderBasket(tab);
           return;
         }
-        if (context.activeOrderContext === "ipd" && context.activeAdmissionId) {
-          navigate(`/ipd/admissions/${context.activeAdmissionId}#overview`);
+        if (journeyContext.activeOrderContext === "ipd" && journeyContext.activeAdmissionId) {
+          navigate(`/ipd/admissions/${journeyContext.activeAdmissionId}#overview`);
           return;
         }
         if (tab) {
@@ -197,28 +204,28 @@ export function PatientJourneyActions({
         return;
       }
       case "ipd.open_admission":
-        if (context.activeAdmissionId) {
-          navigate(`/ipd/admissions/${context.activeAdmissionId}#overview`);
+        if (journeyContext.activeAdmissionId) {
+          navigate(`/ipd/admissions/${journeyContext.activeAdmissionId}#overview`);
         }
         return;
       case "ipd.admit":
-        navigate(`/ipd/new?patient_id=${context.patientId}`);
+        navigate(`/ipd/new?patient_id=${journeyContext.patientId}`);
         return;
       case "emergency.open_visit":
         navigate(
-          context.activeEmergencyVisitId
-            ? `/emergency/visits/${context.activeEmergencyVisitId}`
-            : `/emergency/visits/new?patient_id=${context.patientId}`,
+          journeyContext.activeEmergencyVisitId
+            ? `/emergency/visits/${journeyContext.activeEmergencyVisitId}`
+            : `/emergency/visits/new?patient_id=${journeyContext.patientId}`,
         );
         return;
       case "camp.open_context":
-        navigate(`/camp?patient_id=${context.patientId}`);
+        navigate(`/camp?patient_id=${journeyContext.patientId}`);
         return;
       case "billing.open_ledger":
-        navigate(`/billing?tab=invoices&patient_id=${context.patientId}`);
+        navigate(`/billing?tab=invoices&patient_id=${journeyContext.patientId}`);
         return;
       case "pharmacy.open_patient_queue":
-        navigate(`/pharmacy?tab=orders&patient_id=${context.patientId}`);
+        navigate(`/pharmacy?tab=orders&patient_id=${journeyContext.patientId}`);
         return;
       case "patient.share":
         onShare?.();

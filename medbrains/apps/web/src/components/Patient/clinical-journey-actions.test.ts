@@ -1,0 +1,54 @@
+// @vitest-environment node
+
+import { inferClinicalJourneyEventNames, resolveClinicalJourneyActions } from "@medbrains/types";
+import { describe, expect, it } from "vitest";
+
+const allowAll = () => true;
+
+describe("clinical journey event activation", () => {
+  it("infers completed events from active patient, OPD, IPD, and ER context", () => {
+    expect(
+      inferClinicalJourneyEventNames({
+        patientId: "patient-1",
+        activeEncounterId: "encounter-1",
+        activeAdmissionId: "admission-1",
+        activeEmergencyVisitId: "visit-1",
+      }),
+    ).toEqual([
+      "patient.created",
+      "opd.encounter.created",
+      "bed.assigned",
+      "emergency.visit.created",
+    ]);
+  });
+
+  it("keeps downstream actions disabled until their activating event exists", () => {
+    const actions = resolveClinicalJourneyActions({ patientId: "patient-1" }, allowAll, "web");
+
+    expect(actions.find((action) => action.id === "billing.open_ledger")?.enabled).toBe(true);
+    expect(actions.find((action) => action.id === "pharmacy.open_patient_queue")?.enabled).toBe(
+      false,
+    );
+    expect(
+      actions.find((action) => action.id === "pharmacy.open_patient_queue")?.disabledReasonText,
+    ).toContain("order created");
+  });
+
+  it("enables clinical and fulfillment actions when the care event chain is present", () => {
+    const actions = resolveClinicalJourneyActions(
+      {
+        patientId: "patient-1",
+        activeEncounterId: "encounter-1",
+        activeOrderContext: "opd",
+        completedEvents: ["order.created"],
+      },
+      allowAll,
+      "web",
+    );
+
+    expect(actions.find((action) => action.id === "orders.medication")?.enabled).toBe(true);
+    expect(actions.find((action) => action.id === "pharmacy.open_patient_queue")?.enabled).toBe(
+      true,
+    );
+  });
+});

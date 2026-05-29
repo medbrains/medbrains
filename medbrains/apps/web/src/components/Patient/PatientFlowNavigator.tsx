@@ -21,6 +21,7 @@ import type { ReactNode } from "react";
 import { useNavigate } from "react-router";
 import { useClinicalEventStore } from "../clinical-event-store";
 import styles from "./patient-flow-navigator.module.scss";
+import { clinicalEventMatchesJourney, mergeJourneyEventNames } from "./patient-journey-events";
 
 export type PatientFlowModule =
   | "patient"
@@ -143,19 +144,11 @@ export function PatientFlowNavigator({
 }: PatientFlowNavigatorProps) {
   const navigate = useNavigate();
   const hasPermission = usePermissionStore((state) => state.hasPermission);
-  const recentPatientEvent = useClinicalEventStore((state) =>
-    state.recentEvents.find(
-      (event) =>
-        event.patientId === patientId ||
-        (activeAdmissionId && event.admissionId === activeAdmissionId) ||
-        (activeEncounterId && event.encounterId === activeEncounterId) ||
-        (activeEmergencyVisitId && event.sourceRecordId === activeEmergencyVisitId),
-    ),
-  );
+  const recentEvents = useClinicalEventStore((state) => state.recentEvents);
 
   if (!patientId) return null;
 
-  const context: ClinicalJourneyContext = {
+  const baseContext: ClinicalJourneyContext = {
     patientId,
     isDeceased,
     activeEncounterId,
@@ -165,6 +158,13 @@ export function PatientFlowNavigator({
     activeOrderContext:
       activeOrderContext ?? (activeEncounterId ? "opd" : activeAdmissionId ? "ipd" : null),
   };
+  const context: ClinicalJourneyContext = {
+    ...baseContext,
+    completedEvents: mergeJourneyEventNames(baseContext, recentEvents),
+  };
+  const recentPatientEvent = recentEvents.find((event) =>
+    clinicalEventMatchesJourney(event, context),
+  );
   const actions = resolvedActionMap(resolveClinicalJourneyActions(context, hasPermission, "web"));
   const patientState = itemState(
     undefined,

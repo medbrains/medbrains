@@ -23,6 +23,7 @@ export type {
 } from "./event-actions.js";
 export {
   CORE_PATIENT_JOURNEY_ACTIONS,
+  inferClinicalJourneyEventNames,
   resolveClinicalJourneyActions,
 } from "./event-actions.js";
 export type { PermissionDef, PermissionGroup } from "./permissions.js";
