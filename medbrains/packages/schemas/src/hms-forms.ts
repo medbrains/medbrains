@@ -1767,6 +1767,21 @@ export const pharmacyReturnRequestFormSchema = z.object({
     .min(1, "Select at least one dispensed medicine"),
 });
 
+export const pharmacyOrderItemFormSchema = z.object({
+  catalog_item_id: z.string().optional(),
+  drug_name: requiredTrimmed("Select a medicine"),
+  quantity: positiveFormInteger,
+  unit_price: nonNegativeNumber("Unit price cannot be negative"),
+  tax_percent: nonNegativeNumber("GST cannot be negative"),
+});
+
+export const pharmacyOrderFormSchema = z.object({
+  patient_id: requiredTrimmed("Select a patient"),
+  notes: z.string(),
+  safety_override_reason: z.string(),
+  items: z.array(pharmacyOrderItemFormSchema).min(1, "Add at least one medicine"),
+});
+
 export const pharmacyPosSaleItemFormSchema = z.object({
   catalog_item_id: requiredTrimmed("Select a drug"),
   drug_name: requiredTrimmed("Drug name is required"),
@@ -4045,10 +4060,6 @@ function requireCampForCampVisit(
   }
 }
 
-export const startOpdVisitFormSchema = z
-  .object(startOpdVisitFormShape)
-  .superRefine(requireCampForCampVisit);
-
 export const opdQueueVisitFormSchema = z
   .object({
     ...startOpdVisitFormShape,
@@ -5050,6 +5061,8 @@ export type OrderBasketRadiologyFormInput = z.infer<typeof orderBasketRadiologyF
 export type PharmacyStockTransactionFormInput = z.infer<typeof pharmacyStockTransactionFormSchema>;
 export type PharmacyNdpsEntryFormInput = z.infer<typeof pharmacyNdpsEntryFormSchema>;
 export type PharmacyReturnRequestFormInput = z.infer<typeof pharmacyReturnRequestFormSchema>;
+export type PharmacyOrderFormInput = z.infer<typeof pharmacyOrderFormSchema>;
+export type PharmacyOrderItemFormInput = z.infer<typeof pharmacyOrderItemFormSchema>;
 export type PharmacyPosPaymentModeFormValue = z.infer<typeof pharmacyPosPaymentModeFormSchema>;
 export type PharmacyPosSaleFormInput = z.infer<typeof pharmacyPosSaleFormSchema>;
 export type PharmacyPosReturnFormInput = z.infer<typeof pharmacyPosReturnFormSchema>;
@@ -5216,7 +5229,6 @@ export type OtPostopRecordUpdateFormInput = z.infer<typeof otPostopRecordUpdateF
 export type OtStatusReasonFormInput = z.infer<typeof otStatusReasonFormSchema>;
 export type OtRoomFormInput = z.infer<typeof otRoomFormSchema>;
 export type OtUtilizationFilterFormInput = z.infer<typeof otUtilizationFilterFormSchema>;
-export type StartOpdVisitFormInput = z.infer<typeof startOpdVisitFormSchema>;
 export type OpdQueueVisitFormInput = z.infer<typeof opdQueueVisitFormSchema>;
 export type OpdFollowUpAppointmentFormInput = z.infer<typeof opdFollowUpAppointmentFormSchema>;
 export type IpdDamaFormInput = z.infer<typeof ipdDamaFormSchema>;

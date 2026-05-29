@@ -1,3 +1,4 @@
+-- RLS-Posture: tenant-scoped
 -- Camp supply rows need to behave like pharmacy stock rows during outreach
 -- planning: catalog-backed medicines, batch/store traceability, and camp-specific
 -- patient/cost price tags.

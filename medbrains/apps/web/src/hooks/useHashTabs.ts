@@ -20,7 +20,7 @@ function readHash() {
  */
 export function useHashTabs(
   defaultValue: string,
-  validValues?: string[],
+  validValues?: readonly string[],
   options?: { nested?: boolean },
 ): [string, (value: string | null) => void] {
   const nested = options?.nested ?? false;

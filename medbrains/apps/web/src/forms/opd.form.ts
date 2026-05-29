@@ -16,7 +16,6 @@ import type {
   OpdReminderPriorityFormValue,
   OpdReminderTypeFormValue,
   OpdVisitTypeFormValue,
-  StartOpdVisitFormInput,
 } from "@medbrains/schemas";
 import { optionalNumberFromFormValue, optionalTextFromFormValue } from "@medbrains/schemas";
 import type {
@@ -111,14 +110,6 @@ export const DEFAULT_OPD_FOLLOW_UP_FORM_VALUES: OpdFollowUpAppointmentFormInput 
   appointment_date: "",
   slot: null,
   reason: "",
-};
-
-export const DEFAULT_START_OPD_VISIT_FORM_VALUES: StartOpdVisitFormInput = {
-  department_id: null,
-  doctor_id: null,
-  visit_type: "walk_in",
-  camp_id: null,
-  notes: "",
 };
 
 export const DEFAULT_OPD_LAB_ORDER_FORM_VALUES: OpdLabOrderFormInput = {
@@ -221,20 +212,6 @@ export function toBookFollowUpAppointmentRequest(
     appointment_type: "follow_up",
     reason: optionalTextFromFormValue(values.reason),
   };
-}
-
-export function toCreateEncounterRequestForPatient(
-  patientId: string,
-  values: StartOpdVisitFormInput,
-): CreateEncounterRequest {
-  return toCreateEncounterRequest({
-    patient_id: patientId,
-    department_id: values.department_id,
-    doctor_id: values.doctor_id,
-    visit_type: values.visit_type,
-    camp_id: values.camp_id,
-    notes: values.notes,
-  });
 }
 
 export function toCreateLabOrderRequest(

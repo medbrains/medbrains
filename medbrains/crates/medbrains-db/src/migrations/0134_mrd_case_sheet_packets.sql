@@ -1,3 +1,4 @@
+-- RLS-Posture: tenant-scoped
 -- ============================================================
 -- MedBrains schema -- MRD case-sheet packet and shelf tracking
 -- ============================================================

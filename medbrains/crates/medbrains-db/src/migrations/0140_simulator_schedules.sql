@@ -1,3 +1,4 @@
+-- RLS-Posture: tenant-scoped
 -- Internal data simulator control plane.
 --
 -- `simulator_schedules` defines a named profile + cron expression that a

@@ -36,9 +36,10 @@ import {
   patientDetailFamilyLinkFormSchema,
   patientMergeFormSchema,
 } from "@medbrains/schemas";
-import { useHasPermission } from "@medbrains/stores";
+import { useFieldAccess, useHasPermission } from "@medbrains/stores";
 import type {
   AdmissionRow,
+  ClinicalJourneyContext,
   DrugTimelineWithLabsResponse,
   FamilyLinkRow,
   MedicationTimelineEvent,
@@ -55,9 +56,9 @@ import type {
   TreatmentSummaryResponse,
 } from "@medbrains/types";
 import { P } from "@medbrains/types";
+import { fieldAccessText } from "@medbrains/utils";
 import {
   IconAlertTriangle,
-  IconBed,
   IconCalendar,
   IconClock,
   IconEye,
@@ -65,13 +66,11 @@ import {
   IconFlask,
   IconGitMerge,
   IconLink,
-  IconPencil,
   IconPill,
   IconPlus,
   IconPrinter,
   IconReceipt,
   IconReportMedical,
-  IconShare,
   IconStethoscope,
   IconTrash,
   IconUser,
@@ -83,7 +82,6 @@ import { useNavigate, useParams } from "react-router";
 import { PrescriptionViews } from "../components/Clinical";
 import { NotesPanel } from "../components/crdt/NotesPanel";
 import { DrugSearchSelect } from "../components/DrugSearchSelect";
-import { OrderBasketChip } from "../components/OrderBasket/OrderBasketChip";
 import {
   type OrderBasketTab,
   OrderBasketWorkspace,
@@ -91,7 +89,8 @@ import {
 import { PageHeader } from "../components/PageHeader";
 import { ActivePackagesSection } from "../components/Patient/ActivePackagesSection";
 import { PatientContextBanner } from "../components/Patient/PatientContextBanner";
-import { StartOpdVisitModal } from "../components/Patient/StartOpdVisitModal";
+import { PatientFlowNavigator } from "../components/Patient/PatientFlowNavigator";
+import { PatientJourneyActions } from "../components/Patient/PatientJourneyActions";
 import { PatientNameCell } from "../components/PatientNameCell";
 import { PatientSearchSelect } from "../components/PatientSearchSelect";
 import { ShareDrawer } from "../components/Sharing/ShareDrawer";
@@ -109,6 +108,7 @@ import {
   toCreatePatientDocumentRequest,
   toMergePatientRequest,
 } from "../forms/patient-detail.form";
+import { useHashTabs } from "../hooks/useHashTabs";
 import { useRequirePermission } from "../hooks/useRequirePermission";
 import { patientDetailService } from "../services/patientDetail.service";
 
@@ -129,6 +129,23 @@ const LAB_STATUS_COLORS: Record<string, string> = {
   verified: "teal",
   cancelled: "danger",
 };
+
+const PATIENT_DETAIL_TAB_VALUES = [
+  "overview",
+  "allergies",
+  "visits",
+  "prescriptions",
+  "lab",
+  "imaging",
+  "billing",
+  "appointments",
+  "family",
+  "documents",
+  "chronic",
+  "packages",
+  "notes",
+  "merge",
+] as const;
 
 const INVOICE_STATUS_COLORS: Record<string, string> = {
   draft: "gray",
@@ -201,10 +218,29 @@ function age(dob: string | null): string {
 // ── Overview Tab ───────────────────────────────────────────
 
 function OverviewTab({ patient }: { patient: Patient }) {
+  const uhidAccess = useFieldAccess("patients.uhid");
+  const firstNameAccess = useFieldAccess("patients.first_name");
+  const middleNameAccess = useFieldAccess("patients.middle_name");
+  const lastNameAccess = useFieldAccess("patients.last_name");
+  const phoneAccess = useFieldAccess("patients.phone");
+  const emailAccess = useFieldAccess("patients.email");
+  const dobAccess = useFieldAccess("patients.date_of_birth");
   const { data: allergies } = useQuery({
     queryKey: ["patient-allergies", patient.id],
     queryFn: () => patientDetailService.listPatientAllergies(patient.id),
   });
+  const displayName =
+    [
+      fieldAccessText(firstNameAccess, patient.first_name, "name"),
+      fieldAccessText(middleNameAccess, patient.middle_name, "name"),
+      fieldAccessText(lastNameAccess, patient.last_name, "name"),
+    ]
+      .filter((part) => part !== "—")
+      .join(" ") || "—";
+  const dateOfBirthValue =
+    patient.date_of_birth && (dobAccess === "edit" || dobAccess === "view")
+      ? `${formatDate(patient.date_of_birth)} (${age(patient.date_of_birth)})`
+      : fieldAccessText(dobAccess, patient.date_of_birth, "identifier");
 
   return (
     <SimpleGrid cols={{ base: 1, md: 2 }} spacing="md">
@@ -213,24 +249,14 @@ function OverviewTab({ patient }: { patient: Patient }) {
           Demographics
         </Title>
         <Stack gap="xs">
-          <InfoRow label="UHID" value={patient.uhid} />
-          <InfoRow
-            label="Name"
-            value={`${patient.first_name} ${patient.middle_name ?? ""} ${patient.last_name}`.trim()}
-          />
+          <InfoRow label="UHID" value={fieldAccessText(uhidAccess, patient.uhid, "identifier")} />
+          <InfoRow label="Name" value={displayName} />
           <InfoRow label="Gender" value={patient.gender} />
-          <InfoRow
-            label="Date of Birth"
-            value={
-              patient.date_of_birth
-                ? `${formatDate(patient.date_of_birth)} (${age(patient.date_of_birth)})`
-                : "-"
-            }
-          />
+          <InfoRow label="Date of Birth" value={dateOfBirthValue} />
           <InfoRow label="Blood Group" value={patient.blood_group ?? "-"} />
           <InfoRow label="Marital Status" value={patient.marital_status ?? "-"} />
-          <InfoRow label="Phone" value={patient.phone} />
-          <InfoRow label="Email" value={patient.email ?? "-"} />
+          <InfoRow label="Phone" value={fieldAccessText(phoneAccess, patient.phone, "phone")} />
+          <InfoRow label="Email" value={fieldAccessText(emailAccess, patient.email, "email")} />
           <InfoRow label="Category" value={patient.category} />
           <InfoRow label="Financial Class" value={patient.financial_class} />
         </Stack>
@@ -2023,7 +2049,20 @@ function MergeTab({ patient }: { patient: Patient }) {
 
 // ── Print Patient Card ─────────────────────────────────────
 
-function handlePrintPatientCard(patient: Patient) {
+interface PatientCardPrintData {
+  uhid: string;
+  name: string;
+  gender: string;
+  bloodGroup: string | null;
+  phone: string;
+  dateOfBirth: string;
+  category: string;
+  isVip: boolean;
+  isMedicoLegal: boolean;
+  mlcNumber: string;
+}
+
+function handlePrintPatientCard(data: PatientCardPrintData) {
   const win = window.open("", "_blank", "width=400,height=300");
   if (!win) return;
   win.document.write(`
@@ -2035,18 +2074,18 @@ function handlePrintPatientCard(patient: Patient) {
       .name { font-size: 16px; font-weight: bold; margin: 8px 0 4px; }
       .info { font-size: 12px; color: #555; margin: 2px 0; }
       .footer { font-size: 10px; color: #999; margin-top: 12px; border-top: 1px solid #ddd; padding-top: 8px; }
-    </style></head><body>
-    <div class="card">
-      <div class="uhid">${patient.uhid}</div>
-      <div class="name">${patient.first_name} ${patient.middle_name ?? ""} ${patient.last_name}</div>
-      <div class="info">Gender: ${patient.gender} | Blood Group: ${patient.blood_group ?? "Unknown"}</div>
-      <div class="info">Phone: ${patient.phone}</div>
-      <div class="info">DOB: ${patient.date_of_birth ?? "N/A"}</div>
-      <div class="info">Category: ${patient.category}</div>
-      ${patient.is_vip ? '<div class="info" style="color:orange;font-weight:bold;">VIP Patient</div>' : ""}
-      ${patient.is_medico_legal ? `<div class="info" style="color:red;font-weight:bold;">MLC #${patient.mlc_number ?? ""}</div>` : ""}
-      <div class="footer">MedBrains HMS &mdash; Printed ${new Date().toLocaleDateString()}</div>
-    </div>
+	    </style></head><body>
+	    <div class="card">
+	      <div class="uhid">${escapeHtml(data.uhid)}</div>
+	      <div class="name">${escapeHtml(data.name)}</div>
+	      <div class="info">Gender: ${escapeHtml(data.gender)} | Blood Group: ${escapeHtml(data.bloodGroup ?? "Unknown")}</div>
+	      <div class="info">Phone: ${escapeHtml(data.phone)}</div>
+	      <div class="info">DOB: ${escapeHtml(data.dateOfBirth)}</div>
+	      <div class="info">Category: ${escapeHtml(data.category)}</div>
+	      ${data.isVip ? '<div class="info" style="color:orange;font-weight:bold;">VIP Patient</div>' : ""}
+	      ${data.isMedicoLegal ? `<div class="info" style="color:red;font-weight:bold;">MLC #${escapeHtml(data.mlcNumber)}</div>` : ""}
+	      <div class="footer">MedBrains HMS &mdash; Printed ${new Date().toLocaleDateString()}</div>
+	    </div>
     <script>window.print();window.close();</script>
     </body></html>
   `);
@@ -2744,14 +2783,19 @@ export function PatientDetailPage() {
   const { id } = useParams<{ id: string }>();
   const patientId = id ?? "";
   const navigate = useNavigate();
-  const canUpdate = useHasPermission(P.PATIENTS.UPDATE);
-  const canCreateVisit = useHasPermission(P.OPD.VISIT_CREATE);
-  const canAdmit = useHasPermission(P.IPD.ADMISSIONS_CREATE);
-  const canOrder = useHasPermission(P.ORDER_BASKET.SIGN);
+  const uhidAccess = useFieldAccess("patients.uhid");
+  const firstNameAccess = useFieldAccess("patients.first_name");
+  const lastNameAccess = useFieldAccess("patients.last_name");
+  const phoneAccess = useFieldAccess("patients.phone");
+  const dobAccess = useFieldAccess("patients.date_of_birth");
+  const mlcNumberAccess = useFieldAccess("patients.mlc_number");
   const [basketOpen, setBasketOpen] = useState(false);
   const [basketTab, setBasketTab] = useState<OrderBasketTab>("drug");
-  const [opdVisitOpen, { open: openOpdVisit, close: closeOpdVisit }] = useDisclosure(false);
   const [shareOpen, { open: openShare, close: closeShare }] = useDisclosure(false);
+  const [activePatientTab, setActivePatientTab] = useHashTabs(
+    "overview",
+    PATIENT_DETAIL_TAB_VALUES,
+  );
 
   function openOrderBasket(tab: OrderBasketTab = "drug") {
     setBasketTab(tab);
@@ -2771,6 +2815,12 @@ export function PatientDetailPage() {
     enabled: patientId.length > 0,
   });
   const activeEncounter = visits.find((v) => v.status === "open" || v.status === "in_progress");
+  const { data: activeAdmissions } = useQuery({
+    queryKey: ["patient-admissions", patientId, "admitted"],
+    queryFn: () => patientDetailService.listPatientAdmissions(patientId, "admitted"),
+    enabled: patientId.length > 0,
+  });
+  const activeAdmission = activeAdmissions?.admissions[0];
 
   if (isLoading || !patient) {
     return (
@@ -2781,109 +2831,76 @@ export function PatientDetailPage() {
     );
   }
 
+  const displayName =
+    [
+      fieldAccessText(firstNameAccess, patient.first_name, "name"),
+      fieldAccessText(lastNameAccess, patient.last_name, "name"),
+    ]
+      .filter((part) => part !== "—")
+      .join(" ") || "Patient";
+  const displayPhone = fieldAccessText(phoneAccess, patient.phone, "phone");
+  const displayUhid = fieldAccessText(uhidAccess, patient.uhid, "identifier");
+  const displayDateOfBirth =
+    dobAccess === "edit" || dobAccess === "view"
+      ? (patient.date_of_birth ?? "N/A")
+      : fieldAccessText(dobAccess, patient.date_of_birth, "identifier");
+  const displayMlcNumber = fieldAccessText(mlcNumberAccess, patient.mlc_number, "identifier");
+  const displayAge =
+    dobAccess === "edit" || dobAccess === "view"
+      ? age(patient.date_of_birth)
+      : fieldAccessText(dobAccess, patient.date_of_birth, "identifier");
+  const actionContext: ClinicalJourneyContext = {
+    patientId: patient.id,
+    isDeceased: patient.is_deceased,
+    activeEncounterId: activeEncounter?.id ?? null,
+    activeAdmissionId: activeAdmission?.id ?? null,
+    activeAdmissionStatus: activeAdmission?.status ?? null,
+    activeOrderContext: activeEncounter ? "opd" : activeAdmission ? "ipd" : null,
+  };
+
   return (
     <div>
       <PageHeader
-        title={`${patient.first_name} ${patient.last_name}`}
-        subtitle={`UHID: ${patient.uhid} | ${patient.gender} | ${age(patient.date_of_birth)} | ${patient.phone}`}
+        title={displayName}
+        subtitle={`UHID: ${displayUhid} | ${patient.gender} | ${displayAge} | ${displayPhone}`}
         actions={
-          <Group gap="xs">
-            {canUpdate && (
-              <Tooltip label="Edit Patient">
-                <Button
-                  variant="light"
-                  size="sm"
-                  leftSection={<IconPencil size={14} />}
-                  onClick={() => navigate(`/patients/${patient.id}/edit`)}
-                >
-                  Edit
-                </Button>
-              </Tooltip>
-            )}
-            {canCreateVisit && (
-              <Button
-                variant="light"
-                size="sm"
-                leftSection={<IconStethoscope size={14} />}
-                onClick={openOpdVisit}
-              >
-                New OPD Visit
-              </Button>
-            )}
-            {canOrder && activeEncounter && (
-              <>
-                <OrderBasketChip onClick={() => openOrderBasket("drug")} />
-                <Button
-                  variant="subtle"
-                  size="sm"
-                  leftSection={<IconFlask size={14} />}
-                  onClick={() => openOrderBasket("lab")}
-                >
-                  Lab
-                </Button>
-                <Button
-                  variant="subtle"
-                  size="sm"
-                  leftSection={<IconEye size={14} />}
-                  onClick={() => openOrderBasket("radiology")}
-                >
-                  Imaging
-                </Button>
-              </>
-            )}
-            {canOrder && !activeEncounter && (
-              <Tooltip label="No active visit — start an OPD visit or admission first">
-                <Button
-                  variant="subtle"
-                  size="sm"
-                  leftSection={<IconStethoscope size={14} />}
-                  disabled
-                >
-                  Order
-                </Button>
-              </Tooltip>
-            )}
-            {canAdmit && (
-              <Button
-                variant="light"
-                size="sm"
-                leftSection={<IconBed size={14} />}
-                onClick={() => navigate(`/ipd?action=admit&patient_id=${patient.id}`)}
-              >
-                Admit to IPD
-              </Button>
-            )}
-            <Tooltip label="Share record access">
-              <Button
-                variant="light"
-                size="sm"
-                leftSection={<IconShare size={14} />}
-                onClick={openShare}
-              >
-                Share
-              </Button>
-            </Tooltip>
-            <Tooltip label="Print patient card">
-              <ActionIcon
-                variant="light"
-                onClick={() => handlePrintPatientCard(patient)}
-                aria-label="Print"
-              >
-                <IconPrinter size={18} />
-              </ActionIcon>
-            </Tooltip>
-          </Group>
+          <PatientJourneyActions
+            context={actionContext}
+            onEdit={() => navigate(`/patients/${patient.id}/edit`)}
+            onOpenOrderBasket={openOrderBasket}
+            onShare={openShare}
+            onPrintPatientCard={() =>
+              handlePrintPatientCard({
+                uhid: displayUhid,
+                name: displayName,
+                gender: patient.gender,
+                bloodGroup: patient.blood_group,
+                phone: displayPhone,
+                dateOfBirth: displayDateOfBirth,
+                category: patient.category,
+                isVip: patient.is_vip,
+                isMedicoLegal: patient.is_medico_legal,
+                mlcNumber: displayMlcNumber,
+              })
+            }
+          />
         }
       />
 
       <PatientContextBanner patientId={patient.id} />
+      <PatientFlowNavigator
+        patientId={patient.id}
+        active="patient"
+        activeEncounterId={activeEncounter?.id ?? null}
+        activeAdmissionId={activeAdmission?.id ?? null}
+      />
 
       <ShareDrawer
         opened={shareOpen}
         onClose={closeShare}
         objectType="patient"
         objectId={patient.id}
-        objectLabel={`${patient.first_name} ${patient.last_name} (${patient.uhid})`}
+        objectLabel={`${displayName} (${displayUhid})`}
       />
 
       <Group gap="xs" mb="md">
@@ -2910,7 +2927,7 @@ export function PatientDetailPage() {
         )}
       </Group>
 
-      <Tabs defaultValue="overview" keepMounted={false}>
+      <Tabs value={activePatientTab} onChange={setActivePatientTab} keepMounted={false}>
         <Tabs.List mb="md">
           <Tabs.Tab value="overview" leftSection={<IconUser size={14} />}>
             Overview
@@ -3010,13 +3027,6 @@ export function PatientDetailPage() {
           onActiveTabChange={setBasketTab}
         />
       )}
-      <StartOpdVisitModal
-        patientId={patient.id}
-        patientName={`${patient.first_name} ${patient.last_name}`.trim()}
-        opened={opdVisitOpen}
-        onClose={closeOpdVisit}
-        onCreated={(encounterId) => navigate(`/opd/encounters/${encounterId}`)}
-      />
     </div>
   );
 }

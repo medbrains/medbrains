@@ -7,6 +7,7 @@ import {
   IconUserQuestion,
 } from "@tabler/icons-react";
 import { usePatientName } from "../hooks/usePatientName";
+import { PermissionedFieldValue, useProtectedFieldValue } from "./PermissionedFieldValue";
 import styles from "./patient-name-cell.module.scss";
 
 interface PatientNameCellProps {
@@ -32,6 +33,12 @@ const genderTitles: Record<Gender, string> = {
   other: "Other gender identity",
   unknown: "Gender not recorded",
 };
+
+const PATIENT_NAME_FIELD_CODES = [
+  "patients.first_name",
+  "patients.middle_name",
+  "patients.last_name",
+] as const;
 
 function GenderIcon({ gender }: { gender: Gender }) {
   if (gender === "male") return <IconGenderMale size={11} stroke={2.5} />;
@@ -59,11 +66,26 @@ function PatientIdentityLine({
   showGender: boolean;
   size: "xs" | "sm" | "md";
 }) {
+  const protectedName = useProtectedFieldValue({
+    fieldCodes: PATIENT_NAME_FIELD_CODES,
+    value: fullName,
+    kind: "name",
+  });
+
   return (
     <Group gap={6} wrap="nowrap" className={styles.nameRow}>
-      <Tooltip label={fullName} disabled={fullName.length < 24} withArrow>
-        <Text size={size} className={styles.name} truncate>
-          {fullName}
+      <Tooltip
+        label={protectedName.restrictionLabel ?? protectedName.displayValue}
+        disabled={!protectedName.restrictionLabel && protectedName.displayValue.length < 24}
+        withArrow
+      >
+        <Text
+          size={size}
+          c={protectedName.isRestricted ? "var(--mb-text-muted)" : undefined}
+          className={styles.name}
+          truncate
+        >
+          {protectedName.displayValue}
         </Text>
       </Tooltip>
       {showGender && (
@@ -141,9 +163,14 @@ export function PatientNameCell({
         showGender={showGender}
         size={size}
       />
-      <Text size="xs" ff="monospace" className={styles.uhid}>
-        {data.uhid}
-      </Text>
+      <PermissionedFieldValue
+        fieldCode="patients.uhid"
+        value={data.uhid}
+        kind="identifier"
+        size="xs"
+        ff="monospace"
+        className={styles.uhid}
+      />
     </Stack>
   );
 }

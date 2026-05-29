@@ -4,11 +4,13 @@ import { notifications } from "@mantine/notifications";
 import type { GenderFormValue, MiniRegisterPatientFormInput } from "@medbrains/schemas";
 import { miniRegisterPatientFormSchema, toGenderFormValue } from "@medbrains/schemas";
 import type { Patient } from "@medbrains/types";
+import { fieldAccessText } from "@medbrains/utils";
 import { IconAlertTriangle, IconCheck, IconUserPlus } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { type CreatePatientInput, patientsService } from "../../services/patients.service";
+import { useProtectedFieldAccess } from "../PermissionedFieldValue";
 
 interface MiniRegisterPatientProps {
   searchText: string;
@@ -45,11 +47,6 @@ function splitSearchText(searchText: string): { firstName: string; lastName: str
   };
 }
 
-function formatPatientLabel(patient: Patient): string {
-  const phone = patient.phone ? ` - ${patient.phone}` : "";
-  return `${patient.first_name} ${patient.last_name} (${patient.uhid})${phone}`;
-}
-
 function errorMessage(error: unknown): string {
   if (error instanceof Error) {
     return error.message;
@@ -60,6 +57,12 @@ function errorMessage(error: unknown): string {
 export function MiniRegisterPatient({ searchText, onCreated, onCancel }: MiniRegisterPatientProps) {
   const initialName = useMemo(() => splitSearchText(searchText), [searchText]);
   const queryClient = useQueryClient();
+  const patientNameAccess = useProtectedFieldAccess(undefined, [
+    "patients.first_name",
+    "patients.last_name",
+  ]);
+  const uhidAccess = useProtectedFieldAccess("patients.uhid");
+  const phoneAccess = useProtectedFieldAccess("patients.phone");
   const {
     control,
     handleSubmit,
@@ -95,14 +98,31 @@ export function MiniRegisterPatient({ searchText, onCreated, onCancel }: MiniReg
     values.first_name.trim().length > 0 &&
     values.last_name.trim().length > 0 &&
     (!hasDuplicateCandidates || values.duplicate_checked);
+  const formatPatientLabel = (patient: Patient): string => {
+    const name =
+      fieldAccessText(
+        patientNameAccess,
+        `${patient.first_name} ${patient.last_name}`.trim(),
+        "name",
+      ) || "Patient";
+    const uhid = fieldAccessText(uhidAccess, patient.uhid, "identifier");
+    const phone = patient.phone ? ` - ${fieldAccessText(phoneAccess, patient.phone, "phone")}` : "";
+    return `${name} (${uhid})${phone}`;
+  };
 
   const mutation = useMutation({
     mutationFn: (payload: CreatePatientInput) => patientsService.createPatient(payload),
     onSuccess: (patient) => {
       queryClient.invalidateQueries({ queryKey: ["patient-search"] });
+      const registeredName =
+        fieldAccessText(
+          patientNameAccess,
+          `${patient.first_name} ${patient.last_name}`.trim(),
+          "name",
+        ) || "Patient";
       notifications.show({
         title: "Patient registered",
-        message: `${patient.first_name} ${patient.last_name} is now selected`,
+        message: `${registeredName} is now selected`,
         color: "success",
         icon: <IconCheck size={16} />,
       });

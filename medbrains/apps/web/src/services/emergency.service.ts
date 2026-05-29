@@ -22,6 +22,7 @@ export type UpdateMassCasualtyEventInput = Parameters<typeof api.updateMassCasua
 
 export const emergencyService = {
   listErVisits: () => api.listErVisits(),
+  getErVisit: (id: string) => api.getErVisit(id),
   createErVisit: (data: CreateErVisitInput) => api.createErVisit(data),
   admitFromEr: (visitId: string, data: AdmitFromErInput) => api.admitFromEr(visitId, data),
   listResuscitationLogs: (visitId: string) => api.listResuscitationLogs(visitId),

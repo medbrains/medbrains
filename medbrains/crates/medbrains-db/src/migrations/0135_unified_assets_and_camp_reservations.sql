@@ -1,3 +1,4 @@
+-- RLS-Posture: tenant-scoped
 -- Unified hospital asset taxonomy and camp asset custody.
 --
 -- Existing source tables remain authoritative:

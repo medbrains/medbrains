@@ -7,6 +7,7 @@ import {
   Card,
   Checkbox,
   Drawer,
+  Grid,
   Group,
   Menu,
   Modal,
@@ -52,6 +53,7 @@ import type {
   BedTurnaroundLog,
   BillingSummaryResponse,
   CensusWardRow,
+  CreateAdmissionResponse,
   CreateBirthRecordRequest,
   CreateClinicalDocRequest,
   CreateDeathSummaryRequest,
@@ -108,7 +110,6 @@ import {
   IconCheck,
   IconCross,
   IconDoor,
-  IconDots,
   IconEye,
   IconFileDescription,
   IconFlask,
@@ -126,6 +127,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
+import { useNavigate, useParams, useSearchParams } from "react-router";
 import {
   ClinicalEventProvider,
   DataTable,
@@ -148,6 +150,7 @@ import {
   OrderBasketWorkspace,
 } from "../components/OrderBasket/OrderBasketWorkspace";
 import { PatientContextBanner } from "../components/Patient/PatientContextBanner";
+import { PatientFlowNavigator } from "../components/Patient/PatientFlowNavigator";
 import { PatientSearchSelect } from "../components/PatientSearchSelect";
 import { WardSelect } from "../components/WardSelect";
 import { ALL_TEMPLATES, type ChecklistTemplate } from "../data/checklist-templates";
@@ -175,6 +178,7 @@ import {
   toCreateAttenderRequest,
   toCreateProgressNoteRequest,
 } from "../forms/ipd.form";
+import { useHashTabs } from "../hooks/useHashTabs";
 import { useRequirePermission } from "../hooks/useRequirePermission";
 import { ipdService } from "../services/ipd.service";
 
@@ -194,6 +198,33 @@ const bedStatusColors: Record<string, string> = {
   maintenance: "slate",
   blocked: "danger",
 };
+
+const IPD_WORKSPACE_TABS = [
+  { value: "overview", label: "Overview", section: "Command" },
+  { value: "notes", label: "Progress Notes", section: "Command" },
+  { value: "assessments", label: "Clinical", section: "Command" },
+  { value: "mar", label: "MAR", section: "Command" },
+  { value: "prescriptions", label: "Prescriptions", section: "Command" },
+  { value: "io", label: "I/O Chart", section: "Command" },
+  { value: "nursing", label: "Nursing", section: "Command" },
+  { value: "attenders", label: "Attenders", section: "Care Context" },
+  { value: "clinical-docs", label: "Clinical Docs", section: "Care Context" },
+  { value: "checklist", label: "Checklist", section: "Care Context" },
+  { value: "transfer", label: "Transfer", section: "Care Context" },
+  { value: "investigations", label: "Investigations", section: "Care Context" },
+  { value: "billing-tab", label: "Billing", section: "Finance & Admin" },
+  { value: "insurance-pa", label: "Insurance/PA", section: "Finance & Admin" },
+  { value: "mlc-tab", label: "MLC", section: "Finance & Admin" },
+  { value: "diet-tab", label: "Diet", section: "Finance & Admin" },
+  { value: "consents-tab", label: "Consents", section: "Finance & Admin" },
+  { value: "death-summary", label: "Death Summary", section: "Finance & Admin" },
+  { value: "birth-records", label: "Birth Records", section: "Finance & Admin" },
+  { value: "discharge-summary", label: "Discharge Summary", section: "Discharge" },
+  { value: "discharge", label: "Discharge", section: "Discharge" },
+  { value: "discharge-tat", label: "Discharge TAT", section: "Discharge" },
+] as const;
+
+const IPD_WORKSPACE_TAB_VALUES = IPD_WORKSPACE_TABS.map((tab) => tab.value);
 
 export function IpdPage() {
   useRequirePermission(P.IPD.ADMISSIONS_LIST);
@@ -271,14 +302,10 @@ function IpdPageInner() {
 
 function AdmissionsTab() {
   const canCreate = useHasPermission(P.IPD.ADMISSIONS_CREATE);
-  const canManageBeds = useHasPermission(P.IPD.BEDS_MANAGE);
-  const canDischarge = useHasPermission(P.IPD.DISCHARGE_CREATE);
+  const navigate = useNavigate();
 
   const [page, setPage] = useState(1);
   const [filterStatus, setFilterStatus] = useState<string | null>(null);
-  const [selectedAdmissionId, setSelectedAdmissionId] = useState<string | null>(null);
-  const [createOpened, { open: openCreate, close: closeCreate }] = useDisclosure(false);
-  const [detailOpened, { open: openDetail, close: closeDetail }] = useDisclosure(false);
 
   const params: Record<string, string> = { page: String(page), per_page: "20" };
   if (filterStatus) params.status = filterStatus;
@@ -329,10 +356,8 @@ function AdmissionsTab() {
         <Tooltip label="View details">
           <ActionIcon
             variant="subtle"
-            onClick={() => {
-              setSelectedAdmissionId(row.id);
-              openDetail();
-            }}
+            onClick={() => navigate(`/ipd/admissions/${row.id}`)}
+            aria-label={`Open admission ${row.id}`}
           >
             <IconEye size={16} />
           </ActionIcon>
@@ -359,7 +384,7 @@ function AdmissionsTab() {
           w={180}
         />
         {canCreate && (
-          <Button leftSection={<IconPlus size={16} />} onClick={openCreate}>
+          <Button leftSection={<IconPlus size={16} />} onClick={() => navigate("/ipd/new")}>
             New Admission
           </Button>
         )}
@@ -374,30 +399,17 @@ function AdmissionsTab() {
         onPageChange={setPage}
         rowKey={(row) => row.id}
       />
-
-      <CreateAdmissionDrawer opened={createOpened} onClose={closeCreate} />
-
-      <Drawer
-        opened={detailOpened}
-        onClose={closeDetail}
-        title="Admission Detail"
-        position="right"
-        size="xl"
-      >
-        {selectedAdmissionId && (
-          <AdmissionDetail
-            admissionId={selectedAdmissionId}
-            canCreate={canCreate}
-            canManageBeds={canManageBeds}
-            canDischarge={canDischarge}
-          />
-        )}
-      </Drawer>
     </>
   );
 }
 
-function CreateAdmissionDrawer({ opened, onClose }: { opened: boolean; onClose: () => void }) {
+interface AdmissionFormProps {
+  initialPatientId?: string;
+  onCancel?: () => void;
+  onCreated?: (result: CreateAdmissionResponse) => void;
+}
+
+function AdmissionForm({ initialPatientId = "", onCancel, onCreated }: AdmissionFormProps) {
   const emit = useClinicalEmit();
   const queryClient = useQueryClient();
   const {
@@ -408,31 +420,38 @@ function CreateAdmissionDrawer({ opened, onClose }: { opened: boolean; onClose: 
     formState: { errors },
   } = useForm<IpdAdmissionFormInput>({
     resolver: zodResolver(ipdAdmissionFormSchema),
-    defaultValues: DEFAULT_IPD_ADMISSION_VALUES,
+    defaultValues: {
+      ...DEFAULT_IPD_ADMISSION_VALUES,
+      patient_id: initialPatientId,
+    },
   });
   const admissionSource = watch("admission_source");
   const wardId = watch("ward_id");
 
-  const closeAdmissionDrawer = () => {
-    onClose();
-    reset(DEFAULT_IPD_ADMISSION_VALUES);
-  };
+  const resetAdmissionForm = () =>
+    reset({
+      ...DEFAULT_IPD_ADMISSION_VALUES,
+      patient_id: initialPatientId,
+    });
 
   const createMutation = useMutation({
     mutationFn: (values: IpdAdmissionFormInput) =>
       ipdService.createAdmission(toCreateAdmissionRequest(values)),
-    onSuccess: (_result, variables) => {
+    onSuccess: (result, variables) => {
       void queryClient.invalidateQueries({ queryKey: ["admissions"] });
       notifications.show({
         title: "Admitted",
         message: "Patient admitted successfully",
         color: "success",
       });
-      emit("admission.created", {
+      emit("bed.assigned", {
+        admission_id: result.admission.id,
         patient_id: variables.patient_id,
         department_id: variables.department_id,
+        bed_id: result.admission.bed_id,
       });
-      closeAdmissionDrawer();
+      resetAdmissionForm();
+      onCreated?.(result);
     },
     onError: () => {
       notifications.show({
@@ -444,140 +463,227 @@ function CreateAdmissionDrawer({ opened, onClose }: { opened: boolean; onClose: 
   });
 
   return (
-    <Drawer
-      opened={opened}
-      onClose={closeAdmissionDrawer}
-      title="New Admission"
-      position="right"
-      size="xl"
-    >
-      <Stack component="form" onSubmit={handleSubmit((values) => createMutation.mutate(values))}>
-        <Controller
-          control={control}
-          name="patient_id"
-          render={({ field }) => (
-            <PatientSearchSelect
-              value={field.value}
-              onChange={field.onChange}
-              error={errors.patient_id?.message}
-              required
-            />
-          )}
-        />
-        <Controller
-          control={control}
-          name="department_id"
-          render={({ field }) => (
-            <DepartmentSelect
-              departmentType="clinical"
-              value={field.value}
-              onChange={field.onChange}
-              error={errors.department_id?.message}
-              required
-            />
-          )}
-        />
-        <Controller
-          control={control}
-          name="doctor_id"
-          render={({ field }) => (
-            <DoctorSearchSelect value={field.value} onChange={field.onChange} />
-          )}
-        />
-        <Controller
-          control={control}
-          name="ward_id"
-          render={({ field }) => <WardSelect value={field.value} onChange={field.onChange} />}
-        />
-        <Controller
-          control={control}
-          name="bed_id"
-          render={({ field }) => (
-            <BedSelect value={field.value} onChange={field.onChange} wardId={wardId || undefined} />
-          )}
-        />
-        <Controller
-          control={control}
-          name="admission_source"
-          render={({ field }) => (
-            <Select
-              label="Admission Source"
-              data={IPD_ADMISSION_SOURCE_OPTIONS}
-              value={field.value}
-              onChange={(value) => field.onChange(normalizeIpdAdmissionSource(value))}
-              error={errors.admission_source?.message}
-              clearable
-            />
-          )}
-        />
-        {admissionSource === "referral" && (
-          <>
-            <Controller
-              control={control}
-              name="referral_from"
-              render={({ field }) => <TextInput label="Referral From" {...field} />}
-            />
-            <Controller
-              control={control}
-              name="referral_doctor"
-              render={({ field }) => <TextInput label="Referral Doctor" {...field} />}
-            />
-            <Controller
-              control={control}
-              name="referral_notes"
-              render={({ field }) => <Textarea label="Referral Notes" {...field} />}
-            />
-          </>
+    <Stack component="form" onSubmit={handleSubmit((values) => createMutation.mutate(values))}>
+      <Controller
+        control={control}
+        name="patient_id"
+        render={({ field }) => (
+          <PatientSearchSelect
+            value={field.value}
+            onChange={field.onChange}
+            error={errors.patient_id?.message}
+            required
+          />
         )}
-        <Group grow>
+      />
+      <Controller
+        control={control}
+        name="department_id"
+        render={({ field }) => (
+          <DepartmentSelect
+            departmentType="clinical"
+            value={field.value}
+            onChange={field.onChange}
+            error={errors.department_id?.message}
+            required
+          />
+        )}
+      />
+      <Controller
+        control={control}
+        name="doctor_id"
+        render={({ field }) => <DoctorSearchSelect value={field.value} onChange={field.onChange} />}
+      />
+      <Controller
+        control={control}
+        name="ward_id"
+        render={({ field }) => <WardSelect value={field.value} onChange={field.onChange} />}
+      />
+      <Controller
+        control={control}
+        name="bed_id"
+        render={({ field }) => (
+          <BedSelect value={field.value} onChange={field.onChange} wardId={wardId || undefined} />
+        )}
+      />
+      <Controller
+        control={control}
+        name="admission_source"
+        render={({ field }) => (
+          <Select
+            label="Admission Source"
+            data={IPD_ADMISSION_SOURCE_OPTIONS}
+            value={field.value}
+            onChange={(value) => field.onChange(normalizeIpdAdmissionSource(value))}
+            error={errors.admission_source?.message}
+            clearable
+          />
+        )}
+      />
+      {admissionSource === "referral" && (
+        <>
           <Controller
             control={control}
-            name="admission_weight_kg"
-            render={({ field }) => (
-              <NumberInput
-                label="Weight (kg)"
-                value={field.value}
-                onChange={field.onChange}
-                error={errors.admission_weight_kg?.message}
-                min={0}
-                max={500}
-                decimalScale={2}
-              />
-            )}
+            name="referral_from"
+            render={({ field }) => <TextInput label="Referral From" {...field} />}
           />
           <Controller
             control={control}
-            name="admission_height_cm"
-            render={({ field }) => (
-              <NumberInput
-                label="Height (cm)"
-                value={field.value}
-                onChange={field.onChange}
-                error={errors.admission_height_cm?.message}
-                min={0}
-                max={300}
-                decimalScale={2}
-              />
-            )}
+            name="referral_doctor"
+            render={({ field }) => <TextInput label="Referral Doctor" {...field} />}
           />
-        </Group>
+          <Controller
+            control={control}
+            name="referral_notes"
+            render={({ field }) => <Textarea label="Referral Notes" {...field} />}
+          />
+        </>
+      )}
+      <Group grow>
         <Controller
           control={control}
-          name="expected_discharge_date"
+          name="admission_weight_kg"
           render={({ field }) => (
-            <TextInput label="Expected Discharge Date" type="date" {...field} />
+            <NumberInput
+              label="Weight (kg)"
+              value={field.value}
+              onChange={field.onChange}
+              error={errors.admission_weight_kg?.message}
+              min={0}
+              max={500}
+              decimalScale={2}
+            />
           )}
         />
         <Controller
           control={control}
-          name="notes"
-          render={({ field }) => <Textarea label="Notes" {...field} />}
+          name="admission_height_cm"
+          render={({ field }) => (
+            <NumberInput
+              label="Height (cm)"
+              value={field.value}
+              onChange={field.onChange}
+              error={errors.admission_height_cm?.message}
+              min={0}
+              max={300}
+              decimalScale={2}
+            />
+          )}
         />
+      </Group>
+      <Controller
+        control={control}
+        name="expected_discharge_date"
+        render={({ field }) => <TextInput label="Expected Discharge Date" type="date" {...field} />}
+      />
+      <Controller
+        control={control}
+        name="notes"
+        render={({ field }) => <Textarea label="Notes" {...field} />}
+      />
+      <Group justify="flex-end">
+        {onCancel && (
+          <Button variant="subtle" onClick={onCancel}>
+            Cancel
+          </Button>
+        )}
         <Button type="submit" loading={createMutation.isPending}>
           Admit Patient
         </Button>
+      </Group>
+    </Stack>
+  );
+}
+
+export function IpdNewAdmissionPage() {
+  useRequirePermission(P.IPD.ADMISSIONS_CREATE);
+
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const initialPatientId = searchParams.get("patient_id") ?? "";
+
+  return (
+    <ClinicalEventProvider moduleCode="ipd" contextCode="ipd-new-admission">
+      <Stack>
+        <PageHeader
+          title="New IPD admission"
+          subtitle="Admit a registered patient into an inpatient bed and care team."
+          icon={<IconBed size={20} stroke={1.5} />}
+          color="primary"
+          actions={
+            <Button variant="subtle" onClick={() => navigate("/ipd")}>
+              Back to IPD
+            </Button>
+          }
+        />
+        {initialPatientId && <PatientContextBanner patientId={initialPatientId} />}
+        <Card withBorder radius="md" p="md">
+          <AdmissionForm
+            key={initialPatientId}
+            initialPatientId={initialPatientId}
+            onCancel={() => navigate("/ipd")}
+            onCreated={(result) => navigate(`/ipd/admissions/${result.admission.id}`)}
+          />
+        </Card>
       </Stack>
-    </Drawer>
+    </ClinicalEventProvider>
+  );
+}
+
+export function IpdAdmissionDetailPage() {
+  useRequirePermission(P.IPD.ADMISSIONS_VIEW);
+
+  const navigate = useNavigate();
+  const { admissionId } = useParams<{ admissionId: string }>();
+  const canCreate = useHasPermission(P.IPD.ADMISSIONS_CREATE);
+  const canManageBeds = useHasPermission(P.IPD.BEDS_MANAGE);
+  const canDischarge = useHasPermission(P.IPD.DISCHARGE_CREATE);
+
+  if (!admissionId) {
+    return (
+      <ClinicalEventProvider moduleCode="ipd" contextCode="ipd-admission-detail">
+        <Stack>
+          <PageHeader
+            title="IPD admission"
+            subtitle="Admission route is missing an admission identifier."
+            icon={<IconBed size={20} stroke={1.5} />}
+            color="primary"
+            actions={
+              <Button variant="subtle" onClick={() => navigate("/ipd")}>
+                Back to IPD
+              </Button>
+            }
+          />
+          <Alert color="danger" icon={<IconAlertTriangle size={16} />}>
+            Unable to open this IPD admission because the route does not include an admission ID.
+          </Alert>
+        </Stack>
+      </ClinicalEventProvider>
+    );
+  }
+
+  return (
+    <ClinicalEventProvider moduleCode="ipd" contextCode="ipd-admission-detail">
+      <Stack>
+        <PageHeader
+          title="IPD admission"
+          subtitle="Patient, orders, nursing, discharge, billing, and documentation workspace."
+          icon={<IconBed size={20} stroke={1.5} />}
+          color="primary"
+          actions={
+            <Button variant="subtle" onClick={() => navigate("/ipd")}>
+              Back to IPD
+            </Button>
+          }
+        />
+        <AdmissionDetail
+          admissionId={admissionId}
+          canCreate={canCreate}
+          canManageBeds={canManageBeds}
+          canDischarge={canDischarge}
+        />
+      </Stack>
+    </ClinicalEventProvider>
   );
 }
 
@@ -610,6 +716,10 @@ function AdmissionDetail({
     useDisclosure(false);
   const [basketOpened, { open: openBasket, close: closeBasket }] = useDisclosure(false);
   const [basketTab, setBasketTab] = useState<OrderBasketTab>("drug");
+  const [activeWorkspaceTab, setActiveWorkspaceTab] = useHashTabs(
+    "overview",
+    IPD_WORKSPACE_TAB_VALUES,
+  );
 
   function openOrderBasket(tab: OrderBasketTab = "drug") {
     setBasketTab(tab);
@@ -625,10 +735,17 @@ function AdmissionDetail({
 
   const detail = data as AdmissionDetailResponse;
   const adm = detail.admission;
+  const admissionIsActive = adm.status === "admitted";
 
   return (
     <Stack>
       <PatientContextBanner patientId={adm.patient_id} />
+      <PatientFlowNavigator
+        patientId={adm.patient_id}
+        active="ipd"
+        activeAdmissionId={adm.id}
+        compact
+      />
       <Group justify="space-between">
         <Group gap="xs">
           <Text fw={700}>Admission: {adm.id.slice(0, 8)}...</Text>
@@ -647,10 +764,10 @@ function AdmissionDetail({
           <Badge color={statusColors[adm.status] ?? "slate"} variant="light" size="lg">
             {adm.status}
           </Badge>
-          {canOrder && adm.status === "admitted" && (
+          {canOrder && admissionIsActive && (
             <OrderBasketChip onClick={() => openOrderBasket("drug")} />
           )}
-          {canOrder && adm.status !== "admitted" && (
+          {canOrder && !admissionIsActive && (
             <Tooltip label="Orders are available only for active admissions">
               <Button
                 size="xs"
@@ -663,7 +780,7 @@ function AdmissionDetail({
             </Tooltip>
           )}
           <PrintAdmissionButton admissionId={admissionId} />
-          {canCreateDischargeSummary && adm.status === "admitted" && (
+          {canCreateDischargeSummary && admissionIsActive && (
             <Tooltip label="Generate Discharge Summary">
               <Button
                 size="xs"
@@ -676,7 +793,7 @@ function AdmissionDetail({
               </Button>
             </Tooltip>
           )}
-          {canManageBeds && adm.status === "admitted" && (
+          {canManageBeds && admissionIsActive && (
             <Tooltip label="Transfer Bed">
               <Button
                 size="xs"
@@ -689,72 +806,110 @@ function AdmissionDetail({
               </Button>
             </Tooltip>
           )}
-          {/* Actions menu — Track 0.bis. Hosts the long-tail of admission
-              actions so the header doesn't get crowded. Items are filtered
-              by admission status at render time. */}
-          <Menu shadow="md" position="bottom-end" withArrow>
-            <Menu.Target>
-              <Button size="xs" variant="default" rightSection={<IconDots size={14} />}>
-                Actions
-              </Button>
-            </Menu.Target>
-            <Menu.Dropdown>
-              <Menu.Label>Discharge</Menu.Label>
-              <Menu.Item
-                leftSection={<IconUserOff size={14} />}
-                color="warning"
-                disabled={adm.status !== "admitted"}
-                onClick={openDama}
-              >
-                Record DAMA / LAMA
-              </Menu.Item>
-              <Menu.Item
-                leftSection={<IconCross size={14} />}
-                color="danger"
-                disabled={adm.status !== "admitted"}
-                onClick={openDeath}
-              >
-                Mark patient death
-              </Menu.Item>
-              <Menu.Divider />
-              <Menu.Label>Orders</Menu.Label>
-              <Menu.Item
-                leftSection={<IconPill size={14} />}
-                disabled={adm.status !== "admitted"}
-                onClick={() => openOrderBasket("drug")}
-              >
-                Order medicines
-              </Menu.Item>
-              <Menu.Item
-                leftSection={<IconFlask size={14} />}
-                disabled={adm.status !== "admitted"}
-                onClick={() => openOrderBasket("lab")}
-              >
-                Order lab tests
-              </Menu.Item>
-              <Menu.Item
-                leftSection={<IconEye size={14} />}
-                disabled={adm.status !== "admitted"}
-                onClick={() => openOrderBasket("radiology")}
-              >
-                Order imaging
-              </Menu.Item>
-              <Menu.Divider />
-              <Menu.Label>Documents</Menu.Label>
-              <Menu.Item leftSection={<IconPrinter size={14} />} onClick={openWristband}>
-                Print wristband (NABH IPSG 1)
-              </Menu.Item>
-              <Menu.Item
-                leftSection={<IconArrowsTransferDown size={14} />}
-                disabled={adm.status !== "admitted"}
-                onClick={openTransferOut}
-              >
-                Refer out / inter-hospital transfer
-              </Menu.Item>
-            </Menu.Dropdown>
-          </Menu>
         </Group>
       </Group>
+
+      <Card withBorder padding="sm">
+        <Stack gap="xs">
+          <Group gap="xs" align="center">
+            <Text size="xs" fw={700} c="dimmed" tt="uppercase">
+              Orders
+            </Text>
+            <Tooltip
+              label={admissionIsActive ? "Order medicines" : "Orders need an active admission"}
+            >
+              <span>
+                <Button
+                  size="xs"
+                  variant="light"
+                  color="teal"
+                  leftSection={<IconPill size={14} />}
+                  disabled={!admissionIsActive || !canOrder}
+                  onClick={() => openOrderBasket("drug")}
+                >
+                  Medicines
+                </Button>
+              </span>
+            </Tooltip>
+            <Tooltip
+              label={admissionIsActive ? "Order lab tests" : "Orders need an active admission"}
+            >
+              <span>
+                <Button
+                  size="xs"
+                  variant="light"
+                  color="teal"
+                  leftSection={<IconFlask size={14} />}
+                  disabled={!admissionIsActive || !canOrder}
+                  onClick={() => openOrderBasket("lab")}
+                >
+                  Lab
+                </Button>
+              </span>
+            </Tooltip>
+            <Tooltip
+              label={admissionIsActive ? "Order imaging" : "Orders need an active admission"}
+            >
+              <span>
+                <Button
+                  size="xs"
+                  variant="light"
+                  color="teal"
+                  leftSection={<IconEye size={14} />}
+                  disabled={!admissionIsActive || !canOrder}
+                  onClick={() => openOrderBasket("radiology")}
+                >
+                  Imaging
+                </Button>
+              </span>
+            </Tooltip>
+          </Group>
+          <Group gap="xs" align="center">
+            <Text size="xs" fw={700} c="dimmed" tt="uppercase">
+              Admission
+            </Text>
+            <Button
+              size="xs"
+              variant="light"
+              color="slate"
+              leftSection={<IconPrinter size={14} />}
+              onClick={openWristband}
+            >
+              Wristband
+            </Button>
+            <Button
+              size="xs"
+              variant="light"
+              color="primary"
+              leftSection={<IconArrowsTransferDown size={14} />}
+              disabled={!admissionIsActive}
+              onClick={openTransferOut}
+            >
+              Refer out
+            </Button>
+            <Button
+              size="xs"
+              variant="light"
+              color="warning"
+              leftSection={<IconUserOff size={14} />}
+              disabled={!admissionIsActive}
+              onClick={openDama}
+            >
+              DAMA / LAMA
+            </Button>
+            <Button
+              size="xs"
+              variant="light"
+              color="danger"
+              leftSection={<IconCross size={14} />}
+              disabled={!admissionIsActive}
+              onClick={openDeath}
+            >
+              Mark Death
+            </Button>
+          </Group>
+        </Stack>
+      </Card>
 
       <GenerateDischargeSummaryModal
         admissionId={admissionId}
@@ -772,6 +927,7 @@ function AdmissionDetail({
         admissionId={admissionId}
         opened={wristbandOpened}
         onClose={closeWristband}
+        canReprint
       />
       <TransferOutModal
         admissionId={admissionId}
@@ -799,109 +955,128 @@ function AdmissionDetail({
       {adm.provisional_diagnosis && <Text size="sm">Diagnosis: {adm.provisional_diagnosis}</Text>}
       {adm.admission_source && <Text size="sm">Source: {adm.admission_source}</Text>}
 
-      <Tabs defaultValue="overview">
-        <Tabs.List>
-          <Tabs.Tab value="overview">Overview</Tabs.Tab>
-          <Tabs.Tab value="notes">Progress Notes</Tabs.Tab>
-          <Tabs.Tab value="assessments">Clinical</Tabs.Tab>
-          <Tabs.Tab value="mar">MAR</Tabs.Tab>
-          <Tabs.Tab value="prescriptions">Prescriptions</Tabs.Tab>
-          <Tabs.Tab value="io">I/O Chart</Tabs.Tab>
-          <Tabs.Tab value="nursing">Nursing</Tabs.Tab>
-          <Tabs.Tab value="attenders">Attenders</Tabs.Tab>
-          <Tabs.Tab value="clinical-docs">Clinical Docs</Tabs.Tab>
-          <Tabs.Tab value="checklist">Checklist</Tabs.Tab>
-          <Tabs.Tab value="transfer">Transfer</Tabs.Tab>
-          <Tabs.Tab value="investigations">Investigations</Tabs.Tab>
-          <Tabs.Tab value="billing-tab">Billing</Tabs.Tab>
-          <Tabs.Tab value="insurance-pa">Insurance/PA</Tabs.Tab>
-          <Tabs.Tab value="mlc-tab">MLC</Tabs.Tab>
-          <Tabs.Tab value="diet-tab">Diet</Tabs.Tab>
-          <Tabs.Tab value="consents-tab">Consents</Tabs.Tab>
-          <Tabs.Tab value="death-summary">Death Summary</Tabs.Tab>
-          <Tabs.Tab value="birth-records">Birth Records</Tabs.Tab>
-          <Tabs.Tab value="discharge-summary">Discharge Summary</Tabs.Tab>
-          <Tabs.Tab value="discharge">Discharge</Tabs.Tab>
-          <Tabs.Tab value="discharge-tat">Discharge TAT</Tabs.Tab>
-        </Tabs.List>
+      <Tabs value={activeWorkspaceTab} onChange={setActiveWorkspaceTab} keepMounted={false}>
+        <Grid align="flex-start">
+          <Grid.Col span={{ base: 12, md: 3, lg: 2 }}>
+            <Card withBorder padding="sm">
+              <Stack gap="sm">
+                {["Command", "Care Context", "Finance & Admin", "Discharge"].map((section) => (
+                  <Stack key={section} gap={4}>
+                    <Text size="xs" fw={700} c="dimmed" tt="uppercase">
+                      {section}
+                    </Text>
+                    {IPD_WORKSPACE_TABS.filter((tab) => tab.section === section).map((tab) => (
+                      <Button
+                        key={tab.value}
+                        size="xs"
+                        variant={activeWorkspaceTab === tab.value ? "light" : "subtle"}
+                        color={activeWorkspaceTab === tab.value ? "primary" : "slate"}
+                        onClick={() => setActiveWorkspaceTab(tab.value)}
+                        fullWidth
+                      >
+                        {tab.label}
+                      </Button>
+                    ))}
+                  </Stack>
+                ))}
+              </Stack>
+            </Card>
+          </Grid.Col>
 
-        <Tabs.Panel value="overview" pt="md">
-          <OverviewTab admissionId={admissionId} tasks={detail.tasks} canCreate={canCreate} />
-        </Tabs.Panel>
-        <Tabs.Panel value="notes" pt="md">
-          <ProgressNotesTab admissionId={admissionId} />
-        </Tabs.Panel>
-        <Tabs.Panel value="assessments" pt="md">
-          <AssessmentsTab admissionId={admissionId} />
-        </Tabs.Panel>
-        <Tabs.Panel value="mar" pt="md">
-          <MarTab admissionId={admissionId} />
-        </Tabs.Panel>
-        <Tabs.Panel value="prescriptions" pt="md">
-          <AdmissionPrescriptionsTab encounterId={detail.encounter.id} patientId={adm.patient_id} />
-        </Tabs.Panel>
-        <Tabs.Panel value="io" pt="md">
-          <IoChartTab admissionId={admissionId} />
-        </Tabs.Panel>
-        <Tabs.Panel value="nursing" pt="md">
-          <NursingTab admissionId={admissionId} />
-        </Tabs.Panel>
-        <Tabs.Panel value="attenders" pt="md">
-          <AttendersTab admissionId={admissionId} canCreate={canCreate} />
-        </Tabs.Panel>
-        <Tabs.Panel value="clinical-docs" pt="md">
-          <ClinicalDocsTab admissionId={admissionId} />
-        </Tabs.Panel>
-        <Tabs.Panel value="checklist" pt="md">
-          <ChecklistTab admissionId={admissionId} />
-        </Tabs.Panel>
-        <Tabs.Panel value="transfer" pt="md">
-          <TransferTab admissionId={admissionId} canManage={canManageBeds} status={adm.status} />
-          <TransferLogTab admissionId={admissionId} />
-        </Tabs.Panel>
-        <Tabs.Panel value="investigations" pt="md">
-          <InvestigationsTab
-            admissionId={admissionId}
-            canOrder={canOrder && adm.status === "admitted"}
-            onOrderLab={() => openOrderBasket("lab")}
-            onOrderRadiology={() => openOrderBasket("radiology")}
-          />
-        </Tabs.Panel>
-        <Tabs.Panel value="billing-tab" pt="md">
-          <BillingTab admissionId={admissionId} />
-        </Tabs.Panel>
-        <Tabs.Panel value="insurance-pa" pt="md">
-          <InsurancePaTab admissionId={admissionId} />
-        </Tabs.Panel>
-        <Tabs.Panel value="mlc-tab" pt="md">
-          <MlcTab admissionId={admissionId} canCreate={canCreate} />
-        </Tabs.Panel>
-        <Tabs.Panel value="diet-tab" pt="md">
-          <DietTab admissionId={admissionId} />
-        </Tabs.Panel>
-        <Tabs.Panel value="consents-tab" pt="md">
-          <ConsentsTab admissionId={admissionId} />
-        </Tabs.Panel>
-        <Tabs.Panel value="death-summary" pt="md">
-          <DeathSummaryTab
-            admissionId={admissionId}
-            patientId={adm.patient_id}
-            status={adm.status}
-          />
-        </Tabs.Panel>
-        <Tabs.Panel value="birth-records" pt="md">
-          <BirthRecordsTab admissionId={admissionId} motherPatientId={adm.patient_id} />
-        </Tabs.Panel>
-        <Tabs.Panel value="discharge-summary" pt="md">
-          <DischargeSummaryTab admissionId={admissionId} canCreate={canCreateDischargeSummary} />
-        </Tabs.Panel>
-        <Tabs.Panel value="discharge" pt="md">
-          <DischargeTab admissionId={admissionId} canDischarge={canDischarge} status={adm.status} />
-          <DischargeWorkflowWizard admissionId={admissionId} />
-        </Tabs.Panel>
-        <Tabs.Panel value="discharge-tat" pt="md">
-          <DischargeTatTab admissionId={admissionId} />
-        </Tabs.Panel>
+          <Grid.Col span={{ base: 12, md: 9, lg: 10 }}>
+            <Tabs.Panel value="overview" pt="md">
+              <OverviewTab admissionId={admissionId} tasks={detail.tasks} canCreate={canCreate} />
+            </Tabs.Panel>
+            <Tabs.Panel value="notes" pt="md">
+              <ProgressNotesTab admissionId={admissionId} />
+            </Tabs.Panel>
+            <Tabs.Panel value="assessments" pt="md">
+              <AssessmentsTab admissionId={admissionId} />
+            </Tabs.Panel>
+            <Tabs.Panel value="mar" pt="md">
+              <MarTab admissionId={admissionId} />
+            </Tabs.Panel>
+            <Tabs.Panel value="prescriptions" pt="md">
+              <AdmissionPrescriptionsTab
+                encounterId={detail.encounter.id}
+                patientId={adm.patient_id}
+              />
+            </Tabs.Panel>
+            <Tabs.Panel value="io" pt="md">
+              <IoChartTab admissionId={admissionId} />
+            </Tabs.Panel>
+            <Tabs.Panel value="nursing" pt="md">
+              <NursingTab admissionId={admissionId} />
+            </Tabs.Panel>
+            <Tabs.Panel value="attenders" pt="md">
+              <AttendersTab admissionId={admissionId} canCreate={canCreate} />
+            </Tabs.Panel>
+            <Tabs.Panel value="clinical-docs" pt="md">
+              <ClinicalDocsTab admissionId={admissionId} />
+            </Tabs.Panel>
+            <Tabs.Panel value="checklist" pt="md">
+              <ChecklistTab admissionId={admissionId} />
+            </Tabs.Panel>
+            <Tabs.Panel value="transfer" pt="md">
+              <TransferTab
+                admissionId={admissionId}
+                canManage={canManageBeds}
+                status={adm.status}
+              />
+              <TransferLogTab admissionId={admissionId} />
+            </Tabs.Panel>
+            <Tabs.Panel value="investigations" pt="md">
+              <InvestigationsTab
+                admissionId={admissionId}
+                canOrder={canOrder && adm.status === "admitted"}
+                onOrderLab={() => openOrderBasket("lab")}
+                onOrderRadiology={() => openOrderBasket("radiology")}
+              />
+            </Tabs.Panel>
+            <Tabs.Panel value="billing-tab" pt="md">
+              <BillingTab admissionId={admissionId} />
+            </Tabs.Panel>
+            <Tabs.Panel value="insurance-pa" pt="md">
+              <InsurancePaTab admissionId={admissionId} />
+            </Tabs.Panel>
+            <Tabs.Panel value="mlc-tab" pt="md">
+              <MlcTab admissionId={admissionId} canCreate={canCreate} />
+            </Tabs.Panel>
+            <Tabs.Panel value="diet-tab" pt="md">
+              <DietTab admissionId={admissionId} />
+            </Tabs.Panel>
+            <Tabs.Panel value="consents-tab" pt="md">
+              <ConsentsTab admissionId={admissionId} />
+            </Tabs.Panel>
+            <Tabs.Panel value="death-summary" pt="md">
+              <DeathSummaryTab
+                admissionId={admissionId}
+                patientId={adm.patient_id}
+                status={adm.status}
+              />
+            </Tabs.Panel>
+            <Tabs.Panel value="birth-records" pt="md">
+              <BirthRecordsTab admissionId={admissionId} motherPatientId={adm.patient_id} />
+            </Tabs.Panel>
+            <Tabs.Panel value="discharge-summary" pt="md">
+              <DischargeSummaryTab
+                admissionId={admissionId}
+                canCreate={canCreateDischargeSummary}
+              />
+            </Tabs.Panel>
+            <Tabs.Panel value="discharge" pt="md">
+              <DischargeTab
+                admissionId={admissionId}
+                canDischarge={canDischarge}
+                status={adm.status}
+              />
+              <DischargeWorkflowWizard admissionId={admissionId} />
+            </Tabs.Panel>
+            <Tabs.Panel value="discharge-tat" pt="md">
+              <DischargeTatTab admissionId={admissionId} />
+            </Tabs.Panel>
+          </Grid.Col>
+        </Grid>
       </Tabs>
     </Stack>
   );
@@ -2282,8 +2457,7 @@ function TransferTab({
   const emit = useClinicalEmit();
 
   const transferMutation = useMutation({
-    mutationFn: () =>
-      ipdService.transferBed(admissionId, { bed_id: bedId, notes: notes || undefined }),
+    mutationFn: () => ipdService.transferBed(admissionId, { bed_id: bedId, notes: notes.trim() }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["admission-detail", admissionId] });
       void queryClient.invalidateQueries({ queryKey: ["admissions"] });
@@ -2320,6 +2494,7 @@ function TransferTab({
             leftSection={<IconBed size={16} />}
             onClick={() => transferMutation.mutate()}
             loading={transferMutation.isPending}
+            disabled={!bedId || !notes.trim()}
           >
             Transfer Bed
           </Button>
@@ -3150,48 +3325,57 @@ function BedDashboardTab() {
         <Text c="dimmed">Loading beds...</Text>
       ) : (
         <SimpleGrid cols={{ base: 2, sm: 3, md: 4, lg: 6 }}>
-          {beds.map((bed) => (
-            <Card
-              key={bed.bed_id}
-              withBorder
-              p="xs"
-              style={{
-                borderLeft: `4px solid var(--mantine-color-${bedStatusColors[bed.status] ?? "slate"}-5)`,
-              }}
-            >
-              <Text size="sm" fw={600}>
-                {bed.bed_name}
-              </Text>
-              <Text size="xs" c="dimmed">
-                {bed.ward_name ?? "Unassigned"}
-              </Text>
-              <Badge size="xs" color={bedStatusColors[bed.status] ?? "slate"} mt={4}>
-                {bed.status.replace("_", " ")}
-              </Badge>
-              {bed.patient_name && (
-                <Stack gap={0} mt={4}>
-                  <Text size="xs">{bed.patient_name}</Text>
-                  <Text size="xs" c="dimmed">
-                    {bed.patient_uhid}
-                  </Text>
-                </Stack>
-              )}
-              {canManageBeds && bed.status !== "occupied" && (
-                <Select
-                  size="xs"
-                  mt={4}
-                  placeholder="Change status"
-                  data={["vacant_clean", "vacant_dirty", "maintenance", "blocked"].filter(
-                    (s) => s !== bed.status,
-                  )}
-                  onChange={(v) => {
-                    if (v) updateStatusMutation.mutate({ bedId: bed.bed_id, status: v });
-                  }}
-                  clearable
-                />
-              )}
-            </Card>
-          ))}
+          {beds.map((bed) => {
+            const bedStatus = bed.bed_status;
+
+            return (
+              <Card
+                key={bed.bed_state_id}
+                withBorder
+                p="xs"
+                style={{
+                  borderLeft: `4px solid var(--mantine-color-${bedStatusColors[bedStatus] ?? "slate"}-5)`,
+                }}
+              >
+                <Text size="sm" fw={600}>
+                  {bed.bed_name}
+                </Text>
+                <Text size="xs" c="dimmed">
+                  {bed.ward_name ?? "Unassigned"}
+                </Text>
+                <Badge size="xs" color={bedStatusColors[bedStatus] ?? "slate"} mt={4}>
+                  {bedStatus.replace("_", " ")}
+                </Badge>
+                {bed.patient_name && (
+                  <Stack gap={0} mt={4}>
+                    <Text size="xs">{bed.patient_name}</Text>
+                    <Text size="xs" c="dimmed">
+                      {bed.patient_uhid}
+                    </Text>
+                  </Stack>
+                )}
+                {canManageBeds && bedStatus !== "occupied" && (
+                  <Select
+                    size="xs"
+                    mt={4}
+                    placeholder="Change status"
+                    data={["vacant_clean", "vacant_dirty", "maintenance", "blocked"].filter(
+                      (statusOption) => statusOption !== bedStatus,
+                    )}
+                    onChange={(value) => {
+                      if (value) {
+                        updateStatusMutation.mutate({
+                          bedId: bed.bed_location_id,
+                          status: value,
+                        });
+                      }
+                    }}
+                    clearable
+                  />
+                )}
+              </Card>
+            );
+          })}
         </SimpleGrid>
       )}
       {beds.length === 0 && !isLoading && (
@@ -4034,11 +4218,15 @@ const TRANSFER_TYPE_OPTIONS: { value: TransferType; label: string }[] = [
   { value: "inter_hospital", label: "Inter-Hospital" },
 ];
 
+function isTransferType(value: string | null): value is TransferType {
+  return TRANSFER_TYPE_OPTIONS.some((option) => option.value === value);
+}
+
 function TransferLogTab({ admissionId }: { admissionId: string }) {
   const canCreate = useHasPermission(P.IPD.TRANSFERS_CREATE);
   const queryClient = useQueryClient();
   const [formOpened, formHandlers] = useDisclosure(false);
-  const [transferType, setTransferType] = useState<string | null>(null);
+  const [transferType, setTransferType] = useState<TransferType | null>(null);
   const [reason, setReason] = useState("");
   const [clinicalSummary, setClinicalSummary] = useState("");
 
@@ -4083,7 +4271,7 @@ function TransferLogTab({ admissionId }: { admissionId: string }) {
               label="Transfer Type"
               data={TRANSFER_TYPE_OPTIONS}
               value={transferType}
-              onChange={setTransferType}
+              onChange={(value) => setTransferType(isTransferType(value) ? value : null)}
               required
             />
             <Textarea
@@ -4099,15 +4287,16 @@ function TransferLogTab({ admissionId }: { admissionId: string }) {
             <Group>
               <Button
                 size="sm"
-                onClick={() =>
+                onClick={() => {
+                  if (!transferType || !reason.trim()) return;
                   createMutation.mutate({
-                    transfer_type: transferType as TransferType,
-                    reason: reason || undefined,
-                    clinical_summary: clinicalSummary || undefined,
-                  })
-                }
+                    transfer_type: transferType,
+                    reason: reason.trim(),
+                    clinical_summary: clinicalSummary.trim() || undefined,
+                  });
+                }}
                 loading={createMutation.isPending}
-                disabled={!transferType}
+                disabled={!transferType || !reason.trim()}
               >
                 Save
               </Button>

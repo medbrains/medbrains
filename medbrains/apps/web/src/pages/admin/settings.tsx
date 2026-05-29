@@ -58,6 +58,11 @@ const SETTINGS_NAV_META: Record<
     description: "Hospital identity and core defaults",
     kind: "configuration",
   },
+  "access-matrix": {
+    group: "Start",
+    description: "Effective role, user, group, and SpiceDB access view",
+    kind: "configuration",
+  },
   facilities: {
     group: "Hospital Setup",
     description: "Facilities, branches, and shared services",

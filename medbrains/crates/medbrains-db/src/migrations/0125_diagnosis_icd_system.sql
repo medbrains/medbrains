@@ -1,3 +1,4 @@
+-- RLS-Posture: tenant-scoped
 -- Track which ICD revision a diagnosis code belongs to.
 -- Existing rows are preserved as ICD-10; new OPD coding can explicitly use ICD-11.
 

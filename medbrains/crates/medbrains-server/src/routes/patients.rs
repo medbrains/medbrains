@@ -3814,6 +3814,13 @@ pub async fn get_patient_context(
     Path(id): Path<Uuid>,
 ) -> Result<Json<PatientContext>, AppError> {
     require_permission(&claims, permissions::patients::VIEW)?;
+    let restricted = field_access::resolve_restricted_fields(
+        &state.db,
+        claims.tenant_id,
+        claims.sub,
+        &claims.role,
+    )
+    .await?;
 
     // ReBAC pre-check on the specific patient.
     let authz_ctx = crate::middleware::authorization::authz_context(&claims);
@@ -3864,21 +3871,64 @@ pub async fn get_patient_context(
     .await?
     .ok_or(AppError::NotFound)?;
 
+    let uhid = if patient_field_is_hidden(&restricted, PATIENT_UHID_FIELD) {
+        "Restricted".to_owned()
+    } else if patient_field_is_masked(&restricted, PATIENT_UHID_FIELD) {
+        mask_identifier_keep_last(&core.uhid, 4)
+    } else {
+        core.uhid.clone()
+    };
+    let first_name = if patient_field_is_hidden(&restricted, PATIENT_FIRST_NAME_FIELD) {
+        Some("Restricted".to_owned())
+    } else if patient_field_is_masked(&restricted, PATIENT_FIRST_NAME_FIELD) {
+        Some(mask_name(&core.first_name))
+    } else {
+        Some(core.first_name.clone())
+    };
+    let middle_name = if patient_field_is_hidden(&restricted, PATIENT_MIDDLE_NAME_FIELD) {
+        None
+    } else if patient_field_is_masked(&restricted, PATIENT_MIDDLE_NAME_FIELD) {
+        core.middle_name.as_deref().map(mask_name)
+    } else {
+        core.middle_name.clone()
+    };
+    let last_name = if patient_field_is_hidden(&restricted, PATIENT_LAST_NAME_FIELD) {
+        None
+    } else if patient_field_is_masked(&restricted, PATIENT_LAST_NAME_FIELD) {
+        core.last_name.as_deref().map(mask_name)
+    } else {
+        core.last_name.clone()
+    };
     let full_name = [
-        Some(core.first_name.as_str()),
-        core.middle_name.as_deref(),
-        core.last_name.as_deref(),
+        first_name.as_deref(),
+        middle_name.as_deref(),
+        last_name.as_deref(),
     ]
     .into_iter()
     .flatten()
     .collect::<Vec<_>>()
     .join(" ");
 
-    let age_years = core.date_of_birth.map(|dob| {
-        let today = Utc::now().date_naive();
-        let years = today.years_since(dob).unwrap_or(0);
-        i32::try_from(years).unwrap_or(0)
-    });
+    let age_years = if patient_field_is_hidden(&restricted, PATIENT_DATE_OF_BIRTH_FIELD)
+        || patient_field_is_masked(&restricted, PATIENT_DATE_OF_BIRTH_FIELD)
+    {
+        None
+    } else {
+        core.date_of_birth.map(|dob| {
+            let today = Utc::now().date_naive();
+            let years = today.years_since(dob).unwrap_or(0);
+            i32::try_from(years).unwrap_or(0)
+        })
+    };
+    let mlc_number = if patient_field_is_hidden(&restricted, PATIENT_MLC_NUMBER_FIELD) {
+        None
+    } else if patient_field_is_masked(&restricted, PATIENT_MLC_NUMBER_FIELD) {
+        core.mlc_number
+            .as_deref()
+            .map(|value| mask_identifier_keep_last(value, 4))
+    } else {
+        core.mlc_number.clone()
+    };
 
     // Drug allergies are stored on patients.attributes.drug_allergies (array of strings).
     let drug_allergies: Vec<String> = core
@@ -4019,17 +4069,21 @@ pub async fn get_patient_context(
     .collect::<Vec<_>>();
 
     // ── Outstanding balance — sum unpaid invoices for this patient ──
-    let outstanding_balance: Decimal = sqlx::query_scalar(
-        r"SELECT COALESCE(SUM(GREATEST(total_amount - paid_amount, 0)), 0)::numeric
-            FROM invoices
-           WHERE patient_id = $1 AND tenant_id = $2
-             AND status::text NOT IN ('cancelled', 'void', 'refunded')",
-    )
-    .bind(id)
-    .bind(claims.tenant_id)
-    .fetch_one(&mut *tx)
-    .await
-    .unwrap_or(Decimal::ZERO);
+    let outstanding_balance: Decimal = if should_scrub_patient_billing_amount(&restricted) {
+        Decimal::ZERO
+    } else {
+        sqlx::query_scalar(
+            r"SELECT COALESCE(SUM(GREATEST(total_amount - paid_amount, 0)), 0)::numeric
+                FROM invoices
+               WHERE patient_id = $1 AND tenant_id = $2
+                 AND status::text NOT IN ('cancelled', 'void', 'refunded')",
+        )
+        .bind(id)
+        .bind(claims.tenant_id)
+        .fetch_one(&mut *tx)
+        .await
+        .unwrap_or(Decimal::ZERO)
+    };
 
     // ── Next of kin (prefer is_next_of_kin, fallback to is_emergency_contact, then priority asc) ──
     #[derive(sqlx::FromRow)]
@@ -4086,7 +4140,7 @@ pub async fn get_patient_context(
 
     Ok(Json(PatientContext {
         patient_id: core.id,
-        uhid: core.uhid,
+        uhid,
         full_name,
         age_years,
         gender: core.gender,
@@ -4095,7 +4149,7 @@ pub async fn get_patient_context(
         known_allergies,
         last_vitals,
         is_medico_legal: core.is_medico_legal,
-        mlc_number: core.mlc_number,
+        mlc_number,
         is_vip: core.is_vip,
         is_unknown_patient: core.is_unknown_patient,
         is_deceased: core.is_deceased,

@@ -12,6 +12,7 @@
 // Plan section 1 — feeds form defaults via the hook elsewhere.
 
 import { Alert, Badge, Group, Skeleton, Text, Tooltip } from "@mantine/core";
+import type { PatientContext } from "@medbrains/types";
 import {
   IconAlertTriangle,
   IconBan,
@@ -22,12 +23,70 @@ import {
   IconUserExclamation,
 } from "@tabler/icons-react";
 import { usePatientContext } from "../../hooks/usePatientContext";
+import { useProtectedFieldValue } from "../PermissionedFieldValue";
 
 interface PatientContextBannerProps {
   patientId: string | null | undefined;
   /** When true, hide the loading skeleton. Useful when the parent
    * screen already shows a header skeleton. */
   hideLoadingState?: boolean;
+}
+
+const PATIENT_NAME_FIELD_CODES = [
+  "patients.first_name",
+  "patients.middle_name",
+  "patients.last_name",
+] as const;
+
+function PatientContextIdentity({ data }: { data: PatientContext }) {
+  const protectedUhid = useProtectedFieldValue({
+    fieldCode: "patients.uhid",
+    value: data.uhid,
+    kind: "identifier",
+  });
+  const protectedName = useProtectedFieldValue({
+    fieldCodes: PATIENT_NAME_FIELD_CODES,
+    value: data.full_name,
+    kind: "name",
+  });
+  const restrictionLabel = [protectedUhid.restrictionLabel, protectedName.restrictionLabel]
+    .filter(Boolean)
+    .join("; ");
+
+  const identity = (
+    <Text
+      size="xs"
+      c={
+        protectedUhid.isRestricted || protectedName.isRestricted ? "var(--mb-text-muted)" : "dimmed"
+      }
+      fw={500}
+      mr={4}
+    >
+      {protectedUhid.displayValue} · {protectedName.displayValue}
+      {data.age_years !== null ? ` · ${data.age_years}y` : ""}
+      {data.gender ? ` · ${data.gender}` : ""}
+    </Text>
+  );
+
+  if (!restrictionLabel) {
+    return identity;
+  }
+
+  return (
+    <Tooltip label={restrictionLabel} withArrow>
+      {identity}
+    </Tooltip>
+  );
+}
+
+function ProtectedBalanceAmount({ balance }: { balance: number }) {
+  const protectedBalance = useProtectedFieldValue({
+    fieldCode: "billing.amount",
+    value: balance,
+    kind: "money",
+  });
+
+  return <>{protectedBalance.displayValue}</>;
 }
 
 export function PatientContextBanner({
@@ -103,7 +162,7 @@ export function PatientContextBanner({
   if (hasBalance) {
     reds.push(
       <Badge key="balance" color="red" leftSection={<IconCash size={12} />} variant="light">
-        Outstanding ₹{balance.toLocaleString("en-IN")}
+        Outstanding <ProtectedBalanceAmount balance={balance} />
       </Badge>,
     );
   }
@@ -175,11 +234,7 @@ export function PatientContextBanner({
   return (
     <Alert color={alertColor} variant="light" mb="sm" radius="sm" withCloseButton={false}>
       <Group gap="xs" wrap="wrap" align="center">
-        <Text size="xs" c="dimmed" fw={500} mr={4}>
-          {data.uhid} · {data.full_name}
-          {data.age_years !== null ? ` · ${data.age_years}y` : ""}
-          {data.gender ? ` · ${data.gender}` : ""}
-        </Text>
+        <PatientContextIdentity data={data} />
         {allChips}
       </Group>
     </Alert>

@@ -2,11 +2,13 @@ import { Group, Text } from "@mantine/core";
 import { useDebouncedValue } from "@mantine/hooks";
 import { useHasPermission } from "@medbrains/stores";
 import { P } from "@medbrains/types";
+import { fieldAccessText } from "@medbrains/utils";
 import { IconSearch, IconUserPlus } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { lookupsService } from "../services/lookups.service";
 import { MiniRegisterPatient } from "./Patient/MiniRegisterPatient";
+import { useProtectedFieldAccess } from "./PermissionedFieldValue";
 import { SearchOrCreate } from "./SearchOrCreate";
 
 interface PatientSearchSelectProps {
@@ -56,6 +58,13 @@ export function PatientSearchSelect({
   const [debounced] = useDebouncedValue(search, 300);
   const canListPatients = useHasPermission(P.PATIENTS.LIST);
   const canCreatePatient = useHasPermission(P.PATIENTS.CREATE);
+  const patientNameAccess = useProtectedFieldAccess(undefined, [
+    "patients.first_name",
+    "patients.last_name",
+  ]);
+  const uhidAccess = useProtectedFieldAccess("patients.uhid");
+  const phoneAccess = useProtectedFieldAccess("patients.phone");
+  const dobAccess = useProtectedFieldAccess("patients.date_of_birth");
 
   const { data } = useQuery({
     queryKey: ["patient-search", debounced],
@@ -65,6 +74,16 @@ export function PatientSearchSelect({
   });
 
   const patients = (data?.patients ?? []).filter((patient) => !excludeIds.includes(patient.id));
+  const patientDisplay = (patient: (typeof patients)[number]) => {
+    const name =
+      fieldAccessText(
+        patientNameAccess,
+        `${patient.first_name} ${patient.last_name}`.trim(),
+        "name",
+      ) || "Patient";
+    const uhid = fieldAccessText(uhidAccess, patient.uhid, "identifier");
+    return `${name} (${uhid})`;
+  };
 
   return (
     <SearchOrCreate
@@ -79,7 +98,7 @@ export function PatientSearchSelect({
       searchText={search}
       onSearchChange={setSearch}
       getItemValue={(patient) => patient.id}
-      getItemDisplay={(patient) => `${patient.first_name} ${patient.last_name} (${patient.uhid})`}
+      getItemDisplay={patientDisplay}
       selectedDisplay={selectedDisplay}
       onSelect={(patient) => onChange(patient.id)}
       onClear={() => onChange("")}
@@ -92,20 +111,20 @@ export function PatientSearchSelect({
         <Group gap={8} wrap="nowrap">
           <div style={{ flex: 1 }}>
             <Text size="sm" fw={500}>
-              {p.first_name} {p.last_name}
+              {fieldAccessText(patientNameAccess, `${p.first_name} ${p.last_name}`.trim(), "name")}
             </Text>
             <Group gap={6}>
               <Text size="xs" c="primary" fw={600}>
-                {p.uhid}
+                {fieldAccessText(uhidAccess, p.uhid, "identifier")}
               </Text>
-              {p.date_of_birth && (
+              {p.date_of_birth && (dobAccess === "edit" || dobAccess === "view") && (
                 <Text size="xs" c="dimmed">
                   {formatAge(p.date_of_birth)} - {genderShort(p.gender)}
                 </Text>
               )}
               {p.phone && (
                 <Text size="xs" c="dimmed">
-                  {p.phone}
+                  {fieldAccessText(phoneAccess, p.phone, "phone")}
                 </Text>
               )}
             </Group>

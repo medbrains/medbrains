@@ -4,17 +4,9 @@
 // full-detail modal. Lets the OPD screen reclaim the vertical real-estate
 // the old full-width PatientContextBanner consumed at the top.
 
-import {
-  Anchor,
-  Badge,
-  Group,
-  Modal,
-  Skeleton,
-  Stack,
-  Text,
-  Tooltip,
-} from "@mantine/core";
+import { Anchor, Badge, Group, Modal, Skeleton, Stack, Text, Tooltip } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
+import type { PatientContext } from "@medbrains/types";
 import {
   IconAlertTriangle,
   IconBan,
@@ -26,6 +18,7 @@ import {
 } from "@tabler/icons-react";
 import type { ReactNode } from "react";
 import { usePatientContext } from "../../hooks/usePatientContext";
+import { useProtectedFieldValue } from "../PermissionedFieldValue";
 
 interface PatientContextSummaryProps {
   patientId: string | null | undefined;
@@ -35,6 +28,61 @@ interface ChipMeta {
   key: string;
   severity: "red" | "amber" | "info";
   node: ReactNode;
+}
+
+const PATIENT_NAME_FIELD_CODES = [
+  "patients.first_name",
+  "patients.middle_name",
+  "patients.last_name",
+] as const;
+
+function PatientContextSummaryTitle({ data }: { data: PatientContext }) {
+  const protectedUhid = useProtectedFieldValue({
+    fieldCode: "patients.uhid",
+    value: data.uhid,
+    kind: "identifier",
+  });
+  const protectedName = useProtectedFieldValue({
+    fieldCodes: PATIENT_NAME_FIELD_CODES,
+    value: data.full_name,
+    kind: "name",
+  });
+  const restrictionLabel = [protectedUhid.restrictionLabel, protectedName.restrictionLabel]
+    .filter(Boolean)
+    .join("; ");
+
+  const title = (
+    <Text
+      fw={600}
+      c={
+        protectedUhid.isRestricted || protectedName.isRestricted
+          ? "var(--mb-text-muted)"
+          : undefined
+      }
+    >
+      {protectedUhid.displayValue} · {protectedName.displayValue}
+    </Text>
+  );
+
+  if (!restrictionLabel) {
+    return title;
+  }
+
+  return (
+    <Tooltip label={restrictionLabel} withArrow>
+      {title}
+    </Tooltip>
+  );
+}
+
+function ProtectedBalanceAmount({ balance }: { balance: number }) {
+  const protectedBalance = useProtectedFieldValue({
+    fieldCode: "billing.amount",
+    value: balance,
+    kind: "money",
+  });
+
+  return <>{protectedBalance.displayValue}</>;
 }
 
 export function PatientContextSummary({ patientId }: PatientContextSummaryProps) {
@@ -107,7 +155,7 @@ export function PatientContextSummary({ patientId }: PatientContextSummaryProps)
       severity: "red",
       node: (
         <Badge color="red" leftSection={<IconCash size={12} />} variant="light">
-          ₹{balance.toLocaleString("en-IN")}
+          <ProtectedBalanceAmount balance={balance} />
         </Badge>
       ),
     });
@@ -212,7 +260,7 @@ export function PatientContextSummary({ patientId }: PatientContextSummaryProps)
       <Modal
         opened={opened}
         onClose={handlers.close}
-        title={`${data.uhid} · ${data.full_name}`}
+        title={<PatientContextSummaryTitle data={data} />}
         size="lg"
         centered
       >
@@ -252,9 +300,7 @@ export function PatientContextSummary({ patientId }: PatientContextSummaryProps)
                 Other allergies
               </Text>
               <Text size="sm">
-                {data.known_allergies
-                  .map((a) => `${a.substance} (${a.severity})`)
-                  .join(", ")}
+                {data.known_allergies.map((a) => `${a.substance} (${a.severity})`).join(", ")}
               </Text>
             </div>
           )}
@@ -265,9 +311,7 @@ export function PatientContextSummary({ patientId }: PatientContextSummaryProps)
                 Pending consents
               </Text>
               <Text size="sm">
-                {data.pending_consents
-                  .map((c) => `${c.consent_type} (${c.status})`)
-                  .join(", ")}
+                {data.pending_consents.map((c) => `${c.consent_type} (${c.status})`).join(", ")}
               </Text>
             </div>
           )}
@@ -278,7 +322,7 @@ export function PatientContextSummary({ patientId }: PatientContextSummaryProps)
                 Outstanding balance
               </Text>
               <Text size="sm" c="red" fw={600}>
-                ₹{balance.toLocaleString("en-IN")}
+                <ProtectedBalanceAmount balance={balance} />
               </Text>
             </div>
           )}
@@ -308,9 +352,7 @@ export function PatientContextSummary({ patientId }: PatientContextSummaryProps)
                   : ""}
                 {data.last_vitals.pulse ? `HR ${data.last_vitals.pulse} · ` : ""}
                 {data.last_vitals.spo2 ? `SpO₂ ${data.last_vitals.spo2}% · ` : ""}
-                {data.last_vitals.temperature
-                  ? `Temp ${data.last_vitals.temperature}°`
-                  : ""}
+                {data.last_vitals.temperature ? `Temp ${data.last_vitals.temperature}°` : ""}
               </Text>
             </div>
           )}

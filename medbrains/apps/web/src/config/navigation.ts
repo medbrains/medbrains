@@ -459,6 +459,7 @@ export const NAV_GROUPS: NavGroupConfig[] = [
         i18nKey: "opdQueue",
         path: "/opd",
         icon: "IconStethoscope",
+        requiredPermission: "opd.queue.list",
         requiredPermissions: [
           "opd.queue.list",
           "opd.queue.view",
@@ -514,6 +515,7 @@ export const NAV_GROUPS: NavGroupConfig[] = [
         i18nKey: "emergency",
         path: "/emergency",
         icon: "IconUrgent",
+        requiredPermission: "emergency.visits.list",
         requiredPermissions: [
           "emergency.visits.list",
           "emergency.visits.create",
@@ -573,6 +575,7 @@ export const NAV_GROUPS: NavGroupConfig[] = [
         i18nKey: "pharmacy",
         path: "/pharmacy",
         icon: "IconPill",
+        requiredPermission: "pharmacy.prescriptions.list",
         requiredPermissions: [
           "pharmacy.prescriptions.list",
           "pharmacy.prescriptions.view",
@@ -632,6 +635,7 @@ export const NAV_GROUPS: NavGroupConfig[] = [
         i18nKey: "ipd",
         path: "/ipd",
         icon: "IconBed",
+        requiredPermission: "ipd.admissions.list",
         requiredPermissions: [
           "ipd.admissions.list",
           "ipd.admissions.view",
@@ -784,6 +788,7 @@ export const NAV_GROUPS: NavGroupConfig[] = [
         i18nKey: "dietKitchen",
         path: "/diet-kitchen",
         icon: "IconToolsKitchen2",
+        requiredPermission: "diet.orders.list",
         requiredPermissions: [
           "diet.orders.list",
           "diet.orders.create",
@@ -821,6 +826,7 @@ export const NAV_GROUPS: NavGroupConfig[] = [
         i18nKey: "billing",
         path: "/billing",
         icon: "IconReceipt",
+        requiredPermission: "billing.invoices.list",
         requiredPermissions: [
           "billing.invoices.list",
           "billing.invoices.view",
@@ -941,6 +947,7 @@ export const NAV_GROUPS: NavGroupConfig[] = [
         i18nKey: "camp",
         path: "/camp",
         icon: "IconFirstAidKit",
+        requiredPermission: "camp.list",
         requiredPermissions: [
           "camp.list",
           "camp.create",
@@ -1027,6 +1034,7 @@ export const NAV_GROUPS: NavGroupConfig[] = [
         i18nKey: "infectionControl",
         path: "/infection-control",
         icon: "IconShieldCheck",
+        requiredPermission: "infection_control.surveillance.list",
         requiredPermissions: [
           "infection_control.surveillance.list",
           "infection_control.stewardship.list",
@@ -1173,6 +1181,7 @@ export const NAV_GROUPS: NavGroupConfig[] = [
             i18nKey: "settings",
             path: "/admin/settings",
             icon: "IconSettings",
+            requiredPermission: "admin.settings.general.manage",
             requiredPermissions: SETTINGS_NAV_PERMISSIONS,
           },
           {

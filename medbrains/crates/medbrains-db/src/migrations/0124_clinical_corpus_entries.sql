@@ -1,3 +1,4 @@
+-- RLS-Posture: tenant-scoped
 -- Clinical terminology and note-completion corpus.
 -- Stores tenant-editable completion entries plus global MedBrains starter phrases.
 -- External dictionaries/terminologies must be imported with source and license metadata.

@@ -1,3 +1,4 @@
+-- RLS-Posture: tenant-scoped
 -- Keep camp billing financially traceable when camp services or medicines are
 -- free, partially sponsored, discounted, or taxable.
 

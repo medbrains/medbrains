@@ -1,5 +1,29 @@
 // Permissions
 
+export type {
+  AccessMatrixMaskingBehavior,
+  AccessMatrixPlatform,
+  AccessMatrixSurface,
+  AccessMatrixSurfaceKind,
+} from "./access-matrix.js";
+export {
+  ACCESS_MATRIX_SURFACES,
+  accessMatrixModules,
+  accessMatrixSurfaceKinds,
+} from "./access-matrix.js";
+export type {
+  ClinicalJourneyActionDefinition,
+  ClinicalJourneyActionId,
+  ClinicalJourneyActionIntent,
+  ClinicalJourneyContext,
+  ClinicalJourneySurface,
+  ClinicalOrderContext,
+  ResolvedClinicalJourneyAction,
+} from "./event-actions.js";
+export {
+  CORE_PATIENT_JOURNEY_ACTIONS,
+  resolveClinicalJourneyActions,
+} from "./event-actions.js";
 export type { PermissionDef, PermissionGroup } from "./permissions.js";
 export {
   buildPermissionTree,
@@ -7460,7 +7484,7 @@ export interface UpdateAdmissionRequest {
 
 export interface TransferBedRequest {
   bed_id: string;
-  notes: string;
+  notes?: string;
 }
 
 export interface DischargeRequest {

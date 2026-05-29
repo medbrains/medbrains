@@ -412,6 +412,7 @@ pub struct AddTeamMemberRequest {
 pub struct ListRegistrationsQuery {
     pub camp_id: Uuid,
     pub status: Option<String>,
+    pub patient_id: Option<Uuid>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -6196,10 +6197,12 @@ pub async fn list_registrations(
         "SELECT * FROM camp_registrations \
          WHERE camp_id = $1 \
          AND ($2::text IS NULL OR status::text = $2) \
+         AND ($3::uuid IS NULL OR patient_id = $3) \
          ORDER BY created_at DESC LIMIT 500",
     )
     .bind(params.camp_id)
     .bind(&params.status)
+    .bind(params.patient_id)
     .fetch_all(&mut *tx)
     .await?;
 

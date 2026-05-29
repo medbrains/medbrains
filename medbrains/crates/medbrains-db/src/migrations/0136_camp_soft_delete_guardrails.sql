@@ -1,3 +1,4 @@
+-- RLS-Posture: tenant-scoped
 -- Camp data-loss guardrails.
 --
 -- High-volume camp data must be recoverable. These tables now carry

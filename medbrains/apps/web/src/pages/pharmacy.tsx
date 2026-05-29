@@ -27,6 +27,8 @@ import { notifications } from "@mantine/notifications";
 import type {
   PharmacyCatalogFormInput,
   PharmacyNdpsEntryFormInput,
+  PharmacyOrderFormInput,
+  PharmacyOrderItemFormInput,
   PharmacyPosReturnFormInput,
   PharmacyPosSaleFormInput,
   PharmacyReturnRequestFormInput,
@@ -35,6 +37,7 @@ import type {
 import {
   pharmacyCatalogFormSchema,
   pharmacyNdpsEntryFormSchema,
+  pharmacyOrderFormSchema,
   pharmacyPosReturnFormSchema,
   pharmacyPosSaleFormSchema,
   pharmacyReturnRequestFormSchema,
@@ -81,6 +84,7 @@ import { P } from "@medbrains/types";
 import { fieldAccessText } from "@medbrains/utils";
 import {
   IconAlertTriangle,
+  IconArrowLeft,
   IconCashRegister,
   IconCheck,
   IconClipboardList,
@@ -104,7 +108,7 @@ import type { ReactNode } from "react";
 import { useMemo, useState } from "react";
 import { Controller, useFieldArray, useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
-import { useNavigate, useSearchParams } from "react-router";
+import { useNavigate, useParams, useSearchParams } from "react-router";
 import {
   ClinicalEventProvider,
   DataTable,
@@ -116,10 +120,14 @@ import {
 } from "../components";
 import { DrugSearchSelect } from "../components/DrugSearchSelect";
 import { PatientContextBanner } from "../components/Patient/PatientContextBanner";
+import { PatientFlowNavigator } from "../components/Patient/PatientFlowNavigator";
 import { PatientNameCell } from "../components/PatientNameCell";
 import { PatientSearchSelect } from "../components/PatientSearchSelect";
 import { CreditNotesTab } from "../components/Pharmacy/CreditNotesTab";
-import { MedicineOrderLineCard } from "../components/Pharmacy/MedicineOrderLineCard";
+import {
+  MedicineOrderLineCard,
+  type MedicineOrderLineValue,
+} from "../components/Pharmacy/MedicineOrderLineCard";
 import { PharmacyDispensingView } from "../components/Pharmacy/PharmacyDispensingView";
 import { PharmacyLabel } from "../components/Pharmacy/PharmacyLabel";
 import { StoreIndentsTab } from "../components/Pharmacy/StoreIndentsTab";
@@ -162,6 +170,11 @@ type DraftPharmacyOrderItem = PharmacyOrderItemInput & {
   catalog_item_id?: string;
   tax_percent?: number;
 };
+
+type PharmacyOrderPricingLine = Pick<
+  MedicineOrderLineValue,
+  "catalog_item_id" | "drug_name" | "quantity" | "unit_price" | "tax_percent"
+>;
 
 type PharmacyPosSaleLine = PharmacyPosSaleFormInput["items"][number];
 type PharmacyPosReturnLine = PharmacyPosReturnFormInput["items"][number];
@@ -350,17 +363,36 @@ function posSalePayloadPatientId(payload: Record<string, unknown>) {
   return typeof patientId === "string" ? patientId : "";
 }
 
-function draftItemTaxAmount(item: DraftPharmacyOrderItem) {
+function draftItemTaxAmount(item: PharmacyOrderPricingLine) {
   return item.quantity * item.unit_price * ((item.tax_percent ?? 0) / 100);
 }
 
-function draftTotals(items: DraftPharmacyOrderItem[]) {
+function draftTotals(items: PharmacyOrderPricingLine[]) {
   const subtotal = items.reduce((sum, item) => sum + item.quantity * item.unit_price, 0);
   const tax = items.reduce((sum, item) => sum + draftItemTaxAmount(item), 0);
   return {
     subtotal,
     tax,
     total: subtotal + tax,
+  };
+}
+
+function newPharmacyOrderFormItem(): PharmacyOrderItemFormInput {
+  return {
+    catalog_item_id: "",
+    drug_name: "",
+    quantity: 1,
+    unit_price: 0,
+    tax_percent: 0,
+  };
+}
+
+function pharmacyOrderDefaults(initialPatientId = ""): PharmacyOrderFormInput {
+  return {
+    patient_id: initialPatientId,
+    notes: "",
+    safety_override_reason: "",
+    items: [newPharmacyOrderFormItem()],
   };
 }
 
@@ -374,13 +406,35 @@ function newDraftPharmacyOrderItem(): DraftPharmacyOrderItem {
   };
 }
 
-function draftPharmacyOrderItemsPayload(items: DraftPharmacyOrderItem[]): PharmacyOrderItemInput[] {
+function pharmacyOrderLineFromForm(item: PharmacyOrderItemFormInput): MedicineOrderLineValue {
+  return {
+    catalog_item_id: optionalFormText(item.catalog_item_id ?? ""),
+    drug_name: item.drug_name,
+    quantity: formIntegerOrFallback(item.quantity, 1),
+    unit_price: formNumberOrFallback(item.unit_price, 0),
+    tax_percent: formNumberOrFallback(item.tax_percent, 0),
+  };
+}
+
+function draftPharmacyOrderItemsPayload(
+  items: PharmacyOrderPricingLine[],
+): PharmacyOrderItemInput[] {
   return items.map(({ catalog_item_id, drug_name, quantity, unit_price }) => ({
-    catalog_item_id,
-    drug_name,
+    catalog_item_id: optionalFormText(catalog_item_id ?? ""),
+    drug_name: drug_name.trim(),
     quantity,
     unit_price,
   }));
+}
+
+function pharmacyOrderPayloadFromForm(values: PharmacyOrderFormInput): CreatePharmacyOrderRequest {
+  const lines = values.items.map(pharmacyOrderLineFromForm);
+  return {
+    patient_id: values.patient_id,
+    notes: optionalFormText(values.notes),
+    safety_override_reason: optionalFormText(values.safety_override_reason),
+    items: draftPharmacyOrderItemsPayload(lines),
+  };
 }
 
 function rxReviewInputFromItem(item: PharmacyRxDetailItem): PharmacyRxReviewItemInput {
@@ -646,6 +700,104 @@ export function PharmacyPage() {
   );
 }
 
+export function PharmacyOrderCreatePage() {
+  useRequirePermission(P.PHARMACY.DISPENSING_CREATE);
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const initialPatientId = searchParams.get("patient_id") ?? "";
+  const canViewPatientRecord = useHasPermission(P.PATIENTS.VIEW);
+
+  function ordersPath() {
+    const params = new URLSearchParams({ tab: "orders" });
+    if (initialPatientId) {
+      params.set("patient_id", initialPatientId);
+    }
+    return `/pharmacy?${params.toString()}`;
+  }
+
+  return (
+    <ClinicalEventProvider moduleCode="pharmacy" contextCode="pharmacy-order-create">
+      <Stack>
+        <PageHeader
+          title="New Pharmacy Order"
+          subtitle="Create a patient-linked medicine order with safety and billing synchronization."
+          icon={<IconPill size={20} stroke={1.5} />}
+          color="success"
+          actions={
+            <Button
+              variant="light"
+              leftSection={<IconArrowLeft size={14} />}
+              onClick={() => navigate(ordersPath())}
+            >
+              Orders
+            </Button>
+          }
+        />
+        <PharmacyOrderForm
+          initialPatientId={initialPatientId}
+          canViewPatientRecord={canViewPatientRecord}
+          onCancel={() => navigate(ordersPath())}
+          onSuccess={(detail) => navigate(`/pharmacy/orders/${detail.order.id}`)}
+        />
+      </Stack>
+    </ClinicalEventProvider>
+  );
+}
+
+export function PharmacyOrderDetailPage() {
+  useRequirePermission(P.PHARMACY.PRESCRIPTIONS_VIEW);
+  const navigate = useNavigate();
+  const { orderId } = useParams();
+  const canAdjustPartialDispense = useHasPermission(P.PHARMACY.DISPENSING_PARTIAL);
+  const canViewReturns = useHasPermission(P.PHARMACY.RETURNS_LIST);
+  const canViewPatientRecord = useHasPermission(P.PATIENTS.VIEW);
+  const canCreateOrder = useHasPermission(P.PHARMACY.DISPENSING_CREATE);
+
+  return (
+    <ClinicalEventProvider moduleCode="pharmacy" contextCode="pharmacy-order-detail">
+      <Stack>
+        <PageHeader
+          title="Pharmacy Order"
+          subtitle="Dispensing detail, FEFO hints, labels, and synchronized billing lines."
+          icon={<IconPill size={20} stroke={1.5} />}
+          color="success"
+          actions={
+            <Group gap="xs">
+              <Button
+                variant="light"
+                leftSection={<IconArrowLeft size={14} />}
+                onClick={() => navigate("/pharmacy?tab=orders")}
+              >
+                Orders
+              </Button>
+              {canCreateOrder && (
+                <Button
+                  leftSection={<IconPlus size={14} />}
+                  onClick={() => navigate("/pharmacy/orders/new")}
+                >
+                  New Order
+                </Button>
+              )}
+            </Group>
+          }
+        />
+        {orderId ? (
+          <PharmacyOrderDetail
+            orderId={orderId}
+            canEditItems={canAdjustPartialDispense}
+            canViewReturns={canViewReturns}
+            canViewPatientRecord={canViewPatientRecord}
+          />
+        ) : (
+          <Alert color="warning" variant="light">
+            Pharmacy order id is missing from the route.
+          </Alert>
+        )}
+      </Stack>
+    </ClinicalEventProvider>
+  );
+}
+
 function PharmacyPageInner() {
   const { t } = useTranslation("pharmacy");
   const [searchParams, setSearchParams] = useSearchParams();
@@ -876,10 +1028,8 @@ function PharmacyPageInner() {
               <PharmacyOrdersTab
                 canViewOrders={canViewOrders}
                 canDispense={canDispense}
-                canAdjustPartialDispense={canAdjustPartialDispense}
                 canCancelOrder={canCancelDispensingOrder}
                 canViewOrderDetail={canViewOrderDetail}
-                canViewReturns={canViewReturns}
                 canViewPatientRecord={canViewPatientRecord}
                 headerActions={
                   canViewSafetyChecks && (
@@ -979,32 +1129,29 @@ function PharmacyPageInner() {
 function PharmacyOrdersTab({
   canViewOrders,
   canDispense,
-  canAdjustPartialDispense,
   canCancelOrder,
   canViewOrderDetail,
-  canViewReturns,
   canViewPatientRecord,
   headerActions,
 }: {
   canViewOrders: boolean;
   canDispense: boolean;
-  canAdjustPartialDispense: boolean;
   canCancelOrder: boolean;
   canViewOrderDetail: boolean;
-  canViewReturns: boolean;
   canViewPatientRecord: boolean;
   headerActions?: ReactNode;
 }) {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [page, setPage] = useState(1);
   const [filterStatus, setFilterStatus] = useState<string | null>(null);
-  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
-  const [detailOpened, { open: openDetail, close: closeDetail }] = useDisclosure(false);
-  const [createOpened, { open: openCreate, close: closeCreate }] = useDisclosure(false);
   const [otcOpened, { open: openOtc, close: closeOtc }] = useDisclosure(false);
+  const patientIdFilter = searchParams.get("patient_id") ?? "";
 
   const params: Record<string, string> = { page: String(page), per_page: "20" };
   if (filterStatus) params.status = filterStatus;
+  if (patientIdFilter) params.patient_id = patientIdFilter;
 
   const { data, isLoading } = useQuery({
     queryKey: ["pharmacy-orders", params],
@@ -1098,8 +1245,7 @@ function PharmacyOrdersTab({
               aria-label="View pharmacy order"
               onClick={() => {
                 if (!canViewOrderDetail) return;
-                setSelectedOrderId(row.id);
-                openDetail();
+                navigate(`/pharmacy/orders/${row.id}`);
               }}
             >
               <IconEye size={16} />
@@ -1164,7 +1310,17 @@ function PharmacyOrdersTab({
           {headerActions}
           {canDispense && (
             <>
-              <Button size="xs" leftSection={<IconPlus size={14} />} onClick={openCreate}>
+              <Button
+                size="xs"
+                leftSection={<IconPlus size={14} />}
+                onClick={() =>
+                  navigate(
+                    patientIdFilter
+                      ? `/pharmacy/orders/new?patient_id=${patientIdFilter}`
+                      : "/pharmacy/orders/new",
+                  )
+                }
+              >
                 New Order
               </Button>
               <Button
@@ -1182,15 +1338,23 @@ function PharmacyOrdersTab({
       </Group>
 
       {canViewOrders ? (
-        <DataTable
-          columns={columns}
-          data={data?.orders ?? []}
-          loading={isLoading}
-          page={page}
-          totalPages={data ? Math.ceil(data.total / data.per_page) : 1}
-          onPageChange={setPage}
-          rowKey={(row) => row.id}
-        />
+        <Stack>
+          {patientIdFilter && (
+            <PharmacyPatientContext
+              patientId={patientIdFilter}
+              canViewPatientRecord={canViewPatientRecord}
+            />
+          )}
+          <DataTable
+            columns={columns}
+            data={data?.orders ?? []}
+            loading={isLoading}
+            page={page}
+            totalPages={data ? Math.ceil(data.total / data.per_page) : 1}
+            onPageChange={setPage}
+            rowKey={(row) => row.id}
+          />
+        </Stack>
       ) : (
         <Alert color="warning" variant="light">
           This role can create or process pharmacy orders, but the order queue and patient list stay
@@ -1198,29 +1362,7 @@ function PharmacyOrdersTab({
         </Alert>
       )}
 
-      <CreatePharmacyOrderDrawer
-        opened={createOpened}
-        onClose={closeCreate}
-        canViewPatientRecord={canViewPatientRecord}
-      />
       <OtcSaleDrawer opened={otcOpened} onClose={closeOtc} />
-
-      <Drawer
-        opened={detailOpened}
-        onClose={closeDetail}
-        title="Order Detail"
-        position="right"
-        size="xl"
-      >
-        {selectedOrderId && canViewOrderDetail && (
-          <PharmacyOrderDetail
-            orderId={selectedOrderId}
-            canEditItems={canAdjustPartialDispense}
-            canViewReturns={canViewReturns}
-            canViewPatientRecord={canViewPatientRecord}
-          />
-        )}
-      </Drawer>
     </Stack>
   );
 }
@@ -1932,38 +2074,58 @@ function OtcSaleDrawer({ opened, onClose }: { opened: boolean; onClose: () => vo
   );
 }
 
-function CreatePharmacyOrderDrawer({
-  opened,
-  onClose,
+function PharmacyOrderForm({
+  initialPatientId,
   canViewPatientRecord,
+  onCancel,
+  onSuccess,
 }: {
-  opened: boolean;
-  onClose: () => void;
+  initialPatientId?: string;
   canViewPatientRecord: boolean;
+  onCancel: () => void;
+  onSuccess: (detail: PharmacyOrderDetailResponse) => void;
 }) {
   const queryClient = useQueryClient();
+  const emit = useClinicalEmit();
   const canOverrideSafety = useHasPermission(P.PHARMACY.SAFETY_OVERRIDE);
   const priceAccess = useFieldAccess("pharmacy.pricing.unit_price");
-  const [patientId, setPatientId] = useState("");
-  const [notes, setNotes] = useState("");
-  const [safetyOverrideReason, setSafetyOverrideReason] = useState("");
-  const [items, setItems] = useState<DraftPharmacyOrderItem[]>([newDraftPharmacyOrderItem()]);
+  const {
+    control,
+    handleSubmit,
+    reset,
+    watch,
+    formState: { errors },
+  } = useForm<PharmacyOrderFormInput>({
+    resolver: zodResolver(pharmacyOrderFormSchema),
+    defaultValues: pharmacyOrderDefaults(initialPatientId),
+  });
+  const { fields, append, remove } = useFieldArray({
+    control,
+    name: "items",
+  });
+  const patientId = watch("patient_id");
+  const items = watch("items");
 
   const createMutation = useMutation({
     mutationFn: (data: CreatePharmacyOrderRequest) => pharmacyService.createPharmacyOrder(data),
-    onSuccess: () => {
+    onSuccess: (detail) => {
       void queryClient.invalidateQueries({ queryKey: ["pharmacy-orders"] });
+      void queryClient.invalidateQueries({ queryKey: ["pharmacy-order-detail", detail.order.id] });
       void queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      void queryClient.invalidateQueries({
+        queryKey: ["patient-invoices", detail.order.patient_id],
+      });
       notifications.show({
         title: "Order created",
         message: "Pharmacy order placed and draft billing indent updated",
         color: "success",
       });
-      onClose();
-      setPatientId("");
-      setNotes("");
-      setSafetyOverrideReason("");
-      setItems([newDraftPharmacyOrderItem()]);
+      emit("pharmacy.order.created", {
+        order_id: detail.order.id,
+        patient_id: detail.order.patient_id,
+      });
+      reset(pharmacyOrderDefaults(initialPatientId));
+      onSuccess(detail);
     },
     onError: (error) => {
       notifications.show({
@@ -1974,61 +2136,106 @@ function CreatePharmacyOrderDrawer({
     },
   });
 
-  const orderTotals = draftTotals(items);
+  const orderTotals = draftTotals(items.map(pharmacyOrderLineFromForm));
   const createError =
     createMutation.error instanceof Error ? createMutation.error.message : undefined;
+  const submitOrder = handleSubmit((values) => {
+    createMutation.mutate(pharmacyOrderPayloadFromForm(values));
+  });
 
   return (
-    <Drawer
-      opened={opened}
-      onClose={onClose}
-      title="New Pharmacy Order"
-      position="right"
-      size="min(100%, 1040px)"
-    >
-      <Stack>
-        <PatientSearchSelect value={patientId} onChange={setPatientId} required />
+    <Card withBorder>
+      <Stack component="form" onSubmit={submitOrder}>
+        <Controller
+          control={control}
+          name="patient_id"
+          render={({ field, fieldState }) => (
+            <PatientSearchSelect
+              value={field.value}
+              onChange={field.onChange}
+              required
+              error={fieldState.error?.message}
+            />
+          )}
+        />
         <PharmacyPatientContext patientId={patientId} canViewPatientRecord={canViewPatientRecord} />
         {createError && (
           <Alert color="red" icon={<IconAlertTriangle size={16} />}>
             {createError}
           </Alert>
         )}
-        <Textarea label="Notes" value={notes} onChange={(e) => setNotes(e.currentTarget.value)} />
+        <Controller
+          control={control}
+          name="notes"
+          render={({ field }) => (
+            <Textarea label="Notes" value={field.value} onChange={field.onChange} />
+          )}
+        />
         {canOverrideSafety && (
-          <Textarea
-            label="Medication safety override reason"
-            value={safetyOverrideReason}
-            onChange={(e) => setSafetyOverrideReason(e.currentTarget.value)}
-            minRows={2}
+          <Controller
+            control={control}
+            name="safety_override_reason"
+            render={({ field }) => (
+              <Textarea
+                label="Medication safety override reason"
+                value={field.value}
+                onChange={field.onChange}
+                minRows={2}
+              />
+            )}
           />
         )}
-        <Text fw={600} size="sm">
-          Medications
-        </Text>
-        {items.map((item, idx) => (
-          <MedicineOrderLineCard
-            key={item.row_id}
-            value={item}
-            index={idx}
-            priceLabel="Unit price (ex-GST)"
-            className={styles.medicationCard}
-            removePermission={P.PHARMACY.DISPENSING_CREATE}
-            onChange={(next) => {
-              const updated = [...items];
-              updated[idx] = { ...item, ...next };
-              setItems(updated);
-            }}
-            canRemove={items.length > 1}
-            onRemove={() => setItems(items.filter((_, i) => i !== idx))}
-          />
-        ))}
+        <Stack gap="xs">
+          <Text fw={600} size="sm">
+            Medications
+          </Text>
+          {fields.map((field, idx) => (
+            <Controller
+              key={field.id}
+              control={control}
+              name={`items.${idx}`}
+              render={({ field: itemField, fieldState }) => (
+                <Stack gap={4}>
+                  <MedicineOrderLineCard
+                    value={pharmacyOrderLineFromForm(itemField.value)}
+                    index={idx}
+                    priceLabel="Unit price (ex-GST)"
+                    className={styles.medicationCard}
+                    removePermission={P.PHARMACY.DISPENSING_CREATE}
+                    onChange={(next) => {
+                      itemField.onChange({
+                        ...itemField.value,
+                        catalog_item_id: next.catalog_item_id ?? "",
+                        drug_name: next.drug_name,
+                        quantity: next.quantity,
+                        unit_price: next.unit_price,
+                        tax_percent: next.tax_percent ?? 0,
+                      });
+                    }}
+                    canRemove={fields.length > 1}
+                    onRemove={() => remove(idx)}
+                  />
+                  {fieldState.error && (
+                    <Text size="xs" c="danger">
+                      Complete medicine, quantity, and price before placing the order.
+                    </Text>
+                  )}
+                </Stack>
+              )}
+            />
+          ))}
+        </Stack>
+        {errors.items?.message && (
+          <Text size="xs" c="danger">
+            {errors.items.message}
+          </Text>
+        )}
         <Group justify="space-between">
           <Button
             size="xs"
             variant="light"
             leftSection={<IconPlus size={14} />}
-            onClick={() => setItems([...items, newDraftPharmacyOrderItem()])}
+            onClick={() => append(newPharmacyOrderFormItem())}
           >
             Add medicine
           </Button>
@@ -2042,23 +2249,16 @@ function CreatePharmacyOrderDrawer({
             </Text>
           </Stack>
         </Group>
-        <Button
-          fullWidth
-          onClick={() =>
-            createMutation.mutate({
-              patient_id: patientId,
-              notes: notes || undefined,
-              items: draftPharmacyOrderItemsPayload(items),
-              safety_override_reason: safetyOverrideReason.trim() || undefined,
-            })
-          }
-          loading={createMutation.isPending}
-          disabled={!patientId || items.every((i) => !i.drug_name)}
-        >
-          Place Order
-        </Button>
+        <Group justify="flex-end">
+          <Button variant="default" onClick={onCancel}>
+            Cancel
+          </Button>
+          <Button type="submit" loading={createMutation.isPending}>
+            Place Order
+          </Button>
+        </Group>
       </Stack>
-    </Drawer>
+    </Card>
   );
 }
 
@@ -2164,6 +2364,12 @@ function PharmacyOrderDetail({
       <PharmacyPatientContext
         patientId={detail.order.patient_id}
         canViewPatientRecord={canViewPatientRecord}
+      />
+      <PatientFlowNavigator
+        patientId={detail.order.patient_id}
+        active="pharmacy"
+        activeEncounterId={detail.order.encounter_id ?? null}
+        compact
       />
 
       {/* View mode toggle — show schedule view when prescription data is available */}

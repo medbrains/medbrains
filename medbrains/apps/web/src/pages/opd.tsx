@@ -7,7 +7,6 @@ import {
   Badge,
   Button,
   Card,
-  Drawer,
   Group,
   Loader,
   Modal,
@@ -50,6 +49,7 @@ import type {
   ConsultationTemplate,
   CreateConsultationRequest,
   CreateDiagnosisRequest,
+  CreateEncounterResponse,
   CreateMedicalCertificateRequest,
   CreatePreAuthRequest,
   CreatePrescriptionRequest,
@@ -86,7 +86,6 @@ import type {
   ProcedureOrderWithName,
   QueueEntry,
   RadiologyDicomStudy,
-  ReferralTrackingRow,
   ReferralUrgency,
   ReferralWithNames,
   ReviewOfSystems as ROSType,
@@ -136,7 +135,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
-import { useNavigate, useParams } from "react-router";
+import { useNavigate, useParams, useSearchParams } from "react-router";
 import {
   ClinicalEventProvider,
   DataTable,
@@ -163,6 +162,7 @@ import {
   OrderBasketWorkspace,
 } from "../components/OrderBasket/OrderBasketWorkspace";
 import { PatientContextBanner } from "../components/Patient/PatientContextBanner";
+import { PatientFlowNavigator } from "../components/Patient/PatientFlowNavigator";
 import {
   DEFAULT_OPD_CONSENT_FORM_VALUES,
   DEFAULT_OPD_FEEDBACK_FORM_VALUES,
@@ -186,6 +186,7 @@ import {
   toCreateProcedureOrderRequest,
   toCreateReminderRequest,
 } from "../forms/opd.form";
+import { useHashTabs } from "../hooks/useHashTabs";
 import { useRequirePermission } from "../hooks/useRequirePermission";
 import { useVitalsSource } from "../hooks/useVitalsSource";
 import { toDateString, todayDateString } from "../lib/date-utils";
@@ -219,6 +220,30 @@ const appointmentStatusLabels: Record<string, string> = {
   cancelled: "Cancelled",
   no_show: "No show",
 };
+
+const OPD_ENCOUNTER_TAB_VALUES = [
+  "vitals",
+  "consultation",
+  "history",
+  "ros",
+  "physical-exam",
+  "diagnoses",
+  "investigations",
+  "procedures",
+  "prescriptions",
+  "referrals",
+  "rx-history",
+  "charts",
+  "timeline",
+  "certificates",
+  "followup",
+  "reminders",
+  "feedback",
+  "consents",
+  "pre-auth",
+  "docket",
+  "pharmacy-dispatch",
+] as const;
 
 const appointmentTypeLabels: Record<string, string> = {
   new_visit: "Booked",
@@ -373,6 +398,339 @@ export function OpdEncounterPage() {
   );
 }
 
+interface OpdVisitFormProps {
+  initialPatientId?: string;
+  onCancel: () => void;
+  onCreated: (result: CreateEncounterResponse) => void;
+}
+
+function OpdVisitForm({ initialPatientId = "", onCancel, onCreated }: OpdVisitFormProps) {
+  const emit = useClinicalEmit();
+  const queryClient = useQueryClient();
+  const {
+    control,
+    handleSubmit,
+    reset,
+    setValue,
+    watch,
+    formState: { errors },
+  } = useForm<OpdQueueVisitFormInput>({
+    resolver: zodResolver(opdQueueVisitFormSchema),
+    defaultValues: {
+      ...DEFAULT_OPD_QUEUE_VISIT_FORM_VALUES,
+      patient_id: initialPatientId,
+    },
+  });
+  const visitType = watch("visit_type");
+
+  const { data: departments = [] } = useQuery({
+    queryKey: ["departments"],
+    queryFn: () => opdService.listDepartments(),
+    staleTime: 600_000,
+  });
+  const departmentOptions = (departments as DepartmentRow[])
+    .filter((department) =>
+      ["clinical", "para_clinical"].includes(department.department_type ?? ""),
+    )
+    .map((department) => ({ value: department.id, label: department.name }));
+
+  const { data: campOptionsSource = [] } = useQuery<Camp[]>({
+    queryKey: ["camps", "active-for-opd"],
+    queryFn: () => campService.listCamps({ status: "active" }),
+    staleTime: 300_000,
+  });
+  const activeCampOptions = useMemo(
+    () =>
+      campOptionsSource.map((camp) => ({
+        value: camp.id,
+        label: `${camp.camp_code} - ${camp.name}`,
+      })),
+    [campOptionsSource],
+  );
+
+  const createMutation = useMutation({
+    mutationFn: (values: OpdQueueVisitFormInput) =>
+      opdService.createEncounter(toCreateEncounterRequest(values)),
+    onSuccess: (result, variables) => {
+      void queryClient.invalidateQueries({ queryKey: ["opd-queue"] });
+      void queryClient.invalidateQueries({ queryKey: ["opd-appointments"] });
+      notifications.show({
+        title: "Visit created",
+        message: "Patient added to queue",
+        color: "success",
+      });
+      emit("opd.encounter.created", {
+        encounter_id: result.encounter.id,
+        patient_id: variables.patient_id,
+        department_id: variables.department_id ?? "",
+      });
+      reset({
+        ...DEFAULT_OPD_QUEUE_VISIT_FORM_VALUES,
+        patient_id: initialPatientId,
+      });
+      onCreated(result);
+    },
+    onError: () => {
+      notifications.show({ title: "Error", message: "Failed to create visit", color: "danger" });
+    },
+  });
+
+  return (
+    <Stack component="form" onSubmit={handleSubmit((values) => createMutation.mutate(values))}>
+      <Controller
+        control={control}
+        name="visit_type"
+        render={({ field }) => (
+          <Select
+            label="Visit Type"
+            data={OPD_VISIT_TYPE_OPTIONS}
+            value={field.value}
+            onChange={(value) => {
+              const nextValue = value ?? "walk_in";
+              field.onChange(nextValue);
+              if (nextValue !== "camp") {
+                setValue("camp_id", null, { shouldValidate: true });
+              }
+            }}
+            error={errors.visit_type?.message}
+            required
+          />
+        )}
+      />
+      {visitType === "camp" && (
+        <Controller
+          control={control}
+          name="camp_id"
+          render={({ field }) => (
+            <Select
+              label="Camp"
+              placeholder="Select active camp"
+              data={activeCampOptions}
+              value={field.value ?? null}
+              onChange={(value) => field.onChange(value ?? null)}
+              error={errors.camp_id?.message}
+              searchable
+              required
+            />
+          )}
+        />
+      )}
+      <Controller
+        control={control}
+        name="patient_id"
+        render={({ field }) => (
+          <PatientSearchSelect
+            value={field.value}
+            onChange={field.onChange}
+            error={errors.patient_id?.message}
+            required
+          />
+        )}
+      />
+      <Controller
+        control={control}
+        name="department_id"
+        render={({ field }) => (
+          <Select
+            label="Department"
+            placeholder="Select department"
+            data={departmentOptions}
+            value={field.value ?? ""}
+            onChange={(value) => field.onChange(value || null)}
+            error={errors.department_id?.message}
+            searchable
+            required
+          />
+        )}
+      />
+      <Controller
+        control={control}
+        name="doctor_id"
+        render={({ field }) => (
+          <DoctorSearchSelect
+            value={field.value ?? ""}
+            onChange={(value) => field.onChange(value || null)}
+          />
+        )}
+      />
+      <Controller
+        control={control}
+        name="notes"
+        render={({ field }) => <Textarea label="Notes" placeholder="Visit notes" {...field} />}
+      />
+      <Group justify="flex-end">
+        <Button variant="subtle" onClick={onCancel}>
+          Cancel
+        </Button>
+        <Button type="submit" loading={createMutation.isPending}>
+          Create Visit
+        </Button>
+      </Group>
+    </Stack>
+  );
+}
+
+export function OpdNewVisitPage() {
+  useRequirePermission(P.OPD.VISIT_CREATE);
+
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const initialPatientId = searchParams.get("patient_id") ?? "";
+
+  return (
+    <ClinicalEventProvider moduleCode="opd" contextCode="opd-new-visit">
+      <Stack>
+        <PageHeader
+          title="New OPD visit"
+          subtitle="Register a patient into the OPD queue and open the consultation workspace."
+          icon={<IconStethoscope size={20} stroke={1.5} />}
+          color="primary"
+          actions={
+            <Button variant="subtle" onClick={() => navigate("/opd")}>
+              Back to OPD
+            </Button>
+          }
+        />
+        {initialPatientId && <PatientContextBanner patientId={initialPatientId} />}
+        <Card withBorder radius="md" p="md">
+          <OpdVisitForm
+            key={initialPatientId}
+            initialPatientId={initialPatientId}
+            onCancel={() => navigate("/opd")}
+            onCreated={(result) => navigate(`/opd/encounters/${result.encounter.id}#consultation`)}
+          />
+        </Card>
+      </Stack>
+    </ClinicalEventProvider>
+  );
+}
+
+export function OpdVitalsPage() {
+  useRequirePermission(P.OPD.QUEUE_VIEW);
+
+  const navigate = useNavigate();
+  const { queueEntryId } = useParams<{ queueEntryId: string }>();
+  const emit = useClinicalEmit();
+  const queryClient = useQueryClient();
+  const canUpdate = useHasPermission(P.OPD.VISIT_UPDATE);
+  const canRecordNurseVitals = useHasPermission(P.NURSE.VITALS_RECORD);
+  const canRecordVitals = canRecordNurseVitals || canUpdate;
+  const requestedQueueEntryId = queueEntryId ?? "";
+
+  const { data: queue = [], isLoading } = useQuery({
+    queryKey: ["opd-queue", "vitals-route"],
+    queryFn: () => opdService.listQueue(),
+    enabled: requestedQueueEntryId.length > 0,
+  });
+  const entry = queue.find((row) => row.id === requestedQueueEntryId);
+
+  const vitalsMutation = useMutation({
+    mutationFn: (data: CreateVitalRequest) => {
+      if (!entry) {
+        throw new Error("OPD queue entry was not loaded");
+      }
+      return canRecordNurseVitals
+        ? opdService.createNurseVital({ ...data, encounter_id: entry.encounter_id })
+        : opdService.createVital(entry.encounter_id, data);
+    },
+    onSuccess: () => {
+      if (!entry) return;
+      void queryClient.invalidateQueries({ queryKey: ["opd-queue"] });
+      void queryClient.invalidateQueries({ queryKey: ["vitals", entry.encounter_id] });
+      void queryClient.invalidateQueries({
+        queryKey: ["patient-vitals-history", entry.patient_id],
+      });
+      void queryClient.invalidateQueries({
+        queryKey: ["patient-vitals-history", entry.patient_id, "timeline"],
+      });
+      emit("vitals.recorded", {
+        encounter_id: entry.encounter_id,
+        patient_id: entry.patient_id,
+      });
+      notifications.show({
+        title: "Vitals recorded",
+        message: `${entry.patient_name ?? "Patient"} vitals were saved`,
+        color: "success",
+      });
+      navigate("/opd");
+    },
+    onError: () => {
+      notifications.show({
+        title: "Unable to record vitals",
+        message: "Check vitals permission and try again.",
+        color: "danger",
+      });
+    },
+  });
+
+  if (isLoading) {
+    return (
+      <Stack align="center" py="xl">
+        <Loader size="lg" />
+        <Text c="dimmed">Loading queue entry...</Text>
+      </Stack>
+    );
+  }
+
+  if (!entry) {
+    return (
+      <Stack align="center" py="xl">
+        <Text c="dimmed">OPD queue entry not found for today.</Text>
+        <Button variant="light" onClick={() => navigate("/opd")}>
+          Back to OPD
+        </Button>
+      </Stack>
+    );
+  }
+
+  const vitalsAllowed = canRecordVitals && canRecordVitalsFromQueue(entry);
+
+  return (
+    <ClinicalEventProvider moduleCode="opd" contextCode={`opd-vitals-${entry.id}`}>
+      <Stack>
+        <PageHeader
+          title="Record OPD vitals"
+          subtitle={`${entry.patient_name ?? "Patient"} | Token T${String(entry.token_number).padStart(3, "0")}`}
+          icon={<IconHeartbeat size={20} stroke={1.5} />}
+          color="primary"
+          actions={
+            <Button variant="subtle" onClick={() => navigate("/opd")}>
+              Back to OPD
+            </Button>
+          }
+        />
+        <Card withBorder p="sm">
+          <Group justify="space-between" align="flex-start">
+            <Stack gap={2}>
+              <Text fw={700}>{entry.patient_name ?? "Patient"}</Text>
+              <Text size="xs" c="dimmed">
+                {entry.uhid ?? "Masked"} | Token T{String(entry.token_number).padStart(3, "0")}
+              </Text>
+            </Stack>
+            <Badge variant="light" color={statusColors[entry.status] ?? "slate"}>
+              {entry.status.replace(/_/g, " ")}
+            </Badge>
+          </Group>
+        </Card>
+        {!vitalsAllowed ? (
+          <Alert color="warning" icon={<IconAlertTriangle size={16} />}>
+            Vitals can be recorded only for waiting, called, or in-consultation queue entries by
+            staff with vitals permission.
+          </Alert>
+        ) : (
+          <Card withBorder radius="md" p="md">
+            <VitalsRecorder
+              onSubmit={(data) => vitalsMutation.mutate(data)}
+              isSubmitting={vitalsMutation.isPending}
+              onCancel={() => navigate("/opd")}
+            />
+          </Card>
+        )}
+      </Stack>
+    </ClinicalEventProvider>
+  );
+}
+
 function formatPatientName(patient: Patient): string {
   return `${patient.first_name} ${patient.last_name}`.trim() || patient.uhid;
 }
@@ -391,6 +749,7 @@ function canRecordVitalsFromQueue(row: QueueEntry): boolean {
 function OpdPageInner() {
   const { t } = useTranslation("opd");
   const emit = useClinicalEmit();
+  const navigate = useNavigate();
   const canCreate = useHasPermission(P.OPD.VISIT_CREATE);
   const canManageToken = useHasPermission(P.OPD.TOKEN_MANAGE);
   const canUpdate = useHasPermission(P.OPD.VISIT_UPDATE);
@@ -407,11 +766,6 @@ function OpdPageInner() {
   const [myPatientsOnly, setMyPatientsOnly] = useState(false);
   const [queueSearch, setQueueSearch] = useState("");
   const [debouncedQueueSearch] = useDebouncedValue(queueSearch.trim(), 250);
-  const [selectedEntry, setSelectedEntry] = useState<QueueEntry | null>(null);
-  const [vitalsEntry, setVitalsEntry] = useState<QueueEntry | null>(null);
-  const [detailOpened, { open: openDetail, close: closeDetail }] = useDisclosure(false);
-  const [vitalsOpened, { open: openVitals, close: closeVitals }] = useDisclosure(false);
-  const [createOpened, { open: openCreate, close: closeCreate }] = useDisclosure(false);
 
   // Departments for filter dropdown
   const { data: departments = [] } = useQuery({
@@ -422,43 +776,6 @@ function OpdPageInner() {
   const deptOptions = (departments as DepartmentRow[])
     .filter((d) => d.department_type === "clinical" || d.department_type === "para_clinical")
     .map((d) => ({ value: d.id, label: d.name }));
-
-  const {
-    control: createControl,
-    handleSubmit: handleCreateSubmit,
-    reset: resetCreateVisit,
-    setValue: setCreateVisitValue,
-    watch: watchCreateVisit,
-    formState: { errors: createErrors },
-  } = useForm<OpdQueueVisitFormInput>({
-    resolver: zodResolver(opdQueueVisitFormSchema),
-    defaultValues: DEFAULT_OPD_QUEUE_VISIT_FORM_VALUES,
-  });
-
-  const closeCreateDrawer = () => {
-    closeCreate();
-    resetCreateVisit(DEFAULT_OPD_QUEUE_VISIT_FORM_VALUES);
-  };
-  const closeVitalsDrawer = () => {
-    closeVitals();
-    setVitalsEntry(null);
-  };
-  const createVisitType = watchCreateVisit("visit_type");
-
-  const { data: campOptionsSource = [] } = useQuery<Camp[]>({
-    queryKey: ["camps", "active-for-opd"],
-    queryFn: () => campService.listCamps({ status: "active" }),
-    enabled: canCreate,
-    staleTime: 300_000,
-  });
-  const activeCampOptions = useMemo(
-    () =>
-      campOptionsSource.map((camp) => ({
-        value: camp.id,
-        label: `${camp.camp_code} - ${camp.name}`,
-      })),
-    [campOptionsSource],
-  );
 
   const queueParams: Record<string, string> = {};
   if (filterDate) {
@@ -501,28 +818,6 @@ function OpdPageInner() {
     queryKey: ["opd-appointments", appointmentParams],
     queryFn: () => opdService.listAppointments(appointmentParams),
     enabled: canCreate || canManageToken,
-  });
-
-  const createMutation = useMutation({
-    mutationFn: (values: OpdQueueVisitFormInput) =>
-      opdService.createEncounter(toCreateEncounterRequest(values)),
-    onSuccess: (_result, variables) => {
-      void queryClient.invalidateQueries({ queryKey: ["opd-queue"] });
-      void queryClient.invalidateQueries({ queryKey: ["opd-appointments"] });
-      notifications.show({
-        title: "Visit created",
-        message: "Patient added to queue",
-        color: "success",
-      });
-      emit("encounter.created", {
-        patient_id: variables.patient_id,
-        department_id: variables.department_id ?? "",
-      });
-      closeCreateDrawer();
-    },
-    onError: () => {
-      notifications.show({ title: "Error", message: "Failed to create visit", color: "danger" });
-    },
   });
 
   const appointmentCheckInMutation = useMutation({
@@ -589,39 +884,6 @@ function OpdPageInner() {
       void queryClient.invalidateQueries({ queryKey: ["opd-appointments"] });
     },
   });
-  const vitalsMutation = useMutation({
-    mutationFn: ({ entry, data }: { entry: QueueEntry; data: CreateVitalRequest }) =>
-      canRecordNurseVitals
-        ? opdService.createNurseVital({ ...data, encounter_id: entry.encounter_id })
-        : opdService.createVital(entry.encounter_id, data),
-    onSuccess: (_result, variables) => {
-      void queryClient.invalidateQueries({ queryKey: ["vitals", variables.entry.encounter_id] });
-      void queryClient.invalidateQueries({
-        queryKey: ["patient-vitals-history", variables.entry.patient_id],
-      });
-      void queryClient.invalidateQueries({
-        queryKey: ["patient-vitals-history", variables.entry.patient_id, "timeline"],
-      });
-      emit("vitals.recorded", {
-        encounter_id: variables.entry.encounter_id,
-        patient_id: variables.entry.patient_id,
-      });
-      notifications.show({
-        title: "Vitals recorded",
-        message: `${variables.entry.patient_name}'s vitals were saved`,
-        color: "success",
-      });
-      closeVitalsDrawer();
-    },
-    onError: () => {
-      notifications.show({
-        title: "Unable to record vitals",
-        message: "Check vitals permission and try again.",
-        color: "danger",
-      });
-    },
-  });
-
   const columns = [
     {
       key: "token_number",
@@ -679,10 +941,7 @@ function OpdPageInner() {
               <ActionIcon
                 variant="subtle"
                 color="primary"
-                onClick={() => {
-                  setVitalsEntry(row);
-                  openVitals();
-                }}
+                onClick={() => navigate(`/opd/queue/${row.id}/vitals`)}
                 aria-label="Record vitals"
               >
                 <IconHeartbeat size={16} />
@@ -692,21 +951,19 @@ function OpdPageInner() {
           <Tooltip
             label={
               canOpenClinicalDrawer(row)
-                ? "Open OPD clinical drawer"
-                : "Call patient before opening OPD drawer"
+                ? "Open OPD visit"
+                : "Call patient before opening OPD visit"
             }
           >
             <ActionIcon
               variant="subtle"
               disabled={!canOpenClinicalDrawer(row)}
               onClick={() => {
-                if (!canOpenClinicalDrawer(row)) {
-                  return;
+                if (canOpenClinicalDrawer(row)) {
+                  navigate(`/opd/encounters/${row.encounter_id}#consultation`);
                 }
-                setSelectedEntry(row);
-                openDetail();
               }}
-              aria-label="Open OPD clinical drawer"
+              aria-label="Open OPD visit"
             >
               <IconEye size={16} />
             </ActionIcon>
@@ -769,7 +1026,7 @@ function OpdPageInner() {
         color="primary"
         actions={
           canCreate ? (
-            <Button leftSection={<IconPlus size={16} />} onClick={openCreate}>
+            <Button leftSection={<IconPlus size={16} />} onClick={() => navigate("/opd/new")}>
               New Visit
             </Button>
           ) : undefined
@@ -891,176 +1148,6 @@ function OpdPageInner() {
           <FollowupComplianceTab />
         </Tabs.Panel>
       </Tabs>
-
-      {/* Create encounter drawer */}
-      <Drawer
-        opened={createOpened}
-        onClose={closeCreateDrawer}
-        title="New OPD Visit"
-        position="right"
-        size="xl"
-      >
-        <Stack
-          component="form"
-          onSubmit={handleCreateSubmit((values) => createMutation.mutate(values))}
-        >
-          <Controller
-            control={createControl}
-            name="visit_type"
-            render={({ field }) => (
-              <Select
-                label="Visit Type"
-                data={OPD_VISIT_TYPE_OPTIONS}
-                value={field.value}
-                onChange={(value) => {
-                  const nextValue = value ?? "walk_in";
-                  field.onChange(nextValue);
-                  if (nextValue !== "camp") {
-                    setCreateVisitValue("camp_id", null, { shouldValidate: true });
-                  }
-                }}
-                error={createErrors.visit_type?.message}
-                required
-              />
-            )}
-          />
-          {createVisitType === "camp" && (
-            <Controller
-              control={createControl}
-              name="camp_id"
-              render={({ field }) => (
-                <Select
-                  label="Camp"
-                  placeholder="Select active camp"
-                  data={activeCampOptions}
-                  value={field.value ?? null}
-                  onChange={(value) => field.onChange(value ?? null)}
-                  error={createErrors.camp_id?.message}
-                  searchable
-                  required
-                />
-              )}
-            />
-          )}
-          <Controller
-            control={createControl}
-            name="patient_id"
-            render={({ field }) => (
-              <PatientSearchSelect
-                value={field.value}
-                onChange={field.onChange}
-                error={createErrors.patient_id?.message}
-                required
-              />
-            )}
-          />
-          <Controller
-            control={createControl}
-            name="department_id"
-            render={({ field }) => (
-              <Select
-                label="Department"
-                placeholder="Select department"
-                data={deptOptions}
-                value={field.value ?? ""}
-                onChange={(value) => field.onChange(value || null)}
-                error={createErrors.department_id?.message}
-                searchable
-                required
-              />
-            )}
-          />
-          <Controller
-            control={createControl}
-            name="doctor_id"
-            render={({ field }) => (
-              <DoctorSearchSelect
-                value={field.value ?? ""}
-                onChange={(value) => field.onChange(value || null)}
-              />
-            )}
-          />
-          <Controller
-            control={createControl}
-            name="notes"
-            render={({ field }) => <Textarea label="Notes" placeholder="Visit notes" {...field} />}
-          />
-          <Button type="submit" loading={createMutation.isPending}>
-            Create Visit
-          </Button>
-        </Stack>
-      </Drawer>
-
-      {/* Queue vitals drawer — available before the doctor opens the OPD drawer */}
-      <Drawer
-        opened={vitalsOpened}
-        onClose={closeVitalsDrawer}
-        title="Record Vitals"
-        position="right"
-        size="lg"
-      >
-        {vitalsEntry && (
-          <Stack>
-            <Card withBorder p="sm">
-              <Group justify="space-between" align="flex-start">
-                <Stack gap={2}>
-                  <Text fw={700}>{vitalsEntry.patient_name}</Text>
-                  <Text size="xs" c="dimmed">
-                    {vitalsEntry.uhid} · Token T{String(vitalsEntry.token_number).padStart(3, "0")}
-                  </Text>
-                </Stack>
-                <Badge variant="light" color={statusColors[vitalsEntry.status] ?? "slate"}>
-                  {vitalsEntry.status.replace(/_/g, " ")}
-                </Badge>
-              </Group>
-            </Card>
-            <VitalsRecorder
-              onSubmit={(data) => vitalsMutation.mutate({ entry: vitalsEntry, data })}
-              isSubmitting={vitalsMutation.isPending}
-              onCancel={closeVitalsDrawer}
-            />
-          </Stack>
-        )}
-      </Drawer>
-
-      {/* Detail — full-width overlay */}
-      <Drawer
-        opened={detailOpened}
-        onClose={closeDetail}
-        position="right"
-        size="100%"
-        withCloseButton
-        title={
-          <Button
-            variant="subtle"
-            size="xs"
-            onClick={closeDetail}
-            leftSection={<IconArrowRight size={14} style={{ transform: "rotate(180deg)" }} />}
-          >
-            Back to Queue
-          </Button>
-        }
-        styles={{
-          header: {
-            padding: "6px 12px",
-            minHeight: 36,
-            borderBottom: "1px solid var(--fc-rule, #e7ebe8)",
-          },
-          body: { padding: 0, height: "calc(100vh - 36px)", overflow: "hidden" },
-        }}
-      >
-        {selectedEntry && (
-          <EncounterDetail
-            encounterId={selectedEntry.encounter_id}
-            patientId={selectedEntry.patient_id}
-            patientName={selectedEntry.patient_name}
-            uhid={selectedEntry.uhid}
-            doctorId={selectedEntry.doctor_id}
-            departmentId={selectedEntry.department_id}
-            canUpdate={canUpdate}
-          />
-        )}
-      </Drawer>
     </div>
   );
 }
@@ -1273,6 +1360,10 @@ export function EncounterDetail({
   const [summaryOpened, { open: openSummary, close: closeSummary }] = useDisclosure(false);
   const [basketOpened, { open: openBasket, close: closeBasket }] = useDisclosure(false);
   const [basketTab, setBasketTab] = useState<OrderBasketTab>("drug");
+  const [activeEncounterTab, setActiveEncounterTab] = useHashTabs(
+    "consultation",
+    OPD_ENCOUNTER_TAB_VALUES,
+  );
 
   function openOrderBasket(tab: OrderBasketTab = "drug") {
     setBasketTab(tab);
@@ -1369,9 +1460,17 @@ export function EncounterDetail({
       )}
 
       <PatientContextBanner patientId={patientId} hideLoadingState />
+      <PatientFlowNavigator
+        patientId={patientId}
+        active="opd"
+        activeEncounterId={encounterId}
+        compact
+      />
 
       <Tabs
-        defaultValue="consultation"
+        value={activeEncounterTab}
+        onChange={setActiveEncounterTab}
+        keepMounted={false}
         orientation="vertical"
         style={{ display: "flex", height: "100%" }}
       >
@@ -2375,7 +2474,9 @@ function DiagnosesTab({
       encounterId={encounterId}
       diagnoses={diagnoses}
       patientDiagnoses={patientDiagnoses}
+      canCreate={canUpdate}
       canUpdate={canUpdate}
+      canDelete={canUpdate}
       onAdd={(data) => createMutation.mutate(data)}
       onUpdate={(diagnosisEncounterId, diagnosisId, data) =>
         updateMutation.mutate({ diagnosisEncounterId, diagnosisId, data })
@@ -3193,15 +3294,6 @@ function PrescriptionsTab({
     },
   });
 
-  const handleSendToPharmacy = (rxId: string) => {
-    emit("prescription.sent_to_pharmacy", { prescription_id: rxId, patient_id: patientId });
-    notifications.show({
-      title: "Sent to Pharmacy",
-      message: "Prescription dispatched to pharmacy queue",
-      color: "teal",
-    });
-  };
-
   return (
     <>
       <PrescriptionWriter
@@ -3214,7 +3306,6 @@ function PrescriptionsTab({
         isSaving={createMutation.isPending}
         isUpdating={updateMutation.isPending}
         onPrint={(rx) => setPrintRx(rx)}
-        onSendToPharmacy={handleSendToPharmacy}
       />
       {/* 4-view prescription display — Prose, Timeline, Dose Calc, Rules */}
       {(prescriptions as PrescriptionWithItems[]).length > 0 && (
@@ -5307,63 +5398,59 @@ function ReferralTrackingTab() {
 
   const refStatusColors: Record<string, string> = {
     pending: "warning",
-    acknowledged: "primary",
-    in_progress: "orange",
+    accepted: "primary",
+    declined: "danger",
     completed: "success",
     cancelled: "danger",
   };
 
   const columns = [
     {
-      key: "patient_name",
-      label: "Patient",
-      render: (row: ReferralTrackingRow) => (
-        <Text size="sm" fw={500}>
-          {row.patient_name}
-        </Text>
+      key: "patient_id",
+      label: "Patient ID",
+      render: (row: ReferralWithNames) => <Text size="sm">{row.patient_id.slice(0, 8)}</Text>,
+    },
+    {
+      key: "from_department_name",
+      label: "From Dept",
+      render: (row: ReferralWithNames) => (
+        <Text size="sm">{row.from_department_name ?? row.from_department_id.slice(0, 8)}</Text>
       ),
     },
     {
-      key: "from_department",
-      label: "From Dept",
-      render: (row: ReferralTrackingRow) => <Text size="sm">{row.from_department}</Text>,
-    },
-    {
-      key: "to_department",
+      key: "to_department_name",
       label: "To Dept",
-      render: (row: ReferralTrackingRow) => <Text size="sm">{row.to_department}</Text>,
+      render: (row: ReferralWithNames) => (
+        <Text size="sm">{row.to_department_name ?? row.to_department_id.slice(0, 8)}</Text>
+      ),
     },
     {
-      key: "referral_date",
+      key: "created_at",
       label: "Date",
-      render: (row: ReferralTrackingRow) => (
-        <Text size="sm">{new Date(row.referral_date).toLocaleDateString()}</Text>
+      render: (row: ReferralWithNames) => (
+        <Text size="sm">{new Date(row.created_at).toLocaleDateString()}</Text>
       ),
     },
     {
       key: "status",
       label: "Status",
-      render: (row: ReferralTrackingRow) => (
+      render: (row: ReferralWithNames) => (
         <Badge color={refStatusColors[row.status] ?? "slate"} variant="filled" size="sm">
           {row.status.replace(/_/g, " ")}
         </Badge>
       ),
     },
     {
-      key: "acknowledged_at",
-      label: "Acknowledged",
-      render: (row: ReferralTrackingRow) => (
-        <Text size="sm">
-          {row.acknowledged_at ? new Date(row.acknowledged_at).toLocaleString() : "---"}
-        </Text>
-      ),
+      key: "urgency",
+      label: "Urgency",
+      render: (row: ReferralWithNames) => <Badge variant="light">{row.urgency}</Badge>,
     },
     {
-      key: "completed_at",
-      label: "Completed",
-      render: (row: ReferralTrackingRow) => (
+      key: "responded_at",
+      label: "Responded",
+      render: (row: ReferralWithNames) => (
         <Text size="sm">
-          {row.completed_at ? new Date(row.completed_at).toLocaleString() : "---"}
+          {row.responded_at ? new Date(row.responded_at).toLocaleString() : "---"}
         </Text>
       ),
     },
@@ -5376,8 +5463,8 @@ function ReferralTrackingTab() {
           placeholder="Filter by status"
           data={[
             { value: "pending", label: "Pending" },
-            { value: "acknowledged", label: "Acknowledged" },
-            { value: "in_progress", label: "In Progress" },
+            { value: "accepted", label: "Accepted" },
+            { value: "declined", label: "Declined" },
             { value: "completed", label: "Completed" },
             { value: "cancelled", label: "Cancelled" },
           ]}
@@ -5387,12 +5474,7 @@ function ReferralTrackingTab() {
           w={180}
         />
       </Group>
-      <DataTable
-        columns={columns}
-        data={referrals}
-        loading={isLoading}
-        rowKey={(row) => row.referral_id}
-      />
+      <DataTable columns={columns} data={referrals} loading={isLoading} rowKey={(row) => row.id} />
     </Stack>
   );
 }

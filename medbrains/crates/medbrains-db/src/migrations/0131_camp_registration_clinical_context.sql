@@ -1,3 +1,5 @@
+-- RLS-Posture: tenant-scoped
+
 ALTER TABLE public.camp_registrations
   ADD COLUMN IF NOT EXISTS clinical_department_id uuid REFERENCES public.departments(id),
   ADD COLUMN IF NOT EXISTS attending_doctor_id uuid REFERENCES public.users(id),

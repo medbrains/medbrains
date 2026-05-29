@@ -20,6 +20,8 @@ export type CreateFacilityInput = Parameters<typeof api.createFacility>[0];
 export type CreateLocationInput = Parameters<typeof api.createLocation>[0];
 
 export const adminAccessService = {
+  getAccessManifest: () => api.getAccessManifest(),
+
   listIamAccessRequests: (params?: ListIamAccessRequestsInput) => api.listIamAccessRequests(params),
   createIamAccessRequest: (data: CreateIamAccessRequestInput) => api.createIamAccessRequest(data),
   approveIamAccessRequest: (id: string, data?: ApproveIamAccessRequestInput) =>

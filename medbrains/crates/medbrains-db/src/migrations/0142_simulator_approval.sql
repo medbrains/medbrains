@@ -1,3 +1,4 @@
+-- RLS-Posture: tenant-scoped
 -- Simulator run approval mode.
 --
 -- Profile gains an approval_mode (auto | manual). When manual, the engine

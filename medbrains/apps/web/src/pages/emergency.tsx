@@ -90,10 +90,12 @@ import { fieldAccessText } from "@medbrains/utils";
 import {
   IconAlertOctagon,
   IconAlertTriangle,
+  IconArrowLeft,
   IconBell,
   IconBuildingHospital,
   IconCheck,
   IconClock,
+  IconEye,
   IconFileText,
   IconFirstAidKit,
   IconGavel,
@@ -111,12 +113,13 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
-import { useSearchParams } from "react-router";
+import { useNavigate, useParams, useSearchParams } from "react-router";
 import { DataTable, PageHeader, TableValueBadge } from "../components";
 import { BedSelect } from "../components/BedSelect";
 import { TriagePanel } from "../components/crdt/TriagePanel";
 import { DoctorSearchSelect } from "../components/DoctorSearchSelect";
 import { PatientContextBanner } from "../components/Patient/PatientContextBanner";
+import { PatientFlowNavigator } from "../components/Patient/PatientFlowNavigator";
 import { PatientNameCell } from "../components/PatientNameCell";
 import { PatientSearchSelect } from "../components/PatientSearchSelect";
 import {
@@ -709,9 +712,7 @@ export function EmergencyPage() {
               <VisitsTab
                 canView={canAccessVisitQueue}
                 canCreate={canCreateVisit}
-                canCreateMlc={canCreateMlc}
                 canViewPatientRecord={canViewPatientRecord}
-                contextAction={contextAction}
                 contextPatientId={contextPatientId}
               />
             </Tabs.Panel>
@@ -780,6 +781,150 @@ export function EmergencyPage() {
         </Tabs>
       )}
     </div>
+  );
+}
+
+export function EmergencyVisitCreatePage() {
+  useRequirePermission(P.EMERGENCY.VISITS_CREATE);
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const initialPatientId = searchParams.get("patient_id") ?? "";
+  const canCreateMlc = useHasPermission(P.EMERGENCY.MLC_CREATE);
+  const canViewPatientRecord = useHasPermission(P.PATIENTS.VIEW);
+
+  function visitsPath() {
+    const params = new URLSearchParams({ tab: "visits" });
+    if (initialPatientId) {
+      params.set("patient_id", initialPatientId);
+    }
+    return `/emergency?${params.toString()}`;
+  }
+
+  return (
+    <Stack>
+      <PageHeader
+        title="Register ER Visit"
+        subtitle="Create an emergency visit with patient context, MLC flagging, and triage-ready status."
+        actions={
+          <Button
+            variant="light"
+            leftSection={<IconArrowLeft size={14} />}
+            onClick={() => navigate(visitsPath())}
+          >
+            ER Queue
+          </Button>
+        }
+      />
+      <EmergencyVisitForm
+        initialPatientId={initialPatientId}
+        canCreateMlc={canCreateMlc}
+        canViewPatientRecord={canViewPatientRecord}
+        onCancel={() => navigate(visitsPath())}
+        onSuccess={(visit) => navigate(`/emergency/visits/${visit.id}`)}
+      />
+    </Stack>
+  );
+}
+
+export function EmergencyVisitDetailPage() {
+  useRequirePermission([
+    P.EMERGENCY.VISITS_LIST,
+    P.EMERGENCY.VISITS_UPDATE,
+    P.EMERGENCY.TRIAGE_LIST,
+    P.EMERGENCY.TRIAGE_CREATE,
+    P.EMERGENCY.RESUSCITATION_LIST,
+    P.EMERGENCY.RESUSCITATION_CREATE,
+  ]);
+  const navigate = useNavigate();
+  const { visitId } = useParams();
+  const canViewPatientRecord = useHasPermission(P.PATIENTS.VIEW);
+  const canViewTriage = useHasPermission(P.EMERGENCY.TRIAGE_LIST);
+  const canCreateTriage = useHasPermission(P.EMERGENCY.TRIAGE_CREATE);
+  const canViewResuscitation = useHasPermission(P.EMERGENCY.RESUSCITATION_LIST);
+  const canCreateResuscitation = useHasPermission(P.EMERGENCY.RESUSCITATION_CREATE);
+  const canUpdateVisit = useHasPermission(P.EMERGENCY.VISITS_UPDATE);
+  const canCreateIpdAdmission = useHasPermission(P.IPD.ADMISSIONS_CREATE);
+  const canAdmit = canUpdateVisit && canCreateIpdAdmission;
+  const { data: visit, isLoading } = useQuery({
+    queryKey: ["er-visit", visitId],
+    queryFn: () => {
+      if (!visitId) throw new Error("ER visit id is missing");
+      return emergencyService.getErVisit(visitId);
+    },
+    enabled: Boolean(visitId),
+  });
+
+  return (
+    <Stack>
+      <PageHeader
+        title={visit ? `ER Visit ${visit.visit_number}` : "ER Visit"}
+        subtitle="Triage, resuscitation, MLC status, and IPD admission context."
+        actions={
+          <Group gap="xs">
+            <Button
+              variant="light"
+              leftSection={<IconArrowLeft size={14} />}
+              onClick={() => navigate("/emergency?tab=visits")}
+            >
+              ER Queue
+            </Button>
+            {canUpdateVisit && (
+              <Button
+                variant="light"
+                leftSection={<IconPlus size={14} />}
+                onClick={() => navigate("/emergency/visits/new")}
+              >
+                New Visit
+              </Button>
+            )}
+          </Group>
+        }
+      />
+      {isLoading && (
+        <Card withBorder>
+          <Text size="sm" c="dimmed">
+            Loading ER visit...
+          </Text>
+        </Card>
+      )}
+      {!isLoading && !visit && (
+        <Alert color="warning" variant="light">
+          ER visit was not found or is not accessible for this role.
+        </Alert>
+      )}
+      {visit && (
+        <>
+          <EmergencyVisitSummary
+            visit={visit}
+            canAdmit={canAdmit}
+            canViewPatientRecord={canViewPatientRecord}
+          />
+          {(canViewTriage || canCreateTriage) && (
+            <Card withBorder>
+              <Stack>
+                <Group gap="xs">
+                  <IconHeartbeat size={18} />
+                  <Text fw={700}>Triage</Text>
+                </Group>
+                <TriagePanel visitId={visit.id} canAppend={canCreateTriage} />
+                {!canViewTriage && canCreateTriage && (
+                  <Text size="xs" c="dimmed">
+                    This role can append triage entries, but full triage history is restricted.
+                  </Text>
+                )}
+              </Stack>
+            </Card>
+          )}
+          {(canViewResuscitation || canCreateResuscitation) && (
+            <ResuscitationVisitPanel
+              visitId={visit.id}
+              canView={canViewResuscitation}
+              canCreate={canCreateResuscitation}
+            />
+          )}
+        </>
+      )}
+    </Stack>
   );
 }
 
@@ -1138,36 +1283,20 @@ function ResuscitationTab({
 
 // ── ER Visits Tab ──────────────────────────────────────
 
-function VisitsTab({
-  canView,
-  canCreate,
+function EmergencyVisitForm({
+  initialPatientId,
   canCreateMlc,
   canViewPatientRecord,
-  contextAction,
-  contextPatientId,
+  onCancel,
+  onSuccess,
 }: {
-  canView: boolean;
-  canCreate: boolean;
+  initialPatientId: string;
   canCreateMlc: boolean;
   canViewPatientRecord: boolean;
-  contextAction: string;
-  contextPatientId: string;
+  onCancel: () => void;
+  onSuccess: (visit: ErVisit) => void;
 }) {
-  const contextVisitDefaults = { ...emptyErVisitForm, patient_id: contextPatientId };
-  const shouldOpenContextVisit = canCreate && contextAction === "new" && Boolean(contextPatientId);
-  const [opened, { open, close }] = useDisclosure(shouldOpenContextVisit);
-  const [admitOpen, admitHandlers] = useDisclosure(false);
-  const [admitVisitId, setAdmitVisitId] = useState<string | null>(null);
-  const canUpdateVisit = useHasPermission(P.EMERGENCY.VISITS_UPDATE);
-  const canCreateIpdAdmission = useHasPermission(P.IPD.ADMISSIONS_CREATE);
-  const canAdmit = canUpdateVisit && canCreateIpdAdmission;
   const qc = useQueryClient();
-  const { data = [], isLoading } = useQuery({
-    queryKey: ["er-visits"],
-    queryFn: () => emergencyService.listErVisits(),
-    enabled: canView,
-  });
-
   const {
     control,
     handleSubmit,
@@ -1176,50 +1305,23 @@ function VisitsTab({
     formState: { errors },
   } = useForm<ErVisitFormInput>({
     resolver: zodResolver(erVisitFormSchema),
-    defaultValues: contextVisitDefaults,
+    defaultValues: { ...emptyErVisitForm, patient_id: initialPatientId },
   });
   const selectedPatientId = watch("patient_id");
   const mutation = useMutation({
     mutationFn: (d: CreateErVisitRequest) => emergencyService.createErVisit(d),
-    onSuccess: () => {
+    onSuccess: (visit) => {
       void qc.invalidateQueries({ queryKey: ["er-visits"] });
-      close();
-      reset(contextVisitDefaults);
-      notifications.show({ title: "Success", message: "ER visit registered" });
-    },
-  });
-
-  // Admit from ER
-  const {
-    control: admitControl,
-    handleSubmit: handleAdmitSubmit,
-    reset: resetAdmit,
-    formState: { errors: admitErrors },
-  } = useForm<ErAdmitFormInput>({
-    resolver: zodResolver(erAdmitFormSchema),
-    defaultValues: emptyErAdmitForm,
-  });
-  const admitMutation = useMutation({
-    mutationFn: ({ visitId, data: d }: { visitId: string; data: AdmitFromErRequest }) =>
-      emergencyService.admitFromEr(visitId, d),
-    onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ["er-visits"] });
+      void qc.invalidateQueries({ queryKey: ["er-visit", visit.id] });
+      reset({ ...emptyErVisitForm, patient_id: initialPatientId });
       notifications.show({
-        title: "Patient Admitted",
-        message: "Patient has been admitted to IPD from ER",
+        title: "ER visit registered",
+        message: "Visit is ready for triage and emergency care actions.",
         color: "success",
       });
-      resetAdmit(emptyErAdmitForm);
-      setAdmitVisitId(null);
-      admitHandlers.close();
+      onSuccess(visit);
     },
   });
-
-  const handleOpenAdmit = (visitId: string) => {
-    setAdmitVisitId(visitId);
-    resetAdmit(emptyErAdmitForm);
-    admitHandlers.open();
-  };
 
   const submitErVisit = (values: ErVisitFormInput) => {
     mutation.mutate({
@@ -1232,17 +1334,567 @@ function VisitsTab({
     });
   };
 
-  const submitAdmitFromEr = (values: ErAdmitFormInput) => {
-    if (!admitVisitId || !canAdmit) return;
+  return (
+    <Card withBorder>
+      <Stack component="form" onSubmit={handleSubmit(submitErVisit)}>
+        <Controller
+          name="patient_id"
+          control={control}
+          render={({ field }) => (
+            <PatientSearchSelect
+              value={field.value}
+              onChange={field.onChange}
+              required
+              error={errors.patient_id?.message}
+            />
+          )}
+        />
+        {canViewPatientRecord && selectedPatientId && (
+          <PatientContextBanner patientId={selectedPatientId} hideLoadingState />
+        )}
+        {!canViewPatientRecord && selectedPatientId && (
+          <Alert color="orange" variant="light" icon={<IconAlertTriangle size={16} />}>
+            Patient identity and demographics are restricted for this role.
+          </Alert>
+        )}
+        <SimpleGrid cols={{ base: 1, sm: 2 }}>
+          <Controller
+            name="arrival_mode"
+            control={control}
+            render={({ field }) => (
+              <Select
+                label="Arrival Mode"
+                data={emergencyArrivalModeOptions}
+                value={field.value || null}
+                onChange={(value) => field.onChange(value ?? "")}
+                clearable
+                error={errors.arrival_mode?.message}
+              />
+            )}
+          />
+          <Controller
+            name="bay_number"
+            control={control}
+            render={({ field }) => <TextInput label="Bay Number" {...field} />}
+          />
+        </SimpleGrid>
+        <Controller
+          name="chief_complaint"
+          control={control}
+          render={({ field }) => <TextInput label="Chief Complaint" {...field} />}
+        />
+        {canCreateMlc ? (
+          <Controller
+            name="is_mlc"
+            control={control}
+            render={({ field }) => (
+              <Select
+                label="Medico-legal case"
+                data={[
+                  { value: "true", label: "Yes" },
+                  { value: "false", label: "No" },
+                ]}
+                value={field.value ? "true" : "false"}
+                onChange={(value) => field.onChange(value === "true")}
+              />
+            )}
+          />
+        ) : (
+          <Alert color="orange" variant="light" icon={<IconAlertTriangle size={16} />}>
+            MLC marking creates medico-legal workflow and requires MLC create permission.
+          </Alert>
+        )}
+        <Controller
+          name="notes"
+          control={control}
+          render={({ field }) => <Textarea label="Notes" {...field} />}
+        />
+        <Group justify="flex-end">
+          <Button variant="default" onClick={onCancel}>
+            Cancel
+          </Button>
+          <Button type="submit" loading={mutation.isPending}>
+            Register
+          </Button>
+        </Group>
+      </Stack>
+    </Card>
+  );
+}
+
+function EmergencyVisitSummary({
+  visit,
+  canAdmit,
+  canViewPatientRecord,
+}: {
+  visit: ErVisit;
+  canAdmit: boolean;
+  canViewPatientRecord: boolean;
+}) {
+  const qc = useQueryClient();
+  const [admitOpen, admitHandlers] = useDisclosure(false);
+  const {
+    control,
+    handleSubmit,
+    reset,
+    formState: { errors },
+  } = useForm<ErAdmitFormInput>({
+    resolver: zodResolver(erAdmitFormSchema),
+    defaultValues: emptyErAdmitForm,
+  });
+  const canShowAdmit =
+    canAdmit && ["registered", "triaged", "in_treatment", "observation"].includes(visit.status);
+  const admitMutation = useMutation({
+    mutationFn: (data: AdmitFromErRequest) => emergencyService.admitFromEr(visit.id, data),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["er-visits"] });
+      void qc.invalidateQueries({ queryKey: ["er-visit", visit.id] });
+      notifications.show({
+        title: "Patient admitted",
+        message: "ER visit has been linked to an IPD admission.",
+        color: "success",
+      });
+      reset(emptyErAdmitForm);
+      admitHandlers.close();
+    },
+  });
+
+  const submitAdmit = (values: ErAdmitFormInput) => {
+    if (!canShowAdmit) return;
     admitMutation.mutate({
-      visitId: admitVisitId,
-      data: {
-        bed_id: values.bed_id,
-        admitting_doctor_id: values.admitting_doctor_id,
-        admission_notes: emergencyOptionalText(values.admission_notes),
-      },
+      bed_id: values.bed_id,
+      admitting_doctor_id: values.admitting_doctor_id,
+      admission_notes: emergencyOptionalText(values.admission_notes),
     });
   };
+
+  const info = triageInfo(visit.triage_level);
+
+  return (
+    <Card withBorder>
+      <Stack>
+        <Group justify="space-between" align="flex-start">
+          <Stack gap="xs">
+            {canViewPatientRecord ? (
+              <PatientContextBanner patientId={visit.patient_id} hideLoadingState />
+            ) : (
+              <Alert color="orange" variant="light" icon={<IconAlertTriangle size={16} />}>
+                Patient identity and demographics are restricted for this role.
+              </Alert>
+            )}
+            <PatientFlowNavigator
+              patientId={visit.patient_id}
+              active="emergency"
+              activeEmergencyVisitId={visit.id}
+              activeAdmissionId={visit.admission_id}
+              compact
+            />
+            <Group gap="xs">
+              <TableValueBadge value={visit.status} color={statusColor(visit.status)} />
+              <Badge color={info.color} variant={visit.triage_level ? "filled" : "outline"}>
+                {info.label}
+              </Badge>
+              {visit.is_mlc && (
+                <Badge color="danger" variant="filled">
+                  MLC
+                </Badge>
+              )}
+            </Group>
+          </Stack>
+          {canShowAdmit && (
+            <Button
+              color="teal"
+              leftSection={<IconBuildingHospital size={14} />}
+              onClick={admitHandlers.open}
+            >
+              Admit to IPD
+            </Button>
+          )}
+        </Group>
+        <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }}>
+          <VisitSummaryValue
+            label="Arrival"
+            value={new Date(visit.arrival_time).toLocaleString()}
+          />
+          <VisitSummaryValue label="Mode" value={visit.arrival_mode ?? "---"} />
+          <VisitSummaryValue label="Bay" value={visit.bay_number ?? "---"} />
+          <VisitSummaryValue label="Chief complaint" value={visit.chief_complaint ?? "---"} />
+          <VisitSummaryValue label="Disposition" value={visit.disposition ?? "---"} />
+          <VisitSummaryValue
+            label="Door to doctor"
+            value={
+              visit.door_to_doctor_mins !== null ? `${visit.door_to_doctor_mins} min` : "Pending"
+            }
+          />
+          <VisitSummaryValue
+            label="Door to disposition"
+            value={
+              visit.door_to_disposition_mins !== null
+                ? `${visit.door_to_disposition_mins} min`
+                : "Pending"
+            }
+          />
+          <VisitSummaryValue label="Admission" value={visit.admission_id ?? "---"} />
+        </SimpleGrid>
+        {visit.notes && (
+          <Paper withBorder p="sm">
+            <Text size="xs" c="dimmed">
+              Notes
+            </Text>
+            <Text size="sm">{visit.notes}</Text>
+          </Paper>
+        )}
+      </Stack>
+      <Modal
+        opened={admitOpen}
+        onClose={() => {
+          admitHandlers.close();
+          reset(emptyErAdmitForm);
+        }}
+        title="Admit Patient to IPD"
+        size="md"
+      >
+        <Stack component="form" onSubmit={handleSubmit(submitAdmit)}>
+          <Controller
+            name="bed_id"
+            control={control}
+            render={({ field }) => (
+              <BedSelect value={field.value} onChange={field.onChange} required />
+            )}
+          />
+          {errors.bed_id?.message && (
+            <Text size="xs" c="danger">
+              {errors.bed_id.message}
+            </Text>
+          )}
+          <Controller
+            name="admitting_doctor_id"
+            control={control}
+            render={({ field }) => (
+              <DoctorSearchSelect
+                label="Admitting Doctor"
+                value={field.value}
+                onChange={field.onChange}
+                required
+              />
+            )}
+          />
+          {errors.admitting_doctor_id?.message && (
+            <Text size="xs" c="danger">
+              {errors.admitting_doctor_id.message}
+            </Text>
+          )}
+          <Controller
+            name="admission_notes"
+            control={control}
+            render={({ field }) => (
+              <Textarea
+                label="Admission Notes"
+                {...field}
+                placeholder="Reason for admission, clinical notes..."
+                minRows={3}
+              />
+            )}
+          />
+          <Button
+            type="submit"
+            color="teal"
+            leftSection={<IconBuildingHospital size={16} />}
+            loading={admitMutation.isPending}
+          >
+            Confirm Admission
+          </Button>
+        </Stack>
+      </Modal>
+    </Card>
+  );
+}
+
+function VisitSummaryValue({ label, value }: { label: string; value: string }) {
+  return (
+    <Stack gap={0}>
+      <Text size="xs" c="dimmed">
+        {label}
+      </Text>
+      <Text size="sm" fw={600}>
+        {value}
+      </Text>
+    </Stack>
+  );
+}
+
+function ResuscitationVisitPanel({
+  visitId,
+  canView,
+  canCreate,
+}: {
+  visitId: string;
+  canView: boolean;
+  canCreate: boolean;
+}) {
+  const qc = useQueryClient();
+  const {
+    control,
+    handleSubmit,
+    reset,
+    watch,
+    formState: { errors },
+  } = useForm<EmergencyResuscitationLogFormInput>({
+    resolver: zodResolver(emergencyResuscitationLogFormSchema),
+    defaultValues: { ...emptyResuscitationLogForm, er_visit_id: visitId },
+  });
+  const selectedLogType = watch("log_type");
+  const { data: logs = [], isLoading } = useQuery({
+    queryKey: ["er-resuscitation-logs", visitId],
+    queryFn: () => emergencyService.listResuscitationLogs(visitId),
+    enabled: canView,
+  });
+  const mutation = useMutation({
+    mutationFn: (data: CreateResuscitationLogRequest) =>
+      emergencyService.createResuscitationLog(visitId, data),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ["er-resuscitation-logs", visitId] });
+      reset({ ...emptyResuscitationLogForm, er_visit_id: visitId });
+      notifications.show({
+        title: "Resuscitation entry saved",
+        message: "The ER resuscitation log has been updated.",
+        color: "success",
+      });
+    },
+  });
+
+  const submitResuscitationLog = (values: EmergencyResuscitationLogFormInput) => {
+    if (!canCreate) return;
+    mutation.mutate({
+      log_type: values.log_type,
+      medication_name: emergencyOptionalText(values.medication_name),
+      dose: emergencyOptionalText(values.dose),
+      route: emergencyOptionalText(values.route),
+      fluid_name: emergencyOptionalText(values.fluid_name),
+      fluid_volume_ml: emergencyOptionalInteger(values.fluid_volume_ml),
+      procedure_name: emergencyOptionalText(values.procedure_name),
+      procedure_notes: emergencyOptionalText(values.procedure_notes),
+      notes: emergencyOptionalText(values.notes),
+    });
+  };
+
+  const columns = [
+    {
+      key: "timestamp",
+      label: "Time",
+      render: (row: ErResuscitationLog) => (
+        <Text size="sm">{new Date(row.timestamp).toLocaleString()}</Text>
+      ),
+    },
+    {
+      key: "log_type",
+      label: "Type",
+      render: (row: ErResuscitationLog) => (
+        <Badge color={resuscitationLogColor(row.log_type)} variant="light">
+          {row.log_type.replace(/_/g, " ")}
+        </Badge>
+      ),
+    },
+    {
+      key: "details",
+      label: "Details",
+      render: (row: ErResuscitationLog) => <Text size="sm">{resuscitationLogDetails(row)}</Text>,
+    },
+    {
+      key: "notes",
+      label: "Notes",
+      render: (row: ErResuscitationLog) => (
+        <Text size="sm" c={row.notes ? undefined : "dimmed"}>
+          {row.notes ?? "---"}
+        </Text>
+      ),
+    },
+  ];
+
+  return (
+    <Card withBorder>
+      <Stack>
+        <Group gap="xs">
+          <IconFirstAidKit size={18} />
+          <Text fw={700}>Resuscitation</Text>
+        </Group>
+        {canCreate && (
+          <Paper
+            component="form"
+            withBorder
+            radius="md"
+            p="md"
+            onSubmit={handleSubmit(submitResuscitationLog)}
+          >
+            <Stack>
+              <Controller
+                name="log_type"
+                control={control}
+                render={({ field }) => (
+                  <Select
+                    label="Entry type"
+                    data={emergencyResuscitationLogTypeOptions}
+                    value={field.value}
+                    onChange={(value) => field.onChange(value ?? "medication")}
+                    error={errors.log_type?.message}
+                  />
+                )}
+              />
+              {selectedLogType === "medication" && (
+                <SimpleGrid cols={{ base: 1, sm: 3 }}>
+                  <Controller
+                    name="medication_name"
+                    control={control}
+                    render={({ field }) => (
+                      <TextInput
+                        label="Medication"
+                        required
+                        error={errors.medication_name?.message}
+                        {...field}
+                      />
+                    )}
+                  />
+                  <Controller
+                    name="dose"
+                    control={control}
+                    render={({ field }) => (
+                      <TextInput label="Dose" required error={errors.dose?.message} {...field} />
+                    )}
+                  />
+                  <Controller
+                    name="route"
+                    control={control}
+                    render={({ field }) => (
+                      <TextInput label="Route" required error={errors.route?.message} {...field} />
+                    )}
+                  />
+                </SimpleGrid>
+              )}
+              {selectedLogType === "fluid" && (
+                <SimpleGrid cols={{ base: 1, sm: 3 }}>
+                  <Controller
+                    name="fluid_name"
+                    control={control}
+                    render={({ field }) => (
+                      <TextInput
+                        label="Fluid"
+                        required
+                        error={errors.fluid_name?.message}
+                        {...field}
+                      />
+                    )}
+                  />
+                  <Controller
+                    name="fluid_volume_ml"
+                    control={control}
+                    render={({ field }) => (
+                      <NumberInput
+                        label="Volume ml"
+                        required
+                        min={1}
+                        step={50}
+                        value={field.value}
+                        onChange={field.onChange}
+                        error={errors.fluid_volume_ml?.message}
+                      />
+                    )}
+                  />
+                  <Controller
+                    name="route"
+                    control={control}
+                    render={({ field }) => (
+                      <TextInput label="Route" required error={errors.route?.message} {...field} />
+                    )}
+                  />
+                </SimpleGrid>
+              )}
+              {["procedure", "airway", "cpr", "defibrillation"].includes(selectedLogType) && (
+                <SimpleGrid cols={{ base: 1, sm: 2 }}>
+                  <Controller
+                    name="procedure_name"
+                    control={control}
+                    render={({ field }) => (
+                      <TextInput
+                        label="Procedure/action"
+                        required
+                        error={errors.procedure_name?.message}
+                        {...field}
+                      />
+                    )}
+                  />
+                  <Controller
+                    name="procedure_notes"
+                    control={control}
+                    render={({ field }) => (
+                      <Textarea
+                        label="Procedure notes"
+                        error={errors.procedure_notes?.message}
+                        {...field}
+                      />
+                    )}
+                  />
+                </SimpleGrid>
+              )}
+              <Controller
+                name="notes"
+                control={control}
+                render={({ field }) => (
+                  <Textarea
+                    label="Clinical notes"
+                    minRows={2}
+                    error={errors.notes?.message}
+                    {...field}
+                  />
+                )}
+              />
+              <Group justify="flex-end">
+                <Button
+                  type="submit"
+                  leftSection={<IconPlus size={16} />}
+                  loading={mutation.isPending}
+                >
+                  Save Entry
+                </Button>
+              </Group>
+            </Stack>
+          </Paper>
+        )}
+        {canView ? (
+          <DataTable columns={columns} data={logs} loading={isLoading} rowKey={(row) => row.id} />
+        ) : (
+          <Text size="sm" c="dimmed">
+            This role can create resuscitation entries, but the resuscitation log list is
+            restricted.
+          </Text>
+        )}
+      </Stack>
+    </Card>
+  );
+}
+
+function VisitsTab({
+  canView,
+  canCreate,
+  canViewPatientRecord,
+  contextPatientId,
+}: {
+  canView: boolean;
+  canCreate: boolean;
+  canViewPatientRecord: boolean;
+  contextPatientId: string;
+}) {
+  const navigate = useNavigate();
+  const canUpdateVisit = useHasPermission(P.EMERGENCY.VISITS_UPDATE);
+  const canCreateIpdAdmission = useHasPermission(P.IPD.ADMISSIONS_CREATE);
+  const canAdmit = canUpdateVisit && canCreateIpdAdmission;
+  const { data = [], isLoading } = useQuery({
+    queryKey: ["er-visits"],
+    queryFn: () => emergencyService.listErVisits(),
+    enabled: canView,
+  });
+  const visibleVisits = contextPatientId
+    ? data.filter((visit) => visit.patient_id === contextPatientId)
+    : data;
 
   const columns = [
     {
@@ -1345,19 +1997,32 @@ function VisitsTab({
       render: (r: ErVisit) => {
         const canShowAdmit =
           canAdmit && ["registered", "triaged", "in_treatment", "observation"].includes(r.status);
-        if (!canShowAdmit) return null;
         return (
-          <Tooltip label="Admit to IPD">
-            <Button
-              size="xs"
-              variant="light"
-              color="teal"
-              leftSection={<IconBuildingHospital size={14} />}
-              onClick={() => handleOpenAdmit(r.id)}
-            >
-              Admit
-            </Button>
-          </Tooltip>
+          <Group gap="xs" wrap="nowrap">
+            <Tooltip label="Open ER visit">
+              <ActionIcon
+                variant="subtle"
+                color="primary"
+                aria-label="Open ER visit"
+                onClick={() => navigate(`/emergency/visits/${r.id}`)}
+              >
+                <IconEye size={16} />
+              </ActionIcon>
+            </Tooltip>
+            {canShowAdmit && (
+              <Tooltip label="Open visit to admit to IPD">
+                <Button
+                  size="xs"
+                  variant="light"
+                  color="teal"
+                  leftSection={<IconBuildingHospital size={14} />}
+                  onClick={() => navigate(`/emergency/visits/${r.id}`)}
+                >
+                  Admit
+                </Button>
+              </Tooltip>
+            )}
+          </Group>
         );
       },
     },
@@ -1369,17 +2034,35 @@ function VisitsTab({
         <Group justify="flex-end">
           <Button
             leftSection={<IconPlus size={16} />}
-            onClick={() => {
-              reset(contextVisitDefaults);
-              open();
-            }}
+            onClick={() =>
+              navigate(
+                contextPatientId
+                  ? `/emergency/visits/new?patient_id=${contextPatientId}`
+                  : "/emergency/visits/new",
+              )
+            }
           >
             Register ER Visit
           </Button>
         </Group>
       )}
       {canView ? (
-        <DataTable columns={columns} data={data} loading={isLoading} rowKey={(r) => r.id} />
+        <Stack>
+          {contextPatientId && canViewPatientRecord && (
+            <PatientContextBanner patientId={contextPatientId} hideLoadingState />
+          )}
+          {contextPatientId && !canViewPatientRecord && (
+            <Alert color="orange" variant="light" icon={<IconAlertTriangle size={16} />}>
+              Patient context is restricted for this role.
+            </Alert>
+          )}
+          <DataTable
+            columns={columns}
+            data={visibleVisits}
+            loading={isLoading}
+            rowKey={(r) => r.id}
+          />
+        </Stack>
       ) : (
         <Card withBorder p="md">
           <Text size="sm" c="dimmed">
@@ -1388,143 +2071,6 @@ function VisitsTab({
           </Text>
         </Card>
       )}
-
-      <Drawer opened={opened} onClose={close} title="Register ER Visit" position="right" size="xl">
-        <Stack component="form" onSubmit={handleSubmit(submitErVisit)}>
-          <Controller
-            name="patient_id"
-            control={control}
-            render={({ field }) => (
-              <PatientSearchSelect value={field.value} onChange={field.onChange} required />
-            )}
-          />
-          {errors.patient_id?.message && (
-            <Text size="xs" c="danger">
-              {errors.patient_id.message}
-            </Text>
-          )}
-          {canViewPatientRecord && (
-            <PatientContextBanner patientId={selectedPatientId} hideLoadingState />
-          )}
-          <Controller
-            name="arrival_mode"
-            control={control}
-            render={({ field }) => (
-              <Select
-                label="Arrival Mode"
-                data={emergencyArrivalModeOptions}
-                value={field.value || null}
-                onChange={(value) => field.onChange(value ?? "")}
-                clearable
-                error={errors.arrival_mode?.message}
-              />
-            )}
-          />
-          <Controller
-            name="chief_complaint"
-            control={control}
-            render={({ field }) => <TextInput label="Chief Complaint" {...field} />}
-          />
-          <Controller
-            name="bay_number"
-            control={control}
-            render={({ field }) => <TextInput label="Bay Number" {...field} />}
-          />
-          {canCreateMlc ? (
-            <Controller
-              name="is_mlc"
-              control={control}
-              render={({ field }) => (
-                <Select
-                  label="MLC"
-                  data={[
-                    { value: "true", label: "Yes" },
-                    { value: "false", label: "No" },
-                  ]}
-                  value={field.value ? "true" : "false"}
-                  onChange={(value) => field.onChange(value === "true")}
-                />
-              )}
-            />
-          ) : (
-            <Alert color="orange" variant="light" icon={<IconAlertTriangle size={16} />}>
-              MLC marking creates a medico-legal case and requires MLC create permission.
-            </Alert>
-          )}
-          <Controller
-            name="notes"
-            control={control}
-            render={({ field }) => <Textarea label="Notes" {...field} />}
-          />
-          <Button type="submit" loading={mutation.isPending}>
-            Register
-          </Button>
-        </Stack>
-      </Drawer>
-
-      {/* Admit to IPD Modal */}
-      <Modal
-        opened={admitOpen}
-        onClose={() => {
-          admitHandlers.close();
-          setAdmitVisitId(null);
-          resetAdmit(emptyErAdmitForm);
-        }}
-        title="Admit Patient to IPD"
-        size="md"
-      >
-        <Stack component="form" onSubmit={handleAdmitSubmit(submitAdmitFromEr)}>
-          <Controller
-            name="bed_id"
-            control={admitControl}
-            render={({ field }) => (
-              <BedSelect value={field.value} onChange={field.onChange} required />
-            )}
-          />
-          {admitErrors.bed_id?.message && (
-            <Text size="xs" c="danger">
-              {admitErrors.bed_id.message}
-            </Text>
-          )}
-          <Controller
-            name="admitting_doctor_id"
-            control={admitControl}
-            render={({ field }) => (
-              <DoctorSearchSelect
-                label="Admitting Doctor"
-                value={field.value}
-                onChange={field.onChange}
-                required
-              />
-            )}
-          />
-          {admitErrors.admitting_doctor_id?.message && (
-            <Text size="xs" c="danger">
-              {admitErrors.admitting_doctor_id.message}
-            </Text>
-          )}
-          <Controller
-            name="admission_notes"
-            control={admitControl}
-            render={({ field }) => (
-              <Textarea
-                label="Admission Notes"
-                {...field}
-                placeholder="Reason for admission, clinical notes..."
-                minRows={3}
-              />
-            )}
-          />
-          <Button
-            type="submit"
-            color="teal"
-            leftSection={<IconBuildingHospital size={16} />}
-            loading={admitMutation.isPending}
-          >
-            Confirm Admission
-          </Button>
-        </Stack>
-      </Modal>
     </Stack>
   );
 }

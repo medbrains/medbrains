@@ -2,6 +2,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { BarChart } from "@mantine/charts";
 import {
   ActionIcon,
+  Alert,
   Badge,
   Button,
   Card,
@@ -80,11 +81,13 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
-import { useNavigate, useParams } from "react-router";
+import { useNavigate, useParams, useSearchParams } from "react-router";
 import { DataTable, DoctorSearchSelect, PageHeader } from "../components";
 import { VitalsRecorder } from "../components/Clinical/VitalsRecorder";
 import type { Column } from "../components/DataTable";
 import { EmployeeSearchSelect } from "../components/EmployeeSearchSelect";
+import { PatientContextBanner } from "../components/Patient/PatientContextBanner";
+import { PatientFlowNavigator } from "../components/Patient/PatientFlowNavigator";
 import {
   campFollowupTypeOptions,
   campIdProofTypeOptions,
@@ -153,14 +156,19 @@ const CAMP_SERVICE_LINE_OPTIONS = [
   { value: "other", label: "Other" },
 ];
 
+const patientContextQuery = (patientId: string) =>
+  patientId ? `?patient_id=${encodeURIComponent(patientId)}` : "";
+
 // ── Main Page ──────────────────────────────────────────
 
 export function CampPage() {
   useRequirePermission(P.CAMP.LIST);
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const contextPatientId = searchParams.get("patient_id") ?? "";
   const [activeTab, setActiveTab] = useState<string | null>("camps");
   const openCampWorkspace = (campId: string) => {
-    navigate(`/camp/${campId}/work`);
+    navigate(`/camp/${campId}/work${patientContextQuery(contextPatientId)}`);
   };
 
   return (
@@ -169,6 +177,7 @@ export function CampPage() {
         title="Camp Management"
         subtitle="Plan, approve, activate, and close outreach camps. Open an active camp to work inside it."
       />
+      {contextPatientId && <CampPatientContextPanel patientId={contextPatientId} />}
       <Tabs value={activeTab} onChange={setActiveTab}>
         <Tabs.List>
           <Tabs.Tab value="camps" leftSection={<IconFirstAidKit size={16} />}>
@@ -190,12 +199,22 @@ export function CampPage() {
   );
 }
 
-export function CampWorkPage() {
+interface CampWorkPageProps {
+  initialTab?: string;
+}
+
+export function CampWorkPage({ initialTab = "registrations" }: CampWorkPageProps = {}) {
   useRequirePermission(P.CAMP.LIST);
   const navigate = useNavigate();
-  const { campId } = useParams();
-  const [activeTab, setActiveTab] = useState<string | null>("registrations");
-  const [focusedRegistrationId, setFocusedRegistrationId] = useState<string | null>(null);
+  const { campId, registrationId } = useParams();
+  const [searchParams] = useSearchParams();
+  const contextPatientId = searchParams.get("patient_id") ?? "";
+  const [activeTab, setActiveTab] = useState<string | null>(
+    registrationId ? "screenings" : initialTab,
+  );
+  const [focusedRegistrationId, setFocusedRegistrationId] = useState<string | null>(
+    registrationId ?? null,
+  );
 
   const { data: camps = [] } = useQuery({
     queryKey: ["camps"],
@@ -226,7 +245,10 @@ export function CampWorkPage() {
             : "Choose an active camp to start registration and screening"
         }
         actions={
-          <Button variant="light" onClick={() => navigate("/camp")}>
+          <Button
+            variant="light"
+            onClick={() => navigate(`/camp${patientContextQuery(contextPatientId)}`)}
+          >
             Back to Camp Management
           </Button>
         }
@@ -238,10 +260,16 @@ export function CampWorkPage() {
         onSelectCamp={(nextCampId) => {
           setFocusedRegistrationId(null);
           if (nextCampId) {
-            navigate(`/camp/${nextCampId}/work`);
+            navigate(`/camp/${nextCampId}/work${patientContextQuery(contextPatientId)}`);
           }
         }}
       />
+      {contextPatientId && (
+        <>
+          <PatientContextBanner patientId={contextPatientId} hideLoadingState />
+          <PatientFlowNavigator patientId={contextPatientId} active="camp" compact />
+        </>
+      )}
 
       <Tabs value={activeTab} onChange={setActiveTab}>
         <Tabs.List>
@@ -263,6 +291,7 @@ export function CampWorkPage() {
           <RegistrationsTab
             campId={campId ?? null}
             selectedCamp={selectedCamp}
+            contextPatientId={contextPatientId}
             onScreenRegistration={openRegistrationClinicalFlow}
           />
         </Tabs.Panel>
@@ -283,6 +312,192 @@ export function CampWorkPage() {
         </Tabs.Panel>
       </Tabs>
     </div>
+  );
+}
+
+export function CampCreatePage() {
+  return <CampPage />;
+}
+
+export function CampPlanEditPage() {
+  return <CampWorkPage initialTab="analytics" />;
+}
+
+export function CampClinicalRoutePage() {
+  return <CampWorkPage initialTab="screenings" />;
+}
+
+export function CampScreeningCreatePage() {
+  return <CampWorkPage initialTab="screenings" />;
+}
+
+export function CampLabSampleCreatePage() {
+  return <CampWorkPage initialTab="screenings" />;
+}
+
+export function CampTeamMemberAddPage() {
+  return <CampWorkPage initialTab="analytics" />;
+}
+
+export function CampAssetReturnPage() {
+  return <CampWorkPage initialTab="analytics" />;
+}
+
+export function CampBillingCreatePage() {
+  return <CampWorkPage initialTab="registrations" />;
+}
+
+export function CampFollowupCreatePage() {
+  return <CampWorkPage initialTab="followups" />;
+}
+
+interface PatientCampRegistrationRow extends CampRegistration {
+  camp_name: string;
+  camp_code: string;
+  camp_status: string;
+}
+
+function CampPatientContextPanel({ patientId }: { patientId: string }) {
+  const navigate = useNavigate();
+  const canViewRegistrations = useHasPermission(P.CAMP.REGISTRATIONS_LIST);
+  const { data: camps = [] } = useQuery({
+    queryKey: ["camps"],
+    queryFn: () => campService.listCamps(),
+    enabled: canViewRegistrations,
+  });
+  const { data: registrations = [], isLoading } = useQuery<PatientCampRegistrationRow[]>({
+    queryKey: ["camp-patient-registrations", patientId, camps.map((camp) => camp.id).join("|")],
+    queryFn: async () => {
+      const rows = await Promise.all(
+        camps.map(async (camp) => {
+          const registrationsForCamp = await campService.listCampRegistrations({
+            camp_id: camp.id,
+            patient_id: patientId,
+          });
+          return registrationsForCamp.map((registration) => ({
+            ...registration,
+            camp_name: camp.name,
+            camp_code: camp.camp_code,
+            camp_status: camp.status,
+          }));
+        }),
+      );
+      return rows.flat();
+    },
+    enabled: canViewRegistrations && camps.length > 0 && patientId.length > 0,
+  });
+
+  const activeCamps = camps.filter((camp) => camp.status === "active");
+  const columns: Column<PatientCampRegistrationRow>[] = [
+    {
+      key: "camp_code",
+      label: "Camp",
+      render: (row) => (
+        <Stack gap={0}>
+          <Text size="sm" fw={600}>
+            {row.camp_code}
+          </Text>
+          <Text size="xs" c="dimmed">
+            {row.camp_name}
+          </Text>
+        </Stack>
+      ),
+    },
+    {
+      key: "registration_number",
+      label: "Registration",
+      render: (row) => row.registration_number,
+    },
+    {
+      key: "status",
+      label: "Status",
+      render: (row) => (
+        <Badge color={REG_STATUS_COLORS[row.status] ?? "slate"} variant="filled" size="sm">
+          {row.status}
+        </Badge>
+      ),
+    },
+    {
+      key: "chief_complaint",
+      label: "Complaint",
+      render: (row) => row.chief_complaint ?? "—",
+    },
+    {
+      key: "actions",
+      label: "Actions",
+      render: (row) => (
+        <Group gap="xs">
+          <Button
+            size="xs"
+            variant="light"
+            onClick={() =>
+              navigate(
+                `/camp/${row.camp_id}/work/registrations/${row.id}/clinical-route${patientContextQuery(
+                  patientId,
+                )}`,
+              )
+            }
+          >
+            Open Flow
+          </Button>
+          <Button
+            size="xs"
+            variant="subtle"
+            onClick={() => navigate(`/camp/${row.camp_id}/work${patientContextQuery(patientId)}`)}
+          >
+            Work Camp
+          </Button>
+        </Group>
+      ),
+    },
+  ];
+
+  return (
+    <Stack mb="md">
+      <PatientContextBanner patientId={patientId} hideLoadingState />
+      <PatientFlowNavigator patientId={patientId} active="camp" compact />
+      {canViewRegistrations ? (
+        <Card withBorder>
+          <Stack>
+            <Group justify="space-between" align="center">
+              <Stack gap={0}>
+                <Text fw={700}>Camp history for this patient</Text>
+                <Text size="xs" c="dimmed">
+                  Open a previous camp registration or choose an active camp to register this
+                  patient.
+                </Text>
+              </Stack>
+              {activeCamps.length > 0 && (
+                <Select
+                  placeholder="Register in active camp"
+                  data={activeCamps.map((camp) => ({
+                    value: camp.id,
+                    label: `${camp.camp_code} - ${camp.name}`,
+                  }))}
+                  onChange={(campId) => {
+                    if (campId) {
+                      navigate(`/camp/${campId}/work${patientContextQuery(patientId)}`);
+                    }
+                  }}
+                  w={320}
+                  searchable
+                />
+              )}
+            </Group>
+            <DataTable
+              columns={columns}
+              data={registrations}
+              loading={isLoading}
+              rowKey={(row) => row.id}
+            />
+          </Stack>
+        </Card>
+      ) : (
+        <Alert color="orange" variant="light">
+          Camp registration history is restricted for this role.
+        </Alert>
+      )}
+    </Stack>
   );
 }
 
@@ -348,7 +563,33 @@ function CampsTab({ onWorkCamp }: { onWorkCamp: (campId: string) => void }) {
     name: "",
     camp_type: "general_health",
     organizing_department_id: null,
+    supporting_department_ids: [],
     coordinator_id: null,
+    planned_doctor_ids: [],
+    planned_staff_ids: [],
+    external_people: [],
+    service_lines: [],
+    service_offerings: [],
+    doctor_engagements: [],
+    planned_medicines: [],
+    planned_medicine_ids: [],
+    planned_medicine_refs: [],
+    camp_charge_mode: "free",
+    department_charge_mode: "free",
+    doctor_charge_mode: "free",
+    medicine_charge_mode: "free",
+    free_medicine_approval_required: true,
+    service_policy_notes: "",
+    budget_doctor_amount: "",
+    budget_medicine_amount: "",
+    budget_diagnostics_amount: "",
+    budget_consumables_amount: "",
+    budget_transport_amount: "",
+    budget_food_amount: "",
+    budget_other_amount: "",
+    sponsor_covered_amount: "",
+    patient_expected_collection: "",
+    budget_notes: "",
     scheduled_date: "",
     start_time: "",
     end_time: "",
@@ -1334,10 +1575,12 @@ function StatCard({ label, value, prefix }: { label: string; value: number; pref
 function RegistrationsTab({
   campId,
   selectedCamp,
+  contextPatientId,
   onScreenRegistration,
 }: {
   campId: string | null;
   selectedCamp: Camp | null;
+  contextPatientId: string;
   onScreenRegistration: (registrationId: string) => void;
 }) {
   const canCreate = useHasPermission(P.CAMP.REGISTRATIONS_CREATE);
@@ -1405,8 +1648,12 @@ function RegistrationsTab({
   );
 
   const { data: regs = [], isLoading } = useQuery({
-    queryKey: ["camp-registrations", campId],
-    queryFn: () => campService.listCampRegistrations({ camp_id: campId ?? "" }),
+    queryKey: ["camp-registrations", campId, contextPatientId],
+    queryFn: () =>
+      campService.listCampRegistrations({
+        camp_id: campId ?? "",
+        patient_id: contextPatientId || undefined,
+      }),
     enabled: !!campId,
   });
   const filteredRegs = useMemo(() => {
@@ -1515,6 +1762,7 @@ function RegistrationsTab({
       service_line: campOptionalText(values.service_line),
       chief_complaint: campOptionalText(values.chief_complaint),
       is_walk_in: values.is_walk_in,
+      patient_id: contextPatientId || undefined,
     });
   };
 
@@ -1611,7 +1859,9 @@ function RegistrationsTab({
         <Stack gap={2}>
           <Text fw={600}>{selectedCamp ? selectedCamp.name : "Select an active camp"}</Text>
           <Text size="xs" c="dimmed">
-            New camp participants are registered against the selected camp context.
+            {contextPatientId
+              ? "Showing camp registrations linked to the selected patient."
+              : "New camp participants are registered against the selected camp context."}
           </Text>
         </Stack>
         {canCreate && campId && (
@@ -1625,7 +1875,11 @@ function RegistrationsTab({
         <Stack>
           <TextInput
             label="Patient search"
-            placeholder="Search name, registration number, phone, ID, complaint"
+            placeholder={
+              contextPatientId
+                ? "Search within this patient's camp registrations"
+                : "Search name, registration number, phone, ID, complaint"
+            }
             value={patientSearch}
             onChange={(event) => setPatientSearch(event.currentTarget.value)}
             leftSection={<IconSearch size={16} />}
@@ -2129,7 +2383,7 @@ function ScreeningsTab({
     labMut.mutate({
       registration_id: values.registration_id.trim(),
       sample_type: values.sample_type.trim(),
-      test_requested: campOptionalText(values.test_requested),
+      test_requested: values.test_requested.trim(),
       barcode: campOptionalText(values.barcode),
     });
   };
@@ -2778,10 +3032,10 @@ function CampAnalyticsTab({
           <SimpleGrid cols={{ base: 2, sm: 3, md: 6 }}>
             <StatCard label="Total Camps" value={stats.total_camps} />
             <StatCard label="Total Registrations" value={stats.total_registrations} />
-            <StatCard label="Total Screenings" value={stats.total_screenings} />
+            <StatCard label="Total Screenings" value={stats.total_screened} />
             <StatCard
               label="Conversion Rate"
-              value={Math.round(stats.conversion_rate * 100)}
+              value={Math.round(stats.conversion_rate_pct)}
               prefix=""
             />
             <StatCard
@@ -2791,7 +3045,7 @@ function CampAnalyticsTab({
             />
             <StatCard
               label="Followup Compliance"
-              value={Math.round(stats.followup_compliance * 100)}
+              value={Math.round(stats.followup_compliance_pct)}
               prefix=""
             />
           </SimpleGrid>
@@ -2824,11 +3078,11 @@ function CampAnalyticsTab({
       {campReport && (
         <Card withBorder p="md">
           <SimpleGrid cols={{ base: 2, sm: 3, md: 5 }}>
-            <StatCard label="Registrations" value={campReport.registrations} />
-            <StatCard label="Screenings" value={campReport.screenings} />
-            <StatCard label="Lab Samples" value={campReport.lab_samples} />
-            <StatCard label="Follow-ups" value={campReport.followups} />
-            <StatCard label="Billing Total" value={campReport.billing_total} prefix="₹" />
+            <StatCard label="Registrations" value={campReport.stats.total_registrations} />
+            <StatCard label="Screenings" value={campReport.stats.total_screenings} />
+            <StatCard label="Referred" value={campReport.stats.referred} />
+            <StatCard label="Follow-ups" value={campReport.stats.followups_total} />
+            <StatCard label="Billing Total" value={campReport.stats.billing_total} prefix="₹" />
           </SimpleGrid>
         </Card>
       )}

@@ -1,3 +1,4 @@
+-- RLS-Posture: tenant-scoped
 -- Structured camp planning backbone.
 --
 -- New planning rows are no longer only hidden inside camps.equipment_list.

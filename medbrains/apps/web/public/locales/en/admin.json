@@ -2,6 +2,7 @@
   "settings.title": "Settings",
   "settings.subtitle": "Hospital configuration",
   "settings.general": "General",
+  "settings.accessMatrix": "Access Matrix",
   "settings.geo": "Geography",
   "settings.units": "Units & Locale",
   "settings.facilities": "Facilities",

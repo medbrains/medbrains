@@ -1,3 +1,4 @@
+-- RLS-Posture: tenant-scoped
 -- Add is_dummy flag to root clinical activity tables so simulated/training
 -- records generated for internal testing are clearly separable from live
 -- production records. Default FALSE keeps existing rows live. Filtering is

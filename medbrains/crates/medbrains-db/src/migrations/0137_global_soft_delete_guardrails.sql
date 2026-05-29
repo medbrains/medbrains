@@ -1,3 +1,4 @@
+-- RLS-Posture: not-applicable
 -- Global soft-delete guardrails.
 --
 -- This converts accidental application-level DELETE statements into

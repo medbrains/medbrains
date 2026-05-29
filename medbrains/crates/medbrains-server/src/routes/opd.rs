@@ -4134,7 +4134,7 @@ pub struct CreateConsentRequest {
 }
 
 #[derive(Debug, Deserialize)]
-pub struct RevokeConsentRequest {
+pub struct RevokeProcedureConsentRequest {
     pub withdrawal_reason: String,
 }
 
@@ -4239,7 +4239,7 @@ pub async fn revoke_consent(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
-    Json(body): Json<RevokeConsentRequest>,
+    Json(body): Json<RevokeProcedureConsentRequest>,
 ) -> Result<Json<ProcedureConsent>, AppError> {
     require_permission(&claims, permissions::opd::consents::REVOKE)?;
     require_permission(&claims, permissions::patients::VIEW)?;

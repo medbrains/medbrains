@@ -18,12 +18,14 @@ import {
   IconRuler2,
   IconSettings,
   IconShieldCheck,
+  IconShieldLock,
   IconSitemap,
   IconStethoscope,
   IconTableOptions,
   IconWorld,
 } from "@tabler/icons-react";
 import type { ComponentType } from "react";
+import { AccessMatrixSettings } from "../pages/admin/settings/AccessMatrixSettings";
 import { BedTypesSettings } from "../pages/admin/settings/BedTypesSettings";
 import { BillingTaxSettings } from "../pages/admin/settings/BillingTaxSettings";
 import { BrandingSettings } from "../pages/admin/settings/BrandingSettings";
@@ -123,6 +125,13 @@ export const SETTINGS_TABS: SettingsTabConfig[] = [
       "specialty.other.templates.list",
     ],
     component: MasterDataStatusSettings,
+  },
+  {
+    value: "access-matrix",
+    i18nKey: "settings.accessMatrix",
+    icon: "IconShieldLock",
+    requiredPermissions: ["admin.roles.list", "admin.users.list"],
+    component: AccessMatrixSettings,
   },
   {
     value: "geo",
@@ -305,6 +314,7 @@ export const SETTINGS_TAB_ICON_MAP: Record<string, ComponentType<{ size?: number
   IconPlug,
   IconPrinter,
   IconShieldCheck,
+  IconShieldLock,
   IconPill,
   IconAlertTriangle,
   IconStethoscope,

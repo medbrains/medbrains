@@ -62,6 +62,12 @@ const LabPage = lazy(() => import("./pages/lab").then((m) => ({ default: m.LabPa
 const PharmacyPage = lazy(() =>
   import("./pages/pharmacy").then((m) => ({ default: m.PharmacyPage })),
 );
+const PharmacyOrderCreatePage = lazy(() =>
+  import("./pages/pharmacy").then((m) => ({ default: m.PharmacyOrderCreatePage })),
+);
+const PharmacyOrderDetailPage = lazy(() =>
+  import("./pages/pharmacy").then((m) => ({ default: m.PharmacyOrderDetailPage })),
+);
 const PharmacyFinancePage = lazy(() =>
   import("./pages/pharmacy-finance").then((m) => ({ default: m.PharmacyFinancePage })),
 );
@@ -78,6 +84,12 @@ const DietKitchenPage = lazy(() =>
 );
 const EmergencyPage = lazy(() =>
   import("./pages/emergency").then((m) => ({ default: m.EmergencyPage })),
+);
+const EmergencyVisitCreatePage = lazy(() =>
+  import("./pages/emergency").then((m) => ({ default: m.EmergencyVisitCreatePage })),
+);
+const EmergencyVisitDetailPage = lazy(() =>
+  import("./pages/emergency").then((m) => ({ default: m.EmergencyVisitDetailPage })),
 );
 const BloodBankPage = lazy(() =>
   import("./pages/blood-bank").then((m) => ({ default: m.BloodBankPage })),
@@ -299,6 +311,8 @@ export function App() {
               <Route path="lab" element={<LabPage />} />
               <Route path="radiology" element={<RadiologyPage />} />
               <Route path="pharmacy" element={<PharmacyPage />} />
+              <Route path="pharmacy/orders/new" element={<PharmacyOrderCreatePage />} />
+              <Route path="pharmacy/orders/:orderId" element={<PharmacyOrderDetailPage />} />
               <Route path="pharmacy/finance" element={<PharmacyFinancePage />} />
               <Route path="billing" element={<BillingPage />} />
               <Route path="billing/invoices/:invoiceId" element={<BillingInvoiceDetailPage />} />
@@ -365,6 +379,8 @@ export function App() {
               <Route path="cssd" element={<CssdPage />} />
               <Route path="diet-kitchen" element={<DietKitchenPage />} />
               <Route path="emergency" element={<EmergencyPage />} />
+              <Route path="emergency/visits/new" element={<EmergencyVisitCreatePage />} />
+              <Route path="emergency/visits/:visitId" element={<EmergencyVisitDetailPage />} />
               <Route path="blood-bank" element={<BloodBankPage />} />
               <Route path="icu" element={<IcuPage />} />
               <Route path="ipd" element={<IpdPage />} />

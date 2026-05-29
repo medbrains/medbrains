@@ -1,19 +1,14 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
-  Accordion,
   ActionIcon,
   Alert,
   Badge,
-  Box,
   Button,
-  Checkbox,
-  Drawer,
   Group,
   Loader,
   Modal,
   MultiSelect,
   NumberInput,
-  SegmentedControl,
   Select,
   Stack,
   Switch,
@@ -30,30 +25,23 @@ import type {
   BulkCreateUsersRequest,
   CustomRole,
   DepartmentRow,
-  FieldAccessLevel,
-  FieldMasterFull,
-  PermissionGroup,
   SetupUser,
-  WidgetAccessLevel,
-  WidgetTemplate,
 } from "@medbrains/types";
-import { buildPermissionTree, FIELD_ACCESS_FIELDS, P, PERMISSIONS } from "@medbrains/types";
+import { P } from "@medbrains/types";
 import {
   IconCheck,
   IconInfoCircle,
-  IconLayout,
   IconPencil,
   IconPlus,
-  IconSearch,
   IconShield,
-  IconShieldCheck,
   IconTrash,
   IconUpload,
   IconUsers,
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
+import { useNavigate } from "react-router";
 import {
   CreateDepartmentModal,
   CreateRoleModal,
@@ -65,7 +53,6 @@ import {
 import { UserCreateDrawer } from "../../components/admin/UserCreateDrawer";
 import { OfflineWriteBanner } from "../../components/OfflineWriteBanner";
 import { useCreateInline } from "../../hooks/useCreateInline";
-import { usePacedQueryValue } from "../../hooks/usePacedQueryValue";
 import { useRequirePermission } from "../../hooks/useRequirePermission";
 import { adminAccessService, type CreateSetupUserInput } from "../../services/adminAccess.service";
 
@@ -98,132 +85,6 @@ const ROLE_COLORS: Record<string, string> = {
   facilities_manager: "primary",
   audit_officer: "danger",
 };
-
-// ── Permission Tree Helpers ───────────────────────────────
-
-function countSelected(
-  group: PermissionGroup,
-  selected: Set<string>,
-): { total: number; checked: number } {
-  let total = group.permissions.length;
-  let checked = group.permissions.filter((p) => selected.has(p.code)).length;
-  for (const child of group.children) {
-    const sub = countSelected(child, selected);
-    total += sub.total;
-    checked += sub.checked;
-  }
-  return { total, checked };
-}
-
-function getAllCodes(group: PermissionGroup): string[] {
-  const codes: string[] = group.permissions.map((p) => p.code);
-  for (const child of group.children) {
-    codes.push(...getAllCodes(child));
-  }
-  return codes;
-}
-
-function getAllGroupKeys(groups: PermissionGroup[]): string[] {
-  return groups.flatMap((group) => [group.key, ...getAllGroupKeys(group.children)]);
-}
-
-function PermissionGroupNode({
-  group,
-  selected,
-  onToggle,
-  filter,
-}: {
-  group: PermissionGroup;
-  selected: Set<string>;
-  onToggle: (codes: string[], checked: boolean) => void;
-  filter: string;
-}) {
-  const { total, checked } = countSelected(group, selected);
-  const allCodes = useMemo(() => getAllCodes(group), [group]);
-
-  const matchesFilter = useMemo(() => {
-    if (!filter) return true;
-    const lower = filter.toLowerCase();
-    return allCodes.some((code) => {
-      const perm = PERMISSIONS.find((p) => p.code === code);
-      return (
-        code.toLowerCase().includes(lower) || (perm?.label.toLowerCase().includes(lower) ?? false)
-      );
-    });
-  }, [filter, allCodes]);
-
-  if (!matchesFilter) return null;
-
-  const indeterminate = checked > 0 && checked < total;
-  const allChecked = total > 0 && checked === total;
-
-  return (
-    <Accordion.Item value={group.key}>
-      <Accordion.Control>
-        <Group gap="sm">
-          <Checkbox
-            checked={allChecked}
-            indeterminate={indeterminate}
-            onChange={(e) => {
-              e.stopPropagation();
-              onToggle(allCodes, e.currentTarget.checked);
-            }}
-            onClick={(e) => e.stopPropagation()}
-            size="sm"
-          />
-          <Text size="sm" fw={500}>
-            {group.label}
-          </Text>
-          <Badge size="xs" variant="light" color={checked === total ? "success" : "slate"}>
-            {checked}/{total}
-          </Badge>
-        </Group>
-      </Accordion.Control>
-      <Accordion.Panel>
-        <Stack gap="xs" pl="md">
-          {group.permissions.map((perm) => {
-            if (filter) {
-              const lower = filter.toLowerCase();
-              if (
-                !perm.code.toLowerCase().includes(lower) &&
-                !perm.label.toLowerCase().includes(lower)
-              ) {
-                return null;
-              }
-            }
-            return (
-              <Checkbox
-                key={perm.code}
-                label={
-                  <Tooltip label={perm.description} position="right" withArrow>
-                    <Text size="sm">
-                      {perm.label}{" "}
-                      <Text span size="xs" c="dimmed">
-                        ({perm.code.split(".").pop()})
-                      </Text>
-                    </Text>
-                  </Tooltip>
-                }
-                checked={selected.has(perm.code)}
-                onChange={(e) => onToggle([perm.code], e.currentTarget.checked)}
-                size="sm"
-              />
-            );
-          })}
-          {group.children.map((child) => (
-            <PermissionGroupNode
-              key={child.key}
-              group={child}
-              selected={selected}
-              onToggle={onToggle}
-              filter={filter}
-            />
-          ))}
-        </Stack>
-      </Accordion.Panel>
-    </Accordion.Item>
-  );
-}
 
 // ── User Create/Edit Modal ────────────────────────────────
 
@@ -665,623 +526,6 @@ function DeleteUserModal({
   );
 }
 
-// ── User Permission Override Drawer ───────────────────────
-
-function UserPermissionOverrideDrawer({
-  opened,
-  onClose,
-  user,
-  roles,
-}: {
-  opened: boolean;
-  onClose: () => void;
-  user: SetupUser | null;
-  roles: CustomRole[];
-}) {
-  const queryClient = useQueryClient();
-
-  const [extraPerms, setExtraPerms] = useState<Set<string>>(new Set());
-  const [deniedPerms, setDeniedPerms] = useState<Set<string>>(new Set());
-  const [fieldAccessOverrides, setFieldAccessOverrides] = useState<
-    Record<string, FieldAccessLevel>
-  >({});
-  const [widgetAccessOverrides, setWidgetAccessOverrides] = useState<
-    Record<string, WidgetAccessLevel>
-  >({});
-  const [extraFilter, setExtraFilter] = useState("");
-  const [deniedFilter, setDeniedFilter] = useState("");
-  const [fieldFilter, setFieldFilter] = useState("");
-  const [widgetFilter, setWidgetFilter] = useState("");
-  const pacedExtraFilter = usePacedQueryValue(extraFilter, 200);
-  const pacedDeniedFilter = usePacedQueryValue(deniedFilter, 200);
-  const pacedFieldFilter = usePacedQueryValue(fieldFilter, 200);
-  const pacedWidgetFilter = usePacedQueryValue(widgetFilter, 200);
-  const [loadedUserId, setLoadedUserId] = useState<string | null>(null);
-
-  // Sync state when user changes
-  if (user && user.id !== loadedUserId) {
-    setLoadedUserId(user.id);
-    const matrix = user.access_matrix ?? {};
-    const extra = Array.isArray(matrix.extra) ? (matrix.extra as string[]) : [];
-    const denied = Array.isArray(matrix.denied) ? (matrix.denied as string[]) : [];
-    const fa = (matrix.field_access ?? {}) as Record<string, string>;
-    const wa = (matrix.widget_access ?? {}) as Record<string, string>;
-    setExtraPerms(new Set(extra));
-    setDeniedPerms(new Set(denied));
-    setFieldAccessOverrides(fa as Record<string, FieldAccessLevel>);
-    setWidgetAccessOverrides(wa as Record<string, WidgetAccessLevel>);
-    setExtraFilter("");
-    setDeniedFilter("");
-    setFieldFilter("");
-    setWidgetFilter("");
-  }
-
-  const allFields = useMemo<FieldMasterFull[]>(() => FIELD_ACCESS_FIELDS, []);
-  const fieldsLoading = false;
-  const widgetTemplates = useMemo<WidgetTemplate[]>(() => [], []);
-
-  const tree = useMemo(() => buildPermissionTree(PERMISSIONS), []);
-  const accordionValues = useMemo(() => getAllGroupKeys(tree), [tree]);
-
-  // Get the user's role permissions for display
-  const rolePerms = useMemo(() => {
-    if (!user) return new Set<string>();
-    const role = roles.find((r) => r.code === user.role);
-    if (!role) return new Set<string>();
-    const perms = Array.isArray(role.permissions) ? (role.permissions as string[]) : [];
-    return new Set(perms);
-  }, [user, roles]);
-
-  const effectiveCount = useMemo(() => {
-    const effective = new Set(rolePerms);
-    for (const code of extraPerms) effective.add(code);
-    for (const code of deniedPerms) effective.delete(code);
-    return effective.size;
-  }, [rolePerms, extraPerms, deniedPerms]);
-
-  // Group fields by module (derived from db_table)
-  const fieldsByModule = useMemo(() => {
-    if (!allFields) return new Map<string, FieldMasterFull[]>();
-    const grouped = new Map<string, FieldMasterFull[]>();
-    for (const field of allFields) {
-      const module = field.db_table ?? "other";
-      const existing = grouped.get(module);
-      if (existing) {
-        existing.push(field);
-      } else {
-        grouped.set(module, [field]);
-      }
-    }
-    // Sort modules alphabetically
-    return new Map([...grouped.entries()].sort(([a], [b]) => a.localeCompare(b)));
-  }, [allFields]);
-
-  // Count field access overrides that differ from default "edit"
-  const fieldOverrideCount = useMemo(() => {
-    return Object.values(fieldAccessOverrides).filter((level) => level !== "edit").length;
-  }, [fieldAccessOverrides]);
-
-  // Filter fields by module for accordion display
-  const filteredFieldsByModule = useMemo(() => {
-    if (!pacedFieldFilter) return fieldsByModule;
-    const lower = pacedFieldFilter.toLowerCase();
-    const filtered = new Map<string, FieldMasterFull[]>();
-    for (const [module, fields] of fieldsByModule) {
-      const matching = fields.filter(
-        (f) =>
-          f.name.toLowerCase().includes(lower) ||
-          f.code.toLowerCase().includes(lower) ||
-          module.toLowerCase().includes(lower),
-      );
-      if (matching.length > 0) {
-        filtered.set(module, matching);
-      }
-    }
-    return filtered;
-  }, [fieldsByModule, pacedFieldFilter]);
-
-  const fieldAccordionValues = useMemo(() => [...fieldsByModule.keys()], [fieldsByModule]);
-
-  const handleExtraToggle = useCallback((codes: string[], checked: boolean) => {
-    setExtraPerms((prev) => {
-      const next = new Set(prev);
-      for (const code of codes) {
-        if (checked) {
-          next.add(code);
-        } else {
-          next.delete(code);
-        }
-      }
-      return next;
-    });
-  }, []);
-
-  const handleDeniedToggle = useCallback((codes: string[], checked: boolean) => {
-    setDeniedPerms((prev) => {
-      const next = new Set(prev);
-      for (const code of codes) {
-        if (checked) {
-          next.add(code);
-        } else {
-          next.delete(code);
-        }
-      }
-      return next;
-    });
-  }, []);
-
-  const handleExtraSelectAll = useCallback((checked: boolean) => {
-    if (checked) {
-      setExtraPerms(new Set(PERMISSIONS.map((p) => p.code)));
-    } else {
-      setExtraPerms(new Set());
-    }
-  }, []);
-
-  const handleDeniedSelectAll = useCallback((checked: boolean) => {
-    if (checked) {
-      setDeniedPerms(new Set(PERMISSIONS.map((p) => p.code)));
-    } else {
-      setDeniedPerms(new Set());
-    }
-  }, []);
-
-  const handleFieldAccessChange = useCallback(
-    (module: string, fieldCode: string, level: FieldAccessLevel) => {
-      const key = `${module}.${fieldCode}`;
-      setFieldAccessOverrides((prev) => {
-        const next = { ...prev };
-        if (level === "edit") {
-          // Remove the override when set back to default
-          delete next[key];
-        } else {
-          next[key] = level;
-        }
-        return next;
-      });
-    },
-    [],
-  );
-
-  // Widget access helpers
-  const templatesByCategory = useMemo(() => {
-    const groups: Record<string, WidgetTemplate[]> = {};
-    for (const tmpl of widgetTemplates) {
-      const cat = tmpl.category || "general";
-      if (!groups[cat]) groups[cat] = [];
-      groups[cat].push(tmpl);
-    }
-    return groups;
-  }, [widgetTemplates]);
-
-  const filteredTemplatesByCategory = useMemo(() => {
-    if (!pacedWidgetFilter) return templatesByCategory;
-    const lower = pacedWidgetFilter.toLowerCase();
-    const result: Record<string, WidgetTemplate[]> = {};
-    for (const [cat, tmpls] of Object.entries(templatesByCategory)) {
-      const matched = tmpls.filter(
-        (t) => t.name.toLowerCase().includes(lower) || cat.toLowerCase().includes(lower),
-      );
-      if (matched.length > 0) result[cat] = matched;
-    }
-    return result;
-  }, [templatesByCategory, pacedWidgetFilter]);
-
-  const widgetOverrideCount = useMemo(() => {
-    return Object.keys(widgetAccessOverrides).length;
-  }, [widgetAccessOverrides]);
-
-  const widgetCategoryKeys = useMemo(
-    () => Object.keys(filteredTemplatesByCategory),
-    [filteredTemplatesByCategory],
-  );
-
-  const handleWidgetAccessChange = useCallback((templateId: string, level: string) => {
-    setWidgetAccessOverrides((prev) => {
-      const next = { ...prev };
-      if (level === "default") {
-        delete next[templateId];
-      } else {
-        next[templateId] = level as WidgetAccessLevel;
-      }
-      return next;
-    });
-  }, []);
-
-  const saveMutation = useMutation({
-    mutationFn: async () => {
-      if (!user) return;
-      // Only include field_access entries that differ from default "edit"
-      const fieldAccess: Record<string, FieldAccessLevel> = {};
-      for (const [key, level] of Object.entries(fieldAccessOverrides)) {
-        if (level !== "edit") {
-          fieldAccess[key] = level;
-        }
-      }
-      await adminAccessService.updateUserAccessMatrix(user.id, {
-        extra_permissions: [...extraPerms],
-        denied_permissions: [...deniedPerms],
-        field_access: Object.keys(fieldAccess).length > 0 ? fieldAccess : undefined,
-        widget_access:
-          Object.keys(widgetAccessOverrides).length > 0 ? widgetAccessOverrides : undefined,
-      });
-    },
-    onSuccess: () => {
-      notifications.show({
-        title: "Permissions updated",
-        message: `Permission overrides for "${user?.full_name}" saved`,
-        color: "success",
-        icon: <IconCheck size={16} />,
-      });
-      void queryClient.invalidateQueries({ queryKey: ["setup-users"] });
-      onClose();
-    },
-    onError: (err: Error) => {
-      notifications.show({
-        title: "Save failed",
-        message: err.message,
-        color: "danger",
-      });
-    },
-  });
-
-  const extraAllSelected = extraPerms.size === PERMISSIONS.length;
-  const extraSomeSelected = extraPerms.size > 0 && !extraAllSelected;
-  const deniedAllSelected = deniedPerms.size === PERMISSIONS.length;
-  const deniedSomeSelected = deniedPerms.size > 0 && !deniedAllSelected;
-
-  return (
-    <Drawer
-      opened={opened}
-      onClose={onClose}
-      title={
-        <Group gap="sm">
-          <IconShieldCheck size={20} />
-          <div>
-            <Text fw={600} size="sm">
-              {user?.full_name ?? "Permissions"}
-            </Text>
-            {user && (
-              <Badge size="xs" variant="light" color={ROLE_COLORS[user.role] ?? "slate"}>
-                {user.role.replace(/_/g, " ")}
-              </Badge>
-            )}
-          </div>
-        </Group>
-      }
-      size="xl"
-      position="right"
-      padding="md"
-    >
-      <Stack gap="md" h="calc(100vh - 140px)">
-        <Alert icon={<IconInfoCircle size={16} />} variant="light" color="primary">
-          <Text size="xs">
-            <Text span fw={600}>
-              Extra permissions
-            </Text>{" "}
-            are granted to this user beyond their role.{" "}
-            <Text span fw={600}>
-              Denied permissions
-            </Text>{" "}
-            are revoked from this user despite their role. Effective permissions = (role permissions
-            + extra) - denied.
-          </Text>
-          <Text size="xs" mt={4} c="dimmed">
-            Role provides {rolePerms.size} permissions. Effective: {effectiveCount} permissions.
-          </Text>
-        </Alert>
-
-        <Box style={{ flex: 1, overflow: "auto" }}>
-          <Stack gap="lg">
-            {/* Extra Permissions Section */}
-            <Box>
-              <Group justify="space-between" mb="xs">
-                <Group gap="xs">
-                  <Text size="sm" fw={600} c="success">
-                    Extra Permissions
-                  </Text>
-                  <Badge size="xs" variant="light" color="success">
-                    {extraPerms.size}
-                  </Badge>
-                </Group>
-              </Group>
-              <TextInput
-                placeholder="Filter extra permissions..."
-                leftSection={<IconSearch size={16} />}
-                value={extraFilter}
-                onChange={(e) => setExtraFilter(e.currentTarget.value)}
-                size="xs"
-                mb="xs"
-              />
-              <Group gap="xs" mb="xs">
-                <Checkbox
-                  label="Select All"
-                  checked={extraAllSelected}
-                  indeterminate={extraSomeSelected}
-                  onChange={(e) => handleExtraSelectAll(e.currentTarget.checked)}
-                  size="sm"
-                />
-              </Group>
-              <Accordion
-                multiple
-                defaultValue={accordionValues}
-                variant="separated"
-                chevronPosition="left"
-              >
-                {tree.map((group) => (
-                  <PermissionGroupNode
-                    key={group.key}
-                    group={group}
-                    selected={extraPerms}
-                    onToggle={handleExtraToggle}
-                    filter={pacedExtraFilter}
-                  />
-                ))}
-              </Accordion>
-            </Box>
-
-            {/* Denied Permissions Section */}
-            <Box>
-              <Group justify="space-between" mb="xs">
-                <Group gap="xs">
-                  <Text size="sm" fw={600} c="danger">
-                    Denied Permissions
-                  </Text>
-                  <Badge size="xs" variant="light" color="danger">
-                    {deniedPerms.size}
-                  </Badge>
-                </Group>
-              </Group>
-              <TextInput
-                placeholder="Filter denied permissions..."
-                leftSection={<IconSearch size={16} />}
-                value={deniedFilter}
-                onChange={(e) => setDeniedFilter(e.currentTarget.value)}
-                size="xs"
-                mb="xs"
-              />
-              <Group gap="xs" mb="xs">
-                <Checkbox
-                  label="Select All"
-                  checked={deniedAllSelected}
-                  indeterminate={deniedSomeSelected}
-                  onChange={(e) => handleDeniedSelectAll(e.currentTarget.checked)}
-                  size="sm"
-                />
-              </Group>
-              <Accordion
-                multiple
-                defaultValue={accordionValues}
-                variant="separated"
-                chevronPosition="left"
-              >
-                {tree.map((group) => (
-                  <PermissionGroupNode
-                    key={`denied-${group.key}`}
-                    group={group}
-                    selected={deniedPerms}
-                    onToggle={handleDeniedToggle}
-                    filter={pacedDeniedFilter}
-                  />
-                ))}
-              </Accordion>
-            </Box>
-
-            {/* Field Access Overrides Section */}
-            <Box>
-              <Group justify="space-between" mb="xs">
-                <Group gap="xs">
-                  <Text size="sm" fw={600} c="orange">
-                    Field Access Overrides
-                  </Text>
-                  <Badge size="xs" variant="light" color="orange">
-                    {fieldOverrideCount}
-                  </Badge>
-                </Group>
-              </Group>
-              <TextInput
-                placeholder="Filter fields..."
-                leftSection={<IconSearch size={16} />}
-                value={fieldFilter}
-                onChange={(e) => setFieldFilter(e.currentTarget.value)}
-                size="xs"
-                mb="xs"
-              />
-              {fieldsLoading ? (
-                <Group justify="center" py="md">
-                  <Loader size="sm" />
-                  <Text size="sm" c="dimmed">
-                    Loading fields...
-                  </Text>
-                </Group>
-              ) : filteredFieldsByModule.size === 0 ? (
-                <Text size="sm" c="dimmed" ta="center" py="md">
-                  {fieldFilter ? "No fields match your filter" : "No fields available"}
-                </Text>
-              ) : (
-                <Accordion
-                  multiple
-                  defaultValue={fieldAccordionValues}
-                  variant="separated"
-                  chevronPosition="left"
-                >
-                  {[...filteredFieldsByModule.entries()].map(([module, fields]) => {
-                    const moduleOverrideCount = fields.filter((f) => {
-                      const key = `${module}.${f.code}`;
-                      const level = fieldAccessOverrides[key];
-                      return level && level !== "edit";
-                    }).length;
-
-                    return (
-                      <Accordion.Item key={module} value={module}>
-                        <Accordion.Control>
-                          <Group gap="sm">
-                            <Text size="sm" fw={500} tt="capitalize">
-                              {module.replace(/_/g, " ")}
-                            </Text>
-                            <Badge size="xs" variant="light" color="slate">
-                              {fields.length} {fields.length === 1 ? "field" : "fields"}
-                            </Badge>
-                            {moduleOverrideCount > 0 && (
-                              <Badge size="xs" variant="light" color="orange">
-                                {moduleOverrideCount}{" "}
-                                {moduleOverrideCount === 1 ? "override" : "overrides"}
-                              </Badge>
-                            )}
-                          </Group>
-                        </Accordion.Control>
-                        <Accordion.Panel>
-                          <Stack gap="xs">
-                            {fields.map((field) => {
-                              const key = `${module}.${field.code}`;
-                              const currentLevel = fieldAccessOverrides[key] ?? "edit";
-
-                              return (
-                                <Group key={field.id} justify="space-between" wrap="nowrap">
-                                  <Box style={{ flex: 1, minWidth: 0 }}>
-                                    <Text size="sm" truncate>
-                                      {field.name}
-                                    </Text>
-                                    <Text size="xs" c="dimmed" truncate>
-                                      {field.code}
-                                      {field.description ? ` — ${field.description}` : ""}
-                                    </Text>
-                                  </Box>
-                                  <SegmentedControl
-                                    size="xs"
-                                    value={currentLevel}
-                                    onChange={(value) =>
-                                      handleFieldAccessChange(
-                                        module,
-                                        field.code,
-                                        value as FieldAccessLevel,
-                                      )
-                                    }
-                                    data={[
-                                      { label: "Edit", value: "edit" },
-                                      { label: "View", value: "view" },
-                                      { label: "Mask", value: "mask" },
-                                      { label: "Hidden", value: "hidden" },
-                                    ]}
-                                    style={{ flexShrink: 0 }}
-                                  />
-                                </Group>
-                              );
-                            })}
-                          </Stack>
-                        </Accordion.Panel>
-                      </Accordion.Item>
-                    );
-                  })}
-                </Accordion>
-              )}
-            </Box>
-
-            {/* Widget Access Overrides Section */}
-            <Box>
-              <Group justify="space-between" mb="xs">
-                <Group gap="xs">
-                  <IconLayout size={14} />
-                  <Text size="sm" fw={600} c="violet">
-                    Widget Access Overrides
-                  </Text>
-                  <Badge size="xs" variant="light" color="violet">
-                    {widgetOverrideCount}
-                  </Badge>
-                </Group>
-              </Group>
-              <Text size="xs" c="dimmed" mb="xs">
-                Override which dashboard widgets this user can see. "Default" inherits from the
-                user's role settings.
-              </Text>
-              <TextInput
-                placeholder="Filter widgets..."
-                leftSection={<IconSearch size={16} />}
-                value={widgetFilter}
-                onChange={(e) => setWidgetFilter(e.currentTarget.value)}
-                size="xs"
-                mb="xs"
-              />
-              {widgetTemplates.length === 0 ? (
-                <Text size="sm" c="dimmed" ta="center" py="md">
-                  No widget templates configured yet.
-                </Text>
-              ) : Object.keys(filteredTemplatesByCategory).length === 0 ? (
-                <Text size="sm" c="dimmed" ta="center" py="md">
-                  No widgets match the filter.
-                </Text>
-              ) : (
-                <Accordion
-                  multiple
-                  defaultValue={widgetCategoryKeys}
-                  variant="separated"
-                  chevronPosition="left"
-                >
-                  {Object.entries(filteredTemplatesByCategory).map(([category, templates]) => (
-                    <Accordion.Item key={category} value={category}>
-                      <Accordion.Control>
-                        <Group gap="sm">
-                          <Text size="sm" fw={500} tt="capitalize">
-                            {category}
-                          </Text>
-                          <Badge size="xs" variant="light" color="slate">
-                            {templates.length} widget{templates.length !== 1 ? "s" : ""}
-                          </Badge>
-                        </Group>
-                      </Accordion.Control>
-                      <Accordion.Panel>
-                        <Stack gap="xs">
-                          {templates.map((tmpl) => {
-                            const currentLevel = widgetAccessOverrides[tmpl.id] ?? "default";
-                            return (
-                              <Group key={tmpl.id} justify="space-between" wrap="nowrap" gap="sm">
-                                <Box style={{ flex: 1, minWidth: 0 }}>
-                                  <Text size="sm" truncate>
-                                    {tmpl.name}
-                                  </Text>
-                                  {tmpl.description && (
-                                    <Text size="xs" c="dimmed" truncate>
-                                      {tmpl.description}
-                                    </Text>
-                                  )}
-                                </Box>
-                                <SegmentedControl
-                                  size="xs"
-                                  value={currentLevel}
-                                  onChange={(val) => handleWidgetAccessChange(tmpl.id, val)}
-                                  data={[
-                                    { label: "Default", value: "default" },
-                                    { label: "Visible", value: "visible" },
-                                    { label: "Hidden", value: "hidden" },
-                                  ]}
-                                  style={{ flexShrink: 0 }}
-                                />
-                              </Group>
-                            );
-                          })}
-                        </Stack>
-                      </Accordion.Panel>
-                    </Accordion.Item>
-                  ))}
-                </Accordion>
-              )}
-            </Box>
-          </Stack>
-        </Box>
-
-        <Group justify="flex-end" gap="sm">
-          <Button variant="default" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button onClick={() => saveMutation.mutate()} loading={saveMutation.isPending}>
-            Save Overrides
-          </Button>
-        </Group>
-      </Stack>
-    </Drawer>
-  );
-}
-
 // ── Bulk Import Modal ─────────────────────────────────────
 
 function BulkImportModal({ opened, onClose }: { opened: boolean; onClose: () => void }) {
@@ -1431,24 +675,17 @@ export function UsersPage() {
   const canCreate = useHasPermission(P.ADMIN.USERS.CREATE);
   const canUpdate = useHasPermission(P.ADMIN.USERS.UPDATE);
   const canDelete = useHasPermission(P.ADMIN.USERS.DELETE);
+  const navigate = useNavigate();
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<SetupUser | null>(null);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [deletingUser, setDeletingUser] = useState<SetupUser | null>(null);
-  const [permDrawerOpen, setPermDrawerOpen] = useState(false);
-  const [permUser, setPermUser] = useState<SetupUser | null>(null);
   const [bulkImportOpen, setBulkImportOpen] = useState(false);
 
   const { data: users, isLoading } = useQuery({
     queryKey: ["setup-users"],
     queryFn: () => adminAccessService.listUsers(),
-  });
-
-  const { data: roles } = useQuery({
-    queryKey: ["roles"],
-    queryFn: () => adminAccessService.listRoles(),
-    staleTime: 60_000,
   });
 
   // Create flow uses the new 4-tab Stepper drawer; edit flow keeps the modal.
@@ -1466,8 +703,7 @@ export function UsersPage() {
   };
 
   const openPermissions = (user: SetupUser) => {
-    setPermUser(user);
-    setPermDrawerOpen(true);
+    navigate(`/admin/settings?user=${encodeURIComponent(user.id)}#access-matrix`);
   };
 
   const columns = [
@@ -1621,16 +857,6 @@ export function UsersPage() {
         opened={deleteModalOpen}
         onClose={() => setDeleteModalOpen(false)}
         user={deletingUser}
-      />
-
-      <UserPermissionOverrideDrawer
-        opened={permDrawerOpen}
-        onClose={() => {
-          setPermDrawerOpen(false);
-          setPermUser(null);
-        }}
-        user={permUser}
-        roles={roles ?? []}
       />
 
       <BulkImportModal opened={bulkImportOpen} onClose={() => setBulkImportOpen(false)} />

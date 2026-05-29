@@ -1,3 +1,4 @@
+-- RLS-Posture: tenant-scoped
 -- Hospital news / advisories module.
 --
 -- Categories:
