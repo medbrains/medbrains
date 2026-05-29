@@ -885,6 +885,27 @@ function EffectiveUserAccessMatrix({
       }).filter((row) => row.duplicateGrant || row.deniedOverlap),
     [bypassRole, deniedPermissions, extraPermissions, rolePermissionSet, temporaryPermissions],
   );
+  const redundantExtraPermissions = useMemo(
+    () =>
+      PERMISSIONS.filter(
+        (permission) =>
+          extraPermissions.has(permission.code) &&
+          (rolePermissionSet.has(permission.code) || temporaryPermissions.has(permission.code)),
+      ),
+    [extraPermissions, rolePermissionSet, temporaryPermissions],
+  );
+  const deniedActiveGrantPermissions = useMemo(
+    () =>
+      PERMISSIONS.filter((permission) => {
+        if (!deniedPermissions.has(permission.code)) return false;
+        return (
+          rolePermissionSet.has(permission.code) ||
+          extraPermissions.has(permission.code) ||
+          temporaryPermissions.has(permission.code)
+        );
+      }),
+    [deniedPermissions, extraPermissions, rolePermissionSet, temporaryPermissions],
+  );
 
   const roleFieldRestrictionCount = Object.values(roleFieldAccess).filter(
     (level) => level !== "edit",
@@ -918,6 +939,28 @@ function EffectiveUserAccessMatrix({
     setDeniedPermissions((previousDenied) => {
       const nextDenied = new Set(previousDenied);
       nextDenied.delete(permission);
+      return nextDenied;
+    });
+  };
+
+  const removeRedundantExtras = () => {
+    const redundantCodes = new Set(redundantExtraPermissions.map((permission) => permission.code));
+    setExtraPermissions((previousExtra) => {
+      const nextExtra = new Set(previousExtra);
+      for (const permission of redundantCodes) {
+        nextExtra.delete(permission);
+      }
+      return nextExtra;
+    });
+  };
+
+  const clearDeniedActiveGrants = () => {
+    const deniedCodes = new Set(deniedActiveGrantPermissions.map((permission) => permission.code));
+    setDeniedPermissions((previousDenied) => {
+      const nextDenied = new Set(previousDenied);
+      for (const permission of deniedCodes) {
+        nextDenied.delete(permission);
+      }
       return nextDenied;
     });
   };
@@ -1071,6 +1114,52 @@ function EffectiveUserAccessMatrix({
               Save User Matrix
             </Button>
           </Group>
+
+          <Alert
+            icon={<IconShieldLock size={16} />}
+            color={
+              redundantExtraPermissions.length > 0 || deniedActiveGrantPermissions.length > 0
+                ? "orange"
+                : "green"
+            }
+            variant="light"
+          >
+            <Group justify="space-between" align="flex-start" gap="md">
+              <Stack gap={3}>
+                <Text fw={700} size="sm">
+                  Cleanup recommendations
+                </Text>
+                <Text size="sm">
+                  {redundantExtraPermissions.length} redundant individual extras and{" "}
+                  {deniedActiveGrantPermissions.length} deny conflicts found for this user.
+                </Text>
+                {userGroups.length > 0 && (
+                  <Text size="xs" c="dimmed">
+                    Group memberships are resource scope only here: {groupNames(userGroups)}.
+                  </Text>
+                )}
+              </Stack>
+              <Group gap="xs">
+                <Button
+                  size="xs"
+                  variant="light"
+                  disabled={!canUpdate || bypassRole || redundantExtraPermissions.length === 0}
+                  onClick={removeRedundantExtras}
+                >
+                  Remove duplicate extras
+                </Button>
+                <Button
+                  size="xs"
+                  variant="light"
+                  color="red"
+                  disabled={!canUpdate || bypassRole || deniedActiveGrantPermissions.length === 0}
+                  onClick={clearDeniedActiveGrants}
+                >
+                  Clear deny conflicts
+                </Button>
+              </Group>
+            </Group>
+          </Alert>
 
           <Tabs defaultValue="permissions" keepMounted={false}>
             <Tabs.List>
