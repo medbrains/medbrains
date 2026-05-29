@@ -86,6 +86,7 @@ import type {
   IpdTransferLog,
   IpTypeConfiguration,
   MlcCase,
+  MrdCaseSheetPacket,
   NursingTask,
   PrescriptionWithItems,
   PriorAuthRequestRow,
@@ -103,12 +104,14 @@ import type {
 import { P } from "@medbrains/types";
 import {
   IconAlertTriangle,
+  IconArrowRight,
   IconArrowsTransferDown,
   IconBed,
   IconBuildingHospital,
   IconCalendarTime,
   IconChartBar,
   IconCheck,
+  IconClipboardList,
   IconCross,
   IconDoor,
   IconEye,
@@ -182,6 +185,7 @@ import {
 import { useHashTabs } from "../hooks/useHashTabs";
 import { useRequirePermission } from "../hooks/useRequirePermission";
 import { ipdService } from "../services/ipd.service";
+import { mrdService } from "../services/mrd.service";
 import {
   buildCopyPrintHtml,
   copyPrintStyles,
@@ -724,8 +728,12 @@ function AdmissionDetail({
   canDischarge: boolean;
 }) {
   const canCreateDischargeSummary = useHasPermission(P.IPD.DISCHARGE_SUMMARY_CREATE);
+  const canGenerateMrdCaseSheet = useHasPermission(P.MRD.CASE_SHEETS_GENERATE);
+  const canViewMrdCaseSheets = useHasPermission(P.MRD.CASE_SHEETS_VIEW);
   const canOrder = useHasPermission(P.ORDER_BASKET.SIGN);
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const emit = useClinicalEmit();
   const [dischargeSummaryOpened, { open: openDischargeSummary, close: closeDischargeSummary }] =
     useDisclosure(false);
   const [bedTransferOpened, { open: openBedTransfer, close: closeBedTransfer }] =
@@ -751,11 +759,48 @@ function AdmissionDetail({
     queryKey: ["admission-detail", admissionId],
     queryFn: () => ipdService.getAdmission(admissionId),
   });
+  const { data: mrdCaseSheetPackets = [] } = useQuery<MrdCaseSheetPacket[]>({
+    queryKey: ["mrd-case-sheets", "ipd", admissionId],
+    queryFn: () =>
+      mrdService.listMrdCaseSheetPackets({
+        admission_id: admissionId,
+        packet_type: "ipd",
+      }),
+    enabled: canViewMrdCaseSheets,
+    staleTime: 60_000,
+  });
+  const generateMrdCaseSheetMutation = useMutation({
+    mutationFn: () => mrdService.generateIpdCaseSheetPacket(admissionId),
+    onSuccess: (packet) => {
+      emit("mrd.case_sheet.generated", {
+        packet_id: packet.id,
+        packet_number: packet.packet_number,
+        packet_type: packet.packet_type,
+        patient_id: packet.patient_id,
+        admission_id: packet.admission_id,
+        source_record_id: packet.id,
+      });
+      void queryClient.invalidateQueries({ queryKey: ["mrd-case-sheets"] });
+      notifications.show({
+        title: "Sent to MRD",
+        message: `${packet.packet_number} is available in MRD case sheets`,
+        color: "success",
+      });
+    },
+    onError: () => {
+      notifications.show({
+        title: "MRD handoff failed",
+        message: "Unable to generate the IPD case-sheet packet",
+        color: "danger",
+      });
+    },
+  });
 
   if (!data) return <Text c="dimmed">Loading...</Text>;
 
   const detail = data as AdmissionDetailResponse;
   const adm = detail.admission;
+  const latestMrdCaseSheet = mrdCaseSheetPackets[0];
   const admissionIsActive = adm.status === "admitted";
   const activeWorkspaceSection =
     IPD_WORKSPACE_TABS.find((tab) => tab.value === activeWorkspaceTab)?.section ?? "Command";
@@ -1095,6 +1140,46 @@ function AdmissionDetail({
                       </Button>
                     </span>
                   </Tooltip>
+                </Stack>
+                <Stack gap="xs">
+                  <Text size="xs" fw={700} c="dimmed" tt="uppercase">
+                    MRD
+                  </Text>
+                  <Tooltip
+                    label={
+                      canGenerateMrdCaseSheet
+                        ? "Generate or refresh the IPD case-sheet packet in MRD"
+                        : "MRD case-sheet generation permission required"
+                    }
+                  >
+                    <span>
+                      <Button
+                        size="xs"
+                        variant={latestMrdCaseSheet ? "subtle" : "light"}
+                        color="violet"
+                        leftSection={<IconClipboardList size={14} />}
+                        disabled={!canGenerateMrdCaseSheet}
+                        loading={generateMrdCaseSheetMutation.isPending}
+                        onClick={() => generateMrdCaseSheetMutation.mutate()}
+                        fullWidth
+                      >
+                        {latestMrdCaseSheet ? "Update Case Sheet" : "Send Case Sheet"}
+                      </Button>
+                    </span>
+                  </Tooltip>
+                  {canViewMrdCaseSheets && latestMrdCaseSheet && (
+                    <Button
+                      size="compact-xs"
+                      variant="subtle"
+                      leftSection={<IconArrowRight size={12} />}
+                      onClick={() =>
+                        navigate(`/mrd?packet_type=ipd&admission_id=${admissionId}#case-sheets`)
+                      }
+                      fullWidth
+                    >
+                      Open MRD Packet
+                    </Button>
+                  )}
                 </Stack>
                 <Stack gap="xs">
                   <Text size="xs" fw={700} c="dimmed" tt="uppercase">

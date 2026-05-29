@@ -1379,6 +1379,7 @@ export function EncounterDetail({
   const canViewMrdCaseSheets = useHasPermission(P.MRD.CASE_SHEETS_VIEW);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const emit = useClinicalEmit();
   const [summaryOpened, { open: openSummary, close: closeSummary }] = useDisclosure(false);
   const [basketOpened, { open: openBasket, close: closeBasket }] = useDisclosure(false);
   const [basketTab, setBasketTab] = useState<OrderBasketTab>("drug");
@@ -1437,6 +1438,14 @@ export function EncounterDetail({
   const generateMrdCaseSheetMutation = useMutation({
     mutationFn: () => mrdService.generateOpdCaseSheetPacket(encounterId),
     onSuccess: (packet) => {
+      emit("mrd.case_sheet.generated", {
+        packet_id: packet.id,
+        packet_number: packet.packet_number,
+        packet_type: packet.packet_type,
+        patient_id: packet.patient_id,
+        encounter_id: packet.encounter_id,
+        source_record_id: packet.id,
+      });
       void queryClient.invalidateQueries({ queryKey: ["mrd-case-sheets"] });
       notifications.show({
         title: "Sent to MRD",

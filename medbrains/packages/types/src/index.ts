@@ -11209,6 +11209,7 @@ export type ClinicalEventName =
   | "bed.transferred"
   | "ipd.discharge.initiated"
   | "ipd.discharge.completed"
+  | "mrd.case_sheet.generated"
   | "quality.incident.reported"
   | "emergency.code_blue.activated"
   | "emergency.code_blue.completed"
@@ -11264,6 +11265,7 @@ export const CLINICAL_EVENT_REQUIRED_PAYLOAD_KEYS: Record<ClinicalEventName, rea
   "bed.transferred": ["transfer_id", "admission_id", "from_bed_id", "to_bed_id"],
   "ipd.discharge.initiated": ["admission_id", "patient_id"],
   "ipd.discharge.completed": ["admission_id", "patient_id"],
+  "mrd.case_sheet.generated": ["packet_id", "packet_type", "patient_id"],
   "quality.incident.reported": ["incident_id"],
   "emergency.code_blue.activated": ["code_blue_id"],
   "emergency.code_blue.completed": ["code_blue_id"],
