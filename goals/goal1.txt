@@ -6,6 +6,13 @@
 - Modules: Patient Registration, OPD, IPD, Emergency, Camp, Pharmacy, Billing, Settings/Config, Reports.
 - Build order: Registration → OPD → Pharmacy → Billing → IPD → Emergency → Camp → Reports → Settings.
 - No PHI in clear on the wire or at rest. No secrets in code/images/env files.
+- Primary goal: make the application usable end-to-end. Every implementation pass must improve real
+  workflow actions, patient/module navigation, business rules, and operational decisions. Permission
+  matrices, masking, and ABAC are guardrails around the workflow; they must not become a standalone
+  UI/security exercise that leaves screens loosely connected or actions non-functional.
+- Acceptance rule for each slice: a user can start from a real patient/module state, see the next
+  valid actions, complete at least one meaningful business action, and land in the next relevant
+  workspace/report without re-searching or guessing.
 
 ## 1. UX REQUIREMENTS
 - Concept correction: do not build a Microsoft Teams clone, and do not turn every workflow into
