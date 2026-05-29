@@ -45,6 +45,7 @@ import {
 } from "@medbrains/schemas";
 import { useFieldAccess, useHasPermission } from "@medbrains/stores";
 import type {
+  ClinicalJourneyContext,
   ComplianceSettings,
   CreateNdpsEntryRequest,
   CreateOtcSaleRequest,
@@ -122,6 +123,7 @@ import {
 import { DrugSearchSelect } from "../components/DrugSearchSelect";
 import { PatientContextBanner } from "../components/Patient/PatientContextBanner";
 import { PatientFlowNavigator } from "../components/Patient/PatientFlowNavigator";
+import { PatientJourneyActions } from "../components/Patient/PatientJourneyActions";
 import { PatientNameCell } from "../components/PatientNameCell";
 import { PatientSearchSelect } from "../components/PatientSearchSelect";
 import { CreditNotesTab } from "../components/Pharmacy/CreditNotesTab";
@@ -2353,6 +2355,11 @@ function PharmacyOrderDetail({
     ? (patientName?.full_name ?? "Linked patient")
     : "Patient restricted";
   const prescriptionUhid = canViewPatientRecord ? (patientName?.uhid ?? "") : "";
+  const journeyContext: ClinicalJourneyContext = {
+    patientId: detail.order.patient_id,
+    activeEncounterId: detail.order.encounter_id,
+    activeOrderContext: detail.order.encounter_id ? "opd" : null,
+  };
 
   return (
     <Stack>
@@ -2387,6 +2394,23 @@ function PharmacyOrderDetail({
         activeEncounterId={detail.order.encounter_id ?? null}
         compact
       />
+      <Card withBorder padding="sm">
+        <Group justify="space-between" gap="sm" align="center">
+          <Stack gap={2}>
+            <Text size="xs" fw={700} c="dimmed" tt="uppercase">
+              Patient handoff
+            </Text>
+            <Text size="xs" c="dimmed">
+              Move from dispensing to clinical context, billing, or follow-up without re-searching.
+            </Text>
+          </Stack>
+          <PatientJourneyActions
+            context={journeyContext}
+            hiddenActionIds={["pharmacy.open_patient_queue"]}
+            size="xs"
+          />
+        </Group>
+      </Card>
 
       {/* View mode toggle — show schedule view when prescription data is available */}
       {hasRxItems && (
