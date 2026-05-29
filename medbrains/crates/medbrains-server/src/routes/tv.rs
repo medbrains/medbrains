@@ -827,7 +827,7 @@ async fn broadcast_queue_update(
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// Pharmacy queue token for display.
-#[derive(Debug, Serialize)]
+#[derive(Clone, Debug, Serialize)]
 pub struct PharmacyQueueToken {
     pub token_number: String,
     pub patient_name: String,
@@ -855,6 +855,22 @@ pub struct PharmacyQueueDisplay {
     pub ready_for_pickup: Vec<PharmacyQueueToken>,
     pub waiting: Vec<PharmacyQueueToken>,
     pub stats: PharmacyQueueStats,
+}
+
+#[derive(Debug, FromRow)]
+struct PharmacyQueueSourceRow {
+    id: Uuid,
+    prescription_count: i64,
+    queued_at: chrono::DateTime<Utc>,
+}
+
+#[derive(Debug, FromRow)]
+struct PharmacyQueueStatsRow {
+    waiting_count: i64,
+    preparing_count: i64,
+    ready_count: i64,
+    dispensed_today: i64,
+    avg_wait_minutes: Option<i32>,
 }
 
 /// Lab queue token for display.
@@ -1015,25 +1031,190 @@ pub struct QueueMetrics {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// GET /api/tv/queue/pharmacy
-/// Get pharmacy queue display data.
+/// Get pharmacy queue display data. The TV surface is intentionally
+/// token-only: no patient names are returned because waiting-area
+/// displays must not expose PHI.
 pub async fn get_pharmacy_queue(
-    State(_state): State<AppState>,
-    Extension(_claims): Extension<Claims>,
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
 ) -> Result<Json<PharmacyQueueDisplay>, (StatusCode, String)> {
-    // Placeholder implementation - would query pharmacy_orders table
+    let waiting_rows = sqlx::query_as::<_, PharmacyQueueSourceRow>(
+        r"
+        SELECT pr.id,
+               COALESCE((
+                   SELECT COUNT(*)
+                   FROM prescription_items pi
+                   WHERE pi.tenant_id = pr.tenant_id
+                     AND pi.prescription_id = pr.prescription_id
+                     AND COALESCE(pi.item_status, 'active') = 'active'
+               ), 0)::bigint AS prescription_count,
+               pr.received_at AS queued_at
+        FROM pharmacy_prescriptions pr
+        WHERE pr.tenant_id = $1
+          AND pr.pharmacy_order_id IS NULL
+          AND pr.status::text IN ('pending_review', 'on_hold', 'approved')
+        ORDER BY
+          CASE pr.priority WHEN 'stat' THEN 0 WHEN 'urgent' THEN 1 ELSE 2 END,
+          pr.received_at ASC
+        LIMIT 40
+        ",
+    )
+    .bind(claims.tenant_id)
+    .fetch_all(&state.db)
+    .await
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    let preparing_rows = sqlx::query_as::<_, PharmacyQueueSourceRow>(
+        r"
+        SELECT po.id,
+               COALESCE((
+                   SELECT COUNT(*)
+                   FROM pharmacy_order_items poi
+                   WHERE poi.tenant_id = po.tenant_id
+                     AND poi.order_id = po.id
+                     AND poi.removed_at IS NULL
+               ), 0)::bigint AS prescription_count,
+               po.created_at AS queued_at
+        FROM pharmacy_orders po
+        WHERE po.tenant_id = $1
+          AND po.status = 'ordered'
+        ORDER BY po.created_at ASC
+        LIMIT 40
+        ",
+    )
+    .bind(claims.tenant_id)
+    .fetch_all(&state.db)
+    .await
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    let ready_rows = sqlx::query_as::<_, PharmacyQueueSourceRow>(
+        r"
+        SELECT po.id,
+               COALESCE((
+                   SELECT COUNT(*)
+                   FROM pharmacy_order_items poi
+                   WHERE poi.tenant_id = po.tenant_id
+                     AND poi.order_id = po.id
+                     AND poi.removed_at IS NULL
+               ), 0)::bigint AS prescription_count,
+               COALESCE(po.dispensed_at, po.updated_at) AS queued_at
+        FROM pharmacy_orders po
+        WHERE po.tenant_id = $1
+          AND po.status = 'dispensed'
+          AND COALESCE(po.dispensed_at, po.updated_at)::date = CURRENT_DATE
+        ORDER BY COALESCE(po.dispensed_at, po.updated_at) DESC
+        LIMIT 20
+        ",
+    )
+    .bind(claims.tenant_id)
+    .fetch_all(&state.db)
+    .await
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    let stats_row = sqlx::query_as::<_, PharmacyQueueStatsRow>(
+        r"
+        SELECT
+          (
+            SELECT COUNT(*)
+            FROM pharmacy_prescriptions pr
+            WHERE pr.tenant_id = $1
+              AND pr.pharmacy_order_id IS NULL
+              AND pr.status::text IN ('pending_review', 'on_hold', 'approved')
+          )::bigint AS waiting_count,
+          (
+            SELECT COUNT(*)
+            FROM pharmacy_orders po
+            WHERE po.tenant_id = $1
+              AND po.status = 'ordered'
+          )::bigint AS preparing_count,
+          (
+            SELECT COUNT(*)
+            FROM pharmacy_orders po
+            WHERE po.tenant_id = $1
+              AND po.status = 'dispensed'
+              AND COALESCE(po.dispensed_at, po.updated_at)::date = CURRENT_DATE
+          )::bigint AS ready_count,
+          (
+            SELECT COUNT(*)
+            FROM pharmacy_orders po
+            WHERE po.tenant_id = $1
+              AND po.status = 'dispensed'
+              AND COALESCE(po.dispensed_at, po.updated_at)::date = CURRENT_DATE
+          )::bigint AS dispensed_today,
+          (
+            SELECT FLOOR(EXTRACT(EPOCH FROM AVG(COALESCE(po.dispensed_at, po.updated_at) - po.created_at)) / 60)::int
+            FROM pharmacy_orders po
+            WHERE po.tenant_id = $1
+              AND po.status = 'dispensed'
+              AND COALESCE(po.dispensed_at, po.updated_at)::date = CURRENT_DATE
+          ) AS avg_wait_minutes
+        ",
+    )
+    .bind(claims.tenant_id)
+    .fetch_one(&state.db)
+    .await
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    let prepared_tokens = preparing_rows
+        .into_iter()
+        .map(|row| pharmacy_queue_token(row, "preparing"))
+        .collect::<Vec<_>>();
+    let current_token = prepared_tokens.first().cloned();
+    let preparing = prepared_tokens
+        .into_iter()
+        .skip(usize::from(current_token.is_some()))
+        .collect::<Vec<_>>();
+    let ready_for_pickup = ready_rows
+        .into_iter()
+        .map(|row| pharmacy_queue_token(row, "ready"))
+        .collect::<Vec<_>>();
+    let waiting = waiting_rows
+        .into_iter()
+        .map(|row| pharmacy_queue_token(row, "waiting"))
+        .collect::<Vec<_>>();
+
     Ok(Json(PharmacyQueueDisplay {
-        current_token: None,
-        preparing: vec![],
-        ready_for_pickup: vec![],
-        waiting: vec![],
+        current_token,
+        preparing,
+        ready_for_pickup,
+        waiting,
         stats: PharmacyQueueStats {
-            waiting_count: 0,
-            preparing_count: 0,
-            ready_count: 0,
-            dispensed_today: 0,
-            avg_wait_minutes: 0,
+            waiting_count: saturating_i64_to_i32(stats_row.waiting_count),
+            preparing_count: saturating_i64_to_i32(stats_row.preparing_count),
+            ready_count: saturating_i64_to_i32(stats_row.ready_count),
+            dispensed_today: saturating_i64_to_i32(stats_row.dispensed_today),
+            avg_wait_minutes: stats_row.avg_wait_minutes.unwrap_or(0),
         },
     }))
+}
+
+fn pharmacy_queue_token(row: PharmacyQueueSourceRow, display_status: &str) -> PharmacyQueueToken {
+    let waited_minutes = Utc::now()
+        .signed_duration_since(row.queued_at)
+        .num_minutes()
+        .max(0);
+
+    PharmacyQueueToken {
+        token_number: format_pharmacy_token(row.id),
+        patient_name: "Token only".to_owned(),
+        prescription_count: saturating_i64_to_i32(row.prescription_count),
+        status: display_status.to_owned(),
+        counter: None,
+        estimated_wait_minutes: Some(saturating_i64_to_i32(waited_minutes)),
+    }
+}
+
+fn format_pharmacy_token(id: Uuid) -> String {
+    let stable_id = id.simple().to_string();
+    format!("RX-{}", stable_id[..6].to_ascii_uppercase())
+}
+
+fn saturating_i64_to_i32(value: i64) -> i32 {
+    i32::try_from(value).unwrap_or(if value.is_negative() {
+        i32::MIN
+    } else {
+        i32::MAX
+    })
 }
 
 /// GET /api/tv/queue/lab
