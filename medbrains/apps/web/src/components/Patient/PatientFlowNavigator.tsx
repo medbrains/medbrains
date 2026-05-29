@@ -19,7 +19,7 @@ import {
 } from "@tabler/icons-react";
 import type { ReactNode } from "react";
 import { useNavigate } from "react-router";
-import { useClinicalEventStore } from "../clinical-event-store";
+import { useClinicalEventStore } from "@/components/clinical-event-store";
 import styles from "./patient-flow-navigator.module.scss";
 import { clinicalEventMatchesJourney, mergeJourneyEventNames } from "./patient-journey-events";
 

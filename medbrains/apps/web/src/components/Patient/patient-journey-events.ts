@@ -1,5 +1,5 @@
 import type { ClinicalJourneyContext } from "@medbrains/types";
-import type { ClinicalEventTrace } from "../clinical-events";
+import type { ClinicalEventTrace } from "@/components/clinical-events";
 
 function eventName(event: ClinicalEventTrace) {
   return event.eventName ?? event.rawTrigger;

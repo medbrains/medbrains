@@ -22,7 +22,7 @@ import {
   IconStethoscope,
 } from "@tabler/icons-react";
 import { useNavigate } from "react-router";
-import { useClinicalEventStore } from "../clinical-event-store";
+import { useClinicalEventStore } from "@/components/clinical-event-store";
 import { mergeJourneyEventNames } from "./patient-journey-events";
 
 type PatientOrderTab = "drug" | "lab" | "radiology";

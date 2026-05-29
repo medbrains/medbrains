@@ -51,6 +51,7 @@ import type {
   CampScreening,
   CampSupplyItem,
   CampTeamMember,
+  ClinicalJourneyContext,
   CreateCampFollowupRequest,
   CreateCampLabSampleRequest,
   CreateCampRegistrationRequest,
@@ -82,12 +83,13 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { useNavigate, useParams, useSearchParams } from "react-router";
-import { DataTable, DoctorSearchSelect, PageHeader } from "../components";
-import { VitalsRecorder } from "../components/Clinical/VitalsRecorder";
-import type { Column } from "../components/DataTable";
-import { EmployeeSearchSelect } from "../components/EmployeeSearchSelect";
-import { PatientContextBanner } from "../components/Patient/PatientContextBanner";
-import { PatientFlowNavigator } from "../components/Patient/PatientFlowNavigator";
+import { DataTable, DoctorSearchSelect, PageHeader } from "@/components";
+import { VitalsRecorder } from "@/components/Clinical/VitalsRecorder";
+import type { Column } from "@/components/DataTable";
+import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
+import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
+import { PatientFlowNavigator } from "@/components/Patient/PatientFlowNavigator";
+import { PatientJourneyActions } from "@/components/Patient/PatientJourneyActions";
 import {
   campFollowupTypeOptions,
   campIdProofTypeOptions,
@@ -95,11 +97,11 @@ import {
   campOptionalNumber,
   campOptionalText,
   campTypeOptions,
-} from "../forms/camp.form";
-import { useRequirePermission } from "../hooks/useRequirePermission";
-import { campService } from "../services/camp.service";
-import { lookupsService } from "../services/lookups.service";
-import { EncounterDetail } from "./opd";
+} from "@/forms/camp.form";
+import { useRequirePermission } from "@/hooks/useRequirePermission";
+import { EncounterDetail } from "@/pages/opd";
+import { campService } from "@/services/camp.service";
+import { lookupsService } from "@/services/lookups.service";
 
 // ── Constants ──────────────────────────────────────────
 
@@ -158,6 +160,30 @@ const CAMP_SERVICE_LINE_OPTIONS = [
 
 const patientContextQuery = (patientId: string) =>
   patientId ? `?patient_id=${encodeURIComponent(patientId)}` : "";
+
+function CampPatientActionBar({ patientId }: { patientId: string }) {
+  const journeyContext = useMemo<ClinicalJourneyContext>(() => ({ patientId }), [patientId]);
+
+  return (
+    <Card withBorder padding="sm">
+      <Group justify="space-between" gap="sm" align="center">
+        <Stack gap={2}>
+          <Text size="xs" fw={700} c="dimmed" tt="uppercase">
+            Patient handoff
+          </Text>
+          <Text size="xs" c="dimmed">
+            Continue from camp to OPD, emergency, IPD, billing or pharmacy without re-searching.
+          </Text>
+        </Stack>
+        <PatientJourneyActions
+          context={journeyContext}
+          hiddenActionIds={["camp.open_context"]}
+          size="xs"
+        />
+      </Group>
+    </Card>
+  );
+}
 
 // ── Main Page ──────────────────────────────────────────
 
@@ -268,6 +294,7 @@ export function CampWorkPage({ initialTab = "registrations" }: CampWorkPageProps
         <>
           <PatientContextBanner patientId={contextPatientId} hideLoadingState />
           <PatientFlowNavigator patientId={contextPatientId} active="camp" compact />
+          <CampPatientActionBar patientId={contextPatientId} />
         </>
       )}
 
@@ -456,6 +483,7 @@ function CampPatientContextPanel({ patientId }: { patientId: string }) {
     <Stack mb="md">
       <PatientContextBanner patientId={patientId} hideLoadingState />
       <PatientFlowNavigator patientId={patientId} active="camp" compact />
+      <CampPatientActionBar patientId={patientId} />
       {canViewRegistrations ? (
         <Card withBorder>
           <Stack>

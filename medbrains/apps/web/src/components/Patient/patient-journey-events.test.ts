@@ -1,7 +1,7 @@
 // @vitest-environment node
 
 import { describe, expect, it } from "vitest";
-import type { ClinicalEventTrace } from "../clinical-events";
+import type { ClinicalEventTrace } from "@/components/clinical-events";
 import { clinicalEventMatchesJourney, mergeJourneyEventNames } from "./patient-journey-events";
 
 function trace(input: Partial<ClinicalEventTrace>): ClinicalEventTrace {
