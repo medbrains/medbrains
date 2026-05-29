@@ -863,6 +863,28 @@ function EffectiveUserAccessMatrix({
       ),
     [moduleFilter, pacedPermissionFilter],
   );
+  const overlapRows = useMemo(
+    () =>
+      PERMISSIONS.map((permission) => {
+        const roleGrant = rolePermissionSet.has(permission.code);
+        const extraGrant = extraPermissions.has(permission.code);
+        const temporaryGrant = temporaryPermissions.has(permission.code);
+        const denied = deniedPermissions.has(permission.code);
+        const grants = Number(roleGrant) + Number(extraGrant) + Number(temporaryGrant);
+        return {
+          denied,
+          deniedOverlap: denied && grants > 0 && !bypassRole,
+          duplicateGrant: grants > 1,
+          effective: bypassRole || (!denied && grants > 0),
+          extraGrant,
+          grants,
+          permission,
+          roleGrant,
+          temporaryGrant,
+        };
+      }).filter((row) => row.duplicateGrant || row.deniedOverlap),
+    [bypassRole, deniedPermissions, extraPermissions, rolePermissionSet, temporaryPermissions],
+  );
 
   const roleFieldRestrictionCount = Object.values(roleFieldAccess).filter(
     (level) => level !== "edit",
@@ -880,6 +902,22 @@ function EffectiveUserAccessMatrix({
       const nextDenied = new Set(previousDenied);
       if (value === "deny") nextDenied.add(permission);
       else nextDenied.delete(permission);
+      return nextDenied;
+    });
+  };
+
+  const removeExtraPermission = (permission: string) => {
+    setExtraPermissions((previousExtra) => {
+      const nextExtra = new Set(previousExtra);
+      nextExtra.delete(permission);
+      return nextExtra;
+    });
+  };
+
+  const clearDeniedPermission = (permission: string) => {
+    setDeniedPermissions((previousDenied) => {
+      const nextDenied = new Set(previousDenied);
+      nextDenied.delete(permission);
       return nextDenied;
     });
   };
@@ -1037,6 +1075,7 @@ function EffectiveUserAccessMatrix({
           <Tabs defaultValue="permissions" keepMounted={false}>
             <Tabs.List>
               <Tabs.Tab value="permissions">Permissions</Tabs.Tab>
+              <Tabs.Tab value="overlaps">Overlap Review</Tabs.Tab>
               <Tabs.Tab value="fields">Field Masking</Tabs.Tab>
             </Tabs.List>
 
@@ -1153,6 +1192,121 @@ function EffectiveUserAccessMatrix({
                   </Table.Tbody>
                 </Table>
               </ScrollArea.Autosize>
+            </Tabs.Panel>
+
+            <Tabs.Panel value="overlaps" pt="sm">
+              <Stack gap="sm">
+                {overlapRows.length === 0 ? (
+                  <Alert color="green" variant="light">
+                    <Text size="sm">
+                      No duplicate individual grants or denied active grants for this user.
+                    </Text>
+                  </Alert>
+                ) : (
+                  <ScrollArea.Autosize mah="52vh">
+                    <Table stickyHeader highlightOnHover verticalSpacing="xs">
+                      <Table.Thead>
+                        <Table.Tr>
+                          <Table.Th>Permission</Table.Th>
+                          <Table.Th>Grant sources</Table.Th>
+                          <Table.Th>Conflict</Table.Th>
+                          <Table.Th>Effective</Table.Th>
+                          <Table.Th>Clean up</Table.Th>
+                        </Table.Tr>
+                      </Table.Thead>
+                      <Table.Tbody>
+                        {overlapRows.map((row) => (
+                          <Table.Tr key={row.permission.code}>
+                            <Table.Td>
+                              <Text size="sm" fw={600}>
+                                {row.permission.label}
+                              </Text>
+                              <Text size="xs" c="dimmed">
+                                {row.permission.code}
+                              </Text>
+                            </Table.Td>
+                            <Table.Td>
+                              <Group gap={4}>
+                                {row.roleGrant && (
+                                  <Badge color="blue" variant="light">
+                                    Role
+                                  </Badge>
+                                )}
+                                {row.extraGrant && (
+                                  <Badge color="teal" variant="light">
+                                    Individual
+                                  </Badge>
+                                )}
+                                {row.temporaryGrant && (
+                                  <Badge color="grape" variant="light">
+                                    Temporary
+                                  </Badge>
+                                )}
+                                {row.denied && (
+                                  <Badge color="red" variant="light">
+                                    Denied
+                                  </Badge>
+                                )}
+                                {userGroups.length > 0 && (
+                                  <Tooltip label={groupNames(userGroups)} multiline w={280}>
+                                    <Badge color="cyan" variant="light">
+                                      Group scope
+                                    </Badge>
+                                  </Tooltip>
+                                )}
+                              </Group>
+                            </Table.Td>
+                            <Table.Td>
+                              <Group gap={4}>
+                                {row.duplicateGrant && (
+                                  <Badge color="orange" variant="light">
+                                    Duplicate grant
+                                  </Badge>
+                                )}
+                                {row.deniedOverlap && (
+                                  <Badge color="red" variant="light">
+                                    Deny overrides grant
+                                  </Badge>
+                                )}
+                              </Group>
+                            </Table.Td>
+                            <Table.Td>
+                              <Badge color={row.effective ? "green" : "gray"} variant="light">
+                                {row.effective ? "Allowed" : "Not granted"}
+                              </Badge>
+                            </Table.Td>
+                            <Table.Td>
+                              <Group gap="xs">
+                                {row.extraGrant && row.grants > 1 && (
+                                  <Button
+                                    size="xs"
+                                    variant="light"
+                                    disabled={!canUpdate || bypassRole}
+                                    onClick={() => removeExtraPermission(row.permission.code)}
+                                  >
+                                    Remove extra
+                                  </Button>
+                                )}
+                                {row.deniedOverlap && (
+                                  <Button
+                                    size="xs"
+                                    variant="light"
+                                    color="red"
+                                    disabled={!canUpdate || bypassRole}
+                                    onClick={() => clearDeniedPermission(row.permission.code)}
+                                  >
+                                    Clear deny
+                                  </Button>
+                                )}
+                              </Group>
+                            </Table.Td>
+                          </Table.Tr>
+                        ))}
+                      </Table.Tbody>
+                    </Table>
+                  </ScrollArea.Autosize>
+                )}
+              </Stack>
             </Tabs.Panel>
 
             <Tabs.Panel value="fields" pt="sm">
