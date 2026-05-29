@@ -14,7 +14,9 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{
-    error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
+    error::AppError,
+    middleware::auth::Claims,
+    middleware::authorization::{require_any_permission, require_permission},
     state::AppState,
 };
 
@@ -1188,7 +1190,14 @@ pub async fn list_storage_locations(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<Vec<MrdStorageLocation>>, AppError> {
-    require_permission(&claims, permissions::mrd::records::LIST)?;
+    require_any_permission(
+        &claims,
+        &[
+            permissions::mrd::records::LIST,
+            permissions::mrd::storage::MANAGE,
+            permissions::mrd::case_sheets::FILE,
+        ],
+    )?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)

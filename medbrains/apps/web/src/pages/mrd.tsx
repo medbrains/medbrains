@@ -224,13 +224,43 @@ const MRD_TAB_VALUES = [
   "retention",
 ] as const;
 
+const MRD_PAGE_PERMISSIONS = [
+  P.MRD.RECORDS_LIST,
+  P.MRD.RECORDS_MANAGE,
+  P.MRD.CASE_SHEETS_VIEW,
+  P.MRD.BIRTHS_LIST,
+  P.MRD.DEATHS_LIST,
+] as const;
+
 // ══════════════════════════════════════════════════════════
 //  Page
 // ══════════════════════════════════════════════════════════
 
 export function MrdPage() {
-  useRequirePermission(P.MRD.RECORDS_LIST);
-  const [tab, setTab] = useHashTabs("records", MRD_TAB_VALUES);
+  useRequirePermission(MRD_PAGE_PERMISSIONS);
+  const canViewRecords = useHasPermission(P.MRD.RECORDS_LIST);
+  const canManageRecords = useHasPermission(P.MRD.RECORDS_MANAGE);
+  const canViewCaseSheets = useHasPermission(P.MRD.CASE_SHEETS_VIEW);
+  const canViewBirths = useHasPermission(P.MRD.BIRTHS_LIST);
+  const canViewDeaths = useHasPermission(P.MRD.DEATHS_LIST);
+  const defaultTab = canViewRecords
+    ? "records"
+    : canViewCaseSheets
+      ? "case-sheets"
+      : canViewBirths
+        ? "births"
+        : canViewDeaths
+          ? "deaths"
+          : "retention";
+  const accessibleTabs = new Set<string>([
+    ...(canViewRecords ? ["records", "storage", "stats"] : []),
+    ...(canViewCaseSheets ? ["case-sheets"] : []),
+    ...(canViewBirths ? ["births"] : []),
+    ...(canViewDeaths ? ["deaths"] : []),
+    ...(canManageRecords ? ["retention"] : []),
+  ]);
+  const [tab, setTab] = useHashTabs(defaultTab, MRD_TAB_VALUES);
+  const tabValue = accessibleTabs.has(tab) ? tab : defaultTab;
 
   return (
     <div>
@@ -238,52 +268,80 @@ export function MrdPage() {
         title="Medical Records Department"
         subtitle="Record indexing, birth/death registries, statistics"
       />
-      <Tabs value={tab} onChange={setTab}>
+      <Tabs value={tabValue} onChange={setTab}>
         <Tabs.List>
-          <Tabs.Tab value="records" leftSection={<IconFileCertificate size={16} />}>
-            Records
-          </Tabs.Tab>
-          <Tabs.Tab value="case-sheets" leftSection={<IconClipboardList size={16} />}>
-            Case Sheets
-          </Tabs.Tab>
-          <Tabs.Tab value="storage" leftSection={<IconArchive size={16} />}>
-            Storage
-          </Tabs.Tab>
-          <Tabs.Tab value="births" leftSection={<IconBabyCarriage size={16} />}>
-            Birth Register
-          </Tabs.Tab>
-          <Tabs.Tab value="deaths" leftSection={<IconSkull size={16} />}>
-            Death Register
-          </Tabs.Tab>
-          <Tabs.Tab value="stats" leftSection={<IconChartBar size={16} />}>
-            Statistics
-          </Tabs.Tab>
-          <Tabs.Tab value="retention" leftSection={<IconShieldCheck size={16} />}>
-            Retention Policies
-          </Tabs.Tab>
+          {canViewRecords && (
+            <Tabs.Tab value="records" leftSection={<IconFileCertificate size={16} />}>
+              Records
+            </Tabs.Tab>
+          )}
+          {canViewCaseSheets && (
+            <Tabs.Tab value="case-sheets" leftSection={<IconClipboardList size={16} />}>
+              Case Sheets
+            </Tabs.Tab>
+          )}
+          {canViewRecords && (
+            <Tabs.Tab value="storage" leftSection={<IconArchive size={16} />}>
+              Storage
+            </Tabs.Tab>
+          )}
+          {canViewBirths && (
+            <Tabs.Tab value="births" leftSection={<IconBabyCarriage size={16} />}>
+              Birth Register
+            </Tabs.Tab>
+          )}
+          {canViewDeaths && (
+            <Tabs.Tab value="deaths" leftSection={<IconSkull size={16} />}>
+              Death Register
+            </Tabs.Tab>
+          )}
+          {canViewRecords && (
+            <Tabs.Tab value="stats" leftSection={<IconChartBar size={16} />}>
+              Statistics
+            </Tabs.Tab>
+          )}
+          {canManageRecords && (
+            <Tabs.Tab value="retention" leftSection={<IconShieldCheck size={16} />}>
+              Retention Policies
+            </Tabs.Tab>
+          )}
         </Tabs.List>
 
-        <Tabs.Panel value="records" pt="md">
-          <RecordsTab />
-        </Tabs.Panel>
-        <Tabs.Panel value="case-sheets" pt="md">
-          <CaseSheetsTab />
-        </Tabs.Panel>
-        <Tabs.Panel value="storage" pt="md">
-          <StorageLocationsTab />
-        </Tabs.Panel>
-        <Tabs.Panel value="births" pt="md">
-          <BirthsTab />
-        </Tabs.Panel>
-        <Tabs.Panel value="deaths" pt="md">
-          <DeathsTab />
-        </Tabs.Panel>
-        <Tabs.Panel value="stats" pt="md">
-          <StatsTab />
-        </Tabs.Panel>
-        <Tabs.Panel value="retention" pt="md">
-          <RetentionTab />
-        </Tabs.Panel>
+        {canViewRecords && (
+          <Tabs.Panel value="records" pt="md">
+            <RecordsTab />
+          </Tabs.Panel>
+        )}
+        {canViewCaseSheets && (
+          <Tabs.Panel value="case-sheets" pt="md">
+            <CaseSheetsTab />
+          </Tabs.Panel>
+        )}
+        {canViewRecords && (
+          <Tabs.Panel value="storage" pt="md">
+            <StorageLocationsTab />
+          </Tabs.Panel>
+        )}
+        {canViewBirths && (
+          <Tabs.Panel value="births" pt="md">
+            <BirthsTab />
+          </Tabs.Panel>
+        )}
+        {canViewDeaths && (
+          <Tabs.Panel value="deaths" pt="md">
+            <DeathsTab />
+          </Tabs.Panel>
+        )}
+        {canViewRecords && (
+          <Tabs.Panel value="stats" pt="md">
+            <StatsTab />
+          </Tabs.Panel>
+        )}
+        {canManageRecords && (
+          <Tabs.Panel value="retention" pt="md">
+            <RetentionTab />
+          </Tabs.Panel>
+        )}
       </Tabs>
     </div>
   );
