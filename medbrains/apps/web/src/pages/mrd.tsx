@@ -100,6 +100,15 @@ const CASE_SHEET_STATUS_OPTIONS: { value: MrdCaseSheetPacketStatus | ""; label: 
   { value: "voided", label: "Voided" },
 ];
 
+const MRD_CASE_SHEET_PRINT_COPIES = [
+  { label: "MRD copy", printerProfile: "MRD A4" },
+  { label: "Office tracking copy", printerProfile: "MRD record room printer" },
+] as const;
+
+const MRD_CASE_SHEET_REPRINT_COPIES = [
+  { label: "Duplicate / reprint copy", printerProfile: "MRD record room printer" },
+] as const;
+
 function toCaseSheetStatus(value: string | null): MrdCaseSheetPacketStatus | null {
   switch (value) {
     case "draft":
@@ -727,14 +736,16 @@ function CaseSheetsTab() {
 
   const printMut = useMutation({
     mutationFn: (packet: MrdCaseSheetPacket) =>
-      mrdService.printMrdCaseSheetPacket(packet.id, { copies: 1 }),
+      mrdService.printMrdCaseSheetPacket(packet.id, {
+        copies: MRD_CASE_SHEET_PRINT_COPIES.length,
+      }),
     onSuccess: (packet) => {
       void qc.invalidateQueries({ queryKey: ["mrd-case-sheets"] });
       void qc.invalidateQueries({ queryKey: ["mrd-case-sheet-pages", packet.id] });
       void qc.invalidateQueries({ queryKey: ["mrd-case-sheet-completeness", packet.id] });
       notifications.show({
         title: "Case sheet printed",
-        message: `${packet.packet_number} marked ready for MRD filing`,
+        message: `${packet.packet_number} routed as MRD and office copies`,
         color: "success",
       });
     },
@@ -743,7 +754,7 @@ function CaseSheetsTab() {
   const reprintMut = useMutation({
     mutationFn: () =>
       mrdService.printMrdCaseSheetPacket(selectedPacket?.id ?? "", {
-        copies: 1,
+        copies: MRD_CASE_SHEET_REPRINT_COPIES.length,
         reprint_reason: reprintReason.trim(),
       }),
     onSuccess: (packet) => {
@@ -754,7 +765,7 @@ function CaseSheetsTab() {
       setReprintReason("");
       notifications.show({
         title: "Duplicate printed",
-        message: `${packet.packet_number} reprint was logged with reason`,
+        message: `${packet.packet_number} duplicate was routed to MRD record room`,
         color: "success",
       });
     },
@@ -869,13 +880,13 @@ function CaseSheetsTab() {
               </Tooltip>
             )}
             {canPrint && (packet.status === "generated" || packet.status === "draft") && (
-              <Tooltip label="Print">
+              <Tooltip label="Print MRD and office copies">
                 <ActionIcon
                   variant="light"
                   color="primary"
                   onClick={() => printMut.mutate(packet)}
                   loading={printMut.isPending}
-                  aria-label="Print case sheet"
+                  aria-label="Print MRD and office case-sheet copies"
                 >
                   <IconPrinter size={16} />
                 </ActionIcon>
@@ -965,6 +976,26 @@ function CaseSheetsTab() {
           MRD filing follows fixed case-sheet assembly, print control, and storage tracking.
         </Text>
       </Group>
+      <Card withBorder radius="sm" mb="md">
+        <Group justify="space-between" align="center">
+          <Stack gap={2}>
+            <Text size="sm" fw={600}>
+              Case-sheet print routing
+            </Text>
+            <Text size="xs" c="dimmed">
+              Initial packets create MRD and office tracking copies. Reprints are duplicate-only and
+              require an audit reason.
+            </Text>
+          </Stack>
+          <Group gap={6}>
+            {MRD_CASE_SHEET_PRINT_COPIES.map((copy) => (
+              <Badge key={copy.label} color="violet" variant="light">
+                {copy.label} · {copy.printerProfile}
+              </Badge>
+            ))}
+          </Group>
+        </Group>
+      </Card>
 
       <DataTable
         columns={columns}
@@ -1081,6 +1112,13 @@ function CaseSheetsTab() {
         size="lg"
       >
         <Stack>
+          <Group gap={6}>
+            {MRD_CASE_SHEET_REPRINT_COPIES.map((copy) => (
+              <Badge key={copy.label} color="orange" variant="light">
+                {copy.label} · {copy.printerProfile}
+              </Badge>
+            ))}
+          </Group>
           <Textarea
             label="Reprint Reason"
             description="Duplicate case-sheet prints must keep an MRD audit reason."
