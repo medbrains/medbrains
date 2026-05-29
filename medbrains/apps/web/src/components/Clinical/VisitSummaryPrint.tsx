@@ -1,4 +1,4 @@
-import { Alert, Button, Group, Modal, Stack } from "@mantine/core";
+import { Alert, Badge, Button, Group, Modal, Stack } from "@mantine/core";
 import { useHasAnyPermission, useHasPermission } from "@medbrains/stores";
 import {
   type Consultation,
@@ -11,6 +11,7 @@ import {
 } from "@medbrains/types";
 import { IconLock, IconPrinter } from "@tabler/icons-react";
 import { useRef } from "react";
+import { buildCopyPrintHtml, copyPrintStyles } from "../../utils/printCopies";
 import styles from "./visit-summary-print.module.scss";
 
 interface VisitSummaryPrintProps {
@@ -43,6 +44,12 @@ function escapePrintText(value: string) {
     return entities[char] ?? char;
   });
 }
+
+const VISIT_SUMMARY_PRINT_COPIES = [
+  { label: "Customer copy", printerProfile: "OPD summary A4" },
+  { label: "Office copy", printerProfile: "OPD A4 / office printer" },
+  { label: "MRD copy", printerProfile: "MRD record room printer" },
+] as const;
 
 export function VisitSummaryPrint({
   opened,
@@ -115,11 +122,12 @@ export function VisitSummaryPrint({
             td { padding: 4px 8px; border-bottom: 1px solid #ddd; font-size: 12px; }
             .footer { margin-top: 32px; display: flex; justify-content: space-between; align-items: flex-end; padding-top: 16px; border-top: 1px solid #ccc; }
             .signature-line { width: 200px; border-top: 1px solid #333; padding-top: 4px; font-size: 12px; color: #555; text-align: center; }
+            ${copyPrintStyles()}
             @media print { body { padding: 0; } }
           </style>
         </head>
         <body>
-          ${content.innerHTML}
+          ${buildCopyPrintHtml(content.innerHTML, VISIT_SUMMARY_PRINT_COPIES)}
           <script>window.onload = function() { window.print(); window.close(); }</script>
         </body>
       </html>
@@ -364,6 +372,16 @@ export function VisitSummaryPrint({
             </div>
           )}
         </div>
+
+        {canPrint && (
+          <Group gap={6} className={styles.noPrint}>
+            {VISIT_SUMMARY_PRINT_COPIES.map((copy) => (
+              <Badge key={copy.label} variant="light" color="violet">
+                {copy.label}
+              </Badge>
+            ))}
+          </Group>
+        )}
 
         <Group justify="flex-end" className={styles.noPrint}>
           <Button variant="subtle" onClick={onClose}>

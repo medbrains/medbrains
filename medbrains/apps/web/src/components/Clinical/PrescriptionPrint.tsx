@@ -1,8 +1,9 @@
-import { Alert, Button, Group, Modal, Stack } from "@mantine/core";
+import { Alert, Badge, Button, Group, Modal, Stack } from "@mantine/core";
 import { useHasAnyPermission, useHasPermission } from "@medbrains/stores";
 import { P, type PrescriptionWithItems } from "@medbrains/types";
 import { IconLock, IconPrinter } from "@tabler/icons-react";
 import { useRef } from "react";
+import { buildCopyPrintHtml, copyPrintStyles } from "../../utils/printCopies";
 import styles from "./prescription-print.module.scss";
 
 interface PrescriptionPrintProps {
@@ -29,6 +30,11 @@ function escapePrintText(value: string) {
     return entities[char] ?? char;
   });
 }
+
+const PRESCRIPTION_PRINT_COPIES = [
+  { label: "Customer copy", printerProfile: "OPD A4 / prescription printer" },
+  { label: "Office / pharmacy copy", printerProfile: "Pharmacy label or dispensing printer" },
+] as const;
 
 export function PrescriptionPrint({
   opened,
@@ -83,11 +89,12 @@ export function PrescriptionPrint({
             .date-section { font-size: 12px; color: #555; }
             .signature-line { width: 200px; border-top: 1px solid #333; padding-top: 4px; font-size: 12px; color: #555; text-align: center; }
             .doctor-name { font-weight: 600; font-size: 13px; color: #111; }
+            ${copyPrintStyles()}
             @media print { body { padding: 0; } }
           </style>
         </head>
         <body>
-          ${content.innerHTML}
+          ${buildCopyPrintHtml(content.innerHTML, PRESCRIPTION_PRINT_COPIES)}
           <script>window.onload = function() { window.print(); window.close(); }</script>
         </body>
       </html>
@@ -181,6 +188,16 @@ export function PrescriptionPrint({
             </div>
           )}
         </div>
+
+        {canPrint && (
+          <Group gap={6} className={styles.noPrint}>
+            {PRESCRIPTION_PRINT_COPIES.map((copy) => (
+              <Badge key={copy.label} variant="light" color="violet">
+                {copy.label}
+              </Badge>
+            ))}
+          </Group>
+        )}
 
         <Group justify="flex-end" className={styles.noPrint}>
           <Button variant="subtle" onClick={onClose}>
