@@ -2654,27 +2654,38 @@ export const api = {
         code: string;
         name: string;
         description: string | null;
+        permissions: string[];
         is_active: boolean;
       }>
     >("/access-groups"),
 
-  createAccessGroup: (data: { code: string; name: string; description?: string }) =>
+  createAccessGroup: (data: {
+    code: string;
+    name: string;
+    description?: string;
+    permissions?: string[];
+  }) =>
     request<{
       id: string;
       tenant_id: string;
       code: string;
       name: string;
       description: string | null;
+      permissions: string[];
       is_active: boolean;
     }>("/access-groups", { method: "POST", body: JSON.stringify(data) }),
 
-  updateAccessGroup: (id: string, data: { code: string; name: string; description?: string }) =>
+  updateAccessGroup: (
+    id: string,
+    data: { code: string; name: string; description?: string; permissions?: string[] },
+  ) =>
     request<{
       id: string;
       tenant_id: string;
       code: string;
       name: string;
       description: string | null;
+      permissions: string[];
       is_active: boolean;
     }>(`/access-groups/${id}`, { method: "PUT", body: JSON.stringify(data) }),
 

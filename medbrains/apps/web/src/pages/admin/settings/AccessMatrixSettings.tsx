@@ -284,6 +284,10 @@ function groupNames(groups: AccessGroupRow[]) {
   return groups.map((group) => group.name).join(", ");
 }
 
+function groupPermissionSet(groups: AccessGroupRow[]) {
+  return new Set(groups.flatMap((group) => stringArray(group.permissions)));
+}
+
 interface RoleOverlapIndex {
   permissionRoles: Map<string, CustomRole[]>;
   fieldRestrictionRoles: Map<string, CustomRole[]>;
@@ -814,6 +818,7 @@ function EffectiveUserAccessMatrix({
   const [fieldOverrides, setFieldOverrides] = useState<Record<string, FieldAccessLevel>>(() =>
     fieldAccessMap(user.access_matrix.field_access),
   );
+  const groupPermissions = useMemo(() => groupPermissionSet(userGroups), [userGroups]);
   const temporaryPermissions = useMemo(
     () => temporaryGrantPermissionSet(user.access_matrix),
     [user.access_matrix],
@@ -839,6 +844,7 @@ function EffectiveUserAccessMatrix({
 
   const grantSourceCount = (permission: string) =>
     Number(rolePermissionSet.has(permission)) +
+    Number(groupPermissions.has(permission)) +
     Number(extraPermissions.has(permission)) +
     Number(temporaryPermissions.has(permission));
 
@@ -867,32 +873,44 @@ function EffectiveUserAccessMatrix({
     () =>
       PERMISSIONS.map((permission) => {
         const roleGrant = rolePermissionSet.has(permission.code);
+        const groupGrant = groupPermissions.has(permission.code);
         const extraGrant = extraPermissions.has(permission.code);
         const temporaryGrant = temporaryPermissions.has(permission.code);
         const denied = deniedPermissions.has(permission.code);
-        const grants = Number(roleGrant) + Number(extraGrant) + Number(temporaryGrant);
+        const grants =
+          Number(roleGrant) + Number(groupGrant) + Number(extraGrant) + Number(temporaryGrant);
         return {
           denied,
           deniedOverlap: denied && grants > 0 && !bypassRole,
           duplicateGrant: grants > 1,
           effective: bypassRole || (!denied && grants > 0),
           extraGrant,
+          groupGrant,
           grants,
           permission,
           roleGrant,
           temporaryGrant,
         };
       }).filter((row) => row.duplicateGrant || row.deniedOverlap),
-    [bypassRole, deniedPermissions, extraPermissions, rolePermissionSet, temporaryPermissions],
+    [
+      bypassRole,
+      deniedPermissions,
+      extraPermissions,
+      groupPermissions,
+      rolePermissionSet,
+      temporaryPermissions,
+    ],
   );
   const redundantExtraPermissions = useMemo(
     () =>
       PERMISSIONS.filter(
         (permission) =>
           extraPermissions.has(permission.code) &&
-          (rolePermissionSet.has(permission.code) || temporaryPermissions.has(permission.code)),
+          (rolePermissionSet.has(permission.code) ||
+            groupPermissions.has(permission.code) ||
+            temporaryPermissions.has(permission.code)),
       ),
-    [extraPermissions, rolePermissionSet, temporaryPermissions],
+    [extraPermissions, groupPermissions, rolePermissionSet, temporaryPermissions],
   );
   const deniedActiveGrantPermissions = useMemo(
     () =>
@@ -900,11 +918,18 @@ function EffectiveUserAccessMatrix({
         if (!deniedPermissions.has(permission.code)) return false;
         return (
           rolePermissionSet.has(permission.code) ||
+          groupPermissions.has(permission.code) ||
           extraPermissions.has(permission.code) ||
           temporaryPermissions.has(permission.code)
         );
       }),
-    [deniedPermissions, extraPermissions, rolePermissionSet, temporaryPermissions],
+    [
+      deniedPermissions,
+      extraPermissions,
+      groupPermissions,
+      rolePermissionSet,
+      temporaryPermissions,
+    ],
   );
 
   const roleFieldRestrictionCount = Object.values(roleFieldAccess).filter(
@@ -1001,8 +1026,8 @@ function EffectiveUserAccessMatrix({
       <Alert icon={<IconUserShield size={16} />} color="blue" variant="light">
         <Text size="sm">
           Effective permissions resolve as role grants plus individual extras and active temporary
-          grants, minus individual denied permissions. Access groups are shown as resource/team
-          scope context because they do not currently add global permission codes.
+          grants, plus access-group global grants, minus individual denied permissions. Access
+          groups also remain resource/team scope through SpiceDB relationships.
         </Text>
       </Alert>
 
@@ -1063,6 +1088,11 @@ function EffectiveUserAccessMatrix({
           <Text size="xs" c="dimmed">
             {userGroups.length > 0 ? groupNames(userGroups) : "No resource groups"}
           </Text>
+          {groupPermissions.size > 0 && (
+            <Text size="xs" c="dimmed">
+              {groupPermissions.size} group permission grants
+            </Text>
+          )}
         </Card>
         <Card withBorder padding="sm">
           <Text size="xs" c="dimmed" fw={700} tt="uppercase">
@@ -1135,7 +1165,8 @@ function EffectiveUserAccessMatrix({
                 </Text>
                 {userGroups.length > 0 && (
                   <Text size="xs" c="dimmed">
-                    Group memberships are resource scope only here: {groupNames(userGroups)}.
+                    Group memberships also scope resources through SpiceDB: {groupNames(userGroups)}
+                    .
                   </Text>
                 )}
               </Stack>
@@ -1183,6 +1214,7 @@ function EffectiveUserAccessMatrix({
                   <Table.Tbody>
                     {visiblePermissions.map((permission) => {
                       const roleGrant = rolePermissionSet.has(permission.code);
+                      const groupGrant = groupPermissions.has(permission.code);
                       const extraGrant = extraPermissions.has(permission.code);
                       const temporaryGrant = temporaryPermissions.has(permission.code);
                       const denied = deniedPermissions.has(permission.code);
@@ -1213,6 +1245,13 @@ function EffectiveUserAccessMatrix({
                                   Role
                                 </Badge>
                               )}
+                              {!bypassRole && groupGrant && (
+                                <Tooltip label={groupNames(userGroups)} multiline w={280}>
+                                  <Badge color="cyan" variant="light">
+                                    Group
+                                  </Badge>
+                                </Tooltip>
+                              )}
                               {!bypassRole && extraGrant && (
                                 <Badge color="teal" variant="light">
                                   Individual
@@ -1228,7 +1267,7 @@ function EffectiveUserAccessMatrix({
                                   Denied
                                 </Badge>
                               )}
-                              {!bypassRole && userGroups.length > 0 && (
+                              {!bypassRole && userGroups.length > 0 && !groupGrant && (
                                 <Tooltip label={groupNames(userGroups)} multiline w={280}>
                                   <Badge color="cyan" variant="light">
                                     Group scope
@@ -1321,6 +1360,13 @@ function EffectiveUserAccessMatrix({
                                     Role
                                   </Badge>
                                 )}
+                                {row.groupGrant && (
+                                  <Tooltip label={groupNames(userGroups)} multiline w={280}>
+                                    <Badge color="cyan" variant="light">
+                                      Group
+                                    </Badge>
+                                  </Tooltip>
+                                )}
                                 {row.extraGrant && (
                                   <Badge color="teal" variant="light">
                                     Individual
@@ -1336,7 +1382,7 @@ function EffectiveUserAccessMatrix({
                                     Denied
                                   </Badge>
                                 )}
-                                {userGroups.length > 0 && (
+                                {userGroups.length > 0 && !row.groupGrant && (
                                   <Tooltip label={groupNames(userGroups)} multiline w={280}>
                                     <Badge color="cyan" variant="light">
                                       Group scope
@@ -2017,9 +2063,8 @@ function GroupScopeMatrix({
     <Stack gap="md">
       <Alert icon={<IconUsersGroup size={16} />} color="cyan" variant="light">
         <Text size="sm">
-          Group membership is visible here to prevent duplicate user overrides. In the current
-          backend resolver, groups scope resource relationships and do not add global permission
-          codes.
+          Group membership is visible here to prevent duplicate user overrides. Groups can grant
+          shared global permissions and still scope resource relationships through SpiceDB.
         </Text>
       </Alert>
 
@@ -2030,7 +2075,7 @@ function GroupScopeMatrix({
           </Text>
           <Text fw={700}>{groups.length}</Text>
           <Text size="xs" c="dimmed">
-            team and resource-scoped memberships
+            team permissions and resource-scoped memberships
           </Text>
         </Card>
         <Card withBorder padding="sm">
@@ -2075,6 +2120,7 @@ function GroupScopeMatrix({
               <Table.Tbody>
                 {groups.map((group) => {
                   const members = membersByGroup.get(group.id) ?? [];
+                  const permissions = stringArray(group.permissions);
                   const preview = members
                     .slice(0, 4)
                     .map((member) => member.full_name)
@@ -2100,9 +2146,31 @@ function GroupScopeMatrix({
                         </Badge>
                       </Table.Td>
                       <Table.Td>
-                        <Badge color="gray" variant="light">
-                          Resource scope only
-                        </Badge>
+                        {permissions.length > 0 ? (
+                          <Stack gap={4}>
+                            <Badge color="teal" variant="light">
+                              {permissions.length} grants
+                            </Badge>
+                            <Group gap={4}>
+                              {permissions.slice(0, 4).map((permission) => (
+                                <Tooltip key={permission} label={permissionLabel(permission)}>
+                                  <Badge color="gray" variant="light">
+                                    {permission}
+                                  </Badge>
+                                </Tooltip>
+                              ))}
+                              {permissions.length > 4 && (
+                                <Badge color="gray" variant="light">
+                                  +{permissions.length - 4}
+                                </Badge>
+                              )}
+                            </Group>
+                          </Stack>
+                        ) : (
+                          <Badge color="gray" variant="light">
+                            Resource scope only
+                          </Badge>
+                        )}
                       </Table.Td>
                       <Table.Td>
                         <Text size="sm" c={preview ? undefined : "dimmed"} lineClamp={1}>

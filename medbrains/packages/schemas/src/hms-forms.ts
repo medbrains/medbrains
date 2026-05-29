@@ -333,6 +333,7 @@ export const accessGroupFormSchema = z.object({
   code: requiredTrimmed("Group code is required", 64),
   name: requiredTrimmed("Group name is required", 255),
   description: z.string().max(1000, "Description must be at most 1000 characters"),
+  permissions: z.array(z.string()),
 });
 export type AccessGroupFormInput = z.infer<typeof accessGroupFormSchema>;
 

@@ -4996,7 +4996,20 @@ pub struct AccessGroupRow {
     pub code: String,
     pub name: String,
     pub description: Option<String>,
+    pub permissions: Value,
     pub is_active: bool,
+}
+
+fn normalized_permissions_value(permissions: Option<Vec<String>>) -> Value {
+    let mut permission_codes = permissions
+        .unwrap_or_default()
+        .into_iter()
+        .map(|permission| permission.trim().to_owned())
+        .filter(|permission| !permission.is_empty())
+        .collect::<Vec<_>>();
+    permission_codes.sort();
+    permission_codes.dedup();
+    serde_json::json!(permission_codes)
 }
 
 /// List access_groups for the current tenant. Used by the user-create
@@ -5011,7 +5024,7 @@ pub async fn list_access_groups(
         .await?;
 
     let rows = sqlx::query_as::<_, AccessGroupRow>(
-        "SELECT id, tenant_id, code, name, description, is_active \
+        "SELECT id, tenant_id, code, name, description, permissions, is_active \
          FROM access_groups WHERE tenant_id = $1 AND is_active = true ORDER BY name",
     )
     .bind(claims.tenant_id)
@@ -5027,6 +5040,7 @@ pub struct UpsertAccessGroupRequest {
     pub code: String,
     pub name: String,
     pub description: Option<String>,
+    pub permissions: Option<Vec<String>>,
 }
 
 pub async fn create_access_group(
@@ -5038,15 +5052,17 @@ pub async fn create_access_group(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+    let permissions = normalized_permissions_value(body.permissions);
     let row = sqlx::query_as::<_, AccessGroupRow>(
-        "INSERT INTO access_groups (tenant_id, code, name, description, is_active) \
-         VALUES ($1, $2, $3, $4, true) \
-         RETURNING id, tenant_id, code, name, description, is_active",
+        "INSERT INTO access_groups (tenant_id, code, name, description, permissions, is_active) \
+         VALUES ($1, $2, $3, $4, $5, true) \
+         RETURNING id, tenant_id, code, name, description, permissions, is_active",
     )
     .bind(claims.tenant_id)
     .bind(body.code.trim())
     .bind(body.name.trim())
     .bind(body.description.as_deref())
+    .bind(permissions)
     .fetch_one(&mut *tx)
     .await?;
     tx.commit().await?;
@@ -5063,18 +5079,34 @@ pub async fn update_access_group(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
+    let permissions = body
+        .permissions
+        .map(|permissions| normalized_permissions_value(Some(permissions)));
     let row = sqlx::query_as::<_, AccessGroupRow>(
-        "UPDATE access_groups SET name = $3, description = $4, updated_at = now() \
+        "UPDATE access_groups SET name = $3, description = $4, \
+             permissions = COALESCE($5::jsonb, permissions), updated_at = now() \
          WHERE id = $1 AND tenant_id = $2 \
-         RETURNING id, tenant_id, code, name, description, is_active",
+         RETURNING id, tenant_id, code, name, description, permissions, is_active",
     )
     .bind(id)
     .bind(claims.tenant_id)
     .bind(body.name.trim())
     .bind(body.description.as_deref())
+    .bind(permissions)
     .fetch_optional(&mut *tx)
     .await?
     .ok_or(AppError::NotFound)?;
+
+    sqlx::query(
+        "UPDATE users SET perm_version = perm_version + 1 \
+         WHERE tenant_id = $1 \
+           AND id IN (SELECT user_id FROM access_group_members WHERE group_id = $2)",
+    )
+    .bind(claims.tenant_id)
+    .bind(id)
+    .execute(&mut *tx)
+    .await?;
+
     tx.commit().await?;
     Ok(Json(row))
 }
@@ -5149,21 +5181,30 @@ pub async fn add_access_group_member(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
-    sqlx::query(
-        "INSERT INTO access_group_members (group_id, user_id, expires_at) \
-         VALUES ($1, $2, $3) \
+    let member_write = sqlx::query(
+        "INSERT INTO access_group_members (group_id, user_id, tenant_id, expires_at) \
+         SELECT $1, $2, $3, $4 \
+         WHERE EXISTS (SELECT 1 FROM access_groups WHERE id = $1 AND tenant_id = $3) \
+           AND EXISTS (SELECT 1 FROM users WHERE id = $2 AND tenant_id = $3) \
          ON CONFLICT (group_id, user_id) DO UPDATE SET expires_at = EXCLUDED.expires_at",
     )
     .bind(group_id)
     .bind(body.user_id)
+    .bind(claims.tenant_id)
     .bind(body.expires_at)
     .execute(&mut *tx)
     .await?;
+    if member_write.rows_affected() == 0 {
+        return Err(AppError::NotFound);
+    }
     // Bump perm_version so the user's outstanding JWT is invalidated.
-    sqlx::query("UPDATE users SET perm_version = perm_version + 1 WHERE id = $1")
-        .bind(body.user_id)
-        .execute(&mut *tx)
-        .await?;
+    sqlx::query(
+        "UPDATE users SET perm_version = perm_version + 1 WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(body.user_id)
+    .bind(claims.tenant_id)
+    .execute(&mut *tx)
+    .await?;
     tx.commit().await?;
 
     // Mirror to SpiceDB if configured. Failures are non-fatal — the
@@ -5262,15 +5303,21 @@ pub async fn remove_access_group_member(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
-    sqlx::query("DELETE FROM access_group_members WHERE group_id = $1 AND user_id = $2")
-        .bind(group_id)
-        .bind(user_id)
-        .execute(&mut *tx)
-        .await?;
-    sqlx::query("UPDATE users SET perm_version = perm_version + 1 WHERE id = $1")
-        .bind(user_id)
-        .execute(&mut *tx)
-        .await?;
+    sqlx::query(
+        "DELETE FROM access_group_members WHERE group_id = $1 AND user_id = $2 AND tenant_id = $3",
+    )
+    .bind(group_id)
+    .bind(user_id)
+    .bind(claims.tenant_id)
+    .execute(&mut *tx)
+    .await?;
+    sqlx::query(
+        "UPDATE users SET perm_version = perm_version + 1 WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(user_id)
+    .bind(claims.tenant_id)
+    .execute(&mut *tx)
+    .await?;
     tx.commit().await?;
 
     let ctx = crate::middleware::authorization::authz_context(&claims);

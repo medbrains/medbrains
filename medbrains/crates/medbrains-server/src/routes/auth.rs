@@ -790,9 +790,11 @@ pub async fn change_password(
 
 /// Resolve effective permissions for a user:
 /// 1. Start with the role's `permissions` JSONB array
-/// 2. Apply user `access_matrix` overrides:
+/// 2. Add active access-group global permission grants
+/// 3. Apply user `access_matrix` overrides:
 ///    `{ extra: [...], temporary_grants: [...], denied: [...] }`
-/// 3. effective = (`role_perms` union extra union active temporary grants) - denied
+/// 4. effective = (`role_perms` union group grants union extra union active temporary grants)
+///    - denied
 ///
 /// `super_admin` and `hospital_admin` get an empty list (they bypass checks).
 pub async fn resolve_permissions(
@@ -817,13 +819,26 @@ pub async fn resolve_permissions(
 
     let mut perms: std::collections::HashSet<String> = std::collections::HashSet::new();
 
-    // Parse role permissions (stored as JSON array of strings)
-    if let Some(serde_json::Value::Array(arr)) = role_perms_json {
-        for val in arr {
-            if let serde_json::Value::String(s) = val {
-                perms.insert(s);
-            }
-        }
+    if let Some(role_permissions) = role_perms_json {
+        insert_permissions_from_value(&mut perms, &role_permissions);
+    }
+
+    let group_permission_rows = sqlx::query_scalar::<_, serde_json::Value>(
+        "SELECT ag.permissions \
+         FROM access_group_members agm \
+         JOIN access_groups ag ON ag.id = agm.group_id AND ag.tenant_id = agm.tenant_id \
+         WHERE agm.tenant_id = $1 \
+           AND agm.user_id = $2 \
+           AND ag.is_active = true \
+           AND (agm.expires_at IS NULL OR agm.expires_at > now())",
+    )
+    .bind(tenant_id)
+    .bind(user_id)
+    .fetch_all(db)
+    .await?;
+
+    for group_permissions in group_permission_rows {
+        insert_permissions_from_value(&mut perms, &group_permissions);
     }
 
     // Get user access_matrix overrides
@@ -875,6 +890,19 @@ pub async fn resolve_permissions(
     let mut result: Vec<String> = perms.into_iter().collect();
     result.sort();
     Ok(result)
+}
+
+fn insert_permissions_from_value(
+    permissions: &mut std::collections::HashSet<String>,
+    value: &serde_json::Value,
+) {
+    if let serde_json::Value::Array(arr) = value {
+        for val in arr {
+            if let serde_json::Value::String(s) = val {
+                permissions.insert(s.clone());
+            }
+        }
+    }
 }
 
 fn temporary_grant_is_active(grant: &serde_json::Value) -> bool {

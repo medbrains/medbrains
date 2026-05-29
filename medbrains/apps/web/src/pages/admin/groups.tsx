@@ -14,6 +14,7 @@ import {
   Drawer,
   Group,
   Modal,
+  MultiSelect,
   Select,
   Stack,
   Table,
@@ -28,6 +29,7 @@ import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import type { AccessGroupFormInput, AccessGroupMemberFormInput } from "@medbrains/schemas";
 import { accessGroupFormSchema, accessGroupMemberFormSchema } from "@medbrains/schemas";
+import { P, PERMISSIONS } from "@medbrains/types";
 import { IconPencil, IconPlus, IconTrash, IconUsers } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
@@ -49,11 +51,17 @@ interface GroupRow {
   code: string;
   name: string;
   description: string | null;
+  permissions: string[];
   is_active: boolean;
 }
 
+const PERMISSION_OPTIONS = PERMISSIONS.map((permission) => ({
+  value: permission.code,
+  label: `${permission.label} (${permission.code})`,
+}));
+
 export default function GroupsPage() {
-  useRequirePermission("admin.users.list");
+  useRequirePermission(P.ADMIN.USERS.LIST);
 
   const qc = useQueryClient();
   const [editTarget, setEditTarget] = useState<GroupRow | null>(null);
@@ -92,6 +100,7 @@ export default function GroupsPage() {
             <Table.Th>Code</Table.Th>
             <Table.Th>Name</Table.Th>
             <Table.Th>Description</Table.Th>
+            <Table.Th>Permissions</Table.Th>
             <Table.Th>Status</Table.Th>
             <Table.Th>Actions</Table.Th>
           </Table.Tr>
@@ -109,6 +118,21 @@ export default function GroupsPage() {
                 <Text size="sm" c="dimmed" lineClamp={2}>
                   {g.description ?? "—"}
                 </Text>
+              </Table.Td>
+              <Table.Td>
+                <Tooltip
+                  label={
+                    g.permissions.length > 0
+                      ? g.permissions.map((permission) => permission).join(", ")
+                      : "No global permission grants"
+                  }
+                  multiline
+                  w={320}
+                >
+                  <Badge color={g.permissions.length > 0 ? "teal" : "gray"} variant="light">
+                    {g.permissions.length} grants
+                  </Badge>
+                </Tooltip>
               </Table.Td>
               <Table.Td>
                 <Badge color={g.is_active ? "green" : "gray"} variant="light">
@@ -210,7 +234,7 @@ function GroupFormModal({
       opened={opened}
       onClose={onClose}
       title={<Title order={4}>{isEdit ? "Edit access group" : "New access group"}</Title>}
-      size="md"
+      size="lg"
     >
       <Stack
         component="form"
@@ -239,6 +263,24 @@ function GroupFormModal({
           error={form.formState.errors.description?.message}
           autosize
           minRows={2}
+        />
+        <Controller
+          control={form.control}
+          name="permissions"
+          render={({ field, fieldState }) => (
+            <MultiSelect
+              label="Global permission grants"
+              description="Use these for shared team capabilities. Keep patient/object visibility in SpiceDB resource scope."
+              data={PERMISSION_OPTIONS}
+              value={field.value}
+              onChange={field.onChange}
+              error={fieldState.error?.message}
+              searchable
+              clearable
+              maxDropdownHeight={320}
+              nothingFoundMessage="No permissions found"
+            />
+          )}
         />
         <Group justify="flex-end" mt="sm">
           <Button variant="default" onClick={onClose}>

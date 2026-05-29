@@ -5,6 +5,7 @@ export const defaultAccessGroupFormValues: AccessGroupFormInput = {
   code: "",
   name: "",
   description: "",
+  permissions: [],
 };
 
 export const defaultAccessGroupMemberFormValues: AccessGroupMemberFormInput = {
@@ -16,11 +17,13 @@ export function accessGroupRowToFormValues(row: {
   code: string;
   name: string;
   description: string | null;
+  permissions?: string[];
 }): AccessGroupFormInput {
   return {
     code: row.code,
     name: row.name,
     description: row.description ?? "",
+    permissions: row.permissions ?? [],
   };
 }
 
@@ -29,6 +32,7 @@ export function accessGroupFormToRequest(values: AccessGroupFormInput) {
     code: values.code.trim(),
     name: values.name.trim(),
     description: optionalTextFromFormValue(values.description),
+    permissions: values.permissions,
   };
 }
 
