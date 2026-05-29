@@ -19,6 +19,7 @@ import {
 } from "@tabler/icons-react";
 import type { ReactNode } from "react";
 import { useNavigate } from "react-router";
+import { useClinicalEventStore } from "../clinical-event-store";
 import styles from "./patient-flow-navigator.module.scss";
 
 export type PatientFlowModule =
@@ -142,6 +143,15 @@ export function PatientFlowNavigator({
 }: PatientFlowNavigatorProps) {
   const navigate = useNavigate();
   const hasPermission = usePermissionStore((state) => state.hasPermission);
+  const recentPatientEvent = useClinicalEventStore((state) =>
+    state.recentEvents.find(
+      (event) =>
+        event.patientId === patientId ||
+        (activeAdmissionId && event.admissionId === activeAdmissionId) ||
+        (activeEncounterId && event.encounterId === activeEncounterId) ||
+        (activeEmergencyVisitId && event.sourceRecordId === activeEmergencyVisitId),
+    ),
+  );
 
   if (!patientId) return null;
 
@@ -322,8 +332,10 @@ export function PatientFlowNavigator({
             Patient Flow
           </Text>
         </Group>
-        <Badge size="xs" color="blue" variant="light">
-          event activated
+        <Badge size="xs" color={recentPatientEvent ? "green" : "blue"} variant="light">
+          {recentPatientEvent
+            ? `last ${eventLabel(recentPatientEvent.eventName ?? recentPatientEvent.rawTrigger)}`
+            : "event activated"}
         </Badge>
       </Group>
       <Group gap="xs" wrap="wrap">
