@@ -1,14 +1,35 @@
+import { useAuthStore } from "@medbrains/stores";
+import type { QueueEntry } from "@medbrains/types";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMemo } from "react";
 import { ScrollView, StyleSheet, TouchableOpacity, View } from "react-native";
-import { Avatar, Badge, Card, Chip, FAB, Surface, Text, useTheme } from "react-native-paper";
+import {
+  ActivityIndicator,
+  Avatar,
+  Badge,
+  Chip,
+  FAB,
+  Surface,
+  Text,
+  useTheme,
+} from "react-native-paper";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { QueueItem } from "../../components";
+import { queueService } from "../../services/queue.service";
 
-interface QueuePatient {
-  id: string;
-  token_number: number;
-  patient_name: string;
-  uhid: string;
-  status: "waiting" | "called" | "in_consultation";
-  wait_time_minutes: number;
+type MobileQueueStatus = "waiting" | "called" | "in_consultation" | "completed" | "no_show";
+type StaffDashboardRoute =
+  | "PatientSearch"
+  | "Queue"
+  | "Vitals"
+  | "Prescription"
+  | "LabResultsView"
+  | "PatientDetail";
+
+interface StaffDashboardProps {
+  navigation: {
+    navigate: (screen: StaffDashboardRoute, params?: Record<string, unknown>) => void;
+  };
 }
 
 interface StatCard {
@@ -17,16 +38,7 @@ interface StatCard {
   value: number;
   icon: string;
   color: string;
-  trend?: "up" | "down";
-  trendValue?: string;
 }
-
-const TODAY_STATS: StatCard[] = [
-  { id: "patients", label: "Patients Today", value: 45, icon: "account-group", color: "#0F766E" },
-  { id: "waiting", label: "Waiting", value: 8, icon: "clock-outline", color: "#fab005" },
-  { id: "completed", label: "Completed", value: 37, icon: "check-circle", color: "#10b981" },
-  { id: "pending", label: "Pending Results", value: 12, icon: "flask", color: "#B8924A" },
-];
 
 function StatCardItem({ stat }: { stat: StatCard }) {
   return (
@@ -49,103 +61,146 @@ function StatCardItem({ stat }: { stat: StatCard }) {
   );
 }
 
-function QueueItem({ patient, onCall }: { patient: QueuePatient; onCall: () => void }) {
-  const isWaiting = patient.status === "waiting";
-  const statusColor =
-    patient.status === "in_consultation"
-      ? "#10b981"
-      : patient.status === "called"
-        ? "#0F766E"
-        : "#868e96";
-
-  return (
-    <Card style={styles.queueCard}>
-      <Card.Content style={styles.queueContent}>
-        <View style={styles.tokenBadge}>
-          <Text style={styles.tokenNumber}>{patient.token_number}</Text>
-        </View>
-        <View style={styles.patientInfo}>
-          <Text variant="titleMedium">{patient.patient_name}</Text>
-          <Text variant="bodySmall" style={styles.uhidText}>
-            {patient.uhid}
-          </Text>
-          <View style={styles.queueMeta}>
-            <Chip
-              compact
-              mode="flat"
-              style={[styles.statusChip, { backgroundColor: `${statusColor}20` }]}
-              textStyle={{ color: statusColor }}
-            >
-              {patient.status.replace("_", " ")}
-            </Chip>
-            {isWaiting && (
-              <Text variant="labelSmall" style={styles.waitTime}>
-                {patient.wait_time_minutes} min wait
-              </Text>
-            )}
-          </View>
-        </View>
-        {isWaiting && (
-          <TouchableOpacity style={styles.callButton} onPress={onCall}>
-            <Avatar.Icon size={40} icon="phone" />
-          </TouchableOpacity>
-        )}
-      </Card.Content>
-    </Card>
-  );
+function toMobileQueueStatus(status: string): MobileQueueStatus {
+  switch (status) {
+    case "waiting":
+    case "called":
+    case "in_consultation":
+    case "completed":
+    case "no_show":
+      return status;
+    default:
+      return "waiting";
+  }
 }
 
-export function StaffDashboard() {
-  const theme = useTheme();
+function elapsedMinutesSince(timestamp: string | null | undefined): number | undefined {
+  if (!timestamp) return undefined;
+  const elapsed = Date.now() - new Date(timestamp).getTime();
+  if (!Number.isFinite(elapsed)) return undefined;
+  return Math.max(0, Math.floor(elapsed / 60000));
+}
 
-  // Mock data
-  const staffName = "Dr. Sarah Smith";
-  const department = "Cardiology";
-  const queuePatients: QueuePatient[] = [
+function formatRole(role: string | undefined): string {
+  if (!role) return "Staff";
+  return role
+    .split("_")
+    .filter(Boolean)
+    .map((part) => `${part.charAt(0).toUpperCase()}${part.slice(1)}`)
+    .join(" ");
+}
+
+function getInitials(name: string): string {
+  const initials = name
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part.charAt(0).toUpperCase())
+    .join("");
+  return initials || "ST";
+}
+
+function queueItemView(item: QueueEntry) {
+  return {
+    id: item.id,
+    token_number: item.token_number,
+    patient_name: item.patient_name ?? "Unknown patient",
+    uhid: item.uhid ?? "No UHID",
+    status: toMobileQueueStatus(item.status),
+    wait_time_minutes: elapsedMinutesSince(item.queue_date),
+  };
+}
+
+export function StaffDashboard({ navigation }: StaffDashboardProps) {
+  const theme = useTheme();
+  const queryClient = useQueryClient();
+  const user = useAuthStore((state) => state.user);
+
+  const { data, isError, isFetching, isLoading, refetch } = useQuery({
+    queryKey: ["queue", "staff-dashboard"],
+    queryFn: () => queueService.listQueue({}),
+    refetchInterval: 30000,
+  });
+
+  const callMutation = useMutation({
+    mutationFn: queueService.callQueueEntry,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["queue"] }),
+  });
+
+  const startMutation = useMutation({
+    mutationFn: queueService.startConsultation,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["queue"] }),
+  });
+
+  const completeMutation = useMutation({
+    mutationFn: queueService.completeQueueEntry,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["queue"] }),
+  });
+
+  const noShowMutation = useMutation({
+    mutationFn: queueService.markNoShow,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["queue"] }),
+  });
+
+  const queueItems = data ?? [];
+  const stats = useMemo(() => {
+    const waiting = queueItems.filter((item) => item.status === "waiting").length;
+    const called = queueItems.filter((item) => item.status === "called").length;
+    const inProgress = queueItems.filter((item) => item.status === "in_consultation").length;
+    const completed = queueItems.filter((item) => item.status === "completed").length;
+
+    return {
+      active: called + inProgress,
+      called,
+      completed,
+      total: queueItems.length,
+      waiting,
+    };
+  }, [queueItems]);
+
+  const todayStats: StatCard[] = [
     {
-      id: "1",
-      token_number: 23,
-      patient_name: "John Doe",
-      uhid: "UHID001",
-      status: "in_consultation",
-      wait_time_minutes: 0,
+      id: "patients",
+      label: "Tokens Today",
+      value: stats.total,
+      icon: "account-group",
+      color: "#0F766E",
     },
     {
-      id: "2",
-      token_number: 24,
-      patient_name: "Jane Smith",
-      uhid: "UHID002",
-      status: "called",
-      wait_time_minutes: 5,
+      id: "waiting",
+      label: "Waiting",
+      value: stats.waiting,
+      icon: "clock-outline",
+      color: "#fab005",
     },
+    { id: "active", label: "Active", value: stats.active, icon: "account-clock", color: "#2F80ED" },
     {
-      id: "3",
-      token_number: 25,
-      patient_name: "Robert Brown",
-      uhid: "UHID003",
-      status: "waiting",
-      wait_time_minutes: 15,
-    },
-    {
-      id: "4",
-      token_number: 26,
-      patient_name: "Emily Davis",
-      uhid: "UHID004",
-      status: "waiting",
-      wait_time_minutes: 22,
+      id: "completed",
+      label: "Completed",
+      value: stats.completed,
+      icon: "check-circle",
+      color: "#10b981",
     },
   ];
 
-  const handleCallPatient = (_patientId: string) => {
-    // TODO: Implement call patient logic
+  const activeQueueItems = queueItems
+    .filter((item) => ["waiting", "called", "in_consultation"].includes(item.status))
+    .slice(0, 6);
+
+  const staffName = user?.full_name ?? user?.username ?? "Staff";
+  const roleLabel = formatRole(user?.role);
+
+  const handleStartConsultation = (item: QueueEntry) => {
+    startMutation.mutate(item.id, {
+      onSuccess: () => navigation.navigate("PatientDetail", { patientId: item.patient_id }),
+    });
   };
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        {/* Header */}
         <View style={styles.header}>
-          <View style={styles.headerLeft}>
+          <View>
             <Text variant="titleLarge" style={styles.greeting}>
               Good Morning,
             </Text>
@@ -153,62 +208,116 @@ export function StaffDashboard() {
               {staffName}
             </Text>
             <Chip compact icon="hospital-building" style={styles.deptChip}>
-              {department}
+              {roleLabel}
             </Chip>
           </View>
-          <Avatar.Text size={56} label="SS" />
+          <Avatar.Text size={56} label={getInitials(staffName)} />
         </View>
 
-        {/* Today's Stats */}
-        <Text variant="titleMedium" style={styles.sectionTitle}>
-          Today's Overview
-        </Text>
+        <View style={styles.sectionHeader}>
+          <Text variant="titleMedium">Today's Overview</Text>
+          {isFetching && <ActivityIndicator size="small" />}
+        </View>
         <View style={styles.statsGrid}>
-          {TODAY_STATS.map((stat) => (
+          {todayStats.map((stat) => (
             <StatCardItem key={stat.id} stat={stat} />
           ))}
         </View>
 
-        {/* Current Queue */}
         <View style={styles.sectionHeader}>
           <Text variant="titleMedium">Current Queue</Text>
-          <Badge size={24}>{queuePatients.filter((p) => p.status === "waiting").length}</Badge>
-        </View>
-        <View style={styles.queueList}>
-          {queuePatients.map((patient) => (
-            <QueueItem
-              key={patient.id}
-              patient={patient}
-              onCall={() => handleCallPatient(patient.id)}
-            />
-          ))}
+          <Badge size={24}>{stats.waiting}</Badge>
         </View>
 
-        {/* Quick Actions */}
+        {isLoading ? (
+          <Surface style={styles.statePanel} elevation={1}>
+            <ActivityIndicator size="large" />
+            <Text variant="bodyMedium" style={styles.stateText}>
+              Loading live queue...
+            </Text>
+          </Surface>
+        ) : isError ? (
+          <Surface style={styles.statePanel} elevation={1}>
+            <Avatar.Icon size={48} icon="wifi-alert" style={styles.stateIcon} />
+            <Text variant="titleSmall">Queue unavailable</Text>
+            <Text variant="bodySmall" style={styles.stateText}>
+              Pull from the queue screen or retry when network is stable.
+            </Text>
+            <TouchableOpacity style={styles.retryButton} onPress={() => void refetch()}>
+              <Text variant="labelLarge" style={styles.retryText}>
+                Retry
+              </Text>
+            </TouchableOpacity>
+          </Surface>
+        ) : activeQueueItems.length > 0 ? (
+          <View style={styles.queueList}>
+            {activeQueueItems.map((item) => (
+              <QueueItem
+                key={item.id}
+                item={queueItemView(item)}
+                onCall={() => callMutation.mutate(item.id)}
+                onStart={() => handleStartConsultation(item)}
+                onComplete={() => completeMutation.mutate(item.id)}
+                onNoShow={() => noShowMutation.mutate(item.id)}
+                compact
+              />
+            ))}
+          </View>
+        ) : (
+          <Surface style={styles.statePanel} elevation={1}>
+            <Avatar.Icon size={48} icon="clipboard-check-outline" style={styles.stateIcon} />
+            <Text variant="titleSmall">No active queue tokens</Text>
+            <Text variant="bodySmall" style={styles.stateText}>
+              Checked-in patients will appear here from the shared OPD queue.
+            </Text>
+          </Surface>
+        )}
+
         <Text variant="titleMedium" style={styles.sectionTitle}>
           Quick Actions
         </Text>
         <View style={styles.quickActions}>
-          <TouchableOpacity style={styles.quickAction}>
+          <TouchableOpacity style={styles.quickAction} onPress={() => navigation.navigate("Queue")}>
+            <Avatar.Icon size={40} icon="clipboard-list" />
+            <Text variant="labelMedium">Full Queue</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.quickAction}
+            onPress={() => navigation.navigate("PatientSearch")}
+          >
             <Avatar.Icon size={40} icon="account-search" />
             <Text variant="labelMedium">Find Patient</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.quickAction}>
-            <Avatar.Icon size={40} icon="clipboard-plus" />
-            <Text variant="labelMedium">New Order</Text>
+          <TouchableOpacity
+            style={styles.quickAction}
+            onPress={() => navigation.navigate("Vitals")}
+          >
+            <Avatar.Icon size={40} icon="heart-pulse" />
+            <Text variant="labelMedium">Vitals</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.quickAction}>
+          <TouchableOpacity
+            style={styles.quickAction}
+            onPress={() => navigation.navigate("Prescription")}
+          >
             <Avatar.Icon size={40} icon="file-document-edit" />
             <Text variant="labelMedium">Write Rx</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.quickAction}>
+          <TouchableOpacity
+            style={styles.quickAction}
+            onPress={() => navigation.navigate("LabResultsView")}
+          >
             <Avatar.Icon size={40} icon="flask" />
             <Text variant="labelMedium">Lab Results</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
 
-      <FAB icon="plus" style={styles.fab} onPress={() => {}} label="Register" />
+      <FAB
+        icon="account-search"
+        style={styles.fab}
+        onPress={() => navigation.navigate("PatientSearch")}
+        label="Find"
+      />
     </SafeAreaView>
   );
 }
@@ -227,7 +336,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 24,
   },
-  headerLeft: {},
   greeting: {
     opacity: 0.6,
   },
@@ -275,56 +383,38 @@ const styles = StyleSheet.create({
   queueList: {
     gap: 12,
   },
-  queueCard: {
+  statePanel: {
+    alignItems: "center",
     borderRadius: 12,
-  },
-  queueContent: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 16,
-  },
-  tokenBadge: {
-    backgroundColor: "#0F766E",
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  tokenNumber: {
-    color: "#ffffff",
-    fontSize: 18,
-    fontWeight: "bold",
-  },
-  patientInfo: {
-    flex: 1,
-  },
-  uhidText: {
-    opacity: 0.5,
-    marginTop: 2,
-  },
-  queueMeta: {
-    flexDirection: "row",
-    alignItems: "center",
     gap: 8,
-    marginTop: 8,
+    padding: 20,
   },
-  statusChip: {
-    height: 24,
+  stateIcon: {
+    backgroundColor: "#e6fcf5",
   },
-  waitTime: {
-    opacity: 0.6,
+  stateText: {
+    opacity: 0.65,
+    textAlign: "center",
   },
-  callButton: {
-    opacity: 0.8,
+  retryButton: {
+    backgroundColor: "#0F766E",
+    borderRadius: 8,
+    marginTop: 4,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  retryText: {
+    color: "#ffffff",
   },
   quickActions: {
     flexDirection: "row",
-    justifyContent: "space-between",
+    flexWrap: "wrap",
     gap: 12,
   },
   quickAction: {
-    flex: 1,
+    flexGrow: 1,
+    minWidth: 96,
+    width: "30%",
     alignItems: "center",
     gap: 8,
     padding: 16,

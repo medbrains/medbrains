@@ -1,5 +1,5 @@
 import { StyleSheet, View } from "react-native";
-import { Avatar, Button, Card, Chip, Text } from "react-native-paper";
+import { Button, Card, Chip, IconButton, Text } from "react-native-paper";
 
 type QueueStatus = "waiting" | "called" | "in_consultation" | "completed" | "no_show";
 
@@ -119,7 +119,14 @@ export function QueueItem({
           )}
 
           {(isWaiting || isCalled) && onNoShow && (
-            <Avatar.Icon size={32} icon="account-off" style={styles.noShowIcon} color="#C8102E" />
+            <IconButton
+              icon="account-off"
+              iconColor="#C8102E"
+              mode="contained-tonal"
+              size={18}
+              onPress={onNoShow}
+              style={styles.noShowIcon}
+            />
           )}
         </View>
       </Card.Content>
