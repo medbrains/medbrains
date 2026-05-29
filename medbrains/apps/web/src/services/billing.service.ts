@@ -5,6 +5,8 @@ export const billingService = {
   cloneInvoice: (...args: Parameters<typeof api.cloneInvoice>) => api.cloneInvoice(...args),
   createInvoice: (...args: Parameters<typeof api.createInvoice>) => api.createInvoice(...args),
   getInvoice: (...args: Parameters<typeof api.getInvoice>) => api.getInvoice(...args),
+  getInvoicePrintData: (...args: Parameters<typeof api.getInvoicePrintData>) =>
+    api.getInvoicePrintData(...args),
   issueInvoice: (...args: Parameters<typeof api.issueInvoice>) => api.issueInvoice(...args),
   cancelInvoice: (...args: Parameters<typeof api.cancelInvoice>) => api.cancelInvoice(...args),
   addInvoiceItem: (...args: Parameters<typeof api.addInvoiceItem>) => api.addInvoiceItem(...args),

@@ -135,10 +135,12 @@ import type {
   Invoice,
   InvoiceDetailResponse,
   InvoiceDiscount,
+  InvoicePrintData,
   JournalEntry,
   PatientAdvance,
   ProfitLossDeptRow,
   RatePlan,
+  ReceiptPrintData,
   RecordPaymentRequest,
   Refund,
   RefundAdvanceRequest,
@@ -169,6 +171,7 @@ import {
   IconPackage,
   IconPencil,
   IconPlus,
+  IconPrinter,
   IconReceipt,
   IconRefresh,
   IconReportMoney,
@@ -225,6 +228,7 @@ import {
 } from "../forms/billing.form";
 import { useRequirePermission } from "../hooks/useRequirePermission";
 import { billingService } from "../services/billing.service";
+import { buildCopyPrintHtml, copyPrintStyles } from "../utils/printCopies";
 
 const statusColors: Record<string, string> = {
   draft: "slate",
@@ -282,6 +286,176 @@ function money(value: number | string | null | undefined): string {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
+}
+
+function escapeBillingPrintText(value: unknown): string {
+  return String(value ?? "").replace(/[&<>"']/g, (char) => {
+    const entities: Record<string, string> = {
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      '"': "&quot;",
+      "'": "&#39;",
+    };
+    return entities[char] ?? char;
+  });
+}
+
+function billingPrintDate(value: string | null | undefined): string {
+  if (!value) return "—";
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? value : parsed.toLocaleString("en-IN");
+}
+
+const BILLING_INVOICE_PRINT_COPIES = [
+  { label: "Customer copy", printerProfile: "Billing A4 / receipt counter" },
+  { label: "Office copy", printerProfile: "Billing A4 / accounts printer" },
+] as const;
+
+const BILLING_RECEIPT_PRINT_COPIES = [
+  { label: "Customer copy", printerProfile: "Billing receipt 80mm" },
+  { label: "Office copy", printerProfile: "Billing A4 / accounts printer" },
+] as const;
+
+function printInvoicePacket(data: InvoicePrintData) {
+  const rows = data.items
+    .map(
+      (item) => `
+        <tr>
+          <td>${escapeBillingPrintText(item.description)}</td>
+          <td>${escapeBillingPrintText(item.quantity)}</td>
+          <td>₹${money(item.unit_price)}</td>
+          <td>${escapeBillingPrintText(item.tax_percent)}%</td>
+          <td>₹${money(item.total_price)}</td>
+        </tr>`,
+    )
+    .join("");
+  const hsnRows = data.hsn_summary
+    .map(
+      (row) => `
+        <tr>
+          <td>${escapeBillingPrintText(row.hsn_code)}</td>
+          <td>₹${money(row.taxable_amount)}</td>
+          <td>₹${money(row.cgst_amount)}</td>
+          <td>₹${money(row.sgst_amount)}</td>
+          <td>₹${money(row.igst_amount)}</td>
+          <td>₹${money(row.total_tax)}</td>
+        </tr>`,
+    )
+    .join("");
+  const content = `
+    <section class="billing-print">
+      <header>
+        <div>
+          <h1>${escapeBillingPrintText(data.hospital_name ?? "Hospital Invoice")}</h1>
+          <div>${escapeBillingPrintText(data.hospital_address)}</div>
+          <div>${data.hospital_gstin ? `GSTIN ${escapeBillingPrintText(data.hospital_gstin)}` : ""}</div>
+        </div>
+        <div class="doc-number">
+          <strong>${escapeBillingPrintText(data.invoice.invoice_number)}</strong><br />
+          ${billingPrintDate(data.invoice.created_at)}
+        </div>
+      </header>
+      <section class="patient">
+        <strong>Patient:</strong> ${escapeBillingPrintText(data.patient_name ?? data.invoice.patient_id)}<br />
+        ${escapeBillingPrintText(data.patient_address)}
+      </section>
+      <table>
+        <thead>
+          <tr><th>Item</th><th>Qty</th><th>Rate</th><th>Tax</th><th>Total</th></tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+      ${
+        hsnRows
+          ? `<table class="hsn"><thead><tr><th>HSN</th><th>Taxable</th><th>CGST</th><th>SGST</th><th>IGST</th><th>Total tax</th></tr></thead><tbody>${hsnRows}</tbody></table>`
+          : ""
+      }
+      <div class="totals">
+        Subtotal: ₹${money(data.invoice.subtotal)}<br />
+        Tax: ₹${money(data.invoice.tax_amount)}<br />
+        Paid: ₹${money(data.invoice.paid_amount)}<br />
+        <strong>Total: ₹${money(data.invoice.total_amount)}</strong>
+      </div>
+    </section>
+  `;
+  const printWindow = window.open("", "_blank", "width=800,height=900");
+  if (!printWindow) return;
+  printWindow.document.write(`
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <title>Invoice ${escapeBillingPrintText(data.invoice.invoice_number)}</title>
+        <style>
+          * { box-sizing: border-box; }
+          body { font-family: Arial, sans-serif; padding: 24px; color: #101918; font-size: 13px; }
+          header { display: flex; justify-content: space-between; gap: 24px; margin-bottom: 24px; }
+          h1 { font-size: 20px; margin: 0 0 6px; }
+          .doc-number { text-align: right; }
+          .patient { border: 1px solid #d8e0de; padding: 10px 12px; margin-bottom: 16px; }
+          table { width: 100%; border-collapse: collapse; margin-top: 16px; }
+          th, td { border-bottom: 1px solid #d8e0de; padding: 8px; text-align: left; }
+          th { background: #eef5f3; }
+          .hsn { font-size: 11px; }
+          .totals { margin-top: 18px; text-align: right; line-height: 1.8; }
+          ${copyPrintStyles()}
+          @media print { body { padding: 0; } }
+        </style>
+      </head>
+      <body>
+        ${buildCopyPrintHtml(content, BILLING_INVOICE_PRINT_COPIES)}
+        <script>window.onload = function() { window.print(); window.close(); }</script>
+      </body>
+    </html>
+  `);
+  printWindow.document.close();
+}
+
+function printReceiptPacket(data: ReceiptPrintData) {
+  const content = `
+    <section class="receipt-print">
+      <h1>${escapeBillingPrintText(data.hospital_name ?? "Payment Receipt")}</h1>
+      <div class="number">${escapeBillingPrintText(data.receipt_number ?? data.document_number)}</div>
+      <dl>
+        <dt>Patient</dt><dd>${escapeBillingPrintText(data.patient_name)} (${escapeBillingPrintText(data.uhid)})</dd>
+        <dt>Invoice</dt><dd>${escapeBillingPrintText(data.invoice_number)}</dd>
+        <dt>Amount</dt><dd>₹${money(data.amount)}</dd>
+        <dt>Mode</dt><dd>${escapeBillingPrintText(data.payment_mode)}</dd>
+        <dt>Reference</dt><dd>${escapeBillingPrintText(data.reference_number ?? "—")}</dd>
+        <dt>Paid at</dt><dd>${billingPrintDate(data.paid_at)}</dd>
+        <dt>Received by</dt><dd>${escapeBillingPrintText(data.received_by ?? "—")}</dd>
+      </dl>
+      ${data.is_reprint ? `<div class="duplicate">Duplicate / reprint</div>` : ""}
+    </section>
+  `;
+  const printWindow = window.open("", "_blank", "width=480,height=700");
+  if (!printWindow) return;
+  printWindow.document.write(`
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <title>Receipt ${escapeBillingPrintText(data.receipt_number ?? data.document_number)}</title>
+        <style>
+          * { box-sizing: border-box; }
+          body { font-family: Arial, sans-serif; padding: 16px; color: #101918; font-size: 12px; }
+          .receipt-print { border: 1px solid #d8e0de; padding: 14px; }
+          h1 { font-size: 16px; margin: 0 0 6px; text-align: center; }
+          .number { text-align: center; font-weight: 700; margin-bottom: 12px; }
+          dl { display: grid; grid-template-columns: 90px 1fr; gap: 6px 10px; margin: 0; }
+          dt { color: #53615f; font-weight: 700; }
+          dd { margin: 0; }
+          .duplicate { margin-top: 12px; color: #b45309; font-weight: 700; text-align: center; }
+          ${copyPrintStyles()}
+          @media print { body { padding: 0; } }
+        </style>
+      </head>
+      <body>
+        ${buildCopyPrintHtml(content, BILLING_RECEIPT_PRINT_COPIES)}
+        <script>window.onload = function() { window.print(); window.close(); }</script>
+      </body>
+    </html>
+  `);
+  printWindow.document.close();
 }
 
 function invoiceBalance(invoice: Invoice): number {
@@ -891,6 +1065,7 @@ function InvoiceDetail({
 }) {
   const emit = useClinicalEmit();
   const queryClient = useQueryClient();
+  const canPrintBillingDocs = useHasPermission(P.BILLING.RECEIPTS_PRINT);
   const [showAddItem, setShowAddItem] = useState(false);
   const [showPayment, setShowPayment] = useState(false);
   const [showGateway, setShowGateway] = useState(false);
@@ -964,6 +1139,20 @@ function InvoiceDetail({
       void queryClient.invalidateQueries({ queryKey: ["invoice-detail", invoiceId] }),
   });
 
+  const invoicePrintMutation = useMutation({
+    mutationFn: () => billingService.getInvoicePrintData(invoiceId),
+    onSuccess: (printData) => {
+      printInvoicePacket(printData);
+    },
+    onError: (error) => {
+      notifications.show({
+        title: "Invoice print failed",
+        message: error instanceof Error ? error.message : "Unable to prepare invoice packet",
+        color: "danger",
+      });
+    },
+  });
+
   const addItemMutation = useMutation({
     mutationFn: (item: AddInvoiceItemRequest) => billingService.addInvoiceItem(invoiceId, item),
     onSuccess: () => {
@@ -1021,12 +1210,25 @@ function InvoiceDetail({
   });
 
   const receiptMutation = useMutation({
-    mutationFn: (paymentId: string) => billingService.generateReceipt(invoiceId, paymentId),
-    onSuccess: () => {
+    mutationFn: async (paymentId: string) => {
+      const receipt = await billingService.generateReceipt(invoiceId, paymentId);
+      const printData = await billingService.getReceiptPrintData(paymentId);
+      return { printData, receipt };
+    },
+    onSuccess: ({ printData }) => {
+      printReceiptPacket(printData);
+      void queryClient.invalidateQueries({ queryKey: ["invoice-detail", invoiceId] });
       notifications.show({
         title: "Receipt generated",
-        message: "Receipt created successfully",
+        message: "Customer and office copies are ready to print",
         color: "success",
+      });
+    },
+    onError: (error) => {
+      notifications.show({
+        title: "Receipt print failed",
+        message: error instanceof Error ? error.message : "Unable to prepare receipt packet",
+        color: "danger",
       });
     },
   });
@@ -1107,6 +1309,34 @@ function InvoiceDetail({
           Balance: ₹{money(balance)}
         </Text>
       </Group>
+      {canPrintBillingDocs && (
+        <Group gap="xs">
+          <Tooltip
+            label={
+              inv.status === "draft"
+                ? "Issue the invoice before printing"
+                : "Customer and office copies"
+            }
+          >
+            <Button
+              size="xs"
+              variant="light"
+              leftSection={<IconPrinter size={14} />}
+              loading={invoicePrintMutation.isPending}
+              disabled={inv.status === "draft"}
+              onClick={() => invoicePrintMutation.mutate()}
+            >
+              Print invoice packet
+            </Button>
+          </Tooltip>
+          <Badge color="violet" variant="light">
+            Customer copy
+          </Badge>
+          <Badge color="violet" variant="light">
+            Office copy
+          </Badge>
+        </Group>
+      )}
       <PatientContextBanner patientId={inv.patient_id} hideLoadingState />
       <PatientFlowNavigator
         patientId={inv.patient_id}
@@ -1328,6 +1558,7 @@ function InvoiceDetail({
             <Table.Th>Mode</Table.Th>
             <Table.Th>Reference</Table.Th>
             <Table.Th>Date</Table.Th>
+            {canPrintBillingDocs && <Table.Th />}
           </Table.Tr>
         </Table.Thead>
         <Table.Tbody>
@@ -1337,17 +1568,20 @@ function InvoiceDetail({
               <Table.Td>{p.mode}</Table.Td>
               <Table.Td>{p.reference_number ?? "—"}</Table.Td>
               <Table.Td>{new Date(p.created_at).toLocaleString()}</Table.Td>
-              <Table.Td>
-                <Tooltip label="Generate Receipt">
-                  <ActionIcon
-                    variant="subtle"
-                    size="sm"
-                    onClick={() => receiptMutation.mutate(p.id)}
-                  >
-                    <IconReceipt size={14} />
-                  </ActionIcon>
-                </Tooltip>
-              </Table.Td>
+              {canPrintBillingDocs && (
+                <Table.Td>
+                  <Tooltip label="Generate + print receipt packet">
+                    <ActionIcon
+                      variant="subtle"
+                      size="sm"
+                      loading={receiptMutation.isPending}
+                      onClick={() => receiptMutation.mutate(p.id)}
+                    >
+                      <IconReceipt size={14} />
+                    </ActionIcon>
+                  </Tooltip>
+                </Table.Td>
+              )}
             </Table.Tr>
           ))}
         </Table.Tbody>
