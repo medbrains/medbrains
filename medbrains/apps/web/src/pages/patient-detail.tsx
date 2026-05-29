@@ -112,7 +112,7 @@ import {
 import { useHashTabs } from "../hooks/useHashTabs";
 import { useRequirePermission } from "../hooks/useRequirePermission";
 import { patientDetailService } from "../services/patientDetail.service";
-import { buildCopyPrintHtml, copyPrintStyles, type PrintCopyRoute } from "../utils/printCopies";
+import { buildCopyPrintHtml, copyPrintStyles, PRINT_COPY_PACKETS } from "../utils/printCopies";
 
 // ── Helpers ────────────────────────────────────────────────
 
@@ -149,10 +149,7 @@ const PATIENT_DETAIL_TAB_VALUES = [
   "merge",
 ] as const;
 
-const PATIENT_CARD_PRINT_COPIES = [
-  { label: "Customer patient card copy", printerProfile: "patient-card" },
-  { label: "Office registration copy", printerProfile: "registration-a4" },
-] as const satisfies readonly PrintCopyRoute[];
+const PATIENT_CARD_PRINT_COPIES = PRINT_COPY_PACKETS.patientCard;
 
 const INVOICE_STATUS_COLORS: Record<string, string> = {
   draft: "gray",

@@ -415,7 +415,7 @@ export const ACCESS_MATRIX_SURFACES: readonly AccessMatrixSurface[] = [
     activatesAfter: ["opd.encounter.created"],
     platforms: ["web", "mobile"],
     printArtifacts: ["OPD prescription", "OPD consultation summary", "Follow-up reminder slip"],
-    printCopies: ["customer", "clinical", "pharmacy"],
+    printCopies: ["customer", "office", "clinical", "mrd", "pharmacy"],
     printerProfiles: ["opd-a4", "opd-summary"],
     requiresPrinter: true,
     standardRefs: ["NABH COP OPD record", "IPSG patient identification"],

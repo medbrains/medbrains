@@ -228,7 +228,7 @@ import {
 } from "../forms/billing.form";
 import { useRequirePermission } from "../hooks/useRequirePermission";
 import { billingService } from "../services/billing.service";
-import { buildCopyPrintHtml, copyPrintStyles } from "../utils/printCopies";
+import { buildCopyPrintHtml, copyPrintStyles, PRINT_COPY_PACKETS } from "../utils/printCopies";
 
 const statusColors: Record<string, string> = {
   draft: "slate",
@@ -307,15 +307,8 @@ function billingPrintDate(value: string | null | undefined): string {
   return Number.isNaN(parsed.getTime()) ? value : parsed.toLocaleString("en-IN");
 }
 
-const BILLING_INVOICE_PRINT_COPIES = [
-  { label: "Customer copy", printerProfile: "Billing A4 / receipt counter" },
-  { label: "Office copy", printerProfile: "Billing A4 / accounts printer" },
-] as const;
-
-const BILLING_RECEIPT_PRINT_COPIES = [
-  { label: "Customer copy", printerProfile: "Billing receipt 80mm" },
-  { label: "Office copy", printerProfile: "Billing A4 / accounts printer" },
-] as const;
+const BILLING_INVOICE_PRINT_COPIES = PRINT_COPY_PACKETS.billingInvoice;
+const BILLING_RECEIPT_PRINT_COPIES = PRINT_COPY_PACKETS.billingReceipt;
 
 function printInvoicePacket(data: InvoicePrintData) {
   const rows = data.items
@@ -1329,12 +1322,11 @@ function InvoiceDetail({
               Print invoice packet
             </Button>
           </Tooltip>
-          <Badge color="violet" variant="light">
-            Customer copy
-          </Badge>
-          <Badge color="violet" variant="light">
-            Office copy
-          </Badge>
+          {BILLING_INVOICE_PRINT_COPIES.map((copy) => (
+            <Badge key={copy.label} color="violet" variant="light">
+              {copy.label} · {copy.printerProfile}
+            </Badge>
+          ))}
         </Group>
       )}
       <PatientContextBanner patientId={inv.patient_id} hideLoadingState />

@@ -3,7 +3,7 @@ import { useHasAnyPermission, useHasPermission } from "@medbrains/stores";
 import { P, type PrescriptionWithItems } from "@medbrains/types";
 import { IconLock, IconPrinter } from "@tabler/icons-react";
 import { useRef } from "react";
-import { buildCopyPrintHtml, copyPrintStyles } from "../../utils/printCopies";
+import { buildCopyPrintHtml, copyPrintStyles, PRINT_COPY_PACKETS } from "../../utils/printCopies";
 import styles from "./prescription-print.module.scss";
 
 interface PrescriptionPrintProps {
@@ -31,10 +31,7 @@ function escapePrintText(value: string) {
   });
 }
 
-const PRESCRIPTION_PRINT_COPIES = [
-  { label: "Customer copy", printerProfile: "OPD A4 / prescription printer" },
-  { label: "Office / pharmacy copy", printerProfile: "Pharmacy label or dispensing printer" },
-] as const;
+const PRESCRIPTION_PRINT_COPIES = PRINT_COPY_PACKETS.prescription;
 
 export function PrescriptionPrint({
   opened,
@@ -193,7 +190,7 @@ export function PrescriptionPrint({
           <Group gap={6} className={styles.noPrint}>
             {PRESCRIPTION_PRINT_COPIES.map((copy) => (
               <Badge key={copy.label} variant="light" color="violet">
-                {copy.label}
+                {copy.label} · {copy.printerProfile}
               </Badge>
             ))}
           </Group>

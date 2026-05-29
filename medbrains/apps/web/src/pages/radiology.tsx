@@ -57,7 +57,7 @@ import { PatientSearchSelect } from "../components/PatientSearchSelect";
 import { radiologyOptionalText, radiologyPriorityOptions } from "../forms/radiology.form";
 import { useRequirePermission } from "../hooks/useRequirePermission";
 import { radiologyService } from "../services/radiology.service";
-import { buildCopyPrintHtml, copyPrintStyles, type PrintCopyRoute } from "../utils/printCopies";
+import { buildCopyPrintHtml, copyPrintStyles, PRINT_COPY_PACKETS } from "../utils/printCopies";
 
 const statusColors: Record<string, string> = {
   ordered: "primary",
@@ -75,11 +75,7 @@ const priorityColors: Record<string, string> = {
   stat: "danger",
 };
 
-const RADIOLOGY_REPORT_PRINT_COPIES = [
-  { label: "Customer radiology report copy", printerProfile: "radiology-report-a4" },
-  { label: "Clinical copy", printerProfile: "radiology-report-a4" },
-  { label: "Office copy", printerProfile: "radiology-report-a4" },
-] as const satisfies readonly PrintCopyRoute[];
+const RADIOLOGY_REPORT_PRINT_COPIES = PRINT_COPY_PACKETS.radiologyReport;
 
 function escapeRadiologyPrintText(value: unknown) {
   return String(value ?? "").replace(/[&<>"']/g, (char) => {

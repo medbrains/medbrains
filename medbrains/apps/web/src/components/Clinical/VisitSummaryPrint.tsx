@@ -11,7 +11,7 @@ import {
 } from "@medbrains/types";
 import { IconLock, IconPrinter } from "@tabler/icons-react";
 import { useRef } from "react";
-import { buildCopyPrintHtml, copyPrintStyles } from "../../utils/printCopies";
+import { buildCopyPrintHtml, copyPrintStyles, PRINT_COPY_PACKETS } from "../../utils/printCopies";
 import styles from "./visit-summary-print.module.scss";
 
 interface VisitSummaryPrintProps {
@@ -45,11 +45,7 @@ function escapePrintText(value: string) {
   });
 }
 
-const VISIT_SUMMARY_PRINT_COPIES = [
-  { label: "Customer copy", printerProfile: "OPD summary A4" },
-  { label: "Office copy", printerProfile: "OPD A4 / office printer" },
-  { label: "MRD copy", printerProfile: "MRD record room printer" },
-] as const;
+const VISIT_SUMMARY_PRINT_COPIES = PRINT_COPY_PACKETS.visitSummary;
 
 export function VisitSummaryPrint({
   opened,
@@ -377,7 +373,7 @@ export function VisitSummaryPrint({
           <Group gap={6} className={styles.noPrint}>
             {VISIT_SUMMARY_PRINT_COPIES.map((copy) => (
               <Badge key={copy.label} variant="light" color="violet">
-                {copy.label}
+                {copy.label} · {copy.printerProfile}
               </Badge>
             ))}
           </Group>

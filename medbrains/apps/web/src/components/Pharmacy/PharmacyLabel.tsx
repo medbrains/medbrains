@@ -8,7 +8,7 @@ import {
   frequencyToDefaultSlots,
   parseInstructions,
 } from "../../lib/medication-timing-utils";
-import { buildCopyPrintHtml, copyPrintStyles } from "../../utils/printCopies";
+import { buildCopyPrintHtml, copyPrintStyles, PRINT_COPY_PACKETS } from "../../utils/printCopies";
 import classes from "./pharmacy-dispensing.module.scss";
 
 interface PharmacyLabelProps {
@@ -37,10 +37,7 @@ const ALL_SLOTS: Array<{ slot: TimeOfDay; abbrev: string }> = [
   { slot: "bedtime", abbrev: "HS" },
 ];
 
-const PHARMACY_LABEL_PRINT_COPIES = [
-  { label: "Customer medicine-label copy", printerProfile: "Pharmacy drug label printer" },
-  { label: "Pharmacy audit copy", printerProfile: "Pharmacy receipt / dispensing printer" },
-] as const;
+const PHARMACY_LABEL_PRINT_COPIES = PRINT_COPY_PACKETS.pharmacyLabel;
 
 export function PharmacyLabel({ items, patientName, uhid, date }: PharmacyLabelProps) {
   const printRef = useRef<HTMLDivElement | null>(null);
@@ -129,7 +126,7 @@ export function PharmacyLabel({ items, patientName, uhid, date }: PharmacyLabelP
       <Group justify="flex-end" className="no-print">
         {PHARMACY_LABEL_PRINT_COPIES.map((copy) => (
           <Badge key={copy.label} color="violet" variant="light">
-            {copy.label}
+            {copy.label} · {copy.printerProfile}
           </Badge>
         ))}
         <Button

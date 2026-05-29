@@ -67,6 +67,7 @@ import { PatientSearchSelect } from "../components/PatientSearchSelect";
 import { useHashTabs } from "../hooks/useHashTabs";
 import { useRequirePermission } from "../hooks/useRequirePermission";
 import { mrdService } from "../services/mrd.service";
+import { PRINT_COPY_PACKETS } from "../utils/printCopies";
 
 // ── Helpers ──────────────────────────────────────────────
 
@@ -100,14 +101,8 @@ const CASE_SHEET_STATUS_OPTIONS: { value: MrdCaseSheetPacketStatus | ""; label: 
   { value: "voided", label: "Voided" },
 ];
 
-const MRD_CASE_SHEET_PRINT_COPIES = [
-  { label: "MRD copy", printerProfile: "MRD A4" },
-  { label: "Office tracking copy", printerProfile: "MRD record room printer" },
-] as const;
-
-const MRD_CASE_SHEET_REPRINT_COPIES = [
-  { label: "Duplicate / reprint copy", printerProfile: "MRD record room printer" },
-] as const;
+const MRD_CASE_SHEET_PRINT_COPIES = PRINT_COPY_PACKETS.mrdCaseSheet;
+const MRD_CASE_SHEET_REPRINT_COPIES = PRINT_COPY_PACKETS.mrdCaseSheetReprint;
 
 function toCaseSheetStatus(value: string | null): MrdCaseSheetPacketStatus | null {
   switch (value) {

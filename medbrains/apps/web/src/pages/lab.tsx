@@ -159,7 +159,7 @@ import {
 } from "../forms/lab.form";
 import { useRequirePermission } from "../hooks/useRequirePermission";
 import { labService } from "../services/lab.service";
-import { buildCopyPrintHtml, copyPrintStyles, type PrintCopyRoute } from "../utils/printCopies";
+import { buildCopyPrintHtml, copyPrintStyles, PRINT_COPY_PACKETS } from "../utils/printCopies";
 
 const statusColors: Record<string, string> = {
   ordered: "primary",
@@ -224,11 +224,7 @@ const phlebotomyStatusColors: Record<string, string> = {
   skipped: "slate",
 };
 
-const LAB_REPORT_PRINT_COPIES = [
-  { label: "Customer lab report copy", printerProfile: "lab-report-a4" },
-  { label: "Lab archive copy", printerProfile: "lab-report-a4" },
-  { label: "Office copy", printerProfile: "lab-report-a4" },
-] as const satisfies readonly PrintCopyRoute[];
+const LAB_REPORT_PRINT_COPIES = PRINT_COPY_PACKETS.labReport;
 
 function escapeLabPrintText(value: unknown) {
   return String(value ?? "").replace(/[&<>"']/g, (char) => {

@@ -145,7 +145,12 @@ import {
   type CreatePoliceIntimationInput,
   emergencyService,
 } from "../services/emergency.service";
-import { buildCopyPrintHtml, copyPrintStyles, type PrintCopyRoute } from "../utils/printCopies";
+import {
+  buildCopyPrintHtml,
+  copyPrintStyles,
+  PRINT_COPY_PACKETS,
+  type PrintCopyRoute,
+} from "../utils/printCopies";
 
 const CRASH_CART_ITEMS = [
   { key: "defibrillator_present", label: "Defibrillator present and functional" },
@@ -2632,21 +2637,10 @@ type MlcPrintPreview =
 
 type MlcPrintAction = "print" | "reprint";
 
-const MLC_PACKET_PRINT_COPIES: readonly PrintCopyRoute[] = [
-  { label: "Office copy", printerProfile: "Emergency A4" },
-  { label: "Police copy", printerProfile: "MLC secure printer" },
-  { label: "MRD copy", printerProfile: "MRD record room printer" },
-];
-
-const MLC_POLICE_INTIMATION_PRINT_COPIES: readonly PrintCopyRoute[] = [
-  { label: "Police copy", printerProfile: "MLC secure printer" },
-  { label: "Office copy", printerProfile: "Emergency A4" },
-  { label: "MRD copy", printerProfile: "MRD record room printer" },
-];
-
-const MLC_REPRINT_COPIES: readonly PrintCopyRoute[] = [
-  { label: "Duplicate / reprint copy", printerProfile: "MLC secure printer" },
-];
+const MLC_PACKET_PRINT_COPIES: readonly PrintCopyRoute[] = PRINT_COPY_PACKETS.mlcPacket;
+const MLC_POLICE_INTIMATION_PRINT_COPIES: readonly PrintCopyRoute[] =
+  PRINT_COPY_PACKETS.mlcPoliceIntimation;
+const MLC_REPRINT_COPIES: readonly PrintCopyRoute[] = PRINT_COPY_PACKETS.mlcReprint;
 
 function mlcPrintCopies(packetType: MlcPrintPreview["packetType"], action: MlcPrintAction) {
   if (action === "reprint") return MLC_REPRINT_COPIES;

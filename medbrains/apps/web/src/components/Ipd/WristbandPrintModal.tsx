@@ -18,6 +18,7 @@ import { useMutation } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { ipdService } from "../../services/ipd.service";
+import { PRINT_COPY_ROUTES } from "../../utils/printCopies";
 
 interface WristbandPrintModalProps {
   admissionId: string;
@@ -26,10 +27,7 @@ interface WristbandPrintModalProps {
   canReprint: boolean;
 }
 
-const WRISTBAND_PRINT_ROUTE = {
-  label: "Clinical copy",
-  printerProfile: "Wristband label printer",
-} as const;
+const WRISTBAND_PRINT_ROUTE = PRINT_COPY_ROUTES.wristbandClinical;
 
 export function WristbandPrintModal({
   admissionId,
