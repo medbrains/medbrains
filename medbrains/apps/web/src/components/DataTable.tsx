@@ -190,7 +190,7 @@ export function DataTable<T>({
   virtualOverscan = DEFAULT_VIRTUAL_OVERSCAN,
   tableMaxHeight,
 }: DataTableProps<T>) {
-  const { hasAllPermissions, hasAnyPermission, getFieldAccess } = usePermissionStore();
+  const permissionState = usePermissionStore();
   const tableWrapperRef = useRef<HTMLDivElement | null>(null);
   const scrollFrameRef = useRef<number | null>(null);
   const pendingScrollPositionRef = useRef({ scrollTop: 0, viewportHeight: 0 });
@@ -201,12 +201,22 @@ export function DataTable<T>({
   const totalItems = total ?? data.length;
   const shouldVirtualize =
     !loading && (virtualized === true || (virtualized === "auto" && data.length >= virtualizeAt));
-  const columnsWithAccess = columns
-    .map((column) => ({
-      access: resolveColumnAccess(column, hasAllPermissions, hasAnyPermission, getFieldAccess),
-      column,
-    }))
-    .filter(({ access, column }) => isColumnVisible(column, access));
+  const columnsWithAccess = useMemo(
+    () =>
+      columns
+        .map((column) => ({
+          access: resolveColumnAccess(
+            column,
+            permissionState.hasAllPermissions,
+            permissionState.hasAnyPermission,
+            permissionState.getFieldAccess,
+          ),
+          column,
+        }))
+        .filter(({ access, column }) => isColumnVisible(column, access)),
+    [columns, permissionState],
+  );
+  const visibleColumnCount = columnsWithAccess.length;
   const measuredViewportHeight = viewportHeight || virtualRowHeight * 10;
   const virtualWindow = useMemo(() => {
     if (!shouldVirtualize) {
@@ -301,41 +311,47 @@ export function DataTable<T>({
     return () => observer.disconnect();
   }, []);
 
-  const headerRow = (
-    <Table.Thead className={styles.stickyHead}>
-      <Table.Tr>
-        {columnsWithAccess.map(({ column: col }) => (
-          <Table.Th key={col.key}>
-            {col.icon ? (
-              <span className={styles.columnHeader}>
-                <span className={styles.columnIcon}>{col.icon}</span>
-                {col.label}
-              </span>
-            ) : (
-              col.label
-            )}
-          </Table.Th>
-        ))}
-      </Table.Tr>
-    </Table.Thead>
+  const headerRow = useMemo(
+    () => (
+      <Table.Thead className={styles.stickyHead}>
+        <Table.Tr>
+          {columnsWithAccess.map(({ column: col }) => (
+            <Table.Th key={col.key}>
+              {col.icon ? (
+                <span className={styles.columnHeader}>
+                  <span className={styles.columnIcon}>{col.icon}</span>
+                  {col.label}
+                </span>
+              ) : (
+                col.label
+              )}
+            </Table.Th>
+          ))}
+        </Table.Tr>
+      </Table.Thead>
+    ),
+    [columnsWithAccess],
   );
 
-  const headerToolbar =
-    toolbar || tableActions ? (
-      <>
-        <Box px="md" py="sm" className={styles.toolbar}>
-          <Group justify="space-between" align="center" gap="sm" wrap="wrap">
-            {toolbar && <Box className={styles.toolbarContent}>{toolbar}</Box>}
-            {tableActions && (
-              <Group gap="xs" className={styles.tableActions}>
-                {tableActions}
-              </Group>
-            )}
-          </Group>
-        </Box>
-        <Divider />
-      </>
-    ) : null;
+  const headerToolbar = useMemo(
+    () =>
+      toolbar || tableActions ? (
+        <>
+          <Box px="md" py="sm" className={styles.toolbar}>
+            <Group justify="space-between" align="center" gap="sm" wrap="wrap">
+              {toolbar && <Box className={styles.toolbarContent}>{toolbar}</Box>}
+              {tableActions && (
+                <Group gap="xs" className={styles.tableActions}>
+                  {tableActions}
+                </Group>
+              )}
+            </Group>
+          </Box>
+          <Divider />
+        </>
+      ) : null,
+    [tableActions, toolbar],
+  );
 
   if (columnsWithAccess.length === 0) {
     return (
@@ -401,11 +417,7 @@ export function DataTable<T>({
         <Table>
           {headerRow}
           <Table.Tbody>
-            {spacerRow(
-              virtualWindow.topSpacerHeight,
-              columnsWithAccess.length,
-              "virtual-top-spacer",
-            )}
+            {spacerRow(virtualWindow.topSpacerHeight, visibleColumnCount, "virtual-top-spacer")}
             {virtualWindow.rows.map((row) => (
               <Table.Tr
                 key={rowKey(row)}
@@ -423,7 +435,7 @@ export function DataTable<T>({
             ))}
             {spacerRow(
               virtualWindow.bottomSpacerHeight,
-              columnsWithAccess.length,
+              visibleColumnCount,
               "virtual-bottom-spacer",
             )}
           </Table.Tbody>
