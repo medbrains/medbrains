@@ -53,7 +53,7 @@ import {
   IconUserOff,
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { DataTable, PageHeader } from "../components";
 import type { Column } from "../components/DataTable";
@@ -130,6 +130,17 @@ const displayTypeLabels: Record<string, string> = {
   dashboard: "Dashboard",
 };
 
+const QUEUE_REFRESH_MS = 5_000;
+
+interface DepartmentQueueLane {
+  departmentId: string;
+  departmentName: string;
+  currentTokens: QueueToken[];
+  displayCount: number;
+  nextTokens: QueueToken[];
+  waitingCount: number;
+}
+
 function toQueueTokenStatus(value: string | null): QueueTokenStatus | null {
   if (
     value === "waiting" ||
@@ -142,6 +153,18 @@ function toQueueTokenStatus(value: string | null): QueueTokenStatus | null {
     return value;
   }
   return null;
+}
+
+function todayIsoDate() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function tokenStatusLabel(status: string) {
+  return status.replace(/_/g, " ");
+}
+
+function departmentName(departments: DepartmentRow[], departmentId: string) {
+  return departments.find((department) => department.id === departmentId)?.name ?? departmentId;
 }
 
 // ══════════════════════════════════════════════════════════
@@ -526,20 +549,28 @@ function QueueTokensTab({ canManage }: { canManage: boolean }) {
     resolver: zodResolver(queueTokenFormSchema),
     defaultValues: defaultQueueTokenFormValues,
   });
+  const today = todayIsoDate();
 
   const { data: departments = [] } = useQuery({
     queryKey: ["departments"],
     queryFn: () => tvDisplaysService.listDepartments(),
   });
 
+  const { data: displays = [] } = useQuery({
+    queryKey: ["tv-displays"],
+    queryFn: () => tvDisplaysService.listTvDisplays(),
+    refetchInterval: QUEUE_REFRESH_MS,
+  });
+
   const { data: tokens = [], isLoading } = useQuery({
-    queryKey: ["queue-tokens", selectedDepartment, selectedStatus],
+    queryKey: ["queue-tokens", today, selectedDepartment, selectedStatus],
     queryFn: () =>
       tvDisplaysService.listQueueTokens({
         department_id: selectedDepartment || undefined,
         status: selectedStatus || undefined,
-        date: new Date().toISOString().split("T")[0],
+        date: today,
       }),
+    refetchInterval: QUEUE_REFRESH_MS,
   });
 
   const { data: queueState } = useQuery({
@@ -547,7 +578,68 @@ function QueueTokensTab({ canManage }: { canManage: boolean }) {
     queryFn: () =>
       selectedDepartment ? tvDisplaysService.getQueueState(selectedDepartment) : null,
     enabled: !!selectedDepartment,
+    refetchInterval: QUEUE_REFRESH_MS,
   });
+
+  const opdDisplays = useMemo(
+    () => displays.filter((display) => display.display_type === "opd_queue"),
+    [displays],
+  );
+  const queueSummary = useMemo(() => {
+    const currentTokens = tokens.filter(
+      (token) => token.status === "called" || token.status === "in_progress",
+    );
+    const waitingTokens = tokens.filter((token) => token.status === "waiting");
+    const completedTokens = tokens.filter((token) => token.status === "completed");
+    const noShowTokens = tokens.filter((token) => token.status === "no_show");
+    const scopedDisplays = selectedDepartment
+      ? opdDisplays.filter(
+          (display) => !display.department_id || display.department_id === selectedDepartment,
+        )
+      : opdDisplays;
+    return {
+      completedTokens,
+      currentTokens,
+      noShowTokens,
+      scopedDisplays,
+      waitingTokens,
+    };
+  }, [opdDisplays, selectedDepartment, tokens]);
+  const departmentLanes = useMemo<DepartmentQueueLane[]>(() => {
+    const lanes = new Map<string, DepartmentQueueLane>();
+
+    function laneFor(departmentId: string) {
+      const existing = lanes.get(departmentId);
+      if (existing) return existing;
+      const lane: DepartmentQueueLane = {
+        currentTokens: [],
+        departmentId,
+        departmentName: departmentName(departments, departmentId),
+        displayCount: opdDisplays.filter(
+          (display) => !display.department_id || display.department_id === departmentId,
+        ).length,
+        nextTokens: [],
+        waitingCount: 0,
+      };
+      lanes.set(departmentId, lane);
+      return lane;
+    }
+
+    for (const token of tokens) {
+      const lane = laneFor(token.department_id);
+      if (token.status === "waiting") {
+        lane.waitingCount += 1;
+        lane.nextTokens.push(token);
+      }
+      if (token.status === "called" || token.status === "in_progress") {
+        lane.currentTokens.push(token);
+      }
+    }
+
+    return [...lanes.values()].sort((left, right) =>
+      left.departmentName.localeCompare(right.departmentName),
+    );
+  }, [departments, opdDisplays, tokens]);
 
   const generateMutation = useMutation({
     mutationFn: (data: CreateQueueTokenRequest) => tvDisplaysService.createQueueToken(data),
@@ -609,7 +701,9 @@ function QueueTokensTab({ canManage }: { canManage: boolean }) {
     {
       key: "status",
       label: "Status",
-      render: (row) => <Badge color={statusColors[row.status] || "slate"}>{row.status}</Badge>,
+      render: (row) => (
+        <Badge color={statusColors[row.status] || "slate"}>{tokenStatusLabel(row.status)}</Badge>
+      ),
     },
     {
       key: "priority",
@@ -619,10 +713,7 @@ function QueueTokensTab({ canManage }: { canManage: boolean }) {
     {
       key: "department_id",
       label: "Department",
-      render: (row) => {
-        const dept = departments.find((d: DepartmentRow) => d.id === row.department_id);
-        return dept?.name || row.department_id;
-      },
+      render: (row) => departmentName(departments, row.department_id),
     },
     {
       key: "called_at",
@@ -692,7 +783,84 @@ function QueueTokensTab({ canManage }: { canManage: boolean }) {
 
   return (
     <>
-      {/* Queue State Summary */}
+      <SimpleGrid cols={{ base: 1, sm: 2, lg: 5 }} mb="md">
+        <Card withBorder>
+          <Text size="sm" c="dimmed">
+            Now Serving
+          </Text>
+          <Text size="xl" fw={700}>
+            {queueSummary.currentTokens.map((token) => token.token_number).join(", ") || "-"}
+          </Text>
+        </Card>
+        <Card withBorder>
+          <Text size="sm" c="dimmed">
+            Waiting
+          </Text>
+          <Text size="xl" fw={700} c="primary">
+            {queueSummary.waitingTokens.length}
+          </Text>
+        </Card>
+        <Card withBorder>
+          <Text size="sm" c="dimmed">
+            Completed Today
+          </Text>
+          <Text size="xl" fw={700} c="success">
+            {queueSummary.completedTokens.length}
+          </Text>
+        </Card>
+        <Card withBorder>
+          <Text size="sm" c="dimmed">
+            No Shows
+          </Text>
+          <Text size="xl" fw={700} c="danger">
+            {queueSummary.noShowTokens.length}
+          </Text>
+        </Card>
+        <Card withBorder>
+          <Text size="sm" c="dimmed">
+            Linked Displays
+          </Text>
+          <Text size="xl" fw={700}>
+            {queueSummary.scopedDisplays.length}
+          </Text>
+        </Card>
+      </SimpleGrid>
+
+      {departmentLanes.length > 0 && (
+        <SimpleGrid cols={{ base: 1, md: 2, xl: 3 }} mb="md">
+          {departmentLanes.map((lane) => (
+            <Card key={lane.departmentId} withBorder>
+              <Group justify="space-between" align="flex-start">
+                <Stack gap={2}>
+                  <Text fw={700}>{lane.departmentName}</Text>
+                  <Text size="xs" c="dimmed">
+                    medbrains://tv/queue?department={lane.departmentId}
+                  </Text>
+                </Stack>
+                <Badge color={lane.displayCount > 0 ? "primary" : "orange"} variant="light">
+                  {lane.displayCount} displays
+                </Badge>
+              </Group>
+              <Group mt="sm" gap="xs">
+                <Badge color={lane.currentTokens.length > 0 ? "success" : "slate"}>
+                  Now {lane.currentTokens.map((token) => token.token_number).join(", ") || "-"}
+                </Badge>
+                <Badge color="primary" variant="light">
+                  Waiting {lane.waitingCount}
+                </Badge>
+                <Badge color="slate" variant="light">
+                  Next{" "}
+                  {lane.nextTokens
+                    .slice(0, 3)
+                    .map((token) => token.token_number)
+                    .join(", ") || "-"}
+                </Badge>
+              </Group>
+            </Card>
+          ))}
+        </SimpleGrid>
+      )}
+
       {queueState && (
         <SimpleGrid cols={4} mb="md">
           <Card withBorder>
@@ -778,7 +946,16 @@ function QueueTokensTab({ canManage }: { canManage: boolean }) {
         )}
       </Group>
 
-      <DataTable columns={columns} data={tokens} loading={isLoading} rowKey={(row) => row.id} />
+      <DataTable
+        columns={columns}
+        data={tokens}
+        loading={isLoading}
+        rowKey={(row) => row.id}
+        virtualized="auto"
+        virtualizeAt={40}
+        virtualRowHeight={58}
+        tableMaxHeight="calc(100vh - 500px)"
+      />
 
       {/* Generate Token Drawer */}
       <Drawer
