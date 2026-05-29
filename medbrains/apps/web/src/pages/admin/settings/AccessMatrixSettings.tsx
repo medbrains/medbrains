@@ -55,6 +55,68 @@ const FIELD_OVERRIDE_LEVELS: { label: string; value: FieldOverrideLevel }[] = [
 const FIELD_LEVEL_VALUES: ReadonlySet<string> = new Set(FIELD_LEVELS.map((level) => level.value));
 const WIDGET_LEVEL_VALUES: ReadonlySet<string> = new Set(["visible", "hidden"]);
 
+const CRITICAL_WORKFLOW_EXPECTATIONS: {
+  key: string;
+  label: string;
+  modules: readonly string[];
+  requiredKinds: readonly AccessMatrixSurfaceKind[];
+}[] = [
+  {
+    key: "registration",
+    label: "Patient registration",
+    modules: ["patients"],
+    requiredKinds: ["screen", "tab", "column", "input", "action"],
+  },
+  {
+    key: "opd",
+    label: "OPD encounter",
+    modules: ["opd"],
+    requiredKinds: ["screen", "tab", "column", "input", "action", "print"],
+  },
+  {
+    key: "ipd",
+    label: "IPD admission",
+    modules: ["ipd"],
+    requiredKinds: ["screen", "tab", "input", "action", "print"],
+  },
+  {
+    key: "emergency",
+    label: "Emergency care",
+    modules: ["emergency"],
+    requiredKinds: ["screen", "table", "input", "action"],
+  },
+  {
+    key: "camp",
+    label: "Camp workflow",
+    modules: ["camp"],
+    requiredKinds: ["screen", "tab", "input", "action"],
+  },
+  {
+    key: "pharmacy",
+    label: "Pharmacy",
+    modules: ["pharmacy"],
+    requiredKinds: ["screen", "table", "column", "input", "action"],
+  },
+  {
+    key: "billing",
+    label: "Billing",
+    modules: ["billing"],
+    requiredKinds: ["screen", "tab", "column", "action", "print"],
+  },
+  {
+    key: "mrd",
+    label: "MRD printables",
+    modules: ["mrd"],
+    requiredKinds: ["screen", "table", "column", "input", "action", "print"],
+  },
+  {
+    key: "settings_reports",
+    label: "Settings and reports",
+    modules: ["admin", "analytics"],
+    requiredKinds: ["screen", "tab", "widget"],
+  },
+];
+
 type FieldOverrideLevel = FieldAccessLevel | "inherit";
 
 type AccessGroupRow = Awaited<ReturnType<typeof adminAccessService.listAccessGroups>>[number];
@@ -1202,10 +1264,41 @@ function SurfaceCoverageMatrix() {
 
     return [...modules.entries()].sort(([left], [right]) => left.localeCompare(right));
   }, []);
+  const workflowCoverage = useMemo(
+    () =>
+      CRITICAL_WORKFLOW_EXPECTATIONS.map((workflow) => {
+        const surfaces = ACCESS_MATRIX_SURFACES.filter((surface) =>
+          workflow.modules.includes(surface.module),
+        );
+        const coveredKinds = new Set(surfaces.map((surface) => surface.kind));
+        const missingKinds = workflow.requiredKinds.filter((kind) => !coveredKinds.has(kind));
+        const activatedSurfaces = surfaces.filter((surface) => surface.activatesAfter.length > 0);
+        const permissions = new Set(
+          surfaces.flatMap((surface) => [...surface.requiredPermissions]),
+        );
+        const printSurfaces = surfaces.filter((surface) => surface.kind === "print");
+        const printerRequired = printSurfaces.filter((surface) => surface.requiresPrinter);
+        return {
+          ...workflow,
+          activatedSurfaces: activatedSurfaces.length,
+          missingKinds,
+          permissions,
+          printerRequired: printerRequired.length,
+          printSurfaces: printSurfaces.length,
+          surfaces,
+        };
+      }),
+    [],
+  );
+  const workflowGapCount = workflowCoverage.filter(
+    (workflow) => workflow.missingKinds.length > 0,
+  ).length;
   const fieldKeysMissingFromRegistry = [...coveredFieldKeys].filter((key) => !fieldsByKey.has(key));
   const registeredFieldsNotMapped = FIELD_ACCESS_FIELDS.filter(
     (field) => !coveredFieldKeys.has(fieldKey(field)),
   );
+  const printSurfaces = ACCESS_MATRIX_SURFACES.filter((surface) => surface.kind === "print");
+  const printerRequiredSurfaces = printSurfaces.filter((surface) => surface.requiresPrinter);
 
   return (
     <Stack gap="md">
@@ -1217,7 +1310,7 @@ function SurfaceCoverageMatrix() {
         </Text>
       </Alert>
 
-      <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }}>
+      <SimpleGrid cols={{ base: 1, sm: 2, lg: 5 }}>
         <Card withBorder padding="sm">
           <Text size="xs" c="dimmed" fw={700} tt="uppercase">
             Surfaces
@@ -1254,7 +1347,116 @@ function SurfaceCoverageMatrix() {
             mapped keys missing from field registry
           </Text>
         </Card>
+        <Card withBorder padding="sm">
+          <Text size="xs" c="dimmed" fw={700} tt="uppercase">
+            Print Maps
+          </Text>
+          <Text fw={700}>{printSurfaces.length}</Text>
+          <Text size="xs" c="dimmed">
+            {printerRequiredSurfaces.length} require printer profile
+          </Text>
+        </Card>
       </SimpleGrid>
+
+      <Card withBorder padding="md">
+        <Stack gap="sm">
+          <Group justify="space-between" align="flex-start">
+            <Stack gap={2}>
+              <Text fw={700}>Critical Workflow Coverage</Text>
+              <Text size="sm" c="dimmed">
+                Checks whether the main patient journey has mapped screens, tabs, tables, inputs,
+                actions, print surfaces, widgets, permissions, and event activations.
+              </Text>
+            </Stack>
+            <Badge color={workflowGapCount > 0 ? "orange" : "green"} variant="light">
+              {workflowGapCount} workflow gaps
+            </Badge>
+          </Group>
+          <ScrollArea.Autosize mah={360}>
+            <Table stickyHeader highlightOnHover verticalSpacing="xs">
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th>Workflow</Table.Th>
+                  <Table.Th>Modules</Table.Th>
+                  <Table.Th>Mapped surfaces</Table.Th>
+                  <Table.Th>Event driven</Table.Th>
+                  <Table.Th>Print map</Table.Th>
+                  <Table.Th>Missing surface types</Table.Th>
+                  <Table.Th>Permissions</Table.Th>
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
+                {workflowCoverage.map((workflow) => (
+                  <Table.Tr key={workflow.key}>
+                    <Table.Td>
+                      <Text size="sm" fw={600}>
+                        {workflow.label}
+                      </Text>
+                    </Table.Td>
+                    <Table.Td>
+                      <Group gap={4}>
+                        {workflow.modules.map((module) => (
+                          <Badge key={module} variant="light">
+                            {module}
+                          </Badge>
+                        ))}
+                      </Group>
+                    </Table.Td>
+                    <Table.Td>
+                      <Badge color={workflow.surfaces.length > 0 ? "blue" : "red"} variant="light">
+                        {workflow.surfaces.length}
+                      </Badge>
+                    </Table.Td>
+                    <Table.Td>
+                      <Badge
+                        color={workflow.activatedSurfaces > 0 ? "green" : "orange"}
+                        variant="light"
+                      >
+                        {workflow.activatedSurfaces}
+                      </Badge>
+                    </Table.Td>
+                    <Table.Td>
+                      <Group gap={4}>
+                        <Badge
+                          color={workflow.printSurfaces > 0 ? "violet" : "gray"}
+                          variant="light"
+                        >
+                          {workflow.printSurfaces} print
+                        </Badge>
+                        {workflow.printerRequired > 0 && (
+                          <Badge color="blue" variant="light">
+                            {workflow.printerRequired} printer
+                          </Badge>
+                        )}
+                      </Group>
+                    </Table.Td>
+                    <Table.Td>
+                      {workflow.missingKinds.length > 0 ? (
+                        <Group gap={4}>
+                          {workflow.missingKinds.map((kind) => (
+                            <Badge key={kind} color="orange" variant="light">
+                              {kind}
+                            </Badge>
+                          ))}
+                        </Group>
+                      ) : (
+                        <Badge color="green" variant="light">
+                          complete
+                        </Badge>
+                      )}
+                    </Table.Td>
+                    <Table.Td>
+                      <Badge color={workflow.permissions.size > 0 ? "teal" : "red"} variant="light">
+                        {workflow.permissions.size}
+                      </Badge>
+                    </Table.Td>
+                  </Table.Tr>
+                ))}
+              </Table.Tbody>
+            </Table>
+          </ScrollArea.Autosize>
+        </Stack>
+      </Card>
 
       <Card withBorder padding="md">
         <Stack gap="sm">
@@ -1301,6 +1503,7 @@ function SurfaceCoverageMatrix() {
                   <Table.Th>Permissions</Table.Th>
                   <Table.Th>Field access keys</Table.Th>
                   <Table.Th>Activation</Table.Th>
+                  <Table.Th>Print / printer</Table.Th>
                   <Table.Th>Standards</Table.Th>
                 </Table.Tr>
               </Table.Thead>
@@ -1384,6 +1587,45 @@ function SurfaceCoverageMatrix() {
                       ) : (
                         <Badge color="gray" variant="light">
                           always
+                        </Badge>
+                      )}
+                    </Table.Td>
+                    <Table.Td>
+                      {surface.kind === "print" || surface.requiresPrinter ? (
+                        <Stack gap={4}>
+                          <Group gap={4}>
+                            {surface.printCopies.length > 0 ? (
+                              surface.printCopies.map((copy) => (
+                                <Badge key={copy} color="violet" variant="light">
+                                  {copy}
+                                </Badge>
+                              ))
+                            ) : (
+                              <Badge color="orange" variant="light">
+                                copy not mapped
+                              </Badge>
+                            )}
+                          </Group>
+                          <Group gap={4}>
+                            {surface.printerProfiles.length > 0 ? (
+                              surface.printerProfiles.map((profile) => (
+                                <Badge key={profile} color="blue" variant="light">
+                                  {profile}
+                                </Badge>
+                              ))
+                            ) : (
+                              <Badge
+                                color={surface.requiresPrinter ? "red" : "gray"}
+                                variant="light"
+                              >
+                                no printer profile
+                              </Badge>
+                            )}
+                          </Group>
+                        </Stack>
+                      ) : (
+                        <Badge color="gray" variant="light">
+                          none
                         </Badge>
                       )}
                     </Table.Td>

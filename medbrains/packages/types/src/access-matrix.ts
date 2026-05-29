@@ -12,6 +12,15 @@ export type AccessMatrixSurfaceKind =
 
 export type AccessMatrixPlatform = "web" | "mobile" | "tv" | "kiosk";
 
+export type AccessMatrixPrintCopy =
+  | "customer"
+  | "office"
+  | "clinical"
+  | "mrd"
+  | "lab"
+  | "pharmacy"
+  | "duplicate";
+
 export type AccessMatrixMaskingBehavior =
   | "none"
   | "identity"
@@ -34,16 +43,28 @@ export interface AccessMatrixSurface {
   activatesAfter: readonly string[];
   platforms: readonly AccessMatrixPlatform[];
   masking: AccessMatrixMaskingBehavior;
+  printCopies: readonly AccessMatrixPrintCopy[];
+  printerProfiles: readonly string[];
+  requiresPrinter: boolean;
   standardRefs: readonly string[];
 }
 
 type SurfaceInput = Omit<
   AccessMatrixSurface,
-  "activatesAfter" | "fieldAccessKeys" | "platforms" | "standardRefs"
+  | "activatesAfter"
+  | "fieldAccessKeys"
+  | "platforms"
+  | "printCopies"
+  | "printerProfiles"
+  | "requiresPrinter"
+  | "standardRefs"
 > & {
   activatesAfter?: readonly string[];
   fieldAccessKeys?: readonly string[];
   platforms?: readonly AccessMatrixPlatform[];
+  printCopies?: readonly AccessMatrixPrintCopy[];
+  printerProfiles?: readonly string[];
+  requiresPrinter?: boolean;
   standardRefs?: readonly string[];
 };
 
@@ -52,6 +73,9 @@ function surface(input: SurfaceInput): AccessMatrixSurface {
     activatesAfter: [],
     fieldAccessKeys: [],
     platforms: ["web"],
+    printCopies: [],
+    printerProfiles: [],
+    requiresPrinter: false,
     standardRefs: [],
     ...input,
   };
@@ -338,6 +362,23 @@ export const ACCESS_MATRIX_SURFACES: readonly AccessMatrixSurface[] = [
     standardRefs: ["NABH MRD record completeness", "MRD printable audit trail"],
   }),
   surface({
+    id: "opd.encounter.visit_summary_print",
+    module: "opd",
+    area: "OPD Encounter",
+    label: "OPD visit summary and advice printable",
+    kind: "print",
+    route: "/opd/encounters/:encounterId#consultation",
+    requiredPermissions: [P.OPD.QUEUE_VIEW],
+    fieldAccessKeys: [...PATIENT_IDENTITY_FIELDS, "opd.soap_note", "opd.diagnosis"],
+    masking: "clinical",
+    activatesAfter: ["opd.encounter.created"],
+    platforms: ["web", "mobile"],
+    printCopies: ["customer", "clinical"],
+    printerProfiles: ["opd-a4", "opd-summary"],
+    requiresPrinter: true,
+    standardRefs: ["NABH COP OPD record", "IPSG patient identification"],
+  }),
+  surface({
     id: "ipd.admissions.screen",
     module: "ipd",
     area: "IPD Admissions",
@@ -436,6 +477,23 @@ export const ACCESS_MATRIX_SURFACES: readonly AccessMatrixSurface[] = [
     standardRefs: ["IPSG patient identification", "NABH AAC transfer and discharge"],
   }),
   surface({
+    id: "ipd.detail.admission_printables",
+    module: "ipd",
+    area: "IPD Workspace",
+    label: "Admission sheet, case-sheet cover and wristband printables",
+    kind: "print",
+    route: "/ipd/admissions/:admissionId#overview",
+    requiredPermissions: [P.IPD.ADMISSIONS_PRINT, P.IPD.WRISTBAND_PRINT],
+    fieldAccessKeys: [...PATIENT_IDENTITY_FIELDS, "ipd.admissions.provisional_diagnosis"],
+    masking: "clinical",
+    activatesAfter: ["bed.assigned"],
+    platforms: ["web", "kiosk"],
+    printCopies: ["clinical", "mrd"],
+    printerProfiles: ["ipd-a4", "wristband-label"],
+    requiresPrinter: true,
+    standardRefs: ["IPSG patient identification", "NABH inpatient case sheet"],
+  }),
+  surface({
     id: "emergency.visits.screen",
     module: "emergency",
     area: "Emergency",
@@ -506,6 +564,23 @@ export const ACCESS_MATRIX_SURFACES: readonly AccessMatrixSurface[] = [
     standardRefs: ["MLC SOP", "POCSO Act", "NABH IMS confidentiality"],
   }),
   surface({
+    id: "emergency.mlc.printables",
+    module: "emergency",
+    area: "Emergency MLC",
+    label: "MLC certificate and police-intimation printables",
+    kind: "print",
+    route: "/emergency/visits/:visitId#mlc",
+    requiredPermissions: [P.EMERGENCY.MLC_PRINT, P.EMERGENCY.MLC_POLICE_INTIMATIONS.PRINT],
+    fieldAccessKeys: EMERGENCY_MLC_FIELDS,
+    masking: "regulatory",
+    activatesAfter: ["mlc.created", "emergency.mlc_police_intimation.created"],
+    platforms: ["web"],
+    printCopies: ["office", "clinical", "duplicate"],
+    printerProfiles: ["emergency-a4", "mlc-secure-printer"],
+    requiresPrinter: true,
+    standardRefs: ["MLC SOP", "police intimation audit"],
+  }),
+  surface({
     id: "camp.management.screen",
     module: "camp",
     area: "Camp",
@@ -560,6 +635,23 @@ export const ACCESS_MATRIX_SURFACES: readonly AccessMatrixSurface[] = [
     activatesAfter: ["camp.registration.created"],
     platforms: ["web", "mobile"],
     standardRefs: ["NABH outreach clinical documentation"],
+  }),
+  surface({
+    id: "camp.registration.printables",
+    module: "camp",
+    area: "Camp",
+    label: "Camp token, registration slip and follow-up advice printables",
+    kind: "print",
+    route: "/camp/:campId/work#registrations",
+    requiredPermissions: [P.CAMP.LIST],
+    fieldAccessKeys: CAMP_REGISTRATION_FIELDS,
+    masking: "identity",
+    activatesAfter: ["camp.registration.created"],
+    platforms: ["web", "mobile", "kiosk"],
+    printCopies: ["customer", "office"],
+    printerProfiles: ["camp-token-thermal", "camp-a4"],
+    requiresPrinter: true,
+    standardRefs: ["DPDP Act data minimisation", "camp visit audit"],
   }),
   surface({
     id: "pharmacy.rx_queue.screen",
@@ -664,6 +756,27 @@ export const ACCESS_MATRIX_SURFACES: readonly AccessMatrixSurface[] = [
     standardRefs: ["DPDP Act customer data minimisation"],
   }),
   surface({
+    id: "pharmacy.dispense.printables",
+    module: "pharmacy",
+    area: "Pharmacy",
+    label: "Dispense receipt, drug label and controlled-drug copy printables",
+    kind: "print",
+    route: "/pharmacy?tab=orders",
+    requiredPermissions: [P.PHARMACY.PRESCRIPTIONS_VIEW],
+    fieldAccessKeys: [
+      ...PATIENT_IDENTITY_FIELDS,
+      ...PHARMACY_PRICE_FIELDS,
+      ...PHARMACY_BATCH_FIELDS,
+    ],
+    masking: "clinical",
+    activatesAfter: ["pharmacy.order.dispensed"],
+    platforms: ["web", "mobile"],
+    printCopies: ["customer", "pharmacy", "office"],
+    printerProfiles: ["pharmacy-receipt-80mm", "pharmacy-drug-label"],
+    requiresPrinter: true,
+    standardRefs: ["Drugs and Cosmetics Act", "batch traceability", "NDPS where applicable"],
+  }),
+  surface({
     id: "billing.invoices.screen",
     module: "billing",
     area: "Billing",
@@ -718,6 +831,23 @@ export const ACCESS_MATRIX_SURFACES: readonly AccessMatrixSurface[] = [
     activatesAfter: ["billing.invoice.created", "billing.invoice.finalized"],
     platforms: ["web", "mobile", "kiosk"],
     standardRefs: ["PCI DSS SAQ A target if cards are externalized"],
+  }),
+  surface({
+    id: "billing.receipt_printables",
+    module: "billing",
+    area: "Billing",
+    label: "Invoice, payment receipt and reprint copy outputs",
+    kind: "print",
+    route: "/billing/invoices/:invoiceId",
+    requiredPermissions: [P.BILLING.RECEIPTS_PRINT, P.BILLING.RECEIPTS_REPRINT],
+    fieldAccessKeys: [...PATIENT_IDENTITY_FIELDS, "billing.amount"],
+    masking: "financial",
+    activatesAfter: ["billing.payment.received", "billing.invoice.finalized"],
+    platforms: ["web", "mobile", "kiosk"],
+    printCopies: ["customer", "office", "duplicate"],
+    printerProfiles: ["billing-receipt-80mm", "billing-a4"],
+    requiresPrinter: true,
+    standardRefs: ["GST invoice audit", "PCI DSS SAQ A target if cards are externalized"],
   }),
   surface({
     id: "billing.master_tabs",
@@ -802,6 +932,9 @@ export const ACCESS_MATRIX_SURFACES: readonly AccessMatrixSurface[] = [
     masking: "clinical",
     activatesAfter: ["mrd.case_sheet.generated", "mrd.case_sheet.printed"],
     platforms: ["web"],
+    printCopies: ["clinical", "mrd", "duplicate"],
+    printerProfiles: ["mrd-a4", "mrd-record-room"],
+    requiresPrinter: true,
     standardRefs: ["MRD duplicate watermark", "SOC 2 print audit evidence"],
   }),
   surface({
