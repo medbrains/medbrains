@@ -57,12 +57,14 @@ import {
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import { useNavigate, useSearchParams } from "react-router";
 import { DataTable, PageHeader } from "../components";
 import type { Column } from "../components/DataTable";
 import { DepartmentSelect } from "../components/DepartmentSelect";
 import { EmployeeSearchSelect } from "../components/EmployeeSearchSelect";
 import { PatientContextBanner } from "../components/Patient/PatientContextBanner";
 import { PatientSearchSelect } from "../components/PatientSearchSelect";
+import { useHashTabs } from "../hooks/useHashTabs";
 import { useRequirePermission } from "../hooks/useRequirePermission";
 import { mrdService } from "../services/mrd.service";
 
@@ -212,13 +214,23 @@ const FILING_METHOD_OPTIONS = [
   { value: "yearly", label: "Yearly (by year of first visit)" },
 ];
 
+const MRD_TAB_VALUES = [
+  "records",
+  "case-sheets",
+  "storage",
+  "births",
+  "deaths",
+  "stats",
+  "retention",
+] as const;
+
 // ══════════════════════════════════════════════════════════
 //  Page
 // ══════════════════════════════════════════════════════════
 
 export function MrdPage() {
   useRequirePermission(P.MRD.RECORDS_LIST);
-  const [tab, setTab] = useState<string | null>("records");
+  const [tab, setTab] = useHashTabs("records", MRD_TAB_VALUES);
 
   return (
     <div>
@@ -593,11 +605,31 @@ function RecordsTab() {
 
 function CaseSheetsTab() {
   const qc = useQueryClient();
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const canPrint = useHasPermission(P.MRD.CASE_SHEETS_PRINT);
   const canReprint = useHasPermission(P.MRD.CASE_SHEETS_REPRINT);
   const canFile = useHasPermission(P.MRD.CASE_SHEETS_FILE);
-  const [statusFilter, setStatusFilter] = useState<MrdCaseSheetPacketStatus | null>(null);
-  const [typeFilter, setTypeFilter] = useState<string | null>(null);
+  const encounterFilter = searchParams.get("encounter_id");
+  const admissionFilter = searchParams.get("admission_id");
+  const urlPacketType = searchParams.get("packet_type");
+  const sourcePacketType =
+    urlPacketType === "opd" || urlPacketType === "ipd"
+      ? urlPacketType
+      : encounterFilter
+        ? "opd"
+        : admissionFilter
+          ? "ipd"
+          : undefined;
+  const sourceFilterLabel = encounterFilter
+    ? "Filtered to OPD encounter packet"
+    : admissionFilter
+      ? "Filtered to IPD admission packet"
+      : null;
+  const [statusFilter, setStatusFilter] = useState<MrdCaseSheetPacketStatus | null>(() =>
+    toCaseSheetStatus(searchParams.get("status")),
+  );
+  const [typeFilter, setTypeFilter] = useState<string | null>(() => sourcePacketType ?? null);
   const [selectedPacket, setSelectedPacket] = useState<MrdCaseSheetPacket | null>(null);
   const [pagesOpen, { open: openPages, close: closePages }] = useDisclosure();
   const [fileOpen, { open: openFile, close: closeFile }] = useDisclosure();
@@ -608,11 +640,13 @@ function CaseSheetsTab() {
   const [reprintReason, setReprintReason] = useState("");
 
   const { data: packets = [], isLoading } = useQuery({
-    queryKey: ["mrd-case-sheets", statusFilter, typeFilter],
+    queryKey: ["mrd-case-sheets", statusFilter, typeFilter, encounterFilter, admissionFilter],
     queryFn: () =>
       mrdService.listMrdCaseSheetPackets({
         status: statusFilter ?? undefined,
-        packet_type: typeFilter === "opd" || typeFilter === "ipd" ? typeFilter : undefined,
+        packet_type: typeFilter === "opd" || typeFilter === "ipd" ? typeFilter : sourcePacketType,
+        encounter_id: encounterFilter ?? undefined,
+        admission_id: admissionFilter ?? undefined,
       }),
   });
 
@@ -742,67 +776,88 @@ function CaseSheetsTab() {
     {
       key: "actions",
       label: "",
-      render: (packet) => (
-        <Group gap={4} wrap="nowrap">
-          <Tooltip label="Pages">
-            <ActionIcon
-              variant="light"
-              onClick={() => {
-                setSelectedPacket(packet);
-                openPages();
-              }}
-              aria-label="View page checklist"
-            >
-              <IconClipboardList size={16} />
-            </ActionIcon>
-          </Tooltip>
-          {canPrint && (packet.status === "generated" || packet.status === "draft") && (
-            <Tooltip label="Print">
+      render: (packet) => {
+        const sourceRoute =
+          packet.packet_type === "opd" && packet.encounter_id
+            ? `/opd/encounters/${packet.encounter_id}#consultation`
+            : packet.packet_type === "ipd" && packet.admission_id
+              ? `/ipd/admissions/${packet.admission_id}#overview`
+              : null;
+
+        return (
+          <Group gap={4} wrap="nowrap">
+            <Tooltip label="Pages">
               <ActionIcon
                 variant="light"
-                color="primary"
-                onClick={() => printMut.mutate(packet)}
-                loading={printMut.isPending}
-                aria-label="Print case sheet"
-              >
-                <IconPrinter size={16} />
-              </ActionIcon>
-            </Tooltip>
-          )}
-          {canReprint && packet.printed_at && (
-            <Tooltip label="Reprint">
-              <ActionIcon
-                variant="light"
-                color="orange"
                 onClick={() => {
                   setSelectedPacket(packet);
-                  setReprintReason("");
-                  openReprint();
+                  openPages();
                 }}
-                aria-label="Reprint case sheet"
+                aria-label="View page checklist"
               >
-                <IconPrinter size={16} />
+                <IconClipboardList size={16} />
               </ActionIcon>
             </Tooltip>
-          )}
-          {canFile && packet.status === "printed" && (
-            <Tooltip label="File in MRD">
-              <ActionIcon
-                variant="light"
-                color="success"
-                onClick={() => {
-                  setSelectedPacket(packet);
-                  setFileForm({ storage_location_id: "" });
-                  openFile();
-                }}
-                aria-label="File case sheet"
-              >
-                <IconMapPin size={16} />
-              </ActionIcon>
-            </Tooltip>
-          )}
-        </Group>
-      ),
+            {sourceRoute && (
+              <Tooltip label={packet.packet_type === "opd" ? "Open OPD encounter" : "Open IPD"}>
+                <ActionIcon
+                  variant="light"
+                  color="slate"
+                  onClick={() => navigate(sourceRoute)}
+                  aria-label="Open source workflow"
+                >
+                  <IconArrowRight size={16} />
+                </ActionIcon>
+              </Tooltip>
+            )}
+            {canPrint && (packet.status === "generated" || packet.status === "draft") && (
+              <Tooltip label="Print">
+                <ActionIcon
+                  variant="light"
+                  color="primary"
+                  onClick={() => printMut.mutate(packet)}
+                  loading={printMut.isPending}
+                  aria-label="Print case sheet"
+                >
+                  <IconPrinter size={16} />
+                </ActionIcon>
+              </Tooltip>
+            )}
+            {canReprint && packet.printed_at && (
+              <Tooltip label="Reprint">
+                <ActionIcon
+                  variant="light"
+                  color="orange"
+                  onClick={() => {
+                    setSelectedPacket(packet);
+                    setReprintReason("");
+                    openReprint();
+                  }}
+                  aria-label="Reprint case sheet"
+                >
+                  <IconPrinter size={16} />
+                </ActionIcon>
+              </Tooltip>
+            )}
+            {canFile && packet.status === "printed" && (
+              <Tooltip label="File in MRD">
+                <ActionIcon
+                  variant="light"
+                  color="success"
+                  onClick={() => {
+                    setSelectedPacket(packet);
+                    setFileForm({ storage_location_id: "" });
+                    openFile();
+                  }}
+                  aria-label="File case sheet"
+                >
+                  <IconMapPin size={16} />
+                </ActionIcon>
+              </Tooltip>
+            )}
+          </Group>
+        );
+      },
     },
   ];
 
@@ -826,6 +881,27 @@ function CaseSheetsTab() {
             onChange={(value) => setTypeFilter(value || null)}
             w={180}
           />
+          {sourceFilterLabel && (
+            <Group gap={6}>
+              <Badge variant="light" color="primary">
+                {sourceFilterLabel}
+              </Badge>
+              <Button
+                variant="subtle"
+                size="compact-xs"
+                onClick={() => {
+                  const next = new URLSearchParams(searchParams);
+                  next.delete("encounter_id");
+                  next.delete("admission_id");
+                  next.delete("packet_type");
+                  setTypeFilter(null);
+                  setSearchParams(next, { replace: true });
+                }}
+              >
+                Show all
+              </Button>
+            </Group>
+          )}
         </Group>
         <Text size="sm" c="dimmed">
           MRD filing follows fixed case-sheet assembly, print control, and storage tracking.

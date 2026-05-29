@@ -192,6 +192,7 @@ import { useRequirePermission } from "../hooks/useRequirePermission";
 import { useVitalsSource } from "../hooks/useVitalsSource";
 import { toDateString, todayDateString } from "../lib/date-utils";
 import { campService } from "../services/camp.service";
+import { mrdService } from "../services/mrd.service";
 import { opdService } from "../services/opd.service";
 
 const statusColors: Record<string, string> = {
@@ -1372,6 +1373,9 @@ export function EncounterDetail({
   canUpdate: boolean;
 }) {
   const canOrder = useHasPermission(P.ORDER_BASKET.SIGN);
+  const canGenerateMrdCaseSheet = useHasPermission(P.MRD.CASE_SHEETS_GENERATE);
+  const canViewMrdCaseSheets = useHasPermission(P.MRD.CASE_SHEETS_VIEW);
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [summaryOpened, { open: openSummary, close: closeSummary }] = useDisclosure(false);
   const [basketOpened, { open: openBasket, close: closeBasket }] = useDisclosure(false);
@@ -1415,6 +1419,36 @@ export function EncounterDetail({
     queryKey: ["tenant-settings", "general"],
     queryFn: () => opdService.getTenantSettings("general"),
     staleTime: 600_000,
+  });
+  const { data: mrdCaseSheetPackets = [] } = useQuery({
+    queryKey: ["mrd-case-sheets", "opd", encounterId],
+    queryFn: () =>
+      mrdService.listMrdCaseSheetPackets({
+        encounter_id: encounterId,
+        packet_type: "opd",
+      }),
+    enabled: canViewMrdCaseSheets,
+    staleTime: 60_000,
+  });
+  const latestMrdCaseSheet = mrdCaseSheetPackets[0];
+
+  const generateMrdCaseSheetMutation = useMutation({
+    mutationFn: () => mrdService.generateOpdCaseSheetPacket(encounterId),
+    onSuccess: (packet) => {
+      void queryClient.invalidateQueries({ queryKey: ["mrd-case-sheets"] });
+      notifications.show({
+        title: "Sent to MRD",
+        message: `${packet.packet_number} is available in MRD case sheets`,
+        color: "success",
+      });
+    },
+    onError: () => {
+      notifications.show({
+        title: "MRD handoff failed",
+        message: "Unable to generate the OPD case-sheet packet",
+        color: "danger",
+      });
+    },
   });
 
   // Allergy data
@@ -1575,6 +1609,31 @@ export function EncounterDetail({
             >
               Print Summary
             </Button>
+            {canGenerateMrdCaseSheet && (
+              <Button
+                variant={latestMrdCaseSheet ? "subtle" : "light"}
+                size="xs"
+                fullWidth
+                leftSection={<IconClipboardList size={14} />}
+                onClick={() => generateMrdCaseSheetMutation.mutate()}
+                loading={generateMrdCaseSheetMutation.isPending}
+              >
+                {latestMrdCaseSheet ? "Update MRD Case Sheet" : "Send Case Sheet to MRD"}
+              </Button>
+            )}
+            {canViewMrdCaseSheets && latestMrdCaseSheet && (
+              <Button
+                variant="subtle"
+                size="compact-xs"
+                fullWidth
+                leftSection={<IconArrowRight size={12} />}
+                onClick={() =>
+                  navigate(`/mrd?packet_type=opd&encounter_id=${encounterId}#case-sheets`)
+                }
+              >
+                Open MRD Packet
+              </Button>
+            )}
             {canOrder && <OrderBasketChip onClick={() => openOrderBasket("drug")} />}
             {canOrder && (
               <Group gap={4} grow>
