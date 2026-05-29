@@ -35,6 +35,8 @@ export const patientDetailService = {
     api.getAdmissionBillingSummary(...args),
   getInvoicePrintData: (...args: Parameters<typeof api.getInvoicePrintData>) =>
     api.getInvoicePrintData(...args),
+  getRegistrationCardPrintData: (...args: Parameters<typeof api.getRegistrationCardPrintData>) =>
+    api.getRegistrationCardPrintData(...args),
   listPatientAppointments: (...args: Parameters<typeof api.listPatientAppointments>) =>
     api.listPatientAppointments(...args),
   listFamilyLinks: (...args: Parameters<typeof api.listFamilyLinks>) =>

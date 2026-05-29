@@ -53,6 +53,7 @@ import type {
   PatientVisitRow,
   PrescriptionHistoryItem,
   RadiologyDicomStudy,
+  RegistrationCardPrintData,
   TreatmentSummaryResponse,
 } from "@medbrains/types";
 import { P } from "@medbrains/types";
@@ -111,6 +112,7 @@ import {
 import { useHashTabs } from "../hooks/useHashTabs";
 import { useRequirePermission } from "../hooks/useRequirePermission";
 import { patientDetailService } from "../services/patientDetail.service";
+import { buildCopyPrintHtml, copyPrintStyles, type PrintCopyRoute } from "../utils/printCopies";
 
 // ── Helpers ────────────────────────────────────────────────
 
@@ -146,6 +148,11 @@ const PATIENT_DETAIL_TAB_VALUES = [
   "notes",
   "merge",
 ] as const;
+
+const PATIENT_CARD_PRINT_COPIES = [
+  { label: "Customer patient card copy", printerProfile: "patient-card" },
+  { label: "Office registration copy", printerProfile: "registration-a4" },
+] as const satisfies readonly PrintCopyRoute[];
 
 const INVOICE_STATUS_COLORS: Record<string, string> = {
   draft: "gray",
@@ -2049,47 +2056,136 @@ function MergeTab({ patient }: { patient: Patient }) {
 
 // ── Print Patient Card ─────────────────────────────────────
 
-interface PatientCardPrintData {
-  uhid: string;
-  name: string;
-  gender: string;
-  bloodGroup: string | null;
-  phone: string;
-  dateOfBirth: string;
-  category: string;
-  isVip: boolean;
-  isMedicoLegal: boolean;
-  mlcNumber: string;
+function registrationCardValue(value: string | null | undefined, fallback = "Not recorded") {
+  return escapeHtml(value?.trim() || fallback);
 }
 
-function handlePrintPatientCard(data: PatientCardPrintData) {
-  const win = window.open("", "_blank", "width=400,height=300");
-  if (!win) return;
+function registrationAllergySummary(allergies: readonly string[]) {
+  if (allergies.length === 0) {
+    return "None recorded";
+  }
+  return allergies.map((allergy) => escapeHtml(allergy)).join(", ");
+}
+
+function buildRegistrationCardContent(data: RegistrationCardPrintData) {
+  const hospitalName = registrationCardValue(data.hospital_name, "MedBrains HMS");
+  const printedAt = new Date().toLocaleString("en-IN");
+
+  return `
+    <section class="registration-print">
+      <header class="registration-header">
+        <div>
+          <div class="hospital-name">${hospitalName}</div>
+          <div class="document-title">Registration slip and patient card</div>
+        </div>
+        <div class="printed-at">Printed ${escapeHtml(printedAt)}</div>
+      </header>
+
+      <section class="patient-card">
+        <div>
+          <div class="uhid">${registrationCardValue(data.uhid)}</div>
+          <div class="patient-name">${registrationCardValue(data.patient_name)}</div>
+          <div class="identity-line">
+            ${registrationCardValue(data.gender)} | ${registrationCardValue(data.age)} | DOB ${registrationCardValue(data.date_of_birth)}
+          </div>
+        </div>
+        <div class="qr-block">
+          <div class="qr-label">QR</div>
+          <div class="qr-code">${registrationCardValue(data.qr_code_data)}</div>
+        </div>
+      </section>
+
+      <dl class="registration-details">
+        <dt>UHID</dt><dd>${registrationCardValue(data.uhid)}</dd>
+        <dt>Phone</dt><dd>${registrationCardValue(data.phone)}</dd>
+        <dt>Email</dt><dd>${registrationCardValue(data.email)}</dd>
+        <dt>Blood group</dt><dd>${registrationCardValue(data.blood_group)}</dd>
+        <dt>Registered on</dt><dd>${registrationCardValue(data.registration_date)}</dd>
+        <dt>Address</dt><dd>${registrationCardValue(data.address)}</dd>
+        <dt>Emergency contact</dt>
+        <dd>
+          ${registrationCardValue(data.emergency_contact_name)}
+          ${data.emergency_contact_phone ? `(${registrationCardValue(data.emergency_contact_phone)})` : ""}
+        </dd>
+        <dt>Allergies</dt><dd>${registrationAllergySummary(data.allergies)}</dd>
+      </dl>
+
+      <footer class="registration-footer">
+        Verify patient identity with UHID plus a second identifier before clinical service or billing.
+      </footer>
+    </section>
+  `;
+}
+
+function writeRegistrationCardPrintPacket(win: Window, data: RegistrationCardPrintData) {
+  const content = buildRegistrationCardContent(data);
+  win.document.open();
   win.document.write(`
-    <html><head><title>Patient Card</title>
-    <style>
-      body { font-family: Arial, sans-serif; padding: 20px; }
-      .card { border: 2px solid #333; padding: 16px; width: 350px; border-radius: 8px; }
-      .uhid { font-size: 18px; font-weight: bold; color: #1a73e8; }
-      .name { font-size: 16px; font-weight: bold; margin: 8px 0 4px; }
-      .info { font-size: 12px; color: #555; margin: 2px 0; }
-      .footer { font-size: 10px; color: #999; margin-top: 12px; border-top: 1px solid #ddd; padding-top: 8px; }
-	    </style></head><body>
-	    <div class="card">
-	      <div class="uhid">${escapeHtml(data.uhid)}</div>
-	      <div class="name">${escapeHtml(data.name)}</div>
-	      <div class="info">Gender: ${escapeHtml(data.gender)} | Blood Group: ${escapeHtml(data.bloodGroup ?? "Unknown")}</div>
-	      <div class="info">Phone: ${escapeHtml(data.phone)}</div>
-	      <div class="info">DOB: ${escapeHtml(data.dateOfBirth)}</div>
-	      <div class="info">Category: ${escapeHtml(data.category)}</div>
-	      ${data.isVip ? '<div class="info" style="color:orange;font-weight:bold;">VIP Patient</div>' : ""}
-	      ${data.isMedicoLegal ? `<div class="info" style="color:red;font-weight:bold;">MLC #${escapeHtml(data.mlcNumber)}</div>` : ""}
-	      <div class="footer">MedBrains HMS &mdash; Printed ${new Date().toLocaleDateString()}</div>
-	    </div>
-    <script>window.print();window.close();</script>
-    </body></html>
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <title>Patient Card ${registrationCardValue(data.uhid)}</title>
+        <style>
+          * { box-sizing: border-box; }
+          body { font-family: Arial, sans-serif; padding: 16px; color: #101918; font-size: 12px; }
+          .registration-print { border: 1px solid #cfd8dc; padding: 14px; border-radius: 6px; }
+          .registration-header { display: flex; justify-content: space-between; gap: 12px; border-bottom: 2px solid #1f2937; padding-bottom: 10px; margin-bottom: 12px; }
+          .hospital-name { font-size: 17px; font-weight: 700; }
+          .document-title { color: #475569; margin-top: 2px; }
+          .printed-at { color: #64748b; font-size: 11px; white-space: nowrap; }
+          .patient-card { border: 2px solid #1f2937; border-radius: 8px; padding: 14px; display: flex; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+          .uhid { font-size: 20px; font-weight: 800; color: #0f6b75; letter-spacing: 0; }
+          .patient-name { font-size: 16px; font-weight: 700; margin-top: 5px; }
+          .identity-line { color: #475569; margin-top: 4px; }
+          .qr-block { width: 112px; min-height: 82px; border: 1px dashed #94a3b8; border-radius: 6px; padding: 8px; text-align: center; overflow-wrap: anywhere; }
+          .qr-label { font-size: 10px; font-weight: 700; color: #64748b; margin-bottom: 4px; }
+          .qr-code { font-size: 9px; color: #0f172a; }
+          .registration-details { display: grid; grid-template-columns: 120px 1fr; gap: 7px 12px; margin: 0; }
+          .registration-details dt { color: #475569; font-weight: 700; }
+          .registration-details dd { margin: 0; }
+          .registration-footer { border-top: 1px solid #cbd5e1; margin-top: 14px; padding-top: 10px; color: #475569; font-size: 11px; }
+          ${copyPrintStyles()}
+          @media print { body { padding: 0; } }
+        </style>
+      </head>
+      <body>
+        ${buildCopyPrintHtml(content, PATIENT_CARD_PRINT_COPIES)}
+        <script>window.onload = function() { window.print(); window.close(); }</script>
+      </body>
+    </html>
   `);
   win.document.close();
+}
+
+async function handlePrintPatientCard(patientId: string) {
+  const win = window.open("", "_blank", "width=520,height=720");
+  if (!win) {
+    notifications.show({
+      title: "Print blocked",
+      message: "Allow pop-ups to print the patient card packet.",
+      color: "warning",
+    });
+    return;
+  }
+
+  win.document.write(`
+    <!DOCTYPE html>
+    <html><head><title>Preparing patient card</title></head>
+    <body style="font-family:Arial,sans-serif;padding:20px;">Preparing patient card...</body></html>
+  `);
+  win.document.close();
+
+  try {
+    const data = await patientDetailService.getRegistrationCardPrintData(patientId);
+    writeRegistrationCardPrintPacket(win, data);
+  } catch (error) {
+    win.close();
+    notifications.show({
+      title: "Print failed",
+      message: error instanceof Error ? error.message : "Unable to load patient card print data.",
+      color: "danger",
+    });
+  }
 }
 
 // ══════════════════════════════════════════════════════════
@@ -2788,7 +2884,6 @@ export function PatientDetailPage() {
   const lastNameAccess = useFieldAccess("patients.last_name");
   const phoneAccess = useFieldAccess("patients.phone");
   const dobAccess = useFieldAccess("patients.date_of_birth");
-  const mlcNumberAccess = useFieldAccess("patients.mlc_number");
   const [basketOpen, setBasketOpen] = useState(false);
   const [basketTab, setBasketTab] = useState<OrderBasketTab>("drug");
   const [shareOpen, { open: openShare, close: closeShare }] = useDisclosure(false);
@@ -2840,11 +2935,6 @@ export function PatientDetailPage() {
       .join(" ") || "Patient";
   const displayPhone = fieldAccessText(phoneAccess, patient.phone, "phone");
   const displayUhid = fieldAccessText(uhidAccess, patient.uhid, "identifier");
-  const displayDateOfBirth =
-    dobAccess === "edit" || dobAccess === "view"
-      ? (patient.date_of_birth ?? "N/A")
-      : fieldAccessText(dobAccess, patient.date_of_birth, "identifier");
-  const displayMlcNumber = fieldAccessText(mlcNumberAccess, patient.mlc_number, "identifier");
   const displayAge =
     dobAccess === "edit" || dobAccess === "view"
       ? age(patient.date_of_birth)
@@ -2869,20 +2959,9 @@ export function PatientDetailPage() {
             onEdit={() => navigate(`/patients/${patient.id}/edit`)}
             onOpenOrderBasket={openOrderBasket}
             onShare={openShare}
-            onPrintPatientCard={() =>
-              handlePrintPatientCard({
-                uhid: displayUhid,
-                name: displayName,
-                gender: patient.gender,
-                bloodGroup: patient.blood_group,
-                phone: displayPhone,
-                dateOfBirth: displayDateOfBirth,
-                category: patient.category,
-                isVip: patient.is_vip,
-                isMedicoLegal: patient.is_medico_legal,
-                mlcNumber: displayMlcNumber,
-              })
-            }
+            onPrintPatientCard={() => {
+              void handlePrintPatientCard(patient.id);
+            }}
           />
         }
       />
