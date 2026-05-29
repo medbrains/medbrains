@@ -1,7 +1,6 @@
 import { useAuthStore } from "@medbrains/stores";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { AppBarGradient } from "../components/AppBarGradient";
-import { APP_BAR_COLORS } from "../theme/paper-theme";
 import {
   // Patient screens
   AppointmentsScreen,
@@ -28,6 +27,7 @@ import {
   TripSummaryScreen,
   VitalsEntryScreen,
 } from "../screens";
+import { APP_BAR_COLORS } from "../theme/paper-theme";
 
 export type RootStackParamList = {
   // Auth screens
@@ -195,7 +195,8 @@ function PhlebotomistStack() {
 }
 
 export function RootNavigator() {
-  const { isAuthenticated, user } = useAuthStore();
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated());
+  const user = useAuthStore((state) => state.user);
 
   // Not logged in - show auth flow
   if (!isAuthenticated) {
