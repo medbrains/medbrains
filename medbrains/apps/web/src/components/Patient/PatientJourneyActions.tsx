@@ -1,4 +1,4 @@
-import { ActionIcon, Button, Group, Tooltip } from "@mantine/core";
+import { ActionIcon, Badge, Button, Group, Stack, Text, Tooltip } from "@mantine/core";
 import { usePermissionStore } from "@medbrains/stores";
 import type {
   ClinicalJourneyActionId,
@@ -115,6 +115,35 @@ function supportsAction(
   }
 }
 
+function eventLabel(eventName: string) {
+  return eventName.replace(/\./g, " ");
+}
+
+function ActionTooltip({ action }: { action: ResolvedClinicalJourneyAction }) {
+  return (
+    <Stack gap={5}>
+      <Text size="xs" fw={700}>
+        {action.enabled ? action.description : action.disabledReasonText}
+      </Text>
+      <Group gap={4}>
+        {action.activatesAfter.map((eventName) => (
+          <Badge key={eventName} size="xs" color="blue" variant="light">
+            after {eventLabel(eventName)}
+          </Badge>
+        ))}
+      </Group>
+      {action.emitsEvent && (
+        <Badge size="xs" color="green" variant="light">
+          emits {eventLabel(action.emitsEvent)}
+        </Badge>
+      )}
+      <Text size="xs" c="dimmed">
+        Permission: {action.requiredPermissions.join(" / ")}
+      </Text>
+    </Stack>
+  );
+}
+
 export function PatientJourneyActions({
   context,
   localOrderContext,
@@ -224,7 +253,7 @@ function PatientJourneyActionButton({
   onClick: () => void;
 }) {
   const disabled = !action.enabled;
-  const tooltip = disabled ? action.disabledReasonText : action.description;
+  const tooltip = <ActionTooltip action={action} />;
 
   if (action.id === "patient.print_card") {
     const icon = (
@@ -239,12 +268,10 @@ function PatientJourneyActionButton({
         {actionIcon(action.id)}
       </ActionIcon>
     );
-    return tooltip ? (
-      <Tooltip label={tooltip}>
+    return (
+      <Tooltip label={tooltip} multiline w={280}>
         <span>{icon}</span>
       </Tooltip>
-    ) : (
-      icon
     );
   }
 
@@ -261,11 +288,9 @@ function PatientJourneyActionButton({
     </Button>
   );
 
-  return tooltip ? (
-    <Tooltip label={tooltip} multiline w={260}>
+  return (
+    <Tooltip label={tooltip} multiline w={280}>
       <span>{button}</span>
     </Tooltip>
-  ) : (
-    button
   );
 }

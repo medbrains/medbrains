@@ -1,4 +1,4 @@
-import { Button, Group, Text, Tooltip } from "@mantine/core";
+import { Badge, Button, Group, Stack, Text, Tooltip } from "@mantine/core";
 import { usePermissionStore } from "@medbrains/stores";
 import type {
   ClinicalJourneyActionId,
@@ -51,6 +51,9 @@ interface FlowItem {
   icon: ReactNode;
   enabled: boolean;
   disabledReason: string | null;
+  activationEvents: readonly string[];
+  emittedEvent: string | null;
+  requiredPermissions: readonly string[];
 }
 
 const OPD_FLOW_ACTION = "opd.open_visit" satisfies ClinicalJourneyActionId;
@@ -67,18 +70,63 @@ function itemState(
   action: ResolvedClinicalJourneyAction | undefined,
   fallbackEnabled: boolean,
   fallbackReason = "Permission required",
+  fallbackActivationEvents: readonly string[] = [],
+  fallbackPermissions: readonly string[] = [],
 ) {
   if (!action) {
     return {
       enabled: fallbackEnabled,
       disabledReason: fallbackEnabled ? null : fallbackReason,
+      activationEvents: fallbackActivationEvents,
+      emittedEvent: null,
+      requiredPermissions: fallbackPermissions,
     };
   }
 
   return {
     enabled: action.enabled,
     disabledReason: action.enabled ? null : action.disabledReasonText,
+    activationEvents: action.activatesAfter,
+    emittedEvent: action.emitsEvent ?? null,
+    requiredPermissions: action.requiredPermissions,
   };
+}
+
+function eventLabel(eventName: string) {
+  return eventName.replace(/\./g, " ");
+}
+
+function FlowTooltip({ item }: { item: FlowItem }) {
+  return (
+    <Stack gap={5}>
+      <Text size="xs" fw={700}>
+        {item.enabled ? item.description : item.disabledReason}
+      </Text>
+      <Group gap={4}>
+        {item.activationEvents.length > 0 ? (
+          item.activationEvents.map((eventName) => (
+            <Badge key={eventName} size="xs" color="blue" variant="light">
+              after {eventLabel(eventName)}
+            </Badge>
+          ))
+        ) : (
+          <Badge size="xs" color="gray" variant="light">
+            always
+          </Badge>
+        )}
+      </Group>
+      {item.emittedEvent && (
+        <Badge size="xs" color="green" variant="light">
+          emits {eventLabel(item.emittedEvent)}
+        </Badge>
+      )}
+      {item.requiredPermissions.length > 0 && (
+        <Text size="xs" c="dimmed">
+          Permission: {item.requiredPermissions.join(" / ")}
+        </Text>
+      )}
+    </Stack>
+  );
 }
 
 export function PatientFlowNavigator({
@@ -108,31 +156,61 @@ export function PatientFlowNavigator({
       activeOrderContext ?? (activeEncounterId ? "opd" : activeAdmissionId ? "ipd" : null),
   };
   const actions = resolvedActionMap(resolveClinicalJourneyActions(context, hasPermission, "web"));
-  const patientState = itemState(undefined, hasPermission(P.PATIENTS.VIEW));
-  const opdState = itemState(actions.get(OPD_FLOW_ACTION), hasPermission(P.OPD.VISIT_CREATE));
+  const patientState = itemState(
+    undefined,
+    hasPermission(P.PATIENTS.VIEW),
+    "Permission required",
+    ["patient.created"],
+    [P.PATIENTS.VIEW],
+  );
+  const opdState = itemState(
+    actions.get(OPD_FLOW_ACTION),
+    hasPermission(P.OPD.VISIT_CREATE),
+    "Permission required",
+    ["patient.created"],
+    [P.OPD.VISIT_CREATE],
+  );
   const ipdAction = actions.get(activeAdmissionId ? "ipd.open_admission" : "ipd.admit");
   const ipdState = itemState(
     ipdAction,
     activeAdmissionId
       ? hasPermission(P.IPD.ADMISSIONS_VIEW)
       : hasPermission(P.IPD.ADMISSIONS_CREATE),
+    "Permission required",
+    activeAdmissionId ? ["bed.assigned"] : ["patient.created"],
+    activeAdmissionId ? [P.IPD.ADMISSIONS_VIEW] : [P.IPD.ADMISSIONS_CREATE],
   );
   const emergencyState = itemState(
     actions.get(EMERGENCY_FLOW_ACTION),
     hasPermission(P.EMERGENCY.VISITS_CREATE),
+    "Permission required",
+    ["patient.created"],
+    [P.EMERGENCY.VISITS_CREATE],
   );
   const campAllowed =
     hasPermission(P.CAMP.LIST) ||
     hasPermission(P.CAMP.REGISTRATIONS_LIST) ||
     hasPermission(P.CAMP.REGISTRATIONS_CREATE);
-  const campState = itemState(actions.get(CAMP_FLOW_ACTION), campAllowed);
+  const campState = itemState(
+    actions.get(CAMP_FLOW_ACTION),
+    campAllowed,
+    "Permission required",
+    ["patient.created", "camp.registration.created", "camp.screening.completed"],
+    [P.CAMP.LIST, P.CAMP.REGISTRATIONS_LIST, P.CAMP.REGISTRATIONS_CREATE],
+  );
   const pharmacyState = itemState(
     actions.get(PHARMACY_FLOW_ACTION),
     hasPermission(P.PHARMACY.PRESCRIPTIONS_LIST),
+    "Permission required",
+    ["order.created", "pharmacy.order.dispensed"],
+    [P.PHARMACY.PRESCRIPTIONS_LIST],
   );
   const billingState = itemState(
     actions.get(BILLING_FLOW_ACTION),
     hasPermission(P.BILLING.INVOICES_LIST),
+    "Permission required",
+    ["patient.created", "order.created", "billing.invoice.created"],
+    [P.BILLING.INVOICES_LIST],
   );
 
   const items: FlowItem[] = [
@@ -145,6 +223,9 @@ export function PatientFlowNavigator({
       icon: <IconUser size={14} />,
       enabled: patientState.enabled,
       disabledReason: patientState.disabledReason,
+      activationEvents: patientState.activationEvents,
+      emittedEvent: patientState.emittedEvent,
+      requiredPermissions: patientState.requiredPermissions,
     },
     {
       id: "opd",
@@ -157,6 +238,9 @@ export function PatientFlowNavigator({
       icon: <IconStethoscope size={14} />,
       enabled: opdState.enabled,
       disabledReason: opdState.disabledReason,
+      activationEvents: opdState.activationEvents,
+      emittedEvent: opdState.emittedEvent,
+      requiredPermissions: opdState.requiredPermissions,
     },
     {
       id: "ipd",
@@ -169,6 +253,9 @@ export function PatientFlowNavigator({
       icon: <IconBed size={14} />,
       enabled: ipdState.enabled,
       disabledReason: ipdState.disabledReason,
+      activationEvents: ipdState.activationEvents,
+      emittedEvent: ipdState.emittedEvent,
+      requiredPermissions: ipdState.requiredPermissions,
     },
     {
       id: "emergency",
@@ -181,6 +268,9 @@ export function PatientFlowNavigator({
       icon: <IconFirstAidKit size={14} />,
       enabled: emergencyState.enabled,
       disabledReason: emergencyState.disabledReason,
+      activationEvents: emergencyState.activationEvents,
+      emittedEvent: emergencyState.emittedEvent,
+      requiredPermissions: emergencyState.requiredPermissions,
     },
     {
       id: "camp",
@@ -191,6 +281,9 @@ export function PatientFlowNavigator({
       icon: <IconBuildingStore size={14} />,
       enabled: campState.enabled,
       disabledReason: campState.disabledReason,
+      activationEvents: campState.activationEvents,
+      emittedEvent: campState.emittedEvent,
+      requiredPermissions: campState.requiredPermissions,
     },
     {
       id: "pharmacy",
@@ -201,6 +294,9 @@ export function PatientFlowNavigator({
       icon: <IconPill size={14} />,
       enabled: pharmacyState.enabled,
       disabledReason: pharmacyState.disabledReason,
+      activationEvents: pharmacyState.activationEvents,
+      emittedEvent: pharmacyState.emittedEvent,
+      requiredPermissions: pharmacyState.requiredPermissions,
     },
     {
       id: "billing",
@@ -211,6 +307,9 @@ export function PatientFlowNavigator({
       icon: <IconFileInvoice size={14} />,
       enabled: billingState.enabled,
       disabledReason: billingState.disabledReason,
+      activationEvents: billingState.activationEvents,
+      emittedEvent: billingState.emittedEvent,
+      requiredPermissions: billingState.requiredPermissions,
     },
   ];
 
@@ -223,6 +322,9 @@ export function PatientFlowNavigator({
             Patient Flow
           </Text>
         </Group>
+        <Badge size="xs" color="blue" variant="light">
+          event activated
+        </Badge>
       </Group>
       <Group gap="xs" wrap="wrap">
         {items.map((item) => {
@@ -242,12 +344,7 @@ export function PatientFlowNavigator({
             </Button>
           );
           return (
-            <Tooltip
-              key={item.id}
-              label={item.enabled ? item.description : item.disabledReason}
-              multiline
-              w={220}
-            >
+            <Tooltip key={item.id} label={<FlowTooltip item={item} />} multiline w={280}>
               <span>{button}</span>
             </Tooltip>
           );
