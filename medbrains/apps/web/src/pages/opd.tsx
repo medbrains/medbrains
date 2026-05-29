@@ -45,6 +45,7 @@ import type {
   BookAppointmentRequest,
   Camp,
   CertificateType,
+  ClinicalJourneyContext,
   Consultation,
   ConsultationTemplate,
   CreateConsultationRequest,
@@ -164,6 +165,7 @@ import {
 } from "../components/OrderBasket/OrderBasketWorkspace";
 import { PatientContextBanner } from "../components/Patient/PatientContextBanner";
 import { PatientFlowNavigator } from "../components/Patient/PatientFlowNavigator";
+import { PatientJourneyActions } from "../components/Patient/PatientJourneyActions";
 import {
   DEFAULT_OPD_CONSENT_FORM_VALUES,
   DEFAULT_OPD_FEEDBACK_FORM_VALUES,
@@ -1482,6 +1484,11 @@ export function EncounterDetail({
     // Show unresolved diagnoses from previous encounters
     return dx.filter((d) => !d.resolved_date && d.encounter_id !== encounterId);
   }, [patientDiagnoses, encounterId]);
+  const journeyContext: ClinicalJourneyContext = {
+    patientId,
+    activeEncounterId: encounterId,
+    activeOrderContext: "opd",
+  };
 
   const getSetting = (key: string) => {
     const row = hospitalSettings.find((s) => s.key === key);
@@ -1516,6 +1523,25 @@ export function EncounterDetail({
         activeEncounterId={encounterId}
         compact
       />
+      <Card withBorder padding="sm">
+        <Group justify="space-between" gap="sm" align="center">
+          <Stack gap={2}>
+            <Text size="xs" fw={700} c="dimmed" tt="uppercase">
+              Next actions
+            </Text>
+            <Text size="xs" c="dimmed">
+              Available from the active OPD encounter, patient state, and permissions.
+            </Text>
+          </Stack>
+          <PatientJourneyActions
+            context={journeyContext}
+            localOrderContext="opd"
+            hiddenActionIds={["opd.open_visit"]}
+            size="xs"
+            onOpenOrderBasket={openOrderBasket}
+          />
+        </Group>
+      </Card>
 
       <Tabs
         value={activeEncounterTab}
