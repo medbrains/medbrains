@@ -17,6 +17,8 @@ export const radiologyService = {
     api.createRadiologyReport(...args),
   verifyRadiologyReport: (...args: Parameters<typeof api.verifyRadiologyReport>) =>
     api.verifyRadiologyReport(...args),
+  getRadiologyPrintData: (...args: Parameters<typeof api.getRadiologyPrintData>) =>
+    api.getRadiologyPrintData(...args),
   createRadiologyModality: (...args: Parameters<typeof api.createRadiologyModality>) =>
     api.createRadiologyModality(...args),
   deleteRadiologyModality: (...args: Parameters<typeof api.deleteRadiologyModality>) =>
