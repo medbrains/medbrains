@@ -6,4 +6,5 @@ export const tvQueueService = {
   listQueueTokens: (params?: ListQueueTokensInput) => api.listQueueTokens(params),
   getQueueMetrics: (departmentId: string) => api.getQueueMetricsRealtime(departmentId),
   getPharmacyQueueDisplay: () => api.getPharmacyQueueDisplay(),
+  getBillingQueueDisplay: () => api.getBillingQueueDisplay(),
 };

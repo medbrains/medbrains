@@ -984,6 +984,13 @@ pub struct BillingQueueDisplay {
     pub insurance_desk: Vec<BillingQueueToken>,
 }
 
+#[derive(Debug, FromRow)]
+struct BillingQueueSourceRow {
+    id: Uuid,
+    queue_type: String,
+    status: String,
+}
+
 /// Bed waiting entry for IPD.
 #[derive(Debug, Serialize)]
 pub struct BedWaitingEntry {
@@ -1038,6 +1045,15 @@ pub async fn get_pharmacy_queue(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
 ) -> Result<Json<PharmacyQueueDisplay>, (StatusCode, String)> {
+    let mut tx = state
+        .db
+        .begin()
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
     let waiting_rows = sqlx::query_as::<_, PharmacyQueueSourceRow>(
         r"
         SELECT pr.id,
@@ -1060,7 +1076,7 @@ pub async fn get_pharmacy_queue(
         ",
     )
     .bind(claims.tenant_id)
-    .fetch_all(&state.db)
+    .fetch_all(&mut *tx)
     .await
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
@@ -1083,7 +1099,7 @@ pub async fn get_pharmacy_queue(
         ",
     )
     .bind(claims.tenant_id)
-    .fetch_all(&state.db)
+    .fetch_all(&mut *tx)
     .await
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
@@ -1107,7 +1123,7 @@ pub async fn get_pharmacy_queue(
         ",
     )
     .bind(claims.tenant_id)
-    .fetch_all(&state.db)
+    .fetch_all(&mut *tx)
     .await
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
@@ -1151,9 +1167,12 @@ pub async fn get_pharmacy_queue(
         ",
     )
     .bind(claims.tenant_id)
-    .fetch_one(&state.db)
+    .fetch_one(&mut *tx)
     .await
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    tx.commit()
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     let prepared_tokens = preparing_rows
         .into_iter()
@@ -1277,18 +1296,132 @@ pub async fn get_er_queue(
 }
 
 /// GET /api/tv/queue/billing
-/// Get billing counter queue display data.
+/// Get billing counter queue display data. Waiting-area billing
+/// displays are token-only: no patient names or financial amounts.
 pub async fn get_billing_queue(
-    State(_state): State<AppState>,
-    Extension(_claims): Extension<Claims>,
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
 ) -> Result<Json<BillingQueueDisplay>, (StatusCode, String)> {
-    // Placeholder implementation - would query billing queue table
+    let mut tx = state
+        .db
+        .begin()
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    let opd_billing_rows = sqlx::query_as::<_, BillingQueueSourceRow>(
+        r"
+        SELECT id,
+               CASE WHEN is_er_deferred THEN 'ER deferred billing' ELSE 'OPD billing' END AS queue_type,
+               status::text AS status
+        FROM invoices
+        WHERE tenant_id = $1
+          AND admission_id IS NULL
+          AND corporate_id IS NULL
+          AND status::text IN ('issued', 'partially_paid')
+        ORDER BY COALESCE(issued_at, created_at) ASC
+        LIMIT 30
+        ",
+    )
+    .bind(claims.tenant_id)
+    .fetch_all(&mut *tx)
+    .await
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    let ipd_discharge_rows = sqlx::query_as::<_, BillingQueueSourceRow>(
+        r"
+        SELECT id,
+               CASE WHEN is_interim THEN 'IPD interim bill' ELSE 'IPD discharge bill' END AS queue_type,
+               status::text AS status
+        FROM invoices
+        WHERE tenant_id = $1
+          AND admission_id IS NOT NULL
+          AND corporate_id IS NULL
+          AND status::text IN ('issued', 'partially_paid')
+        ORDER BY COALESCE(issued_at, created_at) ASC
+        LIMIT 30
+        ",
+    )
+    .bind(claims.tenant_id)
+    .fetch_all(&mut *tx)
+    .await
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    let insurance_rows = sqlx::query_as::<_, BillingQueueSourceRow>(
+        r"
+        SELECT id,
+               'Insurance desk' AS queue_type,
+               status::text AS status
+        FROM invoices
+        WHERE tenant_id = $1
+          AND corporate_id IS NOT NULL
+          AND status::text IN ('issued', 'partially_paid')
+        ORDER BY COALESCE(issued_at, created_at) ASC
+        LIMIT 30
+        ",
+    )
+    .bind(claims.tenant_id)
+    .fetch_all(&mut *tx)
+    .await
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    let advance_rows = sqlx::query_as::<_, BillingQueueSourceRow>(
+        r"
+        SELECT id,
+               'Advance deposit' AS queue_type,
+               status::text AS status
+        FROM patient_advances
+        WHERE tenant_id = $1
+          AND status::text = 'active'
+          AND created_at::date = CURRENT_DATE
+        ORDER BY created_at DESC
+        LIMIT 30
+        ",
+    )
+    .bind(claims.tenant_id)
+    .fetch_all(&mut *tx)
+    .await
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    tx.commit()
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
     Ok(Json(BillingQueueDisplay {
-        opd_billing: vec![],
-        ipd_discharge: vec![],
-        advance_deposit: vec![],
-        insurance_desk: vec![],
+        opd_billing: opd_billing_rows
+            .into_iter()
+            .map(|row| billing_queue_token(row, "BIL"))
+            .collect(),
+        ipd_discharge: ipd_discharge_rows
+            .into_iter()
+            .map(|row| billing_queue_token(row, "IPD"))
+            .collect(),
+        advance_deposit: advance_rows
+            .into_iter()
+            .map(|row| billing_queue_token(row, "ADV"))
+            .collect(),
+        insurance_desk: insurance_rows
+            .into_iter()
+            .map(|row| billing_queue_token(row, "INS"))
+            .collect(),
     }))
+}
+
+fn billing_queue_token(row: BillingQueueSourceRow, prefix: &str) -> BillingQueueToken {
+    BillingQueueToken {
+        token_number: format_short_token(prefix, row.id),
+        patient_name: "Token only".to_owned(),
+        queue_type: row.queue_type,
+        counter: None,
+        status: row.status,
+    }
+}
+
+fn format_short_token(prefix: &str, id: Uuid) -> String {
+    let stable_id = id.simple().to_string();
+    format!("{prefix}-{}", stable_id[..6].to_ascii_uppercase())
 }
 
 /// GET /`api/tv/queue/beds/{ward_type`}
