@@ -65,6 +65,7 @@ import {
 import { useFieldAccess, useHasPermission } from "@medbrains/stores";
 import type {
   AdmitFromErRequest,
+  ClinicalJourneyContext,
   CreateCodeActivationRequest,
   CreateErVisitRequest,
   CreateMassCasualtyEventRequest,
@@ -120,6 +121,7 @@ import { TriagePanel } from "../components/crdt/TriagePanel";
 import { DoctorSearchSelect } from "../components/DoctorSearchSelect";
 import { PatientContextBanner } from "../components/Patient/PatientContextBanner";
 import { PatientFlowNavigator } from "../components/Patient/PatientFlowNavigator";
+import { PatientJourneyActions } from "../components/Patient/PatientJourneyActions";
 import { PatientNameCell } from "../components/PatientNameCell";
 import { PatientSearchSelect } from "../components/PatientSearchSelect";
 import {
@@ -1444,6 +1446,13 @@ function EmergencyVisitSummary({
   });
   const canShowAdmit =
     canAdmit && ["registered", "triaged", "in_treatment", "observation"].includes(visit.status);
+  const journeyContext: ClinicalJourneyContext = {
+    patientId: visit.patient_id,
+    isDeceased: visit.is_brought_dead,
+    activeEmergencyVisitId: visit.id,
+    activeAdmissionId: visit.admission_id,
+    activeAdmissionStatus: visit.admission_id ? "admitted" : null,
+  };
   const admitMutation = useMutation({
     mutationFn: (data: AdmitFromErRequest) => emergencyService.admitFromEr(visit.id, data),
     onSuccess: () => {
@@ -1488,6 +1497,14 @@ function EmergencyVisitSummary({
               activeEmergencyVisitId={visit.id}
               activeAdmissionId={visit.admission_id}
               compact
+            />
+            <PatientJourneyActions
+              context={journeyContext}
+              hiddenActionIds={[
+                "emergency.open_visit",
+                visit.admission_id ? "ipd.admit" : "ipd.open_admission",
+              ]}
+              size="xs"
             />
             <Group gap="xs">
               <TableValueBadge value={visit.status} color={statusColor(visit.status)} />
