@@ -55,6 +55,10 @@ import {
 } from "./access-matrix-actions";
 import { buildNavRouteCoverage, summarizeNavRouteCoverage } from "./access-matrix-coverage";
 import {
+  resolvePermissionSources,
+  type PermissionSourceResolution,
+} from "./access-matrix-permission-sources";
+import {
   buildPrintableCoverage,
   PRINTABLE_COVERAGE_GAP_LABELS,
   summarizePrintableCoverage,
@@ -841,6 +845,31 @@ function EffectiveUserAccessMatrix({
     () => temporaryGrantPermissionSet(user.access_matrix),
     [user.access_matrix],
   );
+  const permissionSources = useMemo(
+    () =>
+      new Map(
+        PERMISSIONS.map((permission) => [
+          permission.code,
+          resolvePermissionSources({
+            bypassRole,
+            denied: deniedPermissions.has(permission.code),
+            extraGrant: extraPermissions.has(permission.code),
+            groups: userGroups,
+            permissionCode: permission.code,
+            roleGrant: rolePermissionSet.has(permission.code),
+            temporaryGrant: temporaryPermissions.has(permission.code),
+          }),
+        ]),
+      ),
+    [
+      bypassRole,
+      deniedPermissions,
+      extraPermissions,
+      rolePermissionSet,
+      temporaryPermissions,
+      userGroups,
+    ],
+  );
   const preservedWidgetAccess = useMemo(
     () => widgetAccessMap(user.access_matrix.widget_access),
     [user.access_matrix],
@@ -860,25 +889,28 @@ function EffectiveUserAccessMatrix({
     [moduleFilter, pacedFieldFilter],
   );
 
-  const grantSourceCount = (permission: string) =>
-    Number(rolePermissionSet.has(permission)) +
-    Number(groupPermissions.has(permission)) +
-    Number(extraPermissions.has(permission)) +
-    Number(temporaryPermissions.has(permission));
+  const sourceForPermission = (permission: string): PermissionSourceResolution =>
+    permissionSources.get(permission) ??
+    resolvePermissionSources({
+      bypassRole,
+      denied: deniedPermissions.has(permission),
+      extraGrant: extraPermissions.has(permission),
+      groups: userGroups,
+      permissionCode: permission,
+      roleGrant: rolePermissionSet.has(permission),
+      temporaryGrant: temporaryPermissions.has(permission),
+    });
 
-  const permissionIsEffective = (permission: string) =>
-    bypassRole || (!deniedPermissions.has(permission) && grantSourceCount(permission) > 0);
+  const permissionIsEffective = (permission: string) => sourceForPermission(permission).effective;
 
-  const effectiveCount = bypassRole
-    ? PERMISSIONS.length
-    : PERMISSIONS.filter((permission) => permissionIsEffective(permission.code)).length;
+  const effectiveCount = PERMISSIONS.filter((permission) =>
+    permissionIsEffective(permission.code),
+  ).length;
 
-  const overlapCount = bypassRole
-    ? 0
-    : PERMISSIONS.filter((permission) => {
-        const grants = grantSourceCount(permission.code);
-        return grants > 1 || (grants > 0 && deniedPermissions.has(permission.code));
-      }).length;
+  const overlapCount = PERMISSIONS.filter((permission) => {
+    const source = sourceForPermission(permission.code);
+    return source.duplicateGrant || source.deniedOverlap;
+  }).length;
 
   const visiblePermissions = useMemo(
     () =>
@@ -890,64 +922,25 @@ function EffectiveUserAccessMatrix({
   const overlapRows = useMemo(
     () =>
       PERMISSIONS.map((permission) => {
-        const roleGrant = rolePermissionSet.has(permission.code);
-        const groupGrant = groupPermissions.has(permission.code);
-        const extraGrant = extraPermissions.has(permission.code);
-        const temporaryGrant = temporaryPermissions.has(permission.code);
-        const denied = deniedPermissions.has(permission.code);
-        const grants =
-          Number(roleGrant) + Number(groupGrant) + Number(extraGrant) + Number(temporaryGrant);
+        const source = sourceForPermission(permission.code);
         return {
-          denied,
-          deniedOverlap: denied && grants > 0 && !bypassRole,
-          duplicateGrant: grants > 1,
-          effective: bypassRole || (!denied && grants > 0),
-          extraGrant,
-          groupGrant,
-          grants,
+          ...source,
           permission,
-          roleGrant,
-          temporaryGrant,
         };
       }).filter((row) => row.duplicateGrant || row.deniedOverlap),
-    [
-      bypassRole,
-      deniedPermissions,
-      extraPermissions,
-      groupPermissions,
-      rolePermissionSet,
-      temporaryPermissions,
-    ],
+    [permissionSources],
   );
   const redundantExtraPermissions = useMemo(
     () =>
       PERMISSIONS.filter(
-        (permission) =>
-          extraPermissions.has(permission.code) &&
-          (rolePermissionSet.has(permission.code) ||
-            groupPermissions.has(permission.code) ||
-            temporaryPermissions.has(permission.code)),
+        (permission) => sourceForPermission(permission.code).redundantIndividualExtra,
       ),
-    [extraPermissions, groupPermissions, rolePermissionSet, temporaryPermissions],
+    [permissionSources],
   );
   const deniedActiveGrantPermissions = useMemo(
     () =>
-      PERMISSIONS.filter((permission) => {
-        if (!deniedPermissions.has(permission.code)) return false;
-        return (
-          rolePermissionSet.has(permission.code) ||
-          groupPermissions.has(permission.code) ||
-          extraPermissions.has(permission.code) ||
-          temporaryPermissions.has(permission.code)
-        );
-      }),
-    [
-      deniedPermissions,
-      extraPermissions,
-      groupPermissions,
-      rolePermissionSet,
-      temporaryPermissions,
-    ],
+      PERMISSIONS.filter((permission) => sourceForPermission(permission.code).deniedOverlap),
+    [permissionSources],
   );
 
   const roleFieldRestrictionCount = Object.values(roleFieldAccess).filter(
@@ -1108,7 +1101,7 @@ function EffectiveUserAccessMatrix({
           </Text>
           {groupPermissions.size > 0 && (
             <Text size="xs" c="dimmed">
-              {groupPermissions.size} group permission grants
+              {groupPermissions.size} unique group permission grants
             </Text>
           )}
         </Card>
@@ -1181,6 +1174,10 @@ function EffectiveUserAccessMatrix({
                   {redundantExtraPermissions.length} redundant individual extras and{" "}
                   {deniedActiveGrantPermissions.length} deny conflicts found for this user.
                 </Text>
+                <Text size="xs" c="dimmed">
+                  Group overlap is counted per granting group, so two access groups granting the
+                  same permission are visible before you add an individual override.
+                </Text>
                 {userGroups.length > 0 && (
                   <Text size="xs" c="dimmed">
                     Group memberships also scope resources through SpiceDB: {groupNames(userGroups)}
@@ -1231,16 +1228,13 @@ function EffectiveUserAccessMatrix({
                   </Table.Thead>
                   <Table.Tbody>
                     {visiblePermissions.map((permission) => {
-                      const roleGrant = rolePermissionSet.has(permission.code);
-                      const groupGrant = groupPermissions.has(permission.code);
-                      const extraGrant = extraPermissions.has(permission.code);
-                      const temporaryGrant = temporaryPermissions.has(permission.code);
-                      const denied = deniedPermissions.has(permission.code);
-                      const grants = grantSourceCount(permission.code);
-                      const effective = permissionIsEffective(permission.code);
-                      const duplicateGrant = grants > 1;
-                      const deniedOverlap = denied && grants > 0 && !bypassRole;
-                      const overrideValue = denied ? "deny" : extraGrant ? "extra" : "inherit";
+                      const source = sourceForPermission(permission.code);
+                      const groupGrant = source.groupGrantCount > 0;
+                      const overrideValue = source.denied
+                        ? "deny"
+                        : source.extraGrant
+                          ? "extra"
+                          : "inherit";
                       return (
                         <Table.Tr key={permission.code}>
                           <Table.Td>
@@ -1258,29 +1252,31 @@ function EffectiveUserAccessMatrix({
                                   Bypass
                                 </Badge>
                               )}
-                              {!bypassRole && roleGrant && (
+                              {!bypassRole && source.roleGrant && (
                                 <Badge color="blue" variant="light">
                                   Role
                                 </Badge>
                               )}
                               {!bypassRole && groupGrant && (
-                                <Tooltip label={groupNames(userGroups)} multiline w={280}>
+                                <Tooltip label={source.groupGrantNames.join(", ")} multiline w={280}>
                                   <Badge color="cyan" variant="light">
-                                    Group
+                                    {source.groupGrantCount > 1
+                                      ? `Groups ${source.groupGrantCount}`
+                                      : "Group"}
                                   </Badge>
                                 </Tooltip>
                               )}
-                              {!bypassRole && extraGrant && (
+                              {!bypassRole && source.extraGrant && (
                                 <Badge color="teal" variant="light">
                                   Individual
                                 </Badge>
                               )}
-                              {!bypassRole && temporaryGrant && (
+                              {!bypassRole && source.temporaryGrant && (
                                 <Badge color="grape" variant="light">
                                   Temporary
                                 </Badge>
                               )}
-                              {!bypassRole && denied && (
+                              {!bypassRole && source.denied && (
                                 <Badge color="red" variant="light">
                                   Denied
                                 </Badge>
@@ -1292,7 +1288,7 @@ function EffectiveUserAccessMatrix({
                                   </Badge>
                                 </Tooltip>
                               )}
-                              {!bypassRole && grants === 0 && !denied && (
+                              {!bypassRole && source.sourceCount === 0 && !source.denied && (
                                 <Badge color="gray" variant="light">
                                   None
                                 </Badge>
@@ -1313,16 +1309,16 @@ function EffectiveUserAccessMatrix({
                             />
                           </Table.Td>
                           <Table.Td>
-                            <Badge color={effective ? "green" : "gray"} variant="light">
-                              {effective ? "Allowed" : "Not granted"}
+                            <Badge color={source.effective ? "green" : "gray"} variant="light">
+                              {source.effective ? "Allowed" : "Not granted"}
                             </Badge>
                           </Table.Td>
                           <Table.Td>
-                            {duplicateGrant ? (
+                            {source.duplicateGrant ? (
                               <Badge color="orange" variant="light">
                                 Duplicate grant
                               </Badge>
-                            ) : deniedOverlap ? (
+                            ) : source.deniedOverlap ? (
                               <Badge color="red" variant="light">
                                 Deny overrides
                               </Badge>
@@ -1378,10 +1374,12 @@ function EffectiveUserAccessMatrix({
                                     Role
                                   </Badge>
                                 )}
-                                {row.groupGrant && (
-                                  <Tooltip label={groupNames(userGroups)} multiline w={280}>
+                                {row.groupGrantCount > 0 && (
+                                  <Tooltip label={row.groupGrantNames.join(", ")} multiline w={280}>
                                     <Badge color="cyan" variant="light">
-                                      Group
+                                      {row.groupGrantCount > 1
+                                        ? `Groups ${row.groupGrantCount}`
+                                        : "Group"}
                                     </Badge>
                                   </Tooltip>
                                 )}
@@ -1400,7 +1398,7 @@ function EffectiveUserAccessMatrix({
                                     Denied
                                   </Badge>
                                 )}
-                                {userGroups.length > 0 && !row.groupGrant && (
+                                {userGroups.length > 0 && row.groupGrantCount === 0 && (
                                   <Tooltip label={groupNames(userGroups)} multiline w={280}>
                                     <Badge color="cyan" variant="light">
                                       Group scope
@@ -1430,7 +1428,7 @@ function EffectiveUserAccessMatrix({
                             </Table.Td>
                             <Table.Td>
                               <Group gap="xs">
-                                {row.extraGrant && row.grants > 1 && (
+                                {row.extraGrant && row.sourceCount > 1 && (
                                   <Button
                                     size="xs"
                                     variant="light"
