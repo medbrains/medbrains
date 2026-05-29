@@ -226,6 +226,11 @@ const IPD_WORKSPACE_TABS = [
 ] as const;
 
 const IPD_WORKSPACE_TAB_VALUES = IPD_WORKSPACE_TABS.map((tab) => tab.value);
+const IPD_WORKSPACE_SECTIONS = ["Command", "Care Context", "Finance & Admin", "Discharge"] as const;
+
+function firstIpdWorkspaceTabForSection(section: (typeof IPD_WORKSPACE_SECTIONS)[number]) {
+  return IPD_WORKSPACE_TABS.find((tab) => tab.section === section)?.value ?? "overview";
+}
 
 export function IpdPage() {
   useRequirePermission(P.IPD.ADMISSIONS_LIST);
@@ -746,6 +751,8 @@ function AdmissionDetail({
   const detail = data as AdmissionDetailResponse;
   const adm = detail.admission;
   const admissionIsActive = adm.status === "admitted";
+  const activeWorkspaceSection =
+    IPD_WORKSPACE_TABS.find((tab) => tab.value === activeWorkspaceTab)?.section ?? "Command";
   const journeyContext: ClinicalJourneyContext = {
     patientId: adm.patient_id,
     activeEncounterId: adm.encounter_id,
@@ -820,108 +827,6 @@ function AdmissionDetail({
         </Group>
       </Group>
 
-      <Card withBorder padding="sm">
-        <Stack gap="xs">
-          <Group gap="xs" align="center">
-            <Text size="xs" fw={700} c="dimmed" tt="uppercase">
-              Orders
-            </Text>
-            <Tooltip
-              label={admissionIsActive ? "Order medicines" : "Orders need an active admission"}
-            >
-              <span>
-                <Button
-                  size="xs"
-                  variant="light"
-                  color="teal"
-                  leftSection={<IconPill size={14} />}
-                  disabled={!admissionIsActive || !canOrder}
-                  onClick={() => openOrderBasket("drug")}
-                >
-                  Medicines
-                </Button>
-              </span>
-            </Tooltip>
-            <Tooltip
-              label={admissionIsActive ? "Order lab tests" : "Orders need an active admission"}
-            >
-              <span>
-                <Button
-                  size="xs"
-                  variant="light"
-                  color="teal"
-                  leftSection={<IconFlask size={14} />}
-                  disabled={!admissionIsActive || !canOrder}
-                  onClick={() => openOrderBasket("lab")}
-                >
-                  Lab
-                </Button>
-              </span>
-            </Tooltip>
-            <Tooltip
-              label={admissionIsActive ? "Order imaging" : "Orders need an active admission"}
-            >
-              <span>
-                <Button
-                  size="xs"
-                  variant="light"
-                  color="teal"
-                  leftSection={<IconEye size={14} />}
-                  disabled={!admissionIsActive || !canOrder}
-                  onClick={() => openOrderBasket("radiology")}
-                >
-                  Imaging
-                </Button>
-              </span>
-            </Tooltip>
-          </Group>
-          <Group gap="xs" align="center">
-            <Text size="xs" fw={700} c="dimmed" tt="uppercase">
-              Admission
-            </Text>
-            <Button
-              size="xs"
-              variant="light"
-              color="slate"
-              leftSection={<IconPrinter size={14} />}
-              onClick={openWristband}
-            >
-              Wristband
-            </Button>
-            <Button
-              size="xs"
-              variant="light"
-              color="primary"
-              leftSection={<IconArrowsTransferDown size={14} />}
-              disabled={!admissionIsActive}
-              onClick={openTransferOut}
-            >
-              Refer out
-            </Button>
-            <Button
-              size="xs"
-              variant="light"
-              color="warning"
-              leftSection={<IconUserOff size={14} />}
-              disabled={!admissionIsActive}
-              onClick={openDama}
-            >
-              DAMA / LAMA
-            </Button>
-            <Button
-              size="xs"
-              variant="light"
-              color="danger"
-              leftSection={<IconCross size={14} />}
-              disabled={!admissionIsActive}
-              onClick={openDeath}
-            >
-              Mark Death
-            </Button>
-          </Group>
-        </Stack>
-      </Card>
-
       <GenerateDischargeSummaryModal
         admissionId={admissionId}
         opened={dischargeSummaryOpened}
@@ -966,12 +871,38 @@ function AdmissionDetail({
       {adm.provisional_diagnosis && <Text size="sm">Diagnosis: {adm.provisional_diagnosis}</Text>}
       {adm.admission_source && <Text size="sm">Source: {adm.admission_source}</Text>}
 
+      <Card withBorder padding="sm">
+        <Group justify="space-between" align="center" gap="sm">
+          <Stack gap={2}>
+            <Text size="xs" fw={700} c="dimmed" tt="uppercase">
+              IPD workspace
+            </Text>
+            <Text size="sm" fw={600}>
+              {activeWorkspaceSection}
+            </Text>
+          </Stack>
+          <Group gap="xs">
+            {IPD_WORKSPACE_SECTIONS.map((section) => (
+              <Button
+                key={section}
+                size="xs"
+                variant={activeWorkspaceSection === section ? "filled" : "light"}
+                color={activeWorkspaceSection === section ? "primary" : "slate"}
+                onClick={() => setActiveWorkspaceTab(firstIpdWorkspaceTabForSection(section))}
+              >
+                {section}
+              </Button>
+            ))}
+          </Group>
+        </Group>
+      </Card>
+
       <Tabs value={activeWorkspaceTab} onChange={setActiveWorkspaceTab} keepMounted={false}>
         <Grid align="flex-start">
           <Grid.Col span={{ base: 12, md: 3, lg: 2 }}>
             <Card withBorder padding="sm">
               <Stack gap="sm">
-                {["Command", "Care Context", "Finance & Admin", "Discharge"].map((section) => (
+                {IPD_WORKSPACE_SECTIONS.map((section) => (
                   <Stack key={section} gap={4}>
                     <Text size="xs" fw={700} c="dimmed" tt="uppercase">
                       {section}
@@ -994,7 +925,7 @@ function AdmissionDetail({
             </Card>
           </Grid.Col>
 
-          <Grid.Col span={{ base: 12, md: 9, lg: 10 }}>
+          <Grid.Col span={{ base: 12, md: 9, lg: 7 }}>
             <Tabs.Panel value="overview" pt="md">
               <OverviewTab admissionId={admissionId} tasks={detail.tasks} canCreate={canCreate} />
             </Tabs.Panel>
@@ -1086,6 +1017,129 @@ function AdmissionDetail({
             <Tabs.Panel value="discharge-tat" pt="md">
               <DischargeTatTab admissionId={admissionId} />
             </Tabs.Panel>
+          </Grid.Col>
+
+          <Grid.Col span={{ base: 12, lg: 3 }}>
+            <Card withBorder padding="sm">
+              <Stack gap="sm">
+                <Stack gap={2}>
+                  <Text size="xs" fw={700} c="dimmed" tt="uppercase">
+                    Context actions
+                  </Text>
+                  <Text size="xs" c="dimmed">
+                    Orders, transfers, print, and discharge-risk actions.
+                  </Text>
+                </Stack>
+                <Stack gap="xs">
+                  <Text size="xs" fw={700} c="dimmed" tt="uppercase">
+                    Orders
+                  </Text>
+                  <Tooltip
+                    label={
+                      admissionIsActive ? "Order medicines" : "Orders need an active admission"
+                    }
+                  >
+                    <span>
+                      <Button
+                        size="xs"
+                        variant="light"
+                        color="teal"
+                        leftSection={<IconPill size={14} />}
+                        disabled={!admissionIsActive || !canOrder}
+                        onClick={() => openOrderBasket("drug")}
+                        fullWidth
+                      >
+                        Medicines
+                      </Button>
+                    </span>
+                  </Tooltip>
+                  <Tooltip
+                    label={
+                      admissionIsActive ? "Order lab tests" : "Orders need an active admission"
+                    }
+                  >
+                    <span>
+                      <Button
+                        size="xs"
+                        variant="light"
+                        color="teal"
+                        leftSection={<IconFlask size={14} />}
+                        disabled={!admissionIsActive || !canOrder}
+                        onClick={() => openOrderBasket("lab")}
+                        fullWidth
+                      >
+                        Lab
+                      </Button>
+                    </span>
+                  </Tooltip>
+                  <Tooltip
+                    label={admissionIsActive ? "Order imaging" : "Orders need an active admission"}
+                  >
+                    <span>
+                      <Button
+                        size="xs"
+                        variant="light"
+                        color="teal"
+                        leftSection={<IconEye size={14} />}
+                        disabled={!admissionIsActive || !canOrder}
+                        onClick={() => openOrderBasket("radiology")}
+                        fullWidth
+                      >
+                        Imaging
+                      </Button>
+                    </span>
+                  </Tooltip>
+                </Stack>
+                <Stack gap="xs">
+                  <Text size="xs" fw={700} c="dimmed" tt="uppercase">
+                    Admission
+                  </Text>
+                  <Button
+                    size="xs"
+                    variant="light"
+                    color="slate"
+                    leftSection={<IconPrinter size={14} />}
+                    onClick={openWristband}
+                    fullWidth
+                  >
+                    Wristband
+                  </Button>
+                  <Button
+                    size="xs"
+                    variant="light"
+                    color="primary"
+                    leftSection={<IconArrowsTransferDown size={14} />}
+                    disabled={!admissionIsActive}
+                    onClick={openTransferOut}
+                    fullWidth
+                  >
+                    Refer out
+                  </Button>
+                  <Button
+                    size="xs"
+                    variant="light"
+                    color="warning"
+                    leftSection={<IconUserOff size={14} />}
+                    disabled={!admissionIsActive}
+                    onClick={openDama}
+                    fullWidth
+                  >
+                    DAMA / LAMA
+                  </Button>
+                  <Button
+                    size="xs"
+                    variant="light"
+                    color="danger"
+                    leftSection={<IconCross size={14} />}
+                    disabled={!admissionIsActive}
+                    onClick={openDeath}
+                    fullWidth
+                  >
+                    Mark Death
+                  </Button>
+                </Stack>
+              </Stack>
+            </Card>
           </Grid.Col>
         </Grid>
       </Tabs>
