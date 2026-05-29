@@ -16,6 +16,7 @@ import { QueueItem } from "../../components";
 import { queueService } from "../../services/queue.service";
 
 type QueueFilter = "all" | "waiting" | "called" | "in_progress";
+type MobileQueueStatus = "waiting" | "called" | "in_consultation" | "completed" | "no_show";
 
 interface QueueScreenProps {
   route?: {
@@ -26,6 +27,19 @@ interface QueueScreenProps {
   navigation: {
     navigate: (screen: string, params?: Record<string, unknown>) => void;
   };
+}
+
+function toMobileQueueStatus(status: string): MobileQueueStatus {
+  switch (status) {
+    case "waiting":
+    case "called":
+    case "in_consultation":
+    case "completed":
+    case "no_show":
+      return status;
+    default:
+      return "waiting";
+  }
 }
 
 export function QueueScreen({ route, navigation }: QueueScreenProps) {
@@ -161,15 +175,9 @@ export function QueueScreen({ route, navigation }: QueueScreenProps) {
               item={{
                 id: item.id,
                 token_number: item.token_number,
-                patient_name: item.patient_name,
-                uhid: item.uhid,
-                status: item.status as
-                  | "waiting"
-                  | "called"
-                  | "in_consultation"
-                  | "completed"
-                  | "no_show",
-                // Calculate wait time from called_at if available
+                patient_name: item.patient_name ?? "Unknown patient",
+                uhid: item.uhid ?? "No UHID",
+                status: toMobileQueueStatus(item.status),
                 wait_time_minutes: item.called_at
                   ? Math.floor((Date.now() - new Date(item.called_at).getTime()) / 60000)
                   : undefined,
