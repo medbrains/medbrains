@@ -10,6 +10,7 @@ import { resolveClinicalJourneyActions } from "@medbrains/types";
 import {
   IconAlertTriangle,
   IconBed,
+  IconBuildingStore,
   IconEdit,
   IconFileInvoice,
   IconFlask,
@@ -54,6 +55,8 @@ function actionIcon(actionId: ClinicalJourneyActionId) {
       return <IconBed size={14} />;
     case "emergency.open_visit":
       return <IconAlertTriangle size={14} />;
+    case "camp.open_context":
+      return <IconBuildingStore size={14} />;
     case "billing.open_ledger":
       return <IconFileInvoice size={14} />;
     case "patient.share":
@@ -131,7 +134,14 @@ export function PatientJourneyActions({
         navigate(`/ipd/new?patient_id=${context.patientId}`);
         return;
       case "emergency.open_visit":
-        navigate(`/emergency/visits/new?patient_id=${context.patientId}`);
+        navigate(
+          context.activeEmergencyVisitId
+            ? `/emergency/visits/${context.activeEmergencyVisitId}`
+            : `/emergency/visits/new?patient_id=${context.patientId}`,
+        );
+        return;
+      case "camp.open_context":
+        navigate(`/camp?patient_id=${context.patientId}`);
         return;
       case "billing.open_ledger":
         navigate(`/billing?tab=invoices&patient_id=${context.patientId}`);

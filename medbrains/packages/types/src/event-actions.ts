@@ -21,6 +21,7 @@ export type ClinicalJourneyActionId =
   | "ipd.open_admission"
   | "ipd.admit"
   | "emergency.open_visit"
+  | "camp.open_context"
   | "billing.open_ledger"
   | "pharmacy.open_patient_queue";
 
@@ -32,6 +33,7 @@ export interface ClinicalJourneyContext {
   activeEncounterId?: string | null;
   activeAdmissionId?: string | null;
   activeAdmissionStatus?: string | null;
+  activeEmergencyVisitId?: string | null;
   activeOrderContext?: ClinicalOrderContext | null;
   hasPendingConsent?: boolean;
 }
@@ -41,9 +43,10 @@ export interface ClinicalJourneyActionDefinition {
   label: string;
   shortLabel: string;
   description: string;
-  module: "patients" | "opd" | "orders" | "ipd" | "emergency" | "billing" | "pharmacy";
+  module: "patients" | "opd" | "orders" | "ipd" | "emergency" | "camp" | "billing" | "pharmacy";
   intent: ClinicalJourneyActionIntent;
   requiredPermissions: readonly string[];
+  permissionMode?: "all" | "any";
   surfaces: readonly ClinicalJourneySurface[];
   activatesAfter: readonly string[];
   emitsEvent?: string;
@@ -190,6 +193,21 @@ export const CORE_PATIENT_JOURNEY_ACTIONS: readonly ClinicalJourneyActionDefinit
     disabledReason: requireLivingPatient,
   },
   {
+    id: "camp.open_context",
+    label: "Camp context",
+    shortLabel: "Camp",
+    description:
+      "Open outreach camp registration, screening, and follow-up context for this patient.",
+    module: "camp",
+    intent: "clinical",
+    requiredPermissions: [P.CAMP.LIST, P.CAMP.REGISTRATIONS_LIST, P.CAMP.REGISTRATIONS_CREATE],
+    permissionMode: "any",
+    surfaces: ["web", "mobile"],
+    activatesAfter: ["patient.created", "camp.registration.created", "camp.screening.completed"],
+    standardRefs: ["NABH AAC", "Continuity of care for outreach services"],
+    disabledReason: requireLivingPatient,
+  },
+  {
     id: "billing.open_ledger",
     label: "Billing ledger",
     shortLabel: "Billing",
@@ -251,7 +269,11 @@ export function resolveClinicalJourneyActions(
   surface: ClinicalJourneySurface = "web",
 ): ResolvedClinicalJourneyAction[] {
   return CORE_PATIENT_JOURNEY_ACTIONS.filter((action) => action.surfaces.includes(surface))
-    .filter((action) => action.requiredPermissions.every((permission) => hasPermission(permission)))
+    .filter((action) =>
+      action.permissionMode === "any"
+        ? action.requiredPermissions.some((permission) => hasPermission(permission))
+        : action.requiredPermissions.every((permission) => hasPermission(permission)),
+    )
     .map((action) => {
       const disabledReasonText = action.disabledReason(context);
       return {

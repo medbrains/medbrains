@@ -55,6 +55,7 @@ interface FlowItem {
 
 const OPD_FLOW_ACTION = "opd.open_visit" satisfies ClinicalJourneyActionId;
 const EMERGENCY_FLOW_ACTION = "emergency.open_visit" satisfies ClinicalJourneyActionId;
+const CAMP_FLOW_ACTION = "camp.open_context" satisfies ClinicalJourneyActionId;
 const PHARMACY_FLOW_ACTION = "pharmacy.open_patient_queue" satisfies ClinicalJourneyActionId;
 const BILLING_FLOW_ACTION = "billing.open_ledger" satisfies ClinicalJourneyActionId;
 
@@ -101,6 +102,7 @@ export function PatientFlowNavigator({
     isDeceased,
     activeEncounterId,
     activeAdmissionId,
+    activeEmergencyVisitId,
     activeAdmissionStatus: activeAdmissionStatus ?? (activeAdmissionId ? "admitted" : null),
     activeOrderContext:
       activeOrderContext ?? (activeEncounterId ? "opd" : activeAdmissionId ? "ipd" : null),
@@ -123,14 +125,7 @@ export function PatientFlowNavigator({
     hasPermission(P.CAMP.LIST) ||
     hasPermission(P.CAMP.REGISTRATIONS_LIST) ||
     hasPermission(P.CAMP.REGISTRATIONS_CREATE);
-  const campState = {
-    enabled: campAllowed && !isDeceased,
-    disabledReason: !campAllowed
-      ? "Permission required"
-      : isDeceased
-        ? "Unavailable for deceased patient records"
-        : null,
-  };
+  const campState = itemState(actions.get(CAMP_FLOW_ACTION), campAllowed);
   const pharmacyState = itemState(
     actions.get(PHARMACY_FLOW_ACTION),
     hasPermission(P.PHARMACY.PRESCRIPTIONS_LIST),
