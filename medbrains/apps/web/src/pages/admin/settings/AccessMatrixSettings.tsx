@@ -43,6 +43,11 @@ import { NAV_GROUPS } from "../../../config/navigation";
 import { usePacedQueryValue } from "../../../hooks/usePacedQueryValue";
 import { adminAccessService } from "../../../services/adminAccess.service";
 import { buildNavRouteCoverage, summarizeNavRouteCoverage } from "./access-matrix-coverage";
+import {
+  buildPrintableCoverage,
+  PRINTABLE_COVERAGE_GAP_LABELS,
+  summarizePrintableCoverage,
+} from "./access-matrix-printables";
 
 const FIELD_LEVELS: { label: string; value: FieldAccessLevel }[] = [
   { label: "Edit", value: "edit" },
@@ -1621,6 +1626,11 @@ function SurfaceCoverageMatrix() {
     [routeCoverageRows],
   );
   const routeCoverageGapRows = routeCoverageRows.filter((row) => row.status !== "covered");
+  const printableCoverageRows = useMemo(() => buildPrintableCoverage(ACCESS_MATRIX_SURFACES), []);
+  const printableCoverageSummary = useMemo(
+    () => summarizePrintableCoverage(printableCoverageRows),
+    [printableCoverageRows],
+  );
 
   return (
     <Stack gap="md">
@@ -1697,6 +1707,18 @@ function SurfaceCoverageMatrix() {
           </Text>
           <Text size="xs" c="dimmed">
             {routeCoverageSummary.unmapped} unmapped, {routeCoverageSummary.permissionGaps} gaps
+          </Text>
+        </Card>
+        <Card withBorder padding="sm">
+          <Text size="xs" c="dimmed" fw={700} tt="uppercase">
+            Printable Routing
+          </Text>
+          <Text fw={700}>
+            {printableCoverageSummary.complete}/{printableCoverageSummary.total}
+          </Text>
+          <Text size="xs" c="dimmed">
+            {printableCoverageSummary.customerOfficeRequired} customer-office,{" "}
+            {printableCoverageSummary.printerRequired} printer required
           </Text>
         </Card>
       </SimpleGrid>
@@ -1792,6 +1814,124 @@ function SurfaceCoverageMatrix() {
                       <Badge color={workflow.permissions.size > 0 ? "teal" : "red"} variant="light">
                         {workflow.permissions.size}
                       </Badge>
+                    </Table.Td>
+                  </Table.Tr>
+                ))}
+              </Table.Tbody>
+            </Table>
+          </ScrollArea.Autosize>
+        </Stack>
+      </Card>
+
+      <Card withBorder padding="md">
+        <Stack gap="sm">
+          <Group justify="space-between" align="flex-start">
+            <Stack gap={2}>
+              <Text fw={700}>Printable Routing Coverage</Text>
+              <Text size="sm" c="dimmed">
+                Shows every printable sheet with customer, office, custody, reprint and printer
+                routing so front-desk, pharmacy, billing, MRD and ward outputs stay explicit.
+              </Text>
+            </Stack>
+            <Badge color={printableCoverageSummary.gaps > 0 ? "orange" : "green"} variant="light">
+              {printableCoverageSummary.gaps} printable gaps
+            </Badge>
+          </Group>
+
+          <ScrollArea.Autosize mah={400}>
+            <Table stickyHeader highlightOnHover verticalSpacing="xs">
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th>Printable</Table.Th>
+                  <Table.Th>Sheets</Table.Th>
+                  <Table.Th>Copies</Table.Th>
+                  <Table.Th>Printer</Table.Th>
+                  <Table.Th>Gaps</Table.Th>
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
+                {printableCoverageRows.map((row) => (
+                  <Table.Tr key={row.surfaceId}>
+                    <Table.Td>
+                      <Group gap={6} mb={2}>
+                        <Badge variant="light">{row.module}</Badge>
+                        {row.customerOfficeRequired && (
+                          <Badge color="violet" variant="light">
+                            customer + office
+                          </Badge>
+                        )}
+                      </Group>
+                      <Text size="sm" fw={600}>
+                        {row.label}
+                      </Text>
+                      <Text size="xs" ff="var(--font-mono, monospace)" c="dimmed">
+                        {row.route ?? row.surfaceId}
+                      </Text>
+                    </Table.Td>
+                    <Table.Td>
+                      {row.artifacts.length > 0 ? (
+                        <Group gap={4}>
+                          {row.artifacts.map((artifact) => (
+                            <Badge key={artifact} color="gray" variant="light">
+                              {artifact}
+                            </Badge>
+                          ))}
+                        </Group>
+                      ) : (
+                        <Badge color="orange" variant="light">
+                          sheet not mapped
+                        </Badge>
+                      )}
+                    </Table.Td>
+                    <Table.Td>
+                      {row.copies.length > 0 ? (
+                        <Group gap={4}>
+                          {row.copies.map((copy) => (
+                            <Badge key={copy} color="violet" variant="light">
+                              {printCopyLabel(copy)}
+                            </Badge>
+                          ))}
+                        </Group>
+                      ) : (
+                        <Badge color="orange" variant="light">
+                          copy not mapped
+                        </Badge>
+                      )}
+                    </Table.Td>
+                    <Table.Td>
+                      <Stack gap={4}>
+                        <Badge color={row.requiresPrinter ? "blue" : "gray"} variant="light">
+                          {row.requiresPrinter ? "printer required" : "printer optional"}
+                        </Badge>
+                        {row.printerProfiles.length > 0 ? (
+                          <Group gap={4}>
+                            {row.printerProfiles.map((profile) => (
+                              <Badge key={profile} color="blue" variant="light">
+                                {profile}
+                              </Badge>
+                            ))}
+                          </Group>
+                        ) : (
+                          <Badge color={row.requiresPrinter ? "red" : "gray"} variant="light">
+                            no printer profile
+                          </Badge>
+                        )}
+                      </Stack>
+                    </Table.Td>
+                    <Table.Td>
+                      {row.gaps.length > 0 ? (
+                        <Group gap={4}>
+                          {row.gaps.map((gap) => (
+                            <Badge key={gap} color="orange" variant="light">
+                              {PRINTABLE_COVERAGE_GAP_LABELS[gap]}
+                            </Badge>
+                          ))}
+                        </Group>
+                      ) : (
+                        <Badge color="green" variant="light">
+                          complete
+                        </Badge>
+                      )}
                     </Table.Td>
                   </Table.Tr>
                 ))}
