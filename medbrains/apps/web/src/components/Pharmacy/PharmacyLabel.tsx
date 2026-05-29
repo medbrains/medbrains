@@ -8,7 +8,12 @@ import {
   frequencyToDefaultSlots,
   parseInstructions,
 } from "../../lib/medication-timing-utils";
-import { buildCopyPrintHtml, copyPrintStyles, PRINT_COPY_PACKETS } from "../../utils/printCopies";
+import {
+  buildCopyPrintHtml,
+  copyPrintStyles,
+  PRINT_COPY_PACKETS,
+  printCopyRouteLabel,
+} from "../../utils/printCopies";
 import classes from "./pharmacy-dispensing.module.scss";
 
 interface PharmacyLabelProps {
@@ -126,7 +131,7 @@ export function PharmacyLabel({ items, patientName, uhid, date }: PharmacyLabelP
       <Group justify="flex-end" className="no-print">
         {PHARMACY_LABEL_PRINT_COPIES.map((copy) => (
           <Badge key={copy.label} color="violet" variant="light">
-            {copy.label} · {copy.printerProfile}
+            {printCopyRouteLabel(copy)}
           </Badge>
         ))}
         <Button

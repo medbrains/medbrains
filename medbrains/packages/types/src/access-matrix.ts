@@ -685,7 +685,7 @@ export const ACCESS_MATRIX_SURFACES: readonly AccessMatrixSurface[] = [
     activatesAfter: ["mlc.created", "emergency.mlc_police_intimation.created"],
     platforms: ["web"],
     printArtifacts: ["MLC certificate", "Police intimation", "MLC register extract"],
-    printCopies: ["office", "clinical", "police", "duplicate"],
+    printCopies: ["office", "clinical", "police", "mrd", "duplicate"],
     printerProfiles: ["emergency-a4", "mlc-secure-printer"],
     requiresPrinter: true,
     standardRefs: ["MLC SOP", "police intimation audit"],

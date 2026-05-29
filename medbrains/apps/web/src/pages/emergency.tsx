@@ -150,6 +150,7 @@ import {
   copyPrintStyles,
   PRINT_COPY_PACKETS,
   type PrintCopyRoute,
+  printCopyRouteLabel,
 } from "../utils/printCopies";
 
 const CRASH_CART_ITEMS = [
@@ -4115,7 +4116,7 @@ function MlcCaseDetail({
             <Group gap={6}>
               {mlcActivePrintCopies.map((copy) => (
                 <Badge key={copy.label} color="violet" variant="light">
-                  {copy.label} · {copy.printerProfile}
+                  {printCopyRouteLabel(copy)}
                 </Badge>
               ))}
             </Group>

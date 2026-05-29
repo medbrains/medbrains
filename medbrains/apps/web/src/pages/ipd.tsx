@@ -182,7 +182,12 @@ import {
 import { useHashTabs } from "../hooks/useHashTabs";
 import { useRequirePermission } from "../hooks/useRequirePermission";
 import { ipdService } from "../services/ipd.service";
-import { buildCopyPrintHtml, copyPrintStyles, PRINT_COPY_PACKETS } from "../utils/printCopies";
+import {
+  buildCopyPrintHtml,
+  copyPrintStyles,
+  PRINT_COPY_PACKETS,
+  printCopyRouteLabel,
+} from "../utils/printCopies";
 
 const statusColors: Record<string, string> = {
   admitted: "success",
@@ -5285,7 +5290,7 @@ function PrintAdmissionButton({ admissionId }: { admissionId: string }) {
         <Group gap={6}>
           {IPD_ADMISSION_PRINT_COPIES.map((copy) => (
             <Badge key={copy.label} color="violet" variant="light">
-              {copy.label} · {copy.printerProfile}
+              {printCopyRouteLabel(copy)}
             </Badge>
           ))}
         </Group>

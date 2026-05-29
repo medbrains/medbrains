@@ -18,7 +18,7 @@ import { useMutation } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { ipdService } from "../../services/ipd.service";
-import { PRINT_COPY_ROUTES } from "../../utils/printCopies";
+import { PRINT_COPY_ROUTES, printCopyRouteLabel } from "../../utils/printCopies";
 
 interface WristbandPrintModalProps {
   admissionId: string;
@@ -162,7 +162,7 @@ export function WristbandPrintModal({
                 </div>
               )}
               <div className="route" style={{ fontSize: "5pt", color: "#555" }}>
-                {WRISTBAND_PRINT_ROUTE.label} · {WRISTBAND_PRINT_ROUTE.printerProfile}
+                {printCopyRouteLabel(WRISTBAND_PRINT_ROUTE)}
               </div>
             </div>
           </div>
@@ -175,7 +175,7 @@ export function WristbandPrintModal({
               {WRISTBAND_PRINT_ROUTE.label}
             </Badge>
             <Badge color="blue" variant="light">
-              {WRISTBAND_PRINT_ROUTE.printerProfile}
+              {WRISTBAND_PRINT_ROUTE.printerLabel}
             </Badge>
             {printData.is_reprint && (
               <Badge color="orange" variant="light">

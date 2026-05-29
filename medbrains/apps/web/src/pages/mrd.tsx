@@ -67,7 +67,7 @@ import { PatientSearchSelect } from "../components/PatientSearchSelect";
 import { useHashTabs } from "../hooks/useHashTabs";
 import { useRequirePermission } from "../hooks/useRequirePermission";
 import { mrdService } from "../services/mrd.service";
-import { PRINT_COPY_PACKETS } from "../utils/printCopies";
+import { PRINT_COPY_PACKETS, printCopyRouteLabel } from "../utils/printCopies";
 
 // ── Helpers ──────────────────────────────────────────────
 
@@ -985,7 +985,7 @@ function CaseSheetsTab() {
           <Group gap={6}>
             {MRD_CASE_SHEET_PRINT_COPIES.map((copy) => (
               <Badge key={copy.label} color="violet" variant="light">
-                {copy.label} · {copy.printerProfile}
+                {printCopyRouteLabel(copy)}
               </Badge>
             ))}
           </Group>
@@ -1110,7 +1110,7 @@ function CaseSheetsTab() {
           <Group gap={6}>
             {MRD_CASE_SHEET_REPRINT_COPIES.map((copy) => (
               <Badge key={copy.label} color="orange" variant="light">
-                {copy.label} · {copy.printerProfile}
+                {printCopyRouteLabel(copy)}
               </Badge>
             ))}
           </Group>

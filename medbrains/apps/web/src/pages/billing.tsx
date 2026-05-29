@@ -228,7 +228,12 @@ import {
 } from "../forms/billing.form";
 import { useRequirePermission } from "../hooks/useRequirePermission";
 import { billingService } from "../services/billing.service";
-import { buildCopyPrintHtml, copyPrintStyles, PRINT_COPY_PACKETS } from "../utils/printCopies";
+import {
+  buildCopyPrintHtml,
+  copyPrintStyles,
+  PRINT_COPY_PACKETS,
+  printCopyRouteLabel,
+} from "../utils/printCopies";
 
 const statusColors: Record<string, string> = {
   draft: "slate",
@@ -1324,7 +1329,7 @@ function InvoiceDetail({
           </Tooltip>
           {BILLING_INVOICE_PRINT_COPIES.map((copy) => (
             <Badge key={copy.label} color="violet" variant="light">
-              {copy.label} · {copy.printerProfile}
+              {printCopyRouteLabel(copy)}
             </Badge>
           ))}
         </Group>
