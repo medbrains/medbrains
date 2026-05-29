@@ -6,33 +6,74 @@
  * medbrains-create-mobile-app (variant: tv).
  */
 
+import { api, configureNativeAuth, setApiBase } from "@medbrains/api";
 import { PaperProvider } from "react-native-paper";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 import {
   ExpoSecureStoreAdapter,
+  LoginScreen,
   Shell,
   buildForestCopperTheme,
 } from "@medbrains/mobile-shell";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { config } from "./src/config";
 import { Navigator } from "./src/navigator";
 import { MODULES } from "./src/modules";
 
+setApiBase(config.apiBase);
+configureNativeAuth("medbrains-tv");
+
 const secretStore = new ExpoSecureStoreAdapter();
 const theme = buildForestCopperTheme("light");
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      refetchOnReconnect: true,
+      retry: 1,
+      staleTime: 5_000,
+    },
+  },
+});
 
 export default function App() {
   return (
     <SafeAreaProvider>
       <PaperProvider theme={theme}>
-        <StatusBar style="dark" />
-        <Shell
-          variant="tv"
-          modules={MODULES}
-          secretStore={secretStore}
-          cachePath="medbrains-cache"
-          Navigator={Navigator}
-          unlockPromptMessage="Unlock MedBrains TV"
-        />
+        <QueryClientProvider client={queryClient}>
+          <StatusBar style="dark" />
+          <Shell
+            variant="tv"
+            modules={MODULES}
+            secretStore={secretStore}
+            cachePath="medbrains-cache"
+            Navigator={Navigator}
+            unlockPromptMessage="Unlock MedBrains TV"
+            loginGate={
+              <LoginScreen
+                title="MedBrains TV"
+                subtitle="Sign in to show live hospital display boards"
+                onSubmit={async (identifier, password) => {
+                  const result = await api.login({ username: identifier, password });
+                  if (!result.token) {
+                    throw new Error("Login response did not include a TV session token");
+                  }
+                  return {
+                    identity: {
+                      departmentIds: result.department_ids,
+                      jwt: result.token,
+                      permissions: result.permissions,
+                      role: result.user.role,
+                      tenantId: result.user.tenant_id,
+                      userId: result.user.id,
+                    },
+                    refreshToken: result.refresh_token,
+                  };
+                }}
+              />
+            }
+          />
+        </QueryClientProvider>
       </PaperProvider>
     </SafeAreaProvider>
   );
