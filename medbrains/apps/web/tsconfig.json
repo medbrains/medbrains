@@ -12,8 +12,15 @@
     "allowImportingTsExtensions": true,
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@medbrains/design-system": ["../../packages/design-system/src/index.ts"],
+      "@medbrains/design-system/*": ["../../packages/design-system/src/*"]
     }
   },
-  "include": ["src"]
+  "include": ["src"],
+  "exclude": [
+    "src/**/*.stories.ts",
+    "src/**/*.stories.tsx",
+    "src/**/*.stories.mdx"
+  ]
 }

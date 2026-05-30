@@ -4,6 +4,8 @@
   "version": "0.1.0",
   "scripts": {
     "dev:web": "turbo run dev --filter=@medbrains/web",
+    "dev:storybook": "turbo run dev --filter=@medbrains/storybook",
+    "build:storybook": "pnpm --filter @medbrains/storybook build-storybook",
     "dev:mobile": "turbo run start --filter=@medbrains/mobile",
     "dev:tv": "turbo run start --filter=@medbrains/tv",
     "build": "turbo run build",

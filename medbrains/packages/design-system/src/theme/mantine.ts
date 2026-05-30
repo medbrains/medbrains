@@ -3,8 +3,8 @@
  *
  * Tier 3 of the token system. Consumes primitives (`primitives.ts`) and
  * semantic maps (`semantic.ts`) and produces:
- *  1. `theme`              — Mantine theme object (colors, type, components)
- *  2. `cssVariableResolver` — emits dual-mode CSS variables (`--mb-*` / `--fc-*`)
+ *  1. `createMedBrainsTheme(opts)` — Mantine theme factory
+ *  2. `cssVariableResolver`        — emits dual-mode CSS variables (`--mb-*` / `--fc-*`)
  *
  * Mode policy:
  *  - Default scheme = light (system blue + cinnabar brand layer)
@@ -12,10 +12,11 @@
  *  - Both share semantic var names; only the values differ. Components
  *    NEVER branch on `data-mantine-color-scheme` themselves — vars do it.
  *
- * Backward compatibility:
- *  Every CSS variable previously published by the old `theme.ts` is
- *  re-published here under its existing name. Internal SCSS and
- *  components keep working unchanged.
+ * Loader injection:
+ *  The Mantine `Loader` component default-loader is wired via
+ *  `opts.loaders.ecg` so this package stays free of web-specific component
+ *  imports (e.g. EcgLoader lives in apps/web). Pass it in when the consumer
+ *  app wants the branded ECG loader.
  */
 
 import {
@@ -26,6 +27,8 @@ import {
   type CSSVariablesResolver,
   createTheme,
   Loader,
+  type MantineLoaderComponent,
+  type MantineThemeOverride,
   MultiSelect,
   Paper,
   rem,
@@ -33,7 +36,6 @@ import {
   TagsInput,
 } from "@mantine/core";
 import { DateInput, DatePickerInput, DateTimePicker } from "@mantine/dates";
-import { EcgLoader } from "@/components/EcgLoader";
 import {
   amberTuple,
   blueTuple,
@@ -105,7 +107,7 @@ const MODAL_DROPDOWN_PROPS = {
 };
 
 // ═══════════════════════════════════════════════════════════════════
-// ── Mantine Theme
+// ── Mantine Theme Factory
 // ═══════════════════════════════════════════════════════════════════
 //
 // `primaryShade` is set per scheme:
@@ -116,415 +118,436 @@ const MODAL_DROPDOWN_PROPS = {
 // emitted by `cssVariableResolver` rather than the raw Mantine palette,
 // so dark/light always renders the right value.
 
-export const theme = createTheme({
-  primaryColor: "primary",
-  primaryShade: { light: 5, dark: 3 },
+export interface CreateMedBrainsThemeOptions {
+  /** Optional Mantine loader registry. Pass an `ecg` entry to enable the
+   *  branded ECG loader as the default Loader type. */
+  loaders?: {
+    ecg?: MantineLoaderComponent;
+  };
+}
 
-  colors: {
-    primary: blueTuple,
-    blue: blueTuple,
-    cinnabar: cinnabarTuple,
-    mint: mintTuple,
-    success: mintTuple,
-    warning: amberTuple,
-    danger: roseTuple,
-    info: skyTuple,
-    violet: violetTuple,
-    orange: ochreTuple,
-    teal: tealTuple,
-    slate: slateTuple,
-  },
+/**
+ * Build the MedBrains Mantine theme. Pass `opts.loaders.ecg` to register
+ * the EcgLoader and set it as the default Loader type. Without it, the
+ * default Mantine loader stays in place.
+ */
+export function createMedBrainsTheme(opts: CreateMedBrainsThemeOptions = {}): MantineThemeOverride {
+  const loaderConfig = opts.loaders?.ecg
+    ? {
+        Loader: Loader.extend({
+          defaultProps: {
+            loaders: { ...Loader.defaultLoaders, ecg: opts.loaders.ecg },
+            type: "ecg",
+          },
+        }),
+      }
+    : {};
 
-  fontFamily: fontFamily.sans,
-  fontFamilyMonospace: fontFamily.mono,
-  fontSmoothing: true,
+  return createTheme({
+    primaryColor: "primary",
+    primaryShade: { light: 5, dark: 3 },
 
-  fontSizes: {
-    xs: rem(fontSize.xs),
-    sm: rem(fontSize.sm),
-    md: rem(fontSize.md),
-    lg: rem(fontSize.lg),
-    xl: rem(fontSize.xl),
-  },
+    colors: {
+      primary: blueTuple,
+      blue: blueTuple,
+      cinnabar: cinnabarTuple,
+      mint: mintTuple,
+      success: mintTuple,
+      warning: amberTuple,
+      danger: roseTuple,
+      info: skyTuple,
+      violet: violetTuple,
+      orange: ochreTuple,
+      teal: tealTuple,
+      slate: slateTuple,
+    },
 
-  lineHeights: {
-    xs: lineHeight.snug,
-    sm: lineHeight.snug,
-    md: lineHeight.normal,
-    lg: lineHeight.relaxed,
-    xl: lineHeight.relaxed,
-  },
+    fontFamily: fontFamily.sans,
+    fontFamilyMonospace: fontFamily.mono,
+    fontSmoothing: true,
 
-  spacing: {
-    "3xs": rem(space["3xs"]),
-    "2xs": rem(space["2xs"]),
-    xs: rem(space.xs),
-    sm: rem(space.sm),
-    md: rem(space.md),
-    lg: rem(space.lg),
-    xl: rem(space.xl),
-    "2xl": rem(space["2xl"]),
-    "3xl": rem(space["3xl"]),
-  },
+    fontSizes: {
+      xs: rem(fontSize.xs),
+      sm: rem(fontSize.sm),
+      md: rem(fontSize.md),
+      lg: rem(fontSize.lg),
+      xl: rem(fontSize.xl),
+    },
 
-  defaultRadius: "md",
+    lineHeights: {
+      xs: lineHeight.snug,
+      sm: lineHeight.snug,
+      md: lineHeight.normal,
+      lg: lineHeight.relaxed,
+      xl: lineHeight.relaxed,
+    },
 
-  radius: {
-    xs: rem(radius.xs),
-    sm: rem(radius.sm),
-    md: rem(radius.md),
-    lg: rem(radius.lg),
-    xl: rem(radius.xl),
-  },
+    spacing: {
+      "3xs": rem(space["3xs"]),
+      "2xs": rem(space["2xs"]),
+      xs: rem(space.xs),
+      sm: rem(space.sm),
+      md: rem(space.md),
+      lg: rem(space.lg),
+      xl: rem(space.xl),
+      "2xl": rem(space["2xl"]),
+      "3xl": rem(space["3xl"]),
+    },
 
-  headings: {
-    fontFamily: fontFamily.display,
-    fontWeight: fontWeight.semibold,
-    sizes: {
-      h1: {
-        fontSize: rem(fontSize["4xl"]),
-        lineHeight: lineHeight.display,
-        fontWeight: fontWeight.regular,
-      },
-      h2: {
-        fontSize: rem(fontSize["3xl"]),
-        lineHeight: lineHeight.tight,
-        fontWeight: fontWeight.regular,
-      },
-      h3: {
-        fontSize: rem(fontSize["2xl"]),
-        lineHeight: lineHeight.tight,
-        fontWeight: fontWeight.semibold,
-      },
-      h4: {
-        fontSize: rem(fontSize.xl),
-        lineHeight: lineHeight.snug,
-        fontWeight: fontWeight.semibold,
-      },
-      h5: {
-        fontSize: rem(fontSize.lg),
-        lineHeight: lineHeight.snug,
-        fontWeight: fontWeight.semibold,
-      },
-      h6: {
-        fontSize: rem(fontSize.md),
-        lineHeight: lineHeight.snug,
-        fontWeight: fontWeight.semibold,
+    defaultRadius: "md",
+
+    radius: {
+      xs: rem(radius.xs),
+      sm: rem(radius.sm),
+      md: rem(radius.md),
+      lg: rem(radius.lg),
+      xl: rem(radius.xl),
+    },
+
+    headings: {
+      fontFamily: fontFamily.display,
+      fontWeight: fontWeight.semibold,
+      sizes: {
+        h1: {
+          fontSize: rem(fontSize["4xl"]),
+          lineHeight: lineHeight.display,
+          fontWeight: fontWeight.regular,
+        },
+        h2: {
+          fontSize: rem(fontSize["3xl"]),
+          lineHeight: lineHeight.tight,
+          fontWeight: fontWeight.regular,
+        },
+        h3: {
+          fontSize: rem(fontSize["2xl"]),
+          lineHeight: lineHeight.tight,
+          fontWeight: fontWeight.semibold,
+        },
+        h4: {
+          fontSize: rem(fontSize.xl),
+          lineHeight: lineHeight.snug,
+          fontWeight: fontWeight.semibold,
+        },
+        h5: {
+          fontSize: rem(fontSize.lg),
+          lineHeight: lineHeight.snug,
+          fontWeight: fontWeight.semibold,
+        },
+        h6: {
+          fontSize: rem(fontSize.md),
+          lineHeight: lineHeight.snug,
+          fontWeight: fontWeight.semibold,
+        },
       },
     },
-  },
 
-  // Mantine reads `shadows` as a 5-key record; we publish full xs..2xl
-  // via CSS vars below. Mantine's tier maps onto our scale.
-  shadows: {
-    xs: "var(--mb-shadow-xs)",
-    sm: "var(--mb-shadow-sm)",
-    md: "var(--mb-shadow-md)",
-    lg: "var(--mb-shadow-lg)",
-    xl: "var(--mb-shadow-xl)",
-  },
+    // Mantine reads `shadows` as a 5-key record; we publish full xs..2xl
+    // via CSS vars below. Mantine's tier maps onto our scale.
+    shadows: {
+      xs: "var(--mb-shadow-xs)",
+      sm: "var(--mb-shadow-sm)",
+      md: "var(--mb-shadow-md)",
+      lg: "var(--mb-shadow-lg)",
+      xl: "var(--mb-shadow-xl)",
+    },
 
-  components: {
-    Container: Container.extend({
-      vars: (_, { size, fluid }) => ({
-        root: {
-          "--container-size": fluid
-            ? "100%"
-            : size !== undefined && size in CONTAINER_SIZES
-              ? CONTAINER_SIZES[size]
-              : rem(size),
+    components: {
+      Container: Container.extend({
+        vars: (_, { size, fluid }) => ({
+          root: {
+            "--container-size": fluid
+              ? "100%"
+              : size !== undefined && size in CONTAINER_SIZES
+                ? CONTAINER_SIZES[size]
+                : rem(size),
+          },
+        }),
+      }),
+
+      Paper: Paper.extend({
+        defaultProps: {
+          p: "md",
+          shadow: "sm",
+          radius: "md",
+          withBorder: false,
         },
       }),
-    }),
 
-    Paper: Paper.extend({
-      defaultProps: {
-        p: "md",
-        shadow: "sm",
-        radius: "md",
-        withBorder: false,
-      },
-    }),
+      Card: Card.extend({
+        defaultProps: {
+          p: "md",
+          shadow: "sm",
+          radius: "md",
+          withBorder: false,
+        },
+      }),
 
-    Card: Card.extend({
-      defaultProps: {
-        p: "md",
-        shadow: "sm",
-        radius: "md",
-        withBorder: false,
-      },
-    }),
+      Select: Select.extend({
+        defaultProps: {
+          checkIconPosition: "right",
+          comboboxProps: MODAL_DROPDOWN_PROPS,
+          maxDropdownHeight: MODAL_DROPDOWN_MAX_HEIGHT,
+          radius: "md",
+          size: "sm",
+          variant: "default",
+        },
+      }),
 
-    Select: Select.extend({
-      defaultProps: {
-        checkIconPosition: "right",
-        comboboxProps: MODAL_DROPDOWN_PROPS,
-        maxDropdownHeight: MODAL_DROPDOWN_MAX_HEIGHT,
-        radius: "md",
-        size: "sm",
-        variant: "default",
-      },
-    }),
+      MultiSelect: MultiSelect.extend({
+        defaultProps: {
+          checkIconPosition: "right",
+          comboboxProps: MODAL_DROPDOWN_PROPS,
+          maxDropdownHeight: MODAL_DROPDOWN_MAX_HEIGHT,
+          radius: "md",
+          size: "sm",
+          variant: "default",
+        },
+      }),
 
-    MultiSelect: MultiSelect.extend({
-      defaultProps: {
-        checkIconPosition: "right",
-        comboboxProps: MODAL_DROPDOWN_PROPS,
-        maxDropdownHeight: MODAL_DROPDOWN_MAX_HEIGHT,
-        radius: "md",
-        size: "sm",
-        variant: "default",
-      },
-    }),
+      TagsInput: TagsInput.extend({
+        defaultProps: {
+          comboboxProps: MODAL_DROPDOWN_PROPS,
+          maxDropdownHeight: MODAL_DROPDOWN_MAX_HEIGHT,
+          radius: "md",
+          size: "sm",
+          variant: "default",
+        },
+      }),
 
-    TagsInput: TagsInput.extend({
-      defaultProps: {
-        comboboxProps: MODAL_DROPDOWN_PROPS,
-        maxDropdownHeight: MODAL_DROPDOWN_MAX_HEIGHT,
-        radius: "md",
-        size: "sm",
-        variant: "default",
-      },
-    }),
+      Autocomplete: Autocomplete.extend({
+        defaultProps: {
+          comboboxProps: MODAL_DROPDOWN_PROPS,
+          maxDropdownHeight: MODAL_DROPDOWN_MAX_HEIGHT,
+          radius: "md",
+          size: "sm",
+          variant: "default",
+        },
+      }),
 
-    Autocomplete: Autocomplete.extend({
-      defaultProps: {
-        comboboxProps: MODAL_DROPDOWN_PROPS,
-        maxDropdownHeight: MODAL_DROPDOWN_MAX_HEIGHT,
-        radius: "md",
-        size: "sm",
-        variant: "default",
-      },
-    }),
+      Combobox: Combobox.extend({
+        defaultProps: {
+          middlewares: { flip: true, shift: true, size: true },
+          shadow: "lg",
+          withinPortal: true,
+          zIndex: zIndex.dropdown,
+        },
+      }),
 
-    Combobox: Combobox.extend({
-      defaultProps: {
-        middlewares: { flip: true, shift: true, size: true },
-        shadow: "lg",
-        withinPortal: true,
-        zIndex: zIndex.dropdown,
-      },
-    }),
+      DateInput: DateInput.extend({
+        defaultProps: {
+          popoverProps: MODAL_DROPDOWN_PROPS,
+          radius: "md",
+          size: "sm",
+          variant: "default",
+        },
+      }),
 
-    DateInput: DateInput.extend({
-      defaultProps: {
-        popoverProps: MODAL_DROPDOWN_PROPS,
-        radius: "md",
-        size: "sm",
-        variant: "default",
-      },
-    }),
+      DatePickerInput: DatePickerInput.extend({
+        defaultProps: {
+          popoverProps: MODAL_DROPDOWN_PROPS,
+          radius: "md",
+          size: "sm",
+          variant: "default",
+        },
+      }),
 
-    DatePickerInput: DatePickerInput.extend({
-      defaultProps: {
-        popoverProps: MODAL_DROPDOWN_PROPS,
-        radius: "md",
-        size: "sm",
-        variant: "default",
-      },
-    }),
+      DateTimePicker: DateTimePicker.extend({
+        defaultProps: {
+          popoverProps: MODAL_DROPDOWN_PROPS,
+          radius: "md",
+          size: "sm",
+          variant: "default",
+        },
+      }),
 
-    DateTimePicker: DateTimePicker.extend({
-      defaultProps: {
-        popoverProps: MODAL_DROPDOWN_PROPS,
-        radius: "md",
-        size: "sm",
-        variant: "default",
+      Table: {
+        defaultProps: {
+          striped: false,
+          withTableBorder: false,
+          withColumnBorders: false,
+          highlightOnHover: true,
+          verticalSpacing: 10,
+          horizontalSpacing: "sm",
+          fz: "sm",
+        },
       },
-    }),
 
-    Table: {
-      defaultProps: {
-        striped: false,
-        withTableBorder: false,
-        withColumnBorders: false,
-        highlightOnHover: true,
-        verticalSpacing: 10,
-        horizontalSpacing: "sm",
-        fz: "sm",
+      Text: {
+        defaultProps: {
+          c: "var(--mb-text-body)",
+        },
       },
-    },
 
-    Text: {
-      defaultProps: {
-        c: "var(--mb-text-body)",
+      Title: {
+        defaultProps: {
+          c: "var(--mb-text-heading)",
+          ff: fontFamily.display,
+        },
       },
-    },
 
-    Title: {
-      defaultProps: {
-        c: "var(--mb-text-heading)",
-        ff: fontFamily.display,
+      Modal: {
+        defaultProps: {
+          centered: true,
+          overlayProps: { backgroundOpacity: 0.4, blur: 8 },
+          radius: "lg",
+          shadow: "xl",
+          transitionProps: { duration: 200, transition: "fade" },
+        },
       },
-    },
 
-    Modal: {
-      defaultProps: {
-        centered: true,
-        overlayProps: { backgroundOpacity: 0.4, blur: 8 },
-        radius: "lg",
-        shadow: "xl",
-        transitionProps: { duration: 200, transition: "fade" },
+      Badge: {
+        defaultProps: {
+          variant: "light",
+          radius: "xl",
+          size: "md",
+          fw: 600,
+        },
       },
-    },
 
-    Badge: {
-      defaultProps: {
-        variant: "light",
-        radius: "xl",
-        size: "md",
-        fw: 600,
+      TextInput: {
+        defaultProps: {
+          radius: "md",
+          size: "sm",
+          variant: "default",
+        },
       },
-    },
 
-    TextInput: {
-      defaultProps: {
-        radius: "md",
-        size: "sm",
-        variant: "default",
+      PasswordInput: {
+        defaultProps: {
+          radius: "md",
+          size: "sm",
+          variant: "default",
+        },
       },
-    },
 
-    PasswordInput: {
-      defaultProps: {
-        radius: "md",
-        size: "sm",
-        variant: "default",
+      Textarea: {
+        defaultProps: {
+          radius: "md",
+          size: "sm",
+          variant: "default",
+        },
       },
-    },
 
-    Textarea: {
-      defaultProps: {
-        radius: "md",
-        size: "sm",
-        variant: "default",
+      NumberInput: {
+        defaultProps: {
+          radius: "md",
+          size: "sm",
+          variant: "default",
+        },
       },
-    },
 
-    NumberInput: {
-      defaultProps: {
-        radius: "md",
-        size: "sm",
-        variant: "default",
+      Button: {
+        defaultProps: {
+          radius: "md",
+          fw: 600,
+        },
       },
-    },
 
-    Button: {
-      defaultProps: {
-        radius: "md",
-        fw: 600,
+      NavLink: {
+        defaultProps: {
+          variant: "subtle",
+        },
       },
-    },
 
-    NavLink: {
-      defaultProps: {
-        variant: "subtle",
+      Tabs: {
+        defaultProps: {
+          variant: "pills",
+          radius: "md",
+          keepMounted: true,
+        },
       },
-    },
 
-    Tabs: {
-      defaultProps: {
-        variant: "pills",
-        radius: "md",
-        keepMounted: true,
+      ActionIcon: {
+        defaultProps: {
+          variant: "default",
+          radius: "md",
+        },
       },
-    },
 
-    ActionIcon: {
-      defaultProps: {
-        variant: "default",
-        radius: "md",
+      ThemeIcon: {
+        defaultProps: {
+          variant: "light",
+          radius: "lg",
+        },
       },
-    },
 
-    ThemeIcon: {
-      defaultProps: {
-        variant: "light",
-        radius: "lg",
+      Divider: {
+        defaultProps: {
+          color: "var(--mb-border-subtle)",
+        },
       },
-    },
 
-    Divider: {
-      defaultProps: {
-        color: "var(--mb-border-subtle)",
-      },
-    },
+      ...loaderConfig,
 
-    Loader: Loader.extend({
-      defaultProps: {
-        loaders: { ...Loader.defaultLoaders, ecg: EcgLoader },
-        type: "ecg",
+      Skeleton: {
+        defaultProps: {
+          radius: "lg",
+        },
       },
-    }),
 
-    Skeleton: {
-      defaultProps: {
-        radius: "lg",
+      Tooltip: {
+        defaultProps: {
+          withArrow: true,
+          radius: "md",
+          fz: "xs",
+          transitionProps: { duration: 150, transition: "fade" },
+        },
       },
-    },
 
-    Tooltip: {
-      defaultProps: {
-        withArrow: true,
-        radius: "md",
-        fz: "xs",
-        transitionProps: { duration: 150, transition: "fade" },
+      Drawer: {
+        defaultProps: {
+          shadow: "xl",
+          transitionProps: { duration: 300 },
+        },
       },
-    },
 
-    Drawer: {
-      defaultProps: {
-        shadow: "xl",
-        transitionProps: { duration: 300 },
+      Menu: {
+        defaultProps: {
+          radius: "lg",
+          shadow: "md",
+          transitionProps: { duration: 150, transition: "scale-y" },
+        },
       },
-    },
 
-    Menu: {
-      defaultProps: {
-        radius: "lg",
-        shadow: "md",
-        transitionProps: { duration: 150, transition: "scale-y" },
+      Popover: {
+        defaultProps: {
+          radius: "lg",
+          shadow: "md",
+        },
+        styles: {
+          dropdown: {
+            background: "var(--mb-panel-bg)",
+            color: "var(--mb-text-primary)",
+            border: "1px solid var(--mb-border)",
+            boxShadow: "var(--mb-shadow-md)",
+          },
+        },
       },
-    },
 
-    Popover: {
-      defaultProps: {
-        radius: "lg",
-        shadow: "md",
+      Alert: {
+        defaultProps: {
+          radius: "lg",
+          variant: "light",
+        },
       },
-      styles: {
-        dropdown: {
-          background: "var(--mb-panel-bg)",
-          color: "var(--mb-text-primary)",
-          border: "1px solid var(--mb-border)",
-          boxShadow: "var(--mb-shadow-md)",
+
+      Accordion: {
+        defaultProps: {
+          radius: "lg",
         },
       },
     },
 
-    Alert: {
-      defaultProps: {
-        radius: "lg",
-        variant: "light",
-      },
+    other: {
+      style: "apple-blue-cinnabar",
+      fontDisplay: fontFamily.display,
+      fontSans: fontFamily.sans,
+      fontMono: fontFamily.mono,
+      duration,
+      easing,
     },
-
-    Accordion: {
-      defaultProps: {
-        radius: "lg",
-      },
-    },
-  },
-
-  other: {
-    style: "apple-blue-cinnabar",
-    fontDisplay: fontFamily.display,
-    fontSans: fontFamily.sans,
-    fontMono: fontFamily.mono,
-    duration,
-    easing,
-  },
-});
+  });
+}
 
 // ═══════════════════════════════════════════════════════════════════
 // ── CSS variable resolver — dual-mode token publication

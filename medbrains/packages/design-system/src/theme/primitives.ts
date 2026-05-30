@@ -206,9 +206,7 @@ export const slate = [
 // ═══════════════════════════════════════════════════════════════════
 
 export const blueTuple: MantineColorsTuple = [...blue] as unknown as MantineColorsTuple;
-export const cinnabarTuple: MantineColorsTuple = [
-  ...cinnabar,
-] as unknown as MantineColorsTuple;
+export const cinnabarTuple: MantineColorsTuple = [...cinnabar] as unknown as MantineColorsTuple;
 export const mintTuple: MantineColorsTuple = [...mint] as unknown as MantineColorsTuple;
 export const amberTuple: MantineColorsTuple = [...amber] as unknown as MantineColorsTuple;
 export const roseTuple: MantineColorsTuple = [...rose] as unknown as MantineColorsTuple;
@@ -314,8 +312,7 @@ export const letterSpacing = {
 
 export const fontFamily = {
   sans: "'Inter Tight Variable', 'Inter Tight', -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', 'Noto Sans', 'Noto Sans Tamil', Roboto, sans-serif",
-  display:
-    "'Fraunces Variable', 'Fraunces', 'SF Pro Display', Georgia, 'Times New Roman', serif",
+  display: "'Fraunces Variable', 'Fraunces', 'SF Pro Display', Georgia, 'Times New Roman', serif",
   mono: "'JetBrains Mono', 'SF Mono', ui-monospace, Menlo, monospace",
 } as const;
 

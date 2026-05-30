@@ -79,6 +79,7 @@ yottadata/
 apps/web/e2e/.auth/
 apps/web/test-results/
 apps/web/playwright-report/
+apps/storybook/storybook-static/
 
 # Generated smoke tests (regenerate via: make generate-smoke)
 apps/web/e2e/smoke/*.smoke.spec.ts

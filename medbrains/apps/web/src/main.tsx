@@ -2,12 +2,14 @@
 import "./i18n";
 import { DirectionProvider, MantineProvider } from "@mantine/core";
 import { Notifications } from "@mantine/notifications";
+import { createMedBrainsTheme, cssVariableResolver } from "@medbrains/design-system";
 import { createQueryClient } from "@medbrains/stores";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { useTranslation } from "react-i18next";
 import { App } from "./App";
+import { EcgLoader } from "./components/EcgLoader";
 import { RTL_LANGUAGES } from "./i18n";
 import {
   defaultDesktopApiBase,
@@ -15,7 +17,6 @@ import {
   isTauriDesktopRuntime,
 } from "./lib/desktop-runtime";
 import { sessionService } from "./services/session.service";
-import { cssVariableResolver, theme } from "./theme";
 
 import "@fontsource-variable/inter-tight";
 import "@fontsource-variable/fraunces";
@@ -25,7 +26,9 @@ import "@fontsource/jetbrains-mono/latin-600.css";
 import "@mantine/core/styles.css";
 import "@mantine/notifications/styles.css";
 import "@mantine/dates/styles.css";
-import "./styles/global.scss";
+import "@medbrains/design-system/styles/global.scss";
+
+const theme = createMedBrainsTheme({ loaders: { ecg: EcgLoader } });
 
 const isTauriDesktop = isTauriDesktopRuntime();
 const desktopSearchParams = new URLSearchParams(window.location.search);

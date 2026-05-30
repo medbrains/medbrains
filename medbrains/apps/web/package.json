@@ -46,6 +46,7 @@
     "@mantine/spotlight": "^9.0.1",
     "@medbrains/api": "workspace:*",
     "@medbrains/crdt": "workspace:*",
+    "@medbrains/design-system": "workspace:*",
     "@medbrains/expressions": "workspace:*",
     "@medbrains/schemas": "workspace:*",
     "@medbrains/stores": "workspace:*",

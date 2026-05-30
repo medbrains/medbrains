@@ -15,6 +15,10 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
+      "@medbrains/design-system": path.resolve(
+        __dirname,
+        "../../packages/design-system/src",
+      ),
     },
   },
 });

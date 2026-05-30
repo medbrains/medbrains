@@ -77,6 +77,7 @@ export default defineConfig(async () => {
       dedupe: ["react", "react-dom", "react-hook-form"],
       alias: {
         "@": path.resolve(__dirname, "./src"),
+        "@medbrains/design-system": path.resolve(workspaceRoot, "packages/design-system/src"),
         react: path.resolve(workspaceRoot, "node_modules/react"),
         "react-dom": path.resolve(workspaceRoot, "node_modules/react-dom"),
       },
