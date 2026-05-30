@@ -1,6 +1,8 @@
+import { zodResolver } from "@hookform/resolvers/zod";
 import {
   ActionIcon,
   Badge,
+  Box,
   Button,
   Card,
   Drawer,
@@ -18,6 +20,12 @@ import {
 import { DateInput } from "@mantine/dates";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
+import {
+  type MrdCaseSheetFileFormInput,
+  type MrdCaseSheetReprintFormInput,
+  mrdCaseSheetFileFormSchema,
+  mrdCaseSheetReprintFormSchema,
+} from "@medbrains/schemas";
 import { useHasPermission } from "@medbrains/stores";
 import type {
   CreateMrdBirthRequest,
@@ -25,7 +33,6 @@ import type {
   CreateMrdRecordRequest,
   CreateMrdRetentionPolicyRequest,
   CreateMrdStorageLocationRequest,
-  FileMrdCaseSheetPacketRequest,
   IssueMrdRecordRequest,
   MrdAdmissionDischargeSummary,
   MrdBirthRegister,
@@ -56,7 +63,8 @@ import {
   IconSkull,
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { Controller, useForm } from "react-hook-form";
 import { useNavigate, useSearchParams } from "react-router";
 import { DataTable, PageHeader } from "@/components";
 import type { Column } from "@/components/DataTable";
@@ -67,7 +75,13 @@ import { PatientSearchSelect } from "@/components/PatientSearchSelect";
 import { useHashTabs } from "@/hooks/useHashTabs";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { mrdService } from "@/services/mrd.service";
-import { PRINT_COPY_PACKETS, printCopyRouteLabel } from "@/utils/printCopies";
+import {
+  buildCopyPrintHtml,
+  copyPrintStyles,
+  PRINT_COPY_PACKETS,
+  type PrintCopyRoute,
+  printCopyRouteLabel,
+} from "@/utils/printCopies";
 
 // ── Helpers ──────────────────────────────────────────────
 
@@ -104,6 +118,26 @@ const CASE_SHEET_STATUS_OPTIONS: { value: MrdCaseSheetPacketStatus | ""; label: 
 const MRD_CASE_SHEET_PRINT_COPIES = PRINT_COPY_PACKETS.mrdCaseSheet;
 const MRD_CASE_SHEET_REPRINT_COPIES = PRINT_COPY_PACKETS.mrdCaseSheetReprint;
 
+type MrdPrintAction = "print" | "reprint";
+
+interface MrdCaseSheetPrintPreview {
+  action: MrdPrintAction;
+  completeness: MrdCaseSheetCompletenessResponse | null;
+  copies: readonly PrintCopyRoute[];
+  packet: MrdCaseSheetPacket;
+  pages: MrdCaseSheetPage[];
+  reprintReason?: string;
+}
+
+const MRD_FILE_FORM_DEFAULTS: MrdCaseSheetFileFormInput = {
+  storage_location_id: "",
+  notes: "",
+};
+
+const MRD_REPRINT_FORM_DEFAULTS: MrdCaseSheetReprintFormInput = {
+  reprint_reason: "",
+};
+
 function toCaseSheetStatus(value: string | null): MrdCaseSheetPacketStatus | null {
   switch (value) {
     case "draft":
@@ -123,6 +157,100 @@ function toCaseSheetStatus(value: string | null): MrdCaseSheetPacketStatus | nul
 function fmt(d: string | null) {
   if (!d) return "—";
   return new Date(d).toLocaleDateString();
+}
+
+function snapshotText(packet: MrdCaseSheetPacket, key: string) {
+  const value = packet.source_snapshot[key];
+  return typeof value === "string" && value.trim().length > 0 ? value : null;
+}
+
+function snapshotList(packet: MrdCaseSheetPacket, key: string) {
+  const value = packet.source_snapshot[key];
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+    : [];
+}
+
+function snapshotNotes(packet: MrdCaseSheetPacket) {
+  const value = packet.source_snapshot.datewise_soap_notes;
+  return Array.isArray(value)
+    ? value.filter(
+        (item): item is Record<string, unknown> => item !== null && typeof item === "object",
+      )
+    : [];
+}
+
+function snapshotNoteText(note: Record<string, unknown>, key: string) {
+  const value = note[key];
+  return typeof value === "string" && value.trim().length > 0 ? value : "—";
+}
+
+function snapshotNoteDate(note: Record<string, unknown>) {
+  const value = note.date ?? note.created_at;
+  return typeof value === "string" ? fmt(value) : "—";
+}
+
+function snapshotNoteKey(note: Record<string, unknown>) {
+  const id = note.id;
+  if (typeof id === "string" && id.length > 0) return id;
+
+  const contentKey = ["date", "created_at", "author", "doctor", "subjective", "assessment", "plan"]
+    .map((key) => note[key])
+    .filter((value): value is string => typeof value === "string" && value.length > 0)
+    .join("|");
+  return contentKey || JSON.stringify(note);
+}
+
+function escapeMrdPrintHtml(value: string) {
+  return value.replace(/[&<>"']/g, (char) => {
+    const entities: Record<string, string> = {
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      '"': "&quot;",
+      "'": "&#39;",
+    };
+    return entities[char] ?? char;
+  });
+}
+
+function printMrdCaseSheetPreview(
+  title: string,
+  element: HTMLElement | null,
+  copies: readonly PrintCopyRoute[],
+) {
+  if (!element) return;
+  const popup = window.open("", "_blank", "width=900,height=980");
+  if (!popup) return;
+
+  popup.document.write(`
+    <html>
+      <head>
+        <title>${escapeMrdPrintHtml(title)}</title>
+        <style>
+          body { font-family: Inter, Arial, sans-serif; margin: 24px; color: #18201b; }
+          .mrd-print { max-width: 860px; margin: 0 auto; font-size: 12px; line-height: 1.42; }
+          .mrd-print h1 { font-size: 18px; margin: 0 0 4px; }
+          .mrd-print h2 { font-size: 13px; margin: 18px 0 8px; border-bottom: 1px solid #ccd6cf; padding-bottom: 4px; text-transform: uppercase; letter-spacing: .04em; }
+          .mrd-print .muted { color: #5f6b63; }
+          .mrd-print .duplicate { color: #b45309; font-weight: 700; }
+          .mrd-print-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 18px; margin-top: 12px; }
+          .mrd-print-label { color: #5f6b63; font-size: 10px; text-transform: uppercase; letter-spacing: .04em; }
+          .mrd-print-value { font-weight: 650; white-space: pre-wrap; }
+          .mrd-print table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+          .mrd-print th, .mrd-print td { text-align: left; border: 1px solid #d8e1dc; padding: 5px 7px; vertical-align: top; }
+          .mrd-print th { background: #f4f7f5; font-size: 10px; text-transform: uppercase; letter-spacing: .04em; }
+          .mrd-signatures { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 36px; }
+          .mrd-signature { border-top: 1px solid #18201b; padding-top: 6px; text-align: center; color: #5f6b63; }
+          ${copyPrintStyles()}
+        </style>
+      </head>
+      <body onload="window.print(); window.close();">
+        ${buildCopyPrintHtml(element.innerHTML, copies)}
+      </body>
+    </html>
+  `);
+  popup.document.close();
 }
 
 function completenessColor(status: string): string {
@@ -197,6 +325,192 @@ function MrdCompletenessPanel({
         </Stack>
       )}
     </Card>
+  );
+}
+
+function MrdPrintField({
+  label,
+  value,
+}: {
+  label: string;
+  value: string | number | null | undefined;
+}) {
+  return (
+    <div>
+      <div className="mrd-print-label">{label}</div>
+      <div className="mrd-print-value">{value || "—"}</div>
+    </div>
+  );
+}
+
+function MrdCaseSheetPrintablePreview({ preview }: { preview: MrdCaseSheetPrintPreview }) {
+  const { action, completeness, packet, pages, reprintReason } = preview;
+  const diagnoses = snapshotList(packet, "diagnoses");
+  const notes = snapshotNotes(packet);
+  const isOpd = packet.packet_type === "opd";
+  const missingItems = completeness?.items.filter((item) => item.status !== "ok") ?? [];
+
+  return (
+    <Box className="mrd-print">
+      <header>
+        <h1>MRD Case Sheet Packet</h1>
+        <div className="muted">
+          {packet.packet_number} | {packet.packet_type.toUpperCase()} | Version {packet.version}
+        </div>
+        {action === "reprint" && (
+          <div className="duplicate">Duplicate / reprint: {reprintReason}</div>
+        )}
+      </header>
+
+      <section className="mrd-print-grid">
+        <MrdPrintField
+          label="Patient"
+          value={packet.patient_name ?? snapshotText(packet, "patient_name")}
+        />
+        <MrdPrintField label="UHID" value={packet.uhid ?? snapshotText(packet, "uhid")} />
+        <MrdPrintField label="Packet status" value={packet.status} />
+        <MrdPrintField label="Generated" value={fmt(packet.generated_at)} />
+        <MrdPrintField
+          label={isOpd ? "OPD encounter" : "IPD admission"}
+          value={isOpd ? packet.encounter_id : packet.admission_id}
+        />
+        <MrdPrintField label="Department" value={snapshotText(packet, "department")} />
+        <MrdPrintField label="Doctor" value={snapshotText(packet, "doctor")} />
+        <MrdPrintField
+          label={isOpd ? "Encounter date" : "Admission date"}
+          value={fmt(
+            isOpd ? snapshotText(packet, "encounter_date") : snapshotText(packet, "admitted_at"),
+          )}
+        />
+        {!isOpd && (
+          <MrdPrintField
+            label="Ward / bed"
+            value={`${snapshotText(packet, "ward") ?? "—"} / ${snapshotText(packet, "bed") ?? "—"}`}
+          />
+        )}
+      </section>
+
+      <h2>Clinical Snapshot</h2>
+      {isOpd ? (
+        <section className="mrd-print-grid">
+          <MrdPrintField label="Chief complaint" value={snapshotText(packet, "chief_complaint")} />
+          <MrdPrintField label="History" value={snapshotText(packet, "history")} />
+          <MrdPrintField label="HPI" value={snapshotText(packet, "hpi")} />
+          <MrdPrintField label="Examination" value={snapshotText(packet, "examination")} />
+          <MrdPrintField label="Plan" value={snapshotText(packet, "plan")} />
+          <MrdPrintField label="Diagnoses" value={diagnoses.join("; ")} />
+        </section>
+      ) : (
+        <section className="mrd-print-grid">
+          <MrdPrintField
+            label="Provisional diagnosis"
+            value={snapshotText(packet, "provisional_diagnosis")}
+          />
+          <MrdPrintField label="Discharged" value={fmt(snapshotText(packet, "discharged_at"))} />
+          <MrdPrintField
+            label="Discharge summary"
+            value={snapshotText(packet, "discharge_summary")}
+          />
+        </section>
+      )}
+
+      {notes.length > 0 && (
+        <>
+          <h2>Datewise Notes</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Author</th>
+                <th>Subjective</th>
+                <th>Objective</th>
+                <th>Assessment</th>
+                <th>Plan</th>
+              </tr>
+            </thead>
+            <tbody>
+              {notes.map((note) => (
+                <tr key={snapshotNoteKey(note)}>
+                  <td>{snapshotNoteDate(note)}</td>
+                  <td>{snapshotNoteText(note, isOpd ? "doctor" : "author")}</td>
+                  <td>{snapshotNoteText(note, "subjective")}</td>
+                  <td>{snapshotNoteText(note, "objective")}</td>
+                  <td>{snapshotNoteText(note, "assessment")}</td>
+                  <td>{snapshotNoteText(note, "plan")}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
+      )}
+
+      <h2>Assembly Checklist</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Page</th>
+            <th>Source</th>
+            <th>Required</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {pages.map((page) => (
+            <tr key={page.id}>
+              <td>{page.page_order}</td>
+              <td>
+                <strong>{page.page_title}</strong>
+                <br />
+                <span className="muted">{page.page_code}</span>
+              </td>
+              <td>{page.source_module ?? "manual"}</td>
+              <td>{page.is_required ? "Yes" : "No"}</td>
+              <td>{page.status}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      {completeness && (
+        <>
+          <h2>Completeness Control</h2>
+          <section className="mrd-print-grid">
+            <MrdPrintField label="Completeness" value={`${completeness.completeness_pct}%`} />
+            <MrdPrintField
+              label="Required complete"
+              value={`${completeness.complete_total}/${completeness.required_total}`}
+            />
+            <MrdPrintField label="Open gaps" value={completeness.missing_total} />
+          </section>
+          {missingItems.length > 0 && (
+            <table>
+              <thead>
+                <tr>
+                  <th>Gap</th>
+                  <th>Source</th>
+                  <th>Message</th>
+                </tr>
+              </thead>
+              <tbody>
+                {missingItems.map((item) => (
+                  <tr key={item.code}>
+                    <td>{item.label}</td>
+                    <td>{item.source_module}</td>
+                    <td>{item.message}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </>
+      )}
+
+      <div className="mrd-signatures">
+        <div className="mrd-signature">Prepared / printed by</div>
+        <div className="mrd-signature">MRD received by</div>
+      </div>
+    </Box>
   );
 }
 
@@ -668,6 +982,7 @@ function RecordsTab() {
 function CaseSheetsTab() {
   const qc = useQueryClient();
   const navigate = useNavigate();
+  const printPreviewRef = useRef<HTMLDivElement>(null);
   const [searchParams, setSearchParams] = useSearchParams();
   const canPrint = useHasPermission(P.MRD.CASE_SHEETS_PRINT);
   const canReprint = useHasPermission(P.MRD.CASE_SHEETS_REPRINT);
@@ -696,10 +1011,16 @@ function CaseSheetsTab() {
   const [pagesOpen, { open: openPages, close: closePages }] = useDisclosure();
   const [fileOpen, { open: openFile, close: closeFile }] = useDisclosure();
   const [reprintOpen, { open: openReprint, close: closeReprint }] = useDisclosure();
-  const [fileForm, setFileForm] = useState<FileMrdCaseSheetPacketRequest>({
-    storage_location_id: "",
+  const [printPreviewOpen, { open: openPrintPreview, close: closePrintPreview }] = useDisclosure();
+  const [printPreview, setPrintPreview] = useState<MrdCaseSheetPrintPreview | null>(null);
+  const fileForm = useForm<MrdCaseSheetFileFormInput>({
+    resolver: zodResolver(mrdCaseSheetFileFormSchema),
+    defaultValues: MRD_FILE_FORM_DEFAULTS,
   });
-  const [reprintReason, setReprintReason] = useState("");
+  const reprintForm = useForm<MrdCaseSheetReprintFormInput>({
+    resolver: zodResolver(mrdCaseSheetReprintFormSchema),
+    defaultValues: MRD_REPRINT_FORM_DEFAULTS,
+  });
 
   const { data: packets = [], isLoading } = useQuery({
     queryKey: ["mrd-case-sheets", statusFilter, typeFilter, encounterFilter, admissionFilter],
@@ -730,51 +1051,96 @@ function CaseSheetsTab() {
   });
 
   const printMut = useMutation({
-    mutationFn: (packet: MrdCaseSheetPacket) =>
-      mrdService.printMrdCaseSheetPacket(packet.id, {
+    mutationFn: async (packet: MrdCaseSheetPacket): Promise<MrdCaseSheetPrintPreview> => {
+      const printedPacket = await mrdService.printMrdCaseSheetPacket(packet.id, {
         copies: MRD_CASE_SHEET_PRINT_COPIES.length,
-      }),
-    onSuccess: (packet) => {
+      });
+      const [packetPages, packetCompleteness] = await Promise.all([
+        mrdService.listMrdCaseSheetPages(printedPacket.id),
+        mrdService.getMrdCaseSheetCompleteness(printedPacket.id).catch(() => null),
+      ]);
+      return {
+        action: "print",
+        completeness: packetCompleteness,
+        copies: MRD_CASE_SHEET_PRINT_COPIES,
+        packet: printedPacket,
+        pages: packetPages,
+      };
+    },
+    onSuccess: (preview) => {
       void qc.invalidateQueries({ queryKey: ["mrd-case-sheets"] });
-      void qc.invalidateQueries({ queryKey: ["mrd-case-sheet-pages", packet.id] });
-      void qc.invalidateQueries({ queryKey: ["mrd-case-sheet-completeness", packet.id] });
+      void qc.invalidateQueries({ queryKey: ["mrd-case-sheet-pages", preview.packet.id] });
+      void qc.invalidateQueries({
+        queryKey: ["mrd-case-sheet-completeness", preview.packet.id],
+      });
+      setPrintPreview(preview);
+      openPrintPreview();
       notifications.show({
-        title: "Case sheet printed",
-        message: `${packet.packet_number} routed as MRD and office copies`,
+        title: "Case sheet print prepared",
+        message: `${preview.packet.packet_number} is ready with MRD, office, and clinical copies`,
         color: "success",
       });
     },
   });
 
   const reprintMut = useMutation({
-    mutationFn: () =>
-      mrdService.printMrdCaseSheetPacket(selectedPacket?.id ?? "", {
+    mutationFn: async (values: MrdCaseSheetReprintFormInput): Promise<MrdCaseSheetPrintPreview> => {
+      if (!selectedPacket) {
+        throw new Error("Select a case-sheet packet before reprinting");
+      }
+      const reprintReason = values.reprint_reason.trim();
+      const printedPacket = await mrdService.printMrdCaseSheetPacket(selectedPacket.id, {
         copies: MRD_CASE_SHEET_REPRINT_COPIES.length,
-        reprint_reason: reprintReason.trim(),
-      }),
-    onSuccess: (packet) => {
+        reprint_reason: reprintReason,
+      });
+      const [packetPages, packetCompleteness] = await Promise.all([
+        mrdService.listMrdCaseSheetPages(printedPacket.id),
+        mrdService.getMrdCaseSheetCompleteness(printedPacket.id).catch(() => null),
+      ]);
+      return {
+        action: "reprint",
+        completeness: packetCompleteness,
+        copies: MRD_CASE_SHEET_REPRINT_COPIES,
+        packet: printedPacket,
+        pages: packetPages,
+        reprintReason,
+      };
+    },
+    onSuccess: (preview) => {
       void qc.invalidateQueries({ queryKey: ["mrd-case-sheets"] });
-      void qc.invalidateQueries({ queryKey: ["mrd-case-sheet-pages", packet.id] });
-      void qc.invalidateQueries({ queryKey: ["mrd-case-sheet-completeness", packet.id] });
+      void qc.invalidateQueries({ queryKey: ["mrd-case-sheet-pages", preview.packet.id] });
+      void qc.invalidateQueries({
+        queryKey: ["mrd-case-sheet-completeness", preview.packet.id],
+      });
       closeReprint();
-      setReprintReason("");
+      reprintForm.reset(MRD_REPRINT_FORM_DEFAULTS);
+      setPrintPreview(preview);
+      openPrintPreview();
       notifications.show({
-        title: "Duplicate printed",
-        message: `${packet.packet_number} duplicate was routed to MRD record room`,
+        title: "Duplicate print prepared",
+        message: `${preview.packet.packet_number} duplicate is ready for MRD record room`,
         color: "success",
       });
     },
   });
 
   const fileMut = useMutation({
-    mutationFn: () => mrdService.fileMrdCaseSheetPacket(selectedPacket?.id ?? "", fileForm),
+    mutationFn: (values: MrdCaseSheetFileFormInput) => {
+      if (!selectedPacket) {
+        throw new Error("Select a case-sheet packet before filing");
+      }
+      return mrdService.fileMrdCaseSheetPacket(selectedPacket.id, {
+        storage_location_id: values.storage_location_id,
+        notes: values.notes?.trim() || undefined,
+      });
+    },
     onSuccess: (packet) => {
       void qc.invalidateQueries({ queryKey: ["mrd-case-sheets"] });
       void qc.invalidateQueries({ queryKey: ["mrd-case-sheet-completeness", packet.id] });
       void qc.invalidateQueries({ queryKey: ["mrd-storage-locations"] });
       void qc.invalidateQueries({ queryKey: ["mrd-records"] });
       closeFile();
-      setFileForm({ storage_location_id: "" });
+      fileForm.reset(MRD_FILE_FORM_DEFAULTS);
       notifications.show({
         title: "Case sheet filed",
         message: `${packet.packet_number} filed at ${packet.shelf_location ?? "MRD storage"}`,
@@ -875,13 +1241,13 @@ function CaseSheetsTab() {
               </Tooltip>
             )}
             {canPrint && (packet.status === "generated" || packet.status === "draft") && (
-              <Tooltip label="Print MRD and office copies">
+              <Tooltip label="Prepare MRD, office, and clinical copies">
                 <ActionIcon
                   variant="light"
                   color="primary"
                   onClick={() => printMut.mutate(packet)}
                   loading={printMut.isPending}
-                  aria-label="Print MRD and office case-sheet copies"
+                  aria-label="Prepare MRD case-sheet copies"
                 >
                   <IconPrinter size={16} />
                 </ActionIcon>
@@ -894,7 +1260,7 @@ function CaseSheetsTab() {
                   color="orange"
                   onClick={() => {
                     setSelectedPacket(packet);
-                    setReprintReason("");
+                    reprintForm.reset(MRD_REPRINT_FORM_DEFAULTS);
                     openReprint();
                   }}
                   aria-label="Reprint case sheet"
@@ -910,7 +1276,7 @@ function CaseSheetsTab() {
                   color="success"
                   onClick={() => {
                     setSelectedPacket(packet);
-                    setFileForm({ storage_location_id: "" });
+                    fileForm.reset(MRD_FILE_FORM_DEFAULTS);
                     openFile();
                   }}
                   aria-label="File case sheet"
@@ -1068,68 +1434,143 @@ function CaseSheetsTab() {
 
       <Drawer
         opened={fileOpen}
-        onClose={closeFile}
+        onClose={() => {
+          closeFile();
+          fileForm.reset(MRD_FILE_FORM_DEFAULTS);
+        }}
         title={`File in MRD: ${selectedPacket?.packet_number ?? ""}`}
         position="right"
         size="lg"
       >
-        <Stack>
-          <Select
-            label="Storage Location"
-            placeholder="Select rack / shelf / compactor"
-            data={locationOptions}
-            value={fileForm.storage_location_id}
-            onChange={(value) => setFileForm({ ...fileForm, storage_location_id: value ?? "" })}
-            required
-            searchable
-          />
-          <Textarea
-            label="Filing Notes"
-            value={fileForm.notes ?? ""}
-            onChange={(event) => setFileForm({ ...fileForm, notes: event.currentTarget.value })}
-          />
-          <Button
-            leftSection={<IconMapPin size={16} />}
-            onClick={() => fileMut.mutate()}
-            loading={fileMut.isPending}
-            disabled={!fileForm.storage_location_id}
-          >
-            Mark Filed
-          </Button>
-        </Stack>
+        <form onSubmit={fileForm.handleSubmit((values) => fileMut.mutate(values))}>
+          <Stack>
+            <Controller
+              name="storage_location_id"
+              control={fileForm.control}
+              render={({ field, fieldState }) => (
+                <Select
+                  label="Storage Location"
+                  placeholder="Select rack / shelf / compactor"
+                  data={locationOptions}
+                  value={field.value}
+                  onChange={(value) => field.onChange(value ?? "")}
+                  error={fieldState.error?.message}
+                  required
+                  searchable
+                />
+              )}
+            />
+            <Controller
+              name="notes"
+              control={fileForm.control}
+              render={({ field, fieldState }) => (
+                <Textarea
+                  label="Filing Notes"
+                  value={field.value ?? ""}
+                  onChange={field.onChange}
+                  error={fieldState.error?.message}
+                />
+              )}
+            />
+            <Button
+              type="submit"
+              leftSection={<IconMapPin size={16} />}
+              loading={fileMut.isPending}
+            >
+              Mark Filed
+            </Button>
+          </Stack>
+        </form>
       </Drawer>
 
       <Drawer
         opened={reprintOpen}
-        onClose={closeReprint}
+        onClose={() => {
+          closeReprint();
+          reprintForm.reset(MRD_REPRINT_FORM_DEFAULTS);
+        }}
         title={`Reprint: ${selectedPacket?.packet_number ?? ""}`}
         position="right"
         size="lg"
       >
+        <form onSubmit={reprintForm.handleSubmit((values) => reprintMut.mutate(values))}>
+          <Stack>
+            <Group gap={6}>
+              {MRD_CASE_SHEET_REPRINT_COPIES.map((copy) => (
+                <Badge key={copy.label} color="orange" variant="light">
+                  {printCopyRouteLabel(copy)}
+                </Badge>
+              ))}
+            </Group>
+            <Controller
+              name="reprint_reason"
+              control={reprintForm.control}
+              render={({ field, fieldState }) => (
+                <Textarea
+                  label="Reprint Reason"
+                  description="Duplicate case-sheet prints must keep an MRD audit reason."
+                  value={field.value}
+                  onChange={field.onChange}
+                  error={fieldState.error?.message}
+                  minRows={4}
+                  required
+                />
+              )}
+            />
+            <Button
+              type="submit"
+              leftSection={<IconPrinter size={16} />}
+              loading={reprintMut.isPending}
+            >
+              Prepare Duplicate
+            </Button>
+          </Stack>
+        </form>
+      </Drawer>
+
+      <Drawer
+        opened={printPreviewOpen}
+        onClose={closePrintPreview}
+        title={
+          printPreview?.action === "reprint"
+            ? `Duplicate print: ${printPreview.packet.packet_number}`
+            : `Print packet: ${printPreview?.packet.packet_number ?? ""}`
+        }
+        position="right"
+        size="xl"
+      >
         <Stack>
-          <Group gap={6}>
-            {MRD_CASE_SHEET_REPRINT_COPIES.map((copy) => (
-              <Badge key={copy.label} color="orange" variant="light">
-                {printCopyRouteLabel(copy)}
-              </Badge>
-            ))}
-          </Group>
-          <Textarea
-            label="Reprint Reason"
-            description="Duplicate case-sheet prints must keep an MRD audit reason."
-            value={reprintReason}
-            onChange={(event) => setReprintReason(event.currentTarget.value)}
-            minRows={4}
-            required
-          />
-          <Button
-            leftSection={<IconPrinter size={16} />}
-            onClick={() => reprintMut.mutate()}
-            loading={reprintMut.isPending}
-            disabled={reprintReason.trim().length === 0}
-          >
-            Print Duplicate
-          </Button>
+          {printPreview && (
+            <>
+              <Group gap={6}>
+                {printPreview.copies.map((copy) => (
+                  <Badge key={copy.label} color="violet" variant="light">
+                    {printCopyRouteLabel(copy)}
+                  </Badge>
+                ))}
+              </Group>
+              <Box ref={printPreviewRef}>
+                <MrdCaseSheetPrintablePreview preview={printPreview} />
+              </Box>
+              <Group justify="flex-end">
+                <Button variant="default" onClick={closePrintPreview}>
+                  Close
+                </Button>
+                <Button
+                  leftSection={<IconPrinter size={16} />}
+                  onClick={() =>
+                    printMrdCaseSheetPreview(
+                      `MRD Case Sheet - ${printPreview.packet.packet_number}`,
+                      printPreviewRef.current,
+                      printPreview.copies,
+                    )
+                  }
+                >
+                  {printPreview.action === "reprint" ? "Print Duplicate" : "Print Copies"}
+                </Button>
+              </Group>
+            </>
+          )}
         </Stack>
       </Drawer>
     </>

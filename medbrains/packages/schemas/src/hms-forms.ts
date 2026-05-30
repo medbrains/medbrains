@@ -4396,6 +4396,22 @@ export const mlcPrintReprintFormSchema = z.object({
   ),
 });
 
+export const mrdCaseSheetFileFormSchema = z.object({
+  storage_location_id: z.string().uuid("Storage location is required"),
+  notes: z.string().max(500, "Notes must be 500 characters or less").optional(),
+});
+
+export type MrdCaseSheetFileFormInput = z.infer<typeof mrdCaseSheetFileFormSchema>;
+
+export const mrdCaseSheetReprintFormSchema = z.object({
+  reprint_reason: requiredTrimmed("Reprint reason is required", 255).refine(
+    (value) => value.trim().length >= 5,
+    "Enter at least 5 characters",
+  ),
+});
+
+export type MrdCaseSheetReprintFormInput = z.infer<typeof mrdCaseSheetReprintFormSchema>;
+
 export const documentPrintFormatValues = [
   "a4_portrait",
   "a4_landscape",
