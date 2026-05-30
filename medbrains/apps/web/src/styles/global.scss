@@ -16,11 +16,8 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-:root {
-  --mb-scrollbar-track: color-mix(in srgb, var(--mb-sidebar-bg) 72%, transparent);
-  --mb-scrollbar-thumb: color-mix(in srgb, var(--mb-accent-primary) 66%, var(--mb-accent-warning));
-  --mb-scrollbar-thumb-hover: color-mix(in srgb, var(--mb-accent-primary) 50%, var(--mb-accent-orange));
-}
+// Scrollbar tints are published per-scheme by the theme resolver
+// (`--mb-scrollbar-track`, `--mb-scrollbar-thumb`, `--mb-scrollbar-thumb-hover`).
 
 #root {
   height: 100%;
@@ -95,7 +92,7 @@ body {
   background: var(--mb-header-bg);
   backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--mb-border-subtle);
-  box-shadow: 0 6px 24px rgba(15, 23, 42, 0.04);
+  box-shadow: var(--mb-shadow-sm);
 }
 
 * {
@@ -298,8 +295,8 @@ h3,
   // ── Filled (primary CTA) — forest bg, glow shadow, lift on hover ──
   &[data-variant="filled"] {
     box-shadow:
-      0 1px 2px rgba(0, 0, 0, 0.08),
-      0 8px 20px rgba(20, 184, 166, 0.2);
+      var(--mb-shadow-xs),
+      0 8px 20px var(--mb-shadow-brand-tint);
 
     &::before {
       opacity: 0.78;
@@ -308,41 +305,41 @@ h3,
 
     &:hover:not(:disabled) {
       box-shadow:
-        0 2px 4px rgba(0, 0, 0, 0.1),
-        0 10px 26px rgba(20, 184, 166, 0.28);
+        var(--mb-shadow-sm),
+        0 10px 26px var(--mb-shadow-brand-tint);
       transform: translateY(-1px);
     }
 
     &::after {
-      background: radial-gradient(circle at center, rgba(255,255,255,0.15) 0%, transparent 70%);
+      background: radial-gradient(circle at center, rgba(255,255,255,0.18) 0%, transparent 70%);
     }
   }
 
-  // ── Default (secondary) — white float, hairline border, lift ──
+  // ── Default (secondary) — surface float, hairline border, lift ──
   &[data-variant="default"] {
     background: var(--mb-action-surface-bg);
     border-color: var(--mb-action-surface-border);
     color: var(--mb-action-surface-text);
-    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+    box-shadow: var(--mb-shadow-xs);
 
     &:hover:not(:disabled) {
       border-color: var(--mb-active-border);
       background: var(--mb-action-surface-hover-bg);
       box-shadow:
-        0 2px 4px rgba(15, 23, 42, 0.06),
-        0 8px 18px rgba(20, 184, 166, 0.08);
+        var(--mb-shadow-sm),
+        0 8px 18px var(--mb-shadow-brand-tint);
       transform: translateY(-1px);
     }
 
     &::after {
-      background: radial-gradient(circle at center, rgba(20, 184, 166, 0.08) 0%, transparent 70%);
+      background: radial-gradient(circle at center, var(--mb-shadow-brand-tint) 0%, transparent 70%);
     }
   }
 
   // ── Light (tertiary) — tinted bg, subtle lift ──
   &[data-variant="light"] {
     &:hover:not(:disabled) {
-      box-shadow: 0 8px 20px rgba(20, 184, 166, 0.1);
+      box-shadow: 0 8px 20px var(--mb-shadow-brand-tint);
       transform: translateY(-1px);
     }
   }
@@ -363,7 +360,7 @@ h3,
 
     &:hover:not(:disabled) {
       background: var(--mb-accent-gradient-soft, var(--mantine-color-primary-0));
-      box-shadow: 0 8px 18px rgba(14, 165, 233, 0.1);
+      box-shadow: 0 8px 18px var(--mb-shadow-brand-tint);
     }
   }
 
@@ -446,18 +443,18 @@ h3,
     background: var(--mb-action-surface-bg);
     border-color: var(--mb-action-surface-border);
     color: var(--mb-action-surface-text);
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+    box-shadow: var(--mb-shadow-xs);
 
     &:hover:not(:disabled) {
       border-color: var(--mb-text-faint);
-      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
+      box-shadow: var(--mb-shadow-sm);
       transform: translateY(-1px);
     }
   }
 
   &[data-variant="subtle"] {
     &:hover:not(:disabled) {
-      background: linear-gradient(135deg, rgba(15, 29, 33, 0.9), rgba(10, 21, 24, 0.78)), var(--mb-component-accent);
+      background: linear-gradient(135deg, var(--mb-glass-from), var(--mb-glass-to)), var(--mb-component-accent);
       color: var(--mb-active-text);
       transform: scale(1.05);
     }
@@ -468,12 +465,12 @@ h3,
   transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
 
   &[data-variant="light"] {
-    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.5);
+    box-shadow: inset 0 0 0 1px var(--mb-border-subtle);
   }
 }
 
 // ═══════════════════════════════════════════════════════════════
-// ── INPUTS — Forest+Copper standard (per design components-inputs)
+// ── INPUTS — brand/accent standard (per design components-inputs)
 // ═══════════════════════════════════════════════════════════════
 //
 // Design spec: 6px radius, 1px hairline, 10x12 padding, ink border
@@ -553,7 +550,7 @@ h3,
   border: 1px solid var(--mb-border);
   background:
     linear-gradient(var(--mb-selected-edge), var(--mb-selected-edge)) top / 100% 3px no-repeat,
-    linear-gradient(180deg, rgba(126, 215, 215, 0.08), transparent 38%),
+    linear-gradient(180deg, var(--mb-brand-tint), transparent 38%),
     var(--mb-panel-bg);
   color: var(--mb-text-body);
   box-shadow: var(--mb-float-shadow);
@@ -626,7 +623,7 @@ h3,
   :where(button[data-in-range]:not([data-selected]), [data-picker-control][data-in-range]:not([data-selected])) {
     border-radius: 0;
     background:
-      linear-gradient(90deg, rgba(126, 215, 215, 0.2), rgba(246, 213, 138, 0.16));
+      linear-gradient(90deg, var(--mb-brand-tint), var(--mb-accent-tint));
     color: var(--mb-text-primary);
   }
 
@@ -638,11 +635,11 @@ h3,
     [data-picker-control][data-first-in-range],
     [data-picker-control][data-last-in-range]
   ) {
-    background: var(--mb-selected-edge) !important;
-    color: #041114 !important;
+    background: var(--mb-brand-emphasis) !important;
+    color: var(--mb-brand-on-emphasis) !important;
     font-weight: 700;
     box-shadow:
-      0 10px 18px rgba(0, 0, 0, 0.28),
+      var(--mb-shadow-md),
       inset 0 0 0 1px rgba(255, 255, 255, 0.22);
   }
 
@@ -657,8 +654,8 @@ h3,
   }
 
   :where([data-active]) {
-    background: var(--mb-selected-edge) !important;
-    color: #041114 !important;
+    background: var(--mb-brand-emphasis) !important;
+    color: var(--mb-brand-on-emphasis) !important;
     font-weight: 700;
   }
 }
@@ -731,16 +728,16 @@ a[href]:not(.mantine-Button-root) {
 
   &[data-color="teal"][data-variant="light"],
   &[data-color="primary"][data-variant="light"] {
-    border-color: var(--mb-active-border);
-    background: #07393a;
-    color: #e6fcff;
+    border-color: var(--mb-brand-outline);
+    background: var(--mb-brand-bg);
+    color: var(--mb-brand-fg);
   }
 
   &[data-color="violet"][data-variant="light"],
   &[data-color="purple"][data-variant="light"] {
-    border-color: var(--mb-indicator-violet);
-    background: #25144a;
-    color: #f2eafe;
+    border-color: var(--mb-violet-border);
+    background: var(--mb-violet-bg);
+    color: var(--mb-violet-text);
   }
 
   &[data-color="slate"][data-variant="light"],
@@ -822,10 +819,10 @@ a[href]:not(.mantine-Button-root) {
 .quick-action-card {
   border-radius: var(--mantine-radius-lg);
   background:
-    linear-gradient(135deg, rgba(15, 29, 33, 0.94), rgba(10, 21, 24, 0.84)),
+    linear-gradient(135deg, var(--mb-glass-from), var(--mb-glass-to)),
     var(--mb-accent-gradient-soft);
   border: 1px solid var(--mb-border-subtle);
-  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.05);
+  box-shadow: var(--mb-shadow-sm);
 
   .mantine-ThemeIcon-root {
     animation: iconFloat 2.6s ease-in-out infinite;
@@ -982,18 +979,26 @@ a[href]:not(.mantine-Button-root) {
   animation: tabPanelEnter 0.2s ease-out;
 }
 
+// ── Tabs: enterprise selection gradient ─────────────────────────
+// Active tab uses the brand emphasis gradient with subtle inner
+// sheen and 2px lifted shadow. Left-edge pill indicator stays. Hover
+// uses brand tint. Per-tab color rotation REMOVED — restraint over
+// rainbow. Override per-color via `data-color` if needed.
 .mantine-Tabs-tab {
-  --mb-tab-accent: var(--mb-accent-primary);
   position: relative;
   overflow: hidden;
   border: 1px solid transparent;
   color: var(--mb-text-secondary) !important;
   font-weight: 600;
-  transition: border-color 0.15s cubic-bezier(0.4, 0, 0.2, 1),
-              background-color 0.15s cubic-bezier(0.4, 0, 0.2, 1),
-              color 0.15s cubic-bezier(0.4, 0, 0.2, 1),
-              box-shadow 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  letter-spacing: 0.01em;
+  transition:
+    border-color 160ms var(--mb-easing-standard, cubic-bezier(0.2, 0, 0, 1)),
+    background 200ms var(--mb-easing-emphasis, cubic-bezier(0.3, 0, 0, 1)),
+    color 160ms var(--mb-easing-standard, cubic-bezier(0.2, 0, 0, 1)),
+    box-shadow 200ms var(--mb-easing-emphasis, cubic-bezier(0.3, 0, 0, 1)),
+    transform 120ms var(--mb-easing-standard, cubic-bezier(0.2, 0, 0, 1));
 
+  // Left-edge pill — appears on hover, anchors on active
   &::before {
     content: "";
     position: absolute;
@@ -1002,63 +1007,132 @@ a[href]:not(.mantine-Button-root) {
     bottom: 7px;
     width: 3px;
     border-radius: 0 999px 999px 0;
-    background: var(--mb-tab-accent);
+    background: var(--mb-brand-emphasis);
     opacity: 0;
-    transform: scaleY(0.45);
+    transform: scaleY(0.4);
     transform-origin: center;
-    transition: opacity 0.16s ease, transform 0.16s ease;
+    transition: opacity 180ms ease, transform 200ms cubic-bezier(0.34, 1.56, 0.64, 1);
     pointer-events: none;
   }
 
-  &:hover:not(:disabled) {
-    color: var(--mb-active-text) !important;
-    background: var(--mb-nav-hover-bg, var(--mantine-color-primary-0));
-    border-color: var(--mb-border-subtle);
+  // Top sheen — inner light streak across active tab (subtle gloss)
+  &::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    background: linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.16) 0%,
+      rgba(255, 255, 255, 0.04) 38%,
+      transparent 72%
+    );
+    opacity: 0;
+    transition: opacity 200ms var(--mb-easing-emphasis, cubic-bezier(0.3, 0, 0, 1));
+  }
+
+  &:hover:not(:disabled, [data-active]) {
+    color: var(--mb-text-primary) !important;
+    background: var(--mb-brand-bg);
+    border-color: var(--mb-brand-outline);
 
     &::before {
-      opacity: 0.5;
+      opacity: 0.6;
       transform: scaleY(1);
     }
   }
 
   &:active:not(:disabled) {
-    transform: scale(0.97);
+    transform: scale(0.98);
+    transition-duration: 70ms;
   }
 
+  // ── Active: enterprise selection gradient ──
   &[data-active] {
-    color: var(--mb-active-text) !important;
-    background: linear-gradient(135deg, rgba(15, 29, 33, 0.96), rgba(10, 21, 24, 0.82)), var(--mb-tab-accent);
-    border-color: var(--mb-border);
-    box-shadow: var(--mb-nav-active-shadow, 0 1px 3px rgba(0, 0, 0, 0.08));
+    color: var(--mb-brand-on-emphasis) !important;
+    background:
+      linear-gradient(
+        135deg,
+        var(--mb-brand-emphasis) 0%,
+        var(--mb-brand-emphasis-hover) 100%
+      );
+    border-color: var(--mb-brand-emphasis-pressed);
+    box-shadow:
+      var(--mb-shadow-sm),
+      0 8px 20px var(--mb-shadow-brand-tint),
+      inset 0 1px 0 rgba(255, 255, 255, 0.18),
+      inset 0 -1px 0 var(--mb-brand-emphasis-pressed);
 
     &::before {
       opacity: 1;
       transform: scaleY(1);
+      background: var(--mb-accent-emphasis); // reserved accent sliver
+      box-shadow: 0 0 12px var(--mb-shadow-accent-tint);
+    }
+
+    &::after {
+      opacity: 1;
+    }
+
+    // Icons within active tab inherit on-emphasis color
+    .mantine-Tabs-tabSection,
+    svg {
+      color: var(--mb-brand-on-emphasis);
     }
   }
 
-  &:nth-child(6n + 1) {
-    --mb-tab-accent: var(--mb-accent-primary);
+  // Optional per-color override (data-color="success" etc) — applies to
+  // the active gradient when the host explicitly themes the tab.
+  &[data-active][data-color="success"] {
+    background: linear-gradient(135deg, var(--mb-success-accent) 0%, var(--mb-success-border) 100%);
+    border-color: var(--mb-success-accent);
+    box-shadow:
+      var(--mb-shadow-sm),
+      0 8px 20px color-mix(in srgb, var(--mb-success-accent) 28%, transparent),
+      inset 0 1px 0 rgba(255, 255, 255, 0.18);
   }
 
-  &:nth-child(6n + 2) {
-    --mb-tab-accent: var(--mb-accent-info);
+  &[data-active][data-color="warning"] {
+    background: linear-gradient(135deg, var(--mb-warning-accent) 0%, var(--mb-warning-border) 100%);
+    border-color: var(--mb-warning-accent);
+    box-shadow:
+      var(--mb-shadow-sm),
+      0 8px 20px color-mix(in srgb, var(--mb-warning-accent) 28%, transparent),
+      inset 0 1px 0 rgba(255, 255, 255, 0.20);
   }
 
-  &:nth-child(6n + 3) {
-    --mb-tab-accent: var(--mb-accent-success);
+  &[data-active][data-color="danger"],
+  &[data-active][data-color="red"] {
+    background: linear-gradient(135deg, var(--mb-danger-accent) 0%, var(--mb-danger-border) 100%);
+    border-color: var(--mb-danger-accent);
+    box-shadow:
+      var(--mb-shadow-sm),
+      0 8px 20px color-mix(in srgb, var(--mb-danger-accent) 30%, transparent),
+      inset 0 1px 0 rgba(255, 255, 255, 0.16);
   }
 
-  &:nth-child(6n + 4) {
-    --mb-tab-accent: var(--mb-accent-warning);
+  &[data-active][data-color="info"],
+  &[data-active][data-color="blue"] {
+    background: linear-gradient(135deg, var(--mb-info-accent) 0%, var(--mb-info-border) 100%);
+    border-color: var(--mb-info-accent);
+    box-shadow:
+      var(--mb-shadow-sm),
+      0 8px 20px color-mix(in srgb, var(--mb-info-accent) 28%, transparent),
+      inset 0 1px 0 rgba(255, 255, 255, 0.16);
   }
+}
 
-  &:nth-child(6n + 5) {
-    --mb-tab-accent: var(--mb-accent-violet);
-  }
+// ── Underline-variant tabs (data-variant="default") ──
+.mantine-Tabs-tab[data-variant="default"][data-active],
+.mantine-Tabs-list[data-variant="default"] .mantine-Tabs-tab[data-active] {
+  background: transparent;
+  color: var(--mb-brand-fg) !important;
+  border-bottom: 2px solid var(--mb-brand-emphasis);
+  box-shadow: none;
 
-  &:nth-child(6n + 6) {
-    --mb-tab-accent: var(--mb-accent-orange);
+  &::after {
+    opacity: 0;
   }
 }
 
@@ -1068,22 +1142,22 @@ a[href]:not(.mantine-Button-root) {
 
 .mantine-Menu-dropdown {
   border-color: var(--mb-border-subtle);
-  box-shadow: 0 4px 12px rgba(50, 50, 93, 0.08), 0 12px 28px rgba(0, 0, 0, 0.06);
+  box-shadow: var(--mb-shadow-md);
 }
 
 .mantine-Popover-dropdown {
   border-color: var(--mb-border-subtle);
   background: var(--mb-panel-bg);
   color: var(--mb-text-body);
-  box-shadow: var(--mb-float-shadow);
+  box-shadow: var(--mb-shadow-md);
 }
 
 .mantine-Modal-content {
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1), 0 20px 48px rgba(0, 0, 0, 0.06);
+  box-shadow: var(--mb-shadow-xl);
 }
 
 .mantine-Tooltip-tooltip {
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+  box-shadow: var(--mb-shadow-sm);
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -1120,13 +1194,13 @@ a[href]:not(.mantine-Button-root) {
 
 .gradient-accent {
   background: var(--mb-accent-gradient);
-  color: white;
+  color: var(--mb-brand-on-emphasis);
   border: none;
-  box-shadow: 0 10px 26px rgba(20, 184, 166, 0.28);
+  box-shadow: 0 10px 26px var(--mb-shadow-brand-tint);
   transition: box-shadow 0.2s ease, transform 0.2s ease;
 
   &:hover {
-    box-shadow: 0 12px 34px rgba(14, 165, 233, 0.26);
+    box-shadow: 0 12px 34px var(--mb-shadow-accent-tint);
     transform: translateY(-1px);
   }
 }

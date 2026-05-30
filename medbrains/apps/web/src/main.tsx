@@ -17,13 +17,11 @@ import {
 import { sessionService } from "./services/session.service";
 import { cssVariableResolver, theme } from "./theme";
 
+import "@fontsource-variable/inter-tight";
+import "@fontsource-variable/fraunces";
 import "@fontsource/jetbrains-mono/latin-400.css";
 import "@fontsource/jetbrains-mono/latin-500.css";
 import "@fontsource/jetbrains-mono/latin-600.css";
-import "@fontsource/inter/latin-400.css";
-import "@fontsource/inter/latin-500.css";
-import "@fontsource/inter/latin-600.css";
-import "@fontsource/inter/latin-700.css";
 import "@mantine/core/styles.css";
 import "@mantine/notifications/styles.css";
 import "@mantine/dates/styles.css";
@@ -180,7 +178,7 @@ function AppWithDirection() {
     <DirectionProvider initialDirection={dir}>
       <MantineProvider
         theme={theme}
-        defaultColorScheme="dark"
+        defaultColorScheme="light"
         cssVariablesResolver={cssVariableResolver}
       >
         <Notifications position="top-right" autoClose={4000} transitionDuration={250} />
