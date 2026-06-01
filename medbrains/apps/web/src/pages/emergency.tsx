@@ -117,6 +117,7 @@ import { useTranslation } from "react-i18next";
 import { useNavigate, useParams, useSearchParams } from "react-router";
 import { DataTable, PageHeader, TableValueBadge } from "@/components";
 import { BedSelect } from "@/components/BedSelect";
+import { useClinicalEmit } from "@/components/ClinicalEventProvider";
 import { TriagePanel } from "@/components/crdt/TriagePanel";
 import { DoctorSearchSelect } from "@/components/DoctorSearchSelect";
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
@@ -1311,6 +1312,7 @@ function EmergencyVisitForm({
   onSuccess: (visit: ErVisit) => void;
 }) {
   const qc = useQueryClient();
+  const emit = useClinicalEmit();
   const {
     control,
     handleSubmit,
@@ -1327,6 +1329,14 @@ function EmergencyVisitForm({
     onSuccess: (visit) => {
       void qc.invalidateQueries({ queryKey: ["er-visits"] });
       void qc.invalidateQueries({ queryKey: ["er-visit", visit.id] });
+      emit("emergency.visit.created", {
+        patient_id: visit.patient_id,
+        visit_id: visit.id,
+        visit_number: visit.visit_number,
+        arrival_mode: visit.arrival_mode ?? "",
+        is_mlc: visit.is_mlc,
+        is_brought_dead: visit.is_brought_dead,
+      });
       reset({ ...emptyErVisitForm, patient_id: initialPatientId });
       notifications.show({
         title: "ER visit registered",
