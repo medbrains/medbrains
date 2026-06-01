@@ -1,4 +1,14 @@
-import { Box, Card, Divider, Group, Pagination, Skeleton, Table, Text } from "@mantine/core";
+import {
+  Box,
+  Card,
+  Divider,
+  Group,
+  Pagination,
+  Skeleton,
+  Table,
+  Text,
+  VisuallyHidden,
+} from "@mantine/core";
 import { usePermissionStore } from "@medbrains/stores";
 import type { FieldAccessLevel } from "@medbrains/types";
 import {
@@ -18,8 +28,21 @@ import { type PermissionedFieldKind, PermissionedFieldValue } from "./Permission
 
 const SKELETON_ROW_KEYS = ["skeleton-a", "skeleton-b", "skeleton-c", "skeleton-d", "skeleton-e"];
 const DEFAULT_VIRTUALIZE_AT = 80;
-const DEFAULT_VIRTUAL_ROW_HEIGHT = 56;
 const DEFAULT_VIRTUAL_OVERSCAN = 8;
+
+type DataTableDensity = "compact" | "default" | "comfortable";
+
+const VIRTUAL_ROW_HEIGHT_BY_DENSITY: Record<DataTableDensity, number> = {
+  compact: 44,
+  default: 56,
+  comfortable: 64,
+};
+
+const TABLE_VERTICAL_SPACING_BY_DENSITY: Record<DataTableDensity, number> = {
+  compact: 5,
+  default: 7,
+  comfortable: 10,
+};
 
 export interface Column<T> {
   key: string;
@@ -62,6 +85,9 @@ interface DataTableProps<T> {
   tableActions?: ReactNode;
   rowStyle?: (row: T) => CSSProperties | undefined;
   onRowClick?: (row: T) => void;
+  caption?: ReactNode;
+  captionVisuallyHidden?: boolean;
+  density?: DataTableDensity;
   virtualized?: boolean | "auto";
   virtualizeAt?: number;
   virtualRowHeight?: number;
@@ -185,9 +211,12 @@ export function DataTable<T>({
   tableActions,
   rowStyle,
   onRowClick,
+  caption,
+  captionVisuallyHidden = true,
+  density = "default",
   virtualized = "auto",
   virtualizeAt = DEFAULT_VIRTUALIZE_AT,
-  virtualRowHeight = DEFAULT_VIRTUAL_ROW_HEIGHT,
+  virtualRowHeight,
   virtualOverscan = DEFAULT_VIRTUAL_OVERSCAN,
   tableMaxHeight,
 }: DataTableProps<T>) {
@@ -197,8 +226,8 @@ export function DataTable<T>({
   const tableWrapperRef = useRef<HTMLDivElement | null>(null);
   const scrollFrameRef = useRef<number | null>(null);
   const pendingScrollPositionRef = useRef({ scrollTop: 0, viewportHeight: 0 });
-  const [scrollTop, setScrollTop] = useState(0);
-  const [viewportHeight, setViewportHeight] = useState(0);
+  const [virtualViewport, setVirtualViewport] = useState({ scrollTop: 0, viewportHeight: 0 });
+  const resolvedVirtualRowHeight = virtualRowHeight ?? VIRTUAL_ROW_HEIGHT_BY_DENSITY[density];
   const startItem = (page - 1) * perPage + 1;
   const endItem = Math.min(page * perPage, total ?? data.length);
   const totalItems = total ?? data.length;
@@ -220,22 +249,42 @@ export function DataTable<T>({
       data,
       enabled: shouldVirtualize,
       overscan: virtualOverscan,
-      rowHeight: virtualRowHeight,
-      scrollTop,
-      viewportHeight,
+      rowHeight: resolvedVirtualRowHeight,
+      scrollTop: virtualViewport.scrollTop,
+      viewportHeight: virtualViewport.viewportHeight,
     });
-  }, [data, scrollTop, shouldVirtualize, viewportHeight, virtualOverscan, virtualRowHeight]);
-  const setTableWrapperRef = useCallback((node: HTMLDivElement | null) => {
-    tableWrapperRef.current = node;
-    if (node) {
-      setViewportHeight(node.clientHeight);
-    }
+  }, [
+    data,
+    resolvedVirtualRowHeight,
+    shouldVirtualize,
+    virtualOverscan,
+    virtualViewport.scrollTop,
+    virtualViewport.viewportHeight,
+  ]);
+  const commitVirtualViewport = useCallback((nextViewport: typeof virtualViewport) => {
+    setVirtualViewport((currentViewport) =>
+      currentViewport.scrollTop === nextViewport.scrollTop &&
+      currentViewport.viewportHeight === nextViewport.viewportHeight
+        ? currentViewport
+        : nextViewport,
+    );
   }, []);
+  const setTableWrapperRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      tableWrapperRef.current = node;
+      if (node) {
+        commitVirtualViewport({
+          scrollTop: node.scrollTop,
+          viewportHeight: node.clientHeight,
+        });
+      }
+    },
+    [commitVirtualViewport],
+  );
   const flushPendingScrollPosition = useCallback(() => {
     scrollFrameRef.current = null;
-    setScrollTop(pendingScrollPositionRef.current.scrollTop);
-    setViewportHeight(pendingScrollPositionRef.current.viewportHeight);
-  }, []);
+    commitVirtualViewport(pendingScrollPositionRef.current);
+  }, [commitVirtualViewport]);
   const handleTableScroll = useCallback(
     (event: UIEvent<HTMLDivElement>) => {
       pendingScrollPositionRef.current = {
@@ -262,6 +311,17 @@ export function DataTable<T>({
     };
   }, []);
   const tableWrapperStyle = tableMaxHeight ? { maxHeight: tableMaxHeight } : undefined;
+  const tableCaption = useMemo(() => {
+    if (!caption) {
+      return null;
+    }
+
+    return (
+      <Table.Caption>
+        {captionVisuallyHidden ? <VisuallyHidden>{caption}</VisuallyHidden> : caption}
+      </Table.Caption>
+    );
+  }, [caption, captionVisuallyHidden]);
 
   useEffect(() => {
     const node = tableWrapperRef.current;
@@ -269,24 +329,48 @@ export function DataTable<T>({
       return undefined;
     }
 
-    setViewportHeight(node.clientHeight);
+    commitVirtualViewport({
+      scrollTop: node.scrollTop,
+      viewportHeight: node.clientHeight,
+    });
     if (typeof ResizeObserver === "undefined") {
       return undefined;
     }
 
     const observer = new ResizeObserver(() => {
-      setViewportHeight(node.clientHeight);
+      commitVirtualViewport({
+        scrollTop: node.scrollTop,
+        viewportHeight: node.clientHeight,
+      });
     });
     observer.observe(node);
     return () => observer.disconnect();
-  }, []);
+  }, [commitVirtualViewport]);
+
+  useEffect(() => {
+    const node = tableWrapperRef.current;
+    if (!shouldVirtualize || !node) {
+      return;
+    }
+
+    const maxScrollTop = Math.max(0, data.length * resolvedVirtualRowHeight - node.clientHeight);
+    if (node.scrollTop <= maxScrollTop) {
+      return;
+    }
+
+    node.scrollTop = maxScrollTop;
+    commitVirtualViewport({
+      scrollTop: maxScrollTop,
+      viewportHeight: node.clientHeight,
+    });
+  }, [commitVirtualViewport, data.length, resolvedVirtualRowHeight, shouldVirtualize]);
 
   const headerRow = useMemo(
     () => (
       <Table.Thead className={styles.stickyHead}>
         <Table.Tr>
           {columnsWithAccess.map(({ column: col }) => (
-            <Table.Th key={col.key}>
+            <Table.Th key={col.key} scope="col">
               {col.icon ? (
                 <span className={styles.columnHeader}>
                   <span className={styles.columnIcon}>{col.icon}</span>
@@ -340,7 +424,11 @@ export function DataTable<T>({
     return (
       <Card padding={0} className={styles.card}>
         {headerToolbar}
-        <Table aria-busy={loading ? "true" : undefined}>
+        <Table
+          aria-busy={loading ? "true" : undefined}
+          verticalSpacing={TABLE_VERTICAL_SPACING_BY_DENSITY[density]}
+        >
+          {tableCaption}
           {headerRow}
           <Table.Tbody>
             {SKELETON_ROW_KEYS.map((key) => (
@@ -377,14 +465,21 @@ export function DataTable<T>({
   return (
     <Card padding={0} className={styles.card}>
       {headerToolbar}
-      <div
+      <Box
         className={styles.tableWrapper}
         ref={setTableWrapperRef}
         onScroll={shouldVirtualize ? handleTableScroll : undefined}
         style={tableWrapperStyle}
+        data-density={density}
+        data-virtual-rendered={shouldVirtualize ? virtualWindow.renderedCount : undefined}
         data-virtualized={shouldVirtualize ? "true" : undefined}
       >
-        <Table aria-rowcount={totalItems}>
+        <Table
+          aria-colcount={visibleColumnCount}
+          aria-rowcount={totalItems}
+          verticalSpacing={TABLE_VERTICAL_SPACING_BY_DENSITY[density]}
+        >
+          {tableCaption}
           {headerRow}
           <Table.Tbody>
             {spacerRow(virtualWindow.topSpacerHeight, visibleColumnCount, "virtual-top-spacer")}
@@ -399,7 +494,7 @@ export function DataTable<T>({
                   className={shouldVirtualize ? styles.virtualRow : undefined}
                   data-clickable={onRowClick ? "true" : undefined}
                   style={{
-                    height: shouldVirtualize ? virtualRowHeight : undefined,
+                    height: shouldVirtualize ? resolvedVirtualRowHeight : undefined,
                     ...rowStyle?.(row),
                     cursor: onRowClick ? "pointer" : undefined,
                   }}
@@ -418,7 +513,7 @@ export function DataTable<T>({
             )}
           </Table.Tbody>
         </Table>
-      </div>
+      </Box>
 
       {(totalPages ?? 0) > 0 && (
         <>

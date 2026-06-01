@@ -1,6 +1,9 @@
 export interface DataTableVirtualWindow<T> {
   bottomSpacerHeight: number;
+  endIndex: number;
   rows: T[];
+  totalHeight: number;
+  renderedCount: number;
   startIndex: number;
   topSpacerHeight: number;
 }
@@ -27,7 +30,10 @@ export function resolveDataTableVirtualWindow<T>({
   if (!enabled) {
     return {
       bottomSpacerHeight: 0,
+      endIndex: data.length,
       rows: data,
+      totalHeight: data.length * Math.max(1, rowHeight),
+      renderedCount: data.length,
       startIndex: 0,
       topSpacerHeight: 0,
     };
@@ -45,10 +51,14 @@ export function resolveDataTableVirtualWindow<T>({
   const rowCount = endIndex - startIndex;
   const topSpacerHeight = startIndex * safeRowHeight;
   const bottomSpacerHeight = Math.max(0, (data.length - startIndex - rowCount) * safeRowHeight);
+  const totalHeight = data.length * safeRowHeight;
 
   return {
     bottomSpacerHeight,
+    endIndex,
     rows: data.slice(startIndex, endIndex),
+    totalHeight,
+    renderedCount: rowCount,
     startIndex,
     topSpacerHeight,
   };

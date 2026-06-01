@@ -33,6 +33,14 @@
   will-change: scroll-position;
 }
 
+.tableWrapper[data-density="compact"] {
+  font-size: var(--mantine-font-size-xs);
+}
+
+.tableWrapper[data-density="comfortable"] {
+  font-size: var(--mantine-font-size-md);
+}
+
 .virtualSpacerCell {
   padding: 0;
   border: 0;

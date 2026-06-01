@@ -18,6 +18,9 @@ describe("resolveDataTableVirtualWindow", () => {
 
     expect(window.rows).toHaveLength(120);
     expect(window.startIndex).toBe(0);
+    expect(window.endIndex).toBe(120);
+    expect(window.renderedCount).toBe(120);
+    expect(window.totalHeight).toBe(120 * 40);
     expect(window.topSpacerHeight).toBe(0);
     expect(window.bottomSpacerHeight).toBe(0);
   });
@@ -34,6 +37,9 @@ describe("resolveDataTableVirtualWindow", () => {
 
     expect(window.rows).toEqual(rows.slice(0, 9));
     expect(window.startIndex).toBe(0);
+    expect(window.endIndex).toBe(9);
+    expect(window.renderedCount).toBe(9);
+    expect(window.totalHeight).toBe(120 * 40);
     expect(window.topSpacerHeight).toBe(0);
     expect(window.bottomSpacerHeight).toBe(111 * 40);
   });
@@ -50,6 +56,8 @@ describe("resolveDataTableVirtualWindow", () => {
 
     expect(window.rows).toEqual(rows.slice(111));
     expect(window.startIndex).toBe(111);
+    expect(window.endIndex).toBe(120);
+    expect(window.renderedCount).toBe(9);
     expect(window.topSpacerHeight).toBe(111 * 40);
     expect(window.bottomSpacerHeight).toBe(0);
   });
@@ -66,7 +74,24 @@ describe("resolveDataTableVirtualWindow", () => {
 
     expect(window.rows).toEqual(rows.slice(5, 10));
     expect(window.startIndex).toBe(5);
+    expect(window.endIndex).toBe(10);
+    expect(window.totalHeight).toBe(120);
     expect(window.topSpacerHeight).toBe(5);
     expect(window.bottomSpacerHeight).toBe(110);
+  });
+
+  it("uses a fallback viewport before the table has measured", () => {
+    const window = resolveDataTableVirtualWindow({
+      data: rows,
+      enabled: true,
+      overscan: 1,
+      rowHeight: 50,
+      scrollTop: 0,
+      viewportHeight: 0,
+    });
+
+    expect(window.rows).toEqual(rows.slice(0, 12));
+    expect(window.renderedCount).toBe(12);
+    expect(window.totalHeight).toBe(120 * 50);
   });
 });
