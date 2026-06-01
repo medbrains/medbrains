@@ -1,6 +1,7 @@
 // @vitest-environment node
 
-import type { AccessMatrixSurface } from "@medbrains/types";
+import type { AccessMatrixSurface, AccessMatrixSurfaceKind } from "@medbrains/types";
+import { ACCESS_MATRIX_SURFACES } from "@medbrains/types";
 import { describe, expect, it } from "vitest";
 import type { NavGroupConfig } from "@/config/navigation";
 import {
@@ -53,6 +54,58 @@ const groups: NavGroupConfig[] = [
         requiredPermissions: ["admin.users.list", "admin.roles.list"],
       },
     ],
+  },
+];
+
+const criticalWorkflowExpectations: {
+  key: string;
+  modules: readonly string[];
+  requiredKinds: readonly AccessMatrixSurfaceKind[];
+}[] = [
+  {
+    key: "registration",
+    modules: ["patients"],
+    requiredKinds: ["screen", "tab", "column", "input", "action", "print"],
+  },
+  {
+    key: "opd",
+    modules: ["opd"],
+    requiredKinds: ["screen", "tab", "column", "input", "action", "print"],
+  },
+  {
+    key: "ipd",
+    modules: ["ipd"],
+    requiredKinds: ["screen", "tab", "input", "action", "print"],
+  },
+  {
+    key: "emergency",
+    modules: ["emergency"],
+    requiredKinds: ["screen", "table", "input", "action", "print"],
+  },
+  {
+    key: "camp",
+    modules: ["camp"],
+    requiredKinds: ["screen", "tab", "input", "action", "print"],
+  },
+  {
+    key: "pharmacy",
+    modules: ["pharmacy"],
+    requiredKinds: ["screen", "table", "column", "input", "action", "print"],
+  },
+  {
+    key: "billing",
+    modules: ["billing"],
+    requiredKinds: ["screen", "tab", "column", "action", "print"],
+  },
+  {
+    key: "mrd",
+    modules: ["mrd"],
+    requiredKinds: ["screen", "table", "column", "input", "action", "print"],
+  },
+  {
+    key: "settings_reports",
+    modules: ["admin", "analytics"],
+    requiredKinds: ["screen", "tab", "widget"],
   },
 ];
 
@@ -110,5 +163,19 @@ describe("access matrix route coverage", () => {
       unmapped: 1,
       blocked: 2,
     });
+  });
+
+  it("maps every critical patient workflow to required surface types", () => {
+    const gaps = criticalWorkflowExpectations.flatMap((workflow) => {
+      const workflowSurfaces = ACCESS_MATRIX_SURFACES.filter((surface) =>
+        workflow.modules.includes(surface.module),
+      );
+      const mappedKinds = new Set(workflowSurfaces.map((surface) => surface.kind));
+      return workflow.requiredKinds
+        .filter((kind) => !mappedKinds.has(kind))
+        .map((kind) => `${workflow.key}:${kind}`);
+    });
+
+    expect(gaps).toEqual([]);
   });
 });
