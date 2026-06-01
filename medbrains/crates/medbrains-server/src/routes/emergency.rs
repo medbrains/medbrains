@@ -5,6 +5,7 @@ use axum::{
     extract::{Path, State},
 };
 use chrono::Utc;
+use medbrains_core::clinical_events::{ClinicalEventEnvelope, ClinicalEventName};
 use medbrains_core::emergency::{
     ErCodeActivation, ErResuscitationLog, ErTriageAssessment, ErVisit, MassCasualtyEvent, MlcCase,
     MlcDocument, MlcPoliceIntimation,
@@ -722,6 +723,24 @@ pub async fn create_visit(
         )
         .await;
     }
+
+    let event = ClinicalEventEnvelope::new(
+        claims.tenant_id,
+        ClinicalEventName::EmergencyVisitCreated,
+        row.id,
+        claims.sub,
+        serde_json::json!({
+            "visit_id": row.id,
+            "patient_id": row.patient_id,
+            "visit_number": &row.visit_number,
+            "arrival_mode": &row.arrival_mode,
+            "is_mlc": row.is_mlc,
+            "is_brought_dead": row.is_brought_dead,
+            "mass_casualty_event_id": row.mass_casualty_event_id,
+        }),
+    )
+    .with_patient(row.patient_id);
+    crate::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
 
     tx.commit().await?;
     Ok(Json(row))

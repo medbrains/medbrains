@@ -37,6 +37,7 @@ Server helper: `crates/medbrains-server/src/events.rs`
 | `patient.created` | `patients` | `patient_id` |
 | `patient.merged` | `patients` | `surviving_patient_id`, `merged_patient_id` |
 | `visit.created` | `opd` | `visit_id`, `patient_id` |
+| `emergency.visit.created` | `emergency` | `visit_id`, `patient_id` |
 | `opd.encounter.created` | `opd` | `encounter_id`, `patient_id` |
 | `order.created` | `order_basket` | `order_id`, `order_type`, `patient_id` |
 | `order.cancelled` | `order_basket` | `order_id`, `order_type`, `reason` |
@@ -93,6 +94,7 @@ First route conversions should be high-signal source events:
 
 - Pharmacy dispense: emit `pharmacy.order.dispensed`.
 - OPD encounter creation: emit `opd.encounter.created`.
+- Emergency visit creation: emit `emergency.visit.created`.
 - Lab result completion: emit `lab.order.completed`.
 - Billing invoice creation/finalization: emit billing events.
 - IPD bed assignment, bed transfer, discharge initiation/completion.

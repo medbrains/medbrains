@@ -18,6 +18,8 @@ pub enum ClinicalEventName {
     PatientMerged,
     #[serde(rename = "visit.created")]
     VisitCreated,
+    #[serde(rename = "emergency.visit.created")]
+    EmergencyVisitCreated,
     #[serde(rename = "opd.encounter.created")]
     OpdEncounterCreated,
     #[serde(rename = "order.created")]
@@ -65,6 +67,7 @@ impl ClinicalEventName {
             Self::PatientCreated => "patient.created",
             Self::PatientMerged => "patient.merged",
             Self::VisitCreated => "visit.created",
+            Self::EmergencyVisitCreated => "emergency.visit.created",
             Self::OpdEncounterCreated => "opd.encounter.created",
             Self::OrderCreated => "order.created",
             Self::OrderCancelled => "order.cancelled",
@@ -92,6 +95,7 @@ impl ClinicalEventName {
         match self {
             Self::PatientCreated | Self::PatientMerged => ClinicalEventSourceModule::Patients,
             Self::VisitCreated | Self::OpdEncounterCreated => ClinicalEventSourceModule::Opd,
+            Self::EmergencyVisitCreated => ClinicalEventSourceModule::Emergency,
             Self::OrderCreated | Self::OrderCancelled => ClinicalEventSourceModule::OrderBasket,
             Self::LabOrderCompleted => ClinicalEventSourceModule::Lab,
             Self::RadiologyOrderCompleted => ClinicalEventSourceModule::Radiology,
@@ -119,6 +123,7 @@ impl ClinicalEventName {
             Self::PatientCreated => &["patient_id"],
             Self::PatientMerged => &["surviving_patient_id", "merged_patient_id"],
             Self::VisitCreated => &["visit_id", "patient_id"],
+            Self::EmergencyVisitCreated => &["visit_id", "patient_id"],
             Self::OpdEncounterCreated => &["encounter_id", "patient_id"],
             Self::OrderCreated => &["order_id", "order_type", "patient_id"],
             Self::OrderCancelled => &["order_id", "order_type", "reason"],
@@ -169,6 +174,7 @@ impl FromStr for ClinicalEventName {
             "patient.created" => Ok(Self::PatientCreated),
             "patient.merged" => Ok(Self::PatientMerged),
             "visit.created" => Ok(Self::VisitCreated),
+            "emergency.visit.created" => Ok(Self::EmergencyVisitCreated),
             "opd.encounter.created" => Ok(Self::OpdEncounterCreated),
             "order.created" => Ok(Self::OrderCreated),
             "order.cancelled" => Ok(Self::OrderCancelled),

@@ -31,6 +31,8 @@ const TRIGGER_ALIASES: Record<string, ClinicalEventName> = {
   "appointment.checked_in_to_opd": "visit.created",
   "discharge.completed": "ipd.discharge.completed",
   "encounter.completed": "opd.encounter.created",
+  "emergency.visit_created": "emergency.visit.created",
+  "er.visit.created": "emergency.visit.created",
   "invoice.created": "billing.invoice.created",
   "invoice.issued": "billing.invoice.finalized",
   "lab.completed": "lab.order.completed",
