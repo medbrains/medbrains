@@ -1,4 +1,6 @@
-import type { ClinicalJourneyContext, PatientVisitRow } from "@medbrains/types";
+import { useFieldAccess } from "@medbrains/stores";
+import type { ClinicalJourneyContext, FieldAccessLevel, PatientVisitRow } from "@medbrains/types";
+import { fieldAccessText, mostRestrictedFieldAccess } from "@medbrains/utils";
 import { useQuery } from "@tanstack/react-query";
 import { ScrollView, StyleSheet, View } from "react-native";
 import {
@@ -29,10 +31,11 @@ interface PatientDetailScreenProps {
 }
 
 const ACTIVE_VISIT_STATUSES = new Set<PatientVisitRow["status"]>(["open", "in_progress"]);
+const HIDDEN_FIELD_TEXT = "Restricted";
 
-function calculateAge(dob?: string | null): string {
-  if (!dob) return "Unknown";
+function calculateAge(dob: string): string {
   const birthDate = new Date(dob);
+  if (Number.isNaN(birthDate.getTime())) return "Unknown";
   const today = new Date();
   let years = today.getFullYear() - birthDate.getFullYear();
   const monthDiff = today.getMonth() - birthDate.getMonth();
@@ -42,9 +45,62 @@ function calculateAge(dob?: string | null): string {
   return `${years} years`;
 }
 
+function protectedField(
+  access: FieldAccessLevel,
+  value: string | null | undefined,
+  kind: "email" | "identifier" | "name" | "phone" | "text" = "text",
+  fallback = "Not specified",
+): string {
+  const display = fieldAccessText(access, value, kind);
+  if (display === HIDDEN_FIELD_TEXT) return display;
+  return display === "—" ? fallback : display;
+}
+
+function protectedDateOfBirth(access: FieldAccessLevel, value: string | null | undefined): string {
+  if (access === "hidden") return HIDDEN_FIELD_TEXT;
+  if (!value) return "Not specified";
+  if (access === "mask") return "Date masked";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "Unknown" : date.toLocaleDateString();
+}
+
+function protectedAge(access: FieldAccessLevel, value: string | null | undefined): string {
+  if (access === "hidden") return HIDDEN_FIELD_TEXT;
+  if (!value) return "Unknown";
+  if (access === "mask") return "Age masked";
+  return calculateAge(value);
+}
+
+function isAddressRecord(
+  value: unknown,
+): value is { city?: unknown; line1?: unknown; pincode?: unknown; state?: unknown } {
+  return Boolean(value) && typeof value === "object";
+}
+
+function formatAddress(addr: unknown): string {
+  if (!isAddressRecord(addr)) return "Not specified";
+  const parts = [addr.line1, addr.city, addr.state, addr.pincode].filter(
+    (part): part is string => typeof part === "string" && part.trim().length > 0,
+  );
+  return parts.length > 0 ? parts.join(", ") : "Not specified";
+}
+
 export function PatientDetailScreen({ route, navigation }: PatientDetailScreenProps) {
   const theme = useTheme();
   const { patientId } = route.params;
+  const uhidAccess = useFieldAccess("patients.uhid");
+  const firstNameAccess = useFieldAccess("patients.first_name");
+  const middleNameAccess = useFieldAccess("patients.middle_name");
+  const lastNameAccess = useFieldAccess("patients.last_name");
+  const dobAccess = useFieldAccess("patients.date_of_birth");
+  const phoneAccess = useFieldAccess("patients.phone");
+  const emailAccess = useFieldAccess("patients.email");
+  const addressAccess = useFieldAccess("patients.address");
+  const patientNameAccess = mostRestrictedFieldAccess([
+    firstNameAccess,
+    middleNameAccess,
+    lastNameAccess,
+  ]);
 
   const { data: patient, isLoading } = useQuery({
     queryKey: ["patient", patientId],
@@ -83,20 +139,22 @@ export function PatientDetailScreen({ route, navigation }: PatientDetailScreenPr
     );
   }
 
-  const fullName = `${patient.first_name} ${patient.last_name}`;
-  const initials = `${patient.first_name.charAt(0)}${patient.last_name.charAt(0)}`.toUpperCase();
-
-  // Format address if it's an object
-  const formatAddress = (addr: Record<string, unknown> | undefined): string => {
-    if (!addr) return "Not specified";
-    const parts = [
-      addr.line1 as string,
-      addr.city as string,
-      addr.state as string,
-      addr.pincode as string,
-    ].filter(Boolean);
-    return parts.length > 0 ? parts.join(", ") : "Not specified";
-  };
+  const rawFullName = `${patient.first_name} ${patient.last_name}`;
+  const fullName = protectedField(patientNameAccess, rawFullName, "name", "Unknown patient");
+  const initials =
+    patientNameAccess === "hidden" || patientNameAccess === "mask"
+      ? "PT"
+      : `${patient.first_name.charAt(0)}${patient.last_name.charAt(0)}`.toUpperCase();
+  const protectedUhid = protectedField(uhidAccess, patient.uhid, "identifier", "No UHID");
+  const protectedPhone = protectedField(phoneAccess, patient.phone, "phone");
+  const protectedEmail = protectedField(emailAccess, patient.email, "email");
+  const addressText = formatAddress(patient.address);
+  const protectedAddress =
+    addressText === "Not specified"
+      ? addressText
+      : protectedField(addressAccess, addressText, "text");
+  const ageLabel = protectedAge(dobAccess, patient.date_of_birth);
+  const dobLabel = protectedDateOfBirth(dobAccess, patient.date_of_birth);
 
   const visitsList: PatientVisitRow[] = visits || [];
   const activeOpdVisit = visitsList.find(
@@ -122,11 +180,11 @@ export function PatientDetailScreen({ route, navigation }: PatientDetailScreenPr
                 {fullName}
               </Text>
               <Text variant="bodyMedium" style={styles.uhid}>
-                {patient.uhid}
+                {protectedUhid}
               </Text>
               <View style={styles.chips}>
                 <Chip compact icon="calendar">
-                  {calculateAge(patient.date_of_birth)}
+                  {ageLabel}
                 </Chip>
                 {patient.gender && (
                   <Chip compact icon={patient.gender === "male" ? "gender-male" : "gender-female"}>
@@ -143,16 +201,16 @@ export function PatientDetailScreen({ route, navigation }: PatientDetailScreenPr
           </View>
 
           {/* Contact Info */}
-          {patient.phone && (
+          {protectedPhone !== "Not specified" && (
             <View style={styles.contactRow}>
               <Avatar.Icon size={32} icon="phone" style={styles.contactIcon} />
-              <Text variant="bodyMedium">{patient.phone}</Text>
+              <Text variant="bodyMedium">{protectedPhone}</Text>
             </View>
           )}
-          {patient.email && (
+          {protectedEmail !== "Not specified" && (
             <View style={styles.contactRow}>
               <Avatar.Icon size={32} icon="email" style={styles.contactIcon} />
-              <Text variant="bodyMedium">{patient.email}</Text>
+              <Text variant="bodyMedium">{protectedEmail}</Text>
             </View>
           )}
         </Surface>
@@ -256,11 +314,7 @@ export function PatientDetailScreen({ route, navigation }: PatientDetailScreenPr
 
             <List.Item
               title="Date of Birth"
-              description={
-                patient.date_of_birth
-                  ? new Date(patient.date_of_birth).toLocaleDateString()
-                  : "Not specified"
-              }
+              description={dobLabel}
               left={(props) => <List.Icon {...props} icon="cake-variant" />}
             />
             <List.Item
@@ -275,7 +329,7 @@ export function PatientDetailScreen({ route, navigation }: PatientDetailScreenPr
             />
             <List.Item
               title="Address"
-              description={formatAddress(patient.address as Record<string, unknown> | undefined)}
+              description={protectedAddress}
               left={(props) => <List.Icon {...props} icon="map-marker" />}
             />
           </Card.Content>
