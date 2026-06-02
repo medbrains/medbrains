@@ -3,6 +3,7 @@ import {
   ActionIcon,
   Alert,
   Badge,
+  Box,
   Button,
   Card,
   Checkbox,
@@ -195,6 +196,7 @@ import {
   PRINT_COPY_PACKETS,
   printCopyRouteLabel,
 } from "@/utils/printCopies";
+import classes from "./ipd.module.scss";
 
 const statusColors: Record<string, string> = {
   admitted: "success",
@@ -838,70 +840,91 @@ function AdmissionDetail({
   };
 
   return (
-    <Stack>
-      <PatientContextBanner patientId={adm.patient_id} />
-      <PatientFlowNavigator
-        patientId={adm.patient_id}
-        active="ipd"
-        activeEncounterId={adm.encounter_id}
-        activeAdmissionId={adm.id}
-        activeAdmissionStatus={adm.status}
-        compact
-      />
-      <Group justify="space-between">
-        <Group gap="xs">
-          <Text fw={700}>Admission: {adm.id.slice(0, 8)}...</Text>
-          {adm.is_critical && (
-            <Badge color="danger" variant="filled" size="sm">
-              CRITICAL
-            </Badge>
-          )}
-          {adm.mlc_case_id && (
-            <Badge color="orange" variant="filled" size="sm">
-              MLC
-            </Badge>
-          )}
-        </Group>
-        <Group gap="xs">
-          <Badge color={statusColors[adm.status] ?? "slate"} variant="light" size="lg">
-            {adm.status}
-          </Badge>
-          <PatientJourneyActions
-            context={journeyContext}
-            localOrderContext="ipd"
-            hiddenActionIds={["ipd.open_admission", "ipd.admit"]}
-            size="xs"
-            onOpenOrderBasket={openOrderBasket}
+    <Stack className={classes.admissionWorkspace}>
+      <Box className={classes.commandBar}>
+        <Stack gap="xs">
+          <PatientContextBanner patientId={adm.patient_id} />
+          <PatientFlowNavigator
+            patientId={adm.patient_id}
+            active="ipd"
+            activeEncounterId={adm.encounter_id}
+            activeAdmissionId={adm.id}
+            activeAdmissionStatus={adm.status}
+            compact
           />
-          <PrintAdmissionButton admissionId={admissionId} />
-          {canCreateDischargeSummary && admissionIsActive && (
-            <Tooltip label="Generate Discharge Summary">
-              <Button
+          <Group justify="space-between" align="flex-start" gap="sm">
+            <Stack gap={4}>
+              <Group gap="xs">
+                <Text fw={700}>Admission: {adm.id.slice(0, 8)}...</Text>
+                {adm.is_critical && (
+                  <Badge color="danger" variant="filled" size="sm">
+                    CRITICAL
+                  </Badge>
+                )}
+                {adm.mlc_case_id && (
+                  <Badge color="orange" variant="filled" size="sm">
+                    MLC
+                  </Badge>
+                )}
+                <Badge color={statusColors[adm.status] ?? "slate"} variant="light" size="lg">
+                  {adm.status}
+                </Badge>
+              </Group>
+              <Group gap="xs">
+                <Badge variant="light" color="slate">
+                  Admitted {new Date(adm.admitted_at).toLocaleDateString()}
+                </Badge>
+                {adm.admission_source && (
+                  <Badge variant="light" color="slate">
+                    Source {adm.admission_source}
+                  </Badge>
+                )}
+                {adm.provisional_diagnosis && (
+                  <Badge variant="light" color="indigo">
+                    Diagnosis linked
+                  </Badge>
+                )}
+              </Group>
+            </Stack>
+            <Group gap="xs" justify="flex-end">
+              <PatientJourneyActions
+                context={journeyContext}
+                localOrderContext="ipd"
+                hiddenActionIds={["ipd.open_admission", "ipd.admit"]}
                 size="xs"
-                variant="light"
-                color="teal"
-                leftSection={<IconFileDescription size={14} />}
-                onClick={openDischargeSummary}
-              >
-                Discharge Summary
-              </Button>
-            </Tooltip>
-          )}
-          {canManageBeds && admissionIsActive && (
-            <Tooltip label="Transfer Bed">
-              <Button
-                size="xs"
-                variant="light"
-                color="primary"
-                leftSection={<IconArrowsTransferDown size={14} />}
-                onClick={openBedTransfer}
-              >
-                Bed Transfer
-              </Button>
-            </Tooltip>
-          )}
-        </Group>
-      </Group>
+                onOpenOrderBasket={openOrderBasket}
+              />
+              <PrintAdmissionButton admissionId={admissionId} />
+              {canCreateDischargeSummary && admissionIsActive && (
+                <Tooltip label="Generate Discharge Summary">
+                  <Button
+                    size="xs"
+                    variant="light"
+                    color="teal"
+                    leftSection={<IconFileDescription size={14} />}
+                    onClick={openDischargeSummary}
+                  >
+                    Discharge Summary
+                  </Button>
+                </Tooltip>
+              )}
+              {canManageBeds && admissionIsActive && (
+                <Tooltip label="Transfer Bed">
+                  <Button
+                    size="xs"
+                    variant="light"
+                    color="primary"
+                    leftSection={<IconArrowsTransferDown size={14} />}
+                    onClick={openBedTransfer}
+                  >
+                    Bed Transfer
+                  </Button>
+                </Tooltip>
+              )}
+            </Group>
+          </Group>
+        </Stack>
+      </Box>
 
       <GenerateDischargeSummaryModal
         admissionId={admissionId}
@@ -940,14 +963,18 @@ function AdmissionDetail({
           void queryClient.invalidateQueries({ queryKey: ["patient-invoices", adm.patient_id] });
         }}
       />
-      <Text size="sm">Admitted: {new Date(adm.admitted_at).toLocaleString()}</Text>
       {adm.discharged_at && (
-        <Text size="sm">Discharged: {new Date(adm.discharged_at).toLocaleString()}</Text>
+        <Alert color="gray" variant="light">
+          Discharged: {new Date(adm.discharged_at).toLocaleString()}
+        </Alert>
       )}
-      {adm.provisional_diagnosis && <Text size="sm">Diagnosis: {adm.provisional_diagnosis}</Text>}
-      {adm.admission_source && <Text size="sm">Source: {adm.admission_source}</Text>}
+      {adm.provisional_diagnosis && (
+        <Text size="sm" c="dimmed">
+          Diagnosis: {adm.provisional_diagnosis}
+        </Text>
+      )}
 
-      <Card withBorder padding="sm">
+      <Box className={classes.sectionSwitch}>
         <Group justify="space-between" align="center" gap="sm">
           <Stack gap={2}>
             <Text size="xs" fw={700} c="dimmed" tt="uppercase">
@@ -971,12 +998,12 @@ function AdmissionDetail({
             ))}
           </Group>
         </Group>
-      </Card>
+      </Box>
 
       <Tabs value={activeWorkspaceTab} onChange={setActiveWorkspaceTab} keepMounted={false}>
-        <Grid align="flex-start">
+        <Grid align="flex-start" className={classes.workspaceGrid}>
           <Grid.Col span={{ base: 12, md: 3, lg: 2 }}>
-            <Card withBorder padding="sm">
+            <Box className={classes.workspaceRail}>
               <Stack gap="sm">
                 {IPD_WORKSPACE_SECTIONS.map((section) => (
                   <Stack key={section} gap={4}>
@@ -998,10 +1025,10 @@ function AdmissionDetail({
                   </Stack>
                 ))}
               </Stack>
-            </Card>
+            </Box>
           </Grid.Col>
 
-          <Grid.Col span={{ base: 12, md: 9, lg: 7 }}>
+          <Grid.Col span={{ base: 12, md: 9, lg: 7 }} className={classes.workspaceMain}>
             <Tabs.Panel value="overview" pt="md">
               <OverviewTab admissionId={admissionId} tasks={detail.tasks} canCreate={canCreate} />
             </Tabs.Panel>
@@ -1096,7 +1123,7 @@ function AdmissionDetail({
           </Grid.Col>
 
           <Grid.Col span={{ base: 12, lg: 3 }}>
-            <Card withBorder padding="sm">
+            <Box className={classes.actionRail}>
               <Stack gap="sm">
                 <Stack gap={2}>
                   <Text size="xs" fw={700} c="dimmed" tt="uppercase">
@@ -1255,7 +1282,7 @@ function AdmissionDetail({
                   </Button>
                 </Stack>
               </Stack>
-            </Card>
+            </Box>
           </Grid.Col>
         </Grid>
       </Tabs>

@@ -1,0 +1,66 @@
+.admissionWorkspace {
+  gap: var(--mantine-spacing-md);
+}
+
+.commandBar {
+  position: sticky;
+  top: calc(var(--app-shell-header-height, 72px) + var(--mantine-spacing-xs));
+  z-index: 12;
+  padding: var(--mantine-spacing-sm);
+  border: 1px solid light-dark(var(--mantine-color-gray-3), var(--mantine-color-dark-4));
+  border-radius: var(--mantine-radius-md);
+  background: light-dark(rgba(255, 255, 255, 0.96), rgba(26, 27, 30, 0.94));
+  box-shadow: 0 12px 28px light-dark(rgba(15, 23, 42, 0.08), rgba(0, 0, 0, 0.24));
+  backdrop-filter: blur(10px);
+}
+
+.sectionSwitch {
+  padding: var(--mantine-spacing-sm);
+  border: 1px solid light-dark(var(--mantine-color-gray-3), var(--mantine-color-dark-4));
+  border-radius: var(--mantine-radius-md);
+  background:
+    linear-gradient(90deg, light-dark(var(--mantine-color-indigo-6), var(--mantine-color-indigo-5)) 0 4px, transparent 4px),
+    light-dark(var(--mantine-color-white), var(--mantine-color-dark-7));
+}
+
+.workspaceGrid {
+  align-items: flex-start;
+}
+
+.workspaceRail,
+.actionRail {
+  position: sticky;
+  top: calc(var(--app-shell-header-height, 72px) + 172px);
+  max-height: calc(100dvh - var(--app-shell-header-height, 72px) - 188px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  padding: var(--mantine-spacing-sm);
+  border: 1px solid light-dark(var(--mantine-color-gray-3), var(--mantine-color-dark-4));
+  border-radius: var(--mantine-radius-md);
+  background: light-dark(var(--mantine-color-white), var(--mantine-color-dark-7));
+}
+
+.workspaceRail {
+  background:
+    linear-gradient(180deg, light-dark(var(--mantine-color-gray-0), var(--mantine-color-dark-7)), light-dark(var(--mantine-color-white), var(--mantine-color-dark-8)));
+}
+
+.actionRail {
+  background:
+    linear-gradient(180deg, light-dark(var(--mantine-color-blue-0), rgba(51, 154, 240, 0.12)), transparent 42%),
+    light-dark(var(--mantine-color-white), var(--mantine-color-dark-7));
+}
+
+.workspaceMain {
+  min-width: 0;
+}
+
+@media (max-width: 992px) {
+  .commandBar,
+  .workspaceRail,
+  .actionRail {
+    position: static;
+    max-height: none;
+  }
+}
