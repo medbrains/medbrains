@@ -125,6 +125,7 @@ import type {
   ErFastInvoiceRequest,
   ErpExportLog,
   ErpExportRequest,
+  FieldAccessLevel,
   GenerateGstrRequest,
   GlAccount,
   GstReturnSummary,
@@ -151,6 +152,7 @@ import type {
   UpdateCreditPatientRequest,
 } from "@medbrains/types";
 import { P } from "@medbrains/types";
+import { fieldAccessText } from "@medbrains/utils";
 import {
   IconAmbulance,
   IconBuildingBank,
@@ -197,6 +199,7 @@ import {
   PageHeader,
   StatusDot,
   useClinicalEmit,
+  useProtectedFieldAccess,
 } from "@/components";
 import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
@@ -293,6 +296,53 @@ function money(value: number | string | null | undefined): string {
   });
 }
 
+const PATIENT_NAME_FIELD_ACCESS_KEYS = [
+  "patients.first_name",
+  "patients.middle_name",
+  "patients.last_name",
+];
+
+interface BillingDisplayAccess {
+  amount: FieldAccessLevel;
+  patientAddress: FieldAccessLevel;
+  patientName: FieldAccessLevel;
+  uhid: FieldAccessLevel;
+}
+
+function billingPatientNameText(
+  patientName: string | null | undefined,
+  access: FieldAccessLevel,
+): string {
+  const displayValue = fieldAccessText(access, patientName, "name");
+  return displayValue === "—" ? "Patient" : displayValue;
+}
+
+function billingPatientIdentifierText(
+  identifier: string | null | undefined,
+  access: FieldAccessLevel,
+): string {
+  const displayValue = fieldAccessText(access, identifier, "identifier");
+  return displayValue === "—" ? "No UHID" : displayValue;
+}
+
+function billingPatientAddressText(
+  address: string | null | undefined,
+  access: FieldAccessLevel,
+): string {
+  const displayValue = fieldAccessText(access, address, "text");
+  return displayValue === "—" ? "No address" : displayValue;
+}
+
+function billingAmountText(
+  value: number | string | null | undefined,
+  access: FieldAccessLevel,
+): string {
+  const formatted = `₹${money(value)}`;
+  return access === "edit" || access === "view"
+    ? formatted
+    : fieldAccessText(access, formatted, "amount");
+}
+
 function escapeBillingPrintText(value: unknown): string {
   return String(value ?? "").replace(/[&<>"']/g, (char) => {
     const entities: Record<string, string> = {
@@ -315,16 +365,16 @@ function billingPrintDate(value: string | null | undefined): string {
 const BILLING_INVOICE_PRINT_COPIES = PRINT_COPY_PACKETS.billingInvoice;
 const BILLING_RECEIPT_PRINT_COPIES = PRINT_COPY_PACKETS.billingReceipt;
 
-function printInvoicePacket(data: InvoicePrintData) {
+function printInvoicePacket(data: InvoicePrintData, access: BillingDisplayAccess) {
   const rows = data.items
     .map(
       (item) => `
         <tr>
           <td>${escapeBillingPrintText(item.description)}</td>
           <td>${escapeBillingPrintText(item.quantity)}</td>
-          <td>₹${money(item.unit_price)}</td>
+          <td>${escapeBillingPrintText(billingAmountText(item.unit_price, access.amount))}</td>
           <td>${escapeBillingPrintText(item.tax_percent)}%</td>
-          <td>₹${money(item.total_price)}</td>
+          <td>${escapeBillingPrintText(billingAmountText(item.total_price, access.amount))}</td>
         </tr>`,
     )
     .join("");
@@ -333,14 +383,19 @@ function printInvoicePacket(data: InvoicePrintData) {
       (row) => `
         <tr>
           <td>${escapeBillingPrintText(row.hsn_code)}</td>
-          <td>₹${money(row.taxable_amount)}</td>
-          <td>₹${money(row.cgst_amount)}</td>
-          <td>₹${money(row.sgst_amount)}</td>
-          <td>₹${money(row.igst_amount)}</td>
-          <td>₹${money(row.total_tax)}</td>
+          <td>${escapeBillingPrintText(billingAmountText(row.taxable_amount, access.amount))}</td>
+          <td>${escapeBillingPrintText(billingAmountText(row.cgst_amount, access.amount))}</td>
+          <td>${escapeBillingPrintText(billingAmountText(row.sgst_amount, access.amount))}</td>
+          <td>${escapeBillingPrintText(billingAmountText(row.igst_amount, access.amount))}</td>
+          <td>${escapeBillingPrintText(billingAmountText(row.total_tax, access.amount))}</td>
         </tr>`,
     )
     .join("");
+  const patientName = billingPatientNameText(
+    data.patient_name ?? data.invoice.patient_id,
+    access.patientName,
+  );
+  const patientAddress = billingPatientAddressText(data.patient_address, access.patientAddress);
   const content = `
     <section class="billing-print">
       <header>
@@ -355,8 +410,8 @@ function printInvoicePacket(data: InvoicePrintData) {
         </div>
       </header>
       <section class="patient">
-        <strong>Patient:</strong> ${escapeBillingPrintText(data.patient_name ?? data.invoice.patient_id)}<br />
-        ${escapeBillingPrintText(data.patient_address)}
+        <strong>Patient:</strong> ${escapeBillingPrintText(patientName)}<br />
+        ${escapeBillingPrintText(patientAddress)}
       </section>
       <table>
         <thead>
@@ -370,10 +425,10 @@ function printInvoicePacket(data: InvoicePrintData) {
           : ""
       }
       <div class="totals">
-        Subtotal: ₹${money(data.invoice.subtotal)}<br />
-        Tax: ₹${money(data.invoice.tax_amount)}<br />
-        Paid: ₹${money(data.invoice.paid_amount)}<br />
-        <strong>Total: ₹${money(data.invoice.total_amount)}</strong>
+        Subtotal: ${escapeBillingPrintText(billingAmountText(data.invoice.subtotal, access.amount))}<br />
+        Tax: ${escapeBillingPrintText(billingAmountText(data.invoice.tax_amount, access.amount))}<br />
+        Paid: ${escapeBillingPrintText(billingAmountText(data.invoice.paid_amount, access.amount))}<br />
+        <strong>Total: ${escapeBillingPrintText(billingAmountText(data.invoice.total_amount, access.amount))}</strong>
       </div>
     </section>
   `;
@@ -409,15 +464,17 @@ function printInvoicePacket(data: InvoicePrintData) {
   printWindow.document.close();
 }
 
-function printReceiptPacket(data: ReceiptPrintData) {
+function printReceiptPacket(data: ReceiptPrintData, access: BillingDisplayAccess) {
+  const patientName = billingPatientNameText(data.patient_name, access.patientName);
+  const uhid = billingPatientIdentifierText(data.uhid, access.uhid);
   const content = `
     <section class="receipt-print">
       <h1>${escapeBillingPrintText(data.hospital_name ?? "Payment Receipt")}</h1>
       <div class="number">${escapeBillingPrintText(data.receipt_number ?? data.document_number)}</div>
       <dl>
-        <dt>Patient</dt><dd>${escapeBillingPrintText(data.patient_name)} (${escapeBillingPrintText(data.uhid)})</dd>
+        <dt>Patient</dt><dd>${escapeBillingPrintText(patientName)} (${escapeBillingPrintText(uhid)})</dd>
         <dt>Invoice</dt><dd>${escapeBillingPrintText(data.invoice_number)}</dd>
-        <dt>Amount</dt><dd>₹${money(data.amount)}</dd>
+        <dt>Amount</dt><dd>${escapeBillingPrintText(billingAmountText(data.amount, access.amount))}</dd>
         <dt>Mode</dt><dd>${escapeBillingPrintText(data.payment_mode)}</dd>
         <dt>Reference</dt><dd>${escapeBillingPrintText(data.reference_number ?? "—")}</dd>
         <dt>Paid at</dt><dd>${billingPrintDate(data.paid_at)}</dd>
@@ -1064,6 +1121,16 @@ function InvoiceDetail({
   const emit = useClinicalEmit();
   const queryClient = useQueryClient();
   const canPrintBillingDocs = useHasPermission(P.BILLING.RECEIPTS_PRINT);
+  const amountAccess = useProtectedFieldAccess("billing.amount");
+  const patientNameAccess = useProtectedFieldAccess(undefined, PATIENT_NAME_FIELD_ACCESS_KEYS);
+  const patientAddressAccess = useProtectedFieldAccess("patients.address");
+  const uhidAccess = useProtectedFieldAccess("patients.uhid");
+  const billingDisplayAccess: BillingDisplayAccess = {
+    amount: amountAccess,
+    patientAddress: patientAddressAccess,
+    patientName: patientNameAccess,
+    uhid: uhidAccess,
+  };
   const [showAddItem, setShowAddItem] = useState(false);
   const [showPayment, setShowPayment] = useState(false);
   const [showGateway, setShowGateway] = useState(false);
@@ -1140,7 +1207,7 @@ function InvoiceDetail({
   const invoicePrintMutation = useMutation({
     mutationFn: () => billingService.getInvoicePrintData(invoiceId),
     onSuccess: (printData) => {
-      printInvoicePacket(printData);
+      printInvoicePacket(printData, billingDisplayAccess);
     },
     onError: (error) => {
       notifications.show({
@@ -1214,7 +1281,7 @@ function InvoiceDetail({
       return { printData, receipt };
     },
     onSuccess: ({ printData }) => {
-      printReceiptPacket(printData);
+      printReceiptPacket(printData, billingDisplayAccess);
       void queryClient.invalidateQueries({ queryKey: ["invoice-detail", invoiceId] });
       notifications.show({
         title: "Receipt generated",
@@ -1243,7 +1310,10 @@ function InvoiceDetail({
     activeOrderContext: inv.encounter_id ? "opd" : null,
   };
   const canRecordPayment =
-    canPay && (displayStatus === "issued" || displayStatus === "partially_paid") && balance > 0;
+    amountAccess === "edit" &&
+    canPay &&
+    (displayStatus === "issued" || displayStatus === "partially_paid") &&
+    balance > 0;
   const openPaymentForm = () => {
     if (showPayment) {
       setShowPayment(false);
@@ -1301,10 +1371,10 @@ function InvoiceDetail({
         </Badge>
       </Group>
       <Group>
-        <Text size="sm">Total: ₹{money(inv.total_amount)}</Text>
-        <Text size="sm">Paid: ₹{money(inv.paid_amount)}</Text>
+        <Text size="sm">Total: {billingAmountText(inv.total_amount, amountAccess)}</Text>
+        <Text size="sm">Paid: {billingAmountText(inv.paid_amount, amountAccess)}</Text>
         <Text size="sm" c={balance > 0 ? "danger" : "success"}>
-          Balance: ₹{money(balance)}
+          Balance: {billingAmountText(balance, amountAccess)}
         </Text>
       </Group>
       {canPrintBillingDocs && (
@@ -1363,17 +1433,17 @@ function InvoiceDetail({
         Number(inv.igst_amount ?? 0) > 0) && (
         <Group gap="xs">
           <Badge variant="light" color="teal" size="sm">
-            CGST: ₹{inv.cgst_amount}
+            CGST: {billingAmountText(inv.cgst_amount, amountAccess)}
           </Badge>
           <Badge variant="light" color="teal" size="sm">
-            SGST: ₹{inv.sgst_amount}
+            SGST: {billingAmountText(inv.sgst_amount, amountAccess)}
           </Badge>
           <Badge variant="light" color="primary" size="sm">
-            IGST: ₹{inv.igst_amount}
+            IGST: {billingAmountText(inv.igst_amount, amountAccess)}
           </Badge>
           {Number(inv.cess_amount ?? 0) > 0 && (
             <Badge variant="light" color="orange" size="sm">
-              Cess: ₹{inv.cess_amount}
+              Cess: {billingAmountText(inv.cess_amount, amountAccess)}
             </Badge>
           )}
         </Group>
@@ -1435,9 +1505,9 @@ function InvoiceDetail({
             <Table.Tr key={item.id}>
               <Table.Td>{item.description}</Table.Td>
               <Table.Td>{item.quantity}</Table.Td>
-              <Table.Td>₹{item.unit_price}</Table.Td>
+              <Table.Td>{billingAmountText(item.unit_price, amountAccess)}</Table.Td>
               <Table.Td>{item.tax_percent}%</Table.Td>
-              <Table.Td>₹{item.total_price}</Table.Td>
+              <Table.Td>{billingAmountText(item.total_price, amountAccess)}</Table.Td>
               {canCreate && inv.status === "draft" && (
                 <Table.Td>
                   <ActionIcon
@@ -1561,7 +1631,7 @@ function InvoiceDetail({
         <Table.Tbody>
           {detail.payments.map((p) => (
             <Table.Tr key={p.id}>
-              <Table.Td>₹{p.amount}</Table.Td>
+              <Table.Td>{billingAmountText(p.amount, amountAccess)}</Table.Td>
               <Table.Td>{p.mode}</Table.Td>
               <Table.Td>{p.reference_number ?? "—"}</Table.Td>
               <Table.Td>{new Date(p.created_at).toLocaleString()}</Table.Td>
@@ -1637,7 +1707,7 @@ function InvoiceDetail({
               />
               <Group justify="space-between">
                 <Text size="xs" c="dimmed">
-                  Outstanding: ₹{money(balance)}
+                  Outstanding: {billingAmountText(balance, amountAccess)}
                 </Text>
                 <Button
                   size="xs"
@@ -1656,6 +1726,7 @@ function InvoiceDetail({
             opened={showGateway}
             onClose={() => setShowGateway(false)}
             amount={balance}
+            amountAccess={amountAccess}
             invoiceId={invoiceId}
             onSuccess={handleGatewayPaymentSuccess}
           />
@@ -1684,7 +1755,7 @@ function InvoiceDetail({
                 <Table.Td>
                   {d.discount_type === "percentage"
                     ? `${d.discount_value}%`
-                    : `₹${d.discount_value}`}
+                    : billingAmountText(d.discount_value, amountAccess)}
                 </Table.Td>
                 <Table.Td>{d.reason ?? "—"}</Table.Td>
                 {canCreate && (
@@ -1766,7 +1837,7 @@ function InvoiceDetail({
 
       {inv.discount_amount !== "0" && inv.discount_amount !== "0.00" && (
         <Text size="sm" fw={500} c="orange">
-          Total Discount: ₹{inv.discount_amount}
+          Total Discount: {billingAmountText(inv.discount_amount, amountAccess)}
         </Text>
       )}
     </Stack>
