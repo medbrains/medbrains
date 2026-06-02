@@ -1,3 +1,61 @@
+.displayWorkspace {
+  gap: var(--mantine-spacing-md);
+}
+
+.displayCommandBar {
+  position: sticky;
+  top: calc(var(--app-shell-header-height, 72px) + var(--mantine-spacing-xs));
+  z-index: 12;
+  border-left: 4px solid light-dark(var(--mantine-color-teal-6), var(--mantine-color-teal-4));
+  background: light-dark(rgba(255, 255, 255, 0.96), rgba(26, 27, 30, 0.94));
+  box-shadow: 0 12px 28px light-dark(rgba(15, 23, 42, 0.08), rgba(0, 0, 0, 0.24));
+  backdrop-filter: blur(10px);
+}
+
+.displayCommandActions {
+  justify-content: flex-end;
+}
+
+.displayGrid {
+  align-items: flex-start;
+}
+
+.displayMain {
+  min-width: 0;
+}
+
+.displayTabsList {
+  padding: 6px;
+  border: 1px solid light-dark(var(--mantine-color-gray-3), var(--mantine-color-dark-4));
+  border-radius: var(--mantine-radius-md);
+  background: light-dark(var(--mantine-color-white), var(--mantine-color-dark-7));
+
+  :global(.mantine-Tabs-tab) {
+    border-radius: var(--mantine-radius-sm);
+    font-weight: 650;
+  }
+}
+
+.displayRail {
+  position: sticky;
+  top: calc(var(--app-shell-header-height, 72px) + 164px);
+  max-height: calc(100dvh - var(--app-shell-header-height, 72px) - 180px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  background:
+    linear-gradient(180deg, light-dark(var(--mantine-color-teal-0), rgba(18, 184, 134, 0.14)), transparent 42%),
+    light-dark(var(--mantine-color-white), var(--mantine-color-dark-7));
+}
+
+.railMetric {
+  min-height: 70px;
+  padding: var(--mantine-spacing-sm);
+  border: 1px solid light-dark(var(--mantine-color-gray-2), var(--mantine-color-dark-4));
+  border-radius: var(--mantine-radius-md);
+  background: light-dark(rgba(255, 255, 255, 0.72), rgba(20, 21, 24, 0.52));
+}
+
 .queueMetricGrid {
   display: grid;
   grid-template-columns: repeat(5, minmax(150px, 1fr));
@@ -50,6 +108,19 @@
 @media (max-width: 1100px) {
   .queueMetricGrid {
     grid-template-columns: repeat(2, minmax(150px, 1fr));
+  }
+}
+
+@media (max-width: 992px) {
+  .displayCommandBar,
+  .displayRail {
+    position: static;
+    max-height: none;
+  }
+
+  .displayCommandActions {
+    justify-content: flex-start;
+    width: 100%;
   }
 }
 
