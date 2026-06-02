@@ -1,5 +1,5 @@
-import { useAuthStore } from "@medbrains/stores";
-import type { QueueEntry } from "@medbrains/types";
+import { useAuthStore, useFieldAccess } from "@medbrains/stores";
+import type { FieldAccessLevel, QueueEntry } from "@medbrains/types";
 import { useMemo } from "react";
 import { ScrollView, StyleSheet, TouchableOpacity, View } from "react-native";
 import {
@@ -22,6 +22,7 @@ import {
   useStartConsultationMutation,
 } from "../../services/queue.queries";
 import { MEDBRAINS_COLORS } from "../../theme/paper-theme";
+import { protectedQueueIdentity, queuePatientNameAccess } from "../../utils/queue-privacy";
 
 type MobileQueueStatus = "waiting" | "called" | "in_consultation" | "completed" | "no_show";
 type StaffDashboardRoute =
@@ -106,12 +107,17 @@ function getInitials(name: string): string {
   return initials || "ST";
 }
 
-function queueItemView(item: QueueEntry) {
+function queueItemView(
+  item: QueueEntry,
+  access: { name: FieldAccessLevel; uhid: FieldAccessLevel },
+) {
+  const identity = protectedQueueIdentity(item, access);
+
   return {
     id: item.id,
     token_number: item.token_number,
-    patient_name: item.patient_name ?? "Unknown patient",
-    uhid: item.uhid ?? "No UHID",
+    patient_name: identity.patient_name,
+    uhid: identity.uhid,
     status: toMobileQueueStatus(item.status),
     wait_time_minutes: elapsedMinutesSince(item.queue_date),
   };
@@ -120,6 +126,15 @@ function queueItemView(item: QueueEntry) {
 export function StaffDashboard({ navigation }: StaffDashboardProps) {
   const theme = useTheme();
   const user = useAuthStore((state) => state.user);
+  const firstNameAccess = useFieldAccess("patients.first_name");
+  const middleNameAccess = useFieldAccess("patients.middle_name");
+  const lastNameAccess = useFieldAccess("patients.last_name");
+  const uhidAccess = useFieldAccess("patients.uhid");
+  const patientNameAccess = queuePatientNameAccess(
+    firstNameAccess,
+    middleNameAccess,
+    lastNameAccess,
+  );
 
   const { data, isError, isFetching, isLoading, refetch } = useStaffDashboardQueueQuery();
   const callMutation = useCallQueueEntryMutation();
@@ -245,7 +260,7 @@ export function StaffDashboard({ navigation }: StaffDashboardProps) {
             {activeQueueItems.map((item) => (
               <QueueItem
                 key={item.id}
-                item={queueItemView(item)}
+                item={queueItemView(item, { name: patientNameAccess, uhid: uhidAccess })}
                 onCall={() => callMutation.mutate(item.id)}
                 onStart={() => handleStartConsultation(item)}
                 onComplete={() => completeMutation.mutate(item.id)}

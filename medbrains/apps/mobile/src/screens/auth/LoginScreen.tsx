@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { type MobileLoginFormInput, mobileLoginFormSchema } from "@medbrains/schemas";
-import { useAuthStore } from "@medbrains/stores";
+import { useAuthStore, usePermissionStore } from "@medbrains/stores";
 import type { User } from "@medbrains/types";
 import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
@@ -9,11 +9,13 @@ import { KeyboardAvoidingView, Platform, StyleSheet, View } from "react-native";
 import { Button, HelperText, Surface, Text, TextInput, useTheme } from "react-native-paper";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { authService } from "../../services/auth.service";
+import { MEDBRAINS_COLORS } from "../../theme/paper-theme";
 
 export function LoginScreen() {
   const theme = useTheme();
   const [showPassword, setShowPassword] = useState(false);
   const { setAuth } = useAuthStore();
+  const setPermissions = usePermissionStore((state) => state.setPermissions);
   const {
     control,
     handleSubmit,
@@ -46,6 +48,7 @@ export function LoginScreen() {
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       });
+      setPermissions(data.user.role, data.permissions, data.field_access);
     },
   });
 
@@ -201,18 +204,18 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#0F766E",
+    backgroundColor: MEDBRAINS_COLORS.brand,
     marginBottom: 16,
   },
   logoText: {
-    color: "#FFFFFF",
+    color: MEDBRAINS_COLORS.canvas,
     fontWeight: "700",
   },
   logoAccent: {
     width: 26,
     height: 3,
     borderRadius: 2,
-    backgroundColor: "#B8924A",
+    backgroundColor: MEDBRAINS_COLORS.copper,
     marginTop: 4,
   },
   title: {

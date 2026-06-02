@@ -1,9 +1,16 @@
-import { create } from "zustand";
-import { persist, createJSONStorage } from "zustand/middleware";
 import type { FieldAccessLevel } from "@medbrains/types";
+import { create } from "zustand";
+import { createJSONStorage, persist } from "zustand/middleware";
 
 /** Bypass roles — these skip all permission checks */
 const BYPASS_ROLES = new Set(["super_admin", "hospital_admin"]);
+
+function sessionPermissionStorage(): Storage {
+  if (typeof sessionStorage === "undefined") {
+    throw new Error("sessionStorage is unavailable");
+  }
+  return sessionStorage;
+}
 
 interface PermissionState {
   userPermissions: Set<string>;
@@ -85,15 +92,12 @@ export const usePermissionStore = create<PermissionState>()(
     }),
     {
       name: "perm-cache",
-      storage: createJSONStorage(() => sessionStorage, {
+      storage: createJSONStorage(sessionPermissionStorage, {
         // Serialize Set<string> as array
-        replacer: (_key, value) =>
-          value instanceof Set ? Array.from(value) : value,
+        replacer: (_key, value) => (value instanceof Set ? Array.from(value) : value),
         // Rehydrate stored array back into a Set
         reviver: (key, value) =>
-          key === "userPermissions" && Array.isArray(value)
-            ? new Set(value as string[])
-            : value,
+          key === "userPermissions" && Array.isArray(value) ? new Set(value as string[]) : value,
       }),
       partialize: (state) => ({
         userPermissions: state.userPermissions,

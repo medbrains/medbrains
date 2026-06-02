@@ -3,7 +3,7 @@ import {
   type MobilePatientProfileContactFormInput,
   mobilePatientProfileContactFormSchema,
 } from "@medbrains/schemas";
-import { useAuthStore } from "@medbrains/stores";
+import { useAuthStore, usePermissionStore } from "@medbrains/stores";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
@@ -37,6 +37,7 @@ export function ProfileScreen() {
   const theme = useTheme();
   const queryClient = useQueryClient();
   const { user, clearAuth } = useAuthStore();
+  const clearPermissions = usePermissionStore((state) => state.clearPermissions);
 
   const [editMode, setEditMode] = useState(false);
   const [logoutDialogVisible, setLogoutDialogVisible] = useState(false);
@@ -91,6 +92,7 @@ export function ProfileScreen() {
       await authService.logout();
     } catch {}
     clearAuth();
+    clearPermissions();
     setLogoutDialogVisible(false);
   };
 

@@ -1,3 +1,4 @@
+import { useFieldAccess } from "@medbrains/stores";
 import type { QueueEntry } from "@medbrains/types";
 import { useState } from "react";
 import { FlatList, StyleSheet, View } from "react-native";
@@ -21,6 +22,7 @@ import {
   useStartConsultationMutation,
 } from "../../services/queue.queries";
 import { MEDBRAINS_COLORS } from "../../theme/paper-theme";
+import { protectedQueueIdentity, queuePatientNameAccess } from "../../utils/queue-privacy";
 
 type MobileQueueStatus = "waiting" | "called" | "in_consultation" | "completed" | "no_show";
 
@@ -57,6 +59,15 @@ function isQueueFilter(value: string): value is QueueFilter {
 export function QueueScreen({ route, navigation }: QueueScreenProps) {
   const theme = useTheme();
   const departmentId = route?.params?.departmentId;
+  const firstNameAccess = useFieldAccess("patients.first_name");
+  const middleNameAccess = useFieldAccess("patients.middle_name");
+  const lastNameAccess = useFieldAccess("patients.last_name");
+  const uhidAccess = useFieldAccess("patients.uhid");
+  const patientNameAccess = queuePatientNameAccess(
+    firstNameAccess,
+    middleNameAccess,
+    lastNameAccess,
+  );
 
   const [filter, setFilter] = useState<QueueFilter>("all");
 
@@ -73,6 +84,10 @@ export function QueueScreen({ route, navigation }: QueueScreenProps) {
     called: queueItems.filter((i) => i.status === "called").length,
     inProgress: queueItems.filter((i) => i.status === "in_consultation").length,
   };
+  const currentPatient = queueItems.find((i) => i.status === "in_consultation");
+  const currentPatientIdentity = currentPatient
+    ? protectedQueueIdentity(currentPatient, { name: patientNameAccess, uhid: uhidAccess })
+    : null;
 
   const handleQueueItemAction = (
     action: "call" | "start" | "complete" | "noShow",
@@ -150,24 +165,31 @@ export function QueueScreen({ route, navigation }: QueueScreenProps) {
         <FlatList
           data={queueItems}
           keyExtractor={(item) => item.id}
-          renderItem={({ item }) => (
-            <QueueItem
-              item={{
-                id: item.id,
-                token_number: item.token_number,
-                patient_name: item.patient_name ?? "Unknown patient",
-                uhid: item.uhid ?? "No UHID",
-                status: toMobileQueueStatus(item.status),
-                wait_time_minutes: item.called_at
-                  ? Math.floor((Date.now() - new Date(item.called_at).getTime()) / 60000)
-                  : undefined,
-              }}
-              onCall={() => handleQueueItemAction("call", item)}
-              onStart={() => handleQueueItemAction("start", item)}
-              onComplete={() => handleQueueItemAction("complete", item)}
-              onNoShow={() => handleQueueItemAction("noShow", item)}
-            />
-          )}
+          renderItem={({ item }) => {
+            const identity = protectedQueueIdentity(item, {
+              name: patientNameAccess,
+              uhid: uhidAccess,
+            });
+
+            return (
+              <QueueItem
+                item={{
+                  id: item.id,
+                  token_number: item.token_number,
+                  patient_name: identity.patient_name,
+                  uhid: identity.uhid,
+                  status: toMobileQueueStatus(item.status),
+                  wait_time_minutes: item.called_at
+                    ? Math.floor((Date.now() - new Date(item.called_at).getTime()) / 60000)
+                    : undefined,
+                }}
+                onCall={() => handleQueueItemAction("call", item)}
+                onStart={() => handleQueueItemAction("start", item)}
+                onComplete={() => handleQueueItemAction("complete", item)}
+                onNoShow={() => handleQueueItemAction("noShow", item)}
+              />
+            );
+          }}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
           onRefresh={refetch}
@@ -194,12 +216,10 @@ export function QueueScreen({ route, navigation }: QueueScreenProps) {
           <View style={styles.bannerText}>
             <Text variant="labelMedium">Currently seeing</Text>
             <Text variant="titleSmall" style={styles.bannerTitle}>
-              {queueItems.find((i) => i.status === "in_consultation")?.patient_name || "Patient"}
+              {currentPatientIdentity?.patient_name ?? "Patient"}
             </Text>
           </View>
-          <Badge style={styles.tokenBadge}>
-            {`#${queueItems.find((i) => i.status === "in_consultation")?.token_number ?? ""}`}
-          </Badge>
+          <Badge style={styles.tokenBadge}>{`#${currentPatient?.token_number ?? ""}`}</Badge>
         </Surface>
       )}
     </SafeAreaView>

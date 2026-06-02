@@ -6,6 +6,7 @@ import {
   maskIdentifierKeepLast,
   maskName,
   maskPhone,
+  mostRestrictedFieldAccess,
   snakeToTitle,
   truncate,
 } from "./index";
@@ -68,6 +69,12 @@ describe("maskIdentifierKeepLast", () => {
 });
 
 describe("fieldAccessText", () => {
+  it("uses the most restrictive field access level across grouped fields", () => {
+    expect(mostRestrictedFieldAccess(["edit", "view"])).toBe("view");
+    expect(mostRestrictedFieldAccess(["view", "mask", "edit"])).toBe("mask");
+    expect(mostRestrictedFieldAccess(["mask", "hidden", "view"])).toBe("hidden");
+  });
+
   it("returns restricted for hidden fields", () => {
     expect(fieldAccessText("hidden", "9876543210", "phone")).toBe("Restricted");
   });

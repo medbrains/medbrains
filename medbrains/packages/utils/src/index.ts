@@ -66,8 +66,23 @@ export function truncate(str: string, maxLength: number): string {
 
 export type MaskableFieldAccessLevel = "edit" | "view" | "mask" | "hidden";
 
+const fieldAccessRank: Record<MaskableFieldAccessLevel, number> = {
+  edit: 0,
+  view: 1,
+  mask: 2,
+  hidden: 3,
+};
+
 function isMaskableIdentifierChar(char: string): boolean {
   return /^[A-Za-z0-9]$/.test(char);
+}
+
+export function mostRestrictedFieldAccess(
+  accessLevels: readonly MaskableFieldAccessLevel[],
+): MaskableFieldAccessLevel {
+  return accessLevels.reduce<MaskableFieldAccessLevel>((current, next) => {
+    return fieldAccessRank[next] > fieldAccessRank[current] ? next : current;
+  }, "edit");
 }
 
 /**
