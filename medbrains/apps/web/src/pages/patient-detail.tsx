@@ -3,8 +3,11 @@ import {
   ActionIcon,
   Alert,
   Badge,
+  Box,
   Button,
   Card,
+  Divider,
+  Grid,
   Group,
   Loader,
   Modal,
@@ -77,7 +80,7 @@ import {
   IconUser,
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { type ReactNode, useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { useNavigate, useParams } from "react-router";
 import { PrescriptionViews } from "@/components/Clinical";
@@ -113,6 +116,7 @@ import { useHashTabs } from "@/hooks/useHashTabs";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { patientDetailService } from "@/services/patientDetail.service";
 import { buildCopyPrintHtml, copyPrintStyles, PRINT_COPY_PACKETS } from "@/utils/printCopies";
+import classes from "./patient-detail.module.scss";
 
 // ── Helpers ────────────────────────────────────────────────
 
@@ -148,6 +152,8 @@ const PATIENT_DETAIL_TAB_VALUES = [
   "notes",
   "merge",
 ] as const;
+
+type PatientDetailTabValue = (typeof PATIENT_DETAIL_TAB_VALUES)[number];
 
 const PATIENT_CARD_PRINT_COPIES = PRINT_COPY_PACKETS.patientCard;
 
@@ -2876,12 +2882,14 @@ export function PatientDetailPage() {
   const { id } = useParams<{ id: string }>();
   const patientId = id ?? "";
   const navigate = useNavigate();
+  const canListPatients = useHasPermission(P.PATIENTS.LIST);
+  const canViewBillingLedger = useHasPermission(P.BILLING.INVOICES_LIST);
   const uhidAccess = useFieldAccess("patients.uhid");
   const firstNameAccess = useFieldAccess("patients.first_name");
   const lastNameAccess = useFieldAccess("patients.last_name");
   const phoneAccess = useFieldAccess("patients.phone");
   const dobAccess = useFieldAccess("patients.date_of_birth");
-  const [basketOpen, setBasketOpen] = useState(false);
+  const [basketOpen, basketHandlers] = useDisclosure(false);
   const [basketTab, setBasketTab] = useState<OrderBasketTab>("drug");
   const [shareOpen, { open: openShare, close: closeShare }] = useDisclosure(false);
   const [activePatientTab, setActivePatientTab] = useHashTabs(
@@ -2891,7 +2899,7 @@ export function PatientDetailPage() {
 
   function openOrderBasket(tab: OrderBasketTab = "drug") {
     setBasketTab(tab);
-    setBasketOpen(true);
+    basketHandlers.open();
   }
 
   const { data: patient, isLoading } = useQuery({
@@ -2944,32 +2952,129 @@ export function PatientDetailPage() {
     activeAdmissionStatus: activeAdmission?.status ?? null,
     activeOrderContext: activeEncounter ? "opd" : activeAdmission ? "ipd" : null,
   };
+  const detailTabs = [
+    { value: "overview", label: "Overview", section: "Profile", icon: <IconUser size={14} /> },
+    {
+      value: "allergies",
+      label: "Allergies",
+      section: "Profile",
+      icon: <IconAlertTriangle size={14} />,
+    },
+    {
+      value: "visits",
+      label: "Visits",
+      section: "Clinical",
+      icon: <IconStethoscope size={14} />,
+    },
+    {
+      value: "prescriptions",
+      label: "Prescriptions",
+      section: "Clinical",
+      icon: <IconPill size={14} />,
+    },
+    { value: "lab", label: "Lab Orders", section: "Clinical", icon: <IconFlask size={14} /> },
+    { value: "imaging", label: "Imaging", section: "Clinical", icon: <IconEye size={14} /> },
+    { value: "billing", label: "Billing", section: "Finance", icon: <IconReceipt size={14} /> },
+    {
+      value: "appointments",
+      label: "Appointments",
+      section: "Workflow",
+      icon: <IconCalendar size={14} />,
+    },
+    { value: "family", label: "Family", section: "Records", icon: <IconLink size={14} /> },
+    { value: "documents", label: "Documents", section: "Records", icon: <IconFile size={14} /> },
+    {
+      value: "chronic",
+      label: "Chronic Care",
+      section: "Programs",
+      icon: <IconReportMedical size={14} />,
+    },
+    {
+      value: "packages",
+      label: "Packages",
+      section: "Programs",
+      icon: <IconReportMedical size={14} />,
+    },
+    { value: "notes", label: "Notes", section: "Records", icon: <IconReportMedical size={14} /> },
+    { value: "merge", label: "Merge", section: "Admin", icon: <IconGitMerge size={14} /> },
+  ] satisfies Array<{
+    value: PatientDetailTabValue;
+    label: string;
+    section: string;
+    icon: ReactNode;
+  }>;
+  const tabSections = [...new Set(detailTabs.map((tab) => tab.section))];
+  const activeDetailTab = detailTabs.some((tab) => tab.value === activePatientTab)
+    ? activePatientTab
+    : "overview";
 
   return (
-    <div>
+    <Stack className={classes.patientWorkspace}>
       <PageHeader
         title={displayName}
         subtitle={`UHID: ${displayUhid} | ${patient.gender} | ${displayAge} | ${displayPhone}`}
         actions={
-          <PatientJourneyActions
-            context={actionContext}
-            onEdit={() => navigate(`/patients/${patient.id}/edit`)}
-            onOpenOrderBasket={openOrderBasket}
-            onShare={openShare}
-            onPrintPatientCard={() => {
-              void handlePrintPatientCard(patient.id);
-            }}
-          />
+          canListPatients ? (
+            <Button variant="light" onClick={() => navigate("/patients")}>
+              Patient Directory
+            </Button>
+          ) : undefined
         }
       />
 
-      <PatientContextBanner patientId={patient.id} />
-      <PatientFlowNavigator
-        patientId={patient.id}
-        active="patient"
-        activeEncounterId={activeEncounter?.id ?? null}
-        activeAdmissionId={activeAdmission?.id ?? null}
-      />
+      <Card withBorder className={classes.commandBar}>
+        <Stack gap="xs">
+          <PatientContextBanner patientId={patient.id} />
+          <PatientFlowNavigator
+            patientId={patient.id}
+            active="patient"
+            activeEncounterId={activeEncounter?.id ?? null}
+            activeAdmissionId={activeAdmission?.id ?? null}
+            compact
+          />
+          <Group justify="space-between" align="flex-start" gap="sm">
+            <Stack gap={4}>
+              <Group gap="xs">
+                <Text fw={700}>{displayName}</Text>
+                <Badge color="primary" variant="light">
+                  {patient.category}
+                </Badge>
+                <Badge color="gray" variant="light">
+                  {patient.financial_class}
+                </Badge>
+                {patient.blood_group && (
+                  <Badge color="danger" variant="light">
+                    {patient.blood_group}
+                  </Badge>
+                )}
+                {patient.is_vip && (
+                  <Badge color="violet" variant="light">
+                    VIP
+                  </Badge>
+                )}
+                {patient.is_medico_legal && (
+                  <Badge color="danger" variant="filled">
+                    MLC
+                  </Badge>
+                )}
+              </Group>
+              <Text size="xs" c="dimmed">
+                UHID {displayUhid} · {patient.gender} · {displayAge} · {displayPhone}
+              </Text>
+            </Stack>
+            <PatientJourneyActions
+              context={actionContext}
+              onEdit={() => navigate(`/patients/${patient.id}/edit`)}
+              onOpenOrderBasket={openOrderBasket}
+              onShare={openShare}
+              onPrintPatientCard={() => {
+                void handlePrintPatientCard(patient.id);
+              }}
+              size="xs"
+            />
+          </Group>
+        </Stack>
+      </Card>
 
       <ShareDrawer
         opened={shareOpen}
@@ -2979,130 +3084,166 @@ export function PatientDetailPage() {
         objectLabel={`${displayName} (${displayUhid})`}
       />
 
-      <Group gap="xs" mb="md">
-        <Badge color="primary" variant="light">
-          {patient.category}
-        </Badge>
-        <Badge color="gray" variant="light">
-          {patient.financial_class}
-        </Badge>
-        {patient.blood_group && (
-          <Badge color="danger" variant="light">
-            {patient.blood_group}
-          </Badge>
-        )}
-        {patient.is_vip && (
-          <Badge color="violet" variant="light">
-            VIP
-          </Badge>
-        )}
-        {patient.is_medico_legal && (
-          <Badge color="danger" variant="filled">
-            MLC
-          </Badge>
-        )}
-      </Group>
+      <Tabs value={activeDetailTab} onChange={setActivePatientTab} keepMounted={false}>
+        <Grid align="flex-start" className={classes.workspaceGrid}>
+          <Grid.Col span={{ base: 12, lg: 8 }}>
+            <Stack className={classes.workspaceMain}>
+              <Tabs.List className={classes.tabsList}>
+                {detailTabs.map((tab) => (
+                  <Tabs.Tab key={tab.value} value={tab.value} leftSection={tab.icon}>
+                    {tab.label}
+                  </Tabs.Tab>
+                ))}
+              </Tabs.List>
 
-      <Tabs value={activePatientTab} onChange={setActivePatientTab} keepMounted={false}>
-        <Tabs.List mb="md">
-          <Tabs.Tab value="overview" leftSection={<IconUser size={14} />}>
-            Overview
-          </Tabs.Tab>
-          <Tabs.Tab value="allergies" leftSection={<IconAlertTriangle size={14} />}>
-            Allergies
-          </Tabs.Tab>
-          <Tabs.Tab value="visits" leftSection={<IconStethoscope size={14} />}>
-            Visits
-          </Tabs.Tab>
-          <Tabs.Tab value="prescriptions" leftSection={<IconPill size={14} />}>
-            Prescriptions
-          </Tabs.Tab>
-          <Tabs.Tab value="lab" leftSection={<IconFlask size={14} />}>
-            Lab Orders
-          </Tabs.Tab>
-          <Tabs.Tab value="imaging" leftSection={<IconEye size={14} />}>
-            Imaging
-          </Tabs.Tab>
-          <Tabs.Tab value="billing" leftSection={<IconReceipt size={14} />}>
-            Billing
-          </Tabs.Tab>
-          <Tabs.Tab value="appointments" leftSection={<IconCalendar size={14} />}>
-            Appointments
-          </Tabs.Tab>
-          <Tabs.Tab value="family" leftSection={<IconLink size={14} />}>
-            Family
-          </Tabs.Tab>
-          <Tabs.Tab value="documents" leftSection={<IconFile size={14} />}>
-            Documents
-          </Tabs.Tab>
-          <Tabs.Tab value="chronic" leftSection={<IconReportMedical size={14} />}>
-            Chronic Care
-          </Tabs.Tab>
-          <Tabs.Tab value="packages" leftSection={<IconReportMedical size={14} />}>
-            Packages
-          </Tabs.Tab>
-          <Tabs.Tab value="notes" leftSection={<IconReportMedical size={14} />}>
-            Notes
-          </Tabs.Tab>
-          <Tabs.Tab value="merge" leftSection={<IconGitMerge size={14} />}>
-            Merge
-          </Tabs.Tab>
-        </Tabs.List>
+              <Tabs.Panel id="patient-overview" value="overview" pt="md">
+                <OverviewTab patient={patient} />
+              </Tabs.Panel>
+              <Tabs.Panel id="patient-allergies" value="allergies" pt="md">
+                <AllergiesTab patient={patient} />
+              </Tabs.Panel>
+              <Tabs.Panel id="patient-visits" value="visits" pt="md">
+                <VisitsTab patientId={patient.id} />
+              </Tabs.Panel>
+              <Tabs.Panel id="patient-prescriptions" value="prescriptions" pt="md">
+                <PrescriptionsTab patient={patient} />
+              </Tabs.Panel>
+              <Tabs.Panel id="patient-lab" value="lab" pt="md">
+                <LabOrdersTab patientId={patient.id} />
+              </Tabs.Panel>
+              <Tabs.Panel id="patient-imaging" value="imaging" pt="md">
+                <ImagingTab patientId={patient.id} />
+              </Tabs.Panel>
+              <Tabs.Panel id="patient-billing" value="billing" pt="md">
+                <BillingTab patientId={patient.id} />
+              </Tabs.Panel>
+              <Tabs.Panel id="patient-appointments" value="appointments" pt="md">
+                <AppointmentsTab patientId={patient.id} />
+              </Tabs.Panel>
+              <Tabs.Panel id="patient-family" value="family" pt="md">
+                <DetailFamilyLinksTab patientId={patient.id} />
+              </Tabs.Panel>
+              <Tabs.Panel id="patient-documents" value="documents" pt="md">
+                <DetailDocumentsTab patientId={patient.id} />
+              </Tabs.Panel>
+              <Tabs.Panel id="patient-chronic" value="chronic" pt="md">
+                <ChronicCareTab patientId={patient.id} />
+              </Tabs.Panel>
+              <Tabs.Panel id="patient-packages" value="packages" pt="md">
+                <ActivePackagesSection patientId={patient.id} />
+              </Tabs.Panel>
+              <Tabs.Panel id="patient-notes" value="notes" pt="md">
+                <NotesPanel patientId={patient.id} label="Clinical Notes" />
+              </Tabs.Panel>
+              <Tabs.Panel id="patient-merge" value="merge" pt="md">
+                <MergeTab patient={patient} />
+              </Tabs.Panel>
+            </Stack>
+          </Grid.Col>
 
-        <Tabs.Panel value="overview">
-          <OverviewTab patient={patient} />
-        </Tabs.Panel>
-        <Tabs.Panel value="allergies">
-          <AllergiesTab patient={patient} />
-        </Tabs.Panel>
-        <Tabs.Panel value="visits">
-          <VisitsTab patientId={patient.id} />
-        </Tabs.Panel>
-        <Tabs.Panel value="prescriptions">
-          <PrescriptionsTab patient={patient} />
-        </Tabs.Panel>
-        <Tabs.Panel value="lab">
-          <LabOrdersTab patientId={patient.id} />
-        </Tabs.Panel>
-        <Tabs.Panel value="imaging">
-          <ImagingTab patientId={patient.id} />
-        </Tabs.Panel>
-        <Tabs.Panel value="billing">
-          <BillingTab patientId={patient.id} />
-        </Tabs.Panel>
-        <Tabs.Panel value="appointments">
-          <AppointmentsTab patientId={patient.id} />
-        </Tabs.Panel>
-        <Tabs.Panel value="family">
-          <DetailFamilyLinksTab patientId={patient.id} />
-        </Tabs.Panel>
-        <Tabs.Panel value="documents">
-          <DetailDocumentsTab patientId={patient.id} />
-        </Tabs.Panel>
-        <Tabs.Panel value="chronic">
-          <ChronicCareTab patientId={patient.id} />
-        </Tabs.Panel>
-        <Tabs.Panel value="packages">
-          <ActivePackagesSection patientId={patient.id} />
-        </Tabs.Panel>
-        <Tabs.Panel value="notes">
-          <NotesPanel patientId={patient.id} label="Clinical Notes" />
-        </Tabs.Panel>
-        <Tabs.Panel value="merge">
-          <MergeTab patient={patient} />
-        </Tabs.Panel>
+          <Grid.Col span={{ base: 12, lg: 4 }}>
+            <Box className={classes.contextRail}>
+              <Stack gap="sm">
+                <Stack gap={2}>
+                  <Text size="xs" fw={700} c="dimmed" tt="uppercase">
+                    Patient workspace
+                  </Text>
+                  <Text size="sm" fw={700}>
+                    {displayName}
+                  </Text>
+                  <Text size="xs" c="dimmed">
+                    UHID {displayUhid}
+                  </Text>
+                </Stack>
+                <Group gap="xs">
+                  {activeEncounter && (
+                    <Badge color="teal" variant="light">
+                      Active OPD
+                    </Badge>
+                  )}
+                  {activeAdmission && (
+                    <Badge color="primary" variant="light">
+                      Active IPD
+                    </Badge>
+                  )}
+                  {patient.is_deceased && (
+                    <Badge color="dark" variant="filled">
+                      Deceased
+                    </Badge>
+                  )}
+                </Group>
+                <Divider />
+                <Stack gap="xs">
+                  <Text size="xs" fw={700} c="dimmed" tt="uppercase">
+                    Navigate
+                  </Text>
+                  {tabSections.map((section) => (
+                    <Stack key={section} gap={4}>
+                      <Text size="xs" fw={700} c="dimmed">
+                        {section}
+                      </Text>
+                      {detailTabs
+                        .filter((tab) => tab.section === section)
+                        .map((tab) => (
+                          <Button
+                            key={tab.value}
+                            size="xs"
+                            variant={activeDetailTab === tab.value ? "filled" : "light"}
+                            color={activeDetailTab === tab.value ? "primary" : "slate"}
+                            leftSection={tab.icon}
+                            onClick={() => setActivePatientTab(tab.value)}
+                            fullWidth
+                          >
+                            {tab.label}
+                          </Button>
+                        ))}
+                    </Stack>
+                  ))}
+                </Stack>
+                <Divider />
+                <Stack gap="xs">
+                  <Text size="xs" fw={700} c="dimmed" tt="uppercase">
+                    Actions
+                  </Text>
+                  <PatientJourneyActions
+                    context={actionContext}
+                    onEdit={() => navigate(`/patients/${patient.id}/edit`)}
+                    onOpenOrderBasket={openOrderBasket}
+                    onShare={openShare}
+                    onPrintPatientCard={() => {
+                      void handlePrintPatientCard(patient.id);
+                    }}
+                    size="xs"
+                  />
+                  {canViewBillingLedger && (
+                    <Button
+                      size="xs"
+                      variant="light"
+                      color="orange"
+                      leftSection={<IconReceipt size={14} />}
+                      onClick={() => navigate(`/billing?tab=invoices&patient_id=${patient.id}`)}
+                      fullWidth
+                    >
+                      Patient Ledger
+                    </Button>
+                  )}
+                </Stack>
+              </Stack>
+            </Box>
+          </Grid.Col>
+        </Grid>
       </Tabs>
 
       {activeEncounter && (
         <OrderBasketWorkspace
           opened={basketOpen}
-          onClose={() => setBasketOpen(false)}
+          onClose={basketHandlers.close}
           encounterId={activeEncounter.id}
           patientId={patient.id}
           activeTab={basketTab}
           onActiveTabChange={setBasketTab}
         />
       )}
-    </div>
+    </Stack>
   );
 }
