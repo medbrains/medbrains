@@ -1,5 +1,5 @@
-import { useFieldAccess } from "@medbrains/stores";
-import type { QueueEntry } from "@medbrains/types";
+import { useFieldAccess, useHasAnyPermission, useHasPermission } from "@medbrains/stores";
+import { P, type QueueEntry } from "@medbrains/types";
 import { useState } from "react";
 import { FlatList, StyleSheet, View } from "react-native";
 import {
@@ -63,6 +63,8 @@ export function QueueScreen({ route, navigation }: QueueScreenProps) {
   const middleNameAccess = useFieldAccess("patients.middle_name");
   const lastNameAccess = useFieldAccess("patients.last_name");
   const uhidAccess = useFieldAccess("patients.uhid");
+  const canViewQueue = useHasAnyPermission([P.OPD.QUEUE_LIST, P.OPD.QUEUE_VIEW]);
+  const canManageQueue = useHasPermission(P.OPD.TOKEN_MANAGE);
   const patientNameAccess = queuePatientNameAccess(
     firstNameAccess,
     middleNameAccess,
@@ -71,7 +73,11 @@ export function QueueScreen({ route, navigation }: QueueScreenProps) {
 
   const [filter, setFilter] = useState<QueueFilter>("all");
 
-  const { data, isLoading, refetch } = useQueueQuery({ departmentId, filter });
+  const { data, isLoading, refetch } = useQueueQuery({
+    departmentId,
+    enabled: canViewQueue,
+    filter,
+  });
   const callMutation = useCallQueueEntryMutation();
   const startMutation = useStartConsultationMutation();
   const completeMutation = useCompleteQueueEntryMutation();
@@ -109,6 +115,22 @@ export function QueueScreen({ route, navigation }: QueueScreenProps) {
         break;
     }
   };
+
+  if (!canViewQueue) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
+        <View style={styles.emptyContainer}>
+          <Avatar.Icon size={64} icon="shield-lock-outline" style={styles.emptyIcon} />
+          <Text variant="titleMedium" style={styles.emptyTitle}>
+            Queue access restricted
+          </Text>
+          <Text variant="bodyMedium" style={styles.emptyText}>
+            OPD queue visibility is controlled by your permission matrix.
+          </Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
@@ -183,10 +205,12 @@ export function QueueScreen({ route, navigation }: QueueScreenProps) {
                     ? Math.floor((Date.now() - new Date(item.called_at).getTime()) / 60000)
                     : undefined,
                 }}
-                onCall={() => handleQueueItemAction("call", item)}
-                onStart={() => handleQueueItemAction("start", item)}
-                onComplete={() => handleQueueItemAction("complete", item)}
-                onNoShow={() => handleQueueItemAction("noShow", item)}
+                onCall={canManageQueue ? () => handleQueueItemAction("call", item) : undefined}
+                onStart={canManageQueue ? () => handleQueueItemAction("start", item) : undefined}
+                onComplete={
+                  canManageQueue ? () => handleQueueItemAction("complete", item) : undefined
+                }
+                onNoShow={canManageQueue ? () => handleQueueItemAction("noShow", item) : undefined}
               />
             );
           }}

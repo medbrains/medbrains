@@ -1,5 +1,10 @@
-import { useAuthStore, useFieldAccess } from "@medbrains/stores";
-import type { FieldAccessLevel, QueueEntry } from "@medbrains/types";
+import {
+  useAuthStore,
+  useFieldAccess,
+  useHasAnyPermission,
+  useHasPermission,
+} from "@medbrains/stores";
+import { type FieldAccessLevel, P, type QueueEntry } from "@medbrains/types";
 import { useMemo } from "react";
 import { ScrollView, StyleSheet, TouchableOpacity, View } from "react-native";
 import {
@@ -30,6 +35,7 @@ type StaffDashboardRoute =
   | "Queue"
   | "Vitals"
   | "Prescription"
+  | "LabOrder"
   | "LabResultsView"
   | "PatientDetail";
 
@@ -45,6 +51,14 @@ interface StatCard {
   value: number;
   icon: string;
   color: string;
+}
+
+interface QuickAction {
+  id: string;
+  enabled: boolean;
+  icon: string;
+  label: string;
+  route: StaffDashboardRoute;
 }
 
 function StatCardItem({ stat }: { stat: StatCard }) {
@@ -130,13 +144,21 @@ export function StaffDashboard({ navigation }: StaffDashboardProps) {
   const middleNameAccess = useFieldAccess("patients.middle_name");
   const lastNameAccess = useFieldAccess("patients.last_name");
   const uhidAccess = useFieldAccess("patients.uhid");
+  const canViewQueue = useHasAnyPermission([P.OPD.QUEUE_LIST, P.OPD.QUEUE_VIEW]);
+  const canManageQueue = useHasPermission(P.OPD.TOKEN_MANAGE);
+  const canFindPatients = useHasPermission(P.PATIENTS.LIST);
+  const canRecordVitals = useHasPermission(P.OPD.VITALS.CREATE);
+  const canSignOrders = useHasPermission(P.ORDER_BASKET.SIGN);
+  const canViewLabReports = useHasPermission(P.LAB.REPORTS_VIEW);
   const patientNameAccess = queuePatientNameAccess(
     firstNameAccess,
     middleNameAccess,
     lastNameAccess,
   );
 
-  const { data, isError, isFetching, isLoading, refetch } = useStaffDashboardQueueQuery();
+  const { data, isError, isFetching, isLoading, refetch } = useStaffDashboardQueueQuery({
+    enabled: canViewQueue,
+  });
   const callMutation = useCallQueueEntryMutation();
   const startMutation = useStartConsultationMutation();
   const completeMutation = useCompleteQueueEntryMutation();
@@ -195,6 +217,58 @@ export function StaffDashboard({ navigation }: StaffDashboardProps) {
 
   const staffName = user?.full_name ?? user?.username ?? "Staff";
   const roleLabel = formatRole(user?.role);
+  const enabledFlowLabels = [
+    canFindPatients ? "Patient" : null,
+    canViewQueue ? "Queue" : null,
+    canRecordVitals ? "Vitals" : null,
+    canSignOrders ? "Orders" : null,
+    canViewLabReports ? "Results" : null,
+  ].filter((label): label is string => Boolean(label));
+  const quickActions: QuickAction[] = [
+    {
+      id: "queue",
+      enabled: canViewQueue,
+      icon: "clipboard-list",
+      label: "Full Queue",
+      route: "Queue",
+    },
+    {
+      id: "patient-search",
+      enabled: canFindPatients,
+      icon: "account-search",
+      label: "Find Patient",
+      route: "PatientSearch",
+    },
+    {
+      id: "vitals",
+      enabled: canRecordVitals,
+      icon: "heart-pulse",
+      label: "Vitals",
+      route: "Vitals",
+    },
+    {
+      id: "prescription",
+      enabled: canSignOrders,
+      icon: "file-document-edit",
+      label: "Write Rx",
+      route: "Prescription",
+    },
+    {
+      id: "lab-order",
+      enabled: canSignOrders,
+      icon: "flask-plus",
+      label: "Lab Order",
+      route: "LabOrder",
+    },
+    {
+      id: "lab-results",
+      enabled: canViewLabReports,
+      icon: "flask",
+      label: "Lab Results",
+      route: "LabResultsView",
+    },
+  ];
+  const enabledQuickActions = quickActions.filter((action) => action.enabled);
 
   const handleStartConsultation = (item: QueueEntry) => {
     startMutation.mutate(item.id, {
@@ -230,12 +304,39 @@ export function StaffDashboard({ navigation }: StaffDashboardProps) {
           ))}
         </View>
 
+        <Surface style={styles.flowPanel} elevation={1}>
+          <Text variant="labelSmall" style={styles.flowLabel}>
+            Enabled mobile flow
+          </Text>
+          <View style={styles.flowChips}>
+            {enabledFlowLabels.length > 0 ? (
+              enabledFlowLabels.map((label) => (
+                <Chip key={label} compact mode="outlined" style={styles.flowChip}>
+                  {label}
+                </Chip>
+              ))
+            ) : (
+              <Text variant="bodySmall" style={styles.stateText}>
+                No mobile workflow actions are enabled for this role.
+              </Text>
+            )}
+          </View>
+        </Surface>
+
         <View style={styles.sectionHeader}>
           <Text variant="titleMedium">Current Queue</Text>
           <Badge size={24}>{stats.waiting}</Badge>
         </View>
 
-        {isLoading ? (
+        {!canViewQueue ? (
+          <Surface style={styles.statePanel} elevation={1}>
+            <Avatar.Icon size={48} icon="shield-lock-outline" style={styles.stateIcon} />
+            <Text variant="titleSmall">Queue restricted</Text>
+            <Text variant="bodySmall" style={styles.stateText}>
+              OPD queue visibility is controlled by your permission matrix.
+            </Text>
+          </Surface>
+        ) : isLoading ? (
           <Surface style={styles.statePanel} elevation={1}>
             <ActivityIndicator size="large" />
             <Text variant="bodyMedium" style={styles.stateText}>
@@ -261,10 +362,10 @@ export function StaffDashboard({ navigation }: StaffDashboardProps) {
               <QueueItem
                 key={item.id}
                 item={queueItemView(item, { name: patientNameAccess, uhid: uhidAccess })}
-                onCall={() => callMutation.mutate(item.id)}
-                onStart={() => handleStartConsultation(item)}
-                onComplete={() => completeMutation.mutate(item.id)}
-                onNoShow={() => noShowMutation.mutate(item.id)}
+                onCall={canManageQueue ? () => callMutation.mutate(item.id) : undefined}
+                onStart={canManageQueue ? () => handleStartConsultation(item) : undefined}
+                onComplete={canManageQueue ? () => completeMutation.mutate(item.id) : undefined}
+                onNoShow={canManageQueue ? () => noShowMutation.mutate(item.id) : undefined}
                 compact
               />
             ))}
@@ -283,47 +384,37 @@ export function StaffDashboard({ navigation }: StaffDashboardProps) {
           Quick Actions
         </Text>
         <View style={styles.quickActions}>
-          <TouchableOpacity style={styles.quickAction} onPress={() => navigation.navigate("Queue")}>
-            <Avatar.Icon size={40} icon="clipboard-list" />
-            <Text variant="labelMedium">Full Queue</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.quickAction}
-            onPress={() => navigation.navigate("PatientSearch")}
-          >
-            <Avatar.Icon size={40} icon="account-search" />
-            <Text variant="labelMedium">Find Patient</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.quickAction}
-            onPress={() => navigation.navigate("Vitals")}
-          >
-            <Avatar.Icon size={40} icon="heart-pulse" />
-            <Text variant="labelMedium">Vitals</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.quickAction}
-            onPress={() => navigation.navigate("Prescription")}
-          >
-            <Avatar.Icon size={40} icon="file-document-edit" />
-            <Text variant="labelMedium">Write Rx</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.quickAction}
-            onPress={() => navigation.navigate("LabResultsView")}
-          >
-            <Avatar.Icon size={40} icon="flask" />
-            <Text variant="labelMedium">Lab Results</Text>
-          </TouchableOpacity>
+          {enabledQuickActions.length > 0 ? (
+            enabledQuickActions.map((action) => (
+              <TouchableOpacity
+                key={action.id}
+                style={styles.quickAction}
+                onPress={() => navigation.navigate(action.route)}
+              >
+                <Avatar.Icon size={40} icon={action.icon} />
+                <Text variant="labelMedium">{action.label}</Text>
+              </TouchableOpacity>
+            ))
+          ) : (
+            <Surface style={styles.statePanel} elevation={1}>
+              <Avatar.Icon size={48} icon="shield-lock-outline" style={styles.stateIcon} />
+              <Text variant="titleSmall">No enabled shortcuts</Text>
+              <Text variant="bodySmall" style={styles.stateText}>
+                Your role has no mobile workflow actions enabled.
+              </Text>
+            </Surface>
+          )}
         </View>
       </ScrollView>
 
-      <FAB
-        icon="account-search"
-        style={styles.fab}
-        onPress={() => navigation.navigate("PatientSearch")}
-        label="Find"
-      />
+      {canFindPatients && (
+        <FAB
+          icon="account-search"
+          style={styles.fab}
+          onPress={() => navigation.navigate("PatientSearch")}
+          label="Find"
+        />
+      )}
     </SafeAreaView>
   );
 }
@@ -368,6 +459,25 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     gap: 12,
   },
+  flowPanel: {
+    gap: 10,
+    marginTop: 16,
+    padding: 14,
+    borderRadius: 14,
+  },
+  flowLabel: {
+    opacity: 0.6,
+    textTransform: "uppercase",
+    letterSpacing: 1,
+  },
+  flowChips: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  flowChip: {
+    backgroundColor: MEDBRAINS_COLORS.navActiveBg,
+  },
   statCard: {
     width: "48%",
     flexDirection: "row",
@@ -394,6 +504,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     gap: 8,
     padding: 20,
+    width: "100%",
   },
   stateIcon: {
     backgroundColor: MEDBRAINS_COLORS.statusSuccessBg,

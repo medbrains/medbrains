@@ -26,22 +26,26 @@ function queueParams(
 
 export function useQueueQuery({
   departmentId,
+  enabled = true,
   filter,
 }: {
   departmentId?: string;
+  enabled?: boolean;
   filter: QueueFilter;
 }) {
   return useQuery<QueueEntry[]>({
     queryKey: [...QUEUE_QUERY_KEY, departmentId ?? "all-departments", filter],
     queryFn: () => queueService.listQueue(queueParams(departmentId, filter)),
+    enabled,
     refetchInterval: 30000,
   });
 }
 
-export function useStaffDashboardQueueQuery() {
+export function useStaffDashboardQueueQuery(options?: { enabled?: boolean }) {
   return useQuery<QueueEntry[]>({
     queryKey: [...QUEUE_QUERY_KEY, "staff-dashboard"],
     queryFn: () => queueService.listQueue({}),
+    enabled: options?.enabled ?? true,
     refetchInterval: 30000,
   });
 }
