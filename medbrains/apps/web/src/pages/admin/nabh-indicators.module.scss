@@ -1,0 +1,61 @@
+.indicatorWorkspace {
+  gap: var(--mantine-spacing-md);
+}
+
+.commandBar {
+  position: sticky;
+  top: calc(var(--app-shell-header-height, 72px) + var(--mantine-spacing-xs));
+  z-index: 12;
+  border-left: 4px solid light-dark(var(--mantine-color-teal-6), var(--mantine-color-teal-4));
+  background: light-dark(rgba(255, 255, 255, 0.96), rgba(26, 27, 30, 0.94));
+  box-shadow: 0 12px 28px light-dark(rgba(15, 23, 42, 0.08), rgba(0, 0, 0, 0.24));
+  backdrop-filter: blur(10px);
+}
+
+.commandControls {
+  flex: 1;
+  justify-content: flex-end;
+}
+
+.searchInput {
+  width: min(380px, 100%);
+}
+
+.categorySelect {
+  width: min(220px, 100%);
+}
+
+.indicatorGrid {
+  align-items: flex-start;
+}
+
+.evidenceRail {
+  position: sticky;
+  top: calc(var(--app-shell-header-height, 72px) + 164px);
+  max-height: calc(100dvh - var(--app-shell-header-height, 72px) - 180px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  background:
+    linear-gradient(180deg, light-dark(var(--mantine-color-teal-0), rgba(18, 184, 134, 0.14)), transparent 42%),
+    light-dark(var(--mantine-color-white), var(--mantine-color-dark-7));
+}
+
+@media (max-width: 992px) {
+  .commandBar,
+  .evidenceRail {
+    position: static;
+    max-height: none;
+  }
+
+  .commandControls {
+    justify-content: flex-start;
+    width: 100%;
+  }
+
+  .searchInput,
+  .categorySelect {
+    flex: 1;
+    min-width: min(260px, 100%);
+  }
+}
