@@ -1,16 +1,10 @@
 import type { FieldAccessLevel } from "@medbrains/types";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
+import { createSessionStorageAdapter } from "./platform-storage.js";
 
 /** Bypass roles — these skip all permission checks */
 const BYPASS_ROLES = new Set(["super_admin", "hospital_admin"]);
-
-function sessionPermissionStorage(): Storage {
-  if (typeof sessionStorage === "undefined") {
-    throw new Error("sessionStorage is unavailable");
-  }
-  return sessionStorage;
-}
 
 interface PermissionState {
   userPermissions: Set<string>;
@@ -31,8 +25,10 @@ interface PermissionState {
 }
 
 /**
- * Permissions live in **sessionStorage** — auto-cleared on tab close
- * for safety, persists across page reloads within the tab.
+ * Permissions live in **sessionStorage** on web — auto-cleared on tab close
+ * for safety, persists across page reloads within the tab. Native runtimes
+ * use in-memory storage so importing the permission matrix does not crash
+ * mobile or TV shells that do not expose browser storage.
  *
  * Sets are not JSON-serializable; we serialize as arrays via the
  * partialize/onRehydrate hooks.
@@ -92,7 +88,7 @@ export const usePermissionStore = create<PermissionState>()(
     }),
     {
       name: "perm-cache",
-      storage: createJSONStorage(sessionPermissionStorage, {
+      storage: createJSONStorage(createSessionStorageAdapter, {
         // Serialize Set<string> as array
         replacer: (_key, value) => (value instanceof Set ? Array.from(value) : value),
         // Rehydrate stored array back into a Set

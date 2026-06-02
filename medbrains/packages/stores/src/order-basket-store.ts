@@ -1,17 +1,15 @@
-import type {
-  BasketItem,
-  BasketWarning,
-  BasketWarningAck,
-} from "@medbrains/types";
+import type { BasketItem, BasketWarning, BasketWarningAck } from "@medbrains/types";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
+import { createSessionStorageAdapter } from "./platform-storage.js";
 
 /// Order Basket — atomic cross-module order signing.
 /// See `RFCs/sprints/SPRINT-order-basket.md`.
 ///
 /// Store lives in **sessionStorage** (not localStorage) — clinical data
 /// must not survive browser close. On encounter close or successful sign,
-/// the store is cleared.
+/// the store is cleared. Native shells use in-memory storage for the same
+/// no-durable-clinical-data behavior.
 
 interface OrderBasketState {
   encounterId: string | null;
@@ -120,8 +118,8 @@ export const useOrderBasketStore = create<OrderBasketState>()(
     }),
     {
       name: "medbrains-order-basket",
-      // sessionStorage so basket dies with the browser session
-      storage: createJSONStorage(() => sessionStorage),
+      // sessionStorage on web; memory-only in native shells
+      storage: createJSONStorage(createSessionStorageAdapter),
       // Don't persist transient flags
       partialize: (state) => ({
         encounterId: state.encounterId,
