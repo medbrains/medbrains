@@ -69,6 +69,7 @@ import type {
   DischargeType,
   EstimatedCostResponse,
   ExpectedDischargeRow,
+  FieldAccessLevel,
   InvestigationsResponse,
   IpdBirthRecord,
   IpdCarePlan,
@@ -102,6 +103,7 @@ import type {
   WardListRow,
 } from "@medbrains/types";
 import { P } from "@medbrains/types";
+import { fieldAccessText } from "@medbrains/utils";
 import {
   IconAlertTriangle,
   IconArrowRight,
@@ -139,6 +141,7 @@ import {
   PrescriptionViews,
   StatusDot,
   useClinicalEmit,
+  useProtectedFieldAccess,
 } from "@/components";
 import { BedSelect } from "@/components/BedSelect";
 import { DepartmentSelect } from "@/components/DepartmentSelect";
@@ -238,6 +241,28 @@ const IPD_WORKSPACE_TABS = [
 const IPD_WORKSPACE_TAB_VALUES = IPD_WORKSPACE_TABS.map((tab) => tab.value);
 const IPD_WORKSPACE_SECTIONS = ["Command", "Care Context", "Finance & Admin", "Discharge"] as const;
 
+const PATIENT_NAME_FIELD_ACCESS_KEYS = [
+  "patients.first_name",
+  "patients.middle_name",
+  "patients.last_name",
+];
+
+function protectedIpdPatientName(
+  patientName: string | null | undefined,
+  access: FieldAccessLevel,
+): string {
+  const displayValue = fieldAccessText(access, patientName, "name");
+  return displayValue === "—" ? "Patient" : displayValue;
+}
+
+function protectedIpdPatientIdentifier(
+  identifier: string | null | undefined,
+  access: FieldAccessLevel,
+): string {
+  const displayValue = fieldAccessText(access, identifier, "identifier");
+  return displayValue === "—" ? "No UHID" : displayValue;
+}
+
 function firstIpdWorkspaceTabForSection(section: (typeof IPD_WORKSPACE_SECTIONS)[number]) {
   return IPD_WORKSPACE_TABS.find((tab) => tab.section === section)?.value ?? "overview";
 }
@@ -335,7 +360,7 @@ function AdmissionsTab() {
     {
       key: "patient_name",
       label: "Patient",
-      fieldAccessKeys: ["patients.uhid", "patients.first_name", "patients.last_name"],
+      fieldAccessKeys: ["patients.uhid", ...PATIENT_NAME_FIELD_ACCESS_KEYS],
       accessor: (row: AdmissionRow) => row.patient_name,
       fieldKind: "name",
       hiddenLabel: "Patient restricted",
@@ -1930,6 +1955,8 @@ function AdmissionPrescriptionsTab({
   encounterId: string;
   patientId: string;
 }) {
+  const patientNameAccess = useProtectedFieldAccess(undefined, PATIENT_NAME_FIELD_ACCESS_KEYS);
+  const uhidAccess = useProtectedFieldAccess("patients.uhid");
   const { data: prescriptions = [] } = useQuery<PrescriptionWithItems[]>({
     queryKey: ["encounter-prescriptions", encounterId],
     queryFn: () => ipdService.listPrescriptions(encounterId),
@@ -1952,12 +1979,14 @@ function AdmissionPrescriptionsTab({
     ? `${patient.first_name} ${patient.middle_name ?? ""} ${patient.last_name}`.trim()
     : patientId.slice(0, 8);
   const uhid = patient?.uhid ?? patientId.slice(0, 8);
+  const patientName = protectedIpdPatientName(fullName, patientNameAccess);
+  const patientUhid = protectedIpdPatientIdentifier(uhid, uhidAccess);
 
   return (
     <PrescriptionViews
       prescriptions={prescriptions}
-      patientName={fullName}
-      uhid={uhid}
+      patientName={patientName}
+      uhid={patientUhid}
       allergies={[]}
     />
   );
@@ -3029,6 +3058,8 @@ function EditWardDrawer({ ward, onClose }: { ward: WardListRow | null; onClose: 
 
 function WardBedsPanel({ wardId, canManage }: { wardId: string; canManage: boolean }) {
   const queryClient = useQueryClient();
+  const patientNameAccess = useProtectedFieldAccess(undefined, PATIENT_NAME_FIELD_ACCESS_KEYS);
+  const uhidAccess = useProtectedFieldAccess("patients.uhid");
   const [bedLocationId, setBedLocationId] = useState("");
   const [bedTypeId, setBedTypeId] = useState("");
 
@@ -3095,47 +3126,52 @@ function WardBedsPanel({ wardId, canManage }: { wardId: string; canManage: boole
           </Table.Tr>
         </Table.Thead>
         <Table.Tbody>
-          {beds.map((b) => (
-            <Table.Tr key={b.mapping_id}>
-              <Table.Td>
-                <Text size="sm">{b.bed_name}</Text>
-              </Table.Td>
-              <Table.Td>
-                <Text size="sm">{b.bed_type_name ?? "—"}</Text>
-              </Table.Td>
-              <Table.Td>
-                <Badge size="xs" color={bedStatusColors[b.status] ?? "slate"}>
-                  {b.status}
-                </Badge>
-              </Table.Td>
-              <Table.Td>
-                {b.patient_name ? (
-                  <Stack gap={0}>
-                    <Text size="xs">{b.patient_name}</Text>
-                    <Text size="xs" c="dimmed">
-                      {b.patient_uhid}
-                    </Text>
-                  </Stack>
-                ) : (
-                  "—"
-                )}
-              </Table.Td>
-              {canManage && (
+          {beds.map((b) => {
+            const patientName = protectedIpdPatientName(b.patient_name, patientNameAccess);
+            const patientUhid = protectedIpdPatientIdentifier(b.patient_uhid, uhidAccess);
+
+            return (
+              <Table.Tr key={b.mapping_id}>
                 <Table.Td>
-                  <Tooltip label="Remove from ward">
-                    <ActionIcon
-                      variant="subtle"
-                      color="danger"
-                      onClick={() => removeMutation.mutate(b.mapping_id)}
-                      disabled={b.status === "occupied"}
-                    >
-                      <IconTrash size={14} />
-                    </ActionIcon>
-                  </Tooltip>
+                  <Text size="sm">{b.bed_name}</Text>
                 </Table.Td>
-              )}
-            </Table.Tr>
-          ))}
+                <Table.Td>
+                  <Text size="sm">{b.bed_type_name ?? "—"}</Text>
+                </Table.Td>
+                <Table.Td>
+                  <Badge size="xs" color={bedStatusColors[b.status] ?? "slate"}>
+                    {b.status}
+                  </Badge>
+                </Table.Td>
+                <Table.Td>
+                  {b.patient_name ? (
+                    <Stack gap={0}>
+                      <Text size="xs">{patientName}</Text>
+                      <Text size="xs" c="dimmed">
+                        {patientUhid}
+                      </Text>
+                    </Stack>
+                  ) : (
+                    "—"
+                  )}
+                </Table.Td>
+                {canManage && (
+                  <Table.Td>
+                    <Tooltip label="Remove from ward">
+                      <ActionIcon
+                        variant="subtle"
+                        color="danger"
+                        onClick={() => removeMutation.mutate(b.mapping_id)}
+                        disabled={b.status === "occupied"}
+                      >
+                        <IconTrash size={14} />
+                      </ActionIcon>
+                    </Tooltip>
+                  </Table.Td>
+                )}
+              </Table.Tr>
+            );
+          })}
         </Table.Tbody>
       </Table>
       {beds.length === 0 && (
@@ -3321,6 +3357,8 @@ function BedDashboardTab() {
   const [filterStatus, setFilterStatus] = useState<string | null>(null);
   const [filterIpType, setFilterIpType] = useState<string | null>(null);
   const [showTurnaround, setShowTurnaround] = useState(false);
+  const patientNameAccess = useProtectedFieldAccess(undefined, PATIENT_NAME_FIELD_ACCESS_KEYS);
+  const uhidAccess = useProtectedFieldAccess("patients.uhid");
 
   const { data: summaryData } = useQuery({
     queryKey: ["ipd-bed-dashboard-summary"],
@@ -3483,6 +3521,8 @@ function BedDashboardTab() {
         <SimpleGrid cols={{ base: 2, sm: 3, md: 4, lg: 6 }}>
           {beds.map((bed) => {
             const bedStatus = bed.bed_status;
+            const patientName = protectedIpdPatientName(bed.patient_name, patientNameAccess);
+            const patientUhid = protectedIpdPatientIdentifier(bed.patient_uhid, uhidAccess);
 
             return (
               <Card
@@ -3504,9 +3544,9 @@ function BedDashboardTab() {
                 </Badge>
                 {bed.patient_name && (
                   <Stack gap={0} mt={4}>
-                    <Text size="xs">{bed.patient_name}</Text>
+                    <Text size="xs">{patientName}</Text>
                     <Text size="xs" c="dimmed">
-                      {bed.patient_uhid}
+                      {patientUhid}
                     </Text>
                   </Stack>
                 )}
@@ -5309,6 +5349,8 @@ const IPD_ADMISSION_PRINT_COPIES = PRINT_COPY_PACKETS.ipdAdmission;
 function PrintAdmissionButton({ admissionId }: { admissionId: string }) {
   const printRef = useRef<HTMLDivElement | null>(null);
   const [printing, setPrinting] = useState(false);
+  const patientNameAccess = useProtectedFieldAccess(undefined, PATIENT_NAME_FIELD_ACCESS_KEYS);
+  const uhidAccess = useProtectedFieldAccess("patients.uhid");
   const { data } = useQuery({
     queryKey: ["ipd-print", admissionId],
     queryFn: () => ipdService.getAdmissionPrintData(admissionId),
@@ -5316,6 +5358,12 @@ function PrintAdmissionButton({ admissionId }: { admissionId: string }) {
   });
 
   const printData = data as AdmissionPrintData | undefined;
+  const printablePatientName = printData
+    ? protectedIpdPatientName(printData.patient_name, patientNameAccess)
+    : "Patient";
+  const printableUhid = printData
+    ? protectedIpdPatientIdentifier(printData.uhid, uhidAccess)
+    : "No UHID";
 
   const handlePrint = () => {
     if (!printRef.current || !printData) return;
@@ -5326,7 +5374,7 @@ function PrintAdmissionButton({ admissionId }: { admissionId: string }) {
       <!DOCTYPE html>
       <html>
         <head>
-          <title>Admission Slip - ${printData.uhid}</title>
+          <title>Admission Slip - ${printableUhid}</title>
           <style>
             * { box-sizing: border-box; }
             body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; padding: 24px; color: #111; font-size: 13px; }
@@ -5389,7 +5437,7 @@ function PrintAdmissionButton({ admissionId }: { admissionId: string }) {
                 Patient Name
               </Text>
               <Text fw={500} className="value">
-                {printData.patient_name}
+                {printablePatientName}
               </Text>
             </div>
             <div>
@@ -5397,7 +5445,7 @@ function PrintAdmissionButton({ admissionId }: { admissionId: string }) {
                 UHID
               </Text>
               <Text fw={500} className="value">
-                {printData.uhid}
+                {printableUhid}
               </Text>
             </div>
             <div>
@@ -6209,6 +6257,7 @@ function GenerateDischargeSummaryModal({
   opened: boolean;
   onClose: () => void;
 }) {
+  const patientNameAccess = useProtectedFieldAccess(undefined, PATIENT_NAME_FIELD_ACCESS_KEYS);
   const { data, isLoading, refetch } = useQuery({
     queryKey: ["generated-discharge-summary", admissionId],
     queryFn: () => ipdService.generateDischargeSummary(admissionId),
@@ -6235,6 +6284,9 @@ function GenerateDischargeSummaryModal({
   });
 
   const summary = data as DischargeSummaryGenerated | undefined;
+  const patientName = summary
+    ? protectedIpdPatientName(summary.patient_name, patientNameAccess)
+    : "Patient";
 
   return (
     <Modal opened={opened} onClose={onClose} title="Discharge Summary" size="lg">
@@ -6249,7 +6301,7 @@ function GenerateDischargeSummaryModal({
           <Stack gap="sm">
             <Group>
               <Text fw={600}>Patient:</Text>
-              <Text>{summary.patient_name}</Text>
+              <Text>{patientName}</Text>
             </Group>
             <Group>
               <Text fw={600}>Admission Date:</Text>
@@ -6396,6 +6448,10 @@ function ExpectedDischargesTab() {
     {
       key: "patient_name",
       label: "Patient",
+      fieldAccessKeys: PATIENT_NAME_FIELD_ACCESS_KEYS,
+      accessor: (row: ExpectedDischargeRow) => row.patient_name,
+      fieldKind: "name",
+      hiddenLabel: "Patient restricted",
       render: (row: ExpectedDischargeRow) => (
         <Text size="sm" fw={500}>
           {row.patient_name}
@@ -6437,7 +6493,7 @@ function ExpectedDischargesTab() {
         </Badge>
       ),
     },
-  ];
+  ] satisfies Column<ExpectedDischargeRow>[];
 
   return (
     <Stack>
@@ -6467,6 +6523,7 @@ function ExpectedDischargesTab() {
 }
 
 function AnesthesiaComplicationsReport({ from, to }: { from: string; to: string }) {
+  const patientNameAccess = useProtectedFieldAccess(undefined, PATIENT_NAME_FIELD_ACCESS_KEYS);
   const { data, isLoading } = useQuery({
     queryKey: ["ot-anesthesia-complications", from, to],
     queryFn: () =>
@@ -6496,36 +6553,40 @@ function AnesthesiaComplicationsReport({ from, to }: { from: string; to: string 
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
-            {rows.map((r) => (
-              <Table.Tr key={r.case_id}>
-                <Table.Td>
-                  <Text size="sm">{r.case_date}</Text>
-                </Table.Td>
-                <Table.Td>
-                  <Text size="sm" fw={500}>
-                    {r.patient_name}
-                  </Text>
-                </Table.Td>
-                <Table.Td>
-                  <Text size="sm">{r.procedure_name}</Text>
-                </Table.Td>
-                <Table.Td>
-                  <Badge size="sm" variant="light">
-                    {r.anesthesia_type}
-                  </Badge>
-                </Table.Td>
-                <Table.Td>
-                  <Text size="sm" c="danger" lineClamp={2}>
-                    {r.complications ?? "—"}
-                  </Text>
-                  {r.adverse_events != null && typeof r.adverse_events === "object" ? (
-                    <Badge size="xs" color="danger" variant="light" mt={2}>
-                      Has adverse events
+            {rows.map((r) => {
+              const patientName = protectedIpdPatientName(r.patient_name, patientNameAccess);
+
+              return (
+                <Table.Tr key={r.case_id}>
+                  <Table.Td>
+                    <Text size="sm">{r.case_date}</Text>
+                  </Table.Td>
+                  <Table.Td>
+                    <Text size="sm" fw={500}>
+                      {patientName}
+                    </Text>
+                  </Table.Td>
+                  <Table.Td>
+                    <Text size="sm">{r.procedure_name}</Text>
+                  </Table.Td>
+                  <Table.Td>
+                    <Badge size="sm" variant="light">
+                      {r.anesthesia_type}
                     </Badge>
-                  ) : null}
-                </Table.Td>
-              </Table.Tr>
-            ))}
+                  </Table.Td>
+                  <Table.Td>
+                    <Text size="sm" c="danger" lineClamp={2}>
+                      {r.complications ?? "—"}
+                    </Text>
+                    {r.adverse_events != null && typeof r.adverse_events === "object" ? (
+                      <Badge size="xs" color="danger" variant="light" mt={2}>
+                        Has adverse events
+                      </Badge>
+                    ) : null}
+                  </Table.Td>
+                </Table.Tr>
+              );
+            })}
           </Table.Tbody>
         </Table>
       )}
