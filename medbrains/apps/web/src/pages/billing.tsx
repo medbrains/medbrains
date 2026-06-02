@@ -1061,14 +1061,18 @@ function CreateInvoiceDrawer({ opened, onClose }: { opened: boolean; onClose: ()
 
   const createMutation = useMutation({
     mutationFn: (data: CreateInvoiceRequest) => billingService.createInvoice(data),
-    onSuccess: (_result, variables) => {
+    onSuccess: (result) => {
       void queryClient.invalidateQueries({ queryKey: ["invoices"] });
       notifications.show({
         title: "Invoice created",
         message: "Draft invoice created",
         color: "success",
       });
-      emit("invoice.created", { patient_id: variables.patient_id });
+      emit("invoice.created", {
+        invoice_id: result.id,
+        patient_id: result.patient_id,
+        total_amount: result.total_amount,
+      });
       onClose();
       setPatientId("");
       setEncounterId("");
@@ -2419,7 +2423,11 @@ function ErFastInvoiceModal({ opened, onClose }: { opened: boolean; onClose: () 
         message: `Invoice ${(result as Invoice).invoice_number} created`,
         color: "success",
       });
-      emit("invoice.created", { invoice_id: (result as Invoice).id });
+      emit("invoice.created", {
+        invoice_id: (result as Invoice).id,
+        patient_id: (result as Invoice).patient_id,
+        total_amount: (result as Invoice).total_amount,
+      });
       onClose();
       reset();
     },
