@@ -1,0 +1,64 @@
+.queueMetricGrid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(150px, 1fr));
+  gap: var(--mantine-spacing-sm);
+}
+
+.queueMetric {
+  min-height: 96px;
+  padding: var(--mantine-spacing-md);
+  border: 1px solid light-dark(var(--mantine-color-gray-3), var(--mantine-color-dark-4));
+  border-radius: var(--mantine-radius-md);
+  background: light-dark(var(--mantine-color-white), var(--mantine-color-dark-7));
+}
+
+.queueLane {
+  min-height: 156px;
+  padding: var(--mantine-spacing-md);
+  border: 1px solid light-dark(var(--mantine-color-gray-3), var(--mantine-color-dark-4));
+  border-radius: var(--mantine-radius-md);
+  background:
+    linear-gradient(90deg, light-dark(var(--mantine-color-teal-6), var(--mantine-color-teal-5)) 0 4px, transparent 4px),
+    light-dark(var(--mantine-color-white), var(--mantine-color-dark-7));
+}
+
+.generatePanel {
+  padding: var(--mantine-spacing-md);
+  border: 1px solid light-dark(var(--mantine-color-blue-2), var(--mantine-color-dark-4));
+  border-radius: var(--mantine-radius-md);
+  background: light-dark(var(--mantine-color-blue-0), rgba(51, 154, 240, 0.12));
+}
+
+.queueToolbar {
+  padding: var(--mantine-spacing-xs) 0;
+}
+
+.tokenFormField {
+  flex: 1 1 220px;
+  min-width: min(100%, 220px);
+}
+
+.tokenPriorityField {
+  flex: 0 1 190px;
+  min-width: min(100%, 170px);
+}
+
+.tokenSubmitButton {
+  align-self: flex-end;
+}
+
+@media (max-width: 1100px) {
+  .queueMetricGrid {
+    grid-template-columns: repeat(2, minmax(150px, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .queueMetricGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .tokenSubmitButton {
+    width: 100%;
+  }
+}

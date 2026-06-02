@@ -2,6 +2,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import {
   ActionIcon,
   Badge,
+  Box,
   Button,
   Card,
   Drawer,
@@ -69,6 +70,7 @@ import {
 } from "@/forms/tv-displays.form";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { tvDisplaysService } from "@/services/tvDisplays.service";
+import styles from "./tv-displays.module.scss";
 
 // ── Constants ──────────────────────────────────────────
 
@@ -137,6 +139,7 @@ interface DepartmentQueueLane {
   departmentName: string;
   currentTokens: QueueToken[];
   displayCount: number;
+  nextToken: QueueToken | null;
   nextTokens: QueueToken[];
   waitingCount: number;
 }
@@ -618,6 +621,7 @@ function QueueTokensTab({ canManage }: { canManage: boolean }) {
         displayCount: opdDisplays.filter(
           (display) => !display.department_id || display.department_id === departmentId,
         ).length,
+        nextToken: null,
         nextTokens: [],
         waitingCount: 0,
       };
@@ -630,6 +634,7 @@ function QueueTokensTab({ canManage }: { canManage: boolean }) {
       if (token.status === "waiting") {
         lane.waitingCount += 1;
         lane.nextTokens.push(token);
+        lane.nextToken ??= token;
       }
       if (token.status === "called" || token.status === "in_progress") {
         lane.currentTokens.push(token);
@@ -783,81 +788,130 @@ function QueueTokensTab({ canManage }: { canManage: boolean }) {
 
   return (
     <>
-      <SimpleGrid cols={{ base: 1, sm: 2, lg: 5 }} mb="md">
-        <Card withBorder>
+      <Box className={styles.queueMetricGrid} mb="md">
+        <Box className={styles.queueMetric}>
           <Text size="sm" c="dimmed">
             Now Serving
           </Text>
           <Text size="xl" fw={700}>
             {queueSummary.currentTokens.map((token) => token.token_number).join(", ") || "-"}
           </Text>
-        </Card>
-        <Card withBorder>
+        </Box>
+        <Box className={styles.queueMetric}>
           <Text size="sm" c="dimmed">
             Waiting
           </Text>
           <Text size="xl" fw={700} c="primary">
             {queueSummary.waitingTokens.length}
           </Text>
-        </Card>
-        <Card withBorder>
+        </Box>
+        <Box className={styles.queueMetric}>
           <Text size="sm" c="dimmed">
             Completed Today
           </Text>
           <Text size="xl" fw={700} c="success">
             {queueSummary.completedTokens.length}
           </Text>
-        </Card>
-        <Card withBorder>
+        </Box>
+        <Box className={styles.queueMetric}>
           <Text size="sm" c="dimmed">
             No Shows
           </Text>
           <Text size="xl" fw={700} c="danger">
             {queueSummary.noShowTokens.length}
           </Text>
-        </Card>
-        <Card withBorder>
+        </Box>
+        <Box className={styles.queueMetric}>
           <Text size="sm" c="dimmed">
             Linked Displays
           </Text>
           <Text size="xl" fw={700}>
             {queueSummary.scopedDisplays.length}
           </Text>
-        </Card>
-      </SimpleGrid>
+        </Box>
+      </Box>
 
       {departmentLanes.length > 0 && (
-        <SimpleGrid cols={{ base: 1, md: 2, xl: 3 }} mb="md">
-          {departmentLanes.map((lane) => (
-            <Card key={lane.departmentId} withBorder>
-              <Group justify="space-between" align="flex-start">
-                <Stack gap={2}>
-                  <Text fw={700}>{lane.departmentName}</Text>
-                  <Text size="xs" c="dimmed">
-                    medbrains://tv/queue?department={lane.departmentId}
-                  </Text>
-                </Stack>
-                <Badge color={lane.displayCount > 0 ? "primary" : "orange"} variant="light">
-                  {lane.displayCount} displays
-                </Badge>
-              </Group>
-              <Group mt="sm" gap="xs">
-                <Badge color={lane.currentTokens.length > 0 ? "success" : "slate"}>
-                  Now {lane.currentTokens.map((token) => token.token_number).join(", ") || "-"}
-                </Badge>
-                <Badge color="primary" variant="light">
-                  Waiting {lane.waitingCount}
-                </Badge>
-                <Badge color="slate" variant="light">
-                  Next{" "}
-                  {lane.nextTokens
-                    .slice(0, 3)
-                    .map((token) => token.token_number)
-                    .join(", ") || "-"}
-                </Badge>
-              </Group>
-            </Card>
-          ))}
+        <SimpleGrid cols={{ base: 1, md: 2, xl: 3 }} mb="md" spacing="sm">
+          {departmentLanes.map((lane) => {
+            const activeToken = lane.currentTokens[0] ?? null;
+            const nextToken = lane.nextToken;
+            return (
+              <Box key={lane.departmentId} className={styles.queueLane}>
+                <Group justify="space-between" align="flex-start">
+                  <Stack gap={2}>
+                    <Text fw={700}>{lane.departmentName}</Text>
+                    <Text size="xs" c="dimmed">
+                      medbrains://tv/queue?department={lane.departmentId}
+                    </Text>
+                  </Stack>
+                  <Badge color={lane.displayCount > 0 ? "primary" : "orange"} variant="light">
+                    {lane.displayCount} displays
+                  </Badge>
+                </Group>
+                <Group mt="sm" justify="space-between" align="flex-end" gap="sm">
+                  <Group gap="xs">
+                    <Badge color={lane.currentTokens.length > 0 ? "success" : "slate"}>
+                      Now {lane.currentTokens.map((token) => token.token_number).join(", ") || "-"}
+                    </Badge>
+                    <Badge color="primary" variant="light">
+                      Waiting {lane.waitingCount}
+                    </Badge>
+                    <Badge color="slate" variant="light">
+                      Next{" "}
+                      {lane.nextTokens
+                        .slice(0, 3)
+                        .map((token) => token.token_number)
+                        .join(", ") || "-"}
+                    </Badge>
+                  </Group>
+                  {canManage && (
+                    <Group gap={4}>
+                      {nextToken && (
+                        <Tooltip label={`Call ${nextToken.token_number}`}>
+                          <ActionIcon
+                            variant="light"
+                            color="primary"
+                            aria-label={`Call token ${nextToken.token_number}`}
+                            onClick={() => callMutation.mutate(nextToken.id)}
+                            loading={callMutation.isPending}
+                          >
+                            <IconPlayerPlay size={16} />
+                          </ActionIcon>
+                        </Tooltip>
+                      )}
+                      {activeToken && (
+                        <>
+                          <Tooltip label={`Complete ${activeToken.token_number}`}>
+                            <ActionIcon
+                              variant="light"
+                              color="success"
+                              aria-label={`Complete token ${activeToken.token_number}`}
+                              onClick={() => completeMutation.mutate(activeToken.id)}
+                              loading={completeMutation.isPending}
+                            >
+                              <IconCheck size={16} />
+                            </ActionIcon>
+                          </Tooltip>
+                          <Tooltip label={`No-show ${activeToken.token_number}`}>
+                            <ActionIcon
+                              variant="light"
+                              color="danger"
+                              aria-label={`Mark token ${activeToken.token_number} no-show`}
+                              onClick={() => noShowMutation.mutate(activeToken.id)}
+                              loading={noShowMutation.isPending}
+                            >
+                              <IconUserOff size={16} />
+                            </ActionIcon>
+                          </Tooltip>
+                        </>
+                      )}
+                    </Group>
+                  )}
+                </Group>
+              </Box>
+            );
+          })}
         </SimpleGrid>
       )}
 
@@ -902,7 +956,89 @@ function QueueTokensTab({ canManage }: { canManage: boolean }) {
       )}
 
       {/* Filters */}
-      <Group mb="md">
+      {generateOpened && (
+        <Box className={styles.generatePanel} mb="md">
+          <form onSubmit={handleGenerateSubmit}>
+            <Stack gap="md">
+              <Group justify="space-between" align="flex-start">
+                <Stack gap={2}>
+                  <Text fw={700}>Generate queue token</Text>
+                  <Text size="xs" c="dimmed">
+                    {selectedDepartment
+                      ? departmentName(departments, selectedDepartment)
+                      : "Select a department before issuing a token"}
+                  </Text>
+                </Stack>
+                <Button type="button" variant="subtle" size="xs" onClick={closeGenerate}>
+                  Close
+                </Button>
+              </Group>
+              <Group align="flex-start">
+                <Controller
+                  control={tokenForm.control}
+                  name="department_id"
+                  render={({ field, fieldState }) => (
+                    <Select
+                      label="Department"
+                      data={departments.map((d: DepartmentRow) => ({ value: d.id, label: d.name }))}
+                      value={field.value || null}
+                      onChange={(value) => field.onChange(value ?? "")}
+                      error={fieldState.error?.message}
+                      required
+                      className={styles.tokenFormField}
+                    />
+                  )}
+                />
+                <TextInput
+                  label="Patient ID"
+                  placeholder="Optional"
+                  error={tokenForm.formState.errors.patient_id?.message}
+                  className={styles.tokenFormField}
+                  {...tokenForm.register("patient_id")}
+                />
+                <TextInput
+                  label="Doctor ID"
+                  placeholder="Optional"
+                  error={tokenForm.formState.errors.doctor_id?.message}
+                  className={styles.tokenFormField}
+                  {...tokenForm.register("doctor_id")}
+                />
+                <Controller
+                  control={tokenForm.control}
+                  name="priority"
+                  render={({ field, fieldState }) => (
+                    <Select
+                      label="Priority"
+                      data={[
+                        { value: "normal", label: "Normal" },
+                        { value: "elderly", label: "Elderly" },
+                        { value: "disabled", label: "Disabled" },
+                        { value: "pregnant", label: "Pregnant" },
+                        { value: "emergency_referral", label: "Emergency Referral" },
+                        { value: "vip", label: "VIP" },
+                      ]}
+                      value={field.value}
+                      onChange={(value) => field.onChange(value ?? "normal")}
+                      error={fieldState.error?.message}
+                      className={styles.tokenPriorityField}
+                    />
+                  )}
+                />
+                <Button
+                  type="submit"
+                  loading={generateMutation.isPending}
+                  leftSection={<IconTicket size={16} />}
+                  className={styles.tokenSubmitButton}
+                >
+                  Generate
+                </Button>
+              </Group>
+            </Stack>
+          </form>
+        </Box>
+      )}
+
+      <Group mb="md" className={styles.queueToolbar}>
         <Select
           placeholder="Filter by department"
           data={departments.map((d: DepartmentRow) => ({ value: d.id, label: d.name }))}
@@ -938,10 +1074,10 @@ function QueueTokensTab({ canManage }: { canManage: boolean }) {
                 ...defaultQueueTokenFormValues,
                 department_id: selectedDepartment ?? "",
               });
-              openGenerate();
+              generateOpened ? closeGenerate() : openGenerate();
             }}
           >
-            Generate Token
+            {generateOpened ? "Hide Generator" : "Generate Token"}
           </Button>
         )}
       </Group>
@@ -956,74 +1092,6 @@ function QueueTokensTab({ canManage }: { canManage: boolean }) {
         virtualRowHeight={58}
         tableMaxHeight="calc(100vh - 500px)"
       />
-
-      {/* Generate Token Drawer */}
-      <Drawer
-        opened={generateOpened}
-        onClose={closeGenerate}
-        title="Generate Queue Token"
-        position="right"
-        size="md"
-      >
-        <form onSubmit={handleGenerateSubmit}>
-          <Stack gap="md">
-            <Controller
-              control={tokenForm.control}
-              name="department_id"
-              render={({ field, fieldState }) => (
-                <Select
-                  label="Department"
-                  data={departments.map((d: DepartmentRow) => ({ value: d.id, label: d.name }))}
-                  value={field.value || null}
-                  onChange={(value) => field.onChange(value ?? "")}
-                  error={fieldState.error?.message}
-                  required
-                />
-              )}
-            />
-            <TextInput
-              label="Patient ID (optional)"
-              placeholder="Leave blank for walk-in"
-              error={tokenForm.formState.errors.patient_id?.message}
-              {...tokenForm.register("patient_id")}
-            />
-            <TextInput
-              label="Doctor ID (optional)"
-              placeholder="Leave blank for any doctor"
-              error={tokenForm.formState.errors.doctor_id?.message}
-              {...tokenForm.register("doctor_id")}
-            />
-            <Controller
-              control={tokenForm.control}
-              name="priority"
-              render={({ field, fieldState }) => (
-                <Select
-                  label="Priority"
-                  data={[
-                    { value: "normal", label: "Normal" },
-                    { value: "elderly", label: "Elderly" },
-                    { value: "disabled", label: "Disabled" },
-                    { value: "pregnant", label: "Pregnant" },
-                    { value: "emergency_referral", label: "Emergency Referral" },
-                    { value: "vip", label: "VIP" },
-                  ]}
-                  value={field.value}
-                  onChange={(value) => field.onChange(value ?? "normal")}
-                  error={fieldState.error?.message}
-                />
-              )}
-            />
-            <Group justify="flex-end" mt="md">
-              <Button variant="subtle" onClick={closeGenerate}>
-                Cancel
-              </Button>
-              <Button type="submit" loading={generateMutation.isPending}>
-                Generate
-              </Button>
-            </Group>
-          </Stack>
-        </form>
-      </Drawer>
     </>
   );
 }
