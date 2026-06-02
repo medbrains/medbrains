@@ -1,0 +1,57 @@
+.settingsWorkspace {
+  gap: var(--mantine-spacing-md);
+}
+
+.settingsCommandBar {
+  position: sticky;
+  top: calc(var(--app-shell-header-height, 72px) + var(--mantine-spacing-xs));
+  z-index: 12;
+  border-left: 4px solid light-dark(var(--mantine-color-teal-6), var(--mantine-color-teal-4));
+  background: light-dark(rgba(255, 255, 255, 0.96), rgba(26, 27, 30, 0.94));
+  box-shadow: 0 12px 28px light-dark(rgba(15, 23, 42, 0.08), rgba(0, 0, 0, 0.24));
+  backdrop-filter: blur(10px);
+}
+
+.commandActions {
+  justify-content: flex-end;
+}
+
+.settingsGrid {
+  align-items: flex-start;
+}
+
+.settingsNavCard {
+  position: sticky;
+  top: calc(var(--app-shell-header-height, 72px) + 164px);
+  max-height: calc(100dvh - var(--app-shell-header-height, 72px) - 180px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  background:
+    linear-gradient(180deg, light-dark(var(--mantine-color-teal-0), rgba(18, 184, 134, 0.14)), transparent 42%),
+    light-dark(var(--mantine-color-white), var(--mantine-color-dark-7));
+}
+
+.settingsMain {
+  min-width: 0;
+}
+
+.panelHeading {
+  padding: var(--mantine-spacing-sm);
+  border: 1px solid light-dark(var(--mantine-color-gray-3), var(--mantine-color-dark-4));
+  border-radius: var(--mantine-radius-md);
+  background: light-dark(var(--mantine-color-white), var(--mantine-color-dark-7));
+}
+
+@media (max-width: 992px) {
+  .settingsCommandBar,
+  .settingsNavCard {
+    position: static;
+    max-height: none;
+  }
+
+  .commandActions {
+    justify-content: flex-start;
+    width: 100%;
+  }
+}

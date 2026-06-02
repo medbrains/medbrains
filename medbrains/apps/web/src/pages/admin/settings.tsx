@@ -1,6 +1,7 @@
 import {
   Badge,
   Box,
+  Button,
   Card,
   Grid,
   Group,
@@ -14,13 +15,21 @@ import {
 } from "@mantine/core";
 import { usePermissionStore } from "@medbrains/stores";
 import { P } from "@medbrains/types";
-import { IconSearch } from "@tabler/icons-react";
+import {
+  IconChartBar,
+  IconDeviceTv,
+  IconPlug,
+  IconSearch,
+  IconShieldCheck,
+  IconShieldLock,
+} from "@tabler/icons-react";
 import { createElement, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { PageHeader } from "@/components";
 import { SETTINGS_TAB_ICON_MAP, SETTINGS_TABS } from "@/config/settings-tabs";
 import { useHashTabs } from "@/hooks/useHashTabs";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
+import classes from "./settings.module.scss";
 
 const SETTINGS_GROUP_ORDER = [
   "Start",
@@ -273,6 +282,7 @@ export function SettingsPage() {
   const [tab, setTab] = useHashTabs(defaultTab, validValues);
   const activeConfig = visibleTabs.find((cfg) => cfg.value === tab) ?? visibleTabs[0];
   const ActiveComponent = activeConfig?.component;
+  const activeMeta = settingsMeta(activeConfig?.value ?? defaultTab);
 
   const groupedTabs = useMemo(() => {
     const searchText = settingsSearch.trim().toLowerCase();
@@ -310,14 +320,118 @@ export function SettingsPage() {
   const hiddenAdvancedCount = visibleTabs.filter(
     (cfg) => !settingsKindMatches(settingsMeta(cfg.value).kind, settingsKindFilter),
   ).length;
+  const hasVisibleTab = (value: string) =>
+    visibleTabs.some((visibleTab) => visibleTab.value === value);
+  const quickLinks = [
+    hasVisibleTab("access-matrix")
+      ? {
+          label: "Access Matrix",
+          description: "Role, user, field masking, action and event activation coverage.",
+          color: "orange",
+          icon: <IconShieldLock size={14} />,
+          onClick: () => setTab("access-matrix"),
+        }
+      : null,
+    hasPermission(P.ANALYTICS.VIEW)
+      ? {
+          label: "Reports",
+          description: "Operational reports, KPI workbenches, and source-data readiness.",
+          color: "blue",
+          href: "/reports",
+          icon: <IconChartBar size={14} />,
+        }
+      : null,
+    hasPermission(P.QUALITY.INDICATORS_LIST)
+      ? {
+          label: "NABH",
+          description: "Quality indicators with live and pending evidence coverage.",
+          color: "teal",
+          href: "/admin/nabh-indicators",
+          icon: <IconShieldCheck size={14} />,
+        }
+      : null,
+    hasPermission(P.INTEGRATION.LIST)
+      ? {
+          label: "Pipelines",
+          description: "Code-reviewed event subscribers and cross-module side effects.",
+          color: "grape",
+          href: "/admin/integration-hub",
+          icon: <IconPlug size={14} />,
+        }
+      : null,
+    hasVisibleTab("device-integrations") || hasVisibleTab("offline-mode")
+      ? {
+          label: "Edge Devices",
+          description: "Device agents, TV/kiosk channels, offline and edge runtime settings.",
+          color: "indigo",
+          icon: <IconDeviceTv size={14} />,
+          onClick: () =>
+            setTab(hasVisibleTab("device-integrations") ? "device-integrations" : "offline-mode"),
+        }
+      : null,
+  ].filter((link): link is NonNullable<typeof link> => link !== null);
 
   return (
-    <div>
+    <Stack className={classes.settingsWorkspace}>
       <PageHeader title={t("settings.title")} subtitle={t("settings.subtitle")} />
 
-      <Grid mt="md" gap="lg" align="flex-start">
+      <Card withBorder className={classes.settingsCommandBar}>
+        <Group justify="space-between" align="flex-start" gap="md">
+          <Stack gap={4}>
+            <Text size="xs" fw={700} c="dimmed" tt="uppercase">
+              Configuration command center
+            </Text>
+            <Group gap="xs">
+              <Badge color="teal" variant="light">
+                {visibleTabs.length} visible panels
+              </Badge>
+              <Badge color={settingsKindColor(activeMeta.kind)} variant="light">
+                {activeMeta.group} · {settingsKindLabel(activeMeta.kind)}
+              </Badge>
+              <Badge color="blue" variant="light">
+                {settingsKindCounts.master + settingsKindCounts.overview} setup panels
+              </Badge>
+              <Badge color="orange" variant="light">
+                {settingsKindCounts.rule + settingsKindCounts.template} rules/templates
+              </Badge>
+            </Group>
+          </Stack>
+          <Group gap="xs" className={classes.commandActions}>
+            {quickLinks.map((link) =>
+              "href" in link ? (
+                <Button
+                  key={link.label}
+                  component="a"
+                  href={link.href}
+                  size="xs"
+                  variant="light"
+                  color={link.color}
+                  leftSection={link.icon}
+                  title={link.description}
+                >
+                  {link.label}
+                </Button>
+              ) : (
+                <Button
+                  key={link.label}
+                  size="xs"
+                  variant="light"
+                  color={link.color}
+                  leftSection={link.icon}
+                  title={link.description}
+                  onClick={link.onClick}
+                >
+                  {link.label}
+                </Button>
+              ),
+            )}
+          </Group>
+        </Group>
+      </Card>
+
+      <Grid gap="lg" align="flex-start" className={classes.settingsGrid}>
         <Grid.Col span={{ base: 12, md: 3 }}>
-          <Card withBorder padding="sm" radius="md">
+          <Card withBorder padding="sm" radius="md" className={classes.settingsNavCard}>
             <Stack gap="sm">
               <TextInput
                 aria-label="Find settings"
@@ -414,8 +528,8 @@ export function SettingsPage() {
 
         <Grid.Col span={{ base: 12, md: 9 }}>
           {activeConfig && ActiveComponent ? (
-            <Stack gap="md">
-              <Group justify="space-between" align="flex-start">
+            <Stack gap="md" className={classes.settingsMain}>
+              <Group justify="space-between" align="flex-start" className={classes.panelHeading}>
                 <Box>
                   <Text size="xl" fw={700}>
                     {t(activeConfig.i18nKey)}
@@ -424,6 +538,9 @@ export function SettingsPage() {
                     {settingsMeta(activeConfig.value).description}
                   </Text>
                 </Box>
+                <Badge color={settingsKindColor(activeMeta.kind)} variant="light">
+                  {settingsKindLabel(activeMeta.kind)}
+                </Badge>
               </Group>
               <ActiveComponent />
             </Stack>
@@ -434,6 +551,6 @@ export function SettingsPage() {
           )}
         </Grid.Col>
       </Grid>
-    </div>
+    </Stack>
   );
 }
