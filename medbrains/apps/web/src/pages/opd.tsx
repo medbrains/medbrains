@@ -5575,6 +5575,10 @@ function ReferralTrackingTab() {
     {
       key: "patient_id",
       label: "Patient ID",
+      fieldAccessKey: "patients.uhid",
+      accessor: (row: ReferralWithNames) => row.patient_id,
+      fieldKind: "identifier",
+      hiddenLabel: "Patient restricted",
       render: (row: ReferralWithNames) => <Text size="sm">{row.patient_id.slice(0, 8)}</Text>,
     },
     {
@@ -5621,7 +5625,7 @@ function ReferralTrackingTab() {
         </Text>
       ),
     },
-  ];
+  ] satisfies Column<ReferralWithNames>[];
 
   return (
     <Stack>
@@ -5658,6 +5662,10 @@ function FollowupComplianceTab() {
     {
       key: "patient_name",
       label: "Patient",
+      fieldAccessKeys: PATIENT_NAME_FIELD_ACCESS_KEYS,
+      accessor: (row: FollowupComplianceRow) => row.patient_name,
+      fieldKind: "name",
+      hiddenLabel: "Patient restricted",
       render: (row: FollowupComplianceRow) => (
         <Text size="sm" fw={500}>
           {row.patient_name}
@@ -5696,7 +5704,7 @@ function FollowupComplianceTab() {
         </Badge>
       ),
     },
-  ];
+  ] satisfies Column<FollowupComplianceRow>[];
 
   return (
     <Stack>
