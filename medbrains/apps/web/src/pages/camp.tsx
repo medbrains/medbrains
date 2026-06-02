@@ -59,9 +59,11 @@ import type {
   CreateCampScreeningRequest,
   CreateVitalRequest,
   DepartmentRow,
+  FieldAccessLevel,
   UpdateCampFollowupRequest,
 } from "@medbrains/types";
 import { P } from "@medbrains/types";
+import { fieldAccessText } from "@medbrains/utils";
 import {
   IconArrowRight,
   IconCalendarCheck,
@@ -83,7 +85,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { useNavigate, useParams, useSearchParams } from "react-router";
-import { DataTable, DoctorSearchSelect, PageHeader } from "@/components";
+import { DataTable, DoctorSearchSelect, PageHeader, useProtectedFieldAccess } from "@/components";
 import { VitalsRecorder } from "@/components/Clinical/VitalsRecorder";
 import type { Column } from "@/components/DataTable";
 import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
@@ -158,8 +160,60 @@ const CAMP_SERVICE_LINE_OPTIONS = [
   { value: "other", label: "Other" },
 ];
 
+const CAMP_REGISTRATION_NAME_FIELD = "camp.registrations.person_name";
+const CAMP_REGISTRATION_PHONE_FIELD = "camp.registrations.phone";
+const CAMP_REGISTRATION_ID_PROOF_FIELD = "camp.registrations.id_proof_number";
+const PATIENT_NAME_FIELD_ACCESS_KEYS = [
+  "patients.first_name",
+  "patients.middle_name",
+  "patients.last_name",
+];
+
 const patientContextQuery = (patientId: string) =>
   patientId ? `?patient_id=${encodeURIComponent(patientId)}` : "";
+
+function protectedCampParticipantName(
+  personName: string | null | undefined,
+  access: FieldAccessLevel,
+): string {
+  const displayValue = fieldAccessText(access, personName, "name");
+  return displayValue === "—" ? "Participant" : displayValue;
+}
+
+function protectedCampPhone(phone: string | null | undefined, access: FieldAccessLevel): string {
+  const displayValue = fieldAccessText(access, phone, "phone");
+  return displayValue === "—" ? "No phone" : displayValue;
+}
+
+function protectedPatientName(
+  patientName: string | null | undefined,
+  access: FieldAccessLevel,
+): string {
+  const displayValue = fieldAccessText(access, patientName, "name");
+  return displayValue === "—" ? "Patient" : displayValue;
+}
+
+function protectedPatientIdentifier(
+  identifier: string | null | undefined,
+  access: FieldAccessLevel,
+): string {
+  const displayValue = fieldAccessText(access, identifier, "identifier");
+  return displayValue === "—" ? "No UHID" : displayValue;
+}
+
+function campRegistrationOptionLabel(
+  registration: CampRegistration,
+  access: { name: FieldAccessLevel; phone: FieldAccessLevel },
+): string {
+  return [
+    registration.registration_number,
+    protectedCampParticipantName(registration.person_name, access.name),
+    registration.status,
+    registration.phone ? protectedCampPhone(registration.phone, access.phone) : undefined,
+  ]
+    .filter(Boolean)
+    .join(" - ");
+}
 
 function CampPatientActionBar({ patientId }: { patientId: string }) {
   const journeyContext = useMemo<ClinicalJourneyContext>(() => ({ patientId }), [patientId]);
@@ -1613,6 +1667,14 @@ function RegistrationsTab({
 }) {
   const canCreate = useHasPermission(P.CAMP.REGISTRATIONS_CREATE);
   const canOpenClinicalVisit = useHasPermission(P.OPD.VISIT_CREATE);
+  const campNameAccess = useProtectedFieldAccess(CAMP_REGISTRATION_NAME_FIELD);
+  const campPhoneAccess = useProtectedFieldAccess(CAMP_REGISTRATION_PHONE_FIELD);
+  const campIdProofAccess = useProtectedFieldAccess(CAMP_REGISTRATION_ID_PROOF_FIELD);
+  const patientNameAccess = useProtectedFieldAccess(undefined, PATIENT_NAME_FIELD_ACCESS_KEYS);
+  const patientUhidAccess = useProtectedFieldAccess("patients.uhid");
+  const canEditCampName = campNameAccess === "edit";
+  const canEditCampPhone = campPhoneAccess === "edit";
+  const canEditCampIdProof = campIdProofAccess === "edit";
   const qc = useQueryClient();
   const [createOpen, createHandlers] = useDisclosure(false);
   const [routeOpen, routeHandlers] = useDisclosure(false);
@@ -1804,10 +1866,26 @@ function RegistrationsTab({
         </Text>
       ),
     },
-    { key: "person_name", label: "Name", render: (r) => r.person_name },
+    {
+      key: "person_name",
+      label: "Name",
+      fieldAccessKey: CAMP_REGISTRATION_NAME_FIELD,
+      accessor: (r) => r.person_name,
+      fieldKind: "name",
+      hiddenLabel: "Participant restricted",
+      render: (r) => r.person_name,
+    },
     { key: "age", label: "Age", render: (r) => r.age?.toString() ?? "—" },
     { key: "gender", label: "Gender", render: (r) => r.gender ?? "—" },
-    { key: "phone", label: "Phone", render: (r) => r.phone ?? "—" },
+    {
+      key: "phone",
+      label: "Phone",
+      fieldAccessKey: CAMP_REGISTRATION_PHONE_FIELD,
+      accessor: (r) => r.phone,
+      fieldKind: "phone",
+      hiddenLabel: "Phone restricted",
+      render: (r) => r.phone ?? "—",
+    },
     {
       key: "status",
       label: "Status",
@@ -1893,9 +1971,23 @@ function RegistrationsTab({
           </Text>
         </Stack>
         {canCreate && campId && (
-          <Button leftSection={<IconPlus size={16} />} onClick={createHandlers.open}>
-            Register Participant
-          </Button>
+          <Tooltip
+            label={
+              canEditCampName
+                ? "Register a camp participant"
+                : "Participant name field edit access is required"
+            }
+          >
+            <span>
+              <Button
+                leftSection={<IconPlus size={16} />}
+                onClick={createHandlers.open}
+                disabled={!canEditCampName}
+              >
+                Register Participant
+              </Button>
+            </span>
+          </Tooltip>
         )}
       </Group>
 
@@ -1961,6 +2053,7 @@ function RegistrationsTab({
             label="Person Name"
             required
             error={errors.person_name?.message}
+            disabled={!canEditCampName}
             {...register("person_name")}
           />
           <Group grow>
@@ -1997,7 +2090,12 @@ function RegistrationsTab({
               )}
             />
           </Group>
-          <TextInput label="Phone" error={errors.phone?.message} {...register("phone")} />
+          <TextInput
+            label="Phone"
+            error={errors.phone?.message}
+            disabled={!canEditCampPhone}
+            {...register("phone")}
+          />
           <Textarea label="Address" error={errors.address?.message} {...register("address")} />
           <Group grow>
             <Controller
@@ -2059,12 +2157,14 @@ function RegistrationsTab({
                   error={errors.id_proof_type?.message}
                   clearable
                   searchable
+                  disabled={!canEditCampIdProof}
                 />
               )}
             />
             <TextInput
               label="ID Proof Number"
               error={errors.id_proof_number?.message}
+              disabled={!canEditCampIdProof}
               {...register("id_proof_number")}
             />
           </Group>
@@ -2107,7 +2207,12 @@ function RegistrationsTab({
       >
         <Stack component="form" onSubmit={handleClinicalVisitSubmit(submitClinicalRouting)}>
           <Stack gap={2}>
-            <Text fw={600}>{selectedRegistrationForClinical?.person_name ?? "Participant"}</Text>
+            <Text fw={600}>
+              {protectedCampParticipantName(
+                selectedRegistrationForClinical?.person_name,
+                campNameAccess,
+              )}
+            </Text>
             <Text size="xs" c="dimmed">
               Select the department and doctor for this camp participant. Saved values will be
               reused next time.
@@ -2182,8 +2287,8 @@ function RegistrationsTab({
           <EncounterDetail
             encounterId={clinicalContext.encounter_id}
             patientId={clinicalContext.patient_id}
-            patientName={clinicalContext.patient_name}
-            uhid={clinicalContext.uhid}
+            patientName={protectedPatientName(clinicalContext.patient_name, patientNameAccess)}
+            uhid={protectedPatientIdentifier(clinicalContext.uhid, patientUhidAccess)}
             doctorId={clinicalContext.doctor_id ?? null}
             departmentId={clinicalContext.department_id}
             canUpdate={canOpenClinicalVisit}
@@ -2211,6 +2316,8 @@ function ScreeningsTab({
 }) {
   const canManageScreenings = useHasPermission(P.CAMP.SCREENINGS_MANAGE);
   const canManageLab = useHasPermission(P.CAMP.LAB_MANAGE);
+  const campNameAccess = useProtectedFieldAccess(CAMP_REGISTRATION_NAME_FIELD);
+  const campPhoneAccess = useProtectedFieldAccess(CAMP_REGISTRATION_PHONE_FIELD);
   const qc = useQueryClient();
   const [scrOpen, scrHandlers] = useDisclosure(Boolean(focusedRegistrationId));
   const [labOpen, labHandlers] = useDisclosure(false);
@@ -2300,16 +2407,12 @@ function ScreeningsTab({
     () =>
       registrations.map((registration) => ({
         value: registration.id,
-        label: [
-          registration.registration_number,
-          registration.person_name,
-          registration.status,
-          registration.phone ?? undefined,
-        ]
-          .filter(Boolean)
-          .join(" - "),
+        label: campRegistrationOptionLabel(registration, {
+          name: campNameAccess,
+          phone: campPhoneAccess,
+        }),
       })),
-    [registrations],
+    [campNameAccess, campPhoneAccess, registrations],
   );
   const registrationsById = useMemo(
     () => new Map(registrations.map((registration) => [registration.id, registration])),
@@ -2333,11 +2436,13 @@ function ScreeningsTab({
     return (
       <Stack gap={2}>
         <Text size="sm" fw={600}>
-          {registration.person_name}
+          {protectedCampParticipantName(registration.person_name, campNameAccess)}
         </Text>
         <Text size="xs" c="dimmed">
           {registration.registration_number}
-          {registration.phone ? ` · ${registration.phone}` : ""}
+          {registration.phone
+            ? ` · ${protectedCampPhone(registration.phone, campPhoneAccess)}`
+            : ""}
         </Text>
       </Stack>
     );
@@ -2697,6 +2802,8 @@ function FollowupsTab({
   selectedCamp: Camp | null;
 }) {
   const canManage = useHasPermission(P.CAMP.FOLLOWUPS_MANAGE);
+  const campNameAccess = useProtectedFieldAccess(CAMP_REGISTRATION_NAME_FIELD);
+  const campPhoneAccess = useProtectedFieldAccess(CAMP_REGISTRATION_PHONE_FIELD);
   const qc = useQueryClient();
   const [createOpen, createHandlers] = useDisclosure(false);
   const [statusTab, setStatusTab] = useState<string | null>("all");
@@ -2739,16 +2846,12 @@ function FollowupsTab({
     () =>
       registrations.map((registration) => ({
         value: registration.id,
-        label: [
-          registration.registration_number,
-          registration.person_name,
-          registration.status,
-          registration.phone ?? undefined,
-        ]
-          .filter(Boolean)
-          .join(" - "),
+        label: campRegistrationOptionLabel(registration, {
+          name: campNameAccess,
+          phone: campPhoneAccess,
+        }),
       })),
-    [registrations],
+    [campNameAccess, campPhoneAccess, registrations],
   );
   const registrationsById = useMemo(
     () => new Map(registrations.map((registration) => [registration.id, registration])),
@@ -2776,11 +2879,13 @@ function FollowupsTab({
     return (
       <Stack gap={2}>
         <Text size="sm" fw={600}>
-          {registration.person_name}
+          {protectedCampParticipantName(registration.person_name, campNameAccess)}
         </Text>
         <Text size="xs" c="dimmed">
           {registration.registration_number}
-          {registration.phone ? ` · ${registration.phone}` : ""}
+          {registration.phone
+            ? ` · ${protectedCampPhone(registration.phone, campPhoneAccess)}`
+            : ""}
         </Text>
       </Stack>
     );
