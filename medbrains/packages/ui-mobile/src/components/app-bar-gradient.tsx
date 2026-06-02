@@ -3,25 +3,20 @@ import { StyleSheet, View } from "react-native";
 import { COLORS } from "../tokens.js";
 
 const SOFT_STOPS = [
-  "#ccfbf1",
-  "#cffcf2",
-  "#d4fbf4",
-  "#d9faf6",
-  "#ddf8f8",
-  "#e0f2fe",
-  "#e5f4fb",
-  "#eaf6f4",
-  "#eff7ee",
-  "#f5f7e8",
-  "#ffedd5",
+  COLORS.navActiveBg,
+  "#F4F8FD",
+  "#F8F8F7",
+  "#E6F1FF",
+  "#EEF8F5",
+  "#E3FAF2",
+  "#FDE9E6",
 ] as const;
 
 const ACCENT_STOPS = [
   COLORS.accentGradientStart,
-  "#12b7ae",
+  "#1A7CFF",
   COLORS.accentGradientMid,
-  "#38bdf8",
-  "#fbbf24",
+  "#1CB785",
   COLORS.accentGradientEnd,
 ] as const;
 

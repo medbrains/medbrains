@@ -36,7 +36,7 @@ function statusColor(status: string) {
     case "dispensing":
       return COLORS.copper;
     case "on_hold":
-      return "#f59e0b";
+      return COLORS.amber;
     default:
       return COLORS.tint;
   }
@@ -211,7 +211,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   errorTitle: {
-    color: "#fca5a5",
+    color: COLORS.red,
     fontFamily: "Fraunces-Regular",
     fontSize: 42,
   },

@@ -1,36 +1,41 @@
 /**
  * UI tokens shared across the component library. Mirrors the web
- * MedBrains clinical teal + copper system; kept in lockstep with
- * `@medbrains/mobile-shell`'s `theme/forest-copper.ts`.
+ * MedBrains enterprise palette: System Blue brand, Cinnabar accent,
+ * Mint vitals, and Apple-warm neutrals.
  */
 
 export const COLORS = {
-  brand: "#0F766E",
-  brandHover: "#0d6b63",
-  brandDeep: "#042f2e",
-  ink: "#0F1412",
+  brand: "#0066CC",
+  brandHover: "#0052A3",
+  brandDeep: "#00182F",
+  ink: "#0D0D0C",
   canvas: "#FFFFFF",
-  panel: "#f8fafc",
-  rule: "#e2e8f0",
-  copper: "#B8924A",
-  tint: "#d1fae5",
-  navActiveBg: "#ccfbf1",
-  navActiveBgEnd: "#e0f2fe",
-  navChildActiveBg: "#e0f2fe",
-  navChildActiveText: "#0369a1",
-  accentGradientStart: "#14b8a6",
-  accentGradientMid: "#0ea5e9",
-  accentGradientEnd: "#f59e0b",
-  emerald: "#10b981",
-  emeraldDim: "rgba(16, 185, 129, 0.25)",
-  red: "#C8102E",
+  panel: "#F8F8F7",
+  rule: "#E7E7E3",
+  muted: "#5B5B57",
+  copper: "#B7322E",
+  accent: "#B7322E",
+  accentMuted: "#FDE9E6",
+  tint: "#E6F1FF",
+  navActiveBg: "#EEF4FC",
+  navActiveBgEnd: "#E6F1FF",
+  navChildActiveBg: "#E6F1FF",
+  navChildActiveText: "#003E7A",
+  accentGradientStart: "#0066CC",
+  accentGradientMid: "#34D69D",
+  accentGradientEnd: "#B7322E",
+  emerald: "#1CB785",
+  emeraldDim: "rgba(28, 183, 133, 0.25)",
+  vital: "#34D69D",
+  amber: "#FF9F0A",
+  red: "#FF453A",
 } as const;
 
 export const APP_BAR = {
   background: COLORS.navActiveBg,
   foreground: COLORS.brand,
   title: COLORS.brandDeep,
-  border: "#dcebe8",
+  border: COLORS.rule,
 } as const;
 
 export const SPACING = {
@@ -51,18 +56,18 @@ export type IntentTone = "neutral" | "info" | "success" | "warn" | "alert" | "co
 
 export const INTENT_BG: Record<IntentTone, string> = {
   neutral: COLORS.panel,
-  info: "#e0f2fe",
-  success: COLORS.tint,
-  warn: "#fef3c7",
-  alert: "#ffe4e6",
-  copper: "#f3ead6",
+  info: "#E0F2FE",
+  success: "#D1FAE5",
+  warn: "#FEF3C7",
+  alert: "#FEE2E2",
+  copper: COLORS.accentMuted,
 };
 
 export const INTENT_FG: Record<IntentTone, string> = {
   neutral: COLORS.ink,
-  info: "#075985",
-  success: COLORS.brandDeep,
-  warn: "#92400e",
-  alert: "#9f1239",
-  copper: "#553e15",
+  info: "#0369A1",
+  success: "#047857",
+  warn: "#B45309",
+  alert: "#B91C1C",
+  copper: "#962623",
 };

@@ -1,6 +1,6 @@
 /**
  * `@medbrains/ui-mobile` — React Native Paper v5 wrappers + ECG
- * loader for the Forest+Copper design system. Mirrors the web
+ * loader for the MedBrains enterprise design system. Mirrors the web
  * components so a clinician sees the same shapes across surfaces.
  */
 

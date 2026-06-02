@@ -1,5 +1,6 @@
 import { StyleSheet, View } from "react-native";
 import { Button, Card, Chip, IconButton, Text } from "react-native-paper";
+import { MEDBRAINS_COLORS } from "../theme/paper-theme";
 
 type QueueStatus = "waiting" | "called" | "in_consultation" | "completed" | "no_show";
 
@@ -22,11 +23,11 @@ interface QueueItemProps {
 }
 
 const STATUS_CONFIG: Record<QueueStatus, { color: string; label: string }> = {
-  waiting: { color: "#868e96", label: "Waiting" },
-  called: { color: "#0F766E", label: "Called" },
-  in_consultation: { color: "#10b981", label: "In Progress" },
-  completed: { color: "#10b981", label: "Completed" },
-  no_show: { color: "#C8102E", label: "No Show" },
+  waiting: { color: MEDBRAINS_COLORS.muted, label: "Waiting" },
+  called: { color: MEDBRAINS_COLORS.brand, label: "Called" },
+  in_consultation: { color: MEDBRAINS_COLORS.emerald, label: "In Progress" },
+  completed: { color: MEDBRAINS_COLORS.emerald, label: "Completed" },
+  no_show: { color: MEDBRAINS_COLORS.red, label: "No Show" },
 };
 
 export function QueueItem({
@@ -112,7 +113,7 @@ export function QueueItem({
               compact
               onPress={onComplete}
               icon="check"
-              style={[styles.actionButton, { backgroundColor: "#10b981" }]}
+              style={[styles.actionButton, { backgroundColor: MEDBRAINS_COLORS.emerald }]}
             >
               Done
             </Button>
@@ -121,7 +122,7 @@ export function QueueItem({
           {(isWaiting || isCalled) && onNoShow && (
             <IconButton
               icon="account-off"
-              iconColor="#C8102E"
+              iconColor={MEDBRAINS_COLORS.red}
               mode="contained-tonal"
               size={18}
               onPress={onNoShow}
@@ -153,7 +154,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   tokenNumber: {
-    color: "#ffffff",
+    color: MEDBRAINS_COLORS.canvas,
     fontSize: 18,
     fontWeight: "bold",
   },
@@ -192,6 +193,6 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   noShowIcon: {
-    backgroundColor: "#fff5f5",
+    backgroundColor: MEDBRAINS_COLORS.statusDangerBg,
   },
 });

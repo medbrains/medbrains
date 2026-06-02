@@ -1,6 +1,5 @@
 import { useAuthStore } from "@medbrains/stores";
 import type { QueueEntry } from "@medbrains/types";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { ScrollView, StyleSheet, TouchableOpacity, View } from "react-native";
 import {
@@ -15,7 +14,14 @@ import {
 } from "react-native-paper";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { QueueItem } from "../../components";
-import { queueService } from "../../services/queue.service";
+import {
+  useCallQueueEntryMutation,
+  useCompleteQueueEntryMutation,
+  useMarkNoShowMutation,
+  useStaffDashboardQueueQuery,
+  useStartConsultationMutation,
+} from "../../services/queue.queries";
+import { MEDBRAINS_COLORS } from "../../theme/paper-theme";
 
 type MobileQueueStatus = "waiting" | "called" | "in_consultation" | "completed" | "no_show";
 type StaffDashboardRoute =
@@ -113,34 +119,13 @@ function queueItemView(item: QueueEntry) {
 
 export function StaffDashboard({ navigation }: StaffDashboardProps) {
   const theme = useTheme();
-  const queryClient = useQueryClient();
   const user = useAuthStore((state) => state.user);
 
-  const { data, isError, isFetching, isLoading, refetch } = useQuery({
-    queryKey: ["queue", "staff-dashboard"],
-    queryFn: () => queueService.listQueue({}),
-    refetchInterval: 30000,
-  });
-
-  const callMutation = useMutation({
-    mutationFn: queueService.callQueueEntry,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["queue"] }),
-  });
-
-  const startMutation = useMutation({
-    mutationFn: queueService.startConsultation,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["queue"] }),
-  });
-
-  const completeMutation = useMutation({
-    mutationFn: queueService.completeQueueEntry,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["queue"] }),
-  });
-
-  const noShowMutation = useMutation({
-    mutationFn: queueService.markNoShow,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["queue"] }),
-  });
+  const { data, isError, isFetching, isLoading, refetch } = useStaffDashboardQueueQuery();
+  const callMutation = useCallQueueEntryMutation();
+  const startMutation = useStartConsultationMutation();
+  const completeMutation = useCompleteQueueEntryMutation();
+  const noShowMutation = useMarkNoShowMutation();
 
   const queueItems = data ?? [];
   const stats = useMemo(() => {
@@ -164,22 +149,28 @@ export function StaffDashboard({ navigation }: StaffDashboardProps) {
       label: "Tokens Today",
       value: stats.total,
       icon: "account-group",
-      color: "#0F766E",
+      color: MEDBRAINS_COLORS.brand,
     },
     {
       id: "waiting",
       label: "Waiting",
       value: stats.waiting,
       icon: "clock-outline",
-      color: "#fab005",
+      color: MEDBRAINS_COLORS.statusWarning,
     },
-    { id: "active", label: "Active", value: stats.active, icon: "account-clock", color: "#2F80ED" },
+    {
+      id: "active",
+      label: "Active",
+      value: stats.active,
+      icon: "account-clock",
+      color: MEDBRAINS_COLORS.statusInfo,
+    },
     {
       id: "completed",
       label: "Completed",
       value: stats.completed,
       icon: "check-circle",
-      color: "#10b981",
+      color: MEDBRAINS_COLORS.emerald,
     },
   ];
 
@@ -390,21 +381,21 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   stateIcon: {
-    backgroundColor: "#e6fcf5",
+    backgroundColor: MEDBRAINS_COLORS.statusSuccessBg,
   },
   stateText: {
     opacity: 0.65,
     textAlign: "center",
   },
   retryButton: {
-    backgroundColor: "#0F766E",
+    backgroundColor: MEDBRAINS_COLORS.brand,
     borderRadius: 8,
     marginTop: 4,
     paddingHorizontal: 16,
     paddingVertical: 8,
   },
   retryText: {
-    color: "#ffffff",
+    color: MEDBRAINS_COLORS.canvas,
   },
   quickActions: {
     flexDirection: "row",
@@ -418,7 +409,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 8,
     padding: 16,
-    backgroundColor: "#f8f9fa",
+    backgroundColor: MEDBRAINS_COLORS.panel,
     borderRadius: 12,
   },
   fab: {

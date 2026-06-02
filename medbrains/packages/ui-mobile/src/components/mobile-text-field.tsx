@@ -1,7 +1,7 @@
 /**
  * MedBrains mobile text field.
  *
- * Mirrors the web Forest+Copper input standard:
+ * Mirrors the web enterprise input standard:
  * white canvas, 1px rule border, 6px radius, compact label, ink focus.
  */
 

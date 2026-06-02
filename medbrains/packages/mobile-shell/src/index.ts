@@ -10,7 +10,7 @@
  *     revocation cache) via `@medbrains/edge-rn-bindings`
  *   - Module contract + ModuleNavigator
  *   - Device pairing (QR scan + mTLS handshake)
- *   - Forest+Copper theme tokens for React Native Paper v5
+ *   - Enterprise theme tokens for React Native Paper v5
  */
 
 export * from "./app-surfaces.js";

@@ -1,6 +1,6 @@
 /**
  * Empty-state component — used wherever a list/queue/section has no
- * items. Quiet visual; never a copper accent.
+ * items. Quiet visual; never a reserved accent.
  */
 
 import type { ReactNode } from "react";

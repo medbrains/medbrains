@@ -1,7 +1,7 @@
 /**
- * Forest+Copper Badge — small pill for status, counts, intents.
- * Copper variant is RESERVED — only for changed values, unread
- * counts, "new since last visit". Don't use copper as decoration.
+ * MedBrains badge — small pill for status, counts, intents. Accent
+ * variant is reserved for changed values, unread counts, and "new
+ * since last visit" indicators.
  */
 
 import type { ReactNode } from "react";

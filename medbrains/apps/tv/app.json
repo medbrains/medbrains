@@ -23,7 +23,7 @@
       "package": "com.medbrains.tv",
       "adaptiveIcon": {
         "foregroundImage": "./assets/icon.png",
-        "backgroundColor": "#0F766E"
+        "backgroundColor": "#0066CC"
       }
     },
     "plugins": [

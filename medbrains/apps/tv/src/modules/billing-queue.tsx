@@ -32,7 +32,7 @@ function statusColor(status: string) {
     case "active":
       return COLORS.copper;
     case "partially_paid":
-      return "#f59e0b";
+      return COLORS.amber;
     case "paid":
     case "settled":
       return COLORS.emerald;
@@ -200,7 +200,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   errorTitle: {
-    color: "#fca5a5",
+    color: COLORS.red,
     fontFamily: "Fraunces-Regular",
     fontSize: 42,
   },

@@ -2,7 +2,7 @@
   "name": "@medbrains/ui-mobile",
   "private": true,
   "version": "0.1.0",
-  "description": "React Native Paper v5 wrappers + Forest+Copper components — cards, data tables, badges, ECG loader. Mirrors the web design system.",
+  "description": "React Native Paper v5 wrappers for MedBrains enterprise surfaces — cards, data tables, badges, ECG loader. Mirrors the web design system.",
   "type": "module",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -10,6 +10,10 @@
     ".": {
       "types": "./lib/index.d.ts",
       "import": "./lib/index.js"
+    },
+    "./tokens": {
+      "types": "./lib/tokens.d.ts",
+      "import": "./lib/tokens.js"
     }
   },
   "scripts": {

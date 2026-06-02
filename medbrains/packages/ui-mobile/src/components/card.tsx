@@ -1,5 +1,5 @@
 /**
- * Forest+Copper Card. Wraps Paper's Card with the design system's
+ * MedBrains Card. Wraps Paper's Card with the design system's
  * 1px hairline border, dual-layer shadow, and on-hover left-accent.
  */
 
@@ -110,39 +110,39 @@ const CARD_PATTERNS: Record<CardPattern, CardPatternStyle> = {
     stops: [],
   },
   clinical: {
-    background: "#f8fffd",
+    background: COLORS.canvas,
     accent: COLORS.brand,
-    stops: [COLORS.navActiveBg, "#d9faf6", COLORS.navActiveBgEnd],
+    stops: [COLORS.navActiveBg, COLORS.tint, COLORS.panel],
   },
   aqua: {
-    background: "#f5fffd",
-    accent: COLORS.accentGradientStart,
-    stops: ["#ccfbf1", "#e0f2fe", "#f8fafc"],
+    background: "#F9FCFF",
+    accent: COLORS.brand,
+    stops: [COLORS.navActiveBg, COLORS.tint, COLORS.panel],
   },
   sky: {
-    background: "#f7fcff",
-    accent: COLORS.accentGradientMid,
-    stops: ["#e0f2fe", "#dbeafe", "#ccfbf1"],
+    background: "#F8FBFF",
+    accent: COLORS.brand,
+    stops: ["#E0F2FE", COLORS.tint, COLORS.navActiveBg],
   },
   copper: {
-    background: "#fffaf0",
+    background: "#FFFBFA",
     accent: COLORS.copper,
-    stops: ["#ffedd5", "#fef3c7", "#f3ead6"],
+    stops: [COLORS.accentMuted, "#FBC8C0", COLORS.navActiveBg],
   },
   violet: {
-    background: "#fbfaff",
+    background: "#FBFAFF",
     accent: "#8b5cf6",
-    stops: ["#ede9fe", "#e0f2fe", "#f5f3ff"],
+    stops: ["#EFEEFF", "#D7D5FF", COLORS.tint],
   },
   success: {
-    background: "#f6fffb",
+    background: "#F8FFFC",
     accent: COLORS.emerald,
-    stops: ["#d1fae5", "#a7f3d0", "#ccfbf1"],
+    stops: ["#D1FAE5", "#B4F1DC", COLORS.navActiveBg],
   },
   alert: {
-    background: "#fff7f8",
+    background: "#FFFAFA",
     accent: COLORS.red,
-    stops: ["#ffe4e6", "#fecdd3", "#fef3c7"],
+    stops: ["#FEE2E2", "#FFE5E3", COLORS.accentMuted],
   },
 };
 

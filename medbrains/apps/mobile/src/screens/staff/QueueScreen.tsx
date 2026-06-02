@@ -1,5 +1,4 @@
 import type { QueueEntry } from "@medbrains/types";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { FlatList, StyleSheet, View } from "react-native";
 import {
@@ -13,10 +12,19 @@ import {
 } from "react-native-paper";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { QueueItem } from "../../components";
-import { queueService } from "../../services/queue.service";
+import {
+  type QueueFilter,
+  useCallQueueEntryMutation,
+  useCompleteQueueEntryMutation,
+  useMarkNoShowMutation,
+  useQueueQuery,
+  useStartConsultationMutation,
+} from "../../services/queue.queries";
+import { MEDBRAINS_COLORS } from "../../theme/paper-theme";
 
-type QueueFilter = "all" | "waiting" | "called" | "in_progress";
 type MobileQueueStatus = "waiting" | "called" | "in_consultation" | "completed" | "no_show";
+
+const QUEUE_FILTERS = new Set<string>(["all", "waiting", "called", "in_progress"]);
 
 interface QueueScreenProps {
   route?: {
@@ -42,53 +50,21 @@ function toMobileQueueStatus(status: string): MobileQueueStatus {
   }
 }
 
+function isQueueFilter(value: string): value is QueueFilter {
+  return QUEUE_FILTERS.has(value);
+}
+
 export function QueueScreen({ route, navigation }: QueueScreenProps) {
   const theme = useTheme();
-  const queryClient = useQueryClient();
   const departmentId = route?.params?.departmentId;
 
   const [filter, setFilter] = useState<QueueFilter>("all");
 
-  const { data, isLoading, refetch } = useQuery({
-    queryKey: ["queue", departmentId, filter],
-    queryFn: () => {
-      const params: Record<string, string> = {};
-      if (departmentId) params.department_id = departmentId;
-      if (filter !== "all") {
-        params.status = filter === "in_progress" ? "in_consultation" : filter;
-      }
-      return queueService.listQueue(params);
-    },
-    refetchInterval: 30000,
-  });
-
-  const callMutation = useMutation({
-    mutationFn: queueService.callQueueEntry,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["queue"] });
-    },
-  });
-
-  const startMutation = useMutation({
-    mutationFn: queueService.startConsultation,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["queue"] });
-    },
-  });
-
-  const completeMutation = useMutation({
-    mutationFn: queueService.completeQueueEntry,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["queue"] });
-    },
-  });
-
-  const noShowMutation = useMutation({
-    mutationFn: queueService.markNoShow,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["queue"] });
-    },
-  });
+  const { data, isLoading, refetch } = useQueueQuery({ departmentId, filter });
+  const callMutation = useCallQueueEntryMutation();
+  const startMutation = useStartConsultationMutation();
+  const completeMutation = useCompleteQueueEntryMutation();
+  const noShowMutation = useMarkNoShowMutation();
 
   // API returns QueueEntry[] directly
   const queueItems: QueueEntry[] = data || [];
@@ -124,19 +100,21 @@ export function QueueScreen({ route, navigation }: QueueScreenProps) {
       {/* Stats Header */}
       <View style={styles.statsContainer}>
         <Surface style={styles.statCard} elevation={1}>
-          <Text style={[styles.statValue, { color: "#868e96" }]}>{stats.waiting}</Text>
+          <Text style={[styles.statValue, { color: MEDBRAINS_COLORS.muted }]}>{stats.waiting}</Text>
           <Text variant="labelSmall" style={styles.statLabel}>
             Waiting
           </Text>
         </Surface>
         <Surface style={styles.statCard} elevation={1}>
-          <Text style={[styles.statValue, { color: "#0F766E" }]}>{stats.called}</Text>
+          <Text style={[styles.statValue, { color: MEDBRAINS_COLORS.brand }]}>{stats.called}</Text>
           <Text variant="labelSmall" style={styles.statLabel}>
             Called
           </Text>
         </Surface>
         <Surface style={styles.statCard} elevation={1}>
-          <Text style={[styles.statValue, { color: "#10b981" }]}>{stats.inProgress}</Text>
+          <Text style={[styles.statValue, { color: MEDBRAINS_COLORS.emerald }]}>
+            {stats.inProgress}
+          </Text>
           <Text variant="labelSmall" style={styles.statLabel}>
             In Progress
           </Text>
@@ -147,7 +125,9 @@ export function QueueScreen({ route, navigation }: QueueScreenProps) {
       <View style={styles.filterContainer}>
         <SegmentedButtons
           value={filter}
-          onValueChange={(value) => setFilter(value as QueueFilter)}
+          onValueChange={(value) => {
+            if (isQueueFilter(value)) setFilter(value);
+          }}
           buttons={[
             { value: "all", label: "All" },
             { value: "waiting", label: "Waiting" },
@@ -276,7 +256,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   emptyIcon: {
-    backgroundColor: "#f1f3f5",
+    backgroundColor: MEDBRAINS_COLORS.panel,
     marginBottom: 8,
   },
   emptyTitle: {
@@ -295,11 +275,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     padding: 16,
     borderRadius: 16,
-    backgroundColor: "#d3f9d8",
+    backgroundColor: MEDBRAINS_COLORS.statusSuccessBg,
     gap: 12,
   },
   bannerIcon: {
-    backgroundColor: "#10b981",
+    backgroundColor: MEDBRAINS_COLORS.emerald,
   },
   bannerText: {
     flex: 1,
@@ -308,7 +288,7 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   tokenBadge: {
-    backgroundColor: "#10b981",
+    backgroundColor: MEDBRAINS_COLORS.emerald,
     fontSize: 14,
   },
 });

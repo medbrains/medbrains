@@ -1,21 +1,24 @@
 import type { ReactNode } from "react";
 import { StyleSheet, View } from "react-native";
+import { MEDBRAINS_COLORS } from "../theme/paper-theme";
 
 const SOFT_STOPS = [
-  "#ccfbf1",
-  "#cffcf2",
-  "#d4fbf4",
-  "#d9faf6",
-  "#ddf8f8",
-  "#e0f2fe",
-  "#e5f4fb",
-  "#eaf6f4",
-  "#eff7ee",
-  "#f5f7e8",
-  "#ffedd5",
+  MEDBRAINS_COLORS.navActiveBg,
+  "#F4F8FD",
+  MEDBRAINS_COLORS.panel,
+  MEDBRAINS_COLORS.navActiveBgEnd,
+  "#EEF8F5",
+  "#E3FAF2",
+  MEDBRAINS_COLORS.accentMuted,
 ] as const;
 
-const ACCENT_STOPS = ["#14b8a6", "#12b7ae", "#0ea5e9", "#38bdf8", "#fbbf24", "#f59e0b"] as const;
+const ACCENT_STOPS = [
+  MEDBRAINS_COLORS.brand,
+  "#1A7CFF",
+  MEDBRAINS_COLORS.vital,
+  MEDBRAINS_COLORS.emerald,
+  MEDBRAINS_COLORS.copper,
+] as const;
 
 export function AppBarGradient(): ReactNode {
   return (
@@ -37,7 +40,7 @@ export function AppBarGradient(): ReactNode {
 const styles = StyleSheet.create({
   root: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "#ccfbf1",
+    backgroundColor: MEDBRAINS_COLORS.navActiveBg,
   },
   softRow: {
     flex: 1,

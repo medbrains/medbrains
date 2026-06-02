@@ -40,10 +40,10 @@ function statusColor(status: QueueTokenStatus | string) {
     case "in_progress":
       return COLORS.emerald;
     case "completed":
-      return "#7bd88f";
+      return COLORS.vital;
     case "no_show":
     case "cancelled":
-      return "#f87171";
+      return COLORS.red;
     default:
       return COLORS.copper;
   }
@@ -230,7 +230,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   errorTitle: {
-    color: "#fca5a5",
+    color: COLORS.red,
     fontFamily: "Fraunces-Regular",
     fontSize: 42,
   },
