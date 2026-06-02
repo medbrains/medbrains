@@ -270,10 +270,6 @@ function canViewPharmacyField(access: FieldAccessLevel) {
   return access !== "hidden";
 }
 
-function canViewUnmaskedPharmacyField(access: FieldAccessLevel) {
-  return access === "view" || access === "edit";
-}
-
 function canEditPharmacyField(access: FieldAccessLevel) {
   return access === "edit";
 }
@@ -328,17 +324,39 @@ function renderPharmacySensitiveValue(access: FieldAccessLevel, value: string | 
   return fieldAccessText(access, value);
 }
 
+function renderPharmacySensitiveIdentifier(
+  access: FieldAccessLevel,
+  value: string | null | undefined,
+) {
+  return fieldAccessText(access, value, "identifier");
+}
+
+function renderPharmacySensitiveShortIdentifier(
+  access: FieldAccessLevel,
+  value: string | null | undefined,
+) {
+  if (access === "edit" || access === "view") return value?.slice(0, 8) ?? "\u2014";
+  return renderPharmacySensitiveIdentifier(access, value);
+}
+
+function renderPharmacySensitiveNumber(
+  access: FieldAccessLevel,
+  value: string | number | null | undefined,
+) {
+  if (value === null || value === undefined || value === "") {
+    return "\u2014";
+  }
+  return fieldAccessText(access, String(value));
+}
+
 function renderPharmacySensitiveCurrency(
   access: FieldAccessLevel,
   value: string | number | null | undefined,
 ) {
-  if (!canViewUnmaskedPharmacyField(access)) {
-    return <PharmacyRestrictedValue />;
-  }
   if (value === null || value === undefined || value === "") {
-    return "—";
+    return "\u2014";
   }
-  return formatInr(Number(value));
+  return fieldAccessText(access, formatInr(Number(value)), "amount");
 }
 
 function posSaleLineQuantity(item: PharmacyPosSaleLine) {
@@ -610,26 +628,32 @@ function isBulkBatchLineReady(row: BulkBatchLine) {
 function buildBatchPayload(
   row: BulkBatchLine,
   header: BulkBatchHeader,
+  access: { canWriteSource: boolean },
 ): CreatePharmacyBatchRequest {
   const paidQty = batchLineNumber(row.paid_quantity);
   const freeQty = batchLineNumber(row.free_quantity);
-  const sourceParts = [
-    `Invoice mode: ${header.invoice_mode}`,
-    header.invoice_date ? `Invoice date: ${header.invoice_date}` : null,
-    header.invoice_number.trim() ? `Invoice: ${header.invoice_number.trim()}` : null,
-    header.invoice_amount !== "" ? `Invoice amount: ${header.invoice_amount}` : null,
-    header.supplier_name.trim() ? `Supplier: ${header.supplier_name.trim()}` : null,
-    header.store_location_id.trim() ? `Store: ${header.store_location_id.trim()}` : null,
-    header.payment_terms.trim() ? `Payment terms: ${header.payment_terms.trim()}` : null,
-    row.grn_reference.trim() ? `GRN/source: ${row.grn_reference.trim()}` : null,
-    row.supplier_batch_number.trim() ? `Supplier batch: ${row.supplier_batch_number.trim()}` : null,
-    row.storage_conditions.trim() ? `Storage: ${row.storage_conditions.trim()}` : null,
-    row.rack_bin.trim() ? `Rack/bin: ${row.rack_bin.trim()}` : null,
-    `Paid qty: ${paidQty}`,
-    `Free qty: ${freeQty}`,
-    row.mrp !== "" ? `MRP: ${row.mrp}` : null,
-    `GST: ${row.tax_percent}%`,
-  ].filter(Boolean);
+  const sourceParts = access.canWriteSource
+    ? [
+        `Invoice mode: ${header.invoice_mode}`,
+        header.invoice_date ? `Invoice date: ${header.invoice_date}` : null,
+        header.invoice_number.trim() ? `Invoice: ${header.invoice_number.trim()}` : null,
+        header.invoice_amount !== "" ? `Invoice amount: ${header.invoice_amount}` : null,
+        header.supplier_name.trim() ? `Supplier: ${header.supplier_name.trim()}` : null,
+        header.store_location_id.trim() ? `Store: ${header.store_location_id.trim()}` : null,
+        header.payment_terms.trim() ? `Payment terms: ${header.payment_terms.trim()}` : null,
+        row.grn_reference.trim() ? `GRN/source: ${row.grn_reference.trim()}` : null,
+        row.supplier_batch_number.trim()
+          ? `Supplier batch: ${row.supplier_batch_number.trim()}`
+          : null,
+        row.storage_conditions.trim() ? `Storage: ${row.storage_conditions.trim()}` : null,
+        row.rack_bin.trim() ? `Rack/bin: ${row.rack_bin.trim()}` : null,
+        `Paid qty: ${paidQty}`,
+        `Free qty: ${freeQty}`,
+        row.mrp !== "" ? `MRP: ${row.mrp}` : null,
+        `GST: ${row.tax_percent}%`,
+      ].filter(Boolean)
+    : [];
+  const sourceInfo = sourceParts.join(" | ");
   return {
     catalog_item_id: row.catalog_item_id,
     batch_number: row.batch_number.trim(),
@@ -637,8 +661,10 @@ function buildBatchPayload(
     manufacture_date: row.manufacture_date || undefined,
     quantity_received: paidQty + freeQty,
     store_location_id: header.store_location_id.trim() || undefined,
-    supplier_info: sourceParts.join(" | "),
-    invoice_number: header.invoice_number.trim() || row.grn_reference.trim() || undefined,
+    supplier_info: access.canWriteSource && sourceInfo ? sourceInfo : undefined,
+    invoice_number: access.canWriteSource
+      ? header.invoice_number.trim() || row.grn_reference.trim() || undefined
+      : undefined,
     supplier_batch_number: row.supplier_batch_number.trim() || undefined,
     purchase_rate: row.purchase_rate === "" ? undefined : row.purchase_rate,
     selling_rate: row.mrp === "" ? undefined : row.mrp,
@@ -3192,8 +3218,10 @@ function StockTab({ canManage }: { canManage: boolean }) {
   const purchaseRateAccess = useFieldAccess("pharmacy.batches.purchase_rate");
   const sellingRateAccess = useFieldAccess("pharmacy.batches.selling_rate");
   const sourceAccess = useFieldAccess("pharmacy.batches.source");
+  const canEditBatchNumbers = canEditPharmacyField(batchNumberAccess);
   const canEditBatchPrices =
     canEditPharmacyField(purchaseRateAccess) && canEditPharmacyField(sellingRateAccess);
+  const canEditBatchSource = canEditPharmacyField(sourceAccess);
 
   const { data: stock = [], isLoading } = useQuery({
     queryKey: ["pharmacy-stock"],
@@ -3234,6 +3262,7 @@ function StockTab({ canManage }: { canManage: boolean }) {
   const storeSelectionRequired = storeLocations.length > 0;
   const canVerifyBulkRows =
     canEditBatchPrices &&
+    canEditBatchNumbers &&
     readyBulkRows.length > 0 &&
     (!storeSelectionRequired || bulkHeader.store_location_id.trim().length > 0);
 
@@ -3255,7 +3284,11 @@ function StockTab({ canManage }: { canManage: boolean }) {
     mutationFn: async (rows: BulkBatchLine[]) => {
       const created: PharmacyBatch[] = [];
       for (const row of rows) {
-        created.push(await pharmacyService.createPharmacyBatch(buildBatchPayload(row, bulkHeader)));
+        created.push(
+          await pharmacyService.createPharmacyBatch(
+            buildBatchPayload(row, bulkHeader, { canWriteSource: canEditBatchSource }),
+          ),
+        );
       }
       return created;
     },
@@ -3347,12 +3380,12 @@ function StockTab({ canManage }: { canManage: boolean }) {
 
   return (
     <Stack>
-      {canManage && !canEditBatchPrices && (
+      {canManage && (!canEditBatchPrices || !canEditBatchNumbers) && (
         <Alert color="orange" variant="light">
-          Stock intake requires editable batch purchase and selling rate access.
+          Stock intake requires editable batch identifiers plus purchase and selling rate access.
         </Alert>
       )}
-      {canManage && canEditBatchPrices && (
+      {canManage && canEditBatchPrices && canEditBatchNumbers && (
         <Group>
           <Button
             size="xs"
@@ -3440,10 +3473,17 @@ function StockTab({ canManage }: { canManage: boolean }) {
               <Text size="sm" c="dimmed">
                 Add multiple received batches in one table, then verify before stock is posted.
               </Text>
+              {!canEditBatchSource && (
+                <Alert color="gray" variant="light">
+                  Supplier, invoice, GRN, and storage-source details are restricted for this role
+                  and will not be posted with the batch.
+                </Alert>
+              )}
               <Stack gap="xs">
                 <Group grow>
                   <TextInput
                     label="Supplier name"
+                    disabled={!canEditBatchSource}
                     value={bulkHeader.supplier_name}
                     onChange={(event) => {
                       const value = event.currentTarget.value;
@@ -3456,6 +3496,7 @@ function StockTab({ canManage }: { canManage: boolean }) {
                   />
                   <TextInput
                     label="Supplier invoice number"
+                    disabled={!canEditBatchSource}
                     value={bulkHeader.invoice_number}
                     onChange={(event) => {
                       const value = event.currentTarget.value;
@@ -3486,6 +3527,7 @@ function StockTab({ canManage }: { canManage: boolean }) {
                   />
                   <Select
                     label="Invoice mode"
+                    disabled={!canEditBatchSource}
                     data={[
                       { value: "credit", label: "Credit invoice" },
                       { value: "cash", label: "Cash invoice" },
@@ -3501,6 +3543,7 @@ function StockTab({ canManage }: { canManage: boolean }) {
                   <TextInput
                     label="Invoice date"
                     type="date"
+                    disabled={!canEditBatchSource}
                     value={bulkHeader.invoice_date}
                     onChange={(event) => {
                       const value = event.currentTarget.value;
@@ -3516,6 +3559,7 @@ function StockTab({ canManage }: { canManage: boolean }) {
                     label="Invoice amount"
                     min={0}
                     decimalScale={2}
+                    disabled={!canEditBatchPrices || !canEditBatchSource}
                     value={bulkHeader.invoice_amount}
                     onChange={(value) =>
                       setBulkHeader((header) => ({
@@ -3526,6 +3570,7 @@ function StockTab({ canManage }: { canManage: boolean }) {
                   />
                   <TextInput
                     label="Payment terms"
+                    disabled={!canEditBatchSource}
                     value={bulkHeader.payment_terms}
                     onChange={(event) => {
                       const value = event.currentTarget.value;
@@ -3597,6 +3642,7 @@ function StockTab({ canManage }: { canManage: boolean }) {
                       <Table.Td>
                         <TextInput
                           value={row.batch_number}
+                          disabled={!canEditBatchNumbers}
                           onChange={(event) =>
                             updateBulkRow(row.id, { batch_number: event.currentTarget.value })
                           }
@@ -3606,6 +3652,7 @@ function StockTab({ canManage }: { canManage: boolean }) {
                       <Table.Td>
                         <TextInput
                           value={row.supplier_batch_number}
+                          disabled={!canEditBatchNumbers}
                           onChange={(event) =>
                             updateBulkRow(row.id, {
                               supplier_batch_number: event.currentTarget.value,
@@ -3635,6 +3682,7 @@ function StockTab({ canManage }: { canManage: boolean }) {
                       <Table.Td>
                         <TextInput
                           value={row.grn_reference}
+                          disabled={!canEditBatchSource}
                           onChange={(event) =>
                             updateBulkRow(row.id, { grn_reference: event.currentTarget.value })
                           }
@@ -3644,6 +3692,7 @@ function StockTab({ canManage }: { canManage: boolean }) {
                       <Table.Td>
                         <TextInput
                           value={row.storage_conditions}
+                          disabled={!canEditBatchSource}
                           onChange={(event) =>
                             updateBulkRow(row.id, {
                               storage_conditions: event.currentTarget.value,
@@ -3655,6 +3704,7 @@ function StockTab({ canManage }: { canManage: boolean }) {
                       <Table.Td>
                         <TextInput
                           value={row.rack_bin}
+                          disabled={!canEditBatchSource}
                           onChange={(event) =>
                             updateBulkRow(row.id, { rack_bin: event.currentTarget.value })
                           }
@@ -3665,6 +3715,7 @@ function StockTab({ canManage }: { canManage: boolean }) {
                         <NumberInput
                           min={0}
                           value={row.purchase_rate}
+                          disabled={!canEditBatchPrices}
                           error={!isBatchLinePriceValid(row) ? "Cannot exceed MRP" : undefined}
                           onChange={(value) =>
                             updateBulkRow(row.id, {
@@ -3677,6 +3728,7 @@ function StockTab({ canManage }: { canManage: boolean }) {
                         <NumberInput
                           min={0}
                           value={row.mrp}
+                          disabled={!canEditBatchPrices}
                           error={
                             !isBatchLinePriceValid(row) ? "MRP must be >= purchase" : undefined
                           }
@@ -3810,12 +3862,22 @@ function StockTab({ canManage }: { canManage: boolean }) {
                           {isBatchLineBelowReorder(row) ? "Below reorder" : "Above reorder"}
                         </Badge>
                       </Table.Td>
-                      <Table.Td>{row.batch_number}</Table.Td>
-                      <Table.Td>{row.supplier_batch_number || "—"}</Table.Td>
+                      <Table.Td>
+                        {renderPharmacySensitiveIdentifier(batchNumberAccess, row.batch_number)}
+                      </Table.Td>
+                      <Table.Td>
+                        {renderPharmacySensitiveIdentifier(
+                          batchNumberAccess,
+                          row.supplier_batch_number,
+                        )}
+                      </Table.Td>
                       <Table.Td>{row.expiry_date}</Table.Td>
                       <Table.Td>{row.manufacture_date || "—"}</Table.Td>
                       <Table.Td>
-                        {[row.storage_conditions, row.rack_bin].filter(Boolean).join(" · ") || "—"}
+                        {renderPharmacySensitiveValue(
+                          sourceAccess,
+                          [row.storage_conditions, row.rack_bin].filter(Boolean).join(" · "),
+                        )}
                       </Table.Td>
                       <Table.Td>{batchLineNumber(row.paid_quantity)}</Table.Td>
                       <Table.Td>{batchLineNumber(row.free_quantity)}</Table.Td>
@@ -3961,7 +4023,7 @@ function NdpsRegisterTab() {
       label: "Balance",
       render: (row: NdpsRegisterEntry) => (
         <Text size="sm" fw={700}>
-          {canViewPharmacyField(balanceAccess) ? row.balance_after : <PharmacyRestrictedValue />}
+          {renderPharmacySensitiveNumber(balanceAccess, row.balance_after)}
         </Text>
       ),
     },
@@ -3970,11 +4032,7 @@ function NdpsRegisterTab() {
       label: "By",
       render: (row: NdpsRegisterEntry) => (
         <Text size="sm">
-          {canViewPharmacyField(userAccess) ? (
-            (row.dispensed_by?.slice(0, 8) ?? "\u2014")
-          ) : (
-            <PharmacyRestrictedValue />
-          )}
+          {renderPharmacySensitiveShortIdentifier(userAccess, row.dispensed_by)}
         </Text>
       ),
     },
@@ -3983,11 +4041,7 @@ function NdpsRegisterTab() {
       label: "Witness",
       render: (row: NdpsRegisterEntry) => (
         <Text size="sm">
-          {canViewPharmacyField(witnessAccess) ? (
-            (row.witnessed_by?.slice(0, 8) ?? "\u2014")
-          ) : (
-            <PharmacyRestrictedValue />
-          )}
+          {renderPharmacySensitiveShortIdentifier(witnessAccess, row.witnessed_by)}
         </Text>
       ),
     },
@@ -4011,7 +4065,7 @@ function NdpsRegisterTab() {
               variant="light"
               leftSection={<IconLock size={12} />}
             >
-              {b.drug_name}: {b.balance}
+              {b.drug_name}: {renderPharmacySensitiveNumber(balanceAccess, b.balance)}
             </Badge>
           ))}
         </Group>
@@ -5528,6 +5582,7 @@ function PosCounterTab({
   const walkInNameAccess = useFieldAccess("pharmacy.pos.patient_name");
   const walkInPhoneAccess = useFieldAccess("pharmacy.pos.patient_phone");
   const priceAccess = useFieldAccess("pharmacy.pricing.unit_price");
+  const batchNumberAccess = useFieldAccess("pharmacy.batches.batch_number");
   const canViewWalkInName = canViewPharmacyField(walkInNameAccess);
   const canViewWalkInPhone = canViewPharmacyField(walkInPhoneAccess);
   const canEditWalkInName = canEditPharmacyField(walkInNameAccess);
@@ -6333,7 +6388,9 @@ function PosCounterTab({
                         </Text>
                       </Table.Td>
                       <Table.Td>
-                        <Text size="sm">{item.batch_number || "—"}</Text>
+                        <Text size="sm">
+                          {renderPharmacySensitiveValue(batchNumberAccess, item.batch_number)}
+                        </Text>
                       </Table.Td>
                       <Table.Td>
                         <Badge variant="light">{formIntegerOrFallback(item.max_qty, 0)}</Badge>

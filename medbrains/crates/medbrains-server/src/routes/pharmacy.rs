@@ -390,6 +390,46 @@ fn validate_catalog_price_write(
     Ok(())
 }
 
+fn validate_batch_write_access(
+    body: &CreateBatchRequest,
+    restricted: &HashMap<String, FieldAccessLevel>,
+) -> Result<(), AppError> {
+    let mut violations = Vec::new();
+
+    if !can_write_pharmacy_field(restricted, PHARMACY_BATCH_NUMBER_FIELD) {
+        violations.push("batch number");
+    }
+    if has_pharmacy_text(&body.supplier_batch_number)
+        && !can_write_pharmacy_field(restricted, PHARMACY_BATCH_NUMBER_FIELD)
+    {
+        violations.push("supplier batch number");
+    }
+    if body.purchase_rate.is_some()
+        && !can_write_pharmacy_field(restricted, PHARMACY_BATCH_PURCHASE_RATE_FIELD)
+    {
+        violations.push("purchase rate");
+    }
+    if body.selling_rate.is_some()
+        && !can_write_pharmacy_field(restricted, PHARMACY_BATCH_SELLING_RATE_FIELD)
+    {
+        violations.push("selling rate");
+    }
+    if (has_pharmacy_text(&body.supplier_info) || has_pharmacy_text(&body.invoice_number))
+        && !can_write_pharmacy_field(restricted, PHARMACY_BATCH_SOURCE_FIELD)
+    {
+        violations.push("batch source");
+    }
+
+    if violations.is_empty() {
+        return Ok(());
+    }
+
+    Err(AppError::BadRequest(format!(
+        "Cannot write restricted pharmacy batch fields: {}",
+        violations.join(", ")
+    )))
+}
+
 fn filter_pharmacy_catalog_response(
     mut row: PharmacyCatalog,
     restricted: &HashMap<String, FieldAccessLevel>,
@@ -3566,6 +3606,7 @@ pub async fn create_batch(
             "quantity_received must be greater than zero".to_owned(),
         ));
     }
+    validate_batch_write_access(&body, &restricted_fields)?;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
