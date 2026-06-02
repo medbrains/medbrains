@@ -4,9 +4,12 @@ import {
   ActionIcon,
   Alert,
   Badge,
+  Box,
   Button,
   Card,
+  Divider,
   Drawer,
+  Grid,
   Group,
   NumberInput,
   Select,
@@ -104,6 +107,7 @@ import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { EncounterDetail } from "@/pages/opd";
 import { campService } from "@/services/camp.service";
 import { lookupsService } from "@/services/lookups.service";
+import classes from "./camp.module.scss";
 
 // ── Constants ──────────────────────────────────────────
 
@@ -309,6 +313,19 @@ export function CampWorkPage({ initialTab = "registrations" }: CampWorkPageProps
     [camps],
   );
   const selectedCamp = camps.find((camp) => camp.id === campId) ?? null;
+  const journeyContext = useMemo<ClinicalJourneyContext | null>(
+    () => (contextPatientId ? { patientId: contextPatientId } : null),
+    [contextPatientId],
+  );
+  const workTabs = [
+    { value: "registrations", label: "Registrations", icon: <IconUsers size={16} /> },
+    { value: "screenings", label: "Clinical Screening", icon: <IconStethoscope size={16} /> },
+    { value: "followups", label: "Follow-up", icon: <IconCalendarCheck size={16} /> },
+    { value: "analytics", label: "Report", icon: <IconChartBar size={16} /> },
+  ];
+  const activeWorkTab = workTabs.some((tab) => tab.value === activeTab)
+    ? activeTab
+    : "registrations";
 
   const openRegistrationClinicalFlow = (registrationId: string) => {
     setFocusedRegistrationId(registrationId);
@@ -316,7 +333,7 @@ export function CampWorkPage({ initialTab = "registrations" }: CampWorkPageProps
   };
 
   return (
-    <div>
+    <Stack className={classes.campWorkspace}>
       <PageHeader
         title={selectedCamp ? `Work Camp · ${selectedCamp.name}` : "Work Camp"}
         subtitle={
@@ -333,66 +350,187 @@ export function CampWorkPage({ initialTab = "registrations" }: CampWorkPageProps
           </Button>
         }
       />
-      <CampContextBar
-        activeCamps={activeCamps}
-        selectedCamp={selectedCamp}
-        selectedCampId={campId ?? null}
-        onSelectCamp={(nextCampId) => {
-          setFocusedRegistrationId(null);
-          if (nextCampId) {
-            navigate(`/camp/${nextCampId}/work${patientContextQuery(contextPatientId)}`);
-          }
-        }}
-      />
-      {contextPatientId && (
-        <>
-          <PatientContextBanner patientId={contextPatientId} hideLoadingState />
-          <PatientFlowNavigator patientId={contextPatientId} active="camp" compact />
-          <CampPatientActionBar patientId={contextPatientId} />
-        </>
-      )}
+      <Card withBorder className={classes.commandBar}>
+        <Stack gap="xs">
+          {contextPatientId && (
+            <>
+              <PatientContextBanner patientId={contextPatientId} hideLoadingState />
+              <PatientFlowNavigator patientId={contextPatientId} active="camp" compact />
+            </>
+          )}
+          <Group justify="space-between" align="flex-start" gap="sm">
+            <Stack gap={4}>
+              <Group gap="xs">
+                <Badge color={selectedCamp ? "success" : "slate"} variant="filled">
+                  {selectedCamp ? "Active camp context" : "No active camp"}
+                </Badge>
+                {selectedCamp && (
+                  <>
+                    <Text size="sm" fw={700}>
+                      {selectedCamp.camp_code} · {selectedCamp.name}
+                    </Text>
+                    <Badge
+                      color={CAMP_STATUS_COLORS[selectedCamp.status] ?? "slate"}
+                      variant="light"
+                    >
+                      {selectedCamp.status}
+                    </Badge>
+                  </>
+                )}
+              </Group>
+              <Text size="xs" c="dimmed">
+                {selectedCamp
+                  ? `${selectedCamp.scheduled_date} · ${selectedCamp.venue_name ?? "Venue not set"}`
+                  : "Choose an active camp to start registration and screening"}
+              </Text>
+            </Stack>
+            {journeyContext && (
+              <PatientJourneyActions
+                context={journeyContext}
+                hiddenActionIds={["camp.open_context"]}
+                size="xs"
+              />
+            )}
+          </Group>
+        </Stack>
+      </Card>
 
-      <Tabs value={activeTab} onChange={setActiveTab}>
-        <Tabs.List>
-          <Tabs.Tab value="registrations" leftSection={<IconUsers size={16} />}>
-            Registrations
-          </Tabs.Tab>
-          <Tabs.Tab value="screenings" leftSection={<IconStethoscope size={16} />}>
-            Clinical Screening
-          </Tabs.Tab>
-          <Tabs.Tab value="followups" leftSection={<IconCalendarCheck size={16} />}>
-            Follow-up
-          </Tabs.Tab>
-          <Tabs.Tab value="analytics" leftSection={<IconChartBar size={16} />}>
-            Report
-          </Tabs.Tab>
-        </Tabs.List>
+      <Tabs value={activeWorkTab} onChange={setActiveTab} keepMounted={false}>
+        <Grid align="flex-start" className={classes.workspaceGrid}>
+          <Grid.Col span={{ base: 12, lg: 8 }}>
+            <Stack className={classes.workspaceMain}>
+              <Tabs.List className={classes.tabsList}>
+                {workTabs.map((tab) => (
+                  <Tabs.Tab key={tab.value} value={tab.value} leftSection={tab.icon}>
+                    {tab.label}
+                  </Tabs.Tab>
+                ))}
+              </Tabs.List>
 
-        <Tabs.Panel value="registrations" pt="md">
-          <RegistrationsTab
-            campId={campId ?? null}
-            selectedCamp={selectedCamp}
-            contextPatientId={contextPatientId}
-            onScreenRegistration={openRegistrationClinicalFlow}
-          />
-        </Tabs.Panel>
-        <Tabs.Panel value="screenings" pt="md">
-          <ScreeningsTab
-            key={`${campId ?? "none"}-${focusedRegistrationId ?? "none"}`}
-            campId={campId ?? null}
-            selectedCamp={selectedCamp}
-            focusedRegistrationId={focusedRegistrationId}
-            onClearFocusedRegistration={() => setFocusedRegistrationId(null)}
-          />
-        </Tabs.Panel>
-        <Tabs.Panel value="followups" pt="md">
-          <FollowupsTab campId={campId ?? null} selectedCamp={selectedCamp} />
-        </Tabs.Panel>
-        <Tabs.Panel value="analytics" pt="md">
-          <CampAnalyticsTab campId={campId ?? null} selectedCamp={selectedCamp} />
-        </Tabs.Panel>
+              <Tabs.Panel id="camp-registrations" value="registrations" pt="md">
+                <RegistrationsTab
+                  campId={campId ?? null}
+                  selectedCamp={selectedCamp}
+                  contextPatientId={contextPatientId}
+                  onScreenRegistration={openRegistrationClinicalFlow}
+                />
+              </Tabs.Panel>
+              <Tabs.Panel id="camp-screenings" value="screenings" pt="md">
+                <ScreeningsTab
+                  key={`${campId ?? "none"}-${focusedRegistrationId ?? "none"}`}
+                  campId={campId ?? null}
+                  selectedCamp={selectedCamp}
+                  focusedRegistrationId={focusedRegistrationId}
+                  onClearFocusedRegistration={() => setFocusedRegistrationId(null)}
+                />
+              </Tabs.Panel>
+              <Tabs.Panel id="camp-followups" value="followups" pt="md">
+                <FollowupsTab campId={campId ?? null} selectedCamp={selectedCamp} />
+              </Tabs.Panel>
+              <Tabs.Panel id="camp-report" value="analytics" pt="md">
+                <CampAnalyticsTab campId={campId ?? null} selectedCamp={selectedCamp} />
+              </Tabs.Panel>
+            </Stack>
+          </Grid.Col>
+
+          <Grid.Col span={{ base: 12, lg: 4 }}>
+            <Box className={classes.contextRail}>
+              <Stack gap="sm">
+                <Stack gap={2}>
+                  <Text size="xs" fw={700} c="dimmed" tt="uppercase">
+                    Camp workspace
+                  </Text>
+                  <Text size="sm" fw={700}>
+                    {selectedCamp ? selectedCamp.camp_code : "Select camp"}
+                  </Text>
+                </Stack>
+                <Select
+                  placeholder="Select active camp"
+                  data={activeCamps.map((camp) => ({
+                    value: camp.id,
+                    label: `${camp.camp_code} - ${camp.name}`,
+                  }))}
+                  value={campId ?? null}
+                  onChange={(nextCampId) => {
+                    setFocusedRegistrationId(null);
+                    if (nextCampId) {
+                      navigate(`/camp/${nextCampId}/work${patientContextQuery(contextPatientId)}`);
+                    }
+                  }}
+                  searchable
+                  disabled={activeCamps.length === 0}
+                />
+                <Divider />
+                <Stack gap="xs">
+                  <Text size="xs" fw={700} c="dimmed" tt="uppercase">
+                    Navigate
+                  </Text>
+                  {workTabs.map((tab) => (
+                    <Button
+                      key={tab.value}
+                      size="xs"
+                      variant={activeWorkTab === tab.value ? "filled" : "light"}
+                      color={activeWorkTab === tab.value ? "primary" : "slate"}
+                      leftSection={tab.icon}
+                      onClick={() => setActiveTab(tab.value)}
+                      fullWidth
+                    >
+                      {tab.label}
+                    </Button>
+                  ))}
+                </Stack>
+                <Divider />
+                <Stack gap="xs">
+                  <Text size="xs" fw={700} c="dimmed" tt="uppercase">
+                    Actions
+                  </Text>
+                  <Button
+                    size="xs"
+                    variant="light"
+                    leftSection={<IconUsers size={14} />}
+                    disabled={!selectedCamp}
+                    onClick={() => setActiveTab("registrations")}
+                    fullWidth
+                  >
+                    Register
+                  </Button>
+                  <Button
+                    size="xs"
+                    variant="light"
+                    leftSection={<IconStethoscope size={14} />}
+                    disabled={!selectedCamp}
+                    onClick={() => setActiveTab("screenings")}
+                    fullWidth
+                  >
+                    Screen
+                  </Button>
+                  <Button
+                    size="xs"
+                    variant="light"
+                    leftSection={<IconCalendarCheck size={14} />}
+                    disabled={!selectedCamp}
+                    onClick={() => setActiveTab("followups")}
+                    fullWidth
+                  >
+                    Follow-up
+                  </Button>
+                  <Button
+                    size="xs"
+                    variant="light"
+                    color="orange"
+                    leftSection={<IconArrowRight size={14} />}
+                    onClick={() => navigate(`/camp${patientContextQuery(contextPatientId)}`)}
+                    fullWidth
+                  >
+                    Camp Management
+                  </Button>
+                </Stack>
+              </Stack>
+            </Box>
+          </Grid.Col>
+        </Grid>
       </Tabs>
-    </div>
+    </Stack>
   );
 }
 
@@ -580,52 +718,6 @@ function CampPatientContextPanel({ patientId }: { patientId: string }) {
         </Alert>
       )}
     </Stack>
-  );
-}
-
-function CampContextBar({
-  activeCamps,
-  selectedCamp,
-  selectedCampId,
-  onSelectCamp,
-}: {
-  activeCamps: Camp[];
-  selectedCamp: Camp | null;
-  selectedCampId: string | null;
-  onSelectCamp: (campId: string | null) => void;
-}) {
-  return (
-    <Card withBorder p="sm" mb="md">
-      <Group justify="space-between" align="center">
-        <Stack gap={2}>
-          <Group gap="xs">
-            <Badge color={selectedCamp ? "success" : "slate"} variant="filled">
-              {selectedCamp ? "Active camp context" : "No active camp"}
-            </Badge>
-            {selectedCamp && (
-              <Text size="sm" fw={600}>
-                {selectedCamp.camp_code} · {selectedCamp.name}
-              </Text>
-            )}
-          </Group>
-          <Text size="xs" c="dimmed">
-            Registration, screening, lab, follow-up, and reports use this camp automatically.
-          </Text>
-        </Stack>
-        <Select
-          placeholder="Select active camp"
-          data={activeCamps.map((camp) => ({
-            value: camp.id,
-            label: `${camp.camp_code} - ${camp.name}`,
-          }))}
-          value={selectedCampId}
-          onChange={onSelectCamp}
-          searchable
-          w={360}
-          disabled={activeCamps.length === 0}
-        />
-      </Group>
-    </Card>
   );
 }
 
