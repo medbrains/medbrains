@@ -3,9 +3,12 @@ import {
   ActionIcon,
   Alert,
   Badge,
+  Box,
   Button,
   Card,
+  Divider,
   Drawer,
+  Grid,
   Group,
   NumberInput,
   Progress,
@@ -237,6 +240,7 @@ import {
   PRINT_COPY_PACKETS,
   printCopyRouteLabel,
 } from "@/utils/printCopies";
+import classes from "./billing.module.scss";
 
 const statusColors: Record<string, string> = {
   draft: "slate",
@@ -1119,6 +1123,7 @@ function InvoiceDetail({
   canPay: boolean;
 }) {
   const emit = useClinicalEmit();
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const canPrintBillingDocs = useHasPermission(P.BILLING.RECEIPTS_PRINT);
   const amountAccess = useProtectedFieldAccess("billing.amount");
@@ -1131,11 +1136,11 @@ function InvoiceDetail({
     patientName: patientNameAccess,
     uhid: uhidAccess,
   };
-  const [showAddItem, setShowAddItem] = useState(false);
-  const [showPayment, setShowPayment] = useState(false);
-  const [showGateway, setShowGateway] = useState(false);
-  const [showDiscount, setShowDiscount] = useState(false);
-  const [showCopay, setShowCopay] = useState(false);
+  const [addItemOpened, addItemHandlers] = useDisclosure(false);
+  const [paymentOpened, paymentHandlers] = useDisclosure(false);
+  const [gatewayOpened, gatewayHandlers] = useDisclosure(false);
+  const [discountOpened, discountHandlers] = useDisclosure(false);
+  const [copayOpened, copayHandlers] = useDisclosure(false);
   const itemDefaults: BillingInvoiceItemFormInput = {
     charge_code: "",
     description: "",
@@ -1222,7 +1227,7 @@ function InvoiceDetail({
     mutationFn: (item: AddInvoiceItemRequest) => billingService.addInvoiceItem(invoiceId, item),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["invoice-detail", invoiceId] });
-      setShowAddItem(false);
+      addItemHandlers.close();
       resetItem(itemDefaults);
     },
   });
@@ -1246,7 +1251,7 @@ function InvoiceDetail({
         amount: variables.amount,
         mode: variables.mode,
       });
-      setShowPayment(false);
+      paymentHandlers.close();
       resetPayment(paymentDefaults);
     },
   });
@@ -1261,7 +1266,7 @@ function InvoiceDetail({
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["invoice-discounts", invoiceId] });
       void queryClient.invalidateQueries({ queryKey: ["invoice-detail", invoiceId] });
-      setShowDiscount(false);
+      discountHandlers.close();
       resetDiscount(discountDefaults);
     },
   });
@@ -1315,12 +1320,12 @@ function InvoiceDetail({
     (displayStatus === "issued" || displayStatus === "partially_paid") &&
     balance > 0;
   const openPaymentForm = () => {
-    if (showPayment) {
-      setShowPayment(false);
+    if (paymentOpened) {
+      paymentHandlers.close();
       return;
     }
     resetPayment({ ...paymentDefaults, amount: balance });
-    setShowPayment(true);
+    paymentHandlers.open();
   };
   const handleAddInvoiceItem = (values: BillingInvoiceItemFormInput) => {
     addItemMutation.mutate({
@@ -1357,489 +1362,740 @@ function InvoiceDetail({
     }
     void queryClient.invalidateQueries({ queryKey: ["invoice-detail", invoiceId] });
     void queryClient.invalidateQueries({ queryKey: ["invoices"] });
-    setShowGateway(false);
+    gatewayHandlers.close();
   };
 
   return (
-    <Stack>
-      <Group justify="space-between">
-        <Text fw={700} size="lg">
-          {inv.invoice_number}
-        </Text>
-        <Badge color={statusColors[displayStatus] ?? "slate"} variant="light" size="lg">
-          {displayStatus.replace(/_/g, " ")}
-        </Badge>
-      </Group>
-      <Group>
-        <Text size="sm">Total: {billingAmountText(inv.total_amount, amountAccess)}</Text>
-        <Text size="sm">Paid: {billingAmountText(inv.paid_amount, amountAccess)}</Text>
-        <Text size="sm" c={balance > 0 ? "danger" : "success"}>
-          Balance: {billingAmountText(balance, amountAccess)}
-        </Text>
-      </Group>
-      {canPrintBillingDocs && (
-        <Group gap="xs">
-          <Tooltip
-            label={
-              inv.status === "draft"
-                ? "Issue the invoice before printing"
-                : "Customer and office copies"
-            }
-          >
-            <Button
-              size="xs"
-              variant="light"
-              leftSection={<IconPrinter size={14} />}
-              loading={invoicePrintMutation.isPending}
-              disabled={inv.status === "draft"}
-              onClick={() => invoicePrintMutation.mutate()}
-            >
-              Print invoice packet
-            </Button>
-          </Tooltip>
-          {BILLING_INVOICE_PRINT_COPIES.map((copy) => (
-            <Badge key={copy.label} color="violet" variant="light">
-              {printCopyRouteLabel(copy)}
-            </Badge>
-          ))}
-        </Group>
-      )}
-      <PatientContextBanner patientId={inv.patient_id} hideLoadingState />
-      <PatientFlowNavigator
-        patientId={inv.patient_id}
-        active="billing"
-        activeEncounterId={inv.encounter_id}
-        compact
-      />
-      <Card withBorder padding="sm">
-        <Group justify="space-between" gap="sm" align="center">
-          <Stack gap={2}>
-            <Text size="xs" fw={700} c="dimmed" tt="uppercase">
-              Patient handoff
-            </Text>
-            <Text size="xs" c="dimmed">
-              Move from billing to clinical context, pharmacy, or follow-up without re-searching.
-            </Text>
-          </Stack>
-          <PatientJourneyActions
-            context={journeyContext}
-            hiddenActionIds={["billing.open_ledger"]}
-            size="xs"
+    <Stack className={classes.invoiceWorkspace}>
+      <Card withBorder className={classes.commandBar}>
+        <Stack gap="xs">
+          <PatientContextBanner patientId={inv.patient_id} hideLoadingState />
+          <PatientFlowNavigator
+            patientId={inv.patient_id}
+            active="billing"
+            activeEncounterId={inv.encounter_id}
+            compact
           />
-        </Group>
-      </Card>
-      {(Number(inv.cgst_amount ?? 0) > 0 ||
-        Number(inv.sgst_amount ?? 0) > 0 ||
-        Number(inv.igst_amount ?? 0) > 0) && (
-        <Group gap="xs">
-          <Badge variant="light" color="teal" size="sm">
-            CGST: {billingAmountText(inv.cgst_amount, amountAccess)}
-          </Badge>
-          <Badge variant="light" color="teal" size="sm">
-            SGST: {billingAmountText(inv.sgst_amount, amountAccess)}
-          </Badge>
-          <Badge variant="light" color="primary" size="sm">
-            IGST: {billingAmountText(inv.igst_amount, amountAccess)}
-          </Badge>
-          {Number(inv.cess_amount ?? 0) > 0 && (
-            <Badge variant="light" color="orange" size="sm">
-              Cess: {billingAmountText(inv.cess_amount, amountAccess)}
-            </Badge>
-          )}
-        </Group>
-      )}
-      {inv.is_interim && (
-        <Group gap="xs">
-          <Badge color="violet" variant="light">
-            Interim #{inv.sequence_number}
-          </Badge>
-          {inv.billing_period_start && inv.billing_period_end && (
-            <Text size="xs" c="dimmed">
-              Period: {new Date(inv.billing_period_start).toLocaleDateString()} –{" "}
-              {new Date(inv.billing_period_end).toLocaleDateString()}
-            </Text>
-          )}
-        </Group>
-      )}
-
-      {canCreate && inv.status === "draft" && (
-        <Group>
-          <Button size="xs" color="primary" onClick={() => issueMutation.mutate()}>
-            Issue Invoice
-          </Button>
-          <Button size="xs" color="danger" variant="light" onClick={() => cancelMutation.mutate()}>
-            Cancel
-          </Button>
-        </Group>
-      )}
-
-      <Group>
-        <Button
-          size="xs"
-          variant="light"
-          color="teal"
-          leftSection={<IconShieldCheck size={14} />}
-          onClick={() => setShowCopay(!showCopay)}
-        >
-          {showCopay ? "Hide Co-pay" : "Calculate Co-pay"}
-        </Button>
-      </Group>
-      {showCopay && <CopayBreakdown invoiceId={invoiceId} />}
-
-      <Text fw={600} mt="md">
-        Items
-      </Text>
-      <Table striped>
-        <Table.Thead>
-          <Table.Tr>
-            <Table.Th>Description</Table.Th>
-            <Table.Th>Qty</Table.Th>
-            <Table.Th>Price</Table.Th>
-            <Table.Th>Tax</Table.Th>
-            <Table.Th>Total</Table.Th>
-            {canCreate && inv.status === "draft" && <Table.Th />}
-          </Table.Tr>
-        </Table.Thead>
-        <Table.Tbody>
-          {detail.items.map((item) => (
-            <Table.Tr key={item.id}>
-              <Table.Td>{item.description}</Table.Td>
-              <Table.Td>{item.quantity}</Table.Td>
-              <Table.Td>{billingAmountText(item.unit_price, amountAccess)}</Table.Td>
-              <Table.Td>{item.tax_percent}%</Table.Td>
-              <Table.Td>{billingAmountText(item.total_price, amountAccess)}</Table.Td>
-              {canCreate && inv.status === "draft" && (
-                <Table.Td>
-                  <ActionIcon
-                    variant="subtle"
-                    color="danger"
-                    onClick={() => removeItemMutation.mutate(item.id)}
-                  >
-                    <IconTrash size={14} />
-                  </ActionIcon>
-                </Table.Td>
-              )}
-            </Table.Tr>
-          ))}
-        </Table.Tbody>
-      </Table>
-
-      {canCreate && inv.status === "draft" && (
-        <>
-          <Button
-            size="xs"
-            variant="light"
-            leftSection={<IconPlus size={14} />}
-            onClick={() => setShowAddItem(!showAddItem)}
-          >
-            Add Item
-          </Button>
-          {showAddItem && (
-            <Stack component="form" gap="xs" onSubmit={handleSubmitItem(handleAddInvoiceItem)}>
-              <Group grow>
-                <TextInput
-                  label="Charge Code"
-                  required
-                  error={itemErrors.charge_code?.message}
-                  {...registerItem("charge_code")}
-                />
-                <Controller
-                  control={itemControl}
-                  name="source"
-                  render={({ field }) => (
-                    <Select
-                      label="Source"
-                      data={billingChargeSourceOptions}
-                      value={field.value}
-                      onChange={(value) => field.onChange(value ?? "manual")}
-                      error={itemErrors.source?.message}
-                    />
-                  )}
-                />
+          <Group justify="space-between" align="flex-start" gap="sm">
+            <Stack gap={4}>
+              <Group gap="xs">
+                <Text fw={700}>{inv.invoice_number}</Text>
+                <Badge color={statusColors[displayStatus] ?? "slate"} variant="light" size="lg">
+                  {displayStatus.replace(/_/g, " ")}
+                </Badge>
+                {inv.is_interim && (
+                  <Badge color="violet" variant="light">
+                    Interim #{inv.sequence_number}
+                  </Badge>
+                )}
+                {inv.is_er_deferred && (
+                  <Badge color="danger" variant="light">
+                    ER Deferred
+                  </Badge>
+                )}
               </Group>
-              <TextInput
-                label="Description"
-                required
-                error={itemErrors.description?.message}
-                {...registerItem("description")}
+              <Group gap="md">
+                <Text size="sm">Total: {billingAmountText(inv.total_amount, amountAccess)}</Text>
+                <Text size="sm">Paid: {billingAmountText(inv.paid_amount, amountAccess)}</Text>
+                <Text
+                  size="sm"
+                  c={amountAccess === "hidden" ? undefined : balance > 0 ? "danger" : "success"}
+                >
+                  Balance: {billingAmountText(balance, amountAccess)}
+                </Text>
+              </Group>
+              <PatientJourneyActions
+                context={journeyContext}
+                hiddenActionIds={["billing.open_ledger"]}
+                size="xs"
               />
-              <Group grow>
-                <Controller
-                  control={itemControl}
-                  name="quantity"
-                  render={({ field }) => (
-                    <NumberInput
-                      label="Qty"
-                      min={1}
-                      value={field.value}
-                      onChange={field.onChange}
-                      error={itemErrors.quantity?.message}
-                    />
-                  )}
-                />
-                <Controller
-                  control={itemControl}
-                  name="unit_price"
-                  render={({ field }) => (
-                    <NumberInput
-                      label="Unit Price"
-                      min={0}
-                      decimalScale={2}
-                      value={field.value}
-                      onChange={field.onChange}
-                      error={itemErrors.unit_price?.message}
-                    />
-                  )}
-                />
-                <Controller
-                  control={itemControl}
-                  name="tax_percent"
-                  render={({ field }) => (
-                    <NumberInput
-                      label="Tax %"
-                      min={0}
-                      max={100}
-                      decimalScale={2}
-                      value={field.value}
-                      onChange={field.onChange}
-                      error={itemErrors.tax_percent?.message}
-                    />
-                  )}
-                />
-              </Group>
-              <Button size="xs" type="submit" loading={addItemMutation.isPending}>
-                Add
-              </Button>
             </Stack>
-          )}
-        </>
-      )}
-
-      <Text fw={600} mt="md">
-        Payments
-      </Text>
-      <Table striped>
-        <Table.Thead>
-          <Table.Tr>
-            <Table.Th>Amount</Table.Th>
-            <Table.Th>Mode</Table.Th>
-            <Table.Th>Reference</Table.Th>
-            <Table.Th>Date</Table.Th>
-            {canPrintBillingDocs && <Table.Th />}
-          </Table.Tr>
-        </Table.Thead>
-        <Table.Tbody>
-          {detail.payments.map((p) => (
-            <Table.Tr key={p.id}>
-              <Table.Td>{billingAmountText(p.amount, amountAccess)}</Table.Td>
-              <Table.Td>{p.mode}</Table.Td>
-              <Table.Td>{p.reference_number ?? "—"}</Table.Td>
-              <Table.Td>{new Date(p.created_at).toLocaleString()}</Table.Td>
+            <Group gap="xs" justify="flex-end">
               {canPrintBillingDocs && (
-                <Table.Td>
-                  <Tooltip label="Generate + print receipt packet">
-                    <ActionIcon
-                      variant="subtle"
-                      size="sm"
-                      loading={receiptMutation.isPending}
-                      onClick={() => receiptMutation.mutate(p.id)}
-                    >
-                      <IconReceipt size={14} />
-                    </ActionIcon>
-                  </Tooltip>
-                </Table.Td>
+                <Tooltip
+                  label={
+                    inv.status === "draft"
+                      ? "Issue the invoice before printing"
+                      : "Customer and office copies"
+                  }
+                >
+                  <Button
+                    size="xs"
+                    variant="light"
+                    color="violet"
+                    leftSection={<IconPrinter size={14} />}
+                    loading={invoicePrintMutation.isPending}
+                    disabled={inv.status === "draft"}
+                    onClick={() => invoicePrintMutation.mutate()}
+                  >
+                    Print packet
+                  </Button>
+                </Tooltip>
               )}
-            </Table.Tr>
-          ))}
-        </Table.Tbody>
-      </Table>
-
-      {canRecordPayment && (
-        <>
-          <Group gap="xs">
-            <Button size="xs" leftSection={<IconCash size={14} />} onClick={openPaymentForm}>
-              Record Payment
-            </Button>
-            <Button
-              size="xs"
-              variant="light"
-              leftSection={<IconCreditCard size={14} />}
-              onClick={() => setShowGateway(true)}
-            >
-              Pay via Gateway
-            </Button>
+              {canCreate && inv.status === "draft" && (
+                <>
+                  <Button
+                    size="xs"
+                    color="primary"
+                    leftSection={<IconCheck size={14} />}
+                    loading={issueMutation.isPending}
+                    onClick={() => issueMutation.mutate()}
+                  >
+                    Issue
+                  </Button>
+                  <Button
+                    size="xs"
+                    color="danger"
+                    variant="light"
+                    leftSection={<IconX size={14} />}
+                    loading={cancelMutation.isPending}
+                    onClick={() => cancelMutation.mutate()}
+                  >
+                    Cancel
+                  </Button>
+                </>
+              )}
+              {canRecordPayment && (
+                <>
+                  <Button size="xs" leftSection={<IconCash size={14} />} onClick={openPaymentForm}>
+                    Payment
+                  </Button>
+                  <Button
+                    size="xs"
+                    variant="light"
+                    leftSection={<IconCreditCard size={14} />}
+                    onClick={gatewayHandlers.open}
+                  >
+                    Gateway
+                  </Button>
+                </>
+              )}
+            </Group>
           </Group>
-          {showPayment && (
-            <Stack component="form" gap="xs" onSubmit={handleSubmitPayment(handleRecordPayment)}>
-              <Controller
-                control={paymentControl}
-                name="amount"
-                render={({ field }) => (
-                  <NumberInput
-                    label="Amount"
-                    required
-                    min={0.01}
-                    max={balance}
-                    decimalScale={2}
-                    value={field.value}
-                    onChange={field.onChange}
-                    error={paymentErrors.amount?.message}
+        </Stack>
+      </Card>
+
+      <Grid align="flex-start" className={classes.workspaceGrid}>
+        <Grid.Col span={{ base: 12, lg: 8 }}>
+          <Stack className={classes.workspaceMain}>
+            <Card id="billing-summary" withBorder>
+              <Stack gap="sm">
+                <Group justify="space-between" align="center">
+                  <Text fw={700}>Invoice summary</Text>
+                  {canPrintBillingDocs && (
+                    <Group gap={4}>
+                      {BILLING_INVOICE_PRINT_COPIES.map((copy) => (
+                        <Badge key={copy.label} color="violet" variant="light">
+                          {printCopyRouteLabel(copy)}
+                        </Badge>
+                      ))}
+                    </Group>
+                  )}
+                </Group>
+                {(Number(inv.cgst_amount ?? 0) > 0 ||
+                  Number(inv.sgst_amount ?? 0) > 0 ||
+                  Number(inv.igst_amount ?? 0) > 0) && (
+                  <Group gap="xs">
+                    <Badge variant="light" color="teal" size="sm">
+                      CGST: {billingAmountText(inv.cgst_amount, amountAccess)}
+                    </Badge>
+                    <Badge variant="light" color="teal" size="sm">
+                      SGST: {billingAmountText(inv.sgst_amount, amountAccess)}
+                    </Badge>
+                    <Badge variant="light" color="primary" size="sm">
+                      IGST: {billingAmountText(inv.igst_amount, amountAccess)}
+                    </Badge>
+                    {Number(inv.cess_amount ?? 0) > 0 && (
+                      <Badge variant="light" color="orange" size="sm">
+                        Cess: {billingAmountText(inv.cess_amount, amountAccess)}
+                      </Badge>
+                    )}
+                  </Group>
+                )}
+                {inv.is_interim && inv.billing_period_start && inv.billing_period_end && (
+                  <Text size="xs" c="dimmed">
+                    Period: {new Date(inv.billing_period_start).toLocaleDateString()} -{" "}
+                    {new Date(inv.billing_period_end).toLocaleDateString()}
+                  </Text>
+                )}
+                {copayOpened && (
+                  <Box id="billing-copay">
+                    <CopayBreakdown invoiceId={invoiceId} />
+                  </Box>
+                )}
+              </Stack>
+            </Card>
+
+            <Card id="billing-items" withBorder>
+              <Stack gap="sm">
+                <Group justify="space-between" align="center">
+                  <Text fw={700}>Items</Text>
+                  {canCreate && inv.status === "draft" && (
+                    <Button
+                      size="xs"
+                      variant="light"
+                      leftSection={<IconPlus size={14} />}
+                      onClick={addItemHandlers.toggle}
+                    >
+                      {addItemOpened ? "Close" : "Add Item"}
+                    </Button>
+                  )}
+                </Group>
+                <Table striped>
+                  <Table.Thead>
+                    <Table.Tr>
+                      <Table.Th>Description</Table.Th>
+                      <Table.Th>Qty</Table.Th>
+                      <Table.Th>Price</Table.Th>
+                      <Table.Th>Tax</Table.Th>
+                      <Table.Th>Total</Table.Th>
+                      {canCreate && inv.status === "draft" && <Table.Th />}
+                    </Table.Tr>
+                  </Table.Thead>
+                  <Table.Tbody>
+                    {detail.items.map((item) => (
+                      <Table.Tr key={item.id}>
+                        <Table.Td>{item.description}</Table.Td>
+                        <Table.Td>{item.quantity}</Table.Td>
+                        <Table.Td>{billingAmountText(item.unit_price, amountAccess)}</Table.Td>
+                        <Table.Td>{item.tax_percent}%</Table.Td>
+                        <Table.Td>{billingAmountText(item.total_price, amountAccess)}</Table.Td>
+                        {canCreate && inv.status === "draft" && (
+                          <Table.Td>
+                            <ActionIcon
+                              variant="subtle"
+                              color="danger"
+                              onClick={() => removeItemMutation.mutate(item.id)}
+                            >
+                              <IconTrash size={14} />
+                            </ActionIcon>
+                          </Table.Td>
+                        )}
+                      </Table.Tr>
+                    ))}
+                  </Table.Tbody>
+                </Table>
+
+                {canCreate && inv.status === "draft" && addItemOpened && (
+                  <Stack
+                    component="form"
+                    gap="xs"
+                    onSubmit={handleSubmitItem(handleAddInvoiceItem)}
+                  >
+                    <Group grow>
+                      <TextInput
+                        label="Charge Code"
+                        required
+                        error={itemErrors.charge_code?.message}
+                        {...registerItem("charge_code")}
+                      />
+                      <Controller
+                        control={itemControl}
+                        name="source"
+                        render={({ field }) => (
+                          <Select
+                            label="Source"
+                            data={billingChargeSourceOptions}
+                            value={field.value}
+                            onChange={(value) => field.onChange(value ?? "manual")}
+                            error={itemErrors.source?.message}
+                          />
+                        )}
+                      />
+                    </Group>
+                    <TextInput
+                      label="Description"
+                      required
+                      error={itemErrors.description?.message}
+                      {...registerItem("description")}
+                    />
+                    <Group grow>
+                      <Controller
+                        control={itemControl}
+                        name="quantity"
+                        render={({ field }) => (
+                          <NumberInput
+                            label="Qty"
+                            min={1}
+                            value={field.value}
+                            onChange={field.onChange}
+                            error={itemErrors.quantity?.message}
+                          />
+                        )}
+                      />
+                      <Controller
+                        control={itemControl}
+                        name="unit_price"
+                        render={({ field }) => (
+                          <NumberInput
+                            label="Unit Price"
+                            min={0}
+                            decimalScale={2}
+                            value={field.value}
+                            onChange={field.onChange}
+                            error={itemErrors.unit_price?.message}
+                          />
+                        )}
+                      />
+                      <Controller
+                        control={itemControl}
+                        name="tax_percent"
+                        render={({ field }) => (
+                          <NumberInput
+                            label="Tax %"
+                            min={0}
+                            max={100}
+                            decimalScale={2}
+                            value={field.value}
+                            onChange={field.onChange}
+                            error={itemErrors.tax_percent?.message}
+                          />
+                        )}
+                      />
+                    </Group>
+                    <Button size="xs" type="submit" loading={addItemMutation.isPending}>
+                      Add
+                    </Button>
+                  </Stack>
+                )}
+              </Stack>
+            </Card>
+
+            <Card id="billing-payments" withBorder>
+              <Stack gap="sm">
+                <Group justify="space-between" align="center">
+                  <Text fw={700}>Payments</Text>
+                  {canRecordPayment && (
+                    <Group gap="xs">
+                      <Button
+                        size="xs"
+                        leftSection={<IconCash size={14} />}
+                        onClick={openPaymentForm}
+                      >
+                        {paymentOpened ? "Close" : "Record Payment"}
+                      </Button>
+                      <Button
+                        size="xs"
+                        variant="light"
+                        leftSection={<IconCreditCard size={14} />}
+                        onClick={gatewayHandlers.open}
+                      >
+                        Gateway
+                      </Button>
+                    </Group>
+                  )}
+                </Group>
+                <Table striped>
+                  <Table.Thead>
+                    <Table.Tr>
+                      <Table.Th>Amount</Table.Th>
+                      <Table.Th>Mode</Table.Th>
+                      <Table.Th>Reference</Table.Th>
+                      <Table.Th>Date</Table.Th>
+                      {canPrintBillingDocs && <Table.Th />}
+                    </Table.Tr>
+                  </Table.Thead>
+                  <Table.Tbody>
+                    {detail.payments.map((p) => (
+                      <Table.Tr key={p.id}>
+                        <Table.Td>{billingAmountText(p.amount, amountAccess)}</Table.Td>
+                        <Table.Td>{p.mode}</Table.Td>
+                        <Table.Td>{p.reference_number ?? "—"}</Table.Td>
+                        <Table.Td>{new Date(p.created_at).toLocaleString()}</Table.Td>
+                        {canPrintBillingDocs && (
+                          <Table.Td>
+                            <Tooltip label="Generate + print receipt packet">
+                              <ActionIcon
+                                variant="subtle"
+                                size="sm"
+                                loading={receiptMutation.isPending}
+                                onClick={() => receiptMutation.mutate(p.id)}
+                              >
+                                <IconReceipt size={14} />
+                              </ActionIcon>
+                            </Tooltip>
+                          </Table.Td>
+                        )}
+                      </Table.Tr>
+                    ))}
+                  </Table.Tbody>
+                </Table>
+
+                {canRecordPayment && paymentOpened && (
+                  <Stack
+                    component="form"
+                    gap="xs"
+                    onSubmit={handleSubmitPayment(handleRecordPayment)}
+                  >
+                    <Controller
+                      control={paymentControl}
+                      name="amount"
+                      render={({ field }) => (
+                        <NumberInput
+                          label="Amount"
+                          required
+                          min={0.01}
+                          max={balance}
+                          decimalScale={2}
+                          value={field.value}
+                          onChange={field.onChange}
+                          error={paymentErrors.amount?.message}
+                        />
+                      )}
+                    />
+                    <Controller
+                      control={paymentControl}
+                      name="mode"
+                      render={({ field }) => (
+                        <Select
+                          label="Mode"
+                          data={billingPaymentModeOptions}
+                          value={field.value}
+                          onChange={(value) => field.onChange(value ?? "cash")}
+                          error={paymentErrors.mode?.message}
+                        />
+                      )}
+                    />
+                    <TextInput
+                      label="Reference #"
+                      error={paymentErrors.reference_number?.message}
+                      {...registerPayment("reference_number")}
+                    />
+                    <Group justify="space-between">
+                      <Text size="xs" c="dimmed">
+                        Outstanding: {billingAmountText(balance, amountAccess)}
+                      </Text>
+                      <Button
+                        size="xs"
+                        variant="subtle"
+                        onClick={() => resetPayment({ ...paymentDefaults, amount: balance })}
+                      >
+                        Use balance
+                      </Button>
+                    </Group>
+                    <Button size="xs" type="submit" loading={payMutation.isPending}>
+                      Save Payment
+                    </Button>
+                  </Stack>
+                )}
+                {canRecordPayment && (
+                  <PaymentModal
+                    opened={gatewayOpened}
+                    onClose={gatewayHandlers.close}
+                    amount={balance}
+                    amountAccess={amountAccess}
+                    invoiceId={invoiceId}
+                    onSuccess={handleGatewayPaymentSuccess}
                   />
                 )}
-              />
-              <Controller
-                control={paymentControl}
-                name="mode"
-                render={({ field }) => (
-                  <Select
-                    label="Mode"
-                    data={billingPaymentModeOptions}
-                    value={field.value}
-                    onChange={(value) => field.onChange(value ?? "cash")}
-                    error={paymentErrors.mode?.message}
-                  />
+              </Stack>
+            </Card>
+
+            <Card id="billing-discounts" withBorder>
+              <Stack gap="sm">
+                <Group justify="space-between" align="center">
+                  <Text fw={700}>Discounts</Text>
+                  {canCreate && inv.status === "draft" && (
+                    <Button
+                      size="xs"
+                      variant="light"
+                      leftSection={<IconDiscount2 size={14} />}
+                      onClick={discountHandlers.toggle}
+                    >
+                      {discountOpened ? "Close" : "Add Discount"}
+                    </Button>
+                  )}
+                </Group>
+                {discounts.length > 0 ? (
+                  <Table striped>
+                    <Table.Thead>
+                      <Table.Tr>
+                        <Table.Th>Type</Table.Th>
+                        <Table.Th>Value</Table.Th>
+                        <Table.Th>Reason</Table.Th>
+                        {canCreate && <Table.Th />}
+                      </Table.Tr>
+                    </Table.Thead>
+                    <Table.Tbody>
+                      {discounts.map((d: InvoiceDiscount) => (
+                        <Table.Tr key={d.id}>
+                          <Table.Td>
+                            <Badge variant="light">{d.discount_type}</Badge>
+                          </Table.Td>
+                          <Table.Td>
+                            {d.discount_type === "percentage"
+                              ? `${d.discount_value}%`
+                              : billingAmountText(d.discount_value, amountAccess)}
+                          </Table.Td>
+                          <Table.Td>{d.reason ?? "—"}</Table.Td>
+                          {canCreate && (
+                            <Table.Td>
+                              <ActionIcon
+                                variant="subtle"
+                                color="danger"
+                                size="sm"
+                                onClick={() => removeDiscountMutation.mutate(d.id)}
+                              >
+                                <IconTrash size={14} />
+                              </ActionIcon>
+                            </Table.Td>
+                          )}
+                        </Table.Tr>
+                      ))}
+                    </Table.Tbody>
+                  </Table>
+                ) : (
+                  <Text size="sm" c="dimmed">
+                    No discounts applied
+                  </Text>
                 )}
-              />
-              <TextInput
-                label="Reference #"
-                error={paymentErrors.reference_number?.message}
-                {...registerPayment("reference_number")}
-              />
-              <Group justify="space-between">
-                <Text size="xs" c="dimmed">
-                  Outstanding: {billingAmountText(balance, amountAccess)}
+
+                {canCreate && inv.status === "draft" && discountOpened && (
+                  <Stack
+                    component="form"
+                    gap="xs"
+                    onSubmit={handleSubmitDiscount(handleAddDiscount)}
+                  >
+                    <Group grow>
+                      <Controller
+                        control={discountControl}
+                        name="discount_type"
+                        render={({ field }) => (
+                          <Select
+                            label="Type"
+                            data={billingDiscountTypeOptions}
+                            value={field.value}
+                            onChange={(value) => field.onChange(value ?? "percentage")}
+                            error={discountErrors.discount_type?.message}
+                          />
+                        )}
+                      />
+                      <Controller
+                        control={discountControl}
+                        name="discount_value"
+                        render={({ field }) => (
+                          <NumberInput
+                            label="Value"
+                            required
+                            min={0}
+                            decimalScale={2}
+                            value={field.value}
+                            onChange={field.onChange}
+                            error={discountErrors.discount_value?.message}
+                          />
+                        )}
+                      />
+                    </Group>
+                    <TextInput
+                      label="Reason"
+                      error={discountErrors.reason?.message}
+                      {...registerDiscount("reason")}
+                    />
+                    <Button size="xs" type="submit" loading={addDiscountMutation.isPending}>
+                      Apply Discount
+                    </Button>
+                  </Stack>
+                )}
+
+                {inv.discount_amount !== "0" && inv.discount_amount !== "0.00" && (
+                  <Text size="sm" fw={500} c="orange">
+                    Total Discount: {billingAmountText(inv.discount_amount, amountAccess)}
+                  </Text>
+                )}
+              </Stack>
+            </Card>
+          </Stack>
+        </Grid.Col>
+
+        <Grid.Col span={{ base: 12, lg: 4 }}>
+          <Box className={classes.contextRail}>
+            <Stack gap="sm">
+              <Stack gap={2}>
+                <Text size="xs" fw={700} c="dimmed" tt="uppercase">
+                  Billing workspace
+                </Text>
+                <Text size="sm" fw={700}>
+                  {inv.invoice_number}
+                </Text>
+              </Stack>
+              <Group gap="xs">
+                <Badge color={statusColors[displayStatus] ?? "slate"} variant="light">
+                  {displayStatus.replace(/_/g, " ")}
+                </Badge>
+                {amountAccess === "hidden" ? (
+                  <Badge color="slate" variant="light">
+                    Amount restricted
+                  </Badge>
+                ) : balance > 0 ? (
+                  <Badge color="danger" variant="light">
+                    Due
+                  </Badge>
+                ) : (
+                  <Badge color="success" variant="light">
+                    Settled
+                  </Badge>
+                )}
+              </Group>
+              <Divider />
+              <SimpleGrid cols={{ base: 1, sm: 3, lg: 1 }}>
+                <BillingSummaryMetric
+                  label="Total"
+                  value={billingAmountText(inv.total_amount, amountAccess)}
+                />
+                <BillingSummaryMetric
+                  label="Paid"
+                  value={billingAmountText(inv.paid_amount, amountAccess)}
+                />
+                <BillingSummaryMetric
+                  label="Balance"
+                  value={billingAmountText(balance, amountAccess)}
+                  tone={amountAccess === "hidden" ? undefined : balance > 0 ? "danger" : "success"}
+                />
+              </SimpleGrid>
+              <Divider />
+              <Stack gap="xs">
+                <Text size="xs" fw={700} c="dimmed" tt="uppercase">
+                  Navigate
                 </Text>
                 <Button
                   size="xs"
-                  variant="subtle"
-                  onClick={() => resetPayment({ ...paymentDefaults, amount: balance })}
+                  variant="light"
+                  color="slate"
+                  component="a"
+                  href="#billing-summary"
+                  leftSection={<IconFileInvoice size={14} />}
+                  fullWidth
                 >
-                  Use balance
+                  Summary
                 </Button>
-              </Group>
-              <Button size="xs" type="submit" loading={payMutation.isPending}>
-                Save Payment
-              </Button>
-            </Stack>
-          )}
-          <PaymentModal
-            opened={showGateway}
-            onClose={() => setShowGateway(false)}
-            amount={balance}
-            amountAccess={amountAccess}
-            invoiceId={invoiceId}
-            onSuccess={handleGatewayPaymentSuccess}
-          />
-        </>
-      )}
-
-      <Text fw={600} mt="md">
-        Discounts
-      </Text>
-      {discounts.length > 0 ? (
-        <Table striped>
-          <Table.Thead>
-            <Table.Tr>
-              <Table.Th>Type</Table.Th>
-              <Table.Th>Value</Table.Th>
-              <Table.Th>Reason</Table.Th>
-              {canCreate && <Table.Th />}
-            </Table.Tr>
-          </Table.Thead>
-          <Table.Tbody>
-            {discounts.map((d: InvoiceDiscount) => (
-              <Table.Tr key={d.id}>
-                <Table.Td>
-                  <Badge variant="light">{d.discount_type}</Badge>
-                </Table.Td>
-                <Table.Td>
-                  {d.discount_type === "percentage"
-                    ? `${d.discount_value}%`
-                    : billingAmountText(d.discount_value, amountAccess)}
-                </Table.Td>
-                <Table.Td>{d.reason ?? "—"}</Table.Td>
-                {canCreate && (
-                  <Table.Td>
-                    <ActionIcon
-                      variant="subtle"
-                      color="danger"
-                      size="sm"
-                      onClick={() => removeDiscountMutation.mutate(d.id)}
+                <Button
+                  size="xs"
+                  variant="light"
+                  color="slate"
+                  component="a"
+                  href="#billing-items"
+                  leftSection={<IconTags size={14} />}
+                  fullWidth
+                >
+                  Items
+                </Button>
+                <Button
+                  size="xs"
+                  variant="light"
+                  color="slate"
+                  component="a"
+                  href="#billing-payments"
+                  leftSection={<IconReceipt size={14} />}
+                  fullWidth
+                >
+                  Payments
+                </Button>
+                <Button
+                  size="xs"
+                  variant="light"
+                  color="slate"
+                  component="a"
+                  href="#billing-discounts"
+                  leftSection={<IconDiscount2 size={14} />}
+                  fullWidth
+                >
+                  Discounts
+                </Button>
+              </Stack>
+              <Divider />
+              <Stack gap="xs">
+                <Text size="xs" fw={700} c="dimmed" tt="uppercase">
+                  Actions
+                </Text>
+                {canRecordPayment && (
+                  <>
+                    <Button
+                      size="xs"
+                      leftSection={<IconCash size={14} />}
+                      onClick={openPaymentForm}
+                      fullWidth
                     >
-                      <IconTrash size={14} />
-                    </ActionIcon>
-                  </Table.Td>
+                      Record Payment
+                    </Button>
+                    <Button
+                      size="xs"
+                      variant="light"
+                      leftSection={<IconCreditCard size={14} />}
+                      onClick={gatewayHandlers.open}
+                      fullWidth
+                    >
+                      Gateway
+                    </Button>
+                  </>
                 )}
-              </Table.Tr>
-            ))}
-          </Table.Tbody>
-        </Table>
-      ) : (
-        <Text size="sm" c="dimmed">
-          No discounts applied
-        </Text>
-      )}
-
-      {canCreate && inv.status === "draft" && (
-        <>
-          <Button
-            size="xs"
-            variant="light"
-            leftSection={<IconDiscount2 size={14} />}
-            onClick={() => setShowDiscount(!showDiscount)}
-          >
-            Add Discount
-          </Button>
-          {showDiscount && (
-            <Stack component="form" gap="xs" onSubmit={handleSubmitDiscount(handleAddDiscount)}>
-              <Group grow>
-                <Controller
-                  control={discountControl}
-                  name="discount_type"
-                  render={({ field }) => (
-                    <Select
-                      label="Type"
-                      data={billingDiscountTypeOptions}
-                      value={field.value}
-                      onChange={(value) => field.onChange(value ?? "percentage")}
-                      error={discountErrors.discount_type?.message}
-                    />
-                  )}
-                />
-                <Controller
-                  control={discountControl}
-                  name="discount_value"
-                  render={({ field }) => (
-                    <NumberInput
-                      label="Value"
-                      required
-                      min={0}
-                      decimalScale={2}
-                      value={field.value}
-                      onChange={field.onChange}
-                      error={discountErrors.discount_value?.message}
-                    />
-                  )}
-                />
-              </Group>
-              <TextInput
-                label="Reason"
-                error={discountErrors.reason?.message}
-                {...registerDiscount("reason")}
-              />
-              <Button size="xs" type="submit" loading={addDiscountMutation.isPending}>
-                Apply Discount
-              </Button>
+                {canCreate && inv.status === "draft" && (
+                  <>
+                    <Button
+                      size="xs"
+                      variant="light"
+                      leftSection={<IconPlus size={14} />}
+                      onClick={addItemHandlers.toggle}
+                      fullWidth
+                    >
+                      Add Item
+                    </Button>
+                    <Button
+                      size="xs"
+                      variant="light"
+                      leftSection={<IconDiscount2 size={14} />}
+                      onClick={discountHandlers.toggle}
+                      fullWidth
+                    >
+                      Add Discount
+                    </Button>
+                  </>
+                )}
+                <Button
+                  size="xs"
+                  variant="light"
+                  color="teal"
+                  leftSection={<IconShieldCheck size={14} />}
+                  onClick={copayHandlers.toggle}
+                  fullWidth
+                >
+                  {copayOpened ? "Close Co-pay" : "Calculate Co-pay"}
+                </Button>
+                <Button
+                  size="xs"
+                  variant="light"
+                  color="orange"
+                  leftSection={<IconFileInvoice size={14} />}
+                  onClick={() => navigate(`/billing?tab=invoices&patient_id=${inv.patient_id}`)}
+                  fullWidth
+                >
+                  Patient Ledger
+                </Button>
+              </Stack>
             </Stack>
-          )}
-        </>
-      )}
+          </Box>
+        </Grid.Col>
+      </Grid>
+    </Stack>
+  );
+}
 
-      {inv.discount_amount !== "0" && inv.discount_amount !== "0.00" && (
-        <Text size="sm" fw={500} c="orange">
-          Total Discount: {billingAmountText(inv.discount_amount, amountAccess)}
-        </Text>
-      )}
+function BillingSummaryMetric({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: string;
+  tone?: "danger" | "success";
+}) {
+  return (
+    <Stack gap={1}>
+      <Text size="xs" c="dimmed">
+        {label}
+      </Text>
+      <Text size="sm" fw={700} c={tone}>
+        {value}
+      </Text>
     </Stack>
   );
 }
