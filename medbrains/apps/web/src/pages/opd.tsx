@@ -61,6 +61,7 @@ import type {
   DoctorDocket,
   DuplicateOrderInfo,
   FamilyHistoryEntry,
+  FieldAccessLevel,
   FollowupComplianceRow,
   LabOrder,
   LabOrderListResponse,
@@ -98,6 +99,7 @@ import type {
   VitalHistoryPoint,
 } from "@medbrains/types";
 import { P } from "@medbrains/types";
+import { fieldAccessText } from "@medbrains/utils";
 import {
   IconAlertTriangle,
   IconArrowRight,
@@ -154,6 +156,7 @@ import {
   StatusDot,
   StructuredHistory,
   useClinicalEmit,
+  useProtectedFieldAccess,
   VisitSummaryPrint,
   VitalsRecorder,
 } from "@/components";
@@ -274,6 +277,12 @@ const queueVisitTypeColors: Record<string, string> = {
   emergency: "danger",
   camp: "success",
 };
+
+const PATIENT_NAME_FIELD_ACCESS_KEYS = [
+  "patients.first_name",
+  "patients.middle_name",
+  "patients.last_name",
+];
 
 function todayIsoDate(): string {
   return todayDateString();
@@ -619,6 +628,8 @@ export function OpdVitalsPage() {
   const canUpdate = useHasPermission(P.OPD.VISIT_UPDATE);
   const canRecordNurseVitals = useHasPermission(P.NURSE.VITALS_RECORD);
   const canRecordVitals = canRecordNurseVitals || canUpdate;
+  const patientNameAccess = useProtectedFieldAccess(undefined, PATIENT_NAME_FIELD_ACCESS_KEYS);
+  const uhidAccess = useProtectedFieldAccess("patients.uhid");
   const requestedQueueEntryId = queueEntryId ?? "";
 
   const { data: queue = [], isLoading } = useQuery({
@@ -627,6 +638,9 @@ export function OpdVitalsPage() {
     enabled: requestedQueueEntryId.length > 0,
   });
   const entry = queue.find((row) => row.id === requestedQueueEntryId);
+  const entryIdentity = entry
+    ? protectedOpdQueueIdentity(entry, { name: patientNameAccess, uhid: uhidAccess })
+    : null;
 
   const vitalsMutation = useMutation({
     mutationFn: (data: CreateVitalRequest) => {
@@ -653,7 +667,7 @@ export function OpdVitalsPage() {
       });
       notifications.show({
         title: "Vitals recorded",
-        message: `${entry.patient_name ?? "Patient"} vitals were saved`,
+        message: `${entryIdentity?.name ?? "Patient"} vitals were saved`,
         color: "success",
       });
       navigate("/opd");
@@ -688,13 +702,16 @@ export function OpdVitalsPage() {
   }
 
   const vitalsAllowed = canRecordVitals && canRecordVitalsFromQueue(entry);
+  const identity =
+    entryIdentity ??
+    protectedOpdQueueIdentity(entry, { name: patientNameAccess, uhid: uhidAccess });
 
   return (
     <ClinicalEventProvider moduleCode="opd" contextCode={`opd-vitals-${entry.id}`}>
       <Stack>
         <PageHeader
           title="Record OPD vitals"
-          subtitle={`${entry.patient_name ?? "Patient"} | Token T${String(entry.token_number).padStart(3, "0")}`}
+          subtitle={`${identity.name} | Token ${identity.token}`}
           icon={<IconHeartbeat size={20} stroke={1.5} />}
           color="primary"
           actions={
@@ -706,9 +723,9 @@ export function OpdVitalsPage() {
         <Card withBorder p="sm">
           <Group justify="space-between" align="flex-start">
             <Stack gap={2}>
-              <Text fw={700}>{entry.patient_name ?? "Patient"}</Text>
+              <Text fw={700}>{identity.name}</Text>
               <Text size="xs" c="dimmed">
-                {entry.uhid ?? "Masked"} | Token T{String(entry.token_number).padStart(3, "0")}
+                {identity.uhid} | Token {identity.token}
               </Text>
             </Stack>
             <Badge variant="light" color={statusColors[entry.status] ?? "slate"}>
@@ -739,6 +756,31 @@ function formatPatientName(patient: Patient): string {
   return `${patient.first_name} ${patient.last_name}`.trim() || patient.uhid;
 }
 
+function formatQueueToken(tokenNumber: number): string {
+  return `T${String(tokenNumber).padStart(3, "0")}`;
+}
+
+function protectedPatientName(
+  patientName: string | null | undefined,
+  access: FieldAccessLevel,
+): string {
+  const displayValue = fieldAccessText(access, patientName, "name");
+  return displayValue === "—" ? "Patient" : displayValue;
+}
+
+function protectedOpdQueueIdentity(
+  entry: QueueEntry,
+  access: { name: FieldAccessLevel; uhid: FieldAccessLevel },
+): { name: string; token: string; uhid: string } {
+  const uhid = fieldAccessText(access.uhid, entry.uhid, "identifier");
+
+  return {
+    name: protectedPatientName(entry.patient_name, access.name),
+    token: formatQueueToken(entry.token_number),
+    uhid: uhid === "—" ? "No UHID" : uhid,
+  };
+}
+
 const CLINICAL_DRAWER_QUEUE_STATUSES = new Set(["called", "in_consultation", "completed"]);
 const VITALS_QUEUE_STATUSES = new Set(["waiting", "called", "in_consultation"]);
 
@@ -759,6 +801,7 @@ function OpdPageInner() {
   const canUpdate = useHasPermission(P.OPD.VISIT_UPDATE);
   const canRecordNurseVitals = useHasPermission(P.NURSE.VITALS_RECORD);
   const canRecordVitals = canRecordNurseVitals || canUpdate;
+  const patientNameAccess = useProtectedFieldAccess(undefined, PATIENT_NAME_FIELD_ACCESS_KEYS);
   const currentUser = useAuthStore((s) => s.user);
 
   const queryClient = useQueryClient();
@@ -840,7 +883,7 @@ function OpdPageInner() {
       void queryClient.invalidateQueries({ queryKey: ["appointments"] });
       notifications.show({
         title: "Appointment moved to OPD",
-        message: `${appointment.patient_name} added to the OPD queue`,
+        message: `${protectedPatientName(appointment.patient_name, patientNameAccess)} added to the OPD queue`,
         color: "success",
       });
       emit("appointment.checked_in_to_opd", {
@@ -899,7 +942,7 @@ function OpdPageInner() {
     {
       key: "patient_name",
       label: "Patient",
-      fieldAccessKeys: ["patients.uhid", "patients.first_name", "patients.last_name"],
+      fieldAccessKeys: ["patients.uhid", ...PATIENT_NAME_FIELD_ACCESS_KEYS],
       accessor: (row: QueueEntry) => row.patient_name ?? row.uhid,
       fieldKind: "name",
       hiddenLabel: "Patient restricted",
@@ -1134,6 +1177,7 @@ function OpdPageInner() {
             canCheckIn={canCreate}
             checkingInId={appointmentCheckInMutation.variables?.id}
             isCheckingIn={appointmentCheckInMutation.isPending}
+            patientNameAccess={patientNameAccess}
             onCheckIn={(appointment) => appointmentCheckInMutation.mutate(appointment)}
           />
           <Tabs value={queueVisitTypeTab} onChange={setQueueVisitTypeTab} mb="xs">
@@ -1229,6 +1273,7 @@ function TodayAppointmentsPanel({
   canCheckIn,
   checkingInId,
   isCheckingIn,
+  patientNameAccess,
   onCheckIn,
 }: {
   appointments: AppointmentWithPatient[];
@@ -1237,6 +1282,7 @@ function TodayAppointmentsPanel({
   canCheckIn: boolean;
   checkingInId?: string;
   isCheckingIn: boolean;
+  patientNameAccess: FieldAccessLevel;
   onCheckIn: (appointment: AppointmentWithPatient) => void;
 }) {
   const today = todayIsoDate();
@@ -1290,6 +1336,7 @@ function TodayAppointmentsPanel({
               const statusLabel =
                 appointmentStatusLabels[appointment.status] ??
                 appointment.status.replace(/_/g, " ");
+              const patientName = protectedPatientName(appointment.patient_name, patientNameAccess);
               return (
                 <Table.Tr key={appointment.id}>
                   <Table.Td>
@@ -1297,7 +1344,7 @@ function TodayAppointmentsPanel({
                   </Table.Td>
                   <Table.Td>
                     <Text size="sm" fw={500}>
-                      {appointment.patient_name}
+                      {patientName}
                     </Text>
                     {appointment.reason && (
                       <Text size="xs" c="dimmed" lineClamp={1}>
