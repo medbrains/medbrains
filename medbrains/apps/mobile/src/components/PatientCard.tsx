@@ -1,5 +1,14 @@
+import type { FieldAccessLevel } from "@medbrains/types";
+import { fieldAccessText } from "@medbrains/utils";
 import { StyleSheet, TouchableOpacity, View } from "react-native";
 import { Avatar, Card, Chip, Text } from "react-native-paper";
+
+interface PatientCardAccess {
+  dateOfBirth?: FieldAccessLevel;
+  name?: FieldAccessLevel;
+  phone?: FieldAccessLevel;
+  uhid?: FieldAccessLevel;
+}
 
 interface PatientCardProps {
   patient: {
@@ -11,12 +20,14 @@ interface PatientCardProps {
     date_of_birth?: string;
     phone?: string;
   };
+  access?: PatientCardAccess;
   onPress?: () => void;
 }
 
 function calculateAge(dob?: string): string {
   if (!dob) return "";
   const birthDate = new Date(dob);
+  if (Number.isNaN(birthDate.getTime())) return "";
   const today = new Date();
   let age = today.getFullYear() - birthDate.getFullYear();
   const monthDiff = today.getMonth() - birthDate.getMonth();
@@ -24,6 +35,23 @@ function calculateAge(dob?: string): string {
     age--;
   }
   return `${age}Y`;
+}
+
+function protectedText(
+  access: FieldAccessLevel,
+  value: string | null | undefined,
+  kind: "identifier" | "name" | "phone" | "text",
+  fallback: string,
+) {
+  const display = fieldAccessText(access, value, kind);
+  return display === "—" ? fallback : display;
+}
+
+function protectedAge(access: FieldAccessLevel, dob?: string): string {
+  if (access === "hidden") return "Restricted";
+  if (!dob) return "";
+  if (access === "mask") return "Age masked";
+  return calculateAge(dob);
 }
 
 function getGenderIcon(gender?: string): string {
@@ -41,26 +69,33 @@ function getInitials(firstName: string, lastName: string): string {
   return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
 }
 
-export function PatientCard({ patient, onPress }: PatientCardProps) {
-  const fullName = `${patient.first_name} ${patient.last_name}`;
-  const age = calculateAge(patient.date_of_birth);
+export function PatientCard({ access, patient, onPress }: PatientCardProps) {
+  const nameAccess = access?.name ?? "edit";
+  const uhidAccess = access?.uhid ?? "edit";
+  const phoneAccess = access?.phone ?? "edit";
+  const dobAccess = access?.dateOfBirth ?? "edit";
+  const rawFullName = `${patient.first_name} ${patient.last_name}`;
+  const fullName = protectedText(nameAccess, rawFullName, "name", "Unknown patient");
+  const initials =
+    nameAccess === "mask" || nameAccess === "hidden"
+      ? "PT"
+      : getInitials(patient.first_name, patient.last_name);
+  const uhid = protectedText(uhidAccess, patient.uhid, "identifier", "No UHID");
+  const phone = protectedText(phoneAccess, patient.phone, "phone", "");
+  const age = protectedAge(dobAccess, patient.date_of_birth);
   const genderDisplay = patient.gender ? patient.gender.charAt(0).toUpperCase() : "";
 
   return (
     <TouchableOpacity onPress={onPress} disabled={!onPress}>
       <Card style={styles.card}>
         <Card.Content style={styles.content}>
-          <Avatar.Text
-            size={48}
-            label={getInitials(patient.first_name, patient.last_name)}
-            style={styles.avatar}
-          />
+          <Avatar.Text size={48} label={initials} style={styles.avatar} />
           <View style={styles.info}>
             <Text variant="titleMedium" style={styles.name}>
               {fullName}
             </Text>
             <Text variant="bodySmall" style={styles.uhid}>
-              {patient.uhid}
+              {uhid}
             </Text>
             <View style={styles.meta}>
               {age && (
@@ -73,9 +108,9 @@ export function PatientCard({ patient, onPress }: PatientCardProps) {
                   {genderDisplay}
                 </Chip>
               )}
-              {patient.phone && (
+              {phone && (
                 <Chip compact icon="phone" style={styles.chip}>
-                  {patient.phone}
+                  {phone}
                 </Chip>
               )}
             </View>

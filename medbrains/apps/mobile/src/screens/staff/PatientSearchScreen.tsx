@@ -1,15 +1,10 @@
+import { useFieldAccess, useHasPermission } from "@medbrains/stores";
+import { P } from "@medbrains/types";
+import { mostRestrictedFieldAccess } from "@medbrains/utils";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { FlatList, StyleSheet, View } from "react-native";
-import {
-  ActivityIndicator,
-  Avatar,
-  Chip,
-  Searchbar,
-  Surface,
-  Text,
-  useTheme,
-} from "react-native-paper";
+import { ActivityIndicator, Avatar, Searchbar, Text, useTheme } from "react-native-paper";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { PatientCard } from "../../components";
 import { patientService } from "../../services/patient.service";
@@ -23,7 +18,18 @@ interface PatientSearchScreenProps {
 export function PatientSearchScreen({ navigation }: PatientSearchScreenProps) {
   const theme = useTheme();
   const [search, setSearch] = useState("");
-  const [recentSearches] = useState<string[]>(["UHID-2024-00001", "John", "9876543210"]);
+  const canSearchPatients = useHasPermission(P.PATIENTS.LIST);
+  const firstNameAccess = useFieldAccess("patients.first_name");
+  const middleNameAccess = useFieldAccess("patients.middle_name");
+  const lastNameAccess = useFieldAccess("patients.last_name");
+  const patientNameAccess = mostRestrictedFieldAccess([
+    firstNameAccess,
+    middleNameAccess,
+    lastNameAccess,
+  ]);
+  const uhidAccess = useFieldAccess("patients.uhid");
+  const phoneAccess = useFieldAccess("patients.phone");
+  const dobAccess = useFieldAccess("patients.date_of_birth");
 
   const { data, isLoading, isFetching } = useQuery({
     queryKey: ["patients", "search", search],
@@ -33,15 +39,11 @@ export function PatientSearchScreen({ navigation }: PatientSearchScreenProps) {
         page: 1,
         per_page: 20,
       }),
-    enabled: search.length >= 2,
+    enabled: canSearchPatients && search.length >= 2,
   });
 
   const handlePatientPress = (patientId: string) => {
     navigation.navigate("PatientDetail", { patientId });
-  };
-
-  const handleRecentSearch = (term: string) => {
-    setSearch(term);
   };
 
   const showResults = search.length >= 2;
@@ -58,55 +60,36 @@ export function PatientSearchScreen({ navigation }: PatientSearchScreenProps) {
           style={styles.searchbar}
           loading={isFetching}
           autoCapitalize="none"
+          editable={canSearchPatients}
         />
       </View>
 
-      {/* Recent Searches (when not searching) */}
-      {!showResults && (
-        <View style={styles.recentSection}>
-          <Text variant="titleSmall" style={styles.sectionTitle}>
-            Recent Searches
+      {!canSearchPatients && (
+        <View style={styles.restrictedContainer}>
+          <Avatar.Icon size={64} icon="shield-lock-outline" style={styles.emptyIcon} />
+          <Text variant="titleMedium" style={styles.emptyTitle}>
+            Patient search restricted
           </Text>
-          <View style={styles.recentChips}>
-            {recentSearches.map((term) => (
-              <Chip
-                key={term}
-                onPress={() => handleRecentSearch(term)}
-                style={styles.recentChip}
-                icon="history"
-              >
-                {term}
-              </Chip>
-            ))}
-          </View>
+          <Text variant="bodyMedium" style={styles.emptyText}>
+            Patient list access is controlled by your permission matrix.
+          </Text>
         </View>
       )}
 
-      {/* Quick Actions (when not searching) */}
-      {!showResults && (
-        <View style={styles.quickActions}>
+      {/* Search hint (when not searching) */}
+      {!showResults && canSearchPatients && (
+        <View style={styles.searchHintSection}>
           <Text variant="titleSmall" style={styles.sectionTitle}>
-            Quick Actions
+            Search Patients
           </Text>
-          <View style={styles.actionsRow}>
-            <Surface style={styles.actionCard} elevation={1}>
-              <Avatar.Icon size={40} icon="account-plus" style={styles.actionIcon} />
-              <Text variant="labelMedium">New Patient</Text>
-            </Surface>
-            <Surface style={styles.actionCard} elevation={1}>
-              <Avatar.Icon size={40} icon="barcode-scan" style={styles.actionIcon} />
-              <Text variant="labelMedium">Scan UHID</Text>
-            </Surface>
-            <Surface style={styles.actionCard} elevation={1}>
-              <Avatar.Icon size={40} icon="qrcode-scan" style={styles.actionIcon} />
-              <Text variant="labelMedium">QR Code</Text>
-            </Surface>
-          </View>
+          <Text variant="bodySmall" style={styles.searchHint}>
+            Enter at least 2 characters to search patients.
+          </Text>
         </View>
       )}
 
       {/* Search Results */}
-      {showResults && (
+      {showResults && canSearchPatients && (
         <View style={styles.resultsContainer}>
           {isLoading ? (
             <View style={styles.loadingContainer}>
@@ -125,6 +108,12 @@ export function PatientSearchScreen({ navigation }: PatientSearchScreenProps) {
                 keyExtractor={(item) => item.id}
                 renderItem={({ item }) => (
                   <PatientCard
+                    access={{
+                      dateOfBirth: dobAccess,
+                      name: patientNameAccess,
+                      phone: phoneAccess,
+                      uhid: uhidAccess,
+                    }}
                     patient={{
                       id: item.id,
                       uhid: item.uhid,
@@ -169,7 +158,7 @@ const styles = StyleSheet.create({
   searchbar: {
     borderRadius: 12,
   },
-  recentSection: {
+  searchHintSection: {
     padding: 16,
     paddingTop: 8,
   },
@@ -178,31 +167,13 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     opacity: 0.7,
   },
-  recentChips: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
+  searchHint: {
+    opacity: 0.6,
   },
-  recentChip: {
-    backgroundColor: "#f1f3f5",
-  },
-  quickActions: {
-    padding: 16,
-    paddingTop: 8,
-  },
-  actionsRow: {
-    flexDirection: "row",
-    gap: 12,
-  },
-  actionCard: {
-    flex: 1,
-    padding: 16,
-    borderRadius: 12,
+  restrictedContainer: {
     alignItems: "center",
     gap: 8,
-  },
-  actionIcon: {
-    backgroundColor: "#e7f5ff",
+    padding: 32,
   },
   resultsContainer: {
     flex: 1,
