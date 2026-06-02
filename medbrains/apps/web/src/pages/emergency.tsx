@@ -115,7 +115,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useParams, useSearchParams } from "react-router";
-import { DataTable, PageHeader, TableValueBadge } from "@/components";
+import { DataTable, PageHeader, TableValueBadge, useProtectedFieldAccess } from "@/components";
 import { BedSelect } from "@/components/BedSelect";
 import { useClinicalEmit } from "@/components/ClinicalEventProvider";
 import { TriagePanel } from "@/components/crdt/TriagePanel";
@@ -185,6 +185,35 @@ function RestrictedValue() {
 
 function renderSensitiveValue(access: FieldAccessLevel, value: string | null | undefined) {
   return fieldAccessText(access, value);
+}
+
+const PATIENT_NAME_FIELD_ACCESS_KEYS = [
+  "patients.first_name",
+  "patients.middle_name",
+  "patients.last_name",
+];
+
+function useEmergencyPatientIdentityAccess() {
+  return {
+    name: useProtectedFieldAccess(undefined, PATIENT_NAME_FIELD_ACCESS_KEYS),
+    uhid: useProtectedFieldAccess("patients.uhid"),
+  };
+}
+
+function protectedEmergencyPatientName(
+  patientName: string | null | undefined,
+  access: FieldAccessLevel,
+): string {
+  const displayValue = fieldAccessText(access, patientName, "name");
+  return displayValue === "—" ? "Patient" : displayValue;
+}
+
+function protectedEmergencyPatientIdentifier(
+  identifier: string | null | undefined,
+  access: FieldAccessLevel,
+): string {
+  const displayValue = fieldAccessText(access, identifier, "identifier");
+  return displayValue === "—" ? "No UHID" : displayValue;
 }
 
 function printHtmlElement(
@@ -2692,6 +2721,8 @@ function PrintDataField({
 }
 
 function MlcRegisterPrintPreview({ data }: { data: MlcRegisterPrintData }) {
+  const patientIdentityAccess = useEmergencyPatientIdentityAccess();
+
   return (
     <Stack gap="md">
       <SimpleGrid className="print-grid" cols={{ base: 1, sm: 2 }}>
@@ -2700,8 +2731,14 @@ function MlcRegisterPrintPreview({ data }: { data: MlcRegisterPrintData }) {
           label="Registered"
           value={`${data.registration_date} ${data.registration_time}`}
         />
-        <PrintDataField label="Patient" value={data.patient_name} />
-        <PrintDataField label="UHID" value={data.uhid} />
+        <PrintDataField
+          label="Patient"
+          value={protectedEmergencyPatientName(data.patient_name, patientIdentityAccess.name)}
+        />
+        <PrintDataField
+          label="UHID"
+          value={protectedEmergencyPatientIdentifier(data.uhid, patientIdentityAccess.uhid)}
+        />
         <PrintDataField label="Age" value={data.age} />
         <PrintDataField label="Gender" value={data.gender} />
         <PrintDataField label="Brought by" value={data.brought_by} />
@@ -2782,12 +2819,20 @@ function MlcRegisterPrintPreview({ data }: { data: MlcRegisterPrintData }) {
 }
 
 function MlcDocumentationPrintPreview({ data }: { data: MlcDocumentationPrintData }) {
+  const patientIdentityAccess = useEmergencyPatientIdentityAccess();
+
   return (
     <Stack gap="md">
       <SimpleGrid className="print-grid" cols={{ base: 1, sm: 2 }}>
         <PrintDataField label="MLC number" value={data.mlc_number} />
-        <PrintDataField label="Patient" value={data.patient_name} />
-        <PrintDataField label="UHID" value={data.uhid} />
+        <PrintDataField
+          label="Patient"
+          value={protectedEmergencyPatientName(data.patient_name, patientIdentityAccess.name)}
+        />
+        <PrintDataField
+          label="UHID"
+          value={protectedEmergencyPatientIdentifier(data.uhid, patientIdentityAccess.uhid)}
+        />
         <PrintDataField label="Age" value={data.age} />
         <PrintDataField label="Gender" value={data.gender} />
         <PrintDataField label="Admission date" value={data.admission_date} />
@@ -2926,13 +2971,21 @@ function MlcDocumentationPrintPreview({ data }: { data: MlcDocumentationPrintDat
 }
 
 function MlcPoliceIntimationPrintPreview({ data }: { data: MlcPoliceIntimationPrintData }) {
+  const patientIdentityAccess = useEmergencyPatientIdentityAccess();
+
   return (
     <Stack gap="md">
       <SimpleGrid className="print-grid" cols={{ base: 1, sm: 2 }}>
         <PrintDataField label="Intimation number" value={data.intimation_number} />
         <PrintDataField label="MLC number" value={data.mlc_number} />
-        <PrintDataField label="Patient" value={data.patient_name} />
-        <PrintDataField label="UHID" value={data.uhid} />
+        <PrintDataField
+          label="Patient"
+          value={protectedEmergencyPatientName(data.patient_name, patientIdentityAccess.name)}
+        />
+        <PrintDataField
+          label="UHID"
+          value={protectedEmergencyPatientIdentifier(data.uhid, patientIdentityAccess.uhid)}
+        />
         <PrintDataField label="Age" value={data.age} />
         <PrintDataField label="Gender" value={data.gender} />
         <PrintDataField label="Police station" value={data.police_station} />
