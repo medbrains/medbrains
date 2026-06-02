@@ -29,6 +29,8 @@ interface BuildClinicalEventTraceInput {
 
 const TRIGGER_ALIASES: Record<string, ClinicalEventName> = {
   "appointment.checked_in_to_opd": "visit.created",
+  "camp.registration_created": "camp.registration.created",
+  "camp.screening_completed": "camp.screening.completed",
   "discharge.completed": "ipd.discharge.completed",
   "encounter.completed": "opd.encounter.created",
   "emergency.visit_created": "emergency.visit.created",
@@ -53,6 +55,7 @@ const TRIGGER_ALIASES: Record<string, ClinicalEventName> = {
 const SOURCE_MODULES: Record<string, ClinicalEventSourceModule> = {
   billing: "billing",
   bme: "bme",
+  camp: "camp",
   emergency: "emergency",
   housekeeping: "housekeeping",
   indent: "integration",
@@ -116,6 +119,9 @@ export function buildClinicalEventTrace({
     "payment_id",
     "packet_id",
     "order_id",
+    "registration_id",
+    "camp_registration_id",
+    "screening_id",
     "prescription_id",
     "visit_id",
     "encounter_id",

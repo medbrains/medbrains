@@ -51,7 +51,14 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useSearchParams } from "react-router";
-import { type Column, DataTable, PageHeader, StatusDot } from "@/components";
+import {
+  ClinicalEventProvider,
+  type Column,
+  DataTable,
+  PageHeader,
+  StatusDot,
+  useClinicalEmit,
+} from "@/components";
 import { PatientJourneyActions } from "@/components/Patient/PatientJourneyActions";
 import {
   PatientRegisterForm,
@@ -513,6 +520,16 @@ export function PatientsPage() {
 
 export function PatientRegisterPage() {
   useRequirePermission(P.PATIENTS.CREATE);
+
+  return (
+    <ClinicalEventProvider moduleCode="patients" contextCode="patient-registration">
+      <PatientRegisterPageInner />
+    </ClinicalEventProvider>
+  );
+}
+
+function PatientRegisterPageInner() {
+  const emit = useClinicalEmit();
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const queryClient = useQueryClient();
@@ -649,8 +666,23 @@ export function PatientRegisterPage() {
         encounterId,
         linkedServices,
         campId,
+        campRegistrationId,
         returnTo: resultReturnTo,
       } = result;
+      emit("patient.created", { patient_id: patient.id });
+      if (campId && campRegistrationId) {
+        emit("camp.registration.created", {
+          camp_id: campId,
+          patient_id: patient.id,
+          registration_id: campRegistrationId,
+        });
+      }
+      if (encounterId) {
+        emit("opd.encounter.created", {
+          encounter_id: encounterId,
+          patient_id: patient.id,
+        });
+      }
       notifications.show({
         title: queueWarning ? "Patient registered, OPD queue pending" : "Patient registered",
         message: queueWarning

@@ -14,6 +14,9 @@ describe("clinical event normalization", () => {
     expect(normalizeClinicalEventName("payment.recorded")).toBe("billing.payment.received");
     expect(normalizeClinicalEventName("order.dispensed")).toBe("pharmacy.order.dispensed");
     expect(normalizeClinicalEventName("er.visit.created")).toBe("emergency.visit.created");
+    expect(normalizeClinicalEventName("camp.registration_created")).toBe(
+      "camp.registration.created",
+    );
   });
 
   it("captures patient and missing payload key metadata", () => {
@@ -72,6 +75,26 @@ describe("clinical event normalization", () => {
     expect(event.sourceModule).toBe("emergency");
     expect(event.patientId).toBe("patient-1");
     expect(event.sourceRecordId).toBe("visit-1");
+    expect(event.missingPayloadKeys).toEqual([]);
+  });
+
+  it("tracks camp registration events by camp registration and patient", () => {
+    const event = buildClinicalEventTrace({
+      contextCode: "patient-registration",
+      moduleCode: "camp",
+      occurredAt: "2026-05-29T10:15:00.000Z",
+      rawTrigger: "camp.registration.created",
+      payload: {
+        camp_id: "camp-1",
+        patient_id: "patient-1",
+        registration_id: "registration-1",
+      },
+    });
+
+    expect(event.eventName).toBe("camp.registration.created");
+    expect(event.sourceModule).toBe("camp");
+    expect(event.patientId).toBe("patient-1");
+    expect(event.sourceRecordId).toBe("registration-1");
     expect(event.missingPayloadKeys).toEqual([]);
   });
 });
