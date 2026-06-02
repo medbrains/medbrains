@@ -88,7 +88,14 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { useNavigate, useParams, useSearchParams } from "react-router";
-import { DataTable, DoctorSearchSelect, PageHeader, useProtectedFieldAccess } from "@/components";
+import {
+  ClinicalEventProvider,
+  DataTable,
+  DoctorSearchSelect,
+  PageHeader,
+  useClinicalEmit,
+  useProtectedFieldAccess,
+} from "@/components";
 import { VitalsRecorder } from "@/components/Clinical/VitalsRecorder";
 import type { Column } from "@/components/DataTable";
 import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
@@ -246,6 +253,14 @@ function CampPatientActionBar({ patientId }: { patientId: string }) {
 // ── Main Page ──────────────────────────────────────────
 
 export function CampPage() {
+  return (
+    <ClinicalEventProvider moduleCode="camp" contextCode="camp-list">
+      <CampPageInner />
+    </ClinicalEventProvider>
+  );
+}
+
+function CampPageInner() {
   useRequirePermission(P.CAMP.LIST);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -288,6 +303,16 @@ interface CampWorkPageProps {
 }
 
 export function CampWorkPage({ initialTab = "registrations" }: CampWorkPageProps = {}) {
+  const { campId } = useParams();
+
+  return (
+    <ClinicalEventProvider moduleCode="camp" contextCode={`camp-work-${campId ?? "unselected"}`}>
+      <CampWorkPageInner initialTab={initialTab} />
+    </ClinicalEventProvider>
+  );
+}
+
+function CampWorkPageInner({ initialTab = "registrations" }: CampWorkPageProps = {}) {
   useRequirePermission(P.CAMP.LIST);
   const navigate = useNavigate();
   const { campId, registrationId } = useParams();
@@ -1768,6 +1793,7 @@ function RegistrationsTab({
   const canEditCampPhone = campPhoneAccess === "edit";
   const canEditCampIdProof = campIdProofAccess === "edit";
   const qc = useQueryClient();
+  const emit = useClinicalEmit();
   const [createOpen, createHandlers] = useDisclosure(false);
   const [routeOpen, routeHandlers] = useDisclosure(false);
   const [clinicalOpen, clinicalHandlers] = useDisclosure(false);
@@ -1859,7 +1885,14 @@ function RegistrationsTab({
 
   const createMut = useMutation({
     mutationFn: (data: CreateCampRegistrationRequest) => campService.createCampRegistration(data),
-    onSuccess: () => {
+    onSuccess: (registration) => {
+      if (registration.patient_id) {
+        emit("camp.registration.created", {
+          camp_id: registration.camp_id,
+          patient_id: registration.patient_id,
+          registration_id: registration.id,
+        });
+      }
       void qc.invalidateQueries({ queryKey: ["camp-registrations"] });
       createHandlers.close();
       reset(registrationDefaults);
@@ -1884,6 +1917,10 @@ function RegistrationsTab({
         doctor_id: values.doctor_id,
       }),
     onSuccess: (result) => {
+      emit("opd.encounter.created", {
+        encounter_id: result.encounter_id,
+        patient_id: result.patient_id,
+      });
       setClinicalContext(result);
       routeHandlers.close();
       setSelectedRegistrationForClinical(null);
@@ -2411,6 +2448,7 @@ function ScreeningsTab({
   const campNameAccess = useProtectedFieldAccess(CAMP_REGISTRATION_NAME_FIELD);
   const campPhoneAccess = useProtectedFieldAccess(CAMP_REGISTRATION_PHONE_FIELD);
   const qc = useQueryClient();
+  const emit = useClinicalEmit();
   const [scrOpen, scrHandlers] = useDisclosure(Boolean(focusedRegistrationId));
   const [labOpen, labHandlers] = useDisclosure(false);
   const [screeningVitals, setScreeningVitals] = useState<CreateVitalRequest>({});
@@ -2542,7 +2580,15 @@ function ScreeningsTab({
 
   const scrMut = useMutation({
     mutationFn: (data: CreateCampScreeningRequest) => campService.createCampScreening(data),
-    onSuccess: () => {
+    onSuccess: (screening) => {
+      const registration = registrationsById.get(screening.registration_id);
+      if (registration?.patient_id) {
+        emit("camp.screening.completed", {
+          camp_id: registration.camp_id,
+          patient_id: registration.patient_id,
+          screening_id: screening.id,
+        });
+      }
       void qc.invalidateQueries({ queryKey: ["camp-screenings"] });
       void qc.invalidateQueries({ queryKey: ["camp-registrations"] });
       closeScreeningDrawer();
