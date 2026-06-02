@@ -334,6 +334,8 @@ export function OpdEncounterPage() {
   const { encounterId } = useParams<{ encounterId: string }>();
   const navigate = useNavigate();
   const canUpdate = useHasPermission(P.OPD.VISIT_UPDATE);
+  const patientNameAccess = useProtectedFieldAccess(undefined, PATIENT_NAME_FIELD_ACCESS_KEYS);
+  const uhidAccess = useProtectedFieldAccess("patients.uhid");
   const requestedEncounterId = encounterId ?? "";
 
   const { data: encounter, isLoading: encounterLoading } = useQuery({
@@ -372,6 +374,8 @@ export function OpdEncounterPage() {
   }
 
   const patientName = formatPatientName(patient);
+  const displayPatientName = protectedPatientName(patientName, patientNameAccess);
+  const displayUhid = protectedPatientIdentifier(patient.uhid, uhidAccess);
 
   return (
     <ClinicalEventProvider moduleCode="opd" contextCode={`opd-encounter-${encounter.id}`}>
@@ -379,10 +383,10 @@ export function OpdEncounterPage() {
         <Group justify="space-between" align="center">
           <div>
             <Text size="lg" fw={700}>
-              OPD Visit - {patientName}
+              OPD Visit - {displayPatientName}
             </Text>
             <Text size="sm" c="dimmed">
-              UHID: {patient.uhid} | {encounter.status.replace(/_/g, " ")}
+              UHID: {displayUhid} | {encounter.status.replace(/_/g, " ")}
             </Text>
           </div>
           <Button
@@ -399,8 +403,8 @@ export function OpdEncounterPage() {
           <EncounterDetail
             encounterId={encounter.id}
             patientId={patient.id}
-            patientName={patientName}
-            uhid={patient.uhid}
+            patientName={displayPatientName}
+            uhid={displayUhid}
             doctorId={encounter.doctor_id}
             departmentId={encounter.department_id ?? ""}
             canUpdate={canUpdate}
@@ -768,16 +772,22 @@ function protectedPatientName(
   return displayValue === "—" ? "Patient" : displayValue;
 }
 
+function protectedPatientIdentifier(
+  identifier: string | null | undefined,
+  access: FieldAccessLevel,
+): string {
+  const displayValue = fieldAccessText(access, identifier, "identifier");
+  return displayValue === "—" ? "No UHID" : displayValue;
+}
+
 function protectedOpdQueueIdentity(
   entry: QueueEntry,
   access: { name: FieldAccessLevel; uhid: FieldAccessLevel },
 ): { name: string; token: string; uhid: string } {
-  const uhid = fieldAccessText(access.uhid, entry.uhid, "identifier");
-
   return {
     name: protectedPatientName(entry.patient_name, access.name),
     token: formatQueueToken(entry.token_number),
-    uhid: uhid === "—" ? "No UHID" : uhid,
+    uhid: protectedPatientIdentifier(entry.uhid, access.uhid),
   };
 }
 
