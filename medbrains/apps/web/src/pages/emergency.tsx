@@ -9,6 +9,7 @@ import {
   Checkbox,
   Divider,
   Drawer,
+  Grid,
   Group,
   Menu,
   Modal,
@@ -153,6 +154,7 @@ import {
   type PrintCopyRoute,
   printCopyRouteLabel,
 } from "@/utils/printCopies";
+import classes from "./emergency.module.scss";
 
 const CRASH_CART_ITEMS = [
   { key: "defibrillator_present", label: "Defibrillator present and functional" },
@@ -899,7 +901,7 @@ export function EmergencyVisitDetailPage() {
   });
 
   return (
-    <Stack>
+    <Stack className={classes.emergencyWorkspace}>
       <PageHeader
         title={visit ? `ER Visit ${visit.visit_number}` : "ER Visit"}
         subtitle="Triage, resuscitation, MLC status, and IPD admission context."
@@ -938,34 +940,50 @@ export function EmergencyVisitDetailPage() {
       )}
       {visit && (
         <>
-          <EmergencyVisitSummary
+          <EmergencyVisitCommandBar
             visit={visit}
             canAdmit={canAdmit}
             canViewPatientRecord={canViewPatientRecord}
           />
-          {(canViewTriage || canCreateTriage) && (
-            <Card withBorder>
-              <Stack>
-                <Group gap="xs">
-                  <IconHeartbeat size={18} />
-                  <Text fw={700}>Triage</Text>
-                </Group>
-                <TriagePanel visitId={visit.id} canAppend={canCreateTriage} />
-                {!canViewTriage && canCreateTriage && (
-                  <Text size="xs" c="dimmed">
-                    This role can append triage entries, but full triage history is restricted.
-                  </Text>
+          <Grid align="flex-start" className={classes.workspaceGrid}>
+            <Grid.Col span={{ base: 12, lg: 8 }}>
+              <Stack className={classes.workspaceMain}>
+                {(canViewTriage || canCreateTriage) && (
+                  <Card id="er-triage" withBorder>
+                    <Stack>
+                      <Group gap="xs">
+                        <IconHeartbeat size={18} />
+                        <Text fw={700}>Triage</Text>
+                      </Group>
+                      <TriagePanel visitId={visit.id} canAppend={canCreateTriage} />
+                      {!canViewTriage && canCreateTriage && (
+                        <Text size="xs" c="dimmed">
+                          This role can append triage entries, but full triage history is
+                          restricted.
+                        </Text>
+                      )}
+                    </Stack>
+                  </Card>
+                )}
+                {(canViewResuscitation || canCreateResuscitation) && (
+                  <Box id="er-resuscitation">
+                    <ResuscitationVisitPanel
+                      visitId={visit.id}
+                      canView={canViewResuscitation}
+                      canCreate={canCreateResuscitation}
+                    />
+                  </Box>
                 )}
               </Stack>
-            </Card>
-          )}
-          {(canViewResuscitation || canCreateResuscitation) && (
-            <ResuscitationVisitPanel
-              visitId={visit.id}
-              canView={canViewResuscitation}
-              canCreate={canCreateResuscitation}
-            />
-          )}
+            </Grid.Col>
+            <Grid.Col span={{ base: 12, lg: 4 }}>
+              <EmergencyVisitContextRail
+                visit={visit}
+                canShowTriage={canViewTriage || canCreateTriage}
+                canShowResuscitation={canViewResuscitation || canCreateResuscitation}
+              />
+            </Grid.Col>
+          </Grid>
         </>
       )}
     </Stack>
@@ -1475,7 +1493,7 @@ function EmergencyVisitForm({
   );
 }
 
-function EmergencyVisitSummary({
+function EmergencyVisitCommandBar({
   visit,
   canAdmit,
   canViewPatientRecord,
@@ -1531,7 +1549,7 @@ function EmergencyVisitSummary({
   const info = triageInfo(visit.triage_level);
 
   return (
-    <Card withBorder>
+    <Card withBorder className={classes.commandBar}>
       <Stack>
         <Group justify="space-between" align="flex-start">
           <Stack gap="xs">
@@ -1558,6 +1576,7 @@ function EmergencyVisitSummary({
               size="xs"
             />
             <Group gap="xs">
+              <Text fw={700}>Visit {visit.visit_number}</Text>
               <TableValueBadge value={visit.status} color={statusColor(visit.status)} />
               <Badge color={info.color} variant={visit.triage_level ? "filled" : "outline"}>
                 {info.label}
@@ -1565,6 +1584,16 @@ function EmergencyVisitSummary({
               {visit.is_mlc && (
                 <Badge color="danger" variant="filled">
                   MLC
+                </Badge>
+              )}
+              {visit.is_brought_dead && (
+                <Badge color="dark" variant="filled">
+                  Brought dead
+                </Badge>
+              )}
+              {visit.bay_number && (
+                <Badge color="slate" variant="light">
+                  Bay {visit.bay_number}
                 </Badge>
               )}
             </Group>
@@ -1579,39 +1608,6 @@ function EmergencyVisitSummary({
             </Button>
           )}
         </Group>
-        <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }}>
-          <VisitSummaryValue
-            label="Arrival"
-            value={new Date(visit.arrival_time).toLocaleString()}
-          />
-          <VisitSummaryValue label="Mode" value={visit.arrival_mode ?? "---"} />
-          <VisitSummaryValue label="Bay" value={visit.bay_number ?? "---"} />
-          <VisitSummaryValue label="Chief complaint" value={visit.chief_complaint ?? "---"} />
-          <VisitSummaryValue label="Disposition" value={visit.disposition ?? "---"} />
-          <VisitSummaryValue
-            label="Door to doctor"
-            value={
-              visit.door_to_doctor_mins !== null ? `${visit.door_to_doctor_mins} min` : "Pending"
-            }
-          />
-          <VisitSummaryValue
-            label="Door to disposition"
-            value={
-              visit.door_to_disposition_mins !== null
-                ? `${visit.door_to_disposition_mins} min`
-                : "Pending"
-            }
-          />
-          <VisitSummaryValue label="Admission" value={visit.admission_id ?? "---"} />
-        </SimpleGrid>
-        {visit.notes && (
-          <Paper withBorder p="sm">
-            <Text size="xs" c="dimmed">
-              Notes
-            </Text>
-            <Text size="sm">{visit.notes}</Text>
-          </Paper>
-        )}
       </Stack>
       <Modal
         opened={admitOpen}
@@ -1675,6 +1671,143 @@ function EmergencyVisitSummary({
         </Stack>
       </Modal>
     </Card>
+  );
+}
+
+function EmergencyVisitContextRail({
+  visit,
+  canShowTriage,
+  canShowResuscitation,
+}: {
+  visit: ErVisit;
+  canShowTriage: boolean;
+  canShowResuscitation: boolean;
+}) {
+  const navigate = useNavigate();
+  const info = triageInfo(visit.triage_level);
+
+  return (
+    <Box className={classes.contextRail}>
+      <Stack gap="sm">
+        <Stack gap={2}>
+          <Text size="xs" fw={700} c="dimmed" tt="uppercase">
+            ER workspace
+          </Text>
+          <Text size="sm" fw={700}>
+            {visit.visit_number}
+          </Text>
+        </Stack>
+        <Group gap="xs">
+          <TableValueBadge value={visit.status} color={statusColor(visit.status)} />
+          <Badge color={info.color} variant={visit.triage_level ? "filled" : "outline"}>
+            {info.label}
+          </Badge>
+          {visit.is_mlc && (
+            <Badge color="danger" variant="filled">
+              MLC
+            </Badge>
+          )}
+        </Group>
+        <Divider />
+        <Stack gap="xs">
+          <Text size="xs" fw={700} c="dimmed" tt="uppercase">
+            Navigate
+          </Text>
+          <Button
+            size="xs"
+            variant="light"
+            color="primary"
+            leftSection={<IconHeartbeat size={14} />}
+            component="a"
+            href="#er-triage"
+            disabled={!canShowTriage}
+            fullWidth
+          >
+            Triage
+          </Button>
+          <Button
+            size="xs"
+            variant="light"
+            color="teal"
+            leftSection={<IconFirstAidKit size={14} />}
+            component="a"
+            href="#er-resuscitation"
+            disabled={!canShowResuscitation}
+            fullWidth
+          >
+            Resuscitation
+          </Button>
+          <Button
+            size="xs"
+            variant="light"
+            color="slate"
+            leftSection={<IconUrgent size={14} />}
+            onClick={() => navigate("/emergency?tab=visits")}
+            fullWidth
+          >
+            ER queue
+          </Button>
+          {visit.is_mlc && (
+            <Button
+              size="xs"
+              variant="light"
+              color="danger"
+              leftSection={<IconGavel size={14} />}
+              onClick={() => navigate(`/emergency?tab=mlc&patient_id=${visit.patient_id}`)}
+              fullWidth
+            >
+              MLC cases
+            </Button>
+          )}
+          {visit.admission_id && (
+            <Button
+              size="xs"
+              variant="light"
+              color="teal"
+              leftSection={<IconBuildingHospital size={14} />}
+              onClick={() => navigate(`/ipd/admissions/${visit.admission_id}#overview`)}
+              fullWidth
+            >
+              IPD admission
+            </Button>
+          )}
+        </Stack>
+        <Divider />
+        <SimpleGrid cols={{ base: 1, sm: 2, lg: 1 }}>
+          <VisitSummaryValue
+            label="Arrival"
+            value={new Date(visit.arrival_time).toLocaleString()}
+          />
+          <VisitSummaryValue label="Mode" value={visit.arrival_mode ?? "---"} />
+          <VisitSummaryValue label="Bay" value={visit.bay_number ?? "---"} />
+          <VisitSummaryValue label="Chief complaint" value={visit.chief_complaint ?? "---"} />
+          <VisitSummaryValue label="Disposition" value={visit.disposition ?? "---"} />
+          <VisitSummaryValue
+            label="Door to doctor"
+            value={
+              visit.door_to_doctor_mins !== null ? `${visit.door_to_doctor_mins} min` : "Pending"
+            }
+          />
+          <VisitSummaryValue
+            label="Door to disposition"
+            value={
+              visit.door_to_disposition_mins !== null
+                ? `${visit.door_to_disposition_mins} min`
+                : "Pending"
+            }
+          />
+          <VisitSummaryValue label="Admission" value={visit.admission_id ?? "---"} />
+        </SimpleGrid>
+        {visit.notes && (
+          <Paper withBorder p="sm">
+            <Text size="xs" c="dimmed">
+              Notes
+            </Text>
+            <Text size="sm">{visit.notes}</Text>
+          </Paper>
+        )}
+      </Stack>
+    </Box>
   );
 }
 
