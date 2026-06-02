@@ -3,8 +3,12 @@ import {
   Alert,
   Badge,
   Button,
+  Card,
+  Divider,
+  Grid,
   Group,
   Modal,
+  Stack,
   Table,
   Text,
   TextInput,
@@ -25,15 +29,19 @@ import type {
 import { P } from "@medbrains/types";
 import {
   IconAlertTriangle,
+  IconArrowLeft,
   IconCash,
   IconCircleCheck,
+  IconClipboardCheck,
   IconClock,
   IconDroplet,
   IconEye,
   IconGenderFemale,
   IconGenderMale,
   IconSearch,
+  IconShieldCheck,
   IconStarFilled,
+  IconStethoscope,
   IconUserCheck,
   IconUserPlus,
   IconUserQuestion,
@@ -54,6 +62,7 @@ import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { campService } from "@/services/camp.service";
 import { opdService } from "@/services/opd.service";
 import { patientsService } from "@/services/patients.service";
+import classes from "./patients.module.scss";
 
 const PER_PAGE = 20;
 
@@ -427,13 +436,49 @@ export function PatientsPage() {
   ] satisfies Column<Patient>[];
 
   return (
-    <div>
+    <Stack className={classes.patientDirectory}>
       <PageHeader
         title={t("title.patients")}
         subtitle={t("subtitle.registration&Records")}
         icon={<IconUsers size={20} stroke={1.5} />}
         color="teal"
       />
+
+      <Card withBorder className={classes.directoryCommandBar}>
+        <Group justify="space-between" align="flex-end" gap="md">
+          <Stack gap={2}>
+            <Text size="xs" fw={700} c="dimmed" tt="uppercase">
+              Patient directory
+            </Text>
+            <Group gap="xs">
+              <Badge color="teal" variant="light">
+                {data?.total == null ? "Loading records" : `${data.total} records`}
+              </Badge>
+              <Badge color="blue" variant="light">
+                Permissioned fields
+              </Badge>
+              <Badge color="orange" variant="light">
+                Paced search
+              </Badge>
+            </Group>
+          </Stack>
+          <Group gap="xs" className={classes.directoryControls}>
+            <TextInput
+              placeholder="Search by UHID, name, or phone..."
+              leftSection={<IconSearch size={16} />}
+              value={search}
+              onChange={(e) => handleSearchChange(e.currentTarget.value)}
+              size="sm"
+              className={classes.directorySearch}
+            />
+            {canCreate && (
+              <Button leftSection={<IconUserPlus size={16} />} onClick={openRegister}>
+                Register Patient
+              </Button>
+            )}
+          </Group>
+        </Group>
+      </Card>
 
       <DataTable<Patient>
         columns={columns}
@@ -449,7 +494,9 @@ export function PatientsPage() {
             : "Register your first patient to get started"
         }
         emptyAction={
-          !debouncedSearch ? { label: "Register Patient", onClick: openRegister } : undefined
+          !debouncedSearch && canCreate
+            ? { label: "Register Patient", onClick: openRegister }
+            : undefined
         }
         page={page}
         totalPages={totalPages}
@@ -458,28 +505,9 @@ export function PatientsPage() {
         virtualized="auto"
         virtualizeAt={40}
         virtualRowHeight={72}
-        tableMaxHeight="calc(100vh - 320px)"
-        toolbar={
-          <TextInput
-            placeholder="Search by UHID, name, or phone..."
-            leftSection={<IconSearch size={16} />}
-            value={search}
-            onChange={(e) => handleSearchChange(e.currentTarget.value)}
-            size="sm"
-            style={{ maxWidth: 360 }}
-          />
-        }
-        tableActions={
-          <Button
-            leftSection={<IconUserPlus size={16} />}
-            onClick={openRegister}
-            disabled={!canCreate}
-          >
-            Register Patient
-          </Button>
-        }
+        tableMaxHeight="calc(100vh - 360px)"
       />
-    </div>
+    </Stack>
   );
 }
 
@@ -499,6 +527,11 @@ export function PatientRegisterPage() {
     staleTime: 300_000,
   });
   const selectedCamp = camps.find((camp) => camp.id === sourceCampId);
+  const backTarget = isCampRegistration && returnTo ? returnTo : "/patients";
+  const backLabel = isCampRegistration && returnTo ? "Back to Camp" : "Back to Patients";
+  const registrationModeLabel = isCampRegistration
+    ? (selectedCamp?.name ?? "Camp registration")
+    : "Hospital registration";
   const campInitialValues: PatientRegistrationInitialValues | undefined = isCampRegistration
     ? {
         registration_type: "camp",
@@ -699,7 +732,7 @@ export function PatientRegisterPage() {
   };
 
   return (
-    <div>
+    <Stack className={classes.registrationWorkspace}>
       <PageHeader
         title="Register Patient"
         subtitle={
@@ -713,23 +746,130 @@ export function PatientRegisterPage() {
         actions={
           <Button
             variant="light"
-            onClick={() => navigate(isCampRegistration && returnTo ? returnTo : "/patients")}
+            leftSection={<IconArrowLeft size={16} />}
+            onClick={() => navigate(backTarget)}
           >
-            {isCampRegistration && returnTo ? "Back to Camp" : "Back to Patients"}
+            {backLabel}
           </Button>
         }
       />
-      {isCampRegistration && campContextLoading ? (
-        <Text c="dimmed">Loading camp context...</Text>
-      ) : (
-        <PatientRegisterForm
-          onSubmit={handleRegisterSubmit}
-          onCancel={() => navigate(isCampRegistration && returnTo ? returnTo : "/patients")}
-          isSubmitting={createMutation.isPending}
-          submitLabel="Register"
-          initialValues={campInitialValues}
-        />
-      )}
+
+      <Card withBorder className={classes.registrationCommandBar}>
+        <Group justify="space-between" align="flex-start" gap="sm">
+          <Stack gap={4}>
+            <Text size="xs" fw={700} c="dimmed" tt="uppercase">
+              Registration context
+            </Text>
+            <Group gap="xs">
+              <Badge color={isCampRegistration ? "green" : "teal"} variant="light">
+                {registrationModeLabel}
+              </Badge>
+              <Badge color="blue" variant="light">
+                MPI duplicate check
+              </Badge>
+              <Badge color="orange" variant="light">
+                OPD queue link
+              </Badge>
+            </Group>
+          </Stack>
+        </Group>
+      </Card>
+
+      <Grid align="flex-start" className={classes.registrationGrid}>
+        <Grid.Col span={{ base: 12, lg: 8 }}>
+          <Stack className={classes.registrationMain}>
+            {isCampRegistration && campContextLoading ? (
+              <Card withBorder>
+                <Text c="dimmed">Loading camp context...</Text>
+              </Card>
+            ) : (
+              <PatientRegisterForm
+                onSubmit={handleRegisterSubmit}
+                onCancel={() => navigate(backTarget)}
+                isSubmitting={createMutation.isPending}
+                submitLabel="Register"
+                initialValues={campInitialValues}
+              />
+            )}
+          </Stack>
+        </Grid.Col>
+
+        <Grid.Col span={{ base: 12, lg: 4 }}>
+          <Card withBorder className={classes.registrationRail}>
+            <Stack gap="sm">
+              <Stack gap={2}>
+                <Text size="xs" fw={700} c="dimmed" tt="uppercase">
+                  Intake checklist
+                </Text>
+                <Text size="sm" fw={700}>
+                  {registrationModeLabel}
+                </Text>
+                {isCampRegistration && selectedCamp?.venue_name && (
+                  <Text size="xs" c="dimmed">
+                    {selectedCamp.venue_name}
+                  </Text>
+                )}
+              </Stack>
+              <Divider />
+              <Stack gap="xs">
+                <Group gap="xs" align="flex-start" className={classes.railItem}>
+                  <IconClipboardCheck size={16} />
+                  <Stack gap={0}>
+                    <Text size="sm" fw={600}>
+                      Minimum-fields save
+                    </Text>
+                    <Text size="xs" c="dimmed">
+                      Identity, age/DOB, phone, department, and allergy state are checked before
+                      save.
+                    </Text>
+                  </Stack>
+                </Group>
+                <Group gap="xs" align="flex-start" className={classes.railItem}>
+                  <IconShieldCheck size={16} />
+                  <Stack gap={0}>
+                    <Text size="sm" fw={600}>
+                      Duplicate guard
+                    </Text>
+                    <Text size="xs" c="dimmed">
+                      MPI matching runs before the record is created and routes matches to full
+                      profile review.
+                    </Text>
+                  </Stack>
+                </Group>
+                <Group gap="xs" align="flex-start" className={classes.railItem}>
+                  <IconStethoscope size={16} />
+                  <Stack gap={0}>
+                    <Text size="sm" fw={600}>
+                      OPD handoff
+                    </Text>
+                    <Text size="xs" c="dimmed">
+                      Registration can create and open the first OPD queue entry when department is
+                      selected.
+                    </Text>
+                  </Stack>
+                </Group>
+              </Stack>
+              {isCampRegistration && (
+                <>
+                  <Divider />
+                  <Alert color="green" variant="light" icon={<IconUsers size={16} />}>
+                    Camp registration stays linked to the camp workspace and returns there when
+                    configured.
+                  </Alert>
+                </>
+              )}
+              <Button
+                variant="light"
+                leftSection={<IconArrowLeft size={16} />}
+                onClick={() => navigate(backTarget)}
+                fullWidth
+              >
+                {backLabel}
+              </Button>
+            </Stack>
+          </Card>
+        </Grid.Col>
+      </Grid>
 
       <Modal
         opened={dupModalOpen}
@@ -806,7 +946,7 @@ export function PatientRegisterPage() {
           </Button>
         </Group>
       </Modal>
-    </div>
+    </Stack>
   );
 }
 

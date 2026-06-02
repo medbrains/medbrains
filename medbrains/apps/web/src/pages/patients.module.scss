@@ -1,0 +1,71 @@
+.patientDirectory,
+.registrationWorkspace {
+  gap: var(--mantine-spacing-md);
+}
+
+.directoryCommandBar,
+.registrationCommandBar {
+  position: sticky;
+  top: calc(var(--app-shell-header-height, 72px) + var(--mantine-spacing-xs));
+  z-index: 12;
+  border-left: 4px solid light-dark(var(--mantine-color-teal-6), var(--mantine-color-teal-4));
+  background: light-dark(rgba(255, 255, 255, 0.96), rgba(26, 27, 30, 0.94));
+  box-shadow: 0 12px 28px light-dark(rgba(15, 23, 42, 0.08), rgba(0, 0, 0, 0.24));
+  backdrop-filter: blur(10px);
+}
+
+.directoryControls {
+  flex: 1;
+  justify-content: flex-end;
+}
+
+.directorySearch {
+  width: min(420px, 100%);
+}
+
+.registrationGrid {
+  align-items: flex-start;
+}
+
+.registrationMain {
+  min-width: 0;
+}
+
+.registrationRail {
+  position: sticky;
+  top: calc(var(--app-shell-header-height, 72px) + 164px);
+  max-height: calc(100dvh - var(--app-shell-header-height, 72px) - 180px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  background:
+    linear-gradient(180deg, light-dark(var(--mantine-color-teal-0), rgba(18, 184, 134, 0.14)), transparent 42%),
+    light-dark(var(--mantine-color-white), var(--mantine-color-dark-7));
+}
+
+.railItem {
+  flex-wrap: nowrap;
+  padding: var(--mantine-spacing-xs);
+  border: 1px solid light-dark(var(--mantine-color-gray-2), var(--mantine-color-dark-4));
+  border-radius: var(--mantine-radius-md);
+  background: light-dark(rgba(255, 255, 255, 0.72), rgba(20, 21, 24, 0.52));
+}
+
+@media (max-width: 992px) {
+  .directoryCommandBar,
+  .registrationCommandBar,
+  .registrationRail {
+    position: static;
+    max-height: none;
+  }
+
+  .directoryControls {
+    justify-content: flex-start;
+    width: 100%;
+  }
+
+  .directorySearch {
+    flex: 1;
+    min-width: min(280px, 100%);
+  }
+}
