@@ -97,4 +97,57 @@ describe("clinical event normalization", () => {
     expect(event.sourceRecordId).toBe("registration-1");
     expect(event.missingPayloadKeys).toEqual([]);
   });
+
+  it("tracks pharmacy order lifecycle events without missing payload keys", () => {
+    const created = buildClinicalEventTrace({
+      contextCode: "pharmacy-order-create",
+      moduleCode: "pharmacy",
+      occurredAt: "2026-05-29T10:20:00.000Z",
+      rawTrigger: "pharmacy.order.created",
+      payload: {
+        items: [{ item_id: "order-item-1", quantity: 1 }],
+        order_id: "order-1",
+        order_type: "pharmacy",
+        patient_id: "patient-1",
+      },
+    });
+
+    const dispensed = buildClinicalEventTrace({
+      contextCode: "pharmacy-orders",
+      moduleCode: "pharmacy",
+      occurredAt: "2026-05-29T10:25:00.000Z",
+      rawTrigger: "order.dispensed",
+      payload: {
+        items: [{ item_id: "order-item-1", quantity: 1 }],
+        order_id: "order-1",
+        patient_id: "patient-1",
+      },
+    });
+
+    const cancelled = buildClinicalEventTrace({
+      contextCode: "pharmacy-orders",
+      moduleCode: "pharmacy",
+      occurredAt: "2026-05-29T10:30:00.000Z",
+      rawTrigger: "order.cancelled",
+      payload: {
+        order_id: "order-2",
+        order_type: "pharmacy",
+        reason: "cancelled_from_pharmacy_queue",
+      },
+    });
+
+    expect(created.eventName).toBe("order.created");
+    expect(created.sourceRecordId).toBe("order-1");
+    expect(created.patientId).toBe("patient-1");
+    expect(created.missingPayloadKeys).toEqual([]);
+
+    expect(dispensed.eventName).toBe("pharmacy.order.dispensed");
+    expect(dispensed.sourceRecordId).toBe("order-1");
+    expect(dispensed.patientId).toBe("patient-1");
+    expect(dispensed.missingPayloadKeys).toEqual([]);
+
+    expect(cancelled.eventName).toBe("order.cancelled");
+    expect(cancelled.sourceRecordId).toBe("order-2");
+    expect(cancelled.missingPayloadKeys).toEqual([]);
+  });
 });

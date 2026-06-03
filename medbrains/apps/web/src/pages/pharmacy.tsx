@@ -66,6 +66,7 @@ import type {
   PharmacyDeadStockRow,
   PharmacyOrder,
   PharmacyOrderDetailResponse,
+  PharmacyOrderItem,
   PharmacyOrderItemInput,
   PharmacyPosSale,
   PharmacyPosSaleItem,
@@ -445,6 +446,18 @@ function draftPharmacyOrderItemsPayload(
     drug_name: drug_name.trim(),
     quantity,
     unit_price,
+  }));
+}
+
+function pharmacyOrderEventItems(items: PharmacyOrderItem[]) {
+  return items.map((item) => ({
+    batch_number: item.batch_number,
+    batch_stock_id: item.batch_stock_id,
+    catalog_item_id: item.catalog_item_id,
+    drug_name: item.drug_name,
+    expiry_date: item.expiry_date,
+    item_id: item.id,
+    quantity: item.quantity,
   }));
 }
 
@@ -1191,18 +1204,28 @@ function PharmacyOrdersTab({
   const emit = useClinicalEmit();
 
   const dispenseMutation = useMutation({
-    mutationFn: (id: string) => pharmacyService.dispenseOrder(id),
-    onSuccess: (result, id) => {
+    mutationFn: async (id: string) => {
+      const detail = await pharmacyService.getPharmacyOrder(id);
+      const order = await pharmacyService.dispenseOrder(id);
+      return { items: detail.items, order };
+    },
+    onSuccess: ({ items, order }, id) => {
       void queryClient.invalidateQueries({ queryKey: ["pharmacy-orders"] });
       void queryClient.invalidateQueries({ queryKey: ["invoices"] });
       void queryClient.invalidateQueries({ queryKey: ["invoice"] });
-      void queryClient.invalidateQueries({ queryKey: ["patient-invoices", result.patient_id] });
+      void queryClient.invalidateQueries({ queryKey: ["patient-invoices", order.patient_id] });
       notifications.show({
         title: "Dispensed",
         message: "Order dispensed and linked billing charges refreshed",
         color: "success",
       });
-      emit("order.dispensed", { order_id: id });
+      emit("order.dispensed", {
+        dispensing_type: order.dispensing_type,
+        items: pharmacyOrderEventItems(items),
+        order_id: id,
+        order_type: "pharmacy",
+        patient_id: order.patient_id,
+      });
     },
   });
 
@@ -1213,7 +1236,13 @@ function PharmacyOrdersTab({
       void queryClient.invalidateQueries({ queryKey: ["invoices"] });
       void queryClient.invalidateQueries({ queryKey: ["invoice"] });
       void queryClient.invalidateQueries({ queryKey: ["patient-invoices", result.patient_id] });
-      emit("order.cancelled", { order_id: id });
+      emit("order.cancelled", {
+        dispensing_type: result.dispensing_type,
+        order_id: id,
+        order_type: "pharmacy",
+        patient_id: result.patient_id,
+        reason: "cancelled_from_pharmacy_queue",
+      });
     },
   });
 
@@ -2165,8 +2194,13 @@ function PharmacyOrderForm({
         color: "success",
       });
       emit("pharmacy.order.created", {
+        dispensing_type: detail.order.dispensing_type,
+        encounter_id: detail.order.encounter_id,
+        items: pharmacyOrderEventItems(detail.items),
         order_id: detail.order.id,
+        order_type: "pharmacy",
         patient_id: detail.order.patient_id,
+        prescription_id: detail.order.prescription_id,
       });
       reset(pharmacyOrderDefaults(initialPatientId));
       onSuccess(detail);
