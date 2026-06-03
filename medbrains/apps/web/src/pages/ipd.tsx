@@ -51,6 +51,7 @@ import type {
   BedDashboardRow,
   BedDashboardSummary,
   BedTransferRequest,
+  BedTransferResponse,
   BedTurnaroundLog,
   BillingSummaryResponse,
   CensusWardRow,
@@ -242,6 +243,51 @@ const IPD_WORKSPACE_TABS = [
 
 const IPD_WORKSPACE_TAB_VALUES = IPD_WORKSPACE_TABS.map((tab) => tab.value);
 const IPD_WORKSPACE_SECTIONS = ["Command", "Care Context", "Finance & Admin", "Discharge"] as const;
+
+const DISCHARGE_TYPE_OPTIONS = [
+  { value: "normal", label: "Normal" },
+  { value: "lama", label: "LAMA" },
+  { value: "dama", label: "DAMA" },
+  { value: "absconded", label: "Absconded" },
+  { value: "referred", label: "Referred" },
+  { value: "deceased", label: "Deceased" },
+] satisfies { value: DischargeType; label: string }[];
+
+function normalizeDischargeType(value: string | null): DischargeType {
+  return DISCHARGE_TYPE_OPTIONS.find((option) => option.value === value)?.value ?? "normal";
+}
+
+function emitIpdBedMovementEvent(
+  emit: ReturnType<typeof useClinicalEmit>,
+  response: BedTransferResponse,
+  patientId: string,
+  notes?: string,
+) {
+  if (response.from_bed_id) {
+    emit("transfer.completed", {
+      admission_id: response.admission_id,
+      from_bed_id: response.from_bed_id,
+      notes,
+      patient_id: patientId,
+      reason: response.reason,
+      source_record_id: response.transfer_id,
+      to_bed_id: response.to_bed_id,
+      transfer_id: response.transfer_id,
+      transfer_type: response.transfer_type,
+    });
+    return;
+  }
+
+  emit("bed.assigned", {
+    admission_id: response.admission_id,
+    bed_id: response.to_bed_id,
+    notes,
+    patient_id: patientId,
+    reason: response.reason,
+    source_record_id: response.transfer_id,
+    transfer_id: response.transfer_id,
+  });
+}
 
 const PATIENT_NAME_FIELD_ACCESS_KEYS = [
   "patients.first_name",
@@ -935,6 +981,7 @@ function AdmissionDetail({
         admissionId={admissionId}
         opened={bedTransferOpened}
         onClose={closeBedTransfer}
+        patientId={adm.patient_id}
       />
       <DamaModal admissionId={admissionId} opened={damaOpened} onClose={closeDama} />
       <MarkDeathModal admissionId={admissionId} opened={deathOpened} onClose={closeDeath} />
@@ -1066,6 +1113,7 @@ function AdmissionDetail({
               <TransferTab
                 admissionId={admissionId}
                 canManage={canManageBeds}
+                patientId={adm.patient_id}
                 status={adm.status}
               />
               <TransferLogTab admissionId={admissionId} />
@@ -1113,6 +1161,7 @@ function AdmissionDetail({
               <DischargeTab
                 admissionId={admissionId}
                 canDischarge={canDischarge}
+                patientId={adm.patient_id}
                 status={adm.status}
               />
               <DischargeWorkflowWizard admissionId={admissionId} />
@@ -2657,10 +2706,12 @@ function DischargeSummaryTab({
 function TransferTab({
   admissionId,
   canManage,
+  patientId,
   status,
 }: {
   admissionId: string;
   canManage: boolean;
+  patientId: string;
   status: string;
 }) {
   const queryClient = useQueryClient();
@@ -2669,16 +2720,23 @@ function TransferTab({
   const emit = useClinicalEmit();
 
   const transferMutation = useMutation({
-    mutationFn: () => ipdService.transferBed(admissionId, { bed_id: bedId, notes: notes.trim() }),
-    onSuccess: () => {
+    mutationFn: () =>
+      ipdService.bedTransfer(admissionId, {
+        notes: notes.trim(),
+        reason: notes.trim(),
+        to_bed_id: bedId,
+      }),
+    onSuccess: (response) => {
       void queryClient.invalidateQueries({ queryKey: ["admission-detail", admissionId] });
       void queryClient.invalidateQueries({ queryKey: ["admissions"] });
+      void queryClient.invalidateQueries({ queryKey: ["bed-dashboard"] });
+      void queryClient.invalidateQueries({ queryKey: ["ipd-transfers", admissionId] });
       notifications.show({
         title: "Transferred",
         message: "Bed transfer recorded",
         color: "success",
       });
-      emit("transfer.completed", { admission_id: admissionId, new_bed_id: bedId });
+      emitIpdBedMovementEvent(emit, response, patientId, notes.trim());
       setBedId("");
       setNotes("");
     },
@@ -2725,14 +2783,16 @@ function TransferTab({
 function DischargeTab({
   admissionId,
   canDischarge,
+  patientId,
   status,
 }: {
   admissionId: string;
   canDischarge: boolean;
+  patientId: string;
   status: string;
 }) {
   const queryClient = useQueryClient();
-  const [dischargeType, setDischargeType] = useState<string>("normal");
+  const [dischargeType, setDischargeType] = useState<DischargeType>("normal");
   const [summary, setSummary] = useState("");
   const emit = useClinicalEmit();
 
@@ -2744,14 +2804,18 @@ function DischargeTab({
   const dischargeMutation = useMutation({
     mutationFn: () =>
       ipdService.dischargePatient(admissionId, {
-        discharge_type: dischargeType as DischargeType,
+        discharge_type: dischargeType,
         discharge_summary: summary || undefined,
       }),
-    onSuccess: () => {
+    onSuccess: (result) => {
       void queryClient.invalidateQueries({ queryKey: ["admission-detail", admissionId] });
       void queryClient.invalidateQueries({ queryKey: ["admissions"] });
       notifications.show({ title: "Discharged", message: "Patient discharged", color: "success" });
-      emit("discharge.completed", { admission_id: admissionId, discharge_type: dischargeType });
+      emit("discharge.completed", {
+        admission_id: admissionId,
+        discharge_type: result.discharge_type ?? dischargeType,
+        patient_id: result.patient_id ?? patientId,
+      });
     },
   });
 
@@ -2797,16 +2861,9 @@ function DischargeTab({
         <>
           <Select
             label="Discharge Type"
-            data={[
-              { value: "normal", label: "Normal" },
-              { value: "lama", label: "LAMA" },
-              { value: "dama", label: "DAMA" },
-              { value: "absconded", label: "Absconded" },
-              { value: "referred", label: "Referred" },
-              { value: "deceased", label: "Deceased" },
-            ]}
+            data={DISCHARGE_TYPE_OPTIONS}
             value={dischargeType}
-            onChange={(v) => setDischargeType(v ?? "normal")}
+            onChange={(v) => setDischargeType(normalizeDischargeType(v))}
           />
           <Textarea
             label="Discharge Summary"
@@ -6397,27 +6454,32 @@ function BedTransferModal({
   admissionId,
   opened,
   onClose,
+  patientId,
 }: {
   admissionId: string;
   opened: boolean;
   onClose: () => void;
+  patientId: string;
 }) {
   const queryClient = useQueryClient();
+  const emit = useClinicalEmit();
   const [toBedId, setToBedId] = useState("");
   const [reason, setReason] = useState("");
   const [notes, setNotes] = useState("");
 
   const transferMutation = useMutation({
     mutationFn: (data: BedTransferRequest) => ipdService.bedTransfer(admissionId, data),
-    onSuccess: () => {
+    onSuccess: (response) => {
       void queryClient.invalidateQueries({ queryKey: ["admission-detail", admissionId] });
       void queryClient.invalidateQueries({ queryKey: ["admissions"] });
       void queryClient.invalidateQueries({ queryKey: ["bed-dashboard"] });
+      void queryClient.invalidateQueries({ queryKey: ["ipd-transfers", admissionId] });
       notifications.show({
         title: "Transferred",
         message: "Bed transfer completed",
         color: "success",
       });
+      emitIpdBedMovementEvent(emit, response, patientId, notes.trim());
       onClose();
       setToBedId("");
       setReason("");

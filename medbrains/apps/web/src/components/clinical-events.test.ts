@@ -150,4 +150,43 @@ describe("clinical event normalization", () => {
     expect(cancelled.sourceRecordId).toBe("order-2");
     expect(cancelled.missingPayloadKeys).toEqual([]);
   });
+
+  it("tracks IPD bed transfer and discharge completion events without missing payload keys", () => {
+    const transfer = buildClinicalEventTrace({
+      contextCode: "ipd-admission-detail",
+      moduleCode: "ipd",
+      occurredAt: "2026-05-29T10:35:00.000Z",
+      rawTrigger: "transfer.completed",
+      payload: {
+        admission_id: "admission-1",
+        from_bed_id: "bed-1",
+        patient_id: "patient-1",
+        to_bed_id: "bed-2",
+        transfer_id: "transfer-1",
+      },
+    });
+
+    const discharge = buildClinicalEventTrace({
+      contextCode: "ipd-admission-detail",
+      moduleCode: "ipd",
+      occurredAt: "2026-05-29T10:40:00.000Z",
+      rawTrigger: "discharge.completed",
+      payload: {
+        admission_id: "admission-1",
+        discharge_type: "normal",
+        patient_id: "patient-1",
+      },
+    });
+
+    expect(transfer.eventName).toBe("bed.transferred");
+    expect(transfer.admissionId).toBe("admission-1");
+    expect(transfer.patientId).toBe("patient-1");
+    expect(transfer.sourceRecordId).toBe("transfer-1");
+    expect(transfer.missingPayloadKeys).toEqual([]);
+
+    expect(discharge.eventName).toBe("ipd.discharge.completed");
+    expect(discharge.admissionId).toBe("admission-1");
+    expect(discharge.patientId).toBe("patient-1");
+    expect(discharge.missingPayloadKeys).toEqual([]);
+  });
 });

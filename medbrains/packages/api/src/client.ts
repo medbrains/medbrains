@@ -142,6 +142,7 @@ import type {
   BedsideSessionRow,
   BedsideVitalReading,
   BedTransferRequest,
+  BedTransferResponse,
   BedTurnaroundLog,
   BedTurnaroundRow,
   BedTypeRow,
@@ -10462,7 +10463,7 @@ export const api = {
     }),
 
   bedTransfer: (admissionId: string, data: BedTransferRequest) =>
-    request<{ success: true }>(`/ipd/admissions/${admissionId}/transfer`, {
+    request<BedTransferResponse>(`/ipd/admissions/${admissionId}/transfer`, {
       method: "POST",
       body: JSON.stringify(data),
     }),

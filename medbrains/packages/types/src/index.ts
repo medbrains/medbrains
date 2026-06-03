@@ -19907,6 +19907,18 @@ export interface BedTransferRequest {
   notes?: string;
 }
 
+export interface BedTransferResponse {
+  success: true;
+  admission_id: string;
+  transfer_id: string;
+  from_bed_id: string | null;
+  to_bed_id: string;
+  transfer_type: TransferType;
+  reason: string;
+  transferred_by: string;
+  transferred_at: string;
+}
+
 export interface ExpectedDischargeRow {
   admission_id: string;
   patient_id: string;
