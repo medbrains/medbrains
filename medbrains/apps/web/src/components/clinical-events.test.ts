@@ -38,6 +38,41 @@ describe("clinical event normalization", () => {
     expect(event.missingPayloadKeys).toEqual(["payment_id"]);
   });
 
+  it("tracks billing invoice finalization and payment receipt events without missing payload keys", () => {
+    const finalized = buildClinicalEventTrace({
+      contextCode: "billing-invoice-detail",
+      moduleCode: "billing",
+      occurredAt: "2026-05-29T10:02:00.000Z",
+      rawTrigger: "invoice.issued",
+      payload: {
+        invoice_id: "invoice-1",
+        patient_id: "patient-1",
+      },
+    });
+
+    const payment = buildClinicalEventTrace({
+      contextCode: "billing-invoice-detail",
+      moduleCode: "billing",
+      occurredAt: "2026-05-29T10:03:00.000Z",
+      rawTrigger: "payment.recorded",
+      payload: {
+        invoice_id: "invoice-1",
+        patient_id: "patient-1",
+        payment_id: "payment-1",
+      },
+    });
+
+    expect(finalized.eventName).toBe("billing.invoice.finalized");
+    expect(finalized.patientId).toBe("patient-1");
+    expect(finalized.sourceRecordId).toBe("invoice-1");
+    expect(finalized.missingPayloadKeys).toEqual([]);
+
+    expect(payment.eventName).toBe("billing.payment.received");
+    expect(payment.patientId).toBe("patient-1");
+    expect(payment.sourceRecordId).toBe("payment-1");
+    expect(payment.missingPayloadKeys).toEqual([]);
+  });
+
   it("tracks MRD case-sheet handoff events by packet and patient", () => {
     const event = buildClinicalEventTrace({
       contextCode: "ipd-admission-detail",

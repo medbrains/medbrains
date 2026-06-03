@@ -1201,9 +1201,12 @@ function InvoiceDetail({
 
   const issueMutation = useMutation({
     mutationFn: () => billingService.issueInvoice(invoiceId),
-    onSuccess: () => {
+    onSuccess: (result) => {
       void queryClient.invalidateQueries({ queryKey: ["invoice-detail", invoiceId] });
-      emit("invoice.issued", { invoice_id: invoiceId });
+      emit("invoice.issued", {
+        invoice_id: result.id,
+        patient_id: result.patient_id,
+      });
     },
   });
 
@@ -1244,16 +1247,18 @@ function InvoiceDetail({
 
   const payMutation = useMutation({
     mutationFn: (pay: RecordPaymentRequest) => billingService.recordPayment(invoiceId, pay),
-    onSuccess: (_result, variables) => {
+    onSuccess: (result, variables) => {
       void queryClient.invalidateQueries({ queryKey: ["invoice-detail", invoiceId] });
       void queryClient.invalidateQueries({ queryKey: ["invoices"] });
       void queryClient.invalidateQueries({ queryKey: ["patients"] });
       void queryClient.invalidateQueries({ queryKey: ["patient-context", inv.patient_id] });
       void queryClient.invalidateQueries({ queryKey: ["patient-invoices", inv.patient_id] });
       emit("payment.recorded", {
-        invoice_id: invoiceId,
         amount: variables.amount,
+        invoice_id: result.invoice_id,
         mode: variables.mode,
+        patient_id: inv.patient_id,
+        payment_id: result.id,
       });
       paymentHandlers.close();
       resetPayment(paymentDefaults);
