@@ -2894,6 +2894,7 @@ function PatientDetailPageInner() {
   const patientId = id ?? "";
   const navigate = useNavigate();
   const emit = useClinicalEmit();
+  const queryClient = useQueryClient();
   const canListPatients = useHasPermission(P.PATIENTS.LIST);
   const canViewBillingLedger = useHasPermission(P.BILLING.INVOICES_LIST);
   const uhidAccess = useFieldAccess("patients.uhid");
@@ -2926,7 +2927,10 @@ function PatientDetailPageInner() {
     queryFn: () => patientDetailService.listPatientVisits(patientId),
     enabled: patientId.length > 0,
   });
-  const activeEncounter = visits.find((v) => v.status === "open" || v.status === "in_progress");
+  const activeEncounter = visits.find(
+    (visit) =>
+      visit.encounter_type === "opd" && (visit.status === "open" || visit.status === "in_progress"),
+  );
   const { data: activeAdmissions } = useQuery({
     queryKey: ["patient-admissions", patientId, "admitted"],
     queryFn: () => patientDetailService.listPatientAdmissions(patientId, "admitted"),
@@ -3345,6 +3349,11 @@ function PatientDetailPageInner() {
           patientId={patient.id}
           activeTab={basketTab}
           onActiveTabChange={setBasketTab}
+          onSigned={() => {
+            void queryClient.invalidateQueries({ queryKey: ["patient-visits", patient.id] });
+            void queryClient.invalidateQueries({ queryKey: ["patient-prescriptions", patient.id] });
+            void queryClient.invalidateQueries({ queryKey: ["patient-invoices", patient.id] });
+          }}
         />
       )}
     </Stack>
