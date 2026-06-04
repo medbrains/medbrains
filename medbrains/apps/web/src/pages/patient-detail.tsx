@@ -42,6 +42,7 @@ import {
 import { useFieldAccess, useHasPermission } from "@medbrains/stores";
 import type {
   AdmissionRow,
+  CampRegistration,
   ClinicalJourneyContext,
   DrugTimelineWithLabsResponse,
   ErVisit,
@@ -97,6 +98,7 @@ import { ActivePackagesSection } from "@/components/Patient/ActivePackagesSectio
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
 import { PatientFlowNavigator } from "@/components/Patient/PatientFlowNavigator";
 import { PatientJourneyActions } from "@/components/Patient/PatientJourneyActions";
+import { deriveCampJourneyCompletedEvents } from "@/components/Patient/patient-journey-events";
 import { PatientNameCell } from "@/components/PatientNameCell";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
 import { ShareDrawer } from "@/components/Sharing/ShareDrawer";
@@ -2905,6 +2907,7 @@ function PatientDetailPageInner() {
   const canListPatients = useHasPermission(P.PATIENTS.LIST);
   const canViewBillingLedger = useHasPermission(P.BILLING.INVOICES_LIST);
   const canViewEmergencyVisits = useHasPermission(P.EMERGENCY.VISITS_LIST);
+  const canViewCampRegistrations = useHasPermission(P.CAMP.REGISTRATIONS_LIST);
   const uhidAccess = useFieldAccess("patients.uhid");
   const firstNameAccess = useFieldAccess("patients.first_name");
   const lastNameAccess = useFieldAccess("patients.last_name");
@@ -2954,6 +2957,11 @@ function PatientDetailPageInner() {
   const activeEmergencyVisit = patientEmergencyVisits.find((visit) =>
     ACTIVE_ER_VISIT_STATUSES.has(visit.status),
   );
+  const { data: campRegistrations = [] } = useQuery<CampRegistration[]>({
+    queryKey: ["camp-registrations", "patient", patientId],
+    queryFn: () => patientDetailService.listCampRegistrations({ patient_id: patientId }),
+    enabled: canViewCampRegistrations && patientId.length > 0,
+  });
   const { data: prescriptions = [] } = useQuery<PrescriptionHistoryItem[]>({
     queryKey: ["patient-prescriptions", patientId],
     queryFn: () => patientDetailService.listPatientPrescriptions(patientId),
@@ -3009,8 +3017,12 @@ function PatientDetailPageInner() {
   const pendingInvoiceCount = invoices.filter(
     (invoice) => Number.parseFloat(invoice.balance) > 0,
   ).length;
+  const campCompletedEvents = deriveCampJourneyCompletedEvents(campRegistrations);
+  const hasCampRegistration = campCompletedEvents.includes("camp.registration.created");
+  const hasCampScreeningCompleted = campCompletedEvents.includes("camp.screening.completed");
   const completedEvents = [
     ...(hasEmergencyVisit ? ["emergency.visit.created"] : []),
+    ...campCompletedEvents,
     ...(hasClinicalOrder ? ["order.created"] : []),
     ...(hasBillingInvoice ? ["billing.invoice.created"] : []),
     ...(hasFinalizedInvoice ? ["billing.invoice.finalized"] : []),
@@ -3165,6 +3177,11 @@ function PatientDetailPageInner() {
                 {hasEmergencyVisit && (
                   <Badge color="red" variant="light">
                     ER linked
+                  </Badge>
+                )}
+                {hasCampRegistration && (
+                  <Badge color={hasCampScreeningCompleted ? "teal" : "cyan"} variant="light">
+                    {hasCampScreeningCompleted ? "Camp screened" : "Camp linked"}
                   </Badge>
                 )}
                 {hasClinicalOrder && (

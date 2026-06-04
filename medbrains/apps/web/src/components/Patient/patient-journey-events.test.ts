@@ -1,8 +1,13 @@
 // @vitest-environment node
 
+import type { CampRegistration } from "@medbrains/types";
 import { describe, expect, it } from "vitest";
 import type { ClinicalEventTrace } from "@/components/clinical-events";
-import { clinicalEventMatchesJourney, mergeJourneyEventNames } from "./patient-journey-events";
+import {
+  clinicalEventMatchesJourney,
+  deriveCampJourneyCompletedEvents,
+  mergeJourneyEventNames,
+} from "./patient-journey-events";
 
 function trace(input: Partial<ClinicalEventTrace>): ClinicalEventTrace {
   return {
@@ -46,5 +51,36 @@ describe("patient journey event matching", () => {
         trace({ eventName: "pharmacy.order.dispensed", patientId: "patient-2" }),
       ]),
     ).toEqual(["patient.created", "order.created", "billing.invoice.created"]);
+  });
+
+  it("derives camp registration and screening events from patient camp history", () => {
+    const registration = {
+      id: "registration-1",
+      tenant_id: "tenant-1",
+      camp_id: "camp-1",
+      registration_number: "CAMP-1",
+      person_name: "Masked Patient",
+      age: null,
+      gender: null,
+      phone: null,
+      address: null,
+      id_proof_type: null,
+      id_proof_number: null,
+      patient_id: "patient-1",
+      clinical_department_id: null,
+      attending_doctor_id: null,
+      service_line: null,
+      status: "screened",
+      chief_complaint: null,
+      is_walk_in: true,
+      registered_by: null,
+      created_at: "2026-05-29T00:00:00.000Z",
+      updated_at: "2026-05-29T00:00:00.000Z",
+    } satisfies CampRegistration;
+
+    expect(deriveCampJourneyCompletedEvents([registration])).toEqual([
+      "camp.registration.created",
+      "camp.screening.completed",
+    ]);
   });
 });

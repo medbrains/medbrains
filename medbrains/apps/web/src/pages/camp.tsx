@@ -102,6 +102,7 @@ import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
 import { PatientFlowNavigator } from "@/components/Patient/PatientFlowNavigator";
 import { PatientJourneyActions } from "@/components/Patient/PatientJourneyActions";
+import { deriveCampJourneyCompletedEvents } from "@/components/Patient/patient-journey-events";
 import {
   campFollowupTypeOptions,
   campIdProofTypeOptions,
@@ -179,11 +180,6 @@ const PATIENT_NAME_FIELD_ACCESS_KEYS = [
   "patients.middle_name",
   "patients.last_name",
 ];
-const CAMP_SCREENING_COMPLETED_STATUSES = new Set<CampRegistration["status"]>([
-  "screened",
-  "referred",
-  "converted",
-]);
 
 const patientContextQuery = (patientId: string) =>
   patientId ? `?patient_id=${encodeURIComponent(patientId)}` : "";
@@ -229,19 +225,6 @@ function campRegistrationOptionLabel(
   ]
     .filter(Boolean)
     .join(" - ");
-}
-
-function deriveCampJourneyCompletedEvents(registrations: readonly CampRegistration[]) {
-  const events: string[] = [];
-  if (registrations.length > 0) {
-    events.push("camp.registration.created");
-  }
-  if (
-    registrations.some((registration) => CAMP_SCREENING_COMPLETED_STATUSES.has(registration.status))
-  ) {
-    events.push("camp.screening.completed");
-  }
-  return events;
 }
 
 function CampPatientActionBar({
@@ -661,27 +644,25 @@ function CampPatientContextPanel({ patientId }: { patientId: string }) {
     queryFn: () => campService.listCamps(),
     enabled: canViewRegistrations,
   });
-  const { data: registrations = [], isLoading } = useQuery<PatientCampRegistrationRow[]>({
-    queryKey: ["camp-patient-registrations", patientId, camps.map((camp) => camp.id).join("|")],
-    queryFn: async () => {
-      const rows = await Promise.all(
-        camps.map(async (camp) => {
-          const registrationsForCamp = await campService.listCampRegistrations({
-            camp_id: camp.id,
-            patient_id: patientId,
-          });
-          return registrationsForCamp.map((registration) => ({
-            ...registration,
-            camp_name: camp.name,
-            camp_code: camp.camp_code,
-            camp_status: camp.status,
-          }));
-        }),
-      );
-      return rows.flat();
-    },
-    enabled: canViewRegistrations && camps.length > 0 && patientId.length > 0,
+  const campLookup = useMemo(() => new Map(camps.map((camp) => [camp.id, camp])), [camps]);
+  const { data: patientRegistrations = [], isLoading } = useQuery<CampRegistration[]>({
+    queryKey: ["camp-registrations", "patient", patientId],
+    queryFn: () => campService.listCampRegistrations({ patient_id: patientId }),
+    enabled: canViewRegistrations && patientId.length > 0,
   });
+  const registrations = useMemo<PatientCampRegistrationRow[]>(
+    () =>
+      patientRegistrations.map((registration) => {
+        const camp = campLookup.get(registration.camp_id);
+        return {
+          ...registration,
+          camp_name: camp?.name ?? registration.camp_id,
+          camp_code: camp?.camp_code ?? registration.camp_id.slice(0, 8),
+          camp_status: camp?.status ?? "unknown",
+        };
+      }),
+    [campLookup, patientRegistrations],
+  );
   const patientCampCompletedEvents = useMemo(
     () => deriveCampJourneyCompletedEvents(registrations),
     [registrations],

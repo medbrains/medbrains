@@ -27,6 +27,8 @@ export const patientDetailService = {
   listPatientInvoices: (...args: Parameters<typeof api.listPatientInvoices>) =>
     api.listPatientInvoices(...args),
   listErVisits: (...args: Parameters<typeof api.listErVisits>) => api.listErVisits(...args),
+  listCampRegistrations: (...args: Parameters<typeof api.listCampRegistrations>) =>
+    api.listCampRegistrations(...args),
   listPatientAdmissions: (patientId: string, status?: string) =>
     api.listAdmissions({
       patient_id: patientId,

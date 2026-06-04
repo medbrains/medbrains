@@ -410,7 +410,7 @@ pub struct AddTeamMemberRequest {
 
 #[derive(Debug, Deserialize)]
 pub struct ListRegistrationsQuery {
-    pub camp_id: Uuid,
+    pub camp_id: Option<Uuid>,
     pub status: Option<String>,
     pub patient_id: Option<Uuid>,
 }
@@ -6189,18 +6189,28 @@ pub async fn list_registrations(
     let restricted_fields = resolve_camp_registration_restricted_fields(&state, &claims).await?;
     let can_view_patient_record = has_patient_record_view(&claims);
     let can_view_full_queue = can_view_full_camp_registration_queue(&claims);
+    if params.camp_id.is_none() && params.patient_id.is_none() {
+        return Err(AppError::BadRequest(
+            "camp_id or patient_id is required to list camp registrations".to_owned(),
+        ));
+    }
+    if params.camp_id.is_none() && !can_view_patient_record {
+        return Err(AppError::Forbidden);
+    }
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, CampRegistration>(
         "SELECT * FROM camp_registrations \
-         WHERE camp_id = $1 \
-         AND ($2::text IS NULL OR status::text = $2) \
-         AND ($3::uuid IS NULL OR patient_id = $3) \
+         WHERE ($1::uuid IS NULL OR camp_id = $1) \
+         AND tenant_id = $2 \
+         AND ($3::text IS NULL OR status::text = $3) \
+         AND ($4::uuid IS NULL OR patient_id = $4) \
          ORDER BY created_at DESC LIMIT 500",
     )
     .bind(params.camp_id)
+    .bind(claims.tenant_id)
     .bind(&params.status)
     .bind(params.patient_id)
     .fetch_all(&mut *tx)

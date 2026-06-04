@@ -1997,8 +1997,16 @@ describe("/camp endpoints", () => {
     mockOk({});
     await api.listCampRegistrations({ camp_id: UUID });
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url.split("?")[0]).toBe("/api/camp/registrations");
+  });
+
+  it("listCampRegistrations filters by patient without a camp id", async () => {
+    mockOk({});
+    await api.listCampRegistrations({ patient_id: UUID });
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    const [url] = mockFetch.mock.calls[0];
+    expect(url).toBe(`/api/camp/registrations?patient_id=${UUID}`);
   });
 
   it("createCampRegistration → POST /camp/registrations", async () => {
