@@ -745,13 +745,17 @@ function CreateLabOrderDrawer({ opened, onClose }: { opened: boolean; onClose: (
 
   const createMutation = useMutation({
     mutationFn: (data: CreateLabOrderRequest) => labService.createLabOrder(data),
-    onSuccess: (_result, variables) => {
+    onSuccess: (result, variables) => {
       void queryClient.invalidateQueries({ queryKey: ["lab-orders"] });
       notifications.show({ title: "Order created", message: "Lab order placed", color: "success" });
       emit("lab.order_created", {
-        patient_id: variables.patient_id,
-        test_id: variables.test_id,
-        priority: variables.priority,
+        encounter_id: result.encounter_id,
+        order_id: result.id,
+        order_type: "lab",
+        patient_id: result.patient_id,
+        priority: result.priority,
+        test_id: result.test_id,
+        source_test_id: variables.test_id,
       });
       onClose();
       setPatientId("");
@@ -872,16 +876,28 @@ function LabOrderDetail({
   });
   const completeMutation = useMutation({
     mutationFn: () => labService.completeLabOrder(orderId),
-    onSuccess: () => {
+    onSuccess: (result) => {
       void queryClient.invalidateQueries({ queryKey: ["lab-order-detail", orderId] });
-      emit("lab.completed", { order_id: orderId });
+      emit("lab.completed", {
+        encounter_id: result.encounter_id,
+        order_id: result.id,
+        patient_id: result.patient_id,
+        priority: result.priority,
+        test_id: result.test_id,
+      });
     },
   });
   const verifyMutation = useMutation({
     mutationFn: () => labService.verifyResults(orderId),
-    onSuccess: () => {
+    onSuccess: (result) => {
       void queryClient.invalidateQueries({ queryKey: ["lab-order-detail", orderId] });
-      emit("lab.results_verified", { order_id: orderId });
+      emit("lab.results_verified", {
+        encounter_id: result.encounter_id,
+        order_id: result.id,
+        patient_id: result.patient_id,
+        priority: result.priority,
+        test_id: result.test_id,
+      });
     },
   });
   const cancelMutation = useMutation({

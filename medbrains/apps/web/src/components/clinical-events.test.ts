@@ -224,4 +224,74 @@ describe("clinical event normalization", () => {
     expect(discharge.patientId).toBe("patient-1");
     expect(discharge.missingPayloadKeys).toEqual([]);
   });
+
+  it("tracks lab and radiology diagnostic order lifecycle events without missing payload keys", () => {
+    const labCreated = buildClinicalEventTrace({
+      contextCode: "lab-orders",
+      moduleCode: "lab",
+      occurredAt: "2026-05-29T10:45:00.000Z",
+      rawTrigger: "lab.order_created",
+      payload: {
+        order_id: "lab-order-1",
+        order_type: "lab",
+        patient_id: "patient-1",
+        test_id: "test-1",
+      },
+    });
+
+    const labCompleted = buildClinicalEventTrace({
+      contextCode: "lab-orders",
+      moduleCode: "lab",
+      occurredAt: "2026-05-29T10:50:00.000Z",
+      rawTrigger: "lab.results_verified",
+      payload: {
+        order_id: "lab-order-1",
+        patient_id: "patient-1",
+      },
+    });
+
+    const radiologyCreated = buildClinicalEventTrace({
+      contextCode: "radiology-orders",
+      moduleCode: "radiology",
+      occurredAt: "2026-05-29T10:55:00.000Z",
+      rawTrigger: "radiology.order.created",
+      payload: {
+        modality_id: "modality-1",
+        order_id: "radiology-order-1",
+        order_type: "radiology",
+        patient_id: "patient-1",
+      },
+    });
+
+    const radiologyCompleted = buildClinicalEventTrace({
+      contextCode: "radiology-orders",
+      moduleCode: "radiology",
+      occurredAt: "2026-05-29T11:00:00.000Z",
+      rawTrigger: "radiology.order.completed",
+      payload: {
+        order_id: "radiology-order-1",
+        patient_id: "patient-1",
+      },
+    });
+
+    expect(labCreated.eventName).toBe("order.created");
+    expect(labCreated.sourceRecordId).toBe("lab-order-1");
+    expect(labCreated.patientId).toBe("patient-1");
+    expect(labCreated.missingPayloadKeys).toEqual([]);
+
+    expect(labCompleted.eventName).toBe("lab.order.completed");
+    expect(labCompleted.sourceRecordId).toBe("lab-order-1");
+    expect(labCompleted.patientId).toBe("patient-1");
+    expect(labCompleted.missingPayloadKeys).toEqual([]);
+
+    expect(radiologyCreated.eventName).toBe("order.created");
+    expect(radiologyCreated.sourceRecordId).toBe("radiology-order-1");
+    expect(radiologyCreated.patientId).toBe("patient-1");
+    expect(radiologyCreated.missingPayloadKeys).toEqual([]);
+
+    expect(radiologyCompleted.eventName).toBe("radiology.order.completed");
+    expect(radiologyCompleted.sourceRecordId).toBe("radiology-order-1");
+    expect(radiologyCompleted.patientId).toBe("patient-1");
+    expect(radiologyCompleted.missingPayloadKeys).toEqual([]);
+  });
 });

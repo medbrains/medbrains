@@ -261,6 +261,7 @@ function RadiologyOrdersTab() {
   const canCancel = useHasPermission(P.RADIOLOGY.ORDERS_CANCEL);
   const canPrintReports = useHasPermission(P.RADIOLOGY.ORDERS_VIEW);
   const qc = useQueryClient();
+  const emit = useClinicalEmit();
 
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
@@ -287,8 +288,18 @@ function RadiologyOrdersTab() {
   const statusTransitionMutation = useMutation({
     mutationFn: ({ id, status }: { id: string; status: string }) =>
       radiologyService.updateRadiologyOrderStatus(id, status),
-    onSuccess: () => {
+    onSuccess: (result, variables) => {
       void qc.invalidateQueries({ queryKey: ["radiology-orders"] });
+      if (variables.status === "completed") {
+        emit("radiology.order.completed", {
+          body_part: result.body_part,
+          encounter_id: result.encounter_id,
+          modality_id: result.modality_id,
+          order_id: result.id,
+          patient_id: result.patient_id,
+          priority: result.priority,
+        });
+      }
     },
   });
 
@@ -511,10 +522,21 @@ function CreateOrderDrawer({ opened, onClose }: { opened: boolean; onClose: () =
 
   const createMutation = useMutation({
     mutationFn: (data: CreateRadiologyOrderRequest) => radiologyService.createRadiologyOrder(data),
-    onSuccess: () => {
+    onSuccess: (result) => {
       void qc.invalidateQueries({ queryKey: ["radiology-orders"] });
       notifications.show({ title: "Order created", message: "", color: "success" });
-      emit("radiology.order.created", {});
+      emit("radiology.order.created", {
+        body_part: result.body_part,
+        clinical_indication: result.clinical_indication,
+        contrast_required: result.contrast_required,
+        encounter_id: result.encounter_id,
+        modality_id: result.modality_id,
+        order_id: result.id,
+        order_type: "radiology",
+        patient_id: result.patient_id,
+        pregnancy_checked: result.pregnancy_checked,
+        priority: result.priority,
+      });
       reset(orderDefaults);
       onClose();
     },
