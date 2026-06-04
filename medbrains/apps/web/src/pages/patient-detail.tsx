@@ -2933,6 +2933,16 @@ function PatientDetailPageInner() {
     enabled: patientId.length > 0,
   });
   const activeAdmission = activeAdmissions?.admissions[0];
+  const { data: prescriptions = [] } = useQuery<PrescriptionHistoryItem[]>({
+    queryKey: ["patient-prescriptions", patientId],
+    queryFn: () => patientDetailService.listPatientPrescriptions(patientId),
+    enabled: patientId.length > 0,
+  });
+  const { data: invoices = [] } = useQuery<PatientInvoiceRow[]>({
+    queryKey: ["patient-invoices", patientId],
+    queryFn: () => patientDetailService.listPatientInvoices(patientId),
+    enabled: patientId.length > 0,
+  });
 
   if (isLoading || !patient) {
     return (
@@ -2956,6 +2966,31 @@ function PatientDetailPageInner() {
     dobAccess === "edit" || dobAccess === "view"
       ? age(patient.date_of_birth)
       : fieldAccessText(dobAccess, patient.date_of_birth, "identifier");
+  const hasClinicalOrder =
+    prescriptions.length > 0 ||
+    visits.some((visit) => (visit.prescription_count ?? 0) > 0 || (visit.lab_order_count ?? 0) > 0);
+  const hasBillingInvoice = invoices.length > 0;
+  const hasFinalizedInvoice = invoices.some(
+    (invoice) =>
+      invoice.status === "issued" ||
+      invoice.status === "partially_paid" ||
+      invoice.status === "paid",
+  );
+  const hasPaymentReceived = invoices.some(
+    (invoice) =>
+      invoice.status === "paid" ||
+      invoice.status === "partially_paid" ||
+      Number.parseFloat(invoice.paid_amount || "0") > 0,
+  );
+  const pendingInvoiceCount = invoices.filter(
+    (invoice) => Number.parseFloat(invoice.balance) > 0,
+  ).length;
+  const completedEvents = [
+    ...(hasClinicalOrder ? ["order.created"] : []),
+    ...(hasBillingInvoice ? ["billing.invoice.created"] : []),
+    ...(hasFinalizedInvoice ? ["billing.invoice.finalized"] : []),
+    ...(hasPaymentReceived ? ["billing.payment.received"] : []),
+  ];
   const actionContext: ClinicalJourneyContext = {
     patientId: patient.id,
     isDeceased: patient.is_deceased,
@@ -2963,6 +2998,7 @@ function PatientDetailPageInner() {
     activeAdmissionId: activeAdmission?.id ?? null,
     activeAdmissionStatus: activeAdmission?.status ?? null,
     activeOrderContext: activeEncounter ? "opd" : activeAdmission ? "ipd" : null,
+    completedEvents,
   };
   const emitPatientShareCreated = (grant: {
     expiresAt: string | null;
@@ -3096,6 +3132,16 @@ function PatientDetailPageInner() {
                 {patient.is_medico_legal && (
                   <Badge color="danger" variant="filled">
                     MLC
+                  </Badge>
+                )}
+                {hasClinicalOrder && (
+                  <Badge color="teal" variant="light">
+                    Order handoff
+                  </Badge>
+                )}
+                {pendingInvoiceCount > 0 && (
+                  <Badge color="orange" variant="light">
+                    {pendingInvoiceCount} pending bill{pendingInvoiceCount === 1 ? "" : "s"}
                   </Badge>
                 )}
               </Group>
