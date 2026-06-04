@@ -2,7 +2,7 @@
 
 use axum::{
     Extension, Json,
-    extract::{Path, State},
+    extract::{Path, Query, State},
 };
 use chrono::Utc;
 use medbrains_core::clinical_events::{ClinicalEventEnvelope, ClinicalEventName};
@@ -29,6 +29,11 @@ use crate::{
 // ══════════════════════════════════════════════════════════
 //  Request types
 // ══════════════════════════════════════════════════════════
+
+#[derive(Debug, Deserialize)]
+pub struct ListVisitsQuery {
+    pub patient_id: Option<Uuid>,
+}
 
 #[derive(Debug, Deserialize)]
 pub struct CreateVisitRequest {
@@ -581,6 +586,7 @@ async fn auto_create_mlc_case_for_visit(
 pub async fn list_visits(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
+    Query(query): Query<ListVisitsQuery>,
 ) -> Result<Json<Vec<ErVisit>>, AppError> {
     require_any_permission(
         &claims,
@@ -596,9 +602,14 @@ pub async fn list_visits(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let rows = sqlx::query_as::<_, ErVisit>(
-        "SELECT * FROM er_visits WHERE tenant_id = $1 ORDER BY arrival_time DESC LIMIT 200",
+        "SELECT * FROM er_visits
+         WHERE tenant_id = $1
+           AND ($2::uuid IS NULL OR patient_id = $2)
+         ORDER BY arrival_time DESC
+         LIMIT 200",
     )
     .bind(claims.tenant_id)
+    .bind(query.patient_id)
     .fetch_all(&mut *tx)
     .await?;
     tx.commit().await?;

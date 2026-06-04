@@ -3284,8 +3284,16 @@ describe("/emergency endpoints", () => {
     mockOk({});
     await api.listErVisits();
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const [url, opts] = mockFetch.mock.calls[0];
+    const [url] = mockFetch.mock.calls[0];
     expect(url).toBe("/api/emergency/visits");
+  });
+
+  it("listErVisits filters by patient when provided", async () => {
+    mockOk({});
+    await api.listErVisits({ patient_id: UUID });
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    const [url] = mockFetch.mock.calls[0];
+    expect(url).toBe(`/api/emergency/visits?patient_id=${UUID}`);
   });
 
   it("getErVisit → GET /emergency/visits/{param_1}", async () => {

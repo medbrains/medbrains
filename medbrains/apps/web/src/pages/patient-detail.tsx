@@ -2947,7 +2947,7 @@ function PatientDetailPageInner() {
   const activeAdmission = activeAdmissions?.admissions[0];
   const { data: emergencyVisits = [] } = useQuery<ErVisit[]>({
     queryKey: ["er-visits", "patient", patientId],
-    queryFn: () => patientDetailService.listErVisits(),
+    queryFn: () => patientDetailService.listErVisits({ patient_id: patientId }),
     enabled: canViewEmergencyVisits && patientId.length > 0,
   });
   const patientEmergencyVisits = emergencyVisits.filter((visit) => visit.patient_id === patientId);

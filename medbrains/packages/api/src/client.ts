@@ -6682,7 +6682,12 @@ export const api = {
 
   // ── Emergency ─────────────────────────────────────────
 
-  listErVisits: () => request<ErVisit[]>("/emergency/visits"),
+  listErVisits: (params?: { patient_id?: string }) => {
+    const qs = new URLSearchParams();
+    if (params?.patient_id) qs.set("patient_id", params.patient_id);
+    const query = qs.toString();
+    return request<ErVisit[]>(`/emergency/visits${query ? `?${query}` : ""}`);
+  },
 
   getErVisit: (id: string) => request<ErVisit>(`/emergency/visits/${id}`),
 
