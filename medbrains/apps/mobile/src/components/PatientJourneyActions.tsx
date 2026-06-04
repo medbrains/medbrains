@@ -11,9 +11,12 @@ import { Button, Text } from "react-native-paper";
 type MobileJourneyActionId =
   | "billing.collect_payment"
   | "billing.open_ledger"
+  | "billing.prepare_discharge_bill"
   | "opd.open_visit"
   | "orders.lab"
-  | "orders.medication";
+  | "orders.medication"
+  | "pharmacy.dispense_order"
+  | "pharmacy.open_patient_queue";
 
 interface PatientJourneyActionsProps {
   context: ClinicalJourneyContext;
@@ -25,9 +28,12 @@ interface PatientJourneyActionsProps {
 const SUPPORTED_MOBILE_ACTIONS = new Set<ClinicalJourneyActionId>([
   "billing.collect_payment",
   "billing.open_ledger",
+  "billing.prepare_discharge_bill",
   "opd.open_visit",
   "orders.medication",
   "orders.lab",
+  "pharmacy.dispense_order",
+  "pharmacy.open_patient_queue",
 ]);
 
 function actionIcon(actionId: ClinicalJourneyActionId) {
@@ -35,6 +41,7 @@ function actionIcon(actionId: ClinicalJourneyActionId) {
     case "billing.collect_payment":
       return "credit-card";
     case "billing.open_ledger":
+    case "billing.prepare_discharge_bill":
       return "receipt";
     case "opd.open_visit":
       return "stethoscope";
@@ -42,6 +49,9 @@ function actionIcon(actionId: ClinicalJourneyActionId) {
       return "pill";
     case "orders.lab":
       return "flask";
+    case "pharmacy.dispense_order":
+    case "pharmacy.open_patient_queue":
+      return "pill";
     default:
       return "arrow-right";
   }
@@ -50,7 +60,10 @@ function actionIcon(actionId: ClinicalJourneyActionId) {
 function actionLabel(action: ResolvedClinicalJourneyAction & { id: MobileJourneyActionId }) {
   if (action.id === "billing.collect_payment") return "Payment";
   if (action.id === "billing.open_ledger") return "Billing";
+  if (action.id === "billing.prepare_discharge_bill") return "Discharge Bill";
   if (action.id === "opd.open_visit") return "Notes";
+  if (action.id === "pharmacy.dispense_order") return "Dispense";
+  if (action.id === "pharmacy.open_patient_queue") return "Pharmacy";
   return action.shortLabel;
 }
 
@@ -105,6 +118,13 @@ export function PatientJourneyActions({ context, navigation }: PatientJourneyAct
           patientId: context.patientId,
         });
         return;
+      case "billing.prepare_discharge_bill":
+        navigation.navigate("Billing", {
+          filter: "pending",
+          handoff: "discharge_bill",
+          patientId: context.patientId,
+        });
+        return;
       case "opd.open_visit":
         navigation.navigate("ConsultationNotes", {
           encounterId: context.activeEncounterId ?? "",
@@ -120,6 +140,18 @@ export function PatientJourneyActions({ context, navigation }: PatientJourneyAct
       case "orders.lab":
         navigation.navigate("LabOrder", {
           encounterId: context.activeEncounterId,
+          patientId: context.patientId,
+        });
+        return;
+      case "pharmacy.dispense_order":
+        navigation.navigate("PatientPharmacy", {
+          handoff: "dispense",
+          patientId: context.patientId,
+        });
+        return;
+      case "pharmacy.open_patient_queue":
+        navigation.navigate("PatientPharmacy", {
+          handoff: "queue",
           patientId: context.patientId,
         });
         return;

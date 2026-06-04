@@ -1,0 +1,307 @@
+import type { PrescriptionHistoryItem, PrescriptionItem } from "@medbrains/types";
+import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
+import { FlatList, StyleSheet, View } from "react-native";
+import {
+  ActivityIndicator,
+  Avatar,
+  Card,
+  Chip,
+  Divider,
+  Searchbar,
+  SegmentedButtons,
+  Surface,
+  Text,
+  useTheme,
+} from "react-native-paper";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { patientService } from "../../services/patient.service";
+
+type PharmacyFilter = "recent" | "all";
+type PharmacyHandoff = "dispense" | "queue";
+
+interface PatientPharmacyScreenProps {
+  route: {
+    params: {
+      handoff?: PharmacyHandoff;
+      patientId: string;
+    };
+  };
+}
+
+function itemMatchesSearch(item: PrescriptionItem, search: string) {
+  if (!search) return true;
+  const value = search.toLowerCase();
+  return (
+    item.drug_name.toLowerCase().includes(value) ||
+    item.dosage.toLowerCase().includes(value) ||
+    item.frequency.toLowerCase().includes(value)
+  );
+}
+
+function prescriptionMatchesSearch(item: PrescriptionHistoryItem, search: string) {
+  if (!search) return true;
+  const value = search.toLowerCase();
+  return (
+    item.doctor_name?.toLowerCase().includes(value) ||
+    item.items.some((prescriptionItem) => itemMatchesSearch(prescriptionItem, search))
+  );
+}
+
+function activeMedicationCount(prescriptions: PrescriptionHistoryItem[]) {
+  return prescriptions.reduce(
+    (count, item) =>
+      count +
+      item.items.filter((prescriptionItem) => prescriptionItem.item_status !== "discontinued")
+        .length,
+    0,
+  );
+}
+
+export function PatientPharmacyScreen({ route }: PatientPharmacyScreenProps) {
+  const theme = useTheme();
+  const { handoff, patientId } = route.params;
+  const [filter, setFilter] = useState<PharmacyFilter>("recent");
+  const [search, setSearch] = useState("");
+
+  const {
+    data = [],
+    isLoading,
+    refetch,
+  } = useQuery({
+    queryKey: ["patient", "pharmacy", patientId],
+    queryFn: () => patientService.listPatientPrescriptions(patientId),
+    enabled: Boolean(patientId),
+  });
+
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+  const filteredByDate =
+    filter === "recent"
+      ? data.filter((item) => new Date(item.encounter_date) >= thirtyDaysAgo)
+      : data;
+  const prescriptions = filteredByDate.filter((item) => prescriptionMatchesSearch(item, search));
+  const activeCount = activeMedicationCount(prescriptions);
+
+  function renderPrescription({ item }: { item: PrescriptionHistoryItem }) {
+    const prescriptionDate = new Date(item.encounter_date);
+    const visibleItems = search
+      ? item.items.filter((prescriptionItem) => itemMatchesSearch(prescriptionItem, search))
+      : item.items;
+
+    return (
+      <Card style={styles.card}>
+        <Card.Content>
+          <View style={styles.cardHeader}>
+            <Avatar.Icon size={36} icon="pill" style={styles.cardIcon} />
+            <View style={styles.cardTitle}>
+              <Text variant="titleMedium">{item.doctor_name || "Prescriber"}</Text>
+              <Text variant="bodySmall" style={styles.mutedText}>
+                {prescriptionDate.toLocaleDateString()}
+              </Text>
+            </View>
+            <Chip compact mode="outlined">
+              {visibleItems.length} item{visibleItems.length === 1 ? "" : "s"}
+            </Chip>
+          </View>
+          <Divider style={styles.divider} />
+          <View style={styles.medicationList}>
+            {visibleItems.map((prescriptionItem) => (
+              <View key={prescriptionItem.id} style={styles.medicationRow}>
+                <View style={styles.medicationInfo}>
+                  <Text variant="titleSmall" style={styles.drugName}>
+                    {prescriptionItem.drug_name}
+                  </Text>
+                  <Text variant="bodySmall" style={styles.mutedText}>
+                    {prescriptionItem.dosage} | {prescriptionItem.frequency}
+                  </Text>
+                  <Text variant="bodySmall" style={styles.mutedText}>
+                    {prescriptionItem.route ? `${prescriptionItem.route} | ` : ""}
+                    {prescriptionItem.duration}
+                  </Text>
+                </View>
+                <Chip
+                  compact
+                  style={
+                    prescriptionItem.item_status === "discontinued"
+                      ? styles.discontinuedChip
+                      : styles.activeChip
+                  }
+                >
+                  {prescriptionItem.item_status}
+                </Chip>
+              </View>
+            ))}
+          </View>
+        </Card.Content>
+      </Card>
+    );
+  }
+
+  return (
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      <Surface style={styles.handoffBanner} elevation={1}>
+        <Avatar.Icon size={40} icon="pill" style={styles.handoffIcon} />
+        <View style={styles.handoffText}>
+          <Text variant="titleSmall">
+            {handoff === "dispense" ? "Dispense handoff" : "Patient pharmacy"}
+          </Text>
+          <Text variant="bodySmall" style={styles.mutedText}>
+            Review active and recent medicines before pharmacy fulfilment.
+          </Text>
+        </View>
+        <Chip compact mode="outlined">
+          {activeCount} active
+        </Chip>
+      </Surface>
+
+      <View style={styles.searchContainer}>
+        <Searchbar
+          placeholder="Search medicine, dosage, or doctor"
+          value={search}
+          onChangeText={setSearch}
+          style={styles.searchbar}
+        />
+      </View>
+
+      <View style={styles.filterContainer}>
+        <SegmentedButtons
+          value={filter}
+          onValueChange={(value) => setFilter(value as PharmacyFilter)}
+          buttons={[
+            { label: "Last 30 days", value: "recent" },
+            { label: "All history", value: "all" },
+          ]}
+        />
+      </View>
+
+      {isLoading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" />
+          <Text variant="bodyMedium" style={styles.mutedText}>
+            Loading pharmacy context...
+          </Text>
+        </View>
+      ) : prescriptions.length > 0 ? (
+        <FlatList
+          data={prescriptions}
+          keyExtractor={(item) => item.prescription.id}
+          renderItem={renderPrescription}
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
+          onRefresh={refetch}
+          refreshing={isLoading}
+        />
+      ) : (
+        <View style={styles.emptyContainer}>
+          <Avatar.Icon size={64} icon="pill-off" style={styles.emptyIcon} />
+          <Text variant="titleMedium">No pharmacy context</Text>
+          <Text variant="bodyMedium" style={styles.emptyText}>
+            No medicines match this patient handoff.
+          </Text>
+        </View>
+      )}
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  activeChip: {
+    backgroundColor: "#d3f9d8",
+  },
+  card: {
+    borderRadius: 12,
+    marginBottom: 12,
+  },
+  cardHeader: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 10,
+  },
+  cardIcon: {
+    backgroundColor: "#e6fcf5",
+  },
+  cardTitle: {
+    flex: 1,
+  },
+  container: {
+    flex: 1,
+  },
+  discontinuedChip: {
+    backgroundColor: "#f1f3f5",
+  },
+  divider: {
+    marginVertical: 12,
+  },
+  drugName: {
+    fontWeight: "700",
+  },
+  emptyContainer: {
+    alignItems: "center",
+    flex: 1,
+    gap: 8,
+    justifyContent: "center",
+    padding: 32,
+  },
+  emptyIcon: {
+    backgroundColor: "#f1f3f5",
+    marginBottom: 8,
+  },
+  emptyText: {
+    opacity: 0.65,
+    textAlign: "center",
+  },
+  filterContainer: {
+    paddingBottom: 12,
+    paddingHorizontal: 16,
+  },
+  handoffBanner: {
+    alignItems: "center",
+    borderRadius: 12,
+    flexDirection: "row",
+    gap: 12,
+    margin: 16,
+    marginBottom: 8,
+    padding: 14,
+  },
+  handoffIcon: {
+    backgroundColor: "#e6fcf5",
+  },
+  handoffText: {
+    flex: 1,
+  },
+  listContent: {
+    padding: 16,
+    paddingTop: 0,
+  },
+  loadingContainer: {
+    alignItems: "center",
+    flex: 1,
+    gap: 16,
+    justifyContent: "center",
+  },
+  medicationInfo: {
+    flex: 1,
+  },
+  medicationList: {
+    gap: 10,
+  },
+  medicationRow: {
+    alignItems: "flex-start",
+    borderBottomColor: "#f1f3f5",
+    borderBottomWidth: 1,
+    flexDirection: "row",
+    gap: 10,
+    paddingBottom: 10,
+  },
+  mutedText: {
+    opacity: 0.65,
+  },
+  searchContainer: {
+    padding: 16,
+    paddingBottom: 8,
+  },
+  searchbar: {
+    borderRadius: 12,
+  },
+});

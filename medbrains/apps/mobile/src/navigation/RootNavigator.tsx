@@ -15,6 +15,7 @@ import {
   LoginScreen,
   PatientDashboard,
   PatientDetailScreen,
+  PatientPharmacyScreen,
   // Staff screens
   PatientSearchScreen,
   PrescriptionScreen,
@@ -41,7 +42,11 @@ export type RootStackParamList = {
   LabResultDetail: { orderId: string };
   Prescriptions: undefined;
   Billing:
-    | { filter?: "all" | "paid" | "pending"; handoff?: "payment"; patientId?: string }
+    | {
+        filter?: "all" | "paid" | "pending";
+        handoff?: "discharge_bill" | "payment";
+        patientId?: string;
+      }
     | undefined;
   BillDetail: { invoiceId: string };
   Payment: { invoiceId: string };
@@ -52,6 +57,7 @@ export type RootStackParamList = {
   StaffDashboard: undefined;
   PatientSearch: undefined;
   PatientDetail: { patientId: string };
+  PatientPharmacy: { handoff?: "dispense" | "queue"; patientId: string };
   Queue: { departmentId?: string };
   Vitals: { encounterId?: string; patientId?: string };
   Prescription: { encounterId?: string; patientId?: string };
@@ -142,6 +148,11 @@ function StaffStack() {
         name="PatientDetail"
         component={PatientDetailScreen}
         options={{ title: "Patient Details" }}
+      />
+      <Stack.Screen
+        name="PatientPharmacy"
+        component={PatientPharmacyScreen}
+        options={{ title: "Patient Pharmacy" }}
       />
       <Stack.Screen name="Queue" component={QueueScreen} options={{ title: "Patient Queue" }} />
       <Stack.Screen

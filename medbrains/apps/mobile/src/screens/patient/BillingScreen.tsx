@@ -17,12 +17,13 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { patientService } from "../../services/patient.service";
 
 type FilterType = "pending" | "paid" | "all";
+type BillingHandoff = "discharge_bill" | "payment";
 
 interface BillingScreenProps {
   route?: {
     params?: {
       filter?: FilterType;
-      handoff?: "payment";
+      handoff?: BillingHandoff;
       patientId?: string;
     };
   };
@@ -192,7 +193,11 @@ export function BillingScreen({ navigation, route }: BillingScreenProps) {
           <Avatar.Icon size={36} icon="account-cash" style={styles.handoffIcon} />
           <View style={styles.handoffText}>
             <Text variant="labelMedium">
-              {route?.params?.handoff === "payment" ? "Payment handoff" : "Patient billing"}
+              {route?.params?.handoff === "payment"
+                ? "Payment handoff"
+                : route?.params?.handoff === "discharge_bill"
+                  ? "Discharge billing handoff"
+                  : "Patient billing"}
             </Text>
             <Text variant="bodySmall" style={styles.handoffHint}>
               Reviewing invoices for the selected patient context.

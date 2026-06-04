@@ -19,6 +19,7 @@ export { ConsultationNotesScreen } from "./staff/ConsultationNotesScreen";
 export { LabOrderScreen } from "./staff/LabOrderScreen";
 export { LabResultsViewScreen } from "./staff/LabResultsViewScreen";
 export { PatientDetailScreen } from "./staff/PatientDetailScreen";
+export { PatientPharmacyScreen } from "./staff/PatientPharmacyScreen";
 export { PatientSearchScreen } from "./staff/PatientSearchScreen";
 export { PrescriptionScreen } from "./staff/PrescriptionScreen";
 export { QueueScreen } from "./staff/QueueScreen";
