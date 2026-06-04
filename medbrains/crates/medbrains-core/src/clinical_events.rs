@@ -48,6 +48,8 @@ pub enum ClinicalEventName {
     IpdDischargeInitiated,
     #[serde(rename = "ipd.discharge.completed")]
     IpdDischargeCompleted,
+    #[serde(rename = "ipd.discharge.finalized")]
+    IpdDischargeFinalized,
     #[serde(rename = "quality.incident.reported")]
     QualityIncidentReported,
     #[serde(rename = "emergency.code_blue.activated")]
@@ -84,6 +86,7 @@ impl ClinicalEventName {
             Self::BedTransferred => "bed.transferred",
             Self::IpdDischargeInitiated => "ipd.discharge.initiated",
             Self::IpdDischargeCompleted => "ipd.discharge.completed",
+            Self::IpdDischargeFinalized => "ipd.discharge.finalized",
             Self::QualityIncidentReported => "quality.incident.reported",
             Self::EmergencyCodeBlueActivated => "emergency.code_blue.activated",
             Self::EmergencyCodeBlueCompleted => "emergency.code_blue.completed",
@@ -109,9 +112,9 @@ impl ClinicalEventName {
             Self::IpdAdmissionCreated | Self::BedAssigned | Self::BedTransferred => {
                 ClinicalEventSourceModule::Ipd
             }
-            Self::IpdDischargeInitiated | Self::IpdDischargeCompleted => {
-                ClinicalEventSourceModule::Ipd
-            }
+            Self::IpdDischargeInitiated
+            | Self::IpdDischargeCompleted
+            | Self::IpdDischargeFinalized => ClinicalEventSourceModule::Ipd,
             Self::QualityIncidentReported => ClinicalEventSourceModule::Quality,
             Self::EmergencyCodeBlueActivated | Self::EmergencyCodeBlueCompleted => {
                 ClinicalEventSourceModule::Emergency
@@ -144,6 +147,7 @@ impl ClinicalEventName {
             Self::IpdDischargeInitiated | Self::IpdDischargeCompleted => {
                 &["admission_id", "patient_id"]
             }
+            Self::IpdDischargeFinalized => &["summary_id", "admission_id", "patient_id"],
             Self::QualityIncidentReported => &["incident_id"],
             Self::EmergencyCodeBlueActivated | Self::EmergencyCodeBlueCompleted => {
                 &["code_blue_id"]
@@ -195,6 +199,7 @@ impl FromStr for ClinicalEventName {
             "bed.transferred" => Ok(Self::BedTransferred),
             "ipd.discharge.initiated" => Ok(Self::IpdDischargeInitiated),
             "ipd.discharge.completed" => Ok(Self::IpdDischargeCompleted),
+            "ipd.discharge.finalized" => Ok(Self::IpdDischargeFinalized),
             "quality.incident.reported" => Ok(Self::QualityIncidentReported),
             "emergency.code_blue.activated" => Ok(Self::EmergencyCodeBlueActivated),
             "emergency.code_blue.completed" => Ok(Self::EmergencyCodeBlueCompleted),
@@ -378,5 +383,30 @@ impl ClinicalEventEnvelope {
             self.source_module.as_str(),
             self.source_record_id
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{ClinicalEventName, ClinicalEventSourceModule};
+
+    #[test]
+    fn ipd_discharge_finalized_is_canonical() {
+        assert_eq!(
+            "ipd.discharge.finalized".parse::<ClinicalEventName>().ok(),
+            Some(ClinicalEventName::IpdDischargeFinalized)
+        );
+        assert_eq!(
+            ClinicalEventName::IpdDischargeFinalized.as_str(),
+            "ipd.discharge.finalized"
+        );
+        assert_eq!(
+            ClinicalEventName::IpdDischargeFinalized.default_source_module(),
+            ClinicalEventSourceModule::Ipd
+        );
+        assert_eq!(
+            ClinicalEventName::IpdDischargeFinalized.required_payload_keys(),
+            &["summary_id", "admission_id", "patient_id"]
+        );
     }
 }

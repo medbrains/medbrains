@@ -4032,6 +4032,46 @@ pub async fn finalize_discharge_summary(
         AppError::BadRequest("Discharge summary not found or already finalized".to_owned())
     })?;
 
+    #[derive(sqlx::FromRow)]
+    struct DischargeFinalizedEventContext {
+        patient_id: Uuid,
+        encounter_id: Uuid,
+        department_id: Option<Uuid>,
+    }
+
+    let event_context = sqlx::query_as::<_, DischargeFinalizedEventContext>(
+        "SELECT a.patient_id, a.encounter_id, e.department_id \
+         FROM admissions a \
+         LEFT JOIN encounters e ON e.id = a.encounter_id AND e.tenant_id = a.tenant_id \
+         WHERE a.id = $1 AND a.tenant_id = $2",
+    )
+    .bind(admission_id)
+    .bind(claims.tenant_id)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    let mut event = ClinicalEventEnvelope::new(
+        claims.tenant_id,
+        ClinicalEventName::IpdDischargeFinalized,
+        row.id,
+        claims.sub,
+        json!({
+            "summary_id": row.id,
+            "admission_id": row.admission_id,
+            "patient_id": event_context.patient_id,
+            "encounter_id": event_context.encounter_id,
+            "finalized_at": row.finalized_at,
+            "status": row.status,
+        }),
+    )
+    .with_patient(event_context.patient_id)
+    .with_admission(row.admission_id)
+    .with_encounter(event_context.encounter_id);
+    if let Some(department_id) = event_context.department_id {
+        event = event.with_department(department_id);
+    }
+    crate::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
+
     tx.commit().await?;
 
     let restricted_fields = resolve_ipd_restricted_fields(&state, &claims).await?;
