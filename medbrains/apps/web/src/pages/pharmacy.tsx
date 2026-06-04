@@ -169,6 +169,13 @@ const dispensingTypeLabels: Record<string, string> = {
   emergency: "Emergency",
 };
 
+const PHARMACY_ORDER_STATUS_OPTIONS = [
+  { value: "ordered", label: "Ordered" },
+  { value: "dispensed", label: "Dispensed" },
+  { value: "cancelled", label: "Cancelled" },
+  { value: "returned", label: "Returned" },
+] as const;
+
 type DraftPharmacyOrderItem = PharmacyOrderItemInput & {
   row_id: string;
   catalog_item_id?: string;
@@ -1185,14 +1192,27 @@ function PharmacyOrdersTab({
 }) {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [page, setPage] = useState(1);
   const [filterStatus, setFilterStatus] = useState<string | null>(null);
   const [otcOpened, { open: openOtc, close: closeOtc }] = useDisclosure(false);
   const patientIdFilter = searchParams.get("patient_id") ?? "";
+  const isDispenseHandoff = searchParams.get("action") === "dispense";
+  const effectiveFilterStatus = filterStatus ?? (isDispenseHandoff ? "ordered" : null);
+  const clearPharmacyHandoff = () => {
+    const next = new URLSearchParams(searchParams);
+    next.delete("action");
+    setSearchParams(next, { replace: true });
+  };
+  const setOrderStatusFilter = (value: string | null) => {
+    setFilterStatus(value);
+    if (isDispenseHandoff) {
+      clearPharmacyHandoff();
+    }
+  };
 
   const params: Record<string, string> = { page: String(page), per_page: "20" };
-  if (filterStatus) params.status = filterStatus;
+  if (effectiveFilterStatus) params.status = effectiveFilterStatus;
   if (patientIdFilter) params.patient_id = patientIdFilter;
 
   const { data, isLoading } = useQuery({
@@ -1228,6 +1248,8 @@ function PharmacyOrdersTab({
       });
     },
   });
+  const orders = data?.orders ?? [];
+  const firstDispensableOrder = orders.find((order) => order.status === "ordered");
 
   const cancelMutation = useMutation({
     mutationFn: (id: string) => pharmacyService.cancelPharmacyOrder(id),
@@ -1359,14 +1381,9 @@ function PharmacyOrdersTab({
         {canViewOrders ? (
           <Select
             placeholder="Status"
-            data={[
-              { value: "ordered", label: "Ordered" },
-              { value: "dispensed", label: "Dispensed" },
-              { value: "cancelled", label: "Cancelled" },
-              { value: "returned", label: "Returned" },
-            ]}
-            value={filterStatus}
-            onChange={setFilterStatus}
+            data={PHARMACY_ORDER_STATUS_OPTIONS}
+            value={effectiveFilterStatus}
+            onChange={setOrderStatusFilter}
             clearable
             w={160}
           />
@@ -1414,9 +1431,45 @@ function PharmacyOrdersTab({
               canViewPatientRecord={canViewPatientRecord}
             />
           )}
+          {isDispenseHandoff && (
+            <Alert color="teal" variant="light" title="Dispense handoff">
+              <Group justify="space-between" align="center" gap="sm">
+                <Text size="sm">
+                  Ordered pharmacy items are filtered for this patient. Review FEFO and safety
+                  context before dispensing.
+                </Text>
+                <Group gap="xs">
+                  {firstDispensableOrder && canDispense && (
+                    <Button
+                      size="xs"
+                      color="teal"
+                      leftSection={<IconCheck size={14} />}
+                      loading={dispenseMutation.isPending}
+                      onClick={() => dispenseMutation.mutate(firstDispensableOrder.id)}
+                    >
+                      Dispense First Order
+                    </Button>
+                  )}
+                  {firstDispensableOrder && canViewOrderDetail && (
+                    <Button
+                      size="xs"
+                      variant="light"
+                      leftSection={<IconEye size={14} />}
+                      onClick={() => navigate(`/pharmacy/orders/${firstDispensableOrder.id}`)}
+                    >
+                      Open Order
+                    </Button>
+                  )}
+                  <Button size="xs" variant="subtle" onClick={clearPharmacyHandoff}>
+                    Dismiss
+                  </Button>
+                </Group>
+              </Group>
+            </Alert>
+          )}
           <DataTable
             columns={columns}
-            data={data?.orders ?? []}
+            data={orders}
             loading={isLoading}
             page={page}
             totalPages={data ? Math.ceil(data.total / data.per_page) : 1}

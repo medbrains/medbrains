@@ -281,6 +281,8 @@ const BILLING_TAB_VALUES = [
   "settings",
 ] as const;
 
+type BillingHandoffAction = "payment" | "discharge_bill";
+
 function isBillingTab(value: string | null): value is (typeof BILLING_TAB_VALUES)[number] {
   return Boolean(value && (BILLING_TAB_VALUES as readonly string[]).includes(value));
 }
@@ -535,6 +537,27 @@ function invoiceDisplayStatus(invoice: Invoice): Invoice["status"] {
   return invoice.status;
 }
 
+function invoiceIsPayable(invoice: Invoice): boolean {
+  const displayStatus = invoiceDisplayStatus(invoice);
+  return (
+    invoiceBalance(invoice) > 0 &&
+    (displayStatus === "issued" || displayStatus === "partially_paid")
+  );
+}
+
+function billingHandoffAction(searchParams: URLSearchParams): BillingHandoffAction | null {
+  if (searchParams.get("action") === "payment") {
+    return "payment";
+  }
+  if (
+    searchParams.get("action") === "discharge_bill" ||
+    searchParams.get("source") === "ipd_discharge"
+  ) {
+    return "discharge_bill";
+  }
+  return null;
+}
+
 export function BillingPage() {
   useRequirePermission(P.BILLING.INVOICES_LIST);
 
@@ -550,8 +573,15 @@ export function BillingInvoiceDetailPage() {
 
   const navigate = useNavigate();
   const { invoiceId } = useParams<{ invoiceId: string }>();
+  const [searchParams, setSearchParams] = useSearchParams();
   const canCreate = useHasPermission(P.BILLING.INVOICES_CREATE);
   const canPay = useHasPermission(P.BILLING.PAYMENTS_CREATE);
+  const initialAction = searchParams.get("action") === "payment" ? "payment" : null;
+  const clearInvoiceAction = () => {
+    const next = new URLSearchParams(searchParams);
+    next.delete("action");
+    setSearchParams(next, { replace: true });
+  };
 
   if (!invoiceId) {
     return (
@@ -584,7 +614,13 @@ export function BillingInvoiceDetailPage() {
             </Button>
           }
         />
-        <InvoiceDetail invoiceId={invoiceId} canCreate={canCreate} canPay={canPay} />
+        <InvoiceDetail
+          invoiceId={invoiceId}
+          canCreate={canCreate}
+          canPay={canPay}
+          initialAction={initialAction}
+          onClearAction={clearInvoiceAction}
+        />
       </Stack>
     </ClinicalEventProvider>
   );
@@ -595,6 +631,7 @@ function BillingPageInner() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const canCreate = useHasPermission(P.BILLING.INVOICES_CREATE);
+  const canPay = useHasPermission(P.BILLING.PAYMENTS_CREATE);
   const canDayClose = useHasPermission(P.BILLING.DAY_CLOSE_CREATE);
   const canWriteOff = useHasPermission(P.BILLING.WRITE_OFF_CREATE);
   const canAudit = useHasPermission(P.BILLING.AUDIT_VIEW);
@@ -638,6 +675,7 @@ function BillingPageInner() {
   const patientFilterId = searchParams.get("patient_id")?.trim() || null;
   const requestedStatus = searchParams.get("status");
   const filterStatus = isInvoiceStatus(requestedStatus) ? requestedStatus : null;
+  const activeHandoff = billingHandoffAction(searchParams);
 
   const setBillingParam = (key: string, value: string | null) => {
     const next = new URLSearchParams(searchParams);
@@ -646,6 +684,12 @@ function BillingPageInner() {
     } else {
       next.delete(key);
     }
+    setSearchParams(next, { replace: true });
+  };
+  const clearBillingHandoff = () => {
+    const next = new URLSearchParams(searchParams);
+    next.delete("action");
+    next.delete("source");
     setSearchParams(next, { replace: true });
   };
 
@@ -663,6 +707,8 @@ function BillingPageInner() {
     queryKey: ["invoices", params],
     queryFn: () => billingService.listInvoices(params),
   });
+  const invoices = data?.invoices ?? [];
+  const firstPayableInvoice = invoices.find(invoiceIsPayable);
 
   const cloneMutation = useMutation({
     mutationFn: (id: string) => billingService.cloneInvoice(id),
@@ -803,6 +849,18 @@ function BillingPageInner() {
               </ActionIcon>
             </Tooltip>
           )}
+          {activeHandoff === "payment" && canPay && invoiceIsPayable(row) && (
+            <Tooltip label="Collect payment">
+              <ActionIcon
+                variant="subtle"
+                color="orange"
+                onClick={() => navigate(`/billing/invoices/${row.id}?action=payment`)}
+                aria-label={`Collect payment for invoice ${row.invoice_number}`}
+              >
+                <IconCash size={16} />
+              </ActionIcon>
+            </Tooltip>
+          )}
         </Group>
       ),
     },
@@ -848,6 +906,45 @@ function BillingPageInner() {
               All billing
             </Button>
           </Group>
+          {activeHandoff && (
+            <Alert
+              color={activeHandoff === "payment" ? "orange" : "teal"}
+              variant="light"
+              title={
+                activeHandoff === "payment" ? "Payment handoff" : "IPD discharge billing handoff"
+              }
+            >
+              <Group justify="space-between" align="center" gap="sm">
+                <Text size="sm">
+                  {activeHandoff === "payment"
+                    ? "Patient invoices are filtered for payment collection. Use a payable invoice row or open the first payable invoice."
+                    : "Patient invoices are filtered after discharge finalization. Create or review the discharge invoice before collecting payment."}
+                </Text>
+                <Group gap="xs">
+                  {activeHandoff === "payment" && firstPayableInvoice && canPay && (
+                    <Button
+                      size="xs"
+                      color="orange"
+                      leftSection={<IconCash size={14} />}
+                      onClick={() =>
+                        navigate(`/billing/invoices/${firstPayableInvoice.id}?action=payment`)
+                      }
+                    >
+                      Open Payable Invoice
+                    </Button>
+                  )}
+                  {activeHandoff === "discharge_bill" && canCreate && (
+                    <Button size="xs" color="teal" onClick={openCreate}>
+                      New Invoice
+                    </Button>
+                  )}
+                  <Button size="xs" variant="subtle" onClick={clearBillingHandoff}>
+                    Dismiss
+                  </Button>
+                </Group>
+              </Group>
+            </Alert>
+          )}
         </Stack>
       )}
 
@@ -944,7 +1041,7 @@ function BillingPageInner() {
           </Group>
           <DataTable
             columns={columns}
-            data={data?.invoices ?? []}
+            data={invoices}
             loading={isLoading}
             page={page}
             totalPages={data ? Math.ceil(data.total / data.per_page) : 1}
@@ -1121,10 +1218,14 @@ function InvoiceDetail({
   invoiceId,
   canCreate,
   canPay,
+  initialAction,
+  onClearAction,
 }: {
   invoiceId: string;
   canCreate: boolean;
   canPay: boolean;
+  initialAction?: "payment" | null;
+  onClearAction?: () => void;
 }) {
   const emit = useClinicalEmit();
   const navigate = useNavigate();
@@ -1483,6 +1584,30 @@ function InvoiceDetail({
           </Group>
         </Stack>
       </Card>
+
+      {initialAction === "payment" && (
+        <Alert color={canRecordPayment ? "orange" : "gray"} variant="light" title="Payment handoff">
+          <Group justify="space-between" align="center" gap="sm">
+            <Text size="sm">
+              {canRecordPayment
+                ? "This invoice is ready for payment collection. Review the balance and record a cashier payment or gateway settlement."
+                : "Payment collection is unavailable for this invoice because it is not issued, has no balance, the amount is hidden, or payment permission is missing."}
+            </Text>
+            <Group gap="xs">
+              {canRecordPayment && (
+                <Button size="xs" leftSection={<IconCash size={14} />} onClick={openPaymentForm}>
+                  Record Payment
+                </Button>
+              )}
+              {onClearAction && (
+                <Button size="xs" variant="subtle" onClick={onClearAction}>
+                  Dismiss
+                </Button>
+              )}
+            </Group>
+          </Group>
+        </Alert>
+      )}
 
       <Grid align="flex-start" className={classes.workspaceGrid}>
         <Grid.Col span={{ base: 12, lg: 8 }}>
