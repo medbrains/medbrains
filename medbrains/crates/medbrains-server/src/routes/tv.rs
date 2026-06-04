@@ -933,7 +933,7 @@ pub struct RadiologyQueueDisplay {
 }
 
 /// ER triage levels per Manchester Triage System.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Copy, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum TriageLevel {
     Red,    // Immediate (0 min target)
@@ -963,6 +963,13 @@ pub struct ErQueueDisplay {
     pub blue: Vec<ErTriageToken>,
     pub resuscitation_bays_available: i32,
     pub total_waiting: i32,
+}
+
+#[derive(Debug, FromRow)]
+struct ErQueueSourceRow {
+    visit_number: String,
+    triage_level: String,
+    arrival_time: chrono::DateTime<Utc>,
 }
 
 /// Billing queue token for display.
@@ -1280,19 +1287,167 @@ pub async fn get_radiology_queue(
 /// GET /api/tv/queue/er
 /// Get ER triage queue display data.
 pub async fn get_er_queue(
-    State(_state): State<AppState>,
-    Extension(_claims): Extension<Claims>,
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
 ) -> Result<Json<ErQueueDisplay>, (StatusCode, String)> {
-    // Placeholder implementation - would query er_visits table
-    Ok(Json(ErQueueDisplay {
+    let mut tx = state
+        .db
+        .begin()
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    let rows = sqlx::query_as::<_, ErQueueSourceRow>(
+        r"
+        SELECT visit_number,
+               triage_level::text AS triage_level,
+               arrival_time
+        FROM er_visits
+        WHERE tenant_id = $1
+          AND COALESCE(is_dummy, false) = false
+          AND status::text IN ('registered', 'triaged')
+          AND triage_level::text IN (
+              'immediate',
+              'emergent',
+              'urgent',
+              'less_urgent',
+              'non_urgent'
+          )
+        ORDER BY
+          CASE triage_level::text
+            WHEN 'immediate' THEN 0
+            WHEN 'emergent' THEN 1
+            WHEN 'urgent' THEN 2
+            WHEN 'less_urgent' THEN 3
+            WHEN 'non_urgent' THEN 4
+            ELSE 5
+          END,
+          arrival_time ASC
+        LIMIT 100
+        ",
+    )
+    .bind(claims.tenant_id)
+    .fetch_all(&mut *tx)
+    .await
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    let resuscitation_bays_available: i64 = sqlx::query_scalar(
+        r"
+        SELECT COUNT(*)::bigint
+        FROM bed_states bs
+        JOIN ward_bed_mappings wbm
+          ON wbm.tenant_id = bs.tenant_id
+         AND wbm.bed_location_id = bs.location_id
+         AND wbm.is_active = true
+        JOIN wards w
+          ON w.id = wbm.ward_id
+         AND w.tenant_id = bs.tenant_id
+         AND w.is_active = true
+        LEFT JOIN bed_types bt
+          ON bt.id = wbm.bed_type_id
+         AND bt.tenant_id = wbm.tenant_id
+         AND bt.is_active = true
+        WHERE bs.tenant_id = $1
+          AND bs.status = 'vacant_clean'
+          AND (
+              lower(w.ward_type) IN ('emergency', 'er', 'casualty', 'resuscitation')
+              OR lower(w.name) LIKE '%emergency%'
+              OR lower(w.name) LIKE '%resuscitation%'
+              OR lower(w.name) LIKE '%casualty%'
+              OR lower(COALESCE(bt.name, '')) LIKE '%resuscitation%'
+          )
+        ",
+    )
+    .bind(claims.tenant_id)
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    tx.commit()
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    let mut display = ErQueueDisplay {
         red: vec![],
         orange: vec![],
         yellow: vec![],
         green: vec![],
         blue: vec![],
-        resuscitation_bays_available: 2,
+        resuscitation_bays_available: saturating_i64_to_i32(resuscitation_bays_available),
         total_waiting: 0,
-    }))
+    };
+
+    let now = Utc::now();
+    for row in rows {
+        let Some(level) = er_display_triage_level(&row.triage_level) else {
+            continue;
+        };
+        let token = er_triage_token(row, level, now);
+        match level {
+            TriageLevel::Red => display.red.push(token),
+            TriageLevel::Orange => display.orange.push(token),
+            TriageLevel::Yellow => display.yellow.push(token),
+            TriageLevel::Green => display.green.push(token),
+            TriageLevel::Blue => display.blue.push(token),
+        }
+    }
+
+    display.total_waiting = saturating_i64_to_i32(
+        i64::try_from(
+            display.red.len()
+                + display.orange.len()
+                + display.yellow.len()
+                + display.green.len()
+                + display.blue.len(),
+        )
+        .unwrap_or(i64::MAX),
+    );
+
+    Ok(Json(display))
+}
+
+fn er_display_triage_level(level: &str) -> Option<TriageLevel> {
+    match level {
+        "immediate" => Some(TriageLevel::Red),
+        "emergent" => Some(TriageLevel::Orange),
+        "urgent" => Some(TriageLevel::Yellow),
+        "less_urgent" => Some(TriageLevel::Green),
+        "non_urgent" => Some(TriageLevel::Blue),
+        _ => None,
+    }
+}
+
+fn er_target_wait_minutes(level: TriageLevel) -> i32 {
+    match level {
+        TriageLevel::Red => 0,
+        TriageLevel::Orange => 10,
+        TriageLevel::Yellow => 60,
+        TriageLevel::Green => 120,
+        TriageLevel::Blue => 240,
+    }
+}
+
+fn er_triage_token(
+    row: ErQueueSourceRow,
+    triage_level: TriageLevel,
+    now: chrono::DateTime<Utc>,
+) -> ErTriageToken {
+    let waiting_minutes = saturating_i64_to_i32(
+        now.signed_duration_since(row.arrival_time)
+            .num_minutes()
+            .max(0),
+    );
+    let target_wait_minutes = er_target_wait_minutes(triage_level);
+
+    ErTriageToken {
+        token_number: row.visit_number,
+        triage_level,
+        waiting_minutes,
+        target_wait_minutes,
+        is_overdue: waiting_minutes > target_wait_minutes,
+    }
 }
 
 /// GET /api/tv/queue/billing
