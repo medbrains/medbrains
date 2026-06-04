@@ -41,6 +41,9 @@ describe("clinical journey event activation", () => {
     const actions = resolveClinicalJourneyActions({ patientId: "patient-1" }, allowAll, "web");
 
     expect(actions.find((action) => action.id === "billing.open_ledger")?.enabled).toBe(true);
+    expect(actions.find((action) => action.id === "billing.collect_payment")?.enabled).toBe(false);
+    expect(actions.find((action) => action.id === "emergency.open_mlc")?.enabled).toBe(false);
+    expect(actions.find((action) => action.id === "mrd.open_case_sheet")?.enabled).toBe(false);
     expect(actions.find((action) => action.id === "pharmacy.open_patient_queue")?.enabled).toBe(
       false,
     );
@@ -62,8 +65,34 @@ describe("clinical journey event activation", () => {
     );
 
     expect(actions.find((action) => action.id === "orders.medication")?.enabled).toBe(true);
+    expect(actions.find((action) => action.id === "pharmacy.dispense_order")?.enabled).toBe(true);
     expect(actions.find((action) => action.id === "pharmacy.open_patient_queue")?.enabled).toBe(
       true,
     );
+  });
+
+  it("enables emergency, discharge, billing, payment, and MRD handoffs from canonical events", () => {
+    const actions = resolveClinicalJourneyActions(
+      {
+        patientId: "patient-1",
+        activeEmergencyVisitId: "visit-1",
+        completedEvents: [
+          "ipd.discharge.finalized",
+          "billing.invoice.finalized",
+          "billing.payment.received",
+          "mrd.case_sheet.generated",
+        ],
+      },
+      allowAll,
+      "web",
+    );
+
+    expect(actions.find((action) => action.id === "emergency.open_mlc")?.enabled).toBe(true);
+    expect(actions.find((action) => action.id === "billing.prepare_discharge_bill")?.enabled).toBe(
+      true,
+    );
+    expect(actions.find((action) => action.id === "billing.collect_payment")?.enabled).toBe(true);
+    expect(actions.find((action) => action.id === "pharmacy.dispense_order")?.enabled).toBe(true);
+    expect(actions.find((action) => action.id === "mrd.open_case_sheet")?.enabled).toBe(true);
   });
 });

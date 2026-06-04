@@ -20,10 +20,15 @@ export type ClinicalJourneyActionId =
   | "orders.radiology"
   | "ipd.open_admission"
   | "ipd.admit"
+  | "billing.prepare_discharge_bill"
+  | "billing.collect_payment"
+  | "pharmacy.dispense_order"
   | "emergency.open_visit"
+  | "emergency.open_mlc"
   | "camp.open_context"
   | "billing.open_ledger"
-  | "pharmacy.open_patient_queue";
+  | "pharmacy.open_patient_queue"
+  | "mrd.open_case_sheet";
 
 export type ClinicalOrderContext = "opd" | "ipd";
 
@@ -44,7 +49,16 @@ export interface ClinicalJourneyActionDefinition {
   label: string;
   shortLabel: string;
   description: string;
-  module: "patients" | "opd" | "orders" | "ipd" | "emergency" | "camp" | "billing" | "pharmacy";
+  module:
+    | "patients"
+    | "opd"
+    | "orders"
+    | "ipd"
+    | "emergency"
+    | "camp"
+    | "billing"
+    | "pharmacy"
+    | "mrd";
   intent: ClinicalJourneyActionIntent;
   requiredPermissions: readonly string[];
   permissionMode?: "all" | "any";
@@ -231,6 +245,20 @@ export const CORE_PATIENT_JOURNEY_ACTIONS: readonly ClinicalJourneyActionDefinit
     disabledReason: requireLivingPatient,
   },
   {
+    id: "emergency.open_mlc",
+    label: "Open MLC",
+    shortLabel: "MLC",
+    description: "Open medico-legal case documentation from the emergency visit context.",
+    module: "emergency",
+    intent: "warning",
+    requiredPermissions: [P.EMERGENCY.MLC_CREATE],
+    surfaces: ["web", "mobile"],
+    activatesAfter: ["emergency.visit.created"],
+    emitsEvent: "mlc.created",
+    standardRefs: ["NABH AAC", "MLC SOP", "CrPC medico-legal reporting"],
+    disabledReason: () => null,
+  },
+  {
     id: "camp.open_context",
     label: "Camp context",
     shortLabel: "Camp",
@@ -259,6 +287,51 @@ export const CORE_PATIENT_JOURNEY_ACTIONS: readonly ClinicalJourneyActionDefinit
     disabledReason: () => null,
   },
   {
+    id: "billing.prepare_discharge_bill",
+    label: "Prepare discharge bill",
+    shortLabel: "Discharge Bill",
+    description: "Open billing with this patient filtered after discharge summary finalization.",
+    module: "billing",
+    intent: "finance",
+    requiredPermissions: [P.BILLING.INVOICES_CREATE],
+    surfaces: ["web", "mobile"],
+    activatesAfter: ["ipd.discharge.finalized"],
+    emitsEvent: "billing.invoice.created",
+    standardRefs: ["NABH COP discharge process", "GST healthcare billing controls"],
+    disabledReason: () => null,
+  },
+  {
+    id: "billing.collect_payment",
+    label: "Collect payment",
+    shortLabel: "Payment",
+    description: "Open payment collection for the patient's finalized or created invoice.",
+    module: "billing",
+    intent: "finance",
+    requiredPermissions: [P.BILLING.PAYMENTS_CREATE],
+    surfaces: ["web", "mobile", "kiosk"],
+    activatesAfter: ["billing.invoice.created", "billing.invoice.finalized"],
+    emitsEvent: "billing.payment.received",
+    standardRefs: [
+      "NABH PRE financial counselling",
+      "PCI DSS scoping if card payments are enabled",
+    ],
+    disabledReason: () => null,
+  },
+  {
+    id: "pharmacy.dispense_order",
+    label: "Dispense medicines",
+    shortLabel: "Dispense",
+    description: "Open dispensing for medication orders after order or payment events.",
+    module: "pharmacy",
+    intent: "clinical",
+    requiredPermissions: [P.PHARMACY.DISPENSING_CREATE],
+    surfaces: ["web", "mobile"],
+    activatesAfter: ["order.created", "billing.payment.received"],
+    emitsEvent: "pharmacy.order.dispensed",
+    standardRefs: ["NABH MOM", "Drugs and Cosmetics Act", "NDPS Act where applicable"],
+    disabledReason: requireLivingPatient,
+  },
+  {
     id: "pharmacy.open_patient_queue",
     label: "Pharmacy",
     shortLabel: "Pharmacy",
@@ -269,6 +342,19 @@ export const CORE_PATIENT_JOURNEY_ACTIONS: readonly ClinicalJourneyActionDefinit
     surfaces: ["web", "mobile", "tv"],
     activatesAfter: ["order.created", "pharmacy.order.dispensed"],
     standardRefs: ["NABH MOM", "Drugs and Cosmetics Act", "NDPS Act where applicable"],
+    disabledReason: () => null,
+  },
+  {
+    id: "mrd.open_case_sheet",
+    label: "MRD case sheet",
+    shortLabel: "MRD",
+    description: "Open the MRD case-sheet packet generated from the clinical workspace.",
+    module: "mrd",
+    intent: "secondary",
+    requiredPermissions: [P.MRD.CASE_SHEETS_VIEW],
+    surfaces: ["web"],
+    activatesAfter: ["mrd.case_sheet.generated", "mrd.case_sheet.printed"],
+    standardRefs: ["NABH IMS", "clinical record continuity"],
     disabledReason: () => null,
   },
   {

@@ -57,10 +57,17 @@ function actionIcon(actionId: ClinicalJourneyActionId) {
       return <IconFlask size={14} />;
     case "orders.radiology":
       return <IconRadioactive size={14} />;
+    case "billing.prepare_discharge_bill":
+    case "billing.collect_payment":
+      return <IconFileInvoice size={14} />;
+    case "pharmacy.dispense_order":
+      return <IconPill size={14} />;
     case "ipd.open_admission":
     case "ipd.admit":
       return <IconBed size={14} />;
     case "emergency.open_visit":
+      return <IconAlertTriangle size={14} />;
+    case "emergency.open_mlc":
       return <IconAlertTriangle size={14} />;
     case "camp.open_context":
       return <IconBuildingStore size={14} />;
@@ -72,6 +79,8 @@ function actionIcon(actionId: ClinicalJourneyActionId) {
       return <IconPrinter size={16} />;
     case "pharmacy.open_patient_queue":
       return <IconPill size={14} />;
+    case "mrd.open_case_sheet":
+      return <IconPrinter size={14} />;
   }
 }
 
@@ -218,14 +227,31 @@ export function PatientJourneyActions({
             : `/emergency/visits/new?patient_id=${journeyContext.patientId}`,
         );
         return;
+      case "emergency.open_mlc":
+        navigate(`/emergency?tab=mlc&patient_id=${journeyContext.patientId}`);
+        return;
       case "camp.open_context":
         navigate(`/camp?patient_id=${journeyContext.patientId}`);
         return;
       case "billing.open_ledger":
         navigate(`/billing?tab=invoices&patient_id=${journeyContext.patientId}`);
         return;
+      case "billing.prepare_discharge_bill":
+        navigate(
+          `/billing?tab=invoices&patient_id=${journeyContext.patientId}&source=ipd_discharge`,
+        );
+        return;
+      case "billing.collect_payment":
+        navigate(`/billing?tab=invoices&patient_id=${journeyContext.patientId}&action=payment`);
+        return;
       case "pharmacy.open_patient_queue":
         navigate(`/pharmacy?tab=orders&patient_id=${journeyContext.patientId}`);
+        return;
+      case "pharmacy.dispense_order":
+        navigate(`/pharmacy?tab=orders&patient_id=${journeyContext.patientId}&action=dispense`);
+        return;
+      case "mrd.open_case_sheet":
+        navigate(`/mrd?patient_id=${journeyContext.patientId}#case-sheets`);
         return;
       case "patient.share":
         onShare?.();
