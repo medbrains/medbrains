@@ -1419,10 +1419,20 @@ function InvoiceDetail({
   const inv = detail.invoice;
   const displayStatus = invoiceDisplayStatus(inv);
   const balance = invoiceBalance(inv);
+  const completedEvents = [
+    "billing.invoice.created",
+    ...(displayStatus === "issued" || displayStatus === "partially_paid" || displayStatus === "paid"
+      ? ["billing.invoice.finalized"]
+      : []),
+    ...(displayStatus === "partially_paid" || displayStatus === "paid" || detail.payments.length > 0
+      ? ["billing.payment.received"]
+      : []),
+  ];
   const journeyContext: ClinicalJourneyContext = {
     patientId: inv.patient_id,
     activeEncounterId: inv.encounter_id,
     activeOrderContext: inv.encounter_id ? "opd" : null,
+    completedEvents,
   };
   const canRecordPayment =
     amountAccess === "edit" &&
@@ -1484,6 +1494,7 @@ function InvoiceDetail({
             patientId={inv.patient_id}
             active="billing"
             activeEncounterId={inv.encounter_id}
+            completedEvents={completedEvents}
             compact
           />
           <Group justify="space-between" align="flex-start" gap="sm">

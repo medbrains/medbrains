@@ -2468,10 +2468,17 @@ function PharmacyOrderDetail({
     ? (patientName?.full_name ?? "Linked patient")
     : "Patient restricted";
   const prescriptionUhid = canViewPatientRecord ? (patientName?.uhid ?? "") : "";
+  const completedEvents = [
+    "order.created",
+    ...(detail.order.status === "dispensed" || detail.order.dispensed_at
+      ? ["pharmacy.order.dispensed"]
+      : []),
+  ];
   const journeyContext: ClinicalJourneyContext = {
     patientId: detail.order.patient_id,
     activeEncounterId: detail.order.encounter_id,
     activeOrderContext: detail.order.encounter_id ? "opd" : null,
+    completedEvents,
   };
 
   return (
@@ -2505,6 +2512,7 @@ function PharmacyOrderDetail({
         patientId={detail.order.patient_id}
         active="pharmacy"
         activeEncounterId={detail.order.encounter_id ?? null}
+        completedEvents={completedEvents}
         compact
       />
       <Card withBorder padding="sm">
