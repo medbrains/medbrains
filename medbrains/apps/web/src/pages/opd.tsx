@@ -25,11 +25,17 @@ import {
 } from "@mantine/core";
 import { useDebouncedValue, useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import type { OpdFollowUpAppointmentFormInput, OpdQueueVisitFormInput } from "@medbrains/schemas";
+import type {
+  OpdFollowUpAppointmentFormInput,
+  OpdLabOrderFormInput,
+  OpdMedicalCertificateFormInput,
+  OpdQueueVisitFormInput,
+} from "@medbrains/schemas";
 import {
   opdFeedbackFormSchema,
   opdFollowUpAppointmentFormSchema,
   opdLabOrderFormSchema,
+  opdMedicalCertificateFormSchema,
   opdProcedureConsentFormSchema,
   opdProcedureOrderFormSchema,
   opdQueueVisitFormSchema,
@@ -44,14 +50,12 @@ import type {
   BookAppointmentGroupRequest,
   BookAppointmentRequest,
   Camp,
-  CertificateType,
   ClinicalJourneyContext,
   Consultation,
   ConsultationTemplate,
   CreateConsultationRequest,
   CreateDiagnosisRequest,
   CreateEncounterResponse,
-  CreateMedicalCertificateRequest,
   CreatePreAuthRequest,
   CreatePrescriptionRequest,
   CreateReferralRequest,
@@ -174,9 +178,11 @@ import {
   DEFAULT_OPD_FEEDBACK_FORM_VALUES,
   DEFAULT_OPD_FOLLOW_UP_FORM_VALUES,
   DEFAULT_OPD_LAB_ORDER_FORM_VALUES,
+  DEFAULT_OPD_MEDICAL_CERTIFICATE_FORM_VALUES,
   DEFAULT_OPD_PROCEDURE_ORDER_FORM_VALUES,
   DEFAULT_OPD_QUEUE_VISIT_FORM_VALUES,
   DEFAULT_OPD_REMINDER_FORM_VALUES,
+  OPD_CERTIFICATE_TYPE_OPTIONS,
   OPD_CONSENT_TYPE_OPTIONS,
   OPD_LAB_PRIORITY_OPTIONS,
   OPD_PROCEDURE_PRIORITY_OPTIONS,
@@ -189,6 +195,7 @@ import {
   toCreateEncounterRequest,
   toCreateFeedbackRequest,
   toCreateLabOrderRequest,
+  toCreateMedicalCertificateRequest,
   toCreateProcedureOrderRequest,
   toCreateReminderRequest,
 } from "@/forms/opd.form";
@@ -2717,7 +2724,7 @@ function InvestigationsTab({
     reset,
     watch,
     formState: { errors },
-  } = useForm({
+  } = useForm<OpdLabOrderFormInput>({
     resolver: zodResolver(opdLabOrderFormSchema),
     defaultValues: DEFAULT_OPD_LAB_ORDER_FORM_VALUES,
     mode: "onTouched",
@@ -3612,15 +3619,12 @@ function RxHistoryTab({ patientId }: { patientId: string }) {
 
 // ── Medical Certificates ────────────────────────────────
 
-const CERTIFICATE_TYPES: { value: CertificateType; label: string }[] = [
-  { value: "medical", label: "Medical Certificate" },
-  { value: "fitness", label: "Fitness Certificate" },
-  { value: "sick_leave", label: "Sick Leave Certificate" },
-  { value: "disability", label: "Disability Certificate" },
-  { value: "death", label: "Death Certificate" },
-  { value: "birth", label: "Birth Certificate" },
-  { value: "custom", label: "Custom Certificate" },
-];
+function defaultCertificateFormValues(): OpdMedicalCertificateFormInput {
+  return {
+    ...DEFAULT_OPD_MEDICAL_CERTIFICATE_FORM_VALUES,
+    issued_date: todayDateString(),
+  };
+}
 
 function CertificatesTab({
   patientId,
@@ -3631,23 +3635,39 @@ function CertificatesTab({
   encounterId: string;
   canUpdate: boolean;
 }) {
+  const emit = useClinicalEmit();
   const queryClient = useQueryClient();
   const [createOpen, { open: openCreate, close: closeCreate }] = useDisclosure(false);
-  const [certType, setCertType] = useState<string | null>(null);
-  const [issuedDate, setIssuedDate] = useState(() => todayDateString());
-  const [validFrom, setValidFrom] = useState("");
-  const [validTo, setValidTo] = useState("");
-  const [diagnosis, setDiagnosis] = useState("");
-  const [remarks, setRemarks] = useState("");
+  const {
+    control,
+    handleSubmit,
+    reset,
+    watch,
+    formState: { errors },
+  } = useForm({
+    resolver: zodResolver(opdMedicalCertificateFormSchema),
+    defaultValues: defaultCertificateFormValues(),
+    mode: "onTouched",
+  });
+  const certificateType = watch("certificate_type");
 
-  const { data: certificates = [], isLoading } = useQuery({
+  const { data: certificates = [], isLoading } = useQuery<MedicalCertificate[]>({
     queryKey: ["patient-certificates", patientId],
     queryFn: () => opdService.listCertificates(patientId),
   });
 
   const createMutation = useMutation({
-    mutationFn: (data: CreateMedicalCertificateRequest) => opdService.createCertificate(data),
-    onSuccess: () => {
+    mutationFn: opdService.createCertificate,
+    onSuccess: (certificate) => {
+      emit("opd.certificate.created", {
+        certificate_id: certificate.id,
+        certificate_number: certificate.certificate_number,
+        certificate_type: certificate.certificate_type,
+        encounter_id: certificate.encounter_id,
+        issued_date: certificate.issued_date,
+        patient_id: certificate.patient_id,
+        source_record_id: certificate.id,
+      });
       void queryClient.invalidateQueries({ queryKey: ["patient-certificates", patientId] });
       notifications.show({
         title: "Certificate created",
@@ -3655,7 +3675,7 @@ function CertificatesTab({
         color: "success",
       });
       closeCreate();
-      resetForm();
+      reset(defaultCertificateFormValues());
     },
     onError: () => {
       notifications.show({
@@ -3666,29 +3686,19 @@ function CertificatesTab({
     },
   });
 
-  const resetForm = () => {
-    setCertType(null);
-    setIssuedDate(todayDateString());
-    setValidFrom("");
-    setValidTo("");
-    setDiagnosis("");
-    setRemarks("");
+  const openCertificateForm = () => {
+    reset(defaultCertificateFormValues());
+    openCreate();
   };
 
-  const handleCreate = () => {
-    if (!certType) return;
-    createMutation.mutate({
-      patient_id: patientId,
-      encounter_id: encounterId,
-      certificate_type: certType as CertificateType,
-      issued_date: issuedDate || undefined,
-      valid_from: validFrom || undefined,
-      valid_to: validTo || undefined,
-      diagnosis: diagnosis.trim() || undefined,
-      remarks: remarks.trim() || undefined,
-      body: {},
-    });
+  const closeCertificateForm = () => {
+    closeCreate();
+    reset(defaultCertificateFormValues());
   };
+
+  const handleCreate = handleSubmit((values) => {
+    createMutation.mutate(toCreateMedicalCertificateRequest(values, patientId, encounterId));
+  });
 
   if (isLoading) {
     return (
@@ -3702,13 +3712,13 @@ function CertificatesTab({
     <Stack gap="sm">
       {canUpdate && (
         <Group>
-          <Button size="xs" leftSection={<IconPlus size={14} />} onClick={openCreate}>
+          <Button size="xs" leftSection={<IconPlus size={14} />} onClick={openCertificateForm}>
             New Certificate
           </Button>
         </Group>
       )}
 
-      {(certificates as MedicalCertificate[]).map((cert) => (
+      {certificates.map((cert) => (
         <Card key={cert.id} padding="sm" radius="md" withBorder>
           <Group justify="space-between" mb="xs">
             <Group gap={8}>
@@ -3756,60 +3766,107 @@ function CertificatesTab({
       )}
 
       {/* Create certificate modal */}
-      <Modal opened={createOpen} onClose={closeCreate} title="New Medical Certificate" size="md">
+      <Modal
+        opened={createOpen}
+        onClose={closeCertificateForm}
+        title="New Medical Certificate"
+        size="md"
+      >
         <Stack gap="sm">
-          <Select
-            label="Certificate Type"
-            placeholder="Select type"
-            data={CERTIFICATE_TYPES}
-            value={certType}
-            onChange={setCertType}
-            required
+          <Controller
+            control={control}
+            name="certificate_type"
+            render={({ field }) => (
+              <Select
+                label="Certificate Type"
+                placeholder="Select type"
+                data={OPD_CERTIFICATE_TYPE_OPTIONS}
+                value={field.value}
+                onChange={(value) =>
+                  field.onChange(
+                    value ?? DEFAULT_OPD_MEDICAL_CERTIFICATE_FORM_VALUES.certificate_type,
+                  )
+                }
+                error={errors.certificate_type?.message}
+                required
+              />
+            )}
           />
-          <TextInput
-            label="Issued Date"
-            type="date"
-            value={issuedDate}
-            onChange={(e) => setIssuedDate(e.currentTarget.value)}
+          <Controller
+            control={control}
+            name="issued_date"
+            render={({ field }) => (
+              <TextInput
+                label="Issued Date"
+                type="date"
+                error={errors.issued_date?.message}
+                required
+                {...field}
+              />
+            )}
           />
           <Group grow>
-            <TextInput
-              label="Valid From"
-              type="date"
-              value={validFrom}
-              onChange={(e) => setValidFrom(e.currentTarget.value)}
+            <Controller
+              control={control}
+              name="valid_from"
+              render={({ field }) => (
+                <TextInput
+                  label="Valid From"
+                  type="date"
+                  error={errors.valid_from?.message}
+                  {...field}
+                />
+              )}
             />
-            <TextInput
-              label="Valid To"
-              type="date"
-              value={validTo}
-              onChange={(e) => setValidTo(e.currentTarget.value)}
+            <Controller
+              control={control}
+              name="valid_to"
+              render={({ field }) => (
+                <TextInput
+                  label="Valid To"
+                  type="date"
+                  error={errors.valid_to?.message}
+                  {...field}
+                />
+              )}
             />
           </Group>
-          <Textarea
-            label="Diagnosis"
-            placeholder="Primary diagnosis for certificate"
-            value={diagnosis}
-            onChange={(e) => setDiagnosis(e.currentTarget.value)}
-            autosize
-            minRows={2}
+          <Controller
+            control={control}
+            name="diagnosis"
+            render={({ field }) => (
+              <Textarea
+                label="Diagnosis"
+                placeholder="Primary diagnosis for certificate"
+                error={errors.diagnosis?.message}
+                autosize
+                minRows={2}
+                {...field}
+              />
+            )}
           />
-          <Textarea
-            label="Remarks"
-            placeholder="Additional remarks or instructions"
-            value={remarks}
-            onChange={(e) => setRemarks(e.currentTarget.value)}
-            autosize
-            minRows={2}
+          <Controller
+            control={control}
+            name="remarks"
+            render={({ field }) => (
+              <Textarea
+                label="Remarks"
+                placeholder="Additional remarks or instructions"
+                error={errors.remarks?.message}
+                autosize
+                minRows={2}
+                {...field}
+              />
+            )}
           />
           <Group justify="flex-end">
-            <Button variant="subtle" onClick={closeCreate}>
+            <Button variant="subtle" onClick={closeCertificateForm}>
               Cancel
             </Button>
             <Button
               onClick={handleCreate}
               loading={createMutation.isPending}
-              disabled={!certType}
+              disabled={!certificateType}
               leftSection={<IconCertificate size={14} />}
             >
               Create Certificate
@@ -5048,6 +5105,7 @@ function ConsentsTab({
   encounterId: string;
   canUpdate: boolean;
 }) {
+  const emit = useClinicalEmit();
   const queryClient = useQueryClient();
   const [formOpened, formHandlers] = useDisclosure(false);
   const {
@@ -5087,7 +5145,17 @@ function ConsentsTab({
 
   const signMutation = useMutation({
     mutationFn: (id: string) => opdService.signProcedureConsent(id),
-    onSuccess: () => {
+    onSuccess: (consent) => {
+      emit("opd.consent.signed", {
+        consent_id: consent.id,
+        consent_type: consent.consent_type,
+        encounter_id: consent.encounter_id,
+        patient_id: consent.patient_id,
+        procedure_order_id: consent.procedure_order_id,
+        signed_at: consent.signed_at,
+        source_record_id: consent.id,
+        status: consent.status,
+      });
       void queryClient.invalidateQueries({ queryKey: ["consents", patientId] });
       notifications.show({
         title: "Consent signed",

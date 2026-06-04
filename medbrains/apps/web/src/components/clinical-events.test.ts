@@ -600,4 +600,52 @@ describe("clinical event normalization", () => {
     expect(procedure.patientId).toBe("patient-1");
     expect(procedure.missingPayloadKeys).toEqual([]);
   });
+
+  it("tracks OPD certificate and consent printable activations without clinical text", () => {
+    const certificate = buildClinicalEventTrace({
+      contextCode: "opd-encounter-1",
+      moduleCode: "opd",
+      occurredAt: "2026-05-29T11:30:00.000Z",
+      rawTrigger: "opd.certificate.created",
+      payload: {
+        certificate_id: "certificate-1",
+        certificate_number: "CERT-001",
+        certificate_type: "medical",
+        encounter_id: "encounter-1",
+        issued_date: "2026-05-29",
+        patient_id: "patient-1",
+        source_record_id: "certificate-1",
+      },
+    });
+
+    const consent = buildClinicalEventTrace({
+      contextCode: "opd-encounter-1",
+      moduleCode: "opd",
+      occurredAt: "2026-05-29T11:35:00.000Z",
+      rawTrigger: "opd.consent.signed",
+      payload: {
+        consent_id: "consent-1",
+        consent_type: "procedure",
+        encounter_id: "encounter-1",
+        patient_id: "patient-1",
+        signed_at: "2026-05-29T11:35:00.000Z",
+        source_record_id: "consent-1",
+        status: "signed",
+      },
+    });
+
+    expect(certificate.eventName).toBe("opd.certificate.created");
+    expect(certificate.sourceRecordId).toBe("certificate-1");
+    expect(certificate.patientId).toBe("patient-1");
+    expect(certificate.payload).not.toHaveProperty("diagnosis");
+    expect(certificate.payload).not.toHaveProperty("remarks");
+    expect(certificate.missingPayloadKeys).toEqual([]);
+
+    expect(consent.eventName).toBe("opd.consent.signed");
+    expect(consent.sourceRecordId).toBe("consent-1");
+    expect(consent.patientId).toBe("patient-1");
+    expect(consent.payload).not.toHaveProperty("risks_explained");
+    expect(consent.payload).not.toHaveProperty("benefits_explained");
+    expect(consent.missingPayloadKeys).toEqual([]);
+  });
 });

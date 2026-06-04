@@ -1,8 +1,10 @@
 import type {
+  OpdCertificateTypeFormValue,
   OpdFeedbackFormInput,
   OpdFollowUpAppointmentFormInput,
   OpdLabOrderFormInput,
   OpdLabOrderPriorityFormValue,
+  OpdMedicalCertificateFormInput,
   OpdPreAuthFormInput,
   OpdProcedureConsentFormInput,
   OpdProcedureConsentTypeFormValue,
@@ -24,6 +26,7 @@ import type {
   CreateEncounterRequest,
   CreateFeedbackRequest,
   CreateLabOrderRequest,
+  CreateMedicalCertificateRequest,
   CreatePreAuthRequest,
   CreateProcedureOrderRequest,
   CreateReferralRequest,
@@ -86,6 +89,16 @@ export const OPD_CONSENT_TYPE_OPTIONS: Array<SelectOption<OpdProcedureConsentTyp
   { value: "surgery", label: "Surgery" },
   { value: "investigation", label: "Investigation" },
   { value: "general", label: "General" },
+];
+
+export const OPD_CERTIFICATE_TYPE_OPTIONS: Array<SelectOption<OpdCertificateTypeFormValue>> = [
+  { value: "medical", label: "Medical Certificate" },
+  { value: "fitness", label: "Fitness Certificate" },
+  { value: "sick_leave", label: "Sick Leave Certificate" },
+  { value: "disability", label: "Disability Certificate" },
+  { value: "death", label: "Death Certificate" },
+  { value: "birth", label: "Birth Certificate" },
+  { value: "custom", label: "Custom Certificate" },
 ];
 
 export const OPD_VISIT_TYPE_OPTIONS: Array<SelectOption<OpdVisitTypeFormValue>> = [
@@ -166,6 +179,15 @@ export const DEFAULT_OPD_CONSENT_FORM_VALUES: OpdProcedureConsentFormInput = {
   consented_by_name: "",
   consented_by_relation: "",
   witness_name: "",
+};
+
+export const DEFAULT_OPD_MEDICAL_CERTIFICATE_FORM_VALUES: OpdMedicalCertificateFormInput = {
+  certificate_type: "medical",
+  issued_date: "",
+  valid_from: "",
+  valid_to: "",
+  diagnosis: "",
+  remarks: "",
 };
 
 function selectedValue(value: string | null): string {
@@ -323,5 +345,23 @@ export function toCreateConsentRequest(
     consented_by_name: optionalTextFromFormValue(values.consented_by_name),
     consented_by_relation: optionalTextFromFormValue(values.consented_by_relation),
     witness_name: optionalTextFromFormValue(values.witness_name),
+  };
+}
+
+export function toCreateMedicalCertificateRequest(
+  values: OpdMedicalCertificateFormInput,
+  patientId: string,
+  encounterId: string,
+): CreateMedicalCertificateRequest {
+  return {
+    patient_id: patientId,
+    encounter_id: encounterId,
+    certificate_type: values.certificate_type,
+    issued_date: values.issued_date,
+    valid_from: optionalTextFromFormValue(values.valid_from),
+    valid_to: optionalTextFromFormValue(values.valid_to),
+    diagnosis: optionalTextFromFormValue(values.diagnosis),
+    remarks: optionalTextFromFormValue(values.remarks),
+    body: {},
   };
 }

@@ -838,6 +838,15 @@ export const opdProcedureConsentTypeFormSchema = z.enum([
   "investigation",
   "general",
 ]);
+export const opdCertificateTypeFormSchema = z.enum([
+  "medical",
+  "fitness",
+  "sick_leave",
+  "disability",
+  "death",
+  "birth",
+  "custom",
+]);
 export const opdRatingFormSchema = z.enum(["1", "2", "3", "4", "5"]);
 export const otConsumableCategoryFormSchema = z.enum([
   "surgical_instrument",
@@ -3903,6 +3912,29 @@ export const opdProcedureConsentFormSchema = z.object({
   witness_name: z.string(),
 });
 
+export const opdMedicalCertificateFormSchema = z
+  .object({
+    certificate_type: opdCertificateTypeFormSchema,
+    issued_date: requiredIsoDate("Issued date is required"),
+    valid_from: optionalIsoDateString,
+    valid_to: optionalIsoDateString,
+    diagnosis: z.string().max(2000, "Diagnosis must be at most 2000 characters"),
+    remarks: z.string().max(2000, "Remarks must be at most 2000 characters"),
+  })
+  .superRefine((value, ctx) => {
+    if (
+      value.valid_from.trim().length > 0 &&
+      value.valid_to.trim().length > 0 &&
+      value.valid_to < value.valid_from
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["valid_to"],
+        message: "Valid to must be on or after valid from",
+      });
+    }
+  });
+
 export const otConsumableFormSchema = z
   .object({
     item_name: requiredTrimmed("Item name is required", 255),
@@ -5068,6 +5100,7 @@ export type OpdProcedureOrderPriorityFormValue = z.infer<
 export type OpdReminderPriorityFormValue = z.infer<typeof opdReminderPriorityFormSchema>;
 export type OpdReminderTypeFormValue = z.infer<typeof opdReminderTypeFormSchema>;
 export type OpdProcedureConsentTypeFormValue = z.infer<typeof opdProcedureConsentTypeFormSchema>;
+export type OpdCertificateTypeFormValue = z.infer<typeof opdCertificateTypeFormSchema>;
 export type OpdRatingFormValue = z.infer<typeof opdRatingFormSchema>;
 export type OtConsumableCategoryFormValue = z.infer<typeof otConsumableCategoryFormSchema>;
 export type OtCasePriorityFormValue = z.infer<typeof otCasePriorityFormSchema>;
@@ -5293,6 +5326,7 @@ export type OpdPreAuthFormInput = z.infer<typeof opdPreAuthFormSchema>;
 export type OpdReminderFormInput = z.infer<typeof opdReminderFormSchema>;
 export type OpdFeedbackFormInput = z.infer<typeof opdFeedbackFormSchema>;
 export type OpdProcedureConsentFormInput = z.infer<typeof opdProcedureConsentFormSchema>;
+export type OpdMedicalCertificateFormInput = z.infer<typeof opdMedicalCertificateFormSchema>;
 export type OtConsumableFormInput = z.infer<typeof otConsumableFormSchema>;
 export type OtBookingFormInput = z.infer<typeof otBookingFormSchema>;
 export type OtPreopAssessmentFormInput = z.infer<typeof otPreopAssessmentFormSchema>;

@@ -11205,6 +11205,8 @@ export type ClinicalEventName =
   | "mlc.created"
   | "emergency.mlc_police_intimation.created"
   | "opd.encounter.created"
+  | "opd.certificate.created"
+  | "opd.consent.signed"
   | "camp.registration.created"
   | "camp.screening.completed"
   | "order.created"
@@ -11274,6 +11276,8 @@ export const CLINICAL_EVENT_REQUIRED_PAYLOAD_KEYS: Record<ClinicalEventName, rea
   "mlc.created": ["mlc_case_id", "patient_id"],
   "emergency.mlc_police_intimation.created": ["intimation_id", "mlc_case_id", "patient_id"],
   "opd.encounter.created": ["encounter_id", "patient_id"],
+  "opd.certificate.created": ["certificate_id", "patient_id"],
+  "opd.consent.signed": ["consent_id", "patient_id"],
   "camp.registration.created": ["registration_id", "camp_id", "patient_id"],
   "camp.screening.completed": ["screening_id", "camp_id", "patient_id"],
   "order.created": ["order_id", "order_type", "patient_id"],

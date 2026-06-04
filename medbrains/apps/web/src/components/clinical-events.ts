@@ -120,6 +120,8 @@ export function buildClinicalEventTrace({
     "source_record_id",
     "search_id",
     "report_id",
+    "certificate_id",
+    "consent_id",
     "intimation_id",
     "mlc_case_id",
     "code_activation_id",
