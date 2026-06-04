@@ -128,6 +128,52 @@ describe("clinical event normalization", () => {
     expect(event.payload.triage_level).toBe("emergency");
   });
 
+  it("tracks code-blue lifecycle events without missing payload keys", () => {
+    const activated = buildClinicalEventTrace({
+      contextCode: "emergency-visits",
+      moduleCode: "emergency",
+      occurredAt: "2026-05-29T10:12:00.000Z",
+      rawTrigger: "emergency.code_blue.activated",
+      payload: {
+        activated_at: "2026-05-29T10:11:00.000Z",
+        code_activation_id: "code-1",
+        code_blue_id: "code-1",
+        code_type: "code_blue",
+        crash_cart_checklist: { defibrillator: true },
+        er_visit_id: "visit-1",
+        location: "ER Bay 2",
+        source_record_id: "code-1",
+      },
+    });
+
+    const completed = buildClinicalEventTrace({
+      contextCode: "emergency-visits",
+      moduleCode: "emergency",
+      occurredAt: "2026-05-29T10:30:00.000Z",
+      rawTrigger: "emergency.code_blue.completed",
+      payload: {
+        code_activation_id: "code-1",
+        code_blue_id: "code-1",
+        code_type: "code_blue",
+        deactivated_at: "2026-05-29T10:29:00.000Z",
+        er_visit_id: "visit-1",
+        location: "ER Bay 2",
+        outcome: "rosc",
+        source_record_id: "code-1",
+      },
+    });
+
+    expect(activated.eventName).toBe("emergency.code_blue.activated");
+    expect(activated.sourceModule).toBe("emergency");
+    expect(activated.sourceRecordId).toBe("code-1");
+    expect(activated.missingPayloadKeys).toEqual([]);
+
+    expect(completed.eventName).toBe("emergency.code_blue.completed");
+    expect(completed.sourceModule).toBe("emergency");
+    expect(completed.sourceRecordId).toBe("code-1");
+    expect(completed.missingPayloadKeys).toEqual([]);
+  });
+
   it("tracks camp registration events by camp registration and patient", () => {
     const event = buildClinicalEventTrace({
       contextCode: "patient-registration",

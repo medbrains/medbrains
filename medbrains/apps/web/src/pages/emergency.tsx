@@ -402,6 +402,36 @@ function emergencyTabFromSearch(value: string | null): EmergencyTabKey | null {
   return null;
 }
 
+function codeActivationClinicalPayload(code: ErCodeActivation): Record<string, unknown> {
+  return {
+    source_record_id: code.id,
+    code_blue_id: code.id,
+    code_activation_id: code.id,
+    code_type: code.code_type,
+    er_visit_id: code.er_visit_id,
+    location: code.location,
+    activated_at: code.activated_at,
+    deactivated_at: code.deactivated_at,
+    outcome: code.outcome,
+    crash_cart_checklist: code.crash_cart_checklist,
+    response_team: code.response_team,
+    activated_by: code.activated_by,
+    deactivated_by: code.deactivated_by,
+  };
+}
+
+function emitCodeBlueLifecycleEvent(
+  emit: (trigger: string, payload: Record<string, unknown>) => void,
+  trigger: "emergency.code_blue.activated" | "emergency.code_blue.completed",
+  code: ErCodeActivation,
+) {
+  if (code.code_type !== "code_blue") {
+    return;
+  }
+
+  emit(trigger, codeActivationClinicalPayload(code));
+}
+
 // ── Triage helpers ────────────────────────────────────
 
 interface TriageInfo {
@@ -2345,6 +2375,7 @@ function CodesTab({
   const [selectedCode, setSelectedCode] = useState<ErCodeActivation | null>(null);
   const [codeToDeactivate, setCodeToDeactivate] = useState<ErCodeActivation | null>(null);
   const qc = useQueryClient();
+  const emit = useClinicalEmit();
   const { data = [], isLoading } = useQuery({
     queryKey: ["er-codes"],
     queryFn: () => emergencyService.listCodeActivations(),
@@ -2373,13 +2404,14 @@ function CodesTab({
 
   const createMut = useMutation({
     mutationFn: (d: CreateCodeActivationRequest) => emergencyService.createCodeActivation(d),
-    onSuccess: (_data, variables) => {
+    onSuccess: (row) => {
       void qc.invalidateQueries({ queryKey: ["er-codes"] });
+      emitCodeBlueLifecycleEvent(emit, "emergency.code_blue.activated", row);
       close();
       setCrashCart({});
       notifications.show({
         title: "Code Activated",
-        message: `${variables.code_type.toUpperCase()} activated`,
+        message: `${row.code_type.toUpperCase()} activated`,
         color: "danger",
       });
     },
@@ -2390,6 +2422,7 @@ function CodesTab({
       emergencyService.deactivateCode(id, data),
     onSuccess: (row) => {
       void qc.invalidateQueries({ queryKey: ["er-codes"] });
+      emitCodeBlueLifecycleEvent(emit, "emergency.code_blue.completed", row);
       setSelectedCode((current) => (current?.id === row.id ? row : current));
       setCodeToDeactivate(null);
       resetDeactivate(emptyCodeDeactivateForm);
