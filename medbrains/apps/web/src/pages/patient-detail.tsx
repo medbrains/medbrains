@@ -44,6 +44,7 @@ import type {
   AdmissionRow,
   ClinicalJourneyContext,
   DrugTimelineWithLabsResponse,
+  ErVisit,
   FamilyLinkRow,
   MedicationTimelineEvent,
   Patient,
@@ -157,6 +158,12 @@ const PATIENT_DETAIL_TAB_VALUES = [
 type PatientDetailTabValue = (typeof PATIENT_DETAIL_TAB_VALUES)[number];
 
 const PATIENT_CARD_PRINT_COPIES = PRINT_COPY_PACKETS.patientCard;
+const ACTIVE_ER_VISIT_STATUSES = new Set<ErVisit["status"]>([
+  "registered",
+  "triaged",
+  "in_treatment",
+  "observation",
+]);
 
 const INVOICE_STATUS_COLORS: Record<string, string> = {
   draft: "gray",
@@ -2897,6 +2904,7 @@ function PatientDetailPageInner() {
   const queryClient = useQueryClient();
   const canListPatients = useHasPermission(P.PATIENTS.LIST);
   const canViewBillingLedger = useHasPermission(P.BILLING.INVOICES_LIST);
+  const canViewEmergencyVisits = useHasPermission(P.EMERGENCY.VISITS_LIST);
   const uhidAccess = useFieldAccess("patients.uhid");
   const firstNameAccess = useFieldAccess("patients.first_name");
   const lastNameAccess = useFieldAccess("patients.last_name");
@@ -2937,10 +2945,14 @@ function PatientDetailPageInner() {
     enabled: patientId.length > 0,
   });
   const activeAdmission = activeAdmissions?.admissions[0];
-  const activeEmergencyVisit = visits.find(
-    (visit) =>
-      visit.encounter_type === "emergency" &&
-      (visit.status === "open" || visit.status === "in_progress"),
+  const { data: emergencyVisits = [] } = useQuery<ErVisit[]>({
+    queryKey: ["er-visits", "patient", patientId],
+    queryFn: () => patientDetailService.listErVisits(),
+    enabled: canViewEmergencyVisits && patientId.length > 0,
+  });
+  const patientEmergencyVisits = emergencyVisits.filter((visit) => visit.patient_id === patientId);
+  const activeEmergencyVisit = patientEmergencyVisits.find((visit) =>
+    ACTIVE_ER_VISIT_STATUSES.has(visit.status),
   );
   const { data: prescriptions = [] } = useQuery<PrescriptionHistoryItem[]>({
     queryKey: ["patient-prescriptions", patientId],
@@ -2978,7 +2990,9 @@ function PatientDetailPageInner() {
   const hasClinicalOrder =
     prescriptions.length > 0 ||
     visits.some((visit) => (visit.prescription_count ?? 0) > 0 || (visit.lab_order_count ?? 0) > 0);
-  const hasEmergencyVisit = visits.some((visit) => visit.encounter_type === "emergency");
+  const hasEmergencyVisit =
+    patientEmergencyVisits.length > 0 ||
+    visits.some((visit) => visit.encounter_type === "emergency");
   const hasBillingInvoice = invoices.length > 0;
   const hasFinalizedInvoice = invoices.some(
     (invoice) =>

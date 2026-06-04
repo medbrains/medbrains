@@ -26,6 +26,7 @@ export const patientDetailService = {
     api.getPriorRadiologyDicomStudies(...args),
   listPatientInvoices: (...args: Parameters<typeof api.listPatientInvoices>) =>
     api.listPatientInvoices(...args),
+  listErVisits: (...args: Parameters<typeof api.listErVisits>) => api.listErVisits(...args),
   listPatientAdmissions: (patientId: string, status?: string) =>
     api.listAdmissions({
       patient_id: patientId,
