@@ -179,6 +179,11 @@ const PATIENT_NAME_FIELD_ACCESS_KEYS = [
   "patients.middle_name",
   "patients.last_name",
 ];
+const CAMP_SCREENING_COMPLETED_STATUSES = new Set<CampRegistration["status"]>([
+  "screened",
+  "referred",
+  "converted",
+]);
 
 const patientContextQuery = (patientId: string) =>
   patientId ? `?patient_id=${encodeURIComponent(patientId)}` : "";
@@ -226,8 +231,30 @@ function campRegistrationOptionLabel(
     .join(" - ");
 }
 
-function CampPatientActionBar({ patientId }: { patientId: string }) {
-  const journeyContext = useMemo<ClinicalJourneyContext>(() => ({ patientId }), [patientId]);
+function deriveCampJourneyCompletedEvents(registrations: readonly CampRegistration[]) {
+  const events: string[] = [];
+  if (registrations.length > 0) {
+    events.push("camp.registration.created");
+  }
+  if (
+    registrations.some((registration) => CAMP_SCREENING_COMPLETED_STATUSES.has(registration.status))
+  ) {
+    events.push("camp.screening.completed");
+  }
+  return events;
+}
+
+function CampPatientActionBar({
+  patientId,
+  completedEvents,
+}: {
+  patientId: string;
+  completedEvents?: readonly string[];
+}) {
+  const journeyContext = useMemo<ClinicalJourneyContext>(
+    () => ({ patientId, completedEvents }),
+    [completedEvents, patientId],
+  );
 
   return (
     <Card withBorder padding="sm">
@@ -318,6 +345,7 @@ function CampWorkPageInner({ initialTab = "registrations" }: CampWorkPageProps =
   const { campId, registrationId } = useParams();
   const [searchParams] = useSearchParams();
   const contextPatientId = searchParams.get("patient_id") ?? "";
+  const canViewRegistrations = useHasPermission(P.CAMP.REGISTRATIONS_LIST);
   const [activeTab, setActiveTab] = useState<string | null>(
     registrationId ? "screenings" : initialTab,
   );
@@ -338,9 +366,28 @@ function CampWorkPageInner({ initialTab = "registrations" }: CampWorkPageProps =
     [camps],
   );
   const selectedCamp = camps.find((camp) => camp.id === campId) ?? null;
+  const { data: patientCampRegistrations = [] } = useQuery<CampRegistration[]>({
+    queryKey: ["camp-registrations", campId ?? null, contextPatientId],
+    queryFn: () =>
+      campService.listCampRegistrations({
+        camp_id: campId ?? "",
+        patient_id: contextPatientId,
+      }),
+    enabled: canViewRegistrations && Boolean(campId && contextPatientId),
+  });
+  const campCompletedEvents = useMemo(
+    () => deriveCampJourneyCompletedEvents(patientCampRegistrations),
+    [patientCampRegistrations],
+  );
   const journeyContext = useMemo<ClinicalJourneyContext | null>(
-    () => (contextPatientId ? { patientId: contextPatientId } : null),
-    [contextPatientId],
+    () =>
+      contextPatientId
+        ? {
+            patientId: contextPatientId,
+            completedEvents: campCompletedEvents,
+          }
+        : null,
+    [campCompletedEvents, contextPatientId],
   );
   const workTabs = [
     { value: "registrations", label: "Registrations", icon: <IconUsers size={16} /> },
@@ -380,7 +427,12 @@ function CampWorkPageInner({ initialTab = "registrations" }: CampWorkPageProps =
           {contextPatientId && (
             <>
               <PatientContextBanner patientId={contextPatientId} hideLoadingState />
-              <PatientFlowNavigator patientId={contextPatientId} active="camp" compact />
+              <PatientFlowNavigator
+                patientId={contextPatientId}
+                active="camp"
+                completedEvents={campCompletedEvents}
+                compact
+              />
             </>
           )}
           <Group justify="space-between" align="flex-start" gap="sm">
@@ -630,6 +682,10 @@ function CampPatientContextPanel({ patientId }: { patientId: string }) {
     },
     enabled: canViewRegistrations && camps.length > 0 && patientId.length > 0,
   });
+  const patientCampCompletedEvents = useMemo(
+    () => deriveCampJourneyCompletedEvents(registrations),
+    [registrations],
+  );
 
   const activeCamps = camps.filter((camp) => camp.status === "active");
   const columns: Column<PatientCampRegistrationRow>[] = [
@@ -699,8 +755,13 @@ function CampPatientContextPanel({ patientId }: { patientId: string }) {
   return (
     <Stack mb="md">
       <PatientContextBanner patientId={patientId} hideLoadingState />
-      <PatientFlowNavigator patientId={patientId} active="camp" compact />
-      <CampPatientActionBar patientId={patientId} />
+      <PatientFlowNavigator
+        patientId={patientId}
+        active="camp"
+        completedEvents={patientCampCompletedEvents}
+        compact
+      />
+      <CampPatientActionBar patientId={patientId} completedEvents={patientCampCompletedEvents} />
       {canViewRegistrations ? (
         <Card withBorder>
           <Stack>
