@@ -119,6 +119,18 @@ export function PatientDetailScreen({ route, navigation }: PatientDetailScreenPr
     enabled: Boolean(patientId),
   });
 
+  const { data: prescriptions } = useQuery({
+    queryKey: ["patient", patientId, "prescriptions"],
+    queryFn: () => patientService.listPatientPrescriptions(patientId),
+    enabled: Boolean(patientId),
+  });
+
+  const { data: invoices } = useQuery({
+    queryKey: ["patient", patientId, "invoices"],
+    queryFn: () => patientService.listPatientInvoices(patientId),
+    enabled: Boolean(patientId),
+  });
+
   if (isLoading) {
     return (
       <SafeAreaView style={[styles.container, styles.centered]}>
@@ -161,11 +173,41 @@ export function PatientDetailScreen({ route, navigation }: PatientDetailScreenPr
     (visit) => visit.encounter_type === "opd" && ACTIVE_VISIT_STATUSES.has(visit.status),
   );
   const activeEncounterId = activeOpdVisit?.id ?? null;
+  const prescriptionList = prescriptions ?? [];
+  const invoiceList = invoices ?? [];
+  const hasMedicationOrder =
+    prescriptionList.length > 0 || visitsList.some((visit) => (visit.prescription_count ?? 0) > 0);
+  const hasBillingInvoice = invoiceList.length > 0;
+  const hasFinalizedInvoice = invoiceList.some(
+    (invoice) =>
+      invoice.status === "issued" ||
+      invoice.status === "partially_paid" ||
+      invoice.status === "paid",
+  );
+  const hasPaymentReceived = invoiceList.some(
+    (invoice) =>
+      invoice.status === "paid" ||
+      invoice.status === "partially_paid" ||
+      Number.parseFloat(invoice.paid_amount || "0") > 0,
+  );
+  const pendingInvoiceCount = invoiceList.filter(
+    (invoice) =>
+      invoice.status === "draft" ||
+      invoice.status === "issued" ||
+      invoice.status === "partially_paid",
+  ).length;
+  const completedEvents = [
+    ...(hasMedicationOrder ? ["order.created"] : []),
+    ...(hasBillingInvoice ? ["billing.invoice.created"] : []),
+    ...(hasFinalizedInvoice ? ["billing.invoice.finalized"] : []),
+    ...(hasPaymentReceived ? ["billing.payment.received"] : []),
+  ];
   const journeyContext: ClinicalJourneyContext = {
     patientId,
     isDeceased: patient.is_deceased,
     activeEncounterId,
     activeOrderContext: activeEncounterId ? "opd" : null,
+    completedEvents,
   };
 
   return (
@@ -220,11 +262,23 @@ export function PatientDetailScreen({ route, navigation }: PatientDetailScreenPr
             <Text variant="titleSmall" style={styles.actionsTitle}>
               Care Actions
             </Text>
-            {activeOpdVisit && (
-              <Chip compact icon="stethoscope" mode="outlined">
-                Active OPD
-              </Chip>
-            )}
+            <View style={styles.actionChips}>
+              {activeOpdVisit && (
+                <Chip compact icon="stethoscope" mode="outlined">
+                  Active OPD
+                </Chip>
+              )}
+              {hasMedicationOrder && (
+                <Chip compact icon="pill" mode="outlined">
+                  Rx handoff
+                </Chip>
+              )}
+              {pendingInvoiceCount > 0 && (
+                <Chip compact icon="receipt" mode="outlined">
+                  {pendingInvoiceCount} bill{pendingInvoiceCount === 1 ? "" : "s"}
+                </Chip>
+              )}
+            </View>
           </View>
           <View style={styles.actionsRow}>
             <Button
@@ -247,6 +301,9 @@ export function PatientDetailScreen({ route, navigation }: PatientDetailScreenPr
               Open an OPD encounter before recording vitals, notes, prescriptions, or lab orders.
             </Text>
           )}
+          <Text variant="bodySmall" style={styles.actionsHint}>
+            Mobile handoffs activate from OPD, prescription, invoice, and payment events.
+          </Text>
           <PatientJourneyActions context={journeyContext} navigation={navigation} />
         </Surface>
 
@@ -404,13 +461,20 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   actionsHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
+    flexDirection: "row",
     gap: 12,
+    justifyContent: "space-between",
   },
   actionsTitle: {
     fontWeight: "600",
+  },
+  actionChips: {
+    flexDirection: "row",
+    flexShrink: 1,
+    flexWrap: "wrap",
+    gap: 6,
+    justifyContent: "flex-end",
   },
   actionsRow: {
     flexDirection: "row",
