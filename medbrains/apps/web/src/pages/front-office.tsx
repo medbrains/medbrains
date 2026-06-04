@@ -4,6 +4,7 @@ import { BarChart } from "@mantine/charts";
 import {
   ActionIcon,
   Badge,
+  Box,
   Button,
   Card,
   Drawer,
@@ -23,11 +24,18 @@ import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import { useHasPermission } from "@medbrains/stores";
 import type {
+  BillingQueueDisplay,
+  BillingQueueToken,
+  ErQueueDisplay,
+  ErTriageToken,
   FrontOfficeEnquiryLog,
+  PharmacyQueueDisplay,
+  PharmacyQueueToken,
   QueueDisplayConfig,
   QueueMetrics,
   QueuePriorityRule,
   QueueStatsResponse,
+  TriageLevelColor,
   VisitingHours,
   VisitorAnalytics,
   VisitorLog,
@@ -43,6 +51,7 @@ import {
   IconChartBar,
   IconCheck,
   IconClock,
+  IconDeviceTv,
   IconDoorEnter,
   IconGauge,
   IconMapPin,
@@ -161,6 +170,9 @@ export function FrontOfficePage() {
           <Tabs.Tab value="queue" leftSection={<IconUsers size={16} />}>
             Queue Dashboard
           </Tabs.Tab>
+          <Tabs.Tab value="token-boards" leftSection={<IconDeviceTv size={16} />}>
+            Token Boards
+          </Tabs.Tab>
           <Tabs.Tab value="visitors" leftSection={<IconDoorEnter size={16} />}>
             Visitor Management
           </Tabs.Tab>
@@ -199,6 +211,9 @@ export function FrontOfficePage() {
         </Tabs.Panel>
         <Tabs.Panel value="queue" pt="md">
           <QueueDashboardTab />
+        </Tabs.Panel>
+        <Tabs.Panel value="token-boards" pt="md">
+          <TokenBoardsTab />
         </Tabs.Panel>
         <Tabs.Panel value="visitors" pt="md">
           <VisitorManagementTab canCreate={canCreateVisitors} canManagePasses={canManagePasses} />
@@ -471,7 +486,413 @@ function QueueDashboardTab() {
 }
 
 // ══════════════════════════════════════════════════════════
-//  Tab 2 — Visitor Management
+//  Tab 3 — Token Boards
+// ══════════════════════════════════════════════════════════
+
+const TOKEN_BOARD_REFRESH_MS = 10_000;
+const ER_TOKEN_BOARD_REFRESH_MS = 5_000;
+const TOKEN_BOARD_LIMIT = 8;
+
+const TRIAGE_LANES: ReadonlyArray<{
+  color: string;
+  key: TriageLevelColor;
+  label: string;
+}> = [
+  { color: "red", key: "red", label: "Red" },
+  { color: "orange", key: "orange", label: "Orange" },
+  { color: "yellow", key: "yellow", label: "Yellow" },
+  { color: "green", key: "green", label: "Green" },
+  { color: "blue", key: "blue", label: "Blue" },
+];
+
+function TokenBoardsTab() {
+  const pharmacyQuery = useQuery<PharmacyQueueDisplay>({
+    queryKey: ["front-office", "token-board", "pharmacy"],
+    queryFn: () => frontOfficeService.getPharmacyQueueDisplay(),
+    refetchInterval: TOKEN_BOARD_REFRESH_MS,
+  });
+  const billingQuery = useQuery<BillingQueueDisplay>({
+    queryKey: ["front-office", "token-board", "billing"],
+    queryFn: () => frontOfficeService.getBillingQueueDisplay(),
+    refetchInterval: TOKEN_BOARD_REFRESH_MS,
+  });
+  const erQuery = useQuery<ErQueueDisplay>({
+    queryKey: ["front-office", "token-board", "er"],
+    queryFn: () => frontOfficeService.getErQueueDisplay(),
+    refetchInterval: ER_TOKEN_BOARD_REFRESH_MS,
+  });
+
+  const pharmacy = pharmacyQuery.data;
+  const billing = billingQuery.data;
+  const er = erQuery.data;
+  const currentPharmacy = pharmacy?.current_token ? [pharmacy.current_token] : [];
+  const billingNowServing =
+    billing?.ipd_discharge[0] ??
+    billing?.insurance_desk[0] ??
+    billing?.opd_billing[0] ??
+    billing?.advance_deposit[0] ??
+    null;
+  const overdueErTokens = TRIAGE_LANES.reduce(
+    (count, lane) => count + (er?.[lane.key] ?? []).filter((token) => token.is_overdue).length,
+    0,
+  );
+
+  return (
+    <Stack gap="md">
+      <Group justify="space-between" align="flex-start">
+        <Stack gap={2}>
+          <Text fw={700}>Live token boards</Text>
+          <Text size="sm" c="dimmed">
+            Workstation view of public queue feeds. Token-only display keeps waiting-area privacy
+            intact while linking reception, ER, pharmacy and billing operations.
+          </Text>
+        </Stack>
+        <Badge variant="light" color="teal">
+          Auto-refresh
+        </Badge>
+      </Group>
+
+      <SimpleGrid cols={{ base: 1, xl: 3 }} spacing="md">
+        <TokenBoardCard
+          title="Emergency triage"
+          subtitle="Color-coded triage targets"
+          isLoading={erQuery.isLoading}
+          isError={erQuery.isError}
+          lastUpdatedAt={erQuery.dataUpdatedAt}
+          summary={[
+            { label: "Waiting", value: er?.total_waiting ?? "—" },
+            { label: "Overdue", value: overdueErTokens },
+            { label: "Bays", value: er?.resuscitation_bays_available ?? "—" },
+          ]}
+        >
+          <Stack gap="xs">
+            {TRIAGE_LANES.map((lane) => (
+              <ErTriageLane
+                key={lane.key}
+                color={lane.color}
+                label={lane.label}
+                tokens={(er?.[lane.key] ?? []).slice(0, TOKEN_BOARD_LIMIT)}
+              />
+            ))}
+          </Stack>
+        </TokenBoardCard>
+
+        <TokenBoardCard
+          title="Pharmacy pickup"
+          subtitle="Prescription preparation and handover"
+          isLoading={pharmacyQuery.isLoading}
+          isError={pharmacyQuery.isError}
+          lastUpdatedAt={pharmacyQuery.dataUpdatedAt}
+          summary={[
+            { label: "Now", value: pharmacy?.current_token?.token_number ?? "—" },
+            { label: "Ready", value: pharmacy?.stats.ready_count ?? "—" },
+            { label: "Waiting", value: pharmacy?.stats.waiting_count ?? "—" },
+          ]}
+        >
+          <Stack gap="sm">
+            <TokenLane
+              title="Now serving"
+              emptyLabel="No current token"
+              tokens={currentPharmacy.map(pharmacyDisplayToken)}
+              highlight
+            />
+            <TokenLane
+              title="Ready pickup"
+              emptyLabel="No ready tokens"
+              tokens={(pharmacy?.ready_for_pickup ?? [])
+                .slice(0, TOKEN_BOARD_LIMIT)
+                .map(pharmacyDisplayToken)}
+            />
+            <TokenLane
+              title="Preparing"
+              emptyLabel="No preparing tokens"
+              tokens={(pharmacy?.preparing ?? [])
+                .slice(0, TOKEN_BOARD_LIMIT)
+                .map(pharmacyDisplayToken)}
+            />
+          </Stack>
+        </TokenBoardCard>
+
+        <TokenBoardCard
+          title="Billing counters"
+          subtitle="OPD, IPD discharge, advance and insurance desks"
+          isLoading={billingQuery.isLoading}
+          isError={billingQuery.isError}
+          lastUpdatedAt={billingQuery.dataUpdatedAt}
+          summary={[
+            { label: "Now", value: billingNowServing?.token_number ?? "—" },
+            { label: "IPD", value: billing?.ipd_discharge.length ?? "—" },
+            { label: "Insurance", value: billing?.insurance_desk.length ?? "—" },
+          ]}
+        >
+          <Stack gap="sm">
+            <TokenLane
+              title="IPD discharge"
+              emptyLabel="No IPD discharge bills"
+              tokens={(billing?.ipd_discharge ?? [])
+                .slice(0, TOKEN_BOARD_LIMIT)
+                .map(billingDisplayToken)}
+            />
+            <TokenLane
+              title="OPD billing"
+              emptyLabel="No OPD bills waiting"
+              tokens={(billing?.opd_billing ?? [])
+                .slice(0, TOKEN_BOARD_LIMIT)
+                .map(billingDisplayToken)}
+            />
+            <TokenLane
+              title="Insurance desk"
+              emptyLabel="No insurance tokens"
+              tokens={(billing?.insurance_desk ?? [])
+                .slice(0, TOKEN_BOARD_LIMIT)
+                .map(billingDisplayToken)}
+            />
+          </Stack>
+        </TokenBoardCard>
+      </SimpleGrid>
+    </Stack>
+  );
+}
+
+function TokenBoardCard({
+  children,
+  isError,
+  isLoading,
+  lastUpdatedAt,
+  subtitle,
+  summary,
+  title,
+}: {
+  children: ReactNode;
+  isError: boolean;
+  isLoading: boolean;
+  lastUpdatedAt: number;
+  subtitle: string;
+  summary: Array<{ label: string; value: number | string }>;
+  title: string;
+}) {
+  return (
+    <Card withBorder padding="md">
+      <Stack gap="md">
+        <Group justify="space-between" align="flex-start">
+          <Stack gap={0}>
+            <Text fw={700}>{title}</Text>
+            <Text size="xs" c="dimmed">
+              {subtitle}
+            </Text>
+          </Stack>
+          <Badge color={isError ? "danger" : "teal"} variant="light">
+            {isError ? "Feed error" : `Sync ${lastUpdatedLabel(lastUpdatedAt)}`}
+          </Badge>
+        </Group>
+        <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="xs">
+          {summary.map((item) => (
+            <Box
+              key={item.label}
+              p="xs"
+              style={{
+                border: "1px solid var(--mantine-color-gray-3)",
+                borderRadius: 8,
+              }}
+            >
+              <Text size="xs" c="dimmed" tt="uppercase">
+                {item.label}
+              </Text>
+              <Text fw={800} size="xl">
+                {item.value}
+              </Text>
+            </Box>
+          ))}
+        </SimpleGrid>
+        {isLoading ? (
+          <Text size="sm" c="dimmed">
+            Loading token feed...
+          </Text>
+        ) : isError ? (
+          <Text size="sm" c="danger">
+            Feed unavailable. Check queue-display permissions and network state.
+          </Text>
+        ) : (
+          children
+        )}
+      </Stack>
+    </Card>
+  );
+}
+
+interface DisplayToken {
+  meta: string;
+  status: string;
+  tokenNumber: string;
+}
+
+function TokenLane({
+  emptyLabel,
+  highlight = false,
+  title,
+  tokens,
+}: {
+  emptyLabel: string;
+  highlight?: boolean;
+  title: string;
+  tokens: DisplayToken[];
+}) {
+  return (
+    <Stack gap="xs">
+      <Group justify="space-between">
+        <Text size="xs" fw={700} c="dimmed" tt="uppercase">
+          {title}
+        </Text>
+        <Badge size="xs" variant="light">
+          {tokens.length}
+        </Badge>
+      </Group>
+      {tokens.length === 0 ? (
+        <Box
+          p="sm"
+          style={{
+            border: "1px solid var(--mantine-color-gray-3)",
+            borderRadius: 8,
+          }}
+        >
+          <Text size="sm" c="dimmed">
+            {emptyLabel}
+          </Text>
+        </Box>
+      ) : (
+        <Stack gap="xs">
+          {tokens.map((token) => (
+            <Box
+              key={`${title}-${token.tokenNumber}`}
+              p="sm"
+              style={{
+                border: "1px solid var(--mantine-color-gray-3)",
+                borderRadius: 8,
+              }}
+            >
+              <Group justify="space-between" align="center">
+                <Stack gap={0}>
+                  <Text fw={800} size={highlight ? "xl" : "lg"}>
+                    {token.tokenNumber}
+                  </Text>
+                  <Text size="xs" c="dimmed">
+                    {token.meta}
+                  </Text>
+                </Stack>
+                <Badge color={tokenStatusColor(token.status)} variant="light">
+                  {statusLabel(token.status)}
+                </Badge>
+              </Group>
+            </Box>
+          ))}
+        </Stack>
+      )}
+    </Stack>
+  );
+}
+
+function ErTriageLane({
+  color,
+  label,
+  tokens,
+}: {
+  color: string;
+  label: string;
+  tokens: ErTriageToken[];
+}) {
+  return (
+    <Box
+      p="sm"
+      style={{
+        border: "1px solid var(--mantine-color-gray-3)",
+        borderRadius: 8,
+      }}
+    >
+      <Group justify="space-between" align="flex-start">
+        <Stack gap={0}>
+          <Text size="xs" fw={700} c={color} tt="uppercase">
+            {label}
+          </Text>
+          <Text size="xs" c="dimmed">
+            {tokens.length === 0
+              ? "No waiting tokens"
+              : `${tokens.length} waiting · ${tokens.filter((token) => token.is_overdue).length} overdue`}
+          </Text>
+        </Stack>
+        <Group gap={4} justify="flex-end">
+          {tokens.length === 0 ? (
+            <Badge variant="light">Clear</Badge>
+          ) : (
+            tokens.map((token) => (
+              <Badge
+                key={`${token.triage_level}-${token.token_number}`}
+                color={token.is_overdue ? "danger" : color}
+                variant={token.is_overdue ? "filled" : "light"}
+              >
+                {token.token_number}
+              </Badge>
+            ))
+          )}
+        </Group>
+      </Group>
+    </Box>
+  );
+}
+
+function pharmacyDisplayToken(token: PharmacyQueueToken): DisplayToken {
+  return {
+    meta: [
+      `${token.prescription_count} item${token.prescription_count === 1 ? "" : "s"}`,
+      token.counter !== null ? `Counter ${token.counter}` : null,
+      token.estimated_wait_minutes !== null ? `${token.estimated_wait_minutes} min wait` : null,
+    ]
+      .filter((part): part is string => Boolean(part))
+      .join(" · "),
+    status: token.status,
+    tokenNumber: token.token_number,
+  };
+}
+
+function billingDisplayToken(token: BillingQueueToken): DisplayToken {
+  return {
+    meta: [token.queue_type, token.counter !== null ? `Counter ${token.counter}` : null]
+      .filter((part): part is string => Boolean(part))
+      .join(" · "),
+    status: token.status,
+    tokenNumber: token.token_number,
+  };
+}
+
+function tokenStatusColor(status: string) {
+  switch (status) {
+    case "ready":
+    case "dispensed":
+    case "paid":
+    case "settled":
+      return "teal";
+    case "preparing":
+    case "issued":
+    case "active":
+      return "orange";
+    case "partially_paid":
+    case "on_hold":
+      return "yellow";
+    default:
+      return "slate";
+  }
+}
+
+function statusLabel(status: string) {
+  return status.replace(/_/g, " ");
+}
+
+function lastUpdatedLabel(value: number) {
+  if (value === 0) return "pending";
+  return new Date(value).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+// ══════════════════════════════════════════════════════════
+//  Tab 4 — Visitor Management
 // ══════════════════════════════════════════════════════════
 
 function VisitorManagementTab({
