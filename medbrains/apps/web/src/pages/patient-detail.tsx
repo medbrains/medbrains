@@ -2933,6 +2933,11 @@ function PatientDetailPageInner() {
     enabled: patientId.length > 0,
   });
   const activeAdmission = activeAdmissions?.admissions[0];
+  const activeEmergencyVisit = visits.find(
+    (visit) =>
+      visit.encounter_type === "emergency" &&
+      (visit.status === "open" || visit.status === "in_progress"),
+  );
   const { data: prescriptions = [] } = useQuery<PrescriptionHistoryItem[]>({
     queryKey: ["patient-prescriptions", patientId],
     queryFn: () => patientDetailService.listPatientPrescriptions(patientId),
@@ -2969,6 +2974,7 @@ function PatientDetailPageInner() {
   const hasClinicalOrder =
     prescriptions.length > 0 ||
     visits.some((visit) => (visit.prescription_count ?? 0) > 0 || (visit.lab_order_count ?? 0) > 0);
+  const hasEmergencyVisit = visits.some((visit) => visit.encounter_type === "emergency");
   const hasBillingInvoice = invoices.length > 0;
   const hasFinalizedInvoice = invoices.some(
     (invoice) =>
@@ -2986,6 +2992,7 @@ function PatientDetailPageInner() {
     (invoice) => Number.parseFloat(invoice.balance) > 0,
   ).length;
   const completedEvents = [
+    ...(hasEmergencyVisit ? ["emergency.visit.created"] : []),
     ...(hasClinicalOrder ? ["order.created"] : []),
     ...(hasBillingInvoice ? ["billing.invoice.created"] : []),
     ...(hasFinalizedInvoice ? ["billing.invoice.finalized"] : []),
@@ -2996,6 +3003,7 @@ function PatientDetailPageInner() {
     isDeceased: patient.is_deceased,
     activeEncounterId: activeEncounter?.id ?? null,
     activeAdmissionId: activeAdmission?.id ?? null,
+    activeEmergencyVisitId: activeEmergencyVisit?.id ?? null,
     activeAdmissionStatus: activeAdmission?.status ?? null,
     activeOrderContext: activeEncounter ? "opd" : activeAdmission ? "ipd" : null,
     completedEvents,
@@ -3107,6 +3115,8 @@ function PatientDetailPageInner() {
             active="patient"
             activeEncounterId={activeEncounter?.id ?? null}
             activeAdmissionId={activeAdmission?.id ?? null}
+            activeEmergencyVisitId={activeEmergencyVisit?.id ?? null}
+            completedEvents={completedEvents}
             compact
           />
           <Group justify="space-between" align="flex-start" gap="sm">
@@ -3132,6 +3142,11 @@ function PatientDetailPageInner() {
                 {patient.is_medico_legal && (
                   <Badge color="danger" variant="filled">
                     MLC
+                  </Badge>
+                )}
+                {hasEmergencyVisit && (
+                  <Badge color="red" variant="light">
+                    ER linked
                   </Badge>
                 )}
                 {hasClinicalOrder && (

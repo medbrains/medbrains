@@ -40,6 +40,7 @@ interface PatientFlowNavigatorProps {
   activeAdmissionStatus?: string | null;
   activeEmergencyVisitId?: string | null;
   activeOrderContext?: ClinicalOrderContext | null;
+  completedEvents?: readonly string[];
   isDeceased?: boolean;
   compact?: boolean;
 }
@@ -139,6 +140,7 @@ export function PatientFlowNavigator({
   activeAdmissionStatus,
   activeEmergencyVisitId,
   activeOrderContext,
+  completedEvents,
   isDeceased = false,
   compact = false,
 }: PatientFlowNavigatorProps) {
@@ -157,6 +159,7 @@ export function PatientFlowNavigator({
     activeAdmissionStatus: activeAdmissionStatus ?? (activeAdmissionId ? "admitted" : null),
     activeOrderContext:
       activeOrderContext ?? (activeEncounterId ? "opd" : activeAdmissionId ? "ipd" : null),
+    completedEvents,
   };
   const context: ClinicalJourneyContext = {
     ...baseContext,
