@@ -45,6 +45,61 @@ describe("clinical event normalization", () => {
     expect(event.missingPayloadKeys).toEqual(["payment_id"]);
   });
 
+  it("tracks patient profile action events without missing payload keys", () => {
+    const updated = buildClinicalEventTrace({
+      contextCode: "patient-edit",
+      moduleCode: "patients",
+      occurredAt: "2026-05-29T10:01:00.000Z",
+      rawTrigger: "patient.updated",
+      payload: {
+        patient_id: "patient-1",
+        source_record_id: "patient-1",
+      },
+    });
+
+    const shared = buildClinicalEventTrace({
+      contextCode: "patient-detail",
+      moduleCode: "patients",
+      occurredAt: "2026-05-29T10:02:00.000Z",
+      rawTrigger: "patient.access_shared",
+      payload: {
+        expires_at: "2026-05-30T10:02:00.000Z",
+        grant_id: "grant-1",
+        patient_id: "patient-1",
+        relation: "viewer",
+        source_record_id: "patient-1",
+        subject_type: "user",
+      },
+    });
+
+    const cardPrinted = buildClinicalEventTrace({
+      contextCode: "patient-detail",
+      moduleCode: "patients",
+      occurredAt: "2026-05-29T10:03:00.000Z",
+      rawTrigger: "patient.card_printed",
+      payload: {
+        copies: 2,
+        patient_id: "patient-1",
+        source_record_id: "patient-1",
+      },
+    });
+
+    expect(updated.eventName).toBe("patient.updated");
+    expect(updated.patientId).toBe("patient-1");
+    expect(updated.sourceRecordId).toBe("patient-1");
+    expect(updated.missingPayloadKeys).toEqual([]);
+
+    expect(shared.eventName).toBe("patient.access_shared");
+    expect(shared.patientId).toBe("patient-1");
+    expect(shared.sourceRecordId).toBe("patient-1");
+    expect(shared.missingPayloadKeys).toEqual([]);
+
+    expect(cardPrinted.eventName).toBe("patient.card_printed");
+    expect(cardPrinted.patientId).toBe("patient-1");
+    expect(cardPrinted.sourceRecordId).toBe("patient-1");
+    expect(cardPrinted.missingPayloadKeys).toEqual([]);
+  });
+
   it("tracks billing invoice finalization and payment receipt events without missing payload keys", () => {
     const finalized = buildClinicalEventTrace({
       contextCode: "billing-invoice-detail",

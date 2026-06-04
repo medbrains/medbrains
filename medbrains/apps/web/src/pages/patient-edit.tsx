@@ -4,17 +4,26 @@ import type { CreatePatientRequest, UpdatePatientRequest } from "@medbrains/type
 import { P } from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router";
-import { PageHeader } from "@/components";
+import { ClinicalEventProvider, PageHeader, useClinicalEmit } from "@/components";
 import { PatientRegisterForm } from "@/components/Patient/PatientRegisterForm";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { patientsService } from "@/services/patients.service";
 
 export function PatientEditPage() {
+  return (
+    <ClinicalEventProvider moduleCode="patients" contextCode="patient-edit">
+      <PatientEditPageInner />
+    </ClinicalEventProvider>
+  );
+}
+
+function PatientEditPageInner() {
   useRequirePermission(P.PATIENTS.UPDATE);
   const { id } = useParams<{ id: string }>();
   const patientId = id ?? "";
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const emit = useClinicalEmit();
 
   const { data: patient, isLoading } = useQuery({
     queryKey: ["patient", patientId],
@@ -24,7 +33,11 @@ export function PatientEditPage() {
 
   const updateMutation = useMutation({
     mutationFn: (data: UpdatePatientRequest) => patientsService.updatePatient(patientId, data),
-    onSuccess: () => {
+    onSuccess: (row) => {
+      emit("patient.updated", {
+        source_record_id: row.id,
+        patient_id: row.id,
+      });
       notifications.show({
         title: "Patient updated",
         message: "Changes saved",

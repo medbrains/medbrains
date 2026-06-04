@@ -84,6 +84,7 @@ import { type ReactNode, useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { useNavigate, useParams } from "react-router";
 import { PrescriptionViews } from "@/components/Clinical";
+import { ClinicalEventProvider, useClinicalEmit } from "@/components/ClinicalEventProvider";
 import { NotesPanel } from "@/components/crdt/NotesPanel";
 import { DrugSearchSelect } from "@/components/DrugSearchSelect";
 import {
@@ -2160,7 +2161,7 @@ function writeRegistrationCardPrintPacket(win: Window, data: RegistrationCardPri
   win.document.close();
 }
 
-async function handlePrintPatientCard(patientId: string) {
+async function handlePrintPatientCard(patientId: string): Promise<boolean> {
   const win = window.open("", "_blank", "width=520,height=720");
   if (!win) {
     notifications.show({
@@ -2168,7 +2169,7 @@ async function handlePrintPatientCard(patientId: string) {
       message: "Allow pop-ups to print the patient card packet.",
       color: "warning",
     });
-    return;
+    return false;
   }
 
   win.document.write(`
@@ -2181,6 +2182,7 @@ async function handlePrintPatientCard(patientId: string) {
   try {
     const data = await patientDetailService.getRegistrationCardPrintData(patientId);
     writeRegistrationCardPrintPacket(win, data);
+    return true;
   } catch (error) {
     win.close();
     notifications.show({
@@ -2188,6 +2190,7 @@ async function handlePrintPatientCard(patientId: string) {
       message: error instanceof Error ? error.message : "Unable to load patient card print data.",
       color: "danger",
     });
+    return false;
   }
 }
 
@@ -2878,10 +2881,19 @@ function printTreatmentSummary(summary: TreatmentSummaryResponse) {
 }
 
 export function PatientDetailPage() {
+  return (
+    <ClinicalEventProvider moduleCode="patients" contextCode="patient-detail">
+      <PatientDetailPageInner />
+    </ClinicalEventProvider>
+  );
+}
+
+function PatientDetailPageInner() {
   useRequirePermission(P.PATIENTS.VIEW);
   const { id } = useParams<{ id: string }>();
   const patientId = id ?? "";
   const navigate = useNavigate();
+  const emit = useClinicalEmit();
   const canListPatients = useHasPermission(P.PATIENTS.LIST);
   const canViewBillingLedger = useHasPermission(P.BILLING.INVOICES_LIST);
   const uhidAccess = useFieldAccess("patients.uhid");
@@ -2951,6 +2963,35 @@ export function PatientDetailPage() {
     activeAdmissionId: activeAdmission?.id ?? null,
     activeAdmissionStatus: activeAdmission?.status ?? null,
     activeOrderContext: activeEncounter ? "opd" : activeAdmission ? "ipd" : null,
+  };
+  const emitPatientShareCreated = (grant: {
+    expiresAt: string | null;
+    grantId: string;
+    relation: string;
+    subjectId: string;
+    subjectType: string;
+  }) => {
+    emit("patient.access_shared", {
+      source_record_id: patient.id,
+      patient_id: patient.id,
+      grant_id: grant.grantId,
+      relation: grant.relation,
+      subject_type: grant.subjectType,
+      subject_id: grant.subjectId,
+      expires_at: grant.expiresAt,
+    });
+  };
+  const printPatientCard = async () => {
+    const printed = await handlePrintPatientCard(patient.id);
+    if (!printed) {
+      return;
+    }
+
+    emit("patient.card_printed", {
+      source_record_id: patient.id,
+      patient_id: patient.id,
+      copies: PATIENT_CARD_PRINT_COPIES.length,
+    });
   };
   const detailTabs = [
     { value: "overview", label: "Overview", section: "Profile", icon: <IconUser size={14} /> },
@@ -3068,7 +3109,7 @@ export function PatientDetailPage() {
               onOpenOrderBasket={openOrderBasket}
               onShare={openShare}
               onPrintPatientCard={() => {
-                void handlePrintPatientCard(patient.id);
+                void printPatientCard();
               }}
               size="xs"
             />
@@ -3082,6 +3123,7 @@ export function PatientDetailPage() {
         objectType="patient"
         objectId={patient.id}
         objectLabel={`${displayName} (${displayUhid})`}
+        onGrantCreated={emitPatientShareCreated}
       />
 
       <Tabs value={activeDetailTab} onChange={setActivePatientTab} keepMounted={false}>
@@ -3211,7 +3253,7 @@ export function PatientDetailPage() {
                     onOpenOrderBasket={openOrderBasket}
                     onShare={openShare}
                     onPrintPatientCard={() => {
-                      void handlePrintPatientCard(patient.id);
+                      void printPatientCard();
                     }}
                     size="xs"
                   />

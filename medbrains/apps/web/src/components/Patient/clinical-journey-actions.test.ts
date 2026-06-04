@@ -1,11 +1,26 @@
 // @vitest-environment node
 
-import { inferClinicalJourneyEventNames, resolveClinicalJourneyActions } from "@medbrains/types";
+import {
+  CLINICAL_EVENT_REQUIRED_PAYLOAD_KEYS,
+  CORE_PATIENT_JOURNEY_ACTIONS,
+  inferClinicalJourneyEventNames,
+  resolveClinicalJourneyActions,
+} from "@medbrains/types";
 import { describe, expect, it } from "vitest";
 
 const allowAll = () => true;
 
 describe("clinical journey event activation", () => {
+  it("declares only canonical emitted clinical events", () => {
+    const canonicalEvents = new Set(Object.keys(CLINICAL_EVENT_REQUIRED_PAYLOAD_KEYS));
+
+    expect(
+      CORE_PATIENT_JOURNEY_ACTIONS.filter(
+        (action) => action.emitsEvent && !canonicalEvents.has(action.emitsEvent),
+      ),
+    ).toEqual([]);
+  });
+
   it("infers completed events from active patient, OPD, IPD, and ER context", () => {
     expect(
       inferClinicalJourneyEventNames({

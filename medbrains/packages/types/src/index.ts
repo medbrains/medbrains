@@ -11195,7 +11195,10 @@ export interface EventSchema {
 
 export type ClinicalEventName =
   | "patient.created"
+  | "patient.updated"
   | "patient.merged"
+  | "patient.access_shared"
+  | "patient.card_printed"
   | "visit.created"
   | "emergency.visit.created"
   | "mlc.created"
@@ -11257,7 +11260,10 @@ export interface ClinicalEventEnvelope {
 
 export const CLINICAL_EVENT_REQUIRED_PAYLOAD_KEYS: Record<ClinicalEventName, readonly string[]> = {
   "patient.created": ["patient_id"],
+  "patient.updated": ["patient_id"],
   "patient.merged": ["surviving_patient_id", "merged_patient_id"],
+  "patient.access_shared": ["patient_id"],
+  "patient.card_printed": ["patient_id"],
   "visit.created": ["visit_id", "patient_id"],
   "emergency.visit.created": ["visit_id", "patient_id"],
   "mlc.created": ["mlc_case_id", "patient_id"],

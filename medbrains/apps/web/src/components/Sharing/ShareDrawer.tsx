@@ -62,6 +62,13 @@ interface Props {
   objectType: string;
   objectId: string;
   objectLabel?: string;
+  onGrantCreated?: (grant: {
+    expiresAt: string | null;
+    grantId: string;
+    relation: string;
+    subjectId: string;
+    subjectType: string;
+  }) => void;
 }
 
 const DEFAULT_SHARE_GRANT_VALUES: ShareGrantFormInput = {
@@ -98,7 +105,14 @@ function subjectsForType(subjects: SharingSubjects, subjectType: SharingSubjectT
   }
 }
 
-export function ShareDrawer({ opened, onClose, objectType, objectId, objectLabel }: Props) {
+export function ShareDrawer({
+  opened,
+  onClose,
+  objectType,
+  objectId,
+  objectLabel,
+  onGrantCreated,
+}: Props) {
   const qc = useQueryClient();
   const {
     control,
@@ -145,7 +159,14 @@ export function ShareDrawer({ opened, onClose, objectType, objectId, objectLabel
         expires_at: formValues.expires_at ? formValues.expires_at.toISOString() : undefined,
         reason: formValues.reason.trim() || undefined,
       }),
-    onSuccess: () => {
+    onSuccess: (result, formValues) => {
+      onGrantCreated?.({
+        expiresAt: formValues.expires_at ? formValues.expires_at.toISOString() : null,
+        grantId: result.tuple_id,
+        relation: formValues.relation,
+        subjectId: formValues.subject_id.trim(),
+        subjectType: formValues.subject_type,
+      });
       notifications.show({ message: "Grant created", color: "green" });
       qc.invalidateQueries({
         queryKey: ["sharing", "grants", objectType, objectId],
