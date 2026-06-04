@@ -52,6 +52,18 @@
     light-dark(var(--mantine-color-white), var(--mantine-color-dark-7));
 }
 
+.handoffActions {
+  :global(.mantine-Group-root) {
+    align-items: stretch;
+  }
+
+  :global(.mantine-Button-root) {
+    flex: 1 1 112px;
+    justify-content: flex-start;
+    min-width: 0;
+  }
+}
+
 .workspaceMain {
   min-width: 0;
 }

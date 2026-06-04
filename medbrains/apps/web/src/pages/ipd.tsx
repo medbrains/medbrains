@@ -55,6 +55,7 @@ import type {
   BedTurnaroundLog,
   BillingSummaryResponse,
   CensusWardRow,
+  ClinicalJourneyActionId,
   ClinicalJourneyContext,
   CreateAdmissionResponse,
   CreateBirthRecordRequest,
@@ -243,6 +244,20 @@ const IPD_WORKSPACE_TABS = [
 
 const IPD_WORKSPACE_TAB_VALUES = IPD_WORKSPACE_TABS.map((tab) => tab.value);
 const IPD_WORKSPACE_SECTIONS = ["Command", "Care Context", "Finance & Admin", "Discharge"] as const;
+
+const IPD_ACTION_RAIL_LOCAL_ACTION_IDS = [
+  "patient.edit",
+  "patient.share",
+  "patient.print_card",
+  "opd.open_visit",
+  "orders.medication",
+  "orders.lab",
+  "orders.radiology",
+  "ipd.open_admission",
+  "ipd.admit",
+  "emergency.open_visit",
+  "mrd.open_case_sheet",
+] satisfies ClinicalJourneyActionId[];
 
 const DISCHARGE_TYPE_OPTIONS = [
   { value: "normal", label: "Normal" },
@@ -1182,6 +1197,22 @@ function AdmissionDetail({
                   <Text size="xs" c="dimmed">
                     Orders, transfers, print, and discharge-risk actions.
                   </Text>
+                </Stack>
+                <Stack gap="xs">
+                  <Text size="xs" fw={700} c="dimmed" tt="uppercase">
+                    Patient handoffs
+                  </Text>
+                  <Text size="xs" c="dimmed">
+                    Event-gated routes for billing, pharmacy, camp, and medico-legal workflows.
+                  </Text>
+                  <Box className={classes.handoffActions}>
+                    <PatientJourneyActions
+                      context={journeyContext}
+                      localOrderContext="ipd"
+                      hiddenActionIds={IPD_ACTION_RAIL_LOCAL_ACTION_IDS}
+                      size="xs"
+                    />
+                  </Box>
                 </Stack>
                 <Stack gap="xs">
                   <Text size="xs" fw={700} c="dimmed" tt="uppercase">
