@@ -178,4 +178,28 @@ describe("access matrix route coverage", () => {
 
     expect(gaps).toEqual([]);
   });
+
+  it("separates IPD admission workspace activation from bed assignment activation", () => {
+    const admissionSurfaceIds = [
+      "ipd.admissions.screen",
+      "ipd.detail.screen",
+      "ipd.detail.command_tabs",
+      "ipd.detail.attender_inputs",
+      "ipd.detail.action_bar",
+      "ipd.detail.admission_printables",
+      "ipd.detail.mrd_case_sheet_action",
+    ];
+    const surfaces = ACCESS_MATRIX_SURFACES.filter((surface) =>
+      admissionSurfaceIds.includes(surface.id),
+    );
+
+    expect(surfaces).toHaveLength(admissionSurfaceIds.length);
+    expect(surfaces.map((surface) => surface.activatesAfter)).toEqual(
+      admissionSurfaceIds.map((id) =>
+        id === "ipd.detail.mrd_case_sheet_action"
+          ? ["ipd.admission.created", "mrd.case_sheet.generated"]
+          : ["ipd.admission.created"],
+      ),
+    );
+  });
 });
