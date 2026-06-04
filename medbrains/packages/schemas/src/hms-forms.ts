@@ -154,6 +154,7 @@ export type ClinicalProtocolFormInput = z.infer<typeof clinicalProtocolFormSchem
 export const tvDisplayTypeValues = [
   "opd_queue",
   "pharmacy_queue",
+  "billing_queue",
   "lab_queue",
   "radiology_queue",
   "bed_status",

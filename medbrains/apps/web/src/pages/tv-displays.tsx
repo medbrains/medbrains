@@ -47,6 +47,7 @@ import {
   IconBell,
   IconCheck,
   IconDeviceTv,
+  IconExternalLink,
   IconPencil,
   IconPlayerPlay,
   IconPlus,
@@ -80,6 +81,7 @@ import styles from "./tv-displays.module.scss";
 const DISPLAY_TYPES = [
   { value: "opd_queue", label: "OPD Queue Display" },
   { value: "pharmacy_queue", label: "Pharmacy Queue" },
+  { value: "billing_queue", label: "Billing Queue" },
   { value: "lab_queue", label: "Lab Queue" },
   { value: "radiology_queue", label: "Radiology Queue" },
   { value: "bed_status", label: "Bed Status Board" },
@@ -135,6 +137,7 @@ const statusColors: Record<string, string> = {
 const displayTypeLabels: Record<string, string> = {
   opd_queue: "OPD Queue",
   pharmacy_queue: "Pharmacy",
+  billing_queue: "Billing",
   lab_queue: "Lab",
   radiology_queue: "Radiology",
   bed_status: "Bed Status",
@@ -144,6 +147,46 @@ const displayTypeLabels: Record<string, string> = {
 };
 
 const QUEUE_REFRESH_MS = 5_000;
+
+interface DisplayLaunchDefinition {
+  appCode: string;
+  label: string;
+  path: string;
+  supportsDepartment?: boolean;
+}
+
+interface DisplayLaunchTarget {
+  appCode: string;
+  href: string;
+  label: string;
+}
+
+const DISPLAY_LAUNCH_TARGETS: Record<string, DisplayLaunchDefinition> = {
+  bed_status: { appCode: "TV-Ward", label: "Bed status board", path: "bed-status" },
+  billing_queue: { appCode: "TV-Billing", label: "Billing queue board", path: "billing-queue" },
+  digital_signage: {
+    appCode: "TV-Notice",
+    label: "Digital signage",
+    path: "digital-signage",
+  },
+  emergency_triage: {
+    appCode: "TV-Emergency",
+    label: "Emergency triage board",
+    path: "emergency-triage",
+  },
+  lab_queue: { appCode: "TV-Lab", label: "Lab status board", path: "lab-status" },
+  opd_queue: {
+    appCode: "TV-Queue",
+    label: "OPD queue board",
+    path: "queue",
+    supportsDepartment: true,
+  },
+  pharmacy_queue: {
+    appCode: "TV-Pharmacy",
+    label: "Pharmacy queue board",
+    path: "pharmacy-queue",
+  },
+};
 
 interface DepartmentQueueLane {
   departmentId: string;
@@ -181,6 +224,25 @@ function departmentName(departments: DepartmentRow[], departmentId: string) {
   return departments.find((department) => department.id === departmentId)?.name ?? departmentId;
 }
 
+function displayLaunchTarget(
+  displayType: string,
+  departmentId?: string | null,
+): DisplayLaunchTarget | null {
+  const target = DISPLAY_LAUNCH_TARGETS[displayType];
+  if (!target) return null;
+
+  const departmentQuery =
+    target.supportsDepartment && departmentId
+      ? `?department=${encodeURIComponent(departmentId)}`
+      : "";
+
+  return {
+    appCode: target.appCode,
+    href: `medbrains://tv/${target.path}${departmentQuery}`,
+    label: target.label,
+  };
+}
+
 // ══════════════════════════════════════════════════════════
 //  Main Page
 // ══════════════════════════════════════════════════════════
@@ -216,6 +278,27 @@ export function TvDisplaysPage() {
     (token) => token.status === "called" || token.status === "in_progress",
   );
   const waitingTokenCount = tokens.filter((token) => token.status === "waiting").length;
+  const displayLaunchRows = useMemo(() => {
+    const launchRows = new Map<
+      string,
+      DisplayLaunchTarget & {
+        count: number;
+      }
+    >();
+
+    for (const display of displays) {
+      const target = displayLaunchTarget(display.display_type, display.department_id);
+      if (!target) continue;
+      const existing = launchRows.get(target.href);
+      if (existing) {
+        existing.count += 1;
+      } else {
+        launchRows.set(target.href, { ...target, count: 1 });
+      }
+    }
+
+    return [...launchRows.values()].sort((left, right) => left.label.localeCompare(right.label));
+  }, [displays]);
   const activeTabLabel: Record<TvDisplayTabValue, string> = {
     announcements: "Announcements",
     displays: "Displays",
@@ -367,6 +450,53 @@ export function TvDisplaysPage() {
                   </Box>
                 </SimpleGrid>
                 <Divider />
+                {displayLaunchRows.length > 0 && (
+                  <>
+                    <Stack gap="xs">
+                      <Group justify="space-between" align="center">
+                        <Text size="xs" fw={700} c="dimmed" tt="uppercase">
+                          Launch targets
+                        </Text>
+                        <Badge size="xs" variant="light">
+                          {displayLaunchRows.length}
+                        </Badge>
+                      </Group>
+                      {displayLaunchRows.map((target) => (
+                        <Group
+                          key={target.href}
+                          justify="space-between"
+                          gap="xs"
+                          className={styles.launchRow}
+                        >
+                          <Stack gap={0}>
+                            <Text size="xs" fw={700}>
+                              {target.label}
+                            </Text>
+                            <Text size="xs" c="dimmed">
+                              {target.href}
+                            </Text>
+                          </Stack>
+                          <Group gap={4}>
+                            <Badge size="xs" variant="light">
+                              {target.count}
+                            </Badge>
+                            <Tooltip label={`Open ${target.label}`}>
+                              <ActionIcon
+                                component="a"
+                                href={target.href}
+                                variant="subtle"
+                                aria-label={`Open ${target.label}`}
+                              >
+                                <IconExternalLink size={14} />
+                              </ActionIcon>
+                            </Tooltip>
+                          </Group>
+                        </Group>
+                      ))}
+                    </Stack>
+                    <Divider />
+                  </>
+                )}
                 <Stack gap="xs">
                   <Button
                     size="xs"
@@ -499,6 +629,29 @@ function DisplaysTab({
       },
     },
     {
+      key: "launch_target",
+      label: "Launch Target",
+      render: (row) => {
+        const target = displayLaunchTarget(row.display_type, row.department_id);
+        if (!target) return <Text c="dimmed">Not linked</Text>;
+        return (
+          <Stack gap={2}>
+            <Group gap="xs">
+              <Text size="sm" fw={600}>
+                {target.label}
+              </Text>
+              <Badge size="xs" variant="light">
+                {target.appCode}
+              </Badge>
+            </Group>
+            <Text size="xs" c="dimmed">
+              {target.href}
+            </Text>
+          </Stack>
+        );
+      },
+    },
+    {
       key: "language",
       label: "Languages",
       render: (row) => (
@@ -537,37 +690,52 @@ function DisplaysTab({
     {
       key: "id",
       label: "Actions",
-      render: (row) => (
-        <Group gap="xs">
-          {canUpdate && (
-            <Tooltip label="Edit">
-              <ActionIcon
-                variant="subtle"
-                onClick={() => {
-                  setSelectedDisplay(row);
-                  displayForm.reset(tvDisplayToForm(row));
-                  open();
-                }}
-                aria-label="Edit"
-              >
-                <IconPencil size={16} />
-              </ActionIcon>
-            </Tooltip>
-          )}
-          {canDelete && (
-            <Tooltip label="Delete">
-              <ActionIcon
-                variant="subtle"
-                color="danger"
-                onClick={() => deleteMutation.mutate(row.id)}
-                aria-label="Delete"
-              >
-                <IconTrash size={16} />
-              </ActionIcon>
-            </Tooltip>
-          )}
-        </Group>
-      ),
+      render: (row) => {
+        const target = displayLaunchTarget(row.display_type, row.department_id);
+        return (
+          <Group gap="xs">
+            {target && (
+              <Tooltip label={`Open ${target.label}`}>
+                <ActionIcon
+                  component="a"
+                  href={target.href}
+                  variant="subtle"
+                  aria-label={`Open ${target.label}`}
+                >
+                  <IconExternalLink size={16} />
+                </ActionIcon>
+              </Tooltip>
+            )}
+            {canUpdate && (
+              <Tooltip label="Edit">
+                <ActionIcon
+                  variant="subtle"
+                  onClick={() => {
+                    setSelectedDisplay(row);
+                    displayForm.reset(tvDisplayToForm(row));
+                    open();
+                  }}
+                  aria-label="Edit"
+                >
+                  <IconPencil size={16} />
+                </ActionIcon>
+              </Tooltip>
+            )}
+            {canDelete && (
+              <Tooltip label="Delete">
+                <ActionIcon
+                  variant="subtle"
+                  color="danger"
+                  onClick={() => deleteMutation.mutate(row.id)}
+                  aria-label="Delete"
+                >
+                  <IconTrash size={16} />
+                </ActionIcon>
+              </Tooltip>
+            )}
+          </Group>
+        );
+      },
     },
   ];
 

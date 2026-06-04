@@ -25950,7 +25950,9 @@ export interface SubmitBedsideFeedbackRequest {
 export type TvDisplayType =
   | "opd_queue"
   | "lab_queue"
+  | "radiology_queue"
   | "pharmacy_queue"
+  | "billing_queue"
   | "bed_status"
   | "emergency_triage"
   | "digital_signage"
