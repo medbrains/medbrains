@@ -319,6 +319,20 @@ function toCreateConsultationPayload(data: UpdateConsultationRequest): CreateCon
   return payload;
 }
 
+function queueEntryEventPayload(row: QueueEntry) {
+  return {
+    appointment_id: row.appointment_id,
+    department_id: row.department_id,
+    doctor_id: row.doctor_id,
+    encounter_id: row.encounter_id,
+    patient_id: row.patient_id,
+    queue_date: row.queue_date,
+    queue_entry_id: row.id,
+    token_number: row.token_number,
+    visit_type: row.visit_type,
+  };
+}
+
 export function OpdPage() {
   useRequirePermission(P.OPD.QUEUE_LIST);
 
@@ -468,7 +482,7 @@ function OpdVisitForm({ initialPatientId = "", onCancel, onCreated }: OpdVisitFo
   const createMutation = useMutation({
     mutationFn: (values: OpdQueueVisitFormInput) =>
       opdService.createEncounter(toCreateEncounterRequest(values)),
-    onSuccess: (result, variables) => {
+    onSuccess: (result) => {
       void queryClient.invalidateQueries({ queryKey: ["opd-queue"] });
       void queryClient.invalidateQueries({ queryKey: ["opd-appointments"] });
       notifications.show({
@@ -478,8 +492,12 @@ function OpdVisitForm({ initialPatientId = "", onCancel, onCreated }: OpdVisitFo
       });
       emit("opd.encounter.created", {
         encounter_id: result.encounter.id,
-        patient_id: variables.patient_id,
-        department_id: variables.department_id ?? "",
+        patient_id: result.encounter.patient_id,
+        department_id: result.encounter.department_id,
+        doctor_id: result.encounter.doctor_id,
+        queue_entry_id: result.queue.id,
+        token_number: result.queue.token_number,
+        visit_type: result.encounter.visit_type,
       });
       reset({
         ...DEFAULT_OPD_QUEUE_VISIT_FORM_VALUES,
@@ -887,7 +905,7 @@ function OpdPageInner() {
         visit_type: appointmentVisitType(appointment.appointment_type),
         notes: appointment.reason ?? undefined,
       }),
-    onSuccess: (_result, appointment) => {
+    onSuccess: (result, appointment) => {
       void queryClient.invalidateQueries({ queryKey: ["opd-queue"] });
       void queryClient.invalidateQueries({ queryKey: ["opd-appointments"] });
       void queryClient.invalidateQueries({ queryKey: ["appointments"] });
@@ -898,7 +916,13 @@ function OpdPageInner() {
       });
       emit("appointment.checked_in_to_opd", {
         appointment_id: appointment.id,
-        patient_id: appointment.patient_id,
+        department_id: result.encounter.department_id,
+        doctor_id: result.encounter.doctor_id,
+        encounter_id: result.encounter.id,
+        patient_id: result.encounter.patient_id,
+        queue_entry_id: result.queue.id,
+        token_number: result.queue.token_number,
+        visit_type: result.encounter.visit_type,
       });
     },
     onError: () => {
@@ -911,27 +935,27 @@ function OpdPageInner() {
   });
 
   const callMutation = useMutation({
-    mutationFn: (id: string) => opdService.callQueueEntry(id),
-    onSuccess: (_result, id) => {
+    mutationFn: (row: QueueEntry) => opdService.callQueueEntry(row.id),
+    onSuccess: (_result, row) => {
       void queryClient.invalidateQueries({ queryKey: ["opd-queue"] });
       void queryClient.invalidateQueries({ queryKey: ["opd-appointments"] });
-      emit("patient.called", { queue_entry_id: id });
+      emit("patient.called", queueEntryEventPayload(row));
     },
   });
   const startMutation = useMutation({
-    mutationFn: (id: string) => opdService.startConsultation(id),
-    onSuccess: (_result, id) => {
+    mutationFn: (row: QueueEntry) => opdService.startConsultation(row.id),
+    onSuccess: (_result, row) => {
       void queryClient.invalidateQueries({ queryKey: ["opd-queue"] });
       void queryClient.invalidateQueries({ queryKey: ["opd-appointments"] });
-      emit("consultation.started", { queue_entry_id: id });
+      emit("consultation.started", queueEntryEventPayload(row));
     },
   });
   const completeMutation = useMutation({
-    mutationFn: (id: string) => opdService.completeQueueEntry(id),
-    onSuccess: (_result, id) => {
+    mutationFn: (row: QueueEntry) => opdService.completeQueueEntry(row.id),
+    onSuccess: (_result, row) => {
       void queryClient.invalidateQueries({ queryKey: ["opd-queue"] });
       void queryClient.invalidateQueries({ queryKey: ["opd-appointments"] });
-      emit("encounter.completed", { queue_entry_id: id });
+      emit("encounter.completed", queueEntryEventPayload(row));
     },
   });
   const noShowMutation = useMutation({
@@ -1033,22 +1057,14 @@ function OpdPageInner() {
           </Tooltip>
           {canManageToken && row.status === "waiting" && (
             <Tooltip label="Call patient">
-              <ActionIcon
-                variant="subtle"
-                color="warning"
-                onClick={() => callMutation.mutate(row.id)}
-              >
+              <ActionIcon variant="subtle" color="warning" onClick={() => callMutation.mutate(row)}>
                 <IconPhone size={16} />
               </ActionIcon>
             </Tooltip>
           )}
           {canManageToken && row.status === "called" && (
             <Tooltip label="Start consultation">
-              <ActionIcon
-                variant="subtle"
-                color="orange"
-                onClick={() => startMutation.mutate(row.id)}
-              >
+              <ActionIcon variant="subtle" color="orange" onClick={() => startMutation.mutate(row)}>
                 <IconPlayerPlay size={16} />
               </ActionIcon>
             </Tooltip>
@@ -1058,7 +1074,7 @@ function OpdPageInner() {
               <ActionIcon
                 variant="subtle"
                 color="success"
-                onClick={() => completeMutation.mutate(row.id)}
+                onClick={() => completeMutation.mutate(row)}
               >
                 <IconCheck size={16} />
               </ActionIcon>
@@ -2750,14 +2766,21 @@ function InvestigationsTab({
 
   const createMutation = useMutation({
     mutationFn: opdService.createLabOrder,
-    onSuccess: () => {
+    onSuccess: (result) => {
       void queryClient.invalidateQueries({ queryKey: ["lab-orders", encounterId] });
       notifications.show({
         title: "Investigation ordered",
         message: "Lab order placed successfully",
         color: "success",
       });
-      emit("lab.ordered", { encounter_id: encounterId, patient_id: patientId });
+      emit("lab.ordered", {
+        encounter_id: result.encounter_id,
+        order_id: result.id,
+        order_type: "lab",
+        patient_id: result.patient_id,
+        priority: result.priority,
+        test_id: result.test_id,
+      });
       reset(DEFAULT_OPD_LAB_ORDER_FORM_VALUES);
       setLabDupeWarning([]);
       formHandlers.close();
@@ -3427,12 +3450,21 @@ function PrescriptionsTab({
   const createMutation = useMutation({
     mutationFn: (data: CreatePrescriptionRequest) =>
       opdService.createPrescription(encounterId, data),
-    onSuccess: (_result, variables) => {
+    onSuccess: (result, variables) => {
       void queryClient.invalidateQueries({ queryKey: ["prescriptions", encounterId] });
       void queryClient.invalidateQueries({ queryKey: ["pharmacy-rx-queue"] });
       emit("prescription.created", {
-        encounter_id: encounterId,
+        encounter_id: result.prescription.encounter_id,
         item_count: variables.items.length,
+        items: result.items.map((item) => ({
+          catalog_item_id: item.catalog_item_id,
+          drug_name: item.drug_name,
+          item_id: item.id,
+        })),
+        order_id: result.prescription.id,
+        order_type: "prescription",
+        patient_id: patientId,
+        prescription_id: result.prescription.id,
       });
     },
   });
@@ -4141,14 +4173,22 @@ function ProceduresTab({
 
   const createMutation = useMutation({
     mutationFn: opdService.createProcedureOrder,
-    onSuccess: () => {
+    onSuccess: (result) => {
       void queryClient.invalidateQueries({ queryKey: ["procedure-orders", encounterId] });
       notifications.show({
         title: "Procedure ordered",
         message: "Procedure order placed",
         color: "success",
       });
-      emit("procedure.ordered", { encounter_id: encounterId, patient_id: patientId });
+      emit("procedure.ordered", {
+        encounter_id: result.encounter_id,
+        order_id: result.id,
+        order_type: "procedure",
+        patient_id: result.patient_id,
+        priority: result.priority,
+        procedure_id: result.procedure_id,
+        procedure_name: result.procedure_name,
+      });
       reset(DEFAULT_OPD_PROCEDURE_ORDER_FORM_VALUES);
       setDupeWarning([]);
       formHandlers.close();

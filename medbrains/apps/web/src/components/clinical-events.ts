@@ -28,7 +28,7 @@ interface BuildClinicalEventTraceInput {
 }
 
 const TRIGGER_ALIASES: Record<string, ClinicalEventName> = {
-  "appointment.checked_in_to_opd": "visit.created",
+  "appointment.checked_in_to_opd": "opd.encounter.created",
   "camp.registration_created": "camp.registration.created",
   "camp.screening_completed": "camp.screening.completed",
   "discharge.completed": "ipd.discharge.completed",

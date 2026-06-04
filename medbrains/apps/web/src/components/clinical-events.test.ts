@@ -9,6 +9,9 @@ describe("clinical event normalization", () => {
   });
 
   it("maps UI trigger aliases to canonical cross-module events", () => {
+    expect(normalizeClinicalEventName("appointment.checked_in_to_opd")).toBe(
+      "opd.encounter.created",
+    );
     expect(normalizeClinicalEventName("invoice.created")).toBe("billing.invoice.created");
     expect(normalizeClinicalEventName("mrd.case_sheet.sent")).toBe("mrd.case_sheet.generated");
     expect(normalizeClinicalEventName("payment.recorded")).toBe("billing.payment.received");
@@ -293,5 +296,80 @@ describe("clinical event normalization", () => {
     expect(radiologyCompleted.sourceRecordId).toBe("radiology-order-1");
     expect(radiologyCompleted.patientId).toBe("patient-1");
     expect(radiologyCompleted.missingPayloadKeys).toEqual([]);
+  });
+
+  it("tracks OPD queue and order events without missing payload keys", () => {
+    const checkedIn = buildClinicalEventTrace({
+      contextCode: "opd-queue",
+      moduleCode: "opd",
+      occurredAt: "2026-05-29T11:05:00.000Z",
+      rawTrigger: "appointment.checked_in_to_opd",
+      payload: {
+        appointment_id: "appointment-1",
+        encounter_id: "encounter-1",
+        patient_id: "patient-1",
+        queue_entry_id: "queue-1",
+      },
+    });
+
+    const completed = buildClinicalEventTrace({
+      contextCode: "opd-queue",
+      moduleCode: "opd",
+      occurredAt: "2026-05-29T11:10:00.000Z",
+      rawTrigger: "encounter.completed",
+      payload: {
+        encounter_id: "encounter-1",
+        patient_id: "patient-1",
+        queue_entry_id: "queue-1",
+      },
+    });
+
+    const prescription = buildClinicalEventTrace({
+      contextCode: "opd-encounter-1",
+      moduleCode: "opd",
+      occurredAt: "2026-05-29T11:15:00.000Z",
+      rawTrigger: "prescription.created",
+      payload: {
+        encounter_id: "encounter-1",
+        order_id: "prescription-1",
+        order_type: "prescription",
+        patient_id: "patient-1",
+        prescription_id: "prescription-1",
+      },
+    });
+
+    const procedure = buildClinicalEventTrace({
+      contextCode: "opd-encounter-1",
+      moduleCode: "opd",
+      occurredAt: "2026-05-29T11:20:00.000Z",
+      rawTrigger: "procedure.ordered",
+      payload: {
+        encounter_id: "encounter-1",
+        order_id: "procedure-order-1",
+        order_type: "procedure",
+        patient_id: "patient-1",
+        procedure_id: "procedure-1",
+      },
+    });
+
+    expect(checkedIn.eventName).toBe("opd.encounter.created");
+    expect(checkedIn.encounterId).toBe("encounter-1");
+    expect(checkedIn.patientId).toBe("patient-1");
+    expect(checkedIn.missingPayloadKeys).toEqual([]);
+
+    expect(completed.eventName).toBe("opd.encounter.created");
+    expect(completed.encounterId).toBe("encounter-1");
+    expect(completed.patientId).toBe("patient-1");
+    expect(completed.missingPayloadKeys).toEqual([]);
+
+    expect(prescription.eventName).toBe("order.created");
+    expect(prescription.sourceRecordId).toBe("prescription-1");
+    expect(prescription.patientId).toBe("patient-1");
+    expect(prescription.missingPayloadKeys).toEqual([]);
+
+    expect(procedure.eventName).toBe("order.created");
+    expect(procedure.sourceRecordId).toBe("procedure-order-1");
+    expect(procedure.patientId).toBe("patient-1");
+    expect(procedure.missingPayloadKeys).toEqual([]);
   });
 });
