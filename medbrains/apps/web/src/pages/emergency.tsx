@@ -465,6 +465,7 @@ function mlcPoliceIntimationClinicalPayload(
 function deriveEmergencyJourneyCompletedEvents(visit: ErVisit) {
   const events: string[] = [];
   if (visit.admission_id) {
+    events.push("ipd.admission.created");
     events.push("bed.assigned");
   }
   if (visit.is_mlc) {
@@ -1608,6 +1609,15 @@ function EmergencyVisitCommandBar({
   const admitMutation = useMutation({
     mutationFn: (data: AdmitFromErRequest) => emergencyService.admitFromEr(visit.id, data),
     onSuccess: (result, request) => {
+      emit("ipd.admission.created", {
+        admission_id: result.admission_id,
+        bed_id: request.bed_id,
+        er_visit_id: result.er_visit_id,
+        patient_id: result.patient_id,
+        reason: request.admission_notes ?? visit.chief_complaint ?? "ER admission",
+        source_record_id: result.admission_id,
+        status: result.status,
+      });
       emit("bed.assigned", {
         admission_id: result.admission_id,
         bed_id: request.bed_id,

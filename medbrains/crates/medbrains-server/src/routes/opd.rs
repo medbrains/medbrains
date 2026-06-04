@@ -4810,6 +4810,50 @@ pub async fn admit_from_opd(
     .execute(&mut *tx)
     .await?;
 
+    let admission_event = ClinicalEventEnvelope::new(
+        claims.tenant_id,
+        ClinicalEventName::IpdAdmissionCreated,
+        admission.id,
+        claims.sub,
+        serde_json::json!({
+            "admission_id": admission.id,
+            "patient_id": admission.patient_id,
+            "opd_encounter_id": encounter_id,
+            "encounter_id": ipd_encounter.id,
+            "department_id": body.department_id,
+            "ward_id": admission.ward_id,
+            "bed_id": admission.bed_id,
+            "admission_source": "opd",
+        }),
+    )
+    .with_patient(admission.patient_id)
+    .with_admission(admission.id)
+    .with_encounter(ipd_encounter.id)
+    .with_department(body.department_id);
+    crate::events::queue_clinical_event_in_tx(&mut tx, &admission_event).await?;
+
+    if let Some(bed_id) = body.bed_id {
+        let bed_event = ClinicalEventEnvelope::new(
+            claims.tenant_id,
+            ClinicalEventName::BedAssigned,
+            admission.id,
+            claims.sub,
+            serde_json::json!({
+                "bed_id": bed_id,
+                "admission_id": admission.id,
+                "patient_id": admission.patient_id,
+                "encounter_id": ipd_encounter.id,
+                "ward_id": admission.ward_id,
+                "source": "opd",
+            }),
+        )
+        .with_patient(admission.patient_id)
+        .with_admission(admission.id)
+        .with_encounter(ipd_encounter.id)
+        .with_department(body.department_id);
+        crate::events::queue_clinical_event_in_tx(&mut tx, &bed_event).await?;
+    }
+
     // 8. Mark OPD encounter as completed
     sqlx::query(
         "UPDATE encounters SET status = 'completed'::encounter_status, updated_at = NOW() \

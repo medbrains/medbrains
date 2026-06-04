@@ -2084,6 +2084,46 @@ pub async fn admit_from_er(
     .execute(&mut *tx)
     .await?;
 
+    let admission_event = ClinicalEventEnvelope::new(
+        claims.tenant_id,
+        ClinicalEventName::IpdAdmissionCreated,
+        admission_id,
+        claims.sub,
+        serde_json::json!({
+            "admission_id": admission_id,
+            "patient_id": visit.patient_id,
+            "encounter_id": encounter_id,
+            "er_visit_id": id,
+            "ward_id": admission_ward_id,
+            "bed_id": body.bed_id,
+            "admission_source": "er",
+        }),
+    )
+    .with_patient(visit.patient_id)
+    .with_admission(admission_id)
+    .with_encounter(encounter_id);
+    crate::events::queue_clinical_event_in_tx(&mut tx, &admission_event).await?;
+
+    let bed_event = ClinicalEventEnvelope::new(
+        claims.tenant_id,
+        ClinicalEventName::BedAssigned,
+        admission_id,
+        claims.sub,
+        serde_json::json!({
+            "bed_id": body.bed_id,
+            "admission_id": admission_id,
+            "patient_id": visit.patient_id,
+            "encounter_id": encounter_id,
+            "er_visit_id": id,
+            "ward_id": admission_ward_id,
+            "reason": reason,
+        }),
+    )
+    .with_patient(visit.patient_id)
+    .with_admission(admission_id)
+    .with_encounter(encounter_id);
+    crate::events::queue_clinical_event_in_tx(&mut tx, &bed_event).await?;
+
     tx.commit().await?;
     Ok(Json(serde_json::json!({
         "er_visit_id": id,

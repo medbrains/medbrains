@@ -38,6 +38,8 @@ pub enum ClinicalEventName {
     BillingPaymentReceived,
     #[serde(rename = "pharmacy.order.dispensed")]
     PharmacyOrderDispensed,
+    #[serde(rename = "ipd.admission.created")]
+    IpdAdmissionCreated,
     #[serde(rename = "bed.assigned")]
     BedAssigned,
     #[serde(rename = "bed.transferred")]
@@ -77,6 +79,7 @@ impl ClinicalEventName {
             Self::BillingInvoiceFinalized => "billing.invoice.finalized",
             Self::BillingPaymentReceived => "billing.payment.received",
             Self::PharmacyOrderDispensed => "pharmacy.order.dispensed",
+            Self::IpdAdmissionCreated => "ipd.admission.created",
             Self::BedAssigned => "bed.assigned",
             Self::BedTransferred => "bed.transferred",
             Self::IpdDischargeInitiated => "ipd.discharge.initiated",
@@ -103,7 +106,9 @@ impl ClinicalEventName {
             | Self::BillingInvoiceFinalized
             | Self::BillingPaymentReceived => ClinicalEventSourceModule::Billing,
             Self::PharmacyOrderDispensed => ClinicalEventSourceModule::Pharmacy,
-            Self::BedAssigned | Self::BedTransferred => ClinicalEventSourceModule::Ipd,
+            Self::IpdAdmissionCreated | Self::BedAssigned | Self::BedTransferred => {
+                ClinicalEventSourceModule::Ipd
+            }
             Self::IpdDischargeInitiated | Self::IpdDischargeCompleted => {
                 ClinicalEventSourceModule::Ipd
             }
@@ -133,6 +138,7 @@ impl ClinicalEventName {
             Self::BillingInvoiceFinalized => &["invoice_id", "patient_id"],
             Self::BillingPaymentReceived => &["payment_id", "invoice_id", "patient_id"],
             Self::PharmacyOrderDispensed => &["order_id", "patient_id", "items"],
+            Self::IpdAdmissionCreated => &["admission_id", "patient_id"],
             Self::BedAssigned => &["bed_id", "admission_id", "patient_id"],
             Self::BedTransferred => &["transfer_id", "admission_id", "from_bed_id", "to_bed_id"],
             Self::IpdDischargeInitiated | Self::IpdDischargeCompleted => {
@@ -184,6 +190,7 @@ impl FromStr for ClinicalEventName {
             "billing.invoice.finalized" => Ok(Self::BillingInvoiceFinalized),
             "billing.payment.received" => Ok(Self::BillingPaymentReceived),
             "pharmacy.order.dispensed" => Ok(Self::PharmacyOrderDispensed),
+            "ipd.admission.created" => Ok(Self::IpdAdmissionCreated),
             "bed.assigned" => Ok(Self::BedAssigned),
             "bed.transferred" => Ok(Self::BedTransferred),
             "ipd.discharge.initiated" => Ok(Self::IpdDischargeInitiated),

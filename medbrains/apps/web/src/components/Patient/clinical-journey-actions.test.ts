@@ -32,6 +32,7 @@ describe("clinical journey event activation", () => {
     ).toEqual([
       "patient.created",
       "opd.encounter.created",
+      "ipd.admission.created",
       "bed.assigned",
       "emergency.visit.created",
     ]);
@@ -46,7 +47,7 @@ describe("clinical journey event activation", () => {
         activeBedId: null,
         completedEvents: ["bed.assigned", "order.created"],
       }),
-    ).toEqual(["order.created", "patient.created"]);
+    ).toEqual(["order.created", "patient.created", "ipd.admission.created"]);
   });
 
   it("keeps downstream actions disabled until their activating event exists", () => {

@@ -5891,6 +5891,7 @@ function AdmitToIpdButton({
   const [wardId, setWardId] = useState<string | null>(null);
   const [bedId, setBedId] = useState<string | null>(null);
   const [notes, setNotes] = useState("");
+  const emit = useClinicalEmit();
 
   const { data: departments = [] } = useQuery({
     queryKey: ["departments"],
@@ -5923,6 +5924,28 @@ function AdmitToIpdButton({
     mutationFn: (data: AdmitFromOpdRequest) => opdService.admitFromOpd(encounterId, data),
     onSuccess: (result) => {
       void queryClient.invalidateQueries({ queryKey: ["opd-queue"] });
+      emit("ipd.admission.created", {
+        admission_id: result.admission.id,
+        patient_id: result.admission.patient_id,
+        opd_encounter_id: encounterId,
+        encounter_id: result.admission.encounter_id,
+        department_id: result.ipd_encounter.department_id,
+        ward_id: result.admission.ward_id,
+        bed_id: result.admission.bed_id,
+        source_record_id: result.admission.id,
+      });
+      if (result.admission.bed_id) {
+        emit("bed.assigned", {
+          admission_id: result.admission.id,
+          patient_id: result.admission.patient_id,
+          opd_encounter_id: encounterId,
+          encounter_id: result.admission.encounter_id,
+          department_id: result.ipd_encounter.department_id,
+          ward_id: result.admission.ward_id,
+          bed_id: result.admission.bed_id,
+          source_record_id: result.admission.id,
+        });
+      }
       notifications.show({
         title: "Patient admitted to IPD",
         message: `${patientName} admitted. ${result.vitals_copied} vitals, ${result.diagnoses_copied} diagnoses, ${result.prescriptions_copied} prescriptions copied.`,

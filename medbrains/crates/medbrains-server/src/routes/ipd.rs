@@ -1415,6 +1415,27 @@ pub async fn create_admission(
     .fetch_one(&mut *tx)
     .await?;
 
+    let admission_event = ClinicalEventEnvelope::new(
+        claims.tenant_id,
+        ClinicalEventName::IpdAdmissionCreated,
+        admission.id,
+        claims.sub,
+        json!({
+            "admission_id": admission.id,
+            "patient_id": admission.patient_id,
+            "encounter_id": admission.encounter_id,
+            "department_id": body.department_id,
+            "ward_id": admission.ward_id,
+            "bed_id": admission.bed_id,
+            "admission_source": admission.admission_source,
+        }),
+    )
+    .with_patient(admission.patient_id)
+    .with_admission(admission.id)
+    .with_encounter(admission.encounter_id)
+    .with_department(body.department_id);
+    crate::events::queue_clinical_event_in_tx(&mut tx, &admission_event).await?;
+
     if let Some(bid) = body.bed_id {
         occupy_admission_bed(
             &mut *tx,

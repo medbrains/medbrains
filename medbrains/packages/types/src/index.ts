@@ -11222,6 +11222,7 @@ export type ClinicalEventName =
   | "billing.payment.received"
   | "pharmacy.order.dispensed"
   | "pharmacy.ndps.movement.created"
+  | "ipd.admission.created"
   | "bed.assigned"
   | "bed.transferred"
   | "ipd.discharge.initiated"
@@ -11297,6 +11298,7 @@ export const CLINICAL_EVENT_REQUIRED_PAYLOAD_KEYS: Record<ClinicalEventName, rea
   "billing.payment.received": ["payment_id", "invoice_id", "patient_id"],
   "pharmacy.order.dispensed": ["order_id", "patient_id", "items"],
   "pharmacy.ndps.movement.created": ["entry_id", "catalog_item_id", "action"],
+  "ipd.admission.created": ["admission_id", "patient_id"],
   "bed.assigned": ["bed_id", "admission_id", "patient_id"],
   "bed.transferred": ["transfer_id", "admission_id", "from_bed_id", "to_bed_id"],
   "ipd.discharge.initiated": ["admission_id", "patient_id"],

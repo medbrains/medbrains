@@ -193,7 +193,7 @@ export function PatientFlowNavigator({
       ? hasPermission(P.IPD.ADMISSIONS_VIEW)
       : hasPermission(P.IPD.ADMISSIONS_CREATE),
     "Permission required",
-    activeAdmissionId ? ["bed.assigned"] : ["patient.created"],
+    activeAdmissionId ? ["ipd.admission.created"] : ["patient.created"],
     activeAdmissionId ? [P.IPD.ADMISSIONS_VIEW] : [P.IPD.ADMISSIONS_CREATE],
   );
   const emergencyState = itemState(

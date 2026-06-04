@@ -6,6 +6,7 @@ import { buildClinicalEventTrace, normalizeClinicalEventName } from "./clinical-
 describe("clinical event normalization", () => {
   it("keeps canonical event names unchanged", () => {
     expect(normalizeClinicalEventName("billing.payment.received")).toBe("billing.payment.received");
+    expect(normalizeClinicalEventName("ipd.admission.created")).toBe("ipd.admission.created");
   });
 
   it("maps UI trigger aliases to canonical cross-module events", () => {

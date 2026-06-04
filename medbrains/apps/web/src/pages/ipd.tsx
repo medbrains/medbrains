@@ -592,12 +592,24 @@ function AdmissionForm({ initialPatientId = "", onCancel, onCreated }: Admission
         message: "Patient admitted successfully",
         color: "success",
       });
-      emit("bed.assigned", {
+      emit("ipd.admission.created", {
         admission_id: result.admission.id,
         patient_id: variables.patient_id,
         department_id: variables.department_id,
         bed_id: result.admission.bed_id,
+        encounter_id: result.admission.encounter_id,
+        source_record_id: result.admission.id,
       });
+      if (result.admission.bed_id) {
+        emit("bed.assigned", {
+          admission_id: result.admission.id,
+          patient_id: variables.patient_id,
+          department_id: variables.department_id,
+          bed_id: result.admission.bed_id,
+          encounter_id: result.admission.encounter_id,
+          source_record_id: result.admission.id,
+        });
+      }
       resetAdmissionForm();
       onCreated?.(result);
     },

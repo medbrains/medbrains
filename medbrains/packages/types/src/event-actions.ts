@@ -118,6 +118,9 @@ export function inferClinicalJourneyEventNames(context: ClinicalJourneyContext):
   if (context.activeEncounterId) {
     events.add("opd.encounter.created");
   }
+  if (context.activeAdmissionId) {
+    events.add("ipd.admission.created");
+  }
   if (context.activeAdmissionId && (!hasExplicitBedState || hasAssignedBed)) {
     events.add("bed.assigned");
   }
@@ -222,7 +225,7 @@ export const CORE_PATIENT_JOURNEY_ACTIONS: readonly ClinicalJourneyActionDefinit
     intent: "clinical",
     requiredPermissions: [P.IPD.ADMISSIONS_VIEW],
     surfaces: ["web", "mobile"],
-    activatesAfter: ["bed.assigned"],
+    activatesAfter: ["ipd.admission.created"],
     standardRefs: ["NABH AAC", "IPSG patient identification"],
     disabledReason: (context) =>
       activeAdmissionIsOpen(context) ? null : "No active IPD admission for this patient",
@@ -237,7 +240,7 @@ export const CORE_PATIENT_JOURNEY_ACTIONS: readonly ClinicalJourneyActionDefinit
     requiredPermissions: [P.IPD.ADMISSIONS_CREATE],
     surfaces: ["web", "mobile"],
     activatesAfter: ["patient.created", "opd.encounter.created", "emergency.visit.created"],
-    emitsEvent: "bed.assigned",
+    emitsEvent: "ipd.admission.created",
     standardRefs: ["NABH AAC", "IPSG patient identification"],
     disabledReason: (context) => {
       const livingReason = requireLivingPatient(context);
