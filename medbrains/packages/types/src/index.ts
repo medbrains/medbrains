@@ -11227,6 +11227,7 @@ export type ClinicalEventName =
   | "ipd.discharge.completed"
   | "ipd.discharge.finalized"
   | "mrd.case_sheet.generated"
+  | "mrd.case_sheet.printed"
   | "quality.incident.reported"
   | "emergency.code_blue.activated"
   | "emergency.code_blue.completed"
@@ -11300,6 +11301,7 @@ export const CLINICAL_EVENT_REQUIRED_PAYLOAD_KEYS: Record<ClinicalEventName, rea
   "ipd.discharge.completed": ["admission_id", "patient_id"],
   "ipd.discharge.finalized": ["summary_id", "admission_id", "patient_id"],
   "mrd.case_sheet.generated": ["packet_id", "packet_type", "patient_id"],
+  "mrd.case_sheet.printed": ["packet_id", "patient_id"],
   "quality.incident.reported": ["incident_id"],
   "emergency.code_blue.activated": ["code_blue_id"],
   "emergency.code_blue.completed": ["code_blue_id"],

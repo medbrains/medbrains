@@ -162,7 +162,7 @@ describe("clinical event normalization", () => {
   });
 
   it("tracks MRD case-sheet handoff events by packet and patient", () => {
-    const event = buildClinicalEventTrace({
+    const generated = buildClinicalEventTrace({
       contextCode: "ipd-admission-detail",
       moduleCode: "ipd",
       occurredAt: "2026-05-29T10:05:00.000Z",
@@ -175,11 +175,40 @@ describe("clinical event normalization", () => {
       },
     });
 
-    expect(event.eventName).toBe("mrd.case_sheet.generated");
-    expect(event.patientId).toBe("patient-1");
-    expect(event.admissionId).toBe("admission-1");
-    expect(event.sourceRecordId).toBe("packet-1");
-    expect(event.missingPayloadKeys).toEqual([]);
+    const printed = buildClinicalEventTrace({
+      contextCode: "mrd-page",
+      moduleCode: "mrd",
+      occurredAt: "2026-05-29T10:06:00.000Z",
+      rawTrigger: "mrd.case_sheet.printed",
+      payload: {
+        admission_id: "admission-1",
+        copies: 3,
+        document_output_id: "document-1",
+        is_reprint: false,
+        packet_id: "packet-1",
+        packet_number: "CS-001",
+        packet_type: "ipd",
+        patient_id: "patient-1",
+        print_job_id: "print-job-1",
+        printed_at: "2026-05-29T10:06:00.000Z",
+        source_record_id: "packet-1",
+        status: "printed",
+      },
+    });
+
+    expect(generated.eventName).toBe("mrd.case_sheet.generated");
+    expect(generated.patientId).toBe("patient-1");
+    expect(generated.admissionId).toBe("admission-1");
+    expect(generated.sourceRecordId).toBe("packet-1");
+    expect(generated.missingPayloadKeys).toEqual([]);
+
+    expect(printed.eventName).toBe("mrd.case_sheet.printed");
+    expect(printed.patientId).toBe("patient-1");
+    expect(printed.admissionId).toBe("admission-1");
+    expect(printed.sourceRecordId).toBe("packet-1");
+    expect(printed.payload).not.toHaveProperty("source_snapshot");
+    expect(printed.payload).not.toHaveProperty("reprint_reason");
+    expect(printed.missingPayloadKeys).toEqual([]);
   });
 
   it("tracks emergency visit events as emergency source events", () => {

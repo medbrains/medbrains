@@ -66,7 +66,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { useNavigate, useSearchParams } from "react-router";
-import { DataTable, PageHeader } from "@/components";
+import { ClinicalEventProvider, DataTable, PageHeader, useClinicalEmit } from "@/components";
 import type { Column } from "@/components/DataTable";
 import { DepartmentSelect } from "@/components/DepartmentSelect";
 import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
@@ -555,6 +555,14 @@ const MRD_PAGE_PERMISSIONS = [
 // ══════════════════════════════════════════════════════════
 
 export function MrdPage() {
+  return (
+    <ClinicalEventProvider moduleCode="mrd" contextCode="mrd-page">
+      <MrdPageInner />
+    </ClinicalEventProvider>
+  );
+}
+
+function MrdPageInner() {
   useRequirePermission(MRD_PAGE_PERMISSIONS);
   const canViewRecords = useHasPermission(P.MRD.RECORDS_LIST);
   const canManageRecords = useHasPermission(P.MRD.RECORDS_MANAGE);
@@ -980,6 +988,7 @@ function RecordsTab() {
 // ══════════════════════════════════════════════════════════
 
 function CaseSheetsTab() {
+  const emit = useClinicalEmit();
   const qc = useQueryClient();
   const navigate = useNavigate();
   const printPreviewRef = useRef<HTMLDivElement>(null);
@@ -1068,6 +1077,21 @@ function CaseSheetsTab() {
       };
     },
     onSuccess: (preview) => {
+      emit("mrd.case_sheet.printed", {
+        admission_id: preview.packet.admission_id,
+        copies: preview.copies.length,
+        document_output_id: preview.packet.document_output_id,
+        encounter_id: preview.packet.encounter_id,
+        is_reprint: false,
+        packet_id: preview.packet.id,
+        packet_number: preview.packet.packet_number,
+        packet_type: preview.packet.packet_type,
+        patient_id: preview.packet.patient_id,
+        print_job_id: preview.packet.print_job_id,
+        printed_at: preview.packet.printed_at,
+        source_record_id: preview.packet.id,
+        status: preview.packet.status,
+      });
       void qc.invalidateQueries({ queryKey: ["mrd-case-sheets"] });
       void qc.invalidateQueries({ queryKey: ["mrd-case-sheet-pages", preview.packet.id] });
       void qc.invalidateQueries({
@@ -1107,6 +1131,21 @@ function CaseSheetsTab() {
       };
     },
     onSuccess: (preview) => {
+      emit("mrd.case_sheet.printed", {
+        admission_id: preview.packet.admission_id,
+        copies: preview.copies.length,
+        document_output_id: preview.packet.document_output_id,
+        encounter_id: preview.packet.encounter_id,
+        is_reprint: true,
+        packet_id: preview.packet.id,
+        packet_number: preview.packet.packet_number,
+        packet_type: preview.packet.packet_type,
+        patient_id: preview.packet.patient_id,
+        print_job_id: preview.packet.print_job_id,
+        printed_at: preview.packet.printed_at,
+        source_record_id: preview.packet.id,
+        status: preview.packet.status,
+      });
       void qc.invalidateQueries({ queryKey: ["mrd-case-sheets"] });
       void qc.invalidateQueries({ queryKey: ["mrd-case-sheet-pages", preview.packet.id] });
       void qc.invalidateQueries({
