@@ -5364,7 +5364,7 @@ function CorporateDetail({ corporateId, canUpdate }: { corporateId: string; canU
       <Table striped>
         <Table.Thead>
           <Table.Tr>
-            <Table.Th>Patient ID</Table.Th>
+            <Table.Th>Patient</Table.Th>
             <Table.Th>Employee ID</Table.Th>
             <Table.Th>Department</Table.Th>
             <Table.Th>Enrolled</Table.Th>
@@ -5374,7 +5374,9 @@ function CorporateDetail({ corporateId, canUpdate }: { corporateId: string; canU
         <Table.Tbody>
           {enrollments.map((e: CorporateEnrollment) => (
             <Table.Tr key={e.id}>
-              <Table.Td>{e.patient_id}</Table.Td>
+              <Table.Td>
+                <PatientNameCell patientId={e.patient_id} showUhid={false} />
+              </Table.Td>
               <Table.Td>{e.employee_id ?? "—"}</Table.Td>
               <Table.Td>{e.department ?? "—"}</Table.Td>
               <Table.Td>{new Date(e.enrolled_at).toLocaleDateString()}</Table.Td>
@@ -6277,7 +6279,11 @@ function CreditPatientsTab() {
   const columns = [
     {
       key: "patient_id",
-      label: "Patient ID",
+      label: "Patient",
+      fieldAccessKeys: ["patients.uhid", ...PATIENT_NAME_FIELD_ACCESS_KEYS],
+      accessor: (r: CreditPatient) => r.patient_id,
+      fieldKind: "identifier",
+      hiddenLabel: "Patient restricted",
       render: (r: CreditPatient) => <PatientNameCell patientId={r.patient_id} showUhid={false} />,
     },
     {
@@ -6292,11 +6298,17 @@ function CreditPatientsTab() {
     {
       key: "credit_limit",
       label: "Limit",
+      fieldAccessKey: "billing.amount",
+      accessor: (r: CreditPatient) => r.credit_limit,
+      fieldKind: "money",
       render: (r: CreditPatient) => <Text size="sm">₹{r.credit_limit.toLocaleString()}</Text>,
     },
     {
       key: "current_balance",
       label: "Balance",
+      fieldAccessKey: "billing.amount",
+      accessor: (r: CreditPatient) => r.current_balance,
+      fieldKind: "money",
       render: (r: CreditPatient) => (
         <Text size="sm" c={r.current_balance > r.credit_limit * 0.8 ? "danger" : undefined}>
           ₹{r.current_balance.toLocaleString()}
@@ -6337,22 +6349,37 @@ function CreditPatientsTab() {
           },
         ]
       : []),
-  ];
+  ] satisfies Column<CreditPatient>[];
 
   const agingColumns = [
     {
       key: "patient_id",
       label: "Patient",
-      render: (r: CreditAgingRow) => <Text size="sm">{r.patient_name ?? r.patient_id}</Text>,
+      fieldAccessKeys: PATIENT_NAME_FIELD_ACCESS_KEYS,
+      accessor: (r: CreditAgingRow) => r.patient_name ?? r.patient_id,
+      fieldKind: "name",
+      hiddenLabel: "Patient restricted",
+      render: (r: CreditAgingRow) =>
+        r.patient_name ? (
+          <Text size="sm">{r.patient_name}</Text>
+        ) : (
+          <PatientNameCell patientId={r.patient_id} showUhid={false} />
+        ),
     },
     {
       key: "credit_limit",
       label: "Credit Limit",
+      fieldAccessKey: "billing.amount",
+      accessor: (r: CreditAgingRow) => r.credit_limit,
+      fieldKind: "money",
       render: (r: CreditAgingRow) => <Text size="sm">₹{r.credit_limit.toLocaleString()}</Text>,
     },
     {
       key: "current_balance",
       label: "Balance",
+      fieldAccessKey: "billing.amount",
+      accessor: (r: CreditAgingRow) => r.current_balance,
+      fieldKind: "money",
       render: (r: CreditAgingRow) => (
         <Text size="sm" fw={600}>
           ₹{r.current_balance.toLocaleString()}
@@ -6400,7 +6427,7 @@ function CreditPatientsTab() {
         </Text>
       ),
     },
-  ];
+  ] satisfies Column<CreditAgingRow>[];
 
   return (
     <Stack>

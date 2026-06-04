@@ -173,6 +173,7 @@ import {
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
 import { PatientFlowNavigator } from "@/components/Patient/PatientFlowNavigator";
 import { PatientJourneyActions } from "@/components/Patient/PatientJourneyActions";
+import { PatientNameCell } from "@/components/PatientNameCell";
 import {
   DEFAULT_OPD_CONSENT_FORM_VALUES,
   DEFAULT_OPD_FEEDBACK_FORM_VALUES,
@@ -5682,12 +5683,12 @@ function ReferralTrackingTab() {
   const columns = [
     {
       key: "patient_id",
-      label: "Patient ID",
-      fieldAccessKey: "patients.uhid",
+      label: "Patient",
+      fieldAccessKeys: ["patients.uhid", ...PATIENT_NAME_FIELD_ACCESS_KEYS],
       accessor: (row: ReferralWithNames) => row.patient_id,
       fieldKind: "identifier",
       hiddenLabel: "Patient restricted",
-      render: (row: ReferralWithNames) => <Text size="sm">{row.patient_id.slice(0, 8)}</Text>,
+      render: (row: ReferralWithNames) => <PatientNameCell patientId={row.patient_id} />,
     },
     {
       key: "from_department_name",

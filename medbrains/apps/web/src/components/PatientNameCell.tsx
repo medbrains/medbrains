@@ -109,10 +109,7 @@ function PatientIdentityLine({
 /**
  * Resolve a `patient_id` to "Full Name" for table cells / detail rows.
  *
- * Replaces the old pattern `{row.patient_id.slice(0, 8)}...` which leaked
- * raw UUIDs to clinical users. Falls back to the short UUID only if the
- * lookup fails — never on success — so a network error still gives an
- * identifiable handle.
+ * Replaces raw short-UUID patient labels with a permission-aware display name.
  */
 export function PatientNameCell({
   patientId,
@@ -136,9 +133,9 @@ export function PatientNameCell({
 
   if (isError || !data) {
     return (
-      <Tooltip label={`Could not resolve patient ${patientId}`} withArrow>
+      <Tooltip label="Could not resolve patient display record" withArrow>
         <Text size={size} c="var(--mb-text-muted)">
-          {patientId.slice(0, 8)}…
+          Unresolved patient
         </Text>
       </Tooltip>
     );
