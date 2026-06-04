@@ -6,6 +6,7 @@ import { useMemo } from "react";
 import { StyleSheet, View } from "react-native";
 import { ActivityIndicator, Text } from "react-native-paper";
 import { TvBoard, TvSummaryRow } from "../components/tv-board.js";
+import { TvFeedStatusBanner, tvLastUpdatedLabel } from "../components/tv-feed-status.js";
 import { tvQueueService } from "../services/tvQueue.service.js";
 
 const REFRESH_INTERVAL_MS = 10_000;
@@ -32,15 +33,6 @@ function displayWardType(value: string) {
     .filter(Boolean)
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(" ");
-}
-
-function lastUpdatedLabel(updatedAt: number) {
-  if (updatedAt <= 0) return "not synced";
-  return new Date(updatedAt).toLocaleTimeString([], {
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  });
 }
 
 function occupancyPercent(data: BedAvailabilityDisplay | undefined) {
@@ -97,7 +89,7 @@ function BedStatusScreen({ route }: BedStatusScreenProps) {
   const available = bedState?.available ?? 0;
   const totalBeds = bedState?.total_beds ?? 0;
   const percentOccupied = occupancyPercent(bedState);
-  const syncLabel = lastUpdatedLabel(bedQuery.dataUpdatedAt);
+  const syncLabel = tvLastUpdatedLabel(bedQuery.dataUpdatedAt);
 
   return (
     <TvBoard
@@ -114,6 +106,12 @@ function BedStatusScreen({ route }: BedStatusScreenProps) {
           { label: "TOTAL", value: bedState ? String(totalBeds) : "—" },
           { label: "WAITING", value: String(bedState?.waiting_list.length ?? "—") },
         ]}
+      />
+      <TvFeedStatusBanner
+        errorLabel="Bed status feed is unreachable. Continuing with the last available occupancy state."
+        isError={bedQuery.isError}
+        lastUpdatedAt={bedQuery.dataUpdatedAt}
+        refreshIntervalMs={REFRESH_INTERVAL_MS}
       />
       {bedQuery.isLoading ? (
         <View style={styles.centerPanel}>

@@ -6,6 +6,7 @@ import { useMemo } from "react";
 import { StyleSheet, View } from "react-native";
 import { ActivityIndicator, Text } from "react-native-paper";
 import { TvBoard, TvSummaryRow } from "../components/tv-board.js";
+import { TvFeedStatusBanner, tvLastUpdatedLabel } from "../components/tv-feed-status.js";
 import { tvQueueService } from "../services/tvQueue.service.js";
 
 const REFRESH_INTERVAL_MS = 5_000;
@@ -55,15 +56,6 @@ const TRIAGE_LANES: ReadonlyArray<{
   },
 ];
 
-function lastUpdatedLabel(updatedAt: number) {
-  if (updatedAt <= 0) return "not synced";
-  return new Date(updatedAt).toLocaleTimeString([], {
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  });
-}
-
 function tokenCount(queue: ErQueueDisplay | undefined, key: TriageLevelColor) {
   return queue?.[key].length ?? 0;
 }
@@ -88,7 +80,7 @@ function EmergencyTriageScreen() {
     (count, lane) => count + lane.tokens.filter((token) => token.is_overdue).length,
     0,
   );
-  const syncLabel = lastUpdatedLabel(queueQuery.dataUpdatedAt);
+  const syncLabel = tvLastUpdatedLabel(queueQuery.dataUpdatedAt);
 
   return (
     <TvBoard
@@ -105,6 +97,12 @@ function EmergencyTriageScreen() {
           { label: "TOTAL", value: String(queue?.total_waiting ?? "—") },
           { label: "BAYS", value: String(queue?.resuscitation_bays_available ?? "—") },
         ]}
+      />
+      <TvFeedStatusBanner
+        errorLabel="Emergency triage feed is unreachable. Continuing with the last available token state."
+        isError={queueQuery.isError}
+        lastUpdatedAt={queueQuery.dataUpdatedAt}
+        refreshIntervalMs={REFRESH_INTERVAL_MS}
       />
       {queueQuery.isLoading ? (
         <View style={styles.centerPanel}>
