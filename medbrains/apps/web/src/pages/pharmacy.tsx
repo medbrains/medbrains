@@ -3964,6 +3964,7 @@ function StockTab({ canManage }: { canManage: boolean }) {
 // ══════════════════════════════════════════════════════════
 
 function NdpsRegisterTab() {
+  const emit = useClinicalEmit();
   const canManage = useHasPermission(P.PHARMACY.NDPS_MANAGE);
   const queryClient = useQueryClient();
   const [formOpened, formHandlers] = useDisclosure(false);
@@ -4000,7 +4001,16 @@ function NdpsRegisterTab() {
 
   const createMutation = useMutation({
     mutationFn: (d: CreateNdpsEntryRequest) => pharmacyService.createNdpsEntry(d),
-    onSuccess: () => {
+    onSuccess: (entry) => {
+      emit("pharmacy.ndps.movement.created", {
+        action: entry.action,
+        catalog_item_id: entry.catalog_item_id,
+        created_at: entry.created_at,
+        entry_id: entry.id,
+        quantity: entry.quantity,
+        register_number: entry.register_number,
+        source_record_id: entry.id,
+      });
       void queryClient.invalidateQueries({ queryKey: ["pharmacy-ndps"] });
       void queryClient.invalidateQueries({ queryKey: ["pharmacy-ndps-balance"] });
       notifications.show({

@@ -431,6 +431,32 @@ describe("clinical event normalization", () => {
     expect(cancelled.missingPayloadKeys).toEqual([]);
   });
 
+  it("tracks pharmacy NDPS register movements without sensitive register fields", () => {
+    const movement = buildClinicalEventTrace({
+      contextCode: "pharmacy-orders",
+      moduleCode: "pharmacy",
+      occurredAt: "2026-05-29T10:32:00.000Z",
+      rawTrigger: "pharmacy.ndps.movement.created",
+      payload: {
+        action: "receipt",
+        catalog_item_id: "drug-1",
+        created_at: "2026-05-29T10:32:00.000Z",
+        entry_id: "entry-1",
+        quantity: 2,
+        register_number: "NDPS-001",
+        source_record_id: "entry-1",
+      },
+    });
+
+    expect(movement.eventName).toBe("pharmacy.ndps.movement.created");
+    expect(movement.sourceRecordId).toBe("entry-1");
+    expect(movement.payload).not.toHaveProperty("balance_after");
+    expect(movement.payload).not.toHaveProperty("dispensed_by");
+    expect(movement.payload).not.toHaveProperty("witnessed_by");
+    expect(movement.payload).not.toHaveProperty("notes");
+    expect(movement.missingPayloadKeys).toEqual([]);
+  });
+
   it("tracks IPD bed transfer and discharge completion events without missing payload keys", () => {
     const transfer = buildClinicalEventTrace({
       contextCode: "ipd-admission-detail",

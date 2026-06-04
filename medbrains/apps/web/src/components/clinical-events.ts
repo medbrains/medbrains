@@ -127,6 +127,7 @@ export function buildClinicalEventTrace({
     "mlc_case_id",
     "code_activation_id",
     "code_blue_id",
+    "entry_id",
     "payment_id",
     "invoice_id",
     "packet_id",
