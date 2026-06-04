@@ -11199,6 +11199,7 @@ export type ClinicalEventName =
   | "patient.merged"
   | "patient.access_shared"
   | "patient.card_printed"
+  | "patient.search.completed"
   | "visit.created"
   | "emergency.visit.created"
   | "mlc.created"
@@ -11264,6 +11265,7 @@ export const CLINICAL_EVENT_REQUIRED_PAYLOAD_KEYS: Record<ClinicalEventName, rea
   "patient.merged": ["surviving_patient_id", "merged_patient_id"],
   "patient.access_shared": ["patient_id"],
   "patient.card_printed": ["patient_id"],
+  "patient.search.completed": ["search_id"],
   "visit.created": ["visit_id", "patient_id"],
   "emergency.visit.created": ["visit_id", "patient_id"],
   "mlc.created": ["mlc_case_id", "patient_id"],

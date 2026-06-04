@@ -241,10 +241,19 @@ function errorMessage(error: unknown): string {
 // #endregion
 
 export function PatientsPage() {
+  return (
+    <ClinicalEventProvider moduleCode="patients" contextCode="patient-directory">
+      <PatientsPageInner />
+    </ClinicalEventProvider>
+  );
+}
+
+function PatientsPageInner() {
   useRequirePermission(P.PATIENTS.LIST);
   const { t } = useTranslation("patients");
   const canCreate = useHasPermission(P.PATIENTS.CREATE);
   const navigate = useNavigate();
+  const emit = useClinicalEmit();
 
   // State
   const [search, setSearch] = useState("");
@@ -259,12 +268,24 @@ export function PatientsPage() {
   // Queries
   const { data, isLoading } = useQuery({
     queryKey: ["patients", page, debouncedSearch],
-    queryFn: () =>
-      patientsService.listPatients({
+    queryFn: async () => {
+      const response = await patientsService.listPatients({
         page,
         per_page: PER_PAGE,
         search: debouncedSearch || undefined,
-      }),
+      });
+      const trimmedSearch = debouncedSearch.trim();
+      if (trimmedSearch.length > 0) {
+        emit("patient.search.completed", {
+          source_record_id: `patient-search:${page}:${trimmedSearch.length}:${response.total}`,
+          search_id: `patient-search:${page}:${trimmedSearch.length}:${response.total}`,
+          page,
+          query_length: trimmedSearch.length,
+          result_count: response.total,
+        });
+      }
+      return response;
+    },
   });
 
   const openRegister = () => {

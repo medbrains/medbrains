@@ -100,6 +100,30 @@ describe("clinical event normalization", () => {
     expect(cardPrinted.missingPayloadKeys).toEqual([]);
   });
 
+  it("tracks patient directory search completion without storing search text", () => {
+    const event = buildClinicalEventTrace({
+      contextCode: "patient-directory",
+      moduleCode: "patients",
+      occurredAt: "2026-05-29T10:04:00.000Z",
+      rawTrigger: "patient.search.completed",
+      payload: {
+        page: 1,
+        query_length: 8,
+        result_count: 3,
+        search_id: "patient-search:1:8:3",
+        source_record_id: "patient-search:1:8:3",
+      },
+    });
+
+    expect(event.eventName).toBe("patient.search.completed");
+    expect(event.sourceModule).toBe("patients");
+    expect(event.sourceRecordId).toBe("patient-search:1:8:3");
+    expect(event.patientId).toBeNull();
+    expect(event.payload).not.toHaveProperty("query");
+    expect(event.payload).not.toHaveProperty("search");
+    expect(event.missingPayloadKeys).toEqual([]);
+  });
+
   it("tracks billing invoice finalization and payment receipt events without missing payload keys", () => {
     const finalized = buildClinicalEventTrace({
       contextCode: "billing-invoice-detail",
