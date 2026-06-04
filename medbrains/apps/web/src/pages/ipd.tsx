@@ -259,6 +259,41 @@ const IPD_ACTION_RAIL_LOCAL_ACTION_IDS = [
   "mrd.open_case_sheet",
 ] satisfies ClinicalJourneyActionId[];
 
+function deriveIpdJourneyCompletedEvents({
+  dischargeSummary,
+  investigations,
+  mrdCaseSheetPackets,
+  prescriptions,
+}: {
+  dischargeSummary: IpdDischargeSummary | null | undefined;
+  investigations: InvestigationsResponse | null | undefined;
+  mrdCaseSheetPackets: readonly MrdCaseSheetPacket[];
+  prescriptions: readonly PrescriptionWithItems[];
+}) {
+  const events: string[] = [];
+  const hasOrders =
+    prescriptions.length > 0 ||
+    (investigations?.lab_orders.length ?? 0) > 0 ||
+    (investigations?.radiology_orders.length ?? 0) > 0;
+
+  if (hasOrders) {
+    events.push("order.created");
+  }
+  if (dischargeSummary?.status === "finalized" || dischargeSummary?.finalized_at) {
+    events.push("ipd.discharge.finalized");
+  }
+  if (mrdCaseSheetPackets.length > 0) {
+    events.push("mrd.case_sheet.generated");
+  }
+  if (
+    mrdCaseSheetPackets.some((packet) => packet.status === "printed" || packet.printed_at !== null)
+  ) {
+    events.push("mrd.case_sheet.printed");
+  }
+
+  return events;
+}
+
 const DISCHARGE_TYPE_OPTIONS = [
   { value: "normal", label: "Normal" },
   { value: "lama", label: "LAMA" },
@@ -857,6 +892,25 @@ function AdmissionDetail({
     enabled: canViewMrdCaseSheets,
     staleTime: 60_000,
   });
+  const admissionDetail = data as AdmissionDetailResponse | undefined;
+  const admission = admissionDetail?.admission;
+  const admissionEncounterId = admission?.encounter_id;
+  const { data: admissionPrescriptions = [] } = useQuery<PrescriptionWithItems[]>({
+    queryKey: ["encounter-prescriptions", admissionEncounterId],
+    queryFn: () =>
+      admissionEncounterId
+        ? ipdService.listPrescriptions(admissionEncounterId)
+        : Promise.resolve([]),
+    enabled: Boolean(admissionEncounterId),
+  });
+  const { data: admissionInvestigations } = useQuery<InvestigationsResponse>({
+    queryKey: ["ipd-investigations", admissionId],
+    queryFn: () => ipdService.getAdmissionInvestigations(admissionId),
+  });
+  const { data: dischargeSummary = null } = useQuery<IpdDischargeSummary | null>({
+    queryKey: ["ipd-discharge-summary", admissionId],
+    queryFn: () => ipdService.getDischargeSummary(admissionId).catch(() => null),
+  });
   const generateMrdCaseSheetMutation = useMutation({
     mutationFn: () => mrdService.generateIpdCaseSheetPacket(admissionId),
     onSuccess: (packet) => {
@@ -883,6 +937,12 @@ function AdmissionDetail({
       });
     },
   });
+  const journeyCompletedEvents = deriveIpdJourneyCompletedEvents({
+    dischargeSummary,
+    investigations: admissionInvestigations,
+    mrdCaseSheetPackets,
+    prescriptions: admissionPrescriptions,
+  });
 
   if (!data) return <Text c="dimmed">Loading...</Text>;
 
@@ -898,6 +958,7 @@ function AdmissionDetail({
     activeAdmissionId: adm.id,
     activeAdmissionStatus: adm.status,
     activeOrderContext: "ipd",
+    completedEvents: journeyCompletedEvents,
   };
 
   return (
@@ -911,6 +972,7 @@ function AdmissionDetail({
             activeEncounterId={adm.encounter_id}
             activeAdmissionId={adm.id}
             activeAdmissionStatus={adm.status}
+            completedEvents={journeyCompletedEvents}
             compact
           />
           <Group justify="space-between" align="flex-start" gap="sm">
@@ -1020,6 +1082,10 @@ function AdmissionDetail({
         onActiveTabChange={setBasketTab}
         onSigned={() => {
           void queryClient.invalidateQueries({ queryKey: ["admission-detail", admissionId] });
+          void queryClient.invalidateQueries({
+            queryKey: ["encounter-prescriptions", adm.encounter_id],
+          });
+          void queryClient.invalidateQueries({ queryKey: ["ipd-investigations", admissionId] });
           void queryClient.invalidateQueries({ queryKey: ["ipd-estimated-cost", admissionId] });
           void queryClient.invalidateQueries({ queryKey: ["ipd-billing-summary", admissionId] });
           void queryClient.invalidateQueries({ queryKey: ["patient-invoices", adm.patient_id] });
