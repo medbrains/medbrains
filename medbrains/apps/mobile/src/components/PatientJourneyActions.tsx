@@ -1,10 +1,10 @@
-import { useAuthStore } from "@medbrains/stores";
+import { usePermissionStore } from "@medbrains/stores";
 import type {
   ClinicalJourneyActionId,
   ClinicalJourneyContext,
   ResolvedClinicalJourneyAction,
 } from "@medbrains/types";
-import { ROLE_TEMPLATES, resolveClinicalJourneyActions } from "@medbrains/types";
+import { resolveClinicalJourneyActions } from "@medbrains/types";
 import { StyleSheet, View } from "react-native";
 import { Button, Text } from "react-native-paper";
 
@@ -71,12 +71,6 @@ function eventLabel(eventName: string) {
   return eventName.replace(/\./g, " ");
 }
 
-function roleHasPermission(role: string | null | undefined, code: string) {
-  if (role === "super_admin" || role === "hospital_admin") return true;
-  if (!role) return false;
-  return Boolean(ROLE_TEMPLATES[role]?.permissions.includes(code));
-}
-
 function supportedAction(
   action: ResolvedClinicalJourneyAction,
 ): action is ResolvedClinicalJourneyAction & { id: MobileJourneyActionId } {
@@ -94,12 +88,10 @@ function mobileDisabledReason(
 }
 
 export function PatientJourneyActions({ context, navigation }: PatientJourneyActionsProps) {
-  const userRole = useAuthStore((state) => state.user?.role);
-  const actions = resolveClinicalJourneyActions(
-    context,
-    (permission) => roleHasPermission(userRole, permission),
-    "mobile",
-  ).filter(supportedAction);
+  const hasPermission = usePermissionStore((state) => state.hasPermission);
+  const actions = resolveClinicalJourneyActions(context, hasPermission, "mobile").filter(
+    supportedAction,
+  );
 
   function handleAction(action: ResolvedClinicalJourneyAction & { id: MobileJourneyActionId }) {
     if (mobileDisabledReason(action, context)) return;
