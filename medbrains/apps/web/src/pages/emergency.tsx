@@ -462,6 +462,17 @@ function mlcPoliceIntimationClinicalPayload(
   };
 }
 
+function deriveEmergencyJourneyCompletedEvents(visit: ErVisit) {
+  const events: string[] = [];
+  if (visit.admission_id) {
+    events.push("bed.assigned");
+  }
+  if (visit.is_mlc) {
+    events.push("mlc.created");
+  }
+  return events;
+}
+
 // ── Triage helpers ────────────────────────────────────
 
 interface TriageInfo {
@@ -1572,6 +1583,7 @@ function EmergencyVisitCommandBar({
   canViewPatientRecord: boolean;
 }) {
   const qc = useQueryClient();
+  const emit = useClinicalEmit();
   const [admitOpen, admitHandlers] = useDisclosure(false);
   const {
     control,
@@ -1584,18 +1596,33 @@ function EmergencyVisitCommandBar({
   });
   const canShowAdmit =
     canAdmit && ["registered", "triaged", "in_treatment", "observation"].includes(visit.status);
+  const completedEvents = deriveEmergencyJourneyCompletedEvents(visit);
   const journeyContext: ClinicalJourneyContext = {
     patientId: visit.patient_id,
     isDeceased: visit.is_brought_dead,
     activeEmergencyVisitId: visit.id,
     activeAdmissionId: visit.admission_id,
     activeAdmissionStatus: visit.admission_id ? "admitted" : null,
+    completedEvents,
   };
   const admitMutation = useMutation({
     mutationFn: (data: AdmitFromErRequest) => emergencyService.admitFromEr(visit.id, data),
-    onSuccess: () => {
+    onSuccess: (result, request) => {
+      emit("bed.assigned", {
+        admission_id: result.admission_id,
+        bed_id: request.bed_id,
+        er_visit_id: result.er_visit_id,
+        patient_id: result.patient_id,
+        reason: request.admission_notes ?? visit.chief_complaint ?? "ER admission",
+        source_record_id: result.admission_id,
+        status: result.status,
+      });
       void qc.invalidateQueries({ queryKey: ["er-visits"] });
       void qc.invalidateQueries({ queryKey: ["er-visit", visit.id] });
+      void qc.invalidateQueries({ queryKey: ["admissions"] });
+      void qc.invalidateQueries({ queryKey: ["admission-detail", result.admission_id] });
+      void qc.invalidateQueries({ queryKey: ["ipd-bed-dashboard-summary"] });
+      void qc.invalidateQueries({ queryKey: ["ipd-bed-dashboard-beds"] });
       notifications.show({
         title: "Patient admitted",
         message: "ER visit has been linked to an IPD admission.",
@@ -1634,6 +1661,7 @@ function EmergencyVisitCommandBar({
               active="emergency"
               activeEmergencyVisitId={visit.id}
               activeAdmissionId={visit.admission_id}
+              completedEvents={completedEvents}
               compact
             />
             <PatientJourneyActions

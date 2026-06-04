@@ -41,6 +41,7 @@ import type {
   AdmissionListResponse,
   AdmissionPrintData,
   AdmitFromErRequest,
+  AdmitFromErResponse,
   AdmitFromOpdRequest,
   AdmitFromOpdResponse,
   AdrReport,
@@ -6781,7 +6782,7 @@ export const api = {
     }),
 
   admitFromEr: (visitId: string, data: AdmitFromErRequest) =>
-    request<Record<string, unknown>>(`/emergency/visits/${visitId}/admit`, {
+    request<AdmitFromErResponse>(`/emergency/visits/${visitId}/admit`, {
       method: "POST",
       body: JSON.stringify(data),
     }),

@@ -19578,6 +19578,13 @@ export interface AdmitFromErRequest {
   admission_notes?: string;
 }
 
+export interface AdmitFromErResponse {
+  er_visit_id: string;
+  admission_id: string;
+  patient_id: string;
+  status: "admitted";
+}
+
 // ══════════════════════════════════════════════════════════
 //  Batch 2 — Analytics & Reporting Types
 // ══════════════════════════════════════════════════════════
