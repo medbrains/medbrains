@@ -8,7 +8,12 @@ import { ROLE_TEMPLATES, resolveClinicalJourneyActions } from "@medbrains/types"
 import { StyleSheet, View } from "react-native";
 import { Button, Text } from "react-native-paper";
 
-type MobileJourneyActionId = "opd.open_visit" | "orders.medication" | "orders.lab";
+type MobileJourneyActionId =
+  | "billing.collect_payment"
+  | "billing.open_ledger"
+  | "opd.open_visit"
+  | "orders.lab"
+  | "orders.medication";
 
 interface PatientJourneyActionsProps {
   context: ClinicalJourneyContext;
@@ -18,6 +23,8 @@ interface PatientJourneyActionsProps {
 }
 
 const SUPPORTED_MOBILE_ACTIONS = new Set<ClinicalJourneyActionId>([
+  "billing.collect_payment",
+  "billing.open_ledger",
   "opd.open_visit",
   "orders.medication",
   "orders.lab",
@@ -25,6 +32,10 @@ const SUPPORTED_MOBILE_ACTIONS = new Set<ClinicalJourneyActionId>([
 
 function actionIcon(actionId: ClinicalJourneyActionId) {
   switch (actionId) {
+    case "billing.collect_payment":
+      return "credit-card";
+    case "billing.open_ledger":
+      return "receipt";
     case "opd.open_visit":
       return "stethoscope";
     case "orders.medication":
@@ -37,6 +48,8 @@ function actionIcon(actionId: ClinicalJourneyActionId) {
 }
 
 function actionLabel(action: ResolvedClinicalJourneyAction & { id: MobileJourneyActionId }) {
+  if (action.id === "billing.collect_payment") return "Payment";
+  if (action.id === "billing.open_ledger") return "Billing";
   if (action.id === "opd.open_visit") return "Notes";
   return action.shortLabel;
 }
@@ -79,6 +92,19 @@ export function PatientJourneyActions({ context, navigation }: PatientJourneyAct
     if (mobileDisabledReason(action, context)) return;
 
     switch (action.id) {
+      case "billing.collect_payment":
+        navigation.navigate("Billing", {
+          filter: "pending",
+          handoff: "payment",
+          patientId: context.patientId,
+        });
+        return;
+      case "billing.open_ledger":
+        navigation.navigate("Billing", {
+          filter: "all",
+          patientId: context.patientId,
+        });
+        return;
       case "opd.open_visit":
         navigation.navigate("ConsultationNotes", {
           encounterId: context.activeEncounterId ?? "",

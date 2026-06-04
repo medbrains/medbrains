@@ -40,7 +40,9 @@ export type RootStackParamList = {
   LabResults: undefined;
   LabResultDetail: { orderId: string };
   Prescriptions: undefined;
-  Billing: undefined;
+  Billing:
+    | { filter?: "all" | "paid" | "pending"; handoff?: "payment"; patientId?: string }
+    | undefined;
   BillDetail: { invoiceId: string };
   Payment: { invoiceId: string };
   Profile: undefined;
@@ -142,6 +144,11 @@ function StaffStack() {
         options={{ title: "Patient Details" }}
       />
       <Stack.Screen name="Queue" component={QueueScreen} options={{ title: "Patient Queue" }} />
+      <Stack.Screen
+        name="Billing"
+        component={BillingScreen}
+        options={{ title: "Patient Billing" }}
+      />
       <Stack.Screen
         name="Vitals"
         component={VitalsEntryScreen}

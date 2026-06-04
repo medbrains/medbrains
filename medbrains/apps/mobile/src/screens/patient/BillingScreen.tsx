@@ -19,6 +19,13 @@ import { patientService } from "../../services/patient.service";
 type FilterType = "pending" | "paid" | "all";
 
 interface BillingScreenProps {
+  route?: {
+    params?: {
+      filter?: FilterType;
+      handoff?: "payment";
+      patientId?: string;
+    };
+  };
   navigation: {
     navigate: (screen: string, params?: Record<string, unknown>) => void;
   };
@@ -48,16 +55,20 @@ function formatCurrency(amount: number): string {
   }).format(amount);
 }
 
-export function BillingScreen({ navigation }: BillingScreenProps) {
+export function BillingScreen({ navigation, route }: BillingScreenProps) {
   const theme = useTheme();
   const { user } = useAuthStore();
+  const routePatientId = route?.params?.patientId;
+  const patientId = routePatientId ?? user?.id ?? "";
+  const isStaffPatientContext = Boolean(routePatientId);
+  const initialFilter = route?.params?.filter ?? "pending";
 
-  const [filter, setFilter] = useState<FilterType>("pending");
+  const [filter, setFilter] = useState<FilterType>(initialFilter);
 
   const { data, isLoading, refetch } = useQuery({
-    queryKey: ["patient", "invoices", user?.id, filter],
-    queryFn: () => patientService.listPatientInvoices(user?.id || ""),
-    enabled: Boolean(user?.id),
+    queryKey: ["patient", "invoices", patientId, filter],
+    queryFn: () => patientService.listPatientInvoices(patientId),
+    enabled: Boolean(patientId),
   });
 
   // Filter invoices based on selected filter
@@ -176,6 +187,20 @@ export function BillingScreen({ navigation }: BillingScreenProps) {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      {isStaffPatientContext && (
+        <Surface style={styles.handoffBanner} elevation={1}>
+          <Avatar.Icon size={36} icon="account-cash" style={styles.handoffIcon} />
+          <View style={styles.handoffText}>
+            <Text variant="labelMedium">
+              {route?.params?.handoff === "payment" ? "Payment handoff" : "Patient billing"}
+            </Text>
+            <Text variant="bodySmall" style={styles.handoffHint}>
+              Reviewing invoices for the selected patient context.
+            </Text>
+          </View>
+        </Surface>
+      )}
+
       {/* Outstanding Amount Banner */}
       {totalPending > 0 && (
         <Surface style={styles.outstandingBanner} elevation={2}>
@@ -281,6 +306,25 @@ const styles = StyleSheet.create({
   outstandingAmount: {
     fontWeight: "bold",
     color: "#C8102E",
+  },
+  handoffBanner: {
+    margin: 16,
+    marginBottom: 8,
+    padding: 14,
+    borderRadius: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  handoffIcon: {
+    backgroundColor: "#fff3bf",
+  },
+  handoffText: {
+    flex: 1,
+  },
+  handoffHint: {
+    opacity: 0.65,
+    marginTop: 2,
   },
   filterContainer: {
     paddingHorizontal: 16,
