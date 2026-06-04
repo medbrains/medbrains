@@ -12,12 +12,13 @@ use axum::{
     http::StatusCode,
 };
 use chrono::{NaiveDate, Utc};
+use medbrains_core::permissions;
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 use uuid::Uuid;
 
 use crate::{
-    middleware::auth::Claims,
+    middleware::{auth::Claims, authorization::is_bypass_role},
     routes::ws::{AnnouncementEvent, QueueBroadcaster, QueueEvent, QueueTokenInfo},
     state::AppState,
 };
@@ -1018,6 +1019,21 @@ pub struct BedAvailabilityDisplay {
     pub waiting_list: Vec<BedWaitingEntry>,
 }
 
+#[derive(Debug, FromRow)]
+struct BedAvailabilityStatsRow {
+    total_beds: i64,
+    available: i64,
+}
+
+#[derive(Debug, FromRow)]
+struct BedWaitingSourceRow {
+    patient_name: String,
+    ward_type: String,
+    priority: String,
+    wait_time_minutes: i32,
+    status: String,
+}
+
 /// Queue analytics for a department.
 #[derive(Debug, Serialize)]
 pub struct QueueAnalytics {
@@ -1582,18 +1598,175 @@ fn format_short_token(prefix: &str, id: Uuid) -> String {
 /// GET /`api/tv/queue/beds/{ward_type`}
 /// Get bed availability and waiting list for a ward type.
 pub async fn get_bed_availability(
-    State(_state): State<AppState>,
-    Extension(_claims): Extension<Claims>,
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
     Path(ward_type): Path<String>,
 ) -> Result<Json<BedAvailabilityDisplay>, (StatusCode, String)> {
-    // Placeholder implementation - would query beds and ipd_admissions tables
+    let ward_type = normalise_tv_ward_type(&ward_type);
+    let can_view_patient_identity =
+        claims_have_any_permission(&claims, &[permissions::patients::VIEW]);
+
+    let mut tx = state
+        .db
+        .begin()
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    let stats = sqlx::query_as::<_, BedAvailabilityStatsRow>(
+        r"
+        SELECT COUNT(*)::bigint AS total_beds,
+               COUNT(*) FILTER (WHERE bs.status::text = 'vacant_clean')::bigint AS available
+        FROM ward_bed_mappings wbm
+        JOIN wards w
+          ON w.id = wbm.ward_id
+         AND w.tenant_id = wbm.tenant_id
+         AND w.is_active = true
+        LEFT JOIN bed_states bs
+          ON bs.tenant_id = wbm.tenant_id
+         AND bs.location_id = wbm.bed_location_id
+        WHERE wbm.tenant_id = $1
+          AND wbm.is_active = true
+          AND (
+              $2 = 'all'
+              OR replace(replace(lower(w.ward_type), ' ', '_'), '-', '_') = $2
+              OR replace(replace(lower(w.name), ' ', '_'), '-', '_') LIKE '%' || $2 || '%'
+          )
+        ",
+    )
+    .bind(claims.tenant_id)
+    .bind(&ward_type)
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    let waiting_rows = sqlx::query_as::<_, BedWaitingSourceRow>(
+        r"
+        SELECT COALESCE(
+                   NULLIF(
+                       BTRIM(
+                           CASE
+                             WHEN $3::bool THEN concat_ws(' ', p.first_name, p.last_name)
+                             ELSE 'Restricted'
+                           END
+                       ),
+                       ''
+                   ),
+                   'Restricted'
+               ) AS patient_name,
+               COALESCE(w.ward_type, $2) AS ward_type,
+               CASE
+                 WHEN a.is_critical THEN 'critical'
+                 ELSE COALESCE(NULLIF(a.priority, ''), 'routine')
+               END AS priority,
+               FLOOR(EXTRACT(EPOCH FROM (NOW() - a.admitted_at)) / 60)::int AS wait_time_minutes,
+               CASE
+                 WHEN a.ward_id IS NULL THEN 'awaiting_ward'
+                 ELSE 'awaiting_bed'
+               END AS status
+        FROM admissions a
+        JOIN patients p
+          ON p.id = a.patient_id
+         AND p.tenant_id = a.tenant_id
+        LEFT JOIN wards w
+          ON w.id = a.ward_id
+         AND w.tenant_id = a.tenant_id
+         AND w.is_active = true
+        WHERE a.tenant_id = $1
+          AND COALESCE(a.is_dummy, false) = false
+          AND a.status::text = 'admitted'
+          AND a.bed_id IS NULL
+          AND (
+              $2 = 'all'
+              OR (
+                  w.id IS NOT NULL
+                  AND (
+                      replace(replace(lower(w.ward_type), ' ', '_'), '-', '_') = $2
+                      OR replace(replace(lower(w.name), ' ', '_'), '-', '_') LIKE '%' || $2 || '%'
+                  )
+              )
+          )
+        ORDER BY
+          a.is_critical DESC,
+          CASE COALESCE(NULLIF(a.priority, ''), 'routine')
+            WHEN 'critical' THEN 0
+            WHEN 'emergency' THEN 1
+            WHEN 'urgent' THEN 2
+            WHEN 'high' THEN 3
+            WHEN 'routine' THEN 4
+            ELSE 5
+          END,
+          a.admitted_at ASC
+        LIMIT 20
+        ",
+    )
+    .bind(claims.tenant_id)
+    .bind(&ward_type)
+    .bind(can_view_patient_identity)
+    .fetch_all(&mut *tx)
+    .await
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    tx.commit()
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    let total_beds = saturating_i64_to_i32(stats.total_beds);
+    let available = saturating_i64_to_i32(stats.available);
+
     Ok(Json(BedAvailabilityDisplay {
         ward_type,
-        total_beds: 50,
-        occupied: 42,
-        available: 8,
-        waiting_list: vec![],
+        total_beds,
+        occupied: total_beds.saturating_sub(available),
+        available,
+        waiting_list: waiting_rows
+            .into_iter()
+            .map(|row| BedWaitingEntry {
+                patient_name: row.patient_name,
+                ward_type: row.ward_type,
+                priority: row.priority,
+                wait_time_minutes: row.wait_time_minutes,
+                status: row.status,
+            })
+            .collect(),
     }))
+}
+
+fn normalise_tv_ward_type(value: &str) -> String {
+    let mut normalised = String::new();
+    let mut last_was_separator = true;
+
+    for ch in value.trim().chars() {
+        if ch.is_ascii_alphanumeric() {
+            normalised.push(ch.to_ascii_lowercase());
+            last_was_separator = false;
+        } else if !last_was_separator {
+            normalised.push('_');
+            last_was_separator = true;
+        }
+    }
+
+    while normalised.ends_with('_') {
+        normalised.pop();
+    }
+
+    if normalised.is_empty() {
+        "general".to_owned()
+    } else {
+        normalised
+    }
+}
+
+fn claims_have_any_permission(claims: &Claims, permissions: &[&str]) -> bool {
+    is_bypass_role(claims)
+        || permissions.iter().any(|permission| {
+            claims
+                .permissions
+                .iter()
+                .any(|granted| granted == permission)
+        })
 }
 
 /// GET /`api/tv/queue/analytics/{department_id`}
