@@ -37,10 +37,10 @@ const TRIGGER_ALIASES: Record<string, ClinicalEventName> = {
   "er.visit.created": "emergency.visit.created",
   "invoice.created": "billing.invoice.created",
   "invoice.issued": "billing.invoice.finalized",
-  "lab.completed": "lab.order.completed",
+  "lab.completed": "lab.result.posted",
   "lab.order_created": "order.created",
   "lab.ordered": "order.created",
-  "lab.results_verified": "lab.order.completed",
+  "lab.results_verified": "lab.result.verified",
   "mlc.case.created": "mlc.created",
   "mlc.police_intimation.created": "emergency.mlc_police_intimation.created",
   "mrd.case_sheet.sent": "mrd.case_sheet.generated",
@@ -51,6 +51,7 @@ const TRIGGER_ALIASES: Record<string, ClinicalEventName> = {
   "procedure.ordered": "order.created",
   "radiology.order.created": "order.created",
   "radiology.order.completed": "radiology.order.completed",
+  "radiology.report.verified": "radiology.report.verified",
   "transfer.completed": "bed.transferred",
 };
 
@@ -118,6 +119,7 @@ export function buildClinicalEventTrace({
   const sourceRecordId = stringValue(payload, [
     "source_record_id",
     "search_id",
+    "report_id",
     "intimation_id",
     "mlc_case_id",
     "code_activation_id",

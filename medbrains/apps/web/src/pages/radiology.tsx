@@ -715,9 +715,21 @@ function OrderDetailDrawer({
 
   const verifyMutation = useMutation({
     mutationFn: (reportId: string) => radiologyService.verifyRadiologyReport(reportId),
-    onSuccess: () => {
+    onSuccess: (result) => {
       void qc.invalidateQueries({ queryKey: ["radiology-order", id] });
       void qc.invalidateQueries({ queryKey: ["radiology-orders"] });
+      if (order) {
+        emit("radiology.report.verified", {
+          body_part: order.body_part,
+          encounter_id: order.encounter_id,
+          modality_id: order.modality_id,
+          order_id: order.id,
+          patient_id: order.patient_id,
+          report_id: result.id,
+          report_status: result.status,
+          verified_at: result.verified_at,
+        });
+      }
       notifications.show({ title: "Report verified", message: "", color: "success" });
     },
   });

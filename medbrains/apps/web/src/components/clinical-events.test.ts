@@ -13,6 +13,8 @@ describe("clinical event normalization", () => {
       "opd.encounter.created",
     );
     expect(normalizeClinicalEventName("invoice.created")).toBe("billing.invoice.created");
+    expect(normalizeClinicalEventName("lab.completed")).toBe("lab.result.posted");
+    expect(normalizeClinicalEventName("lab.results_verified")).toBe("lab.result.verified");
     expect(normalizeClinicalEventName("mrd.case_sheet.sent")).toBe("mrd.case_sheet.generated");
     expect(normalizeClinicalEventName("mlc.case.created")).toBe("mlc.created");
     expect(normalizeClinicalEventName("mlc.police_intimation.created")).toBe(
@@ -436,10 +438,23 @@ describe("clinical event normalization", () => {
       contextCode: "lab-orders",
       moduleCode: "lab",
       occurredAt: "2026-05-29T10:50:00.000Z",
+      rawTrigger: "lab.completed",
+      payload: {
+        order_id: "lab-order-1",
+        patient_id: "patient-1",
+        result_status: "completed",
+      },
+    });
+
+    const labVerified = buildClinicalEventTrace({
+      contextCode: "lab-orders",
+      moduleCode: "lab",
+      occurredAt: "2026-05-29T10:52:00.000Z",
       rawTrigger: "lab.results_verified",
       payload: {
         order_id: "lab-order-1",
         patient_id: "patient-1",
+        result_status: "verified",
       },
     });
 
@@ -467,15 +482,33 @@ describe("clinical event normalization", () => {
       },
     });
 
+    const radiologyVerified = buildClinicalEventTrace({
+      contextCode: "radiology-orders",
+      moduleCode: "radiology",
+      occurredAt: "2026-05-29T11:05:00.000Z",
+      rawTrigger: "radiology.report.verified",
+      payload: {
+        order_id: "radiology-order-1",
+        patient_id: "patient-1",
+        report_id: "radiology-report-1",
+        report_status: "verified",
+      },
+    });
+
     expect(labCreated.eventName).toBe("order.created");
     expect(labCreated.sourceRecordId).toBe("lab-order-1");
     expect(labCreated.patientId).toBe("patient-1");
     expect(labCreated.missingPayloadKeys).toEqual([]);
 
-    expect(labCompleted.eventName).toBe("lab.order.completed");
+    expect(labCompleted.eventName).toBe("lab.result.posted");
     expect(labCompleted.sourceRecordId).toBe("lab-order-1");
     expect(labCompleted.patientId).toBe("patient-1");
     expect(labCompleted.missingPayloadKeys).toEqual([]);
+
+    expect(labVerified.eventName).toBe("lab.result.verified");
+    expect(labVerified.sourceRecordId).toBe("lab-order-1");
+    expect(labVerified.patientId).toBe("patient-1");
+    expect(labVerified.missingPayloadKeys).toEqual([]);
 
     expect(radiologyCreated.eventName).toBe("order.created");
     expect(radiologyCreated.sourceRecordId).toBe("radiology-order-1");
@@ -486,6 +519,11 @@ describe("clinical event normalization", () => {
     expect(radiologyCompleted.sourceRecordId).toBe("radiology-order-1");
     expect(radiologyCompleted.patientId).toBe("patient-1");
     expect(radiologyCompleted.missingPayloadKeys).toEqual([]);
+
+    expect(radiologyVerified.eventName).toBe("radiology.report.verified");
+    expect(radiologyVerified.sourceRecordId).toBe("radiology-report-1");
+    expect(radiologyVerified.patientId).toBe("patient-1");
+    expect(radiologyVerified.missingPayloadKeys).toEqual([]);
   });
 
   it("tracks OPD queue and order events without missing payload keys", () => {

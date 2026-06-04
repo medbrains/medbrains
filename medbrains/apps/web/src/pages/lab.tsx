@@ -883,6 +883,7 @@ function LabOrderDetail({
         order_id: result.id,
         patient_id: result.patient_id,
         priority: result.priority,
+        result_status: result.status,
         test_id: result.test_id,
       });
     },
@@ -896,6 +897,7 @@ function LabOrderDetail({
         order_id: result.id,
         patient_id: result.patient_id,
         priority: result.priority,
+        result_status: result.status,
         test_id: result.test_id,
       });
     },
