@@ -14,6 +14,10 @@ describe("clinical event normalization", () => {
     );
     expect(normalizeClinicalEventName("invoice.created")).toBe("billing.invoice.created");
     expect(normalizeClinicalEventName("mrd.case_sheet.sent")).toBe("mrd.case_sheet.generated");
+    expect(normalizeClinicalEventName("mlc.case.created")).toBe("mlc.created");
+    expect(normalizeClinicalEventName("mlc.police_intimation.created")).toBe(
+      "emergency.mlc_police_intimation.created",
+    );
     expect(normalizeClinicalEventName("payment.recorded")).toBe("billing.payment.received");
     expect(normalizeClinicalEventName("order.dispensed")).toBe("pharmacy.order.dispensed");
     expect(normalizeClinicalEventName("er.visit.created")).toBe("emergency.visit.created");
@@ -172,6 +176,55 @@ describe("clinical event normalization", () => {
     expect(completed.sourceModule).toBe("emergency");
     expect(completed.sourceRecordId).toBe("code-1");
     expect(completed.missingPayloadKeys).toEqual([]);
+  });
+
+  it("tracks MLC registration and police-intimation events without missing payload keys", () => {
+    const registered = buildClinicalEventTrace({
+      contextCode: "emergency-visits",
+      moduleCode: "emergency",
+      occurredAt: "2026-05-29T10:35:00.000Z",
+      rawTrigger: "mlc.created",
+      payload: {
+        er_visit_id: "visit-1",
+        mlc_case_id: "mlc-1",
+        mlc_number: "MLC-2026-0001",
+        patient_id: "patient-1",
+        registered_at: "2026-05-29T10:34:00.000Z",
+        source_record_id: "mlc-1",
+        status: "registered",
+      },
+    });
+
+    const intimation = buildClinicalEventTrace({
+      contextCode: "emergency-visits",
+      moduleCode: "emergency",
+      occurredAt: "2026-05-29T10:40:00.000Z",
+      rawTrigger: "emergency.mlc_police_intimation.created",
+      payload: {
+        er_visit_id: "visit-1",
+        intimation_id: "intimation-1",
+        intimation_number: "PI-2026-0001",
+        mlc_case_id: "mlc-1",
+        mlc_number: "MLC-2026-0001",
+        patient_id: "patient-1",
+        receipt_confirmed: false,
+        sent_at: "2026-05-29T10:39:00.000Z",
+        sent_via: "written_memo",
+        source_record_id: "intimation-1",
+      },
+    });
+
+    expect(registered.eventName).toBe("mlc.created");
+    expect(registered.sourceModule).toBe("emergency");
+    expect(registered.patientId).toBe("patient-1");
+    expect(registered.sourceRecordId).toBe("mlc-1");
+    expect(registered.missingPayloadKeys).toEqual([]);
+
+    expect(intimation.eventName).toBe("emergency.mlc_police_intimation.created");
+    expect(intimation.sourceModule).toBe("emergency");
+    expect(intimation.patientId).toBe("patient-1");
+    expect(intimation.sourceRecordId).toBe("intimation-1");
+    expect(intimation.missingPayloadKeys).toEqual([]);
   });
 
   it("tracks camp registration events by camp registration and patient", () => {

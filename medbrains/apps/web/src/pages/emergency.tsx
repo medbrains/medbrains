@@ -432,6 +432,36 @@ function emitCodeBlueLifecycleEvent(
   emit(trigger, codeActivationClinicalPayload(code));
 }
 
+function mlcCaseClinicalPayload(mlcCase: MlcCase): Record<string, unknown> {
+  return {
+    source_record_id: mlcCase.id,
+    mlc_case_id: mlcCase.id,
+    mlc_number: mlcCase.mlc_number,
+    patient_id: mlcCase.patient_id,
+    er_visit_id: mlcCase.er_visit_id,
+    status: mlcCase.status,
+    registered_at: mlcCase.registered_at,
+  };
+}
+
+function mlcPoliceIntimationClinicalPayload(
+  mlcCase: MlcCase,
+  intimation: MlcPoliceIntimation,
+): Record<string, unknown> {
+  return {
+    source_record_id: intimation.id,
+    intimation_id: intimation.id,
+    intimation_number: intimation.intimation_number,
+    mlc_case_id: mlcCase.id,
+    mlc_number: mlcCase.mlc_number,
+    patient_id: mlcCase.patient_id,
+    er_visit_id: mlcCase.er_visit_id,
+    sent_at: intimation.sent_at,
+    sent_via: intimation.sent_via,
+    receipt_confirmed: intimation.receipt_confirmed,
+  };
+}
+
 // ── Triage helpers ────────────────────────────────────
 
 interface TriageInfo {
@@ -3204,6 +3234,7 @@ function MlcCaseDetail({
   canViewPatientRecord: boolean;
 }) {
   const qc = useQueryClient();
+  const emit = useClinicalEmit();
   const canCreateSbar = useHasPermission(P.EMERGENCY.MLC_DOCUMENTS.SBAR_CREATE);
   const canCreateAgeEstimation = useHasPermission(P.EMERGENCY.MLC_DOCUMENTS.AGE_ESTIMATION_CREATE);
   const canCreatePocsoDocument = useHasPermission(P.EMERGENCY.MLC_DOCUMENTS.POCSO_CREATE);
@@ -3385,8 +3416,12 @@ function MlcCaseDetail({
   const createPoliceIntimationMut = useMutation({
     mutationFn: (data: CreatePoliceIntimationInput) =>
       emergencyService.createPoliceIntimation(mlcCase.id, data),
-    onSuccess: () => {
+    onSuccess: (row) => {
       void qc.invalidateQueries({ queryKey: ["mlc-police-intimations", mlcCase.id] });
+      emit(
+        "emergency.mlc_police_intimation.created",
+        mlcPoliceIntimationClinicalPayload(mlcCase, row),
+      );
       closePoliceIntimation();
       resetPoliceIntimation({
         ...EMPTY_POLICE_INTIMATION,
@@ -4750,6 +4785,7 @@ function MlcTab({
   const [selectedCase, setSelectedCase] = useState<MlcCase | null>(null);
   const [caseToUpdate, setCaseToUpdate] = useState<MlcCase | null>(null);
   const qc = useQueryClient();
+  const emit = useClinicalEmit();
   const firNumberAccess = useFieldAccess("emergency.mlc.fir_number");
   const policeStationAccess = useFieldAccess("emergency.mlc.police_station");
   const informantNameAccess = useFieldAccess("emergency.mlc.informant_name");
@@ -4796,8 +4832,9 @@ function MlcTab({
   const selectedPatientId = watch("patient_id");
   const mutation = useMutation({
     mutationFn: (d: CreateMlcCaseRequest) => emergencyService.createMlcCase(d),
-    onSuccess: () => {
+    onSuccess: (row) => {
       void qc.invalidateQueries({ queryKey: ["mlc-cases"] });
+      emit("mlc.created", mlcCaseClinicalPayload(row));
       close();
       reset(contextMlcDefaults);
       notifications.show({ title: "Success", message: "MLC case registered" });

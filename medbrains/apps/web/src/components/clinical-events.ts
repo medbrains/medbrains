@@ -41,6 +41,8 @@ const TRIGGER_ALIASES: Record<string, ClinicalEventName> = {
   "lab.order_created": "order.created",
   "lab.ordered": "order.created",
   "lab.results_verified": "lab.order.completed",
+  "mlc.case.created": "mlc.created",
+  "mlc.police_intimation.created": "emergency.mlc_police_intimation.created",
   "mrd.case_sheet.sent": "mrd.case_sheet.generated",
   "order.dispensed": "pharmacy.order.dispensed",
   "payment.recorded": "billing.payment.received",
@@ -115,6 +117,10 @@ export function buildClinicalEventTrace({
   const eventName = normalizeClinicalEventName(rawTrigger);
   const sourceRecordId = stringValue(payload, [
     "source_record_id",
+    "intimation_id",
+    "mlc_case_id",
+    "code_activation_id",
+    "code_blue_id",
     "payment_id",
     "invoice_id",
     "packet_id",
