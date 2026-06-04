@@ -133,6 +133,7 @@ export function buildClinicalEventTrace({
     "registration_id",
     "camp_registration_id",
     "screening_id",
+    "camp_id",
     "prescription_id",
     "transfer_id",
     "visit_id",

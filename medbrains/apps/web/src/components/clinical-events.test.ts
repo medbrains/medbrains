@@ -309,6 +309,21 @@ describe("clinical event normalization", () => {
   });
 
   it("tracks camp registration events by camp registration and patient", () => {
+    const started = buildClinicalEventTrace({
+      contextCode: "camp-list",
+      moduleCode: "camp",
+      occurredAt: "2026-05-29T10:10:00.000Z",
+      rawTrigger: "camp.started",
+      payload: {
+        camp_code: "CAMP-001",
+        camp_id: "camp-1",
+        camp_type: "general_health",
+        scheduled_date: "2026-05-29",
+        source_record_id: "camp-1",
+        status: "active",
+      },
+    });
+
     const event = buildClinicalEventTrace({
       contextCode: "patient-registration",
       moduleCode: "camp",
@@ -320,6 +335,12 @@ describe("clinical event normalization", () => {
         registration_id: "registration-1",
       },
     });
+
+    expect(started.eventName).toBe("camp.started");
+    expect(started.sourceModule).toBe("camp");
+    expect(started.sourceRecordId).toBe("camp-1");
+    expect(started.patientId).toBeNull();
+    expect(started.missingPayloadKeys).toEqual([]);
 
     expect(event.eventName).toBe("camp.registration.created");
     expect(event.sourceModule).toBe("camp");

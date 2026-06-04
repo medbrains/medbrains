@@ -751,6 +751,7 @@ function CampPatientContextPanel({ patientId }: { patientId: string }) {
 // ══════════════════════════════════════════════════════════
 
 function CampsTab({ onWorkCamp }: { onWorkCamp: (campId: string) => void }) {
+  const emit = useClinicalEmit();
   const canCreate = useHasPermission(P.CAMP.CREATE);
   const canUpdate = useHasPermission(P.CAMP.UPDATE);
   const qc = useQueryClient();
@@ -877,7 +878,15 @@ function CampsTab({ onWorkCamp }: { onWorkCamp: (campId: string) => void }) {
 
   const activateMut = useMutation({
     mutationFn: (id: string) => campService.activateCamp(id),
-    onSuccess: () => {
+    onSuccess: (camp) => {
+      emit("camp.started", {
+        camp_code: camp.camp_code,
+        camp_id: camp.id,
+        camp_type: camp.camp_type,
+        scheduled_date: camp.scheduled_date,
+        source_record_id: camp.id,
+        status: camp.status,
+      });
       void qc.invalidateQueries({ queryKey: ["camps"] });
       notifications.show({ title: "Activated", message: "Camp is now active", color: "success" });
     },
