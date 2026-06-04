@@ -12,6 +12,7 @@ import { useMemo } from "react";
 import { StyleSheet, View } from "react-native";
 import { ActivityIndicator, Text } from "react-native-paper";
 import { TvBoard, TvSummaryRow } from "../components/tv-board.js";
+import { TvFeedStatusBanner, tvLastUpdatedLabel } from "../components/tv-feed-status.js";
 import { tvQueueService } from "../services/tvQueue.service.js";
 
 const REFRESH_INTERVAL_MS = 5_000;
@@ -49,15 +50,6 @@ function statusColor(status: QueueTokenStatus | string) {
   }
 }
 
-function lastUpdatedLabel(updatedAt: number) {
-  if (updatedAt <= 0) return "not synced";
-  return new Date(updatedAt).toLocaleTimeString([], {
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  });
-}
-
 function QueueScreen({ route }: QueueScreenProps) {
   const departmentId = route?.params?.departmentId ?? route?.params?.department_id;
   const tokensQuery = useQuery({
@@ -80,7 +72,7 @@ function QueueScreen({ route }: QueueScreenProps) {
     const completed = tokens.filter((token) => token.status === "completed");
     return { completed, current, waiting };
   }, [tokens]);
-  const syncLabel = lastUpdatedLabel(tokensQuery.dataUpdatedAt);
+  const syncLabel = tvLastUpdatedLabel(tokensQuery.dataUpdatedAt);
 
   return (
     <TvBoard
@@ -107,6 +99,12 @@ function QueueScreen({ route }: QueueScreenProps) {
           },
           { label: "COMPLETED", value: String(boardState.completed.length) },
         ]}
+      />
+      <TvFeedStatusBanner
+        errorLabel="Queue feed is unreachable. Continuing with the last available token state."
+        isError={tokensQuery.isError}
+        lastUpdatedAt={tokensQuery.dataUpdatedAt}
+        refreshIntervalMs={REFRESH_INTERVAL_MS}
       />
       {tokensQuery.isLoading ? (
         <View style={styles.centerPanel}>
