@@ -1160,12 +1160,13 @@ function CreateInvoiceDrawer({ opened, onClose }: { opened: boolean; onClose: ()
     mutationFn: (data: CreateInvoiceRequest) => billingService.createInvoice(data),
     onSuccess: (result) => {
       void queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      void queryClient.invalidateQueries({ queryKey: ["patient-invoices", result.patient_id] });
       notifications.show({
         title: "Invoice created",
         message: "Draft invoice created",
         color: "success",
       });
-      emit("invoice.created", {
+      emit("billing.invoice.created", {
         invoice_id: result.id,
         patient_id: result.patient_id,
         total_amount: result.total_amount,
@@ -1304,7 +1305,9 @@ function InvoiceDetail({
     mutationFn: () => billingService.issueInvoice(invoiceId),
     onSuccess: (result) => {
       void queryClient.invalidateQueries({ queryKey: ["invoice-detail", invoiceId] });
-      emit("invoice.issued", {
+      void queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      void queryClient.invalidateQueries({ queryKey: ["patient-invoices", result.patient_id] });
+      emit("billing.invoice.finalized", {
         invoice_id: result.id,
         patient_id: result.patient_id,
       });
@@ -1354,7 +1357,7 @@ function InvoiceDetail({
       void queryClient.invalidateQueries({ queryKey: ["patients"] });
       void queryClient.invalidateQueries({ queryKey: ["patient-context", inv.patient_id] });
       void queryClient.invalidateQueries({ queryKey: ["patient-invoices", inv.patient_id] });
-      emit("payment.recorded", {
+      emit("billing.payment.received", {
         amount: variables.amount,
         invoice_id: result.invoice_id,
         mode: variables.mode,
@@ -2559,12 +2562,15 @@ function ErFastInvoiceModal({ opened, onClose }: { opened: boolean; onClose: () 
     mutationFn: (data: ErFastInvoiceRequest) => billingService.erFastInvoice(data),
     onSuccess: (result) => {
       void queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      void queryClient.invalidateQueries({
+        queryKey: ["patient-invoices", (result as Invoice).patient_id],
+      });
       notifications.show({
         title: "ER Invoice Created",
         message: `Invoice ${(result as Invoice).invoice_number} created`,
         color: "success",
       });
-      emit("invoice.created", {
+      emit("billing.invoice.created", {
         invoice_id: (result as Invoice).id,
         patient_id: (result as Invoice).patient_id,
         total_amount: (result as Invoice).total_amount,

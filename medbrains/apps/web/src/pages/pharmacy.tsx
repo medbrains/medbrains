@@ -1239,7 +1239,7 @@ function PharmacyOrdersTab({
         message: "Order dispensed and linked billing charges refreshed",
         color: "success",
       });
-      emit("order.dispensed", {
+      emit("pharmacy.order.dispensed", {
         dispensing_type: order.dispensing_type,
         items: pharmacyOrderEventItems(items),
         order_id: id,
@@ -2246,7 +2246,7 @@ function PharmacyOrderForm({
         message: "Pharmacy order placed and draft billing indent updated",
         color: "success",
       });
-      emit("pharmacy.order.created", {
+      emit("order.created", {
         dispensing_type: detail.order.dispensing_type,
         encounter_id: detail.order.encounter_id,
         items: pharmacyOrderEventItems(detail.items),
