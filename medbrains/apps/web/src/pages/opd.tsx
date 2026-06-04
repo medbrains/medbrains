@@ -72,6 +72,7 @@ import type {
   LabResult,
   LabTestCatalog,
   MedicalCertificate,
+  MrdCaseSheetPacket,
   PastMedicalEntry,
   PastSurgicalEntry,
   Patient,
@@ -259,6 +260,26 @@ const OPD_ENCOUNTER_TAB_VALUES = [
   "docket",
   "pharmacy-dispatch",
 ] as const;
+
+function deriveOpdJourneyCompletedEvents(
+  prescriptions: readonly PrescriptionWithItems[],
+  labOrders: readonly LabOrder[],
+  mrdCaseSheetPackets: readonly MrdCaseSheetPacket[],
+) {
+  const events: string[] = [];
+  if (prescriptions.length > 0 || labOrders.length > 0) {
+    events.push("order.created");
+  }
+  if (mrdCaseSheetPackets.length > 0) {
+    events.push("mrd.case_sheet.generated");
+  }
+  if (
+    mrdCaseSheetPackets.some((packet) => packet.status === "printed" || packet.printed_at !== null)
+  ) {
+    events.push("mrd.case_sheet.printed");
+  }
+  return events;
+}
 
 const appointmentTypeLabels: Record<string, string> = {
   new_visit: "Booked",
@@ -1515,6 +1536,11 @@ export function EncounterDetail({
     staleTime: 60_000,
   });
   const latestMrdCaseSheet = mrdCaseSheetPackets[0];
+  const encounterLabOrders = useMemo(() => labOrdersResponse?.orders ?? [], [labOrdersResponse]);
+  const journeyCompletedEvents = useMemo(
+    () => deriveOpdJourneyCompletedEvents(prescriptions, encounterLabOrders, mrdCaseSheetPackets),
+    [encounterLabOrders, mrdCaseSheetPackets, prescriptions],
+  );
 
   const generateMrdCaseSheetMutation = useMutation({
     mutationFn: () => mrdService.generateOpdCaseSheetPacket(encounterId),
@@ -1578,6 +1604,7 @@ export function EncounterDetail({
     patientId,
     activeEncounterId: encounterId,
     activeOrderContext: "opd",
+    completedEvents: journeyCompletedEvents,
   };
 
   const getSetting = (key: string) => {
@@ -1601,7 +1628,7 @@ export function EncounterDetail({
           consultation={consultation as Consultation | null}
           diagnoses={diagnoses as Diagnosis[]}
           prescriptions={prescriptions as PrescriptionWithItems[]}
-          labOrders={labOrdersResponse?.orders ?? []}
+          labOrders={encounterLabOrders}
           labCatalog={labCatalog as LabTestCatalog[]}
         />
       )}
@@ -1611,6 +1638,7 @@ export function EncounterDetail({
         patientId={patientId}
         active="opd"
         activeEncounterId={encounterId}
+        completedEvents={journeyCompletedEvents}
         compact
       />
       <Card withBorder padding="sm">
