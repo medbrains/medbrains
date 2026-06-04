@@ -38,6 +38,7 @@ export interface ClinicalJourneyContext {
   activeEncounterId?: string | null;
   activeAdmissionId?: string | null;
   activeAdmissionStatus?: string | null;
+  activeBedId?: string | null;
   activeEmergencyVisitId?: string | null;
   activeOrderContext?: ClinicalOrderContext | null;
   hasPendingConsent?: boolean;
@@ -78,6 +79,10 @@ function activeAdmissionIsOpen(context: ClinicalJourneyContext): boolean {
   return Boolean(context.activeAdmissionId && context.activeAdmissionStatus === "admitted");
 }
 
+function activeAdmissionHasAssignedBed(context: ClinicalJourneyContext): boolean {
+  return context.activeBedId === undefined || Boolean(context.activeBedId);
+}
+
 function requireLivingPatient(context: ClinicalJourneyContext): string | null {
   return context.isDeceased ? "Unavailable for deceased patient records" : null;
 }
@@ -86,7 +91,11 @@ function requireOrderContext(context: ClinicalJourneyContext): string | null {
   const livingReason = requireLivingPatient(context);
   if (livingReason) return livingReason;
   if (context.activeOrderContext === "opd" && context.activeEncounterId) return null;
-  if (context.activeOrderContext === "ipd" && activeAdmissionIsOpen(context)) return null;
+  if (context.activeOrderContext === "ipd" && activeAdmissionIsOpen(context)) {
+    return activeAdmissionHasAssignedBed(context)
+      ? null
+      : "Assign a bed before inpatient orders";
+  }
   return "Start an OPD visit or use an active IPD admission before ordering";
 }
 
@@ -96,6 +105,12 @@ function eventLabel(eventName: string) {
 
 export function inferClinicalJourneyEventNames(context: ClinicalJourneyContext): readonly string[] {
   const events = new Set(context.completedEvents ?? []);
+  const hasExplicitBedState = context.activeBedId !== undefined;
+  const hasAssignedBed = Boolean(context.activeBedId);
+
+  if (context.activeAdmissionId && hasExplicitBedState && !hasAssignedBed) {
+    events.delete("bed.assigned");
+  }
 
   if (context.patientId) {
     events.add("patient.created");
@@ -103,7 +118,7 @@ export function inferClinicalJourneyEventNames(context: ClinicalJourneyContext):
   if (context.activeEncounterId) {
     events.add("opd.encounter.created");
   }
-  if (context.activeAdmissionId) {
+  if (context.activeAdmissionId && (!hasExplicitBedState || hasAssignedBed)) {
     events.add("bed.assigned");
   }
   if (context.activeEmergencyVisitId) {

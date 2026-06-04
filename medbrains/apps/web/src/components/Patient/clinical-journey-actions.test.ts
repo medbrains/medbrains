@@ -37,6 +37,18 @@ describe("clinical journey event activation", () => {
     ]);
   });
 
+  it("does not infer bed assignment from an active admission that is still waiting for a bed", () => {
+    expect(
+      inferClinicalJourneyEventNames({
+        patientId: "patient-1",
+        activeAdmissionId: "admission-1",
+        activeAdmissionStatus: "admitted",
+        activeBedId: null,
+        completedEvents: ["bed.assigned", "order.created"],
+      }),
+    ).toEqual(["order.created", "patient.created"]);
+  });
+
   it("keeps downstream actions disabled until their activating event exists", () => {
     const actions = resolveClinicalJourneyActions({ patientId: "patient-1" }, allowAll, "web");
 
@@ -69,6 +81,43 @@ describe("clinical journey event activation", () => {
     expect(actions.find((action) => action.id === "pharmacy.open_patient_queue")?.enabled).toBe(
       true,
     );
+  });
+
+  it("keeps inpatient orders disabled while an admitted patient is waiting for a bed", () => {
+    const actions = resolveClinicalJourneyActions(
+      {
+        patientId: "patient-1",
+        activeAdmissionId: "admission-1",
+        activeAdmissionStatus: "admitted",
+        activeBedId: null,
+        activeOrderContext: "ipd",
+      },
+      allowAll,
+      "web",
+    );
+
+    expect(actions.find((action) => action.id === "orders.medication")?.enabled).toBe(false);
+    expect(
+      actions.find((action) => action.id === "orders.medication")?.disabledReasonText,
+    ).toBe("Assign a bed before inpatient orders");
+  });
+
+  it("enables inpatient orders once the active admission has a bed", () => {
+    const actions = resolveClinicalJourneyActions(
+      {
+        patientId: "patient-1",
+        activeAdmissionId: "admission-1",
+        activeAdmissionStatus: "admitted",
+        activeBedId: "bed-1",
+        activeOrderContext: "ipd",
+      },
+      allowAll,
+      "web",
+    );
+
+    expect(actions.find((action) => action.id === "orders.medication")?.enabled).toBe(true);
+    expect(actions.find((action) => action.id === "orders.lab")?.enabled).toBe(true);
+    expect(actions.find((action) => action.id === "orders.radiology")?.enabled).toBe(true);
   });
 
   it("enables emergency, discharge, billing, payment, and MRD handoffs from canonical events", () => {

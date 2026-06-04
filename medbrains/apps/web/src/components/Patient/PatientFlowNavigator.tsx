@@ -38,6 +38,7 @@ interface PatientFlowNavigatorProps {
   activeEncounterId?: string | null;
   activeAdmissionId?: string | null;
   activeAdmissionStatus?: string | null;
+  activeBedId?: string | null;
   activeEmergencyVisitId?: string | null;
   activeOrderContext?: ClinicalOrderContext | null;
   completedEvents?: readonly string[];
@@ -138,6 +139,7 @@ export function PatientFlowNavigator({
   activeEncounterId,
   activeAdmissionId,
   activeAdmissionStatus,
+  activeBedId,
   activeEmergencyVisitId,
   activeOrderContext,
   completedEvents,
@@ -155,6 +157,7 @@ export function PatientFlowNavigator({
     isDeceased,
     activeEncounterId,
     activeAdmissionId,
+    activeBedId,
     activeEmergencyVisitId,
     activeAdmissionStatus: activeAdmissionStatus ?? (activeAdmissionId ? "admitted" : null),
     activeOrderContext:

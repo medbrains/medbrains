@@ -3033,6 +3033,7 @@ function PatientDetailPageInner() {
     isDeceased: patient.is_deceased,
     activeEncounterId: activeEncounter?.id ?? null,
     activeAdmissionId: activeAdmission?.id ?? null,
+    activeBedId: activeAdmission?.bed_id ?? null,
     activeEmergencyVisitId: activeEmergencyVisit?.id ?? null,
     activeAdmissionStatus: activeAdmission?.status ?? null,
     activeOrderContext: activeEncounter ? "opd" : activeAdmission ? "ipd" : null,
@@ -3145,6 +3146,8 @@ function PatientDetailPageInner() {
             active="patient"
             activeEncounterId={activeEncounter?.id ?? null}
             activeAdmissionId={activeAdmission?.id ?? null}
+            activeAdmissionStatus={activeAdmission?.status ?? null}
+            activeBedId={activeAdmission?.bed_id ?? null}
             activeEmergencyVisitId={activeEmergencyVisit?.id ?? null}
             completedEvents={completedEvents}
             compact

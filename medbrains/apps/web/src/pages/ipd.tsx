@@ -950,6 +950,13 @@ function AdmissionDetail({
   const adm = detail.admission;
   const latestMrdCaseSheet = mrdCaseSheetPackets[0];
   const admissionIsActive = adm.status === "admitted";
+  const admissionHasAssignedBed = Boolean(adm.bed_id);
+  const orderActionsEnabled = admissionIsActive && admissionHasAssignedBed;
+  const orderTooltip = (label: string) => {
+    if (!admissionIsActive) return "Orders need an active admission";
+    if (!admissionHasAssignedBed) return "Assign a bed before inpatient orders";
+    return label;
+  };
   const activeWorkspaceSection =
     IPD_WORKSPACE_TABS.find((tab) => tab.value === activeWorkspaceTab)?.section ?? "Command";
   const journeyContext: ClinicalJourneyContext = {
@@ -957,6 +964,7 @@ function AdmissionDetail({
     activeEncounterId: adm.encounter_id,
     activeAdmissionId: adm.id,
     activeAdmissionStatus: adm.status,
+    activeBedId: adm.bed_id,
     activeOrderContext: "ipd",
     completedEvents: journeyCompletedEvents,
   };
@@ -972,6 +980,7 @@ function AdmissionDetail({
             activeEncounterId={adm.encounter_id}
             activeAdmissionId={adm.id}
             activeAdmissionStatus={adm.status}
+            activeBedId={adm.bed_id}
             completedEvents={journeyCompletedEvents}
             compact
           />
@@ -1202,7 +1211,7 @@ function AdmissionDetail({
             <Tabs.Panel value="investigations" pt="md">
               <InvestigationsTab
                 admissionId={admissionId}
-                canOrder={canOrder && adm.status === "admitted"}
+                canOrder={canOrder && orderActionsEnabled}
                 onOrderLab={() => openOrderBasket("lab")}
                 onOrderRadiology={() => openOrderBasket("radiology")}
               />
@@ -1285,9 +1294,7 @@ function AdmissionDetail({
                     Orders
                   </Text>
                   <Tooltip
-                    label={
-                      admissionIsActive ? "Order medicines" : "Orders need an active admission"
-                    }
+                    label={orderTooltip("Order medicines")}
                   >
                     <span>
                       <Button
@@ -1295,7 +1302,7 @@ function AdmissionDetail({
                         variant="light"
                         color="teal"
                         leftSection={<IconPill size={14} />}
-                        disabled={!admissionIsActive || !canOrder}
+                        disabled={!orderActionsEnabled || !canOrder}
                         onClick={() => openOrderBasket("drug")}
                         fullWidth
                       >
@@ -1303,18 +1310,14 @@ function AdmissionDetail({
                       </Button>
                     </span>
                   </Tooltip>
-                  <Tooltip
-                    label={
-                      admissionIsActive ? "Order lab tests" : "Orders need an active admission"
-                    }
-                  >
+                  <Tooltip label={orderTooltip("Order lab tests")}>
                     <span>
                       <Button
                         size="xs"
                         variant="light"
                         color="teal"
                         leftSection={<IconFlask size={14} />}
-                        disabled={!admissionIsActive || !canOrder}
+                        disabled={!orderActionsEnabled || !canOrder}
                         onClick={() => openOrderBasket("lab")}
                         fullWidth
                       >
@@ -1322,16 +1325,14 @@ function AdmissionDetail({
                       </Button>
                     </span>
                   </Tooltip>
-                  <Tooltip
-                    label={admissionIsActive ? "Order imaging" : "Orders need an active admission"}
-                  >
+                  <Tooltip label={orderTooltip("Order imaging")}>
                     <span>
                       <Button
                         size="xs"
                         variant="light"
                         color="teal"
                         leftSection={<IconEye size={14} />}
-                        disabled={!admissionIsActive || !canOrder}
+                        disabled={!orderActionsEnabled || !canOrder}
                         onClick={() => openOrderBasket("radiology")}
                         fullWidth
                       >
