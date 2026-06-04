@@ -1155,6 +1155,7 @@ function AdmissionDetail({
               <DischargeSummaryTab
                 admissionId={admissionId}
                 canCreate={canCreateDischargeSummary}
+                patientId={adm.patient_id}
               />
             </Tabs.Panel>
             <Tabs.Panel value="discharge" pt="md">
@@ -2440,10 +2441,13 @@ function AttendersTab({ admissionId, canCreate }: { admissionId: string; canCrea
 function DischargeSummaryTab({
   admissionId,
   canCreate,
+  patientId,
 }: {
   admissionId: string;
   canCreate: boolean;
+  patientId: string;
 }) {
+  const emit = useClinicalEmit();
   const canFinalize = useHasPermission(P.IPD.DISCHARGE_SUMMARY_FINALIZE);
   const queryClient = useQueryClient();
 
@@ -2486,7 +2490,15 @@ function DischargeSummaryTab({
 
   const finalizeMutation = useMutation({
     mutationFn: () => ipdService.finalizeDischargeSummary(admissionId),
-    onSuccess: () => {
+    onSuccess: (summary) => {
+      emit("ipd.discharge.finalized", {
+        admission_id: summary.admission_id,
+        finalized_at: summary.finalized_at,
+        patient_id: patientId,
+        source_record_id: summary.id,
+        status: summary.status,
+        summary_id: summary.id,
+      });
       void queryClient.invalidateQueries({ queryKey: ["ipd-discharge-summary", admissionId] });
       notifications.show({
         title: "Finalized",

@@ -118,6 +118,7 @@ export function buildClinicalEventTrace({
   const eventName = normalizeClinicalEventName(rawTrigger);
   const sourceRecordId = stringValue(payload, [
     "source_record_id",
+    "summary_id",
     "search_id",
     "report_id",
     "certificate_id",

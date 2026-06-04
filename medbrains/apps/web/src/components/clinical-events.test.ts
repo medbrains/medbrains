@@ -429,6 +429,21 @@ describe("clinical event normalization", () => {
       },
     });
 
+    const finalized = buildClinicalEventTrace({
+      contextCode: "ipd-admission-detail",
+      moduleCode: "ipd",
+      occurredAt: "2026-05-29T10:45:00.000Z",
+      rawTrigger: "ipd.discharge.finalized",
+      payload: {
+        admission_id: "admission-1",
+        finalized_at: "2026-05-29T10:45:00.000Z",
+        patient_id: "patient-1",
+        source_record_id: "summary-1",
+        status: "finalized",
+        summary_id: "summary-1",
+      },
+    });
+
     expect(transfer.eventName).toBe("bed.transferred");
     expect(transfer.admissionId).toBe("admission-1");
     expect(transfer.patientId).toBe("patient-1");
@@ -439,6 +454,14 @@ describe("clinical event normalization", () => {
     expect(discharge.admissionId).toBe("admission-1");
     expect(discharge.patientId).toBe("patient-1");
     expect(discharge.missingPayloadKeys).toEqual([]);
+
+    expect(finalized.eventName).toBe("ipd.discharge.finalized");
+    expect(finalized.admissionId).toBe("admission-1");
+    expect(finalized.patientId).toBe("patient-1");
+    expect(finalized.sourceRecordId).toBe("summary-1");
+    expect(finalized.payload).not.toHaveProperty("final_diagnosis");
+    expect(finalized.payload).not.toHaveProperty("course_in_hospital");
+    expect(finalized.missingPayloadKeys).toEqual([]);
   });
 
   it("tracks lab and radiology diagnostic order lifecycle events without missing payload keys", () => {
