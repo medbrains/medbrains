@@ -25,6 +25,7 @@ import {
   QueueScreen,
   SampleCollectionScreen,
   StaffDashboard,
+  TokenBoardsScreen,
   TripSummaryScreen,
   VitalsEntryScreen,
 } from "../screens";
@@ -55,6 +56,7 @@ export type RootStackParamList = {
 
   // Staff screens
   StaffDashboard: undefined;
+  TokenBoards: undefined;
   PatientSearch: undefined;
   PatientDetail: { patientId: string };
   PatientPharmacy: { handoff?: "dispense" | "queue"; patientId: string };
@@ -138,6 +140,11 @@ function StaffStack() {
         name="StaffDashboard"
         component={StaffDashboard}
         options={{ title: "Dashboard" }}
+      />
+      <Stack.Screen
+        name="TokenBoards"
+        component={TokenBoardsScreen}
+        options={{ title: "Token Boards" }}
       />
       <Stack.Screen
         name="PatientSearch"

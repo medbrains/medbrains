@@ -33,6 +33,7 @@ type MobileQueueStatus = "waiting" | "called" | "in_consultation" | "completed" 
 type StaffDashboardRoute =
   | "PatientSearch"
   | "Queue"
+  | "TokenBoards"
   | "Vitals"
   | "Prescription"
   | "LabOrder"
@@ -145,6 +146,13 @@ export function StaffDashboard({ navigation }: StaffDashboardProps) {
   const lastNameAccess = useFieldAccess("patients.last_name");
   const uhidAccess = useFieldAccess("patients.uhid");
   const canViewQueue = useHasAnyPermission([P.OPD.QUEUE_LIST, P.OPD.QUEUE_VIEW]);
+  const canViewTokenBoards = useHasAnyPermission([
+    P.FRONT_OFFICE.QUEUE_LIST,
+    P.EMERGENCY.VISITS_LIST,
+    P.EMERGENCY.TRIAGE_LIST,
+    P.PHARMACY.PRESCRIPTIONS_LIST,
+    P.BILLING.INVOICES_LIST,
+  ]);
   const canManageQueue = useHasPermission(P.OPD.TOKEN_MANAGE);
   const canFindPatients = useHasPermission(P.PATIENTS.LIST);
   const canRecordVitals = useHasPermission(P.OPD.VITALS.CREATE);
@@ -220,6 +228,7 @@ export function StaffDashboard({ navigation }: StaffDashboardProps) {
   const enabledFlowLabels = [
     canFindPatients ? "Patient" : null,
     canViewQueue ? "Queue" : null,
+    canViewTokenBoards ? "Boards" : null,
     canRecordVitals ? "Vitals" : null,
     canSignOrders ? "Orders" : null,
     canViewLabReports ? "Results" : null,
@@ -231,6 +240,13 @@ export function StaffDashboard({ navigation }: StaffDashboardProps) {
       icon: "clipboard-list",
       label: "Full Queue",
       route: "Queue",
+    },
+    {
+      id: "token-boards",
+      enabled: canViewTokenBoards,
+      icon: "monitor-dashboard",
+      label: "Token Boards",
+      route: "TokenBoards",
     },
     {
       id: "patient-search",

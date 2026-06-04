@@ -25,4 +25,5 @@ export { PrescriptionScreen } from "./staff/PrescriptionScreen";
 export { QueueScreen } from "./staff/QueueScreen";
 // Staff screens
 export { StaffDashboard } from "./staff/StaffDashboard";
+export { TokenBoardsScreen } from "./staff/TokenBoardsScreen";
 export { VitalsEntryScreen } from "./staff/VitalsEntryScreen";
