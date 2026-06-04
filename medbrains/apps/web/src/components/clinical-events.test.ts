@@ -104,8 +104,18 @@ describe("clinical event normalization", () => {
       occurredAt: "2026-05-29T10:10:00.000Z",
       rawTrigger: "emergency.visit.created",
       payload: {
+        arrival_mode: "ambulance",
+        arrival_time: "2026-05-29T10:08:00.000Z",
+        bay_number: "ER-2",
+        chief_complaint: "Chest pain",
+        is_brought_dead: false,
+        is_mlc: true,
         patient_id: "patient-1",
+        source_record_id: "visit-1",
+        status: "registered",
+        triage_level: "emergency",
         visit_id: "visit-1",
+        visit_number: "ER-2026-0001",
       },
     });
 
@@ -114,6 +124,8 @@ describe("clinical event normalization", () => {
     expect(event.patientId).toBe("patient-1");
     expect(event.sourceRecordId).toBe("visit-1");
     expect(event.missingPayloadKeys).toEqual([]);
+    expect(event.payload.is_mlc).toBe(true);
+    expect(event.payload.triage_level).toBe("emergency");
   });
 
   it("tracks camp registration events by camp registration and patient", () => {

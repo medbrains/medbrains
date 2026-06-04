@@ -118,7 +118,7 @@ import { useTranslation } from "react-i18next";
 import { useNavigate, useParams, useSearchParams } from "react-router";
 import { DataTable, PageHeader, TableValueBadge, useProtectedFieldAccess } from "@/components";
 import { BedSelect } from "@/components/BedSelect";
-import { useClinicalEmit } from "@/components/ClinicalEventProvider";
+import { ClinicalEventProvider, useClinicalEmit } from "@/components/ClinicalEventProvider";
 import { TriagePanel } from "@/components/crdt/TriagePanel";
 import { DoctorSearchSelect } from "@/components/DoctorSearchSelect";
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
@@ -718,7 +718,7 @@ export function EmergencyPage() {
     : fallbackTab;
 
   return (
-    <div>
+    <ClinicalEventProvider moduleCode="emergency" contextCode="emergency-visits">
       <PageHeader
         title={t("title.emergencyDepartment")}
         subtitle={t("subtitle.erVisits,Triage,MlcManagement,MassCasualty")}
@@ -826,7 +826,7 @@ export function EmergencyPage() {
           )}
         </Tabs>
       )}
-    </div>
+    </ClinicalEventProvider>
   );
 }
 
@@ -847,28 +847,30 @@ export function EmergencyVisitCreatePage() {
   }
 
   return (
-    <Stack>
-      <PageHeader
-        title="Register ER Visit"
-        subtitle="Create an emergency visit with patient context, MLC flagging, and triage-ready status."
-        actions={
-          <Button
-            variant="light"
-            leftSection={<IconArrowLeft size={14} />}
-            onClick={() => navigate(visitsPath())}
-          >
-            ER Queue
-          </Button>
-        }
-      />
-      <EmergencyVisitForm
-        initialPatientId={initialPatientId}
-        canCreateMlc={canCreateMlc}
-        canViewPatientRecord={canViewPatientRecord}
-        onCancel={() => navigate(visitsPath())}
-        onSuccess={(visit) => navigate(`/emergency/visits/${visit.id}`)}
-      />
-    </Stack>
+    <ClinicalEventProvider moduleCode="emergency" contextCode="emergency-create-visit">
+      <Stack>
+        <PageHeader
+          title="Register ER Visit"
+          subtitle="Create an emergency visit with patient context, MLC flagging, and triage-ready status."
+          actions={
+            <Button
+              variant="light"
+              leftSection={<IconArrowLeft size={14} />}
+              onClick={() => navigate(visitsPath())}
+            >
+              ER Queue
+            </Button>
+          }
+        />
+        <EmergencyVisitForm
+          initialPatientId={initialPatientId}
+          canCreateMlc={canCreateMlc}
+          canViewPatientRecord={canViewPatientRecord}
+          onCancel={() => navigate(visitsPath())}
+          onSuccess={(visit) => navigate(`/emergency/visits/${visit.id}`)}
+        />
+      </Stack>
+    </ClinicalEventProvider>
   );
 }
 
@@ -1377,12 +1379,19 @@ function EmergencyVisitForm({
       void qc.invalidateQueries({ queryKey: ["er-visits"] });
       void qc.invalidateQueries({ queryKey: ["er-visit", visit.id] });
       emit("emergency.visit.created", {
+        source_record_id: visit.id,
         patient_id: visit.patient_id,
         visit_id: visit.id,
         visit_number: visit.visit_number,
-        arrival_mode: visit.arrival_mode ?? "",
+        arrival_mode: visit.arrival_mode,
+        arrival_time: visit.arrival_time,
+        bay_number: visit.bay_number,
+        chief_complaint: visit.chief_complaint,
         is_mlc: visit.is_mlc,
         is_brought_dead: visit.is_brought_dead,
+        mass_casualty_event_id: visit.mass_casualty_event_id,
+        status: visit.status,
+        triage_level: visit.triage_level,
       });
       reset({ ...emptyErVisitForm, patient_id: initialPatientId });
       notifications.show({
