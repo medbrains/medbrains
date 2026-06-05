@@ -204,6 +204,25 @@ function formatMoney(value: number | string | null | undefined): string {
   })}`;
 }
 
+function patientInvoiceBalance(invoice: PatientInvoiceRow): number {
+  const parsed = Number.parseFloat(invoice.balance);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function activePatientInvoiceIdForJourney(invoices: readonly PatientInvoiceRow[]): string | null {
+  return (
+    invoices.find(
+      (invoice) =>
+        patientInvoiceBalance(invoice) > 0.004 &&
+        invoice.status !== "cancelled" &&
+        invoice.status !== "refunded",
+    )?.id ??
+    invoices.find((invoice) => invoice.status !== "cancelled" && invoice.status !== "refunded")
+      ?.id ??
+    null
+  );
+}
+
 function escapeHtml(value: unknown): string {
   return String(value ?? "").replace(/[&<>"']/g, (char) => {
     switch (char) {
@@ -3020,6 +3039,8 @@ function PatientDetailPageInner() {
   const pendingInvoiceCount = invoices.filter(
     (invoice) => Number.parseFloat(invoice.balance) > 0,
   ).length;
+  const activeInvoiceId = activePatientInvoiceIdForJourney(invoices);
+  const activeOrderContext = activeAdmission ? "ipd" : activeEncounter ? "opd" : null;
   const campCompletedEvents = deriveCampJourneyCompletedEvents(campRegistrations);
   const activeCampRegistration =
     campRegistrations.find((registration) => registration.status !== "no_show") ?? null;
@@ -3051,7 +3072,8 @@ function PatientDetailPageInner() {
     activeCampRegistrationId: activeCampRegistration?.id ?? null,
     activeEmergencyVisitId: activeEmergencyVisit?.id ?? null,
     activeAdmissionStatus: activeAdmission?.status ?? null,
-    activeOrderContext: activeEncounter ? "opd" : activeAdmission ? "ipd" : null,
+    activeInvoiceId,
+    activeOrderContext,
     completedEvents,
   };
   const emitPatientShareCreated = (grant: {
@@ -3166,6 +3188,8 @@ function PatientDetailPageInner() {
             activeCampId={activeCampRegistration?.camp_id ?? null}
             activeCampRegistrationId={activeCampRegistration?.id ?? null}
             activeEmergencyVisitId={activeEmergencyVisit?.id ?? null}
+            activeInvoiceId={activeInvoiceId}
+            activeOrderContext={activeOrderContext}
             completedEvents={completedEvents}
             compact
           />
