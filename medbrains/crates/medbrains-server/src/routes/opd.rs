@@ -2770,6 +2770,26 @@ pub async fn create_certificate(
     .fetch_one(&mut *tx)
     .await?;
 
+    let mut event = ClinicalEventEnvelope::new(
+        claims.tenant_id,
+        ClinicalEventName::OpdCertificateCreated,
+        row.id,
+        claims.sub,
+        serde_json::json!({
+            "certificate_id": row.id,
+            "patient_id": row.patient_id,
+            "certificate_number": &row.certificate_number,
+            "certificate_type": &row.certificate_type,
+            "encounter_id": row.encounter_id,
+            "issued_date": row.issued_date,
+        }),
+    )
+    .with_patient(row.patient_id);
+    if let Some(encounter_id) = row.encounter_id {
+        event = event.with_encounter(encounter_id);
+    }
+    crate::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
+
     tx.commit().await?;
     Ok(Json(row))
 }
@@ -4231,8 +4251,30 @@ pub async fn sign_consent(
     .fetch_optional(&mut *tx)
     .await?;
 
+    let row = row.ok_or(AppError::NotFound)?;
+    let mut event = ClinicalEventEnvelope::new(
+        claims.tenant_id,
+        ClinicalEventName::OpdConsentSigned,
+        row.id,
+        claims.sub,
+        serde_json::json!({
+            "consent_id": row.id,
+            "patient_id": row.patient_id,
+            "encounter_id": row.encounter_id,
+            "procedure_order_id": row.procedure_order_id,
+            "consent_type": &row.consent_type,
+            "signed_at": row.signed_at,
+            "status": &row.status,
+        }),
+    )
+    .with_patient(row.patient_id);
+    if let Some(encounter_id) = row.encounter_id {
+        event = event.with_encounter(encounter_id);
+    }
+    crate::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
+
     tx.commit().await?;
-    row.map_or_else(|| Err(AppError::NotFound), |r| Ok(Json(r)))
+    Ok(Json(row))
 }
 
 pub async fn revoke_consent(

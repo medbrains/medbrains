@@ -28,6 +28,10 @@ pub enum ClinicalEventName {
     EmergencyMlcPoliceIntimationCreated,
     #[serde(rename = "opd.encounter.created")]
     OpdEncounterCreated,
+    #[serde(rename = "opd.certificate.created")]
+    OpdCertificateCreated,
+    #[serde(rename = "opd.consent.signed")]
+    OpdConsentSigned,
     #[serde(rename = "order.created")]
     OrderCreated,
     #[serde(rename = "order.cancelled")]
@@ -82,6 +86,8 @@ impl ClinicalEventName {
             Self::MlcCreated => "mlc.created",
             Self::EmergencyMlcPoliceIntimationCreated => "emergency.mlc_police_intimation.created",
             Self::OpdEncounterCreated => "opd.encounter.created",
+            Self::OpdCertificateCreated => "opd.certificate.created",
+            Self::OpdConsentSigned => "opd.consent.signed",
             Self::OrderCreated => "order.created",
             Self::OrderCancelled => "order.cancelled",
             Self::LabOrderCompleted => "lab.order.completed",
@@ -111,7 +117,10 @@ impl ClinicalEventName {
             Self::PatientCreated | Self::PatientUpdated | Self::PatientMerged => {
                 ClinicalEventSourceModule::Patients
             }
-            Self::VisitCreated | Self::OpdEncounterCreated => ClinicalEventSourceModule::Opd,
+            Self::VisitCreated
+            | Self::OpdEncounterCreated
+            | Self::OpdCertificateCreated
+            | Self::OpdConsentSigned => ClinicalEventSourceModule::Opd,
             Self::EmergencyVisitCreated
             | Self::MlcCreated
             | Self::EmergencyMlcPoliceIntimationCreated => ClinicalEventSourceModule::Emergency,
@@ -151,6 +160,8 @@ impl ClinicalEventName {
                 &["intimation_id", "mlc_case_id", "patient_id"]
             }
             Self::OpdEncounterCreated => &["encounter_id", "patient_id"],
+            Self::OpdCertificateCreated => &["certificate_id", "patient_id"],
+            Self::OpdConsentSigned => &["consent_id", "patient_id"],
             Self::OrderCreated => &["order_id", "order_type", "patient_id"],
             Self::OrderCancelled => &["order_id", "order_type", "reason"],
             Self::LabOrderCompleted => &["order_id", "patient_id"],
@@ -209,6 +220,8 @@ impl FromStr for ClinicalEventName {
                 Ok(Self::EmergencyMlcPoliceIntimationCreated)
             }
             "opd.encounter.created" => Ok(Self::OpdEncounterCreated),
+            "opd.certificate.created" => Ok(Self::OpdCertificateCreated),
+            "opd.consent.signed" => Ok(Self::OpdConsentSigned),
             "order.created" => Ok(Self::OrderCreated),
             "order.cancelled" => Ok(Self::OrderCancelled),
             "lab.order.completed" => Ok(Self::LabOrderCompleted),
@@ -486,6 +499,43 @@ mod tests {
         assert_eq!(
             ClinicalEventName::EmergencyMlcPoliceIntimationCreated.required_payload_keys(),
             &["intimation_id", "mlc_case_id", "patient_id"]
+        );
+    }
+
+    #[test]
+    fn opd_document_events_are_canonical() {
+        assert_eq!(
+            "opd.certificate.created".parse::<ClinicalEventName>().ok(),
+            Some(ClinicalEventName::OpdCertificateCreated)
+        );
+        assert_eq!(
+            ClinicalEventName::OpdCertificateCreated.as_str(),
+            "opd.certificate.created"
+        );
+        assert_eq!(
+            ClinicalEventName::OpdCertificateCreated.default_source_module(),
+            ClinicalEventSourceModule::Opd
+        );
+        assert_eq!(
+            ClinicalEventName::OpdCertificateCreated.required_payload_keys(),
+            &["certificate_id", "patient_id"]
+        );
+
+        assert_eq!(
+            "opd.consent.signed".parse::<ClinicalEventName>().ok(),
+            Some(ClinicalEventName::OpdConsentSigned)
+        );
+        assert_eq!(
+            ClinicalEventName::OpdConsentSigned.as_str(),
+            "opd.consent.signed"
+        );
+        assert_eq!(
+            ClinicalEventName::OpdConsentSigned.default_source_module(),
+            ClinicalEventSourceModule::Opd
+        );
+        assert_eq!(
+            ClinicalEventName::OpdConsentSigned.required_payload_keys(),
+            &["consent_id", "patient_id"]
         );
     }
 }
