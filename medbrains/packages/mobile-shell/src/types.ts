@@ -29,6 +29,7 @@ export interface Module {
   displayName: string;
   icon: ComponentType<{ size?: number; color?: string }>;
   requiredPermissions: ReadonlyArray<string>;
+  requiredAnyPermissions?: ReadonlyArray<string>;
   navigator: ComponentType;
   appCodes?: ReadonlyArray<AppSurfaceCode>;
   tags?: ReadonlyArray<string>;
@@ -42,14 +43,18 @@ export function userHasModuleAccess(module: Module, identity: TenantIdentity | n
   if (!identity) {
     return false;
   }
-  if (module.requiredPermissions.length === 0) {
+  const requiredAnyPermissions = module.requiredAnyPermissions ?? [];
+  if (module.requiredPermissions.length === 0 && requiredAnyPermissions.length === 0) {
     return true;
   }
   if (identity.role === "super_admin" || identity.role === "hospital_admin") {
     return true;
   }
   const owned = new Set(identity.permissions);
-  return module.requiredPermissions.every((p) => owned.has(p));
+  const hasRequiredPermissions = module.requiredPermissions.every((p) => owned.has(p));
+  const hasRequiredAnyPermission =
+    requiredAnyPermissions.length === 0 || requiredAnyPermissions.some((p) => owned.has(p));
+  return hasRequiredPermissions && hasRequiredAnyPermission;
 }
 
 export function filterAccessibleModules(

@@ -193,6 +193,7 @@ export const radiologyQueueModule: Module = {
   displayName: RADIOLOGY_BOARD.title,
   icon: () => null,
   requiredPermissions: [],
+  requiredAnyPermissions: RADIOLOGY_BOARD.requiredAnyPermissions,
   navigator: RadiologyQueueScreen,
   appCodes: RADIOLOGY_BOARD.targets.tvAppCodes,
   tags: ["tv", "radiology", "queue", "modality", "dicom"],

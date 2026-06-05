@@ -200,6 +200,7 @@ export const emergencyTriageModule: Module = {
   displayName: EMERGENCY_BOARD.title,
   icon: () => null,
   requiredPermissions: [],
+  requiredAnyPermissions: EMERGENCY_BOARD.requiredAnyPermissions,
   navigator: EmergencyTriageScreen,
   appCodes: EMERGENCY_BOARD.targets.tvAppCodes,
   tags: ["tv", "emergency", "triage", "code-alert"],

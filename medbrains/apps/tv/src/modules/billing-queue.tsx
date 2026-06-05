@@ -159,6 +159,7 @@ export const billingQueueModule: Module = {
   displayName: BILLING_BOARD.title,
   icon: () => null,
   requiredPermissions: [],
+  requiredAnyPermissions: BILLING_BOARD.requiredAnyPermissions,
   navigator: BillingQueueScreen,
   appCodes: BILLING_BOARD.targets.tvAppCodes,
   tags: ["tv", "billing", "queue", "cashier", "insurance"],

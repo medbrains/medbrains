@@ -1,5 +1,5 @@
 import type { Module } from "@medbrains/mobile-shell";
-import type { BedAvailabilityDisplay, BedWaitingEntry } from "@medbrains/types";
+import { type BedAvailabilityDisplay, type BedWaitingEntry, P } from "@medbrains/types";
 import { COLORS, SPACING } from "@medbrains/ui-mobile";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
@@ -181,6 +181,7 @@ export const bedStatusModule: Module = {
   displayName: "Bed occupancy",
   icon: () => null,
   requiredPermissions: [],
+  requiredAnyPermissions: [P.IPD.BED_DASHBOARD_VIEW],
   navigator: BedStatusScreen,
   appCodes: ["TV-Ward", "TV-ICU"],
   tags: ["tv", "ipd", "bed-status", "ward", "icu"],

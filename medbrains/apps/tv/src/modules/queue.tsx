@@ -195,6 +195,7 @@ export const queueModule: Module = {
   displayName: OPD_BOARD.title,
   icon: () => null,
   requiredPermissions: [],
+  requiredAnyPermissions: OPD_BOARD.requiredAnyPermissions,
   navigator: QueueScreen,
   appCodes: OPD_BOARD.targets.tvAppCodes,
   tags: ["tv", "queue", "opd", "tokens", "kiosk"],

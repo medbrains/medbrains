@@ -1,26 +1,28 @@
 import { describe, expect, it } from "vitest";
 import {
   filterAccessibleModules,
-  userHasModuleAccess,
   type Module,
   type TenantIdentity,
+  userHasModuleAccess,
 } from "./types.js";
 
 const FakeIcon = (() => null) as unknown as Module["icon"];
 const FakeNav = (() => null) as unknown as Module["navigator"];
 
-const m = (id: string, perms: string[]): Module => ({
+const m = (
+  id: string,
+  perms: string[],
+  requiredAnyPermissions?: ReadonlyArray<string>,
+): Module => ({
   id,
   displayName: id,
   icon: FakeIcon,
   requiredPermissions: perms,
+  requiredAnyPermissions,
   navigator: FakeNav,
 });
 
-const identity = (
-  role: string | null,
-  permissions: string[],
-): TenantIdentity => ({
+const identity = (role: string | null, permissions: string[]): TenantIdentity => ({
   tenantId: "t",
   userId: "u",
   jwt: "stub",
@@ -47,9 +49,22 @@ describe("userHasModuleAccess", () => {
   it("checks every required permission", () => {
     const mod = m("doctor", ["opd.view", "opd.write"]);
     expect(userHasModuleAccess(mod, identity("doctor", ["opd.view"]))).toBe(false);
-    expect(
-      userHasModuleAccess(mod, identity("doctor", ["opd.view", "opd.write"])),
-    ).toBe(true);
+    expect(userHasModuleAccess(mod, identity("doctor", ["opd.view", "opd.write"]))).toBe(true);
+  });
+
+  it("allows modules when any optional permission is owned", () => {
+    const mod = m("tv-opd", [], ["opd.queue.list", "opd.queue.view"]);
+    expect(userHasModuleAccess(mod, identity("staff", ["opd.queue.view"]))).toBe(true);
+    expect(userHasModuleAccess(mod, identity("staff", ["patients.list"]))).toBe(false);
+  });
+
+  it("combines all-required and any-required permissions", () => {
+    const mod = m("secure-tv", ["tv.device.view"], ["opd.queue.list", "opd.queue.view"]);
+    expect(userHasModuleAccess(mod, identity("staff", ["tv.device.view"]))).toBe(false);
+    expect(userHasModuleAccess(mod, identity("staff", ["opd.queue.view"]))).toBe(false);
+    expect(userHasModuleAccess(mod, identity("staff", ["tv.device.view", "opd.queue.view"]))).toBe(
+      true,
+    );
   });
 });
 

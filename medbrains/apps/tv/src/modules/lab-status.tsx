@@ -168,6 +168,7 @@ export const labStatusModule: Module = {
   displayName: LAB_BOARD.title,
   icon: () => null,
   requiredPermissions: [],
+  requiredAnyPermissions: LAB_BOARD.requiredAnyPermissions,
   navigator: LabStatusScreen,
   appCodes: LAB_BOARD.targets.tvAppCodes,
   tags: ["tv", "lab", "queue", "samples", "tat"],

@@ -170,6 +170,7 @@ export const pharmacyQueueModule: Module = {
   displayName: PHARMACY_BOARD.title,
   icon: () => null,
   requiredPermissions: [],
+  requiredAnyPermissions: PHARMACY_BOARD.requiredAnyPermissions,
   navigator: PharmacyQueueScreen,
   appCodes: PHARMACY_BOARD.targets.tvAppCodes,
   tags: ["tv", "pharmacy", "dispensing", "queue"],
