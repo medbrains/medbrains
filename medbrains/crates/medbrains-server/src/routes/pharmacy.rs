@@ -6315,17 +6315,22 @@ async fn mirror_patient_pos_sale_to_billing_in_tx(
 
     let payment_mode = billing_payment_mode_for_pharmacy(&sale.payment_mode)?;
     let invoice_number = super::billing::generate_invoice_number(tx, &tenant_id).await?;
+    let admission_id =
+        super::billing::admission_id_for_encounter_in_tx(tx, &tenant_id, order.encounter_id)
+            .await?;
     let invoice = sqlx::query_as::<_, InvoiceId>(
         "INSERT INTO invoices \
-         (tenant_id, invoice_number, patient_id, encounter_id, status, subtotal, tax_amount, \
-          discount_amount, total_amount, paid_amount, notes, issued_at, created_by) \
-         VALUES ($1, $2, $3, $4, 'paid'::invoice_status, $5, $6, $7, $8, $8, $9, now(), $10) \
+         (tenant_id, invoice_number, patient_id, encounter_id, admission_id, status, \
+          subtotal, tax_amount, discount_amount, total_amount, paid_amount, notes, issued_at, \
+          created_by) \
+         VALUES ($1, $2, $3, $4, $5, 'paid'::invoice_status, $6, $7, $8, $9, $9, $10, now(), $11) \
          RETURNING *",
     )
     .bind(tenant_id)
     .bind(invoice_number)
     .bind(patient_id)
     .bind(order.encounter_id)
+    .bind(admission_id)
     .bind(sale.subtotal)
     .bind(sale.gst_amount)
     .bind(sale.discount_amount)

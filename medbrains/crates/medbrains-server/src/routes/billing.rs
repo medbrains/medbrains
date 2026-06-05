@@ -77,6 +77,25 @@ struct ResolvedPrice {
     tax_percent: Decimal,
 }
 
+pub(crate) async fn admission_id_for_encounter_in_tx(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: &Uuid,
+    encounter_id: Option<Uuid>,
+) -> Result<Option<Uuid>, AppError> {
+    let Some(encounter_id) = encounter_id else {
+        return Ok(None);
+    };
+
+    sqlx::query_scalar::<_, Uuid>(
+        "SELECT id FROM admissions WHERE tenant_id = $1 AND encounter_id = $2 LIMIT 1",
+    )
+    .bind(tenant_id)
+    .bind(encounter_id)
+    .fetch_optional(&mut **tx)
+    .await
+    .map_err(AppError::from)
+}
+
 /// Check if auto-billing is enabled for a specific module.
 pub(crate) async fn is_auto_billing_enabled(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
@@ -242,6 +261,7 @@ pub(crate) async fn auto_charge_with_batch(
     }
 
     // 2. Find or create draft invoice for this encounter
+    let admission_id = admission_id_for_encounter_in_tx(tx, tenant_id, input.encounter_id).await?;
     let draft_invoice = sqlx::query_scalar::<_, Uuid>(
         "SELECT id FROM invoices \
          WHERE tenant_id = $1 \
@@ -259,20 +279,32 @@ pub(crate) async fn auto_charge_with_batch(
     .await?;
 
     let (invoice_id, was_new) = if let Some(id) = draft_invoice {
+        if let Some(admission_id) = admission_id {
+            sqlx::query(
+                "UPDATE invoices SET admission_id = COALESCE(admission_id, $3) \
+                 WHERE id = $1 AND tenant_id = $2",
+            )
+            .bind(id)
+            .bind(tenant_id)
+            .bind(admission_id)
+            .execute(&mut **tx)
+            .await?;
+        }
         (id, false)
     } else {
         let inv_number = generate_invoice_number(tx, tenant_id).await?;
         let id = sqlx::query_scalar::<_, Uuid>(
             "INSERT INTO invoices \
-             (tenant_id, invoice_number, patient_id, encounter_id, status, \
+             (tenant_id, invoice_number, patient_id, encounter_id, admission_id, status, \
               subtotal, tax_amount, discount_amount, total_amount, paid_amount, notes) \
-             VALUES ($1, $2, $3, $4, 'draft'::invoice_status, 0, 0, 0, 0, 0, 'Auto-generated') \
+             VALUES ($1, $2, $3, $4, $5, 'draft'::invoice_status, 0, 0, 0, 0, 0, 'Auto-generated') \
              RETURNING id",
         )
         .bind(tenant_id)
         .bind(&inv_number)
         .bind(input.patient_id)
         .bind(input.encounter_id)
+        .bind(admission_id)
         .fetch_one(&mut **tx)
         .await?;
         (id, true)
@@ -1201,19 +1233,22 @@ pub async fn create_invoice(
     let inv_number = generate_invoice_number(&mut tx, &claims.tenant_id).await?;
 
     let er_deferred = body.is_er_deferred.unwrap_or(false);
+    let admission_id =
+        admission_id_for_encounter_in_tx(&mut tx, &claims.tenant_id, body.encounter_id).await?;
 
     let invoice = sqlx::query_as::<_, Invoice>(
         "INSERT INTO invoices \
-         (tenant_id, invoice_number, patient_id, encounter_id, status, \
+         (tenant_id, invoice_number, patient_id, encounter_id, admission_id, status, \
           subtotal, tax_amount, discount_amount, total_amount, paid_amount, notes, \
           is_er_deferred) \
-         VALUES ($1, $2, $3, $4, 'draft'::invoice_status, 0, 0, 0, 0, 0, $5, $6) \
+         VALUES ($1, $2, $3, $4, $5, 'draft'::invoice_status, 0, 0, 0, 0, 0, $6, $7) \
          RETURNING *",
     )
     .bind(claims.tenant_id)
     .bind(&inv_number)
     .bind(body.patient_id)
     .bind(body.encounter_id)
+    .bind(admission_id)
     .bind(&body.notes)
     .bind(er_deferred)
     .fetch_one(&mut *tx)
@@ -1301,13 +1336,9 @@ pub async fn get_invoice(
             .ok_or(AppError::NotFound)?;
 
     if invoice.admission_id.is_none() && invoice.encounter_id.is_some() {
-        invoice.admission_id = sqlx::query_scalar::<_, Uuid>(
-            "SELECT id FROM admissions WHERE tenant_id = $1 AND encounter_id = $2 LIMIT 1",
-        )
-        .bind(claims.tenant_id)
-        .bind(invoice.encounter_id)
-        .fetch_optional(&mut *tx)
-        .await?;
+        invoice.admission_id =
+            admission_id_for_encounter_in_tx(&mut tx, &claims.tenant_id, invoice.encounter_id)
+                .await?;
     }
 
     let items = sqlx::query_as::<_, InvoiceItem>(
@@ -4106,24 +4137,28 @@ pub async fn create_interim_invoice(
     let period_end = chrono::Utc::now();
 
     let inv_number = generate_invoice_number(&mut tx, &claims.tenant_id).await?;
+    let admission_id =
+        admission_id_for_encounter_in_tx(&mut tx, &claims.tenant_id, Some(body.encounter_id))
+            .await?;
 
     // Copy unbilled items from current draft (if any), or create empty interim
     let invoice = sqlx::query_as::<_, Invoice>(
         "INSERT INTO invoices \
-         (tenant_id, invoice_number, patient_id, encounter_id, status, \
+         (tenant_id, invoice_number, patient_id, encounter_id, admission_id, status, \
           subtotal, tax_amount, discount_amount, total_amount, paid_amount, \
           cgst_amount, sgst_amount, igst_amount, cess_amount, \
           is_interim, billing_period_start, billing_period_end, \
           sequence_number, notes) \
-         VALUES ($1, $2, $3, $4, 'issued'::invoice_status, \
+         VALUES ($1, $2, $3, $4, $5, 'issued'::invoice_status, \
           0, 0, 0, 0, 0, 0, 0, 0, 0, \
-          true, $5, $6, $7, $8) \
+          true, $6, $7, $8, $9) \
          RETURNING *",
     )
     .bind(claims.tenant_id)
     .bind(&inv_number)
     .bind(body.patient_id)
     .bind(body.encounter_id)
+    .bind(admission_id)
     .bind(period_start)
     .bind(period_end)
     .bind(seq_num)
@@ -5535,22 +5570,30 @@ pub async fn clone_invoice(
             .ok_or(AppError::NotFound)?;
 
     let new_number = generate_invoice_number(&mut tx, &claims.tenant_id).await?;
+    let admission_id = match original.admission_id {
+        Some(admission_id) => Some(admission_id),
+        None => {
+            admission_id_for_encounter_in_tx(&mut tx, &claims.tenant_id, original.encounter_id)
+                .await?
+        }
+    };
 
     let cloned = sqlx::query_as::<_, Invoice>(
         "INSERT INTO invoices \
-         (tenant_id, invoice_number, patient_id, encounter_id, status, \
+         (tenant_id, invoice_number, patient_id, encounter_id, admission_id, status, \
           subtotal, tax_amount, discount_amount, total_amount, paid_amount, \
           notes, cgst_amount, sgst_amount, igst_amount, cess_amount, \
           is_interim, corporate_id, place_of_supply, cloned_from_id, is_er_deferred) \
-         VALUES ($1, $2, $3, $4, 'draft'::invoice_status, \
-          $5, $6, 0, $7, 0, $8, $9, $10, $11, $12, \
-          false, $13, $14, $15, $16) \
+         VALUES ($1, $2, $3, $4, $5, 'draft'::invoice_status, \
+          $6, $7, 0, $8, 0, $9, $10, $11, $12, $13, \
+          false, $14, $15, $16, $17) \
          RETURNING *",
     )
     .bind(claims.tenant_id)
     .bind(&new_number)
     .bind(original.patient_id)
     .bind(original.encounter_id)
+    .bind(admission_id)
     .bind(original.subtotal)
     .bind(original.tax_amount)
     .bind(original.total_amount)
