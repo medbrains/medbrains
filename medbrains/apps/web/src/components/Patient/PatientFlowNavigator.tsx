@@ -1,6 +1,7 @@
 import { Badge, Button, Group, Stack, Text, Tooltip } from "@mantine/core";
 import { usePermissionStore } from "@medbrains/stores";
 import type {
+  ClinicalEventName,
   ClinicalJourneyActionId,
   ClinicalJourneyContext,
   ClinicalOrderContext,
@@ -46,7 +47,7 @@ interface PatientFlowNavigatorProps {
   activeInvoiceId?: string | null;
   activePharmacyOrderId?: string | null;
   activeOrderContext?: ClinicalOrderContext | null;
-  completedEvents?: readonly string[];
+  completedEvents?: readonly ClinicalEventName[];
   isDeceased?: boolean;
   compact?: boolean;
 }
@@ -60,8 +61,8 @@ interface FlowItem {
   icon: ReactNode;
   enabled: boolean;
   disabledReason: string | null;
-  activationEvents: readonly string[];
-  emittedEvent: string | null;
+  activationEvents: readonly ClinicalEventName[];
+  emittedEvent: ClinicalEventName | null;
   requiredPermissions: readonly string[];
 }
 
@@ -79,7 +80,7 @@ function itemState(
   action: ResolvedClinicalJourneyAction | undefined,
   fallbackEnabled: boolean,
   fallbackReason = "Permission required",
-  fallbackActivationEvents: readonly string[] = [],
+  fallbackActivationEvents: readonly ClinicalEventName[] = [],
   fallbackPermissions: readonly string[] = [],
 ) {
   if (!action) {

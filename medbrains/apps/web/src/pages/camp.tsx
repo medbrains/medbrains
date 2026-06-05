@@ -54,6 +54,7 @@ import type {
   CampScreening,
   CampSupplyItem,
   CampTeamMember,
+  ClinicalEventName,
   ClinicalJourneyContext,
   CreateCampFollowupRequest,
   CreateCampLabSampleRequest,
@@ -249,7 +250,7 @@ function CampPatientActionBar({
   completedEvents,
 }: {
   patientId: string;
-  completedEvents?: readonly string[];
+  completedEvents?: readonly ClinicalEventName[];
 }) {
   const journeyContext = useMemo<ClinicalJourneyContext>(
     () => ({ patientId, completedEvents }),

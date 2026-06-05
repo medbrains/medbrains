@@ -25,6 +25,7 @@ import { notifications } from "@mantine/notifications";
 import { useHasAnyPermission, useHasPermission } from "@medbrains/stores";
 import type {
   BillingQueueToken,
+  ClinicalEventName,
   ClinicalJourneyActionDefinition,
   ClinicalJourneyActionId,
   ErTriageToken,
@@ -323,8 +324,8 @@ interface PatientFlowAction {
   enabled: boolean;
   icon: ReactNode;
   journeyActionId?: ClinicalJourneyActionId;
-  activationEvents?: readonly string[];
-  emittedEvent?: string;
+  activationEvents?: readonly ClinicalEventName[];
+  emittedEvent?: ClinicalEventName;
   requiredPermissions?: readonly string[];
   standardRefs?: readonly string[];
 }
@@ -379,7 +380,6 @@ function PatientFlowHub({
       path: "/patients/register",
       enabled: canRegisterPatient,
       icon: <IconUserPlus size={20} />,
-      activationEvents: ["front.office.intake"],
       emittedEvent: "patient.created",
       requiredPermissions: [P.PATIENTS.CREATE],
       standardRefs: ["NABH AAC", "IPSG patient identification"],

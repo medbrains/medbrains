@@ -1,3 +1,4 @@
+import type { ClinicalEventName } from "./index.js";
 import { P } from "./permissions.js";
 
 export type ClinicalJourneySurface = "web" | "mobile" | "tv" | "kiosk";
@@ -46,7 +47,7 @@ export interface ClinicalJourneyContext {
   activePharmacyOrderId?: string | null;
   activeOrderContext?: ClinicalOrderContext | null;
   hasPendingConsent?: boolean;
-  completedEvents?: readonly string[];
+  completedEvents?: readonly ClinicalEventName[];
 }
 
 export interface ClinicalJourneyActionDefinition {
@@ -77,8 +78,8 @@ export interface ClinicalJourneyActionDefinition {
     >
   >;
   surfaces: readonly ClinicalJourneySurface[];
-  activatesAfter: readonly string[];
-  emitsEvent?: string;
+  activatesAfter: readonly ClinicalEventName[];
+  emitsEvent?: ClinicalEventName;
   standardRefs: readonly string[];
   disabledReason: (context: ClinicalJourneyContext) => string | null;
 }
@@ -134,8 +135,8 @@ const CAMP_SCREENING_COMPLETED_STATUSES = new Set(["screened", "referred", "conv
 
 export function deriveCampJourneyCompletedEvents(
   registrations: readonly CampJourneyRegistration[],
-) {
-  const events: string[] = [];
+): readonly ClinicalEventName[] {
+  const events: ClinicalEventName[] = [];
   if (registrations.length > 0) {
     events.push("camp.registration.created");
   }
@@ -147,7 +148,9 @@ export function deriveCampJourneyCompletedEvents(
   return events;
 }
 
-export function inferClinicalJourneyEventNames(context: ClinicalJourneyContext): readonly string[] {
+export function inferClinicalJourneyEventNames(
+  context: ClinicalJourneyContext,
+): readonly ClinicalEventName[] {
   const events = new Set(context.completedEvents ?? []);
   const hasExplicitBedState = context.activeBedId !== undefined;
   const hasAssignedBed = Boolean(context.activeBedId);

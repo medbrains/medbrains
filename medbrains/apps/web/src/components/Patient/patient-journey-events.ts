@@ -1,11 +1,11 @@
-import type { ClinicalJourneyContext } from "@medbrains/types";
+import type { ClinicalEventName, ClinicalJourneyContext } from "@medbrains/types";
 
 export { deriveCampJourneyCompletedEvents } from "@medbrains/types";
 
 import type { ClinicalEventTrace } from "@/components/clinical-events";
 
-function eventName(event: ClinicalEventTrace) {
-  return event.eventName ?? event.rawTrigger;
+function eventName(event: ClinicalEventTrace): ClinicalEventName | null {
+  return event.eventName;
 }
 
 export function clinicalEventMatchesJourney(
@@ -24,11 +24,16 @@ export function clinicalEventMatchesJourney(
 export function mergeJourneyEventNames(
   context: ClinicalJourneyContext,
   events: readonly ClinicalEventTrace[],
-) {
-  return [
-    ...new Set([
-      ...(context.completedEvents ?? []),
-      ...events.filter((event) => clinicalEventMatchesJourney(event, context)).map(eventName),
-    ]),
-  ];
+): readonly ClinicalEventName[] {
+  const matchedEvents = events
+    .filter((event) => clinicalEventMatchesJourney(event, context))
+    .map(eventName)
+    .filter((name): name is ClinicalEventName => name !== null);
+  const completedEvents = new Set<ClinicalEventName>(context.completedEvents ?? []);
+
+  for (const name of matchedEvents) {
+    completedEvents.add(name);
+  }
+
+  return [...completedEvents];
 }

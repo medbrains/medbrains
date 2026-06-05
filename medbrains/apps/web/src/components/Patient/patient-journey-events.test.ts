@@ -47,8 +47,9 @@ describe("patient journey event matching", () => {
     expect(
       mergeJourneyEventNames({ patientId: "patient-1", completedEvents: ["patient.created"] }, [
         trace({ eventName: "order.created", patientId: "patient-1" }),
-        trace({ rawTrigger: "billing.invoice.created", patientId: "patient-1" }),
+        trace({ eventName: "billing.invoice.created", patientId: "patient-1" }),
         trace({ eventName: "pharmacy.order.dispensed", patientId: "patient-2" }),
+        trace({ rawTrigger: "legacy.unmapped", patientId: "patient-1" }),
       ]),
     ).toEqual(["patient.created", "order.created", "billing.invoice.created"]);
   });

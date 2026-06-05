@@ -43,6 +43,7 @@ import { useFieldAccess, useHasPermission } from "@medbrains/stores";
 import type {
   AdmissionRow,
   CampRegistration,
+  ClinicalEventName,
   ClinicalJourneyContext,
   DrugTimelineWithLabsResponse,
   ErVisit,
@@ -3022,14 +3023,22 @@ function PatientDetailPageInner() {
   const campCompletedEvents = deriveCampJourneyCompletedEvents(campRegistrations);
   const hasCampRegistration = campCompletedEvents.includes("camp.registration.created");
   const hasCampScreeningCompleted = campCompletedEvents.includes("camp.screening.completed");
-  const completedEvents = [
-    ...(hasEmergencyVisit ? ["emergency.visit.created"] : []),
-    ...campCompletedEvents,
-    ...(hasClinicalOrder ? ["order.created"] : []),
-    ...(hasBillingInvoice ? ["billing.invoice.created"] : []),
-    ...(hasFinalizedInvoice ? ["billing.invoice.finalized"] : []),
-    ...(hasPaymentReceived ? ["billing.payment.received"] : []),
-  ];
+  const completedEvents: ClinicalEventName[] = [...campCompletedEvents];
+  if (hasEmergencyVisit) {
+    completedEvents.push("emergency.visit.created");
+  }
+  if (hasClinicalOrder) {
+    completedEvents.push("order.created");
+  }
+  if (hasBillingInvoice) {
+    completedEvents.push("billing.invoice.created");
+  }
+  if (hasFinalizedInvoice) {
+    completedEvents.push("billing.invoice.finalized");
+  }
+  if (hasPaymentReceived) {
+    completedEvents.push("billing.payment.received");
+  }
   const actionContext: ClinicalJourneyContext = {
     patientId: patient.id,
     isDeceased: patient.is_deceased,

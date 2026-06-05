@@ -45,6 +45,7 @@ import {
 } from "@medbrains/schemas";
 import { useFieldAccess, useHasPermission } from "@medbrains/stores";
 import type {
+  ClinicalEventName,
   ClinicalJourneyContext,
   ComplianceSettings,
   CreateNdpsEntryRequest,
@@ -2523,12 +2524,10 @@ function PharmacyOrderDetail({
     ? (patientName?.full_name ?? "Linked patient")
     : "Patient restricted";
   const prescriptionUhid = canViewPatientRecord ? (patientName?.uhid ?? "") : "";
-  const completedEvents = [
-    "order.created",
-    ...(detail.order.status === "dispensed" || detail.order.dispensed_at
-      ? ["pharmacy.order.dispensed"]
-      : []),
-  ];
+  const completedEvents: ClinicalEventName[] = ["order.created"];
+  if (detail.order.status === "dispensed" || detail.order.dispensed_at) {
+    completedEvents.push("pharmacy.order.dispensed");
+  }
   const journeyContext: ClinicalJourneyContext = {
     patientId: detail.order.patient_id,
     activeEncounterId: detail.order.encounter_id,

@@ -100,6 +100,7 @@ import type {
   BillingPackage,
   BillingSummaryReport,
   ChargeMaster,
+  ClinicalEventName,
   ClinicalJourneyContext,
   CopayCalculation,
   CorporateClient,
@@ -1493,15 +1494,21 @@ function InvoiceDetail({
   const inv = detail.invoice;
   const displayStatus = invoiceDisplayStatus(inv);
   const balance = invoiceBalance(inv);
-  const completedEvents = [
-    "billing.invoice.created",
-    ...(displayStatus === "issued" || displayStatus === "partially_paid" || displayStatus === "paid"
-      ? ["billing.invoice.finalized"]
-      : []),
-    ...(displayStatus === "partially_paid" || displayStatus === "paid" || detail.payments.length > 0
-      ? ["billing.payment.received"]
-      : []),
-  ];
+  const completedEvents: ClinicalEventName[] = ["billing.invoice.created"];
+  if (
+    displayStatus === "issued" ||
+    displayStatus === "partially_paid" ||
+    displayStatus === "paid"
+  ) {
+    completedEvents.push("billing.invoice.finalized");
+  }
+  if (
+    displayStatus === "partially_paid" ||
+    displayStatus === "paid" ||
+    detail.payments.length > 0
+  ) {
+    completedEvents.push("billing.payment.received");
+  }
   const journeyContext: ClinicalJourneyContext = {
     patientId: inv.patient_id,
     activeEncounterId: inv.encounter_id,

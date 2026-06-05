@@ -50,6 +50,7 @@ import type {
   BookAppointmentGroupRequest,
   BookAppointmentRequest,
   Camp,
+  ClinicalEventName,
   ClinicalJourneyContext,
   Consultation,
   ConsultationTemplate,
@@ -266,8 +267,8 @@ function deriveOpdJourneyCompletedEvents(
   prescriptions: readonly PrescriptionWithItems[],
   labOrders: readonly LabOrder[],
   mrdCaseSheetPackets: readonly MrdCaseSheetPacket[],
-) {
-  const events: string[] = [];
+): readonly ClinicalEventName[] {
+  const events: ClinicalEventName[] = [];
   if (prescriptions.length > 0 || labOrders.length > 0) {
     events.push("order.created");
   }

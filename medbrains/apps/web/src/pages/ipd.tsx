@@ -55,6 +55,7 @@ import type {
   BedTurnaroundLog,
   BillingSummaryResponse,
   CensusWardRow,
+  ClinicalEventName,
   ClinicalJourneyActionId,
   ClinicalJourneyContext,
   CreateAdmissionResponse,
@@ -275,8 +276,8 @@ function deriveIpdJourneyCompletedEvents({
   investigations: InvestigationsResponse | null | undefined;
   mrdCaseSheetPackets: readonly MrdCaseSheetPacket[];
   prescriptions: readonly PrescriptionWithItems[];
-}) {
-  const events: string[] = [];
+}): readonly ClinicalEventName[] {
+  const events: ClinicalEventName[] = [];
   const hasOrders =
     prescriptions.length > 0 ||
     (investigations?.lab_orders.length ?? 0) > 0 ||

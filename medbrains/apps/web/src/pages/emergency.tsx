@@ -66,6 +66,7 @@ import {
 import { useFieldAccess, useHasPermission } from "@medbrains/stores";
 import type {
   AdmitFromErRequest,
+  ClinicalEventName,
   ClinicalJourneyContext,
   CreateCodeActivationRequest,
   CreateErVisitRequest,
@@ -446,8 +447,8 @@ function mlcPoliceIntimationClinicalPayload(
   };
 }
 
-function deriveEmergencyJourneyCompletedEvents(visit: ErVisit) {
-  const events: string[] = [];
+function deriveEmergencyJourneyCompletedEvents(visit: ErVisit): readonly ClinicalEventName[] {
+  const events: ClinicalEventName[] = [];
   if (visit.admission_id) {
     events.push("ipd.admission.created");
     events.push("bed.assigned");
