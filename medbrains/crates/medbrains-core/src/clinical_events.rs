@@ -48,6 +48,8 @@ pub enum ClinicalEventName {
     BillingPaymentReceived,
     #[serde(rename = "pharmacy.order.dispensed")]
     PharmacyOrderDispensed,
+    #[serde(rename = "pharmacy.ndps.movement.created")]
+    PharmacyNdpsMovementCreated,
     #[serde(rename = "ipd.admission.created")]
     IpdAdmissionCreated,
     #[serde(rename = "bed.assigned")]
@@ -100,6 +102,7 @@ impl ClinicalEventName {
             Self::BillingInvoiceFinalized => "billing.invoice.finalized",
             Self::BillingPaymentReceived => "billing.payment.received",
             Self::PharmacyOrderDispensed => "pharmacy.order.dispensed",
+            Self::PharmacyNdpsMovementCreated => "pharmacy.ndps.movement.created",
             Self::IpdAdmissionCreated => "ipd.admission.created",
             Self::BedAssigned => "bed.assigned",
             Self::BedTransferred => "bed.transferred",
@@ -136,7 +139,9 @@ impl ClinicalEventName {
             Self::BillingInvoiceCreated
             | Self::BillingInvoiceFinalized
             | Self::BillingPaymentReceived => ClinicalEventSourceModule::Billing,
-            Self::PharmacyOrderDispensed => ClinicalEventSourceModule::Pharmacy,
+            Self::PharmacyOrderDispensed | Self::PharmacyNdpsMovementCreated => {
+                ClinicalEventSourceModule::Pharmacy
+            }
             Self::IpdAdmissionCreated | Self::BedAssigned | Self::BedTransferred => {
                 ClinicalEventSourceModule::Ipd
             }
@@ -179,6 +184,7 @@ impl ClinicalEventName {
             Self::BillingInvoiceFinalized => &["invoice_id", "patient_id"],
             Self::BillingPaymentReceived => &["payment_id", "invoice_id", "patient_id"],
             Self::PharmacyOrderDispensed => &["order_id", "patient_id", "items"],
+            Self::PharmacyNdpsMovementCreated => &["entry_id", "catalog_item_id", "action"],
             Self::IpdAdmissionCreated => &["admission_id", "patient_id"],
             Self::BedAssigned => &["bed_id", "admission_id", "patient_id"],
             Self::BedTransferred => &["transfer_id", "admission_id", "from_bed_id", "to_bed_id"],
@@ -241,6 +247,7 @@ impl FromStr for ClinicalEventName {
             "billing.invoice.finalized" => Ok(Self::BillingInvoiceFinalized),
             "billing.payment.received" => Ok(Self::BillingPaymentReceived),
             "pharmacy.order.dispensed" => Ok(Self::PharmacyOrderDispensed),
+            "pharmacy.ndps.movement.created" => Ok(Self::PharmacyNdpsMovementCreated),
             "ipd.admission.created" => Ok(Self::IpdAdmissionCreated),
             "bed.assigned" => Ok(Self::BedAssigned),
             "bed.transferred" => Ok(Self::BedTransferred),
@@ -586,6 +593,28 @@ mod tests {
         assert_eq!(
             ClinicalEventName::MrdCaseSheetPrinted.required_payload_keys(),
             &["packet_id", "patient_id"]
+        );
+    }
+
+    #[test]
+    fn pharmacy_ndps_movement_event_is_canonical() {
+        assert_eq!(
+            "pharmacy.ndps.movement.created"
+                .parse::<ClinicalEventName>()
+                .ok(),
+            Some(ClinicalEventName::PharmacyNdpsMovementCreated)
+        );
+        assert_eq!(
+            ClinicalEventName::PharmacyNdpsMovementCreated.as_str(),
+            "pharmacy.ndps.movement.created"
+        );
+        assert_eq!(
+            ClinicalEventName::PharmacyNdpsMovementCreated.default_source_module(),
+            ClinicalEventSourceModule::Pharmacy
+        );
+        assert_eq!(
+            ClinicalEventName::PharmacyNdpsMovementCreated.required_payload_keys(),
+            &["entry_id", "catalog_item_id", "action"]
         );
     }
 }

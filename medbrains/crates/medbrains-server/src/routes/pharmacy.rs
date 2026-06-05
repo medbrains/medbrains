@@ -565,6 +565,36 @@ fn filter_ndps_balance_response(
     row
 }
 
+async fn queue_ndps_movement_created_event_in_tx(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: Uuid,
+    actor_id: Uuid,
+    entry: &NdpsRegisterEntry,
+    movement_source: &'static str,
+) -> Result<(), AppError> {
+    let mut event = ClinicalEventEnvelope::new(
+        tenant_id,
+        ClinicalEventName::PharmacyNdpsMovementCreated,
+        entry.id,
+        actor_id,
+        json!({
+            "entry_id": entry.id,
+            "catalog_item_id": entry.catalog_item_id,
+            "action": &entry.action,
+            "movement_source": movement_source,
+            "has_patient_context": entry.patient_id.is_some(),
+            "has_prescription_context": entry.prescription_id.is_some(),
+            "witness_recorded": entry.witnessed_by.is_some(),
+            "created_at": entry.created_at,
+        }),
+    );
+    if let Some(patient_id) = entry.patient_id {
+        event = event.with_patient(patient_id);
+    }
+    crate::events::queue_clinical_event_in_tx(tx, &event).await?;
+    Ok(())
+}
+
 fn filter_near_expiry_response(
     mut row: NearExpiryRow,
     restricted: &HashMap<String, FieldAccessLevel>,
@@ -2452,20 +2482,30 @@ pub async fn dispense_order(
 
                 let new_balance = current_balance - i64::from(item.quantity);
 
-                sqlx::query(
+                let ndps_entry = sqlx::query_as::<_, NdpsRegisterEntry>(
                     "INSERT INTO pharmacy_ndps_register \
                      (tenant_id, catalog_item_id, action, quantity, balance_after, \
-                      patient_id, dispensed_by, witnessed_by) \
-                     VALUES ($1, $2, 'dispensed', $3, $4, $5, $6, $7)",
+                      patient_id, prescription_id, dispensed_by, witnessed_by) \
+                     VALUES ($1, $2, 'dispensed', $3, $4, $5, $6, $7, $8) \
+                     RETURNING *",
                 )
                 .bind(claims.tenant_id)
                 .bind(catalog_id)
                 .bind(item.quantity)
                 .bind(i32::try_from(new_balance).unwrap_or(0))
                 .bind(order.patient_id)
+                .bind(order.prescription_id)
                 .bind(claims.sub)
                 .bind(body.witnessed_by)
-                .execute(&mut *tx)
+                .fetch_one(&mut *tx)
+                .await?;
+                queue_ndps_movement_created_event_in_tx(
+                    &mut tx,
+                    claims.tenant_id,
+                    claims.sub,
+                    &ndps_entry,
+                    "pharmacy_order_dispense",
+                )
                 .await?;
             }
         }
@@ -3469,6 +3509,15 @@ pub async fn create_ndps_entry(
     .bind(body.witnessed_by)
     .bind(&body.notes)
     .fetch_one(&mut *tx)
+    .await?;
+
+    queue_ndps_movement_created_event_in_tx(
+        &mut tx,
+        claims.tenant_id,
+        claims.sub,
+        &entry,
+        "manual_register",
+    )
     .await?;
 
     tx.commit().await?;
