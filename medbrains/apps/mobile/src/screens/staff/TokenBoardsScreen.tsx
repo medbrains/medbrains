@@ -3,6 +3,8 @@ import type {
   BillingQueueToken,
   ErTriageToken,
   PharmacyQueueToken,
+  QueuePriority,
+  QueueToken,
   TriageLevelColor,
 } from "@medbrains/types";
 import { P } from "@medbrains/types";
@@ -21,6 +23,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import {
   useBillingTokenBoardQuery,
   useErTokenBoardQuery,
+  useOpdTokenBoardQuery,
   usePharmacyTokenBoardQuery,
 } from "../../services/tokenBoards.queries";
 import { MEDBRAINS_COLORS } from "../../theme/paper-theme";
@@ -51,6 +54,10 @@ function statusLabel(value: string) {
   return value.replace(/_/g, " ");
 }
 
+function priorityLabel(value: QueuePriority) {
+  return value.replace(/_/g, " ");
+}
+
 function lastSyncLabel(updatedAt: number) {
   if (updatedAt === 0) return "pending";
   return new Date(updatedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
@@ -62,6 +69,8 @@ function statusColor(status: string) {
     case "dispensed":
     case "paid":
     case "settled":
+    case "called":
+    case "in_progress":
       return MEDBRAINS_COLORS.statusSuccessBg;
     case "preparing":
     case "issued":
@@ -73,6 +82,14 @@ function statusColor(status: string) {
     default:
       return MEDBRAINS_COLORS.navActiveBg;
   }
+}
+
+function opdToken(token: QueueToken): DisplayToken {
+  return {
+    meta: token.priority === "normal" ? "Standard priority" : priorityLabel(token.priority),
+    status: token.status,
+    tokenNumber: token.token_number,
+  };
 }
 
 function pharmacyToken(token: PharmacyQueueToken): DisplayToken {
@@ -284,20 +301,27 @@ function TriageLane({
 
 export function TokenBoardsScreen() {
   const theme = useTheme();
+  const canViewOpd = useHasPermission(P.OPD.QUEUE_LIST);
   const canViewEr = useHasAnyPermission([P.EMERGENCY.VISITS_LIST, P.EMERGENCY.TRIAGE_LIST]);
   const canViewPharmacy = useHasAnyPermission([
     P.PHARMACY.PRESCRIPTIONS_LIST,
     P.PHARMACY.PRESCRIPTIONS_VIEW,
   ]);
   const canViewBilling = useHasPermission(P.BILLING.INVOICES_LIST);
-  const canViewAnyBoard = canViewEr || canViewPharmacy || canViewBilling;
+  const canViewAnyBoard = canViewOpd || canViewEr || canViewPharmacy || canViewBilling;
 
+  const opdQuery = useOpdTokenBoardQuery({ enabled: canViewOpd });
   const erQuery = useErTokenBoardQuery({ enabled: canViewEr });
   const pharmacyQuery = usePharmacyTokenBoardQuery({ enabled: canViewPharmacy });
   const billingQuery = useBillingTokenBoardQuery({ enabled: canViewBilling });
+  const opdTokens = opdQuery.data ?? [];
   const er = erQuery.data;
   const pharmacy = pharmacyQuery.data;
   const billing = billingQuery.data;
+  const opdNowServing = opdTokens.filter(
+    (token) => token.status === "called" || token.status === "in_progress",
+  );
+  const opdWaiting = opdTokens.filter((token) => token.status === "waiting");
   const overdueErTokens = TRIAGE_LANES.reduce(
     (count, lane) => count + (er?.[lane.key] ?? []).filter((token) => token.is_overdue).length,
     0,
@@ -317,7 +341,7 @@ export function TokenBoardsScreen() {
           <Avatar.Icon size={56} icon="shield-lock-outline" style={styles.stateIcon} />
           <Text variant="titleMedium">Token boards restricted</Text>
           <Text variant="bodySmall" style={styles.stateText}>
-            Queue-board visibility follows your emergency, pharmacy and billing permissions.
+            Queue-board visibility follows your OPD, emergency, pharmacy and billing permissions.
           </Text>
         </View>
       </SafeAreaView>
@@ -333,7 +357,7 @@ export function TokenBoardsScreen() {
               Token Boards
             </Text>
             <Text variant="bodyMedium" style={styles.subtitle}>
-              Mobile view of token-only ER, pharmacy and billing queues.
+              Mobile view of token-only OPD, ER, pharmacy and billing queues.
             </Text>
           </View>
           <Avatar.Icon size={48} icon="monitor-dashboard" />
@@ -342,6 +366,11 @@ export function TokenBoardsScreen() {
         <PrivacyNotice />
 
         <View style={styles.metricGrid}>
+          <SummaryMetric
+            color={MEDBRAINS_COLORS.copper}
+            label="OPD waiting"
+            value={canViewOpd ? opdWaiting.length : "—"}
+          />
           <SummaryMetric
             color={MEDBRAINS_COLORS.red}
             label="ER waiting"
@@ -358,6 +387,29 @@ export function TokenBoardsScreen() {
             value={billingNowServing?.token_number ?? "—"}
           />
         </View>
+
+        {canViewOpd && (
+          <BoardCard
+            title="OPD queue"
+            subtitle="Token calls across outpatient departments"
+            isLoading={opdQuery.isLoading}
+            isError={opdQuery.isError}
+            lastUpdatedAt={opdQuery.dataUpdatedAt}
+          >
+            <View style={styles.laneStack}>
+              <TokenLane
+                title="Now serving"
+                emptyLabel="No OPD token is currently called"
+                tokens={opdNowServing.slice(0, TOKEN_LIMIT).map(opdToken)}
+              />
+              <TokenLane
+                title="Next tokens"
+                emptyLabel="No OPD tokens waiting"
+                tokens={opdWaiting.slice(0, TOKEN_LIMIT).map(opdToken)}
+              />
+            </View>
+          </BoardCard>
+        )}
 
         {canViewEr && (
           <BoardCard

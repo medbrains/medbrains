@@ -1,10 +1,25 @@
 import { api } from "@medbrains/api";
-import type { BillingQueueDisplay, ErQueueDisplay, PharmacyQueueDisplay } from "@medbrains/types";
+import type {
+  BillingQueueDisplay,
+  ErQueueDisplay,
+  PharmacyQueueDisplay,
+  QueueToken,
+} from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
 
 const TOKEN_BOARD_QUERY_KEY = ["token-boards"] as const;
 const STANDARD_REFRESH_MS = 10_000;
 const ER_REFRESH_MS = 5_000;
+const OPD_REFRESH_MS = 5_000;
+
+export function useOpdTokenBoardQuery(options?: { enabled?: boolean }) {
+  return useQuery<QueueToken[]>({
+    queryKey: [...TOKEN_BOARD_QUERY_KEY, "opd"],
+    queryFn: () => api.listQueueTokens(),
+    enabled: options?.enabled ?? true,
+    refetchInterval: OPD_REFRESH_MS,
+  });
+}
 
 export function useBillingTokenBoardQuery(options?: { enabled?: boolean }) {
   return useQuery<BillingQueueDisplay>({
