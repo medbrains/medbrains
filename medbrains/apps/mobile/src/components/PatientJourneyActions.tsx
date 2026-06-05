@@ -81,11 +81,18 @@ function mobileDisabledReason(
   action: ResolvedClinicalJourneyAction & { id: MobileJourneyActionId },
   context: ClinicalJourneyContext,
 ) {
+  const hasMobileOrderContext =
+    Boolean(context.activeEncounterId) &&
+    (context.activeOrderContext === "opd" || context.activeOrderContext === "ipd");
+
   if (
     action.id === "opd.open_visit" &&
     (!context.activeEncounterId || context.activeOrderContext !== "opd")
   ) {
     return "Open an OPD encounter before mobile consultation";
+  }
+  if ((action.id === "orders.medication" || action.id === "orders.lab") && !hasMobileOrderContext) {
+    return "Open an OPD or IPD encounter before mobile orders";
   }
   return action.disabledReasonText;
 }
