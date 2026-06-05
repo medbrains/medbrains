@@ -18,6 +18,7 @@ export { TripSummaryScreen } from "./phlebo/TripSummaryScreen";
 export { ConsultationNotesScreen } from "./staff/ConsultationNotesScreen";
 export { LabOrderScreen } from "./staff/LabOrderScreen";
 export { LabResultsViewScreen } from "./staff/LabResultsViewScreen";
+export { PatientCareContextScreen } from "./staff/PatientCareContextScreen";
 export { PatientDetailScreen } from "./staff/PatientDetailScreen";
 export { PatientPharmacyScreen } from "./staff/PatientPharmacyScreen";
 export { PatientSearchScreen } from "./staff/PatientSearchScreen";

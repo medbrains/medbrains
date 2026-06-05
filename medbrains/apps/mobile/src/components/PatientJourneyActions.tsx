@@ -12,6 +12,11 @@ type MobileJourneyActionId =
   | "billing.collect_payment"
   | "billing.open_ledger"
   | "billing.prepare_discharge_bill"
+  | "camp.open_context"
+  | "emergency.open_mlc"
+  | "emergency.open_visit"
+  | "ipd.admit"
+  | "ipd.open_admission"
   | "opd.open_visit"
   | "orders.lab"
   | "orders.medication"
@@ -30,6 +35,11 @@ const SUPPORTED_MOBILE_ACTIONS = new Set<ClinicalJourneyActionId>([
   "billing.collect_payment",
   "billing.open_ledger",
   "billing.prepare_discharge_bill",
+  "camp.open_context",
+  "emergency.open_mlc",
+  "emergency.open_visit",
+  "ipd.admit",
+  "ipd.open_admission",
   "opd.open_visit",
   "orders.medication",
   "orders.lab",
@@ -45,6 +55,15 @@ function actionIcon(actionId: ClinicalJourneyActionId) {
     case "billing.open_ledger":
     case "billing.prepare_discharge_bill":
       return "receipt";
+    case "camp.open_context":
+      return "account-group";
+    case "emergency.open_mlc":
+      return "file-alert";
+    case "emergency.open_visit":
+      return "ambulance";
+    case "ipd.admit":
+    case "ipd.open_admission":
+      return "bed";
     case "opd.open_visit":
       return "stethoscope";
     case "orders.medication":
@@ -65,6 +84,11 @@ function actionLabel(action: ResolvedClinicalJourneyAction & { id: MobileJourney
   if (action.id === "billing.collect_payment") return "Payment";
   if (action.id === "billing.open_ledger") return "Billing";
   if (action.id === "billing.prepare_discharge_bill") return "Discharge Bill";
+  if (action.id === "camp.open_context") return "Camp";
+  if (action.id === "emergency.open_mlc") return "MLC";
+  if (action.id === "emergency.open_visit") return "ER";
+  if (action.id === "ipd.admit") return "Admit";
+  if (action.id === "ipd.open_admission") return "IPD";
   if (action.id === "opd.open_visit") return "Notes";
   if (action.id === "orders.radiology") return "Imaging";
   if (action.id === "pharmacy.dispense_order") return "Dispense";
@@ -141,6 +165,41 @@ export function PatientJourneyActions({ context, navigation }: PatientJourneyAct
         navigation.navigate("Billing", {
           filter: "pending",
           handoff: "discharge_bill",
+          patientId: context.patientId,
+        });
+        return;
+      case "camp.open_context":
+        navigation.navigate("PatientCareContext", {
+          handoff: "open_context",
+          module: "camp",
+          patientId: context.patientId,
+        });
+        return;
+      case "emergency.open_mlc":
+        navigation.navigate("PatientCareContext", {
+          handoff: "open_mlc",
+          module: "emergency",
+          patientId: context.patientId,
+        });
+        return;
+      case "emergency.open_visit":
+        navigation.navigate("PatientCareContext", {
+          handoff: "open_visit",
+          module: "emergency",
+          patientId: context.patientId,
+        });
+        return;
+      case "ipd.admit":
+        navigation.navigate("PatientCareContext", {
+          handoff: "admit",
+          module: "ipd",
+          patientId: context.patientId,
+        });
+        return;
+      case "ipd.open_admission":
+        navigation.navigate("PatientCareContext", {
+          handoff: "open_admission",
+          module: "ipd",
           patientId: context.patientId,
         });
         return;

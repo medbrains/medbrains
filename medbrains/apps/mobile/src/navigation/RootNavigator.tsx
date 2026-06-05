@@ -13,6 +13,7 @@ import {
   LabResultsScreen,
   LabResultsViewScreen,
   LoginScreen,
+  PatientCareContextScreen,
   PatientDashboard,
   PatientDetailScreen,
   PatientPharmacyScreen,
@@ -59,6 +60,11 @@ export type RootStackParamList = {
   StaffDashboard: undefined;
   TokenBoards: undefined;
   PatientSearch: undefined;
+  PatientCareContext: {
+    handoff?: "admit" | "open_admission" | "open_context" | "open_mlc" | "open_visit";
+    module: "camp" | "emergency" | "ipd";
+    patientId: string;
+  };
   PatientDetail: { patientId: string };
   PatientPharmacy: { handoff?: "dispense" | "queue"; patientId: string };
   Queue: { departmentId?: string };
@@ -157,6 +163,11 @@ function StaffStack() {
         name="PatientDetail"
         component={PatientDetailScreen}
         options={{ title: "Patient Details" }}
+      />
+      <Stack.Screen
+        name="PatientCareContext"
+        component={PatientCareContextScreen}
+        options={{ title: "Care Context" }}
       />
       <Stack.Screen
         name="PatientPharmacy"
