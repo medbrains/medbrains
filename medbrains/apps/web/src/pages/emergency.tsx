@@ -155,6 +155,7 @@ import {
   printCopyRouteLabel,
 } from "@/utils/printCopies";
 import classes from "./emergency.module.scss";
+import { emergencyTabFromSearch, emergencyVisibleTab } from "./emergency-workspace";
 
 const CRASH_CART_ITEMS = [
   { key: "defibrillator_present", label: "Defibrillator present and functional" },
@@ -354,8 +355,6 @@ const emptyMassCasualtyEventUpdateForm: MassCasualtyEventUpdateFormInput = {
   notes: "",
 };
 
-type EmergencyTabKey = "visits" | "triage" | "resuscitation" | "codes" | "mlc" | "mass-casualty";
-
 const EMERGENCY_PAGE_PERMISSIONS = [
   P.EMERGENCY.VISITS_LIST,
   P.EMERGENCY.VISITS_CREATE,
@@ -386,21 +385,6 @@ const EMERGENCY_PAGE_PERMISSIONS = [
   P.EMERGENCY.MASS_CASUALTY_UPDATE,
   P.EMERGENCY.MASS_CASUALTY_CLOSE,
 ] as const;
-
-function emergencyTabFromSearch(value: string | null): EmergencyTabKey | null {
-  if (
-    value === "visits" ||
-    value === "triage" ||
-    value === "resuscitation" ||
-    value === "codes" ||
-    value === "mlc" ||
-    value === "mass-casualty"
-  ) {
-    return value;
-  }
-
-  return null;
-}
 
 function codeActivationClinicalPayload(code: ErCodeActivation): Record<string, unknown> {
   return {
@@ -653,7 +637,7 @@ function WaitTimeBadge({
 export function EmergencyPage() {
   useRequirePermission(EMERGENCY_PAGE_PERMISSIONS);
   const { t } = useTranslation("emergency");
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const contextPatientId = searchParams.get("patient_id") ?? "";
   const contextAction = searchParams.get("action") ?? "";
   const contextLocation = searchParams.get("location") ?? "";
@@ -780,14 +764,18 @@ export function EmergencyPage() {
     },
   ].filter((item) => item.visible);
   const fallbackTab = availableTabs[0]?.value ?? "visits";
-  const initialTab =
-    requestedTab && availableTabs.some((item) => item.value === requestedTab)
-      ? requestedTab
-      : fallbackTab;
-  const [activeTab, setActiveTab] = useState<EmergencyTabKey>(initialTab);
-  const visibleActiveTab = availableTabs.some((item) => item.value === activeTab)
-    ? activeTab
-    : fallbackTab;
+  const visibleActiveTab = emergencyVisibleTab(
+    requestedTab,
+    availableTabs.map((item) => item.value),
+    fallbackTab,
+  );
+  const setSelectedTab = (value: string | null) => {
+    const nextTab = emergencyTabFromSearch(value);
+    if (!nextTab) return;
+    const next = new URLSearchParams(searchParams);
+    next.set("tab", nextTab);
+    setSearchParams(next, { replace: true });
+  };
 
   return (
     <ClinicalEventProvider moduleCode="emergency" contextCode="emergency-visits">
@@ -808,15 +796,7 @@ export function EmergencyPage() {
           No emergency work areas are available for your current role.
         </Text>
       ) : (
-        <Tabs
-          value={visibleActiveTab}
-          onChange={(value) => {
-            const nextTab = emergencyTabFromSearch(value);
-            if (nextTab) {
-              setActiveTab(nextTab);
-            }
-          }}
-        >
+        <Tabs value={visibleActiveTab} onChange={setSelectedTab}>
           <Tabs.List>
             {availableTabs.map((tab) => (
               <Tabs.Tab key={tab.value} value={tab.value} leftSection={tab.icon}>
