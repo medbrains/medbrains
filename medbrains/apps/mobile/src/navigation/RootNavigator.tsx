@@ -70,9 +70,24 @@ export type RootStackParamList = {
   PatientPharmacy: { handoff?: "dispense" | "queue"; patientId: string };
   Queue: { departmentId?: string };
   Vitals: { encounterId?: string; patientId?: string };
-  Prescription: { encounterId?: string; patientId?: string };
-  LabOrder: { encounterId?: string; patientId?: string };
-  RadiologyOrder: { encounterId?: string; patientId?: string };
+  Prescription: {
+    admissionId?: string;
+    encounterId?: string;
+    orderContext?: "ipd" | "opd";
+    patientId?: string;
+  };
+  LabOrder: {
+    admissionId?: string;
+    encounterId?: string;
+    orderContext?: "ipd" | "opd";
+    patientId?: string;
+  };
+  RadiologyOrder: {
+    admissionId?: string;
+    encounterId?: string;
+    orderContext?: "ipd" | "opd";
+    patientId?: string;
+  };
   LabResultsView: { orderId?: string; patientId?: string };
   ConsultationNotes: { encounterId: string; patientId?: string };
 

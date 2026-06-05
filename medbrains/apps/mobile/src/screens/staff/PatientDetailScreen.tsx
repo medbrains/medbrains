@@ -248,7 +248,9 @@ export function PatientDetailScreen({ route, navigation }: PatientDetailScreenPr
   const activeCampRegistration = campRegistrationList.find(
     (registration) => registration.status !== "no_show",
   );
-  const activeCareEncounterId = activeAdmission?.encounter_id ?? activeOpdVisit?.id ?? null;
+  const activeCareEncounterId = activeAdmission
+    ? (activeAdmission.encounter_id ?? null)
+    : (activeOpdVisit?.id ?? null);
   const activeOrderContext = activeAdmission ? "ipd" : activeOpdVisit ? "opd" : null;
   const prescriptionList = prescriptions ?? [];
   const invoiceList = invoices ?? [];

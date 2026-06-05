@@ -111,9 +111,13 @@ function mobileDisabledReason(
   context: ClinicalJourneyContext,
   hasPermission: (permission: string) => boolean,
 ) {
+  if (action.disabledReasonText) return action.disabledReasonText;
+
   const hasMobileOrderContext =
-    Boolean(context.activeEncounterId) &&
-    (context.activeOrderContext === "opd" || context.activeOrderContext === "ipd");
+    (context.activeOrderContext === "opd" && Boolean(context.activeEncounterId)) ||
+    (context.activeOrderContext === "ipd" &&
+      Boolean(context.activeAdmissionId) &&
+      Boolean(context.activeEncounterId));
 
   if (
     action.id === "opd.open_visit" &&
@@ -127,7 +131,9 @@ function mobileDisabledReason(
       action.id === "orders.radiology") &&
     !hasMobileOrderContext
   ) {
-    return "Open an OPD or IPD encounter before mobile orders";
+    return context.activeOrderContext === "ipd"
+      ? "Open an active IPD encounter before mobile inpatient orders"
+      : "Open an OPD encounter before mobile orders";
   }
   if (
     action.id === "orders.radiology" &&
@@ -135,7 +141,16 @@ function mobileDisabledReason(
   ) {
     return "Radiology order permission required";
   }
-  return action.disabledReasonText;
+  return null;
+}
+
+function mobileOrderParams(context: ClinicalJourneyContext) {
+  return {
+    admissionId: context.activeAdmissionId ?? undefined,
+    encounterId: context.activeEncounterId,
+    orderContext: context.activeOrderContext ?? undefined,
+    patientId: context.patientId,
+  };
 }
 
 export function PatientJourneyActions({ context, navigation }: PatientJourneyActionsProps) {
@@ -222,22 +237,13 @@ export function PatientJourneyActions({ context, navigation }: PatientJourneyAct
         });
         return;
       case "orders.medication":
-        navigation.navigate("Prescription", {
-          encounterId: context.activeEncounterId,
-          patientId: context.patientId,
-        });
+        navigation.navigate("Prescription", mobileOrderParams(context));
         return;
       case "orders.lab":
-        navigation.navigate("LabOrder", {
-          encounterId: context.activeEncounterId,
-          patientId: context.patientId,
-        });
+        navigation.navigate("LabOrder", mobileOrderParams(context));
         return;
       case "orders.radiology":
-        navigation.navigate("RadiologyOrder", {
-          encounterId: context.activeEncounterId,
-          patientId: context.patientId,
-        });
+        navigation.navigate("RadiologyOrder", mobileOrderParams(context));
         return;
       case "pharmacy.dispense_order":
         navigation.navigate("PatientPharmacy", {
