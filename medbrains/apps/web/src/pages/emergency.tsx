@@ -112,7 +112,7 @@ import {
   IconUsers,
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useParams, useSearchParams } from "react-router";
@@ -954,6 +954,18 @@ export function EmergencyVisitDetailPage() {
     P.EMERGENCY.TRIAGE_CREATE,
     P.EMERGENCY.RESUSCITATION_LIST,
     P.EMERGENCY.RESUSCITATION_CREATE,
+    P.EMERGENCY.MLC_LIST,
+    P.EMERGENCY.MLC_PRINT,
+    P.EMERGENCY.MLC_REPRINT,
+    P.EMERGENCY.MLC_DOCUMENTS.SBAR_CREATE,
+    P.EMERGENCY.MLC_DOCUMENTS.AGE_ESTIMATION_CREATE,
+    P.EMERGENCY.MLC_DOCUMENTS.POCSO_CREATE,
+    P.EMERGENCY.MLC_DOCUMENTS.COURT_SUMMONS_CREATE,
+    P.EMERGENCY.MLC_POLICE_INTIMATIONS.LIST,
+    P.EMERGENCY.MLC_POLICE_INTIMATIONS.CREATE,
+    P.EMERGENCY.MLC_POLICE_INTIMATIONS.CONFIRM,
+    P.EMERGENCY.MLC_POLICE_INTIMATIONS.PRINT,
+    P.EMERGENCY.MLC_POLICE_INTIMATIONS.REPRINT,
   ]);
   const navigate = useNavigate();
   const { visitId } = useParams();
@@ -964,6 +976,35 @@ export function EmergencyVisitDetailPage() {
   const canCreateResuscitation = useHasPermission(P.EMERGENCY.RESUSCITATION_CREATE);
   const canUpdateVisit = useHasPermission(P.EMERGENCY.VISITS_UPDATE);
   const canCreateIpdAdmission = useHasPermission(P.IPD.ADMISSIONS_CREATE);
+  const canViewMlc = useHasPermission(P.EMERGENCY.MLC_LIST);
+  const canPrintMlc = useHasPermission(P.EMERGENCY.MLC_PRINT);
+  const canReprintMlc = useHasPermission(P.EMERGENCY.MLC_REPRINT);
+  const canCreateMlcSbar = useHasPermission(P.EMERGENCY.MLC_DOCUMENTS.SBAR_CREATE);
+  const canCreateMlcAgeEstimation = useHasPermission(
+    P.EMERGENCY.MLC_DOCUMENTS.AGE_ESTIMATION_CREATE,
+  );
+  const canCreateMlcPocso = useHasPermission(P.EMERGENCY.MLC_DOCUMENTS.POCSO_CREATE);
+  const canCreateMlcCourtSummons = useHasPermission(P.EMERGENCY.MLC_DOCUMENTS.COURT_SUMMONS_CREATE);
+  const canListMlcPoliceIntimations = useHasPermission(P.EMERGENCY.MLC_POLICE_INTIMATIONS.LIST);
+  const canCreateMlcPoliceIntimation = useHasPermission(P.EMERGENCY.MLC_POLICE_INTIMATIONS.CREATE);
+  const canConfirmMlcPoliceReceipt = useHasPermission(P.EMERGENCY.MLC_POLICE_INTIMATIONS.CONFIRM);
+  const canPrintMlcPoliceIntimation = useHasPermission(P.EMERGENCY.MLC_POLICE_INTIMATIONS.PRINT);
+  const canReprintMlcPoliceIntimation = useHasPermission(
+    P.EMERGENCY.MLC_POLICE_INTIMATIONS.REPRINT,
+  );
+  const canAccessMlc =
+    canViewMlc ||
+    canPrintMlc ||
+    canReprintMlc ||
+    canCreateMlcSbar ||
+    canCreateMlcAgeEstimation ||
+    canCreateMlcPocso ||
+    canCreateMlcCourtSummons ||
+    canListMlcPoliceIntimations ||
+    canCreateMlcPoliceIntimation ||
+    canConfirmMlcPoliceReceipt ||
+    canPrintMlcPoliceIntimation ||
+    canReprintMlcPoliceIntimation;
   const canAdmit = canUpdateVisit && canCreateIpdAdmission;
   const { data: visit, isLoading } = useQuery({
     queryKey: ["er-visit", visitId],
@@ -973,6 +1014,26 @@ export function EmergencyVisitDetailPage() {
     },
     enabled: Boolean(visitId),
   });
+  const { data: mlcCases = [], isLoading: mlcCasesLoading } = useQuery({
+    queryKey: ["mlc-cases"],
+    queryFn: () => emergencyService.listMlcCases(),
+    enabled: canAccessMlc,
+  });
+  const visitMlcCases = useMemo(
+    () => mlcCases.filter((mlcCase) => mlcCase.er_visit_id === visitId),
+    [mlcCases, visitId],
+  );
+  const shouldShowMlcWorkspace = Boolean(visit?.is_mlc && canAccessMlc);
+
+  useEffect(() => {
+    if (!shouldShowMlcWorkspace || window.location.hash !== "#mlc") {
+      return;
+    }
+
+    window.requestAnimationFrame(() => {
+      document.getElementById("mlc")?.scrollIntoView({ block: "start" });
+    });
+  }, [shouldShowMlcWorkspace]);
 
   return (
     <Stack className={classes.emergencyWorkspace}>
@@ -1048,6 +1109,40 @@ export function EmergencyVisitDetailPage() {
                     />
                   </Box>
                 )}
+                {shouldShowMlcWorkspace && (
+                  <Box id="mlc">
+                    <Stack>
+                      <Group gap="xs">
+                        <IconGavel size={18} />
+                        <Text fw={700}>MLC case workspace</Text>
+                      </Group>
+                      {mlcCasesLoading ? (
+                        <Text size="sm" c="dimmed">
+                          Loading MLC case...
+                        </Text>
+                      ) : visitMlcCases.length > 0 ? (
+                        <Stack>
+                          {visitMlcCases.map((mlcCase) => (
+                            <MlcCaseDetail
+                              key={mlcCase.id}
+                              mlcCase={mlcCase}
+                              canViewPatientRecord={canViewPatientRecord}
+                            />
+                          ))}
+                        </Stack>
+                      ) : (
+                        <Alert
+                          color="orange"
+                          variant="light"
+                          icon={<IconAlertTriangle size={16} />}
+                        >
+                          This visit is flagged as MLC, but no linked MLC case is available for your
+                          current role.
+                        </Alert>
+                      )}
+                    </Stack>
+                  </Box>
+                )}
               </Stack>
             </Grid.Col>
             <Grid.Col span={{ base: 12, lg: 4 }}>
@@ -1055,6 +1150,7 @@ export function EmergencyVisitDetailPage() {
                 visit={visit}
                 canShowTriage={canViewTriage || canCreateTriage}
                 canShowResuscitation={canViewResuscitation || canCreateResuscitation}
+                canShowMlc={shouldShowMlcWorkspace}
               />
             </Grid.Col>
           </Grid>
@@ -1785,10 +1881,12 @@ function EmergencyVisitContextRail({
   visit,
   canShowTriage,
   canShowResuscitation,
+  canShowMlc,
 }: {
   visit: ErVisit;
   canShowTriage: boolean;
   canShowResuscitation: boolean;
+  canShowMlc: boolean;
 }) {
   const navigate = useNavigate();
   const info = triageInfo(visit.triage_level);
@@ -1860,10 +1958,12 @@ function EmergencyVisitContextRail({
               variant="light"
               color="danger"
               leftSection={<IconGavel size={14} />}
-              onClick={() => navigate(`/emergency?tab=mlc&patient_id=${visit.patient_id}`)}
+              component="a"
+              href="#mlc"
+              disabled={!canShowMlc}
               fullWidth
             >
-              MLC cases
+              MLC case
             </Button>
           )}
           {visit.admission_id && (

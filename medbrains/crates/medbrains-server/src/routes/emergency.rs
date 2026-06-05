@@ -653,6 +653,18 @@ pub async fn get_visit(
             permissions::emergency::triage::CREATE,
             permissions::emergency::resuscitation::LIST,
             permissions::emergency::resuscitation::CREATE,
+            permissions::emergency::mlc::LIST,
+            permissions::emergency::mlc::PRINT,
+            permissions::emergency::mlc::REPRINT,
+            permissions::emergency::mlc_documents::SBAR_CREATE,
+            permissions::emergency::mlc_documents::AGE_ESTIMATION_CREATE,
+            permissions::emergency::mlc_documents::POCSO_CREATE,
+            permissions::emergency::mlc_documents::COURT_SUMMONS_CREATE,
+            permissions::emergency::mlc_police_intimations::LIST,
+            permissions::emergency::mlc_police_intimations::CREATE,
+            permissions::emergency::mlc_police_intimations::CONFIRM,
+            permissions::emergency::mlc_police_intimations::PRINT,
+            permissions::emergency::mlc_police_intimations::REPRINT,
         ],
     )?;
     let mut tx = state.db.begin().await?;
