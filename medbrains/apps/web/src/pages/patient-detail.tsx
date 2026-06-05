@@ -3021,6 +3021,8 @@ function PatientDetailPageInner() {
     (invoice) => Number.parseFloat(invoice.balance) > 0,
   ).length;
   const campCompletedEvents = deriveCampJourneyCompletedEvents(campRegistrations);
+  const activeCampRegistration =
+    campRegistrations.find((registration) => registration.status !== "no_show") ?? null;
   const hasCampRegistration = campCompletedEvents.includes("camp.registration.created");
   const hasCampScreeningCompleted = campCompletedEvents.includes("camp.screening.completed");
   const completedEvents: ClinicalEventName[] = [...campCompletedEvents];
@@ -3045,6 +3047,8 @@ function PatientDetailPageInner() {
     activeEncounterId: activeEncounter?.id ?? null,
     activeAdmissionId: activeAdmission?.id ?? null,
     activeBedId: activeAdmission?.bed_id ?? null,
+    activeCampId: activeCampRegistration?.camp_id ?? null,
+    activeCampRegistrationId: activeCampRegistration?.id ?? null,
     activeEmergencyVisitId: activeEmergencyVisit?.id ?? null,
     activeAdmissionStatus: activeAdmission?.status ?? null,
     activeOrderContext: activeEncounter ? "opd" : activeAdmission ? "ipd" : null,
@@ -3159,6 +3163,8 @@ function PatientDetailPageInner() {
             activeAdmissionId={activeAdmission?.id ?? null}
             activeAdmissionStatus={activeAdmission?.status ?? null}
             activeBedId={activeAdmission?.bed_id ?? null}
+            activeCampId={activeCampRegistration?.camp_id ?? null}
+            activeCampRegistrationId={activeCampRegistration?.id ?? null}
             activeEmergencyVisitId={activeEmergencyVisit?.id ?? null}
             completedEvents={completedEvents}
             compact

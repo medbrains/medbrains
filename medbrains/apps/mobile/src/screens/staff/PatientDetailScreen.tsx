@@ -267,6 +267,8 @@ export function PatientDetailScreen({ route, navigation }: PatientDetailScreenPr
     activeAdmissionId: activeAdmission?.id ?? null,
     activeAdmissionStatus: activeAdmission?.status ?? null,
     activeBedId: activeAdmission?.bed_id,
+    activeCampId: activeCampRegistration?.camp_id ?? null,
+    activeCampRegistrationId: activeCampRegistration?.id ?? null,
     activeEmergencyVisitId: activeErVisit?.id ?? null,
     activeOrderContext,
     completedEvents,
