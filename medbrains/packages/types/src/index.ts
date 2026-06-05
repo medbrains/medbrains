@@ -1083,6 +1083,15 @@ export const FIELD_ACCESS_FIELDS = [
     "text",
     "Unlinked outreach participant ID proof",
   ),
+  systemField("camp", "camps.name", "Camp name", "text", "Outreach camp display name"),
+  systemField("camp", "camps.location", "Camp location", "text", "Outreach camp venue or site"),
+  systemField(
+    "camp",
+    "camps.schedule",
+    "Camp schedule",
+    "json",
+    "Camp date, timing, status, and operational planning details",
+  ),
   systemField(
     "pharmacy",
     "catalog.base_price",
@@ -1251,6 +1260,27 @@ export const FIELD_ACCESS_FIELDS = [
     "Prior-auth denial reason",
     "textarea",
     "Payer denial or rejection rationale",
+  ),
+  systemField(
+    "settings",
+    "configuration.values",
+    "Configuration values",
+    "json",
+    "Operational tenant, module, feature-flag, and device configuration values",
+  ),
+  systemField(
+    "settings",
+    "master_data.status",
+    "Master-data status",
+    "json",
+    "Module master-data readiness, counts, and governance status",
+  ),
+  systemField(
+    "settings",
+    "print_templates.version",
+    "Print template version",
+    "text",
+    "Configured print template identifiers, versions, copy routes, and printer profiles",
   ),
 ] satisfies FieldMasterFull[];
 

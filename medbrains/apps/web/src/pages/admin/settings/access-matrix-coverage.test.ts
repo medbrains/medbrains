@@ -234,6 +234,7 @@ describe("access matrix route coverage", () => {
     const kinds = new Set(rows.map((row) => row.kind));
 
     expect(summary.total).toBe(ACCESS_MATRIX_SURFACES.length);
+    expect(summary.gaps).toBe(0);
     expect(kinds).toEqual(
       new Set(["action", "column", "input", "print", "screen", "tab", "table", "widget"]),
     );

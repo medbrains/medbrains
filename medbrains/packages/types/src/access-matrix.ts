@@ -132,6 +132,12 @@ const CAMP_REGISTRATION_FIELDS = [
   "camp.registrations.id_proof_number",
 ] as const;
 
+const CAMP_MANAGEMENT_FIELDS = [
+  "camp.camps.name",
+  "camp.camps.location",
+  "camp.camps.schedule",
+] as const;
+
 const PHARMACY_PRICE_FIELDS = [
   "pharmacy.catalog.base_price",
   "pharmacy.pricing.unit_price",
@@ -158,6 +164,12 @@ const MRD_CASE_SHEET_FIELDS = [
 ] as const;
 
 const MRD_STORAGE_FIELDS = ["mrd.storage_locations.code", "mrd.case_sheets.packet_number"] as const;
+
+const SETTINGS_CONFIGURATION_FIELDS = [
+  "settings.configuration.values",
+  "settings.master_data.status",
+  "settings.print_templates.version",
+] as const;
 
 export const ACCESS_MATRIX_SURFACES: readonly AccessMatrixSurface[] = [
   surface({
@@ -774,7 +786,7 @@ export const ACCESS_MATRIX_SURFACES: readonly AccessMatrixSurface[] = [
     route: "/camp",
     table: "camps",
     requiredPermissions: [P.CAMP.LIST],
-    fieldAccessKeys: [],
+    fieldAccessKeys: CAMP_MANAGEMENT_FIELDS,
     masking: "operational",
     platforms: ["web", "mobile"],
     standardRefs: ["NABH community outreach records"],
@@ -1303,7 +1315,7 @@ export const ACCESS_MATRIX_SURFACES: readonly AccessMatrixSurface[] = [
     kind: "tab",
     route: "/admin/settings#access-matrix",
     requiredPermissions: [P.ADMIN.ROLES.LIST, P.ADMIN.SETTINGS.GENERAL.MANAGE],
-    fieldAccessKeys: [],
+    fieldAccessKeys: SETTINGS_CONFIGURATION_FIELDS,
     masking: "operational",
     platforms: ["web"],
     standardRefs: ["NABH ROM governance", "SOC 2 change-management evidence"],
@@ -1316,7 +1328,7 @@ export const ACCESS_MATRIX_SURFACES: readonly AccessMatrixSurface[] = [
     kind: "screen",
     route: "/admin/settings#master-data",
     requiredPermissions: [P.ADMIN.SETTINGS.GENERAL.MANAGE],
-    fieldAccessKeys: [],
+    fieldAccessKeys: ["settings.master_data.status"],
     masking: "operational",
     platforms: ["web"],
     standardRefs: ["NABH governance and configuration control"],
