@@ -1,4 +1,5 @@
 import { P } from "./permissions.js";
+import { TOKEN_BOARD_SURFACES, type TokenBoardSurfaceId } from "./token-board-surfaces.js";
 
 export type AccessMatrixSurfaceKind =
   | "screen"
@@ -171,7 +172,141 @@ const SETTINGS_CONFIGURATION_FIELDS = [
   "settings.print_templates.version",
 ] as const;
 
+const LAB_PUBLIC_QUEUE_FIELDS = [
+  ...PATIENT_IDENTITY_FIELDS,
+  "lab.test_name",
+  "lab.results",
+  "lab.critical_flag",
+] as const;
+
+const RADIOLOGY_PUBLIC_QUEUE_FIELDS = [
+  ...PATIENT_IDENTITY_FIELDS,
+  "radiology.body_part",
+  "radiology.indication",
+  "radiology.preparation_instructions",
+  "radiology.report",
+] as const;
+
+const PHARMACY_PUBLIC_QUEUE_FIELDS = [
+  ...PATIENT_IDENTITY_FIELDS,
+  "pharmacy.drug_name",
+  "pharmacy.prescription_notes",
+] as const;
+
+const BILLING_PUBLIC_QUEUE_FIELDS = [
+  ...PATIENT_IDENTITY_FIELDS,
+  ...BILLING_AMOUNT_FIELDS,
+  ...BILLING_PAYER_FIELDS,
+] as const;
+
+const TOKEN_BOARD_VIEW_PERMISSIONS = [
+  ...TOKEN_BOARD_SURFACES.opd.requiredAnyPermissions,
+  ...TOKEN_BOARD_SURFACES.lab.requiredAnyPermissions,
+  ...TOKEN_BOARD_SURFACES.radiology.requiredAnyPermissions,
+  ...TOKEN_BOARD_SURFACES.emergency.requiredAnyPermissions,
+  ...TOKEN_BOARD_SURFACES.pharmacy.requiredAnyPermissions,
+  ...TOKEN_BOARD_SURFACES.billing.requiredAnyPermissions,
+] as const;
+
+const TOKEN_BOARD_PUBLIC_FIELDS = [
+  ...PATIENT_IDENTITY_FIELDS,
+  ...LAB_PUBLIC_QUEUE_FIELDS,
+  ...RADIOLOGY_PUBLIC_QUEUE_FIELDS,
+  ...EMERGENCY_MLC_FIELDS,
+  ...PHARMACY_PUBLIC_QUEUE_FIELDS,
+  ...BILLING_PUBLIC_QUEUE_FIELDS,
+] as const;
+
+function tokenBoardAccessSurface({
+  activatesAfter,
+  fieldAccessKeys,
+  id,
+  masking,
+}: {
+  activatesAfter: readonly string[];
+  fieldAccessKeys: readonly string[];
+  id: TokenBoardSurfaceId;
+  masking: AccessMatrixMaskingBehavior;
+}): AccessMatrixSurface {
+  const board = TOKEN_BOARD_SURFACES[id];
+  return surface({
+    id: `token_boards.${id}.public_display`,
+    module: board.module,
+    area: "Public Token Boards",
+    label: `${board.title} public token board`,
+    kind: "screen",
+    route: board.targets.tvDeepLink,
+    requiredPermissions: board.requiredAnyPermissions,
+    fieldAccessKeys,
+    masking,
+    activatesAfter,
+    platforms: ["web", "mobile", "tv", "kiosk"],
+    standardRefs: [...board.standardRefs, "DPDP Act data minimisation"],
+  });
+}
+
+const TOKEN_BOARD_ACCESS_SURFACES: readonly AccessMatrixSurface[] = [
+  surface({
+    id: "front_office.token_boards.workspace",
+    module: "front_office",
+    area: "Public Token Boards",
+    label: "Front-office live token-board workspace",
+    kind: "screen",
+    route: "/front-office#token-boards",
+    requiredPermissions: TOKEN_BOARD_VIEW_PERMISSIONS,
+    fieldAccessKeys: TOKEN_BOARD_PUBLIC_FIELDS,
+    masking: "identity",
+    activatesAfter: [
+      "opd.encounter.created",
+      "lab.sample.created",
+      "radiology.order.created",
+      "emergency.visit.created",
+      "pharmacy.order.created",
+      "billing.invoice.created",
+    ],
+    platforms: ["web", "mobile"],
+    standardRefs: ["IPSG public queue privacy", "DPDP Act data minimisation"],
+  }),
+  tokenBoardAccessSurface({
+    id: "opd",
+    fieldAccessKeys: PATIENT_IDENTITY_FIELDS,
+    masking: "identity",
+    activatesAfter: ["opd.encounter.created"],
+  }),
+  tokenBoardAccessSurface({
+    id: "lab",
+    fieldAccessKeys: LAB_PUBLIC_QUEUE_FIELDS,
+    masking: "clinical",
+    activatesAfter: ["lab.sample.created", "lab.result.posted"],
+  }),
+  tokenBoardAccessSurface({
+    id: "radiology",
+    fieldAccessKeys: RADIOLOGY_PUBLIC_QUEUE_FIELDS,
+    masking: "regulatory",
+    activatesAfter: ["radiology.order.created", "radiology.report.verified"],
+  }),
+  tokenBoardAccessSurface({
+    id: "emergency",
+    fieldAccessKeys: [...PATIENT_IDENTITY_FIELDS, ...EMERGENCY_MLC_FIELDS],
+    masking: "regulatory",
+    activatesAfter: ["emergency.visit.created", "emergency.triage.updated"],
+  }),
+  tokenBoardAccessSurface({
+    id: "pharmacy",
+    fieldAccessKeys: PHARMACY_PUBLIC_QUEUE_FIELDS,
+    masking: "clinical",
+    activatesAfter: ["pharmacy.order.created", "pharmacy.order.dispensed"],
+  }),
+  tokenBoardAccessSurface({
+    id: "billing",
+    fieldAccessKeys: BILLING_PUBLIC_QUEUE_FIELDS,
+    masking: "financial",
+    activatesAfter: ["billing.invoice.created", "billing.payment.received"],
+  }),
+];
+
 export const ACCESS_MATRIX_SURFACES: readonly AccessMatrixSurface[] = [
+  ...TOKEN_BOARD_ACCESS_SURFACES,
   surface({
     id: "patients.directory.screen",
     module: "patients",
