@@ -75,6 +75,18 @@ describe("patient journey action routes", () => {
     ).toBe("/camp/camp-1/work?patient_id=patient-1");
   });
 
+  it("routes payment collection to the active invoice when available", () => {
+    expect(
+      patientJourneyActionRoute("billing.collect_payment", {
+        ...baseContext,
+        activeInvoiceId: "invoice-1",
+      }),
+    ).toBe("/billing/invoices/invoice-1?action=payment");
+    expect(patientJourneyActionRoute("billing.collect_payment", baseContext)).toBe(
+      "/billing?tab=invoices&patient_id=patient-1&action=payment",
+    );
+  });
+
   it("routes MRD case sheets through the active clinical source when available", () => {
     expect(
       patientJourneyActionRoute("mrd.open_case_sheet", {

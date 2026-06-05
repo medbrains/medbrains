@@ -1505,6 +1505,7 @@ function InvoiceDetail({
   const journeyContext: ClinicalJourneyContext = {
     patientId: inv.patient_id,
     activeEncounterId: inv.encounter_id,
+    activeInvoiceId: inv.id,
     activeOrderContext: inv.encounter_id ? "opd" : null,
     completedEvents,
   };
