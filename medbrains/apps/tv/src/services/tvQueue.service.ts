@@ -9,5 +9,6 @@ export const tvQueueService = {
   getBedAvailabilityDisplay: (wardType: string) => api.getBedAvailabilityDisplay(wardType),
   getLabQueueDisplay: () => api.getLabQueueDisplay(),
   getPharmacyQueueDisplay: () => api.getPharmacyQueueDisplay(),
+  getRadiologyQueueDisplay: (modality: string) => api.getRadiologyQueueDisplay(modality),
   getBillingQueueDisplay: () => api.getBillingQueueDisplay(),
 };

@@ -5,6 +5,7 @@ import type {
   LabQueueDisplay,
   PharmacyQueueDisplay,
   QueueToken,
+  RadiologyQueueDisplay,
 } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
 
@@ -44,6 +45,15 @@ export function useLabTokenBoardQuery(options?: { enabled?: boolean }) {
   return useQuery<LabQueueDisplay>({
     queryKey: [...TOKEN_BOARD_QUERY_KEY, "lab"],
     queryFn: api.getLabQueueDisplay,
+    enabled: options?.enabled ?? true,
+    refetchInterval: STANDARD_REFRESH_MS,
+  });
+}
+
+export function useRadiologyTokenBoardQuery(modality = "xray", options?: { enabled?: boolean }) {
+  return useQuery<RadiologyQueueDisplay>({
+    queryKey: [...TOKEN_BOARD_QUERY_KEY, "radiology", modality],
+    queryFn: () => api.getRadiologyQueueDisplay(modality),
     enabled: options?.enabled ?? true,
     refetchInterval: STANDARD_REFRESH_MS,
   });

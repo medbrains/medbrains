@@ -6,6 +6,7 @@ import type {
   PharmacyQueueToken,
   QueuePriority,
   QueueToken,
+  RadiologyQueueToken,
   TriageLevelColor,
 } from "@medbrains/types";
 import { TOKEN_BOARD_PUBLIC_PRIVACY_NOTICE, TOKEN_BOARD_SURFACES } from "@medbrains/types";
@@ -27,12 +28,14 @@ import {
   useLabTokenBoardQuery,
   useOpdTokenBoardQuery,
   usePharmacyTokenBoardQuery,
+  useRadiologyTokenBoardQuery,
 } from "../../services/tokenBoards.queries";
 import { MEDBRAINS_COLORS } from "../../theme/paper-theme";
 
 const TOKEN_LIMIT = 6;
 const OPD_BOARD = TOKEN_BOARD_SURFACES.opd;
 const LAB_BOARD = TOKEN_BOARD_SURFACES.lab;
+const RADIOLOGY_BOARD = TOKEN_BOARD_SURFACES.radiology;
 const EMERGENCY_BOARD = TOKEN_BOARD_SURFACES.emergency;
 const PHARMACY_BOARD = TOKEN_BOARD_SURFACES.pharmacy;
 const BILLING_BOARD = TOKEN_BOARD_SURFACES.billing;
@@ -79,6 +82,7 @@ function statusColor(status: string) {
     case "completed":
     case "in_progress":
       return MEDBRAINS_COLORS.statusSuccessBg;
+    case "scheduled":
     case "collection_in_progress":
     case "preparing":
     case "issued":
@@ -108,6 +112,16 @@ function labToken(token: LabQueueToken): DisplayToken {
       token.is_fasting ? "Fasting" : null,
       token.is_pediatric ? "Pediatric" : null,
     ]
+      .filter((part): part is string => Boolean(part))
+      .join(" · "),
+    status: token.status,
+    tokenNumber: token.token_number,
+  };
+}
+
+function radiologyToken(token: RadiologyQueueToken): DisplayToken {
+  return {
+    meta: [token.modality, token.room_number]
       .filter((part): part is string => Boolean(part))
       .join(" · "),
     status: token.status,
@@ -326,19 +340,22 @@ export function TokenBoardsScreen() {
   const theme = useTheme();
   const canViewOpd = useHasAnyPermission(OPD_BOARD.requiredAnyPermissions);
   const canViewLab = useHasAnyPermission(LAB_BOARD.requiredAnyPermissions);
+  const canViewRadiology = useHasAnyPermission(RADIOLOGY_BOARD.requiredAnyPermissions);
   const canViewEr = useHasAnyPermission(EMERGENCY_BOARD.requiredAnyPermissions);
   const canViewPharmacy = useHasAnyPermission(PHARMACY_BOARD.requiredAnyPermissions);
   const canViewBilling = useHasAnyPermission(BILLING_BOARD.requiredAnyPermissions);
   const canViewAnyBoard =
-    canViewOpd || canViewLab || canViewEr || canViewPharmacy || canViewBilling;
+    canViewOpd || canViewLab || canViewRadiology || canViewEr || canViewPharmacy || canViewBilling;
 
   const opdQuery = useOpdTokenBoardQuery({ enabled: canViewOpd });
   const labQuery = useLabTokenBoardQuery({ enabled: canViewLab });
+  const radiologyQuery = useRadiologyTokenBoardQuery("xray", { enabled: canViewRadiology });
   const erQuery = useErTokenBoardQuery({ enabled: canViewEr });
   const pharmacyQuery = usePharmacyTokenBoardQuery({ enabled: canViewPharmacy });
   const billingQuery = useBillingTokenBoardQuery({ enabled: canViewBilling });
   const opdTokens = opdQuery.data ?? [];
   const lab = labQuery.data;
+  const radiology = radiologyQuery.data;
   const er = erQuery.data;
   const pharmacy = pharmacyQuery.data;
   const billing = billingQuery.data;
@@ -365,7 +382,7 @@ export function TokenBoardsScreen() {
           <Avatar.Icon size={56} icon="shield-lock-outline" style={styles.stateIcon} />
           <Text variant="titleMedium">Token boards restricted</Text>
           <Text variant="bodySmall" style={styles.stateText}>
-            Queue-board visibility follows your OPD, lab, emergency, pharmacy and billing
+            Queue-board visibility follows your OPD, lab, radiology, emergency, pharmacy and billing
             permissions.
           </Text>
         </View>
@@ -382,7 +399,7 @@ export function TokenBoardsScreen() {
               Token Boards
             </Text>
             <Text variant="bodyMedium" style={styles.subtitle}>
-              Mobile view of token-only OPD, lab, ER, pharmacy and billing queues.
+              Mobile view of token-only OPD, lab, radiology, ER, pharmacy and billing queues.
             </Text>
           </View>
           <Avatar.Icon size={48} icon="monitor-dashboard" />
@@ -405,6 +422,11 @@ export function TokenBoardsScreen() {
             color={MEDBRAINS_COLORS.brand}
             label="Lab waiting"
             value={lab?.stats.waiting_count ?? "—"}
+          />
+          <SummaryMetric
+            color={MEDBRAINS_COLORS.copper}
+            label="Radiology waiting"
+            value={radiology?.stats.waiting_count ?? "—"}
           />
           <SummaryMetric
             color={MEDBRAINS_COLORS.emerald}
@@ -464,6 +486,29 @@ export function TokenBoardsScreen() {
                 title="In progress"
                 emptyLabel="No collections in progress"
                 tokens={(lab?.collection_in_progress ?? []).slice(0, TOKEN_LIMIT).map(labToken)}
+              />
+            </View>
+          </BoardCard>
+        )}
+
+        {canViewRadiology && (
+          <BoardCard
+            title={RADIOLOGY_BOARD.title}
+            subtitle={RADIOLOGY_BOARD.subtitle}
+            isLoading={radiologyQuery.isLoading}
+            isError={radiologyQuery.isError}
+            lastUpdatedAt={radiologyQuery.dataUpdatedAt}
+          >
+            <View style={styles.laneStack}>
+              <TokenLane
+                title="Called now"
+                emptyLabel="No radiology token is currently called"
+                tokens={radiology?.current_token ? [radiologyToken(radiology.current_token)] : []}
+              />
+              <TokenLane
+                title="Waiting scans"
+                emptyLabel="No radiology tokens waiting"
+                tokens={(radiology?.waiting ?? []).slice(0, TOKEN_LIMIT).map(radiologyToken)}
               />
             </View>
           </BoardCard>

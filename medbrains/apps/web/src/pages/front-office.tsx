@@ -41,6 +41,8 @@ import type {
   QueuePriorityRule,
   QueueStatsResponse,
   QueueToken,
+  RadiologyQueueDisplay,
+  RadiologyQueueToken,
   TriageLevelColor,
   VisitingHours,
   VisitorAnalytics,
@@ -152,6 +154,7 @@ const priorityColors: Record<string, string> = {
 
 const OPD_BOARD = TOKEN_BOARD_SURFACES.opd;
 const LAB_BOARD = TOKEN_BOARD_SURFACES.lab;
+const RADIOLOGY_BOARD = TOKEN_BOARD_SURFACES.radiology;
 const EMERGENCY_BOARD = TOKEN_BOARD_SURFACES.emergency;
 const PHARMACY_BOARD = TOKEN_BOARD_SURFACES.pharmacy;
 const BILLING_BOARD = TOKEN_BOARD_SURFACES.billing;
@@ -175,6 +178,7 @@ export function FrontOfficePage() {
   const canCreateOpdVisit = useHasPermission(P.OPD.VISIT_CREATE);
   const canViewOpdQueue = useHasAnyPermission(OPD_BOARD.requiredAnyPermissions);
   const canViewLab = useHasAnyPermission(LAB_BOARD.requiredAnyPermissions);
+  const canViewRadiology = useHasAnyPermission(RADIOLOGY_BOARD.requiredAnyPermissions);
   const canCreateEmergencyVisit = useHasPermission(P.EMERGENCY.VISITS_CREATE);
   const canViewEmergency = useHasAnyPermission(EMERGENCY_BOARD.requiredAnyPermissions);
   const canViewCamp = useHasPermission(P.CAMP.LIST);
@@ -249,6 +253,7 @@ export function FrontOfficePage() {
           <TokenBoardsTab
             canViewOpdQueue={canViewOpdQueue}
             canViewLab={canViewLab}
+            canViewRadiology={canViewRadiology}
             canViewEmergency={canViewEmergency}
             canViewPharmacy={canViewPharmacy}
             canViewBilling={canViewBilling}
@@ -634,6 +639,7 @@ const TRIAGE_LANES: ReadonlyArray<{
 interface TokenBoardsTabProps {
   canViewOpdQueue: boolean;
   canViewLab: boolean;
+  canViewRadiology: boolean;
   canViewEmergency: boolean;
   canViewPharmacy: boolean;
   canViewBilling: boolean;
@@ -642,6 +648,7 @@ interface TokenBoardsTabProps {
 function TokenBoardsTab({
   canViewOpdQueue,
   canViewLab,
+  canViewRadiology,
   canViewEmergency,
   canViewPharmacy,
   canViewBilling,
@@ -676,9 +683,16 @@ function TokenBoardsTab({
     enabled: canViewLab,
     refetchInterval: TOKEN_BOARD_REFRESH_MS,
   });
+  const radiologyQuery = useQuery<RadiologyQueueDisplay>({
+    queryKey: ["front-office", "token-board", "radiology", "xray"],
+    queryFn: () => frontOfficeService.getRadiologyQueueDisplay("xray"),
+    enabled: canViewRadiology,
+    refetchInterval: TOKEN_BOARD_REFRESH_MS,
+  });
 
   const opdTokens = opdQuery.data ?? [];
   const lab = labQuery.data;
+  const radiology = radiologyQuery.data;
   const pharmacy = pharmacyQuery.data;
   const billing = billingQuery.data;
   const er = erQuery.data;
@@ -698,7 +712,12 @@ function TokenBoardsTab({
     0,
   );
   const canViewAnyBoard =
-    canViewOpdQueue || canViewLab || canViewEmergency || canViewPharmacy || canViewBilling;
+    canViewOpdQueue ||
+    canViewLab ||
+    canViewRadiology ||
+    canViewEmergency ||
+    canViewPharmacy ||
+    canViewBilling;
 
   return (
     <Stack gap="md">
@@ -707,7 +726,7 @@ function TokenBoardsTab({
           <Text fw={700}>Live token boards</Text>
           <Text size="sm" c="dimmed">
             Workstation view of public queue feeds. {TOKEN_BOARD_PUBLIC_PRIVACY_NOTICE} Reception,
-            lab, ER, pharmacy and billing operations stay linked to the same token state.
+            lab, radiology, ER, pharmacy and billing operations stay linked to the same token state.
           </Text>
         </Stack>
         <Badge variant="light" color="teal">
@@ -719,7 +738,8 @@ function TokenBoardsTab({
         <Card withBorder padding="md">
           <Text fw={600}>Token boards restricted</Text>
           <Text size="sm" c="dimmed">
-            Queue-board visibility follows OPD, lab, emergency, pharmacy and billing permissions.
+            Queue-board visibility follows OPD, lab, radiology, emergency, pharmacy and billing
+            permissions.
           </Text>
         </Card>
       ) : (
@@ -789,6 +809,39 @@ function TokenBoardsTab({
                   tokens={(lab?.collection_in_progress ?? [])
                     .slice(0, TOKEN_BOARD_LIMIT)
                     .map(labDisplayToken)}
+                />
+              </Stack>
+            </TokenBoardCard>
+          )}
+
+          {canViewRadiology && (
+            <TokenBoardCard
+              title={RADIOLOGY_BOARD.title}
+              subtitle={RADIOLOGY_BOARD.subtitle}
+              isLoading={radiologyQuery.isLoading}
+              isError={radiologyQuery.isError}
+              lastUpdatedAt={radiologyQuery.dataUpdatedAt}
+              summary={[
+                { label: "Now", value: radiology?.current_token?.token_number ?? "—" },
+                { label: "Waiting", value: radiology?.stats.waiting_count ?? "—" },
+                { label: "Room", value: radiology?.room_number ?? "—" },
+              ]}
+            >
+              <Stack gap="sm">
+                <TokenLane
+                  title="Called now"
+                  emptyLabel="No radiology token is currently called"
+                  tokens={
+                    radiology?.current_token ? [radiologyDisplayToken(radiology.current_token)] : []
+                  }
+                  highlight
+                />
+                <TokenLane
+                  title="Waiting scans"
+                  emptyLabel="No radiology tokens waiting"
+                  tokens={(radiology?.waiting ?? [])
+                    .slice(0, TOKEN_BOARD_LIMIT)
+                    .map(radiologyDisplayToken)}
                 />
               </Stack>
             </TokenBoardCard>
@@ -1114,6 +1167,16 @@ function labDisplayToken(token: LabQueueToken): DisplayToken {
   };
 }
 
+function radiologyDisplayToken(token: RadiologyQueueToken): DisplayToken {
+  return {
+    meta: [token.modality, token.room_number]
+      .filter((part): part is string => Boolean(part))
+      .join(" · "),
+    status: token.status,
+    tokenNumber: token.token_number,
+  };
+}
+
 function pharmacyDisplayToken(token: PharmacyQueueToken): DisplayToken {
   return {
     meta: [
@@ -1149,6 +1212,7 @@ function tokenStatusColor(status: string) {
     case "completed":
     case "in_progress":
       return "teal";
+    case "scheduled":
     case "collection_in_progress":
     case "preparing":
     case "issued":

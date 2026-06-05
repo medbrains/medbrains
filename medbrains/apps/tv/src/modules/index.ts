@@ -12,11 +12,13 @@ import { emergencyTriageModule } from "./emergency-triage";
 import { labStatusModule } from "./lab-status";
 import { pharmacyQueueModule } from "./pharmacy-queue";
 import { queueModule } from "./queue";
+import { radiologyQueueModule } from "./radiology-queue";
 
 export const MODULES: ReadonlyArray<Module> = [
   queueModule,
   bedStatusModule,
   labStatusModule,
+  radiologyQueueModule,
   emergencyTriageModule,
   pharmacyQueueModule,
   billingQueueModule,

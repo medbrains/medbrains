@@ -1,13 +1,20 @@
 import { P } from "./permissions.js";
 
-export type TokenBoardSurfaceId = "billing" | "emergency" | "lab" | "opd" | "pharmacy";
+export type TokenBoardSurfaceId =
+  | "billing"
+  | "emergency"
+  | "lab"
+  | "opd"
+  | "pharmacy"
+  | "radiology";
 export type TokenBoardDisplayMode = "token_only_public";
 export type TokenBoardTvDisplayType =
   | "billing_queue"
   | "emergency_triage"
   | "lab_queue"
   | "opd_queue"
-  | "pharmacy_queue";
+  | "pharmacy_queue"
+  | "radiology_queue";
 export type TokenBoardTvAppCode =
   | "Desktop-Kiosk"
   | "TV-Billing"
@@ -15,6 +22,7 @@ export type TokenBoardTvAppCode =
   | "TV-Emergency"
   | "TV-Lab"
   | "TV-Pharmacy"
+  | "TV-Radiology"
   | "TV-Queue";
 
 export interface TokenBoardLaunchTargets {
@@ -30,7 +38,7 @@ export interface TokenBoardSurfaceDefinition {
   accent: "brand" | "copper" | "emerald" | "red" | "violet";
   description: string;
   displayMode: TokenBoardDisplayMode;
-  module: "billing" | "emergency" | "lab" | "opd" | "pharmacy";
+  module: "billing" | "emergency" | "lab" | "opd" | "pharmacy" | "radiology";
   privacyNotice: string;
   requiredAnyPermissions: readonly string[];
   restrictedLabel: string;
@@ -41,7 +49,7 @@ export interface TokenBoardSurfaceDefinition {
 }
 
 export const TOKEN_BOARD_PUBLIC_PRIVACY_NOTICE =
-  "Token-only display mode. Patient names, identifiers, diagnoses, test names, drug names and bill amounts stay hidden.";
+  "Token-only display mode. Patient names, identifiers, diagnoses, test names, imaging details, drug names and bill amounts stay hidden.";
 
 export const TOKEN_BOARD_SURFACES: Readonly<
   Record<TokenBoardSurfaceId, TokenBoardSurfaceDefinition>
@@ -116,6 +124,31 @@ export const TOKEN_BOARD_SURFACES: Readonly<
     },
     title: "Lab collection",
   },
+  radiology: {
+    accent: "brand",
+    description: "Radiology modality waiting display for called and queued imaging tokens.",
+    displayMode: "token_only_public",
+    id: "radiology",
+    module: "radiology",
+    privacyNotice:
+      "Token-only imaging display. Patient names, identifiers, body parts, indications, preparation instructions and reports are withheld.",
+    requiredAnyPermissions: [P.RADIOLOGY.ORDERS_LIST, P.RADIOLOGY.ORDERS_VIEW],
+    restrictedLabel: "Radiology board restricted",
+    standardRefs: [
+      "DICOM imaging interoperability",
+      "AERB radiation safety",
+      "PCPNDT sensitivity safeguards",
+    ],
+    subtitle: "Modality room and scan waiting tokens",
+    targets: {
+      mobileRoute: "TokenBoards",
+      tvAppCodes: ["TV-Radiology"],
+      tvDeepLink: "medbrains://tv/radiology-queue?modality=xray",
+      tvDisplayType: "radiology_queue",
+      webPath: "/front-office#token-boards",
+    },
+    title: "Radiology queue",
+  },
   opd: {
     accent: "copper",
     description: "OPD waiting-hall queue display for called and next outpatient tokens.",
@@ -163,6 +196,7 @@ export const TOKEN_BOARD_SURFACES: Readonly<
 export const TOKEN_BOARD_SURFACE_LIST = [
   TOKEN_BOARD_SURFACES.opd,
   TOKEN_BOARD_SURFACES.lab,
+  TOKEN_BOARD_SURFACES.radiology,
   TOKEN_BOARD_SURFACES.emergency,
   TOKEN_BOARD_SURFACES.pharmacy,
   TOKEN_BOARD_SURFACES.billing,

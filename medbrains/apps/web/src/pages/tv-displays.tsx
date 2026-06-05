@@ -87,6 +87,10 @@ const DISPLAY_TYPES = [
     label: TOKEN_BOARD_SURFACES.lab.title,
   },
   {
+    value: TOKEN_BOARD_SURFACES.radiology.targets.tvDisplayType,
+    label: TOKEN_BOARD_SURFACES.radiology.title,
+  },
+  {
     value: TOKEN_BOARD_SURFACES.emergency.targets.tvDisplayType,
     label: TOKEN_BOARD_SURFACES.emergency.title,
   },
@@ -98,7 +102,6 @@ const DISPLAY_TYPES = [
     value: TOKEN_BOARD_SURFACES.billing.targets.tvDisplayType,
     label: TOKEN_BOARD_SURFACES.billing.title,
   },
-  { value: "radiology_queue", label: "Radiology Queue" },
   { value: "bed_status", label: "Bed Status Board" },
   { value: "digital_signage", label: "Digital Signage" },
   { value: "dashboard", label: "Dashboard" },
@@ -191,6 +194,7 @@ const TOKEN_BOARD_LAUNCH_TARGETS = {
   lab_queue: tokenBoardLaunchDefinition(TOKEN_BOARD_SURFACES.lab),
   opd_queue: tokenBoardLaunchDefinition(TOKEN_BOARD_SURFACES.opd),
   pharmacy_queue: tokenBoardLaunchDefinition(TOKEN_BOARD_SURFACES.pharmacy),
+  radiology_queue: tokenBoardLaunchDefinition(TOKEN_BOARD_SURFACES.radiology),
 } satisfies Record<TokenBoardTvDisplayType, DisplayLaunchDefinition>;
 
 const DISPLAY_LAUNCH_TARGETS: Record<string, DisplayLaunchDefinition> = {
