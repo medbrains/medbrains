@@ -4,11 +4,16 @@ import {
   CLINICAL_EVENT_REQUIRED_PAYLOAD_KEYS,
   CORE_PATIENT_JOURNEY_ACTIONS,
   inferClinicalJourneyEventNames,
+  P,
   resolveClinicalJourneyActions,
 } from "@medbrains/types";
 import { describe, expect, it } from "vitest";
 
 const allowAll = () => true;
+const allowPermissions = (permissions: readonly string[]) => {
+  const allowed = new Set(permissions);
+  return (permission: string) => allowed.has(permission);
+};
 
 describe("clinical journey event activation", () => {
   it("declares only canonical emitted clinical events", () => {
@@ -98,9 +103,9 @@ describe("clinical journey event activation", () => {
     );
 
     expect(actions.find((action) => action.id === "orders.medication")?.enabled).toBe(false);
-    expect(
-      actions.find((action) => action.id === "orders.medication")?.disabledReasonText,
-    ).toBe("Assign a bed before inpatient orders");
+    expect(actions.find((action) => action.id === "orders.medication")?.disabledReasonText).toBe(
+      "Assign a bed before inpatient orders",
+    );
   });
 
   it("enables inpatient orders once the active admission has a bed", () => {
@@ -119,6 +124,48 @@ describe("clinical journey event activation", () => {
     expect(actions.find((action) => action.id === "orders.medication")?.enabled).toBe(true);
     expect(actions.find((action) => action.id === "orders.lab")?.enabled).toBe(true);
     expect(actions.find((action) => action.id === "orders.radiology")?.enabled).toBe(true);
+  });
+
+  it("uses direct endpoint permissions for mobile order handoffs", () => {
+    const context = {
+      patientId: "patient-1",
+      activeEncounterId: "encounter-1",
+      activeOrderContext: "opd" as const,
+    };
+    const webActions = resolveClinicalJourneyActions(
+      context,
+      allowPermissions([P.ORDER_BASKET.SIGN]),
+      "web",
+    );
+    const mobileBasketOnlyActions = resolveClinicalJourneyActions(
+      context,
+      allowPermissions([P.ORDER_BASKET.SIGN]),
+      "mobile",
+    );
+    const mobileDirectActions = resolveClinicalJourneyActions(
+      context,
+      allowPermissions([
+        P.OPD.VISIT_UPDATE,
+        P.LAB.ORDERS_CREATE,
+        P.RADIOLOGY.ORDERS_CREATE,
+        P.RADIOLOGY.ORDERS_LIST,
+      ]),
+      "mobile",
+    );
+
+    expect(
+      webActions.find((action) => action.id === "orders.medication")?.requiredPermissions,
+    ).toEqual([P.ORDER_BASKET.SIGN]);
+    expect(mobileBasketOnlyActions.some((action) => action.id === "orders.medication")).toBe(false);
+    expect(
+      mobileDirectActions.find((action) => action.id === "orders.medication")?.requiredPermissions,
+    ).toEqual([P.OPD.VISIT_UPDATE]);
+    expect(
+      mobileDirectActions.find((action) => action.id === "orders.lab")?.requiredPermissions,
+    ).toEqual([P.LAB.ORDERS_CREATE]);
+    expect(
+      mobileDirectActions.find((action) => action.id === "orders.radiology")?.requiredPermissions,
+    ).toEqual([P.RADIOLOGY.ORDERS_CREATE, P.RADIOLOGY.ORDERS_LIST]);
   });
 
   it("enables emergency, discharge, billing, payment, and MRD handoffs from canonical events", () => {

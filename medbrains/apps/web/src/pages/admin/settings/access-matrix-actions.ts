@@ -55,7 +55,7 @@ function acceptedSurfaceKinds(
 function moduleMatches(action: ClinicalJourneyActionDefinition, surface: AccessMatrixSurface) {
   if (action.module === surface.module) return true;
   if (action.module === "orders") {
-    return intersects(action.requiredPermissions, surface.requiredPermissions);
+    return intersects(actionRequiredPermissions(action), surface.requiredPermissions);
   }
   return false;
 }
@@ -65,26 +65,60 @@ function candidateSurface(action: ClinicalJourneyActionDefinition, surface: Acce
   if (!moduleMatches(action, surface)) return false;
 
   return (
-    intersects(action.requiredPermissions, surface.requiredPermissions) ||
+    intersects(actionRequiredPermissions(action), surface.requiredPermissions) ||
     intersects(action.activatesAfter, surface.activatesAfter)
   );
 }
 
-function permissionSatisfied(action: ClinicalJourneyActionDefinition, permissions: Set<string>) {
-  if (action.permissionMode === "any") {
-    return action.requiredPermissions.some((permission) => permissions.has(permission));
+function actionPermissionSets(action: ClinicalJourneyActionDefinition) {
+  return [
+    {
+      permissionMode: action.permissionMode,
+      requiredPermissions: action.requiredPermissions,
+    },
+    ...Object.values(action.surfacePermissions ?? {}),
+  ];
+}
+
+function actionRequiredPermissions(action: ClinicalJourneyActionDefinition) {
+  return [
+    ...new Set(
+      actionPermissionSets(action).flatMap((permissionSet) => [
+        ...permissionSet.requiredPermissions,
+      ]),
+    ),
+  ];
+}
+
+function permissionSetSatisfied(
+  permissionSet: {
+    permissionMode?: "all" | "any";
+    requiredPermissions: readonly string[];
+  },
+  permissions: Set<string>,
+) {
+  if (permissionSet.permissionMode === "any") {
+    return permissionSet.requiredPermissions.some((permission) => permissions.has(permission));
   }
-  return action.requiredPermissions.every((permission) => permissions.has(permission));
+  return permissionSet.requiredPermissions.every((permission) => permissions.has(permission));
+}
+
+function permissionSatisfied(action: ClinicalJourneyActionDefinition, permissions: Set<string>) {
+  return actionPermissionSets(action).every((permissionSet) =>
+    permissionSetSatisfied(permissionSet, permissions),
+  );
 }
 
 function missingPermissions(action: ClinicalJourneyActionDefinition, permissions: Set<string>) {
-  if (
-    action.permissionMode === "any" &&
-    action.requiredPermissions.some((permission) => permissions.has(permission))
-  ) {
-    return [];
-  }
-  return action.requiredPermissions.filter((permission) => !permissions.has(permission));
+  return [
+    ...new Set(
+      actionPermissionSets(action).flatMap((permissionSet) =>
+        permissionSetSatisfied(permissionSet, permissions)
+          ? []
+          : permissionSet.requiredPermissions.filter((permission) => !permissions.has(permission)),
+      ),
+    ),
+  ];
 }
 
 function activationSatisfied(action: ClinicalJourneyActionDefinition, events: Set<string>) {
@@ -114,7 +148,7 @@ export function buildJourneyActionCoverage(
       label: action.label,
       module: action.module,
       surfaces: action.surfaces,
-      requiredPermissions: action.requiredPermissions,
+      requiredPermissions: actionRequiredPermissions(action),
       activationEvents: action.activatesAfter,
       matchedSurfaceIds: matchedSurfaces.map((surface) => surface.id).sort(),
       matchedSurfaceKinds: [...new Set(matchedSurfaces.map((surface) => surface.kind))].sort(),

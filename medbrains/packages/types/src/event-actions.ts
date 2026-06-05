@@ -67,6 +67,15 @@ export interface ClinicalJourneyActionDefinition {
   intent: ClinicalJourneyActionIntent;
   requiredPermissions: readonly string[];
   permissionMode?: "all" | "any";
+  surfacePermissions?: Partial<
+    Record<
+      ClinicalJourneySurface,
+      {
+        requiredPermissions: readonly string[];
+        permissionMode?: "all" | "any";
+      }
+    >
+  >;
   surfaces: readonly ClinicalJourneySurface[];
   activatesAfter: readonly string[];
   emitsEvent?: string;
@@ -103,6 +112,18 @@ function requireOrderContext(context: ClinicalJourneyContext): string | null {
 
 function eventLabel(eventName: string) {
   return eventName.replace(/\./g, " ");
+}
+
+function actionPermissionsForSurface(
+  action: ClinicalJourneyActionDefinition,
+  surface: ClinicalJourneySurface,
+): Pick<ClinicalJourneyActionDefinition, "permissionMode" | "requiredPermissions"> {
+  const surfacePermissions = action.surfacePermissions?.[surface];
+
+  return {
+    permissionMode: surfacePermissions?.permissionMode ?? action.permissionMode,
+    requiredPermissions: surfacePermissions?.requiredPermissions ?? action.requiredPermissions,
+  };
 }
 
 interface CampJourneyRegistration {
@@ -211,6 +232,9 @@ export const CORE_PATIENT_JOURNEY_ACTIONS: readonly ClinicalJourneyActionDefinit
     module: "orders",
     intent: "clinical",
     requiredPermissions: [P.ORDER_BASKET.SIGN],
+    surfacePermissions: {
+      mobile: { requiredPermissions: [P.OPD.VISIT_UPDATE] },
+    },
     surfaces: ["web", "mobile"],
     activatesAfter: ["opd.encounter.created", "bed.assigned"],
     emitsEvent: "order.created",
@@ -225,6 +249,9 @@ export const CORE_PATIENT_JOURNEY_ACTIONS: readonly ClinicalJourneyActionDefinit
     module: "orders",
     intent: "clinical",
     requiredPermissions: [P.ORDER_BASKET.SIGN],
+    surfacePermissions: {
+      mobile: { requiredPermissions: [P.LAB.ORDERS_CREATE] },
+    },
     surfaces: ["web", "mobile"],
     activatesAfter: ["opd.encounter.created", "bed.assigned"],
     emitsEvent: "order.created",
@@ -239,6 +266,9 @@ export const CORE_PATIENT_JOURNEY_ACTIONS: readonly ClinicalJourneyActionDefinit
     module: "orders",
     intent: "clinical",
     requiredPermissions: [P.ORDER_BASKET.SIGN],
+    surfacePermissions: {
+      mobile: { requiredPermissions: [P.RADIOLOGY.ORDERS_CREATE, P.RADIOLOGY.ORDERS_LIST] },
+    },
     surfaces: ["web", "mobile"],
     activatesAfter: ["opd.encounter.created", "bed.assigned"],
     emitsEvent: "order.created",
@@ -440,16 +470,20 @@ export function resolveClinicalJourneyActions(
   surface: ClinicalJourneySurface = "web",
 ): ResolvedClinicalJourneyAction[] {
   return CORE_PATIENT_JOURNEY_ACTIONS.filter((action) => action.surfaces.includes(surface))
-    .filter((action) =>
-      action.permissionMode === "any"
-        ? action.requiredPermissions.some((permission) => hasPermission(permission))
-        : action.requiredPermissions.every((permission) => hasPermission(permission)),
-    )
+    .filter((action) => {
+      const { permissionMode, requiredPermissions } = actionPermissionsForSurface(action, surface);
+      return permissionMode === "any"
+        ? requiredPermissions.some((permission) => hasPermission(permission))
+        : requiredPermissions.every((permission) => hasPermission(permission));
+    })
     .map((action) => {
+      const { permissionMode, requiredPermissions } = actionPermissionsForSurface(action, surface);
       const disabledReasonText =
         action.disabledReason(context) ?? activationDisabledReason(action, context);
       return {
         ...action,
+        permissionMode,
+        requiredPermissions,
         enabled: disabledReasonText === null,
         disabledReasonText,
       };

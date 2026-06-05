@@ -117,4 +117,67 @@ describe("journey action access-matrix coverage", () => {
       activationGaps: 1,
     });
   });
+
+  it("includes surface-specific action permissions in coverage rows", () => {
+    const [row] = buildJourneyActionCoverage(
+      [
+        action({
+          id: "orders.lab",
+          module: "orders",
+          requiredPermissions: ["order_basket.sign"],
+          surfacePermissions: {
+            mobile: { requiredPermissions: ["lab.orders.create"] },
+          },
+          surfaces: ["web", "mobile"],
+        }),
+      ],
+      [
+        surface({
+          id: "opd.order_basket.action",
+          kind: "action",
+          requiredPermissions: ["order_basket.sign"],
+          activatesAfter: ["patient.created"],
+        }),
+        surface({
+          id: "mobile.lab_order.action",
+          kind: "action",
+          module: "lab",
+          platforms: ["mobile"],
+          requiredPermissions: ["lab.orders.create"],
+          activatesAfter: ["patient.created"],
+        }),
+      ],
+    );
+
+    expect(row?.gaps).toEqual([]);
+    expect(row?.requiredPermissions).toEqual(["order_basket.sign", "lab.orders.create"]);
+    expect(row?.matchedSurfaceIds).toEqual(["mobile.lab_order.action", "opd.order_basket.action"]);
+  });
+
+  it("reports missing surface-specific permissions", () => {
+    const [row] = buildJourneyActionCoverage(
+      [
+        action({
+          id: "orders.radiology",
+          module: "orders",
+          requiredPermissions: ["order_basket.sign"],
+          surfacePermissions: {
+            mobile: { requiredPermissions: ["radiology.orders.create", "radiology.orders.list"] },
+          },
+          surfaces: ["web", "mobile"],
+        }),
+      ],
+      [
+        surface({
+          id: "opd.order_basket.action",
+          kind: "action",
+          requiredPermissions: ["order_basket.sign"],
+          activatesAfter: ["patient.created"],
+        }),
+      ],
+    );
+
+    expect(row?.gaps).toEqual(["missing-permission"]);
+    expect(row?.missingPermissions).toEqual(["radiology.orders.create", "radiology.orders.list"]);
+  });
 });
