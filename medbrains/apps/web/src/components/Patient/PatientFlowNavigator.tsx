@@ -22,6 +22,7 @@ import { useNavigate } from "react-router";
 import { useClinicalEventStore } from "@/components/clinical-event-store";
 import styles from "./patient-flow-navigator.module.scss";
 import { clinicalEventMatchesJourney, mergeJourneyEventNames } from "./patient-journey-events";
+import { patientJourneyActionRoute } from "./patient-journey-routes";
 
 export type PatientFlowModule =
   | "patient"
@@ -228,6 +229,9 @@ export function PatientFlowNavigator({
     ["patient.created", "order.created", "billing.invoice.created"],
     [P.BILLING.INVOICES_LIST],
   );
+  const ipdFlowAction: ClinicalJourneyActionId = activeAdmissionId
+    ? "ipd.open_admission"
+    : "ipd.admit";
 
   const items: FlowItem[] = [
     {
@@ -247,9 +251,8 @@ export function PatientFlowNavigator({
       id: "opd",
       label: "OPD",
       description: activeEncounterId ? "Open active OPD encounter." : "Start an OPD visit.",
-      href: activeEncounterId
-        ? `/opd/encounters/${activeEncounterId}#consultation`
-        : `/opd/new?patient_id=${patientId}`,
+      href:
+        patientJourneyActionRoute(OPD_FLOW_ACTION, context) ?? `/opd/new?patient_id=${patientId}`,
       color: "teal",
       icon: <IconStethoscope size={14} />,
       enabled: opdState.enabled,
@@ -262,9 +265,7 @@ export function PatientFlowNavigator({
       id: "ipd",
       label: "IPD",
       description: activeAdmissionId ? "Open active IPD admission." : "Start an IPD admission.",
-      href: activeAdmissionId
-        ? `/ipd/admissions/${activeAdmissionId}#overview`
-        : `/ipd/new?patient_id=${patientId}`,
+      href: patientJourneyActionRoute(ipdFlowAction, context) ?? `/ipd/new?patient_id=${patientId}`,
       color: "indigo",
       icon: <IconBed size={14} />,
       enabled: ipdState.enabled,
@@ -277,9 +278,9 @@ export function PatientFlowNavigator({
       id: "emergency",
       label: "ER",
       description: activeEmergencyVisitId ? "Open emergency visit." : "Register emergency visit.",
-      href: activeEmergencyVisitId
-        ? `/emergency/visits/${activeEmergencyVisitId}`
-        : `/emergency/visits/new?patient_id=${patientId}`,
+      href:
+        patientJourneyActionRoute(EMERGENCY_FLOW_ACTION, context) ??
+        `/emergency/visits/new?patient_id=${patientId}`,
       color: "red",
       icon: <IconFirstAidKit size={14} />,
       enabled: emergencyState.enabled,
@@ -292,7 +293,7 @@ export function PatientFlowNavigator({
       id: "camp",
       label: "Camp",
       description: "Open camp registration and screening workspace.",
-      href: `/camp?patient_id=${patientId}`,
+      href: patientJourneyActionRoute(CAMP_FLOW_ACTION, context) ?? `/camp?patient_id=${patientId}`,
       color: "green",
       icon: <IconBuildingStore size={14} />,
       enabled: campState.enabled,
@@ -305,7 +306,9 @@ export function PatientFlowNavigator({
       id: "pharmacy",
       label: "Pharmacy",
       description: "Open patient pharmacy orders and dispensing queue.",
-      href: `/pharmacy?tab=orders&patient_id=${patientId}`,
+      href:
+        patientJourneyActionRoute(PHARMACY_FLOW_ACTION, context) ??
+        `/pharmacy?tab=orders&patient_id=${patientId}`,
       color: "lime",
       icon: <IconPill size={14} />,
       enabled: pharmacyState.enabled,
@@ -318,7 +321,9 @@ export function PatientFlowNavigator({
       id: "billing",
       label: "Billing",
       description: "Open patient billing ledger and invoice queue.",
-      href: `/billing?tab=invoices&patient_id=${patientId}`,
+      href:
+        patientJourneyActionRoute(BILLING_FLOW_ACTION, context) ??
+        `/billing?tab=invoices&patient_id=${patientId}`,
       color: "orange",
       icon: <IconFileInvoice size={14} />,
       enabled: billingState.enabled,
