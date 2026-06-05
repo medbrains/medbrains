@@ -132,7 +132,7 @@ import {
   IconUserOff,
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useParams, useSearchParams } from "react-router";
@@ -244,6 +244,7 @@ const IPD_WORKSPACE_TABS = [
 
 const IPD_WORKSPACE_TAB_VALUES = IPD_WORKSPACE_TABS.map((tab) => tab.value);
 const IPD_WORKSPACE_SECTIONS = ["Command", "Care Context", "Finance & Admin", "Discharge"] as const;
+const IPD_LANDING_DEFAULT_TAB = "admissions";
 
 const IPD_ACTION_RAIL_LOCAL_ACTION_IDS = [
   "patient.edit",
@@ -380,6 +381,24 @@ function IpdPageInner() {
   const canViewBedDashboard = useHasPermission(P.IPD.BED_DASHBOARD_VIEW);
   const canManageWards = useHasPermission(P.IPD.WARDS_MANAGE);
   const canViewReports = useHasPermission(P.IPD.REPORTS_VIEW);
+  const canViewWards = canManageWards || canViewBedDashboard;
+  const landingTabValues = useMemo(
+    () => [
+      IPD_LANDING_DEFAULT_TAB,
+      ...(canViewWards ? ["wards"] : []),
+      ...(canViewBedDashboard ? ["bed-dashboard"] : []),
+      ...(canViewReports ? ["reports"] : []),
+      "expected-discharges",
+    ],
+    [canViewBedDashboard, canViewReports, canViewWards],
+  );
+  const [activeLandingTab, setActiveLandingTab] = useHashTabs(
+    IPD_LANDING_DEFAULT_TAB,
+    landingTabValues,
+  );
+  const safeActiveLandingTab = landingTabValues.includes(activeLandingTab)
+    ? activeLandingTab
+    : IPD_LANDING_DEFAULT_TAB;
 
   return (
     <div>
@@ -390,12 +409,12 @@ function IpdPageInner() {
         color="primary"
       />
 
-      <Tabs defaultValue="admissions">
+      <Tabs value={safeActiveLandingTab} onChange={setActiveLandingTab} keepMounted={false}>
         <Tabs.List mb="md">
           <Tabs.Tab value="admissions" leftSection={<IconBed size={16} />}>
             {t("admissions")}
           </Tabs.Tab>
-          {(canManageWards || canViewBedDashboard) && (
+          {canViewWards && (
             <Tabs.Tab value="wards" leftSection={<IconBuildingHospital size={16} />}>
               {t("wards")}
             </Tabs.Tab>
@@ -418,15 +437,21 @@ function IpdPageInner() {
         <Tabs.Panel value="admissions">
           <AdmissionsTab />
         </Tabs.Panel>
-        <Tabs.Panel value="wards">
-          <WardsTab />
-        </Tabs.Panel>
-        <Tabs.Panel value="bed-dashboard">
-          <BedDashboardTab />
-        </Tabs.Panel>
-        <Tabs.Panel value="reports">
-          <ReportsTab />
-        </Tabs.Panel>
+        {canViewWards && (
+          <Tabs.Panel value="wards">
+            <WardsTab />
+          </Tabs.Panel>
+        )}
+        {canViewBedDashboard && (
+          <Tabs.Panel value="bed-dashboard">
+            <BedDashboardTab />
+          </Tabs.Panel>
+        )}
+        {canViewReports && (
+          <Tabs.Panel value="reports">
+            <ReportsTab />
+          </Tabs.Panel>
+        )}
         <Tabs.Panel value="expected-discharges">
           <ExpectedDischargesTab />
         </Tabs.Panel>
