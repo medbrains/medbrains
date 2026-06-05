@@ -1277,6 +1277,7 @@ pub async fn create_invoice(
             "invoice_id": invoice.id,
             "patient_id": invoice.patient_id,
             "encounter_id": invoice.encounter_id,
+            "admission_id": invoice.admission_id,
             "invoice_number": &invoice.invoice_number,
             "total_amount": invoice.total_amount,
             "status": format!("{:?}", invoice.status),
@@ -1285,6 +1286,9 @@ pub async fn create_invoice(
     .with_patient(invoice.patient_id);
     if let Some(encounter_id) = invoice.encounter_id {
         event = event.with_encounter(encounter_id);
+    }
+    if let Some(admission_id) = invoice.admission_id {
+        event = event.with_admission(admission_id);
     }
     crate::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
 
@@ -1298,6 +1302,8 @@ pub async fn create_invoice(
         serde_json::json!({
             "invoice_id": invoice.id,
             "patient_id": invoice.patient_id,
+            "encounter_id": invoice.encounter_id,
+            "admission_id": invoice.admission_id,
             "invoice_number": invoice.invoice_number,
             "total_amount": invoice.total_amount,
             "net_amount": invoice.total_amount - invoice.discount_amount,
@@ -1410,6 +1416,7 @@ pub async fn update_invoice(
                 "invoice_id": i.id,
                 "patient_id": i.patient_id,
                 "encounter_id": i.encounter_id,
+                "admission_id": i.admission_id,
                 "invoice_number": &i.invoice_number,
                 "status": format!("{:?}", i.status),
             }),
@@ -1417,6 +1424,9 @@ pub async fn update_invoice(
         .with_patient(i.patient_id);
         if let Some(encounter_id) = i.encounter_id {
             event = event.with_encounter(encounter_id);
+        }
+        if let Some(admission_id) = i.admission_id {
+            event = event.with_admission(admission_id);
         }
         crate::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
     }
@@ -1557,7 +1567,51 @@ pub async fn issue_invoice(
     .fetch_optional(&mut *tx)
     .await?;
 
+    if let Some(ref i) = inv {
+        let mut event = ClinicalEventEnvelope::new(
+            claims.tenant_id,
+            ClinicalEventName::BillingInvoiceFinalized,
+            i.id,
+            claims.sub,
+            serde_json::json!({
+                "invoice_id": i.id,
+                "patient_id": i.patient_id,
+                "encounter_id": i.encounter_id,
+                "admission_id": i.admission_id,
+                "invoice_number": &i.invoice_number,
+                "status": format!("{:?}", i.status),
+            }),
+        )
+        .with_patient(i.patient_id);
+        if let Some(encounter_id) = i.encounter_id {
+            event = event.with_encounter(encounter_id);
+        }
+        if let Some(admission_id) = i.admission_id {
+            event = event.with_admission(admission_id);
+        }
+        crate::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
+    }
+
     tx.commit().await?;
+
+    if let Some(ref i) = inv {
+        let _ = crate::orchestration::lifecycle::emit_after_event(
+            &state.db,
+            claims.tenant_id,
+            claims.sub,
+            "billing.invoice.finalized",
+            serde_json::json!({
+                "invoice_id": i.id,
+                "patient_id": i.patient_id,
+                "encounter_id": i.encounter_id,
+                "admission_id": i.admission_id,
+                "invoice_number": i.invoice_number,
+                "status": format!("{:?}", i.status),
+            }),
+        )
+        .await;
+    }
+
     inv.map_or_else(|| Err(AppError::NotFound), |i| Ok(Json(i)))
 }
 
@@ -1617,13 +1671,15 @@ pub async fn record_payment(
     #[derive(sqlx::FromRow)]
     struct InvoicePaymentGate {
         patient_id: Uuid,
+        encounter_id: Option<Uuid>,
+        admission_id: Option<Uuid>,
         status: InvoiceStatus,
         total_amount: Decimal,
         paid_amount: Decimal,
     }
 
     let invoice = sqlx::query_as::<_, InvoicePaymentGate>(
-        "SELECT patient_id, status, total_amount, paid_amount \
+        "SELECT patient_id, encounter_id, admission_id, status, total_amount, paid_amount \
          FROM invoices WHERE id = $1 AND tenant_id = $2",
     )
     .bind(invoice_id)
@@ -1696,12 +1752,24 @@ pub async fn record_payment(
             "payment_id": payment.id,
             "invoice_id": invoice_id,
             "patient_id": invoice.patient_id,
+            "encounter_id": invoice.encounter_id,
+            "admission_id": invoice.admission_id,
             "amount": payment.amount,
             "payment_mode": format!("{:?}", payment.mode),
             "receipt_number": payment.reference_number.as_deref(),
         }),
     )
     .with_patient(invoice.patient_id);
+    let event = if let Some(encounter_id) = invoice.encounter_id {
+        event.with_encounter(encounter_id)
+    } else {
+        event
+    };
+    let event = if let Some(admission_id) = invoice.admission_id {
+        event.with_admission(admission_id)
+    } else {
+        event
+    };
     crate::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
 
     tx.commit().await?;
@@ -1715,6 +1783,8 @@ pub async fn record_payment(
             "payment_id": payment.id,
             "invoice_id": invoice_id,
             "patient_id": invoice.patient_id,
+            "encounter_id": invoice.encounter_id,
+            "admission_id": invoice.admission_id,
             "amount": payment.amount,
             "payment_mode": format!("{:?}", payment.mode),
             "receipt_number": payment.reference_number,

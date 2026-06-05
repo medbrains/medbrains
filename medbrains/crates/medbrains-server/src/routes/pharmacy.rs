@@ -1741,6 +1741,8 @@ pub async fn create_order_in_tx(
     )
     .await?;
 
+    let admission_id =
+        admission_id_for_encounter_in_tx(tx, &claims.tenant_id, body.encounter_id).await?;
     let event = ClinicalEventEnvelope::new(
         claims.tenant_id,
         ClinicalEventName::OrderCreated,
@@ -1751,6 +1753,7 @@ pub async fn create_order_in_tx(
             "order_type": "drug",
             "patient_id": body.patient_id,
             "encounter_id": body.encounter_id,
+            "admission_id": admission_id,
             "items": items.iter().map(|item| {
                 json!({
                     "catalog_item_id": item.catalog_item_id,
@@ -1764,6 +1767,11 @@ pub async fn create_order_in_tx(
     .with_patient(body.patient_id);
     let event = if let Some(encounter_id) = body.encounter_id {
         event.with_encounter(encounter_id)
+    } else {
+        event
+    };
+    let event = if let Some(admission_id) = admission_id {
+        event.with_admission(admission_id)
     } else {
         event
     };
@@ -2575,6 +2583,37 @@ pub async fn dispense_order(
     )
     .await?;
 
+    let admission_id =
+        admission_id_for_encounter_in_tx(&mut tx, &claims.tenant_id, order.encounter_id).await?;
+    let mut event = ClinicalEventEnvelope::new(
+        claims.tenant_id,
+        ClinicalEventName::PharmacyOrderDispensed,
+        order.id,
+        claims.sub,
+        serde_json::json!({
+            "order_id": order.id,
+            "patient_id": order.patient_id,
+            "encounter_id": order.encounter_id,
+            "admission_id": admission_id,
+            "items": billed_items.iter().map(|item| {
+                serde_json::json!({
+                    "catalog_item_id": item.catalog_item_id,
+                    "drug_name": item.drug_name,
+                    "quantity": item.quantity,
+                    "batch_number": item.batch_number,
+                })
+            }).collect::<Vec<_>>(),
+        }),
+    )
+    .with_patient(order.patient_id);
+    if let Some(encounter_id) = order.encounter_id {
+        event = event.with_encounter(encounter_id);
+    }
+    if let Some(admission_id) = admission_id {
+        event = event.with_admission(admission_id);
+    }
+    crate::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
+
     tx.commit().await?;
 
     let total_amount: Decimal = items.iter().map(|i| i.total_price).sum();
@@ -2588,6 +2627,8 @@ pub async fn dispense_order(
         serde_json::json!({
             "order_id": order.id,
             "patient_id": order.patient_id,
+            "encounter_id": order.encounter_id,
+            "admission_id": admission_id,
             "items_count": items.len(),
             "total_amount": total_amount.to_string(),
         }),
@@ -2754,6 +2795,8 @@ pub async fn cancel_order(
             .await?;
         }
 
+        let admission_id =
+            admission_id_for_encounter_in_tx(&mut tx, &claims.tenant_id, o.encounter_id).await?;
         let mut event = ClinicalEventEnvelope::new(
             claims.tenant_id,
             ClinicalEventName::OrderCancelled,
@@ -2765,12 +2808,16 @@ pub async fn cancel_order(
                 "reason": "Cancelled from pharmacy order queue",
                 "patient_id": o.patient_id,
                 "encounter_id": o.encounter_id,
+                "admission_id": admission_id,
             }),
         )
         .with_source_module(ClinicalEventSourceModule::Pharmacy)
         .with_patient(o.patient_id);
         if let Some(encounter_id) = o.encounter_id {
             event = event.with_encounter(encounter_id);
+        }
+        if let Some(admission_id) = admission_id {
+            event = event.with_admission(admission_id);
         }
         crate::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
     }
