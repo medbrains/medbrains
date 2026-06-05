@@ -1481,6 +1481,21 @@ function QueueConfigTab({
       render: (r: QueueDisplayConfig) => (r.show_wait_time ? "Yes" : "No"),
     },
     {
+      key: "show_patient_name",
+      label: "Privacy",
+      render: (r: QueueDisplayConfig) =>
+        r.show_patient_name ? (
+          <TableValueBadge
+            value="names_enabled"
+            label="Names enabled"
+            color="orange"
+            variant="filled"
+          />
+        ) : (
+          <TableValueBadge value="token_only" label="Token-only" color="success" variant="filled" />
+        ),
+    },
+    {
       key: "announcement_enabled",
       label: "Announce",
       render: (r: QueueDisplayConfig) => (r.announcement_enabled ? "Yes" : "No"),
@@ -1673,7 +1688,8 @@ function QueueConfigTab({
             name="show_patient_name"
             render={({ field }) => (
               <Switch
-                label="Show Patient Name"
+                label="Show patient name on authorized staff displays"
+                description="Public token boards remain token-only; enable only for controlled team-room displays."
                 checked={field.value}
                 onChange={(event) => field.onChange(event.currentTarget.checked)}
               />
@@ -1685,6 +1701,7 @@ function QueueConfigTab({
             render={({ field }) => (
               <Switch
                 label="Show Wait Time"
+                description="Allowed on public token boards when it does not reveal patient identity or clinical context."
                 checked={field.value}
                 onChange={(event) => field.onChange(event.currentTarget.checked)}
               />

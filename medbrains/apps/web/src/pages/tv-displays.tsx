@@ -670,8 +670,13 @@ function DisplaysTab({
       render: (row) => (
         <Group gap="xs">
           {row.show_patient_name && (
+            <Badge size="xs" color="orange">
+              Names enabled
+            </Badge>
+          )}
+          {!row.show_patient_name && (
             <Badge size="xs" color="success">
-              Name
+              Token-only
             </Badge>
           )}
           {row.show_wait_time && (
@@ -860,7 +865,8 @@ function DisplaysTab({
               name="show_patient_name"
               render={({ field }) => (
                 <Switch
-                  label="Show Patient Name"
+                  label="Show patient name on authorized staff displays"
+                  description="Public token boards remain token-only; enable only for controlled team-room displays."
                   checked={field.value}
                   onChange={(event) => field.onChange(event.currentTarget.checked)}
                 />
@@ -872,6 +878,7 @@ function DisplaysTab({
               render={({ field }) => (
                 <Switch
                   label="Show Wait Time"
+                  description="Allowed on public token boards when it does not reveal patient identity or clinical context."
                   checked={field.value}
                   onChange={(event) => field.onChange(event.currentTarget.checked)}
                 />
