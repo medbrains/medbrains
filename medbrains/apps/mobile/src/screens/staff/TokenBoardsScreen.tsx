@@ -7,6 +7,7 @@ import type {
   QueuePriority,
   QueueToken,
   RadiologyQueueToken,
+  TokenBoardSurfaceDefinition,
   TriageLevelColor,
 } from "@medbrains/types";
 import { TOKEN_BOARD_PUBLIC_PRIVACY_NOTICE, TOKEN_BOARD_SURFACES } from "@medbrains/types";
@@ -195,22 +196,22 @@ function BoardCard({
   isError,
   isLoading,
   lastUpdatedAt,
+  surface,
   subtitle,
-  title,
 }: {
   children: ReactNode;
   isError: boolean;
   isLoading: boolean;
   lastUpdatedAt: number;
+  surface: TokenBoardSurfaceDefinition;
   subtitle: string;
-  title: string;
 }) {
   return (
     <Surface style={styles.boardCard} elevation={1}>
       <View style={styles.boardHeader}>
         <View style={styles.boardTitleBlock}>
           <Text variant="titleMedium" style={styles.boardTitle}>
-            {title}
+            {surface.title}
           </Text>
           <Text variant="bodySmall" style={styles.boardSubtitle}>
             {subtitle}
@@ -219,6 +220,23 @@ function BoardCard({
         <Chip compact mode="outlined" style={isError ? styles.errorChip : styles.syncChip}>
           {isError ? "Feed error" : `Sync ${lastSyncLabel(lastUpdatedAt)}`}
         </Chip>
+      </View>
+      <View style={styles.launchMeta}>
+        {surface.targets.tvAppCodes.map((appCode) => (
+          <Chip key={appCode} compact mode="outlined" style={styles.launchChip}>
+            {appCode}
+          </Chip>
+        ))}
+        <View style={styles.deepLinkPill}>
+          <Text
+            ellipsizeMode="middle"
+            numberOfLines={1}
+            variant="labelSmall"
+            style={styles.deepLinkText}
+          >
+            {surface.targets.tvDeepLink}
+          </Text>
+        </View>
       </View>
       {isLoading ? (
         <View style={styles.statePanel}>
@@ -442,7 +460,7 @@ export function TokenBoardsScreen() {
 
         {canViewOpd && (
           <BoardCard
-            title={OPD_BOARD.title}
+            surface={OPD_BOARD}
             subtitle={OPD_BOARD.subtitle}
             isLoading={opdQuery.isLoading}
             isError={opdQuery.isError}
@@ -465,7 +483,7 @@ export function TokenBoardsScreen() {
 
         {canViewLab && (
           <BoardCard
-            title={LAB_BOARD.title}
+            surface={LAB_BOARD}
             subtitle={LAB_BOARD.subtitle}
             isLoading={labQuery.isLoading}
             isError={labQuery.isError}
@@ -493,7 +511,7 @@ export function TokenBoardsScreen() {
 
         {canViewRadiology && (
           <BoardCard
-            title={RADIOLOGY_BOARD.title}
+            surface={RADIOLOGY_BOARD}
             subtitle={RADIOLOGY_BOARD.subtitle}
             isLoading={radiologyQuery.isLoading}
             isError={radiologyQuery.isError}
@@ -516,7 +534,7 @@ export function TokenBoardsScreen() {
 
         {canViewEr && (
           <BoardCard
-            title={EMERGENCY_BOARD.title}
+            surface={EMERGENCY_BOARD}
             subtitle={`${overdueErTokens} overdue target${overdueErTokens === 1 ? "" : "s"}`}
             isLoading={erQuery.isLoading}
             isError={erQuery.isError}
@@ -537,7 +555,7 @@ export function TokenBoardsScreen() {
 
         {canViewPharmacy && (
           <BoardCard
-            title={PHARMACY_BOARD.title}
+            surface={PHARMACY_BOARD}
             subtitle={PHARMACY_BOARD.subtitle}
             isLoading={pharmacyQuery.isLoading}
             isError={pharmacyQuery.isError}
@@ -565,7 +583,7 @@ export function TokenBoardsScreen() {
 
         {canViewBilling && (
           <BoardCard
-            title={BILLING_BOARD.title}
+            surface={BILLING_BOARD}
             subtitle={BILLING_BOARD.subtitle}
             isLoading={billingQuery.isLoading}
             isError={billingQuery.isError}
@@ -653,6 +671,27 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     letterSpacing: 0.8,
     textTransform: "uppercase",
+  },
+  launchChip: {
+    backgroundColor: MEDBRAINS_COLORS.navActiveBg,
+  },
+  deepLinkPill: {
+    backgroundColor: MEDBRAINS_COLORS.navActiveBg,
+    borderColor: MEDBRAINS_COLORS.rule,
+    borderRadius: 16,
+    borderWidth: 1,
+    flexShrink: 1,
+    maxWidth: "100%",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  deepLinkText: {
+    color: MEDBRAINS_COLORS.muted,
+  },
+  launchMeta: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
   },
   metricCard: {
     borderLeftWidth: 4,
