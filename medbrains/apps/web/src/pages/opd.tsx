@@ -209,6 +209,12 @@ import { toDateString, todayDateString } from "@/lib/date-utils";
 import { campService } from "@/services/camp.service";
 import { mrdService } from "@/services/mrd.service";
 import { opdService } from "@/services/opd.service";
+import {
+  type OpdQueueRowActionId,
+  type OpdQueueRowActionPermissions,
+  type ResolvedOpdQueueRowAction,
+  resolveOpdQueueRowActions,
+} from "./opd-queue-actions";
 import { opdEncounterTabForOrderBasket } from "./opd-workspace";
 
 const statusColors: Record<string, string> = {
@@ -846,15 +852,22 @@ function protectedOpdQueueIdentity(
   };
 }
 
-const CLINICAL_DRAWER_QUEUE_STATUSES = new Set(["called", "in_consultation", "completed"]);
-const VITALS_QUEUE_STATUSES = new Set(["waiting", "called", "in_consultation"]);
+const OPD_QUEUE_STATUS_ONLY_PERMISSIONS: OpdQueueRowActionPermissions = {
+  canManageToken: true,
+  canOpenVisit: true,
+  canRecordVitals: true,
+};
 
-function canOpenClinicalDrawer(row: QueueEntry): boolean {
-  return CLINICAL_DRAWER_QUEUE_STATUSES.has(row.status);
+function queueActionEnabled(row: QueueEntry, actionId: OpdQueueRowActionId): boolean {
+  return (
+    resolveOpdQueueRowActions(row, OPD_QUEUE_STATUS_ONLY_PERMISSIONS).find(
+      (action) => action.id === actionId,
+    )?.enabled ?? false
+  );
 }
 
 function canRecordVitalsFromQueue(row: QueueEntry): boolean {
-  return VITALS_QUEUE_STATUSES.has(row.status);
+  return queueActionEnabled(row, "record_vitals");
 }
 
 function OpdPageInner() {
@@ -862,6 +875,7 @@ function OpdPageInner() {
   const emit = useClinicalEmit();
   const navigate = useNavigate();
   const canCreate = useHasPermission(P.OPD.VISIT_CREATE);
+  const canViewQueue = useHasPermission(P.OPD.QUEUE_VIEW);
   const canManageToken = useHasPermission(P.OPD.TOKEN_MANAGE);
   const canUpdate = useHasPermission(P.OPD.VISIT_UPDATE);
   const canRecordNurseVitals = useHasPermission(P.NURSE.VITALS_RECORD);
@@ -1002,6 +1016,115 @@ function OpdPageInner() {
       void queryClient.invalidateQueries({ queryKey: ["opd-appointments"] });
     },
   });
+  const queueActionPermissions: OpdQueueRowActionPermissions = {
+    canManageToken,
+    canOpenVisit: canViewQueue,
+    canRecordVitals,
+  };
+
+  const renderQueueAction = (action: ResolvedOpdQueueRowAction, row: QueueEntry) => {
+    if (!action.visible) return null;
+
+    const tooltipLabel = action.enabled
+      ? action.label
+      : (action.disabledReasonText ?? action.label);
+    const disabled = !action.enabled;
+    const iconButton = (() => {
+      switch (action.id) {
+        case "record_vitals":
+          return (
+            <ActionIcon
+              variant="subtle"
+              color="primary"
+              disabled={disabled}
+              onClick={() => {
+                if (action.enabled) navigate(`/opd/queue/${row.id}/vitals`);
+              }}
+              aria-label={action.label}
+            >
+              <IconHeartbeat size={16} />
+            </ActionIcon>
+          );
+        case "open_visit":
+          return (
+            <ActionIcon
+              variant="subtle"
+              disabled={disabled}
+              onClick={() => {
+                if (action.enabled) {
+                  navigate(`/opd/encounters/${row.encounter_id}#consultation`);
+                }
+              }}
+              aria-label={action.label}
+            >
+              <IconEye size={16} />
+            </ActionIcon>
+          );
+        case "call_patient":
+          return (
+            <ActionIcon
+              variant="subtle"
+              color="warning"
+              disabled={disabled}
+              onClick={() => {
+                if (action.enabled) callMutation.mutate(row);
+              }}
+              aria-label={action.label}
+            >
+              <IconPhone size={16} />
+            </ActionIcon>
+          );
+        case "start_consultation":
+          return (
+            <ActionIcon
+              variant="subtle"
+              color="orange"
+              disabled={disabled}
+              onClick={() => {
+                if (action.enabled) startMutation.mutate(row);
+              }}
+              aria-label={action.label}
+            >
+              <IconPlayerPlay size={16} />
+            </ActionIcon>
+          );
+        case "complete_visit":
+          return (
+            <ActionIcon
+              variant="subtle"
+              color="success"
+              disabled={disabled}
+              onClick={() => {
+                if (action.enabled) completeMutation.mutate(row);
+              }}
+              aria-label={action.label}
+            >
+              <IconCheck size={16} />
+            </ActionIcon>
+          );
+        case "mark_no_show":
+          return (
+            <ActionIcon
+              variant="subtle"
+              color="danger"
+              disabled={disabled}
+              onClick={() => {
+                if (action.enabled) noShowMutation.mutate(row.id);
+              }}
+              aria-label={action.label}
+            >
+              <IconUserOff size={16} />
+            </ActionIcon>
+          );
+      }
+    })();
+
+    return (
+      <Tooltip key={action.id} label={tooltipLabel}>
+        <span>{iconButton}</span>
+      </Tooltip>
+    );
+  };
   const columns = [
     {
       key: "token_number",
@@ -1060,73 +1183,8 @@ function OpdPageInner() {
       permissionMode: "any",
       render: (row: QueueEntry) => (
         <Group gap="xs">
-          {canRecordVitals && canRecordVitalsFromQueue(row) && (
-            <Tooltip label="Record vitals">
-              <ActionIcon
-                variant="subtle"
-                color="primary"
-                onClick={() => navigate(`/opd/queue/${row.id}/vitals`)}
-                aria-label="Record vitals"
-              >
-                <IconHeartbeat size={16} />
-              </ActionIcon>
-            </Tooltip>
-          )}
-          <Tooltip
-            label={
-              canOpenClinicalDrawer(row)
-                ? "Open OPD visit"
-                : "Call patient before opening OPD visit"
-            }
-          >
-            <ActionIcon
-              variant="subtle"
-              disabled={!canOpenClinicalDrawer(row)}
-              onClick={() => {
-                if (canOpenClinicalDrawer(row)) {
-                  navigate(`/opd/encounters/${row.encounter_id}#consultation`);
-                }
-              }}
-              aria-label="Open OPD visit"
-            >
-              <IconEye size={16} />
-            </ActionIcon>
-          </Tooltip>
-          {canManageToken && row.status === "waiting" && (
-            <Tooltip label="Call patient">
-              <ActionIcon variant="subtle" color="warning" onClick={() => callMutation.mutate(row)}>
-                <IconPhone size={16} />
-              </ActionIcon>
-            </Tooltip>
-          )}
-          {canManageToken && row.status === "called" && (
-            <Tooltip label="Start consultation">
-              <ActionIcon variant="subtle" color="orange" onClick={() => startMutation.mutate(row)}>
-                <IconPlayerPlay size={16} />
-              </ActionIcon>
-            </Tooltip>
-          )}
-          {canManageToken && row.status === "in_consultation" && (
-            <Tooltip label="Complete">
-              <ActionIcon
-                variant="subtle"
-                color="success"
-                onClick={() => completeMutation.mutate(row)}
-              >
-                <IconCheck size={16} />
-              </ActionIcon>
-            </Tooltip>
-          )}
-          {canManageToken && (row.status === "waiting" || row.status === "called") && (
-            <Tooltip label="No show">
-              <ActionIcon
-                variant="subtle"
-                color="danger"
-                onClick={() => noShowMutation.mutate(row.id)}
-              >
-                <IconUserOff size={16} />
-              </ActionIcon>
-            </Tooltip>
+          {resolveOpdQueueRowActions(row, queueActionPermissions).map((action) =>
+            renderQueueAction(action, row),
           )}
         </Group>
       ),
