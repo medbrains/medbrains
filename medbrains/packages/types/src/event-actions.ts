@@ -92,15 +92,34 @@ function requireOrderContext(context: ClinicalJourneyContext): string | null {
   if (livingReason) return livingReason;
   if (context.activeOrderContext === "opd" && context.activeEncounterId) return null;
   if (context.activeOrderContext === "ipd" && activeAdmissionIsOpen(context)) {
-    return activeAdmissionHasAssignedBed(context)
-      ? null
-      : "Assign a bed before inpatient orders";
+    return activeAdmissionHasAssignedBed(context) ? null : "Assign a bed before inpatient orders";
   }
   return "Start an OPD visit or use an active IPD admission before ordering";
 }
 
 function eventLabel(eventName: string) {
   return eventName.replace(/\./g, " ");
+}
+
+interface CampJourneyRegistration {
+  status: string;
+}
+
+const CAMP_SCREENING_COMPLETED_STATUSES = new Set(["screened", "referred", "converted"]);
+
+export function deriveCampJourneyCompletedEvents(
+  registrations: readonly CampJourneyRegistration[],
+) {
+  const events: string[] = [];
+  if (registrations.length > 0) {
+    events.push("camp.registration.created");
+  }
+  if (
+    registrations.some((registration) => CAMP_SCREENING_COMPLETED_STATUSES.has(registration.status))
+  ) {
+    events.push("camp.screening.completed");
+  }
+  return events;
 }
 
 export function inferClinicalJourneyEventNames(context: ClinicalJourneyContext): readonly string[] {

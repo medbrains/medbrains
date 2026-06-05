@@ -23,6 +23,7 @@ export type {
 } from "./event-actions.js";
 export {
   CORE_PATIENT_JOURNEY_ACTIONS,
+  deriveCampJourneyCompletedEvents,
   inferClinicalJourneyEventNames,
   resolveClinicalJourneyActions,
 } from "./event-actions.js";

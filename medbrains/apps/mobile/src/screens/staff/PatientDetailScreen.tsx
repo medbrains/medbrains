@@ -1,14 +1,13 @@
 import { useFieldAccess, useHasPermission } from "@medbrains/stores";
 import type {
   CampRegistration,
-  CampRegistrationStatus,
   ClinicalJourneyContext,
   ErVisit,
   ErVisitStatus,
   FieldAccessLevel,
   PatientVisitRow,
 } from "@medbrains/types";
-import { P } from "@medbrains/types";
+import { deriveCampJourneyCompletedEvents, P } from "@medbrains/types";
 import { fieldAccessText, mostRestrictedFieldAccess } from "@medbrains/utils";
 import { useQuery } from "@tanstack/react-query";
 import { ScrollView, StyleSheet, View } from "react-native";
@@ -45,11 +44,6 @@ const ACTIVE_ER_VISIT_STATUSES = new Set<ErVisitStatus>([
   "triaged",
   "in_treatment",
   "observation",
-]);
-const CAMP_SCREENING_COMPLETED_STATUSES = new Set<CampRegistrationStatus>([
-  "screened",
-  "referred",
-  "converted",
 ]);
 const HIDDEN_FIELD_TEXT = "Restricted";
 
@@ -252,9 +246,7 @@ export function PatientDetailScreen({ route, navigation }: PatientDetailScreenPr
       invoice.status === "partially_paid" ||
       Number.parseFloat(invoice.paid_amount || "0") > 0,
   );
-  const hasCampScreeningCompleted = activeCampRegistration
-    ? CAMP_SCREENING_COMPLETED_STATUSES.has(activeCampRegistration.status)
-    : false;
+  const campCompletedEvents = deriveCampJourneyCompletedEvents(campRegistrationList);
   const pendingInvoiceCount = invoiceList.filter(
     (invoice) =>
       invoice.status === "draft" ||
@@ -263,8 +255,7 @@ export function PatientDetailScreen({ route, navigation }: PatientDetailScreenPr
   ).length;
   const completedEvents = [
     ...(hasMedicationOrder ? ["order.created"] : []),
-    ...(activeCampRegistration ? ["camp.registration.created"] : []),
-    ...(hasCampScreeningCompleted ? ["camp.screening.completed"] : []),
+    ...campCompletedEvents,
     ...(hasBillingInvoice ? ["billing.invoice.created"] : []),
     ...(hasFinalizedInvoice ? ["billing.invoice.finalized"] : []),
     ...(hasPaymentReceived ? ["billing.payment.received"] : []),
