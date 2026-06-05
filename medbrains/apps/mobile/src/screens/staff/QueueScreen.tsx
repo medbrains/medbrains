@@ -22,6 +22,7 @@ import {
   useStartConsultationMutation,
 } from "../../services/queue.queries";
 import { MEDBRAINS_COLORS } from "../../theme/paper-theme";
+import { mobileQueueActionEnabled, resolveMobileQueueActions } from "../../utils/queue-actions";
 import { protectedQueueIdentity, queuePatientNameAccess } from "../../utils/queue-privacy";
 
 type MobileQueueStatus = "waiting" | "called" | "in_consultation" | "completed" | "no_show";
@@ -188,6 +189,7 @@ export function QueueScreen({ route, navigation }: QueueScreenProps) {
           data={queueItems}
           keyExtractor={(item) => item.id}
           renderItem={({ item }) => {
+            const actions = resolveMobileQueueActions(item, { canManageQueue });
             const identity = protectedQueueIdentity(item, {
               name: patientNameAccess,
               uhid: uhidAccess,
@@ -205,12 +207,26 @@ export function QueueScreen({ route, navigation }: QueueScreenProps) {
                     ? Math.floor((Date.now() - new Date(item.called_at).getTime()) / 60000)
                     : undefined,
                 }}
-                onCall={canManageQueue ? () => handleQueueItemAction("call", item) : undefined}
-                onStart={canManageQueue ? () => handleQueueItemAction("start", item) : undefined}
-                onComplete={
-                  canManageQueue ? () => handleQueueItemAction("complete", item) : undefined
+                onCall={
+                  mobileQueueActionEnabled(actions, "call")
+                    ? () => handleQueueItemAction("call", item)
+                    : undefined
                 }
-                onNoShow={canManageQueue ? () => handleQueueItemAction("noShow", item) : undefined}
+                onStart={
+                  mobileQueueActionEnabled(actions, "start")
+                    ? () => handleQueueItemAction("start", item)
+                    : undefined
+                }
+                onComplete={
+                  mobileQueueActionEnabled(actions, "complete")
+                    ? () => handleQueueItemAction("complete", item)
+                    : undefined
+                }
+                onNoShow={
+                  mobileQueueActionEnabled(actions, "noShow")
+                    ? () => handleQueueItemAction("noShow", item)
+                    : undefined
+                }
               />
             );
           }}

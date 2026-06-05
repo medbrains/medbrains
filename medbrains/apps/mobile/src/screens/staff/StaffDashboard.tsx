@@ -36,6 +36,7 @@ import {
   useStartConsultationMutation,
 } from "../../services/queue.queries";
 import { MEDBRAINS_COLORS } from "../../theme/paper-theme";
+import { mobileQueueActionEnabled, resolveMobileQueueActions } from "../../utils/queue-actions";
 import { protectedQueueIdentity, queuePatientNameAccess } from "../../utils/queue-privacy";
 
 type MobileQueueStatus = "waiting" | "called" | "in_consultation" | "completed" | "no_show";
@@ -436,17 +437,37 @@ export function StaffDashboard({ navigation }: StaffDashboardProps) {
           </Surface>
         ) : activeQueueItems.length > 0 ? (
           <View style={styles.queueList}>
-            {activeQueueItems.map((item) => (
-              <QueueItem
-                key={item.id}
-                item={queueItemView(item, { name: patientNameAccess, uhid: uhidAccess })}
-                onCall={canManageQueue ? () => callMutation.mutate(item.id) : undefined}
-                onStart={canManageQueue ? () => handleStartConsultation(item) : undefined}
-                onComplete={canManageQueue ? () => completeMutation.mutate(item.id) : undefined}
-                onNoShow={canManageQueue ? () => noShowMutation.mutate(item.id) : undefined}
-                compact
-              />
-            ))}
+            {activeQueueItems.map((item) => {
+              const actions = resolveMobileQueueActions(item, { canManageQueue });
+
+              return (
+                <QueueItem
+                  key={item.id}
+                  item={queueItemView(item, { name: patientNameAccess, uhid: uhidAccess })}
+                  onCall={
+                    mobileQueueActionEnabled(actions, "call")
+                      ? () => callMutation.mutate(item.id)
+                      : undefined
+                  }
+                  onStart={
+                    mobileQueueActionEnabled(actions, "start")
+                      ? () => handleStartConsultation(item)
+                      : undefined
+                  }
+                  onComplete={
+                    mobileQueueActionEnabled(actions, "complete")
+                      ? () => completeMutation.mutate(item.id)
+                      : undefined
+                  }
+                  onNoShow={
+                    mobileQueueActionEnabled(actions, "noShow")
+                      ? () => noShowMutation.mutate(item.id)
+                      : undefined
+                  }
+                  compact
+                />
+              );
+            })}
           </View>
         ) : (
           <Surface style={styles.statePanel} elevation={1}>

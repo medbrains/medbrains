@@ -1,6 +1,7 @@
 import { useFieldAccess, useHasPermission } from "@medbrains/stores";
 import type {
   CampRegistration,
+  ClinicalEventName,
   ClinicalJourneyContext,
   ErVisit,
   ErVisitStatus,
@@ -253,13 +254,12 @@ export function PatientDetailScreen({ route, navigation }: PatientDetailScreenPr
       invoice.status === "issued" ||
       invoice.status === "partially_paid",
   ).length;
-  const completedEvents = [
-    ...(hasMedicationOrder ? ["order.created"] : []),
-    ...campCompletedEvents,
-    ...(hasBillingInvoice ? ["billing.invoice.created"] : []),
-    ...(hasFinalizedInvoice ? ["billing.invoice.finalized"] : []),
-    ...(hasPaymentReceived ? ["billing.payment.received"] : []),
-  ];
+  const completedEvents: ClinicalEventName[] = [];
+  if (hasMedicationOrder) completedEvents.push("order.created");
+  completedEvents.push(...campCompletedEvents);
+  if (hasBillingInvoice) completedEvents.push("billing.invoice.created");
+  if (hasFinalizedInvoice) completedEvents.push("billing.invoice.finalized");
+  if (hasPaymentReceived) completedEvents.push("billing.payment.received");
   const journeyContext: ClinicalJourneyContext = {
     patientId,
     isDeceased: patient.is_deceased,
