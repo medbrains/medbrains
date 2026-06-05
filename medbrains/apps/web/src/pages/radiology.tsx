@@ -525,7 +525,7 @@ function CreateOrderDrawer({ opened, onClose }: { opened: boolean; onClose: () =
     onSuccess: (result) => {
       void qc.invalidateQueries({ queryKey: ["radiology-orders"] });
       notifications.show({ title: "Order created", message: "", color: "success" });
-      emit("radiology.order.created", {
+      emit("order.created", {
         body_part: result.body_part,
         clinical_indication: result.clinical_indication,
         contrast_required: result.contrast_required,

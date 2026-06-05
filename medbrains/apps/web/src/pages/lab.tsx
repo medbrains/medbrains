@@ -748,7 +748,7 @@ function CreateLabOrderDrawer({ opened, onClose }: { opened: boolean; onClose: (
     onSuccess: (result, variables) => {
       void queryClient.invalidateQueries({ queryKey: ["lab-orders"] });
       notifications.show({ title: "Order created", message: "Lab order placed", color: "success" });
-      emit("lab.order_created", {
+      emit("order.created", {
         encounter_id: result.encounter_id,
         order_id: result.id,
         order_type: "lab",
@@ -878,7 +878,7 @@ function LabOrderDetail({
     mutationFn: () => labService.completeLabOrder(orderId),
     onSuccess: (result) => {
       void queryClient.invalidateQueries({ queryKey: ["lab-order-detail", orderId] });
-      emit("lab.completed", {
+      emit("lab.order.completed", {
         encounter_id: result.encounter_id,
         order_id: result.id,
         patient_id: result.patient_id,
@@ -892,7 +892,7 @@ function LabOrderDetail({
     mutationFn: () => labService.verifyResults(orderId),
     onSuccess: (result) => {
       void queryClient.invalidateQueries({ queryKey: ["lab-order-detail", orderId] });
-      emit("lab.results_verified", {
+      emit("lab.result.verified", {
         encounter_id: result.encounter_id,
         order_id: result.id,
         patient_id: result.patient_id,

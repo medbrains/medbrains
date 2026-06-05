@@ -2822,7 +2822,7 @@ function InvestigationsTab({
         message: "Lab order placed successfully",
         color: "success",
       });
-      emit("lab.ordered", {
+      emit("order.created", {
         encounter_id: result.encounter_id,
         order_id: result.id,
         order_type: "lab",
@@ -3502,7 +3502,7 @@ function PrescriptionsTab({
     onSuccess: (result, variables) => {
       void queryClient.invalidateQueries({ queryKey: ["prescriptions", encounterId] });
       void queryClient.invalidateQueries({ queryKey: ["pharmacy-rx-queue"] });
-      emit("prescription.created", {
+      emit("order.created", {
         encounter_id: result.prescription.encounter_id,
         item_count: variables.items.length,
         items: result.items.map((item) => ({
@@ -4279,7 +4279,7 @@ function ProceduresTab({
         message: "Procedure order placed",
         color: "success",
       });
-      emit("procedure.ordered", {
+      emit("order.created", {
         encounter_id: result.encounter_id,
         order_id: result.id,
         order_type: "procedure",
