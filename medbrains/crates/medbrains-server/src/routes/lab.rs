@@ -5,9 +5,7 @@ use axum::{
     extract::{Path, Query, State},
 };
 use chrono::NaiveDate;
-use medbrains_core::clinical_events::{
-    ClinicalEventEnvelope, ClinicalEventName, ClinicalEventSourceModule,
-};
+use medbrains_core::clinical_events::{ClinicalEventEnvelope, ClinicalEventName};
 use medbrains_core::lab::{
     LabB2bClient, LabB2bRate, LabCalibration, LabCollectionCenter, LabCriticalAlert,
     LabCytologyReport, LabEqasResult, LabHistopathReport, LabHomeCollection, LabMolecularReport,
@@ -861,18 +859,17 @@ pub async fn verify_results(
     if let Some(ref o) = order {
         let event = ClinicalEventEnvelope::new(
             claims.tenant_id,
-            ClinicalEventName::OrderCancelled,
+            ClinicalEventName::LabResultVerified,
             o.id,
             claims.sub,
             serde_json::json!({
                 "order_id": o.id,
-                "order_type": "lab",
-                "reason": "Cancelled from lab order queue",
                 "patient_id": o.patient_id,
                 "encounter_id": o.encounter_id,
+                "test_id": o.test_id,
+                "verified_at": o.verified_at,
             }),
         )
-        .with_source_module(ClinicalEventSourceModule::Lab)
         .with_patient(o.patient_id)
         .with_encounter(o.encounter_id);
         crate::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
@@ -959,6 +956,7 @@ pub async fn add_results(
     .await?;
 
     let mut results = Vec::with_capacity(body.results.len());
+    let mut critical_count = 0_usize;
     for r in &body.results {
         // Delta check: find previous result for same patient + parameter
         #[derive(sqlx::FromRow)]
@@ -1042,6 +1040,7 @@ pub async fn add_results(
         // Generate critical alert if flag is critical
         if let Some(ref flag_str) = r.flag {
             if flag_str == "critical_low" || flag_str == "critical_high" {
+                critical_count += 1;
                 sqlx::query(
                     "INSERT INTO lab_critical_alerts \
                      (tenant_id, order_id, result_id, patient_id, \
@@ -1061,6 +1060,26 @@ pub async fn add_results(
         }
 
         results.push(result);
+    }
+
+    if !results.is_empty() {
+        let event = ClinicalEventEnvelope::new(
+            claims.tenant_id,
+            ClinicalEventName::LabResultPosted,
+            order.id,
+            claims.sub,
+            serde_json::json!({
+                "order_id": order.id,
+                "patient_id": order.patient_id,
+                "encounter_id": order.encounter_id,
+                "test_id": order.test_id,
+                "result_count": results.len(),
+                "critical_count": critical_count,
+            }),
+        )
+        .with_patient(order.patient_id)
+        .with_encounter(order.encounter_id);
+        crate::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
     }
 
     tx.commit().await?;

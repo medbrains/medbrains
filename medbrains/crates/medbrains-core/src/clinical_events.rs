@@ -44,8 +44,14 @@ pub enum ClinicalEventName {
     OrderCancelled,
     #[serde(rename = "lab.order.completed")]
     LabOrderCompleted,
+    #[serde(rename = "lab.result.posted")]
+    LabResultPosted,
+    #[serde(rename = "lab.result.verified")]
+    LabResultVerified,
     #[serde(rename = "radiology.order.completed")]
     RadiologyOrderCompleted,
+    #[serde(rename = "radiology.report.verified")]
+    RadiologyReportVerified,
     #[serde(rename = "billing.invoice.created")]
     BillingInvoiceCreated,
     #[serde(rename = "billing.invoice.finalized")]
@@ -106,7 +112,10 @@ impl ClinicalEventName {
             Self::OrderCreated => "order.created",
             Self::OrderCancelled => "order.cancelled",
             Self::LabOrderCompleted => "lab.order.completed",
+            Self::LabResultPosted => "lab.result.posted",
+            Self::LabResultVerified => "lab.result.verified",
             Self::RadiologyOrderCompleted => "radiology.order.completed",
+            Self::RadiologyReportVerified => "radiology.report.verified",
             Self::BillingInvoiceCreated => "billing.invoice.created",
             Self::BillingInvoiceFinalized => "billing.invoice.finalized",
             Self::BillingPaymentReceived => "billing.payment.received",
@@ -146,8 +155,12 @@ impl ClinicalEventName {
             | Self::MlcCreated
             | Self::EmergencyMlcPoliceIntimationCreated => ClinicalEventSourceModule::Emergency,
             Self::OrderCreated | Self::OrderCancelled => ClinicalEventSourceModule::OrderBasket,
-            Self::LabOrderCompleted => ClinicalEventSourceModule::Lab,
-            Self::RadiologyOrderCompleted => ClinicalEventSourceModule::Radiology,
+            Self::LabOrderCompleted | Self::LabResultPosted | Self::LabResultVerified => {
+                ClinicalEventSourceModule::Lab
+            }
+            Self::RadiologyOrderCompleted | Self::RadiologyReportVerified => {
+                ClinicalEventSourceModule::Radiology
+            }
             Self::BillingInvoiceCreated
             | Self::BillingInvoiceFinalized
             | Self::BillingPaymentReceived => ClinicalEventSourceModule::Billing,
@@ -194,7 +207,9 @@ impl ClinicalEventName {
             Self::OrderCreated => &["order_id", "order_type", "patient_id"],
             Self::OrderCancelled => &["order_id", "order_type", "reason"],
             Self::LabOrderCompleted => &["order_id", "patient_id"],
+            Self::LabResultPosted | Self::LabResultVerified => &["order_id", "patient_id"],
             Self::RadiologyOrderCompleted => &["order_id", "patient_id"],
+            Self::RadiologyReportVerified => &["report_id", "order_id", "patient_id"],
             Self::BillingInvoiceCreated => &["invoice_id", "patient_id", "total_amount"],
             Self::BillingInvoiceFinalized => &["invoice_id", "patient_id"],
             Self::BillingPaymentReceived => &["payment_id", "invoice_id", "patient_id"],
@@ -260,7 +275,10 @@ impl FromStr for ClinicalEventName {
             "order.created" => Ok(Self::OrderCreated),
             "order.cancelled" => Ok(Self::OrderCancelled),
             "lab.order.completed" => Ok(Self::LabOrderCompleted),
+            "lab.result.posted" => Ok(Self::LabResultPosted),
+            "lab.result.verified" => Ok(Self::LabResultVerified),
             "radiology.order.completed" => Ok(Self::RadiologyOrderCompleted),
+            "radiology.report.verified" => Ok(Self::RadiologyReportVerified),
             "billing.invoice.created" => Ok(Self::BillingInvoiceCreated),
             "billing.invoice.finalized" => Ok(Self::BillingInvoiceFinalized),
             "billing.payment.received" => Ok(Self::BillingPaymentReceived),
@@ -636,6 +654,58 @@ mod tests {
         assert_eq!(
             ClinicalEventName::PharmacyNdpsMovementCreated.required_payload_keys(),
             &["entry_id", "catalog_item_id", "action"]
+        );
+    }
+
+    #[test]
+    fn diagnostic_result_events_are_canonical() {
+        assert_eq!(
+            "lab.result.posted".parse::<ClinicalEventName>().ok(),
+            Some(ClinicalEventName::LabResultPosted)
+        );
+        assert_eq!(
+            ClinicalEventName::LabResultPosted.default_source_module(),
+            ClinicalEventSourceModule::Lab
+        );
+        assert_eq!(
+            ClinicalEventName::LabResultPosted.required_payload_keys(),
+            &["order_id", "patient_id"]
+        );
+
+        assert_eq!(
+            "lab.result.verified".parse::<ClinicalEventName>().ok(),
+            Some(ClinicalEventName::LabResultVerified)
+        );
+        assert_eq!(
+            ClinicalEventName::LabResultVerified.as_str(),
+            "lab.result.verified"
+        );
+        assert_eq!(
+            ClinicalEventName::LabResultVerified.default_source_module(),
+            ClinicalEventSourceModule::Lab
+        );
+        assert_eq!(
+            ClinicalEventName::LabResultVerified.required_payload_keys(),
+            &["order_id", "patient_id"]
+        );
+
+        assert_eq!(
+            "radiology.report.verified"
+                .parse::<ClinicalEventName>()
+                .ok(),
+            Some(ClinicalEventName::RadiologyReportVerified)
+        );
+        assert_eq!(
+            ClinicalEventName::RadiologyReportVerified.as_str(),
+            "radiology.report.verified"
+        );
+        assert_eq!(
+            ClinicalEventName::RadiologyReportVerified.default_source_module(),
+            ClinicalEventSourceModule::Radiology
+        );
+        assert_eq!(
+            ClinicalEventName::RadiologyReportVerified.required_payload_keys(),
+            &["report_id", "order_id", "patient_id"]
         );
     }
 

@@ -780,6 +780,37 @@ pub async fn verify_report(
     .execute(&mut *tx)
     .await?;
 
+    let order = sqlx::query_as::<_, RadiologyOrder>(
+        "SELECT * FROM radiology_orders WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(report.order_id)
+    .bind(claims.tenant_id)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    let mut event = ClinicalEventEnvelope::new(
+        claims.tenant_id,
+        ClinicalEventName::RadiologyReportVerified,
+        report.id,
+        claims.sub,
+        serde_json::json!({
+            "report_id": report.id,
+            "order_id": order.id,
+            "patient_id": order.patient_id,
+            "encounter_id": order.encounter_id,
+            "modality_id": order.modality_id,
+            "body_part": order.body_part.as_deref(),
+            "report_status": report.status,
+            "verified_at": report.verified_at,
+            "is_critical": report.is_critical,
+        }),
+    )
+    .with_patient(order.patient_id);
+    if let Some(encounter_id) = order.encounter_id {
+        event = event.with_encounter(encounter_id);
+    }
+    crate::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
+
     tx.commit().await?;
     Ok(Json(report))
 }
