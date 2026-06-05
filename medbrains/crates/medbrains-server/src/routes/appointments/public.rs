@@ -234,7 +234,7 @@ pub async fn kiosk_checkin(
 
     state
         .queue_broadcaster
-        .broadcast_token_called(appointment.department_id, &token_number, &patient_name)
+        .broadcast_token_called(appointment.department_id, &token_number)
         .await;
     tx.commit().await?;
 

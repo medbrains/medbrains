@@ -19,7 +19,10 @@ use uuid::Uuid;
 
 use crate::{
     middleware::{auth::Claims, authorization::is_bypass_role},
-    routes::ws::{AnnouncementEvent, QueueBroadcaster, QueueEvent, QueueTokenInfo},
+    routes::ws::{
+        AnnouncementEvent, QueueBroadcaster, QueueEvent, QueueTokenInfo,
+        TOKEN_ONLY_QUEUE_PATIENT_NAME,
+    },
     state::AppState,
 };
 
@@ -799,7 +802,6 @@ async fn get_queue_tokens(
     #[derive(FromRow)]
     struct TokenRow {
         token_number: String,
-        patient_name: Option<String>,
         department_name: String,
         doctor_name: Option<String>,
         status: String,
@@ -810,14 +812,12 @@ async fn get_queue_tokens(
         r"
         SELECT
             qt.token_number,
-            COALESCE(p.first_name || ' ' || p.last_name, 'Guest') as patient_name,
             d.name as department_name,
             u.full_name as doctor_name,
             qt.status,
             qt.called_at
         FROM queue_tokens qt
         JOIN departments d ON d.id = qt.department_id
-        LEFT JOIN patients p ON p.id = qt.patient_id
         LEFT JOIN users u ON u.id = qt.doctor_id
         WHERE qt.tenant_id = $1
           AND qt.department_id = $2
@@ -839,7 +839,7 @@ async fn get_queue_tokens(
         .into_iter()
         .map(|r| QueueTokenInfo {
             token_number: r.token_number,
-            patient_name: r.patient_name.unwrap_or_else(|| "Guest".to_string()),
+            patient_name: TOKEN_ONLY_QUEUE_PATIENT_NAME.to_owned(),
             department_name: r.department_name,
             doctor_name: r.doctor_name,
             status: r.status,
@@ -1317,7 +1317,7 @@ fn pharmacy_queue_token(row: PharmacyQueueSourceRow, display_status: &str) -> Ph
 
     PharmacyQueueToken {
         token_number: format_pharmacy_token(row.id),
-        patient_name: "Token only".to_owned(),
+        patient_name: TOKEN_ONLY_QUEUE_PATIENT_NAME.to_owned(),
         prescription_count: saturating_i64_to_i32(row.prescription_count),
         status: display_status.to_owned(),
         counter: None,
@@ -1662,7 +1662,7 @@ pub async fn get_billing_queue(
 fn billing_queue_token(row: BillingQueueSourceRow, prefix: &str) -> BillingQueueToken {
     BillingQueueToken {
         token_number: format_short_token(prefix, row.id),
-        patient_name: "Token only".to_owned(),
+        patient_name: TOKEN_ONLY_QUEUE_PATIENT_NAME.to_owned(),
         queue_type: row.queue_type,
         counter: None,
         status: row.status,

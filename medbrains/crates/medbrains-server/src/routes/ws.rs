@@ -21,6 +21,8 @@ use uuid::Uuid;
 
 use crate::state::AppState;
 
+pub const TOKEN_ONLY_QUEUE_PATIENT_NAME: &str = "Token only";
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Broadcaster State
 // ─────────────────────────────────────────────────────────────────────────────
@@ -76,17 +78,12 @@ impl QueueBroadcaster {
     }
 
     /// Broadcast a "token called" event to a department's TV displays.
-    pub async fn broadcast_token_called(
-        &self,
-        department_id: Uuid,
-        token_number: &str,
-        patient_name: &str,
-    ) {
+    pub async fn broadcast_token_called(&self, department_id: Uuid, token_number: &str) {
         self.broadcast_queue_event(
             department_id,
             QueueEvent::TokenCalled {
                 token_number: token_number.to_owned(),
-                patient_name: patient_name.to_owned(),
+                patient_name: TOKEN_ONLY_QUEUE_PATIENT_NAME.to_owned(),
                 room: None,
                 counter: None,
             },
@@ -162,6 +159,35 @@ pub struct AnnouncementEvent {
     pub message: String,
     pub priority: String,
     pub created_at: chrono::DateTime<chrono::Utc>,
+}
+
+#[cfg(test)]
+mod queue_privacy_tests {
+    use super::{QueueBroadcaster, QueueEvent, TOKEN_ONLY_QUEUE_PATIENT_NAME};
+    use uuid::Uuid;
+
+    #[tokio::test]
+    async fn token_called_broadcast_is_token_only() {
+        let department_id = Uuid::nil();
+        let broadcaster = QueueBroadcaster::new();
+        let sender = broadcaster.get_or_create_channel(department_id).await;
+        let mut receiver = sender.subscribe();
+
+        broadcaster
+            .broadcast_token_called(department_id, "T-007")
+            .await;
+
+        let event = receiver.recv().await;
+        assert!(matches!(
+            event,
+            Ok(QueueEvent::TokenCalled {
+                token_number,
+                patient_name,
+                room: None,
+                counter: None,
+            }) if token_number == "T-007" && patient_name == TOKEN_ONLY_QUEUE_PATIENT_NAME
+        ));
+    }
 }
 
 /// Client message for subscribing/unsubscribing.
