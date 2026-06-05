@@ -114,6 +114,12 @@ function permissionHint(moduleName: CareContextModule) {
   return "Camp registration list permission is required to show outreach records.";
 }
 
+function unavailableMessage(moduleName: CareContextModule) {
+  if (moduleName === "ipd") return "The latest IPD records could not be loaded.";
+  if (moduleName === "emergency") return "The latest emergency records could not be loaded.";
+  return "The latest camp records could not be loaded.";
+}
+
 function renderEmptyState(icon: string, title: string, message: string) {
   return (
     <View style={styles.emptyState}>
@@ -165,7 +171,11 @@ export function PatientCareContextScreen({ route, navigation }: PatientCareConte
     (moduleName === "emergency" && canListEmergencyVisits) ||
     (moduleName === "camp" && canListCampRegistrations);
 
-  const { data: patient, isLoading: isPatientLoading } = useQuery({
+  const {
+    data: patient,
+    isError: isPatientError,
+    isLoading: isPatientLoading,
+  } = useQuery({
     queryKey: ["patient", patientId, "care-context"],
     queryFn: () => patientService.getPatient(patientId),
     enabled: Boolean(patientId),
@@ -199,6 +209,10 @@ export function PatientCareContextScreen({ route, navigation }: PatientCareConte
   const campRegistrations = campRegistrationsQuery.data ?? [];
   const isModuleLoading =
     admissionsQuery.isLoading || emergencyVisitsQuery.isLoading || campRegistrationsQuery.isLoading;
+  const isModuleError =
+    (moduleName === "ipd" && admissionsQuery.isError) ||
+    (moduleName === "emergency" && emergencyVisitsQuery.isError) ||
+    (moduleName === "camp" && campRegistrationsQuery.isError);
   const activeCount =
     moduleName === "ipd"
       ? activeAdmissionCount(admissions)
@@ -381,6 +395,14 @@ export function PatientCareContextScreen({ route, navigation }: PatientCareConte
       );
     }
 
+    if (isModuleError) {
+      return renderEmptyState(
+        "alert-circle-outline",
+        "Context unavailable",
+        unavailableMessage(moduleName),
+      );
+    }
+
     if (moduleName === "ipd") return renderIpdSection();
     if (moduleName === "emergency") return renderEmergencySection();
     return renderCampSection();
@@ -407,10 +429,14 @@ export function PatientCareContextScreen({ route, navigation }: PatientCareConte
         <Surface style={styles.identityPanel} elevation={0}>
           <View style={styles.identityText}>
             <Text variant="titleSmall">
-              {isPatientLoading ? "Loading patient..." : patientName(patient, patientNameAccess)}
+              {isPatientLoading
+                ? "Loading patient..."
+                : isPatientError
+                  ? "Patient identity unavailable"
+                  : patientName(patient, patientNameAccess)}
             </Text>
             <Text variant="bodySmall" style={styles.mutedText}>
-              {patientUhid(patient, uhidAccess)}
+              {isPatientError ? "UHID unavailable" : patientUhid(patient, uhidAccess)}
             </Text>
           </View>
           <Chip compact icon={canListCurrentModule ? "shield-check" : "shield-lock-outline"}>
