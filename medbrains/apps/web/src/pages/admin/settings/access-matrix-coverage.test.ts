@@ -5,14 +5,18 @@ import { ACCESS_MATRIX_SURFACES, FIELD_ACCESS_FIELDS } from "@medbrains/types";
 import { describe, expect, it } from "vitest";
 import type { NavGroupConfig } from "@/config/navigation";
 import {
+  buildAccessSurfaceGovernanceCoverage,
+  buildAccessSurfaceGovernanceGapRows,
   buildNavRouteCoverage,
   flattenNavRoutes,
   normalizeCoverageRoute,
+  summarizeAccessSurfaceGovernance,
   summarizeNavRouteCoverage,
 } from "./access-matrix-coverage";
 
 function testSurface(
-  input: Pick<AccessMatrixSurface, "id" | "label" | "route" | "requiredPermissions">,
+  input: Pick<AccessMatrixSurface, "id" | "label" | "route" | "requiredPermissions"> &
+    Partial<AccessMatrixSurface>,
 ): AccessMatrixSurface {
   return {
     activatesAfter: [],
@@ -222,5 +226,62 @@ describe("access matrix route coverage", () => {
           : ["ipd.admission.created"],
       ),
     );
+  });
+
+  it("summarizes screen, tab, table, column, input and action governance by surface type", () => {
+    const rows = buildAccessSurfaceGovernanceCoverage(ACCESS_MATRIX_SURFACES);
+    const summary = summarizeAccessSurfaceGovernance(rows);
+    const kinds = new Set(rows.map((row) => row.kind));
+
+    expect(summary.total).toBe(ACCESS_MATRIX_SURFACES.length);
+    expect(kinds).toEqual(
+      new Set(["action", "column", "input", "print", "screen", "tab", "table", "widget"]),
+    );
+    expect(rows.find((row) => row.kind === "input")?.permissionMapped).toBeGreaterThan(0);
+    expect(rows.find((row) => row.kind === "column")?.fieldMapped).toBeGreaterThan(0);
+    expect(rows.find((row) => row.kind === "table")?.routeMapped).toBeGreaterThan(0);
+  });
+
+  it("reports governance gaps for unlinked fields, routes, permissions and activation", () => {
+    const gapRows = buildAccessSurfaceGovernanceGapRows([
+      testSurface({
+        id: "patient.input",
+        label: "Patient input",
+        kind: "input",
+        route: "/patients/register",
+        requiredPermissions: [],
+        fieldAccessKeys: [],
+        masking: "identity",
+      }),
+      testSurface({
+        id: "patient.action",
+        label: "Patient action",
+        kind: "action",
+        route: "/patients/:id",
+        requiredPermissions: ["patients.update"],
+        fieldAccessKeys: ["patients.uhid"],
+        masking: "identity",
+      }),
+      testSurface({
+        id: "patient.tab",
+        label: "Patient tab",
+        kind: "tab",
+        route: "/patients/:id",
+        requiredPermissions: ["patients.view"],
+        fieldAccessKeys: ["patients.uhid"],
+        masking: "identity",
+      }),
+    ]);
+
+    expect(gapRows.find((row) => row.surfaceId === "patient.input")?.gaps).toEqual([
+      "missing-permission",
+      "missing-field-keys",
+    ]);
+    expect(gapRows.find((row) => row.surfaceId === "patient.action")?.gaps).toEqual([
+      "missing-activation",
+    ]);
+    expect(gapRows.find((row) => row.surfaceId === "patient.tab")?.gaps).toEqual([
+      "missing-tab-anchor",
+    ]);
   });
 });

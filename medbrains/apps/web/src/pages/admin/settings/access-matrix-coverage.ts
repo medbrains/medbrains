@@ -1,4 +1,4 @@
-import type { AccessMatrixSurface } from "@medbrains/types";
+import type { AccessMatrixSurface, AccessMatrixSurfaceKind } from "@medbrains/types";
 import type { NavGroupConfig, NavItemConfig } from "@/config/navigation";
 
 export type NavRouteCoverageStatus = "covered" | "permission-gap" | "unmapped";
@@ -19,6 +19,43 @@ export interface NavRouteCoverageSummary {
   permissionGaps: number;
   unmapped: number;
   blocked: number;
+}
+
+export type AccessSurfaceGovernanceGap =
+  | "missing-route"
+  | "missing-permission"
+  | "missing-field-keys"
+  | "missing-table"
+  | "missing-tab-anchor"
+  | "missing-activation"
+  | "missing-masking";
+
+export interface AccessSurfaceGovernanceRow {
+  kind: AccessMatrixSurfaceKind;
+  total: number;
+  routeMapped: number;
+  permissionMapped: number;
+  fieldMapped: number;
+  eventActivated: number;
+  maskingMapped: number;
+  gapSurfaces: number;
+}
+
+export interface AccessSurfaceGovernanceGapRow {
+  surfaceId: string;
+  module: string;
+  kind: AccessMatrixSurfaceKind;
+  label: string;
+  route: string | null;
+  table: string | null;
+  tab: string | null;
+  gaps: readonly AccessSurfaceGovernanceGap[];
+}
+
+export interface AccessSurfaceGovernanceSummary {
+  total: number;
+  covered: number;
+  gaps: number;
 }
 
 interface NavRouteRequirement {
@@ -129,5 +166,118 @@ export function summarizeNavRouteCoverage(
     permissionGaps,
     unmapped,
     blocked: permissionGaps + unmapped,
+  };
+}
+
+function surfaceHasTabAnchor(surface: AccessMatrixSurface) {
+  return Boolean(surface.tab || surface.route?.includes("#") || surface.route?.includes("tab="));
+}
+
+function surfaceGovernanceGaps(surface: AccessMatrixSurface): AccessSurfaceGovernanceGap[] {
+  const gaps: AccessSurfaceGovernanceGap[] = [];
+
+  if (surface.kind !== "widget" && !surface.route) {
+    gaps.push("missing-route");
+  }
+  if (surface.requiredPermissions.length === 0) {
+    gaps.push("missing-permission");
+  }
+  if ((surface.kind === "table" || surface.kind === "column") && !surface.table) {
+    gaps.push("missing-table");
+  }
+  if (surface.kind === "tab" && !surfaceHasTabAnchor(surface)) {
+    gaps.push("missing-tab-anchor");
+  }
+  if (
+    (surface.kind === "input" || surface.kind === "column" || surface.kind === "table") &&
+    surface.fieldAccessKeys.length === 0
+  ) {
+    gaps.push("missing-field-keys");
+  }
+  if (
+    surface.masking !== "none" &&
+    surface.fieldAccessKeys.length === 0 &&
+    (surface.kind === "screen" ||
+      surface.kind === "tab" ||
+      surface.kind === "action" ||
+      surface.kind === "print")
+  ) {
+    gaps.push("missing-field-keys");
+  }
+  if (
+    (surface.kind === "action" || surface.kind === "print") &&
+    surface.activatesAfter.length === 0
+  ) {
+    gaps.push("missing-activation");
+  }
+  if (surface.fieldAccessKeys.length > 0 && surface.masking === "none") {
+    gaps.push("missing-masking");
+  }
+
+  return gaps;
+}
+
+export function buildAccessSurfaceGovernanceCoverage(
+  surfaces: readonly AccessMatrixSurface[],
+): AccessSurfaceGovernanceRow[] {
+  const rows = new Map<AccessMatrixSurfaceKind, AccessSurfaceGovernanceRow>();
+
+  for (const surface of surfaces) {
+    const row = rows.get(surface.kind) ?? {
+      kind: surface.kind,
+      total: 0,
+      routeMapped: 0,
+      permissionMapped: 0,
+      fieldMapped: 0,
+      eventActivated: 0,
+      maskingMapped: 0,
+      gapSurfaces: 0,
+    };
+    const gaps = surfaceGovernanceGaps(surface);
+
+    row.total += 1;
+    if (surface.route) row.routeMapped += 1;
+    if (surface.requiredPermissions.length > 0) row.permissionMapped += 1;
+    if (surface.fieldAccessKeys.length > 0) row.fieldMapped += 1;
+    if (surface.activatesAfter.length > 0) row.eventActivated += 1;
+    if (surface.masking !== "none") row.maskingMapped += 1;
+    if (gaps.length > 0) row.gapSurfaces += 1;
+
+    rows.set(surface.kind, row);
+  }
+
+  return [...rows.values()].sort((left, right) => left.kind.localeCompare(right.kind));
+}
+
+export function buildAccessSurfaceGovernanceGapRows(
+  surfaces: readonly AccessMatrixSurface[],
+): AccessSurfaceGovernanceGapRow[] {
+  return surfaces
+    .map((surface) => ({
+      surfaceId: surface.id,
+      module: surface.module,
+      kind: surface.kind,
+      label: surface.label,
+      route: surface.route ?? null,
+      table: surface.table ?? null,
+      tab: surface.tab ?? null,
+      gaps: surfaceGovernanceGaps(surface),
+    }))
+    .filter((row) => row.gaps.length > 0)
+    .sort((left, right) => {
+      const kindComparison = left.kind.localeCompare(right.kind);
+      return kindComparison === 0 ? left.surfaceId.localeCompare(right.surfaceId) : kindComparison;
+    });
+}
+
+export function summarizeAccessSurfaceGovernance(
+  rows: readonly AccessSurfaceGovernanceRow[],
+): AccessSurfaceGovernanceSummary {
+  const total = rows.reduce((sum, row) => sum + row.total, 0);
+  const gaps = rows.reduce((sum, row) => sum + row.gapSurfaces, 0);
+  return {
+    total,
+    covered: total - gaps,
+    gaps,
   };
 }

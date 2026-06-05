@@ -53,7 +53,14 @@ import {
   JOURNEY_ACTION_COVERAGE_GAP_LABELS,
   summarizeJourneyActionCoverage,
 } from "./access-matrix-actions";
-import { buildNavRouteCoverage, summarizeNavRouteCoverage } from "./access-matrix-coverage";
+import {
+  type AccessSurfaceGovernanceGap,
+  buildAccessSurfaceGovernanceCoverage,
+  buildAccessSurfaceGovernanceGapRows,
+  buildNavRouteCoverage,
+  summarizeAccessSurfaceGovernance,
+  summarizeNavRouteCoverage,
+} from "./access-matrix-coverage";
 import {
   type PermissionSourceResolution,
   resolvePermissionSources,
@@ -76,6 +83,16 @@ const FIELD_OVERRIDE_LEVELS: { label: string; value: FieldOverrideLevel }[] = [
 ];
 const FIELD_LEVEL_VALUES: ReadonlySet<string> = new Set(FIELD_LEVELS.map((level) => level.value));
 const WIDGET_LEVEL_VALUES: ReadonlySet<string> = new Set(["visible", "hidden"]);
+
+const ACCESS_SURFACE_GAP_LABELS: Record<AccessSurfaceGovernanceGap, string> = {
+  "missing-route": "route",
+  "missing-permission": "permission",
+  "missing-field-keys": "field keys",
+  "missing-table": "table",
+  "missing-tab-anchor": "tab anchor",
+  "missing-activation": "event",
+  "missing-masking": "masking",
+};
 
 const CRITICAL_WORKFLOW_EXPECTATIONS: {
   key: string;
@@ -1662,6 +1679,18 @@ function SurfaceCoverageMatrix() {
     () => summarizeJourneyActionCoverage(journeyActionCoverageRows),
     [journeyActionCoverageRows],
   );
+  const surfaceGovernanceRows = useMemo(
+    () => buildAccessSurfaceGovernanceCoverage(ACCESS_MATRIX_SURFACES),
+    [],
+  );
+  const surfaceGovernanceGapRows = useMemo(
+    () => buildAccessSurfaceGovernanceGapRows(ACCESS_MATRIX_SURFACES),
+    [],
+  );
+  const surfaceGovernanceSummary = useMemo(
+    () => summarizeAccessSurfaceGovernance(surfaceGovernanceRows),
+    [surfaceGovernanceRows],
+  );
 
   return (
     <Stack gap="md">
@@ -1763,6 +1792,17 @@ function SurfaceCoverageMatrix() {
             {journeyActionCoverageSummary.gaps} handoff action gaps
           </Text>
         </Card>
+        <Card withBorder padding="sm">
+          <Text size="xs" c="dimmed" fw={700} tt="uppercase">
+            Surface Governance
+          </Text>
+          <Text fw={700}>
+            {surfaceGovernanceSummary.covered}/{surfaceGovernanceSummary.total}
+          </Text>
+          <Text size="xs" c="dimmed">
+            {surfaceGovernanceSummary.gaps} screen, tab, table, input or action gaps
+          </Text>
+        </Card>
       </SimpleGrid>
 
       <Card withBorder padding="md">
@@ -1862,6 +1902,128 @@ function SurfaceCoverageMatrix() {
               </Table.Tbody>
             </Table>
           </ScrollArea.Autosize>
+        </Stack>
+      </Card>
+
+      <Card withBorder padding="md">
+        <Stack gap="sm">
+          <Group justify="space-between" align="flex-start">
+            <Stack gap={2}>
+              <Text fw={700}>Screen, Tab, Table and Input Governance</Text>
+              <Text size="sm" c="dimmed">
+                Pulls every registered surface type into one permission/masking matrix so admins can
+                see whether routes, tabs, tables, columns, input boxes, action buttons and widgets
+                have permissions, field-access keys, masking behavior and event activation.
+              </Text>
+            </Stack>
+            <Badge color={surfaceGovernanceSummary.gaps > 0 ? "orange" : "green"} variant="light">
+              {surfaceGovernanceSummary.gaps} governance gaps
+            </Badge>
+          </Group>
+
+          <ScrollArea.Autosize mah={360}>
+            <Table stickyHeader highlightOnHover verticalSpacing="xs">
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th>Surface type</Table.Th>
+                  <Table.Th>Total</Table.Th>
+                  <Table.Th>Routes</Table.Th>
+                  <Table.Th>Permissions</Table.Th>
+                  <Table.Th>Field keys</Table.Th>
+                  <Table.Th>Masking</Table.Th>
+                  <Table.Th>Event activation</Table.Th>
+                  <Table.Th>Gaps</Table.Th>
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
+                {surfaceGovernanceRows.map((row) => (
+                  <Table.Tr key={row.kind}>
+                    <Table.Td>
+                      <Badge color="gray" variant="light">
+                        {row.kind}
+                      </Badge>
+                    </Table.Td>
+                    <Table.Td>{row.total}</Table.Td>
+                    <Table.Td>{row.routeMapped}</Table.Td>
+                    <Table.Td>{row.permissionMapped}</Table.Td>
+                    <Table.Td>{row.fieldMapped}</Table.Td>
+                    <Table.Td>{row.maskingMapped}</Table.Td>
+                    <Table.Td>{row.eventActivated}</Table.Td>
+                    <Table.Td>
+                      <Badge color={row.gapSurfaces > 0 ? "orange" : "green"} variant="light">
+                        {row.gapSurfaces}
+                      </Badge>
+                    </Table.Td>
+                  </Table.Tr>
+                ))}
+              </Table.Tbody>
+            </Table>
+          </ScrollArea.Autosize>
+
+          {surfaceGovernanceGapRows.length > 0 ? (
+            <ScrollArea.Autosize mah={360}>
+              <Table stickyHeader highlightOnHover verticalSpacing="xs">
+                <Table.Thead>
+                  <Table.Tr>
+                    <Table.Th>Surface</Table.Th>
+                    <Table.Th>Route / table / tab</Table.Th>
+                    <Table.Th>Gaps</Table.Th>
+                  </Table.Tr>
+                </Table.Thead>
+                <Table.Tbody>
+                  {surfaceGovernanceGapRows.map((row) => (
+                    <Table.Tr key={row.surfaceId}>
+                      <Table.Td>
+                        <Group gap={4} mb={2}>
+                          <Badge variant="light">{row.module}</Badge>
+                          <Badge color="gray" variant="light">
+                            {row.kind}
+                          </Badge>
+                        </Group>
+                        <Text size="sm" fw={600}>
+                          {row.label}
+                        </Text>
+                        <Text size="xs" ff="var(--font-mono, monospace)" c="dimmed">
+                          {row.surfaceId}
+                        </Text>
+                      </Table.Td>
+                      <Table.Td>
+                        <Stack gap={2}>
+                          <Text size="xs" ff="var(--font-mono, monospace)">
+                            {row.route ?? "-"}
+                          </Text>
+                          {(row.table || row.tab) && (
+                            <Text size="xs" c="dimmed">
+                              {[
+                                row.table ? `table: ${row.table}` : null,
+                                row.tab ? `tab: ${row.tab}` : null,
+                              ]
+                                .filter(Boolean)
+                                .join(" | ")}
+                            </Text>
+                          )}
+                        </Stack>
+                      </Table.Td>
+                      <Table.Td>
+                        <Group gap={4}>
+                          {row.gaps.map((gap) => (
+                            <Badge key={gap} color="orange" variant="light">
+                              {ACCESS_SURFACE_GAP_LABELS[gap]}
+                            </Badge>
+                          ))}
+                        </Group>
+                      </Table.Td>
+                    </Table.Tr>
+                  ))}
+                </Table.Tbody>
+              </Table>
+            </ScrollArea.Autosize>
+          ) : (
+            <Alert color="green" variant="light">
+              Every registered access surface has the expected route, permission, masking, field,
+              table, tab, and event metadata for its surface type.
+            </Alert>
+          )}
         </Stack>
       </Card>
 
