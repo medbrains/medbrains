@@ -1,7 +1,7 @@
 // @vitest-environment node
 
 import type { AccessMatrixSurface, AccessMatrixSurfaceKind } from "@medbrains/types";
-import { ACCESS_MATRIX_SURFACES } from "@medbrains/types";
+import { ACCESS_MATRIX_SURFACES, FIELD_ACCESS_FIELDS } from "@medbrains/types";
 import { describe, expect, it } from "vitest";
 import type { NavGroupConfig } from "@/config/navigation";
 import {
@@ -56,6 +56,10 @@ const groups: NavGroupConfig[] = [
     ],
   },
 ];
+
+function fieldKey(field: (typeof FIELD_ACCESS_FIELDS)[number]) {
+  return `${field.db_table ?? "general"}.${field.code}`;
+}
 
 const criticalWorkflowExpectations: {
   key: string;
@@ -177,6 +181,23 @@ describe("access matrix route coverage", () => {
     });
 
     expect(gaps).toEqual([]);
+  });
+
+  it("keeps access-surface field keys aligned with the field masking registry", () => {
+    const registeredFieldKeys = new Set(FIELD_ACCESS_FIELDS.map(fieldKey));
+    const mappedFieldKeys = new Set(
+      ACCESS_MATRIX_SURFACES.flatMap((surface) => [...surface.fieldAccessKeys]),
+    );
+
+    const surfaceKeysMissingFromRegistry = [...mappedFieldKeys]
+      .filter((key) => !registeredFieldKeys.has(key))
+      .sort();
+    const registeredKeysNotMapped = FIELD_ACCESS_FIELDS.map(fieldKey)
+      .filter((key) => !mappedFieldKeys.has(key))
+      .sort();
+
+    expect(surfaceKeysMissingFromRegistry).toEqual([]);
+    expect(registeredKeysNotMapped).toEqual([]);
   });
 
   it("separates IPD admission workspace activation from bed assignment activation", () => {

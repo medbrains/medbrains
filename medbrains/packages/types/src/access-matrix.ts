@@ -91,6 +91,7 @@ const PATIENT_IDENTITY_FIELDS = [
   "patients.first_name",
   "patients.middle_name",
   "patients.last_name",
+  "patients.full_name_local",
   "patients.phone",
   "patients.date_of_birth",
 ] as const;
