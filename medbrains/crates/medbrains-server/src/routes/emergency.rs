@@ -557,24 +557,43 @@ async fn auto_create_mlc_case_for_visit(
     let suffix = er_visit_id.to_string().chars().take(8).collect::<String>();
     let mlc_number = format!("MLC-{}-{suffix}", Utc::now().format("%Y%m%d%H%M%S"));
 
-    sqlx::query!(
+    let created_mlc_case = sqlx::query_as::<_, (Uuid, String)>(
         "INSERT INTO mlc_cases
          (tenant_id, er_visit_id, patient_id, mlc_number, case_type,
           history_of_incident, registered_by)
          SELECT $1, $2, $3, $4, $5, $6, $7
          WHERE NOT EXISTS (
            SELECT 1 FROM mlc_cases WHERE tenant_id = $1 AND er_visit_id = $2
-         )",
-        tenant_id,
-        er_visit_id,
-        patient_id,
-        mlc_number,
-        case_type,
-        history_of_incident,
-        registered_by,
+         )
+         RETURNING id, mlc_number",
     )
-    .execute(&mut **tx)
+    .bind(tenant_id)
+    .bind(er_visit_id)
+    .bind(patient_id)
+    .bind(&mlc_number)
+    .bind(case_type)
+    .bind(history_of_incident)
+    .bind(registered_by)
+    .fetch_optional(&mut **tx)
     .await?;
+
+    if let Some((mlc_case_id, created_mlc_number)) = created_mlc_case {
+        let event = ClinicalEventEnvelope::new(
+            *tenant_id,
+            ClinicalEventName::MlcCreated,
+            mlc_case_id,
+            registered_by,
+            serde_json::json!({
+                "mlc_case_id": mlc_case_id,
+                "patient_id": patient_id,
+                "er_visit_id": er_visit_id,
+                "mlc_number": created_mlc_number,
+                "registration_source": "er_visit_auto",
+            }),
+        )
+        .with_patient(patient_id);
+        crate::events::queue_clinical_event_in_tx(tx, &event).await?;
+    }
 
     Ok(())
 }
@@ -1432,6 +1451,22 @@ pub async fn create_mlc_case(
     .bind(claims.sub)
     .fetch_one(&mut *tx)
     .await?;
+    let event = ClinicalEventEnvelope::new(
+        claims.tenant_id,
+        ClinicalEventName::MlcCreated,
+        row.id,
+        claims.sub,
+        serde_json::json!({
+            "mlc_case_id": row.id,
+            "patient_id": row.patient_id,
+            "er_visit_id": row.er_visit_id,
+            "mlc_number": &row.mlc_number,
+            "registration_source": if row.er_visit_id.is_some() { "er_visit" } else { "manual" },
+            "registered_at": row.registered_at,
+        }),
+    )
+    .with_patient(row.patient_id);
+    crate::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
     tx.commit().await?;
     Ok(Json(filter_mlc_case_response(row, &restricted_fields)))
 }
@@ -1696,6 +1731,14 @@ pub async fn create_police_intimation(
     }
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let patient_id = sqlx::query_scalar::<_, Uuid>(
+        "SELECT patient_id FROM mlc_cases WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(mlc_id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
 
     let intimation_number = format!("PI-{}", Utc::now().format("%Y%m%d%H%M%S"));
 
@@ -1717,6 +1760,22 @@ pub async fn create_police_intimation(
     .bind(claims.sub)
     .fetch_one(&mut *tx)
     .await?;
+    let event = ClinicalEventEnvelope::new(
+        claims.tenant_id,
+        ClinicalEventName::EmergencyMlcPoliceIntimationCreated,
+        row.id,
+        claims.sub,
+        serde_json::json!({
+            "intimation_id": row.id,
+            "mlc_case_id": row.mlc_case_id,
+            "patient_id": patient_id,
+            "intimation_number": &row.intimation_number,
+            "sent_at": row.sent_at,
+            "sent_via": &row.sent_via,
+        }),
+    )
+    .with_patient(patient_id);
+    crate::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
     tx.commit().await?;
     Ok(Json(filter_mlc_police_intimation_response(
         row,

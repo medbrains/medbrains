@@ -22,6 +22,10 @@ pub enum ClinicalEventName {
     VisitCreated,
     #[serde(rename = "emergency.visit.created")]
     EmergencyVisitCreated,
+    #[serde(rename = "mlc.created")]
+    MlcCreated,
+    #[serde(rename = "emergency.mlc_police_intimation.created")]
+    EmergencyMlcPoliceIntimationCreated,
     #[serde(rename = "opd.encounter.created")]
     OpdEncounterCreated,
     #[serde(rename = "order.created")]
@@ -75,6 +79,8 @@ impl ClinicalEventName {
             Self::PatientMerged => "patient.merged",
             Self::VisitCreated => "visit.created",
             Self::EmergencyVisitCreated => "emergency.visit.created",
+            Self::MlcCreated => "mlc.created",
+            Self::EmergencyMlcPoliceIntimationCreated => "emergency.mlc_police_intimation.created",
             Self::OpdEncounterCreated => "opd.encounter.created",
             Self::OrderCreated => "order.created",
             Self::OrderCancelled => "order.cancelled",
@@ -106,7 +112,9 @@ impl ClinicalEventName {
                 ClinicalEventSourceModule::Patients
             }
             Self::VisitCreated | Self::OpdEncounterCreated => ClinicalEventSourceModule::Opd,
-            Self::EmergencyVisitCreated => ClinicalEventSourceModule::Emergency,
+            Self::EmergencyVisitCreated
+            | Self::MlcCreated
+            | Self::EmergencyMlcPoliceIntimationCreated => ClinicalEventSourceModule::Emergency,
             Self::OrderCreated | Self::OrderCancelled => ClinicalEventSourceModule::OrderBasket,
             Self::LabOrderCompleted => ClinicalEventSourceModule::Lab,
             Self::RadiologyOrderCompleted => ClinicalEventSourceModule::Radiology,
@@ -138,6 +146,10 @@ impl ClinicalEventName {
             Self::PatientMerged => &["surviving_patient_id", "merged_patient_id"],
             Self::VisitCreated => &["visit_id", "patient_id"],
             Self::EmergencyVisitCreated => &["visit_id", "patient_id"],
+            Self::MlcCreated => &["mlc_case_id", "patient_id"],
+            Self::EmergencyMlcPoliceIntimationCreated => {
+                &["intimation_id", "mlc_case_id", "patient_id"]
+            }
             Self::OpdEncounterCreated => &["encounter_id", "patient_id"],
             Self::OrderCreated => &["order_id", "order_type", "patient_id"],
             Self::OrderCancelled => &["order_id", "order_type", "reason"],
@@ -192,6 +204,10 @@ impl FromStr for ClinicalEventName {
             "patient.merged" => Ok(Self::PatientMerged),
             "visit.created" => Ok(Self::VisitCreated),
             "emergency.visit.created" => Ok(Self::EmergencyVisitCreated),
+            "mlc.created" => Ok(Self::MlcCreated),
+            "emergency.mlc_police_intimation.created" => {
+                Ok(Self::EmergencyMlcPoliceIntimationCreated)
+            }
             "opd.encounter.created" => Ok(Self::OpdEncounterCreated),
             "order.created" => Ok(Self::OrderCreated),
             "order.cancelled" => Ok(Self::OrderCancelled),
@@ -434,6 +450,42 @@ mod tests {
         assert_eq!(
             ClinicalEventName::PatientUpdated.required_payload_keys(),
             &["patient_id"]
+        );
+    }
+
+    #[test]
+    fn emergency_mlc_events_are_canonical() {
+        assert_eq!(
+            "mlc.created".parse::<ClinicalEventName>().ok(),
+            Some(ClinicalEventName::MlcCreated)
+        );
+        assert_eq!(ClinicalEventName::MlcCreated.as_str(), "mlc.created");
+        assert_eq!(
+            ClinicalEventName::MlcCreated.default_source_module(),
+            ClinicalEventSourceModule::Emergency
+        );
+        assert_eq!(
+            ClinicalEventName::MlcCreated.required_payload_keys(),
+            &["mlc_case_id", "patient_id"]
+        );
+
+        assert_eq!(
+            "emergency.mlc_police_intimation.created"
+                .parse::<ClinicalEventName>()
+                .ok(),
+            Some(ClinicalEventName::EmergencyMlcPoliceIntimationCreated)
+        );
+        assert_eq!(
+            ClinicalEventName::EmergencyMlcPoliceIntimationCreated.as_str(),
+            "emergency.mlc_police_intimation.created"
+        );
+        assert_eq!(
+            ClinicalEventName::EmergencyMlcPoliceIntimationCreated.default_source_module(),
+            ClinicalEventSourceModule::Emergency
+        );
+        assert_eq!(
+            ClinicalEventName::EmergencyMlcPoliceIntimationCreated.required_payload_keys(),
+            &["intimation_id", "mlc_case_id", "patient_id"]
         );
     }
 }
