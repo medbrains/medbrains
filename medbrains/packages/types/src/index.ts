@@ -51,6 +51,7 @@ export type {
   TokenBoardSurfaceDefinition,
   TokenBoardSurfaceId,
   TokenBoardTvAppCode,
+  TokenBoardTvDisplayType,
 } from "./token-board-surfaces.js";
 export {
   getTokenBoardSurface,

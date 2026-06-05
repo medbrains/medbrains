@@ -2,6 +2,12 @@ import { P } from "./permissions.js";
 
 export type TokenBoardSurfaceId = "billing" | "emergency" | "lab" | "opd" | "pharmacy";
 export type TokenBoardDisplayMode = "token_only_public";
+export type TokenBoardTvDisplayType =
+  | "billing_queue"
+  | "emergency_triage"
+  | "lab_queue"
+  | "opd_queue"
+  | "pharmacy_queue";
 export type TokenBoardTvAppCode =
   | "Desktop-Kiosk"
   | "TV-Billing"
@@ -15,6 +21,7 @@ export interface TokenBoardLaunchTargets {
   mobileRoute: "TokenBoards";
   tvAppCodes: readonly TokenBoardTvAppCode[];
   tvDeepLink: string;
+  tvDisplayType: TokenBoardTvDisplayType;
   webPath: string;
 }
 
@@ -56,6 +63,7 @@ export const TOKEN_BOARD_SURFACES: Readonly<
       mobileRoute: "TokenBoards",
       tvAppCodes: ["TV-Billing"],
       tvDeepLink: "medbrains://tv/billing-queue",
+      tvDisplayType: "billing_queue",
       webPath: "/front-office#token-boards",
     },
     title: "Billing counters",
@@ -77,6 +85,7 @@ export const TOKEN_BOARD_SURFACES: Readonly<
       mobileRoute: "TokenBoards",
       tvAppCodes: ["TV-Emergency"],
       tvDeepLink: "medbrains://tv/emergency-triage",
+      tvDisplayType: "emergency_triage",
       webPath: "/front-office#token-boards",
     },
     title: "Emergency triage",
@@ -102,6 +111,7 @@ export const TOKEN_BOARD_SURFACES: Readonly<
       mobileRoute: "TokenBoards",
       tvAppCodes: ["TV-Lab"],
       tvDeepLink: "medbrains://tv/lab-status",
+      tvDisplayType: "lab_queue",
       webPath: "/front-office#token-boards",
     },
     title: "Lab collection",
@@ -122,6 +132,7 @@ export const TOKEN_BOARD_SURFACES: Readonly<
       mobileRoute: "TokenBoards",
       tvAppCodes: ["TV-Queue", "TV-DoctorRoom", "Desktop-Kiosk"],
       tvDeepLink: "medbrains://tv/queue",
+      tvDisplayType: "opd_queue",
       webPath: "/front-office#token-boards",
     },
     title: "OPD queue",
@@ -142,6 +153,7 @@ export const TOKEN_BOARD_SURFACES: Readonly<
       mobileRoute: "TokenBoards",
       tvAppCodes: ["TV-Pharmacy"],
       tvDeepLink: "medbrains://tv/pharmacy-queue",
+      tvDisplayType: "pharmacy_queue",
       webPath: "/front-office#token-boards",
     },
     title: "Pharmacy pickup",

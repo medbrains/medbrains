@@ -39,10 +39,12 @@ import type {
   DepartmentRow,
   QueueToken,
   QueueTokenStatus,
+  TokenBoardSurfaceDefinition,
+  TokenBoardTvDisplayType,
   TvDisplay,
   UpdateTvDisplayRequest,
 } from "@medbrains/types";
-import { P } from "@medbrains/types";
+import { P, TOKEN_BOARD_SURFACES } from "@medbrains/types";
 import {
   IconBell,
   IconCheck,
@@ -79,13 +81,25 @@ import styles from "./tv-displays.module.scss";
 // ── Constants ──────────────────────────────────────────
 
 const DISPLAY_TYPES = [
-  { value: "opd_queue", label: "OPD Queue Display" },
-  { value: "pharmacy_queue", label: "Pharmacy Queue" },
-  { value: "billing_queue", label: "Billing Queue" },
-  { value: "lab_queue", label: "Lab Queue" },
+  { value: TOKEN_BOARD_SURFACES.opd.targets.tvDisplayType, label: TOKEN_BOARD_SURFACES.opd.title },
+  {
+    value: TOKEN_BOARD_SURFACES.lab.targets.tvDisplayType,
+    label: TOKEN_BOARD_SURFACES.lab.title,
+  },
+  {
+    value: TOKEN_BOARD_SURFACES.emergency.targets.tvDisplayType,
+    label: TOKEN_BOARD_SURFACES.emergency.title,
+  },
+  {
+    value: TOKEN_BOARD_SURFACES.pharmacy.targets.tvDisplayType,
+    label: TOKEN_BOARD_SURFACES.pharmacy.title,
+  },
+  {
+    value: TOKEN_BOARD_SURFACES.billing.targets.tvDisplayType,
+    label: TOKEN_BOARD_SURFACES.billing.title,
+  },
   { value: "radiology_queue", label: "Radiology Queue" },
   { value: "bed_status", label: "Bed Status Board" },
-  { value: "emergency_triage", label: "Emergency Triage" },
   { value: "digital_signage", label: "Digital Signage" },
   { value: "dashboard", label: "Dashboard" },
 ];
@@ -150,8 +164,8 @@ const QUEUE_REFRESH_MS = 5_000;
 
 interface DisplayLaunchDefinition {
   appCode: string;
+  deepLink: string;
   label: string;
-  path: string;
   supportsDepartment?: boolean;
 }
 
@@ -161,30 +175,35 @@ interface DisplayLaunchTarget {
   label: string;
 }
 
+function tokenBoardLaunchDefinition(surface: TokenBoardSurfaceDefinition): DisplayLaunchDefinition {
+  const [appCode] = surface.targets.tvAppCodes;
+  return {
+    appCode: appCode ?? surface.title,
+    deepLink: surface.targets.tvDeepLink,
+    label: `${surface.title} board`,
+    supportsDepartment: surface.id === "opd",
+  };
+}
+
+const TOKEN_BOARD_LAUNCH_TARGETS = {
+  billing_queue: tokenBoardLaunchDefinition(TOKEN_BOARD_SURFACES.billing),
+  emergency_triage: tokenBoardLaunchDefinition(TOKEN_BOARD_SURFACES.emergency),
+  lab_queue: tokenBoardLaunchDefinition(TOKEN_BOARD_SURFACES.lab),
+  opd_queue: tokenBoardLaunchDefinition(TOKEN_BOARD_SURFACES.opd),
+  pharmacy_queue: tokenBoardLaunchDefinition(TOKEN_BOARD_SURFACES.pharmacy),
+} satisfies Record<TokenBoardTvDisplayType, DisplayLaunchDefinition>;
+
 const DISPLAY_LAUNCH_TARGETS: Record<string, DisplayLaunchDefinition> = {
-  bed_status: { appCode: "TV-Ward", label: "Bed status board", path: "bed-status" },
-  billing_queue: { appCode: "TV-Billing", label: "Billing queue board", path: "billing-queue" },
+  ...TOKEN_BOARD_LAUNCH_TARGETS,
+  bed_status: {
+    appCode: "TV-Ward",
+    deepLink: "medbrains://tv/bed-status",
+    label: "Bed status board",
+  },
   digital_signage: {
     appCode: "TV-Notice",
+    deepLink: "medbrains://tv/digital-signage",
     label: "Digital signage",
-    path: "digital-signage",
-  },
-  emergency_triage: {
-    appCode: "TV-Emergency",
-    label: "Emergency triage board",
-    path: "emergency-triage",
-  },
-  lab_queue: { appCode: "TV-Lab", label: "Lab status board", path: "lab-status" },
-  opd_queue: {
-    appCode: "TV-Queue",
-    label: "OPD queue board",
-    path: "queue",
-    supportsDepartment: true,
-  },
-  pharmacy_queue: {
-    appCode: "TV-Pharmacy",
-    label: "Pharmacy queue board",
-    path: "pharmacy-queue",
   },
 };
 
@@ -238,7 +257,7 @@ function displayLaunchTarget(
 
   return {
     appCode: target.appCode,
-    href: `medbrains://tv/${target.path}${departmentQuery}`,
+    href: `${target.deepLink}${departmentQuery}`,
     label: target.label,
   };
 }
