@@ -24,21 +24,15 @@ import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import { useHasAnyPermission, useHasPermission } from "@medbrains/stores";
 import type {
-  BillingQueueToken,
   ClinicalEventName,
   ClinicalJourneyActionDefinition,
   ClinicalJourneyActionId,
   ErTriageToken,
   FrontOfficeEnquiryLog,
-  LabQueueToken,
-  PharmacyQueueToken,
   QueueDisplayConfig,
   QueueMetrics,
-  QueuePriority,
   QueuePriorityRule,
   QueueStatsResponse,
-  QueueToken,
-  RadiologyQueueToken,
   TokenBoardSurfaceDefinition,
   TriageLevelColor,
   VisitingHours,
@@ -127,6 +121,14 @@ import {
   useFrontOfficeRadiologyTokenBoardQuery,
 } from "@/services/frontOffice.queries";
 import { frontOfficeService } from "@/services/frontOffice.service";
+import {
+  billingDisplayToken,
+  type DisplayToken,
+  labDisplayToken,
+  opdDisplayToken,
+  pharmacyDisplayToken,
+  radiologyDisplayToken,
+} from "./front-office-token-boards";
 
 // ── Constants ──────────────────────────────────────────
 
@@ -1038,12 +1040,6 @@ function TokenBoardLaunchMeta({ surface }: { surface: TokenBoardSurfaceDefinitio
   );
 }
 
-interface DisplayToken {
-  meta: string;
-  status: string;
-  tokenNumber: string;
-}
-
 function TokenLane({
   emptyLabel,
   highlight = false,
@@ -1155,67 +1151,6 @@ function ErTriageLane({
       </Group>
     </Box>
   );
-}
-
-function priorityLabel(value: QueuePriority) {
-  return value.replace(/_/g, " ");
-}
-
-function opdDisplayToken(token: QueueToken): DisplayToken {
-  return {
-    meta: token.priority === "normal" ? "Standard priority" : priorityLabel(token.priority),
-    status: token.status,
-    tokenNumber: token.token_number,
-  };
-}
-
-function labDisplayToken(token: LabQueueToken): DisplayToken {
-  return {
-    meta: [
-      `${token.test_count} test${token.test_count === 1 ? "" : "s"}`,
-      token.counter !== null ? `Counter ${token.counter}` : null,
-      token.is_fasting ? "Fasting" : null,
-      token.is_pediatric ? "Pediatric" : null,
-    ]
-      .filter((part): part is string => Boolean(part))
-      .join(" · "),
-    status: token.status,
-    tokenNumber: token.token_number,
-  };
-}
-
-function radiologyDisplayToken(token: RadiologyQueueToken): DisplayToken {
-  return {
-    meta: [token.modality, token.room_number]
-      .filter((part): part is string => Boolean(part))
-      .join(" · "),
-    status: token.status,
-    tokenNumber: token.token_number,
-  };
-}
-
-function pharmacyDisplayToken(token: PharmacyQueueToken): DisplayToken {
-  return {
-    meta: [
-      `${token.prescription_count} item${token.prescription_count === 1 ? "" : "s"}`,
-      token.counter !== null ? `Counter ${token.counter}` : null,
-      token.estimated_wait_minutes !== null ? `${token.estimated_wait_minutes} min wait` : null,
-    ]
-      .filter((part): part is string => Boolean(part))
-      .join(" · "),
-    status: token.status,
-    tokenNumber: token.token_number,
-  };
-}
-
-function billingDisplayToken(token: BillingQueueToken): DisplayToken {
-  return {
-    meta: [token.queue_type, token.counter !== null ? `Counter ${token.counter}` : null]
-      .filter((part): part is string => Boolean(part))
-      .join(" · "),
-    status: token.status,
-    tokenNumber: token.token_number,
-  };
 }
 
 function tokenStatusColor(status: string) {
