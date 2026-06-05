@@ -169,6 +169,12 @@ const dispensingTypeLabels: Record<string, string> = {
   emergency: "Emergency",
 };
 
+const PHARMACY_PATIENT_FIELD_ACCESS_KEYS = [
+  "patients.uhid",
+  "patients.first_name",
+  "patients.last_name",
+] as const;
+
 const PHARMACY_ORDER_STATUS_OPTIONS = [
   { value: "ordered", label: "Ordered" },
   { value: "dispensed", label: "Dispensed" },
@@ -1269,12 +1275,12 @@ function PharmacyOrdersTab({
     },
   });
 
-  const columns = [
+  const columns: Column<PharmacyOrder>[] = [
     {
       key: "patient_id",
       label: "Patient",
       requiredPermissions: [P.PHARMACY.PRESCRIPTIONS_LIST],
-      fieldAccessKeys: ["patients.uhid", "patients.first_name", "patients.last_name"],
+      fieldAccessKeys: PHARMACY_PATIENT_FIELD_ACCESS_KEYS,
       accessor: (row: PharmacyOrder) => row.patient_id,
       fieldKind: "identifier",
       hiddenLabel: "Patient restricted",
@@ -1666,10 +1672,14 @@ function PharmacyReturnsTab({
     )
   ) : undefined;
 
-  const columns = [
+  const columns: Column<PharmacyReturn>[] = [
     {
       key: "patient_id",
       label: "Patient",
+      fieldAccessKeys: PHARMACY_PATIENT_FIELD_ACCESS_KEYS,
+      accessor: (row: PharmacyReturn) => row.patient_id,
+      fieldKind: "identifier",
+      hiddenLabel: "Patient restricted",
       render: (row: PharmacyReturn) => (
         <PharmacyPatientCell
           patientId={row.patient_id}
@@ -5090,10 +5100,14 @@ function RxQueueTab({
     });
   }
 
-  const columns = [
+  const columns: Column<RxQueueRow>[] = [
     {
       key: "patient_name",
       label: "Patient",
+      fieldAccessKeys: PHARMACY_PATIENT_FIELD_ACCESS_KEYS,
+      accessor: (row: RxQueueRow) => row.patient_name,
+      fieldKind: "name",
+      hiddenLabel: "Patient restricted",
       render: (row: RxQueueRow) => (
         <PharmacyPatientCell
           patientId={row.patient_id}
