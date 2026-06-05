@@ -19,6 +19,7 @@ use medbrains_server::{
 };
 
 /// A running test server with an HTTP client.
+#[derive(Debug)]
 pub struct TestApp {
     pub addr: SocketAddr,
     pub client: Client,
