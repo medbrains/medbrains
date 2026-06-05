@@ -121,6 +121,7 @@ import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { patientDetailService } from "@/services/patientDetail.service";
 import { buildCopyPrintHtml, copyPrintStyles, PRINT_COPY_PACKETS } from "@/utils/printCopies";
 import classes from "./patient-detail.module.scss";
+import { patientDetailTabForOrderBasket } from "./patient-detail-workspace";
 
 // ── Helpers ────────────────────────────────────────────────
 
@@ -2922,6 +2923,7 @@ function PatientDetailPageInner() {
   );
 
   function openOrderBasket(tab: OrderBasketTab = "drug") {
+    setActivePatientTab(patientDetailTabForOrderBasket(tab));
     setBasketTab(tab);
     basketHandlers.open();
   }
