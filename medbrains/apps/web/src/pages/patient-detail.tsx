@@ -3355,6 +3355,8 @@ function PatientDetailPageInner() {
                       void printPatientCard();
                     }}
                     size="xs"
+                    layout="rail"
+                    emptyLabel="No patient actions available"
                   />
                   {canViewBillingLedger && (
                     <Button
