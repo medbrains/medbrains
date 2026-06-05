@@ -59,6 +59,22 @@ describe("patient journey action routes", () => {
     );
   });
 
+  it("routes camp context through active camp and registration state", () => {
+    expect(
+      patientJourneyActionRoute("camp.open_context", {
+        ...baseContext,
+        activeCampId: "camp-1",
+        activeCampRegistrationId: "registration-1",
+      }),
+    ).toBe("/camp/camp-1/work/registrations/registration-1/clinical-route?patient_id=patient-1");
+    expect(
+      patientJourneyActionRoute("camp.open_context", {
+        ...baseContext,
+        activeCampId: "camp-1",
+      }),
+    ).toBe("/camp/camp-1/work?patient_id=patient-1");
+  });
+
   it("routes MRD case sheets through the active clinical source when available", () => {
     expect(
       patientJourneyActionRoute("mrd.open_case_sheet", {

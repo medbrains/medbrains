@@ -40,6 +40,8 @@ export interface ClinicalJourneyContext {
   activeAdmissionStatus?: string | null;
   activeBedId?: string | null;
   activeEmergencyVisitId?: string | null;
+  activeCampId?: string | null;
+  activeCampRegistrationId?: string | null;
   activeOrderContext?: ClinicalOrderContext | null;
   hasPendingConsent?: boolean;
   completedEvents?: readonly string[];

@@ -413,6 +413,8 @@ function CampWorkPageInner({ initialTab = "registrations" }: CampWorkPageProps =
               <PatientFlowNavigator
                 patientId={contextPatientId}
                 active="camp"
+                activeCampId={campId ?? null}
+                activeCampRegistrationId={focusedRegistrationId}
                 completedEvents={campCompletedEvents}
                 compact
               />
@@ -669,6 +671,9 @@ function CampPatientContextPanel({ patientId }: { patientId: string }) {
   );
 
   const activeCamps = camps.filter((camp) => camp.status === "active");
+  const activePatientRegistration =
+    registrations.find((registration) => registration.camp_status === "active") ?? null;
+  const targetCampId = activePatientRegistration?.camp_id ?? activeCamps[0]?.id ?? null;
   const columns: Column<PatientCampRegistrationRow>[] = [
     {
       key: "camp_code",
@@ -739,6 +744,8 @@ function CampPatientContextPanel({ patientId }: { patientId: string }) {
       <PatientFlowNavigator
         patientId={patientId}
         active="camp"
+        activeCampId={targetCampId}
+        activeCampRegistrationId={activePatientRegistration?.id ?? null}
         completedEvents={patientCampCompletedEvents}
         compact
       />
