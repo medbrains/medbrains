@@ -8,10 +8,15 @@ import type {
   QueueToken,
   RadiologyQueueToken,
   TokenBoardSurfaceDefinition,
+  TokenBoardSurfaceId,
   TriageLevelColor,
 } from "@medbrains/types";
-import { TOKEN_BOARD_PUBLIC_PRIVACY_NOTICE, TOKEN_BOARD_SURFACES } from "@medbrains/types";
-import type { ReactNode } from "react";
+import {
+  TOKEN_BOARD_PUBLIC_PRIVACY_NOTICE,
+  TOKEN_BOARD_SURFACE_LIST,
+  TOKEN_BOARD_SURFACES,
+} from "@medbrains/types";
+import { type ReactNode, useState } from "react";
 import { ScrollView, StyleSheet, View } from "react-native";
 import {
   ActivityIndicator,
@@ -40,6 +45,7 @@ const RADIOLOGY_BOARD = TOKEN_BOARD_SURFACES.radiology;
 const EMERGENCY_BOARD = TOKEN_BOARD_SURFACES.emergency;
 const PHARMACY_BOARD = TOKEN_BOARD_SURFACES.pharmacy;
 const BILLING_BOARD = TOKEN_BOARD_SURFACES.billing;
+type TokenBoardFilter = "all" | TokenBoardSurfaceId;
 
 const TRIAGE_LANES: ReadonlyArray<{
   color: string;
@@ -57,6 +63,21 @@ interface DisplayToken {
   meta: string;
   status: string;
   tokenNumber: string;
+}
+
+interface BoardMetric {
+  color: string;
+  id: TokenBoardSurfaceId;
+  label: string;
+  value: number | string;
+}
+
+interface TokenBoardsScreenProps {
+  route?: {
+    params?: {
+      surface?: TokenBoardSurfaceId;
+    };
+  };
 }
 
 function statusLabel(value: string) {
@@ -354,8 +375,11 @@ function TriageLane({
   );
 }
 
-export function TokenBoardsScreen() {
+export function TokenBoardsScreen({ route }: TokenBoardsScreenProps) {
   const theme = useTheme();
+  const [selectedSurface, setSelectedSurface] = useState<TokenBoardFilter>(
+    route?.params?.surface ?? "all",
+  );
   const canViewOpd = useHasAnyPermission(OPD_BOARD.requiredAnyPermissions);
   const canViewLab = useHasAnyPermission(LAB_BOARD.requiredAnyPermissions);
   const canViewRadiology = useHasAnyPermission(RADIOLOGY_BOARD.requiredAnyPermissions);
@@ -364,6 +388,19 @@ export function TokenBoardsScreen() {
   const canViewBilling = useHasAnyPermission(BILLING_BOARD.requiredAnyPermissions);
   const canViewAnyBoard =
     canViewOpd || canViewLab || canViewRadiology || canViewEr || canViewPharmacy || canViewBilling;
+  const boardAccess: Readonly<Record<TokenBoardSurfaceId, boolean>> = {
+    billing: canViewBilling,
+    emergency: canViewEr,
+    lab: canViewLab,
+    opd: canViewOpd,
+    pharmacy: canViewPharmacy,
+    radiology: canViewRadiology,
+  };
+  const activeSurface =
+    selectedSurface !== "all" && !boardAccess[selectedSurface] ? "all" : selectedSurface;
+  const accessibleSurfaces = TOKEN_BOARD_SURFACE_LIST.filter((surface) => boardAccess[surface.id]);
+  const surfaceVisible = (surfaceId: TokenBoardSurfaceId) =>
+    boardAccess[surfaceId] && (activeSurface === "all" || activeSurface === surfaceId);
 
   const opdQuery = useOpdTokenBoardQuery({ enabled: canViewOpd });
   const labQuery = useLabTokenBoardQuery({ enabled: canViewLab });
@@ -392,6 +429,45 @@ export function TokenBoardsScreen() {
     billing?.opd_billing[0] ??
     billing?.advance_deposit[0] ??
     null;
+  const allMetrics: BoardMetric[] = [
+    {
+      color: MEDBRAINS_COLORS.copper,
+      id: "opd",
+      label: "OPD waiting",
+      value: opdWaiting.length,
+    },
+    {
+      color: MEDBRAINS_COLORS.red,
+      id: "emergency",
+      label: "ER waiting",
+      value: er?.total_waiting ?? "—",
+    },
+    {
+      color: MEDBRAINS_COLORS.brand,
+      id: "lab",
+      label: "Lab waiting",
+      value: lab?.stats.waiting_count ?? "—",
+    },
+    {
+      color: MEDBRAINS_COLORS.copper,
+      id: "radiology",
+      label: "Radiology waiting",
+      value: radiology?.stats.waiting_count ?? "—",
+    },
+    {
+      color: MEDBRAINS_COLORS.emerald,
+      id: "pharmacy",
+      label: "Pharmacy ready",
+      value: pharmacy?.stats.ready_count ?? "—",
+    },
+    {
+      color: MEDBRAINS_COLORS.brand,
+      id: "billing",
+      label: "Billing now",
+      value: billingNowServing?.token_number ?? "—",
+    },
+  ];
+  const metrics = allMetrics.filter((metric) => surfaceVisible(metric.id));
 
   if (!canViewAnyBoard) {
     return (
@@ -425,40 +501,46 @@ export function TokenBoardsScreen() {
 
         <PrivacyNotice />
 
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.filterChips}
+        >
+          <Chip
+            compact
+            mode={activeSurface === "all" ? "flat" : "outlined"}
+            selected={activeSurface === "all"}
+            onPress={() => setSelectedSurface("all")}
+            style={activeSurface === "all" ? styles.activeFilterChip : styles.filterChip}
+          >
+            All boards
+          </Chip>
+          {accessibleSurfaces.map((surface) => (
+            <Chip
+              compact
+              key={surface.id}
+              mode={activeSurface === surface.id ? "flat" : "outlined"}
+              selected={activeSurface === surface.id}
+              onPress={() => setSelectedSurface(surface.id)}
+              style={activeSurface === surface.id ? styles.activeFilterChip : styles.filterChip}
+            >
+              {surface.title}
+            </Chip>
+          ))}
+        </ScrollView>
+
         <View style={styles.metricGrid}>
-          <SummaryMetric
-            color={MEDBRAINS_COLORS.copper}
-            label="OPD waiting"
-            value={canViewOpd ? opdWaiting.length : "—"}
-          />
-          <SummaryMetric
-            color={MEDBRAINS_COLORS.red}
-            label="ER waiting"
-            value={er?.total_waiting ?? "—"}
-          />
-          <SummaryMetric
-            color={MEDBRAINS_COLORS.brand}
-            label="Lab waiting"
-            value={lab?.stats.waiting_count ?? "—"}
-          />
-          <SummaryMetric
-            color={MEDBRAINS_COLORS.copper}
-            label="Radiology waiting"
-            value={radiology?.stats.waiting_count ?? "—"}
-          />
-          <SummaryMetric
-            color={MEDBRAINS_COLORS.emerald}
-            label="Pharmacy ready"
-            value={pharmacy?.stats.ready_count ?? "—"}
-          />
-          <SummaryMetric
-            color={MEDBRAINS_COLORS.brand}
-            label="Billing now"
-            value={billingNowServing?.token_number ?? "—"}
-          />
+          {metrics.map((metric) => (
+            <SummaryMetric
+              key={metric.id}
+              color={metric.color}
+              label={metric.label}
+              value={metric.value}
+            />
+          ))}
         </View>
 
-        {canViewOpd && (
+        {surfaceVisible("opd") && (
           <BoardCard
             surface={OPD_BOARD}
             subtitle={OPD_BOARD.subtitle}
@@ -481,7 +563,7 @@ export function TokenBoardsScreen() {
           </BoardCard>
         )}
 
-        {canViewLab && (
+        {surfaceVisible("lab") && (
           <BoardCard
             surface={LAB_BOARD}
             subtitle={LAB_BOARD.subtitle}
@@ -509,7 +591,7 @@ export function TokenBoardsScreen() {
           </BoardCard>
         )}
 
-        {canViewRadiology && (
+        {surfaceVisible("radiology") && (
           <BoardCard
             surface={RADIOLOGY_BOARD}
             subtitle={RADIOLOGY_BOARD.subtitle}
@@ -532,7 +614,7 @@ export function TokenBoardsScreen() {
           </BoardCard>
         )}
 
-        {canViewEr && (
+        {surfaceVisible("emergency") && (
           <BoardCard
             surface={EMERGENCY_BOARD}
             subtitle={`${overdueErTokens} overdue target${overdueErTokens === 1 ? "" : "s"}`}
@@ -553,7 +635,7 @@ export function TokenBoardsScreen() {
           </BoardCard>
         )}
 
-        {canViewPharmacy && (
+        {surfaceVisible("pharmacy") && (
           <BoardCard
             surface={PHARMACY_BOARD}
             subtitle={PHARMACY_BOARD.subtitle}
@@ -581,7 +663,7 @@ export function TokenBoardsScreen() {
           </BoardCard>
         )}
 
-        {canViewBilling && (
+        {surfaceVisible("billing") && (
           <BoardCard
             surface={BILLING_BOARD}
             subtitle={BILLING_BOARD.subtitle}
@@ -644,6 +726,16 @@ const styles = StyleSheet.create({
   },
   errorChip: {
     backgroundColor: MEDBRAINS_COLORS.statusDangerBg,
+  },
+  activeFilterChip: {
+    backgroundColor: MEDBRAINS_COLORS.navActiveBg,
+  },
+  filterChip: {
+    backgroundColor: MEDBRAINS_COLORS.canvas,
+  },
+  filterChips: {
+    gap: 8,
+    paddingRight: 16,
   },
   header: {
     alignItems: "center",

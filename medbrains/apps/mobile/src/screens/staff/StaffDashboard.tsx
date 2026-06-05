@@ -13,6 +13,7 @@ import {
   P,
   type QueueEntry,
   TOKEN_BOARD_SURFACE_LIST,
+  TOKEN_BOARD_SURFACES,
 } from "@medbrains/types";
 import { useMemo } from "react";
 import { ScrollView, StyleSheet, TouchableOpacity, View } from "react-native";
@@ -72,6 +73,7 @@ interface QuickAction {
   enabled: boolean;
   icon: string;
   label: string;
+  params?: Readonly<Record<string, unknown>>;
   route: StaffDashboardRoute;
 }
 
@@ -287,6 +289,7 @@ export function StaffDashboard({ navigation }: StaffDashboardProps) {
       enabled: canViewTokenBoards,
       icon: "monitor-dashboard",
       label: "Token Boards",
+      params: TOKEN_BOARD_SURFACES.opd.targets.mobileParams,
       route: "TokenBoards",
     },
     {
@@ -488,7 +491,7 @@ export function StaffDashboard({ navigation }: StaffDashboardProps) {
               <TouchableOpacity
                 key={action.id}
                 style={styles.quickAction}
-                onPress={() => navigation.navigate(action.route)}
+                onPress={() => navigation.navigate(action.route, action.params)}
               >
                 <Avatar.Icon size={40} icon={action.icon} />
                 <Text variant="labelMedium">{action.label}</Text>

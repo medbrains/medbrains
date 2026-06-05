@@ -1,4 +1,5 @@
 import { useAuthStore } from "@medbrains/stores";
+import type { TokenBoardSurfaceId } from "@medbrains/types";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { AppBarGradient } from "../components/AppBarGradient";
 import {
@@ -58,7 +59,7 @@ export type RootStackParamList = {
 
   // Staff screens
   StaffDashboard: undefined;
-  TokenBoards: undefined;
+  TokenBoards: { surface?: TokenBoardSurfaceId } | undefined;
   PatientSearch: undefined;
   PatientCareContext: {
     handoff?: "admit" | "open_admission" | "open_context" | "open_mlc" | "open_visit";

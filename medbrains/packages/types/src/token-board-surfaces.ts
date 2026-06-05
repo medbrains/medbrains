@@ -26,6 +26,9 @@ export type TokenBoardTvAppCode =
   | "TV-Queue";
 
 export interface TokenBoardLaunchTargets {
+  mobileParams: {
+    surface: TokenBoardSurfaceId;
+  };
   mobileRoute: "TokenBoards";
   tvAppCodes: readonly TokenBoardTvAppCode[];
   tvDeepLink: string;
@@ -68,6 +71,7 @@ export const TOKEN_BOARD_SURFACES: Readonly<
     standardRefs: ["IPSG.1 patient identification", "NABH PRE patient rights"],
     subtitle: "OPD, IPD discharge, advance and insurance desks",
     targets: {
+      mobileParams: { surface: "billing" },
       mobileRoute: "TokenBoards",
       tvAppCodes: ["TV-Billing"],
       tvDeepLink: "medbrains://tv/billing-queue",
@@ -90,6 +94,7 @@ export const TOKEN_BOARD_SURFACES: Readonly<
     standardRefs: ["IPSG.2 effective communication", "NABH emergency care continuity"],
     subtitle: "Color-coded triage targets",
     targets: {
+      mobileParams: { surface: "emergency" },
       mobileRoute: "TokenBoards",
       tvAppCodes: ["TV-Emergency"],
       tvDeepLink: "medbrains://tv/emergency-triage",
@@ -116,6 +121,7 @@ export const TOKEN_BOARD_SURFACES: Readonly<
     standardRefs: ["NABL sample collection traceability", "LOINC laboratory interoperability"],
     subtitle: "Sample collection and in-progress test queue",
     targets: {
+      mobileParams: { surface: "lab" },
       mobileRoute: "TokenBoards",
       tvAppCodes: ["TV-Lab"],
       tvDeepLink: "medbrains://tv/lab-status",
@@ -141,6 +147,7 @@ export const TOKEN_BOARD_SURFACES: Readonly<
     ],
     subtitle: "Modality room and scan waiting tokens",
     targets: {
+      mobileParams: { surface: "radiology" },
       mobileRoute: "TokenBoards",
       tvAppCodes: ["TV-Radiology"],
       tvDeepLink: "medbrains://tv/radiology-queue?modality=xray",
@@ -162,6 +169,7 @@ export const TOKEN_BOARD_SURFACES: Readonly<
     standardRefs: ["IPSG.1 patient identification", "NABH access, assessment and continuity"],
     subtitle: "Token calls across outpatient departments",
     targets: {
+      mobileParams: { surface: "opd" },
       mobileRoute: "TokenBoards",
       tvAppCodes: ["TV-Queue", "TV-DoctorRoom", "Desktop-Kiosk"],
       tvDeepLink: "medbrains://tv/queue",
@@ -183,6 +191,7 @@ export const TOKEN_BOARD_SURFACES: Readonly<
     standardRefs: ["IPSG.3 medication safety", "NABH medication management"],
     subtitle: "Prescription preparation and handover",
     targets: {
+      mobileParams: { surface: "pharmacy" },
       mobileRoute: "TokenBoards",
       tvAppCodes: ["TV-Pharmacy"],
       tvDeepLink: "medbrains://tv/pharmacy-queue",
