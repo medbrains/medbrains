@@ -105,12 +105,24 @@ import {
   VISITOR_CATEGORY_OPTIONS,
   VISITOR_ID_TYPE_OPTIONS,
 } from "@/forms/front-office.form";
+import { useHashTabs } from "@/hooks/useHashTabs";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { frontOfficeService } from "@/services/frontOffice.service";
 
 // ── Constants ──────────────────────────────────────────
 
 const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+const FRONT_OFFICE_TAB_VALUES = [
+  "patient-flow",
+  "queue",
+  "token-boards",
+  "visitors",
+  "config",
+  "enquiry",
+  "analytics",
+  "metrics",
+] as const;
 
 const passStatusColors: Record<string, string> = {
   active: "success",
@@ -135,6 +147,7 @@ export function FrontOfficePage() {
   useRequirePermission(P.FRONT_OFFICE.QUEUE_LIST);
 
   const navigate = useNavigate();
+  const [activeTab, setActiveTab] = useHashTabs("patient-flow", FRONT_OFFICE_TAB_VALUES);
   const canManageVisitors = useHasPermission(P.FRONT_OFFICE.VISITORS_MANAGE);
   const canCreateVisitors = useHasPermission(P.FRONT_OFFICE.VISITORS_CREATE);
   const canManagePasses = useHasPermission(P.FRONT_OFFICE.PASSES_MANAGE);
@@ -162,7 +175,7 @@ export function FrontOfficePage() {
         title="Front Office"
         subtitle="Reception command center linked to registration, OPD, ER, billing, stores and visitor workflows"
       />
-      <Tabs defaultValue="patient-flow">
+      <Tabs value={activeTab} onChange={setActiveTab}>
         <Tabs.List>
           <Tabs.Tab value="patient-flow" leftSection={<IconUserPlus size={16} />}>
             Patient Flow
@@ -307,6 +320,14 @@ function PatientFlowHub({
       path: "/opd",
       enabled: canViewOpdQueue,
       icon: <IconUsers size={20} />,
+    },
+    {
+      title: "Token Boards",
+      module: "Displays",
+      description: "Monitor public token feeds for OPD, ER, pharmacy and billing counters.",
+      path: "/front-office#token-boards",
+      enabled: canViewOpdQueue || canViewEmergency || canViewBilling || canViewPharmacy,
+      icon: <IconDeviceTv size={20} />,
     },
     {
       title: "Emergency Desk",
