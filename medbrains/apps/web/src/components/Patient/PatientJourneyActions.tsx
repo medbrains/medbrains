@@ -23,16 +23,20 @@ import {
 } from "@tabler/icons-react";
 import { useNavigate } from "react-router";
 import { useClinicalEventStore } from "@/components/clinical-event-store";
+import styles from "./patient-journey-actions.module.scss";
 import { mergeJourneyEventNames } from "./patient-journey-events";
 
 type PatientOrderTab = "drug" | "lab" | "radiology";
 type PatientJourneyActionSize = "xs" | "sm";
+type PatientJourneyActionLayout = "inline" | "rail";
 
 interface PatientJourneyActionsProps {
   context: ClinicalJourneyContext;
   localOrderContext?: ClinicalOrderContext;
   hiddenActionIds?: readonly ClinicalJourneyActionId[];
   size?: PatientJourneyActionSize;
+  layout?: PatientJourneyActionLayout;
+  emptyLabel?: string;
   onEdit?: () => void;
   onOpenOrderBasket?: (tab: PatientOrderTab) => void;
   onShare?: () => void;
@@ -160,6 +164,8 @@ export function PatientJourneyActions({
   localOrderContext,
   hiddenActionIds = [],
   size = "sm",
+  layout = "inline",
+  emptyLabel = "No available handoffs",
   onEdit,
   onOpenOrderBasket,
   onShare,
@@ -262,6 +268,30 @@ export function PatientJourneyActions({
     }
   }
 
+  if (layout === "rail") {
+    if (actions.length === 0) {
+      return (
+        <Text size="xs" c="dimmed" className={styles.emptyState}>
+          {emptyLabel}
+        </Text>
+      );
+    }
+
+    return (
+      <Stack gap={6} className={styles.railActions}>
+        {actions.map((action) => (
+          <PatientJourneyActionButton
+            key={action.id}
+            action={action}
+            size={size}
+            layout={layout}
+            onClick={() => handleAction(action.id)}
+          />
+        ))}
+      </Stack>
+    );
+  }
+
   return (
     <Group gap="xs" wrap="wrap">
       {actions.map((action) => (
@@ -269,6 +299,7 @@ export function PatientJourneyActions({
           key={action.id}
           action={action}
           size={size}
+          layout={layout}
           onClick={() => handleAction(action.id)}
         />
       ))}
@@ -279,14 +310,56 @@ export function PatientJourneyActions({
 function PatientJourneyActionButton({
   action,
   size,
+  layout,
   onClick,
 }: {
   action: ResolvedClinicalJourneyAction;
   size: PatientJourneyActionSize;
+  layout: PatientJourneyActionLayout;
   onClick: () => void;
 }) {
   const disabled = !action.enabled;
   const tooltip = <ActionTooltip action={action} />;
+
+  if (layout === "rail") {
+    const metaText = action.enabled
+      ? action.activatesAfter.length > 0
+        ? `After ${action.activatesAfter.map(eventLabel).join(" or ")}`
+        : "Available"
+      : action.disabledReasonText;
+    const button = (
+      <Button
+        variant={actionVariant(action.intent)}
+        color={actionColor(action.intent)}
+        size={size}
+        leftSection={actionIcon(action.id)}
+        onClick={onClick}
+        disabled={disabled}
+        fullWidth
+        className={styles.railButton}
+      >
+        {action.label}
+      </Button>
+    );
+
+    return (
+      <Tooltip label={tooltip} multiline w={280}>
+        <Stack gap={3} className={styles.railItem} data-disabled={disabled || undefined}>
+          {button}
+          {metaText && (
+            <Text
+              size="xs"
+              className={styles.railMeta}
+              data-disabled={disabled || undefined}
+              title={metaText}
+            >
+              {metaText}
+            </Text>
+          )}
+        </Stack>
+      </Tooltip>
+    );
+  }
 
   if (action.id === "patient.print_card") {
     const icon = (

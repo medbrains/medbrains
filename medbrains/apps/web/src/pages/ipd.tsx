@@ -1298,6 +1298,8 @@ function AdmissionDetail({
                       localOrderContext="ipd"
                       hiddenActionIds={IPD_ACTION_RAIL_LOCAL_ACTION_IDS}
                       size="xs"
+                      layout="rail"
+                      emptyLabel="No patient handoffs available"
                     />
                   </Box>
                 </Stack>
@@ -1305,9 +1307,7 @@ function AdmissionDetail({
                   <Text size="xs" fw={700} c="dimmed" tt="uppercase">
                     Orders
                   </Text>
-                  <Tooltip
-                    label={orderTooltip("Order medicines")}
-                  >
+                  <Tooltip label={orderTooltip("Order medicines")}>
                     <span>
                       <Button
                         size="xs"

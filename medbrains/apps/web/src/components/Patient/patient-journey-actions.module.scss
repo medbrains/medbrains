@@ -1,0 +1,50 @@
+.emptyState {
+  display: block;
+  padding: 8px 10px;
+  border: 1px dashed light-dark(var(--mantine-color-gray-4), var(--mantine-color-dark-4));
+  border-radius: 8px;
+}
+
+.railActions {
+  width: 100%;
+}
+
+.railItem {
+  min-width: 0;
+  padding: 6px;
+  border: 1px solid light-dark(var(--mantine-color-gray-3), var(--mantine-color-dark-4));
+  border-radius: 8px;
+  background: light-dark(var(--mantine-color-white), var(--mantine-color-dark-7));
+}
+
+.railItem[data-disabled] {
+  background: light-dark(var(--mantine-color-gray-0), var(--mantine-color-dark-8));
+}
+
+.railButton {
+  min-height: 32px;
+  padding-inline: 10px;
+
+  :global(.mantine-Button-inner) {
+    justify-content: flex-start;
+    min-width: 0;
+  }
+
+  :global(.mantine-Button-label) {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+.railMeta {
+  display: block;
+  overflow: hidden;
+  color: light-dark(var(--mantine-color-gray-6), var(--mantine-color-dark-1));
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.railMeta[data-disabled] {
+  color: light-dark(var(--mantine-color-red-7), var(--mantine-color-red-3));
+}
