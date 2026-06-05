@@ -22,7 +22,7 @@ import {
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
-import { useHasPermission } from "@medbrains/stores";
+import { useHasAnyPermission, useHasPermission } from "@medbrains/stores";
 import type {
   BillingQueueDisplay,
   BillingQueueToken,
@@ -46,7 +46,12 @@ import type {
   VisitorPass,
   VisitorRegistration,
 } from "@medbrains/types";
-import { CORE_PATIENT_JOURNEY_ACTIONS, P } from "@medbrains/types";
+import {
+  CORE_PATIENT_JOURNEY_ACTIONS,
+  P,
+  TOKEN_BOARD_PUBLIC_PRIVACY_NOTICE,
+  TOKEN_BOARD_SURFACES,
+} from "@medbrains/types";
 import {
   IconAmbulance,
   IconArrowRight,
@@ -143,6 +148,11 @@ const priorityColors: Record<string, string> = {
   vip: "violet",
 };
 
+const OPD_BOARD = TOKEN_BOARD_SURFACES.opd;
+const EMERGENCY_BOARD = TOKEN_BOARD_SURFACES.emergency;
+const PHARMACY_BOARD = TOKEN_BOARD_SURFACES.pharmacy;
+const BILLING_BOARD = TOKEN_BOARD_SURFACES.billing;
+
 // ══════════════════════════════════════════════════════════
 //  Main Page
 // ══════════════════════════════════════════════════════════
@@ -160,14 +170,14 @@ export function FrontOfficePage() {
   const canManageEnquiry = useHasPermission(P.FRONT_OFFICE.ENQUIRY_MANAGE);
   const canRegisterPatient = useHasPermission(P.PATIENTS.CREATE);
   const canCreateOpdVisit = useHasPermission(P.OPD.VISIT_CREATE);
-  const canViewOpdQueue = useHasPermission(P.OPD.QUEUE_LIST);
+  const canViewOpdQueue = useHasAnyPermission(OPD_BOARD.requiredAnyPermissions);
   const canCreateEmergencyVisit = useHasPermission(P.EMERGENCY.VISITS_CREATE);
-  const canViewEmergency = useHasPermission(P.EMERGENCY.VISITS_LIST);
+  const canViewEmergency = useHasAnyPermission(EMERGENCY_BOARD.requiredAnyPermissions);
   const canViewCamp = useHasPermission(P.CAMP.LIST);
   const canCreateCampRegistration = useHasPermission(P.CAMP.REGISTRATIONS_CREATE);
-  const canViewBilling = useHasPermission(P.BILLING.INVOICES_LIST);
+  const canViewBilling = useHasAnyPermission(BILLING_BOARD.requiredAnyPermissions);
   const canCreateBilling = useHasPermission(P.BILLING.INVOICES_CREATE);
-  const canViewPharmacy = useHasPermission(P.PHARMACY.PRESCRIPTIONS_LIST);
+  const canViewPharmacy = useHasAnyPermission(PHARMACY_BOARD.requiredAnyPermissions);
   const canViewIndent = useHasPermission(P.INDENT.LIST);
   const canViewProcurementStores = useHasPermission(P.PROCUREMENT.STORES_LIST);
   const canViewAssets = useHasPermission(P.ASSETS.LIST);
@@ -681,8 +691,8 @@ function TokenBoardsTab({
         <Stack gap={2}>
           <Text fw={700}>Live token boards</Text>
           <Text size="sm" c="dimmed">
-            Workstation view of public queue feeds. Token-only display keeps waiting-area privacy
-            intact while linking reception, ER, pharmacy and billing operations.
+            Workstation view of public queue feeds. {TOKEN_BOARD_PUBLIC_PRIVACY_NOTICE} Reception,
+            ER, pharmacy and billing operations stay linked to the same token state.
           </Text>
         </Stack>
         <Badge variant="light" color="teal">
@@ -701,8 +711,8 @@ function TokenBoardsTab({
         <SimpleGrid cols={{ base: 1, xl: 2 }} spacing="md">
           {canViewOpdQueue && (
             <TokenBoardCard
-              title="OPD queue"
-              subtitle="Token calls across outpatient departments"
+              title={OPD_BOARD.title}
+              subtitle={OPD_BOARD.subtitle}
               isLoading={opdQuery.isLoading}
               isError={opdQuery.isError}
               lastUpdatedAt={opdQuery.dataUpdatedAt}
@@ -733,8 +743,8 @@ function TokenBoardsTab({
 
           {canViewEmergency && (
             <TokenBoardCard
-              title="Emergency triage"
-              subtitle="Color-coded triage targets"
+              title={EMERGENCY_BOARD.title}
+              subtitle={EMERGENCY_BOARD.subtitle}
               isLoading={erQuery.isLoading}
               isError={erQuery.isError}
               lastUpdatedAt={erQuery.dataUpdatedAt}
@@ -759,8 +769,8 @@ function TokenBoardsTab({
 
           {canViewPharmacy && (
             <TokenBoardCard
-              title="Pharmacy pickup"
-              subtitle="Prescription preparation and handover"
+              title={PHARMACY_BOARD.title}
+              subtitle={PHARMACY_BOARD.subtitle}
               isLoading={pharmacyQuery.isLoading}
               isError={pharmacyQuery.isError}
               lastUpdatedAt={pharmacyQuery.dataUpdatedAt}
@@ -797,8 +807,8 @@ function TokenBoardsTab({
 
           {canViewBilling && (
             <TokenBoardCard
-              title="Billing counters"
-              subtitle="OPD, IPD discharge, advance and insurance desks"
+              title={BILLING_BOARD.title}
+              subtitle={BILLING_BOARD.subtitle}
               isLoading={billingQuery.isLoading}
               isError={billingQuery.isError}
               lastUpdatedAt={billingQuery.dataUpdatedAt}

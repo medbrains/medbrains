@@ -1,5 +1,10 @@
 import type { Module } from "@medbrains/mobile-shell";
-import type { ErQueueDisplay, ErTriageToken, TriageLevelColor } from "@medbrains/types";
+import {
+  type ErQueueDisplay,
+  type ErTriageToken,
+  TOKEN_BOARD_SURFACES,
+  type TriageLevelColor,
+} from "@medbrains/types";
 import { COLORS, SPACING } from "@medbrains/ui-mobile";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
@@ -11,8 +16,7 @@ import { tvQueueService } from "../services/tvQueue.service.js";
 
 const REFRESH_INTERVAL_MS = 5_000;
 const DISPLAY_TOKEN_LIMIT = 8;
-const PRIVACY_NOTICE =
-  "Token-only triage display. Patient names, identifiers, injuries and clinical notes are withheld.";
+const EMERGENCY_BOARD = TOKEN_BOARD_SURFACES.emergency;
 
 const TRIAGE_LANES: ReadonlyArray<{
   color: string;
@@ -87,11 +91,11 @@ function EmergencyTriageScreen() {
   return (
     <TvBoard
       eyebrow="EMERGENCY"
-      title="Triage board"
+      title={EMERGENCY_BOARD.title}
       subtitle="Live triage queue with token-only public display."
-      legend={`Updates every 5 seconds · last sync ${syncLabel} · medbrains://tv/emergency-triage`}
-      privacyNotice={PRIVACY_NOTICE}
-      tags={["TV-Emergency", "triage", "token-only", "staff-display"]}
+      legend={`Updates every 5 seconds · last sync ${syncLabel} · ${EMERGENCY_BOARD.targets.tvDeepLink}`}
+      privacyNotice={EMERGENCY_BOARD.privacyNotice}
+      tags={[...EMERGENCY_BOARD.targets.tvAppCodes, "triage", "token-only", "staff-display"]}
     >
       <TvSummaryRow
         items={[
@@ -193,11 +197,11 @@ function TriageLane({
 
 export const emergencyTriageModule: Module = {
   id: "emergency-triage",
-  displayName: "Emergency triage",
+  displayName: EMERGENCY_BOARD.title,
   icon: () => null,
   requiredPermissions: [],
   navigator: EmergencyTriageScreen,
-  appCodes: ["TV-Emergency"],
+  appCodes: EMERGENCY_BOARD.targets.tvAppCodes,
   tags: ["tv", "emergency", "triage", "code-alert"],
 };
 

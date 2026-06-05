@@ -1,4 +1,4 @@
-import { useHasAnyPermission, useHasPermission } from "@medbrains/stores";
+import { useHasAnyPermission } from "@medbrains/stores";
 import type {
   BillingQueueToken,
   ErTriageToken,
@@ -7,7 +7,7 @@ import type {
   QueueToken,
   TriageLevelColor,
 } from "@medbrains/types";
-import { P } from "@medbrains/types";
+import { TOKEN_BOARD_PUBLIC_PRIVACY_NOTICE, TOKEN_BOARD_SURFACES } from "@medbrains/types";
 import type { ReactNode } from "react";
 import { ScrollView, StyleSheet, View } from "react-native";
 import {
@@ -29,8 +29,10 @@ import {
 import { MEDBRAINS_COLORS } from "../../theme/paper-theme";
 
 const TOKEN_LIMIT = 6;
-const PRIVACY_NOTICE =
-  "Token-only display mode. Patient names, identifiers, diagnoses, drug names and bill amounts stay hidden.";
+const OPD_BOARD = TOKEN_BOARD_SURFACES.opd;
+const EMERGENCY_BOARD = TOKEN_BOARD_SURFACES.emergency;
+const PHARMACY_BOARD = TOKEN_BOARD_SURFACES.pharmacy;
+const BILLING_BOARD = TOKEN_BOARD_SURFACES.billing;
 
 const TRIAGE_LANES: ReadonlyArray<{
   color: string;
@@ -146,7 +148,7 @@ function PrivacyNotice() {
           Privacy display mode
         </Text>
         <Text variant="bodySmall" style={styles.privacyText}>
-          {PRIVACY_NOTICE}
+          {TOKEN_BOARD_PUBLIC_PRIVACY_NOTICE}
         </Text>
       </View>
     </Surface>
@@ -301,13 +303,10 @@ function TriageLane({
 
 export function TokenBoardsScreen() {
   const theme = useTheme();
-  const canViewOpd = useHasPermission(P.OPD.QUEUE_LIST);
-  const canViewEr = useHasAnyPermission([P.EMERGENCY.VISITS_LIST, P.EMERGENCY.TRIAGE_LIST]);
-  const canViewPharmacy = useHasAnyPermission([
-    P.PHARMACY.PRESCRIPTIONS_LIST,
-    P.PHARMACY.PRESCRIPTIONS_VIEW,
-  ]);
-  const canViewBilling = useHasPermission(P.BILLING.INVOICES_LIST);
+  const canViewOpd = useHasAnyPermission(OPD_BOARD.requiredAnyPermissions);
+  const canViewEr = useHasAnyPermission(EMERGENCY_BOARD.requiredAnyPermissions);
+  const canViewPharmacy = useHasAnyPermission(PHARMACY_BOARD.requiredAnyPermissions);
+  const canViewBilling = useHasAnyPermission(BILLING_BOARD.requiredAnyPermissions);
   const canViewAnyBoard = canViewOpd || canViewEr || canViewPharmacy || canViewBilling;
 
   const opdQuery = useOpdTokenBoardQuery({ enabled: canViewOpd });
@@ -390,8 +389,8 @@ export function TokenBoardsScreen() {
 
         {canViewOpd && (
           <BoardCard
-            title="OPD queue"
-            subtitle="Token calls across outpatient departments"
+            title={OPD_BOARD.title}
+            subtitle={OPD_BOARD.subtitle}
             isLoading={opdQuery.isLoading}
             isError={opdQuery.isError}
             lastUpdatedAt={opdQuery.dataUpdatedAt}
@@ -413,7 +412,7 @@ export function TokenBoardsScreen() {
 
         {canViewEr && (
           <BoardCard
-            title="Emergency triage"
+            title={EMERGENCY_BOARD.title}
             subtitle={`${overdueErTokens} overdue target${overdueErTokens === 1 ? "" : "s"}`}
             isLoading={erQuery.isLoading}
             isError={erQuery.isError}
@@ -434,8 +433,8 @@ export function TokenBoardsScreen() {
 
         {canViewPharmacy && (
           <BoardCard
-            title="Pharmacy pickup"
-            subtitle="Prescription preparation and handover"
+            title={PHARMACY_BOARD.title}
+            subtitle={PHARMACY_BOARD.subtitle}
             isLoading={pharmacyQuery.isLoading}
             isError={pharmacyQuery.isError}
             lastUpdatedAt={pharmacyQuery.dataUpdatedAt}
@@ -462,8 +461,8 @@ export function TokenBoardsScreen() {
 
         {canViewBilling && (
           <BoardCard
-            title="Billing counters"
-            subtitle="OPD, IPD discharge, advance and insurance desks"
+            title={BILLING_BOARD.title}
+            subtitle={BILLING_BOARD.subtitle}
             isLoading={billingQuery.isLoading}
             isError={billingQuery.isError}
             lastUpdatedAt={billingQuery.dataUpdatedAt}

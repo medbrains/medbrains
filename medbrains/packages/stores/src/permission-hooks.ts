@@ -12,14 +12,14 @@ export function useHasPermission(code: string): boolean {
 /**
  * Returns true if the current user has ALL of the given permissions.
  */
-export function useHasAllPermissions(codes: string[]): boolean {
+export function useHasAllPermissions(codes: readonly string[]): boolean {
   return usePermissionStore((s) => s.hasAllPermissions(codes));
 }
 
 /**
  * Returns true if the current user has ANY of the given permissions.
  */
-export function useHasAnyPermission(codes: string[]): boolean {
+export function useHasAnyPermission(codes: readonly string[]): boolean {
   return usePermissionStore((s) => s.hasAnyPermission(codes));
 }
 

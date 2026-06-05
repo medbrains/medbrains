@@ -5,7 +5,12 @@
  */
 
 import type { Module } from "@medbrains/mobile-shell";
-import type { QueuePriority, QueueToken, QueueTokenStatus } from "@medbrains/types";
+import {
+  type QueuePriority,
+  type QueueToken,
+  type QueueTokenStatus,
+  TOKEN_BOARD_SURFACES,
+} from "@medbrains/types";
 import { COLORS, SPACING } from "@medbrains/ui-mobile";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
@@ -17,8 +22,7 @@ import { tvQueueService } from "../services/tvQueue.service.js";
 
 const REFRESH_INTERVAL_MS = 5_000;
 const DISPLAY_TOKEN_LIMIT = 12;
-const PRIVACY_NOTICE =
-  "Token-only public display. Patient names, identifiers, diagnoses and contact details are withheld.";
+const OPD_BOARD = TOKEN_BOARD_SURFACES.opd;
 
 interface QueueScreenProps {
   route?: {
@@ -79,15 +83,15 @@ function QueueScreen({ route }: QueueScreenProps) {
   return (
     <TvBoard
       eyebrow="OPD"
-      title="Queue board"
+      title={OPD_BOARD.title}
       subtitle={
         departmentId
           ? "Live department token call. Please proceed when your token is called."
           : "Live hospital token call. Please proceed when your token is called."
       }
-      legend={`Updates every 5 seconds · last sync ${syncLabel} · medbrains://tv/queue`}
-      privacyNotice={PRIVACY_NOTICE}
-      tags={["TV-Queue", "TV-DoctorRoom", "Desktop-Kiosk", "OPD"]}
+      legend={`Updates every 5 seconds · last sync ${syncLabel} · ${OPD_BOARD.targets.tvDeepLink}`}
+      privacyNotice={OPD_BOARD.privacyNotice}
+      tags={[...OPD_BOARD.targets.tvAppCodes, "OPD"]}
     >
       <TvSummaryRow
         items={[
@@ -188,11 +192,11 @@ function TokenLane({
 
 export const queueModule: Module = {
   id: "queue",
-  displayName: "Queue board",
+  displayName: OPD_BOARD.title,
   icon: () => null,
   requiredPermissions: [],
   navigator: QueueScreen,
-  appCodes: ["TV-Queue", "TV-DoctorRoom", "Desktop-Kiosk"],
+  appCodes: OPD_BOARD.targets.tvAppCodes,
   tags: ["tv", "queue", "opd", "tokens", "kiosk"],
 };
 

@@ -19,8 +19,8 @@ interface PermissionState {
   ) => void;
   clearPermissions: () => void;
   hasPermission: (code: string) => boolean;
-  hasAllPermissions: (codes: string[]) => boolean;
-  hasAnyPermission: (codes: string[]) => boolean;
+  hasAllPermissions: (codes: readonly string[]) => boolean;
+  hasAnyPermission: (codes: readonly string[]) => boolean;
   getFieldAccess: (moduleFieldCode: string) => FieldAccessLevel;
 }
 

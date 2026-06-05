@@ -5,7 +5,7 @@
  */
 
 import type { Module } from "@medbrains/mobile-shell";
-import type { BillingQueueToken } from "@medbrains/types";
+import { type BillingQueueToken, TOKEN_BOARD_SURFACES } from "@medbrains/types";
 import { COLORS, SPACING } from "@medbrains/ui-mobile";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
@@ -17,8 +17,7 @@ import { tvQueueService } from "../services/tvQueue.service.js";
 
 const REFRESH_INTERVAL_MS = 10_000;
 const DISPLAY_TOKEN_LIMIT = 10;
-const PRIVACY_NOTICE =
-  "Token-only counter display. Patient names, identifiers, bill amounts and payer details are withheld.";
+const BILLING_BOARD = TOKEN_BOARD_SURFACES.billing;
 
 function statusColor(status: string) {
   switch (status) {
@@ -64,11 +63,11 @@ function BillingQueueScreen() {
   return (
     <TvBoard
       eyebrow="BILLING"
-      title="Counter queue"
+      title={BILLING_BOARD.title}
       subtitle="Please proceed to the billing desk when your token shows."
-      legend={`Updates every 10 seconds · last sync ${syncLabel} · medbrains://tv/billing-queue`}
-      privacyNotice={PRIVACY_NOTICE}
-      tags={["TV-Billing", "billing", "cashier", "insurance"]}
+      legend={`Updates every 10 seconds · last sync ${syncLabel} · ${BILLING_BOARD.targets.tvDeepLink}`}
+      privacyNotice={BILLING_BOARD.privacyNotice}
+      tags={[...BILLING_BOARD.targets.tvAppCodes, "billing", "cashier", "insurance"]}
     >
       <TvSummaryRow
         items={[
@@ -157,11 +156,11 @@ function TokenLane({
 
 export const billingQueueModule: Module = {
   id: "billing-queue",
-  displayName: "Billing queue",
+  displayName: BILLING_BOARD.title,
   icon: () => null,
   requiredPermissions: [],
   navigator: BillingQueueScreen,
-  appCodes: ["TV-Billing"],
+  appCodes: BILLING_BOARD.targets.tvAppCodes,
   tags: ["tv", "billing", "queue", "cashier", "insurance"],
 };
 

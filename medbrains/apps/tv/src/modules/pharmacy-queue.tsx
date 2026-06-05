@@ -5,7 +5,7 @@
  */
 
 import type { Module } from "@medbrains/mobile-shell";
-import type { PharmacyQueueToken } from "@medbrains/types";
+import { type PharmacyQueueToken, TOKEN_BOARD_SURFACES } from "@medbrains/types";
 import { COLORS, SPACING } from "@medbrains/ui-mobile";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
@@ -17,8 +17,7 @@ import { tvQueueService } from "../services/tvQueue.service.js";
 
 const REFRESH_INTERVAL_MS = 10_000;
 const DISPLAY_TOKEN_LIMIT = 10;
-const PRIVACY_NOTICE =
-  "Token-only pickup display. Patient names, identifiers, drug names and prescription notes are withheld.";
+const PHARMACY_BOARD = TOKEN_BOARD_SURFACES.pharmacy;
 
 function statusColor(status: string) {
   switch (status) {
@@ -61,11 +60,11 @@ function PharmacyQueueScreen() {
   return (
     <TvBoard
       eyebrow="PHARMACY"
-      title="Dispensing queue"
+      title={PHARMACY_BOARD.title}
       subtitle="Please proceed to the counter when your token shows."
-      legend={`Updates every 10 seconds · last sync ${syncLabel} · medbrains://tv/pharmacy-queue`}
-      privacyNotice={PRIVACY_NOTICE}
-      tags={["TV-Pharmacy", "pharmacy", "dispense", "queue"]}
+      legend={`Updates every 10 seconds · last sync ${syncLabel} · ${PHARMACY_BOARD.targets.tvDeepLink}`}
+      privacyNotice={PHARMACY_BOARD.privacyNotice}
+      tags={[...PHARMACY_BOARD.targets.tvAppCodes, "pharmacy", "dispense", "queue"]}
     >
       <TvSummaryRow
         items={[
@@ -168,11 +167,11 @@ function TokenLane({
 
 export const pharmacyQueueModule: Module = {
   id: "pharmacy-queue",
-  displayName: "Pharmacy queue",
+  displayName: PHARMACY_BOARD.title,
   icon: () => null,
   requiredPermissions: [],
   navigator: PharmacyQueueScreen,
-  appCodes: ["TV-Pharmacy"],
+  appCodes: PHARMACY_BOARD.targets.tvAppCodes,
   tags: ["tv", "pharmacy", "dispensing", "queue"],
 };
 

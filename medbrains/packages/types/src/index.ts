@@ -45,6 +45,19 @@ export {
   PERMISSIONS,
   ROLE_TEMPLATES,
 } from "./permissions.js";
+export type {
+  TokenBoardDisplayMode,
+  TokenBoardLaunchTargets,
+  TokenBoardSurfaceDefinition,
+  TokenBoardSurfaceId,
+  TokenBoardTvAppCode,
+} from "./token-board-surfaces.js";
+export {
+  getTokenBoardSurface,
+  TOKEN_BOARD_PUBLIC_PRIVACY_NOTICE,
+  TOKEN_BOARD_SURFACE_LIST,
+  TOKEN_BOARD_SURFACES,
+} from "./token-board-surfaces.js";
 
 // Health
 export interface HealthResponse {
