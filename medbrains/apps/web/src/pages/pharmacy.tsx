@@ -1229,9 +1229,9 @@ function PharmacyOrdersTab({
     mutationFn: async (id: string) => {
       const detail = await pharmacyService.getPharmacyOrder(id);
       const order = await pharmacyService.dispenseOrder(id);
-      return { items: detail.items, order };
+      return { admissionId: detail.admission_id, items: detail.items, order };
     },
-    onSuccess: ({ items, order }, id) => {
+    onSuccess: ({ admissionId, items, order }, id) => {
       void queryClient.invalidateQueries({ queryKey: ["pharmacy-orders"] });
       void queryClient.invalidateQueries({ queryKey: ["invoices"] });
       void queryClient.invalidateQueries({ queryKey: ["invoice"] });
@@ -1242,7 +1242,9 @@ function PharmacyOrdersTab({
         color: "success",
       });
       emit("pharmacy.order.dispensed", {
+        admission_id: admissionId,
         dispensing_type: order.dispensing_type,
+        encounter_id: order.encounter_id,
         items: pharmacyOrderEventItems(items),
         order_id: id,
         order_type: "pharmacy",
@@ -1254,17 +1256,23 @@ function PharmacyOrdersTab({
   const firstDispensableOrder = orders.find((order) => order.status === "ordered");
 
   const cancelMutation = useMutation({
-    mutationFn: (id: string) => pharmacyService.cancelPharmacyOrder(id),
-    onSuccess: (result, id) => {
+    mutationFn: async (id: string) => {
+      const detail = await pharmacyService.getPharmacyOrder(id);
+      const order = await pharmacyService.cancelPharmacyOrder(id);
+      return { admissionId: detail.admission_id, order };
+    },
+    onSuccess: ({ admissionId, order }, id) => {
       void queryClient.invalidateQueries({ queryKey: ["pharmacy-orders"] });
       void queryClient.invalidateQueries({ queryKey: ["invoices"] });
       void queryClient.invalidateQueries({ queryKey: ["invoice"] });
-      void queryClient.invalidateQueries({ queryKey: ["patient-invoices", result.patient_id] });
+      void queryClient.invalidateQueries({ queryKey: ["patient-invoices", order.patient_id] });
       emit("order.cancelled", {
-        dispensing_type: result.dispensing_type,
+        admission_id: admissionId,
+        dispensing_type: order.dispensing_type,
+        encounter_id: order.encounter_id,
         order_id: id,
         order_type: "pharmacy",
-        patient_id: result.patient_id,
+        patient_id: order.patient_id,
         reason: "cancelled_from_pharmacy_queue",
       });
     },
@@ -2253,6 +2261,7 @@ function PharmacyOrderForm({
         color: "success",
       });
       emit("order.created", {
+        admission_id: detail.admission_id,
         dispensing_type: detail.order.dispensing_type,
         encounter_id: detail.order.encounter_id,
         items: pharmacyOrderEventItems(detail.items),
@@ -2478,9 +2487,9 @@ function PharmacyOrderDetail({
     mutationFn: async () => {
       const currentDetail = await pharmacyService.getPharmacyOrder(orderId);
       const order = await pharmacyService.dispenseOrder(orderId);
-      return { items: currentDetail.items, order };
+      return { admissionId: currentDetail.admission_id, items: currentDetail.items, order };
     },
-    onSuccess: ({ items, order }) => {
+    onSuccess: ({ admissionId, items, order }) => {
       void queryClient.invalidateQueries({ queryKey: ["pharmacy-orders"] });
       void queryClient.invalidateQueries({ queryKey: ["pharmacy-order-detail", orderId] });
       void queryClient.invalidateQueries({ queryKey: ["invoices"] });
@@ -2492,7 +2501,9 @@ function PharmacyOrderDetail({
         color: "success",
       });
       emit("pharmacy.order.dispensed", {
+        admission_id: admissionId,
         dispensing_type: order.dispensing_type,
+        encounter_id: order.encounter_id,
         items: pharmacyOrderEventItems(items),
         order_id: orderId,
         order_type: "pharmacy",

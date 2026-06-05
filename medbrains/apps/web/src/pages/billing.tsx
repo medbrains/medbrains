@@ -1195,6 +1195,8 @@ function CreateInvoiceDrawer({
         color: "success",
       });
       emit("billing.invoice.created", {
+        admission_id: result.admission_id,
+        encounter_id: result.encounter_id,
         invoice_id: result.id,
         patient_id: result.patient_id,
         total_amount: result.total_amount,
@@ -1344,8 +1346,12 @@ function InvoiceDetail({
       void queryClient.invalidateQueries({ queryKey: ["invoices"] });
       void queryClient.invalidateQueries({ queryKey: ["patient-invoices", result.patient_id] });
       emit("billing.invoice.finalized", {
+        admission_id: result.admission_id,
+        encounter_id: result.encounter_id,
         invoice_id: result.id,
+        invoice_number: result.invoice_number,
         patient_id: result.patient_id,
+        status: result.status,
       });
     },
   });
@@ -1395,6 +1401,8 @@ function InvoiceDetail({
       void queryClient.invalidateQueries({ queryKey: ["patient-invoices", inv.patient_id] });
       emit("billing.payment.received", {
         amount: variables.amount,
+        admission_id: inv.admission_id,
+        encounter_id: inv.encounter_id,
         invoice_id: result.invoice_id,
         mode: variables.mode,
         patient_id: inv.patient_id,
@@ -2645,18 +2653,18 @@ function ErFastInvoiceModal({ opened, onClose }: { opened: boolean; onClose: () 
     mutationFn: (data: ErFastInvoiceRequest) => billingService.erFastInvoice(data),
     onSuccess: (result) => {
       void queryClient.invalidateQueries({ queryKey: ["invoices"] });
-      void queryClient.invalidateQueries({
-        queryKey: ["patient-invoices", (result as Invoice).patient_id],
-      });
+      void queryClient.invalidateQueries({ queryKey: ["patient-invoices", result.patient_id] });
       notifications.show({
         title: "ER Invoice Created",
-        message: `Invoice ${(result as Invoice).invoice_number} created`,
+        message: `Invoice ${result.invoice_number} created`,
         color: "success",
       });
       emit("billing.invoice.created", {
-        invoice_id: (result as Invoice).id,
-        patient_id: (result as Invoice).patient_id,
-        total_amount: (result as Invoice).total_amount,
+        admission_id: result.admission_id,
+        encounter_id: result.encounter_id,
+        invoice_id: result.id,
+        patient_id: result.patient_id,
+        total_amount: result.total_amount,
       });
       onClose();
       reset();
