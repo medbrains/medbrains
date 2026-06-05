@@ -199,7 +199,11 @@ import {
   printCopyRouteLabel,
 } from "@/utils/printCopies";
 import classes from "./ipd.module.scss";
-import { type IpdActionRailSection, ipdActionRailSectionsForTab } from "./ipd-workspace";
+import {
+  type IpdActionRailSection,
+  ipdActionRailSectionsForTab,
+  ipdWorkspaceTabForOrderBasket,
+} from "./ipd-workspace";
 
 const statusColors: Record<string, string> = {
   admitted: "success",
@@ -925,6 +929,7 @@ function AdmissionDetail({
   );
 
   function openOrderBasket(tab: OrderBasketTab = "drug") {
+    setActiveWorkspaceTab(ipdWorkspaceTabForOrderBasket(tab));
     setBasketTab(tab);
     openBasket();
   }

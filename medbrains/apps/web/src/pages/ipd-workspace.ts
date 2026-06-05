@@ -6,6 +6,14 @@ export type IpdActionRailSection =
   | "finance"
   | "discharge";
 
+export type IpdOrderBasketTab = "drug" | "lab" | "radiology";
+
+export function ipdWorkspaceTabForOrderBasket(
+  tab: IpdOrderBasketTab,
+): "prescriptions" | "investigations" {
+  return tab === "drug" ? "prescriptions" : "investigations";
+}
+
 export function ipdActionRailSectionsForTab(tab: string): readonly IpdActionRailSection[] {
   switch (tab) {
     case "prescriptions":
