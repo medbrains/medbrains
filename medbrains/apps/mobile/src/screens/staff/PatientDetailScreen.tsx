@@ -6,6 +6,7 @@ import type {
   ErVisit,
   ErVisitStatus,
   FieldAccessLevel,
+  PatientInvoiceRow,
   PatientVisitRow,
 } from "@medbrains/types";
 import { deriveCampJourneyCompletedEvents, P } from "@medbrains/types";
@@ -47,6 +48,25 @@ const ACTIVE_ER_VISIT_STATUSES = new Set<ErVisitStatus>([
   "observation",
 ]);
 const HIDDEN_FIELD_TEXT = "Restricted";
+
+function patientInvoiceBalance(invoice: PatientInvoiceRow): number {
+  const parsed = Number.parseFloat(invoice.balance);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function activePatientInvoiceIdForJourney(invoices: readonly PatientInvoiceRow[]): string | null {
+  return (
+    invoices.find(
+      (invoice) =>
+        patientInvoiceBalance(invoice) > 0.004 &&
+        invoice.status !== "cancelled" &&
+        invoice.status !== "refunded",
+    )?.id ??
+    invoices.find((invoice) => invoice.status !== "cancelled" && invoice.status !== "refunded")
+      ?.id ??
+    null
+  );
+}
 
 function calculateAge(dob: string): string {
   const birthDate = new Date(dob);
@@ -254,6 +274,7 @@ export function PatientDetailScreen({ route, navigation }: PatientDetailScreenPr
       invoice.status === "issued" ||
       invoice.status === "partially_paid",
   ).length;
+  const activeInvoiceId = activePatientInvoiceIdForJourney(invoiceList);
   const completedEvents: ClinicalEventName[] = [];
   if (hasMedicationOrder) completedEvents.push("order.created");
   completedEvents.push(...campCompletedEvents);
@@ -270,6 +291,7 @@ export function PatientDetailScreen({ route, navigation }: PatientDetailScreenPr
     activeCampId: activeCampRegistration?.camp_id ?? null,
     activeCampRegistrationId: activeCampRegistration?.id ?? null,
     activeEmergencyVisitId: activeErVisit?.id ?? null,
+    activeInvoiceId,
     activeOrderContext,
     completedEvents,
   };

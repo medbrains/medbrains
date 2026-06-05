@@ -149,6 +149,12 @@ export function PatientJourneyActions({ context, navigation }: PatientJourneyAct
 
     switch (action.id) {
       case "billing.collect_payment":
+        if (context.activeInvoiceId) {
+          navigation.navigate("Payment", {
+            invoiceId: context.activeInvoiceId,
+          });
+          return;
+        }
         navigation.navigate("Billing", {
           filter: "pending",
           handoff: "payment",
@@ -156,6 +162,12 @@ export function PatientJourneyActions({ context, navigation }: PatientJourneyAct
         });
         return;
       case "billing.open_ledger":
+        if (context.activeInvoiceId) {
+          navigation.navigate("BillDetail", {
+            invoiceId: context.activeInvoiceId,
+          });
+          return;
+        }
         navigation.navigate("Billing", {
           filter: "all",
           patientId: context.patientId,
