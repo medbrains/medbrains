@@ -208,6 +208,7 @@ import { toDateString, todayDateString } from "@/lib/date-utils";
 import { campService } from "@/services/camp.service";
 import { mrdService } from "@/services/mrd.service";
 import { opdService } from "@/services/opd.service";
+import { opdEncounterTabForOrderBasket } from "./opd-workspace";
 
 const statusColors: Record<string, string> = {
   waiting: "primary",
@@ -1501,6 +1502,7 @@ export function EncounterDetail({
   );
 
   function openOrderBasket(tab: OrderBasketTab = "drug") {
+    setActiveEncounterTab(opdEncounterTabForOrderBasket(tab));
     setBasketTab(tab);
     openBasket();
   }
