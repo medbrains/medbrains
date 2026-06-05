@@ -2,6 +2,7 @@ import { api } from "@medbrains/api";
 import type {
   BillingQueueDisplay,
   ErQueueDisplay,
+  LabQueueDisplay,
   PharmacyQueueDisplay,
   QueueToken,
 } from "@medbrains/types";
@@ -36,6 +37,15 @@ export function useErTokenBoardQuery(options?: { enabled?: boolean }) {
     queryFn: api.getErQueueDisplay,
     enabled: options?.enabled ?? true,
     refetchInterval: ER_REFRESH_MS,
+  });
+}
+
+export function useLabTokenBoardQuery(options?: { enabled?: boolean }) {
+  return useQuery<LabQueueDisplay>({
+    queryKey: [...TOKEN_BOARD_QUERY_KEY, "lab"],
+    queryFn: api.getLabQueueDisplay,
+    enabled: options?.enabled ?? true,
+    refetchInterval: STANDARD_REFRESH_MS,
   });
 }
 

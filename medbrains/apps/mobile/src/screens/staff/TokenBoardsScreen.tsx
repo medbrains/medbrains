@@ -2,6 +2,7 @@ import { useHasAnyPermission } from "@medbrains/stores";
 import type {
   BillingQueueToken,
   ErTriageToken,
+  LabQueueToken,
   PharmacyQueueToken,
   QueuePriority,
   QueueToken,
@@ -23,6 +24,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import {
   useBillingTokenBoardQuery,
   useErTokenBoardQuery,
+  useLabTokenBoardQuery,
   useOpdTokenBoardQuery,
   usePharmacyTokenBoardQuery,
 } from "../../services/tokenBoards.queries";
@@ -30,6 +32,7 @@ import { MEDBRAINS_COLORS } from "../../theme/paper-theme";
 
 const TOKEN_LIMIT = 6;
 const OPD_BOARD = TOKEN_BOARD_SURFACES.opd;
+const LAB_BOARD = TOKEN_BOARD_SURFACES.lab;
 const EMERGENCY_BOARD = TOKEN_BOARD_SURFACES.emergency;
 const PHARMACY_BOARD = TOKEN_BOARD_SURFACES.pharmacy;
 const BILLING_BOARD = TOKEN_BOARD_SURFACES.billing;
@@ -72,8 +75,11 @@ function statusColor(status: string) {
     case "paid":
     case "settled":
     case "called":
+    case "collected":
+    case "completed":
     case "in_progress":
       return MEDBRAINS_COLORS.statusSuccessBg;
+    case "collection_in_progress":
     case "preparing":
     case "issued":
     case "active":
@@ -89,6 +95,21 @@ function statusColor(status: string) {
 function opdToken(token: QueueToken): DisplayToken {
   return {
     meta: token.priority === "normal" ? "Standard priority" : priorityLabel(token.priority),
+    status: token.status,
+    tokenNumber: token.token_number,
+  };
+}
+
+function labToken(token: LabQueueToken): DisplayToken {
+  return {
+    meta: [
+      `${token.test_count} test${token.test_count === 1 ? "" : "s"}`,
+      token.counter !== null ? `Counter ${token.counter}` : null,
+      token.is_fasting ? "Fasting" : null,
+      token.is_pediatric ? "Pediatric" : null,
+    ]
+      .filter((part): part is string => Boolean(part))
+      .join(" · "),
     status: token.status,
     tokenNumber: token.token_number,
   };
@@ -304,16 +325,20 @@ function TriageLane({
 export function TokenBoardsScreen() {
   const theme = useTheme();
   const canViewOpd = useHasAnyPermission(OPD_BOARD.requiredAnyPermissions);
+  const canViewLab = useHasAnyPermission(LAB_BOARD.requiredAnyPermissions);
   const canViewEr = useHasAnyPermission(EMERGENCY_BOARD.requiredAnyPermissions);
   const canViewPharmacy = useHasAnyPermission(PHARMACY_BOARD.requiredAnyPermissions);
   const canViewBilling = useHasAnyPermission(BILLING_BOARD.requiredAnyPermissions);
-  const canViewAnyBoard = canViewOpd || canViewEr || canViewPharmacy || canViewBilling;
+  const canViewAnyBoard =
+    canViewOpd || canViewLab || canViewEr || canViewPharmacy || canViewBilling;
 
   const opdQuery = useOpdTokenBoardQuery({ enabled: canViewOpd });
+  const labQuery = useLabTokenBoardQuery({ enabled: canViewLab });
   const erQuery = useErTokenBoardQuery({ enabled: canViewEr });
   const pharmacyQuery = usePharmacyTokenBoardQuery({ enabled: canViewPharmacy });
   const billingQuery = useBillingTokenBoardQuery({ enabled: canViewBilling });
   const opdTokens = opdQuery.data ?? [];
+  const lab = labQuery.data;
   const er = erQuery.data;
   const pharmacy = pharmacyQuery.data;
   const billing = billingQuery.data;
@@ -340,7 +365,8 @@ export function TokenBoardsScreen() {
           <Avatar.Icon size={56} icon="shield-lock-outline" style={styles.stateIcon} />
           <Text variant="titleMedium">Token boards restricted</Text>
           <Text variant="bodySmall" style={styles.stateText}>
-            Queue-board visibility follows your OPD, emergency, pharmacy and billing permissions.
+            Queue-board visibility follows your OPD, lab, emergency, pharmacy and billing
+            permissions.
           </Text>
         </View>
       </SafeAreaView>
@@ -356,7 +382,7 @@ export function TokenBoardsScreen() {
               Token Boards
             </Text>
             <Text variant="bodyMedium" style={styles.subtitle}>
-              Mobile view of token-only OPD, ER, pharmacy and billing queues.
+              Mobile view of token-only OPD, lab, ER, pharmacy and billing queues.
             </Text>
           </View>
           <Avatar.Icon size={48} icon="monitor-dashboard" />
@@ -374,6 +400,11 @@ export function TokenBoardsScreen() {
             color={MEDBRAINS_COLORS.red}
             label="ER waiting"
             value={er?.total_waiting ?? "—"}
+          />
+          <SummaryMetric
+            color={MEDBRAINS_COLORS.brand}
+            label="Lab waiting"
+            value={lab?.stats.waiting_count ?? "—"}
           />
           <SummaryMetric
             color={MEDBRAINS_COLORS.emerald}
@@ -405,6 +436,34 @@ export function TokenBoardsScreen() {
                 title="Next tokens"
                 emptyLabel="No OPD tokens waiting"
                 tokens={opdWaiting.slice(0, TOKEN_LIMIT).map(opdToken)}
+              />
+            </View>
+          </BoardCard>
+        )}
+
+        {canViewLab && (
+          <BoardCard
+            title={LAB_BOARD.title}
+            subtitle={LAB_BOARD.subtitle}
+            isLoading={labQuery.isLoading}
+            isError={labQuery.isError}
+            lastUpdatedAt={labQuery.dataUpdatedAt}
+          >
+            <View style={styles.laneStack}>
+              <TokenLane
+                title="Collecting now"
+                emptyLabel="No lab token is currently called"
+                tokens={(lab?.current_tokens ?? []).slice(0, TOKEN_LIMIT).map(labToken)}
+              />
+              <TokenLane
+                title="Waiting samples"
+                emptyLabel="No lab sample tokens waiting"
+                tokens={(lab?.waiting ?? []).slice(0, TOKEN_LIMIT).map(labToken)}
+              />
+              <TokenLane
+                title="In progress"
+                emptyLabel="No collections in progress"
+                tokens={(lab?.collection_in_progress ?? []).slice(0, TOKEN_LIMIT).map(labToken)}
               />
             </View>
           </BoardCard>

@@ -12,6 +12,7 @@ import {
   type FieldAccessLevel,
   P,
   type QueueEntry,
+  TOKEN_BOARD_SURFACE_LIST,
 } from "@medbrains/types";
 import { useMemo } from "react";
 import { ScrollView, StyleSheet, TouchableOpacity, View } from "react-native";
@@ -38,6 +39,10 @@ import { MEDBRAINS_COLORS } from "../../theme/paper-theme";
 import { protectedQueueIdentity, queuePatientNameAccess } from "../../utils/queue-privacy";
 
 type MobileQueueStatus = "waiting" | "called" | "in_consultation" | "completed" | "no_show";
+const TOKEN_BOARD_VIEW_PERMISSIONS = TOKEN_BOARD_SURFACE_LIST.flatMap(
+  (surface) => surface.requiredAnyPermissions,
+);
+
 type StaffDashboardRoute =
   | DashboardMobileRoute
   | "Vitals"
@@ -178,13 +183,7 @@ export function StaffDashboard({ navigation }: StaffDashboardProps) {
   const lastNameAccess = useFieldAccess("patients.last_name");
   const uhidAccess = useFieldAccess("patients.uhid");
   const canViewQueue = useHasAnyPermission([P.OPD.QUEUE_LIST, P.OPD.QUEUE_VIEW]);
-  const canViewTokenBoards = useHasAnyPermission([
-    P.FRONT_OFFICE.QUEUE_LIST,
-    P.EMERGENCY.VISITS_LIST,
-    P.EMERGENCY.TRIAGE_LIST,
-    P.PHARMACY.PRESCRIPTIONS_LIST,
-    P.BILLING.INVOICES_LIST,
-  ]);
+  const canViewTokenBoards = useHasAnyPermission(TOKEN_BOARD_VIEW_PERMISSIONS);
   const canManageQueue = useHasPermission(P.OPD.TOKEN_MANAGE);
   const canFindPatients = useHasPermission(P.PATIENTS.LIST);
   const canRecordVitals = useHasPermission(P.OPD.VITALS.CREATE);

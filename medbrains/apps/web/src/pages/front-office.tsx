@@ -31,6 +31,8 @@ import type {
   ErQueueDisplay,
   ErTriageToken,
   FrontOfficeEnquiryLog,
+  LabQueueDisplay,
+  LabQueueToken,
   PharmacyQueueDisplay,
   PharmacyQueueToken,
   QueueDisplayConfig,
@@ -149,6 +151,7 @@ const priorityColors: Record<string, string> = {
 };
 
 const OPD_BOARD = TOKEN_BOARD_SURFACES.opd;
+const LAB_BOARD = TOKEN_BOARD_SURFACES.lab;
 const EMERGENCY_BOARD = TOKEN_BOARD_SURFACES.emergency;
 const PHARMACY_BOARD = TOKEN_BOARD_SURFACES.pharmacy;
 const BILLING_BOARD = TOKEN_BOARD_SURFACES.billing;
@@ -171,6 +174,7 @@ export function FrontOfficePage() {
   const canRegisterPatient = useHasPermission(P.PATIENTS.CREATE);
   const canCreateOpdVisit = useHasPermission(P.OPD.VISIT_CREATE);
   const canViewOpdQueue = useHasAnyPermission(OPD_BOARD.requiredAnyPermissions);
+  const canViewLab = useHasAnyPermission(LAB_BOARD.requiredAnyPermissions);
   const canCreateEmergencyVisit = useHasPermission(P.EMERGENCY.VISITS_CREATE);
   const canViewEmergency = useHasAnyPermission(EMERGENCY_BOARD.requiredAnyPermissions);
   const canViewCamp = useHasPermission(P.CAMP.LIST);
@@ -244,6 +248,7 @@ export function FrontOfficePage() {
         <Tabs.Panel value="token-boards" pt="md">
           <TokenBoardsTab
             canViewOpdQueue={canViewOpdQueue}
+            canViewLab={canViewLab}
             canViewEmergency={canViewEmergency}
             canViewPharmacy={canViewPharmacy}
             canViewBilling={canViewBilling}
@@ -628,6 +633,7 @@ const TRIAGE_LANES: ReadonlyArray<{
 
 interface TokenBoardsTabProps {
   canViewOpdQueue: boolean;
+  canViewLab: boolean;
   canViewEmergency: boolean;
   canViewPharmacy: boolean;
   canViewBilling: boolean;
@@ -635,6 +641,7 @@ interface TokenBoardsTabProps {
 
 function TokenBoardsTab({
   canViewOpdQueue,
+  canViewLab,
   canViewEmergency,
   canViewPharmacy,
   canViewBilling,
@@ -663,8 +670,15 @@ function TokenBoardsTab({
     enabled: canViewEmergency,
     refetchInterval: ER_TOKEN_BOARD_REFRESH_MS,
   });
+  const labQuery = useQuery<LabQueueDisplay>({
+    queryKey: ["front-office", "token-board", "lab"],
+    queryFn: () => frontOfficeService.getLabQueueDisplay(),
+    enabled: canViewLab,
+    refetchInterval: TOKEN_BOARD_REFRESH_MS,
+  });
 
   const opdTokens = opdQuery.data ?? [];
+  const lab = labQuery.data;
   const pharmacy = pharmacyQuery.data;
   const billing = billingQuery.data;
   const er = erQuery.data;
@@ -683,7 +697,8 @@ function TokenBoardsTab({
     (count, lane) => count + (er?.[lane.key] ?? []).filter((token) => token.is_overdue).length,
     0,
   );
-  const canViewAnyBoard = canViewOpdQueue || canViewEmergency || canViewPharmacy || canViewBilling;
+  const canViewAnyBoard =
+    canViewOpdQueue || canViewLab || canViewEmergency || canViewPharmacy || canViewBilling;
 
   return (
     <Stack gap="md">
@@ -692,7 +707,7 @@ function TokenBoardsTab({
           <Text fw={700}>Live token boards</Text>
           <Text size="sm" c="dimmed">
             Workstation view of public queue feeds. {TOKEN_BOARD_PUBLIC_PRIVACY_NOTICE} Reception,
-            ER, pharmacy and billing operations stay linked to the same token state.
+            lab, ER, pharmacy and billing operations stay linked to the same token state.
           </Text>
         </Stack>
         <Badge variant="light" color="teal">
@@ -704,7 +719,7 @@ function TokenBoardsTab({
         <Card withBorder padding="md">
           <Text fw={600}>Token boards restricted</Text>
           <Text size="sm" c="dimmed">
-            Queue-board visibility follows OPD, emergency, pharmacy and billing permissions.
+            Queue-board visibility follows OPD, lab, emergency, pharmacy and billing permissions.
           </Text>
         </Card>
       ) : (
@@ -736,6 +751,44 @@ function TokenBoardsTab({
                   title="Next tokens"
                   emptyLabel="No OPD tokens waiting"
                   tokens={opdWaiting.slice(0, TOKEN_BOARD_LIMIT).map(opdDisplayToken)}
+                />
+              </Stack>
+            </TokenBoardCard>
+          )}
+
+          {canViewLab && (
+            <TokenBoardCard
+              title={LAB_BOARD.title}
+              subtitle={LAB_BOARD.subtitle}
+              isLoading={labQuery.isLoading}
+              isError={labQuery.isError}
+              lastUpdatedAt={labQuery.dataUpdatedAt}
+              summary={[
+                { label: "Now", value: lab?.current_tokens[0]?.token_number ?? "—" },
+                { label: "Waiting", value: lab?.stats.waiting_count ?? "—" },
+                { label: "Counters", value: lab?.stats.counters_active ?? "—" },
+              ]}
+            >
+              <Stack gap="sm">
+                <TokenLane
+                  title="Collecting now"
+                  emptyLabel="No lab token is currently called"
+                  tokens={(lab?.current_tokens ?? [])
+                    .slice(0, TOKEN_BOARD_LIMIT)
+                    .map(labDisplayToken)}
+                  highlight
+                />
+                <TokenLane
+                  title="Waiting samples"
+                  emptyLabel="No lab sample tokens waiting"
+                  tokens={(lab?.waiting ?? []).slice(0, TOKEN_BOARD_LIMIT).map(labDisplayToken)}
+                />
+                <TokenLane
+                  title="Collection in progress"
+                  emptyLabel="No collections in progress"
+                  tokens={(lab?.collection_in_progress ?? [])
+                    .slice(0, TOKEN_BOARD_LIMIT)
+                    .map(labDisplayToken)}
                 />
               </Stack>
             </TokenBoardCard>
@@ -1046,6 +1099,21 @@ function opdDisplayToken(token: QueueToken): DisplayToken {
   };
 }
 
+function labDisplayToken(token: LabQueueToken): DisplayToken {
+  return {
+    meta: [
+      `${token.test_count} test${token.test_count === 1 ? "" : "s"}`,
+      token.counter !== null ? `Counter ${token.counter}` : null,
+      token.is_fasting ? "Fasting" : null,
+      token.is_pediatric ? "Pediatric" : null,
+    ]
+      .filter((part): part is string => Boolean(part))
+      .join(" · "),
+    status: token.status,
+    tokenNumber: token.token_number,
+  };
+}
+
 function pharmacyDisplayToken(token: PharmacyQueueToken): DisplayToken {
   return {
     meta: [
@@ -1077,8 +1145,11 @@ function tokenStatusColor(status: string) {
     case "paid":
     case "settled":
     case "called":
+    case "collected":
+    case "completed":
     case "in_progress":
       return "teal";
+    case "collection_in_progress":
     case "preparing":
     case "issued":
     case "active":

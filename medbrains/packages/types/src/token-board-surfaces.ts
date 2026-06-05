@@ -1,12 +1,13 @@
 import { P } from "./permissions.js";
 
-export type TokenBoardSurfaceId = "billing" | "emergency" | "opd" | "pharmacy";
+export type TokenBoardSurfaceId = "billing" | "emergency" | "lab" | "opd" | "pharmacy";
 export type TokenBoardDisplayMode = "token_only_public";
 export type TokenBoardTvAppCode =
   | "Desktop-Kiosk"
   | "TV-Billing"
   | "TV-DoctorRoom"
   | "TV-Emergency"
+  | "TV-Lab"
   | "TV-Pharmacy"
   | "TV-Queue";
 
@@ -19,10 +20,10 @@ export interface TokenBoardLaunchTargets {
 
 export interface TokenBoardSurfaceDefinition {
   id: TokenBoardSurfaceId;
-  accent: "brand" | "copper" | "emerald" | "red";
+  accent: "brand" | "copper" | "emerald" | "red" | "violet";
   description: string;
   displayMode: TokenBoardDisplayMode;
-  module: "billing" | "emergency" | "opd" | "pharmacy";
+  module: "billing" | "emergency" | "lab" | "opd" | "pharmacy";
   privacyNotice: string;
   requiredAnyPermissions: readonly string[];
   restrictedLabel: string;
@@ -33,7 +34,7 @@ export interface TokenBoardSurfaceDefinition {
 }
 
 export const TOKEN_BOARD_PUBLIC_PRIVACY_NOTICE =
-  "Token-only display mode. Patient names, identifiers, diagnoses, drug names and bill amounts stay hidden.";
+  "Token-only display mode. Patient names, identifiers, diagnoses, test names, drug names and bill amounts stay hidden.";
 
 export const TOKEN_BOARD_SURFACES: Readonly<
   Record<TokenBoardSurfaceId, TokenBoardSurfaceDefinition>
@@ -80,6 +81,31 @@ export const TOKEN_BOARD_SURFACES: Readonly<
     },
     title: "Emergency triage",
   },
+  lab: {
+    accent: "violet",
+    description: "Lab sample collection display for waiting, collecting and in-progress tokens.",
+    displayMode: "token_only_public",
+    id: "lab",
+    module: "lab",
+    privacyNotice:
+      "Token-only sample collection display. Patient names, identifiers, test names and results are withheld.",
+    requiredAnyPermissions: [
+      P.LAB.PHLEBOTOMY_LIST,
+      P.LAB.SAMPLES_LIST,
+      P.LAB.ORDERS_LIST,
+      P.LAB.REPORTS_VIEW,
+    ],
+    restrictedLabel: "Lab board restricted",
+    standardRefs: ["NABL sample collection traceability", "LOINC laboratory interoperability"],
+    subtitle: "Sample collection and in-progress test queue",
+    targets: {
+      mobileRoute: "TokenBoards",
+      tvAppCodes: ["TV-Lab"],
+      tvDeepLink: "medbrains://tv/lab-status",
+      webPath: "/front-office#token-boards",
+    },
+    title: "Lab collection",
+  },
   opd: {
     accent: "copper",
     description: "OPD waiting-hall queue display for called and next outpatient tokens.",
@@ -124,6 +150,7 @@ export const TOKEN_BOARD_SURFACES: Readonly<
 
 export const TOKEN_BOARD_SURFACE_LIST = [
   TOKEN_BOARD_SURFACES.opd,
+  TOKEN_BOARD_SURFACES.lab,
   TOKEN_BOARD_SURFACES.emergency,
   TOKEN_BOARD_SURFACES.pharmacy,
   TOKEN_BOARD_SURFACES.billing,

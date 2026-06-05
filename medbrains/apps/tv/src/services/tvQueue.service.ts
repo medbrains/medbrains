@@ -7,6 +7,7 @@ export const tvQueueService = {
   getQueueMetrics: (departmentId: string) => api.getQueueMetricsRealtime(departmentId),
   getErQueueDisplay: () => api.getErQueueDisplay(),
   getBedAvailabilityDisplay: (wardType: string) => api.getBedAvailabilityDisplay(wardType),
+  getLabQueueDisplay: () => api.getLabQueueDisplay(),
   getPharmacyQueueDisplay: () => api.getPharmacyQueueDisplay(),
   getBillingQueueDisplay: () => api.getBillingQueueDisplay(),
 };
