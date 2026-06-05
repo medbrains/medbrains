@@ -13,6 +13,7 @@ import type {
   TvDisplay,
   UpdateTvDisplayRequest,
 } from "@medbrains/types";
+import { TOKEN_BOARD_SURFACES } from "@medbrains/types";
 
 export const defaultTvDisplayFormValues: TvDisplayFormInput = {
   location_name: "",
@@ -40,6 +41,11 @@ export const defaultTvAnnouncementFormValues: TvAnnouncementFormInput = {
 };
 
 const tvDisplayTypes = new Set<string>(tvDisplayTypeValues);
+const publicTokenBoardDisplayTypes = new Set<string>(
+  Object.values(TOKEN_BOARD_SURFACES)
+    .filter((surface) => surface.displayMode === "token_only_public")
+    .map((surface) => surface.targets.tvDisplayType),
+);
 
 function isTvDisplayType(value: string): value is TvDisplayFormInput["display_type"] {
   return tvDisplayTypes.has(value);
@@ -60,13 +66,17 @@ export function tvDisplayToForm(display: TvDisplay | null): TvDisplayFormInput {
   };
 }
 
+export function tvDisplayAllowsPatientNames(displayType: string | null | undefined): boolean {
+  return displayType != null && !publicTokenBoardDisplayTypes.has(displayType);
+}
+
 export function tvDisplayFormToCreateRequest(data: TvDisplayFormInput): CreateTvDisplayRequest {
   return {
     location_name: data.location_name.trim(),
     display_type: data.display_type,
     department_id: optionalTextFromFormValue(data.department_id),
     doctors_per_screen: integerFromFormValue(data.doctors_per_screen, 4),
-    show_patient_name: data.show_patient_name,
+    show_patient_name: tvDisplayAllowsPatientNames(data.display_type) && data.show_patient_name,
     show_wait_time: data.show_wait_time,
     language: data.language.length > 0 ? data.language : ["en"],
     announcement_enabled: data.announcement_enabled,

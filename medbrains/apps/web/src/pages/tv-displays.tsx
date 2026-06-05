@@ -69,6 +69,7 @@ import {
   defaultTvDisplayFormValues,
   queueTokenFormToRequest,
   tvAnnouncementFormToRequest,
+  tvDisplayAllowsPatientNames,
   tvDisplayFormToCreateRequest,
   tvDisplayFormToUpdateRequest,
   tvDisplayToForm,
@@ -589,6 +590,8 @@ function DisplaysTab({
     resolver: zodResolver(tvDisplayFormSchema),
     defaultValues: defaultTvDisplayFormValues,
   });
+  const selectedDisplayType = displayForm.watch("display_type");
+  const canShowPatientNames = tvDisplayAllowsPatientNames(selectedDisplayType);
 
   const { data: displays = [], isLoading } = useQuery({
     queryKey: ["tv-displays"],
@@ -696,30 +699,38 @@ function DisplaysTab({
     {
       key: "show_patient_name",
       label: "Options",
-      render: (row) => (
-        <Group gap="xs">
-          {row.show_patient_name && (
-            <Badge size="xs" color="orange">
-              Names enabled
-            </Badge>
-          )}
-          {!row.show_patient_name && (
-            <Badge size="xs" color="success">
-              Token-only
-            </Badge>
-          )}
-          {row.show_wait_time && (
-            <Badge size="xs" color="primary">
-              Wait
-            </Badge>
-          )}
-          {row.announcement_enabled && (
-            <Badge size="xs" color="orange">
-              Announcements
-            </Badge>
-          )}
-        </Group>
-      ),
+      render: (row) => {
+        const patientNamesAllowed = tvDisplayAllowsPatientNames(row.display_type);
+        return (
+          <Group gap="xs">
+            {patientNamesAllowed && row.show_patient_name && (
+              <Badge size="xs" color="orange">
+                Names enabled
+              </Badge>
+            )}
+            {(!patientNamesAllowed || !row.show_patient_name) && (
+              <Badge size="xs" color="success">
+                Token-only
+              </Badge>
+            )}
+            {!patientNamesAllowed && row.show_patient_name && (
+              <Badge size="xs" color="red">
+                Names blocked
+              </Badge>
+            )}
+            {row.show_wait_time && (
+              <Badge size="xs" color="primary">
+                Wait
+              </Badge>
+            )}
+            {row.announcement_enabled && (
+              <Badge size="xs" color="orange">
+                Announcements
+              </Badge>
+            )}
+          </Group>
+        );
+      },
     },
     {
       key: "id",
@@ -895,9 +906,16 @@ function DisplaysTab({
               render={({ field }) => (
                 <Switch
                   label="Show patient name on authorized staff displays"
-                  description="Public token boards remain token-only; enable only for controlled team-room displays."
-                  checked={field.value}
-                  onChange={(event) => field.onChange(event.currentTarget.checked)}
+                  description={
+                    canShowPatientNames
+                      ? "Enable only for controlled team-room displays."
+                      : "Public token boards are enforced as token-only displays."
+                  }
+                  checked={canShowPatientNames && field.value}
+                  disabled={!canShowPatientNames}
+                  onChange={(event) =>
+                    field.onChange(canShowPatientNames && event.currentTarget.checked)
+                  }
                 />
               )}
             />

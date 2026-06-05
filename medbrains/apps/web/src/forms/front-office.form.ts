@@ -177,6 +177,12 @@ export const DEFAULT_ENQUIRY_FORM_VALUES: FrontOfficeEnquiryFormInput = {
   response_text: "",
 };
 
+export function frontOfficeDisplayAllowsPatientNames(
+  displayType: string | null | undefined,
+): boolean {
+  return displayType === "doctor_room";
+}
+
 export function toCreateVisitorRequest(values: FrontOfficeVisitorFormInput): CreateVisitorRequest {
   return {
     visitor_name: values.visitor_name.trim(),
@@ -215,7 +221,8 @@ export function toUpsertDisplayConfigRequest(
     location_name: values.location_name.trim(),
     display_type: values.display_type ?? undefined,
     doctors_per_screen: optionalIntegerFromFormValue(values.doctors_per_screen),
-    show_patient_name: values.show_patient_name,
+    show_patient_name:
+      frontOfficeDisplayAllowsPatientNames(values.display_type) && values.show_patient_name,
     show_wait_time: values.show_wait_time,
     announcement_enabled: values.announcement_enabled,
   };

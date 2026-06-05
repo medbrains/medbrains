@@ -94,6 +94,7 @@ import {
   type FrontOfficeVisitingHoursFormInput,
   type FrontOfficeVisitorFormInput,
   type FrontOfficeVisitorPassFormInput,
+  frontOfficeDisplayAllowsPatientNames,
   frontOfficeDisplayConfigFormSchema,
   frontOfficeEnquiryFormSchema,
   frontOfficeQueuePriorityFormSchema,
@@ -1567,6 +1568,9 @@ function QueueConfigTab({
     resolver: zodResolver(frontOfficeDisplayConfigFormSchema),
     defaultValues: DEFAULT_DISPLAY_CONFIG_FORM_VALUES,
   });
+  const selectedDisplayConfigType = displayConfigForm.watch("display_type");
+  const canShowDisplayPatientNames =
+    frontOfficeDisplayAllowsPatientNames(selectedDisplayConfigType);
 
   const visitingHoursForm = useForm<FrontOfficeVisitingHoursFormInput>({
     resolver: zodResolver(frontOfficeVisitingHoursFormSchema),
@@ -1663,17 +1667,32 @@ function QueueConfigTab({
     {
       key: "show_patient_name",
       label: "Privacy",
-      render: (r: QueueDisplayConfig) =>
-        r.show_patient_name ? (
-          <TableValueBadge
-            value="names_enabled"
-            label="Names enabled"
-            color="orange"
-            variant="filled"
-          />
-        ) : (
+      render: (r: QueueDisplayConfig) => {
+        const patientNamesAllowed = frontOfficeDisplayAllowsPatientNames(r.display_type);
+        if (patientNamesAllowed && r.show_patient_name) {
+          return (
+            <TableValueBadge
+              value="names_enabled"
+              label="Names enabled"
+              color="orange"
+              variant="filled"
+            />
+          );
+        }
+        if (!patientNamesAllowed && r.show_patient_name) {
+          return (
+            <TableValueBadge
+              value="names_blocked"
+              label="Names blocked"
+              color="danger"
+              variant="filled"
+            />
+          );
+        }
+        return (
           <TableValueBadge value="token_only" label="Token-only" color="success" variant="filled" />
-        ),
+        );
+      },
     },
     {
       key: "announcement_enabled",
@@ -1869,9 +1888,16 @@ function QueueConfigTab({
             render={({ field }) => (
               <Switch
                 label="Show patient name on authorized staff displays"
-                description="Public token boards remain token-only; enable only for controlled team-room displays."
-                checked={field.value}
-                onChange={(event) => field.onChange(event.currentTarget.checked)}
+                description={
+                  canShowDisplayPatientNames
+                    ? "Enable only for controlled team-room displays."
+                    : "Waiting-area and counter displays are enforced as token-only."
+                }
+                checked={canShowDisplayPatientNames && field.value}
+                disabled={!canShowDisplayPatientNames}
+                onChange={(event) =>
+                  field.onChange(canShowDisplayPatientNames && event.currentTarget.checked)
+                }
               />
             )}
           />
