@@ -191,7 +191,7 @@ import {
   IconX,
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Controller, useFieldArray, useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useParams, useSearchParams } from "react-router";
@@ -1243,7 +1243,8 @@ function InvoiceDetail({
     uhid: uhidAccess,
   };
   const [addItemOpened, addItemHandlers] = useDisclosure(false);
-  const [paymentOpened, paymentHandlers] = useDisclosure(false);
+  const [paymentOpened, { open: openPaymentPanel, close: closePaymentPanel }] =
+    useDisclosure(false);
   const [gatewayOpened, gatewayHandlers] = useDisclosure(false);
   const [discountOpened, discountHandlers] = useDisclosure(false);
   const [copayOpened, copayHandlers] = useDisclosure(false);
@@ -1364,7 +1365,7 @@ function InvoiceDetail({
         patient_id: inv.patient_id,
         payment_id: result.id,
       });
-      paymentHandlers.close();
+      closePaymentPanel();
       resetPayment(paymentDefaults);
     },
   });
@@ -1416,6 +1417,41 @@ function InvoiceDetail({
     },
   });
 
+  useEffect(() => {
+    if (initialAction !== "payment" || !data) {
+      return;
+    }
+
+    window.requestAnimationFrame(() => {
+      document.getElementById("billing-payments")?.scrollIntoView({ block: "start" });
+    });
+
+    if (paymentOpened) {
+      return;
+    }
+
+    const invoiceDetail = data as InvoiceDetailResponse;
+    const invoice = invoiceDetail.invoice;
+    const invoiceStatus = invoiceDisplayStatus(invoice);
+    const invoiceBalanceAmount = invoiceBalance(invoice);
+    const canOpenPaymentPanel =
+      amountAccess === "edit" &&
+      canPay &&
+      (invoiceStatus === "issued" || invoiceStatus === "partially_paid") &&
+      invoiceBalanceAmount > 0;
+
+    if (!canOpenPaymentPanel) {
+      return;
+    }
+
+    resetPayment({
+      amount: invoiceBalanceAmount,
+      mode: "cash",
+      reference_number: "",
+    });
+    openPaymentPanel();
+  }, [amountAccess, canPay, data, initialAction, openPaymentPanel, paymentOpened, resetPayment]);
+
   if (!data) return <Text c="dimmed">Loading...</Text>;
 
   const detail = data as InvoiceDetailResponse;
@@ -1444,11 +1480,11 @@ function InvoiceDetail({
     balance > 0;
   const openPaymentForm = () => {
     if (paymentOpened) {
-      paymentHandlers.close();
+      closePaymentPanel();
       return;
     }
     resetPayment({ ...paymentDefaults, amount: balance });
-    paymentHandlers.open();
+    openPaymentPanel();
   };
   const handleAddInvoiceItem = (values: BillingInvoiceItemFormInput) => {
     addItemMutation.mutate({
