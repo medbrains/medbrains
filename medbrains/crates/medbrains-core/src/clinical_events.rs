@@ -32,6 +32,12 @@ pub enum ClinicalEventName {
     OpdCertificateCreated,
     #[serde(rename = "opd.consent.signed")]
     OpdConsentSigned,
+    #[serde(rename = "camp.started")]
+    CampStarted,
+    #[serde(rename = "camp.registration.created")]
+    CampRegistrationCreated,
+    #[serde(rename = "camp.screening.completed")]
+    CampScreeningCompleted,
     #[serde(rename = "order.created")]
     OrderCreated,
     #[serde(rename = "order.cancelled")]
@@ -94,6 +100,9 @@ impl ClinicalEventName {
             Self::OpdEncounterCreated => "opd.encounter.created",
             Self::OpdCertificateCreated => "opd.certificate.created",
             Self::OpdConsentSigned => "opd.consent.signed",
+            Self::CampStarted => "camp.started",
+            Self::CampRegistrationCreated => "camp.registration.created",
+            Self::CampScreeningCompleted => "camp.screening.completed",
             Self::OrderCreated => "order.created",
             Self::OrderCancelled => "order.cancelled",
             Self::LabOrderCompleted => "lab.order.completed",
@@ -130,6 +139,9 @@ impl ClinicalEventName {
             | Self::OpdEncounterCreated
             | Self::OpdCertificateCreated
             | Self::OpdConsentSigned => ClinicalEventSourceModule::Opd,
+            Self::CampStarted | Self::CampRegistrationCreated | Self::CampScreeningCompleted => {
+                ClinicalEventSourceModule::Camp
+            }
             Self::EmergencyVisitCreated
             | Self::MlcCreated
             | Self::EmergencyMlcPoliceIntimationCreated => ClinicalEventSourceModule::Emergency,
@@ -176,6 +188,9 @@ impl ClinicalEventName {
             Self::OpdEncounterCreated => &["encounter_id", "patient_id"],
             Self::OpdCertificateCreated => &["certificate_id", "patient_id"],
             Self::OpdConsentSigned => &["consent_id", "patient_id"],
+            Self::CampStarted => &["camp_id"],
+            Self::CampRegistrationCreated => &["registration_id", "camp_id", "patient_id"],
+            Self::CampScreeningCompleted => &["screening_id", "camp_id", "patient_id"],
             Self::OrderCreated => &["order_id", "order_type", "patient_id"],
             Self::OrderCancelled => &["order_id", "order_type", "reason"],
             Self::LabOrderCompleted => &["order_id", "patient_id"],
@@ -239,6 +254,9 @@ impl FromStr for ClinicalEventName {
             "opd.encounter.created" => Ok(Self::OpdEncounterCreated),
             "opd.certificate.created" => Ok(Self::OpdCertificateCreated),
             "opd.consent.signed" => Ok(Self::OpdConsentSigned),
+            "camp.started" => Ok(Self::CampStarted),
+            "camp.registration.created" => Ok(Self::CampRegistrationCreated),
+            "camp.screening.completed" => Ok(Self::CampScreeningCompleted),
             "order.created" => Ok(Self::OrderCreated),
             "order.cancelled" => Ok(Self::OrderCancelled),
             "lab.order.completed" => Ok(Self::LabOrderCompleted),
@@ -276,6 +294,8 @@ pub enum ClinicalEventSourceModule {
     Patients,
     #[serde(rename = "opd")]
     Opd,
+    #[serde(rename = "camp")]
+    Camp,
     #[serde(rename = "order_basket")]
     OrderBasket,
     #[serde(rename = "lab")]
@@ -310,6 +330,7 @@ impl ClinicalEventSourceModule {
         match self {
             Self::Patients => "patients",
             Self::Opd => "opd",
+            Self::Camp => "camp",
             Self::OrderBasket => "order_basket",
             Self::Lab => "lab",
             Self::Radiology => "radiology",
@@ -615,6 +636,47 @@ mod tests {
         assert_eq!(
             ClinicalEventName::PharmacyNdpsMovementCreated.required_payload_keys(),
             &["entry_id", "catalog_item_id", "action"]
+        );
+    }
+
+    #[test]
+    fn camp_events_are_canonical() {
+        assert_eq!(
+            "camp.started".parse::<ClinicalEventName>().ok(),
+            Some(ClinicalEventName::CampStarted)
+        );
+        assert_eq!(ClinicalEventName::CampStarted.as_str(), "camp.started");
+        assert_eq!(
+            ClinicalEventName::CampStarted.default_source_module(),
+            ClinicalEventSourceModule::Camp
+        );
+        assert_eq!(
+            ClinicalEventName::CampStarted.required_payload_keys(),
+            &["camp_id"]
+        );
+
+        assert_eq!(
+            "camp.registration.created"
+                .parse::<ClinicalEventName>()
+                .ok(),
+            Some(ClinicalEventName::CampRegistrationCreated)
+        );
+        assert_eq!(
+            ClinicalEventName::CampRegistrationCreated.required_payload_keys(),
+            &["registration_id", "camp_id", "patient_id"]
+        );
+
+        assert_eq!(
+            "camp.screening.completed".parse::<ClinicalEventName>().ok(),
+            Some(ClinicalEventName::CampScreeningCompleted)
+        );
+        assert_eq!(
+            ClinicalEventName::CampScreeningCompleted.default_source_module(),
+            ClinicalEventSourceModule::Camp
+        );
+        assert_eq!(
+            ClinicalEventName::CampScreeningCompleted.required_payload_keys(),
+            &["screening_id", "camp_id", "patient_id"]
         );
     }
 }

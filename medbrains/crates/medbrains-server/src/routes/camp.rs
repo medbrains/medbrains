@@ -13,6 +13,7 @@ use medbrains_core::camp::{
     Camp, CampBillingRecord, CampFollowup, CampLabSample, CampRegistration, CampScreening,
     CampTeamMember,
 };
+use medbrains_core::clinical_events::{ClinicalEventEnvelope, ClinicalEventName};
 use medbrains_core::form::FieldAccessLevel;
 use medbrains_core::permissions;
 use medbrains_core::privacy::{mask_identifier_keep_last, mask_name, mask_phone};
@@ -5846,6 +5847,25 @@ pub async fn activate_camp(
     .fetch_one(&mut *tx)
     .await?;
 
+    let mut event = ClinicalEventEnvelope::new(
+        claims.tenant_id,
+        ClinicalEventName::CampStarted,
+        row.id,
+        claims.sub,
+        serde_json::json!({
+            "camp_id": row.id,
+            "camp_code": &row.camp_code,
+            "camp_type": row.camp_type,
+            "scheduled_date": row.scheduled_date,
+            "status": row.status,
+            "organizing_department_id": row.organizing_department_id,
+        }),
+    );
+    if let Some(department_id) = row.organizing_department_id {
+        event = event.with_department(department_id);
+    }
+    crate::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
+
     tx.commit().await?;
     Ok(Json(row))
 }
@@ -6307,6 +6327,31 @@ pub async fn create_registration(
     .fetch_one(&mut *tx)
     .await?;
 
+    if let Some(patient_id) = row.patient_id {
+        let mut event = ClinicalEventEnvelope::new(
+            claims.tenant_id,
+            ClinicalEventName::CampRegistrationCreated,
+            row.id,
+            claims.sub,
+            serde_json::json!({
+                "registration_id": row.id,
+                "camp_id": row.camp_id,
+                "patient_id": patient_id,
+                "registration_number": &row.registration_number,
+                "service_line": &row.service_line,
+                "is_walk_in": row.is_walk_in,
+                "clinical_department_id": row.clinical_department_id,
+                "attending_doctor_id": row.attending_doctor_id,
+                "created_at": row.created_at,
+            }),
+        )
+        .with_patient(patient_id);
+        if let Some(department_id) = row.clinical_department_id {
+            event = event.with_department(department_id);
+        }
+        crate::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
+    }
+
     tx.commit().await?;
     Ok(Json(filter_camp_registration_response(
         row,
@@ -6679,6 +6724,30 @@ pub async fn create_screening(
         .bind(notes)
         .execute(&mut *tx)
         .await?;
+    }
+
+    if let Some(patient_id) = registration_context.patient_id {
+        let mut event = ClinicalEventEnvelope::new(
+            claims.tenant_id,
+            ClinicalEventName::CampScreeningCompleted,
+            row.id,
+            claims.sub,
+            serde_json::json!({
+                "screening_id": row.id,
+                "registration_id": row.registration_id,
+                "camp_id": registration_context.camp_id,
+                "patient_id": patient_id,
+                "referred_to_hospital": row.referred_to_hospital,
+                "referral_department": &row.referral_department,
+                "referral_urgency": &row.referral_urgency,
+                "screened_at": row.created_at,
+            }),
+        )
+        .with_patient(patient_id);
+        if let Some(department_id) = registration_context.organizing_department_id {
+            event = event.with_department(department_id);
+        }
+        crate::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
     }
 
     tx.commit().await?;
