@@ -327,7 +327,7 @@ function emitIpdBedMovementEvent(
   notes?: string,
 ) {
   if (response.from_bed_id) {
-    emit("transfer.completed", {
+    emit("bed.transferred", {
       admission_id: response.admission_id,
       from_bed_id: response.from_bed_id,
       notes,
@@ -3124,7 +3124,7 @@ function DischargeTab({
       void queryClient.invalidateQueries({ queryKey: ["admission-detail", admissionId] });
       void queryClient.invalidateQueries({ queryKey: ["admissions"] });
       notifications.show({ title: "Discharged", message: "Patient discharged", color: "success" });
-      emit("discharge.completed", {
+      emit("ipd.discharge.completed", {
         admission_id: admissionId,
         discharge_type: result.discharge_type ?? dischargeType,
         patient_id: result.patient_id ?? patientId,

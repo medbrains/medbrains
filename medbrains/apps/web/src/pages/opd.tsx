@@ -951,7 +951,7 @@ function OpdPageInner() {
         message: `${protectedPatientName(appointment.patient_name, patientNameAccess)} added to the OPD queue`,
         color: "success",
       });
-      emit("appointment.checked_in_to_opd", {
+      emit("opd.encounter.created", {
         appointment_id: appointment.id,
         department_id: result.encounter.department_id,
         doctor_id: result.encounter.doctor_id,
