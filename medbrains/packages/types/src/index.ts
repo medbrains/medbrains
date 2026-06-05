@@ -13,6 +13,16 @@ export {
   accessMatrixSurfaceKinds,
 } from "./access-matrix.js";
 export type {
+  DashboardMobileIntent,
+  DashboardMobileRoute,
+  DashboardReportFamily,
+  DashboardReportIntent,
+  DashboardReportPriority,
+  DashboardStatIntent,
+  DashboardStatIntentId,
+} from "./dashboard-intents.js";
+export { buildDashboardReportPath, DASHBOARD_STAT_INTENTS } from "./dashboard-intents.js";
+export type {
   ClinicalJourneyActionDefinition,
   ClinicalJourneyActionId,
   ClinicalJourneyActionIntent,

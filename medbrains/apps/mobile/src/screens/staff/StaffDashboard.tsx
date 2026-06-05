@@ -4,7 +4,15 @@ import {
   useHasAnyPermission,
   useHasPermission,
 } from "@medbrains/stores";
-import { type FieldAccessLevel, P, type QueueEntry } from "@medbrains/types";
+import {
+  DASHBOARD_STAT_INTENTS,
+  type DashboardMobileIntent,
+  type DashboardMobileRoute,
+  type DashboardStatIntentId,
+  type FieldAccessLevel,
+  P,
+  type QueueEntry,
+} from "@medbrains/types";
 import { useMemo } from "react";
 import { ScrollView, StyleSheet, TouchableOpacity, View } from "react-native";
 import {
@@ -31,23 +39,21 @@ import { protectedQueueIdentity, queuePatientNameAccess } from "../../utils/queu
 
 type MobileQueueStatus = "waiting" | "called" | "in_consultation" | "completed" | "no_show";
 type StaffDashboardRoute =
-  | "PatientSearch"
-  | "Queue"
-  | "TokenBoards"
+  | DashboardMobileRoute
   | "Vitals"
   | "Prescription"
   | "LabOrder"
-  | "LabResultsView"
   | "PatientDetail";
 
 interface StaffDashboardProps {
   navigation: {
-    navigate: (screen: StaffDashboardRoute, params?: Record<string, unknown>) => void;
+    navigate: (screen: StaffDashboardRoute, params?: Readonly<Record<string, unknown>>) => void;
   };
 }
 
 interface StatCard {
   id: string;
+  intentId?: DashboardStatIntentId;
   label: string;
   value: number;
   icon: string;
@@ -62,24 +68,41 @@ interface QuickAction {
   route: StaffDashboardRoute;
 }
 
-function StatCardItem({ stat }: { stat: StatCard }) {
+function StatCardItem({
+  actionLabel,
+  onPress,
+  stat,
+}: {
+  actionLabel?: string;
+  onPress?: () => void;
+  stat: StatCard;
+}) {
   return (
-    <Surface style={[styles.statCard, { borderLeftColor: stat.color }]} elevation={1}>
-      <Avatar.Icon
-        size={36}
-        icon={stat.icon}
-        style={{ backgroundColor: `${stat.color}20` }}
-        color={stat.color}
-      />
-      <View style={styles.statContent}>
-        <Text variant="headlineMedium" style={styles.statValue}>
-          {stat.value}
-        </Text>
-        <Text variant="labelSmall" style={styles.statLabel}>
-          {stat.label}
-        </Text>
-      </View>
-    </Surface>
+    <TouchableOpacity
+      accessibilityLabel={actionLabel}
+      accessibilityRole={onPress ? "button" : undefined}
+      activeOpacity={onPress ? 0.84 : 1}
+      disabled={!onPress}
+      onPress={onPress}
+      style={styles.statAction}
+    >
+      <Surface style={[styles.statCard, { borderLeftColor: stat.color }]} elevation={1}>
+        <Avatar.Icon
+          size={36}
+          icon={stat.icon}
+          style={{ backgroundColor: `${stat.color}20` }}
+          color={stat.color}
+        />
+        <View style={styles.statContent}>
+          <Text variant="headlineMedium" style={styles.statValue}>
+            {stat.value}
+          </Text>
+          <Text variant="labelSmall" style={styles.statLabel}>
+            {stat.label}
+          </Text>
+        </View>
+      </Surface>
+    </TouchableOpacity>
   );
 }
 
@@ -138,6 +161,15 @@ function queueItemView(
   };
 }
 
+function resolveStatMobileIntent(
+  stat: StatCard,
+): { intentId: DashboardStatIntentId; mobile: DashboardMobileIntent } | undefined {
+  if (!stat.intentId) return undefined;
+  const mobile = DASHBOARD_STAT_INTENTS[stat.intentId].mobile;
+  if (!mobile) return undefined;
+  return { intentId: stat.intentId, mobile };
+}
+
 export function StaffDashboard({ navigation }: StaffDashboardProps) {
   const theme = useTheme();
   const user = useAuthStore((state) => state.user);
@@ -191,6 +223,7 @@ export function StaffDashboard({ navigation }: StaffDashboardProps) {
   const todayStats: StatCard[] = [
     {
       id: "patients",
+      intentId: "opdQueue",
       label: "Tokens Today",
       value: stats.total,
       icon: "account-group",
@@ -198,6 +231,7 @@ export function StaffDashboard({ navigation }: StaffDashboardProps) {
     },
     {
       id: "waiting",
+      intentId: "opdQueue",
       label: "Waiting",
       value: stats.waiting,
       icon: "clock-outline",
@@ -205,6 +239,7 @@ export function StaffDashboard({ navigation }: StaffDashboardProps) {
     },
     {
       id: "active",
+      intentId: "opdQueue",
       label: "Active",
       value: stats.active,
       icon: "account-clock",
@@ -212,6 +247,7 @@ export function StaffDashboard({ navigation }: StaffDashboardProps) {
     },
     {
       id: "completed",
+      intentId: "opdQueue",
       label: "Completed",
       value: stats.completed,
       icon: "check-circle",
@@ -292,6 +328,12 @@ export function StaffDashboard({ navigation }: StaffDashboardProps) {
     });
   };
 
+  const handleDashboardStatPress = (intentId: DashboardStatIntentId) => {
+    const mobile = DASHBOARD_STAT_INTENTS[intentId].mobile;
+    if (!mobile) return;
+    navigation.navigate(mobile.route, mobile.params);
+  };
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
@@ -315,9 +357,18 @@ export function StaffDashboard({ navigation }: StaffDashboardProps) {
           {isFetching && <ActivityIndicator size="small" />}
         </View>
         <View style={styles.statsGrid}>
-          {todayStats.map((stat) => (
-            <StatCardItem key={stat.id} stat={stat} />
-          ))}
+          {todayStats.map((stat) => {
+            const action = resolveStatMobileIntent(stat);
+
+            return (
+              <StatCardItem
+                key={stat.id}
+                actionLabel={action?.mobile.actionLabel}
+                onPress={action ? () => handleDashboardStatPress(action.intentId) : undefined}
+                stat={stat}
+              />
+            );
+          })}
         </View>
 
         <Surface style={styles.flowPanel} elevation={1}>
@@ -475,6 +526,9 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     gap: 12,
   },
+  statAction: {
+    width: "48%",
+  },
   flowPanel: {
     gap: 10,
     marginTop: 16,
@@ -495,7 +549,7 @@ const styles = StyleSheet.create({
     backgroundColor: MEDBRAINS_COLORS.navActiveBg,
   },
   statCard: {
-    width: "48%",
+    width: "100%",
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
