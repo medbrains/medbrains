@@ -35,6 +35,7 @@ import type {
   BillingCorporateEnrollmentFormInput,
   BillingCorporateFormInput,
   BillingCorporateUpdateFormInput,
+  BillingCreateInvoiceFormInput,
   BillingCreditNoteFormInput,
   BillingCreditPatientFormInput,
   BillingDayCloseFormInput,
@@ -63,6 +64,7 @@ import {
   billingCorporateEnrollmentFormSchema,
   billingCorporateFormSchema,
   billingCorporateUpdateFormSchema,
+  billingCreateInvoiceFormSchema,
   billingCreditNoteFormSchema,
   billingCreditPatientFormSchema,
   billingDayCloseFormSchema,
@@ -1143,18 +1145,44 @@ function BillingPageInner() {
         </Tabs.Panel>
       </Tabs>
 
-      <CreateInvoiceDrawer opened={createOpened} onClose={closeCreate} />
+      <CreateInvoiceDrawer
+        key={patientFilterId ?? "all-billing"}
+        opened={createOpened}
+        onClose={closeCreate}
+        initialPatientId={patientFilterId ?? ""}
+      />
       <ErFastInvoiceModal opened={erInvoiceOpened} onClose={closeErInvoice} />
     </div>
   );
 }
 
-function CreateInvoiceDrawer({ opened, onClose }: { opened: boolean; onClose: () => void }) {
+function CreateInvoiceDrawer({
+  opened,
+  onClose,
+  initialPatientId,
+}: {
+  opened: boolean;
+  onClose: () => void;
+  initialPatientId: string;
+}) {
   const emit = useClinicalEmit();
   const queryClient = useQueryClient();
-  const [patientId, setPatientId] = useState("");
-  const [encounterId, setEncounterId] = useState("");
-  const [notes, setNotes] = useState("");
+  const invoiceDefaults: BillingCreateInvoiceFormInput = {
+    patient_id: initialPatientId,
+    encounter_id: "",
+    notes: "",
+  };
+  const {
+    control,
+    register,
+    reset,
+    handleSubmit,
+    watch,
+    formState: { errors },
+  } = useForm<BillingCreateInvoiceFormInput>({
+    resolver: zodResolver(billingCreateInvoiceFormSchema),
+    defaultValues: invoiceDefaults,
+  });
 
   const createMutation = useMutation({
     mutationFn: (data: CreateInvoiceRequest) => billingService.createInvoice(data),
@@ -1172,42 +1200,49 @@ function CreateInvoiceDrawer({ opened, onClose }: { opened: boolean; onClose: ()
         total_amount: result.total_amount,
       });
       onClose();
-      setPatientId("");
-      setEncounterId("");
-      setNotes("");
+      reset(invoiceDefaults);
     },
     onError: () => {
       notifications.show({ title: "Error", message: "Failed to create invoice", color: "danger" });
     },
   });
+  const patientId = watch("patient_id");
   const contextPatientId = patientId.trim().length >= 32 ? patientId.trim() : null;
+  const closeDrawer = () => {
+    reset(invoiceDefaults);
+    onClose();
+  };
+  const submitInvoice = handleSubmit((values) => {
+    createMutation.mutate({
+      patient_id: values.patient_id.trim(),
+      encounter_id: billingOptionalText(values.encounter_id),
+      notes: billingOptionalText(values.notes),
+    });
+  });
 
   return (
-    <Drawer opened={opened} onClose={onClose} title="Create Invoice" position="right" size="xl">
-      <Stack>
-        <TextInput
-          label="Patient ID"
-          required
-          value={patientId}
-          onChange={(e) => setPatientId(e.currentTarget.value)}
+    <Drawer opened={opened} onClose={closeDrawer} title="Create Invoice" position="right" size="xl">
+      <Stack component="form" onSubmit={submitInvoice}>
+        <Controller
+          control={control}
+          name="patient_id"
+          render={({ field }) => (
+            <PatientSearchSelect value={field.value} onChange={field.onChange} required />
+          )}
         />
-        <PatientContextBanner patientId={contextPatientId} hideLoadingState />
+        {errors.patient_id?.message && (
+          <Text size="xs" c="danger">
+            {errors.patient_id.message}
+          </Text>
+        )}
+        {contextPatientId && <PatientContextBanner patientId={contextPatientId} hideLoadingState />}
         <TextInput
           label="Encounter ID"
-          value={encounterId}
-          onChange={(e) => setEncounterId(e.currentTarget.value)}
+          error={errors.encounter_id?.message}
+          {...register("encounter_id")}
         />
-        <Textarea label="Notes" value={notes} onChange={(e) => setNotes(e.currentTarget.value)} />
-        <Button
-          onClick={() =>
-            createMutation.mutate({
-              patient_id: patientId,
-              encounter_id: encounterId || undefined,
-              notes: notes || undefined,
-            })
-          }
-          loading={createMutation.isPending}
-        >
+        <Textarea label="Notes" error={errors.notes?.message} {...register("notes")} />
+        <Button type="submit" loading={createMutation.isPending}>
           Create Draft Invoice
         </Button>
       </Stack>
