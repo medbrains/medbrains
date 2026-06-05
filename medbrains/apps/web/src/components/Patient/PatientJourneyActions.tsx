@@ -25,6 +25,7 @@ import { useNavigate } from "react-router";
 import { useClinicalEventStore } from "@/components/clinical-event-store";
 import styles from "./patient-journey-actions.module.scss";
 import { mergeJourneyEventNames } from "./patient-journey-events";
+import { patientJourneyActionRoute } from "./patient-journey-routes";
 
 type PatientOrderTab = "drug" | "lab" | "radiology";
 type PatientJourneyActionSize = "xs" | "sm";
@@ -186,21 +187,22 @@ export function PatientJourneyActions({
   );
 
   function handleAction(actionId: ClinicalJourneyActionId) {
+    if (actionId === "patient.edit" && onEdit) {
+      onEdit();
+      return;
+    }
+
+    if (actionId === "patient.share") {
+      onShare?.();
+      return;
+    }
+
+    if (actionId === "patient.print_card") {
+      onPrintPatientCard?.();
+      return;
+    }
+
     switch (actionId) {
-      case "patient.edit":
-        if (onEdit) {
-          onEdit();
-          return;
-        }
-        navigate(`/patients/${journeyContext.patientId}/edit`);
-        return;
-      case "opd.open_visit":
-        navigate(
-          journeyContext.activeEncounterId
-            ? `/opd/encounters/${journeyContext.activeEncounterId}#consultation`
-            : `/opd/new?patient_id=${journeyContext.patientId}`,
-        );
-        return;
       case "orders.medication":
       case "orders.lab":
       case "orders.radiology": {
@@ -209,8 +211,9 @@ export function PatientJourneyActions({
           onOpenOrderBasket(tab);
           return;
         }
-        if (journeyContext.activeOrderContext === "ipd" && journeyContext.activeAdmissionId) {
-          navigate(`/ipd/admissions/${journeyContext.activeAdmissionId}#overview`);
+        const route = patientJourneyActionRoute(actionId, journeyContext);
+        if (route) {
+          navigate(route);
           return;
         }
         if (tab) {
@@ -218,53 +221,10 @@ export function PatientJourneyActions({
         }
         return;
       }
-      case "ipd.open_admission":
-        if (journeyContext.activeAdmissionId) {
-          navigate(`/ipd/admissions/${journeyContext.activeAdmissionId}#overview`);
-        }
-        return;
-      case "ipd.admit":
-        navigate(`/ipd/new?patient_id=${journeyContext.patientId}`);
-        return;
-      case "emergency.open_visit":
-        navigate(
-          journeyContext.activeEmergencyVisitId
-            ? `/emergency/visits/${journeyContext.activeEmergencyVisitId}`
-            : `/emergency/visits/new?patient_id=${journeyContext.patientId}`,
-        );
-        return;
-      case "emergency.open_mlc":
-        navigate(`/emergency?tab=mlc&patient_id=${journeyContext.patientId}`);
-        return;
-      case "camp.open_context":
-        navigate(`/camp?patient_id=${journeyContext.patientId}`);
-        return;
-      case "billing.open_ledger":
-        navigate(`/billing?tab=invoices&patient_id=${journeyContext.patientId}`);
-        return;
-      case "billing.prepare_discharge_bill":
-        navigate(
-          `/billing?tab=invoices&patient_id=${journeyContext.patientId}&source=ipd_discharge`,
-        );
-        return;
-      case "billing.collect_payment":
-        navigate(`/billing?tab=invoices&patient_id=${journeyContext.patientId}&action=payment`);
-        return;
-      case "pharmacy.open_patient_queue":
-        navigate(`/pharmacy?tab=orders&patient_id=${journeyContext.patientId}`);
-        return;
-      case "pharmacy.dispense_order":
-        navigate(`/pharmacy?tab=orders&patient_id=${journeyContext.patientId}&action=dispense`);
-        return;
-      case "mrd.open_case_sheet":
-        navigate(`/mrd?patient_id=${journeyContext.patientId}#case-sheets`);
-        return;
-      case "patient.share":
-        onShare?.();
-        return;
-      case "patient.print_card":
-        onPrintPatientCard?.();
-        return;
+      default: {
+        const route = patientJourneyActionRoute(actionId, journeyContext);
+        if (route) navigate(route);
+      }
     }
   }
 
