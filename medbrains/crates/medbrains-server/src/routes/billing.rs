@@ -1292,13 +1292,23 @@ pub async fn get_invoice(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let invoice =
+    let mut invoice =
         sqlx::query_as::<_, Invoice>("SELECT * FROM invoices WHERE id = $1 AND tenant_id = $2")
             .bind(id)
             .bind(claims.tenant_id)
             .fetch_optional(&mut *tx)
             .await?
             .ok_or(AppError::NotFound)?;
+
+    if invoice.admission_id.is_none() && invoice.encounter_id.is_some() {
+        invoice.admission_id = sqlx::query_scalar::<_, Uuid>(
+            "SELECT id FROM admissions WHERE tenant_id = $1 AND encounter_id = $2 LIMIT 1",
+        )
+        .bind(claims.tenant_id)
+        .bind(invoice.encounter_id)
+        .fetch_optional(&mut *tx)
+        .await?;
+    }
 
     let items = sqlx::query_as::<_, InvoiceItem>(
         "SELECT * FROM invoice_items WHERE invoice_id = $1 AND tenant_id = $2 \

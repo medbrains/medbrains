@@ -1511,8 +1511,10 @@ function InvoiceDetail({
   const journeyContext: ClinicalJourneyContext = {
     patientId: inv.patient_id,
     activeEncounterId: inv.encounter_id,
+    activeAdmissionId: inv.admission_id,
+    activeAdmissionStatus: inv.admission_id ? "admitted" : null,
     activeInvoiceId: inv.id,
-    activeOrderContext: inv.encounter_id ? "opd" : null,
+    activeOrderContext: inv.admission_id ? "ipd" : inv.encounter_id ? "opd" : null,
     completedEvents,
   };
   const canRecordPayment =
@@ -1575,7 +1577,9 @@ function InvoiceDetail({
             patientId={inv.patient_id}
             active="billing"
             activeEncounterId={inv.encounter_id}
+            activeAdmissionId={inv.admission_id}
             activeInvoiceId={inv.id}
+            activeOrderContext={inv.admission_id ? "ipd" : inv.encounter_id ? "opd" : null}
             completedEvents={completedEvents}
             compact
           />

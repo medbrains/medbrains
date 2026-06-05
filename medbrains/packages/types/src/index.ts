@@ -4807,6 +4807,7 @@ export interface Invoice {
   invoice_number: string;
   patient_id: string;
   encounter_id: string | null;
+  admission_id: string | null;
   status: InvoiceStatus;
   subtotal: string;
   tax_amount: string;
@@ -7221,6 +7222,7 @@ export interface PharmacyOrderItemInput {
 export interface PharmacyOrderDetailResponse {
   order: PharmacyOrder;
   items: PharmacyOrderItem[];
+  admission_id: string | null;
 }
 
 export interface UpdatePharmacyOrderItemRequest {

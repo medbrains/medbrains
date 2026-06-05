@@ -109,6 +109,7 @@ pub struct Invoice {
     pub invoice_number: String,
     pub patient_id: Uuid,
     pub encounter_id: Option<Uuid>,
+    pub admission_id: Option<Uuid>,
     pub status: InvoiceStatus,
     pub subtotal: rust_decimal::Decimal,
     pub tax_amount: rust_decimal::Decimal,

@@ -34,6 +34,7 @@ function invoice(overrides: Partial<Invoice> = {}): Invoice {
     created_at: "2026-01-01T00:00:00Z",
     discount_amount: "0",
     encounter_id: null,
+    admission_id: null,
     id: "invoice-1",
     igst_amount: "0",
     invoice_number: "INV-1",

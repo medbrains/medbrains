@@ -142,6 +142,7 @@ pub enum MedicationSafetySeverity {
 pub struct OrderDetailResponse {
     pub order: PharmacyOrder,
     pub items: Vec<PharmacyOrderItem>,
+    pub admission_id: Option<Uuid>,
 }
 
 #[derive(Debug, sqlx::FromRow)]
@@ -513,6 +514,39 @@ fn filter_pharmacy_order_detail_response(
         .map(|row| filter_pharmacy_order_item_response(row, restricted))
         .collect();
     detail
+}
+
+async fn admission_id_for_encounter_in_tx(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: &Uuid,
+    encounter_id: Option<Uuid>,
+) -> Result<Option<Uuid>, AppError> {
+    let Some(encounter_id) = encounter_id else {
+        return Ok(None);
+    };
+
+    sqlx::query_scalar::<_, Uuid>(
+        "SELECT id FROM admissions WHERE tenant_id = $1 AND encounter_id = $2 LIMIT 1",
+    )
+    .bind(tenant_id)
+    .bind(encounter_id)
+    .fetch_optional(&mut **tx)
+    .await
+    .map_err(AppError::from)
+}
+
+async fn order_detail_response_in_tx(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: &Uuid,
+    order: PharmacyOrder,
+    items: Vec<PharmacyOrderItem>,
+) -> Result<OrderDetailResponse, AppError> {
+    let admission_id = admission_id_for_encounter_in_tx(tx, tenant_id, order.encounter_id).await?;
+    Ok(OrderDetailResponse {
+        order,
+        items,
+        admission_id,
+    })
 }
 
 fn filter_pharmacy_batch_response(
@@ -1738,7 +1772,7 @@ pub async fn create_order_in_tx(
     ensure_order_items_stock_available_for_billing_in_tx(tx, &claims.tenant_id, &items).await?;
     ensure_pharmacy_billing_indent_for_order_in_tx(tx, &claims.tenant_id, &order, &items).await?;
 
-    Ok(OrderDetailResponse { order, items })
+    order_detail_response_in_tx(tx, &claims.tenant_id, order, items).await
 }
 
 async fn fetch_pharmacy_stock_gate_in_tx(
@@ -1999,9 +2033,10 @@ pub async fn get_order(
     .fetch_all(&mut *tx)
     .await?;
 
+    let detail = order_detail_response_in_tx(&mut tx, &claims.tenant_id, order, items).await?;
     tx.commit().await?;
     Ok(Json(filter_pharmacy_order_detail_response(
-        OrderDetailResponse { order, items },
+        detail,
         &restricted_fields,
     )))
 }
@@ -2030,7 +2065,7 @@ async fn fetch_order_detail_in_tx(
     .fetch_all(&mut **tx)
     .await?;
 
-    Ok(OrderDetailResponse { order, items })
+    order_detail_response_in_tx(tx, tenant_id, order, items).await
 }
 
 async fn linked_pharmacy_invoice_item_in_tx(
@@ -2949,9 +2984,10 @@ pub async fn create_otc_sale(
         items.push(oi);
     }
 
+    let detail = order_detail_response_in_tx(&mut tx, &claims.tenant_id, order, items).await?;
     tx.commit().await?;
     Ok(Json(filter_pharmacy_order_detail_response(
-        OrderDetailResponse { order, items },
+        detail,
         &restricted_fields,
     )))
 }
@@ -3016,9 +3052,10 @@ pub async fn create_discharge_dispensing(
         items.push(oi);
     }
 
+    let detail = order_detail_response_in_tx(&mut tx, &claims.tenant_id, order, items).await?;
     tx.commit().await?;
     Ok(Json(filter_pharmacy_order_detail_response(
-        OrderDetailResponse { order, items },
+        detail,
         &restricted_fields,
     )))
 }

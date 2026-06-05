@@ -2525,8 +2525,10 @@ function PharmacyOrderDetail({
   const journeyContext: ClinicalJourneyContext = {
     patientId: detail.order.patient_id,
     activeEncounterId: detail.order.encounter_id,
+    activeAdmissionId: detail.admission_id,
+    activeAdmissionStatus: detail.admission_id ? "admitted" : null,
     activePharmacyOrderId: detail.order.id,
-    activeOrderContext: detail.order.encounter_id ? "opd" : null,
+    activeOrderContext: detail.admission_id ? "ipd" : detail.order.encounter_id ? "opd" : null,
     completedEvents,
   };
 
@@ -2561,7 +2563,9 @@ function PharmacyOrderDetail({
         patientId={detail.order.patient_id}
         active="pharmacy"
         activeEncounterId={detail.order.encounter_id ?? null}
+        activeAdmissionId={detail.admission_id}
         activePharmacyOrderId={detail.order.id}
+        activeOrderContext={detail.admission_id ? "ipd" : detail.order.encounter_id ? "opd" : null}
         completedEvents={completedEvents}
         compact
       />
