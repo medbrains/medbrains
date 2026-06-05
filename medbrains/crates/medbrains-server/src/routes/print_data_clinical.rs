@@ -8,6 +8,7 @@ use serde::Deserialize;
 use serde_json::json;
 use uuid::Uuid;
 
+use medbrains_core::clinical_events::{ClinicalEventEnvelope, ClinicalEventName};
 use medbrains_core::permissions;
 use medbrains_core::print_data::{
     AppointmentSlipPrintData, CumulativeLabReportPrintData, DeathCertificatePrintData,
@@ -1433,6 +1434,21 @@ pub async fn get_registration_card_print_data(
         .fetch_optional(&mut *tx)
         .await?
         .flatten();
+
+    let print_request_id = Uuid::new_v4();
+    let event = ClinicalEventEnvelope::new(
+        claims.tenant_id,
+        ClinicalEventName::PatientCardPrinted,
+        print_request_id,
+        claims.sub,
+        json!({
+            "patient_id": patient_id,
+            "print_request_id": print_request_id,
+            "artifact": "patient_card",
+        }),
+    )
+    .with_patient(patient_id);
+    crate::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
 
     tx.commit().await?;
 

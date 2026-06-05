@@ -18,6 +18,12 @@ pub enum ClinicalEventName {
     PatientUpdated,
     #[serde(rename = "patient.merged")]
     PatientMerged,
+    #[serde(rename = "patient.access_shared")]
+    PatientAccessShared,
+    #[serde(rename = "patient.card_printed")]
+    PatientCardPrinted,
+    #[serde(rename = "patient.search.completed")]
+    PatientSearchCompleted,
     #[serde(rename = "visit.created")]
     VisitCreated,
     #[serde(rename = "emergency.visit.created")]
@@ -99,6 +105,9 @@ impl ClinicalEventName {
             Self::PatientCreated => "patient.created",
             Self::PatientUpdated => "patient.updated",
             Self::PatientMerged => "patient.merged",
+            Self::PatientAccessShared => "patient.access_shared",
+            Self::PatientCardPrinted => "patient.card_printed",
+            Self::PatientSearchCompleted => "patient.search.completed",
             Self::VisitCreated => "visit.created",
             Self::EmergencyVisitCreated => "emergency.visit.created",
             Self::MlcCreated => "mlc.created",
@@ -141,9 +150,12 @@ impl ClinicalEventName {
     #[must_use]
     pub const fn default_source_module(self) -> ClinicalEventSourceModule {
         match self {
-            Self::PatientCreated | Self::PatientUpdated | Self::PatientMerged => {
-                ClinicalEventSourceModule::Patients
-            }
+            Self::PatientCreated
+            | Self::PatientUpdated
+            | Self::PatientMerged
+            | Self::PatientAccessShared
+            | Self::PatientCardPrinted
+            | Self::PatientSearchCompleted => ClinicalEventSourceModule::Patients,
             Self::VisitCreated
             | Self::OpdEncounterCreated
             | Self::OpdCertificateCreated
@@ -192,6 +204,8 @@ impl ClinicalEventName {
             Self::PatientCreated => &["patient_id"],
             Self::PatientUpdated => &["patient_id"],
             Self::PatientMerged => &["surviving_patient_id", "merged_patient_id"],
+            Self::PatientAccessShared | Self::PatientCardPrinted => &["patient_id"],
+            Self::PatientSearchCompleted => &["search_id"],
             Self::VisitCreated => &["visit_id", "patient_id"],
             Self::EmergencyVisitCreated => &["visit_id", "patient_id"],
             Self::MlcCreated => &["mlc_case_id", "patient_id"],
@@ -260,6 +274,9 @@ impl FromStr for ClinicalEventName {
             "patient.created" => Ok(Self::PatientCreated),
             "patient.updated" => Ok(Self::PatientUpdated),
             "patient.merged" => Ok(Self::PatientMerged),
+            "patient.access_shared" => Ok(Self::PatientAccessShared),
+            "patient.card_printed" => Ok(Self::PatientCardPrinted),
+            "patient.search.completed" => Ok(Self::PatientSearchCompleted),
             "visit.created" => Ok(Self::VisitCreated),
             "emergency.visit.created" => Ok(Self::EmergencyVisitCreated),
             "mlc.created" => Ok(Self::MlcCreated),
@@ -522,6 +539,52 @@ mod tests {
         assert_eq!(
             ClinicalEventName::PatientUpdated.required_payload_keys(),
             &["patient_id"]
+        );
+    }
+
+    #[test]
+    fn patient_access_events_are_canonical() {
+        assert_eq!(
+            "patient.access_shared".parse::<ClinicalEventName>().ok(),
+            Some(ClinicalEventName::PatientAccessShared)
+        );
+        assert_eq!(
+            ClinicalEventName::PatientAccessShared.default_source_module(),
+            ClinicalEventSourceModule::Patients
+        );
+        assert_eq!(
+            ClinicalEventName::PatientAccessShared.required_payload_keys(),
+            &["patient_id"]
+        );
+
+        assert_eq!(
+            "patient.card_printed".parse::<ClinicalEventName>().ok(),
+            Some(ClinicalEventName::PatientCardPrinted)
+        );
+        assert_eq!(
+            ClinicalEventName::PatientCardPrinted.as_str(),
+            "patient.card_printed"
+        );
+        assert_eq!(
+            ClinicalEventName::PatientCardPrinted.default_source_module(),
+            ClinicalEventSourceModule::Patients
+        );
+        assert_eq!(
+            ClinicalEventName::PatientCardPrinted.required_payload_keys(),
+            &["patient_id"]
+        );
+
+        assert_eq!(
+            "patient.search.completed".parse::<ClinicalEventName>().ok(),
+            Some(ClinicalEventName::PatientSearchCompleted)
+        );
+        assert_eq!(
+            ClinicalEventName::PatientSearchCompleted.default_source_module(),
+            ClinicalEventSourceModule::Patients
+        );
+        assert_eq!(
+            ClinicalEventName::PatientSearchCompleted.required_payload_keys(),
+            &["search_id"]
         );
     }
 

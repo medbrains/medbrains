@@ -1181,6 +1181,29 @@ pub async fn list_patients(
         .map(|row| (row.patient_id, row))
         .collect::<HashMap<_, _>>();
 
+    if let Some(search) = params
+        .search
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+    {
+        let search_id = Uuid::new_v4();
+        let event = ClinicalEventEnvelope::new(
+            claims.tenant_id,
+            ClinicalEventName::PatientSearchCompleted,
+            search_id,
+            claims.sub,
+            serde_json::json!({
+                "search_id": search_id,
+                "page": page,
+                "per_page": per_page,
+                "query_length": search.chars().count(),
+                "result_count": total,
+            }),
+        );
+        crate::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
+    }
+
     tx.commit().await?;
 
     // ── Compute _perms for each row in one bulk_check round-trip ──

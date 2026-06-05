@@ -21,7 +21,11 @@
 use axum::{Extension, Json, extract::State};
 use chrono::{DateTime, Utc};
 use medbrains_authz::{Relation, Subject};
-use medbrains_core::{access::ROLE_POLICIES, permissions};
+use medbrains_core::{
+    access::ROLE_POLICIES,
+    clinical_events::{ClinicalEventEnvelope, ClinicalEventName},
+    permissions,
+};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -51,6 +55,15 @@ impl GrantSubject {
             Self::Role(code) => Subject::Role(code),
             Self::Department(id) => Subject::Department(id),
             Self::Group(id) => Subject::Group(id),
+        }
+    }
+
+    fn event_subject_parts(&self) -> (&'static str, String) {
+        match self {
+            Self::User(id) => ("user", id.to_string()),
+            Self::Role(code) => ("role", code.clone()),
+            Self::Department(id) => ("department", id.to_string()),
+            Self::Group(id) => ("group", id.to_string()),
         }
     }
 }
@@ -183,6 +196,7 @@ pub async fn create_grant(
         .ok_or_else(|| AppError::BadRequest(format!("unknown relation: {}", body.relation)))?;
 
     let ctx = authz_context(&claims);
+    let (subject_type, subject_id) = body.subject.event_subject_parts();
     let subject = body.subject.into_authz_subject();
     let tuple_id = state
         .authz
@@ -197,6 +211,32 @@ pub async fn create_grant(
         )
         .await
         .map_err(|e| AppError::Internal(format!("write_tuple: {e}")))?;
+
+    if body.object_type == "patient" {
+        let mut tx = state.db.begin().await?;
+        medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+        let event = ClinicalEventEnvelope::new(
+            claims.tenant_id,
+            ClinicalEventName::PatientAccessShared,
+            tuple_id,
+            claims.sub,
+            serde_json::json!({
+                "patient_id": body.object_id,
+                "grant_id": tuple_id,
+                "relation": body.relation,
+                "subject_type": subject_type,
+                "subject_id": subject_id,
+                "expires_at": body.expires_at,
+                "reason_recorded": body
+                    .reason
+                    .as_deref()
+                    .is_some_and(|reason| !reason.trim().is_empty()),
+            }),
+        )
+        .with_patient(body.object_id);
+        crate::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
+        tx.commit().await?;
+    }
 
     Ok(Json(GrantResponse {
         tuple_id,
