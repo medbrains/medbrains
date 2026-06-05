@@ -34,6 +34,7 @@ import type {
   QueuePriorityRule,
   QueueStatsResponse,
   TokenBoardSurfaceDefinition,
+  TokenBoardSurfaceId,
   TriageLevelColor,
   VisitingHours,
   VisitorAnalytics,
@@ -167,6 +168,9 @@ const RADIOLOGY_BOARD = TOKEN_BOARD_SURFACES.radiology;
 const EMERGENCY_BOARD = TOKEN_BOARD_SURFACES.emergency;
 const PHARMACY_BOARD = TOKEN_BOARD_SURFACES.pharmacy;
 const BILLING_BOARD = TOKEN_BOARD_SURFACES.billing;
+const TOKEN_BOARD_QUERY_PARAM = "board";
+
+type TokenBoardFilter = "all" | TokenBoardSurfaceId;
 
 // ══════════════════════════════════════════════════════════
 //  Main Page
@@ -658,6 +662,29 @@ const TRIAGE_LANES: ReadonlyArray<{
   { color: "blue", key: "blue", label: "Blue" },
 ];
 
+function isTokenBoardSurfaceId(value: string | null): value is TokenBoardSurfaceId {
+  return value != null && value in TOKEN_BOARD_SURFACES;
+}
+
+function readTokenBoardFilter(): TokenBoardFilter {
+  const searchParams = new URLSearchParams(window.location.search);
+  const board = searchParams.get(TOKEN_BOARD_QUERY_PARAM);
+  return isTokenBoardSurfaceId(board) ? board : "all";
+}
+
+function writeTokenBoardFilter(filter: TokenBoardFilter) {
+  const searchParams = new URLSearchParams(window.location.search);
+  if (filter === "all") {
+    searchParams.delete(TOKEN_BOARD_QUERY_PARAM);
+  } else {
+    searchParams.set(TOKEN_BOARD_QUERY_PARAM, filter);
+  }
+
+  const search = searchParams.toString();
+  const nextUrl = `${window.location.pathname}${search ? `?${search}` : ""}#token-boards`;
+  window.history.replaceState(null, "", nextUrl);
+}
+
 interface TokenBoardsTabProps {
   canViewOpdQueue: boolean;
   canViewLab: boolean;
@@ -675,6 +702,7 @@ function TokenBoardsTab({
   canViewPharmacy,
   canViewBilling,
 }: TokenBoardsTabProps) {
+  const [selectedSurface, setSelectedSurface] = useState<TokenBoardFilter>(readTokenBoardFilter);
   const opdQuery = useFrontOfficeOpdTokenBoardQuery({ enabled: canViewOpdQueue });
   const pharmacyQuery = useFrontOfficePharmacyTokenBoardQuery({ enabled: canViewPharmacy });
   const billingQuery = useFrontOfficeBillingTokenBoardQuery({ enabled: canViewBilling });
@@ -712,6 +740,24 @@ function TokenBoardsTab({
     canViewEmergency ||
     canViewPharmacy ||
     canViewBilling;
+  const boardAccess: Readonly<Record<TokenBoardSurfaceId, boolean>> = {
+    billing: canViewBilling,
+    emergency: canViewEmergency,
+    lab: canViewLab,
+    opd: canViewOpdQueue,
+    pharmacy: canViewPharmacy,
+    radiology: canViewRadiology,
+  };
+  const activeSurface =
+    selectedSurface !== "all" && !boardAccess[selectedSurface] ? "all" : selectedSurface;
+  const accessibleSurfaces = TOKEN_BOARD_SURFACE_LIST.filter((surface) => boardAccess[surface.id]);
+  const surfaceVisible = (surfaceId: TokenBoardSurfaceId) =>
+    boardAccess[surfaceId] && (activeSurface === "all" || activeSurface === surfaceId);
+
+  function handleBoardFilterChange(filter: TokenBoardFilter) {
+    setSelectedSurface(filter);
+    writeTokenBoardFilter(filter);
+  }
 
   return (
     <Stack gap="md">
@@ -737,207 +783,230 @@ function TokenBoardsTab({
           </Text>
         </Card>
       ) : (
-        <SimpleGrid cols={{ base: 1, xl: 2 }} spacing="md">
-          {canViewOpdQueue && (
-            <TokenBoardCard
-              surface={OPD_BOARD}
-              isLoading={opdQuery.isLoading}
-              isError={opdQuery.isError}
-              lastUpdatedAt={opdQuery.dataUpdatedAt}
-              summary={[
-                { label: "Now", value: opdNowServing[0]?.token_number ?? "—" },
-                { label: "Waiting", value: opdWaiting.length },
-                {
-                  label: "Priority",
-                  value: opdWaiting.filter((t) => t.priority !== "normal").length,
-                },
-              ]}
+        <>
+          <Group gap="xs" wrap="wrap">
+            <Button
+              size="xs"
+              variant={activeSurface === "all" ? "filled" : "light"}
+              onClick={() => handleBoardFilterChange("all")}
             >
-              <Stack gap="sm">
-                <TokenLane
-                  title="Now serving"
-                  emptyLabel="No OPD token is currently called"
-                  tokens={opdNowServing.slice(0, TOKEN_BOARD_LIMIT).map(opdDisplayToken)}
-                  highlight
-                />
-                <TokenLane
-                  title="Next tokens"
-                  emptyLabel="No OPD tokens waiting"
-                  tokens={opdWaiting.slice(0, TOKEN_BOARD_LIMIT).map(opdDisplayToken)}
-                />
-              </Stack>
-            </TokenBoardCard>
-          )}
-
-          {canViewLab && (
-            <TokenBoardCard
-              surface={LAB_BOARD}
-              isLoading={labQuery.isLoading}
-              isError={labQuery.isError}
-              lastUpdatedAt={labQuery.dataUpdatedAt}
-              summary={[
-                { label: "Now", value: lab?.current_tokens[0]?.token_number ?? "—" },
-                { label: "Waiting", value: lab?.stats.waiting_count ?? "—" },
-                { label: "Counters", value: lab?.stats.counters_active ?? "—" },
-              ]}
-            >
-              <Stack gap="sm">
-                <TokenLane
-                  title="Collecting now"
-                  emptyLabel="No lab token is currently called"
-                  tokens={(lab?.current_tokens ?? [])
-                    .slice(0, TOKEN_BOARD_LIMIT)
-                    .map(labDisplayToken)}
-                  highlight
-                />
-                <TokenLane
-                  title="Waiting samples"
-                  emptyLabel="No lab sample tokens waiting"
-                  tokens={(lab?.waiting ?? []).slice(0, TOKEN_BOARD_LIMIT).map(labDisplayToken)}
-                />
-                <TokenLane
-                  title="Collection in progress"
-                  emptyLabel="No collections in progress"
-                  tokens={(lab?.collection_in_progress ?? [])
-                    .slice(0, TOKEN_BOARD_LIMIT)
-                    .map(labDisplayToken)}
-                />
-              </Stack>
-            </TokenBoardCard>
-          )}
-
-          {canViewRadiology && (
-            <TokenBoardCard
-              surface={RADIOLOGY_BOARD}
-              isLoading={radiologyQuery.isLoading}
-              isError={radiologyQuery.isError}
-              lastUpdatedAt={radiologyQuery.dataUpdatedAt}
-              summary={[
-                { label: "Now", value: radiology?.current_token?.token_number ?? "—" },
-                { label: "Waiting", value: radiology?.stats.waiting_count ?? "—" },
-                { label: "Room", value: radiology?.room_number ?? "—" },
-              ]}
-            >
-              <Stack gap="sm">
-                <TokenLane
-                  title="Called now"
-                  emptyLabel="No radiology token is currently called"
-                  tokens={
-                    radiology?.current_token ? [radiologyDisplayToken(radiology.current_token)] : []
-                  }
-                  highlight
-                />
-                <TokenLane
-                  title="Waiting scans"
-                  emptyLabel="No radiology tokens waiting"
-                  tokens={(radiology?.waiting ?? [])
-                    .slice(0, TOKEN_BOARD_LIMIT)
-                    .map(radiologyDisplayToken)}
-                />
-              </Stack>
-            </TokenBoardCard>
-          )}
-
-          {canViewEmergency && (
-            <TokenBoardCard
-              surface={EMERGENCY_BOARD}
-              isLoading={erQuery.isLoading}
-              isError={erQuery.isError}
-              lastUpdatedAt={erQuery.dataUpdatedAt}
-              summary={[
-                { label: "Waiting", value: er?.total_waiting ?? "—" },
-                { label: "Overdue", value: overdueErTokens },
-                { label: "Bays", value: er?.resuscitation_bays_available ?? "—" },
-              ]}
-            >
-              <Stack gap="xs">
-                {TRIAGE_LANES.map((lane) => (
-                  <ErTriageLane
-                    key={lane.key}
-                    color={lane.color}
-                    label={lane.label}
-                    tokens={(er?.[lane.key] ?? []).slice(0, TOKEN_BOARD_LIMIT)}
+              All boards
+            </Button>
+            {accessibleSurfaces.map((surface) => (
+              <Button
+                key={surface.id}
+                size="xs"
+                variant={activeSurface === surface.id ? "filled" : "light"}
+                onClick={() => handleBoardFilterChange(surface.id)}
+              >
+                {surface.title}
+              </Button>
+            ))}
+          </Group>
+          <SimpleGrid cols={{ base: 1, xl: 2 }} spacing="md">
+            {surfaceVisible("opd") && (
+              <TokenBoardCard
+                surface={OPD_BOARD}
+                isLoading={opdQuery.isLoading}
+                isError={opdQuery.isError}
+                lastUpdatedAt={opdQuery.dataUpdatedAt}
+                summary={[
+                  { label: "Now", value: opdNowServing[0]?.token_number ?? "—" },
+                  { label: "Waiting", value: opdWaiting.length },
+                  {
+                    label: "Priority",
+                    value: opdWaiting.filter((t) => t.priority !== "normal").length,
+                  },
+                ]}
+              >
+                <Stack gap="sm">
+                  <TokenLane
+                    title="Now serving"
+                    emptyLabel="No OPD token is currently called"
+                    tokens={opdNowServing.slice(0, TOKEN_BOARD_LIMIT).map(opdDisplayToken)}
+                    highlight
                   />
-                ))}
-              </Stack>
-            </TokenBoardCard>
-          )}
+                  <TokenLane
+                    title="Next tokens"
+                    emptyLabel="No OPD tokens waiting"
+                    tokens={opdWaiting.slice(0, TOKEN_BOARD_LIMIT).map(opdDisplayToken)}
+                  />
+                </Stack>
+              </TokenBoardCard>
+            )}
 
-          {canViewPharmacy && (
-            <TokenBoardCard
-              surface={PHARMACY_BOARD}
-              isLoading={pharmacyQuery.isLoading}
-              isError={pharmacyQuery.isError}
-              lastUpdatedAt={pharmacyQuery.dataUpdatedAt}
-              summary={[
-                { label: "Now", value: pharmacy?.current_token?.token_number ?? "—" },
-                { label: "Ready", value: pharmacy?.stats.ready_count ?? "—" },
-                { label: "Waiting", value: pharmacy?.stats.waiting_count ?? "—" },
-              ]}
-            >
-              <Stack gap="sm">
-                <TokenLane
-                  title="Now serving"
-                  emptyLabel="No current token"
-                  tokens={currentPharmacy.map(pharmacyDisplayToken)}
-                  highlight
-                />
-                <TokenLane
-                  title="Ready pickup"
-                  emptyLabel="No ready tokens"
-                  tokens={(pharmacy?.ready_for_pickup ?? [])
-                    .slice(0, TOKEN_BOARD_LIMIT)
-                    .map(pharmacyDisplayToken)}
-                />
-                <TokenLane
-                  title="Preparing"
-                  emptyLabel="No preparing tokens"
-                  tokens={(pharmacy?.preparing ?? [])
-                    .slice(0, TOKEN_BOARD_LIMIT)
-                    .map(pharmacyDisplayToken)}
-                />
-              </Stack>
-            </TokenBoardCard>
-          )}
+            {surfaceVisible("lab") && (
+              <TokenBoardCard
+                surface={LAB_BOARD}
+                isLoading={labQuery.isLoading}
+                isError={labQuery.isError}
+                lastUpdatedAt={labQuery.dataUpdatedAt}
+                summary={[
+                  { label: "Now", value: lab?.current_tokens[0]?.token_number ?? "—" },
+                  { label: "Waiting", value: lab?.stats.waiting_count ?? "—" },
+                  { label: "Counters", value: lab?.stats.counters_active ?? "—" },
+                ]}
+              >
+                <Stack gap="sm">
+                  <TokenLane
+                    title="Collecting now"
+                    emptyLabel="No lab token is currently called"
+                    tokens={(lab?.current_tokens ?? [])
+                      .slice(0, TOKEN_BOARD_LIMIT)
+                      .map(labDisplayToken)}
+                    highlight
+                  />
+                  <TokenLane
+                    title="Waiting samples"
+                    emptyLabel="No lab sample tokens waiting"
+                    tokens={(lab?.waiting ?? []).slice(0, TOKEN_BOARD_LIMIT).map(labDisplayToken)}
+                  />
+                  <TokenLane
+                    title="Collection in progress"
+                    emptyLabel="No collections in progress"
+                    tokens={(lab?.collection_in_progress ?? [])
+                      .slice(0, TOKEN_BOARD_LIMIT)
+                      .map(labDisplayToken)}
+                  />
+                </Stack>
+              </TokenBoardCard>
+            )}
 
-          {canViewBilling && (
-            <TokenBoardCard
-              surface={BILLING_BOARD}
-              isLoading={billingQuery.isLoading}
-              isError={billingQuery.isError}
-              lastUpdatedAt={billingQuery.dataUpdatedAt}
-              summary={[
-                { label: "Now", value: billingNowServing?.token_number ?? "—" },
-                { label: "IPD", value: billing?.ipd_discharge.length ?? "—" },
-                { label: "Insurance", value: billing?.insurance_desk.length ?? "—" },
-              ]}
-            >
-              <Stack gap="sm">
-                <TokenLane
-                  title="IPD discharge"
-                  emptyLabel="No IPD discharge bills"
-                  tokens={(billing?.ipd_discharge ?? [])
-                    .slice(0, TOKEN_BOARD_LIMIT)
-                    .map(billingDisplayToken)}
-                />
-                <TokenLane
-                  title="OPD billing"
-                  emptyLabel="No OPD bills waiting"
-                  tokens={(billing?.opd_billing ?? [])
-                    .slice(0, TOKEN_BOARD_LIMIT)
-                    .map(billingDisplayToken)}
-                />
-                <TokenLane
-                  title="Insurance desk"
-                  emptyLabel="No insurance tokens"
-                  tokens={(billing?.insurance_desk ?? [])
-                    .slice(0, TOKEN_BOARD_LIMIT)
-                    .map(billingDisplayToken)}
-                />
-              </Stack>
-            </TokenBoardCard>
-          )}
-        </SimpleGrid>
+            {surfaceVisible("radiology") && (
+              <TokenBoardCard
+                surface={RADIOLOGY_BOARD}
+                isLoading={radiologyQuery.isLoading}
+                isError={radiologyQuery.isError}
+                lastUpdatedAt={radiologyQuery.dataUpdatedAt}
+                summary={[
+                  { label: "Now", value: radiology?.current_token?.token_number ?? "—" },
+                  { label: "Waiting", value: radiology?.stats.waiting_count ?? "—" },
+                  { label: "Room", value: radiology?.room_number ?? "—" },
+                ]}
+              >
+                <Stack gap="sm">
+                  <TokenLane
+                    title="Called now"
+                    emptyLabel="No radiology token is currently called"
+                    tokens={
+                      radiology?.current_token
+                        ? [radiologyDisplayToken(radiology.current_token)]
+                        : []
+                    }
+                    highlight
+                  />
+                  <TokenLane
+                    title="Waiting scans"
+                    emptyLabel="No radiology tokens waiting"
+                    tokens={(radiology?.waiting ?? [])
+                      .slice(0, TOKEN_BOARD_LIMIT)
+                      .map(radiologyDisplayToken)}
+                  />
+                </Stack>
+              </TokenBoardCard>
+            )}
+
+            {surfaceVisible("emergency") && (
+              <TokenBoardCard
+                surface={EMERGENCY_BOARD}
+                isLoading={erQuery.isLoading}
+                isError={erQuery.isError}
+                lastUpdatedAt={erQuery.dataUpdatedAt}
+                summary={[
+                  { label: "Waiting", value: er?.total_waiting ?? "—" },
+                  { label: "Overdue", value: overdueErTokens },
+                  { label: "Bays", value: er?.resuscitation_bays_available ?? "—" },
+                ]}
+              >
+                <Stack gap="xs">
+                  {TRIAGE_LANES.map((lane) => (
+                    <ErTriageLane
+                      key={lane.key}
+                      color={lane.color}
+                      label={lane.label}
+                      tokens={(er?.[lane.key] ?? []).slice(0, TOKEN_BOARD_LIMIT)}
+                    />
+                  ))}
+                </Stack>
+              </TokenBoardCard>
+            )}
+
+            {surfaceVisible("pharmacy") && (
+              <TokenBoardCard
+                surface={PHARMACY_BOARD}
+                isLoading={pharmacyQuery.isLoading}
+                isError={pharmacyQuery.isError}
+                lastUpdatedAt={pharmacyQuery.dataUpdatedAt}
+                summary={[
+                  { label: "Now", value: pharmacy?.current_token?.token_number ?? "—" },
+                  { label: "Ready", value: pharmacy?.stats.ready_count ?? "—" },
+                  { label: "Waiting", value: pharmacy?.stats.waiting_count ?? "—" },
+                ]}
+              >
+                <Stack gap="sm">
+                  <TokenLane
+                    title="Now serving"
+                    emptyLabel="No current token"
+                    tokens={currentPharmacy.map(pharmacyDisplayToken)}
+                    highlight
+                  />
+                  <TokenLane
+                    title="Ready pickup"
+                    emptyLabel="No ready tokens"
+                    tokens={(pharmacy?.ready_for_pickup ?? [])
+                      .slice(0, TOKEN_BOARD_LIMIT)
+                      .map(pharmacyDisplayToken)}
+                  />
+                  <TokenLane
+                    title="Preparing"
+                    emptyLabel="No preparing tokens"
+                    tokens={(pharmacy?.preparing ?? [])
+                      .slice(0, TOKEN_BOARD_LIMIT)
+                      .map(pharmacyDisplayToken)}
+                  />
+                </Stack>
+              </TokenBoardCard>
+            )}
+
+            {surfaceVisible("billing") && (
+              <TokenBoardCard
+                surface={BILLING_BOARD}
+                isLoading={billingQuery.isLoading}
+                isError={billingQuery.isError}
+                lastUpdatedAt={billingQuery.dataUpdatedAt}
+                summary={[
+                  { label: "Now", value: billingNowServing?.token_number ?? "—" },
+                  { label: "IPD", value: billing?.ipd_discharge.length ?? "—" },
+                  { label: "Insurance", value: billing?.insurance_desk.length ?? "—" },
+                ]}
+              >
+                <Stack gap="sm">
+                  <TokenLane
+                    title="IPD discharge"
+                    emptyLabel="No IPD discharge bills"
+                    tokens={(billing?.ipd_discharge ?? [])
+                      .slice(0, TOKEN_BOARD_LIMIT)
+                      .map(billingDisplayToken)}
+                  />
+                  <TokenLane
+                    title="OPD billing"
+                    emptyLabel="No OPD bills waiting"
+                    tokens={(billing?.opd_billing ?? [])
+                      .slice(0, TOKEN_BOARD_LIMIT)
+                      .map(billingDisplayToken)}
+                  />
+                  <TokenLane
+                    title="Insurance desk"
+                    emptyLabel="No insurance tokens"
+                    tokens={(billing?.insurance_desk ?? [])
+                      .slice(0, TOKEN_BOARD_LIMIT)
+                      .map(billingDisplayToken)}
+                  />
+                </Stack>
+              </TokenBoardCard>
+            )}
+          </SimpleGrid>
+        </>
       )}
     </Stack>
   );
@@ -1018,7 +1087,7 @@ function TokenBoardLaunchMeta({ surface }: { surface: TokenBoardSurfaceDefinitio
           </Badge>
         ))}
         <Badge size="xs" variant="light" color="blue">
-          Mobile: {surface.targets.mobileRoute}
+          Mobile: {surface.targets.mobileRoute} · {surface.targets.mobileParams.surface}
         </Badge>
         <Badge size="xs" variant="light" color="green">
           {surface.targets.tvDisplayType}

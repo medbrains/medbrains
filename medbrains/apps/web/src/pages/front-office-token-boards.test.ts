@@ -7,6 +7,7 @@ import type {
   QueueToken,
   RadiologyQueueToken,
 } from "@medbrains/types";
+import { TOKEN_BOARD_SURFACE_LIST } from "@medbrains/types";
 import { describe, expect, it } from "vitest";
 import {
   billingDisplayToken,
@@ -37,6 +38,14 @@ function expectPublicTokenOnly(value: DisplayToken) {
 }
 
 describe("front-office token-board display mapping", () => {
+  it("keeps board launch targets focused to the same surface on web and mobile", () => {
+    for (const surface of TOKEN_BOARD_SURFACE_LIST) {
+      expect(surface.targets.webPath).toBe(`/front-office?board=${surface.id}#token-boards`);
+      expect(surface.targets.mobileParams.surface).toBe(surface.id);
+      expect(surface.targets.mobileRoute).toBe("TokenBoards");
+    }
+  });
+
   it("keeps OPD public display tokens free of patient identifiers", () => {
     const token: QueueToken = {
       called_at: null,

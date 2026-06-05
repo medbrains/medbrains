@@ -54,6 +54,10 @@ export interface TokenBoardSurfaceDefinition {
 export const TOKEN_BOARD_PUBLIC_PRIVACY_NOTICE =
   "Token-only display mode. Patient names, identifiers, diagnoses, test names, imaging details, drug names and bill amounts stay hidden.";
 
+function tokenBoardWebPath(surface: TokenBoardSurfaceId): string {
+  return `/front-office?board=${surface}#token-boards`;
+}
+
 export const TOKEN_BOARD_SURFACES: Readonly<
   Record<TokenBoardSurfaceId, TokenBoardSurfaceDefinition>
 > = {
@@ -76,7 +80,7 @@ export const TOKEN_BOARD_SURFACES: Readonly<
       tvAppCodes: ["TV-Billing"],
       tvDeepLink: "medbrains://tv/billing-queue",
       tvDisplayType: "billing_queue",
-      webPath: "/front-office#token-boards",
+      webPath: tokenBoardWebPath("billing"),
     },
     title: "Billing counters",
   },
@@ -99,7 +103,7 @@ export const TOKEN_BOARD_SURFACES: Readonly<
       tvAppCodes: ["TV-Emergency"],
       tvDeepLink: "medbrains://tv/emergency-triage",
       tvDisplayType: "emergency_triage",
-      webPath: "/front-office#token-boards",
+      webPath: tokenBoardWebPath("emergency"),
     },
     title: "Emergency triage",
   },
@@ -126,7 +130,7 @@ export const TOKEN_BOARD_SURFACES: Readonly<
       tvAppCodes: ["TV-Lab"],
       tvDeepLink: "medbrains://tv/lab-status",
       tvDisplayType: "lab_queue",
-      webPath: "/front-office#token-boards",
+      webPath: tokenBoardWebPath("lab"),
     },
     title: "Lab collection",
   },
@@ -152,7 +156,7 @@ export const TOKEN_BOARD_SURFACES: Readonly<
       tvAppCodes: ["TV-Radiology"],
       tvDeepLink: "medbrains://tv/radiology-queue?modality=xray",
       tvDisplayType: "radiology_queue",
-      webPath: "/front-office#token-boards",
+      webPath: tokenBoardWebPath("radiology"),
     },
     title: "Radiology queue",
   },
@@ -174,7 +178,7 @@ export const TOKEN_BOARD_SURFACES: Readonly<
       tvAppCodes: ["TV-Queue", "TV-DoctorRoom", "Desktop-Kiosk"],
       tvDeepLink: "medbrains://tv/queue",
       tvDisplayType: "opd_queue",
-      webPath: "/front-office#token-boards",
+      webPath: tokenBoardWebPath("opd"),
     },
     title: "OPD queue",
   },
@@ -196,7 +200,7 @@ export const TOKEN_BOARD_SURFACES: Readonly<
       tvAppCodes: ["TV-Pharmacy"],
       tvDeepLink: "medbrains://tv/pharmacy-queue",
       tvDisplayType: "pharmacy_queue",
-      webPath: "/front-office#token-boards",
+      webPath: tokenBoardWebPath("pharmacy"),
     },
     title: "Pharmacy pickup",
   },
