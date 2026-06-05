@@ -110,6 +110,54 @@ pub struct UpsertDisplayConfigRequest {
     pub scroll_speed: Option<i32>,
 }
 
+fn front_office_display_allows_patient_names(display_type: Option<&str>) -> bool {
+    matches!(display_type, Some("doctor_room"))
+}
+
+fn protected_front_office_show_patient_name(
+    display_type: Option<&str>,
+    requested: Option<bool>,
+) -> bool {
+    front_office_display_allows_patient_names(display_type) && requested.unwrap_or(false)
+}
+
+#[cfg(test)]
+mod display_privacy_tests {
+    use super::{
+        front_office_display_allows_patient_names, protected_front_office_show_patient_name,
+    };
+
+    #[test]
+    fn waiting_area_counter_and_default_displays_are_token_only() {
+        for display_type in [None, Some("waiting_area"), Some("counter")] {
+            assert!(!front_office_display_allows_patient_names(display_type));
+            assert!(!protected_front_office_show_patient_name(
+                display_type,
+                Some(true),
+            ));
+        }
+    }
+
+    #[test]
+    fn doctor_room_can_follow_requested_visibility() {
+        assert!(front_office_display_allows_patient_names(Some(
+            "doctor_room"
+        )));
+        assert!(protected_front_office_show_patient_name(
+            Some("doctor_room"),
+            Some(true),
+        ));
+        assert!(!protected_front_office_show_patient_name(
+            Some("doctor_room"),
+            Some(false),
+        ));
+        assert!(!protected_front_office_show_patient_name(
+            Some("doctor_room"),
+            None,
+        ));
+    }
+}
+
 // ── Enquiry Logs ────────────────────────────────────────
 
 #[derive(Debug, Deserialize)]
@@ -544,7 +592,13 @@ pub async fn list_display_config(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, QueueDisplayConfig>(
-        "SELECT * FROM queue_display_config ORDER BY location_name",
+        "SELECT id, tenant_id, department_id, location_name, display_type, \
+         doctors_per_screen, \
+         CASE WHEN display_type = 'doctor_room' THEN show_patient_name ELSE false END \
+           AS show_patient_name, \
+         show_wait_time, language, announcement_enabled, scroll_speed, \
+         created_at, updated_at \
+         FROM queue_display_config ORDER BY location_name",
     )
     .fetch_all(&mut *tx)
     .await?;
@@ -562,6 +616,10 @@ pub async fn upsert_display_config(
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+    let show_patient_name = protected_front_office_show_patient_name(
+        body.display_type.as_deref(),
+        body.show_patient_name,
+    );
 
     let row = sqlx::query_as::<_, QueueDisplayConfig>(
         "INSERT INTO queue_display_config \
@@ -578,7 +636,7 @@ pub async fn upsert_display_config(
     .bind(&body.location_name)
     .bind(&body.display_type)
     .bind(body.doctors_per_screen)
-    .bind(body.show_patient_name)
+    .bind(show_patient_name)
     .bind(body.show_wait_time)
     .bind(&body.language)
     .bind(body.announcement_enabled)

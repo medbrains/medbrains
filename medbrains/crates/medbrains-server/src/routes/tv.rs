@@ -133,6 +133,49 @@ const fn default_scroll_speed() -> i32 {
     3
 }
 
+fn public_token_board_display_type(display_type: &str) -> bool {
+    matches!(
+        display_type,
+        "billing_queue"
+            | "emergency_triage"
+            | "lab_queue"
+            | "opd_queue"
+            | "pharmacy_queue"
+            | "radiology_queue"
+    )
+}
+
+fn protected_display_show_patient_name(display_type: &str, requested: bool) -> bool {
+    !public_token_board_display_type(display_type) && requested
+}
+
+#[cfg(test)]
+mod display_privacy_tests {
+    use super::{protected_display_show_patient_name, public_token_board_display_type};
+
+    #[test]
+    fn public_token_board_display_types_are_token_only() {
+        for display_type in [
+            "billing_queue",
+            "emergency_triage",
+            "lab_queue",
+            "opd_queue",
+            "pharmacy_queue",
+            "radiology_queue",
+        ] {
+            assert!(public_token_board_display_type(display_type));
+            assert!(!protected_display_show_patient_name(display_type, true));
+        }
+    }
+
+    #[test]
+    fn non_public_display_types_can_follow_requested_visibility() {
+        assert!(!public_token_board_display_type("doctor_room"));
+        assert!(protected_display_show_patient_name("doctor_room", true));
+        assert!(!protected_display_show_patient_name("doctor_room", false));
+    }
+}
+
 /// Request to broadcast announcement.
 #[derive(Debug, Deserialize)]
 pub struct BroadcastAnnouncementRequest {
@@ -179,7 +222,19 @@ pub async fn list_displays(
     let displays = sqlx::query_as::<_, TvDisplay>(
         r"
         SELECT id, tenant_id, department_id, location_name, display_type,
-               doctors_per_screen, show_patient_name, show_wait_time,
+               doctors_per_screen,
+               CASE
+                   WHEN display_type IN (
+                       'billing_queue',
+                       'emergency_triage',
+                       'lab_queue',
+                       'opd_queue',
+                       'pharmacy_queue',
+                       'radiology_queue'
+                   ) THEN false
+                   ELSE show_patient_name
+               END AS show_patient_name,
+               show_wait_time,
                language, announcement_enabled, scroll_speed,
                created_at, updated_at
         FROM queue_display_config
@@ -204,6 +259,8 @@ pub async fn create_display(
 ) -> Result<Json<TvDisplay>, (StatusCode, String)> {
     let language_json = serde_json::to_value(&req.language)
         .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
+    let show_patient_name =
+        protected_display_show_patient_name(&req.display_type, req.show_patient_name);
 
     let display = sqlx::query_as::<_, TvDisplay>(
         r"
@@ -224,7 +281,7 @@ pub async fn create_display(
     .bind(&req.location_name)
     .bind(&req.display_type)
     .bind(req.doctors_per_screen)
-    .bind(req.show_patient_name)
+    .bind(show_patient_name)
     .bind(req.show_wait_time)
     .bind(&language_json)
     .bind(req.announcement_enabled)
@@ -246,7 +303,19 @@ pub async fn get_display(
     let display = sqlx::query_as::<_, TvDisplay>(
         r"
         SELECT id, tenant_id, department_id, location_name, display_type,
-               doctors_per_screen, show_patient_name, show_wait_time,
+               doctors_per_screen,
+               CASE
+                   WHEN display_type IN (
+                       'billing_queue',
+                       'emergency_triage',
+                       'lab_queue',
+                       'opd_queue',
+                       'pharmacy_queue',
+                       'radiology_queue'
+                   ) THEN false
+                   ELSE show_patient_name
+               END AS show_patient_name,
+               show_wait_time,
                language, announcement_enabled, scroll_speed,
                created_at, updated_at
         FROM queue_display_config
@@ -281,7 +350,17 @@ pub async fn update_display(
             display_type = COALESCE($4, display_type),
             department_id = COALESCE($5, department_id),
             doctors_per_screen = COALESCE($6, doctors_per_screen),
-            show_patient_name = COALESCE($7, show_patient_name),
+            show_patient_name = CASE
+                WHEN COALESCE($4, display_type) IN (
+                    'billing_queue',
+                    'emergency_triage',
+                    'lab_queue',
+                    'opd_queue',
+                    'pharmacy_queue',
+                    'radiology_queue'
+                ) THEN false
+                ELSE COALESCE($7, show_patient_name)
+            END,
             show_wait_time = COALESCE($8, show_wait_time),
             language = COALESCE($9, language),
             announcement_enabled = COALESCE($10, announcement_enabled),
