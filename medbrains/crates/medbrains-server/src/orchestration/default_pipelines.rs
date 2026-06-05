@@ -47,7 +47,7 @@ pub const DEFAULT_SUBSCRIBERS: &[(&str, &str)] = &[
         "NDPS register row (Sched H1/X) + low-stock check",
     ),
     (
-        ClinicalEventName::LabOrderCompleted.as_str(),
+        ClinicalEventName::LabResultPosted.as_str(),
         "Critical-value SMS to ordering doctor",
     ),
     (
@@ -117,8 +117,8 @@ pub async fn dispatch_default_pipelines(
         Ok(ClinicalEventName::PharmacyOrderDispensed) => {
             on_pharmacy_order_dispensed(pool, tenant_id, payload).await
         }
-        Ok(ClinicalEventName::LabOrderCompleted) => {
-            on_lab_order_completed(pool, tenant_id, payload).await
+        Ok(ClinicalEventName::LabResultPosted) => {
+            on_lab_result_posted(pool, tenant_id, payload).await
         }
         Ok(ClinicalEventName::BillingInvoiceCreated) => {
             on_billing_invoice_created(pool, tenant_id, payload).await
@@ -275,21 +275,21 @@ async fn on_pharmacy_order_dispensed(
     Ok(())
 }
 
-// ── 3. Lab result completed → critical-value SMS to ordering doctor ─
+// ── 3. Lab result posted → critical-value SMS to ordering doctor ─
 
-async fn on_lab_order_completed(
+async fn on_lab_result_posted(
     pool: &PgPool,
     tenant_id: Uuid,
     payload: &Value,
 ) -> Result<(), sqlx::Error> {
     let order_id = uuid_from_payload(payload, "order_id");
     let ordering_doctor_id = uuid_from_payload(payload, "ordering_provider_id");
-    let has_critical = payload
-        .get("has_critical_values")
-        .and_then(Value::as_bool)
-        .unwrap_or(false);
+    let critical_count = payload
+        .get("critical_count")
+        .and_then(Value::as_u64)
+        .unwrap_or(0);
 
-    if !has_critical {
+    if critical_count == 0 {
         return Ok(());
     }
 
@@ -305,6 +305,7 @@ async fn on_lab_order_completed(
         json!({
             "order_id": order,
             "ordering_doctor_id": ordering_doctor_id,
+            "critical_count": critical_count,
             "body": format!("Critical lab values on order {order} — review immediately"),
         }),
         Some(format!("crit:{order}")),
@@ -456,4 +457,25 @@ async fn enqueue(
         },
     )
     .await
+}
+
+#[cfg(test)]
+mod tests {
+    use medbrains_core::clinical_events::ClinicalEventName;
+
+    use super::DEFAULT_SUBSCRIBERS;
+
+    #[test]
+    fn critical_lab_default_pipeline_follows_result_posting() {
+        assert!(
+            DEFAULT_SUBSCRIBERS
+                .iter()
+                .any(|(event, _)| *event == ClinicalEventName::LabResultPosted.as_str())
+        );
+        assert!(
+            !DEFAULT_SUBSCRIBERS
+                .iter()
+                .any(|(event, _)| *event == ClinicalEventName::LabOrderCompleted.as_str())
+        );
+    }
 }

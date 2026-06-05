@@ -1073,6 +1073,7 @@ pub async fn add_results(
                 "patient_id": order.patient_id,
                 "encounter_id": order.encounter_id,
                 "test_id": order.test_id,
+                "ordering_provider_id": order.ordered_by,
                 "result_count": results.len(),
                 "critical_count": critical_count,
             }),
