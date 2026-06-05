@@ -36,6 +36,7 @@ import {
 } from "@tabler/icons-react";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { type ComponentType, useMemo, useState } from "react";
+import { useSearchParams } from "react-router";
 import { PageHeader } from "@/components";
 import { NabhIndicatorMatrix } from "@/components/Reports/NabhIndicatorMatrix";
 import { type EChartsCoreOption, ReportChart } from "@/components/Reports/ReportChart";
@@ -95,6 +96,36 @@ interface ReportFamily {
   icon: ComponentType<{ size?: number; stroke?: number }>;
   accent: string;
   reports: ReportDefinition[];
+}
+
+const REPORT_PRIORITY_FILTERS = ["all", "P1", "P2", "P3"] as const;
+const REPORT_READINESS_FILTERS = [
+  "all",
+  "live_api",
+  "query_buildable",
+  "derived_view",
+  "predictive",
+  "capture_needed",
+] as const;
+
+function isReportPriorityFilter(
+  value: string | null,
+): value is (typeof REPORT_PRIORITY_FILTERS)[number] {
+  return REPORT_PRIORITY_FILTERS.some((filter) => filter === value);
+}
+
+function isReportReadinessFilter(
+  value: string | null,
+): value is (typeof REPORT_READINESS_FILTERS)[number] {
+  return REPORT_READINESS_FILTERS.some((filter) => filter === value);
+}
+
+function reportPriorityFilter(value: string | null): ReportPriority | "all" {
+  return isReportPriorityFilter(value) ? value : "all";
+}
+
+function reportReadinessFilter(value: string | null): ReportReadiness | "all" {
+  return isReportReadinessFilter(value) ? value : "all";
 }
 
 interface ReportRuntimeData {
@@ -2682,14 +2713,25 @@ function ReportFamilyPanel({
 
 export function ReportsPage() {
   useRequirePermission(P.ANALYTICS.VIEW);
-  const [activeFamilyId, setActiveFamilyId] = useState(REPORT_FAMILIES[0]?.id ?? "executive");
-  const [search, setSearch] = useState("");
-  const [priorityFilter, setPriorityFilter] = useState<ReportPriority | "all">("all");
-  const [readinessFilter, setReadinessFilter] = useState<ReportReadiness | "all">("all");
+  const [searchParams, setSearchParams] = useSearchParams();
   const [selectedReport, setSelectedReport] = useState<ReportDefinition | null>(null);
   const [detailOpened, { open: openDetails, close: closeDetails }] = useDisclosure(false);
   const hasPermission = usePermissionStore((state) => state.hasPermission);
+  const selectedFamilyId = searchParams.get("family");
+  const search = searchParams.get("q") ?? "";
+  const priorityFilter = reportPriorityFilter(searchParams.get("priority"));
+  const readinessFilter = reportReadinessFilter(searchParams.get("readiness"));
   const normalizedSearch = search.trim().toLowerCase();
+  const setReportParam = (key: string, value: string | null, defaultValue?: string) => {
+    const next = new URLSearchParams(searchParams);
+    const normalizedValue = value?.trim() ?? "";
+    if (!normalizedValue || normalizedValue === defaultValue) {
+      next.delete(key);
+    } else {
+      next.set(key, normalizedValue);
+    }
+    setSearchParams(next, { replace: true });
+  };
 
   const { data: reportCatalog } = useQuery({
     queryKey: ["reports", "catalog"],
@@ -2698,7 +2740,7 @@ export function ReportsPage() {
   });
   const reportFamilies = useMemo(() => catalogToReportFamilies(reportCatalog), [reportCatalog]);
   const activeFamily =
-    reportFamilies.find((family) => family.id === activeFamilyId) ?? reportFamilies[0];
+    reportFamilies.find((family) => family.id === selectedFamilyId) ?? reportFamilies[0];
   const visibleFamilies = useMemo(() => {
     const sourceFamilies = normalizedSearch ? reportFamilies : activeFamily ? [activeFamily] : [];
     return sourceFamilies
@@ -2789,7 +2831,7 @@ export function ReportsPage() {
           <Group align="flex-start" justify="space-between">
             <TextInput
               value={search}
-              onChange={(event) => setSearch(event.currentTarget.value)}
+              onChange={(event) => setReportParam("q", event.currentTarget.value)}
               placeholder="Search chart, module, source table, KPI, NABH, ABHA, NDPS, DICOM, camp, village..."
               leftSection={<IconSearch size={16} />}
               rightSection={
@@ -2798,7 +2840,7 @@ export function ReportsPage() {
                     variant="subtle"
                     size="sm"
                     aria-label="Clear report search"
-                    onClick={() => setSearch("")}
+                    onClick={() => setReportParam("q", null)}
                   >
                     <IconX size={14} />
                   </ActionIcon>
@@ -2807,14 +2849,14 @@ export function ReportsPage() {
               className={styles.searchInput}
             />
             <Group gap="xs">
-              {(["all", "P1", "P2", "P3"] as const).map((priority) => (
+              {REPORT_PRIORITY_FILTERS.map((priority) => (
                 <Button
                   key={priority}
                   size="xs"
                   radius="xl"
                   variant={priorityFilter === priority ? "filled" : "light"}
                   color={priority === "all" ? "blue" : PRIORITY_META[priority].color}
-                  onClick={() => setPriorityFilter(priority)}
+                  onClick={() => setReportParam("priority", priority, "all")}
                 >
                   {priority === "all" ? "All priority" : priority}
                 </Button>
@@ -2822,23 +2864,14 @@ export function ReportsPage() {
             </Group>
           </Group>
           <Group gap="xs">
-            {(
-              [
-                "all",
-                "live_api",
-                "query_buildable",
-                "derived_view",
-                "predictive",
-                "capture_needed",
-              ] as const
-            ).map((readiness) => (
+            {REPORT_READINESS_FILTERS.map((readiness) => (
               <Button
                 key={readiness}
                 size="xs"
                 radius="xl"
                 variant={readinessFilter === readiness ? "filled" : "light"}
                 color={readiness === "all" ? "gray" : READINESS_META[readiness].color}
-                onClick={() => setReadinessFilter(readiness)}
+                onClick={() => setReportParam("readiness", readiness, "all")}
               >
                 {readiness === "all" ? "All readiness" : READINESS_META[readiness].label}
               </Button>
@@ -2869,7 +2902,7 @@ export function ReportsPage() {
                     </ThemeIcon>
                   }
                   active={isActive}
-                  onClick={() => setActiveFamilyId(family.id)}
+                  onClick={() => setReportParam("family", family.id, reportFamilies[0]?.id)}
                   className={`${styles.familyButton} ${isActive ? styles.familyButtonActive : ""}`}
                 />
               );
