@@ -24,16 +24,12 @@ import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import { useHasAnyPermission, useHasPermission } from "@medbrains/stores";
 import type {
-  BillingQueueDisplay,
   BillingQueueToken,
   ClinicalJourneyActionDefinition,
   ClinicalJourneyActionId,
-  ErQueueDisplay,
   ErTriageToken,
   FrontOfficeEnquiryLog,
-  LabQueueDisplay,
   LabQueueToken,
-  PharmacyQueueDisplay,
   PharmacyQueueToken,
   QueueDisplayConfig,
   QueueMetrics,
@@ -41,7 +37,6 @@ import type {
   QueuePriorityRule,
   QueueStatsResponse,
   QueueToken,
-  RadiologyQueueDisplay,
   RadiologyQueueToken,
   TriageLevelColor,
   VisitingHours,
@@ -121,6 +116,14 @@ import {
 } from "@/forms/front-office.form";
 import { useHashTabs } from "@/hooks/useHashTabs";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
+import {
+  useFrontOfficeBillingTokenBoardQuery,
+  useFrontOfficeEmergencyTokenBoardQuery,
+  useFrontOfficeLabTokenBoardQuery,
+  useFrontOfficeOpdTokenBoardQuery,
+  useFrontOfficePharmacyTokenBoardQuery,
+  useFrontOfficeRadiologyTokenBoardQuery,
+} from "@/services/frontOffice.queries";
 import { frontOfficeService } from "@/services/frontOffice.service";
 
 // ── Constants ──────────────────────────────────────────
@@ -637,8 +640,6 @@ function QueueDashboardTab() {
 //  Tab 3 — Token Boards
 // ══════════════════════════════════════════════════════════
 
-const TOKEN_BOARD_REFRESH_MS = 10_000;
-const ER_TOKEN_BOARD_REFRESH_MS = 5_000;
 const TOKEN_BOARD_LIMIT = 8;
 
 const TRIAGE_LANES: ReadonlyArray<{
@@ -670,41 +671,13 @@ function TokenBoardsTab({
   canViewPharmacy,
   canViewBilling,
 }: TokenBoardsTabProps) {
-  const opdQuery = useQuery<QueueToken[]>({
-    queryKey: ["front-office", "token-board", "opd"],
-    queryFn: () => frontOfficeService.listQueueTokens(),
-    enabled: canViewOpdQueue,
-    refetchInterval: ER_TOKEN_BOARD_REFRESH_MS,
-  });
-  const pharmacyQuery = useQuery<PharmacyQueueDisplay>({
-    queryKey: ["front-office", "token-board", "pharmacy"],
-    queryFn: () => frontOfficeService.getPharmacyQueueDisplay(),
-    enabled: canViewPharmacy,
-    refetchInterval: TOKEN_BOARD_REFRESH_MS,
-  });
-  const billingQuery = useQuery<BillingQueueDisplay>({
-    queryKey: ["front-office", "token-board", "billing"],
-    queryFn: () => frontOfficeService.getBillingQueueDisplay(),
-    enabled: canViewBilling,
-    refetchInterval: TOKEN_BOARD_REFRESH_MS,
-  });
-  const erQuery = useQuery<ErQueueDisplay>({
-    queryKey: ["front-office", "token-board", "er"],
-    queryFn: () => frontOfficeService.getErQueueDisplay(),
-    enabled: canViewEmergency,
-    refetchInterval: ER_TOKEN_BOARD_REFRESH_MS,
-  });
-  const labQuery = useQuery<LabQueueDisplay>({
-    queryKey: ["front-office", "token-board", "lab"],
-    queryFn: () => frontOfficeService.getLabQueueDisplay(),
-    enabled: canViewLab,
-    refetchInterval: TOKEN_BOARD_REFRESH_MS,
-  });
-  const radiologyQuery = useQuery<RadiologyQueueDisplay>({
-    queryKey: ["front-office", "token-board", "radiology", "xray"],
-    queryFn: () => frontOfficeService.getRadiologyQueueDisplay("xray"),
+  const opdQuery = useFrontOfficeOpdTokenBoardQuery({ enabled: canViewOpdQueue });
+  const pharmacyQuery = useFrontOfficePharmacyTokenBoardQuery({ enabled: canViewPharmacy });
+  const billingQuery = useFrontOfficeBillingTokenBoardQuery({ enabled: canViewBilling });
+  const erQuery = useFrontOfficeEmergencyTokenBoardQuery({ enabled: canViewEmergency });
+  const labQuery = useFrontOfficeLabTokenBoardQuery({ enabled: canViewLab });
+  const radiologyQuery = useFrontOfficeRadiologyTokenBoardQuery("xray", {
     enabled: canViewRadiology,
-    refetchInterval: TOKEN_BOARD_REFRESH_MS,
   });
 
   const opdTokens = opdQuery.data ?? [];
