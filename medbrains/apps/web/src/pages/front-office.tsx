@@ -26,6 +26,8 @@ import { useHasPermission } from "@medbrains/stores";
 import type {
   BillingQueueDisplay,
   BillingQueueToken,
+  ClinicalJourneyActionDefinition,
+  ClinicalJourneyActionId,
   ErQueueDisplay,
   ErTriageToken,
   FrontOfficeEnquiryLog,
@@ -44,7 +46,7 @@ import type {
   VisitorPass,
   VisitorRegistration,
 } from "@medbrains/types";
-import { P } from "@medbrains/types";
+import { CORE_PATIENT_JOURNEY_ACTIONS, P } from "@medbrains/types";
 import {
   IconAmbulance,
   IconArrowRight,
@@ -284,6 +286,34 @@ interface PatientFlowAction {
   path: string;
   enabled: boolean;
   icon: ReactNode;
+  journeyActionId?: ClinicalJourneyActionId;
+  activationEvents?: readonly string[];
+  emittedEvent?: string;
+  requiredPermissions?: readonly string[];
+  standardRefs?: readonly string[];
+}
+
+function eventLabel(eventName: string) {
+  return eventName.replace(/\./g, " ");
+}
+
+function patientFlowJourneyAction(
+  actionId: ClinicalJourneyActionId | undefined,
+): ClinicalJourneyActionDefinition | null {
+  if (!actionId) return null;
+  return CORE_PATIENT_JOURNEY_ACTIONS.find((action) => action.id === actionId) ?? null;
+}
+
+function patientFlowActionMetadata(action: PatientFlowAction) {
+  const journeyAction = patientFlowJourneyAction(action.journeyActionId);
+
+  return {
+    activationEvents: action.activationEvents ?? journeyAction?.activatesAfter ?? [],
+    description: journeyAction?.description ?? action.description,
+    emittedEvent: action.emittedEvent ?? journeyAction?.emitsEvent ?? null,
+    requiredPermissions: action.requiredPermissions ?? journeyAction?.requiredPermissions ?? [],
+    standardRefs: action.standardRefs ?? journeyAction?.standardRefs ?? [],
+  };
 }
 
 function PatientFlowHub({
@@ -311,6 +341,10 @@ function PatientFlowHub({
       path: "/patients/register",
       enabled: canRegisterPatient,
       icon: <IconUserPlus size={20} />,
+      activationEvents: ["front.office.intake"],
+      emittedEvent: "patient.created",
+      requiredPermissions: [P.PATIENTS.CREATE],
+      standardRefs: ["NABH AAC", "IPSG patient identification"],
     },
     {
       title: "Start OPD Visit",
@@ -319,6 +353,7 @@ function PatientFlowHub({
       path: "/opd/new",
       enabled: canCreateOpdVisit,
       icon: <IconStethoscope size={20} />,
+      journeyActionId: "opd.open_visit",
     },
     {
       title: "OPD Queue",
@@ -343,6 +378,7 @@ function PatientFlowHub({
       path: "/emergency",
       enabled: canCreateEmergencyVisit || canViewEmergency,
       icon: <IconAmbulance size={20} />,
+      journeyActionId: "emergency.open_visit",
     },
     {
       title: "Camp Desk",
@@ -351,6 +387,7 @@ function PatientFlowHub({
       path: "/camp",
       enabled: canViewCamp || canCreateCampRegistration,
       icon: <IconMapPin size={20} />,
+      journeyActionId: "camp.open_context",
     },
     {
       title: "Billing Counter",
@@ -359,6 +396,7 @@ function PatientFlowHub({
       path: "/billing",
       enabled: canViewBilling || canCreateBilling,
       icon: <IconReceipt size={20} />,
+      journeyActionId: "billing.open_ledger",
     },
     {
       title: "Pharmacy Queue",
@@ -367,6 +405,7 @@ function PatientFlowHub({
       path: "/pharmacy",
       enabled: canViewPharmacy,
       icon: <IconPill size={20} />,
+      journeyActionId: "pharmacy.open_patient_queue",
     },
     {
       title: "IPD Admission",
@@ -375,6 +414,7 @@ function PatientFlowHub({
       path: "/ipd",
       enabled: canViewIpd,
       icon: <IconBed size={20} />,
+      journeyActionId: "ipd.admit",
     },
     {
       title: "Store Indents",
@@ -418,44 +458,83 @@ function PatientFlowHub({
       </Group>
 
       <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }}>
-        {actions.map((action) => (
-          <Card key={action.title} withBorder padding="md">
-            <Stack gap="sm" h="100%">
-              <Group justify="space-between" align="flex-start" wrap="nowrap">
-                <Group gap="sm" wrap="nowrap">
-                  <Badge
-                    size="lg"
-                    variant="light"
-                    color={action.enabled ? "primary" : "slate"}
-                    leftSection={action.icon}
-                  >
-                    {action.module}
-                  </Badge>
+        {actions.map((action) => {
+          const metadata = patientFlowActionMetadata(action);
+          const permissionLabel =
+            metadata.requiredPermissions.length > 1
+              ? `${metadata.requiredPermissions[0]} +${metadata.requiredPermissions.length - 1}`
+              : metadata.requiredPermissions[0];
+
+          return (
+            <Card key={action.title} withBorder padding="md">
+              <Stack gap="sm" h="100%">
+                <Group justify="space-between" align="flex-start" wrap="nowrap">
+                  <Group gap="sm" wrap="nowrap">
+                    <Badge
+                      size="lg"
+                      variant="light"
+                      color={action.enabled ? "primary" : "slate"}
+                      leftSection={action.icon}
+                    >
+                      {action.module}
+                    </Badge>
+                  </Group>
+                  {!action.enabled && (
+                    <Badge size="xs" variant="light" color="slate">
+                      No access
+                    </Badge>
+                  )}
                 </Group>
-                {!action.enabled && (
-                  <Badge size="xs" variant="light" color="slate">
-                    No access
-                  </Badge>
+                <div>
+                  <Text fw={600}>{action.title}</Text>
+                  <Text size="sm" c="dimmed">
+                    {metadata.description}
+                  </Text>
+                </div>
+                {(metadata.activationEvents.length > 0 || metadata.emittedEvent) && (
+                  <Group gap={4}>
+                    {metadata.activationEvents.slice(0, 2).map((eventName) => (
+                      <Badge key={eventName} size="xs" variant="light" color="blue">
+                        after {eventLabel(eventName)}
+                      </Badge>
+                    ))}
+                    {metadata.activationEvents.length > 2 && (
+                      <Badge size="xs" variant="light" color="blue">
+                        +{metadata.activationEvents.length - 2}
+                      </Badge>
+                    )}
+                    {metadata.emittedEvent && (
+                      <Badge size="xs" variant="light" color="green">
+                        emits {eventLabel(metadata.emittedEvent)}
+                      </Badge>
+                    )}
+                  </Group>
                 )}
-              </Group>
-              <div>
-                <Text fw={600}>{action.title}</Text>
-                <Text size="sm" c="dimmed">
-                  {action.description}
-                </Text>
-              </div>
-              <Button
-                mt="auto"
-                variant={action.enabled ? "light" : "subtle"}
-                rightSection={<IconArrowRight size={16} />}
-                disabled={!action.enabled}
-                onClick={() => navigate(action.path)}
-              >
-                Open
-              </Button>
-            </Stack>
-          </Card>
-        ))}
+                {permissionLabel && (
+                  <Tooltip label={metadata.requiredPermissions.join(" / ")}>
+                    <Text size="xs" c="dimmed">
+                      Permission: {permissionLabel}
+                    </Text>
+                  </Tooltip>
+                )}
+                {metadata.standardRefs.length > 0 && (
+                  <Text size="xs" c="dimmed">
+                    Standards: {metadata.standardRefs.slice(0, 2).join(" · ")}
+                  </Text>
+                )}
+                <Button
+                  mt="auto"
+                  variant={action.enabled ? "light" : "subtle"}
+                  rightSection={<IconArrowRight size={16} />}
+                  disabled={!action.enabled}
+                  onClick={() => navigate(action.path)}
+                >
+                  Open
+                </Button>
+              </Stack>
+            </Card>
+          );
+        })}
       </SimpleGrid>
     </Stack>
   );
