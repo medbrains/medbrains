@@ -14,6 +14,8 @@ use uuid::Uuid;
 pub enum ClinicalEventName {
     #[serde(rename = "patient.created")]
     PatientCreated,
+    #[serde(rename = "patient.updated")]
+    PatientUpdated,
     #[serde(rename = "patient.merged")]
     PatientMerged,
     #[serde(rename = "visit.created")]
@@ -69,6 +71,7 @@ impl ClinicalEventName {
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::PatientCreated => "patient.created",
+            Self::PatientUpdated => "patient.updated",
             Self::PatientMerged => "patient.merged",
             Self::VisitCreated => "visit.created",
             Self::EmergencyVisitCreated => "emergency.visit.created",
@@ -99,7 +102,9 @@ impl ClinicalEventName {
     #[must_use]
     pub const fn default_source_module(self) -> ClinicalEventSourceModule {
         match self {
-            Self::PatientCreated | Self::PatientMerged => ClinicalEventSourceModule::Patients,
+            Self::PatientCreated | Self::PatientUpdated | Self::PatientMerged => {
+                ClinicalEventSourceModule::Patients
+            }
             Self::VisitCreated | Self::OpdEncounterCreated => ClinicalEventSourceModule::Opd,
             Self::EmergencyVisitCreated => ClinicalEventSourceModule::Emergency,
             Self::OrderCreated | Self::OrderCancelled => ClinicalEventSourceModule::OrderBasket,
@@ -129,6 +134,7 @@ impl ClinicalEventName {
     pub const fn required_payload_keys(self) -> &'static [&'static str] {
         match self {
             Self::PatientCreated => &["patient_id"],
+            Self::PatientUpdated => &["patient_id"],
             Self::PatientMerged => &["surviving_patient_id", "merged_patient_id"],
             Self::VisitCreated => &["visit_id", "patient_id"],
             Self::EmergencyVisitCreated => &["visit_id", "patient_id"],
@@ -182,6 +188,7 @@ impl FromStr for ClinicalEventName {
     fn from_str(value: &str) -> Result<Self, Self::Err> {
         match value {
             "patient.created" => Ok(Self::PatientCreated),
+            "patient.updated" => Ok(Self::PatientUpdated),
             "patient.merged" => Ok(Self::PatientMerged),
             "visit.created" => Ok(Self::VisitCreated),
             "emergency.visit.created" => Ok(Self::EmergencyVisitCreated),
@@ -407,6 +414,26 @@ mod tests {
         assert_eq!(
             ClinicalEventName::IpdDischargeFinalized.required_payload_keys(),
             &["summary_id", "admission_id", "patient_id"]
+        );
+    }
+
+    #[test]
+    fn patient_updated_is_canonical() {
+        assert_eq!(
+            "patient.updated".parse::<ClinicalEventName>().ok(),
+            Some(ClinicalEventName::PatientUpdated)
+        );
+        assert_eq!(
+            ClinicalEventName::PatientUpdated.as_str(),
+            "patient.updated"
+        );
+        assert_eq!(
+            ClinicalEventName::PatientUpdated.default_source_module(),
+            ClinicalEventSourceModule::Patients
+        );
+        assert_eq!(
+            ClinicalEventName::PatientUpdated.required_payload_keys(),
+            &["patient_id"]
         );
     }
 }

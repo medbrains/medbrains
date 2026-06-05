@@ -1659,6 +1659,42 @@ pub async fn update_patient(
     let reg_type_str = body.registration_type.map(|r| enum_to_str(&r));
     let reg_source_str = body.registration_source.map(|s| enum_to_str(&s));
     let fin_class_str = body.financial_class.map(|f| enum_to_str(&f));
+    let changed_fields: Vec<&str> = [
+        ("prefix", body.prefix.is_some()),
+        ("first_name", body.first_name.is_some()),
+        ("middle_name", body.middle_name.is_some()),
+        ("last_name", body.last_name.is_some()),
+        ("suffix", body.suffix.is_some()),
+        ("father_name", body.father_name.is_some()),
+        ("guardian_name", body.guardian_name.is_some()),
+        ("guardian_relation", body.guardian_relation.is_some()),
+        ("date_of_birth", body.date_of_birth.is_some()),
+        ("is_dob_estimated", body.is_dob_estimated.is_some()),
+        ("gender", gender_str.is_some()),
+        ("marital_status", marital_str.is_some()),
+        ("religion", body.religion.is_some()),
+        ("nationality_id", body.nationality_id.is_some()),
+        ("preferred_language", body.preferred_language.is_some()),
+        ("blood_group", blood_str.is_some()),
+        ("occupation", body.occupation.is_some()),
+        ("phone", body.phone.is_some()),
+        ("phone_secondary", body.phone_secondary.is_some()),
+        ("email", body.email.is_some()),
+        ("address", body.address.is_some()),
+        ("category", category_str.is_some()),
+        ("registration_type", reg_type_str.is_some()),
+        ("registration_source", reg_source_str.is_some()),
+        ("financial_class", fin_class_str.is_some()),
+        ("is_medico_legal", body.is_medico_legal.is_some()),
+        ("mlc_number", body.mlc_number.is_some()),
+        ("is_vip", body.is_vip.is_some()),
+        ("is_unknown_patient", body.is_unknown_patient.is_some()),
+        ("attributes", body.attributes.is_some()),
+        ("is_active", body.is_active.is_some()),
+    ]
+    .into_iter()
+    .filter_map(|(field_name, changed)| changed.then_some(field_name))
+    .collect();
 
     let patient = sqlx::query_as_unchecked!(
         Patient,
@@ -1744,6 +1780,21 @@ pub async fn update_patient(
     )
     .fetch_optional(&mut *tx)
     .await?;
+
+    if let Some(patient) = patient.as_ref() {
+        let event = ClinicalEventEnvelope::new(
+            claims.tenant_id,
+            ClinicalEventName::PatientUpdated,
+            patient.id,
+            claims.sub,
+            serde_json::json!({
+                "patient_id": patient.id,
+                "changed_fields": changed_fields,
+            }),
+        )
+        .with_patient(patient.id);
+        crate::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
+    }
 
     tx.commit().await?;
 
