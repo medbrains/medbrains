@@ -58,4 +58,25 @@ describe("patient journey action routes", () => {
       "/emergency?tab=mlc&patient_id=patient-1",
     );
   });
+
+  it("routes MRD case sheets through the active clinical source when available", () => {
+    expect(
+      patientJourneyActionRoute("mrd.open_case_sheet", {
+        ...baseContext,
+        activeAdmissionId: "admission-1",
+      }),
+    ).toBe("/mrd?packet_type=ipd&admission_id=admission-1#case-sheets");
+    expect(
+      patientJourneyActionRoute("mrd.open_case_sheet", {
+        ...baseContext,
+        activeEncounterId: "encounter-1",
+      }),
+    ).toBe("/mrd?packet_type=opd&encounter_id=encounter-1#case-sheets");
+  });
+
+  it("falls back to a patient-filtered MRD case-sheet list", () => {
+    expect(patientJourneyActionRoute("mrd.open_case_sheet", baseContext)).toBe(
+      "/mrd?patient_id=patient-1#case-sheets",
+    );
+  });
 });

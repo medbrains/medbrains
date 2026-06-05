@@ -55,6 +55,12 @@ export function patientJourneyActionRoute(
     case "pharmacy.dispense_order":
       return `/pharmacy?tab=orders&patient_id=${context.patientId}&action=dispense`;
     case "mrd.open_case_sheet":
+      if (context.activeAdmissionId) {
+        return `/mrd?packet_type=ipd&admission_id=${context.activeAdmissionId}#case-sheets`;
+      }
+      if (context.activeEncounterId) {
+        return `/mrd?packet_type=opd&encounter_id=${context.activeEncounterId}#case-sheets`;
+      }
       return `/mrd?patient_id=${context.patientId}#case-sheets`;
     case "patient.share":
     case "patient.print_card":

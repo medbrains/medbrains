@@ -998,6 +998,7 @@ function CaseSheetsTab() {
   const canFile = useHasPermission(P.MRD.CASE_SHEETS_FILE);
   const encounterFilter = searchParams.get("encounter_id");
   const admissionFilter = searchParams.get("admission_id");
+  const patientFilter = searchParams.get("patient_id")?.trim() || null;
   const urlPacketType = searchParams.get("packet_type");
   const sourcePacketType =
     urlPacketType === "opd" || urlPacketType === "ipd"
@@ -1011,7 +1012,9 @@ function CaseSheetsTab() {
     ? "Filtered to OPD encounter packet"
     : admissionFilter
       ? "Filtered to IPD admission packet"
-      : null;
+      : patientFilter
+        ? "Filtered to patient case sheets"
+        : null;
   const [statusFilter, setStatusFilter] = useState<MrdCaseSheetPacketStatus | null>(() =>
     toCaseSheetStatus(searchParams.get("status")),
   );
@@ -1032,11 +1035,19 @@ function CaseSheetsTab() {
   });
 
   const { data: packets = [], isLoading } = useQuery({
-    queryKey: ["mrd-case-sheets", statusFilter, typeFilter, encounterFilter, admissionFilter],
+    queryKey: [
+      "mrd-case-sheets",
+      statusFilter,
+      typeFilter,
+      patientFilter,
+      encounterFilter,
+      admissionFilter,
+    ],
     queryFn: () =>
       mrdService.listMrdCaseSheetPackets({
         status: statusFilter ?? undefined,
         packet_type: typeFilter === "opd" || typeFilter === "ipd" ? typeFilter : sourcePacketType,
+        patient_id: patientFilter ?? undefined,
         encounter_id: encounterFilter ?? undefined,
         admission_id: admissionFilter ?? undefined,
       }),
@@ -1362,6 +1373,7 @@ function CaseSheetsTab() {
                   const next = new URLSearchParams(searchParams);
                   next.delete("encounter_id");
                   next.delete("admission_id");
+                  next.delete("patient_id");
                   next.delete("packet_type");
                   setTypeFilter(null);
                   setSearchParams(next, { replace: true });
