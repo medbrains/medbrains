@@ -4,6 +4,7 @@ import { notifications } from "@mantine/notifications";
 import type { GenderFormValue, MiniRegisterPatientFormInput } from "@medbrains/schemas";
 import { miniRegisterPatientFormSchema, toGenderFormValue } from "@medbrains/schemas";
 import type { Patient } from "@medbrains/types";
+import { PATIENT_NAME_FIELD_ACCESS_KEYS, PATIENT_UHID_FIELD_ACCESS_KEY } from "@medbrains/types";
 import { fieldAccessText } from "@medbrains/utils";
 import { IconAlertTriangle, IconCheck, IconUserPlus } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -57,11 +58,8 @@ function errorMessage(error: unknown): string {
 export function MiniRegisterPatient({ searchText, onCreated, onCancel }: MiniRegisterPatientProps) {
   const initialName = useMemo(() => splitSearchText(searchText), [searchText]);
   const queryClient = useQueryClient();
-  const patientNameAccess = useProtectedFieldAccess(undefined, [
-    "patients.first_name",
-    "patients.last_name",
-  ]);
-  const uhidAccess = useProtectedFieldAccess("patients.uhid");
+  const patientNameAccess = useProtectedFieldAccess(undefined, PATIENT_NAME_FIELD_ACCESS_KEYS);
+  const uhidAccess = useProtectedFieldAccess(PATIENT_UHID_FIELD_ACCESS_KEY);
   const phoneAccess = useProtectedFieldAccess("patients.phone");
   const {
     control,

@@ -1,7 +1,7 @@
 import { Group, Text } from "@mantine/core";
 import { useDebouncedValue } from "@mantine/hooks";
 import { useHasPermission } from "@medbrains/stores";
-import { P } from "@medbrains/types";
+import { P, PATIENT_NAME_FIELD_ACCESS_KEYS, PATIENT_UHID_FIELD_ACCESS_KEY } from "@medbrains/types";
 import { fieldAccessText } from "@medbrains/utils";
 import { IconSearch, IconUserPlus } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
@@ -58,11 +58,8 @@ export function PatientSearchSelect({
   const [debounced] = useDebouncedValue(search, 300);
   const canListPatients = useHasPermission(P.PATIENTS.LIST);
   const canCreatePatient = useHasPermission(P.PATIENTS.CREATE);
-  const patientNameAccess = useProtectedFieldAccess(undefined, [
-    "patients.first_name",
-    "patients.last_name",
-  ]);
-  const uhidAccess = useProtectedFieldAccess("patients.uhid");
+  const patientNameAccess = useProtectedFieldAccess(undefined, PATIENT_NAME_FIELD_ACCESS_KEYS);
+  const uhidAccess = useProtectedFieldAccess(PATIENT_UHID_FIELD_ACCESS_KEY);
   const phoneAccess = useProtectedFieldAccess("patients.phone");
   const dobAccess = useProtectedFieldAccess("patients.date_of_birth");
 

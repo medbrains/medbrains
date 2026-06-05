@@ -88,7 +88,7 @@ import type {
   UpdateMassCasualtyEventRequest,
   UpdateMlcCaseRequest,
 } from "@medbrains/types";
-import { P } from "@medbrains/types";
+import { P, PATIENT_NAME_FIELD_ACCESS_KEYS, PATIENT_UHID_FIELD_ACCESS_KEY } from "@medbrains/types";
 import { fieldAccessText } from "@medbrains/utils";
 import {
   IconAlertOctagon,
@@ -191,16 +191,10 @@ function renderSensitiveValue(access: FieldAccessLevel, value: string | null | u
   return fieldAccessText(access, value);
 }
 
-const PATIENT_NAME_FIELD_ACCESS_KEYS = [
-  "patients.first_name",
-  "patients.middle_name",
-  "patients.last_name",
-];
-
 function useEmergencyPatientIdentityAccess() {
   return {
     name: useProtectedFieldAccess(undefined, PATIENT_NAME_FIELD_ACCESS_KEYS),
-    uhid: useProtectedFieldAccess("patients.uhid"),
+    uhid: useProtectedFieldAccess(PATIENT_UHID_FIELD_ACCESS_KEY),
   };
 }
 

@@ -13,6 +13,7 @@
 
 import { Alert, Badge, Group, Skeleton, Text, Tooltip } from "@mantine/core";
 import type { PatientContext } from "@medbrains/types";
+import { PATIENT_NAME_FIELD_ACCESS_KEYS, PATIENT_UHID_FIELD_ACCESS_KEY } from "@medbrains/types";
 import {
   IconAlertTriangle,
   IconBan,
@@ -32,20 +33,14 @@ interface PatientContextBannerProps {
   hideLoadingState?: boolean;
 }
 
-const PATIENT_NAME_FIELD_CODES = [
-  "patients.first_name",
-  "patients.middle_name",
-  "patients.last_name",
-] as const;
-
 function PatientContextIdentity({ data }: { data: PatientContext }) {
   const protectedUhid = useProtectedFieldValue({
-    fieldCode: "patients.uhid",
+    fieldCode: PATIENT_UHID_FIELD_ACCESS_KEY,
     value: data.uhid,
     kind: "identifier",
   });
   const protectedName = useProtectedFieldValue({
-    fieldCodes: PATIENT_NAME_FIELD_CODES,
+    fieldCodes: PATIENT_NAME_FIELD_ACCESS_KEYS,
     value: data.full_name,
     kind: "name",
   });

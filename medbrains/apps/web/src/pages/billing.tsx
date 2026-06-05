@@ -157,7 +157,12 @@ import type {
   UpdateCorporateRequest,
   UpdateCreditPatientRequest,
 } from "@medbrains/types";
-import { P } from "@medbrains/types";
+import {
+  P,
+  PATIENT_BASIC_IDENTITY_FIELD_ACCESS_KEYS,
+  PATIENT_NAME_FIELD_ACCESS_KEYS,
+  PATIENT_UHID_FIELD_ACCESS_KEY,
+} from "@medbrains/types";
 import { fieldAccessText } from "@medbrains/utils";
 import {
   IconAmbulance,
@@ -304,12 +309,6 @@ function money(value: number | string | null | undefined): string {
     maximumFractionDigits: 2,
   });
 }
-
-const PATIENT_NAME_FIELD_ACCESS_KEYS = [
-  "patients.first_name",
-  "patients.middle_name",
-  "patients.last_name",
-];
 
 interface BillingDisplayAccess {
   amount: FieldAccessLevel;
@@ -1271,7 +1270,7 @@ function InvoiceDetail({
   const amountAccess = useProtectedFieldAccess("billing.amount");
   const patientNameAccess = useProtectedFieldAccess(undefined, PATIENT_NAME_FIELD_ACCESS_KEYS);
   const patientAddressAccess = useProtectedFieldAccess("patients.address");
-  const uhidAccess = useProtectedFieldAccess("patients.uhid");
+  const uhidAccess = useProtectedFieldAccess(PATIENT_UHID_FIELD_ACCESS_KEY);
   const billingDisplayAccess: BillingDisplayAccess = {
     amount: amountAccess,
     patientAddress: patientAddressAccess,
@@ -6377,7 +6376,7 @@ function CreditPatientsTab() {
     {
       key: "patient_id",
       label: "Patient",
-      fieldAccessKeys: ["patients.uhid", ...PATIENT_NAME_FIELD_ACCESS_KEYS],
+      fieldAccessKeys: PATIENT_BASIC_IDENTITY_FIELD_ACCESS_KEYS,
       accessor: (r: CreditPatient) => r.patient_id,
       fieldKind: "identifier",
       hiddenLabel: "Patient restricted",

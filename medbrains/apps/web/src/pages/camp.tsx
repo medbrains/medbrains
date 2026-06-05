@@ -66,7 +66,14 @@ import type {
   FieldAccessLevel,
   UpdateCampFollowupRequest,
 } from "@medbrains/types";
-import { P } from "@medbrains/types";
+import {
+  CAMP_REGISTRATION_ID_PROOF_FIELD_ACCESS_KEY,
+  CAMP_REGISTRATION_NAME_FIELD_ACCESS_KEY,
+  CAMP_REGISTRATION_PHONE_FIELD_ACCESS_KEY,
+  P,
+  PATIENT_NAME_FIELD_ACCESS_KEYS,
+  PATIENT_UHID_FIELD_ACCESS_KEY,
+} from "@medbrains/types";
 import { fieldAccessText } from "@medbrains/utils";
 import {
   IconArrowRight,
@@ -178,15 +185,6 @@ const CAMP_SERVICE_LINE_OPTIONS = [
   { value: "emergency", label: "Emergency" },
   { value: "follow_up", label: "Follow-up" },
   { value: "other", label: "Other" },
-];
-
-const CAMP_REGISTRATION_NAME_FIELD = "camp.registrations.person_name";
-const CAMP_REGISTRATION_PHONE_FIELD = "camp.registrations.phone";
-const CAMP_REGISTRATION_ID_PROOF_FIELD = "camp.registrations.id_proof_number";
-const PATIENT_NAME_FIELD_ACCESS_KEYS = [
-  "patients.first_name",
-  "patients.middle_name",
-  "patients.last_name",
 ];
 
 const patientContextQuery = (patientId: string) =>
@@ -1856,11 +1854,11 @@ function RegistrationsTab({
 }) {
   const canCreate = useHasPermission(P.CAMP.REGISTRATIONS_CREATE);
   const canOpenClinicalVisit = useHasPermission(P.OPD.VISIT_CREATE);
-  const campNameAccess = useProtectedFieldAccess(CAMP_REGISTRATION_NAME_FIELD);
-  const campPhoneAccess = useProtectedFieldAccess(CAMP_REGISTRATION_PHONE_FIELD);
-  const campIdProofAccess = useProtectedFieldAccess(CAMP_REGISTRATION_ID_PROOF_FIELD);
+  const campNameAccess = useProtectedFieldAccess(CAMP_REGISTRATION_NAME_FIELD_ACCESS_KEY);
+  const campPhoneAccess = useProtectedFieldAccess(CAMP_REGISTRATION_PHONE_FIELD_ACCESS_KEY);
+  const campIdProofAccess = useProtectedFieldAccess(CAMP_REGISTRATION_ID_PROOF_FIELD_ACCESS_KEY);
   const patientNameAccess = useProtectedFieldAccess(undefined, PATIENT_NAME_FIELD_ACCESS_KEYS);
-  const patientUhidAccess = useProtectedFieldAccess("patients.uhid");
+  const patientUhidAccess = useProtectedFieldAccess(PATIENT_UHID_FIELD_ACCESS_KEY);
   const canEditCampName = campNameAccess === "edit";
   const canEditCampPhone = campPhoneAccess === "edit";
   const canEditCampIdProof = campIdProofAccess === "edit";
@@ -2070,7 +2068,7 @@ function RegistrationsTab({
     {
       key: "person_name",
       label: "Name",
-      fieldAccessKey: CAMP_REGISTRATION_NAME_FIELD,
+      fieldAccessKey: CAMP_REGISTRATION_NAME_FIELD_ACCESS_KEY,
       accessor: (r) => r.person_name,
       fieldKind: "name",
       hiddenLabel: "Participant restricted",
@@ -2081,7 +2079,7 @@ function RegistrationsTab({
     {
       key: "phone",
       label: "Phone",
-      fieldAccessKey: CAMP_REGISTRATION_PHONE_FIELD,
+      fieldAccessKey: CAMP_REGISTRATION_PHONE_FIELD_ACCESS_KEY,
       accessor: (r) => r.phone,
       fieldKind: "phone",
       hiddenLabel: "Phone restricted",
@@ -2517,8 +2515,8 @@ function ScreeningsTab({
 }) {
   const canManageScreenings = useHasPermission(P.CAMP.SCREENINGS_MANAGE);
   const canManageLab = useHasPermission(P.CAMP.LAB_MANAGE);
-  const campNameAccess = useProtectedFieldAccess(CAMP_REGISTRATION_NAME_FIELD);
-  const campPhoneAccess = useProtectedFieldAccess(CAMP_REGISTRATION_PHONE_FIELD);
+  const campNameAccess = useProtectedFieldAccess(CAMP_REGISTRATION_NAME_FIELD_ACCESS_KEY);
+  const campPhoneAccess = useProtectedFieldAccess(CAMP_REGISTRATION_PHONE_FIELD_ACCESS_KEY);
   const qc = useQueryClient();
   const emit = useClinicalEmit();
   const [scrOpen, scrHandlers] = useDisclosure(Boolean(focusedRegistrationId));
@@ -3012,8 +3010,8 @@ function FollowupsTab({
   selectedCamp: Camp | null;
 }) {
   const canManage = useHasPermission(P.CAMP.FOLLOWUPS_MANAGE);
-  const campNameAccess = useProtectedFieldAccess(CAMP_REGISTRATION_NAME_FIELD);
-  const campPhoneAccess = useProtectedFieldAccess(CAMP_REGISTRATION_PHONE_FIELD);
+  const campNameAccess = useProtectedFieldAccess(CAMP_REGISTRATION_NAME_FIELD_ACCESS_KEY);
+  const campPhoneAccess = useProtectedFieldAccess(CAMP_REGISTRATION_PHONE_FIELD_ACCESS_KEY);
   const qc = useQueryClient();
   const [createOpen, createHandlers] = useDisclosure(false);
   const [statusTab, setStatusTab] = useState<string | null>("all");

@@ -83,7 +83,7 @@ import type {
   RxQueueRow,
   TenantSettingsRow,
 } from "@medbrains/types";
-import { P } from "@medbrains/types";
+import { P, PATIENT_BASIC_IDENTITY_FIELD_ACCESS_KEYS } from "@medbrains/types";
 import { fieldAccessText } from "@medbrains/utils";
 import {
   IconAlertTriangle,
@@ -169,12 +169,6 @@ const dispensingTypeLabels: Record<string, string> = {
   package: "Package",
   emergency: "Emergency",
 };
-
-const PHARMACY_PATIENT_FIELD_ACCESS_KEYS = [
-  "patients.uhid",
-  "patients.first_name",
-  "patients.last_name",
-] as const;
 
 const PHARMACY_ORDER_STATUS_OPTIONS = [
   { value: "ordered", label: "Ordered" },
@@ -1281,7 +1275,7 @@ function PharmacyOrdersTab({
       key: "patient_id",
       label: "Patient",
       requiredPermissions: [P.PHARMACY.PRESCRIPTIONS_LIST],
-      fieldAccessKeys: PHARMACY_PATIENT_FIELD_ACCESS_KEYS,
+      fieldAccessKeys: PATIENT_BASIC_IDENTITY_FIELD_ACCESS_KEYS,
       accessor: (row: PharmacyOrder) => row.patient_id,
       fieldKind: "identifier",
       hiddenLabel: "Patient restricted",
@@ -1677,7 +1671,7 @@ function PharmacyReturnsTab({
     {
       key: "patient_id",
       label: "Patient",
-      fieldAccessKeys: PHARMACY_PATIENT_FIELD_ACCESS_KEYS,
+      fieldAccessKeys: PATIENT_BASIC_IDENTITY_FIELD_ACCESS_KEYS,
       accessor: (row: PharmacyReturn) => row.patient_id,
       fieldKind: "identifier",
       hiddenLabel: "Patient restricted",
@@ -5103,7 +5097,7 @@ function RxQueueTab({
     {
       key: "patient_name",
       label: "Patient",
-      fieldAccessKeys: PHARMACY_PATIENT_FIELD_ACCESS_KEYS,
+      fieldAccessKeys: PATIENT_BASIC_IDENTITY_FIELD_ACCESS_KEYS,
       accessor: (row: RxQueueRow) => row.patient_name,
       fieldKind: "name",
       hiddenLabel: "Patient restricted",

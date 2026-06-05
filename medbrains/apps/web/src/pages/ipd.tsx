@@ -105,7 +105,12 @@ import type {
   WardBedRow,
   WardListRow,
 } from "@medbrains/types";
-import { P } from "@medbrains/types";
+import {
+  P,
+  PATIENT_BASIC_IDENTITY_FIELD_ACCESS_KEYS,
+  PATIENT_NAME_FIELD_ACCESS_KEYS,
+  PATIENT_UHID_FIELD_ACCESS_KEY,
+} from "@medbrains/types";
 import { fieldAccessText } from "@medbrains/utils";
 import {
   IconAlertTriangle,
@@ -323,12 +328,6 @@ function emitIpdBedMovementEvent(
   });
 }
 
-const PATIENT_NAME_FIELD_ACCESS_KEYS = [
-  "patients.first_name",
-  "patients.middle_name",
-  "patients.last_name",
-];
-
 function protectedIpdPatientName(
   patientName: string | null | undefined,
   access: FieldAccessLevel,
@@ -466,7 +465,7 @@ function AdmissionsTab() {
     {
       key: "patient_name",
       label: "Patient",
-      fieldAccessKeys: ["patients.uhid", ...PATIENT_NAME_FIELD_ACCESS_KEYS],
+      fieldAccessKeys: PATIENT_BASIC_IDENTITY_FIELD_ACCESS_KEYS,
       accessor: (row: AdmissionRow) => row.patient_name,
       fieldKind: "name",
       hiddenLabel: "Patient restricted",
@@ -2336,7 +2335,7 @@ function AdmissionPrescriptionsTab({
   patientId: string;
 }) {
   const patientNameAccess = useProtectedFieldAccess(undefined, PATIENT_NAME_FIELD_ACCESS_KEYS);
-  const uhidAccess = useProtectedFieldAccess("patients.uhid");
+  const uhidAccess = useProtectedFieldAccess(PATIENT_UHID_FIELD_ACCESS_KEY);
   const { data: prescriptions = [] } = useQuery<PrescriptionWithItems[]>({
     queryKey: ["encounter-prescriptions", encounterId],
     queryFn: () => ipdService.listPrescriptions(encounterId),
@@ -3458,7 +3457,7 @@ function EditWardDrawer({ ward, onClose }: { ward: WardListRow | null; onClose: 
 function WardBedsPanel({ wardId, canManage }: { wardId: string; canManage: boolean }) {
   const queryClient = useQueryClient();
   const patientNameAccess = useProtectedFieldAccess(undefined, PATIENT_NAME_FIELD_ACCESS_KEYS);
-  const uhidAccess = useProtectedFieldAccess("patients.uhid");
+  const uhidAccess = useProtectedFieldAccess(PATIENT_UHID_FIELD_ACCESS_KEY);
   const [bedLocationId, setBedLocationId] = useState("");
   const [bedTypeId, setBedTypeId] = useState("");
 
@@ -3757,7 +3756,7 @@ function BedDashboardTab() {
   const [filterIpType, setFilterIpType] = useState<string | null>(null);
   const [showTurnaround, setShowTurnaround] = useState(false);
   const patientNameAccess = useProtectedFieldAccess(undefined, PATIENT_NAME_FIELD_ACCESS_KEYS);
-  const uhidAccess = useProtectedFieldAccess("patients.uhid");
+  const uhidAccess = useProtectedFieldAccess(PATIENT_UHID_FIELD_ACCESS_KEY);
 
   const { data: summaryData } = useQuery({
     queryKey: ["ipd-bed-dashboard-summary"],
@@ -5749,7 +5748,7 @@ function PrintAdmissionButton({ admissionId }: { admissionId: string }) {
   const printRef = useRef<HTMLDivElement | null>(null);
   const [printing, setPrinting] = useState(false);
   const patientNameAccess = useProtectedFieldAccess(undefined, PATIENT_NAME_FIELD_ACCESS_KEYS);
-  const uhidAccess = useProtectedFieldAccess("patients.uhid");
+  const uhidAccess = useProtectedFieldAccess(PATIENT_UHID_FIELD_ACCESS_KEY);
   const { data } = useQuery({
     queryKey: ["ipd-print", admissionId],
     queryFn: () => ipdService.getAdmissionPrintData(admissionId),

@@ -104,7 +104,12 @@ import type {
   Vital,
   VitalHistoryPoint,
 } from "@medbrains/types";
-import { P } from "@medbrains/types";
+import {
+  P,
+  PATIENT_BASIC_IDENTITY_FIELD_ACCESS_KEYS,
+  PATIENT_NAME_FIELD_ACCESS_KEYS,
+  PATIENT_UHID_FIELD_ACCESS_KEY,
+} from "@medbrains/types";
 import { fieldAccessText } from "@medbrains/utils";
 import {
   IconAlertTriangle,
@@ -321,12 +326,6 @@ const queueVisitTypeColors: Record<string, string> = {
   camp: "success",
 };
 
-const PATIENT_NAME_FIELD_ACCESS_KEYS = [
-  "patients.first_name",
-  "patients.middle_name",
-  "patients.last_name",
-];
-
 function todayIsoDate(): string {
   return todayDateString();
 }
@@ -392,7 +391,7 @@ export function OpdEncounterPage() {
   const navigate = useNavigate();
   const canUpdate = useHasPermission(P.OPD.VISIT_UPDATE);
   const patientNameAccess = useProtectedFieldAccess(undefined, PATIENT_NAME_FIELD_ACCESS_KEYS);
-  const uhidAccess = useProtectedFieldAccess("patients.uhid");
+  const uhidAccess = useProtectedFieldAccess(PATIENT_UHID_FIELD_ACCESS_KEY);
   const requestedEncounterId = encounterId ?? "";
 
   const { data: encounter, isLoading: encounterLoading } = useQuery({
@@ -694,7 +693,7 @@ export function OpdVitalsPage() {
   const canRecordNurseVitals = useHasPermission(P.NURSE.VITALS_RECORD);
   const canRecordVitals = canRecordNurseVitals || canUpdate;
   const patientNameAccess = useProtectedFieldAccess(undefined, PATIENT_NAME_FIELD_ACCESS_KEYS);
-  const uhidAccess = useProtectedFieldAccess("patients.uhid");
+  const uhidAccess = useProtectedFieldAccess(PATIENT_UHID_FIELD_ACCESS_KEY);
   const requestedQueueEntryId = queueEntryId ?? "";
 
   const { data: queue = [], isLoading } = useQuery({
@@ -1136,7 +1135,7 @@ function OpdPageInner() {
     {
       key: "patient_name",
       label: "Patient",
-      fieldAccessKeys: ["patients.uhid", ...PATIENT_NAME_FIELD_ACCESS_KEYS],
+      fieldAccessKeys: PATIENT_BASIC_IDENTITY_FIELD_ACCESS_KEYS,
       accessor: (row: QueueEntry) => row.patient_name ?? row.uhid,
       fieldKind: "name",
       hiddenLabel: "Patient restricted",
@@ -5783,7 +5782,7 @@ function ReferralTrackingTab() {
     {
       key: "patient_id",
       label: "Patient",
-      fieldAccessKeys: ["patients.uhid", ...PATIENT_NAME_FIELD_ACCESS_KEYS],
+      fieldAccessKeys: PATIENT_BASIC_IDENTITY_FIELD_ACCESS_KEYS,
       accessor: (row: ReferralWithNames) => row.patient_id,
       fieldKind: "identifier",
       hiddenLabel: "Patient restricted",

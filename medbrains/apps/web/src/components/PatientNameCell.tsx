@@ -1,5 +1,6 @@
 import { Badge, Group, Skeleton, Stack, Text, Tooltip } from "@mantine/core";
 import type { Gender } from "@medbrains/types";
+import { PATIENT_NAME_FIELD_ACCESS_KEYS, PATIENT_UHID_FIELD_ACCESS_KEY } from "@medbrains/types";
 import {
   IconGenderFemale,
   IconGenderMale,
@@ -34,12 +35,6 @@ const genderTitles: Record<Gender, string> = {
   unknown: "Gender not recorded",
 };
 
-const PATIENT_NAME_FIELD_CODES = [
-  "patients.first_name",
-  "patients.middle_name",
-  "patients.last_name",
-] as const;
-
 function GenderIcon({ gender }: { gender: Gender }) {
   if (gender === "male") return <IconGenderMale size={11} stroke={2.5} />;
   if (gender === "female") return <IconGenderFemale size={11} stroke={2.5} />;
@@ -67,7 +62,7 @@ function PatientIdentityLine({
   size: "xs" | "sm" | "md";
 }) {
   const protectedName = useProtectedFieldValue({
-    fieldCodes: PATIENT_NAME_FIELD_CODES,
+    fieldCodes: PATIENT_NAME_FIELD_ACCESS_KEYS,
     value: fullName,
     kind: "name",
   });
@@ -161,7 +156,7 @@ export function PatientNameCell({
         size={size}
       />
       <PermissionedFieldValue
-        fieldCode="patients.uhid"
+        fieldCode={PATIENT_UHID_FIELD_ACCESS_KEY}
         value={data.uhid}
         kind="identifier"
         size="xs"

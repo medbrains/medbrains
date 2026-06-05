@@ -95,6 +95,25 @@ function surface(input: SurfaceInput): AccessMatrixSurface {
   };
 }
 
+export const PATIENT_UHID_FIELD_ACCESS_KEY = "patients.uhid";
+export const PATIENT_NAME_FIELD_ACCESS_KEYS: readonly string[] = [
+  "patients.first_name",
+  "patients.middle_name",
+  "patients.last_name",
+];
+export const PATIENT_BASIC_IDENTITY_FIELD_ACCESS_KEYS: readonly string[] = [
+  PATIENT_UHID_FIELD_ACCESS_KEY,
+  ...PATIENT_NAME_FIELD_ACCESS_KEYS,
+];
+export const CAMP_REGISTRATION_NAME_FIELD_ACCESS_KEY = "camp.registrations.person_name";
+export const CAMP_REGISTRATION_PHONE_FIELD_ACCESS_KEY = "camp.registrations.phone";
+export const CAMP_REGISTRATION_ID_PROOF_FIELD_ACCESS_KEY = "camp.registrations.id_proof_number";
+export const CAMP_REGISTRATION_FIELD_ACCESS_KEYS: readonly string[] = [
+  CAMP_REGISTRATION_NAME_FIELD_ACCESS_KEY,
+  CAMP_REGISTRATION_PHONE_FIELD_ACCESS_KEY,
+  CAMP_REGISTRATION_ID_PROOF_FIELD_ACCESS_KEY,
+];
+
 export const ACCESS_MATRIX_WORKFLOW_EXPECTATIONS: readonly AccessMatrixWorkflowExpectation[] = [
   {
     key: "registration",
@@ -153,10 +172,8 @@ export const ACCESS_MATRIX_WORKFLOW_EXPECTATIONS: readonly AccessMatrixWorkflowE
 ];
 
 const PATIENT_IDENTITY_FIELDS = [
-  "patients.uhid",
-  "patients.first_name",
-  "patients.middle_name",
-  "patients.last_name",
+  PATIENT_UHID_FIELD_ACCESS_KEY,
+  ...PATIENT_NAME_FIELD_ACCESS_KEYS,
   "patients.full_name_local",
   "patients.phone",
   "patients.date_of_birth",
@@ -192,11 +209,7 @@ const EMERGENCY_MLC_FIELDS = [
   "emergency.mlc.pocso_report",
 ] as const;
 
-const CAMP_REGISTRATION_FIELDS = [
-  "camp.registrations.person_name",
-  "camp.registrations.phone",
-  "camp.registrations.id_proof_number",
-] as const;
+const CAMP_REGISTRATION_FIELDS = CAMP_REGISTRATION_FIELD_ACCESS_KEYS;
 
 const CAMP_MANAGEMENT_FIELDS = [
   "camp.camps.name",

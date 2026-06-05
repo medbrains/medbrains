@@ -7,6 +7,7 @@
 import { Anchor, Badge, Group, Modal, Skeleton, Stack, Text, Tooltip } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import type { PatientContext } from "@medbrains/types";
+import { PATIENT_NAME_FIELD_ACCESS_KEYS, PATIENT_UHID_FIELD_ACCESS_KEY } from "@medbrains/types";
 import {
   IconAlertTriangle,
   IconBan,
@@ -30,20 +31,14 @@ interface ChipMeta {
   node: ReactNode;
 }
 
-const PATIENT_NAME_FIELD_CODES = [
-  "patients.first_name",
-  "patients.middle_name",
-  "patients.last_name",
-] as const;
-
 function PatientContextSummaryTitle({ data }: { data: PatientContext }) {
   const protectedUhid = useProtectedFieldValue({
-    fieldCode: "patients.uhid",
+    fieldCode: PATIENT_UHID_FIELD_ACCESS_KEY,
     value: data.uhid,
     kind: "identifier",
   });
   const protectedName = useProtectedFieldValue({
-    fieldCodes: PATIENT_NAME_FIELD_CODES,
+    fieldCodes: PATIENT_NAME_FIELD_ACCESS_KEYS,
     value: data.full_name,
     kind: "name",
   });

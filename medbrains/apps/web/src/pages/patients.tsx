@@ -26,7 +26,7 @@ import type {
   MpiMatchResult,
   Patient,
 } from "@medbrains/types";
-import { P } from "@medbrains/types";
+import { P, PATIENT_NAME_FIELD_ACCESS_KEYS, PATIENT_UHID_FIELD_ACCESS_KEY } from "@medbrains/types";
 import {
   IconAlertTriangle,
   IconArrowLeft,
@@ -298,7 +298,7 @@ function PatientsPageInner() {
     {
       key: "uhid",
       label: "UHID",
-      fieldAccessKey: "patients.uhid",
+      fieldAccessKey: PATIENT_UHID_FIELD_ACCESS_KEY,
       accessor: (row: Patient) => row.uhid,
       fieldKind: "identifier",
       render: (row: Patient) => (
@@ -310,7 +310,7 @@ function PatientsPageInner() {
     {
       key: "name",
       label: "Name",
-      fieldAccessKeys: ["patients.first_name", "patients.middle_name", "patients.last_name"],
+      fieldAccessKeys: PATIENT_NAME_FIELD_ACCESS_KEYS,
       accessor: buildFullName,
       fieldKind: "name",
       render: (row: Patient) => {
