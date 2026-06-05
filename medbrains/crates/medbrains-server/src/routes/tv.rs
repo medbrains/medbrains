@@ -12,13 +12,12 @@ use axum::{
     http::StatusCode,
 };
 use chrono::{NaiveDate, Utc};
-use medbrains_core::permissions;
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 use uuid::Uuid;
 
 use crate::{
-    middleware::{auth::Claims, authorization::is_bypass_role},
+    middleware::auth::Claims,
     routes::ws::{
         AnnouncementEvent, QueueBroadcaster, QueueEvent, QueueTokenInfo,
         TOKEN_ONLY_QUEUE_PATIENT_NAME,
@@ -154,7 +153,11 @@ fn protected_display_show_patient_name(display_type: &str, requested: bool) -> b
 
 #[cfg(test)]
 mod display_privacy_tests {
-    use super::{protected_display_show_patient_name, public_token_board_display_type};
+    use super::{
+        BedWaitingSourceRow, bed_waiting_entry, protected_display_show_patient_name,
+        public_token_board_display_type,
+    };
+    use crate::routes::ws::TOKEN_ONLY_QUEUE_PATIENT_NAME;
 
     #[test]
     fn public_token_board_display_types_are_token_only() {
@@ -176,6 +179,22 @@ mod display_privacy_tests {
         assert!(!public_token_board_display_type("doctor_room"));
         assert!(protected_display_show_patient_name("doctor_room", true));
         assert!(!protected_display_show_patient_name("doctor_room", false));
+    }
+
+    #[test]
+    fn public_bed_waiting_entries_are_token_only() {
+        let entry = bed_waiting_entry(BedWaitingSourceRow {
+            ward_type: "icu".to_owned(),
+            priority: "critical".to_owned(),
+            wait_time_minutes: 42,
+            status: "awaiting_bed".to_owned(),
+        });
+
+        assert_eq!(entry.patient_name, TOKEN_ONLY_QUEUE_PATIENT_NAME);
+        assert_eq!(entry.ward_type, "icu");
+        assert_eq!(entry.priority, "critical");
+        assert_eq!(entry.wait_time_minutes, 42);
+        assert_eq!(entry.status, "awaiting_bed");
     }
 }
 
@@ -1078,7 +1097,7 @@ struct BillingQueueSourceRow {
     status: String,
 }
 
-/// Bed waiting entry for IPD.
+/// Bed waiting entry for IPD public displays. Patient identity is token-only.
 #[derive(Debug, Serialize)]
 pub struct BedWaitingEntry {
     pub patient_name: String,
@@ -1106,7 +1125,6 @@ struct BedAvailabilityStatsRow {
 
 #[derive(Debug, FromRow)]
 struct BedWaitingSourceRow {
-    patient_name: String,
     ward_type: String,
     priority: String,
     wait_time_minutes: i32,
@@ -1682,9 +1700,6 @@ pub async fn get_bed_availability(
     Path(ward_type): Path<String>,
 ) -> Result<Json<BedAvailabilityDisplay>, (StatusCode, String)> {
     let ward_type = normalise_tv_ward_type(&ward_type);
-    let can_view_patient_identity =
-        claims_have_any_permission(&claims, &[permissions::patients::VIEW]);
-
     let mut tx = state
         .db
         .begin()
@@ -1723,19 +1738,7 @@ pub async fn get_bed_availability(
 
     let waiting_rows = sqlx::query_as::<_, BedWaitingSourceRow>(
         r"
-        SELECT COALESCE(
-                   NULLIF(
-                       BTRIM(
-                           CASE
-                             WHEN $3::bool THEN concat_ws(' ', p.first_name, p.last_name)
-                             ELSE 'Restricted'
-                           END
-                       ),
-                       ''
-                   ),
-                   'Restricted'
-               ) AS patient_name,
-               COALESCE(w.ward_type, $2) AS ward_type,
+        SELECT COALESCE(w.ward_type, $2) AS ward_type,
                CASE
                  WHEN a.is_critical THEN 'critical'
                  ELSE COALESCE(NULLIF(a.priority, ''), 'routine')
@@ -1783,7 +1786,6 @@ pub async fn get_bed_availability(
     )
     .bind(claims.tenant_id)
     .bind(&ward_type)
-    .bind(can_view_patient_identity)
     .fetch_all(&mut *tx)
     .await
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
@@ -1800,17 +1802,18 @@ pub async fn get_bed_availability(
         total_beds,
         occupied: total_beds.saturating_sub(available),
         available,
-        waiting_list: waiting_rows
-            .into_iter()
-            .map(|row| BedWaitingEntry {
-                patient_name: row.patient_name,
-                ward_type: row.ward_type,
-                priority: row.priority,
-                wait_time_minutes: row.wait_time_minutes,
-                status: row.status,
-            })
-            .collect(),
+        waiting_list: waiting_rows.into_iter().map(bed_waiting_entry).collect(),
     }))
+}
+
+fn bed_waiting_entry(row: BedWaitingSourceRow) -> BedWaitingEntry {
+    BedWaitingEntry {
+        patient_name: TOKEN_ONLY_QUEUE_PATIENT_NAME.to_owned(),
+        ward_type: row.ward_type,
+        priority: row.priority,
+        wait_time_minutes: row.wait_time_minutes,
+        status: row.status,
+    }
 }
 
 fn normalise_tv_ward_type(value: &str) -> String {
@@ -1836,16 +1839,6 @@ fn normalise_tv_ward_type(value: &str) -> String {
     } else {
         normalised
     }
-}
-
-fn claims_have_any_permission(claims: &Claims, permissions: &[&str]) -> bool {
-    is_bypass_role(claims)
-        || permissions.iter().any(|permission| {
-            claims
-                .permissions
-                .iter()
-                .any(|granted| granted == permission)
-        })
 }
 
 /// GET /`api/tv/queue/analytics/{department_id`}

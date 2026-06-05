@@ -62,7 +62,7 @@ function statusLabel(status: string) {
 }
 
 function waitingEntryKey(token: BedWaitingEntry) {
-  const source = `${token.patient_name}|${token.ward_type}|${token.priority}|${token.wait_time_minutes}|${token.status}`;
+  const source = `${token.ward_type}|${token.priority}|${token.wait_time_minutes}|${token.status}`;
   let hash = 0;
   for (const char of source) {
     hash = (hash * 31 + char.charCodeAt(0)) % 1_000_000_007;
