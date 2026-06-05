@@ -1,7 +1,10 @@
 import { useFieldAccess, useHasPermission } from "@medbrains/stores";
 import type {
-  AdmissionRow,
+  CampRegistration,
+  CampRegistrationStatus,
   ClinicalJourneyContext,
+  ErVisit,
+  ErVisitStatus,
   FieldAccessLevel,
   PatientVisitRow,
 } from "@medbrains/types";
@@ -37,6 +40,17 @@ interface PatientDetailScreenProps {
 }
 
 const ACTIVE_VISIT_STATUSES = new Set<PatientVisitRow["status"]>(["open", "in_progress"]);
+const ACTIVE_ER_VISIT_STATUSES = new Set<ErVisitStatus>([
+  "registered",
+  "triaged",
+  "in_treatment",
+  "observation",
+]);
+const CAMP_SCREENING_COMPLETED_STATUSES = new Set<CampRegistrationStatus>([
+  "screened",
+  "referred",
+  "converted",
+]);
 const HIDDEN_FIELD_TEXT = "Restricted";
 
 function calculateAge(dob: string): string {
@@ -91,10 +105,19 @@ function formatAddress(addr: unknown): string {
   return parts.length > 0 ? parts.join(", ") : "Not specified";
 }
 
+function formatContextStatus(status: string): string {
+  return status
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
 export function PatientDetailScreen({ route, navigation }: PatientDetailScreenProps) {
   const theme = useTheme();
   const { patientId } = route.params;
   const canViewIpdAdmissions = useHasPermission(P.IPD.ADMISSIONS_LIST);
+  const canViewEmergencyVisits = useHasPermission(P.EMERGENCY.VISITS_LIST);
+  const canViewCampRegistrations = useHasPermission(P.CAMP.REGISTRATIONS_LIST);
   const uhidAccess = useFieldAccess("patients.uhid");
   const firstNameAccess = useFieldAccess("patients.first_name");
   const middleNameAccess = useFieldAccess("patients.middle_name");
@@ -130,6 +153,18 @@ export function PatientDetailScreen({ route, navigation }: PatientDetailScreenPr
         status: "admitted",
       }),
     enabled: Boolean(patientId) && canViewIpdAdmissions,
+  });
+
+  const { data: erVisits } = useQuery({
+    queryKey: ["patient", patientId, "emergency-visits"],
+    queryFn: () => patientService.listErVisits({ patient_id: patientId }),
+    enabled: Boolean(patientId) && canViewEmergencyVisits,
+  });
+
+  const { data: campRegistrations } = useQuery({
+    queryKey: ["patient", patientId, "camp-registrations"],
+    queryFn: () => patientService.listCampRegistrations({ patient_id: patientId }),
+    enabled: Boolean(patientId) && canViewCampRegistrations,
   });
 
   const { data: allergies } = useQuery({
@@ -188,9 +223,15 @@ export function PatientDetailScreen({ route, navigation }: PatientDetailScreenPr
   const dobLabel = protectedDateOfBirth(dobAccess, patient.date_of_birth);
 
   const visitsList: PatientVisitRow[] = visits || [];
-  const activeAdmission = (admissionPage?.admissions[0] ?? null) as AdmissionRow | null;
+  const erVisitList: ErVisit[] = erVisits ?? [];
+  const campRegistrationList: CampRegistration[] = campRegistrations ?? [];
+  const activeAdmission = admissionPage?.admissions[0] ?? null;
   const activeOpdVisit = visitsList.find(
     (visit) => visit.encounter_type === "opd" && ACTIVE_VISIT_STATUSES.has(visit.status),
+  );
+  const activeErVisit = erVisitList.find((visit) => ACTIVE_ER_VISIT_STATUSES.has(visit.status));
+  const activeCampRegistration = campRegistrationList.find(
+    (registration) => registration.status !== "no_show",
   );
   const activeCareEncounterId = activeAdmission?.encounter_id ?? activeOpdVisit?.id ?? null;
   const activeOrderContext = activeAdmission ? "ipd" : activeOpdVisit ? "opd" : null;
@@ -211,6 +252,9 @@ export function PatientDetailScreen({ route, navigation }: PatientDetailScreenPr
       invoice.status === "partially_paid" ||
       Number.parseFloat(invoice.paid_amount || "0") > 0,
   );
+  const hasCampScreeningCompleted = activeCampRegistration
+    ? CAMP_SCREENING_COMPLETED_STATUSES.has(activeCampRegistration.status)
+    : false;
   const pendingInvoiceCount = invoiceList.filter(
     (invoice) =>
       invoice.status === "draft" ||
@@ -219,6 +263,8 @@ export function PatientDetailScreen({ route, navigation }: PatientDetailScreenPr
   ).length;
   const completedEvents = [
     ...(hasMedicationOrder ? ["order.created"] : []),
+    ...(activeCampRegistration ? ["camp.registration.created"] : []),
+    ...(hasCampScreeningCompleted ? ["camp.screening.completed"] : []),
     ...(hasBillingInvoice ? ["billing.invoice.created"] : []),
     ...(hasFinalizedInvoice ? ["billing.invoice.finalized"] : []),
     ...(hasPaymentReceived ? ["billing.payment.received"] : []),
@@ -230,6 +276,7 @@ export function PatientDetailScreen({ route, navigation }: PatientDetailScreenPr
     activeAdmissionId: activeAdmission?.id ?? null,
     activeAdmissionStatus: activeAdmission?.status ?? null,
     activeBedId: activeAdmission?.bed_id,
+    activeEmergencyVisitId: activeErVisit?.id ?? null,
     activeOrderContext,
     completedEvents,
   };
@@ -297,6 +344,21 @@ export function PatientDetailScreen({ route, navigation }: PatientDetailScreenPr
                   Active IPD
                 </Chip>
               )}
+              {activeErVisit && (
+                <Chip compact icon="ambulance" mode="outlined">
+                  Active ER
+                </Chip>
+              )}
+              {activeErVisit?.is_mlc && (
+                <Chip compact icon="file-alert" mode="outlined">
+                  MLC
+                </Chip>
+              )}
+              {activeCampRegistration && (
+                <Chip compact icon="account-group" mode="outlined">
+                  Camp {formatContextStatus(activeCampRegistration.status)}
+                </Chip>
+              )}
               {activeAdmission && !activeAdmission.bed_id && (
                 <Chip compact icon="alert" mode="outlined">
                   Bed pending
@@ -337,7 +399,8 @@ export function PatientDetailScreen({ route, navigation }: PatientDetailScreenPr
             </Text>
           )}
           <Text variant="bodySmall" style={styles.actionsHint}>
-            Mobile handoffs activate from OPD, prescription, invoice, and payment events.
+            Mobile handoffs activate from OPD, IPD, ER, camp, prescription, invoice, and payment
+            events.
           </Text>
           <PatientJourneyActions context={journeyContext} navigation={navigation} />
         </Surface>
