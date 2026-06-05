@@ -59,6 +59,17 @@
   }
 }
 
+.actionRailSection {
+  padding: var(--mantine-spacing-xs);
+  border: 1px solid transparent;
+  border-radius: var(--mantine-radius-sm);
+}
+
+.actionRailSection[data-focused="true"] {
+  border-color: light-dark(var(--mantine-color-blue-3), var(--mantine-color-blue-8));
+  background: light-dark(var(--mantine-color-blue-0), rgba(51, 154, 240, 0.14));
+}
+
 .workspaceMain {
   min-width: 0;
 }

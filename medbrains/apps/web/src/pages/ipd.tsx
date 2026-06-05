@@ -199,6 +199,7 @@ import {
   printCopyRouteLabel,
 } from "@/utils/printCopies";
 import classes from "./ipd.module.scss";
+import { type IpdActionRailSection, ipdActionRailSectionsForTab } from "./ipd-workspace";
 
 const statusColors: Record<string, string> = {
   admitted: "success",
@@ -891,6 +892,7 @@ function AdmissionDetail({
   const canGenerateMrdCaseSheet = useHasPermission(P.MRD.CASE_SHEETS_GENERATE);
   const canViewMrdCaseSheets = useHasPermission(P.MRD.CASE_SHEETS_VIEW);
   const canOrder = useHasPermission(P.ORDER_BASKET.SIGN);
+  const canViewBillingLedger = useHasPermission(P.BILLING.INVOICES_LIST);
   const canCreateTransfer = useHasPermission(P.IPD.TRANSFERS_CREATE);
   const canManageDeathRecords = useHasPermission(P.IPD.DEATH_RECORDS_MANAGE);
   const navigate = useNavigate();
@@ -1013,6 +1015,9 @@ function AdmissionDetail({
     : "Death record permission required";
   const activeWorkspaceSection =
     IPD_WORKSPACE_TABS.find((tab) => tab.value === activeWorkspaceTab)?.section ?? "Command";
+  const focusedActionRailSections = ipdActionRailSectionsForTab(activeWorkspaceTab);
+  const actionRailSectionFocused = (section: IpdActionRailSection) =>
+    focusedActionRailSections.includes(section);
   const journeyContext: ClinicalJourneyContext = {
     patientId: adm.patient_id,
     activeEncounterId: adm.encounter_id,
@@ -1326,8 +1331,19 @@ function AdmissionDetail({
                   <Text size="xs" c="dimmed">
                     Orders, transfers, print, and discharge-risk actions.
                   </Text>
+                  <Group gap={4} mt={4}>
+                    {focusedActionRailSections.map((section) => (
+                      <Badge key={section} size="xs" color="primary" variant="light">
+                        {section}
+                      </Badge>
+                    ))}
+                  </Group>
                 </Stack>
-                <Stack gap="xs">
+                <Stack
+                  gap="xs"
+                  className={classes.actionRailSection}
+                  data-focused={actionRailSectionFocused("handoffs") || undefined}
+                >
                   <Text size="xs" fw={700} c="dimmed" tt="uppercase">
                     Patient handoffs
                   </Text>
@@ -1345,7 +1361,11 @@ function AdmissionDetail({
                     />
                   </Box>
                 </Stack>
-                <Stack gap="xs">
+                <Stack
+                  gap="xs"
+                  className={classes.actionRailSection}
+                  data-focused={actionRailSectionFocused("orders") || undefined}
+                >
                   <Text size="xs" fw={700} c="dimmed" tt="uppercase">
                     Orders
                   </Text>
@@ -1395,7 +1415,65 @@ function AdmissionDetail({
                     </span>
                   </Tooltip>
                 </Stack>
-                <Stack gap="xs">
+                <Stack
+                  gap="xs"
+                  className={classes.actionRailSection}
+                  data-focused={actionRailSectionFocused("finance") || undefined}
+                >
+                  <Text size="xs" fw={700} c="dimmed" tt="uppercase">
+                    Finance
+                  </Text>
+                  <Button
+                    size="xs"
+                    variant={activeWorkspaceTab === "billing-tab" ? "filled" : "light"}
+                    color="orange"
+                    leftSection={<IconArrowRight size={14} />}
+                    onClick={() => setActiveWorkspaceTab("billing-tab")}
+                    fullWidth
+                  >
+                    IPD Billing Tab
+                  </Button>
+                  <Tooltip
+                    label={
+                      canViewBillingLedger
+                        ? "Open patient billing ledger without re-searching"
+                        : "Billing invoice-list permission required"
+                    }
+                  >
+                    <span>
+                      <Button
+                        size="xs"
+                        variant="light"
+                        color="orange"
+                        leftSection={<IconArrowRight size={14} />}
+                        disabled={!canViewBillingLedger}
+                        onClick={() =>
+                          navigate(
+                            `/billing?tab=invoices&patient_id=${adm.patient_id}&source=ipd_admission`,
+                          )
+                        }
+                        fullWidth
+                      >
+                        Patient Ledger
+                      </Button>
+                    </span>
+                  </Tooltip>
+                  <Button
+                    size="xs"
+                    variant={activeWorkspaceTab === "insurance-pa" ? "filled" : "subtle"}
+                    color="orange"
+                    leftSection={<IconArrowRight size={14} />}
+                    onClick={() => setActiveWorkspaceTab("insurance-pa")}
+                    fullWidth
+                  >
+                    Insurance / PA
+                  </Button>
+                </Stack>
+                <Stack
+                  gap="xs"
+                  className={classes.actionRailSection}
+                  data-focused={actionRailSectionFocused("mrd") || undefined}
+                >
                   <Text size="xs" fw={700} c="dimmed" tt="uppercase">
                     MRD
                   </Text>
@@ -1435,7 +1513,11 @@ function AdmissionDetail({
                     </Button>
                   )}
                 </Stack>
-                <Stack gap="xs">
+                <Stack
+                  gap="xs"
+                  className={classes.actionRailSection}
+                  data-focused={actionRailSectionFocused("admission") || undefined}
+                >
                   <Text size="xs" fw={700} c="dimmed" tt="uppercase">
                     Admission
                   </Text>
@@ -1494,6 +1576,45 @@ function AdmissionDetail({
                       </Button>
                     </span>
                   </Tooltip>
+                </Stack>
+                <Stack
+                  gap="xs"
+                  className={classes.actionRailSection}
+                  data-focused={actionRailSectionFocused("discharge") || undefined}
+                >
+                  <Text size="xs" fw={700} c="dimmed" tt="uppercase">
+                    Discharge
+                  </Text>
+                  <Button
+                    size="xs"
+                    variant={activeWorkspaceTab === "discharge-summary" ? "filled" : "light"}
+                    color="teal"
+                    leftSection={<IconFileDescription size={14} />}
+                    onClick={() => setActiveWorkspaceTab("discharge-summary")}
+                    fullWidth
+                  >
+                    Summary Tab
+                  </Button>
+                  <Button
+                    size="xs"
+                    variant={activeWorkspaceTab === "discharge" ? "filled" : "light"}
+                    color="teal"
+                    leftSection={<IconClipboardList size={14} />}
+                    onClick={() => setActiveWorkspaceTab("discharge")}
+                    fullWidth
+                  >
+                    Checklist
+                  </Button>
+                  <Button
+                    size="xs"
+                    variant={activeWorkspaceTab === "discharge-tat" ? "filled" : "subtle"}
+                    color="teal"
+                    leftSection={<IconCalendarTime size={14} />}
+                    onClick={() => setActiveWorkspaceTab("discharge-tat")}
+                    fullWidth
+                  >
+                    TAT
+                  </Button>
                 </Stack>
               </Stack>
             </Box>
