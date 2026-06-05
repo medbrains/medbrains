@@ -33,8 +33,10 @@ import type {
   PharmacyQueueToken,
   QueueDisplayConfig,
   QueueMetrics,
+  QueuePriority,
   QueuePriorityRule,
   QueueStatsResponse,
+  QueueToken,
   TriageLevelColor,
   VisitingHours,
   VisitorAnalytics,
@@ -226,7 +228,12 @@ export function FrontOfficePage() {
           <QueueDashboardTab />
         </Tabs.Panel>
         <Tabs.Panel value="token-boards" pt="md">
-          <TokenBoardsTab />
+          <TokenBoardsTab
+            canViewOpdQueue={canViewOpdQueue}
+            canViewEmergency={canViewEmergency}
+            canViewPharmacy={canViewPharmacy}
+            canViewBilling={canViewBilling}
+          />
         </Tabs.Panel>
         <Tabs.Panel value="visitors" pt="md">
           <VisitorManagementTab canCreate={canCreateVisitors} canManagePasses={canManagePasses} />
@@ -526,26 +533,52 @@ const TRIAGE_LANES: ReadonlyArray<{
   { color: "blue", key: "blue", label: "Blue" },
 ];
 
-function TokenBoardsTab() {
+interface TokenBoardsTabProps {
+  canViewOpdQueue: boolean;
+  canViewEmergency: boolean;
+  canViewPharmacy: boolean;
+  canViewBilling: boolean;
+}
+
+function TokenBoardsTab({
+  canViewOpdQueue,
+  canViewEmergency,
+  canViewPharmacy,
+  canViewBilling,
+}: TokenBoardsTabProps) {
+  const opdQuery = useQuery<QueueToken[]>({
+    queryKey: ["front-office", "token-board", "opd"],
+    queryFn: () => frontOfficeService.listQueueTokens(),
+    enabled: canViewOpdQueue,
+    refetchInterval: ER_TOKEN_BOARD_REFRESH_MS,
+  });
   const pharmacyQuery = useQuery<PharmacyQueueDisplay>({
     queryKey: ["front-office", "token-board", "pharmacy"],
     queryFn: () => frontOfficeService.getPharmacyQueueDisplay(),
+    enabled: canViewPharmacy,
     refetchInterval: TOKEN_BOARD_REFRESH_MS,
   });
   const billingQuery = useQuery<BillingQueueDisplay>({
     queryKey: ["front-office", "token-board", "billing"],
     queryFn: () => frontOfficeService.getBillingQueueDisplay(),
+    enabled: canViewBilling,
     refetchInterval: TOKEN_BOARD_REFRESH_MS,
   });
   const erQuery = useQuery<ErQueueDisplay>({
     queryKey: ["front-office", "token-board", "er"],
     queryFn: () => frontOfficeService.getErQueueDisplay(),
+    enabled: canViewEmergency,
     refetchInterval: ER_TOKEN_BOARD_REFRESH_MS,
   });
 
+  const opdTokens = opdQuery.data ?? [];
   const pharmacy = pharmacyQuery.data;
   const billing = billingQuery.data;
   const er = erQuery.data;
+  const opdNowServing = opdTokens.filter(
+    (token) => token.status === "called" || token.status === "in_progress",
+  );
+  const opdWaiting = opdTokens.filter((token) => token.status === "waiting");
   const currentPharmacy = pharmacy?.current_token ? [pharmacy.current_token] : [];
   const billingNowServing =
     billing?.ipd_discharge[0] ??
@@ -557,6 +590,7 @@ function TokenBoardsTab() {
     (count, lane) => count + (er?.[lane.key] ?? []).filter((token) => token.is_overdue).length,
     0,
   );
+  const canViewAnyBoard = canViewOpdQueue || canViewEmergency || canViewPharmacy || canViewBilling;
 
   return (
     <Stack gap="md">
@@ -573,104 +607,151 @@ function TokenBoardsTab() {
         </Badge>
       </Group>
 
-      <SimpleGrid cols={{ base: 1, xl: 3 }} spacing="md">
-        <TokenBoardCard
-          title="Emergency triage"
-          subtitle="Color-coded triage targets"
-          isLoading={erQuery.isLoading}
-          isError={erQuery.isError}
-          lastUpdatedAt={erQuery.dataUpdatedAt}
-          summary={[
-            { label: "Waiting", value: er?.total_waiting ?? "—" },
-            { label: "Overdue", value: overdueErTokens },
-            { label: "Bays", value: er?.resuscitation_bays_available ?? "—" },
-          ]}
-        >
-          <Stack gap="xs">
-            {TRIAGE_LANES.map((lane) => (
-              <ErTriageLane
-                key={lane.key}
-                color={lane.color}
-                label={lane.label}
-                tokens={(er?.[lane.key] ?? []).slice(0, TOKEN_BOARD_LIMIT)}
-              />
-            ))}
-          </Stack>
-        </TokenBoardCard>
+      {!canViewAnyBoard ? (
+        <Card withBorder padding="md">
+          <Text fw={600}>Token boards restricted</Text>
+          <Text size="sm" c="dimmed">
+            Queue-board visibility follows OPD, emergency, pharmacy and billing permissions.
+          </Text>
+        </Card>
+      ) : (
+        <SimpleGrid cols={{ base: 1, xl: 2 }} spacing="md">
+          {canViewOpdQueue && (
+            <TokenBoardCard
+              title="OPD queue"
+              subtitle="Token calls across outpatient departments"
+              isLoading={opdQuery.isLoading}
+              isError={opdQuery.isError}
+              lastUpdatedAt={opdQuery.dataUpdatedAt}
+              summary={[
+                { label: "Now", value: opdNowServing[0]?.token_number ?? "—" },
+                { label: "Waiting", value: opdWaiting.length },
+                {
+                  label: "Priority",
+                  value: opdWaiting.filter((t) => t.priority !== "normal").length,
+                },
+              ]}
+            >
+              <Stack gap="sm">
+                <TokenLane
+                  title="Now serving"
+                  emptyLabel="No OPD token is currently called"
+                  tokens={opdNowServing.slice(0, TOKEN_BOARD_LIMIT).map(opdDisplayToken)}
+                  highlight
+                />
+                <TokenLane
+                  title="Next tokens"
+                  emptyLabel="No OPD tokens waiting"
+                  tokens={opdWaiting.slice(0, TOKEN_BOARD_LIMIT).map(opdDisplayToken)}
+                />
+              </Stack>
+            </TokenBoardCard>
+          )}
 
-        <TokenBoardCard
-          title="Pharmacy pickup"
-          subtitle="Prescription preparation and handover"
-          isLoading={pharmacyQuery.isLoading}
-          isError={pharmacyQuery.isError}
-          lastUpdatedAt={pharmacyQuery.dataUpdatedAt}
-          summary={[
-            { label: "Now", value: pharmacy?.current_token?.token_number ?? "—" },
-            { label: "Ready", value: pharmacy?.stats.ready_count ?? "—" },
-            { label: "Waiting", value: pharmacy?.stats.waiting_count ?? "—" },
-          ]}
-        >
-          <Stack gap="sm">
-            <TokenLane
-              title="Now serving"
-              emptyLabel="No current token"
-              tokens={currentPharmacy.map(pharmacyDisplayToken)}
-              highlight
-            />
-            <TokenLane
-              title="Ready pickup"
-              emptyLabel="No ready tokens"
-              tokens={(pharmacy?.ready_for_pickup ?? [])
-                .slice(0, TOKEN_BOARD_LIMIT)
-                .map(pharmacyDisplayToken)}
-            />
-            <TokenLane
-              title="Preparing"
-              emptyLabel="No preparing tokens"
-              tokens={(pharmacy?.preparing ?? [])
-                .slice(0, TOKEN_BOARD_LIMIT)
-                .map(pharmacyDisplayToken)}
-            />
-          </Stack>
-        </TokenBoardCard>
+          {canViewEmergency && (
+            <TokenBoardCard
+              title="Emergency triage"
+              subtitle="Color-coded triage targets"
+              isLoading={erQuery.isLoading}
+              isError={erQuery.isError}
+              lastUpdatedAt={erQuery.dataUpdatedAt}
+              summary={[
+                { label: "Waiting", value: er?.total_waiting ?? "—" },
+                { label: "Overdue", value: overdueErTokens },
+                { label: "Bays", value: er?.resuscitation_bays_available ?? "—" },
+              ]}
+            >
+              <Stack gap="xs">
+                {TRIAGE_LANES.map((lane) => (
+                  <ErTriageLane
+                    key={lane.key}
+                    color={lane.color}
+                    label={lane.label}
+                    tokens={(er?.[lane.key] ?? []).slice(0, TOKEN_BOARD_LIMIT)}
+                  />
+                ))}
+              </Stack>
+            </TokenBoardCard>
+          )}
 
-        <TokenBoardCard
-          title="Billing counters"
-          subtitle="OPD, IPD discharge, advance and insurance desks"
-          isLoading={billingQuery.isLoading}
-          isError={billingQuery.isError}
-          lastUpdatedAt={billingQuery.dataUpdatedAt}
-          summary={[
-            { label: "Now", value: billingNowServing?.token_number ?? "—" },
-            { label: "IPD", value: billing?.ipd_discharge.length ?? "—" },
-            { label: "Insurance", value: billing?.insurance_desk.length ?? "—" },
-          ]}
-        >
-          <Stack gap="sm">
-            <TokenLane
-              title="IPD discharge"
-              emptyLabel="No IPD discharge bills"
-              tokens={(billing?.ipd_discharge ?? [])
-                .slice(0, TOKEN_BOARD_LIMIT)
-                .map(billingDisplayToken)}
-            />
-            <TokenLane
-              title="OPD billing"
-              emptyLabel="No OPD bills waiting"
-              tokens={(billing?.opd_billing ?? [])
-                .slice(0, TOKEN_BOARD_LIMIT)
-                .map(billingDisplayToken)}
-            />
-            <TokenLane
-              title="Insurance desk"
-              emptyLabel="No insurance tokens"
-              tokens={(billing?.insurance_desk ?? [])
-                .slice(0, TOKEN_BOARD_LIMIT)
-                .map(billingDisplayToken)}
-            />
-          </Stack>
-        </TokenBoardCard>
-      </SimpleGrid>
+          {canViewPharmacy && (
+            <TokenBoardCard
+              title="Pharmacy pickup"
+              subtitle="Prescription preparation and handover"
+              isLoading={pharmacyQuery.isLoading}
+              isError={pharmacyQuery.isError}
+              lastUpdatedAt={pharmacyQuery.dataUpdatedAt}
+              summary={[
+                { label: "Now", value: pharmacy?.current_token?.token_number ?? "—" },
+                { label: "Ready", value: pharmacy?.stats.ready_count ?? "—" },
+                { label: "Waiting", value: pharmacy?.stats.waiting_count ?? "—" },
+              ]}
+            >
+              <Stack gap="sm">
+                <TokenLane
+                  title="Now serving"
+                  emptyLabel="No current token"
+                  tokens={currentPharmacy.map(pharmacyDisplayToken)}
+                  highlight
+                />
+                <TokenLane
+                  title="Ready pickup"
+                  emptyLabel="No ready tokens"
+                  tokens={(pharmacy?.ready_for_pickup ?? [])
+                    .slice(0, TOKEN_BOARD_LIMIT)
+                    .map(pharmacyDisplayToken)}
+                />
+                <TokenLane
+                  title="Preparing"
+                  emptyLabel="No preparing tokens"
+                  tokens={(pharmacy?.preparing ?? [])
+                    .slice(0, TOKEN_BOARD_LIMIT)
+                    .map(pharmacyDisplayToken)}
+                />
+              </Stack>
+            </TokenBoardCard>
+          )}
+
+          {canViewBilling && (
+            <TokenBoardCard
+              title="Billing counters"
+              subtitle="OPD, IPD discharge, advance and insurance desks"
+              isLoading={billingQuery.isLoading}
+              isError={billingQuery.isError}
+              lastUpdatedAt={billingQuery.dataUpdatedAt}
+              summary={[
+                { label: "Now", value: billingNowServing?.token_number ?? "—" },
+                { label: "IPD", value: billing?.ipd_discharge.length ?? "—" },
+                { label: "Insurance", value: billing?.insurance_desk.length ?? "—" },
+              ]}
+            >
+              <Stack gap="sm">
+                <TokenLane
+                  title="IPD discharge"
+                  emptyLabel="No IPD discharge bills"
+                  tokens={(billing?.ipd_discharge ?? [])
+                    .slice(0, TOKEN_BOARD_LIMIT)
+                    .map(billingDisplayToken)}
+                />
+                <TokenLane
+                  title="OPD billing"
+                  emptyLabel="No OPD bills waiting"
+                  tokens={(billing?.opd_billing ?? [])
+                    .slice(0, TOKEN_BOARD_LIMIT)
+                    .map(billingDisplayToken)}
+                />
+                <TokenLane
+                  title="Insurance desk"
+                  emptyLabel="No insurance tokens"
+                  tokens={(billing?.insurance_desk ?? [])
+                    .slice(0, TOKEN_BOARD_LIMIT)
+                    .map(billingDisplayToken)}
+                />
+              </Stack>
+            </TokenBoardCard>
+          )}
+        </SimpleGrid>
+      )}
     </Stack>
   );
 }
@@ -860,6 +941,18 @@ function ErTriageLane({
   );
 }
 
+function priorityLabel(value: QueuePriority) {
+  return value.replace(/_/g, " ");
+}
+
+function opdDisplayToken(token: QueueToken): DisplayToken {
+  return {
+    meta: token.priority === "normal" ? "Standard priority" : priorityLabel(token.priority),
+    status: token.status,
+    tokenNumber: token.token_number,
+  };
+}
+
 function pharmacyDisplayToken(token: PharmacyQueueToken): DisplayToken {
   return {
     meta: [
@@ -890,6 +983,8 @@ function tokenStatusColor(status: string) {
     case "dispensed":
     case "paid":
     case "settled":
+    case "called":
+    case "in_progress":
       return "teal";
     case "preparing":
     case "issued":

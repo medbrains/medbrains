@@ -21,6 +21,7 @@ export const frontOfficeService = {
   resolveEnquiry: api.resolveEnquiry,
   visitorAnalytics: api.visitorAnalytics,
   queueMetrics: api.queueMetrics,
+  listQueueTokens: api.listQueueTokens,
   getBillingQueueDisplay: api.getBillingQueueDisplay,
   getErQueueDisplay: api.getErQueueDisplay,
   getPharmacyQueueDisplay: api.getPharmacyQueueDisplay,
