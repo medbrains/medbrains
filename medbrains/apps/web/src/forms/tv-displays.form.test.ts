@@ -1,6 +1,7 @@
 // @vitest-environment node
 
-import { TOKEN_BOARD_SURFACES } from "@medbrains/types";
+import { tvDisplayTypeValues } from "@medbrains/schemas";
+import { TOKEN_BOARD_SURFACE_LIST, TOKEN_BOARD_SURFACES } from "@medbrains/types";
 import { describe, expect, it } from "vitest";
 import {
   defaultTvDisplayFormValues,
@@ -10,6 +11,15 @@ import {
 } from "./tv-displays.form";
 
 describe("tv display form privacy conversion", () => {
+  it("accepts every shared token-board TV display type as token-only", () => {
+    const allowedDisplayTypes = new Set<string>(tvDisplayTypeValues);
+
+    for (const surface of TOKEN_BOARD_SURFACE_LIST) {
+      expect(allowedDisplayTypes.has(surface.targets.tvDisplayType)).toBe(true);
+      expect(tvDisplayAllowsPatientNames(surface.targets.tvDisplayType)).toBe(false);
+    }
+  });
+
   it("forces public token-board display types to token-only patient-name visibility", () => {
     const request = tvDisplayFormToCreateRequest({
       ...defaultTvDisplayFormValues,

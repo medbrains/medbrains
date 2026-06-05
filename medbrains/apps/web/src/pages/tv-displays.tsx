@@ -40,11 +40,10 @@ import type {
   QueueToken,
   QueueTokenStatus,
   TokenBoardSurfaceDefinition,
-  TokenBoardTvDisplayType,
   TvDisplay,
   UpdateTvDisplayRequest,
 } from "@medbrains/types";
-import { P, TOKEN_BOARD_SURFACES } from "@medbrains/types";
+import { P, TOKEN_BOARD_SURFACE_LIST } from "@medbrains/types";
 import {
   IconBell,
   IconCheck,
@@ -82,27 +81,10 @@ import styles from "./tv-displays.module.scss";
 // ── Constants ──────────────────────────────────────────
 
 const DISPLAY_TYPES = [
-  { value: TOKEN_BOARD_SURFACES.opd.targets.tvDisplayType, label: TOKEN_BOARD_SURFACES.opd.title },
-  {
-    value: TOKEN_BOARD_SURFACES.lab.targets.tvDisplayType,
-    label: TOKEN_BOARD_SURFACES.lab.title,
-  },
-  {
-    value: TOKEN_BOARD_SURFACES.radiology.targets.tvDisplayType,
-    label: TOKEN_BOARD_SURFACES.radiology.title,
-  },
-  {
-    value: TOKEN_BOARD_SURFACES.emergency.targets.tvDisplayType,
-    label: TOKEN_BOARD_SURFACES.emergency.title,
-  },
-  {
-    value: TOKEN_BOARD_SURFACES.pharmacy.targets.tvDisplayType,
-    label: TOKEN_BOARD_SURFACES.pharmacy.title,
-  },
-  {
-    value: TOKEN_BOARD_SURFACES.billing.targets.tvDisplayType,
-    label: TOKEN_BOARD_SURFACES.billing.title,
-  },
+  ...TOKEN_BOARD_SURFACE_LIST.map((surface) => ({
+    value: surface.targets.tvDisplayType,
+    label: surface.title,
+  })),
   { value: "bed_status", label: "Bed Status Board" },
   { value: "digital_signage", label: "Digital Signage" },
   { value: "dashboard", label: "Dashboard" },
@@ -153,13 +135,10 @@ const statusColors: Record<string, string> = {
 };
 
 const displayTypeLabels: Record<string, string> = {
-  opd_queue: "OPD Queue",
-  pharmacy_queue: "Pharmacy",
-  billing_queue: "Billing",
-  lab_queue: "Lab",
-  radiology_queue: "Radiology",
+  ...Object.fromEntries(
+    TOKEN_BOARD_SURFACE_LIST.map((surface) => [surface.targets.tvDisplayType, surface.title]),
+  ),
   bed_status: "Bed Status",
-  emergency_triage: "ER Triage",
   digital_signage: "Signage",
   dashboard: "Dashboard",
 };
@@ -188,17 +167,13 @@ function tokenBoardLaunchDefinition(surface: TokenBoardSurfaceDefinition): Displ
   };
 }
 
-const TOKEN_BOARD_LAUNCH_TARGETS = {
-  billing_queue: tokenBoardLaunchDefinition(TOKEN_BOARD_SURFACES.billing),
-  emergency_triage: tokenBoardLaunchDefinition(TOKEN_BOARD_SURFACES.emergency),
-  lab_queue: tokenBoardLaunchDefinition(TOKEN_BOARD_SURFACES.lab),
-  opd_queue: tokenBoardLaunchDefinition(TOKEN_BOARD_SURFACES.opd),
-  pharmacy_queue: tokenBoardLaunchDefinition(TOKEN_BOARD_SURFACES.pharmacy),
-  radiology_queue: tokenBoardLaunchDefinition(TOKEN_BOARD_SURFACES.radiology),
-} satisfies Record<TokenBoardTvDisplayType, DisplayLaunchDefinition>;
-
 const DISPLAY_LAUNCH_TARGETS: Record<string, DisplayLaunchDefinition> = {
-  ...TOKEN_BOARD_LAUNCH_TARGETS,
+  ...Object.fromEntries(
+    TOKEN_BOARD_SURFACE_LIST.map((surface) => [
+      surface.targets.tvDisplayType,
+      tokenBoardLaunchDefinition(surface),
+    ]),
+  ),
   bed_status: {
     appCodes: ["TV-Ward"],
     deepLink: "medbrains://tv/bed-status",
