@@ -5,6 +5,7 @@ import {
   ACCESS_MATRIX_SURFACES,
   CLINICAL_EVENT_REQUIRED_PAYLOAD_KEYS,
   FIELD_ACCESS_FIELDS,
+  TOKEN_BOARD_SURFACE_LIST,
 } from "@medbrains/types";
 import { describe, expect, it } from "vitest";
 import type { NavGroupConfig } from "@/config/navigation";
@@ -241,6 +242,19 @@ describe("access matrix route coverage", () => {
           : ["ipd.admission.created"],
       ),
     );
+  });
+
+  it("maps public token-board access surfaces to focused web workspaces", () => {
+    for (const board of TOKEN_BOARD_SURFACE_LIST) {
+      const surface = ACCESS_MATRIX_SURFACES.find(
+        (entry) => entry.id === `token_boards.${board.id}.public_display`,
+      );
+
+      expect(surface?.route).toBe(board.targets.webPath);
+      expect(surface?.platforms).toEqual(["web", "mobile", "tv", "kiosk"]);
+      expect(surface?.fieldAccessKeys.length).toBeGreaterThan(0);
+      expect(surface?.masking).not.toBe("none");
+    }
   });
 
   it("summarizes screen, tab, table, column, input and action governance by surface type", () => {

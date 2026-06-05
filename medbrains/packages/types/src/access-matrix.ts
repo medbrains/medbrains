@@ -236,7 +236,7 @@ function tokenBoardAccessSurface({
     area: "Public Token Boards",
     label: `${board.title} public token board`,
     kind: "screen",
-    route: board.targets.tvDeepLink,
+    route: board.targets.webPath,
     requiredPermissions: board.requiredAnyPermissions,
     fieldAccessKeys,
     masking,
