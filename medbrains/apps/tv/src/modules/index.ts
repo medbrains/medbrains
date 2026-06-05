@@ -5,6 +5,7 @@
  */
 
 import type { Module } from "@medbrains/mobile-shell";
+import { TOKEN_BOARD_SURFACE_LIST, type TokenBoardTvDisplayType } from "@medbrains/types";
 import { bedStatusModule } from "./bed-status";
 import { billingQueueModule } from "./billing-queue";
 import { digitalSignageModule } from "./digital-signage";
@@ -14,13 +15,21 @@ import { pharmacyQueueModule } from "./pharmacy-queue";
 import { queueModule } from "./queue";
 import { radiologyQueueModule } from "./radiology-queue";
 
+export const TOKEN_BOARD_TV_MODULES = {
+  billing_queue: billingQueueModule,
+  emergency_triage: emergencyTriageModule,
+  lab_queue: labStatusModule,
+  opd_queue: queueModule,
+  pharmacy_queue: pharmacyQueueModule,
+  radiology_queue: radiologyQueueModule,
+} satisfies Record<TokenBoardTvDisplayType, Module>;
+
+export const TOKEN_BOARD_TV_MODULE_LIST = TOKEN_BOARD_SURFACE_LIST.map(
+  (surface) => TOKEN_BOARD_TV_MODULES[surface.targets.tvDisplayType],
+);
+
 export const MODULES: ReadonlyArray<Module> = [
-  queueModule,
+  ...TOKEN_BOARD_TV_MODULE_LIST,
   bedStatusModule,
-  labStatusModule,
-  radiologyQueueModule,
-  emergencyTriageModule,
-  pharmacyQueueModule,
-  billingQueueModule,
   digitalSignageModule,
 ];
