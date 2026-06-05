@@ -5,6 +5,7 @@ use axum::{
     extract::{Path, Query, State},
 };
 use chrono::{NaiveDate, NaiveTime, Utc};
+use medbrains_core::clinical_events::{ClinicalEventEnvelope, ClinicalEventName};
 use medbrains_core::mrd::{
     MrdBirthRegister, MrdCaseSheetPacket, MrdCaseSheetPage, MrdDeathRegister, MrdMedicalRecord,
     MrdRecordMovement, MrdRetentionPolicy, MrdStorageLocation,
@@ -1979,6 +1980,32 @@ pub async fn generate_opd_case_sheet_packet(
         .await?;
 
     let row = fetch_case_sheet_packet(&mut tx, claims.tenant_id, inserted.id).await?;
+    let mut event = ClinicalEventEnvelope::new(
+        claims.tenant_id,
+        ClinicalEventName::MrdCaseSheetGenerated,
+        row.id,
+        claims.sub,
+        serde_json::json!({
+            "packet_id": row.id,
+            "packet_type": &row.packet_type,
+            "patient_id": row.patient_id,
+            "encounter_id": row.encounter_id,
+            "admission_id": row.admission_id,
+            "medical_record_id": row.medical_record_id,
+            "packet_number": &row.packet_number,
+            "version": row.version,
+            "page_count": row.page_count,
+            "generated_at": row.generated_at,
+        }),
+    )
+    .with_patient(row.patient_id);
+    if let Some(encounter_id) = row.encounter_id {
+        event = event.with_encounter(encounter_id);
+    }
+    if let Some(admission_id) = row.admission_id {
+        event = event.with_admission(admission_id);
+    }
+    crate::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
     tx.commit().await?;
     Ok(Json(row))
 }
@@ -2093,6 +2120,32 @@ pub async fn generate_ipd_case_sheet_packet(
         .await?;
 
     let row = fetch_case_sheet_packet(&mut tx, claims.tenant_id, inserted.id).await?;
+    let mut event = ClinicalEventEnvelope::new(
+        claims.tenant_id,
+        ClinicalEventName::MrdCaseSheetGenerated,
+        row.id,
+        claims.sub,
+        serde_json::json!({
+            "packet_id": row.id,
+            "packet_type": &row.packet_type,
+            "patient_id": row.patient_id,
+            "encounter_id": row.encounter_id,
+            "admission_id": row.admission_id,
+            "medical_record_id": row.medical_record_id,
+            "packet_number": &row.packet_number,
+            "version": row.version,
+            "page_count": row.page_count,
+            "generated_at": row.generated_at,
+        }),
+    )
+    .with_patient(row.patient_id);
+    if let Some(encounter_id) = row.encounter_id {
+        event = event.with_encounter(encounter_id);
+    }
+    if let Some(admission_id) = row.admission_id {
+        event = event.with_admission(admission_id);
+    }
+    crate::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
     tx.commit().await?;
     Ok(Json(row))
 }
@@ -2108,7 +2161,8 @@ pub async fn print_case_sheet_packet(
         .await?;
 
     let packet = fetch_case_sheet_packet(&mut tx, claims.tenant_id, id).await?;
-    if packet.printed_at.is_some() {
+    let is_reprint = packet.printed_at.is_some();
+    if is_reprint {
         require_permission(&claims, permissions::mrd::case_sheets::REPRINT)?;
         if body
             .reprint_reason
@@ -2220,6 +2274,34 @@ pub async fn print_case_sheet_packet(
     .await?;
 
     let row = fetch_case_sheet_packet(&mut tx, claims.tenant_id, id).await?;
+    let mut event = ClinicalEventEnvelope::new(
+        claims.tenant_id,
+        ClinicalEventName::MrdCaseSheetPrinted,
+        row.id,
+        claims.sub,
+        serde_json::json!({
+            "packet_id": row.id,
+            "patient_id": row.patient_id,
+            "packet_type": &row.packet_type,
+            "packet_number": &row.packet_number,
+            "encounter_id": row.encounter_id,
+            "admission_id": row.admission_id,
+            "document_output_id": row.document_output_id,
+            "print_job_id": row.print_job_id,
+            "page_count": row.page_count,
+            "copies": copies,
+            "is_reprint": is_reprint,
+            "printed_at": row.printed_at,
+        }),
+    )
+    .with_patient(row.patient_id);
+    if let Some(encounter_id) = row.encounter_id {
+        event = event.with_encounter(encounter_id);
+    }
+    if let Some(admission_id) = row.admission_id {
+        event = event.with_admission(admission_id);
+    }
+    crate::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
     tx.commit().await?;
     Ok(Json(row))
 }

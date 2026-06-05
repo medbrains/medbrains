@@ -60,6 +60,10 @@ pub enum ClinicalEventName {
     IpdDischargeCompleted,
     #[serde(rename = "ipd.discharge.finalized")]
     IpdDischargeFinalized,
+    #[serde(rename = "mrd.case_sheet.generated")]
+    MrdCaseSheetGenerated,
+    #[serde(rename = "mrd.case_sheet.printed")]
+    MrdCaseSheetPrinted,
     #[serde(rename = "quality.incident.reported")]
     QualityIncidentReported,
     #[serde(rename = "emergency.code_blue.activated")]
@@ -102,6 +106,8 @@ impl ClinicalEventName {
             Self::IpdDischargeInitiated => "ipd.discharge.initiated",
             Self::IpdDischargeCompleted => "ipd.discharge.completed",
             Self::IpdDischargeFinalized => "ipd.discharge.finalized",
+            Self::MrdCaseSheetGenerated => "mrd.case_sheet.generated",
+            Self::MrdCaseSheetPrinted => "mrd.case_sheet.printed",
             Self::QualityIncidentReported => "quality.incident.reported",
             Self::EmergencyCodeBlueActivated => "emergency.code_blue.activated",
             Self::EmergencyCodeBlueCompleted => "emergency.code_blue.completed",
@@ -137,6 +143,9 @@ impl ClinicalEventName {
             Self::IpdDischargeInitiated
             | Self::IpdDischargeCompleted
             | Self::IpdDischargeFinalized => ClinicalEventSourceModule::Ipd,
+            Self::MrdCaseSheetGenerated | Self::MrdCaseSheetPrinted => {
+                ClinicalEventSourceModule::Mrd
+            }
             Self::QualityIncidentReported => ClinicalEventSourceModule::Quality,
             Self::EmergencyCodeBlueActivated | Self::EmergencyCodeBlueCompleted => {
                 ClinicalEventSourceModule::Emergency
@@ -177,6 +186,8 @@ impl ClinicalEventName {
                 &["admission_id", "patient_id"]
             }
             Self::IpdDischargeFinalized => &["summary_id", "admission_id", "patient_id"],
+            Self::MrdCaseSheetGenerated => &["packet_id", "packet_type", "patient_id"],
+            Self::MrdCaseSheetPrinted => &["packet_id", "patient_id"],
             Self::QualityIncidentReported => &["incident_id"],
             Self::EmergencyCodeBlueActivated | Self::EmergencyCodeBlueCompleted => {
                 &["code_blue_id"]
@@ -236,6 +247,8 @@ impl FromStr for ClinicalEventName {
             "ipd.discharge.initiated" => Ok(Self::IpdDischargeInitiated),
             "ipd.discharge.completed" => Ok(Self::IpdDischargeCompleted),
             "ipd.discharge.finalized" => Ok(Self::IpdDischargeFinalized),
+            "mrd.case_sheet.generated" => Ok(Self::MrdCaseSheetGenerated),
+            "mrd.case_sheet.printed" => Ok(Self::MrdCaseSheetPrinted),
             "quality.incident.reported" => Ok(Self::QualityIncidentReported),
             "emergency.code_blue.activated" => Ok(Self::EmergencyCodeBlueActivated),
             "emergency.code_blue.completed" => Ok(Self::EmergencyCodeBlueCompleted),
@@ -536,6 +549,43 @@ mod tests {
         assert_eq!(
             ClinicalEventName::OpdConsentSigned.required_payload_keys(),
             &["consent_id", "patient_id"]
+        );
+    }
+
+    #[test]
+    fn mrd_case_sheet_events_are_canonical() {
+        assert_eq!(
+            "mrd.case_sheet.generated".parse::<ClinicalEventName>().ok(),
+            Some(ClinicalEventName::MrdCaseSheetGenerated)
+        );
+        assert_eq!(
+            ClinicalEventName::MrdCaseSheetGenerated.as_str(),
+            "mrd.case_sheet.generated"
+        );
+        assert_eq!(
+            ClinicalEventName::MrdCaseSheetGenerated.default_source_module(),
+            ClinicalEventSourceModule::Mrd
+        );
+        assert_eq!(
+            ClinicalEventName::MrdCaseSheetGenerated.required_payload_keys(),
+            &["packet_id", "packet_type", "patient_id"]
+        );
+
+        assert_eq!(
+            "mrd.case_sheet.printed".parse::<ClinicalEventName>().ok(),
+            Some(ClinicalEventName::MrdCaseSheetPrinted)
+        );
+        assert_eq!(
+            ClinicalEventName::MrdCaseSheetPrinted.as_str(),
+            "mrd.case_sheet.printed"
+        );
+        assert_eq!(
+            ClinicalEventName::MrdCaseSheetPrinted.default_source_module(),
+            ClinicalEventSourceModule::Mrd
+        );
+        assert_eq!(
+            ClinicalEventName::MrdCaseSheetPrinted.required_payload_keys(),
+            &["packet_id", "patient_id"]
         );
     }
 }
