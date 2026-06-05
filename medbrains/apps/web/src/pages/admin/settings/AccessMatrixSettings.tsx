@@ -30,6 +30,7 @@ import type {
 } from "@medbrains/types";
 import {
   ACCESS_MATRIX_SURFACES,
+  ACCESS_MATRIX_WORKFLOW_EXPECTATIONS,
   CORE_PATIENT_JOURNEY_ACTIONS,
   FIELD_ACCESS_FIELDS,
   P,
@@ -58,8 +59,10 @@ import {
   buildAccessSurfaceGovernanceCoverage,
   buildAccessSurfaceGovernanceGapRows,
   buildNavRouteCoverage,
+  buildWorkflowKindCoverage,
   summarizeAccessSurfaceGovernance,
   summarizeNavRouteCoverage,
+  summarizeWorkflowKindCoverage,
 } from "./access-matrix-coverage";
 import {
   type PermissionSourceResolution,
@@ -93,68 +96,6 @@ const ACCESS_SURFACE_GAP_LABELS: Record<AccessSurfaceGovernanceGap, string> = {
   "missing-activation": "event",
   "missing-masking": "masking",
 };
-
-const CRITICAL_WORKFLOW_EXPECTATIONS: {
-  key: string;
-  label: string;
-  modules: readonly string[];
-  requiredKinds: readonly AccessMatrixSurfaceKind[];
-}[] = [
-  {
-    key: "registration",
-    label: "Patient registration",
-    modules: ["patients"],
-    requiredKinds: ["screen", "tab", "column", "input", "action", "print"],
-  },
-  {
-    key: "opd",
-    label: "OPD encounter",
-    modules: ["opd"],
-    requiredKinds: ["screen", "tab", "column", "input", "action", "print"],
-  },
-  {
-    key: "ipd",
-    label: "IPD admission",
-    modules: ["ipd"],
-    requiredKinds: ["screen", "tab", "input", "action", "print"],
-  },
-  {
-    key: "emergency",
-    label: "Emergency care",
-    modules: ["emergency"],
-    requiredKinds: ["screen", "table", "input", "action", "print"],
-  },
-  {
-    key: "camp",
-    label: "Camp workflow",
-    modules: ["camp"],
-    requiredKinds: ["screen", "tab", "input", "action", "print"],
-  },
-  {
-    key: "pharmacy",
-    label: "Pharmacy",
-    modules: ["pharmacy"],
-    requiredKinds: ["screen", "table", "column", "input", "action", "print"],
-  },
-  {
-    key: "billing",
-    label: "Billing",
-    modules: ["billing"],
-    requiredKinds: ["screen", "tab", "column", "input", "action", "print"],
-  },
-  {
-    key: "mrd",
-    label: "MRD printables",
-    modules: ["mrd"],
-    requiredKinds: ["screen", "table", "column", "input", "action", "print"],
-  },
-  {
-    key: "settings_reports",
-    label: "Settings and reports",
-    modules: ["admin", "analytics"],
-    requiredKinds: ["screen", "tab", "widget"],
-  },
-];
 
 type FieldOverrideLevel = FieldAccessLevel | "inherit";
 
@@ -1609,34 +1550,13 @@ function SurfaceCoverageMatrix() {
     return [...modules.entries()].sort(([left], [right]) => left.localeCompare(right));
   }, []);
   const workflowCoverage = useMemo(
-    () =>
-      CRITICAL_WORKFLOW_EXPECTATIONS.map((workflow) => {
-        const surfaces = ACCESS_MATRIX_SURFACES.filter((surface) =>
-          workflow.modules.includes(surface.module),
-        );
-        const coveredKinds = new Set(surfaces.map((surface) => surface.kind));
-        const missingKinds = workflow.requiredKinds.filter((kind) => !coveredKinds.has(kind));
-        const activatedSurfaces = surfaces.filter((surface) => surface.activatesAfter.length > 0);
-        const permissions = new Set(
-          surfaces.flatMap((surface) => [...surface.requiredPermissions]),
-        );
-        const printSurfaces = surfaces.filter((surface) => surface.kind === "print");
-        const printerRequired = printSurfaces.filter((surface) => surface.requiresPrinter);
-        return {
-          ...workflow,
-          activatedSurfaces: activatedSurfaces.length,
-          missingKinds,
-          permissions,
-          printerRequired: printerRequired.length,
-          printSurfaces: printSurfaces.length,
-          surfaces,
-        };
-      }),
+    () => buildWorkflowKindCoverage(ACCESS_MATRIX_WORKFLOW_EXPECTATIONS, ACCESS_MATRIX_SURFACES),
     [],
   );
-  const workflowGapCount = workflowCoverage.filter(
-    (workflow) => workflow.missingKinds.length > 0,
-  ).length;
+  const workflowCoverageSummary = useMemo(
+    () => summarizeWorkflowKindCoverage(workflowCoverage),
+    [workflowCoverage],
+  );
   const fieldKeysMissingFromRegistry = [...coveredFieldKeys].filter((key) => !fieldsByKey.has(key));
   const registeredFieldsNotMapped = FIELD_ACCESS_FIELDS.filter(
     (field) => !coveredFieldKeys.has(fieldKey(field)),
@@ -1794,6 +1714,18 @@ function SurfaceCoverageMatrix() {
         </Card>
         <Card withBorder padding="sm">
           <Text size="xs" c="dimmed" fw={700} tt="uppercase">
+            Workflow Coverage
+          </Text>
+          <Text fw={700}>
+            {workflowCoverageSummary.complete}/{workflowCoverageSummary.total}
+          </Text>
+          <Text size="xs" c="dimmed">
+            {workflowCoverageSummary.gaps} kind gaps, {workflowCoverageSummary.eventDriven} event
+            driven
+          </Text>
+        </Card>
+        <Card withBorder padding="sm">
+          <Text size="xs" c="dimmed" fw={700} tt="uppercase">
             Surface Governance
           </Text>
           <Text fw={700}>
@@ -1815,8 +1747,8 @@ function SurfaceCoverageMatrix() {
                 actions, print surfaces, widgets, permissions, and event activations.
               </Text>
             </Stack>
-            <Badge color={workflowGapCount > 0 ? "orange" : "green"} variant="light">
-              {workflowGapCount} workflow gaps
+            <Badge color={workflowCoverageSummary.gaps > 0 ? "orange" : "green"} variant="light">
+              {workflowCoverageSummary.gaps} workflow gaps
             </Badge>
           </Group>
           <ScrollArea.Autosize mah={360}>
@@ -1826,6 +1758,7 @@ function SurfaceCoverageMatrix() {
                   <Table.Th>Workflow</Table.Th>
                   <Table.Th>Modules</Table.Th>
                   <Table.Th>Mapped surfaces</Table.Th>
+                  <Table.Th>Surface types</Table.Th>
                   <Table.Th>Event driven</Table.Th>
                   <Table.Th>Print map</Table.Th>
                   <Table.Th>Missing surface types</Table.Th>
@@ -1853,6 +1786,15 @@ function SurfaceCoverageMatrix() {
                       <Badge color={workflow.surfaces.length > 0 ? "blue" : "red"} variant="light">
                         {workflow.surfaces.length}
                       </Badge>
+                    </Table.Td>
+                    <Table.Td>
+                      <Group gap={4}>
+                        {workflow.presentKinds.map((kind) => (
+                          <Badge key={kind} color="gray" variant="light">
+                            {kind}
+                          </Badge>
+                        ))}
+                      </Group>
                     </Table.Td>
                     <Table.Td>
                       <Badge

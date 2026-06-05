@@ -6,9 +6,11 @@ export type {
   AccessMatrixPrintCopy,
   AccessMatrixSurface,
   AccessMatrixSurfaceKind,
+  AccessMatrixWorkflowExpectation,
 } from "./access-matrix.js";
 export {
   ACCESS_MATRIX_SURFACES,
+  ACCESS_MATRIX_WORKFLOW_EXPECTATIONS,
   accessMatrixModules,
   accessMatrixSurfaceKinds,
 } from "./access-matrix.js";

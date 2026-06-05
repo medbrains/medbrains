@@ -1,8 +1,9 @@
 // @vitest-environment node
 
-import type { AccessMatrixSurface, AccessMatrixSurfaceKind } from "@medbrains/types";
+import type { AccessMatrixSurface } from "@medbrains/types";
 import {
   ACCESS_MATRIX_SURFACES,
+  ACCESS_MATRIX_WORKFLOW_EXPECTATIONS,
   CLINICAL_EVENT_REQUIRED_PAYLOAD_KEYS,
   FIELD_ACCESS_FIELDS,
   TOKEN_BOARD_SURFACE_LIST,
@@ -13,10 +14,12 @@ import {
   buildAccessSurfaceGovernanceCoverage,
   buildAccessSurfaceGovernanceGapRows,
   buildNavRouteCoverage,
+  buildWorkflowKindCoverage,
   flattenNavRoutes,
   normalizeCoverageRoute,
   summarizeAccessSurfaceGovernance,
   summarizeNavRouteCoverage,
+  summarizeWorkflowKindCoverage,
 } from "./access-matrix-coverage";
 
 function testSurface(
@@ -69,58 +72,6 @@ const groups: NavGroupConfig[] = [
 function fieldKey(field: (typeof FIELD_ACCESS_FIELDS)[number]) {
   return `${field.db_table ?? "general"}.${field.code}`;
 }
-
-const criticalWorkflowExpectations: {
-  key: string;
-  modules: readonly string[];
-  requiredKinds: readonly AccessMatrixSurfaceKind[];
-}[] = [
-  {
-    key: "registration",
-    modules: ["patients"],
-    requiredKinds: ["screen", "tab", "column", "input", "action", "print"],
-  },
-  {
-    key: "opd",
-    modules: ["opd"],
-    requiredKinds: ["screen", "tab", "column", "input", "action", "print"],
-  },
-  {
-    key: "ipd",
-    modules: ["ipd"],
-    requiredKinds: ["screen", "tab", "input", "action", "print"],
-  },
-  {
-    key: "emergency",
-    modules: ["emergency"],
-    requiredKinds: ["screen", "table", "input", "action", "print"],
-  },
-  {
-    key: "camp",
-    modules: ["camp"],
-    requiredKinds: ["screen", "tab", "input", "action", "print"],
-  },
-  {
-    key: "pharmacy",
-    modules: ["pharmacy"],
-    requiredKinds: ["screen", "table", "column", "input", "action", "print"],
-  },
-  {
-    key: "billing",
-    modules: ["billing"],
-    requiredKinds: ["screen", "tab", "column", "input", "action", "print"],
-  },
-  {
-    key: "mrd",
-    modules: ["mrd"],
-    requiredKinds: ["screen", "table", "column", "input", "action", "print"],
-  },
-  {
-    key: "settings_reports",
-    modules: ["admin", "analytics"],
-    requiredKinds: ["screen", "tab", "widget"],
-  },
-];
 
 describe("access matrix route coverage", () => {
   it("normalizes hash, query, and trailing slash route variants", () => {
@@ -179,17 +130,69 @@ describe("access matrix route coverage", () => {
   });
 
   it("maps every critical patient workflow to required surface types", () => {
-    const gaps = criticalWorkflowExpectations.flatMap((workflow) => {
-      const workflowSurfaces = ACCESS_MATRIX_SURFACES.filter((surface) =>
-        workflow.modules.includes(surface.module),
-      );
-      const mappedKinds = new Set(workflowSurfaces.map((surface) => surface.kind));
-      return workflow.requiredKinds
-        .filter((kind) => !mappedKinds.has(kind))
-        .map((kind) => `${workflow.key}:${kind}`);
-    });
+    const rows = buildWorkflowKindCoverage(
+      ACCESS_MATRIX_WORKFLOW_EXPECTATIONS,
+      ACCESS_MATRIX_SURFACES,
+    );
+    const gaps = rows.flatMap((row) => row.missingKinds.map((kind) => `${row.key}:${kind}`));
+    const expectedPrintableWorkflows = ACCESS_MATRIX_WORKFLOW_EXPECTATIONS.filter((workflow) =>
+      workflow.requiredKinds.includes("print"),
+    ).length;
 
     expect(gaps).toEqual([]);
+    expect(summarizeWorkflowKindCoverage(rows)).toEqual({
+      total: ACCESS_MATRIX_WORKFLOW_EXPECTATIONS.length,
+      complete: ACCESS_MATRIX_WORKFLOW_EXPECTATIONS.length,
+      gaps: 0,
+      eventDriven: ACCESS_MATRIX_WORKFLOW_EXPECTATIONS.length,
+      printMapped: expectedPrintableWorkflows,
+      permissionMapped: ACCESS_MATRIX_WORKFLOW_EXPECTATIONS.length,
+    });
+  });
+
+  it("reports workflow surface type and activation gaps", () => {
+    const rows = buildWorkflowKindCoverage(
+      [
+        {
+          key: "demo",
+          label: "Demo workflow",
+          modules: ["demo"],
+          requiredKinds: ["screen", "input", "action", "print"],
+        },
+      ],
+      [
+        testSurface({
+          id: "demo.screen",
+          label: "Demo screen",
+          module: "demo",
+          kind: "screen",
+          route: "/demo",
+          requiredPermissions: ["demo.list"],
+        }),
+        testSurface({
+          id: "demo.action",
+          label: "Demo action",
+          module: "demo",
+          kind: "action",
+          route: "/demo",
+          requiredPermissions: ["demo.update"],
+          activatesAfter: ["patient.created"],
+        }),
+      ],
+    );
+
+    expect(rows[0]?.presentKinds).toEqual(["action", "screen"]);
+    expect(rows[0]?.missingKinds).toEqual(["input", "print"]);
+    expect(rows[0]?.activatedSurfaces).toBe(1);
+    expect(rows[0]?.permissions.size).toBe(2);
+    expect(summarizeWorkflowKindCoverage(rows)).toEqual({
+      total: 1,
+      complete: 0,
+      gaps: 1,
+      eventDriven: 1,
+      printMapped: 0,
+      permissionMapped: 1,
+    });
   });
 
   it("keeps access-surface field keys aligned with the field masking registry", () => {

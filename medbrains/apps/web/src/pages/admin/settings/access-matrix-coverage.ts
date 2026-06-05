@@ -1,4 +1,8 @@
-import type { AccessMatrixSurface, AccessMatrixSurfaceKind } from "@medbrains/types";
+import type {
+  AccessMatrixSurface,
+  AccessMatrixSurfaceKind,
+  AccessMatrixWorkflowExpectation,
+} from "@medbrains/types";
 import type { NavGroupConfig, NavItemConfig } from "@/config/navigation";
 
 export type NavRouteCoverageStatus = "covered" | "permission-gap" | "unmapped";
@@ -56,6 +60,25 @@ export interface AccessSurfaceGovernanceSummary {
   total: number;
   covered: number;
   gaps: number;
+}
+
+export interface WorkflowKindCoverageRow extends AccessMatrixWorkflowExpectation {
+  surfaces: readonly AccessMatrixSurface[];
+  presentKinds: readonly AccessMatrixSurfaceKind[];
+  missingKinds: readonly AccessMatrixSurfaceKind[];
+  activatedSurfaces: number;
+  permissions: ReadonlySet<string>;
+  printSurfaces: number;
+  printerRequired: number;
+}
+
+export interface WorkflowKindCoverageSummary {
+  total: number;
+  complete: number;
+  gaps: number;
+  eventDriven: number;
+  printMapped: number;
+  permissionMapped: number;
 }
 
 interface NavRouteRequirement {
@@ -279,5 +302,47 @@ export function summarizeAccessSurfaceGovernance(
     total,
     covered: total - gaps,
     gaps,
+  };
+}
+
+export function buildWorkflowKindCoverage(
+  expectations: readonly AccessMatrixWorkflowExpectation[],
+  surfaces: readonly AccessMatrixSurface[],
+): WorkflowKindCoverageRow[] {
+  return expectations.map((workflow) => {
+    const workflowSurfaces = surfaces.filter((surface) =>
+      workflow.modules.includes(surface.module),
+    );
+    const presentKinds = [...new Set(workflowSurfaces.map((surface) => surface.kind))].sort();
+    const missingKinds = workflow.requiredKinds.filter((kind) => !presentKinds.includes(kind));
+    const permissions = new Set(
+      workflowSurfaces.flatMap((surface) => [...surface.requiredPermissions]),
+    );
+    const printSurfaces = workflowSurfaces.filter((surface) => surface.kind === "print");
+
+    return {
+      ...workflow,
+      activatedSurfaces: workflowSurfaces.filter((surface) => surface.activatesAfter.length > 0)
+        .length,
+      missingKinds,
+      permissions,
+      presentKinds,
+      printerRequired: printSurfaces.filter((surface) => surface.requiresPrinter).length,
+      printSurfaces: printSurfaces.length,
+      surfaces: workflowSurfaces,
+    };
+  });
+}
+
+export function summarizeWorkflowKindCoverage(
+  rows: readonly WorkflowKindCoverageRow[],
+): WorkflowKindCoverageSummary {
+  return {
+    total: rows.length,
+    complete: rows.filter((row) => row.missingKinds.length === 0).length,
+    gaps: rows.filter((row) => row.missingKinds.length > 0).length,
+    eventDriven: rows.filter((row) => row.activatedSurfaces > 0).length,
+    printMapped: rows.filter((row) => row.printSurfaces > 0).length,
+    permissionMapped: rows.filter((row) => row.permissions.size > 0).length,
   };
 }

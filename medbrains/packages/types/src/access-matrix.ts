@@ -53,6 +53,13 @@ export interface AccessMatrixSurface {
   standardRefs: readonly string[];
 }
 
+export interface AccessMatrixWorkflowExpectation {
+  key: string;
+  label: string;
+  modules: readonly string[];
+  requiredKinds: readonly AccessMatrixSurfaceKind[];
+}
+
 type SurfaceInput = Omit<
   AccessMatrixSurface,
   | "activatesAfter"
@@ -87,6 +94,63 @@ function surface(input: SurfaceInput): AccessMatrixSurface {
     ...input,
   };
 }
+
+export const ACCESS_MATRIX_WORKFLOW_EXPECTATIONS: readonly AccessMatrixWorkflowExpectation[] = [
+  {
+    key: "registration",
+    label: "Patient registration",
+    modules: ["patients"],
+    requiredKinds: ["screen", "tab", "column", "input", "action", "print"],
+  },
+  {
+    key: "opd",
+    label: "OPD encounter",
+    modules: ["opd"],
+    requiredKinds: ["screen", "tab", "column", "input", "action", "print"],
+  },
+  {
+    key: "ipd",
+    label: "IPD admission",
+    modules: ["ipd"],
+    requiredKinds: ["screen", "tab", "input", "action", "print"],
+  },
+  {
+    key: "emergency",
+    label: "Emergency care",
+    modules: ["emergency"],
+    requiredKinds: ["screen", "table", "input", "action", "print"],
+  },
+  {
+    key: "camp",
+    label: "Camp workflow",
+    modules: ["camp"],
+    requiredKinds: ["screen", "tab", "input", "action", "print"],
+  },
+  {
+    key: "pharmacy",
+    label: "Pharmacy",
+    modules: ["pharmacy"],
+    requiredKinds: ["screen", "table", "column", "input", "action", "print"],
+  },
+  {
+    key: "billing",
+    label: "Billing",
+    modules: ["billing"],
+    requiredKinds: ["screen", "tab", "column", "input", "action", "print"],
+  },
+  {
+    key: "mrd",
+    label: "MRD printables",
+    modules: ["mrd"],
+    requiredKinds: ["screen", "table", "column", "input", "action", "print"],
+  },
+  {
+    key: "settings_reports",
+    label: "Settings and reports",
+    modules: ["admin", "analytics"],
+    requiredKinds: ["screen", "tab", "widget"],
+  },
+];
 
 const PATIENT_IDENTITY_FIELDS = [
   "patients.uhid",
