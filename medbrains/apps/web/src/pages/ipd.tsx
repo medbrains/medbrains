@@ -891,6 +891,8 @@ function AdmissionDetail({
   const canGenerateMrdCaseSheet = useHasPermission(P.MRD.CASE_SHEETS_GENERATE);
   const canViewMrdCaseSheets = useHasPermission(P.MRD.CASE_SHEETS_VIEW);
   const canOrder = useHasPermission(P.ORDER_BASKET.SIGN);
+  const canCreateTransfer = useHasPermission(P.IPD.TRANSFERS_CREATE);
+  const canManageDeathRecords = useHasPermission(P.IPD.DEATH_RECORDS_MANAGE);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const emit = useClinicalEmit();
@@ -994,6 +996,21 @@ function AdmissionDetail({
     if (!admissionHasAssignedBed) return "Assign a bed before inpatient orders";
     return label;
   };
+  const transferOutTooltip = canCreateTransfer
+    ? admissionIsActive
+      ? "Refer or transfer the patient out"
+      : "Transfer needs an active admission"
+    : "Transfer permission required";
+  const damaTooltip = canDischarge
+    ? admissionIsActive
+      ? "Start DAMA / LAMA discharge workflow"
+      : "DAMA / LAMA needs an active admission"
+    : "Discharge permission required";
+  const deathRecordTooltip = canManageDeathRecords
+    ? admissionIsActive
+      ? "Create death record and mark the admission"
+      : "Death record needs an active admission"
+    : "Death record permission required";
   const activeWorkspaceSection =
     IPD_WORKSPACE_TABS.find((tab) => tab.value === activeWorkspaceTab)?.section ?? "Command";
   const journeyContext: ClinicalJourneyContext = {
@@ -1432,39 +1449,51 @@ function AdmissionDetail({
                   >
                     Wristband
                   </Button>
-                  <Button
-                    size="xs"
-                    variant="light"
-                    color="primary"
-                    leftSection={<IconArrowsTransferDown size={14} />}
-                    disabled={!admissionIsActive}
-                    onClick={openTransferOut}
-                    fullWidth
-                  >
-                    Refer out
-                  </Button>
-                  <Button
-                    size="xs"
-                    variant="light"
-                    color="warning"
-                    leftSection={<IconUserOff size={14} />}
-                    disabled={!admissionIsActive}
-                    onClick={openDama}
-                    fullWidth
-                  >
-                    DAMA / LAMA
-                  </Button>
-                  <Button
-                    size="xs"
-                    variant="light"
-                    color="danger"
-                    leftSection={<IconCross size={14} />}
-                    disabled={!admissionIsActive}
-                    onClick={openDeath}
-                    fullWidth
-                  >
-                    Mark Death
-                  </Button>
+                  <Tooltip label={transferOutTooltip}>
+                    <span>
+                      <Button
+                        size="xs"
+                        variant="light"
+                        color="primary"
+                        leftSection={<IconArrowsTransferDown size={14} />}
+                        disabled={!admissionIsActive || !canCreateTransfer}
+                        onClick={openTransferOut}
+                        fullWidth
+                      >
+                        Refer out
+                      </Button>
+                    </span>
+                  </Tooltip>
+                  <Tooltip label={damaTooltip}>
+                    <span>
+                      <Button
+                        size="xs"
+                        variant="light"
+                        color="warning"
+                        leftSection={<IconUserOff size={14} />}
+                        disabled={!admissionIsActive || !canDischarge}
+                        onClick={openDama}
+                        fullWidth
+                      >
+                        DAMA / LAMA
+                      </Button>
+                    </span>
+                  </Tooltip>
+                  <Tooltip label={deathRecordTooltip}>
+                    <span>
+                      <Button
+                        size="xs"
+                        variant="light"
+                        color="danger"
+                        leftSection={<IconCross size={14} />}
+                        disabled={!admissionIsActive || !canManageDeathRecords}
+                        onClick={openDeath}
+                        fullWidth
+                      >
+                        Mark Death
+                      </Button>
+                    </span>
+                  </Tooltip>
                 </Stack>
               </Stack>
             </Box>
