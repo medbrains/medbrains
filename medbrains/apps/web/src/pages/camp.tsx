@@ -85,7 +85,7 @@ import {
   IconX,
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { type ReactNode, useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { useNavigate, useParams, useSearchParams } from "react-router";
 import {
@@ -111,11 +111,18 @@ import {
   campOptionalText,
   campTypeOptions,
 } from "@/forms/camp.form";
+import { useHashTabs } from "@/hooks/useHashTabs";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { EncounterDetail } from "@/pages/opd";
 import { campService } from "@/services/camp.service";
 import { lookupsService } from "@/services/lookups.service";
 import classes from "./camp.module.scss";
+import {
+  CAMP_LANDING_TAB_VALUES,
+  CAMP_WORK_TAB_VALUES,
+  type CampWorkTabValue,
+  campWorkDefaultTab,
+} from "./camp-workspace";
 
 // ── Constants ──────────────────────────────────────────
 
@@ -183,6 +190,16 @@ const PATIENT_NAME_FIELD_ACCESS_KEYS = [
 
 const patientContextQuery = (patientId: string) =>
   patientId ? `?patient_id=${encodeURIComponent(patientId)}` : "";
+
+const campLandingPath = (patientId: string) => `/camp${patientContextQuery(patientId)}#camps`;
+
+const campWorkPath = (campId: string, patientId: string, tab: CampWorkTabValue = "registrations") =>
+  `/camp/${campId}/work${patientContextQuery(patientId)}#${tab}`;
+
+const campClinicalRoutePath = (campId: string, registrationId: string, patientId: string) =>
+  `/camp/${campId}/work/registrations/${registrationId}/clinical-route${patientContextQuery(
+    patientId,
+  )}#screenings`;
 
 function protectedCampParticipantName(
   personName: string | null | undefined,
@@ -275,9 +292,9 @@ function CampPageInner() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const contextPatientId = searchParams.get("patient_id") ?? "";
-  const [activeTab, setActiveTab] = useState<string | null>("camps");
+  const [activeTab, setActiveTab] = useHashTabs("camps", CAMP_LANDING_TAB_VALUES);
   const openCampWorkspace = (campId: string) => {
-    navigate(`/camp/${campId}/work${patientContextQuery(contextPatientId)}`);
+    navigate(campWorkPath(campId, contextPatientId));
   };
 
   return (
@@ -329,8 +346,9 @@ function CampWorkPageInner({ initialTab = "registrations" }: CampWorkPageProps =
   const [searchParams] = useSearchParams();
   const contextPatientId = searchParams.get("patient_id") ?? "";
   const canViewRegistrations = useHasPermission(P.CAMP.REGISTRATIONS_LIST);
-  const [activeTab, setActiveTab] = useState<string | null>(
-    registrationId ? "screenings" : initialTab,
+  const [activeTab, setActiveTab] = useHashTabs(
+    campWorkDefaultTab(initialTab, registrationId),
+    CAMP_WORK_TAB_VALUES,
   );
   const [focusedRegistrationId, setFocusedRegistrationId] = useState<string | null>(
     registrationId ?? null,
@@ -377,7 +395,11 @@ function CampWorkPageInner({ initialTab = "registrations" }: CampWorkPageProps =
     { value: "screenings", label: "Clinical Screening", icon: <IconStethoscope size={16} /> },
     { value: "followups", label: "Follow-up", icon: <IconCalendarCheck size={16} /> },
     { value: "analytics", label: "Report", icon: <IconChartBar size={16} /> },
-  ];
+  ] satisfies Array<{
+    value: CampWorkTabValue;
+    label: string;
+    icon: ReactNode;
+  }>;
   const activeWorkTab = workTabs.some((tab) => tab.value === activeTab)
     ? activeTab
     : "registrations";
@@ -397,10 +419,7 @@ function CampWorkPageInner({ initialTab = "registrations" }: CampWorkPageProps =
             : "Choose an active camp to start registration and screening"
         }
         actions={
-          <Button
-            variant="light"
-            onClick={() => navigate(`/camp${patientContextQuery(contextPatientId)}`)}
-          >
+          <Button variant="light" onClick={() => navigate(campLandingPath(contextPatientId))}>
             Back to Camp Management
           </Button>
         }
@@ -516,7 +535,7 @@ function CampWorkPageInner({ initialTab = "registrations" }: CampWorkPageProps =
                   onChange={(nextCampId) => {
                     setFocusedRegistrationId(null);
                     if (nextCampId) {
-                      navigate(`/camp/${nextCampId}/work${patientContextQuery(contextPatientId)}`);
+                      navigate(campWorkPath(nextCampId, contextPatientId));
                     }
                   }}
                   searchable
@@ -581,7 +600,7 @@ function CampWorkPageInner({ initialTab = "registrations" }: CampWorkPageProps =
                     variant="light"
                     color="orange"
                     leftSection={<IconArrowRight size={14} />}
-                    onClick={() => navigate(`/camp${patientContextQuery(contextPatientId)}`)}
+                    onClick={() => navigate(campLandingPath(contextPatientId))}
                     fullWidth
                   >
                     Camp Management
@@ -716,20 +735,14 @@ function CampPatientContextPanel({ patientId }: { patientId: string }) {
           <Button
             size="xs"
             variant="light"
-            onClick={() =>
-              navigate(
-                `/camp/${row.camp_id}/work/registrations/${row.id}/clinical-route${patientContextQuery(
-                  patientId,
-                )}`,
-              )
-            }
+            onClick={() => navigate(campClinicalRoutePath(row.camp_id, row.id, patientId))}
           >
             Open Flow
           </Button>
           <Button
             size="xs"
             variant="subtle"
-            onClick={() => navigate(`/camp/${row.camp_id}/work${patientContextQuery(patientId)}`)}
+            onClick={() => navigate(campWorkPath(row.camp_id, patientId))}
           >
             Work Camp
           </Button>
@@ -770,7 +783,7 @@ function CampPatientContextPanel({ patientId }: { patientId: string }) {
                   }))}
                   onChange={(campId) => {
                     if (campId) {
-                      navigate(`/camp/${campId}/work${patientContextQuery(patientId)}`);
+                      navigate(campWorkPath(campId, patientId));
                     }
                   }}
                   w={320}

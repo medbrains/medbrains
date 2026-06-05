@@ -51,12 +51,12 @@ export function patientJourneyActionRoute(
         : `/emergency?tab=mlc&patient_id=${context.patientId}`;
     case "camp.open_context":
       if (context.activeCampId && context.activeCampRegistrationId) {
-        return `/camp/${context.activeCampId}/work/registrations/${context.activeCampRegistrationId}/clinical-route?patient_id=${context.patientId}`;
+        return `/camp/${context.activeCampId}/work/registrations/${context.activeCampRegistrationId}/clinical-route?patient_id=${context.patientId}#screenings`;
       }
       if (context.activeCampId) {
-        return `/camp/${context.activeCampId}/work?patient_id=${context.patientId}`;
+        return `/camp/${context.activeCampId}/work?patient_id=${context.patientId}#registrations`;
       }
-      return `/camp?patient_id=${context.patientId}`;
+      return `/camp?patient_id=${context.patientId}#camps`;
     case "billing.open_ledger":
       if (context.activeInvoiceId) {
         return `/billing/invoices/${context.activeInvoiceId}`;
