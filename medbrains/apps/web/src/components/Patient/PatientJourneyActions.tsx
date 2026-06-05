@@ -112,6 +112,7 @@ function actionVariant(intent: ClinicalJourneyActionIntent) {
 
 function supportsAction(
   actionId: ClinicalJourneyActionId,
+  context: ClinicalJourneyContext,
   handlers: Pick<
     PatientJourneyActionsProps,
     "onOpenOrderBasket" | "onPrintPatientCard" | "onShare"
@@ -125,7 +126,9 @@ function supportsAction(
     case "orders.medication":
     case "orders.lab":
     case "orders.radiology":
-      return Boolean(handlers.onOpenOrderBasket);
+      return (
+        Boolean(handlers.onOpenOrderBasket) || patientJourneyActionRoute(actionId, context) !== null
+      );
     default:
       return true;
   }
@@ -183,7 +186,11 @@ export function PatientJourneyActions({
   const actions = resolveClinicalJourneyActions(journeyContext, hasPermission, "web").filter(
     (action) =>
       !hiddenActions.has(action.id) &&
-      supportsAction(action.id, { onOpenOrderBasket, onPrintPatientCard, onShare }),
+      supportsAction(action.id, journeyContext, {
+        onOpenOrderBasket,
+        onPrintPatientCard,
+        onShare,
+      }),
   );
 
   function handleAction(actionId: ClinicalJourneyActionId) {
