@@ -17,6 +17,8 @@ import { tvQueueService } from "../services/tvQueue.service.js";
 
 const REFRESH_INTERVAL_MS = 5_000;
 const DISPLAY_TOKEN_LIMIT = 12;
+const PRIVACY_NOTICE =
+  "Token-only public display. Patient names, identifiers, diagnoses and contact details are withheld.";
 
 interface QueueScreenProps {
   route?: {
@@ -84,6 +86,7 @@ function QueueScreen({ route }: QueueScreenProps) {
           : "Live hospital token call. Please proceed when your token is called."
       }
       legend={`Updates every 5 seconds · last sync ${syncLabel} · medbrains://tv/queue`}
+      privacyNotice={PRIVACY_NOTICE}
       tags={["TV-Queue", "TV-DoctorRoom", "Desktop-Kiosk", "OPD"]}
     >
       <TvSummaryRow

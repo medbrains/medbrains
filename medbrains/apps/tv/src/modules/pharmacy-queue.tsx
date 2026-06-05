@@ -17,6 +17,8 @@ import { tvQueueService } from "../services/tvQueue.service.js";
 
 const REFRESH_INTERVAL_MS = 10_000;
 const DISPLAY_TOKEN_LIMIT = 10;
+const PRIVACY_NOTICE =
+  "Token-only pickup display. Patient names, identifiers, drug names and prescription notes are withheld.";
 
 function statusColor(status: string) {
   switch (status) {
@@ -62,6 +64,7 @@ function PharmacyQueueScreen() {
       title="Dispensing queue"
       subtitle="Please proceed to the counter when your token shows."
       legend={`Updates every 10 seconds · last sync ${syncLabel} · medbrains://tv/pharmacy-queue`}
+      privacyNotice={PRIVACY_NOTICE}
       tags={["TV-Pharmacy", "pharmacy", "dispense", "queue"]}
     >
       <TvSummaryRow

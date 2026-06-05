@@ -17,6 +17,8 @@ import { tvQueueService } from "../services/tvQueue.service.js";
 
 const REFRESH_INTERVAL_MS = 10_000;
 const DISPLAY_TOKEN_LIMIT = 10;
+const PRIVACY_NOTICE =
+  "Token-only counter display. Patient names, identifiers, bill amounts and payer details are withheld.";
 
 function statusColor(status: string) {
   switch (status) {
@@ -65,6 +67,7 @@ function BillingQueueScreen() {
       title="Counter queue"
       subtitle="Please proceed to the billing desk when your token shows."
       legend={`Updates every 10 seconds · last sync ${syncLabel} · medbrains://tv/billing-queue`}
+      privacyNotice={PRIVACY_NOTICE}
       tags={["TV-Billing", "billing", "cashier", "insurance"]}
     >
       <TvSummaryRow

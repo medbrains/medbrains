@@ -26,6 +26,8 @@ import {
 import { MEDBRAINS_COLORS } from "../../theme/paper-theme";
 
 const TOKEN_LIMIT = 6;
+const PRIVACY_NOTICE =
+  "Token-only display mode. Patient names, identifiers, diagnoses, drug names and bill amounts stay hidden.";
 
 const TRIAGE_LANES: ReadonlyArray<{
   color: string;
@@ -114,6 +116,22 @@ function SummaryMetric({
       <Text variant="labelSmall" style={styles.metricLabel}>
         {label}
       </Text>
+    </Surface>
+  );
+}
+
+function PrivacyNotice() {
+  return (
+    <Surface style={styles.privacyPanel} elevation={0}>
+      <Avatar.Icon size={34} icon="shield-check-outline" style={styles.privacyIcon} />
+      <View style={styles.privacyTextBlock}>
+        <Text variant="labelSmall" style={styles.privacyTitle}>
+          Privacy display mode
+        </Text>
+        <Text variant="bodySmall" style={styles.privacyText}>
+          {PRIVACY_NOTICE}
+        </Text>
+      </View>
     </Surface>
   );
 }
@@ -321,6 +339,8 @@ export function TokenBoardsScreen() {
           <Avatar.Icon size={48} icon="monitor-dashboard" />
         </View>
 
+        <PrivacyNotice />
+
         <View style={styles.metricGrid}>
           <SummaryMetric
             color={MEDBRAINS_COLORS.red}
@@ -499,6 +519,32 @@ const styles = StyleSheet.create({
   },
   overdueChip: {
     backgroundColor: MEDBRAINS_COLORS.statusDangerBg,
+  },
+  privacyIcon: {
+    backgroundColor: MEDBRAINS_COLORS.statusSuccessBg,
+  },
+  privacyPanel: {
+    alignItems: "center",
+    backgroundColor: MEDBRAINS_COLORS.statusSuccessBg,
+    borderColor: MEDBRAINS_COLORS.emerald,
+    borderRadius: 14,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 10,
+    padding: 12,
+  },
+  privacyText: {
+    color: MEDBRAINS_COLORS.ink,
+  },
+  privacyTextBlock: {
+    flex: 1,
+    gap: 2,
+  },
+  privacyTitle: {
+    color: MEDBRAINS_COLORS.statusSuccess,
+    fontWeight: "800",
+    letterSpacing: 0.8,
+    textTransform: "uppercase",
   },
   restrictedPanel: {
     alignItems: "center",

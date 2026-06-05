@@ -11,6 +11,8 @@ import { tvQueueService } from "../services/tvQueue.service.js";
 
 const REFRESH_INTERVAL_MS = 5_000;
 const DISPLAY_TOKEN_LIMIT = 8;
+const PRIVACY_NOTICE =
+  "Token-only triage display. Patient names, identifiers, injuries and clinical notes are withheld.";
 
 const TRIAGE_LANES: ReadonlyArray<{
   color: string;
@@ -88,6 +90,7 @@ function EmergencyTriageScreen() {
       title="Triage board"
       subtitle="Live triage queue with token-only public display."
       legend={`Updates every 5 seconds · last sync ${syncLabel} · medbrains://tv/emergency-triage`}
+      privacyNotice={PRIVACY_NOTICE}
       tags={["TV-Emergency", "triage", "token-only", "staff-display"]}
     >
       <TvSummaryRow

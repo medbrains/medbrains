@@ -18,6 +18,7 @@ export interface TvBoardProps {
   title: string;
   subtitle?: string;
   legend?: string;
+  privacyNotice?: string;
   tags?: ReadonlyArray<string>;
   children?: ReactNode;
 }
@@ -27,6 +28,7 @@ export function TvBoard({
   title,
   subtitle,
   legend,
+  privacyNotice,
   tags = [],
   children,
 }: TvBoardProps): ReactNode {
@@ -77,6 +79,7 @@ export function TvBoard({
           </View>
         )}
       </View>
+      {privacyNotice && <TvPrivacyNotice label={privacyNotice} />}
       {children}
       {legend && (
         <View style={{ marginTop: SPACING.xl }}>
@@ -93,6 +96,42 @@ export function TvBoard({
         </View>
       )}
     </ScrollView>
+  );
+}
+
+function TvPrivacyNotice({ label }: { label: string }): ReactNode {
+  return (
+    <View
+      style={{
+        backgroundColor: "rgba(28, 183, 133, 0.16)",
+        borderColor: COLORS.emerald,
+        borderRadius: 10,
+        borderWidth: 2,
+        marginBottom: SPACING.lg,
+        padding: SPACING.md,
+      }}
+    >
+      <Text
+        style={{
+          color: COLORS.emerald,
+          fontFamily: "JetBrainsMono-Regular",
+          fontSize: 16,
+          letterSpacing: 2,
+          textTransform: "uppercase",
+        }}
+      >
+        Privacy display mode
+      </Text>
+      <Text
+        style={{
+          color: COLORS.canvas,
+          fontSize: 22,
+          marginTop: SPACING.xs,
+        }}
+      >
+        {label}
+      </Text>
+    </View>
   );
 }
 
