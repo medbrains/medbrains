@@ -1,7 +1,11 @@
 // @vitest-environment node
 
 import type { AccessMatrixSurface, AccessMatrixSurfaceKind } from "@medbrains/types";
-import { ACCESS_MATRIX_SURFACES, FIELD_ACCESS_FIELDS } from "@medbrains/types";
+import {
+  ACCESS_MATRIX_SURFACES,
+  CLINICAL_EVENT_REQUIRED_PAYLOAD_KEYS,
+  FIELD_ACCESS_FIELDS,
+} from "@medbrains/types";
 import { describe, expect, it } from "vitest";
 import type { NavGroupConfig } from "@/config/navigation";
 import {
@@ -202,6 +206,17 @@ describe("access matrix route coverage", () => {
 
     expect(surfaceKeysMissingFromRegistry).toEqual([]);
     expect(registeredKeysNotMapped).toEqual([]);
+  });
+
+  it("keeps access-surface activation events aligned with the clinical event registry", () => {
+    const registeredEvents = new Set(Object.keys(CLINICAL_EVENT_REQUIRED_PAYLOAD_KEYS));
+    const mappedEvents = new Set(
+      ACCESS_MATRIX_SURFACES.flatMap((surface) => [...surface.activatesAfter]),
+    );
+
+    const missingEvents = [...mappedEvents].filter((event) => !registeredEvents.has(event)).sort();
+
+    expect(missingEvents).toEqual([]);
   });
 
   it("separates IPD admission workspace activation from bed assignment activation", () => {

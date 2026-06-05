@@ -1,3 +1,4 @@
+import type { ClinicalEventName } from "./index.js";
 import { P } from "./permissions.js";
 import { TOKEN_BOARD_SURFACES, type TokenBoardSurfaceId } from "./token-board-surfaces.js";
 
@@ -42,7 +43,7 @@ export interface AccessMatrixSurface {
   table?: string;
   fieldAccessKeys: readonly string[];
   requiredPermissions: readonly string[];
-  activatesAfter: readonly string[];
+  activatesAfter: readonly ClinicalEventName[];
   platforms: readonly AccessMatrixPlatform[];
   masking: AccessMatrixMaskingBehavior;
   printArtifacts: readonly string[];
@@ -63,7 +64,7 @@ type SurfaceInput = Omit<
   | "requiresPrinter"
   | "standardRefs"
 > & {
-  activatesAfter?: readonly string[];
+  activatesAfter?: readonly ClinicalEventName[];
   fieldAccessKeys?: readonly string[];
   platforms?: readonly AccessMatrixPlatform[];
   printArtifacts?: readonly string[];
@@ -223,7 +224,7 @@ function tokenBoardAccessSurface({
   id,
   masking,
 }: {
-  activatesAfter: readonly string[];
+  activatesAfter: readonly ClinicalEventName[];
   fieldAccessKeys: readonly string[];
   id: TokenBoardSurfaceId;
   masking: AccessMatrixMaskingBehavior;
@@ -258,10 +259,11 @@ const TOKEN_BOARD_ACCESS_SURFACES: readonly AccessMatrixSurface[] = [
     masking: "identity",
     activatesAfter: [
       "opd.encounter.created",
-      "lab.sample.created",
-      "radiology.order.created",
+      "order.created",
       "emergency.visit.created",
-      "pharmacy.order.created",
+      "lab.order.completed",
+      "radiology.order.completed",
+      "pharmacy.order.dispensed",
       "billing.invoice.created",
     ],
     platforms: ["web", "mobile"],
@@ -277,25 +279,25 @@ const TOKEN_BOARD_ACCESS_SURFACES: readonly AccessMatrixSurface[] = [
     id: "lab",
     fieldAccessKeys: LAB_PUBLIC_QUEUE_FIELDS,
     masking: "clinical",
-    activatesAfter: ["lab.sample.created", "lab.result.posted"],
+    activatesAfter: ["order.created", "lab.order.completed", "lab.result.posted"],
   }),
   tokenBoardAccessSurface({
     id: "radiology",
     fieldAccessKeys: RADIOLOGY_PUBLIC_QUEUE_FIELDS,
     masking: "regulatory",
-    activatesAfter: ["radiology.order.created", "radiology.report.verified"],
+    activatesAfter: ["order.created", "radiology.order.completed", "radiology.report.verified"],
   }),
   tokenBoardAccessSurface({
     id: "emergency",
     fieldAccessKeys: [...PATIENT_IDENTITY_FIELDS, ...EMERGENCY_MLC_FIELDS],
     masking: "regulatory",
-    activatesAfter: ["emergency.visit.created", "emergency.triage.updated"],
+    activatesAfter: ["emergency.visit.created"],
   }),
   tokenBoardAccessSurface({
     id: "pharmacy",
     fieldAccessKeys: PHARMACY_PUBLIC_QUEUE_FIELDS,
     masking: "clinical",
-    activatesAfter: ["pharmacy.order.created", "pharmacy.order.dispensed"],
+    activatesAfter: ["order.created", "pharmacy.order.dispensed"],
   }),
   tokenBoardAccessSurface({
     id: "billing",
