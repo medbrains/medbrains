@@ -1569,6 +1569,7 @@ function InvoiceDetail({
             patientId={inv.patient_id}
             active="billing"
             activeEncounterId={inv.encounter_id}
+            activeInvoiceId={inv.id}
             completedEvents={completedEvents}
             compact
           />

@@ -51,6 +51,9 @@ export function patientJourneyActionRoute(
       }
       return `/camp?patient_id=${context.patientId}`;
     case "billing.open_ledger":
+      if (context.activeInvoiceId) {
+        return `/billing/invoices/${context.activeInvoiceId}`;
+      }
       return `/billing?tab=invoices&patient_id=${context.patientId}`;
     case "billing.prepare_discharge_bill":
       return `/billing?tab=invoices&patient_id=${context.patientId}&source=ipd_discharge`;

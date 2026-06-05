@@ -153,6 +153,9 @@ export function inferClinicalJourneyEventNames(context: ClinicalJourneyContext):
   if (context.activePharmacyOrderId) {
     events.add("order.created");
   }
+  if (context.activeInvoiceId) {
+    events.add("billing.invoice.created");
+  }
 
   return [...events];
 }

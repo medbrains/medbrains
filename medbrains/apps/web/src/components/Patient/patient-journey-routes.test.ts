@@ -77,6 +77,12 @@ describe("patient journey action routes", () => {
 
   it("routes payment collection to the active invoice when available", () => {
     expect(
+      patientJourneyActionRoute("billing.open_ledger", {
+        ...baseContext,
+        activeInvoiceId: "invoice-1",
+      }),
+    ).toBe("/billing/invoices/invoice-1");
+    expect(
       patientJourneyActionRoute("billing.collect_payment", {
         ...baseContext,
         activeInvoiceId: "invoice-1",
