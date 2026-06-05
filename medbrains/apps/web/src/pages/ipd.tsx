@@ -202,8 +202,10 @@ import {
 import classes from "./ipd.module.scss";
 import {
   type IpdActionRailSection,
+  ipdActionRailAction,
   ipdActionRailSectionsForTab,
   ipdWorkspaceTabForOrderBasket,
+  resolveIpdActionRailActions,
 } from "./ipd-workspace";
 
 const statusColors: Record<string, string> = {
@@ -1008,32 +1010,25 @@ function AdmissionDetail({
   const latestMrdCaseSheet = mrdCaseSheetPackets[0];
   const admissionIsActive = adm.status === "admitted";
   const admissionHasAssignedBed = Boolean(adm.bed_id);
-  const orderActionsEnabled = admissionIsActive && admissionHasAssignedBed;
-  const orderTooltip = (label: string) => {
-    if (!admissionIsActive) return "Orders need an active admission";
-    if (!admissionHasAssignedBed) return "Assign a bed before inpatient orders";
-    return label;
-  };
-  const transferOutTooltip = canCreateTransfer
-    ? admissionIsActive
-      ? "Refer or transfer the patient out"
-      : "Transfer needs an active admission"
-    : "Transfer permission required";
-  const damaTooltip = canDischarge
-    ? admissionIsActive
-      ? "Start DAMA / LAMA discharge workflow"
-      : "DAMA / LAMA needs an active admission"
-    : "Discharge permission required";
-  const deathRecordTooltip = canManageDeathRecords
-    ? admissionIsActive
-      ? "Create death record and mark the admission"
-      : "Death record needs an active admission"
-    : "Death record permission required";
   const activeWorkspaceSection =
     IPD_WORKSPACE_TABS.find((tab) => tab.value === activeWorkspaceTab)?.section ?? "Command";
   const focusedActionRailSections = ipdActionRailSectionsForTab(activeWorkspaceTab);
   const actionRailSectionFocused = (section: IpdActionRailSection) =>
     focusedActionRailSections.includes(section);
+  const actionRailActions = resolveIpdActionRailActions({
+    admissionHasAssignedBed,
+    admissionIsActive,
+    canCreateTransfer,
+    canDischarge,
+    canManageDeathRecords,
+    canOrder,
+  });
+  const orderMedicinesAction = ipdActionRailAction(actionRailActions, "order_medicines");
+  const orderLabAction = ipdActionRailAction(actionRailActions, "order_lab");
+  const orderImagingAction = ipdActionRailAction(actionRailActions, "order_imaging");
+  const referOutAction = ipdActionRailAction(actionRailActions, "refer_out");
+  const damaAction = ipdActionRailAction(actionRailActions, "dama_lama");
+  const markDeathAction = ipdActionRailAction(actionRailActions, "mark_death");
   const journeyContext: ClinicalJourneyContext = {
     patientId: adm.patient_id,
     activeEncounterId: adm.encounter_id,
@@ -1286,7 +1281,7 @@ function AdmissionDetail({
             <Tabs.Panel value="investigations" pt="md">
               <InvestigationsTab
                 admissionId={admissionId}
-                canOrder={canOrder && orderActionsEnabled}
+                canOrder={orderLabAction.enabled || orderImagingAction.enabled}
                 onOrderLab={() => openOrderBasket("lab")}
                 onOrderRadiology={() => openOrderBasket("radiology")}
               />
@@ -1385,14 +1380,16 @@ function AdmissionDetail({
                   <Text size="xs" fw={700} c="dimmed" tt="uppercase">
                     Orders
                   </Text>
-                  <Tooltip label={orderTooltip("Order medicines")}>
+                  <Tooltip
+                    label={orderMedicinesAction.disabledReasonText ?? orderMedicinesAction.label}
+                  >
                     <span>
                       <Button
                         size="xs"
                         variant="light"
                         color="teal"
                         leftSection={<IconPill size={14} />}
-                        disabled={!orderActionsEnabled || !canOrder}
+                        disabled={!orderMedicinesAction.enabled}
                         onClick={() => openOrderBasket("drug")}
                         fullWidth
                       >
@@ -1400,14 +1397,14 @@ function AdmissionDetail({
                       </Button>
                     </span>
                   </Tooltip>
-                  <Tooltip label={orderTooltip("Order lab tests")}>
+                  <Tooltip label={orderLabAction.disabledReasonText ?? orderLabAction.label}>
                     <span>
                       <Button
                         size="xs"
                         variant="light"
                         color="teal"
                         leftSection={<IconFlask size={14} />}
-                        disabled={!orderActionsEnabled || !canOrder}
+                        disabled={!orderLabAction.enabled}
                         onClick={() => openOrderBasket("lab")}
                         fullWidth
                       >
@@ -1415,14 +1412,16 @@ function AdmissionDetail({
                       </Button>
                     </span>
                   </Tooltip>
-                  <Tooltip label={orderTooltip("Order imaging")}>
+                  <Tooltip
+                    label={orderImagingAction.disabledReasonText ?? orderImagingAction.label}
+                  >
                     <span>
                       <Button
                         size="xs"
                         variant="light"
                         color="teal"
                         leftSection={<IconEye size={14} />}
-                        disabled={!orderActionsEnabled || !canOrder}
+                        disabled={!orderImagingAction.enabled}
                         onClick={() => openOrderBasket("radiology")}
                         fullWidth
                       >
@@ -1547,14 +1546,14 @@ function AdmissionDetail({
                   >
                     Wristband
                   </Button>
-                  <Tooltip label={transferOutTooltip}>
+                  <Tooltip label={referOutAction.disabledReasonText ?? referOutAction.label}>
                     <span>
                       <Button
                         size="xs"
                         variant="light"
                         color="primary"
                         leftSection={<IconArrowsTransferDown size={14} />}
-                        disabled={!admissionIsActive || !canCreateTransfer}
+                        disabled={!referOutAction.enabled}
                         onClick={openTransferOut}
                         fullWidth
                       >
@@ -1562,14 +1561,14 @@ function AdmissionDetail({
                       </Button>
                     </span>
                   </Tooltip>
-                  <Tooltip label={damaTooltip}>
+                  <Tooltip label={damaAction.disabledReasonText ?? damaAction.label}>
                     <span>
                       <Button
                         size="xs"
                         variant="light"
                         color="warning"
                         leftSection={<IconUserOff size={14} />}
-                        disabled={!admissionIsActive || !canDischarge}
+                        disabled={!damaAction.enabled}
                         onClick={openDama}
                         fullWidth
                       >
@@ -1577,14 +1576,14 @@ function AdmissionDetail({
                       </Button>
                     </span>
                   </Tooltip>
-                  <Tooltip label={deathRecordTooltip}>
+                  <Tooltip label={markDeathAction.disabledReasonText ?? markDeathAction.label}>
                     <span>
                       <Button
                         size="xs"
                         variant="light"
                         color="danger"
                         leftSection={<IconCross size={14} />}
-                        disabled={!admissionIsActive || !canManageDeathRecords}
+                        disabled={!markDeathAction.enabled}
                         onClick={openDeath}
                         fullWidth
                       >
