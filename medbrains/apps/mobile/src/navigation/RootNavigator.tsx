@@ -23,6 +23,7 @@ import {
   ProfileScreen,
   QueuePositionScreen,
   QueueScreen,
+  RadiologyOrderScreen,
   SampleCollectionScreen,
   StaffDashboard,
   TokenBoardsScreen,
@@ -64,6 +65,7 @@ export type RootStackParamList = {
   Vitals: { encounterId?: string; patientId?: string };
   Prescription: { encounterId?: string; patientId?: string };
   LabOrder: { encounterId?: string; patientId?: string };
+  RadiologyOrder: { encounterId?: string; patientId?: string };
   LabResultsView: { orderId?: string; patientId?: string };
   ConsultationNotes: { encounterId: string; patientId?: string };
 
@@ -178,6 +180,11 @@ function StaffStack() {
         options={{ title: "E-Prescription" }}
       />
       <Stack.Screen name="LabOrder" component={LabOrderScreen} options={{ title: "Lab Orders" }} />
+      <Stack.Screen
+        name="RadiologyOrder"
+        component={RadiologyOrderScreen}
+        options={{ title: "Imaging Order" }}
+      />
       <Stack.Screen
         name="LabResultsView"
         component={LabResultsViewScreen}

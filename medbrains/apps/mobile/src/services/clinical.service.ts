@@ -8,6 +8,8 @@ export type ListPharmacyCatalogInput = Parameters<typeof api.listPharmacyCatalog
 export type ListLabCatalogInput = Parameters<typeof api.listLabCatalog>[0];
 export type ListLabOrdersInput = Parameters<typeof api.listLabOrders>[0];
 export type CreateLabOrderInput = Parameters<typeof api.createLabOrder>[0];
+export type ListRadiologyOrdersInput = Parameters<typeof api.listRadiologyOrders>[0];
+export type CreateRadiologyOrderInput = Parameters<typeof api.createRadiologyOrder>[0];
 
 export const clinicalService = {
   listVitals: (encounterId: string) => api.listVitals(encounterId),
@@ -29,4 +31,7 @@ export const clinicalService = {
   listLabOrders: (params: ListLabOrdersInput) => api.listLabOrders(params),
   getLabOrder: (orderId: string) => api.getLabOrder(orderId),
   createLabOrder: (data: CreateLabOrderInput) => api.createLabOrder(data),
+  listRadiologyOrders: (params: ListRadiologyOrdersInput) => api.listRadiologyOrders(params),
+  createRadiologyOrder: (data: CreateRadiologyOrderInput) => api.createRadiologyOrder(data),
+  listRadiologyModalities: () => api.listRadiologyModalities(),
 };

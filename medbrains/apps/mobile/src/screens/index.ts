@@ -23,6 +23,7 @@ export { PatientPharmacyScreen } from "./staff/PatientPharmacyScreen";
 export { PatientSearchScreen } from "./staff/PatientSearchScreen";
 export { PrescriptionScreen } from "./staff/PrescriptionScreen";
 export { QueueScreen } from "./staff/QueueScreen";
+export { RadiologyOrderScreen } from "./staff/RadiologyOrderScreen";
 // Staff screens
 export { StaffDashboard } from "./staff/StaffDashboard";
 export { TokenBoardsScreen } from "./staff/TokenBoardsScreen";

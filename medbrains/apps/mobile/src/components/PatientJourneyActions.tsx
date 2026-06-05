@@ -4,7 +4,7 @@ import type {
   ClinicalJourneyContext,
   ResolvedClinicalJourneyAction,
 } from "@medbrains/types";
-import { resolveClinicalJourneyActions } from "@medbrains/types";
+import { P, resolveClinicalJourneyActions } from "@medbrains/types";
 import { StyleSheet, View } from "react-native";
 import { Button, Text } from "react-native-paper";
 
@@ -15,6 +15,7 @@ type MobileJourneyActionId =
   | "opd.open_visit"
   | "orders.lab"
   | "orders.medication"
+  | "orders.radiology"
   | "pharmacy.dispense_order"
   | "pharmacy.open_patient_queue";
 
@@ -32,6 +33,7 @@ const SUPPORTED_MOBILE_ACTIONS = new Set<ClinicalJourneyActionId>([
   "opd.open_visit",
   "orders.medication",
   "orders.lab",
+  "orders.radiology",
   "pharmacy.dispense_order",
   "pharmacy.open_patient_queue",
 ]);
@@ -49,6 +51,8 @@ function actionIcon(actionId: ClinicalJourneyActionId) {
       return "pill";
     case "orders.lab":
       return "flask";
+    case "orders.radiology":
+      return "radioactive";
     case "pharmacy.dispense_order":
     case "pharmacy.open_patient_queue":
       return "pill";
@@ -62,6 +66,7 @@ function actionLabel(action: ResolvedClinicalJourneyAction & { id: MobileJourney
   if (action.id === "billing.open_ledger") return "Billing";
   if (action.id === "billing.prepare_discharge_bill") return "Discharge Bill";
   if (action.id === "opd.open_visit") return "Notes";
+  if (action.id === "orders.radiology") return "Imaging";
   if (action.id === "pharmacy.dispense_order") return "Dispense";
   if (action.id === "pharmacy.open_patient_queue") return "Pharmacy";
   return action.shortLabel;
@@ -80,6 +85,7 @@ function supportedAction(
 function mobileDisabledReason(
   action: ResolvedClinicalJourneyAction & { id: MobileJourneyActionId },
   context: ClinicalJourneyContext,
+  hasPermission: (permission: string) => boolean,
 ) {
   const hasMobileOrderContext =
     Boolean(context.activeEncounterId) &&
@@ -91,8 +97,19 @@ function mobileDisabledReason(
   ) {
     return "Open an OPD encounter before mobile consultation";
   }
-  if ((action.id === "orders.medication" || action.id === "orders.lab") && !hasMobileOrderContext) {
+  if (
+    (action.id === "orders.medication" ||
+      action.id === "orders.lab" ||
+      action.id === "orders.radiology") &&
+    !hasMobileOrderContext
+  ) {
     return "Open an OPD or IPD encounter before mobile orders";
+  }
+  if (
+    action.id === "orders.radiology" &&
+    (!hasPermission(P.RADIOLOGY.ORDERS_CREATE) || !hasPermission(P.RADIOLOGY.ORDERS_LIST))
+  ) {
+    return "Radiology order permission required";
   }
   return action.disabledReasonText;
 }
@@ -104,7 +121,7 @@ export function PatientJourneyActions({ context, navigation }: PatientJourneyAct
   );
 
   function handleAction(action: ResolvedClinicalJourneyAction & { id: MobileJourneyActionId }) {
-    if (mobileDisabledReason(action, context)) return;
+    if (mobileDisabledReason(action, context, hasPermission)) return;
 
     switch (action.id) {
       case "billing.collect_payment":
@@ -145,6 +162,12 @@ export function PatientJourneyActions({ context, navigation }: PatientJourneyAct
           patientId: context.patientId,
         });
         return;
+      case "orders.radiology":
+        navigation.navigate("RadiologyOrder", {
+          encounterId: context.activeEncounterId,
+          patientId: context.patientId,
+        });
+        return;
       case "pharmacy.dispense_order":
         navigation.navigate("PatientPharmacy", {
           handoff: "dispense",
@@ -171,7 +194,7 @@ export function PatientJourneyActions({ context, navigation }: PatientJourneyAct
       </View>
       <View style={styles.actions}>
         {actions.map((action) => {
-          const disabledReason = mobileDisabledReason(action, context);
+          const disabledReason = mobileDisabledReason(action, context, hasPermission);
           return (
             <View key={action.id} style={styles.actionBlock}>
               <Button
