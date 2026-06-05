@@ -151,6 +151,8 @@ function DefaultDashboard({
     if (num >= 1_000) return `${(num / 1_000).toFixed(1)}K`;
     return num.toFixed(0);
   };
+  const reportRoute = (family: string, query: string, priority: "P1" | "P2" | "P3" = "P1") =>
+    `/reports?family=${family}&q=${encodeURIComponent(query)}&priority=${priority}`;
 
   return (
     <div>
@@ -185,6 +187,8 @@ function DefaultDashboard({
               ? { value: stats.today_registrations, label: "new today" }
               : undefined
           }
+          onClick={() => navigate(reportRoute("opd", "patient registration"))}
+          actionLabel="Open patient registration reports"
         />
         <StatCard
           label={t("stats.opdQueue")}
@@ -194,18 +198,24 @@ function DefaultDashboard({
           trend={
             stats?.today_visits ? { value: stats.today_visits, label: "visits today" } : undefined
           }
+          onClick={() => navigate(reportRoute("opd", "queue visits"))}
+          actionLabel="Open OPD queue reports"
         />
         <StatCard
           label={t("stats.labPending")}
           value={stats?.lab_pending ?? 0}
           icon={<IconFlask size={20} stroke={1.5} />}
           color="orange"
+          onClick={() => navigate(reportRoute("lab", "pending lab"))}
+          actionLabel="Open laboratory pending reports"
         />
         <StatCard
           label={t("stats.revenueToday")}
           value={stats ? `₹${formatRevenue(stats.today_revenue)}` : "--"}
           icon={<IconReceipt size={20} stroke={1.5} />}
           color="violet"
+          onClick={() => navigate(reportRoute("finance", "revenue billing"))}
+          actionLabel="Open finance revenue reports"
         />
       </SimpleGrid>
 
@@ -216,12 +226,16 @@ function DefaultDashboard({
           value={stats?.today_appointments ?? 0}
           icon={<IconCalendar size={20} stroke={1.5} />}
           color="primary"
+          onClick={() => navigate(reportRoute("opd", "appointments no show", "P2"))}
+          actionLabel="Open appointment reports"
         />
         <StatCard
           label={t("stats.ipdActive")}
           value={stats?.ipd_active ?? 0}
           icon={<IconBed size={20} stroke={1.5} />}
           color="info"
+          onClick={() => navigate(reportRoute("ipd", "active admissions bed occupancy"))}
+          actionLabel="Open IPD occupancy reports"
         />
       </SimpleGrid>
 

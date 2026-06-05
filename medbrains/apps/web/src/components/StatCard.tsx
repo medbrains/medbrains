@@ -1,4 +1,4 @@
-import { Card, Group, Text, ThemeIcon } from "@mantine/core";
+import { Card, Group, Text, ThemeIcon, UnstyledButton } from "@mantine/core";
 import { IconArrowDownRight, IconArrowUpRight } from "@tabler/icons-react";
 import type { ReactNode } from "react";
 
@@ -8,10 +8,20 @@ interface StatCardProps {
   icon: ReactNode;
   color?: string;
   trend?: { value: number; label?: string };
+  onClick?: () => void;
+  actionLabel?: string;
 }
 
-export function StatCard({ label, value, icon, color = "primary", trend }: StatCardProps) {
-  return (
+export function StatCard({
+  label,
+  value,
+  icon,
+  color = "primary",
+  trend,
+  onClick,
+  actionLabel,
+}: StatCardProps) {
+  const card = (
     <Card className="stat-card" padding="lg">
       <Group justify="space-between" mb="sm">
         <Text
@@ -56,5 +66,17 @@ export function StatCard({ label, value, icon, color = "primary", trend }: StatC
         </Group>
       )}
     </Card>
+  );
+
+  if (!onClick) return card;
+
+  return (
+    <UnstyledButton
+      onClick={onClick}
+      aria-label={actionLabel ?? `Open ${label}`}
+      style={{ display: "block", width: "100%" }}
+    >
+      {card}
+    </UnstyledButton>
   );
 }
