@@ -1,4 +1,13 @@
-import type { ClinicalEventName } from "@medbrains/types";
+import type {
+  ClinicalEventName,
+  InvestigationsResponse,
+  Invoice,
+  InvoiceStatus,
+  IpdDischargeSummary,
+  MrdCaseSheetPacket,
+  PharmacyOrder,
+  PrescriptionWithItems,
+} from "@medbrains/types";
 import { P } from "@medbrains/types";
 
 export type IpdActionRailSection =
@@ -43,6 +52,115 @@ export interface ResolvedIpdActionRailAction extends IpdActionRailActionDefiniti
 
 const ADMISSION_CREATED: readonly ClinicalEventName[] = ["ipd.admission.created"];
 const ADMISSION_WITH_BED: readonly ClinicalEventName[] = ["ipd.admission.created", "bed.assigned"];
+const FINALIZED_INVOICE_STATUSES: readonly InvoiceStatus[] = ["issued", "partially_paid", "paid"];
+const OPEN_INVOICE_STATUSES: readonly InvoiceStatus[] = ["draft", "issued", "partially_paid"];
+
+interface IpdJourneyEventSources {
+  dischargeSummary: IpdDischargeSummary | null | undefined;
+  investigations: InvestigationsResponse | null | undefined;
+  invoices: readonly Invoice[];
+  mrdCaseSheetPackets: readonly MrdCaseSheetPacket[];
+  pharmacyOrders: readonly PharmacyOrder[];
+  prescriptions: readonly PrescriptionWithItems[];
+}
+
+function parseMoney(value: string): number {
+  const parsed = Number.parseFloat(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function invoiceHasBalance(invoice: Invoice): boolean {
+  return parseMoney(invoice.total_amount) - parseMoney(invoice.paid_amount) > 0.004;
+}
+
+function invoiceIsOpen(invoice: Invoice): boolean {
+  return OPEN_INVOICE_STATUSES.includes(invoice.status);
+}
+
+export function activeIpdInvoiceIdForJourney(invoices: readonly Invoice[]): string | null {
+  return (
+    invoices.find((invoice) => invoiceIsOpen(invoice) && invoiceHasBalance(invoice))?.id ??
+    invoices.find((invoice) => invoiceIsOpen(invoice))?.id ??
+    invoices.find((invoice) => invoice.status !== "cancelled" && invoice.status !== "refunded")
+      ?.id ??
+    null
+  );
+}
+
+export function activeIpdPharmacyOrderIdForJourney({
+  pharmacyOrders,
+  prescriptions,
+}: {
+  pharmacyOrders: readonly PharmacyOrder[];
+  prescriptions: readonly PrescriptionWithItems[];
+}): string | null {
+  return (
+    prescriptions.find((prescription) => prescription.pharmacy_order_id)?.pharmacy_order_id ??
+    pharmacyOrders.find((order) => order.status === "ordered")?.id ??
+    pharmacyOrders.find((order) => order.status === "dispensed")?.id ??
+    pharmacyOrders[0]?.id ??
+    null
+  );
+}
+
+export function deriveIpdJourneyCompletedEvents({
+  dischargeSummary,
+  investigations,
+  invoices,
+  mrdCaseSheetPackets,
+  pharmacyOrders,
+  prescriptions,
+}: IpdJourneyEventSources): readonly ClinicalEventName[] {
+  const events: ClinicalEventName[] = [];
+  const hasOrders =
+    prescriptions.length > 0 ||
+    pharmacyOrders.length > 0 ||
+    (investigations?.lab_orders.length ?? 0) > 0 ||
+    (investigations?.radiology_orders.length ?? 0) > 0;
+
+  if (hasOrders) {
+    events.push("order.created");
+  }
+  if (invoices.length > 0) {
+    events.push("billing.invoice.created");
+  }
+  if (invoices.some((invoice) => FINALIZED_INVOICE_STATUSES.includes(invoice.status))) {
+    events.push("billing.invoice.finalized");
+  }
+  if (
+    invoices.some(
+      (invoice) =>
+        invoice.status === "partially_paid" ||
+        invoice.status === "paid" ||
+        parseMoney(invoice.paid_amount) > 0,
+    )
+  ) {
+    events.push("billing.payment.received");
+  }
+  if (
+    pharmacyOrders.some((order) => order.status === "dispensed") ||
+    prescriptions.some(
+      (prescription) =>
+        prescription.pharmacy_status === "dispensed" ||
+        prescription.pharmacy_status === "partially_dispensed",
+    )
+  ) {
+    events.push("pharmacy.order.dispensed");
+  }
+  if (dischargeSummary?.status === "finalized" || dischargeSummary?.finalized_at) {
+    events.push("ipd.discharge.finalized");
+  }
+  if (mrdCaseSheetPackets.length > 0) {
+    events.push("mrd.case_sheet.generated");
+  }
+  if (
+    mrdCaseSheetPackets.some((packet) => packet.status === "printed" || packet.printed_at !== null)
+  ) {
+    events.push("mrd.case_sheet.printed");
+  }
+
+  return events;
+}
 
 export const IPD_ACTION_RAIL_ACTIONS: readonly IpdActionRailActionDefinition[] = [
   {

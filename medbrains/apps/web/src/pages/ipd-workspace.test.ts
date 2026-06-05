@@ -1,7 +1,11 @@
 // @vitest-environment node
 
+import type { Invoice, PharmacyOrder, PrescriptionWithItems } from "@medbrains/types";
 import { describe, expect, it } from "vitest";
 import {
+  activeIpdInvoiceIdForJourney,
+  activeIpdPharmacyOrderIdForJourney,
+  deriveIpdJourneyCompletedEvents,
   IPD_ACTION_RAIL_ACTIONS,
   type IpdActionRailContext,
   ipdActionRailAction,
@@ -18,6 +22,79 @@ const activeContext: IpdActionRailContext = {
   canManageDeathRecords: true,
   canOrder: true,
 };
+
+function invoice(overrides: Partial<Invoice> = {}): Invoice {
+  return {
+    billing_period_end: null,
+    billing_period_start: null,
+    cess_amount: "0",
+    cgst_amount: "0",
+    cloned_from_id: null,
+    corporate_id: null,
+    created_at: "2026-01-01T00:00:00Z",
+    discount_amount: "0",
+    encounter_id: null,
+    id: "invoice-1",
+    igst_amount: "0",
+    invoice_number: "INV-1",
+    is_er_deferred: false,
+    is_interim: false,
+    issued_at: null,
+    notes: null,
+    paid_amount: "0",
+    patient_id: "patient-1",
+    place_of_supply: null,
+    sequence_number: null,
+    sgst_amount: "0",
+    status: "draft",
+    subtotal: "100",
+    tax_amount: "0",
+    tenant_id: "tenant-1",
+    total_amount: "100",
+    updated_at: "2026-01-01T00:00:00Z",
+    ...overrides,
+  };
+}
+
+function pharmacyOrder(overrides: Partial<PharmacyOrder> = {}): PharmacyOrder {
+  return {
+    billing_package_id: null,
+    created_at: "2026-01-01T00:00:00Z",
+    discharge_summary_id: null,
+    dispensed_at: null,
+    dispensed_by: null,
+    dispensing_type: "prescription",
+    encounter_id: "encounter-1",
+    id: "order-1",
+    interaction_check_result: null,
+    notes: null,
+    ordered_by: "doctor-1",
+    patient_id: "patient-1",
+    prescription_id: null,
+    status: "ordered",
+    store_location_id: null,
+    tenant_id: "tenant-1",
+    updated_at: "2026-01-01T00:00:00Z",
+    ...overrides,
+  };
+}
+
+function prescriptionWithPharmacyOrder(pharmacyOrderId: string): PrescriptionWithItems {
+  return {
+    items: [],
+    pharmacy_order_id: pharmacyOrderId,
+    pharmacy_status: null,
+    prescription: {
+      created_at: "2026-01-01T00:00:00Z",
+      doctor_id: "doctor-1",
+      encounter_id: "encounter-1",
+      id: "prescription-1",
+      notes: null,
+      tenant_id: "tenant-1",
+      updated_at: "2026-01-01T00:00:00Z",
+    },
+  };
+}
 
 describe("IPD workspace action rail focus", () => {
   it("focuses order actions for medication and investigation tabs", () => {
@@ -94,5 +171,44 @@ describe("IPD workspace action rail focus", () => {
     expect(ipdActionRailAction(denied, "dama_lama").disabledReasonText).toBe(
       "Requires ipd.discharge.create",
     );
+  });
+});
+
+describe("IPD journey handoff context", () => {
+  it("selects the outstanding patient invoice before closed invoices", () => {
+    expect(
+      activeIpdInvoiceIdForJourney([
+        invoice({ id: "invoice-paid", paid_amount: "100", status: "paid" }),
+        invoice({ id: "invoice-due", paid_amount: "25", status: "partially_paid" }),
+      ]),
+    ).toBe("invoice-due");
+  });
+
+  it("selects a pharmacy order from the prescription before queue fallbacks", () => {
+    expect(
+      activeIpdPharmacyOrderIdForJourney({
+        pharmacyOrders: [pharmacyOrder({ id: "queue-order" })],
+        prescriptions: [prescriptionWithPharmacyOrder("rx-order")],
+      }),
+    ).toBe("rx-order");
+  });
+
+  it("derives billing, payment, and pharmacy completion events for handoff activation", () => {
+    expect(
+      deriveIpdJourneyCompletedEvents({
+        dischargeSummary: null,
+        investigations: null,
+        invoices: [invoice({ paid_amount: "50", status: "partially_paid" })],
+        mrdCaseSheetPackets: [],
+        pharmacyOrders: [pharmacyOrder({ status: "dispensed" })],
+        prescriptions: [],
+      }),
+    ).toEqual([
+      "order.created",
+      "billing.invoice.created",
+      "billing.invoice.finalized",
+      "billing.payment.received",
+      "pharmacy.order.dispensed",
+    ]);
   });
 });

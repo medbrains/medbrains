@@ -55,7 +55,6 @@ import type {
   BedTurnaroundLog,
   BillingSummaryResponse,
   CensusWardRow,
-  ClinicalEventName,
   ClinicalJourneyActionId,
   ClinicalJourneyContext,
   CreateAdmissionResponse,
@@ -191,8 +190,10 @@ import {
 } from "@/forms/ipd.form";
 import { useHashTabs } from "@/hooks/useHashTabs";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
+import { billingService } from "@/services/billing.service";
 import { ipdService } from "@/services/ipd.service";
 import { mrdService } from "@/services/mrd.service";
+import { pharmacyService } from "@/services/pharmacy.service";
 import {
   buildCopyPrintHtml,
   copyPrintStyles,
@@ -201,6 +202,9 @@ import {
 } from "@/utils/printCopies";
 import classes from "./ipd.module.scss";
 import {
+  activeIpdInvoiceIdForJourney,
+  activeIpdPharmacyOrderIdForJourney,
+  deriveIpdJourneyCompletedEvents,
   type IpdActionRailSection,
   ipdActionRailAction,
   ipdActionRailSectionsForTab,
@@ -267,41 +271,6 @@ const IPD_ACTION_RAIL_LOCAL_ACTION_IDS = [
   "emergency.open_visit",
   "mrd.open_case_sheet",
 ] satisfies ClinicalJourneyActionId[];
-
-function deriveIpdJourneyCompletedEvents({
-  dischargeSummary,
-  investigations,
-  mrdCaseSheetPackets,
-  prescriptions,
-}: {
-  dischargeSummary: IpdDischargeSummary | null | undefined;
-  investigations: InvestigationsResponse | null | undefined;
-  mrdCaseSheetPackets: readonly MrdCaseSheetPacket[];
-  prescriptions: readonly PrescriptionWithItems[];
-}): readonly ClinicalEventName[] {
-  const events: ClinicalEventName[] = [];
-  const hasOrders =
-    prescriptions.length > 0 ||
-    (investigations?.lab_orders.length ?? 0) > 0 ||
-    (investigations?.radiology_orders.length ?? 0) > 0;
-
-  if (hasOrders) {
-    events.push("order.created");
-  }
-  if (dischargeSummary?.status === "finalized" || dischargeSummary?.finalized_at) {
-    events.push("ipd.discharge.finalized");
-  }
-  if (mrdCaseSheetPackets.length > 0) {
-    events.push("mrd.case_sheet.generated");
-  }
-  if (
-    mrdCaseSheetPackets.some((packet) => packet.status === "printed" || packet.printed_at !== null)
-  ) {
-    events.push("mrd.case_sheet.printed");
-  }
-
-  return events;
-}
 
 function orderBasketTabFromSearchParams(searchParams: URLSearchParams): OrderBasketTab | null {
   const value = searchParams.get("order");
@@ -906,6 +875,7 @@ function AdmissionDetail({
   const canViewMrdCaseSheets = useHasPermission(P.MRD.CASE_SHEETS_VIEW);
   const canOrder = useHasPermission(P.ORDER_BASKET.SIGN);
   const canViewBillingLedger = useHasPermission(P.BILLING.INVOICES_LIST);
+  const canViewPharmacyOrders = useHasPermission(P.PHARMACY.PRESCRIPTIONS_LIST);
   const canCreateTransfer = useHasPermission(P.IPD.TRANSFERS_CREATE);
   const canManageDeathRecords = useHasPermission(P.IPD.DEATH_RECORDS_MANAGE);
   const navigate = useNavigate();
@@ -953,6 +923,7 @@ function AdmissionDetail({
   });
   const admissionDetail = data as AdmissionDetailResponse | undefined;
   const admission = admissionDetail?.admission;
+  const admissionPatientId = admission?.patient_id;
   const admissionEncounterId = admission?.encounter_id;
   const { data: admissionPrescriptions = [] } = useQuery<PrescriptionWithItems[]>({
     queryKey: ["encounter-prescriptions", admissionEncounterId],
@@ -969,6 +940,26 @@ function AdmissionDetail({
   const { data: dischargeSummary = null } = useQuery<IpdDischargeSummary | null>({
     queryKey: ["ipd-discharge-summary", admissionId],
     queryFn: () => ipdService.getDischargeSummary(admissionId).catch(() => null),
+  });
+  const { data: patientInvoiceList } = useQuery({
+    queryKey: ["invoices", "ipd-handoff", admissionPatientId],
+    queryFn: () =>
+      billingService.listInvoices({
+        page: "1",
+        patient_id: admissionPatientId ?? "",
+        per_page: "20",
+      }),
+    enabled: canViewBillingLedger && Boolean(admissionPatientId),
+  });
+  const { data: patientPharmacyOrderList } = useQuery({
+    queryKey: ["pharmacy-orders", "ipd-handoff", admissionPatientId],
+    queryFn: () =>
+      pharmacyService.listPharmacyOrders({
+        page: "1",
+        patient_id: admissionPatientId ?? "",
+        per_page: "20",
+      }),
+    enabled: canViewPharmacyOrders && Boolean(admissionPatientId),
   });
   const generateMrdCaseSheetMutation = useMutation({
     mutationFn: () => mrdService.generateIpdCaseSheetPacket(admissionId),
@@ -998,8 +989,10 @@ function AdmissionDetail({
   });
   const journeyCompletedEvents = deriveIpdJourneyCompletedEvents({
     dischargeSummary,
+    invoices: patientInvoiceList?.invoices ?? [],
     investigations: admissionInvestigations,
     mrdCaseSheetPackets,
+    pharmacyOrders: patientPharmacyOrderList?.orders ?? [],
     prescriptions: admissionPrescriptions,
   });
 
@@ -1008,6 +1001,11 @@ function AdmissionDetail({
   const detail = data as AdmissionDetailResponse;
   const adm = detail.admission;
   const latestMrdCaseSheet = mrdCaseSheetPackets[0];
+  const activeInvoiceId = activeIpdInvoiceIdForJourney(patientInvoiceList?.invoices ?? []);
+  const activePharmacyOrderId = activeIpdPharmacyOrderIdForJourney({
+    pharmacyOrders: patientPharmacyOrderList?.orders ?? [],
+    prescriptions: admissionPrescriptions,
+  });
   const admissionIsActive = adm.status === "admitted";
   const admissionHasAssignedBed = Boolean(adm.bed_id);
   const activeWorkspaceSection =
@@ -1035,6 +1033,8 @@ function AdmissionDetail({
     activeAdmissionId: adm.id,
     activeAdmissionStatus: adm.status,
     activeBedId: adm.bed_id,
+    activeInvoiceId,
+    activePharmacyOrderId,
     activeOrderContext: "ipd",
     completedEvents: journeyCompletedEvents,
   };
@@ -1051,6 +1051,9 @@ function AdmissionDetail({
             activeAdmissionId={adm.id}
             activeAdmissionStatus={adm.status}
             activeBedId={adm.bed_id}
+            activeInvoiceId={activeInvoiceId}
+            activeOrderContext="ipd"
+            activePharmacyOrderId={activePharmacyOrderId}
             completedEvents={journeyCompletedEvents}
             compact
           />
