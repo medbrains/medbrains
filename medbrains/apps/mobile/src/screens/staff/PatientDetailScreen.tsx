@@ -1,5 +1,11 @@
-import { useFieldAccess } from "@medbrains/stores";
-import type { ClinicalJourneyContext, FieldAccessLevel, PatientVisitRow } from "@medbrains/types";
+import { useFieldAccess, useHasPermission } from "@medbrains/stores";
+import type {
+  AdmissionRow,
+  ClinicalJourneyContext,
+  FieldAccessLevel,
+  PatientVisitRow,
+} from "@medbrains/types";
+import { P } from "@medbrains/types";
 import { fieldAccessText, mostRestrictedFieldAccess } from "@medbrains/utils";
 import { useQuery } from "@tanstack/react-query";
 import { ScrollView, StyleSheet, View } from "react-native";
@@ -88,6 +94,7 @@ function formatAddress(addr: unknown): string {
 export function PatientDetailScreen({ route, navigation }: PatientDetailScreenProps) {
   const theme = useTheme();
   const { patientId } = route.params;
+  const canViewIpdAdmissions = useHasPermission(P.IPD.ADMISSIONS_LIST);
   const uhidAccess = useFieldAccess("patients.uhid");
   const firstNameAccess = useFieldAccess("patients.first_name");
   const middleNameAccess = useFieldAccess("patients.middle_name");
@@ -111,6 +118,18 @@ export function PatientDetailScreen({ route, navigation }: PatientDetailScreenPr
     queryKey: ["patient", patientId, "visits"],
     queryFn: () => patientService.listPatientVisits(patientId),
     enabled: Boolean(patientId),
+  });
+
+  const { data: admissionPage } = useQuery({
+    queryKey: ["patient", patientId, "active-admissions"],
+    queryFn: () =>
+      patientService.listAdmissions({
+        page: "1",
+        patient_id: patientId,
+        per_page: "1",
+        status: "admitted",
+      }),
+    enabled: Boolean(patientId) && canViewIpdAdmissions,
   });
 
   const { data: allergies } = useQuery({
@@ -169,10 +188,12 @@ export function PatientDetailScreen({ route, navigation }: PatientDetailScreenPr
   const dobLabel = protectedDateOfBirth(dobAccess, patient.date_of_birth);
 
   const visitsList: PatientVisitRow[] = visits || [];
+  const activeAdmission = (admissionPage?.admissions[0] ?? null) as AdmissionRow | null;
   const activeOpdVisit = visitsList.find(
     (visit) => visit.encounter_type === "opd" && ACTIVE_VISIT_STATUSES.has(visit.status),
   );
-  const activeEncounterId = activeOpdVisit?.id ?? null;
+  const activeCareEncounterId = activeAdmission?.encounter_id ?? activeOpdVisit?.id ?? null;
+  const activeOrderContext = activeAdmission ? "ipd" : activeOpdVisit ? "opd" : null;
   const prescriptionList = prescriptions ?? [];
   const invoiceList = invoices ?? [];
   const hasMedicationOrder =
@@ -205,8 +226,11 @@ export function PatientDetailScreen({ route, navigation }: PatientDetailScreenPr
   const journeyContext: ClinicalJourneyContext = {
     patientId,
     isDeceased: patient.is_deceased,
-    activeEncounterId,
-    activeOrderContext: activeEncounterId ? "opd" : null,
+    activeEncounterId: activeCareEncounterId,
+    activeAdmissionId: activeAdmission?.id ?? null,
+    activeAdmissionStatus: activeAdmission?.status ?? null,
+    activeBedId: activeAdmission?.bed_id,
+    activeOrderContext,
     completedEvents,
   };
 
@@ -268,6 +292,16 @@ export function PatientDetailScreen({ route, navigation }: PatientDetailScreenPr
                   Active OPD
                 </Chip>
               )}
+              {activeAdmission && (
+                <Chip compact icon="bed" mode="outlined">
+                  Active IPD
+                </Chip>
+              )}
+              {activeAdmission && !activeAdmission.bed_id && (
+                <Chip compact icon="alert" mode="outlined">
+                  Bed pending
+                </Chip>
+              )}
               {hasMedicationOrder && (
                 <Chip compact icon="pill" mode="outlined">
                   Rx handoff
@@ -284,10 +318,10 @@ export function PatientDetailScreen({ route, navigation }: PatientDetailScreenPr
             <Button
               mode="contained-tonal"
               icon="clipboard-plus"
-              disabled={!activeEncounterId}
+              disabled={!activeCareEncounterId}
               onPress={() =>
                 navigation.navigate("Vitals", {
-                  encounterId: activeEncounterId ?? undefined,
+                  encounterId: activeCareEncounterId ?? undefined,
                   patientId,
                 })
               }
@@ -296,9 +330,10 @@ export function PatientDetailScreen({ route, navigation }: PatientDetailScreenPr
               Vitals
             </Button>
           </View>
-          {!activeEncounterId && (
+          {!activeCareEncounterId && (
             <Text variant="bodySmall" style={styles.actionsHint}>
-              Open an OPD encounter before recording vitals, notes, prescriptions, or lab orders.
+              Open an OPD encounter or active IPD admission before recording vitals, prescriptions,
+              or lab orders.
             </Text>
           )}
           <Text variant="bodySmall" style={styles.actionsHint}>
