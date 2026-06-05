@@ -48,6 +48,7 @@ type StaffDashboardRoute =
   | "Vitals"
   | "Prescription"
   | "LabOrder"
+  | "RadiologyOrder"
   | "PatientDetail";
 
 interface StaffDashboardProps {
@@ -188,6 +189,9 @@ export function StaffDashboard({ navigation }: StaffDashboardProps) {
   const canFindPatients = useHasPermission(P.PATIENTS.LIST);
   const canRecordVitals = useHasPermission(P.OPD.VITALS.CREATE);
   const canSignOrders = useHasPermission(P.ORDER_BASKET.SIGN);
+  const canCreateRadiologyOrder = useHasPermission(P.RADIOLOGY.ORDERS_CREATE);
+  const canListRadiologyOrders = useHasPermission(P.RADIOLOGY.ORDERS_LIST);
+  const canCreateRadiologyOrders = canCreateRadiologyOrder && canListRadiologyOrders;
   const canViewLabReports = useHasPermission(P.LAB.REPORTS_VIEW);
   const patientNameAccess = queuePatientNameAccess(
     firstNameAccess,
@@ -266,6 +270,7 @@ export function StaffDashboard({ navigation }: StaffDashboardProps) {
     canViewTokenBoards ? "Boards" : null,
     canRecordVitals ? "Vitals" : null,
     canSignOrders ? "Orders" : null,
+    canCreateRadiologyOrders ? "Imaging" : null,
     canViewLabReports ? "Results" : null,
   ].filter((label): label is string => Boolean(label));
   const quickActions: QuickAction[] = [
@@ -310,6 +315,13 @@ export function StaffDashboard({ navigation }: StaffDashboardProps) {
       icon: "flask-plus",
       label: "Lab Order",
       route: "LabOrder",
+    },
+    {
+      id: "radiology-order",
+      enabled: canCreateRadiologyOrders,
+      icon: "radioactive",
+      label: "Imaging",
+      route: "RadiologyOrder",
     },
     {
       id: "lab-results",
