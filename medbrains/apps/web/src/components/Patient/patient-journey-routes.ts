@@ -60,8 +60,14 @@ export function patientJourneyActionRoute(
       }
       return `/billing?tab=invoices&patient_id=${context.patientId}&action=payment`;
     case "pharmacy.open_patient_queue":
+      if (context.activePharmacyOrderId) {
+        return `/pharmacy/orders/${context.activePharmacyOrderId}`;
+      }
       return `/pharmacy?tab=orders&patient_id=${context.patientId}`;
     case "pharmacy.dispense_order":
+      if (context.activePharmacyOrderId) {
+        return `/pharmacy/orders/${context.activePharmacyOrderId}?action=dispense`;
+      }
       return `/pharmacy?tab=orders&patient_id=${context.patientId}&action=dispense`;
     case "mrd.open_case_sheet":
       if (context.activeAdmissionId) {

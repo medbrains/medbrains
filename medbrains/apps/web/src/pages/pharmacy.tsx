@@ -800,7 +800,7 @@ export function PharmacyOrderDetailPage() {
   const canAdjustPartialDispense = useHasPermission(P.PHARMACY.DISPENSING_PARTIAL);
   const canViewReturns = useHasPermission(P.PHARMACY.RETURNS_LIST);
   const canViewPatientRecord = useHasPermission(P.PATIENTS.VIEW);
-  const canCreateOrder = useHasPermission(P.PHARMACY.DISPENSING_CREATE);
+  const canDispense = useHasPermission(P.PHARMACY.DISPENSING_CREATE);
 
   return (
     <ClinicalEventProvider moduleCode="pharmacy" contextCode="pharmacy-order-detail">
@@ -819,7 +819,7 @@ export function PharmacyOrderDetailPage() {
               >
                 Orders
               </Button>
-              {canCreateOrder && (
+              {canDispense && (
                 <Button
                   leftSection={<IconPlus size={14} />}
                   onClick={() => navigate("/pharmacy/orders/new")}
@@ -834,6 +834,7 @@ export function PharmacyOrderDetailPage() {
           <PharmacyOrderDetail
             orderId={orderId}
             canEditItems={canAdjustPartialDispense}
+            canDispense={canDispense}
             canViewReturns={canViewReturns}
             canViewPatientRecord={canViewPatientRecord}
           />
@@ -2396,18 +2397,22 @@ function PharmacyOrderForm({
 function PharmacyOrderDetail({
   orderId,
   canEditItems,
+  canDispense,
   canViewReturns,
   canViewPatientRecord,
 }: {
   orderId: string;
   canEditItems: boolean;
+  canDispense: boolean;
   canViewReturns: boolean;
   canViewPatientRecord: boolean;
 }) {
   const queryClient = useQueryClient();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [showAudit, setShowAudit] = useState(false);
   const [showLabels, setShowLabels] = useState(false);
   const [viewMode, setViewMode] = useState<"table" | "schedule">("schedule");
+  const emit = useClinicalEmit();
   const batchNumberAccess = useFieldAccess("pharmacy.batches.batch_number");
   const priceAccess = useFieldAccess("pharmacy.pricing.unit_price");
   const { data } = useQuery({
@@ -2459,10 +2464,50 @@ function PharmacyOrderDetail({
     },
   });
 
+  const clearDispenseHandoff = () => {
+    const next = new URLSearchParams(searchParams);
+    next.delete("action");
+    setSearchParams(next, { replace: true });
+  };
+  const dispenseMutation = useMutation({
+    mutationFn: async () => {
+      const currentDetail = await pharmacyService.getPharmacyOrder(orderId);
+      const order = await pharmacyService.dispenseOrder(orderId);
+      return { items: currentDetail.items, order };
+    },
+    onSuccess: ({ items, order }) => {
+      void queryClient.invalidateQueries({ queryKey: ["pharmacy-orders"] });
+      void queryClient.invalidateQueries({ queryKey: ["pharmacy-order-detail", orderId] });
+      void queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      void queryClient.invalidateQueries({ queryKey: ["invoice"] });
+      void queryClient.invalidateQueries({ queryKey: ["patient-invoices", order.patient_id] });
+      notifications.show({
+        title: "Dispensed",
+        message: "Order dispensed and linked billing charges refreshed",
+        color: "success",
+      });
+      emit("pharmacy.order.dispensed", {
+        dispensing_type: order.dispensing_type,
+        items: pharmacyOrderEventItems(items),
+        order_id: orderId,
+        order_type: "pharmacy",
+        patient_id: order.patient_id,
+      });
+      clearDispenseHandoff();
+    },
+  });
+
   if (!detail) return <Text c="dimmed">Loading...</Text>;
 
   const hasRxItems = rxData && rxData.items.length > 0;
   const canEditOrderItems = canEditItems && detail.order.status === "ordered";
+  const isDispenseHandoff = searchParams.get("action") === "dispense";
+  const isAwaitingDispense = detail.order.status === "ordered";
+  const dispenseHandoffMessage = !isAwaitingDispense
+    ? "This order is no longer awaiting dispense."
+    : canDispense
+      ? "Review FEFO, patient identity, allergies, and label context before dispensing this order."
+      : "Dispensing permission is required to complete this handoff.";
   const canPrintMedicationLabels = canViewPatientRecord && hasRxItems;
   const prescriptionPatientName = canViewPatientRecord
     ? (patientName?.full_name ?? "Linked patient")
@@ -2477,6 +2522,7 @@ function PharmacyOrderDetail({
   const journeyContext: ClinicalJourneyContext = {
     patientId: detail.order.patient_id,
     activeEncounterId: detail.order.encounter_id,
+    activePharmacyOrderId: detail.order.id,
     activeOrderContext: detail.order.encounter_id ? "opd" : null,
     completedEvents,
   };
@@ -2512,9 +2558,33 @@ function PharmacyOrderDetail({
         patientId={detail.order.patient_id}
         active="pharmacy"
         activeEncounterId={detail.order.encounter_id ?? null}
+        activePharmacyOrderId={detail.order.id}
         completedEvents={completedEvents}
         compact
       />
+      {isDispenseHandoff && (
+        <Alert color="teal" variant="light" title="Dispense handoff">
+          <Group justify="space-between" align="center" gap="sm">
+            <Text size="sm">{dispenseHandoffMessage}</Text>
+            <Group gap="xs">
+              {isAwaitingDispense && canDispense && (
+                <Button
+                  size="xs"
+                  color="teal"
+                  leftSection={<IconCheck size={14} />}
+                  loading={dispenseMutation.isPending}
+                  onClick={() => dispenseMutation.mutate()}
+                >
+                  Dispense Order
+                </Button>
+              )}
+              <Button size="xs" variant="subtle" onClick={clearDispenseHandoff}>
+                Dismiss
+              </Button>
+            </Group>
+          </Group>
+        </Alert>
+      )}
       <Card withBorder padding="sm">
         <Group justify="space-between" gap="sm" align="center">
           <Stack gap={2}>

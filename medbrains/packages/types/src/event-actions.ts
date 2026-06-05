@@ -43,6 +43,7 @@ export interface ClinicalJourneyContext {
   activeCampId?: string | null;
   activeCampRegistrationId?: string | null;
   activeInvoiceId?: string | null;
+  activePharmacyOrderId?: string | null;
   activeOrderContext?: ClinicalOrderContext | null;
   hasPendingConsent?: boolean;
   completedEvents?: readonly string[];
@@ -148,6 +149,9 @@ export function inferClinicalJourneyEventNames(context: ClinicalJourneyContext):
   }
   if (context.activeEmergencyVisitId) {
     events.add("emergency.visit.created");
+  }
+  if (context.activePharmacyOrderId) {
+    events.add("order.created");
   }
 
   return [...events];

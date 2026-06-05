@@ -43,6 +43,7 @@ interface PatientFlowNavigatorProps {
   activeEmergencyVisitId?: string | null;
   activeCampId?: string | null;
   activeCampRegistrationId?: string | null;
+  activePharmacyOrderId?: string | null;
   activeOrderContext?: ClinicalOrderContext | null;
   completedEvents?: readonly string[];
   isDeceased?: boolean;
@@ -146,6 +147,7 @@ export function PatientFlowNavigator({
   activeEmergencyVisitId,
   activeCampId,
   activeCampRegistrationId,
+  activePharmacyOrderId,
   activeOrderContext,
   completedEvents,
   isDeceased = false,
@@ -166,6 +168,7 @@ export function PatientFlowNavigator({
     activeEmergencyVisitId,
     activeCampId,
     activeCampRegistrationId,
+    activePharmacyOrderId,
     activeAdmissionStatus: activeAdmissionStatus ?? (activeAdmissionId ? "admitted" : null),
     activeOrderContext:
       activeOrderContext ?? (activeEncounterId ? "opd" : activeAdmissionId ? "ipd" : null),

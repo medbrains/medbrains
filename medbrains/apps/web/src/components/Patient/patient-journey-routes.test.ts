@@ -87,6 +87,24 @@ describe("patient journey action routes", () => {
     );
   });
 
+  it("routes pharmacy handoffs to the active order when available", () => {
+    expect(
+      patientJourneyActionRoute("pharmacy.open_patient_queue", {
+        ...baseContext,
+        activePharmacyOrderId: "order-1",
+      }),
+    ).toBe("/pharmacy/orders/order-1");
+    expect(
+      patientJourneyActionRoute("pharmacy.dispense_order", {
+        ...baseContext,
+        activePharmacyOrderId: "order-1",
+      }),
+    ).toBe("/pharmacy/orders/order-1?action=dispense");
+    expect(patientJourneyActionRoute("pharmacy.dispense_order", baseContext)).toBe(
+      "/pharmacy?tab=orders&patient_id=patient-1&action=dispense",
+    );
+  });
+
   it("routes MRD case sheets through the active clinical source when available", () => {
     expect(
       patientJourneyActionRoute("mrd.open_case_sheet", {
