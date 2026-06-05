@@ -172,6 +172,7 @@ export function FrontOfficePage() {
   const canViewProcurementStores = useHasPermission(P.PROCUREMENT.STORES_LIST);
   const canViewAssets = useHasPermission(P.ASSETS.LIST);
   const canViewIpd = useHasPermission(P.IPD.ADMISSIONS_LIST);
+  const canCreateIpdAdmission = useHasPermission(P.IPD.ADMISSIONS_CREATE);
 
   return (
     <div>
@@ -224,6 +225,7 @@ export function FrontOfficePage() {
             canViewProcurementStores={canViewProcurementStores}
             canViewAssets={canViewAssets}
             canViewIpd={canViewIpd}
+            canCreateIpdAdmission={canCreateIpdAdmission}
           />
         </Tabs.Panel>
         <Tabs.Panel value="queue" pt="md">
@@ -277,6 +279,7 @@ interface PatientFlowHubProps {
   canViewProcurementStores: boolean;
   canViewAssets: boolean;
   canViewIpd: boolean;
+  canCreateIpdAdmission: boolean;
 }
 
 interface PatientFlowAction {
@@ -332,6 +335,7 @@ function PatientFlowHub({
   canViewProcurementStores,
   canViewAssets,
   canViewIpd,
+  canCreateIpdAdmission,
 }: PatientFlowHubProps) {
   const actions: PatientFlowAction[] = [
     {
@@ -412,7 +416,7 @@ function PatientFlowHub({
       module: "IPD",
       description: "Route admitted patients to bed, ward and inpatient workflows.",
       path: "/ipd",
-      enabled: canViewIpd,
+      enabled: canViewIpd || canCreateIpdAdmission,
       icon: <IconBed size={20} />,
       journeyActionId: "ipd.admit",
     },
