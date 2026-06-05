@@ -166,22 +166,21 @@ const displayTypeLabels: Record<string, string> = {
 const QUEUE_REFRESH_MS = 5_000;
 
 interface DisplayLaunchDefinition {
-  appCode: string;
+  appCodes: readonly string[];
   deepLink: string;
   label: string;
   supportsDepartment?: boolean;
 }
 
 interface DisplayLaunchTarget {
-  appCode: string;
+  appCodes: readonly string[];
   href: string;
   label: string;
 }
 
 function tokenBoardLaunchDefinition(surface: TokenBoardSurfaceDefinition): DisplayLaunchDefinition {
-  const [appCode] = surface.targets.tvAppCodes;
   return {
-    appCode: appCode ?? surface.title,
+    appCodes: surface.targets.tvAppCodes,
     deepLink: surface.targets.tvDeepLink,
     label: `${surface.title} board`,
     supportsDepartment: surface.id === "opd",
@@ -200,12 +199,12 @@ const TOKEN_BOARD_LAUNCH_TARGETS = {
 const DISPLAY_LAUNCH_TARGETS: Record<string, DisplayLaunchDefinition> = {
   ...TOKEN_BOARD_LAUNCH_TARGETS,
   bed_status: {
-    appCode: "TV-Ward",
+    appCodes: ["TV-Ward"],
     deepLink: "medbrains://tv/bed-status",
     label: "Bed status board",
   },
   digital_signage: {
-    appCode: "TV-Notice",
+    appCodes: ["TV-Notice"],
     deepLink: "medbrains://tv/digital-signage",
     label: "Digital signage",
   },
@@ -260,7 +259,7 @@ function displayLaunchTarget(
       : "";
 
   return {
-    appCode: target.appCode,
+    appCodes: target.appCodes,
     href: `${target.deepLink}${departmentQuery}`,
     label: target.label,
   };
@@ -499,7 +498,12 @@ export function TvDisplaysPage() {
                               {target.href}
                             </Text>
                           </Stack>
-                          <Group gap={4}>
+                          <Group gap={4} justify="flex-end">
+                            {target.appCodes.map((appCode) => (
+                              <Badge key={appCode} size="xs" variant="outline">
+                                {appCode}
+                              </Badge>
+                            ))}
                             <Badge size="xs" variant="light">
                               {target.count}
                             </Badge>
@@ -663,9 +667,11 @@ function DisplaysTab({
               <Text size="sm" fw={600}>
                 {target.label}
               </Text>
-              <Badge size="xs" variant="light">
-                {target.appCode}
-              </Badge>
+              {target.appCodes.map((appCode) => (
+                <Badge key={appCode} size="xs" variant="light">
+                  {appCode}
+                </Badge>
+              ))}
             </Group>
             <Text size="xs" c="dimmed">
               {target.href}
