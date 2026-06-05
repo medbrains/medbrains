@@ -39,6 +39,7 @@ import type {
   QueueStatsResponse,
   QueueToken,
   RadiologyQueueToken,
+  TokenBoardSurfaceDefinition,
   TriageLevelColor,
   VisitingHours,
   VisitorAnalytics,
@@ -736,8 +737,7 @@ function TokenBoardsTab({
         <SimpleGrid cols={{ base: 1, xl: 2 }} spacing="md">
           {canViewOpdQueue && (
             <TokenBoardCard
-              title={OPD_BOARD.title}
-              subtitle={OPD_BOARD.subtitle}
+              surface={OPD_BOARD}
               isLoading={opdQuery.isLoading}
               isError={opdQuery.isError}
               lastUpdatedAt={opdQuery.dataUpdatedAt}
@@ -768,8 +768,7 @@ function TokenBoardsTab({
 
           {canViewLab && (
             <TokenBoardCard
-              title={LAB_BOARD.title}
-              subtitle={LAB_BOARD.subtitle}
+              surface={LAB_BOARD}
               isLoading={labQuery.isLoading}
               isError={labQuery.isError}
               lastUpdatedAt={labQuery.dataUpdatedAt}
@@ -806,8 +805,7 @@ function TokenBoardsTab({
 
           {canViewRadiology && (
             <TokenBoardCard
-              title={RADIOLOGY_BOARD.title}
-              subtitle={RADIOLOGY_BOARD.subtitle}
+              surface={RADIOLOGY_BOARD}
               isLoading={radiologyQuery.isLoading}
               isError={radiologyQuery.isError}
               lastUpdatedAt={radiologyQuery.dataUpdatedAt}
@@ -839,8 +837,7 @@ function TokenBoardsTab({
 
           {canViewEmergency && (
             <TokenBoardCard
-              title={EMERGENCY_BOARD.title}
-              subtitle={EMERGENCY_BOARD.subtitle}
+              surface={EMERGENCY_BOARD}
               isLoading={erQuery.isLoading}
               isError={erQuery.isError}
               lastUpdatedAt={erQuery.dataUpdatedAt}
@@ -865,8 +862,7 @@ function TokenBoardsTab({
 
           {canViewPharmacy && (
             <TokenBoardCard
-              title={PHARMACY_BOARD.title}
-              subtitle={PHARMACY_BOARD.subtitle}
+              surface={PHARMACY_BOARD}
               isLoading={pharmacyQuery.isLoading}
               isError={pharmacyQuery.isError}
               lastUpdatedAt={pharmacyQuery.dataUpdatedAt}
@@ -903,8 +899,7 @@ function TokenBoardsTab({
 
           {canViewBilling && (
             <TokenBoardCard
-              title={BILLING_BOARD.title}
-              subtitle={BILLING_BOARD.subtitle}
+              surface={BILLING_BOARD}
               isLoading={billingQuery.isLoading}
               isError={billingQuery.isError}
               lastUpdatedAt={billingQuery.dataUpdatedAt}
@@ -950,32 +945,31 @@ function TokenBoardCard({
   isError,
   isLoading,
   lastUpdatedAt,
-  subtitle,
+  surface,
   summary,
-  title,
 }: {
   children: ReactNode;
   isError: boolean;
   isLoading: boolean;
   lastUpdatedAt: number;
-  subtitle: string;
+  surface: TokenBoardSurfaceDefinition;
   summary: Array<{ label: string; value: number | string }>;
-  title: string;
 }) {
   return (
     <Card withBorder padding="md">
       <Stack gap="md">
         <Group justify="space-between" align="flex-start">
           <Stack gap={0}>
-            <Text fw={700}>{title}</Text>
+            <Text fw={700}>{surface.title}</Text>
             <Text size="xs" c="dimmed">
-              {subtitle}
+              {surface.subtitle}
             </Text>
           </Stack>
           <Badge color={isError ? "danger" : "teal"} variant="light">
             {isError ? "Feed error" : `Sync ${lastUpdatedLabel(lastUpdatedAt)}`}
           </Badge>
         </Group>
+        <TokenBoardLaunchMeta surface={surface} />
         <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="xs">
           {summary.map((item) => (
             <Box
@@ -1008,6 +1002,39 @@ function TokenBoardCard({
         )}
       </Stack>
     </Card>
+  );
+}
+
+function TokenBoardLaunchMeta({ surface }: { surface: TokenBoardSurfaceDefinition }) {
+  return (
+    <Stack gap={6}>
+      <Group gap={6} wrap="wrap">
+        {surface.targets.tvAppCodes.map((appCode) => (
+          <Badge key={appCode} size="xs" variant="outline" color="gray">
+            {appCode}
+          </Badge>
+        ))}
+        <Badge size="xs" variant="light" color="blue">
+          Mobile: {surface.targets.mobileRoute}
+        </Badge>
+        <Badge size="xs" variant="light" color="green">
+          {surface.targets.tvDisplayType}
+        </Badge>
+      </Group>
+      <Group gap={8} wrap="nowrap">
+        <Text size="xs" c="dimmed" fw={700}>
+          TV link
+        </Text>
+        <Tooltip label={surface.targets.tvDeepLink}>
+          <Text size="xs" c="dimmed" truncate style={{ flex: 1, minWidth: 0 }}>
+            {surface.targets.tvDeepLink}
+          </Text>
+        </Tooltip>
+      </Group>
+      <Text size="xs" c="dimmed">
+        {surface.privacyNotice}
+      </Text>
+    </Stack>
   );
 }
 
