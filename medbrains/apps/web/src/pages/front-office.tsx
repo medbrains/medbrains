@@ -54,6 +54,7 @@ import {
   CORE_PATIENT_JOURNEY_ACTIONS,
   P,
   TOKEN_BOARD_PUBLIC_PRIVACY_NOTICE,
+  TOKEN_BOARD_SURFACE_LIST,
   TOKEN_BOARD_SURFACES,
 } from "@medbrains/types";
 import {
@@ -191,6 +192,13 @@ export function FrontOfficePage() {
   const canViewAssets = useHasPermission(P.ASSETS.LIST);
   const canViewIpd = useHasPermission(P.IPD.ADMISSIONS_LIST);
   const canCreateIpdAdmission = useHasPermission(P.IPD.ADMISSIONS_CREATE);
+  const canViewAnyTokenBoard =
+    canViewOpdQueue ||
+    canViewLab ||
+    canViewRadiology ||
+    canViewEmergency ||
+    canViewPharmacy ||
+    canViewBilling;
 
   return (
     <div>
@@ -232,6 +240,7 @@ export function FrontOfficePage() {
             canRegisterPatient={canRegisterPatient}
             canCreateOpdVisit={canCreateOpdVisit}
             canViewOpdQueue={canViewOpdQueue}
+            canViewAnyTokenBoard={canViewAnyTokenBoard}
             canCreateEmergencyVisit={canCreateEmergencyVisit}
             canViewEmergency={canViewEmergency}
             canViewCamp={canViewCamp}
@@ -288,6 +297,7 @@ interface PatientFlowHubProps {
   canRegisterPatient: boolean;
   canCreateOpdVisit: boolean;
   canViewOpdQueue: boolean;
+  canViewAnyTokenBoard: boolean;
   canCreateEmergencyVisit: boolean;
   canViewEmergency: boolean;
   canViewCamp: boolean;
@@ -344,6 +354,7 @@ function PatientFlowHub({
   canRegisterPatient,
   canCreateOpdVisit,
   canViewOpdQueue,
+  canViewAnyTokenBoard,
   canCreateEmergencyVisit,
   canViewEmergency,
   canViewCamp,
@@ -390,10 +401,16 @@ function PatientFlowHub({
     {
       title: "Token Boards",
       module: "Displays",
-      description: "Monitor public token feeds for OPD, ER, pharmacy and billing counters.",
+      description: `Monitor public token feeds for ${TOKEN_BOARD_SURFACE_LIST.map(
+        (surface) => surface.title,
+      ).join(", ")}.`,
       path: "/front-office#token-boards",
-      enabled: canViewOpdQueue || canViewEmergency || canViewBilling || canViewPharmacy,
+      enabled: canViewAnyTokenBoard,
       icon: <IconDeviceTv size={20} />,
+      requiredPermissions: TOKEN_BOARD_SURFACE_LIST.flatMap((surface) => [
+        ...surface.requiredAnyPermissions,
+      ]),
+      standardRefs: TOKEN_BOARD_SURFACE_LIST.flatMap((surface) => [...surface.standardRefs]),
     },
     {
       title: "Emergency Desk",
