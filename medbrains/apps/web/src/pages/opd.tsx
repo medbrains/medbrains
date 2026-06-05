@@ -281,6 +281,12 @@ function deriveOpdJourneyCompletedEvents(
   return events;
 }
 
+function orderBasketTabFromSearchParams(searchParams: URLSearchParams): OrderBasketTab | null {
+  const value = searchParams.get("order");
+  if (value === "drug" || value === "lab" || value === "radiology") return value;
+  return null;
+}
+
 const appointmentTypeLabels: Record<string, string> = {
   new_visit: "Booked",
   follow_up: "Follow-up",
@@ -1480,11 +1486,15 @@ export function EncounterDetail({
   const canGenerateMrdCaseSheet = useHasPermission(P.MRD.CASE_SHEETS_GENERATE);
   const canViewMrdCaseSheets = useHasPermission(P.MRD.CASE_SHEETS_VIEW);
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const emit = useClinicalEmit();
+  const orderBasketDeepLinkTab = orderBasketTabFromSearchParams(searchParams);
   const [summaryOpened, { open: openSummary, close: closeSummary }] = useDisclosure(false);
-  const [basketOpened, { open: openBasket, close: closeBasket }] = useDisclosure(false);
-  const [basketTab, setBasketTab] = useState<OrderBasketTab>("drug");
+  const [basketOpened, { open: openBasket, close: closeBasket }] = useDisclosure(
+    Boolean(orderBasketDeepLinkTab),
+  );
+  const [basketTab, setBasketTab] = useState<OrderBasketTab>(orderBasketDeepLinkTab ?? "drug");
   const [activeEncounterTab, setActiveEncounterTab] = useHashTabs(
     "consultation",
     OPD_ENCOUNTER_TAB_VALUES,

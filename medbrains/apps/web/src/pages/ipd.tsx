@@ -296,6 +296,12 @@ function deriveIpdJourneyCompletedEvents({
   return events;
 }
 
+function orderBasketTabFromSearchParams(searchParams: URLSearchParams): OrderBasketTab | null {
+  const value = searchParams.get("order");
+  if (value === "drug" || value === "lab" || value === "radiology") return value;
+  return null;
+}
+
 const DISCHARGE_TYPE_OPTIONS = [
   { value: "normal", label: "Normal" },
   { value: "lama", label: "LAMA" },
@@ -896,8 +902,10 @@ function AdmissionDetail({
   const canCreateTransfer = useHasPermission(P.IPD.TRANSFERS_CREATE);
   const canManageDeathRecords = useHasPermission(P.IPD.DEATH_RECORDS_MANAGE);
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const emit = useClinicalEmit();
+  const orderBasketDeepLinkTab = orderBasketTabFromSearchParams(searchParams);
   const [dischargeSummaryOpened, { open: openDischargeSummary, close: closeDischargeSummary }] =
     useDisclosure(false);
   const [bedTransferOpened, { open: openBedTransfer, close: closeBedTransfer }] =
@@ -907,8 +915,10 @@ function AdmissionDetail({
   const [wristbandOpened, { open: openWristband, close: closeWristband }] = useDisclosure(false);
   const [transferOutOpened, { open: openTransferOut, close: closeTransferOut }] =
     useDisclosure(false);
-  const [basketOpened, { open: openBasket, close: closeBasket }] = useDisclosure(false);
-  const [basketTab, setBasketTab] = useState<OrderBasketTab>("drug");
+  const [basketOpened, { open: openBasket, close: closeBasket }] = useDisclosure(
+    Boolean(orderBasketDeepLinkTab),
+  );
+  const [basketTab, setBasketTab] = useState<OrderBasketTab>(orderBasketDeepLinkTab ?? "drug");
   const [activeWorkspaceTab, setActiveWorkspaceTab] = useHashTabs(
     "overview",
     IPD_WORKSPACE_TAB_VALUES,

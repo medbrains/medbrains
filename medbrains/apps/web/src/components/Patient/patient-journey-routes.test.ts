@@ -19,13 +19,13 @@ describe("patient journey action routes", () => {
     };
 
     expect(patientJourneyActionRoute("orders.medication", context)).toBe(
-      "/ipd/admissions/admission-1#prescriptions",
+      "/ipd/admissions/admission-1?order=drug#prescriptions",
     );
     expect(patientJourneyActionRoute("orders.lab", context)).toBe(
-      "/ipd/admissions/admission-1#investigations",
+      "/ipd/admissions/admission-1?order=lab#investigations",
     );
     expect(patientJourneyActionRoute("orders.radiology", context)).toBe(
-      "/ipd/admissions/admission-1#investigations",
+      "/ipd/admissions/admission-1?order=radiology#investigations",
     );
   });
 
@@ -37,10 +37,13 @@ describe("patient journey action routes", () => {
     };
 
     expect(patientJourneyActionRoute("orders.medication", context)).toBe(
-      "/opd/encounters/encounter-1#prescriptions",
+      "/opd/encounters/encounter-1?order=drug#prescriptions",
     );
     expect(patientJourneyActionRoute("orders.lab", context)).toBe(
-      "/opd/encounters/encounter-1#investigations",
+      "/opd/encounters/encounter-1?order=lab#investigations",
+    );
+    expect(patientJourneyActionRoute("orders.radiology", context)).toBe(
+      "/opd/encounters/encounter-1?order=radiology#investigations",
     );
   });
 

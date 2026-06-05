@@ -13,19 +13,26 @@ export function patientJourneyActionRoute(
         : `/opd/new?patient_id=${context.patientId}`;
     case "orders.medication":
       if (context.activeOrderContext === "ipd" && context.activeAdmissionId) {
-        return `/ipd/admissions/${context.activeAdmissionId}#prescriptions`;
+        return `/ipd/admissions/${context.activeAdmissionId}?order=drug#prescriptions`;
       }
       if (context.activeOrderContext === "opd" && context.activeEncounterId) {
-        return `/opd/encounters/${context.activeEncounterId}#prescriptions`;
+        return `/opd/encounters/${context.activeEncounterId}?order=drug#prescriptions`;
       }
       return null;
     case "orders.lab":
-    case "orders.radiology":
       if (context.activeOrderContext === "ipd" && context.activeAdmissionId) {
-        return `/ipd/admissions/${context.activeAdmissionId}#investigations`;
+        return `/ipd/admissions/${context.activeAdmissionId}?order=lab#investigations`;
       }
       if (context.activeOrderContext === "opd" && context.activeEncounterId) {
-        return `/opd/encounters/${context.activeEncounterId}#investigations`;
+        return `/opd/encounters/${context.activeEncounterId}?order=lab#investigations`;
+      }
+      return null;
+    case "orders.radiology":
+      if (context.activeOrderContext === "ipd" && context.activeAdmissionId) {
+        return `/ipd/admissions/${context.activeAdmissionId}?order=radiology#investigations`;
+      }
+      if (context.activeOrderContext === "opd" && context.activeEncounterId) {
+        return `/opd/encounters/${context.activeEncounterId}?order=radiology#investigations`;
       }
       return null;
     case "ipd.open_admission":
