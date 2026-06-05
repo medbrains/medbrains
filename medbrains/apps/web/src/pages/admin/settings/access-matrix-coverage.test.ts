@@ -95,7 +95,7 @@ const criticalWorkflowExpectations: {
   {
     key: "billing",
     modules: ["billing"],
-    requiredKinds: ["screen", "tab", "column", "action", "print"],
+    requiredKinds: ["screen", "tab", "column", "input", "action", "print"],
   },
   {
     key: "mrd",

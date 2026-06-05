@@ -43,7 +43,7 @@ import {
   IconUsersGroup,
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useSearchParams } from "react-router";
 import { NAV_GROUPS } from "@/config/navigation";
 import { usePacedQueryValue } from "@/hooks/usePacedQueryValue";
@@ -55,8 +55,8 @@ import {
 } from "./access-matrix-actions";
 import { buildNavRouteCoverage, summarizeNavRouteCoverage } from "./access-matrix-coverage";
 import {
-  resolvePermissionSources,
   type PermissionSourceResolution,
+  resolvePermissionSources,
 } from "./access-matrix-permission-sources";
 import {
   buildPrintableCoverage,
@@ -123,7 +123,7 @@ const CRITICAL_WORKFLOW_EXPECTATIONS: {
     key: "billing",
     label: "Billing",
     modules: ["billing"],
-    requiredKinds: ["screen", "tab", "column", "action", "print"],
+    requiredKinds: ["screen", "tab", "column", "input", "action", "print"],
   },
   {
     key: "mrd",
@@ -889,17 +889,28 @@ function EffectiveUserAccessMatrix({
     [moduleFilter, pacedFieldFilter],
   );
 
-  const sourceForPermission = (permission: string): PermissionSourceResolution =>
-    permissionSources.get(permission) ??
-    resolvePermissionSources({
+  const sourceForPermission = useCallback(
+    (permission: string): PermissionSourceResolution =>
+      permissionSources.get(permission) ??
+      resolvePermissionSources({
+        bypassRole,
+        denied: deniedPermissions.has(permission),
+        extraGrant: extraPermissions.has(permission),
+        groups: userGroups,
+        permissionCode: permission,
+        roleGrant: rolePermissionSet.has(permission),
+        temporaryGrant: temporaryPermissions.has(permission),
+      }),
+    [
       bypassRole,
-      denied: deniedPermissions.has(permission),
-      extraGrant: extraPermissions.has(permission),
-      groups: userGroups,
-      permissionCode: permission,
-      roleGrant: rolePermissionSet.has(permission),
-      temporaryGrant: temporaryPermissions.has(permission),
-    });
+      deniedPermissions,
+      extraPermissions,
+      permissionSources,
+      rolePermissionSet,
+      temporaryPermissions,
+      userGroups,
+    ],
+  );
 
   const permissionIsEffective = (permission: string) => sourceForPermission(permission).effective;
 
@@ -928,19 +939,18 @@ function EffectiveUserAccessMatrix({
           permission,
         };
       }).filter((row) => row.duplicateGrant || row.deniedOverlap),
-    [permissionSources],
+    [sourceForPermission],
   );
   const redundantExtraPermissions = useMemo(
     () =>
       PERMISSIONS.filter(
         (permission) => sourceForPermission(permission.code).redundantIndividualExtra,
       ),
-    [permissionSources],
+    [sourceForPermission],
   );
   const deniedActiveGrantPermissions = useMemo(
-    () =>
-      PERMISSIONS.filter((permission) => sourceForPermission(permission.code).deniedOverlap),
-    [permissionSources],
+    () => PERMISSIONS.filter((permission) => sourceForPermission(permission.code).deniedOverlap),
+    [sourceForPermission],
   );
 
   const roleFieldRestrictionCount = Object.values(roleFieldAccess).filter(
@@ -1258,7 +1268,11 @@ function EffectiveUserAccessMatrix({
                                 </Badge>
                               )}
                               {!bypassRole && groupGrant && (
-                                <Tooltip label={source.groupGrantNames.join(", ")} multiline w={280}>
+                                <Tooltip
+                                  label={source.groupGrantNames.join(", ")}
+                                  multiline
+                                  w={280}
+                                >
                                   <Badge color="cyan" variant="light">
                                     {source.groupGrantCount > 1
                                       ? `Groups ${source.groupGrantCount}`
