@@ -44,4 +44,42 @@ describe("report event coverage", () => {
     expect(row?.missingPayloadKeys).toEqual(["doctor_id"]);
     expect(row?.availablePayloadKeys).toEqual(["encounter_id", "patient_id"]);
   });
+
+  it("keeps emitted patient-flow evidence visible to reports and indicators", () => {
+    const rows = buildReportEventCoverage();
+    const registration = rows.find((row) => row.id === "patient-registration-opd-flow");
+    const ipd = rows.find((row) => row.id === "ipd-census-discharge-flow");
+    const diagnostics = rows.find((row) => row.id === "diagnostic-order-result-flow");
+    const pharmacy = rows.find((row) => row.id === "pharmacy-fulfillment-regulatory-flow");
+
+    expect(registration?.sourceEvents).toEqual(
+      expect.arrayContaining([
+        "patient.updated",
+        "patient.search.completed",
+        "patient.access_shared",
+        "patient.card_printed",
+        "opd.vitals.recorded",
+        "opd.consultation.saved",
+        "opd.prescription.updated",
+        "opd.certificate.created",
+        "opd.consent.signed",
+      ]),
+    );
+    expect(registration?.requiredPayloadKeys).toEqual(
+      expect.arrayContaining(["search_id", "consultation_id", "prescription_id", "consent_id"]),
+    );
+
+    expect(ipd?.sourceEvents).toEqual(
+      expect.arrayContaining(["mrd.case_sheet.generated", "mrd.case_sheet.printed"]),
+    );
+    expect(ipd?.requiredPayloadKeys).toEqual(expect.arrayContaining(["packet_id", "packet_type"]));
+
+    expect(diagnostics?.sourceEvents).toEqual(
+      expect.arrayContaining(["order.cancelled", "lab.result.posted"]),
+    );
+    expect(diagnostics?.requiredPayloadKeys).toContain("reason");
+
+    expect(pharmacy?.sourceEvents).toContain("order.cancelled");
+    expect(pharmacy?.requiredPayloadKeys).toContain("reason");
+  });
 });

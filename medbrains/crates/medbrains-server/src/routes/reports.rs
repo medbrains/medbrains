@@ -101,10 +101,20 @@ const REPORT_EVENT_SOURCES: &[ReportEventSourceSeed] = &[
         indicator_targets: &["access.flow", "opd.wait_time"],
         source_events: &[
             ClinicalEventName::PatientCreated,
+            ClinicalEventName::PatientUpdated,
+            ClinicalEventName::PatientSearchCompleted,
+            ClinicalEventName::PatientAccessShared,
+            ClinicalEventName::PatientCardPrinted,
             ClinicalEventName::OpdEncounterCreated,
             ClinicalEventName::OpdQueueCalled,
             ClinicalEventName::OpdConsultationStarted,
+            ClinicalEventName::OpdVitalsRecorded,
+            ClinicalEventName::OpdConsultationSaved,
             ClinicalEventName::OpdEncounterCompleted,
+            ClinicalEventName::OpdFollowupScheduled,
+            ClinicalEventName::OpdPrescriptionUpdated,
+            ClinicalEventName::OpdCertificateCreated,
+            ClinicalEventName::OpdConsentSigned,
         ],
     },
     ReportEventSourceSeed {
@@ -129,6 +139,8 @@ const REPORT_EVENT_SOURCES: &[ReportEventSourceSeed] = &[
             ClinicalEventName::IpdDischargeInitiated,
             ClinicalEventName::IpdDischargeCompleted,
             ClinicalEventName::IpdDischargeFinalized,
+            ClinicalEventName::MrdCaseSheetGenerated,
+            ClinicalEventName::MrdCaseSheetPrinted,
         ],
     },
     ReportEventSourceSeed {
@@ -174,7 +186,9 @@ const REPORT_EVENT_SOURCES: &[ReportEventSourceSeed] = &[
         indicator_targets: &["lab.tat", "radiology.tat", "critical_results"],
         source_events: &[
             ClinicalEventName::OrderCreated,
+            ClinicalEventName::OrderCancelled,
             ClinicalEventName::LabSampleCollected,
+            ClinicalEventName::LabResultPosted,
             ClinicalEventName::LabResultVerified,
             ClinicalEventName::LabOrderCompleted,
             ClinicalEventName::RadiologyOrderCompleted,
@@ -198,6 +212,7 @@ const REPORT_EVENT_SOURCES: &[ReportEventSourceSeed] = &[
         ],
         source_events: &[
             ClinicalEventName::OrderCreated,
+            ClinicalEventName::OrderCancelled,
             ClinicalEventName::IndentRequisitionSubmitted,
             ClinicalEventName::IndentRequisitionApproved,
             ClinicalEventName::IndentRequisitionIssued,
@@ -2200,6 +2215,74 @@ mod tests {
     }
 
     #[test]
+    fn registration_report_carries_identity_and_opd_documentation_event_sources() {
+        let metadata = event_metadata_for_report("opd-registration-arrivals");
+
+        for event in [
+            "patient.updated",
+            "patient.search.completed",
+            "patient.access_shared",
+            "patient.card_printed",
+            "opd.vitals.recorded",
+            "opd.consultation.saved",
+            "opd.prescription.updated",
+            "opd.certificate.created",
+            "opd.consent.signed",
+        ] {
+            assert!(
+                metadata.source_events.iter().any(|source| source == event),
+                "missing event source {event}"
+            );
+        }
+
+        for key in [
+            "search_id",
+            "consultation_id",
+            "prescription_id",
+            "certificate_id",
+            "consent_id",
+        ] {
+            assert!(
+                metadata
+                    .event_payload_keys
+                    .iter()
+                    .any(|payload_key| payload_key == key),
+                "missing payload key {key}"
+            );
+        }
+    }
+
+    #[test]
+    fn ipd_mrd_report_carries_case_sheet_event_sources() {
+        let metadata = event_metadata_for_report("nmc-mrd-completeness-availability");
+
+        assert!(
+            metadata
+                .source_events
+                .iter()
+                .any(|event| event == "mrd.case_sheet.generated")
+        );
+        assert!(
+            metadata
+                .source_events
+                .iter()
+                .any(|event| event == "mrd.case_sheet.printed")
+        );
+        assert!(
+            metadata
+                .event_payload_keys
+                .iter()
+                .any(|key| key == "packet_id")
+        );
+        assert!(
+            metadata
+                .event_payload_keys
+                .iter()
+                .any(|key| key == "packet_type")
+        );
+    }
+
+    #[test]
     fn diagnostic_tat_report_carries_sample_collection_event_source() {
         let metadata = event_metadata_for_report("lab-end-to-end-tat");
 
@@ -2213,7 +2296,19 @@ mod tests {
             metadata
                 .source_events
                 .iter()
+                .any(|event| event == "order.cancelled")
+        );
+        assert!(
+            metadata
+                .source_events
+                .iter()
                 .any(|event| event == "lab.sample_collected")
+        );
+        assert!(
+            metadata
+                .source_events
+                .iter()
+                .any(|event| event == "lab.result.posted")
         );
         assert!(
             metadata
@@ -2232,6 +2327,12 @@ mod tests {
                 .event_payload_keys
                 .iter()
                 .any(|key| key == "order_id")
+        );
+        assert!(
+            metadata
+                .event_payload_keys
+                .iter()
+                .any(|key| key == "reason")
         );
         assert!(
             metadata
@@ -2265,9 +2366,21 @@ mod tests {
         );
         assert!(
             metadata
+                .source_events
+                .iter()
+                .any(|event| event == "order.cancelled")
+        );
+        assert!(
+            metadata
                 .event_payload_keys
                 .iter()
                 .any(|key| key == "requisition_id")
+        );
+        assert!(
+            metadata
+                .event_payload_keys
+                .iter()
+                .any(|key| key == "reason")
         );
         assert!(
             metadata
