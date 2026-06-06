@@ -19,6 +19,7 @@ import {
 import { notifications } from "@mantine/notifications";
 import { useHasPermission } from "@medbrains/stores";
 import type {
+  AccessMatrixPlatform,
   AccessMatrixSurface,
   AccessMatrixSurfaceKind,
   CustomRole,
@@ -55,11 +56,14 @@ import {
   summarizeJourneyActionCoverage,
 } from "./access-matrix-actions";
 import {
+  ACCESS_MATRIX_PLATFORMS,
   type AccessSurfaceGovernanceGap,
+  buildAccessPlatformCoverage,
   buildAccessSurfaceGovernanceCoverage,
   buildAccessSurfaceGovernanceGapRows,
   buildNavRouteCoverage,
   buildWorkflowKindCoverage,
+  summarizeAccessPlatformCoverage,
   summarizeAccessSurfaceGovernance,
   summarizeNavRouteCoverage,
   summarizeWorkflowKindCoverage,
@@ -314,9 +318,11 @@ function surfaceMatches(
   query: string,
   moduleFilter: string | null,
   kindFilter: string | null,
+  platformFilter: AccessMatrixPlatform | null,
 ) {
   if (moduleFilter && surface.module !== moduleFilter) return false;
   if (kindFilter && surface.kind !== kindFilter) return false;
+  if (platformFilter && !surface.platforms.includes(platformFilter)) return false;
   if (!query) return true;
 
   const haystack = [
@@ -328,6 +334,7 @@ function surfaceMatches(
     surface.route ?? "",
     surface.tab ?? "",
     surface.table ?? "",
+    ...surface.platforms,
     ...surface.requiredPermissions,
     ...surface.fieldAccessKeys,
     ...surface.activatesAfter,
@@ -353,8 +360,16 @@ function accessSurfaceModuleOptions() {
     .map((module) => ({ value: module, label: module }));
 }
 
+function accessSurfacePlatformOptions() {
+  return ACCESS_MATRIX_PLATFORMS.map((platform) => ({ value: platform, label: platform }));
+}
+
 function isAccessSurfaceKind(value: string): value is AccessMatrixSurfaceKind {
   return ACCESS_MATRIX_SURFACES.some((surface) => surface.kind === value);
+}
+
+function isAccessMatrixPlatform(value: string): value is AccessMatrixPlatform {
+  return ACCESS_MATRIX_PLATFORMS.some((platform) => platform === value);
 }
 
 function permissionMatches(permission: PermissionDef, query: string, moduleFilter: string | null) {
@@ -1512,14 +1527,15 @@ function SurfaceCoverageMatrix() {
   const pacedSurfaceFilter = usePacedQueryValue(surfaceFilter, 200).trim().toLowerCase();
   const [moduleFilter, setModuleFilter] = useState<string | null>(null);
   const [kindFilter, setKindFilter] = useState<AccessMatrixSurfaceKind | null>(null);
+  const [platformFilter, setPlatformFilter] = useState<AccessMatrixPlatform | null>(null);
   const fieldsByKey = useMemo(() => fieldByKey(), []);
 
   const visibleSurfaces = useMemo(
     () =>
       ACCESS_MATRIX_SURFACES.filter((surface) =>
-        surfaceMatches(surface, pacedSurfaceFilter, moduleFilter, kindFilter),
+        surfaceMatches(surface, pacedSurfaceFilter, moduleFilter, kindFilter, platformFilter),
       ),
-    [kindFilter, moduleFilter, pacedSurfaceFilter],
+    [kindFilter, moduleFilter, pacedSurfaceFilter, platformFilter],
   );
   const coveredPermissions = useMemo(
     () => new Set(ACCESS_MATRIX_SURFACES.flatMap((surface) => [...surface.requiredPermissions])),
@@ -1610,6 +1626,14 @@ function SurfaceCoverageMatrix() {
   const surfaceGovernanceSummary = useMemo(
     () => summarizeAccessSurfaceGovernance(surfaceGovernanceRows),
     [surfaceGovernanceRows],
+  );
+  const platformCoverageRows = useMemo(
+    () => buildAccessPlatformCoverage(ACCESS_MATRIX_SURFACES),
+    [],
+  );
+  const platformCoverageSummary = useMemo(
+    () => summarizeAccessPlatformCoverage(platformCoverageRows),
+    [platformCoverageRows],
   );
 
   return (
@@ -1735,6 +1759,28 @@ function SurfaceCoverageMatrix() {
             {surfaceGovernanceSummary.gaps} screen, tab, table, input or action gaps
           </Text>
         </Card>
+        <Card withBorder padding="sm">
+          <Text size="xs" c="dimmed" fw={700} tt="uppercase">
+            Platform Matrix
+          </Text>
+          <Text fw={700}>
+            {platformCoverageSummary.covered}/{platformCoverageSummary.total}
+          </Text>
+          <Text size="xs" c="dimmed">
+            web, mobile, TV and kiosk surfaces mapped
+          </Text>
+        </Card>
+        <Card withBorder padding="sm">
+          <Text size="xs" c="dimmed" fw={700} tt="uppercase">
+            Edge Displays
+          </Text>
+          <Text fw={700}>
+            {platformCoverageSummary.tvSurfaces}/{platformCoverageSummary.kioskSurfaces}
+          </Text>
+          <Text size="xs" c="dimmed">
+            TV / kiosk surfaces, {platformCoverageSummary.gaps} platform gaps
+          </Text>
+        </Card>
       </SimpleGrid>
 
       <Card withBorder padding="md">
@@ -1837,6 +1883,118 @@ function SurfaceCoverageMatrix() {
                     <Table.Td>
                       <Badge color={workflow.permissions.size > 0 ? "teal" : "red"} variant="light">
                         {workflow.permissions.size}
+                      </Badge>
+                    </Table.Td>
+                  </Table.Tr>
+                ))}
+              </Table.Tbody>
+            </Table>
+          </ScrollArea.Autosize>
+        </Stack>
+      </Card>
+
+      <Card withBorder padding="md">
+        <Stack gap="sm">
+          <Group justify="space-between" align="flex-start">
+            <Stack gap={2}>
+              <Text fw={700}>Platform Surface Coverage</Text>
+              <Text size="sm" c="dimmed">
+                Shows whether access surfaces are mapped for web, mobile, TV and kiosk. Edge
+                displays should stay token-only or masked, but still need route, permission, field
+                and masking metadata.
+              </Text>
+            </Stack>
+            <Badge color={platformCoverageSummary.gaps > 0 ? "orange" : "green"} variant="light">
+              {platformCoverageSummary.gaps} platform gaps
+            </Badge>
+          </Group>
+
+          <ScrollArea.Autosize mah={360}>
+            <Table stickyHeader highlightOnHover verticalSpacing="xs">
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th>Platform</Table.Th>
+                  <Table.Th>Surfaces</Table.Th>
+                  <Table.Th>Modules</Table.Th>
+                  <Table.Th>Surface types</Table.Th>
+                  <Table.Th>Route / permission</Table.Th>
+                  <Table.Th>Field / masking</Table.Th>
+                  <Table.Th>Event activation</Table.Th>
+                  <Table.Th>Gaps</Table.Th>
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
+                {platformCoverageRows.map((row) => (
+                  <Table.Tr key={row.platform}>
+                    <Table.Td>
+                      <Badge color="blue" variant="light">
+                        {row.platform}
+                      </Badge>
+                    </Table.Td>
+                    <Table.Td>{row.surfaces.length}</Table.Td>
+                    <Table.Td>
+                      <Group gap={4}>
+                        {row.modules.map((module) => (
+                          <Badge key={module} color="gray" variant="light">
+                            {module}
+                          </Badge>
+                        ))}
+                      </Group>
+                    </Table.Td>
+                    <Table.Td>
+                      <Group gap={4}>
+                        {Object.entries(row.kindCounts)
+                          .filter(([, count]) => count > 0)
+                          .map(([kind, count]) => (
+                            <Badge key={kind} color="gray" variant="light">
+                              {kind}: {count}
+                            </Badge>
+                          ))}
+                      </Group>
+                    </Table.Td>
+                    <Table.Td>
+                      <Stack gap={4}>
+                        <Badge
+                          color={row.routeMapped === row.surfaces.length ? "green" : "gray"}
+                          variant="light"
+                        >
+                          {row.routeMapped} routes
+                        </Badge>
+                        <Badge
+                          color={row.permissionMapped === row.surfaces.length ? "green" : "orange"}
+                          variant="light"
+                        >
+                          {row.permissionMapped} permissions
+                        </Badge>
+                      </Stack>
+                    </Table.Td>
+                    <Table.Td>
+                      <Stack gap={4}>
+                        <Badge
+                          color={row.fieldMapped === row.surfaces.length ? "green" : "gray"}
+                          variant="light"
+                        >
+                          {row.fieldMapped} field maps
+                        </Badge>
+                        <Badge
+                          color={row.maskingMapped === row.surfaces.length ? "green" : "orange"}
+                          variant="light"
+                        >
+                          {row.maskingMapped} masking
+                        </Badge>
+                      </Stack>
+                    </Table.Td>
+                    <Table.Td>
+                      <Badge color={row.eventActivated > 0 ? "blue" : "gray"} variant="light">
+                        {row.eventActivated}
+                      </Badge>
+                    </Table.Td>
+                    <Table.Td>
+                      <Badge
+                        color={row.governanceGapSurfaces > 0 ? "orange" : "green"}
+                        variant="light"
+                      >
+                        {row.governanceGapSurfaces}
                       </Badge>
                     </Table.Td>
                   </Table.Tr>
@@ -2339,6 +2497,16 @@ function SurfaceCoverageMatrix() {
                 }
                 clearable
               />
+              <Select
+                label="Platform"
+                placeholder="All platforms"
+                data={accessSurfacePlatformOptions()}
+                value={platformFilter}
+                onChange={(value) =>
+                  setPlatformFilter(value && isAccessMatrixPlatform(value) ? value : null)
+                }
+                clearable
+              />
             </Group>
             <Badge color="blue" variant="light">
               {visibleSurfaces.length} visible
@@ -2350,6 +2518,7 @@ function SurfaceCoverageMatrix() {
               <Table.Thead>
                 <Table.Tr>
                   <Table.Th>Surface</Table.Th>
+                  <Table.Th>Platforms</Table.Th>
                   <Table.Th>Route / table</Table.Th>
                   <Table.Th>Permissions</Table.Th>
                   <Table.Th>Field access keys</Table.Th>
@@ -2374,6 +2543,15 @@ function SurfaceCoverageMatrix() {
                       <Text size="xs" c="dimmed">
                         {surface.area}
                       </Text>
+                    </Table.Td>
+                    <Table.Td>
+                      <Group gap={4}>
+                        {surface.platforms.map((platform) => (
+                          <Badge key={platform} color="blue" variant="light">
+                            {platform}
+                          </Badge>
+                        ))}
+                      </Group>
                     </Table.Td>
                     <Table.Td>
                       <Stack gap={2}>

@@ -7,16 +7,19 @@ import {
   CLINICAL_EVENT_REQUIRED_PAYLOAD_KEYS,
   FIELD_ACCESS_FIELDS,
   TOKEN_BOARD_SURFACE_LIST,
+  TOKEN_BOARD_SURFACES,
 } from "@medbrains/types";
 import { describe, expect, it } from "vitest";
 import type { NavGroupConfig } from "@/config/navigation";
 import {
+  buildAccessPlatformCoverage,
   buildAccessSurfaceGovernanceCoverage,
   buildAccessSurfaceGovernanceGapRows,
   buildNavRouteCoverage,
   buildWorkflowKindCoverage,
   flattenNavRoutes,
   normalizeCoverageRoute,
+  summarizeAccessPlatformCoverage,
   summarizeAccessSurfaceGovernance,
   summarizeNavRouteCoverage,
   summarizeWorkflowKindCoverage,
@@ -273,6 +276,55 @@ describe("access matrix route coverage", () => {
     expect(rows.find((row) => row.kind === "input")?.permissionMapped).toBeGreaterThan(0);
     expect(rows.find((row) => row.kind === "column")?.fieldMapped).toBeGreaterThan(0);
     expect(rows.find((row) => row.kind === "table")?.routeMapped).toBeGreaterThan(0);
+  });
+
+  it("summarizes platform coverage for web, mobile, TV and kiosk surfaces", () => {
+    const rows = buildAccessPlatformCoverage(ACCESS_MATRIX_SURFACES);
+    const summary = summarizeAccessPlatformCoverage(rows);
+    const tvRow = rows.find((row) => row.platform === "tv");
+    const kioskRow = rows.find((row) => row.platform === "kiosk");
+
+    expect(summary).toMatchObject({
+      total: 4,
+      covered: 4,
+      gaps: 0,
+    });
+    expect(summary.tvSurfaces).toBeGreaterThanOrEqual(TOKEN_BOARD_SURFACE_LIST.length);
+    expect(summary.kioskSurfaces).toBeGreaterThanOrEqual(TOKEN_BOARD_SURFACE_LIST.length);
+    expect(tvRow?.kindCounts.screen).toBeGreaterThanOrEqual(TOKEN_BOARD_SURFACE_LIST.length);
+    expect(kioskRow?.modules).toEqual(
+      expect.arrayContaining(["billing", "emergency", "opd", "pharmacy"]),
+    );
+  });
+
+  it("reports per-platform governance gaps when an edge surface is not fully mapped", () => {
+    const rows = buildAccessPlatformCoverage([
+      testSurface({
+        id: "kiosk.registration",
+        label: "Kiosk registration",
+        kind: "input",
+        route: "/kiosk/register",
+        platforms: ["kiosk"],
+        requiredPermissions: [],
+        fieldAccessKeys: [],
+        masking: "identity",
+      }),
+      testSurface({
+        id: "tv.queue",
+        label: "TV queue",
+        kind: "screen",
+        route: TOKEN_BOARD_SURFACES.opd.targets.webPath,
+        platforms: ["tv"],
+        requiredPermissions: [...TOKEN_BOARD_SURFACES.opd.requiredAnyPermissions],
+        fieldAccessKeys: ["patients.uhid"],
+        masking: "identity",
+      }),
+    ]);
+    const summary = summarizeAccessPlatformCoverage(rows);
+
+    expect(rows.find((row) => row.platform === "kiosk")?.governanceGapSurfaces).toBe(1);
+    expect(rows.find((row) => row.platform === "tv")?.governanceGapSurfaces).toBe(0);
+    expect(summary.gaps).toBe(1);
   });
 
   it("reports governance gaps for unlinked fields, routes, permissions and activation", () => {

@@ -1,9 +1,17 @@
 import type {
+  AccessMatrixPlatform,
   AccessMatrixSurface,
   AccessMatrixSurfaceKind,
   AccessMatrixWorkflowExpectation,
 } from "@medbrains/types";
 import type { NavGroupConfig, NavItemConfig } from "@/config/navigation";
+
+export const ACCESS_MATRIX_PLATFORMS: readonly AccessMatrixPlatform[] = [
+  "web",
+  "mobile",
+  "tv",
+  "kiosk",
+];
 
 export type NavRouteCoverageStatus = "covered" | "permission-gap" | "unmapped";
 
@@ -60,6 +68,27 @@ export interface AccessSurfaceGovernanceSummary {
   total: number;
   covered: number;
   gaps: number;
+}
+
+export interface AccessPlatformCoverageRow {
+  platform: AccessMatrixPlatform;
+  surfaces: readonly AccessMatrixSurface[];
+  modules: readonly string[];
+  kindCounts: Readonly<Record<AccessMatrixSurfaceKind, number>>;
+  routeMapped: number;
+  permissionMapped: number;
+  fieldMapped: number;
+  maskingMapped: number;
+  eventActivated: number;
+  governanceGapSurfaces: number;
+}
+
+export interface AccessPlatformCoverageSummary {
+  total: number;
+  covered: number;
+  gaps: number;
+  tvSurfaces: number;
+  kioskSurfaces: number;
 }
 
 export interface WorkflowKindCoverageRow extends AccessMatrixWorkflowExpectation {
@@ -302,6 +331,66 @@ export function summarizeAccessSurfaceGovernance(
     total,
     covered: total - gaps,
     gaps,
+  };
+}
+
+function emptyKindCounts(): Record<AccessMatrixSurfaceKind, number> {
+  const counts: Record<AccessMatrixSurfaceKind, number> = {
+    action: 0,
+    column: 0,
+    input: 0,
+    print: 0,
+    screen: 0,
+    tab: 0,
+    table: 0,
+    widget: 0,
+  };
+
+  return counts;
+}
+
+export function buildAccessPlatformCoverage(
+  surfaces: readonly AccessMatrixSurface[],
+  platforms: readonly AccessMatrixPlatform[] = ACCESS_MATRIX_PLATFORMS,
+): AccessPlatformCoverageRow[] {
+  return platforms.map((platform) => {
+    const platformSurfaces = surfaces.filter((surface) => surface.platforms.includes(platform));
+    const kindCounts = emptyKindCounts();
+
+    for (const surface of platformSurfaces) {
+      kindCounts[surface.kind] += 1;
+    }
+
+    return {
+      platform,
+      surfaces: platformSurfaces,
+      modules: [...new Set(platformSurfaces.map((surface) => surface.module))].sort(),
+      kindCounts,
+      routeMapped: platformSurfaces.filter((surface) => surface.route).length,
+      permissionMapped: platformSurfaces.filter((surface) => surface.requiredPermissions.length > 0)
+        .length,
+      fieldMapped: platformSurfaces.filter((surface) => surface.fieldAccessKeys.length > 0).length,
+      maskingMapped: platformSurfaces.filter((surface) => surface.masking !== "none").length,
+      eventActivated: platformSurfaces.filter((surface) => surface.activatesAfter.length > 0)
+        .length,
+      governanceGapSurfaces: platformSurfaces.filter(
+        (surface) => surfaceGovernanceGaps(surface).length > 0,
+      ).length,
+    };
+  });
+}
+
+export function summarizeAccessPlatformCoverage(
+  rows: readonly AccessPlatformCoverageRow[],
+): AccessPlatformCoverageSummary {
+  const gaps = rows.reduce((sum, row) => sum + row.governanceGapSurfaces, 0);
+  return {
+    total: rows.length,
+    covered: rows.filter((row) => row.surfaces.length > 0 && row.governanceGapSurfaces === 0)
+      .length,
+    gaps,
+    tvSurfaces: rows.find((row) => row.platform === "tv")?.surfaces.length ?? 0,
+    kioskSurfaces: rows.find((row) => row.platform === "kiosk")?.surfaces.length ?? 0,
   };
 }
 
