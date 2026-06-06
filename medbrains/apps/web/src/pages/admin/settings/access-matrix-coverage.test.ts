@@ -12,6 +12,7 @@ import {
 import { describe, expect, it } from "vitest";
 import type { NavGroupConfig } from "@/config/navigation";
 import {
+  buildAccessFieldCoverage,
   buildAccessPlatformCoverage,
   buildAccessSurfaceGovernanceCoverage,
   buildAccessSurfaceGovernanceGapRows,
@@ -19,6 +20,7 @@ import {
   buildWorkflowKindCoverage,
   flattenNavRoutes,
   normalizeCoverageRoute,
+  summarizeAccessFieldCoverage,
   summarizeAccessPlatformCoverage,
   summarizeAccessSurfaceGovernance,
   summarizeNavRouteCoverage,
@@ -214,6 +216,59 @@ describe("access matrix route coverage", () => {
 
     expect(surfaceKeysMissingFromRegistry).toEqual([]);
     expect(registeredKeysNotMapped).toEqual([]);
+  });
+
+  it("summarizes registered fields by governed surfaces, masking, platforms and print coverage", () => {
+    const rows = buildAccessFieldCoverage(FIELD_ACCESS_FIELDS, ACCESS_MATRIX_SURFACES);
+    const summary = summarizeAccessFieldCoverage(rows);
+    const patientUhid = rows.find((row) => row.key === "patients.uhid");
+    const billingAmount = rows.find((row) => row.key === "billing.amount");
+    const mlcFIR = rows.find((row) => row.key === "emergency.mlc.fir_number");
+
+    expect(summary).toMatchObject({
+      total: FIELD_ACCESS_FIELDS.length,
+      complete: FIELD_ACCESS_FIELDS.length,
+      gaps: 0,
+    });
+    expect(summary.edgeMapped).toBeGreaterThan(0);
+    expect(summary.printMapped).toBeGreaterThan(0);
+    expect(patientUhid?.kindCounts.screen).toBeGreaterThan(0);
+    expect(patientUhid?.kindCounts.input).toBeGreaterThan(0);
+    expect(patientUhid?.kindCounts.column).toBeGreaterThan(0);
+    expect(patientUhid?.platforms).toEqual(expect.arrayContaining(["web", "mobile", "kiosk"]));
+    expect(billingAmount?.maskingBehaviors).toEqual(expect.arrayContaining(["financial"]));
+    expect(billingAmount?.printMapped).toBeGreaterThan(0);
+    expect(mlcFIR?.maskingBehaviors).toEqual(expect.arrayContaining(["regulatory"]));
+  });
+
+  it("reports field governance gaps when a registered field is not mapped to a governed surface", () => {
+    const [patientUhid] = FIELD_ACCESS_FIELDS;
+    if (!patientUhid) {
+      throw new Error("FIELD_ACCESS_FIELDS must include at least one field");
+    }
+    const rows = buildAccessFieldCoverage(
+      [patientUhid],
+      [
+        testSurface({
+          id: "patient.unlinked",
+          label: "Patient unlinked",
+          route: "/patients",
+          requiredPermissions: [],
+          fieldAccessKeys: [],
+        }),
+      ],
+    );
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.key).toBe(fieldKey(patientUhid));
+    expect(rows[0]?.gaps).toEqual(["missing-surface"]);
+    expect(summarizeAccessFieldCoverage(rows)).toEqual({
+      total: 1,
+      complete: 0,
+      gaps: 1,
+      edgeMapped: 0,
+      printMapped: 0,
+    });
   });
 
   it("keeps access-surface activation events aligned with the clinical event registry", () => {

@@ -57,13 +57,17 @@ import {
 } from "./access-matrix-actions";
 import {
   ACCESS_MATRIX_PLATFORMS,
+  type AccessFieldCoverageGap,
+  type AccessFieldCoverageRow,
   type AccessSurfaceGovernanceGap,
   accessSurfacePlatformRoute,
+  buildAccessFieldCoverage,
   buildAccessPlatformCoverage,
   buildAccessSurfaceGovernanceCoverage,
   buildAccessSurfaceGovernanceGapRows,
   buildNavRouteCoverage,
   buildWorkflowKindCoverage,
+  summarizeAccessFieldCoverage,
   summarizeAccessPlatformCoverage,
   summarizeAccessSurfaceGovernance,
   summarizeNavRouteCoverage,
@@ -99,6 +103,13 @@ const ACCESS_SURFACE_GAP_LABELS: Record<AccessSurfaceGovernanceGap, string> = {
   "missing-table": "table",
   "missing-tab-anchor": "tab anchor",
   "missing-activation": "event",
+  "missing-masking": "masking",
+};
+
+const ACCESS_FIELD_COVERAGE_GAP_LABELS: Record<AccessFieldCoverageGap, string> = {
+  "missing-surface": "surface",
+  "missing-route": "route",
+  "missing-permission": "permission",
   "missing-masking": "masking",
 };
 
@@ -344,6 +355,41 @@ function surfaceMatches(
     ...surface.printerProfiles,
     ...surface.platforms.map((platform) => accessSurfacePlatformRoute(surface, platform) ?? ""),
     ...surface.standardRefs,
+  ]
+    .join(" ")
+    .toLowerCase();
+  return haystack.includes(query);
+}
+
+function fieldCoverageMatches(
+  row: AccessFieldCoverageRow,
+  query: string,
+  moduleFilter: string | null,
+  kindFilter: AccessMatrixSurfaceKind | null,
+  platformFilter: AccessMatrixPlatform | null,
+) {
+  if (
+    moduleFilter &&
+    row.module !== moduleFilter &&
+    !row.surfaces.some((surface) => surface.module === moduleFilter)
+  ) {
+    return false;
+  }
+  if (kindFilter && row.kindCounts[kindFilter] === 0) return false;
+  if (platformFilter && !row.platforms.includes(platformFilter)) return false;
+  if (!query) return true;
+
+  const haystack = [
+    row.key,
+    row.module,
+    row.name,
+    row.dataType,
+    row.description ?? "",
+    ...row.surfaces.map((surface) => surface.module),
+    ...row.surfaceIds,
+    ...row.platforms,
+    ...row.maskingBehaviors,
+    ...row.permissions,
   ]
     .join(" ")
     .toLowerCase();
@@ -1579,6 +1625,21 @@ function SurfaceCoverageMatrix() {
   const registeredFieldsNotMapped = FIELD_ACCESS_FIELDS.filter(
     (field) => !coveredFieldKeys.has(fieldKey(field)),
   );
+  const fieldCoverageRows = useMemo(
+    () => buildAccessFieldCoverage(FIELD_ACCESS_FIELDS, ACCESS_MATRIX_SURFACES),
+    [],
+  );
+  const visibleFieldCoverageRows = useMemo(
+    () =>
+      fieldCoverageRows.filter((row) =>
+        fieldCoverageMatches(row, pacedSurfaceFilter, moduleFilter, kindFilter, platformFilter),
+      ),
+    [fieldCoverageRows, kindFilter, moduleFilter, pacedSurfaceFilter, platformFilter],
+  );
+  const fieldCoverageSummary = useMemo(
+    () => summarizeAccessFieldCoverage(fieldCoverageRows),
+    [fieldCoverageRows],
+  );
   const printSurfaces = ACCESS_MATRIX_SURFACES.filter((surface) => surface.kind === "print");
   const printerRequiredSurfaces = printSurfaces.filter((surface) => surface.requiresPrinter);
   const printArtifacts = new Set(printSurfaces.flatMap((surface) => [...surface.printArtifacts]));
@@ -1674,6 +1735,17 @@ function SurfaceCoverageMatrix() {
           <Text fw={700}>{coveredFieldKeys.size}</Text>
           <Text size="xs" c="dimmed">
             table columns and input fields
+          </Text>
+        </Card>
+        <Card withBorder padding="sm">
+          <Text size="xs" c="dimmed" fw={700} tt="uppercase">
+            Field Governance
+          </Text>
+          <Text fw={700}>
+            {fieldCoverageSummary.complete}/{fieldCoverageSummary.total}
+          </Text>
+          <Text size="xs" c="dimmed">
+            {fieldCoverageSummary.edgeMapped} edge, {fieldCoverageSummary.printMapped} printable
           </Text>
         </Card>
         <Card withBorder padding="sm">
@@ -1886,6 +1958,138 @@ function SurfaceCoverageMatrix() {
                       <Badge color={workflow.permissions.size > 0 ? "teal" : "red"} variant="light">
                         {workflow.permissions.size}
                       </Badge>
+                    </Table.Td>
+                  </Table.Tr>
+                ))}
+              </Table.Tbody>
+            </Table>
+          </ScrollArea.Autosize>
+        </Stack>
+      </Card>
+
+      <Card withBorder padding="md">
+        <Stack gap="sm">
+          <Group justify="space-between" align="flex-start">
+            <Stack gap={2}>
+              <Text fw={700}>Field-Level Masking Coverage</Text>
+              <Text size="sm" c="dimmed">
+                Shows every registered sensitive field and the surfaces that govern it, including
+                screens, tabs, tables, columns, inputs, actions, printables and edge-device targets.
+              </Text>
+            </Stack>
+            <Group gap={6}>
+              <Badge color="blue" variant="light">
+                {visibleFieldCoverageRows.length} visible
+              </Badge>
+              <Badge color={fieldCoverageSummary.gaps > 0 ? "orange" : "green"} variant="light">
+                {fieldCoverageSummary.gaps} field gaps
+              </Badge>
+            </Group>
+          </Group>
+
+          <ScrollArea.Autosize mah={420}>
+            <Table stickyHeader highlightOnHover verticalSpacing="xs">
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th>Field</Table.Th>
+                  <Table.Th>Surface types</Table.Th>
+                  <Table.Th>Platforms / routes</Table.Th>
+                  <Table.Th>Masking / print</Table.Th>
+                  <Table.Th>Permissions / events</Table.Th>
+                  <Table.Th>Gaps</Table.Th>
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
+                {visibleFieldCoverageRows.map((row) => (
+                  <Table.Tr key={row.key}>
+                    <Table.Td>
+                      <Group gap={6} mb={2}>
+                        <Badge variant="light">{row.module}</Badge>
+                        <Badge color="gray" variant="light">
+                          {row.dataType}
+                        </Badge>
+                      </Group>
+                      <Text size="sm" fw={600}>
+                        {row.name}
+                      </Text>
+                      <Text size="xs" ff="var(--font-mono, monospace)" c="dimmed">
+                        {row.key}
+                      </Text>
+                    </Table.Td>
+                    <Table.Td>
+                      <Group gap={4}>
+                        {Object.entries(row.kindCounts)
+                          .filter(([, count]) => count > 0)
+                          .map(([kind, count]) => (
+                            <Badge key={kind} color="gray" variant="light">
+                              {kind}: {count}
+                            </Badge>
+                          ))}
+                      </Group>
+                    </Table.Td>
+                    <Table.Td>
+                      <Stack gap={4}>
+                        <Group gap={4}>
+                          {row.platforms.map((platform) => (
+                            <Badge key={platform} color="blue" variant="light">
+                              {platform}
+                            </Badge>
+                          ))}
+                        </Group>
+                        <Group gap={4}>
+                          <Badge
+                            color={row.routeMapped === row.surfaces.length ? "green" : "orange"}
+                            variant="light"
+                          >
+                            {row.routeMapped}/{row.surfaces.length} routes
+                          </Badge>
+                          <Badge color={row.edgeMapped > 0 ? "blue" : "gray"} variant="light">
+                            {row.edgeMapped} edge
+                          </Badge>
+                        </Group>
+                      </Stack>
+                    </Table.Td>
+                    <Table.Td>
+                      <Stack gap={4}>
+                        <Group gap={4}>
+                          {row.maskingBehaviors.map((masking) => (
+                            <Badge key={masking} color="violet" variant="light">
+                              {masking}
+                            </Badge>
+                          ))}
+                        </Group>
+                        <Badge color={row.printMapped > 0 ? "blue" : "gray"} variant="light">
+                          {row.printMapped} print
+                        </Badge>
+                      </Stack>
+                    </Table.Td>
+                    <Table.Td>
+                      <Stack gap={4}>
+                        <Badge
+                          color={row.permissions.length > 0 ? "teal" : "orange"}
+                          variant="light"
+                        >
+                          {row.permissions.length} permissions
+                        </Badge>
+                        <Badge color={row.eventActivated > 0 ? "blue" : "gray"} variant="light">
+                          {row.eventActivated} event surfaces
+                        </Badge>
+                      </Stack>
+                    </Table.Td>
+                    <Table.Td>
+                      {row.gaps.length > 0 ? (
+                        <Group gap={4}>
+                          {row.gaps.map((gap) => (
+                            <Badge key={gap} color="orange" variant="light">
+                              {ACCESS_FIELD_COVERAGE_GAP_LABELS[gap]}
+                            </Badge>
+                          ))}
+                        </Group>
+                      ) : (
+                        <Badge color="green" variant="light">
+                          complete
+                        </Badge>
+                      )}
                     </Table.Td>
                   </Table.Tr>
                 ))}
@@ -2483,7 +2687,7 @@ function SurfaceCoverageMatrix() {
             <Group gap="sm" align="flex-end">
               <TextInput
                 label="Surface search"
-                placeholder="Search screen, tab, table, input, permission or event"
+                placeholder="Search screen, tab, table, input, field, permission or event"
                 leftSection={<IconSearch size={14} />}
                 value={surfaceFilter}
                 onChange={(event) => setSurfaceFilter(event.currentTarget.value)}

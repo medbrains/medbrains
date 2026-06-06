@@ -1,8 +1,10 @@
 import type {
+  AccessMatrixMaskingBehavior,
   AccessMatrixPlatform,
   AccessMatrixSurface,
   AccessMatrixSurfaceKind,
   AccessMatrixWorkflowExpectation,
+  FieldMasterFull,
 } from "@medbrains/types";
 import type { NavGroupConfig, NavItemConfig } from "@/config/navigation";
 
@@ -68,6 +70,39 @@ export interface AccessSurfaceGovernanceSummary {
   total: number;
   covered: number;
   gaps: number;
+}
+
+export type AccessFieldCoverageGap =
+  | "missing-surface"
+  | "missing-route"
+  | "missing-permission"
+  | "missing-masking";
+
+export interface AccessFieldCoverageRow {
+  key: string;
+  module: string;
+  name: string;
+  dataType: FieldMasterFull["data_type"];
+  description: string | null;
+  surfaces: readonly AccessMatrixSurface[];
+  surfaceIds: readonly string[];
+  kindCounts: Readonly<Record<AccessMatrixSurfaceKind, number>>;
+  platforms: readonly AccessMatrixPlatform[];
+  maskingBehaviors: readonly AccessMatrixMaskingBehavior[];
+  permissions: readonly string[];
+  routeMapped: number;
+  eventActivated: number;
+  printMapped: number;
+  edgeMapped: number;
+  gaps: readonly AccessFieldCoverageGap[];
+}
+
+export interface AccessFieldCoverageSummary {
+  total: number;
+  complete: number;
+  gaps: number;
+  edgeMapped: number;
+  printMapped: number;
 }
 
 export interface AccessPlatformCoverageRow {
@@ -342,6 +377,10 @@ export function summarizeAccessSurfaceGovernance(
   };
 }
 
+export function accessMatrixFieldKey(field: FieldMasterFull) {
+  return `${field.db_table ?? "general"}.${field.code}`;
+}
+
 function emptyKindCounts(): Record<AccessMatrixSurfaceKind, number> {
   const counts: Record<AccessMatrixSurfaceKind, number> = {
     action: 0,
@@ -355,6 +394,111 @@ function emptyKindCounts(): Record<AccessMatrixSurfaceKind, number> {
   };
 
   return counts;
+}
+
+function fieldCoverageGaps({
+  maskingBehaviors,
+  permissions,
+  routeMapped,
+  surfaces,
+}: Pick<
+  AccessFieldCoverageRow,
+  "maskingBehaviors" | "permissions" | "routeMapped" | "surfaces"
+>): AccessFieldCoverageGap[] {
+  const gaps: AccessFieldCoverageGap[] = [];
+
+  if (surfaces.length === 0) {
+    gaps.push("missing-surface");
+  }
+  if (surfaces.length > 0 && routeMapped === 0) {
+    gaps.push("missing-route");
+  }
+  if (surfaces.length > 0 && permissions.length === 0) {
+    gaps.push("missing-permission");
+  }
+  if (surfaces.length > 0 && maskingBehaviors.length === 0) {
+    gaps.push("missing-masking");
+  }
+
+  return gaps;
+}
+
+export function buildAccessFieldCoverage(
+  fields: readonly FieldMasterFull[],
+  surfaces: readonly AccessMatrixSurface[],
+): AccessFieldCoverageRow[] {
+  const surfacesByField = new Map<string, AccessMatrixSurface[]>();
+
+  for (const surface of surfaces) {
+    for (const key of new Set(surface.fieldAccessKeys)) {
+      surfacesByField.set(key, [...(surfacesByField.get(key) ?? []), surface]);
+    }
+  }
+
+  return fields
+    .map((field) => {
+      const key = accessMatrixFieldKey(field);
+      const fieldSurfaces = surfacesByField.get(key) ?? [];
+      const kindCounts = emptyKindCounts();
+      for (const surface of fieldSurfaces) {
+        kindCounts[surface.kind] += 1;
+      }
+      const platforms = [
+        ...new Set(fieldSurfaces.flatMap((surface) => [...surface.platforms])),
+      ].sort();
+      const maskingBehaviors = [
+        ...new Set(
+          fieldSurfaces.map((surface) => surface.masking).filter((masking) => masking !== "none"),
+        ),
+      ].sort();
+      const permissions = [
+        ...new Set(fieldSurfaces.flatMap((surface) => [...surface.requiredPermissions])),
+      ].sort();
+      const routeMapped = fieldSurfaces.filter((surface) => surface.route).length;
+      const rowWithoutGaps = {
+        dataType: field.data_type,
+        description: field.description,
+        edgeMapped: fieldSurfaces.filter((surface) =>
+          surface.platforms.some((platform) => platform !== "web"),
+        ).length,
+        eventActivated: fieldSurfaces.filter((surface) => surface.activatesAfter.length > 0).length,
+        gaps: [],
+        key,
+        kindCounts,
+        maskingBehaviors,
+        module: field.db_table ?? "general",
+        name: field.name,
+        permissions,
+        platforms,
+        printMapped: fieldSurfaces.filter((surface) => surface.kind === "print").length,
+        routeMapped,
+        surfaceIds: fieldSurfaces.map((surface) => surface.id).sort(),
+        surfaces: fieldSurfaces,
+      } satisfies Omit<AccessFieldCoverageRow, "gaps"> & {
+        gaps: readonly AccessFieldCoverageGap[];
+      };
+
+      return {
+        ...rowWithoutGaps,
+        gaps: fieldCoverageGaps(rowWithoutGaps),
+      };
+    })
+    .sort((left, right) => {
+      const moduleComparison = left.module.localeCompare(right.module);
+      return moduleComparison === 0 ? left.key.localeCompare(right.key) : moduleComparison;
+    });
+}
+
+export function summarizeAccessFieldCoverage(
+  rows: readonly AccessFieldCoverageRow[],
+): AccessFieldCoverageSummary {
+  return {
+    total: rows.length,
+    complete: rows.filter((row) => row.gaps.length === 0).length,
+    gaps: rows.filter((row) => row.gaps.length > 0).length,
+    edgeMapped: rows.filter((row) => row.edgeMapped > 0).length,
+    printMapped: rows.filter((row) => row.printMapped > 0).length,
+  };
 }
 
 export function buildAccessPlatformCoverage(
