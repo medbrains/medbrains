@@ -6,7 +6,7 @@ import type {
 } from "@medbrains/types";
 import { P, resolveClinicalJourneyActions } from "@medbrains/types";
 import { StyleSheet, View } from "react-native";
-import { Button, Text } from "react-native-paper";
+import { Button, Chip, Text } from "react-native-paper";
 
 type MobileJourneyActionId =
   | "billing.collect_payment"
@@ -100,6 +100,12 @@ function eventLabel(eventName: string) {
   return eventName.replace(/\./g, " ");
 }
 
+function actionActivationText(action: ResolvedClinicalJourneyAction) {
+  return action.activatesAfter.length > 0
+    ? `After ${action.activatesAfter.map(eventLabel).join(" / ")}`
+    : "Available";
+}
+
 function supportedAction(
   action: ResolvedClinicalJourneyAction,
 ): action is ResolvedClinicalJourneyAction & { id: MobileJourneyActionId } {
@@ -158,6 +164,15 @@ export function PatientJourneyActions({ context, navigation }: PatientJourneyAct
   const actions = resolveClinicalJourneyActions(context, hasPermission, "mobile").filter(
     supportedAction,
   );
+  const actionStates = actions.map((action) => ({
+    action,
+    disabledReason: mobileDisabledReason(action, context, hasPermission),
+  }));
+  const readyActionCount = actionStates.filter((state) => !state.disabledReason).length;
+  const blockedActionCount = actionStates.length - readyActionCount;
+  const eventGatedActionCount = actionStates.filter(
+    (state) => state.action.activatesAfter.length > 0,
+  ).length;
 
   function handleAction(action: ResolvedClinicalJourneyAction & { id: MobileJourneyActionId }) {
     if (mobileDisabledReason(action, context, hasPermission)) return;
@@ -265,13 +280,32 @@ export function PatientJourneyActions({ context, navigation }: PatientJourneyAct
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text variant="titleSmall" style={styles.title}>
-          Patient Flow
-        </Text>
+        <View>
+          <Text variant="titleSmall" style={styles.title}>
+            Patient Flow
+          </Text>
+          <Text variant="bodySmall" style={styles.subtitle}>
+            Event and permission driven mobile handoffs
+          </Text>
+        </View>
+        <View style={styles.summaryChips}>
+          <Chip compact icon="check-circle" mode="outlined">
+            {readyActionCount} ready
+          </Chip>
+          {blockedActionCount > 0 && (
+            <Chip compact icon="lock-alert" mode="outlined">
+              {blockedActionCount} blocked
+            </Chip>
+          )}
+          {eventGatedActionCount > 0 && (
+            <Chip compact icon="source-branch" mode="outlined">
+              {eventGatedActionCount} event gated
+            </Chip>
+          )}
+        </View>
       </View>
       <View style={styles.actions}>
-        {actions.map((action) => {
-          const disabledReason = mobileDisabledReason(action, context, hasPermission);
+        {actionStates.map(({ action, disabledReason }) => {
           return (
             <View key={action.id} style={styles.actionBlock}>
               <Button
@@ -284,7 +318,7 @@ export function PatientJourneyActions({ context, navigation }: PatientJourneyAct
                 {actionLabel(action)}
               </Button>
               <Text variant="labelSmall" style={styles.reason}>
-                {disabledReason ?? `After ${action.activatesAfter.map(eventLabel).join(" / ")}`}
+                {disabledReason ?? actionActivationText(action)}
               </Text>
             </View>
           );
@@ -300,10 +334,23 @@ const styles = StyleSheet.create({
   },
   header: {
     flexDirection: "row",
+    justifyContent: "space-between",
+    gap: 12,
     marginBottom: 12,
   },
   title: {
     fontWeight: "700",
+  },
+  subtitle: {
+    opacity: 0.65,
+  },
+  summaryChips: {
+    alignItems: "flex-end",
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+    justifyContent: "flex-end",
+    maxWidth: "62%",
   },
   actions: {
     flexDirection: "row",
