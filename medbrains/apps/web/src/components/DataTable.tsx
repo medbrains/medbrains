@@ -11,6 +11,7 @@ import {
 } from "@mantine/core";
 import { usePermissionStore } from "@medbrains/stores";
 import type { FieldAccessLevel } from "@medbrains/types";
+import { mostRestrictedFieldAccess } from "@medbrains/utils";
 import {
   type CSSProperties,
   type ReactNode,
@@ -95,13 +96,6 @@ interface DataTableProps<T> {
   tableMaxHeight?: CSSProperties["maxHeight"];
 }
 
-const accessRank: Record<FieldAccessLevel, number> = {
-  edit: 0,
-  view: 1,
-  mask: 2,
-  hidden: 3,
-};
-
 function normalizeFieldCodes<T>(column: Column<T>) {
   const codes = new Set<string>();
   if (column.fieldAccessKey) {
@@ -111,12 +105,6 @@ function normalizeFieldCodes<T>(column: Column<T>) {
     codes.add(code);
   }
   return [...codes];
-}
-
-function mostRestrictedAccess(accessLevels: FieldAccessLevel[]): FieldAccessLevel {
-  return accessLevels.reduce<FieldAccessLevel>((current, next) => {
-    return accessRank[next] > accessRank[current] ? next : current;
-  }, "edit");
 }
 
 function resolveColumnAccess<T>(
@@ -135,7 +123,7 @@ function resolveColumnAccess<T>(
   const fieldCodes = normalizeFieldCodes(column);
   const fieldAccess =
     fieldCodes.length > 0
-      ? mostRestrictedAccess(fieldCodes.map((fieldCode) => getFieldAccess(fieldCode)))
+      ? mostRestrictedFieldAccess(fieldCodes.map((fieldCode) => getFieldAccess(fieldCode)))
       : "edit";
 
   return {
