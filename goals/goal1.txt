@@ -1,268 +1,127 @@
-# MedBrain — Build Spec (Claude Code paste)
+# MedBrains Goal 1 - Problem Statement
 
-## 0. GROUND RULES
-- Stack: Rust/Axum services, React frontend, PostgreSQL + YottaDB, event broker (NATS JetStream).
-- Each module = independent bounded context. Decouple modules in code, couple data via events.
-- Modules: Patient Registration, OPD, IPD, Emergency, Camp, Pharmacy, Billing, Settings/Config, Reports.
-- Build order: Registration → OPD → Pharmacy → Billing → IPD → Emergency → Camp → Reports → Settings.
-- No PHI in clear on the wire or at rest. No secrets in code/images/env files.
-- Primary goal: make the application usable end-to-end. Every implementation pass must improve real
-  workflow actions, patient/module navigation, business rules, and operational decisions. Permission
-  matrices, masking, and ABAC are guardrails around the workflow; they must not become a standalone
-  UI/security exercise that leaves screens loosely connected or actions non-functional.
-- Acceptance rule for each slice: a user can start from a real patient/module state, see the next
-  valid actions, complete at least one meaningful business action, and land in the next relevant
-  workspace/report without re-searching or guessing.
+## Problem
+MedBrains is not yet fully usable as an end-to-end hospital workflow system because the
+core patient journey is still too loosely connected across modules. Users can register
+a patient, open OPD/IPD/emergency/camp/pharmacy/billing screens, and see some actions,
+but the application does not yet behave like one tightly integrated operational system.
 
-## 1. UX REQUIREMENTS
-- Concept correction: do not build a Microsoft Teams clone, and do not turn every workflow into
-  tabs. MedBrains should feel like a clinical command workspace: patient context is always
-  visible, clinical/operational modules are deep-linkable, and actions become available only when
-  the patient state and permissions make them valid.
-- Route/tab/drawer rule:
-  - Use routes for durable records and workspaces: patient record, OPD encounter, IPD admission,
-    emergency visit, pharmacy order, bill/invoice, camp workspace, settings pages, reports.
-  - Use tabs for stable sections inside a durable workspace: notes, orders, MAR, billing, timeline,
-    audit, configuration categories.
-  - Use drawers/modals only for short transient tasks: quick create, confirmation, filters, small
-    forms, scan/print/reprint, one-step routing. Do not hide full workflows in drawers.
-- Product model: patient-centric first, module-aware second. The user should be able to move from
-  Registration -> OPD -> IPD/Emergency -> Pharmacy -> Billing -> Reports without re-searching the
-  patient or losing context, but each module still owns its own route, permissions, events, and
-  audit trail.
-- Enterprise layout: quiet dense workspace, not marketing UI. Prefer predictable rails, top context
-  bars, compact action panels, virtualized tables, status chips, and explainable disabled actions.
-  Avoid decorative dashboards, oversized hero sections, and visual noise in operational screens.
-- Drawers are not banned; drawer misuse is banned. If a user must bookmark it, share it, audit it,
-  reopen it later, or continue the work across modules, it must be a route.
-- No navigation drawer. Use responsive nav: bottom nav (compact), collapsed rail (medium), expanded rail (desktop), D-pad rail (TV).
-- Each module is a route (deep-linkable, back-safe), not a menu item.
-- Sub-views inside a module = in-screen tabs, not nested drawers.
-- IPD screen layout: fixed top app bar (patient context: name, MRN, bed, allergy banner, global actions) + top tabs (Orders/Vitals/Notes/Billing) + left module rail + right contextual action panel.
-- Menus/buttons are event + permission driven: an action renders only when (a) a domain event/state makes it valid AND (b) ABAC permits it. Denied actions hidden or disabled-with-reason.
-- Client subscribes to same event stream as backend; a client state machine maps {events × ABAC} → visible/enabled actions.
-- Audit existing React components; refactor any that hardcode color/spacing or render unmasked fields onto tokens + masking layer. One component set for web/mobile/TV/kiosk via responsive props.
-- Follow Material 3 component semantics (https://m3.material.io/).
+The main problem is not lack of screens. The problem is that patient context, event
+state, permissions, masking, settings, token boards, and reports are not consistently
+linked across the real workflows hospital staff perform every day.
 
-## 2. EVENT-DRIVEN BACKEND
-- Each module: validate command → persist to own store → emit versioned domain event.
-- Events versioned + additive only (e.g. PatientAdmitted.v2); never break a published event shape.
-- Broker: NATS JetStream, append-only, ordered per patient key, durable, replayable.
-- Delivery at-least-once; every consumer idempotent (dedupe on event id).
-- Read side: projections/read-models power dashboards, indicators, search. Reports never query write stores directly.
-- Canonical events: PatientRegistered, OPDEncounterOpened, OrderPlaced, DrugDispensed, ChargeCaptured, PatientAdmitted, BedAssigned, LabResultPosted(critical flag), DischargeInitiated, BillDraftUpdated, BillFinalized, StockBelowReorder.
-- Edge mapping: expose HL7 v2 + FHIR R5 (SubscriptionTopic) at integration boundary only.
-- Reference flow to implement first: RegisterPatient→OpenEncounter→PlaceOrder→Pharmacy dispenses (sub OrderPlaced)→ChargeCaptured→Billing (sub ChargeCaptured)→FinalizeBill→Reports projections update.
+## Affected Workflows
+The priority workflow chain is:
 
-## 3. ABAC + FIELD MASKING
-- Authorization is attribute-based. Enforce server-side; API returns already-masked payloads. Client only additionally hides denied actions.
-- Masking levels: FULL | PARTIAL | TOKENIZED | REDACTED | DENIED-ACTION.
-- Decision inputs to collect:
-  - Subject: role(s), department, designation, treating-relationship to patient, duty/shift, location, device, seniority.
-  - Resource: module, entity, field, sensitivity class (PII/PHI/financial/sensitive-dx), consent flags, ownership (own/ward/hospital).
-  - Action: view, create, edit, delete, dispense, finalize, reveal-masked, export, print.
-  - Environment: device class (web/mobile/TV/kiosk), network (on-prem/remote), time, break-glass override (logged), data-access-lifetime window.
-- Rule shape: (subject)×(resource)×(action)×(environment) → effect ∈ {FULL,PARTIAL,TOKENIZED,REDACTED,DENIED}.
-- Single masking middleware between read-models and all transports (REST/SSE). Components receive typed MaskedField<T>.
-- Every reveal/break-glass writes to immutable audit log.
+Patient registration -> OPD -> IPD -> Emergency -> Camp -> Pharmacy -> Billing ->
+Reports / Settings / Configuration
 
-## 4. DESIGN TOKENS
-- One token set, three tiers: reference → system (semantic) → component. Components reference system tokens only.
-- DO NOT assert final colors. RESEARCH TASK: generate full M3 tonal palette from a chosen source color, run WCAG AA contrast audit, then lock token JSON.
-- Build pipeline (Style Dictionary or similar) emits: CSS vars (web), mobile resources, TV/kiosk theme (larger base sizes + visible focus ring).
-- Density tokens: compact (phone), comfortable (TV/kiosk). Same tokens, scaled.
-- Reserve a single saturated red strictly for criticality (critical vitals/critical-value alerts).
+Mobile, TV, and kiosk surfaces must support the same operational chain where they are
+part of the workflow, especially token systems, queue boards, check-in, bedside views,
+and edge-device dashboards.
 
-## 5. MULTI-PLATFORM
-- Web: rail + top + side. Mobile: bottom nav + sheets, replicates web flows, offline-tolerant. TV: large rail, focus-driven, read-mostly. Kiosk: single-task, big targets, locked.
-- Offline-first: local cache + queued commands; reconcile via event log on reconnect (at-least-once + idempotency makes safe).
-- Thin edge: kiosks/TVs render read-models pushed over SSE/WebSocket; heavy logic server-side.
-- Per-surface performance budgets (first paint, interaction latency). Lazy-load by route. Virtualize long tables/queues.
-- Dashboards: one shared widget library bound to projections, themed by tokens, authored once.
+## User-Visible Symptoms
+- Staff must re-search or re-select the same patient when moving between modules.
+- OPD, IPD, emergency, camp, pharmacy, and billing feel like separate pages instead of
+  linked patient-care workspaces.
+- Some important workflows are hidden in drawers even though they should be durable
+  routes or tabs that can be reopened, audited, shared, and deep-linked.
+- Patient context is not always visible when the user is inside clinical or financial
+  workspaces.
+- IPD does not yet consistently use the top patient context, left navigation rail, and
+  right contextual actions for ward-style work.
+- Actions are not always activated by real domain state. Buttons can appear without a
+  clear event reason, or disabled actions do not always explain what event or permission
+  is missing.
+- Permission and masking coverage exists in pieces, but Settings must expose the full
+  matrix for screens, tabs, tables, columns, input boxes, actions, widgets, printables,
+  and device surfaces.
+- Field masking is not yet consistently applied everywhere a sensitive table value,
+  patient identity, phone, clinical note, regulatory field, or financial value appears.
+- Reports and indicators are not yet tightly fed by the same workflow events that drive
+  operational screens.
+- Mobile, TV, and kiosk flows need clearer alignment with web routes, token boards,
+  privacy rules, performance constraints, and edge-device stability.
 
-## 6. NABH / REGULATORY (RESEARCH + IMPLEMENT)
-- RESEARCH TASK: enumerate applicable NABH 5th-edition chapters + DPDPA clauses; map each to a specific event, ABAC rule, or audit projection.
-- LabResultPosted(critical) → event-driven alert + escalation menu (known vendor gap).
-- Event log = audit model (append-only, tamper-evident: who/what/when).
-- Consent flags = ABAC attributes; data-access lifetimes expire access automatically.
-- ABDM/NMC integration as event consumers.
+## Required Product Outcome
+MedBrains should behave like an enterprise hospital command workspace:
 
-## 7. DEPLOYMENT + RELEASE TAGGING
-- Semver per service: vMAJOR.MINOR.PATCH (e.g. opd-v1.4.2). MAJOR=breaking event-schema; MINOR=compat feature; PATCH=fix.
-- Event-schema versioned separately + additive.
-- Immutable git tag → build → push image by digest (@sha256:...). Deployments pin digest. Never deploy `latest`.
-- Annotated + signed tags (sigstore/GPG). Embed commit SHA + build metadata; expose /version endpoint.
-- Conventional commits → automated changelog + next version. Release = reviewable PR.
-- Promote SAME digest dev→staging→prod. No rebuild between envs.
-- Blue-green/canary rollout; instant rollback by repointing to previous digest.
-- DB migrations: expand-contract only. No destructive migration in same release as dependent code.
-- Feature flags decouple deploy from release; enable per-role/site via config service.
-- Backward-compat window: new consumers read old+new event versions ≥1 release cycle.
-- Documented single-command rollback runbook, tested in staging.
+- A user starts from a patient or module queue and can move through the next valid
+  workflow step without losing context.
+- Durable workspaces use routes; stable sections inside workspaces use tabs; drawers
+  and modals are limited to short transient tasks.
+- OPD, IPD, emergency, camp, pharmacy, and billing actions are driven by patient state,
+  domain events, and permission decisions.
+- Every action that is hidden, disabled, masked, printable, or edge-device-visible has
+  a clear reason in the access/event matrix.
+- Settings provides the administrative source of truth for permission coverage,
+  masking coverage, route coverage, print/device coverage, and workflow readiness.
+- Patient-sensitive and financial data is masked or hidden consistently across web,
+  mobile, TV, kiosk, tables, cards, forms, print outputs, dashboards, and reports.
+- Token dashboards are available and governed across web, mobile, TV, and kiosk
+  surfaces, with public displays showing only safe token-level information.
+- Reports and indicators reflect actual workflow events rather than isolated page state.
 
-## 8. INFRASTRUCTURE
-- All infra in Terraform. State versioned + locked. No click-ops.
-- Containerized; orchestrate with k3s or Nomad (DECISION NEEDED — Nomad simpler for single site).
-- Hybrid: clinical data + broker + DB on-prem at hospital (latency + DPDPA residency); backups/DR to AWS ap-south-1.
-- Observability: structured logs, metrics, distributed tracing across services. Alert on SLOs: latency, error rate, event-lag/consumer-backlog.
-- Backups: automated PostgreSQL + YottaDB + broker retention. Periodic restore drills. Documented RPO/RTO.
-- CI/CD: lint → test → build → SAST + dependency/container CVE scan → sign → push-by-digest → deploy. Failing scan blocks release.
-- One CI template enforces tag/scan/sign rules across all services.
+## Priority Problem Slices
+1. Patient context continuity
+   Registration, OPD, IPD, emergency, camp, pharmacy, and billing must carry patient
+   context through routes, tabs, action panels, and handoff controls.
 
-## 9. SECURITY / ACCESS GATEWAY / VPN
-- Note: Pingora = L7 HTTP/gRPC/WebSocket proxy (NOT an L3 VPN). WireGuard = L3 tunnel data plane (the AnyConnect-equivalent transport).
-- Architecture:
-  - L3 data plane: WireGuard tunnel from desktop/mobile into hospital network.
-  - L7 gateway: Pingora reverse proxy = single front door. Terminates TLS 1.3, authenticates every request, routes, rate-limits, load-balances. Use filter/callback APIs for auth + ABAC pre-check + audit + rate-limit before traffic hits any module. Handles WebSocket/SSE upgrades.
-  - Control plane: own thin Rust "access manager" app = issues device certs/keys, manages WireGuard peers, user auth/MFA, pushes client config, revokes access.
-- Zero-trust: being on the network grants nothing. Every request authenticated (user + device) + authorized by ABAC.
-- Device posture: each enrolled device gets mTLS client cert. Gateway requires valid device cert + user token before proxying.
-- MFA (TOTP/passkey) at enrolment + login. Short-lived session tokens. Re-auth for sensitive/break-glass actions.
-- Network segmentation: services/broker/DB in private segment reachable only via gateway. Kiosks/TVs on restricted VLAN, least-privilege routes (kiosk→check-in endpoints only; TV→read-only queue projections only).
-- E2E encryption: WireGuard tunnel + TLS 1.3 at gateway + mTLS between internal services.
-- DECISION NEEDED: build WireGuard control plane vs adopt existing WireGuard-based zero-trust mesh fronted by Pingora.
+2. Event-driven action readiness
+   Each module action must map to the event or state that makes it valid, plus the
+   permission that allows it. Disabled actions should explain the missing event,
+   context, or permission.
 
-## 10. DESKTOP APP (Tauri preferred over Electron)
-- Bundled WireGuard client + cert pinning to gateway; refuse on cert mismatch.
-- MFA login, short-lived tokens, idle auto-lock/logout, fast user-switching for shared workstations.
-- No PHI to disk unless encrypted (OS keystore). Secure-wipe on logout. Disable clipboard for masked fields where required.
-- Code-signed installers (Windows/macOS), signature verified on launch, tamper detection.
-- Signed/verified auto-update tied to release digests (§7).
-- Prod build: dev tools disabled, CSP on webview, least-privilege OS perms.
-- Client logs auth + reveal/break-glass to central immutable audit trail.
-- Tunnel drop mid-shift: queue, warn, never silently send PHI over untrusted path.
+3. Settings access matrix
+   Settings must enumerate all governed surfaces: screens, tabs, tables, columns,
+   input boxes, actions, widgets, printables, token boards, TV, mobile, and kiosk
+   targets. It must show gaps instead of leaving loose screens or fields invisible.
 
-## 11. SOC 2 COMPLIANCE (implement controls, RESEARCH current Trust Services Criteria)
-- Access control: RBAC+ABAC, least privilege, MFA enforced, quarterly access reviews, automated deprovisioning on role change/exit.
-- Audit logging: immutable, centralized, tamper-evident; log auth, data access, masked-field reveals, config changes, admin actions. Retain ≥1 year (confirm retention requirement).
-- Change management: all changes via reviewed PR; signed releases; documented approvals; separation of duties (author ≠ approver ≠ deployer).
-- Encryption: TLS 1.3 in transit; AES-256 at rest (DB, backups, object storage).
-- Monitoring/alerting: SLO + security alerts; documented incident response runbook with severity tiers + escalation.
-- Vendor/subprocessor inventory maintained.
-- Backup + DR tested with documented RPO/RTO.
-- Vulnerability management: automated SAST + dependency/container scanning in CI; documented remediation SLAs by severity.
-- Data retention + secure deletion policy (align with DPDPA + data-access-lifetimes).
-- RESEARCH TASK: pull current SOC 2 Type II Trust Services Criteria (Security required; add Availability, Confidentiality, Processing Integrity, Privacy as scoped) and map each criterion to an implemented control + evidence source.
+4. Field masking consistency
+   Shared masking behavior must be used for patient identity, clinical, regulatory,
+   operational, and financial fields wherever they appear.
 
-## 12. PCI DSS READINESS (only if card payments handled in Billing — RESEARCH current PCI DSS v4.0.1)
-- SCOPE-FIRST: do NOT store card data. Use a tokenizing payment gateway/processor; keep MedBrain out of PCI scope where possible (SAQ A path).
-- If any cardholder data touches the system: network segmentation isolating the CDE, no storage of full PAN/CVV, render PAN unreadable (truncation/tokenization), encrypted transmission.
-- Access to CDE: MFA, unique IDs, least privilege, logged.
-- Quarterly vulnerability scans (ASV if applicable) + annual pen test.
-- File integrity monitoring + change detection on CDE systems.
-- Documented PCI scope, data-flow diagram of any card data, and which SAQ applies.
-- RESEARCH TASK: confirm current PCI DSS v4.0.1 requirements + which SAQ matches the chosen payment integration; default goal = stay SAQ A by never touching card data.
+5. IPD command workspace
+   IPD should use a top patient context strip, left rail, central tabbed workspace, and
+   right contextual action/readiness panel so ward work is not scattered into drawers.
 
-## 13. SECRETS — PLACEHOLDERS ONLY (generate real values, store in secrets manager, NEVER commit)
-# All values below are non-functional placeholders. Replace via secrets manager (AWS Secrets Manager / Vault) with rotation.
-# Generation commands noted. Do not hardcode real secrets — this is itself a SOC 2 / PCI failure.
+6. Token and edge-device integration
+   Token boards, queue boards, kiosk check-in, mobile staff views, and TV displays must
+   share route/device metadata, privacy rules, and event-fed read models.
 
-JWT_SIGNING_KEY=REPLACE_ME            # openssl rand -hex 64
-SESSION_TOKEN_SECRET=REPLACE_ME       # openssl rand -hex 32
-DB_ENCRYPTION_KEY=REPLACE_ME          # openssl rand -hex 32  (AES-256)
-WIREGUARD_SERVER_PRIVKEY=REPLACE_ME   # wg genkey
-WIREGUARD_SERVER_PUBKEY=REPLACE_ME    # echo <privkey> | wg pubkey
-GATEWAY_TLS_CERT=REPLACE_ME           # from internal CA / ACME
-GATEWAY_TLS_KEY=REPLACE_ME
-MTLS_CA_CERT=REPLACE_ME               # device-cert issuing CA
-NATS_AUTH_TOKEN=REPLACE_ME            # openssl rand -base64 48
-POSTGRES_PASSWORD=REPLACE_ME          # openssl rand -base64 32
-S3_BACKUP_KMS_KEY_ID=REPLACE_ME       # AWS KMS key ARN
-TOTP_ENCRYPTION_KEY=REPLACE_ME        # openssl rand -hex 32
-AUDIT_LOG_HMAC_KEY=REPLACE_ME         # openssl rand -hex 32  (tamper-evidence)
-PAYMENT_GATEWAY_API_KEY=REPLACE_ME    # from processor; PCI-scoped, rotate
-# Rotation: rotate all ≤90 days; rotate immediately on suspected exposure or staff exit.
-# Secrets pulled at runtime from secrets manager — never baked into images or .env in repo.
+7. Reports and indicators
+   Reports should be linked to workflow events and show operational, clinical, billing,
+   pharmacy, NABH, and configuration readiness indicators.
 
-## RESEARCH TASKS SUMMARY (do these online, don't guess)
-1. M3 tonal palette generation + WCAG AA contrast audit → lock design tokens.
-2. NABH 5th-edition chapters + DPDPA clauses → map to events/ABAC/audit.
-3. Current SOC 2 Type II Trust Services Criteria → control + evidence mapping.
-4. Current PCI DSS v4.0.1 + correct SAQ for chosen payment integration.
-5. WireGuard control-plane build-vs-adopt; k3s vs Nomad for single-site orchestration.
-6. Pingora filter/callback API patterns for auth + ABAC enforcement at the proxy.
+## Success Criteria
+The goal is not complete until current code and runtime behavior prove all of the
+following:
 
-## 14. ACCESSIBILITY — WCAG 2.2 LEVEL AA (all pages, all surfaces)
-- Target: WCAG 2.2 Level AA on web/mobile web; same success criteria mapped to platform a11y APIs on Tauri desktop, kiosk, and TV (WCAG2ICT guidance). RESEARCH TASK: confirm current WCAG 2.2 AA success-criteria list before locking the checklist.
-- This is a release gate: a page/screen failing AA does not ship. Add automated + manual a11y checks to CI (§7).
+- A patient can move through registration, OPD, IPD or emergency, camp where relevant,
+  pharmacy, billing, and reports without losing context or re-searching unnecessarily.
+- Each core module has route-based durable workspaces and uses tabs or panels for stable
+  subviews instead of burying full workflows in drawers.
+- Critical actions are event- and permission-gated, with visible disabled reasons where
+  showing the unavailable action helps the user understand the next step.
+- Settings shows the full permission/masking matrix for screens, tabs, tables, columns,
+  inputs, buttons/actions, widgets, printables, and platform/device targets.
+- Sensitive data masking is enforced consistently through shared utilities/components
+  and is reflected in web, mobile, TV, kiosk, print, and report surfaces.
+- Token dashboards work across web, mobile, TV, and kiosk with public-display privacy.
+- Reports and indicators are fed by the same workflow state and events used by the
+  operational modules.
+- Static checks, relevant unit tests, and focused UI/runtime checks pass for the touched
+  areas.
 
-### 14.1 Perceivable
-- Color contrast (1.4.3): normal text ≥ 4.5:1, large text (≥18.66px bold / ≥24px) ≥ 3:1. This is the AA gate on the §4 token palette — every text-on-surface token pair must pass; fix tokens until they do.
-- Non-text contrast (1.4.11): UI components, icons, focus indicators, chart elements ≥ 3:1 against adjacent colors.
-- Never use color alone to convey meaning (1.4.1): critical/warning/success states also carry icon + text/label (matters for the criticality-red in §4 and lab alerts in §6).
-- Text resizable to 200% without loss of content/function (1.4.4); reflow at 320px width / 400% zoom, no 2D scrolling (1.4.10).
-- Text spacing overridable without clipping (1.4.12). No images of text except logos (1.4.5).
-- All meaningful images have alt text; decorative images marked empty/aria-hidden (1.1.1).
+## How To Use This Goal
+Use this file to choose implementation slices by problem impact. Each slice should
+answer:
 
-### 14.2 Operable
-- Full keyboard operability, no traps (2.1.1, 2.1.2); logical focus order (2.4.3).
-- Visible focus indicator on every interactive element (2.4.7); focus not obscured by sticky headers/panels (2.4.11 AA, 2.2).
-- Target size ≥ 24×24 CSS px minimum (2.5.8); kiosk/TV touch + D-pad targets larger via the comfortable density tokens (§4).
-- Skip-to-content link; landmarks/regions for nav, main, banner, contextual panels (2.4.1).
-- No content flashing > 3×/sec (2.3.1).
-- Dragging actions have a single-pointer alternative (2.5.7, 2.2).
-- TV: every action reachable by D-pad with clear focus highlight; no mouse-only interactions.
+1. Which user-visible workflow problem does this fix?
+2. Which modules or surfaces become more tightly linked?
+3. Which event, permission, masking, route, setting, report, mobile, TV, or kiosk gap is
+   closed?
+4. What evidence proves the slice works?
 
-### 14.3 Understandable
-- Page/screen language set (3.1.1); descriptive page titles (2.4.2) and headings (2.4.6).
-- Form inputs have programmatic labels (3.3.2); errors identified in text with correction guidance (3.3.1, 3.3.3).
-- Accessible authentication: no cognitive-function test without alternative (3.3.8 AA, 2.2) — MFA/passkey flows must not rely solely on memorizing/transcribing.
-- Consistent navigation + consistent component identification across pages (3.2.3, 3.2.4).
-- Status messages announced to AT without focus change (4.1.3) — applies to the event-driven menu activation (§1) and critical-value alerts (§2/§6): use aria-live (assertive for critical, polite otherwise).
-
-### 14.4 Robust + masking-specific
-- Valid, parseable markup; correct name/role/value on all components incl. custom widgets (4.1.2).
-- MaskedField<T> (§3): masked state must be programmatically conveyed — a redacted/masked value announces as masked, not as empty, to screen readers. "Tap to reveal" control has accessible name + reveal action keyboard-operable; reveal still writes to audit log.
-- Patient context banner, allergy banner, and contextual action panel (§1 IPD layout) exposed as labelled landmarks/live regions so AT users get the same just-in-time context.
-- Dashboards/charts (§5): provide text/table alternative for every chart; do not rely on color-only series differentiation.
-
-### 14.5 Tooling / process
-- CI automated checks: axe-core (web), plus lint rules (e.g. eslint-plugin-jsx-a11y). Automated catches ~30–40% only.
-- Manual gate per release: keyboard-only pass, screen-reader pass (NVDA/VoiceOver), 200% zoom + 320px reflow check, contrast spot-check on new token pairs.
-- Maintain a VPAT/accessibility conformance record as SOC 2 evidence (§11).
-- RESEARCH TASK: finalize the exact WCAG 2.2 AA criteria set + map each criterion to an automated check, a manual test, or a design-token constraint.
-
-
-Mainly pull permission matrix for all screne tablse screens tabs i=input boxes and add it to the setting page
-
-## 15. PRINTING, FORMS & PRINT TEMPLATES
-- Every printable artifact (OPD slip, prescription, IPD case sheet, discharge summary, lab report, bill/invoice, receipt, consent form, camp registration, wristband/label) is a versioned template, not hardcoded markup.
-- Templates are data-bound: render from read-model projections (§2), never from raw write stores.
-- Masking applies to print (§3): a field the user can't see on screen is not printed. Print honors the same ABAC decision; print action itself is an ABAC-gated action (logged to audit, §11).
-- Print event is auditable: emit DocumentPrinted{template, version, patient_key, user, timestamp, fields_revealed} to the event log.
-
-### 15.1 Template engine
-- Server-side render to PDF (deterministic, signable, archivable). RESEARCH/DECISION: Typst or Tera+headless-Chromium or a Rust PDF lib — pick one; goal = pixel-stable A4/A5 + thermal widths.
-- Template = layout + bound field tokens (e.g. {{patient.mrn}}, {{encounter.date}}, {{masked:patient.phone}}). Masking token enforced at render, not template-author's discretion.
-- Versioned templates (semver, §7); the rendered PDF stores template id + version for reprint fidelity and audit.
-- One source template per document; surface-specific output (A4 / A5 / 80mm thermal / label) via size profiles, not separate templates.
-
-### 15.2 Header / footer (standard across all clinical docs)
-- Header: hospital logo, legal name + address, NABH/registration identifiers, document title, patient strip (name, MRN, age/sex, bed/ward for IPD), barcode of MRN/visit id.
-- Footer: page X of Y, printed-by (user) + printed-at (timestamp), template id+version, confidentiality notice, hospital contact. Optional QR linking to digital record / verification.
-- Header/footer defined once as shared partials; every template includes them. Configurable per-site via Settings/Config service (§ Settings) so multi-college/hospital branding is data, not code.
-- Letterhead toggle: pre-printed-stationery mode (suppress logo/address band) vs blank-paper mode (render full letterhead).
-
-### 15.3 Printer linking & device management
-- Printer registry per location/department: map logical document types → physical printers (e.g. Pharmacy→thermal, OPD desk→A4 laser, ward→label printer, billing→receipt printer).
-- Support: standard laser/inkjet (A4/A5 PDF), thermal receipt (80mm/58mm ESC/POS), label/wristband printers (ZPL/EPL for Zebra-class).
-- Barcode/QR: Code128 / QR for MRN, visit id, specimen labels, drug labels, wristbands. RESEARCH: label sizes + symbology required by lab/pharmacy SOPs.
-- Print path: browser print dialog for ad-hoc desktop; silent/direct print to mapped device for high-volume stations (pharmacy, billing) via a local print agent on the workstation. Kiosk: token/queue slip auto-print to its bound thermal printer only.
-- Printer config lives in Settings/Config (§), pushed to devices; no hardcoded printer IPs.
-- Reprint = explicit, audited action with a "REPRINT" watermark; original print marked.
-
-### 15.4 Canva linkage (design-template creation only — not live data merge)
-- Note: Canva's API/Connect APIs are for creating/exporting designs and brand assets, NOT a real-time variable-data print engine. Use Canva to DESIGN template layouts (letterheads, certificate/consent visuals, camp posters, ID-card art), export, then bind data inside MedBrain's own template engine.
-- Pattern: design in Canva → export as PDF/SVG/PNG → import as a template background/asset in MedBrain → overlay data-bound field tokens (§15.1) in the engine.
-- For brand asset sync, RESEARCH: Canva Connect APIs (autofill/brand templates) scope + auth; treat as a design-asset pipeline feeding MedBrain templates, with a manual review/approval step before a template version is locked (§7). Do not put live PHI through an external design service.
-- Canva-sourced assets get the same template versioning + approval gate; no un-reviewed external asset reaches a clinical print.
-
-### 15.5 Accessibility & compliance of printed output
-- PDFs for screen/portal viewing should be tagged/accessible where feasible (relates to WCAG AA digital copies, §14).
-- Retention/archival of generated clinical PDFs per DPDPA + NABH record requirements (§6); store encrypted (§8/§11).
-- RESEARCH TASKS: (a) NABH-mandated fields per document type (discharge summary, case sheet, prescription); (b) thermal/label symbology + sizes from lab/pharmacy SOPs; (c) chosen PDF engine; (d) Canva Connect API scope for the design-asset pipeline.
-
-
-permission based tbale column view or masking
-
-› unified patient flow good exsprience from different module
+Avoid treating this goal as a generic rules list. The work should make the stated
+patient-flow usability problem measurably less true.
