@@ -6,7 +6,11 @@ import { useMemo } from "react";
 import { StyleSheet, View } from "react-native";
 import { ActivityIndicator, Text } from "react-native-paper";
 import { TvBoard, TvSummaryRow } from "../components/tv-board.js";
-import { TvFeedStatusBanner, tvLastUpdatedLabel } from "../components/tv-feed-status.js";
+import {
+  TvFeedStatusBanner,
+  tvFeedReadiness,
+  tvLastUpdatedLabel,
+} from "../components/tv-feed-status.js";
 import { tvQueueService } from "../services/tvQueue.service.js";
 
 const REFRESH_INTERVAL_MS = 10_000;
@@ -97,6 +101,13 @@ function BedStatusScreen({ route }: BedStatusScreenProps) {
       title={`${displayWardType(wardType)} beds`}
       subtitle="Live ward occupancy and masked waiting-list state."
       legend={`Updates every 10 seconds · last sync ${syncLabel} · medbrains://tv/bed-status?ward=${wardType}`}
+      privacyNotice="Waiting list stays masked; names, UHIDs, diagnoses, and bed-transfer notes stay off the ward display."
+      readiness={[
+        { label: "Privacy", tone: "success", value: "Masked list" },
+        tvFeedReadiness(bedQuery.isError, bedQuery.dataUpdatedAt, REFRESH_INTERVAL_MS),
+        { label: "Refresh", tone: "info", value: "10s" },
+        { label: "Ward", tone: "info", value: displayWardType(wardType) },
+      ]}
       tags={["TV-Ward", "TV-ICU", "IPD", "beds"]}
     >
       <TvSummaryRow

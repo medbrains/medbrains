@@ -1,3 +1,4 @@
+import type { IntentTone } from "@medbrains/ui-mobile";
 import { COLORS, SPACING } from "@medbrains/ui-mobile";
 import { StyleSheet, View } from "react-native";
 import { Text } from "react-native-paper";
@@ -21,6 +22,26 @@ export function tvLastUpdatedLabel(updatedAt: number) {
 export function tvFeedIsStale(updatedAt: number, refreshIntervalMs: number) {
   if (updatedAt <= 0) return false;
   return Date.now() - updatedAt > refreshIntervalMs * 3;
+}
+
+export function tvFeedReadiness(
+  isError: boolean,
+  updatedAt: number,
+  refreshIntervalMs: number,
+): { label: string; tone: IntentTone; value: string } {
+  if (isError) {
+    return { label: "Feed", tone: "alert", value: "Degraded" };
+  }
+
+  if (tvFeedIsStale(updatedAt, refreshIntervalMs)) {
+    return { label: "Feed", tone: "warn", value: "Stale" };
+  }
+
+  if (updatedAt <= 0) {
+    return { label: "Feed", tone: "warn", value: "Waiting" };
+  }
+
+  return { label: "Feed", tone: "success", value: "Live" };
 }
 
 export function TvFeedStatusBanner({

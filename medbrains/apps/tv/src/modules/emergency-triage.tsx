@@ -11,7 +11,11 @@ import { useMemo } from "react";
 import { StyleSheet, View } from "react-native";
 import { ActivityIndicator, Text } from "react-native-paper";
 import { TvBoard, TvSummaryRow } from "../components/tv-board.js";
-import { TvFeedStatusBanner, tvLastUpdatedLabel } from "../components/tv-feed-status.js";
+import {
+  TvFeedStatusBanner,
+  tvFeedReadiness,
+  tvLastUpdatedLabel,
+} from "../components/tv-feed-status.js";
 import { tvQueueService } from "../services/tvQueue.service.js";
 
 const REFRESH_INTERVAL_MS = 5_000;
@@ -95,6 +99,12 @@ function EmergencyTriageScreen() {
       subtitle="Live triage queue with token-only public display."
       legend={`Updates every 5 seconds · last sync ${syncLabel} · ${EMERGENCY_BOARD.targets.tvDeepLink}`}
       privacyNotice={EMERGENCY_BOARD.privacyNotice}
+      readiness={[
+        { label: "Privacy", tone: "success", value: "Token only" },
+        tvFeedReadiness(queueQuery.isError, queueQuery.dataUpdatedAt, REFRESH_INTERVAL_MS),
+        { label: "Refresh", tone: "info", value: "5s" },
+        { label: "Flow", tone: "alert", value: "Triage" },
+      ]}
       tags={[...EMERGENCY_BOARD.targets.tvAppCodes, "triage", "token-only", "staff-display"]}
     >
       <TvSummaryRow

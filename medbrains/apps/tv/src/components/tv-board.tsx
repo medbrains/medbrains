@@ -8,10 +8,17 @@
  * the right boot screen per deep-link.
  */
 
-import { Badge, COLORS, SPACING } from "@medbrains/ui-mobile";
+import type { IntentTone } from "@medbrains/ui-mobile";
+import { Badge, COLORS, INTENT_BG, INTENT_FG, SPACING } from "@medbrains/ui-mobile";
 import type { ReactNode } from "react";
 import { ScrollView, View } from "react-native";
 import { Text } from "react-native-paper";
+
+export interface TvReadinessItem {
+  label: string;
+  tone?: IntentTone;
+  value: string;
+}
 
 export interface TvBoardProps {
   eyebrow: string;
@@ -19,6 +26,7 @@ export interface TvBoardProps {
   subtitle?: string;
   legend?: string;
   privacyNotice?: string;
+  readiness?: ReadonlyArray<TvReadinessItem>;
   tags?: ReadonlyArray<string>;
   children?: ReactNode;
 }
@@ -29,6 +37,7 @@ export function TvBoard({
   subtitle,
   legend,
   privacyNotice,
+  readiness = [],
   tags = [],
   children,
 }: TvBoardProps): ReactNode {
@@ -78,6 +87,7 @@ export function TvBoard({
             ))}
           </View>
         )}
+        {readiness.length > 0 && <TvReadinessStrip items={readiness} />}
       </View>
       {privacyNotice && <TvPrivacyNotice label={privacyNotice} />}
       {children}
@@ -96,6 +106,60 @@ export function TvBoard({
         </View>
       )}
     </ScrollView>
+  );
+}
+
+function TvReadinessStrip({ items }: { items: ReadonlyArray<TvReadinessItem> }): ReactNode {
+  return (
+    <View
+      style={{
+        flexDirection: "row",
+        flexWrap: "wrap",
+        gap: SPACING.sm,
+        marginTop: SPACING.md,
+      }}
+    >
+      {items.map((item) => {
+        const tone = item.tone ?? "neutral";
+        return (
+          <View
+            key={`${item.label}-${item.value}`}
+            style={{
+              backgroundColor: INTENT_BG[tone],
+              borderColor: INTENT_FG[tone],
+              borderRadius: 8,
+              borderWidth: 1,
+              minWidth: 150,
+              paddingHorizontal: SPACING.md,
+              paddingVertical: SPACING.sm,
+            }}
+          >
+            <Text
+              style={{
+                color: INTENT_FG[tone],
+                fontFamily: "JetBrainsMono-Regular",
+                fontSize: 12,
+                letterSpacing: 1.5,
+                textTransform: "uppercase",
+              }}
+            >
+              {item.label}
+            </Text>
+            <Text
+              style={{
+                color: INTENT_FG[tone],
+                fontFamily: "JetBrainsMono-Regular",
+                fontSize: 20,
+                marginTop: 2,
+                textTransform: "uppercase",
+              }}
+            >
+              {item.value}
+            </Text>
+          </View>
+        );
+      })}
+    </View>
   );
 }
 

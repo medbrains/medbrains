@@ -11,7 +11,11 @@ import { useMemo } from "react";
 import { StyleSheet, View } from "react-native";
 import { ActivityIndicator, Text } from "react-native-paper";
 import { TvBoard, TvSummaryRow } from "../components/tv-board.js";
-import { TvFeedStatusBanner, tvLastUpdatedLabel } from "../components/tv-feed-status.js";
+import {
+  TvFeedStatusBanner,
+  tvFeedReadiness,
+  tvLastUpdatedLabel,
+} from "../components/tv-feed-status.js";
 import { tvQueueService } from "../services/tvQueue.service.js";
 
 const REFRESH_INTERVAL_MS = 10_000;
@@ -62,6 +66,12 @@ function LabStatusScreen() {
       subtitle="Please proceed to sample collection when your token shows."
       legend={`Updates every 10 seconds · last sync ${syncLabel} · ${LAB_BOARD.targets.tvDeepLink}`}
       privacyNotice={LAB_BOARD.privacyNotice}
+      readiness={[
+        { label: "Privacy", tone: "success", value: "Token only" },
+        tvFeedReadiness(queueQuery.isError, queueQuery.dataUpdatedAt, REFRESH_INTERVAL_MS),
+        { label: "Refresh", tone: "info", value: "10s" },
+        { label: "Flow", tone: "info", value: "Samples" },
+      ]}
       tags={[...LAB_BOARD.targets.tvAppCodes, "lab", "samples", "queue"]}
     >
       <TvSummaryRow
