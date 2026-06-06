@@ -33,6 +33,9 @@ describe("clinical event normalization", () => {
     expect(normalizeClinicalEventName("consultation.started")).toBe("opd.consultation.started");
     expect(normalizeClinicalEventName("encounter.completed")).toBe("opd.encounter.completed");
     expect(normalizeClinicalEventName("followup.scheduled")).toBe("opd.followup.scheduled");
+    expect(normalizeClinicalEventName("indent.approved")).toBe("indent.requisition.approved");
+    expect(normalizeClinicalEventName("indent.issued")).toBe("indent.requisition.issued");
+    expect(normalizeClinicalEventName("indent.submitted")).toBe("indent.requisition.submitted");
     expect(normalizeClinicalEventName("patient.called")).toBe("opd.queue.called");
     expect(normalizeClinicalEventName("prescription.updated_before_pharmacy_approval")).toBe(
       "opd.prescription.updated",
@@ -469,6 +472,65 @@ describe("clinical event normalization", () => {
     expect(movement.payload).not.toHaveProperty("witnessed_by");
     expect(movement.payload).not.toHaveProperty("notes");
     expect(movement.missingPayloadKeys).toEqual([]);
+  });
+
+  it("tracks indent requisition lifecycle events without missing payload keys", () => {
+    const submitted = buildClinicalEventTrace({
+      contextCode: "indent-requisitions",
+      moduleCode: "indent",
+      occurredAt: "2026-05-29T10:25:00.000Z",
+      rawTrigger: "indent.requisition.submitted",
+      payload: {
+        department_id: "department-1",
+        indent_type: "pharmacy",
+        requested_by: "user-1",
+        requisition_id: "requisition-1",
+        status: "submitted",
+      },
+    });
+
+    const approved = buildClinicalEventTrace({
+      contextCode: "indent-requisitions",
+      moduleCode: "indent",
+      occurredAt: "2026-05-29T10:30:00.000Z",
+      rawTrigger: "indent.approved",
+      payload: {
+        approved_by: "user-2",
+        department_id: "department-1",
+        indent_type: "pharmacy",
+        requisition_id: "requisition-1",
+        status: "approved",
+      },
+    });
+
+    const issued = buildClinicalEventTrace({
+      contextCode: "indent-requisitions",
+      moduleCode: "indent",
+      occurredAt: "2026-05-29T10:35:00.000Z",
+      rawTrigger: "indent.issued",
+      payload: {
+        department_id: "department-1",
+        indent_type: "pharmacy",
+        issued_by: "user-3",
+        requisition_id: "requisition-1",
+        status: "issued",
+      },
+    });
+
+    expect(submitted.eventName).toBe("indent.requisition.submitted");
+    expect(submitted.sourceModule).toBe("indent");
+    expect(submitted.sourceRecordId).toBe("requisition-1");
+    expect(submitted.missingPayloadKeys).toEqual([]);
+
+    expect(approved.eventName).toBe("indent.requisition.approved");
+    expect(approved.sourceModule).toBe("indent");
+    expect(approved.sourceRecordId).toBe("requisition-1");
+    expect(approved.missingPayloadKeys).toEqual([]);
+
+    expect(issued.eventName).toBe("indent.requisition.issued");
+    expect(issued.sourceModule).toBe("indent");
+    expect(issued.sourceRecordId).toBe("requisition-1");
+    expect(issued.missingPayloadKeys).toEqual([]);
   });
 
   it("tracks IPD bed transfer and discharge completion events without missing payload keys", () => {

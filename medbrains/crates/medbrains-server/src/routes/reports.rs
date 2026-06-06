@@ -198,6 +198,9 @@ const REPORT_EVENT_SOURCES: &[ReportEventSourceSeed] = &[
         ],
         source_events: &[
             ClinicalEventName::OrderCreated,
+            ClinicalEventName::IndentRequisitionSubmitted,
+            ClinicalEventName::IndentRequisitionApproved,
+            ClinicalEventName::IndentRequisitionIssued,
             ClinicalEventName::PharmacyOrderDispensed,
             ClinicalEventName::PharmacyStockMovementCreated,
             ClinicalEventName::PharmacyNdpsMovementCreated,
@@ -2235,6 +2238,42 @@ mod tests {
                 .indicator_targets
                 .iter()
                 .any(|target| target == "lab.tat")
+        );
+    }
+
+    #[test]
+    fn pharmacy_stock_report_carries_indent_requisition_event_sources() {
+        let metadata = event_metadata_for_report("pharmacy-stockout-expiry-days-on-hand");
+
+        assert!(
+            metadata
+                .source_events
+                .iter()
+                .any(|event| event == "indent.requisition.submitted")
+        );
+        assert!(
+            metadata
+                .source_events
+                .iter()
+                .any(|event| event == "indent.requisition.approved")
+        );
+        assert!(
+            metadata
+                .source_events
+                .iter()
+                .any(|event| event == "indent.requisition.issued")
+        );
+        assert!(
+            metadata
+                .event_payload_keys
+                .iter()
+                .any(|key| key == "requisition_id")
+        );
+        assert!(
+            metadata
+                .indicator_targets
+                .iter()
+                .any(|target| target == "inventory.stock_movement")
         );
     }
 

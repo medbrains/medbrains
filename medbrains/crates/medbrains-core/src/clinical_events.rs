@@ -88,6 +88,12 @@ pub enum ClinicalEventName {
     PharmacyStockMovementCreated,
     #[serde(rename = "pharmacy.ndps.movement.created")]
     PharmacyNdpsMovementCreated,
+    #[serde(rename = "indent.requisition.submitted")]
+    IndentRequisitionSubmitted,
+    #[serde(rename = "indent.requisition.approved")]
+    IndentRequisitionApproved,
+    #[serde(rename = "indent.requisition.issued")]
+    IndentRequisitionIssued,
     #[serde(rename = "ipd.admission.created")]
     IpdAdmissionCreated,
     #[serde(rename = "bed.assigned")]
@@ -160,6 +166,9 @@ impl ClinicalEventName {
             Self::PharmacyOrderDispensed => "pharmacy.order.dispensed",
             Self::PharmacyStockMovementCreated => "pharmacy.stock.movement.created",
             Self::PharmacyNdpsMovementCreated => "pharmacy.ndps.movement.created",
+            Self::IndentRequisitionSubmitted => "indent.requisition.submitted",
+            Self::IndentRequisitionApproved => "indent.requisition.approved",
+            Self::IndentRequisitionIssued => "indent.requisition.issued",
             Self::IpdAdmissionCreated => "ipd.admission.created",
             Self::BedAssigned => "bed.assigned",
             Self::BedTransferred => "bed.transferred",
@@ -217,6 +226,9 @@ impl ClinicalEventName {
             Self::PharmacyOrderDispensed
             | Self::PharmacyStockMovementCreated
             | Self::PharmacyNdpsMovementCreated => ClinicalEventSourceModule::Pharmacy,
+            Self::IndentRequisitionSubmitted
+            | Self::IndentRequisitionApproved
+            | Self::IndentRequisitionIssued => ClinicalEventSourceModule::Indent,
             Self::IpdAdmissionCreated | Self::BedAssigned | Self::BedTransferred => {
                 ClinicalEventSourceModule::Ipd
             }
@@ -278,6 +290,27 @@ impl ClinicalEventName {
             Self::PharmacyOrderDispensed => &["order_id", "patient_id", "items"],
             Self::PharmacyStockMovementCreated => &["transaction_type", "quantity"],
             Self::PharmacyNdpsMovementCreated => &["entry_id", "catalog_item_id", "action"],
+            Self::IndentRequisitionSubmitted => &[
+                "requisition_id",
+                "department_id",
+                "indent_type",
+                "requested_by",
+                "status",
+            ],
+            Self::IndentRequisitionApproved => &[
+                "requisition_id",
+                "department_id",
+                "indent_type",
+                "approved_by",
+                "status",
+            ],
+            Self::IndentRequisitionIssued => &[
+                "requisition_id",
+                "department_id",
+                "indent_type",
+                "issued_by",
+                "status",
+            ],
             Self::IpdAdmissionCreated => &["admission_id", "patient_id"],
             Self::BedAssigned => &["bed_id", "admission_id", "patient_id"],
             Self::BedTransferred => &["transfer_id", "admission_id", "from_bed_id", "to_bed_id"],
@@ -360,6 +393,9 @@ impl FromStr for ClinicalEventName {
             "pharmacy.order.dispensed" => Ok(Self::PharmacyOrderDispensed),
             "pharmacy.stock.movement.created" => Ok(Self::PharmacyStockMovementCreated),
             "pharmacy.ndps.movement.created" => Ok(Self::PharmacyNdpsMovementCreated),
+            "indent.requisition.submitted" => Ok(Self::IndentRequisitionSubmitted),
+            "indent.requisition.approved" => Ok(Self::IndentRequisitionApproved),
+            "indent.requisition.issued" => Ok(Self::IndentRequisitionIssued),
             "ipd.admission.created" => Ok(Self::IpdAdmissionCreated),
             "bed.assigned" => Ok(Self::BedAssigned),
             "bed.transferred" => Ok(Self::BedTransferred),
@@ -400,6 +436,8 @@ pub enum ClinicalEventSourceModule {
     Billing,
     #[serde(rename = "pharmacy")]
     Pharmacy,
+    #[serde(rename = "indent")]
+    Indent,
     #[serde(rename = "ipd")]
     Ipd,
     #[serde(rename = "quality")]
@@ -430,6 +468,7 @@ impl ClinicalEventSourceModule {
             Self::Radiology => "radiology",
             Self::Billing => "billing",
             Self::Pharmacy => "pharmacy",
+            Self::Indent => "indent",
             Self::Ipd => "ipd",
             Self::Quality => "quality",
             Self::Emergency => "emergency",
@@ -847,6 +886,55 @@ mod tests {
             ClinicalEventName::PharmacyNdpsMovementCreated.required_payload_keys(),
             &["entry_id", "catalog_item_id", "action"]
         );
+    }
+
+    #[test]
+    fn indent_requisition_events_are_canonical() {
+        let events = [
+            (
+                "indent.requisition.submitted",
+                ClinicalEventName::IndentRequisitionSubmitted,
+                &[
+                    "requisition_id",
+                    "department_id",
+                    "indent_type",
+                    "requested_by",
+                    "status",
+                ][..],
+            ),
+            (
+                "indent.requisition.approved",
+                ClinicalEventName::IndentRequisitionApproved,
+                &[
+                    "requisition_id",
+                    "department_id",
+                    "indent_type",
+                    "approved_by",
+                    "status",
+                ],
+            ),
+            (
+                "indent.requisition.issued",
+                ClinicalEventName::IndentRequisitionIssued,
+                &[
+                    "requisition_id",
+                    "department_id",
+                    "indent_type",
+                    "issued_by",
+                    "status",
+                ],
+            ),
+        ];
+
+        for (event_name, parsed, payload_keys) in events {
+            assert_eq!(event_name.parse::<ClinicalEventName>().ok(), Some(parsed));
+            assert_eq!(parsed.as_str(), event_name);
+            assert_eq!(
+                parsed.default_source_module(),
+                ClinicalEventSourceModule::Indent
+            );
+            assert_eq!(parsed.required_payload_keys(), payload_keys);
+        }
     }
 
     #[test]

@@ -11352,6 +11352,9 @@ export type ClinicalEventName =
   | "pharmacy.order.dispensed"
   | "pharmacy.stock.movement.created"
   | "pharmacy.ndps.movement.created"
+  | "indent.requisition.submitted"
+  | "indent.requisition.approved"
+  | "indent.requisition.issued"
   | "ipd.admission.created"
   | "bed.assigned"
   | "bed.transferred"
@@ -11375,6 +11378,7 @@ export type ClinicalEventSourceModule =
   | "radiology"
   | "billing"
   | "pharmacy"
+  | "indent"
   | "ipd"
   | "camp"
   | "quality"
@@ -11438,6 +11442,27 @@ export const CLINICAL_EVENT_REQUIRED_PAYLOAD_KEYS: Record<ClinicalEventName, rea
   "pharmacy.order.dispensed": ["order_id", "patient_id", "items"],
   "pharmacy.stock.movement.created": ["transaction_type", "quantity"],
   "pharmacy.ndps.movement.created": ["entry_id", "catalog_item_id", "action"],
+  "indent.requisition.submitted": [
+    "requisition_id",
+    "department_id",
+    "indent_type",
+    "requested_by",
+    "status",
+  ],
+  "indent.requisition.approved": [
+    "requisition_id",
+    "department_id",
+    "indent_type",
+    "approved_by",
+    "status",
+  ],
+  "indent.requisition.issued": [
+    "requisition_id",
+    "department_id",
+    "indent_type",
+    "issued_by",
+    "status",
+  ],
   "ipd.admission.created": ["admission_id", "patient_id"],
   "bed.assigned": ["bed_id", "admission_id", "patient_id"],
   "bed.transferred": ["transfer_id", "admission_id", "from_bed_id", "to_bed_id"],

@@ -5,15 +5,16 @@ use axum::{
     extract::{Path, Query, State},
 };
 use chrono::NaiveDate;
-use medbrains_core::indent::{
-    IndentItem, IndentRequisition, IndentType, StoreCatalog, StoreStockMovement,
-};
 use medbrains_core::inventory::{
     AbcAnalysisRow, ComplianceCheckRow, ConsumptionAnalysisRow, DeadStockRow,
     EquipmentCondemnation, FsnAnalysisRow, ImplantRegistryEntry, InventoryValuationRow,
     PatientConsumableIssue, PurchaseConsumptionTrendRow, ReorderAlert, VedAnalysisRow,
 };
 use medbrains_core::permissions;
+use medbrains_core::{
+    clinical_events::{ClinicalEventEnvelope, ClinicalEventName},
+    indent::{IndentItem, IndentRequisition, IndentType, StoreCatalog, StoreStockMovement},
+};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -467,6 +468,25 @@ pub async fn submit_requisition(
     .await?
     .ok_or_else(|| AppError::BadRequest("Requisition not found or not in draft status".into()))?;
 
+    let event = ClinicalEventEnvelope::new(
+        claims.tenant_id,
+        ClinicalEventName::IndentRequisitionSubmitted,
+        req.id,
+        claims.sub,
+        serde_json::json!({
+            "requisition_id": req.id,
+            "indent_number": req.indent_number,
+            "department_id": req.department_id,
+            "indent_type": req.indent_type,
+            "priority": req.priority,
+            "requested_by": req.requested_by,
+            "status": req.status,
+            "total_amount": req.total_amount,
+        }),
+    )
+    .with_department(req.department_id);
+    crate::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
+
     tx.commit().await?;
 
     // Enrich payload with names for orchestration
@@ -674,6 +694,26 @@ pub async fn approve_requisition(
         }
     }
 
+    let event = ClinicalEventEnvelope::new(
+        claims.tenant_id,
+        ClinicalEventName::IndentRequisitionApproved,
+        requisition.id,
+        claims.sub,
+        serde_json::json!({
+            "requisition_id": requisition.id,
+            "indent_number": requisition.indent_number,
+            "department_id": requisition.department_id,
+            "indent_type": requisition.indent_type,
+            "priority": requisition.priority,
+            "approved_by": claims.sub,
+            "status": requisition.status,
+            "total_amount": requisition.total_amount,
+            "items_count": items.len(),
+        }),
+    )
+    .with_department(requisition.department_id);
+    crate::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
+
     tx.commit().await?;
 
     // Enrich payload with department name for orchestration
@@ -860,6 +900,26 @@ pub async fn issue_requisition(
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
     .await?;
+
+    let event = ClinicalEventEnvelope::new(
+        claims.tenant_id,
+        ClinicalEventName::IndentRequisitionIssued,
+        requisition.id,
+        claims.sub,
+        serde_json::json!({
+            "requisition_id": requisition.id,
+            "indent_number": requisition.indent_number,
+            "department_id": requisition.department_id,
+            "indent_type": requisition.indent_type,
+            "priority": requisition.priority,
+            "issued_by": claims.sub,
+            "status": requisition.status,
+            "total_amount": requisition.total_amount,
+            "items_count": items.len(),
+        }),
+    )
+    .with_department(requisition.department_id);
+    crate::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
 
     tx.commit().await?;
     Ok(Json(RequisitionDetailResponse { requisition, items }))

@@ -167,7 +167,30 @@ function statusToStep(status: string): number {
   return map[status] ?? 0;
 }
 
-const indentWorkflowEvents = ["indent.submitted", "indent.approved", "indent.issued"] as const;
+const indentWorkflowEvents = [
+  "indent.requisition.submitted",
+  "indent.requisition.approved",
+  "indent.requisition.issued",
+] as const;
+
+function indentWorkflowPayload(
+  requisition: IndentRequisition,
+  actorKey: "approved_by" | "issued_by" | "requested_by",
+  actorId?: string | null,
+  itemsCount?: number,
+): Record<string, unknown> {
+  return {
+    requisition_id: requisition.id,
+    indent_number: requisition.indent_number,
+    department_id: requisition.department_id,
+    indent_type: requisition.indent_type,
+    priority: requisition.priority,
+    status: requisition.status,
+    total_amount: requisition.total_amount,
+    ...(itemsCount == null ? {} : { items_count: itemsCount }),
+    [actorKey]: actorId ?? requisition.requested_by,
+  };
+}
 
 // ══════════════════════════════════════════════════════════
 //  Main Page
@@ -430,13 +453,13 @@ function IndentDetailView({ id, onClose }: { id: string; onClose: () => void }) 
 
   const submitMutation = useMutation({
     mutationFn: () => indentService.submitIndentRequisition(id),
-    onSuccess: () => {
+    onSuccess: (result) => {
       notifications.show({
         title: "Submitted",
         message: "Indent submitted for approval",
         color: "success",
       });
-      emit("indent.submitted", { requisition_id: id });
+      emit("indent.requisition.submitted", indentWorkflowPayload(result, "requested_by"));
       void queryClient.invalidateQueries({ queryKey: ["indent-requisition"] });
       void queryClient.invalidateQueries({ queryKey: ["indent-requisitions"] });
     },
@@ -573,6 +596,7 @@ function ApproveButton({
 }) {
   const emit = useClinicalEmit();
   const queryClient = useQueryClient();
+  const userId = useAuthStore((s) => s.user?.id);
   const [opened, { open, close }] = useDisclosure(false);
   const [approvals, setApprovals] = useState<Record<string, number>>(() =>
     Object.fromEntries(items.map((i) => [i.id, i.quantity_requested])),
@@ -586,9 +610,17 @@ function ApproveButton({
       }));
       return indentService.approveIndentRequisition(requisitionId, { items: approveItems });
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
       notifications.show({ title: "Approved", message: "Indent approved", color: "success" });
-      emit("indent.approved", { requisition_id: requisitionId });
+      emit(
+        "indent.requisition.approved",
+        indentWorkflowPayload(
+          result.requisition,
+          "approved_by",
+          result.requisition.approved_by ?? userId,
+          result.items.length,
+        ),
+      );
       void queryClient.invalidateQueries({ queryKey: ["indent-requisition"] });
       void queryClient.invalidateQueries({ queryKey: ["indent-requisitions"] });
       close();
@@ -646,6 +678,7 @@ function IssueButton({
 }) {
   const emit = useClinicalEmit();
   const queryClient = useQueryClient();
+  const userId = useAuthStore((s) => s.user?.id);
   const [opened, { open, close }] = useDisclosure(false);
   const [issues, setIssues] = useState<Record<string, number>>(() =>
     Object.fromEntries(items.map((i) => [i.id, i.quantity_approved - i.quantity_issued])),
@@ -659,13 +692,16 @@ function IssueButton({
       }));
       return indentService.issueIndentRequisition(requisitionId, { items: issueItems });
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
       notifications.show({
         title: "Issued",
         message: "Items issued and stock updated",
         color: "success",
       });
-      emit("indent.issued", { requisition_id: requisitionId });
+      emit(
+        "indent.requisition.issued",
+        indentWorkflowPayload(result.requisition, "issued_by", userId, result.items.length),
+      );
       void queryClient.invalidateQueries({ queryKey: ["indent-requisition"] });
       void queryClient.invalidateQueries({ queryKey: ["indent-requisitions"] });
       close();
