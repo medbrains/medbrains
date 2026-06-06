@@ -70,6 +70,31 @@ describe("clinical journey event activation", () => {
     ).toContain("order created");
   });
 
+  it("can include permission-denied actions as disabled explainable handoffs", () => {
+    const defaultActions = resolveClinicalJourneyActions(
+      { patientId: "patient-1" },
+      allowPermissions([]),
+      "web",
+    );
+    const explainableActions = resolveClinicalJourneyActions(
+      { patientId: "patient-1" },
+      allowPermissions([]),
+      "web",
+      { includePermissionDenied: true },
+    );
+
+    expect(defaultActions.some((action) => action.id === "billing.open_ledger")).toBe(false);
+    expect(explainableActions.find((action) => action.id === "billing.open_ledger")).toMatchObject({
+      disabledReasonText: "Requires billing.invoices.list",
+      enabled: false,
+    });
+    expect(explainableActions.find((action) => action.id === "camp.open_context")).toMatchObject({
+      disabledReasonText:
+        "Requires one of camp.list / camp.registrations.list / camp.registrations.create",
+      enabled: false,
+    });
+  });
+
   it("enables clinical and fulfillment actions when the care event chain is present", () => {
     const actions = resolveClinicalJourneyActions(
       {

@@ -38,6 +38,7 @@ export type {
   ClinicalJourneyContext,
   ClinicalJourneySurface,
   ClinicalOrderContext,
+  ResolveClinicalJourneyActionsOptions,
   ResolvedClinicalJourneyAction,
 } from "./event-actions.js";
 export {

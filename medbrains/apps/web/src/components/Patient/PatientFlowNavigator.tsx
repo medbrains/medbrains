@@ -185,7 +185,11 @@ export function PatientFlowNavigator({
   const recentPatientEvent = recentEvents.find((event) =>
     clinicalEventMatchesJourney(event, context),
   );
-  const actions = resolvedActionMap(resolveClinicalJourneyActions(context, hasPermission, "web"));
+  const actions = resolvedActionMap(
+    resolveClinicalJourneyActions(context, hasPermission, "web", {
+      includePermissionDenied: true,
+    }),
+  );
   const patientState = itemState(
     undefined,
     hasPermission(P.PATIENTS.VIEW),

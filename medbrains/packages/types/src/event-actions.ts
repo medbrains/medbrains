@@ -89,6 +89,10 @@ export interface ResolvedClinicalJourneyAction extends ClinicalJourneyActionDefi
   disabledReasonText: string | null;
 }
 
+export interface ResolveClinicalJourneyActionsOptions {
+  includePermissionDenied?: boolean;
+}
+
 function activeAdmissionIsOpen(context: ClinicalJourneyContext): boolean {
   return Boolean(context.activeAdmissionId && context.activeAdmissionStatus === "admitted");
 }
@@ -125,6 +129,21 @@ function actionPermissionsForSurface(
     permissionMode: surfacePermissions?.permissionMode ?? action.permissionMode,
     requiredPermissions: surfacePermissions?.requiredPermissions ?? action.requiredPermissions,
   };
+}
+
+function permissionDisabledReason(
+  permissionMode: "all" | "any" | undefined,
+  requiredPermissions: readonly string[],
+): string | null {
+  if (requiredPermissions.length === 0) {
+    return null;
+  }
+
+  if (permissionMode === "any") {
+    return `Requires one of ${requiredPermissions.join(" / ")}`;
+  }
+
+  return `Requires ${requiredPermissions.join(" + ")}`;
 }
 
 interface CampJourneyRegistration {
@@ -471,24 +490,37 @@ export function resolveClinicalJourneyActions(
   context: ClinicalJourneyContext,
   hasPermission: (code: string) => boolean,
   surface: ClinicalJourneySurface = "web",
+  options: ResolveClinicalJourneyActionsOptions = {},
 ): ResolvedClinicalJourneyAction[] {
-  return CORE_PATIENT_JOURNEY_ACTIONS.filter((action) => action.surfaces.includes(surface))
-    .filter((action) => {
-      const { permissionMode, requiredPermissions } = actionPermissionsForSurface(action, surface);
-      return permissionMode === "any"
+  return CORE_PATIENT_JOURNEY_ACTIONS.filter((action) => action.surfaces.includes(surface)).reduce<
+    ResolvedClinicalJourneyAction[]
+  >((resolved, action) => {
+    const { permissionMode, requiredPermissions } = actionPermissionsForSurface(action, surface);
+    const permissionAllowed =
+      permissionMode === "any"
         ? requiredPermissions.some((permission) => hasPermission(permission))
         : requiredPermissions.every((permission) => hasPermission(permission));
-    })
-    .map((action) => {
-      const { permissionMode, requiredPermissions } = actionPermissionsForSurface(action, surface);
-      const disabledReasonText =
-        action.disabledReason(context) ?? activationDisabledReason(action, context);
-      return {
-        ...action,
-        permissionMode,
-        requiredPermissions,
-        enabled: disabledReasonText === null,
-        disabledReasonText,
-      };
+
+    if (!permissionAllowed && !options.includePermissionDenied) {
+      return resolved;
+    }
+
+    const permissionReason = permissionAllowed
+      ? null
+      : permissionDisabledReason(permissionMode, requiredPermissions);
+    const disabledReasonText =
+      permissionReason ??
+      action.disabledReason(context) ??
+      activationDisabledReason(action, context);
+
+    resolved.push({
+      ...action,
+      permissionMode,
+      requiredPermissions,
+      enabled: permissionAllowed && disabledReasonText === null,
+      disabledReasonText,
     });
+
+    return resolved;
+  }, []);
 }

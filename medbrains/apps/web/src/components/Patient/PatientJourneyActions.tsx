@@ -37,6 +37,7 @@ interface PatientJourneyActionsProps {
   hiddenActionIds?: readonly ClinicalJourneyActionId[];
   size?: PatientJourneyActionSize;
   layout?: PatientJourneyActionLayout;
+  showUnavailable?: boolean;
   emptyLabel?: string;
   onEdit?: () => void;
   onOpenOrderBasket?: (tab: PatientOrderTab) => void;
@@ -169,6 +170,7 @@ export function PatientJourneyActions({
   hiddenActionIds = [],
   size = "sm",
   layout = "inline",
+  showUnavailable,
   emptyLabel = "No available handoffs",
   onEdit,
   onOpenOrderBasket,
@@ -183,7 +185,10 @@ export function PatientJourneyActions({
     completedEvents: mergeJourneyEventNames(context, recentEvents),
   };
   const hiddenActions = new Set(hiddenActionIds);
-  const actions = resolveClinicalJourneyActions(journeyContext, hasPermission, "web").filter(
+  const includePermissionDenied = showUnavailable ?? layout === "rail";
+  const actions = resolveClinicalJourneyActions(journeyContext, hasPermission, "web", {
+    includePermissionDenied,
+  }).filter(
     (action) =>
       !hiddenActions.has(action.id) &&
       supportsAction(action.id, journeyContext, {
