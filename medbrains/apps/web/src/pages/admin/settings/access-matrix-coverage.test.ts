@@ -26,6 +26,7 @@ import {
   summarizeNavRouteCoverage,
   summarizeWorkflowKindCoverage,
 } from "./access-matrix-coverage";
+import { REPORT_EVENT_SOURCE_DEFINITIONS } from "./report-event-coverage";
 
 function testSurface(
   input: Pick<AccessMatrixSurface, "id" | "label" | "route" | "requiredPermissions"> &
@@ -141,11 +142,15 @@ describe("access matrix route coverage", () => {
       ACCESS_MATRIX_SURFACES,
     );
     const gaps = rows.flatMap((row) => row.missingKinds.map((kind) => `${row.key}:${kind}`));
+    const indentInventory = rows.find((row) => row.key === "indent_inventory");
     const expectedPrintableWorkflows = ACCESS_MATRIX_WORKFLOW_EXPECTATIONS.filter((workflow) =>
       workflow.requiredKinds.includes("print"),
     ).length;
 
     expect(gaps).toEqual([]);
+    expect(indentInventory?.presentKinds).toEqual(
+      expect.arrayContaining(["action", "input", "screen", "tab", "table", "widget"]),
+    );
     expect(summarizeWorkflowKindCoverage(rows)).toEqual({
       total: ACCESS_MATRIX_WORKFLOW_EXPECTATIONS.length,
       complete: ACCESS_MATRIX_WORKFLOW_EXPECTATIONS.length,
@@ -282,6 +287,21 @@ describe("access matrix route coverage", () => {
     expect(missingEvents).toEqual([]);
   });
 
+  it("keeps report-backed events represented in access-surface activation metadata", () => {
+    const reportEvents = new Set(
+      REPORT_EVENT_SOURCE_DEFINITIONS.flatMap((definition) => [...definition.sourceEvents]),
+    );
+    const accessEvents = new Set(
+      ACCESS_MATRIX_SURFACES.flatMap((surface) => [...surface.activatesAfter]),
+    );
+
+    const missingActivationEvents = [...reportEvents]
+      .filter((eventName) => !accessEvents.has(eventName))
+      .sort();
+
+    expect(missingActivationEvents).toEqual([]);
+  });
+
   it("maps OPD stage events to stage-specific access surfaces", () => {
     const tokenPrint = ACCESS_MATRIX_SURFACES.find(
       (surface) => surface.id === "opd.queue.token_printables",
@@ -351,7 +371,7 @@ describe("access matrix route coverage", () => {
     );
   });
 
-  it("separates IPD admission workspace activation from bed assignment activation", () => {
+  it("maps IPD bed movement and discharge completion to stage-specific surfaces", () => {
     const admissionSurfaceIds = [
       "ipd.admissions.screen",
       "ipd.detail.screen",
@@ -366,12 +386,95 @@ describe("access matrix route coverage", () => {
     );
 
     expect(surfaces).toHaveLength(admissionSurfaceIds.length);
-    expect(surfaces.map((surface) => surface.activatesAfter)).toEqual(
-      admissionSurfaceIds.map((id) =>
-        id === "ipd.detail.mrd_case_sheet_action"
-          ? ["ipd.admission.created", "mrd.case_sheet.generated"]
-          : ["ipd.admission.created"],
-      ),
+    expect(
+      surfaces.find((surface) => surface.id === "ipd.admissions.screen")?.activatesAfter,
+    ).toEqual(["ipd.admission.created"]);
+    expect(surfaces.find((surface) => surface.id === "ipd.detail.screen")?.activatesAfter).toEqual(
+      expect.arrayContaining(["ipd.admission.created", "bed.assigned", "bed.transferred"]),
+    );
+    expect(
+      surfaces.find((surface) => surface.id === "ipd.detail.command_tabs")?.activatesAfter,
+    ).toEqual(expect.arrayContaining(["ipd.admission.created", "bed.assigned", "bed.transferred"]));
+    expect(
+      surfaces.find((surface) => surface.id === "ipd.detail.attender_inputs")?.activatesAfter,
+    ).toEqual(["ipd.admission.created"]);
+    expect(
+      surfaces.find((surface) => surface.id === "ipd.detail.action_bar")?.activatesAfter,
+    ).toEqual(
+      expect.arrayContaining([
+        "ipd.admission.created",
+        "bed.transferred",
+        "ipd.discharge.completed",
+      ]),
+    );
+    expect(
+      surfaces.find((surface) => surface.id === "ipd.detail.admission_printables")?.activatesAfter,
+    ).toEqual(["ipd.admission.created"]);
+    expect(
+      surfaces.find((surface) => surface.id === "ipd.detail.mrd_case_sheet_action")?.activatesAfter,
+    ).toEqual(["ipd.admission.created", "mrd.case_sheet.generated"]);
+  });
+
+  it("maps indent lifecycle and stock movement events to governed store surfaces", () => {
+    const surfaces = ACCESS_MATRIX_SURFACES.filter((surface) => surface.module === "indent");
+    const screen = surfaces.find((surface) => surface.id === "indent.requisitions.screen");
+    const action = surfaces.find((surface) => surface.id === "indent.approval_issue.actions");
+    const analytics = surfaces.find((surface) => surface.id === "indent.analytics.widgets");
+
+    expect(surfaces.map((surface) => surface.kind).sort()).toEqual([
+      "action",
+      "input",
+      "screen",
+      "tab",
+      "table",
+      "widget",
+    ]);
+    expect(screen?.activatesAfter).toEqual(
+      expect.arrayContaining([
+        "indent.requisition.submitted",
+        "indent.requisition.approved",
+        "indent.requisition.issued",
+      ]),
+    );
+    expect(action?.activatesAfter).toEqual(
+      expect.arrayContaining([
+        "indent.requisition.submitted",
+        "indent.requisition.approved",
+        "indent.requisition.issued",
+        "pharmacy.stock.movement.created",
+      ]),
+    );
+    expect(analytics?.platforms).toEqual(["web", "tv"]);
+  });
+
+  it("maps safety evidence events to emergency and enterprise indicator surfaces", () => {
+    const emergencyActions = ACCESS_MATRIX_SURFACES.find(
+      (surface) => surface.id === "emergency.triage.actions",
+    );
+    const reportScreen = ACCESS_MATRIX_SURFACES.find(
+      (surface) => surface.id === "reports.enterprise.screen",
+    );
+    const dashboardWidgets = ACCESS_MATRIX_SURFACES.find(
+      (surface) => surface.id === "reports.dashboard.widgets",
+    );
+
+    expect(emergencyActions?.activatesAfter).toEqual(
+      expect.arrayContaining(["emergency.code_blue.activated", "emergency.code_blue.completed"]),
+    );
+    expect(reportScreen?.activatesAfter).toEqual(
+      expect.arrayContaining([
+        "quality.incident.reported",
+        "blood.transfusion_reaction.reported",
+        "bme.equipment_downtime.recorded",
+        "housekeeping.bmw_disposal.recorded",
+      ]),
+    );
+    expect(dashboardWidgets?.activatesAfter).toEqual(
+      expect.arrayContaining([
+        "quality.incident.reported",
+        "emergency.code_blue.activated",
+        "emergency.code_blue.completed",
+      ]),
     );
   });
 
