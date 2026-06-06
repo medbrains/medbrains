@@ -13,15 +13,23 @@ import {
   ipdWorkspaceTabForOrderBasket,
   resolveIpdActionRailActions,
   summarizeIpdActionRailSections,
+  summarizeIpdWorkspaceTabReadiness,
 } from "./ipd-workspace";
 
 const activeContext: IpdActionRailContext = {
   admissionHasAssignedBed: true,
   admissionIsActive: true,
+  canCreateDischargeSummary: true,
   canCreateTransfer: true,
   canDischarge: true,
+  canGenerateMrdCaseSheet: true,
   canManageDeathRecords: true,
   canOrder: true,
+  canPrintWristband: true,
+  canViewBillingLedger: true,
+  canViewDischargeTat: true,
+  canViewMrdCaseSheets: true,
+  hasMrdCaseSheet: true,
 };
 
 function invoice(overrides: Partial<Invoice> = {}): Invoice {
@@ -133,9 +141,16 @@ describe("IPD workspace action rail focus", () => {
       "order_medicines",
       "order_lab",
       "order_imaging",
+      "open_patient_ledger",
+      "generate_mrd_case_sheet",
+      "open_mrd_packet",
+      "print_wristband",
       "refer_out",
       "dama_lama",
       "mark_death",
+      "create_discharge_summary",
+      "discharge_patient",
+      "view_discharge_tat",
     ]);
     for (const action of IPD_ACTION_RAIL_ACTIONS) {
       expect(action.activatesAfter.length).toBeGreaterThan(0);
@@ -175,6 +190,43 @@ describe("IPD workspace action rail focus", () => {
     );
   });
 
+  it("models finance, MRD, wristband, and discharge readiness with reasons", () => {
+    const withoutMrdPacket = resolveIpdActionRailActions({
+      ...activeContext,
+      hasMrdCaseSheet: false,
+    });
+    expect(ipdActionRailAction(withoutMrdPacket, "open_patient_ledger").enabled).toBe(true);
+    expect(ipdActionRailAction(withoutMrdPacket, "generate_mrd_case_sheet").enabled).toBe(true);
+    expect(ipdActionRailAction(withoutMrdPacket, "open_mrd_packet").enabled).toBe(false);
+    expect(ipdActionRailAction(withoutMrdPacket, "open_mrd_packet").disabledReasonText).toBe(
+      "Generate an MRD case-sheet packet before opening it",
+    );
+    expect(ipdActionRailAction(withoutMrdPacket, "print_wristband").enabled).toBe(true);
+    expect(ipdActionRailAction(withoutMrdPacket, "create_discharge_summary").enabled).toBe(true);
+    expect(ipdActionRailAction(withoutMrdPacket, "discharge_patient").enabled).toBe(true);
+    expect(ipdActionRailAction(withoutMrdPacket, "view_discharge_tat").enabled).toBe(true);
+
+    const denied = resolveIpdActionRailActions({
+      ...activeContext,
+      canGenerateMrdCaseSheet: false,
+      canPrintWristband: false,
+      canViewBillingLedger: false,
+      canViewDischargeTat: false,
+    });
+    expect(ipdActionRailAction(denied, "open_patient_ledger").disabledReasonText).toBe(
+      "Requires billing.invoices.list",
+    );
+    expect(ipdActionRailAction(denied, "generate_mrd_case_sheet").disabledReasonText).toBe(
+      "Requires mrd.case_sheets.generate",
+    );
+    expect(ipdActionRailAction(denied, "print_wristband").disabledReasonText).toBe(
+      "Requires ipd.wristband.print",
+    );
+    expect(ipdActionRailAction(denied, "view_discharge_tat").disabledReasonText).toBe(
+      "Requires ipd.discharge_tat.view",
+    );
+  });
+
   it("summarizes focused command sections by enabled and blocked local actions", () => {
     const withoutBed = resolveIpdActionRailActions({
       ...activeContext,
@@ -199,9 +251,53 @@ describe("IPD workspace action rail focus", () => {
     });
     expect(admission).toMatchObject({
       blockedActions: 0,
-      enabledActions: 3,
+      enabledActions: 4,
       focused: false,
+      totalActions: 4,
+    });
+  });
+
+  it("derives workspace tab readiness from focused action rail sections", () => {
+    const actions = resolveIpdActionRailActions({
+      ...activeContext,
+      admissionHasAssignedBed: false,
+    });
+    const sectionSummaries = summarizeIpdActionRailSections(actions, []);
+    const summaries = summarizeIpdWorkspaceTabReadiness(
+      [
+        { value: "prescriptions", section: "Command" },
+        { value: "billing-tab", section: "Finance & Admin" },
+        { value: "clinical-docs", section: "Care Context" },
+        { value: "discharge-summary", section: "Discharge" },
+        { value: "overview", section: "Command" },
+      ],
+      sectionSummaries,
+    );
+
+    expect(summaries.find((summary) => summary.tab === "prescriptions")).toMatchObject({
+      blockedActions: 3,
+      enabledActions: 0,
       totalActions: 3,
+    });
+    expect(summaries.find((summary) => summary.tab === "billing-tab")).toMatchObject({
+      blockedActions: 0,
+      enabledActions: 1,
+      totalActions: 1,
+    });
+    expect(summaries.find((summary) => summary.tab === "clinical-docs")).toMatchObject({
+      blockedActions: 0,
+      enabledActions: 2,
+      totalActions: 2,
+    });
+    expect(summaries.find((summary) => summary.tab === "discharge-summary")).toMatchObject({
+      blockedActions: 0,
+      enabledActions: 7,
+      totalActions: 7,
+    });
+    expect(summaries.find((summary) => summary.tab === "overview")).toMatchObject({
+      blockedActions: 0,
+      enabledActions: 4,
+      totalActions: 4,
     });
   });
 });

@@ -44,6 +44,18 @@
 .workspaceRail {
   background:
     linear-gradient(180deg, light-dark(var(--mantine-color-gray-0), var(--mantine-color-dark-7)), light-dark(var(--mantine-color-white), var(--mantine-color-dark-8)));
+
+  :global(.mantine-Button-inner) {
+    justify-content: space-between;
+    width: 100%;
+    min-width: 0;
+  }
+
+  :global(.mantine-Button-label) {
+    overflow: hidden;
+    text-align: left;
+    text-overflow: ellipsis;
+  }
 }
 
 .actionRail {

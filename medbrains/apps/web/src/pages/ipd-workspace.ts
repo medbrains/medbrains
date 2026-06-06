@@ -33,17 +33,31 @@ export type IpdActionRailActionId =
   | "order_medicines"
   | "order_lab"
   | "order_imaging"
+  | "open_patient_ledger"
+  | "generate_mrd_case_sheet"
+  | "open_mrd_packet"
+  | "print_wristband"
   | "refer_out"
   | "dama_lama"
-  | "mark_death";
+  | "mark_death"
+  | "create_discharge_summary"
+  | "discharge_patient"
+  | "view_discharge_tat";
 
 export interface IpdActionRailContext {
   admissionHasAssignedBed: boolean;
   admissionIsActive: boolean;
+  canCreateDischargeSummary: boolean;
   canCreateTransfer: boolean;
   canDischarge: boolean;
+  canGenerateMrdCaseSheet: boolean;
   canManageDeathRecords: boolean;
   canOrder: boolean;
+  canPrintWristband: boolean;
+  canViewBillingLedger: boolean;
+  canViewDischargeTat: boolean;
+  canViewMrdCaseSheets: boolean;
+  hasMrdCaseSheet: boolean;
 }
 
 interface IpdActionRailActionDefinition {
@@ -67,10 +81,34 @@ export interface IpdActionRailSectionSummary {
   totalActions: number;
 }
 
+export interface IpdWorkspaceNavigationTab {
+  section: string;
+  value: string;
+}
+
+export interface IpdWorkspaceTabReadinessSummary {
+  actionSections: readonly IpdActionRailSection[];
+  blockedActions: number;
+  enabledActions: number;
+  tab: string;
+  totalActions: number;
+}
+
 const ADMISSION_CREATED: readonly ClinicalEventName[] = ["ipd.admission.created"];
 const ADMISSION_WITH_BED: readonly ClinicalEventName[] = ["ipd.admission.created", "bed.assigned"];
 const FINALIZED_INVOICE_STATUSES: readonly InvoiceStatus[] = ["issued", "partially_paid", "paid"];
 const OPEN_INVOICE_STATUSES: readonly InvoiceStatus[] = ["draft", "issued", "partially_paid"];
+const ACTIVE_ADMISSION_ACTIONS = new Set<IpdActionRailActionId>([
+  "order_medicines",
+  "order_lab",
+  "order_imaging",
+  "print_wristband",
+  "refer_out",
+  "dama_lama",
+  "mark_death",
+  "create_discharge_summary",
+  "discharge_patient",
+]);
 
 interface IpdJourneyEventSources {
   dischargeSummary: IpdDischargeSummary | null | undefined;
@@ -203,6 +241,34 @@ export const IPD_ACTION_RAIL_ACTIONS: readonly IpdActionRailActionDefinition[] =
   },
   {
     activatesAfter: ADMISSION_CREATED,
+    id: "open_patient_ledger",
+    label: "Open patient billing ledger",
+    requiredPermissions: [P.BILLING.INVOICES_LIST],
+    section: "finance",
+  },
+  {
+    activatesAfter: ADMISSION_CREATED,
+    id: "generate_mrd_case_sheet",
+    label: "Generate MRD case-sheet packet",
+    requiredPermissions: [P.MRD.CASE_SHEETS_GENERATE],
+    section: "mrd",
+  },
+  {
+    activatesAfter: ["mrd.case_sheet.generated"],
+    id: "open_mrd_packet",
+    label: "Open MRD case-sheet packet",
+    requiredPermissions: [P.MRD.CASE_SHEETS_VIEW],
+    section: "mrd",
+  },
+  {
+    activatesAfter: ADMISSION_CREATED,
+    id: "print_wristband",
+    label: "Print patient wristband",
+    requiredPermissions: [P.IPD.WRISTBAND_PRINT],
+    section: "admission",
+  },
+  {
+    activatesAfter: ADMISSION_CREATED,
     id: "refer_out",
     label: "Refer or transfer the patient out",
     requiredPermissions: [P.IPD.TRANSFERS_CREATE],
@@ -222,6 +288,27 @@ export const IPD_ACTION_RAIL_ACTIONS: readonly IpdActionRailActionDefinition[] =
     requiredPermissions: [P.IPD.DEATH_RECORDS_MANAGE],
     section: "admission",
   },
+  {
+    activatesAfter: ADMISSION_CREATED,
+    id: "create_discharge_summary",
+    label: "Create discharge summary",
+    requiredPermissions: [P.IPD.DISCHARGE_SUMMARY_CREATE],
+    section: "discharge",
+  },
+  {
+    activatesAfter: ADMISSION_CREATED,
+    id: "discharge_patient",
+    label: "Complete discharge workflow",
+    requiredPermissions: [P.IPD.DISCHARGE_CREATE],
+    section: "discharge",
+  },
+  {
+    activatesAfter: ADMISSION_CREATED,
+    id: "view_discharge_tat",
+    label: "View discharge TAT",
+    requiredPermissions: [P.IPD.DISCHARGE_TAT_VIEW],
+    section: "discharge",
+  },
 ];
 
 function permissionAllowed(action: IpdActionRailActionId, context: IpdActionRailContext): boolean {
@@ -230,12 +317,26 @@ function permissionAllowed(action: IpdActionRailActionId, context: IpdActionRail
     case "order_lab":
     case "order_imaging":
       return context.canOrder;
+    case "open_patient_ledger":
+      return context.canViewBillingLedger;
+    case "generate_mrd_case_sheet":
+      return context.canGenerateMrdCaseSheet;
+    case "open_mrd_packet":
+      return context.canViewMrdCaseSheets;
+    case "print_wristband":
+      return context.canPrintWristband;
     case "refer_out":
       return context.canCreateTransfer;
     case "dama_lama":
       return context.canDischarge;
     case "mark_death":
       return context.canManageDeathRecords;
+    case "create_discharge_summary":
+      return context.canCreateDischargeSummary;
+    case "discharge_patient":
+      return context.canDischarge;
+    case "view_discharge_tat":
+      return context.canViewDischargeTat;
   }
 }
 
@@ -247,12 +348,16 @@ function stateReason(
   definition: IpdActionRailActionDefinition,
   context: IpdActionRailContext,
 ): string | null {
-  if (!context.admissionIsActive) {
+  if (ACTIVE_ADMISSION_ACTIONS.has(definition.id) && !context.admissionIsActive) {
     return `${definition.label} needs an active admission`;
   }
 
   if (definition.section === "orders" && !context.admissionHasAssignedBed) {
     return "Assign a bed before inpatient orders";
+  }
+
+  if (definition.id === "open_mrd_packet" && !context.hasMrdCaseSheet) {
+    return "Generate an MRD case-sheet packet before opening it";
   }
 
   return null;
@@ -294,6 +399,30 @@ export function summarizeIpdActionRailSections(
       focused: focused.has(section),
       section,
       totalActions: sectionActions.length,
+    };
+  });
+}
+
+export function summarizeIpdWorkspaceTabReadiness(
+  tabs: readonly IpdWorkspaceNavigationTab[],
+  sectionSummaries: readonly IpdActionRailSectionSummary[],
+): readonly IpdWorkspaceTabReadinessSummary[] {
+  const summaryBySection = new Map(
+    sectionSummaries.map((summary) => [summary.section, summary] as const),
+  );
+
+  return tabs.map((tab) => {
+    const actionSections = ipdActionRailSectionsForTab(tab.value);
+    const summaries = actionSections
+      .map((section) => summaryBySection.get(section))
+      .filter((summary): summary is IpdActionRailSectionSummary => Boolean(summary));
+
+    return {
+      actionSections,
+      blockedActions: summaries.reduce((sum, summary) => sum + summary.blockedActions, 0),
+      enabledActions: summaries.reduce((sum, summary) => sum + summary.enabledActions, 0),
+      tab: tab.value,
+      totalActions: summaries.reduce((sum, summary) => sum + summary.totalActions, 0),
     };
   });
 }

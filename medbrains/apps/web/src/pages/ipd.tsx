@@ -217,6 +217,7 @@ import {
   ipdWorkspaceTabForOrderBasket,
   resolveIpdActionRailActions,
   summarizeIpdActionRailSections,
+  summarizeIpdWorkspaceTabReadiness,
 } from "./ipd-workspace";
 
 const statusColors: Record<string, string> = {
@@ -350,12 +351,31 @@ function firstIpdWorkspaceTabForSection(section: (typeof IPD_WORKSPACE_SECTIONS)
   return IPD_WORKSPACE_TABS.find((tab) => tab.section === section)?.value ?? "overview";
 }
 
-function actionRailReadinessLabel(summary: IpdActionRailSectionSummary | undefined) {
+function actionRailReadinessLabel(
+  summary: Pick<IpdActionRailSectionSummary, "enabledActions" | "totalActions"> | undefined,
+) {
   if (!summary || summary.totalActions === 0) {
     return null;
   }
 
   return `${summary.enabledActions}/${summary.totalActions} ready`;
+}
+
+function actionRailReadinessBadge(
+  summary:
+    | Pick<IpdActionRailSectionSummary, "blockedActions" | "enabledActions" | "totalActions">
+    | undefined,
+) {
+  const readiness = actionRailReadinessLabel(summary);
+  if (!readiness) {
+    return null;
+  }
+
+  return (
+    <Badge size="xs" color={summary?.blockedActions ? "orange" : "green"} variant="light">
+      {readiness}
+    </Badge>
+  );
 }
 
 function ActionRailSectionHeading({
@@ -378,11 +398,7 @@ function ActionRailSectionHeading({
             focus
           </Badge>
         )}
-        {readiness && (
-          <Badge size="xs" color={summary?.blockedActions ? "orange" : "green"} variant="light">
-            {readiness}
-          </Badge>
-        )}
+        {readiness && actionRailReadinessBadge(summary)}
       </Group>
     </Group>
   );
@@ -913,7 +929,9 @@ function AdmissionDetail({
   const canGenerateMrdCaseSheet = useHasPermission(P.MRD.CASE_SHEETS_GENERATE);
   const canViewMrdCaseSheets = useHasPermission(P.MRD.CASE_SHEETS_VIEW);
   const canOrder = useHasPermission(P.ORDER_BASKET.SIGN);
+  const canPrintWristband = useHasPermission(P.IPD.WRISTBAND_PRINT);
   const canViewBillingLedger = useHasPermission(P.BILLING.INVOICES_LIST);
+  const canViewDischargeTat = useHasPermission(P.IPD.DISCHARGE_TAT_VIEW);
   const canViewPharmacyOrders = useHasPermission(P.PHARMACY.PRESCRIPTIONS_LIST);
   const canCreateTransfer = useHasPermission(P.IPD.TRANSFERS_CREATE);
   const canManageDeathRecords = useHasPermission(P.IPD.DEATH_RECORDS_MANAGE);
@@ -1055,17 +1073,31 @@ function AdmissionDetail({
   const actionRailActions = resolveIpdActionRailActions({
     admissionHasAssignedBed,
     admissionIsActive,
+    canCreateDischargeSummary,
     canCreateTransfer,
     canDischarge,
+    canGenerateMrdCaseSheet,
     canManageDeathRecords,
     canOrder,
+    canPrintWristband,
+    canViewBillingLedger,
+    canViewDischargeTat,
+    canViewMrdCaseSheets,
+    hasMrdCaseSheet: Boolean(latestMrdCaseSheet),
   });
   const actionRailSectionSummaries = summarizeIpdActionRailSections(
     actionRailActions,
     focusedActionRailSections,
   );
+  const workspaceTabReadinessSummaries = summarizeIpdWorkspaceTabReadiness(
+    IPD_WORKSPACE_TABS,
+    actionRailSectionSummaries,
+  );
   const actionRailSummaryBySection = new Map(
     actionRailSectionSummaries.map((summary) => [summary.section, summary]),
+  );
+  const workspaceTabReadinessByTab = new Map(
+    workspaceTabReadinessSummaries.map((summary) => [summary.tab, summary]),
   );
   const actionRailSectionSummary = (section: IpdActionRailSection) =>
     actionRailSummaryBySection.get(section);
@@ -1081,9 +1113,17 @@ function AdmissionDetail({
   const orderMedicinesAction = ipdActionRailAction(actionRailActions, "order_medicines");
   const orderLabAction = ipdActionRailAction(actionRailActions, "order_lab");
   const orderImagingAction = ipdActionRailAction(actionRailActions, "order_imaging");
+  const patientLedgerAction = ipdActionRailAction(actionRailActions, "open_patient_ledger");
+  const generateMrdCaseSheetAction = ipdActionRailAction(
+    actionRailActions,
+    "generate_mrd_case_sheet",
+  );
+  const openMrdPacketAction = ipdActionRailAction(actionRailActions, "open_mrd_packet");
+  const printWristbandAction = ipdActionRailAction(actionRailActions, "print_wristband");
   const referOutAction = ipdActionRailAction(actionRailActions, "refer_out");
   const damaAction = ipdActionRailAction(actionRailActions, "dama_lama");
   const markDeathAction = ipdActionRailAction(actionRailActions, "mark_death");
+  const viewDischargeTatAction = ipdActionRailAction(actionRailActions, "view_discharge_tat");
   const journeyContext: ClinicalJourneyContext = {
     patientId: adm.patient_id,
     activeEncounterId: adm.encounter_id,
@@ -1296,6 +1336,9 @@ function AdmissionDetail({
                         variant={activeWorkspaceTab === tab.value ? "light" : "subtle"}
                         color={activeWorkspaceTab === tab.value ? "primary" : "slate"}
                         onClick={() => setActiveWorkspaceTab(tab.value)}
+                        rightSection={actionRailReadinessBadge(
+                          workspaceTabReadinessByTab.get(tab.value),
+                        )}
                         fullWidth
                       >
                         {tab.label}
@@ -1537,9 +1580,8 @@ function AdmissionDetail({
                   </Button>
                   <Tooltip
                     label={
-                      canViewBillingLedger
-                        ? "Open patient billing ledger without re-searching"
-                        : "Billing invoice-list permission required"
+                      patientLedgerAction.disabledReasonText ??
+                      "Open patient billing ledger without re-searching"
                     }
                   >
                     <span>
@@ -1548,7 +1590,7 @@ function AdmissionDetail({
                         variant="light"
                         color="orange"
                         leftSection={<IconArrowRight size={14} />}
-                        disabled={!canViewBillingLedger}
+                        disabled={!patientLedgerAction.enabled}
                         onClick={() =>
                           navigate(
                             `/billing?tab=invoices&patient_id=${adm.patient_id}&source=ipd_admission`,
@@ -1579,9 +1621,8 @@ function AdmissionDetail({
                   <ActionRailSectionHeading title="MRD" summary={actionRailSectionSummary("mrd")} />
                   <Tooltip
                     label={
-                      canGenerateMrdCaseSheet
-                        ? "Generate or refresh the IPD case-sheet packet in MRD"
-                        : "MRD case-sheet generation permission required"
+                      generateMrdCaseSheetAction.disabledReasonText ??
+                      "Generate or refresh the IPD case-sheet packet in MRD"
                     }
                   >
                     <span>
@@ -1590,7 +1631,7 @@ function AdmissionDetail({
                         variant={latestMrdCaseSheet ? "subtle" : "light"}
                         color="violet"
                         leftSection={<IconClipboardList size={14} />}
-                        disabled={!canGenerateMrdCaseSheet}
+                        disabled={!generateMrdCaseSheetAction.enabled}
                         loading={generateMrdCaseSheetMutation.isPending}
                         onClick={() => generateMrdCaseSheetMutation.mutate()}
                         fullWidth
@@ -1599,19 +1640,24 @@ function AdmissionDetail({
                       </Button>
                     </span>
                   </Tooltip>
-                  {canViewMrdCaseSheets && latestMrdCaseSheet && (
-                    <Button
-                      size="compact-xs"
-                      variant="subtle"
-                      leftSection={<IconArrowRight size={12} />}
-                      onClick={() =>
-                        navigate(`/mrd?packet_type=ipd&admission_id=${admissionId}#case-sheets`)
-                      }
-                      fullWidth
-                    >
-                      Open MRD Packet
-                    </Button>
-                  )}
+                  <Tooltip
+                    label={openMrdPacketAction.disabledReasonText ?? openMrdPacketAction.label}
+                  >
+                    <span>
+                      <Button
+                        size="compact-xs"
+                        variant="subtle"
+                        leftSection={<IconArrowRight size={12} />}
+                        disabled={!openMrdPacketAction.enabled}
+                        onClick={() =>
+                          navigate(`/mrd?packet_type=ipd&admission_id=${admissionId}#case-sheets`)
+                        }
+                        fullWidth
+                      >
+                        Open MRD Packet
+                      </Button>
+                    </span>
+                  </Tooltip>
                 </Stack>
                 <Stack
                   gap="xs"
@@ -1622,16 +1668,23 @@ function AdmissionDetail({
                     title="Admission"
                     summary={actionRailSectionSummary("admission")}
                   />
-                  <Button
-                    size="xs"
-                    variant="light"
-                    color="slate"
-                    leftSection={<IconPrinter size={14} />}
-                    onClick={openWristband}
-                    fullWidth
+                  <Tooltip
+                    label={printWristbandAction.disabledReasonText ?? printWristbandAction.label}
                   >
-                    Wristband
-                  </Button>
+                    <span>
+                      <Button
+                        size="xs"
+                        variant="light"
+                        color="slate"
+                        leftSection={<IconPrinter size={14} />}
+                        disabled={!printWristbandAction.enabled}
+                        onClick={openWristband}
+                        fullWidth
+                      >
+                        Wristband
+                      </Button>
+                    </span>
+                  </Tooltip>
                   <Tooltip label={referOutAction.disabledReasonText ?? referOutAction.label}>
                     <span>
                       <Button
@@ -1707,16 +1760,25 @@ function AdmissionDetail({
                   >
                     Checklist
                   </Button>
-                  <Button
-                    size="xs"
-                    variant={activeWorkspaceTab === "discharge-tat" ? "filled" : "subtle"}
-                    color="teal"
-                    leftSection={<IconCalendarTime size={14} />}
-                    onClick={() => setActiveWorkspaceTab("discharge-tat")}
-                    fullWidth
+                  <Tooltip
+                    label={
+                      viewDischargeTatAction.disabledReasonText ?? viewDischargeTatAction.label
+                    }
                   >
-                    TAT
-                  </Button>
+                    <span>
+                      <Button
+                        size="xs"
+                        variant={activeWorkspaceTab === "discharge-tat" ? "filled" : "subtle"}
+                        color="teal"
+                        leftSection={<IconCalendarTime size={14} />}
+                        disabled={!viewDischargeTatAction.enabled}
+                        onClick={() => setActiveWorkspaceTab("discharge-tat")}
+                        fullWidth
+                      >
+                        TAT
+                      </Button>
+                    </span>
+                  </Tooltip>
                 </Stack>
               </Stack>
             </Box>
