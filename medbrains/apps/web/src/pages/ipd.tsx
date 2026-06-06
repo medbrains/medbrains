@@ -1045,6 +1045,7 @@ function AdmissionDetail({
     },
   });
   const journeyCompletedEvents = deriveIpdJourneyCompletedEvents({
+    admission,
     dischargeSummary,
     invoices: patientInvoiceList?.invoices ?? [],
     investigations: admissionInvestigations,
@@ -1083,6 +1084,7 @@ function AdmissionDetail({
     canViewBillingLedger,
     canViewDischargeTat,
     canViewMrdCaseSheets,
+    completedEvents: journeyCompletedEvents,
     hasMrdCaseSheet: Boolean(latestMrdCaseSheet),
   });
   const actionRailSectionSummaries = summarizeIpdActionRailSections(

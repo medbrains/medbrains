@@ -1,4 +1,5 @@
 import type {
+  Admission,
   ClinicalEventName,
   InvestigationsResponse,
   Invoice,
@@ -57,6 +58,7 @@ export interface IpdActionRailContext {
   canViewBillingLedger: boolean;
   canViewDischargeTat: boolean;
   canViewMrdCaseSheets: boolean;
+  completedEvents?: readonly ClinicalEventName[];
   hasMrdCaseSheet: boolean;
 }
 
@@ -111,6 +113,7 @@ const ACTIVE_ADMISSION_ACTIONS = new Set<IpdActionRailActionId>([
 ]);
 
 interface IpdJourneyEventSources {
+  admission: Admission | null | undefined;
   dischargeSummary: IpdDischargeSummary | null | undefined;
   investigations: InvestigationsResponse | null | undefined;
   invoices: readonly Invoice[];
@@ -159,6 +162,7 @@ export function activeIpdPharmacyOrderIdForJourney({
 }
 
 export function deriveIpdJourneyCompletedEvents({
+  admission,
   dischargeSummary,
   investigations,
   invoices,
@@ -173,6 +177,21 @@ export function deriveIpdJourneyCompletedEvents({
     (investigations?.lab_orders.length ?? 0) > 0 ||
     (investigations?.radiology_orders.length ?? 0) > 0;
 
+  if (admission) {
+    events.push("ipd.admission.created");
+  }
+  if (admission?.bed_id) {
+    events.push("bed.assigned");
+  }
+  if (admission?.status === "transferred") {
+    events.push("bed.transferred");
+  }
+  if (admission && (admission.status !== "admitted" || admission.discharged_at)) {
+    events.push("ipd.discharge.completed");
+  }
+  if (dischargeSummary) {
+    events.push("ipd.discharge.initiated");
+  }
   if (hasOrders) {
     events.push("order.created");
   }
@@ -363,17 +382,52 @@ function stateReason(
   return null;
 }
 
+function actionRailCompletedEvents(context: IpdActionRailContext): ReadonlySet<ClinicalEventName> {
+  const events = new Set<ClinicalEventName>(context.completedEvents ?? []);
+  events.add("ipd.admission.created");
+
+  if (context.admissionHasAssignedBed) {
+    events.add("bed.assigned");
+  }
+  if (!context.admissionIsActive) {
+    events.add("ipd.discharge.completed");
+  }
+  if (context.hasMrdCaseSheet) {
+    events.add("mrd.case_sheet.generated");
+  }
+
+  return events;
+}
+
+function activationReason(
+  definition: IpdActionRailActionDefinition,
+  completedEvents: ReadonlySet<ClinicalEventName>,
+): string | null {
+  if (definition.activatesAfter.some((eventName) => completedEvents.has(eventName))) {
+    return null;
+  }
+
+  return `Available after ${definition.activatesAfter
+    .map((eventName) => eventName.replace(/\./g, " "))
+    .join(" or ")}`;
+}
+
 export function resolveIpdActionRailActions(
   context: IpdActionRailContext,
 ): readonly ResolvedIpdActionRailAction[] {
+  const completedEvents = actionRailCompletedEvents(context);
+
   return IPD_ACTION_RAIL_ACTIONS.map((definition) => {
     const hasPermission = permissionAllowed(definition.id, context);
     const blockedByState = stateReason(definition, context);
-    const enabled = hasPermission && blockedByState === null;
+    const blockedByActivation = activationReason(definition, completedEvents);
+    const enabled = hasPermission && blockedByState === null && blockedByActivation === null;
 
     return {
       activatesAfter: definition.activatesAfter,
-      disabledReasonText: hasPermission ? blockedByState : permissionReason(definition),
+      disabledReasonText: hasPermission
+        ? (blockedByState ?? blockedByActivation)
+        : permissionReason(definition),
       enabled,
       id: definition.id,
       label: definition.label,

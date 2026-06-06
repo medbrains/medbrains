@@ -1,6 +1,12 @@
 // @vitest-environment node
 
-import type { Invoice, PharmacyOrder, PrescriptionWithItems } from "@medbrains/types";
+import type {
+  Admission,
+  Invoice,
+  IpdDischargeSummary,
+  PharmacyOrder,
+  PrescriptionWithItems,
+} from "@medbrains/types";
 import { describe, expect, it } from "vitest";
 import {
   activeIpdInvoiceIdForJourney,
@@ -31,6 +37,75 @@ const activeContext: IpdActionRailContext = {
   canViewMrdCaseSheets: true,
   hasMrdCaseSheet: true,
 };
+
+function admission(overrides: Partial<Admission> = {}): Admission {
+  return {
+    admission_height_cm: null,
+    admission_source: "opd",
+    admission_weight_kg: null,
+    admitted_at: "2026-01-01T00:00:00Z",
+    admitting_doctor: "doctor-1",
+    bed_id: "bed-1",
+    comorbidities: [],
+    created_at: "2026-01-01T00:00:00Z",
+    deposit_amount: null,
+    deposit_paid: false,
+    discharge_summary: null,
+    discharge_type: null,
+    discharged_at: null,
+    encounter_id: "encounter-1",
+    estimated_cost: null,
+    estimated_los_days: null,
+    expected_discharge_date: null,
+    id: "admission-1",
+    ip_type: "general",
+    is_critical: false,
+    isolation_reason: null,
+    isolation_required: false,
+    mlc_case_id: null,
+    patient_id: "patient-1",
+    primary_nurse_id: null,
+    priority: "routine",
+    provisional_diagnosis: null,
+    referral_doctor: null,
+    referral_from: null,
+    referral_notes: null,
+    status: "admitted",
+    tenant_id: "tenant-1",
+    updated_at: "2026-01-01T00:00:00Z",
+    ward_id: "ward-1",
+    ...overrides,
+  };
+}
+
+function dischargeSummary(overrides: Partial<IpdDischargeSummary> = {}): IpdDischargeSummary {
+  return {
+    activity_restrictions: null,
+    admission_id: "admission-1",
+    condition_at_discharge: null,
+    course_in_hospital: null,
+    created_at: "2026-01-01T00:00:00Z",
+    dietary_advice: null,
+    emergency_contact_info: null,
+    final_diagnosis: null,
+    finalized_at: null,
+    follow_up_date: null,
+    follow_up_instructions: null,
+    id: "summary-1",
+    investigation_summary: null,
+    medications_on_discharge: [],
+    prepared_by: null,
+    procedures_performed: [],
+    status: "draft",
+    template_id: null,
+    tenant_id: "tenant-1",
+    treatment_given: null,
+    updated_at: "2026-01-01T00:00:00Z",
+    verified_by: null,
+    warning_signs: null,
+    ...overrides,
+  };
+}
 
 function invoice(overrides: Partial<Invoice> = {}): Invoice {
   return {
@@ -321,9 +396,33 @@ describe("IPD journey handoff context", () => {
     ).toBe("rx-order");
   });
 
+  it("derives admission, bed, transfer and discharge events for rail activation", () => {
+    expect(
+      deriveIpdJourneyCompletedEvents({
+        admission: admission({
+          discharged_at: "2026-01-05T10:00:00Z",
+          status: "transferred",
+        }),
+        dischargeSummary: dischargeSummary({ status: "draft" }),
+        investigations: null,
+        invoices: [],
+        mrdCaseSheetPackets: [],
+        pharmacyOrders: [],
+        prescriptions: [],
+      }),
+    ).toEqual([
+      "ipd.admission.created",
+      "bed.assigned",
+      "bed.transferred",
+      "ipd.discharge.completed",
+      "ipd.discharge.initiated",
+    ]);
+  });
+
   it("derives billing, payment, and pharmacy completion events for handoff activation", () => {
     expect(
       deriveIpdJourneyCompletedEvents({
+        admission: null,
         dischargeSummary: null,
         investigations: null,
         invoices: [invoice({ paid_amount: "50", status: "partially_paid" })],
