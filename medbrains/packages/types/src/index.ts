@@ -50,6 +50,15 @@ export {
   resolveClinicalJourneyActions,
   summarizeClinicalJourneyActions,
 } from "./event-actions.js";
+export type {
+  PatientFlowContextInput,
+  PatientFlowModule,
+  PatientFlowReadiness,
+  PatientFlowReadinessItem,
+  PatientFlowReadinessSummary,
+} from "./patient-flow.js";
+export { buildPatientFlowReadiness, patientFlowJourneyContext } from "./patient-flow.js";
+export { patientJourneyActionRoute } from "./patient-journey-routes.js";
 export type { PermissionDef, PermissionGroup } from "./permissions.js";
 export {
   buildPermissionTree,

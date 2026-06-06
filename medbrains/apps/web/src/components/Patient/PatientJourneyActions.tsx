@@ -8,7 +8,11 @@ import type {
   ClinicalOrderContext,
   ResolvedClinicalJourneyAction,
 } from "@medbrains/types";
-import { resolveClinicalJourneyActions, summarizeClinicalJourneyActions } from "@medbrains/types";
+import {
+  patientJourneyActionRoute,
+  resolveClinicalJourneyActions,
+  summarizeClinicalJourneyActions,
+} from "@medbrains/types";
 import {
   IconAlertTriangle,
   IconBed,
@@ -26,7 +30,6 @@ import { useNavigate } from "react-router";
 import { useClinicalEventStore } from "@/components/clinical-event-store";
 import styles from "./patient-journey-actions.module.scss";
 import { mergeJourneyEventNames } from "./patient-journey-events";
-import { patientJourneyActionRoute } from "./patient-journey-routes";
 
 type PatientOrderTab = "drug" | "lab" | "radiology";
 type PatientJourneyActionSize = "xs" | "sm";

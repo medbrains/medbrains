@@ -1,8 +1,7 @@
 // @vitest-environment node
 
-import { P } from "@medbrains/types";
+import { buildPatientFlowReadiness, P, patientFlowJourneyContext } from "@medbrains/types";
 import { describe, expect, it } from "vitest";
-import { buildPatientFlowReadiness, patientFlowJourneyContext } from "./patient-flow-readiness";
 
 const allowAll = () => true;
 const allowPermissions = (permissions: readonly string[]) => {

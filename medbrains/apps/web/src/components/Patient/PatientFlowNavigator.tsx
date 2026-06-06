@@ -1,6 +1,12 @@
 import { Badge, Button, Group, Stack, Text, Tooltip } from "@mantine/core";
 import { usePermissionStore } from "@medbrains/stores";
-import type { ClinicalEventName, ClinicalOrderContext } from "@medbrains/types";
+import type {
+  ClinicalEventName,
+  ClinicalOrderContext,
+  PatientFlowModule,
+  PatientFlowReadinessItem,
+} from "@medbrains/types";
+import { buildPatientFlowReadiness, patientFlowJourneyContext } from "@medbrains/types";
 import {
   IconBed,
   IconBuildingStore,
@@ -15,15 +21,9 @@ import type { ReactNode } from "react";
 import { useNavigate } from "react-router";
 import { useClinicalEventStore } from "@/components/clinical-event-store";
 import styles from "./patient-flow-navigator.module.scss";
-import {
-  buildPatientFlowReadiness,
-  type PatientFlowModule,
-  type PatientFlowReadinessItem,
-  patientFlowJourneyContext,
-} from "./patient-flow-readiness";
 import { clinicalEventMatchesJourney, mergeJourneyEventNames } from "./patient-journey-events";
 
-export type { PatientFlowModule } from "./patient-flow-readiness";
+export type { PatientFlowModule } from "@medbrains/types";
 
 interface PatientFlowNavigatorProps {
   patientId: string | null | undefined;

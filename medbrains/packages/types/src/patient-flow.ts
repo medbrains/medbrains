@@ -1,12 +1,14 @@
 import type {
-  ClinicalEventName,
   ClinicalJourneyActionId,
   ClinicalJourneyContext,
+  ClinicalJourneySurface,
   ClinicalOrderContext,
   ResolvedClinicalJourneyAction,
-} from "@medbrains/types";
-import { P, resolveClinicalJourneyActions } from "@medbrains/types";
-import { patientJourneyActionRoute } from "./patient-journey-routes";
+} from "./event-actions.js";
+import { resolveClinicalJourneyActions } from "./event-actions.js";
+import type { ClinicalEventName } from "./index.js";
+import { patientJourneyActionRoute } from "./patient-journey-routes.js";
+import { P } from "./permissions.js";
 
 export type PatientFlowModule =
   | "patient"
@@ -148,9 +150,10 @@ export function patientFlowJourneyContext(input: PatientFlowContextInput): Clini
 export function buildPatientFlowReadiness(
   context: ClinicalJourneyContext,
   hasPermission: (code: string) => boolean,
+  surface: ClinicalJourneySurface = "web",
 ): PatientFlowReadiness {
   const actions = resolvedActionMap(
-    resolveClinicalJourneyActions(context, hasPermission, "web", {
+    resolveClinicalJourneyActions(context, hasPermission, surface, {
       includePermissionDenied: true,
     }),
   );

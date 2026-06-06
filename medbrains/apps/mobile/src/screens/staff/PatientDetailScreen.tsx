@@ -26,7 +26,7 @@ import {
   useTheme,
 } from "react-native-paper";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { PatientJourneyActions } from "../../components";
+import { PatientFlowNavigator, PatientJourneyActions } from "../../components";
 import { patientService } from "../../services/patient.service";
 
 interface PatientDetailScreenProps {
@@ -419,6 +419,7 @@ export function PatientDetailScreen({ route, navigation }: PatientDetailScreenPr
             Mobile handoffs activate from OPD, IPD, ER, camp, prescription, invoice, and payment
             events.
           </Text>
+          <PatientFlowNavigator active="patient" context={journeyContext} navigation={navigation} />
           <PatientJourneyActions context={journeyContext} navigation={navigation} />
         </Surface>
 

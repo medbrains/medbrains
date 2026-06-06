@@ -1,8 +1,8 @@
 // @vitest-environment node
 
 import type { ClinicalJourneyContext } from "@medbrains/types";
+import { patientJourneyActionRoute } from "@medbrains/types";
 import { describe, expect, it } from "vitest";
-import { patientJourneyActionRoute } from "./patient-journey-routes";
 
 const baseContext: ClinicalJourneyContext = {
   patientId: "patient-1",

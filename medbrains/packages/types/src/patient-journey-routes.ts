@@ -1,4 +1,4 @@
-import type { ClinicalJourneyActionId, ClinicalJourneyContext } from "@medbrains/types";
+import type { ClinicalJourneyActionId, ClinicalJourneyContext } from "./event-actions.js";
 
 export function patientJourneyActionRoute(
   actionId: ClinicalJourneyActionId,
