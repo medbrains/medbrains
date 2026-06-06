@@ -1,112 +1,116 @@
-# MedBrains Goal 1 - Problem Statement
+# MedBrains Goal 1 - Hospital Workflow Problem Statement
 
 ## Problem Statement
 
-MedBrains is not yet usable as a continuous hospital operations workspace because the
-core patient journey is fragmented across loosely connected modules. The application
-has many screens, but registration, OPD, IPD, emergency, camp, pharmacy, billing,
-settings, reports, mobile, TV, and kiosk surfaces do not yet behave like one
-event-aware system centered on the patient.
+MedBrains must solve the real hospital problem of moving a patient through care
+without losing context, safety controls, or operational accountability. The current
+product risk is not a lack of modules. The risk is that registration, OPD, IPD,
+emergency, camp, pharmacy, billing, reports, settings, mobile, TV, kiosk, token, and
+print surfaces can behave like separate systems even when they are handling the same
+patient.
 
-Hospital staff should not have to remember which page to open next, re-search the same
-patient, infer why an action is unavailable, or guess whether a field is governed by a
-permission, masking rule, regulatory rule, report indicator, or device-display policy.
-The system must make the next valid workflow step visible from the current patient,
-module state, event history, and permission context.
+In a working hospital, staff need one continuous patient-flow workspace. A patient is
+registered or identified, routed to the right care setting, clinically assessed,
+ordered for services or medicines, admitted or discharged where needed, billed,
+reported, and displayed on staff or public devices with only the information safe for
+that surface. The system should make the next valid action obvious from the patient
+state, current encounter or admission, orders, invoices, canonical events,
+permissions, masking policy, and regulatory constraints.
 
-## Why This Matters
+## Product Failure To Close
 
-This is a product usability and operational safety problem, not just a navigation
-problem. In a hospital, broken context between modules causes repeated work, missed
-handoffs, inconsistent privacy behavior, weak auditability, poor public-display
-controls, and reports that do not reflect the same events staff use to run the floor.
+MedBrains can look feature-rich while still being hard to use if staff must re-search
+the same patient, jump between unrelated pages, guess why an action is unavailable,
+or trust reports and device displays that are not tied to the same events used by
+frontline workflows. The goal is to close that gap by making each touched area prove a
+specific patient-flow outcome.
 
-The current risk is that MedBrains can look feature-rich while still feeling incomplete
-in day-to-day use because each module works more like a separate page than part of a
-single clinical and administrative workflow.
+## Hospital Situations This Goal Covers
 
-## Affected Patient Journey
+1. Registration desk:
+   A clerk registers or updates a patient, verifies identity, applies UHID and
+   demographic masking expectations, and sees the valid handoff to OPD, emergency,
+   camp, or IPD without reopening the patient elsewhere.
 
-The priority journey is:
+2. OPD clinic:
+   A nurse or doctor opens a queued patient, sees the live patient context, records
+   vitals or consultation details, creates medication, lab, radiology, referral, or
+   admission handoffs, and sees blocked actions explained by patient state,
+   permissions, missing events, or regulatory controls.
 
-Patient registration -> OPD -> IPD or emergency -> camp where relevant -> pharmacy ->
-billing -> reports and indicators.
+3. IPD ward:
+   Ward staff work from an admission command workspace where patient context,
+   bed/admission state, care tasks, orders, pharmacy handoffs, billing/discharge
+   readiness, reports, and role-based actions are visible through stable routes and
+   tabs.
 
-Settings and configuration must support this journey by exposing the permission,
-masking, route, action, report, token, print, mobile, TV, and kiosk governance behind
-it. Edge surfaces such as kiosks, token dashboards, staff mobile screens, bedside
-views, and public TV boards must follow the same workflow state and privacy rules as
-the web application.
+4. Emergency and MLC:
+   Emergency staff triage and treat patients, document MLC when applicable, transfer
+   or admit, and trigger pharmacy, billing, and report events with auditability,
+   privacy controls, and legal traceability.
 
-## Observable Symptoms
+5. Camp workflow:
+   Camp teams register attendees, screen patients, refer into OPD, IPD, or emergency,
+   and preserve camp context through billing, pharmacy, reports, and follow-up.
 
-- Patient context is lost or hidden when moving between registration, OPD, IPD,
-  emergency, camp, pharmacy, and billing.
-- Full workflows are sometimes buried in drawers instead of durable routes or stable
-  tabs that can be reopened, linked, audited, and tested.
-- OPD, IPD, emergency, camp, pharmacy, and billing actions are not consistently enabled
-  by real domain events or explained when unavailable.
-- IPD does not yet consistently feel like a ward command workspace with patient
-  context, navigation, task readiness, and contextual actions visible together.
-- Permission coverage exists in pieces, but Settings does not yet prove every screen,
-  tab, table, column, input, action, widget, printable, report, token board, mobile
-  view, TV view, and kiosk flow is governed.
-- Masking rules are not yet consistently applied to sensitive patient identity,
-  contact, clinical, regulatory, operational, and financial data everywhere the data
-  appears.
-- Reports and indicators are not yet fully sourced from the same workflow events that
-  activate operational screens and actions.
-- Mobile, TV, and kiosk experiences are not yet clearly tied to the same routes,
-  tokens, privacy rules, event state, and readiness model as web.
+6. Pharmacy:
+   Pharmacy staff receive patient-linked orders, verify formulary and regulatory
+   flags, handle controlled or scheduled medicines, batch, expiry, FEFO, dispensing,
+   and return events that update patient flow and billing readiness.
 
-## Target Outcome
+7. Billing:
+   Billing staff create invoices, payments, discharge bills, and payer claims from
+   actual patient events and orders instead of re-entered clinical context.
 
-MedBrains should behave like an enterprise hospital command workspace:
+8. Settings and governance:
+   Administrators see which permissions, masking rules, routes, reports, print
+   outputs, token boards, mobile views, TV views, and kiosk flows are governed, which
+   are missing coverage, and which real workflow each rule affects.
 
-- Patient context remains visible and actionable across registration, OPD, IPD,
-  emergency, camp, pharmacy, billing, reports, and settings.
-- Durable clinical and operational work happens in routes and tabs; drawers and modals
-  are limited to short transient tasks.
-- Menus, tabs, buttons, table actions, print actions, token displays, and device
-  surfaces activate from domain events, current patient state, and permissions.
-- Disabled or hidden actions have a traceable reason: missing event, missing patient
-  context, missing permission, masking rule, configuration gap, or regulatory block.
-- Settings is the administrative source of truth for access, masking, route, report,
-  print, token, mobile, TV, and kiosk coverage.
-- Reports and indicators are fed by the same event model used by operational modules.
-- Public and edge-device surfaces expose only the minimum safe information required for
-  their workflow.
+9. Mobile, TV, kiosk, token, and print surfaces:
+   Bedside mobile screens, public token boards, TV dashboards, kiosks, and printouts
+   reuse the same event state and access policy as web while exposing only the minimum
+   safe information for their location and audience.
 
-## Problem Slices To Close
+## Concrete Outcomes
+
+- Patient context remains available from registration through OPD, IPD or emergency,
+  camp where relevant, pharmacy, billing, reports, and settings.
+- Durable clinical and operational work happens through stable routes and tabs, with
+  drawers and modals limited to short transient tasks.
+- Menus, tabs, buttons, table actions, handoffs, print actions, token boards, reports,
+  mobile, TV, and kiosk surfaces activate from canonical events, patient state,
+  configuration, and permissions.
+- Unavailable actions have a traceable reason such as missing patient context, missing
+  event, missing permission, masking requirement, configuration gap, or regulatory
+  block.
+- Settings exposes coverage and gaps for access, masking, routes, reports, print,
+  token, mobile, TV, and kiosk surfaces.
+- Reports and indicators use the same canonical events and payload fields that drive
+  operational modules.
+- Public and edge-device surfaces apply shared minimum-disclosure and masking
+  behavior consistently.
+
+## Priority Problem Areas
 
 1. Patient context continuity across registration, OPD, IPD, emergency, camp,
    pharmacy, billing, reports, and settings.
-2. Event-driven action readiness for module menus, tabs, buttons, handoffs, print
-   actions, token boards, and reports.
-3. Settings coverage for permissions, masking, routes, reports, widgets, printables,
-   mobile, TV, kiosk, and token surfaces.
-4. Shared masking behavior for identity, contact, clinical, regulatory, operational,
-   and financial fields.
-5. IPD command workspace with top patient context, left navigation, central tabs, and
-   right-side readiness/actions.
-6. Token and edge-device integration across web, mobile, TV, and kiosk.
-7. Report and indicator linkage to canonical workflow events and payload fields.
+2. Event-driven action readiness for routes, tabs, buttons, handoffs, print actions,
+   token boards, reports, mobile, TV, and kiosk surfaces.
+3. Permission and masking coverage for patient identity, contact, clinical,
+   regulatory, operational, financial, report, print, and public-display fields.
+4. IPD ward command workspace with top patient context, left navigation, central
+   route/tab work areas, and right-side readiness/actions.
+5. Settings coverage that exposes governed surfaces and coverage gaps instead of only
+   generic permission lists.
+6. Reports and indicators linked to canonical workflow events.
+7. Mobile, TV, kiosk, token-board, and print parity where the device solves a real
+   hospital workflow and applies the same access and event model.
 
 ## Completion Evidence
 
-The goal is complete only when runtime behavior and checked code show that:
-
-- A patient can move through the priority journey without unnecessary re-searching or
-  context loss.
-- Core modules expose durable workspaces with stable routes/tabs for real workflows.
-- Critical actions are event-gated, permission-gated, and explain unavailable states
-  where the unavailable action is shown.
-- Settings displays coverage and gaps for governed UI, data, report, print, token, and
-  device surfaces.
-- Sensitive fields use shared masking policies consistently across web, mobile, TV,
-  kiosk, print, reports, tables, cards, and forms.
-- Token dashboards and public displays respect safe public-display data rules.
-- Reports and indicators use the same canonical events and payload contracts as the
-  operational workflow.
-- Static checks, focused unit tests, and relevant UI/runtime checks pass for every
-  touched area.
+This goal is complete when the application demonstrates that staff can move a patient
+through the covered hospital situations without unnecessary re-searching, context
+loss, unsafe disclosure, unexplained blocked actions, or reports disconnected from
+frontline events. Each completed problem area should have focused unit tests, static
+or contract checks, and relevant UI or runtime evidence for the touched workflow.
