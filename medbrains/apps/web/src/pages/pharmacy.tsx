@@ -3484,7 +3484,10 @@ function StockTab({ canManage }: { canManage: boolean }) {
         message: `${created.length} batch row(s) verified and posted`,
         color: "success",
       });
-      emit("stock.movement", {
+      emit("pharmacy.stock.movement.created", {
+        batch_count: created.length,
+        batch_ids: created.map((batch) => batch.id),
+        source_record_id: created[0]?.id,
         transaction_type: "bulk_batch_receipt",
         quantity: readyBulkRows.reduce((sum, row) => sum + batchLineTotalQuantity(row), 0),
       });

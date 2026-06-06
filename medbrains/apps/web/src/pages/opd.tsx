@@ -715,7 +715,7 @@ export function OpdVitalsPage() {
         ? opdService.createNurseVital({ ...data, encounter_id: entry.encounter_id })
         : opdService.createVital(entry.encounter_id, data);
     },
-    onSuccess: () => {
+    onSuccess: (vital) => {
       if (!entry) return;
       void queryClient.invalidateQueries({ queryKey: ["opd-queue"] });
       void queryClient.invalidateQueries({ queryKey: ["vitals", entry.encounter_id] });
@@ -725,9 +725,11 @@ export function OpdVitalsPage() {
       void queryClient.invalidateQueries({
         queryKey: ["patient-vitals-history", entry.patient_id, "timeline"],
       });
-      emit("vitals.recorded", {
+      emit("opd.vitals.recorded", {
         encounter_id: entry.encounter_id,
         patient_id: entry.patient_id,
+        source_record_id: vital.id,
+        vital_id: vital.id,
       });
       notifications.show({
         title: "Vitals recorded",
@@ -989,7 +991,7 @@ function OpdPageInner() {
     onSuccess: (_result, row) => {
       void queryClient.invalidateQueries({ queryKey: ["opd-queue"] });
       void queryClient.invalidateQueries({ queryKey: ["opd-appointments"] });
-      emit("patient.called", queueEntryEventPayload(row));
+      emit("opd.queue.called", queueEntryEventPayload(row));
     },
   });
   const startMutation = useMutation({
@@ -997,7 +999,7 @@ function OpdPageInner() {
     onSuccess: (_result, row) => {
       void queryClient.invalidateQueries({ queryKey: ["opd-queue"] });
       void queryClient.invalidateQueries({ queryKey: ["opd-appointments"] });
-      emit("consultation.started", queueEntryEventPayload(row));
+      emit("opd.consultation.started", queueEntryEventPayload(row));
     },
   });
   const completeMutation = useMutation({
@@ -1005,7 +1007,7 @@ function OpdPageInner() {
     onSuccess: (_result, row) => {
       void queryClient.invalidateQueries({ queryKey: ["opd-queue"] });
       void queryClient.invalidateQueries({ queryKey: ["opd-appointments"] });
-      emit("encounter.completed", queueEntryEventPayload(row));
+      emit("opd.encounter.completed", queueEntryEventPayload(row));
     },
   });
   const noShowMutation = useMutation({
@@ -2229,7 +2231,7 @@ function VitalsTab({
 
   const handleSubmit = (data: CreateVitalRequest) => {
     append(data);
-    emit("vitals.recorded", { encounter_id: encounterId, ...data });
+    emit("opd.vitals.recorded", { encounter_id: encounterId, patient_id: patientId, ...data });
     formHandlers.close();
   };
 
@@ -2480,10 +2482,15 @@ function ConsultationTab({
   const createMutation = useMutation({
     mutationFn: (data: CreateConsultationRequest) =>
       opdService.createConsultation(encounterId, data),
-    onSuccess: () => {
+    onSuccess: (consultation) => {
       void queryClient.invalidateQueries({ queryKey: ["consultation", encounterId] });
       void queryClient.invalidateQueries({ queryKey: ["patient-consultations", patientId] });
-      emit("consultation.saved", { encounter_id: encounterId });
+      emit("opd.consultation.saved", {
+        consultation_id: consultation.id,
+        encounter_id: consultation.encounter_id,
+        patient_id: patientId,
+        source_record_id: consultation.id,
+      });
     },
   });
 
@@ -3367,7 +3374,14 @@ function FollowUpTab({
         message: `Appointment booked for ${appointment.appointment_date}`,
         color: "success",
       });
-      emit("followup.scheduled", { patient_id: patientId, date: appointment.appointment_date });
+      emit("opd.followup.scheduled", {
+        appointment_date: appointment.appointment_date,
+        appointment_id: appointment.id,
+        department_id: appointment.department_id,
+        doctor_id: appointment.doctor_id,
+        patient_id: appointment.patient_id,
+        source_record_id: appointment.id,
+      });
       reset(DEFAULT_OPD_FOLLOW_UP_FORM_VALUES);
       setBooked(true);
     },
@@ -3583,13 +3597,15 @@ function PrescriptionsTab({
       prescriptionId: string;
       data: UpdatePrescriptionRequest;
     }) => opdService.updatePrescription(prescriptionId, data),
-    onSuccess: (_result, variables) => {
+    onSuccess: (result, variables) => {
       void queryClient.invalidateQueries({ queryKey: ["prescriptions", encounterId] });
       void queryClient.invalidateQueries({ queryKey: ["pharmacy-rx-queue"] });
-      emit("prescription.updated_before_pharmacy_approval", {
-        prescription_id: variables.prescriptionId,
-        encounter_id: encounterId,
+      emit("opd.prescription.updated", {
+        encounter_id: result.prescription.encounter_id,
         item_count: variables.data.items.length,
+        patient_id: patientId,
+        prescription_id: variables.prescriptionId,
+        source_record_id: variables.prescriptionId,
       });
       notifications.show({
         title: "Prescription updated",

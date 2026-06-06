@@ -11313,6 +11313,13 @@ export type ClinicalEventName =
   | "mlc.created"
   | "emergency.mlc_police_intimation.created"
   | "opd.encounter.created"
+  | "opd.queue.called"
+  | "opd.consultation.started"
+  | "opd.vitals.recorded"
+  | "opd.consultation.saved"
+  | "opd.encounter.completed"
+  | "opd.followup.scheduled"
+  | "opd.prescription.updated"
   | "opd.certificate.created"
   | "opd.consent.signed"
   | "camp.started"
@@ -11329,6 +11336,7 @@ export type ClinicalEventName =
   | "billing.invoice.finalized"
   | "billing.payment.received"
   | "pharmacy.order.dispensed"
+  | "pharmacy.stock.movement.created"
   | "pharmacy.ndps.movement.created"
   | "ipd.admission.created"
   | "bed.assigned"
@@ -11389,6 +11397,13 @@ export const CLINICAL_EVENT_REQUIRED_PAYLOAD_KEYS: Record<ClinicalEventName, rea
   "mlc.created": ["mlc_case_id", "patient_id"],
   "emergency.mlc_police_intimation.created": ["intimation_id", "mlc_case_id", "patient_id"],
   "opd.encounter.created": ["encounter_id", "patient_id"],
+  "opd.queue.called": ["queue_entry_id", "encounter_id", "patient_id"],
+  "opd.consultation.started": ["queue_entry_id", "encounter_id", "patient_id"],
+  "opd.vitals.recorded": ["encounter_id", "patient_id"],
+  "opd.consultation.saved": ["consultation_id", "encounter_id", "patient_id"],
+  "opd.encounter.completed": ["encounter_id", "patient_id"],
+  "opd.followup.scheduled": ["appointment_id", "patient_id"],
+  "opd.prescription.updated": ["prescription_id", "encounter_id", "patient_id"],
   "opd.certificate.created": ["certificate_id", "patient_id"],
   "opd.consent.signed": ["consent_id", "patient_id"],
   "camp.started": ["camp_id"],
@@ -11405,6 +11420,7 @@ export const CLINICAL_EVENT_REQUIRED_PAYLOAD_KEYS: Record<ClinicalEventName, rea
   "billing.invoice.finalized": ["invoice_id", "patient_id"],
   "billing.payment.received": ["payment_id", "invoice_id", "patient_id"],
   "pharmacy.order.dispensed": ["order_id", "patient_id", "items"],
+  "pharmacy.stock.movement.created": ["transaction_type", "quantity"],
   "pharmacy.ndps.movement.created": ["entry_id", "catalog_item_id", "action"],
   "ipd.admission.created": ["admission_id", "patient_id"],
   "bed.assigned": ["bed_id", "admission_id", "patient_id"],

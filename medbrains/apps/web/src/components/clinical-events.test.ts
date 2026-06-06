@@ -27,6 +27,16 @@ describe("clinical event normalization", () => {
     expect(normalizeClinicalEventName("camp.registration_created")).toBe(
       "camp.registration.created",
     );
+    expect(normalizeClinicalEventName("consultation.saved")).toBe("opd.consultation.saved");
+    expect(normalizeClinicalEventName("consultation.started")).toBe("opd.consultation.started");
+    expect(normalizeClinicalEventName("encounter.completed")).toBe("opd.encounter.completed");
+    expect(normalizeClinicalEventName("followup.scheduled")).toBe("opd.followup.scheduled");
+    expect(normalizeClinicalEventName("patient.called")).toBe("opd.queue.called");
+    expect(normalizeClinicalEventName("prescription.updated_before_pharmacy_approval")).toBe(
+      "opd.prescription.updated",
+    );
+    expect(normalizeClinicalEventName("stock.movement")).toBe("pharmacy.stock.movement.created");
+    expect(normalizeClinicalEventName("vitals.recorded")).toBe("opd.vitals.recorded");
   });
 
   it("captures patient and missing payload key metadata", () => {
@@ -640,15 +650,64 @@ describe("clinical event normalization", () => {
       },
     });
 
-    const completed = buildClinicalEventTrace({
+    const called = buildClinicalEventTrace({
       contextCode: "opd-queue",
       moduleCode: "opd",
-      occurredAt: "2026-05-29T11:10:00.000Z",
-      rawTrigger: "encounter.completed",
+      occurredAt: "2026-05-29T11:07:00.000Z",
+      rawTrigger: "opd.queue.called",
       payload: {
         encounter_id: "encounter-1",
         patient_id: "patient-1",
         queue_entry_id: "queue-1",
+        token_number: 14,
+      },
+    });
+
+    const started = buildClinicalEventTrace({
+      contextCode: "opd-queue",
+      moduleCode: "opd",
+      occurredAt: "2026-05-29T11:08:00.000Z",
+      rawTrigger: "opd.consultation.started",
+      payload: {
+        encounter_id: "encounter-1",
+        patient_id: "patient-1",
+        queue_entry_id: "queue-1",
+      },
+    });
+
+    const completed = buildClinicalEventTrace({
+      contextCode: "opd-queue",
+      moduleCode: "opd",
+      occurredAt: "2026-05-29T11:10:00.000Z",
+      rawTrigger: "opd.encounter.completed",
+      payload: {
+        encounter_id: "encounter-1",
+        patient_id: "patient-1",
+        queue_entry_id: "queue-1",
+      },
+    });
+
+    const vitals = buildClinicalEventTrace({
+      contextCode: "opd-encounter-1",
+      moduleCode: "opd",
+      occurredAt: "2026-05-29T11:12:00.000Z",
+      rawTrigger: "opd.vitals.recorded",
+      payload: {
+        encounter_id: "encounter-1",
+        patient_id: "patient-1",
+        vital_id: "vital-1",
+      },
+    });
+
+    const consultation = buildClinicalEventTrace({
+      contextCode: "opd-encounter-1",
+      moduleCode: "opd",
+      occurredAt: "2026-05-29T11:13:00.000Z",
+      rawTrigger: "opd.consultation.saved",
+      payload: {
+        consultation_id: "consultation-1",
+        encounter_id: "encounter-1",
+        patient_id: "patient-1",
       },
     });
 
@@ -661,6 +720,18 @@ describe("clinical event normalization", () => {
         encounter_id: "encounter-1",
         order_id: "prescription-1",
         order_type: "prescription",
+        patient_id: "patient-1",
+        prescription_id: "prescription-1",
+      },
+    });
+
+    const prescriptionUpdated = buildClinicalEventTrace({
+      contextCode: "opd-encounter-1",
+      moduleCode: "opd",
+      occurredAt: "2026-05-29T11:17:00.000Z",
+      rawTrigger: "opd.prescription.updated",
+      payload: {
+        encounter_id: "encounter-1",
         patient_id: "patient-1",
         prescription_id: "prescription-1",
       },
@@ -680,25 +751,92 @@ describe("clinical event normalization", () => {
       },
     });
 
+    const followUp = buildClinicalEventTrace({
+      contextCode: "opd-encounter-1",
+      moduleCode: "opd",
+      occurredAt: "2026-05-29T11:25:00.000Z",
+      rawTrigger: "opd.followup.scheduled",
+      payload: {
+        appointment_date: "2026-06-01",
+        appointment_id: "appointment-2",
+        patient_id: "patient-1",
+      },
+    });
+
     expect(checkedIn.eventName).toBe("opd.encounter.created");
     expect(checkedIn.encounterId).toBe("encounter-1");
     expect(checkedIn.patientId).toBe("patient-1");
     expect(checkedIn.missingPayloadKeys).toEqual([]);
 
-    expect(completed.eventName).toBe("opd.encounter.created");
+    expect(called.eventName).toBe("opd.queue.called");
+    expect(called.sourceRecordId).toBe("queue-1");
+    expect(called.encounterId).toBe("encounter-1");
+    expect(called.patientId).toBe("patient-1");
+    expect(called.missingPayloadKeys).toEqual([]);
+
+    expect(started.eventName).toBe("opd.consultation.started");
+    expect(started.sourceRecordId).toBe("queue-1");
+    expect(started.encounterId).toBe("encounter-1");
+    expect(started.patientId).toBe("patient-1");
+    expect(started.missingPayloadKeys).toEqual([]);
+
+    expect(completed.eventName).toBe("opd.encounter.completed");
     expect(completed.encounterId).toBe("encounter-1");
     expect(completed.patientId).toBe("patient-1");
     expect(completed.missingPayloadKeys).toEqual([]);
+
+    expect(vitals.eventName).toBe("opd.vitals.recorded");
+    expect(vitals.sourceRecordId).toBe("vital-1");
+    expect(vitals.encounterId).toBe("encounter-1");
+    expect(vitals.patientId).toBe("patient-1");
+    expect(vitals.missingPayloadKeys).toEqual([]);
+
+    expect(consultation.eventName).toBe("opd.consultation.saved");
+    expect(consultation.sourceRecordId).toBe("consultation-1");
+    expect(consultation.encounterId).toBe("encounter-1");
+    expect(consultation.patientId).toBe("patient-1");
+    expect(consultation.missingPayloadKeys).toEqual([]);
 
     expect(prescription.eventName).toBe("order.created");
     expect(prescription.sourceRecordId).toBe("prescription-1");
     expect(prescription.patientId).toBe("patient-1");
     expect(prescription.missingPayloadKeys).toEqual([]);
 
+    expect(prescriptionUpdated.eventName).toBe("opd.prescription.updated");
+    expect(prescriptionUpdated.sourceRecordId).toBe("prescription-1");
+    expect(prescriptionUpdated.encounterId).toBe("encounter-1");
+    expect(prescriptionUpdated.patientId).toBe("patient-1");
+    expect(prescriptionUpdated.missingPayloadKeys).toEqual([]);
+
     expect(procedure.eventName).toBe("order.created");
     expect(procedure.sourceRecordId).toBe("procedure-order-1");
     expect(procedure.patientId).toBe("patient-1");
     expect(procedure.missingPayloadKeys).toEqual([]);
+
+    expect(followUp.eventName).toBe("opd.followup.scheduled");
+    expect(followUp.sourceRecordId).toBe("appointment-2");
+    expect(followUp.patientId).toBe("patient-1");
+    expect(followUp.missingPayloadKeys).toEqual([]);
+  });
+
+  it("tracks pharmacy stock movements by batch source", () => {
+    const movement = buildClinicalEventTrace({
+      contextCode: "pharmacy-stock",
+      moduleCode: "pharmacy",
+      occurredAt: "2026-05-29T11:28:00.000Z",
+      rawTrigger: "pharmacy.stock.movement.created",
+      payload: {
+        batch_count: 2,
+        batch_ids: ["batch-1", "batch-2"],
+        quantity: 25,
+        source_record_id: "batch-1",
+        transaction_type: "bulk_batch_receipt",
+      },
+    });
+
+    expect(movement.eventName).toBe("pharmacy.stock.movement.created");
+    expect(movement.sourceRecordId).toBe("batch-1");
+    expect(movement.missingPayloadKeys).toEqual([]);
   });
 
   it("tracks OPD certificate and consent printable activations without clinical text", () => {
