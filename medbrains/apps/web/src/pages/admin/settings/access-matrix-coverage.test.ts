@@ -282,6 +282,75 @@ describe("access matrix route coverage", () => {
     expect(missingEvents).toEqual([]);
   });
 
+  it("maps OPD stage events to stage-specific access surfaces", () => {
+    const tokenPrint = ACCESS_MATRIX_SURFACES.find(
+      (surface) => surface.id === "opd.queue.token_printables",
+    );
+    const vitalsRoute = ACCESS_MATRIX_SURFACES.find((surface) => surface.id === "opd.vitals.route");
+    const clinicalInputs = ACCESS_MATRIX_SURFACES.find(
+      (surface) => surface.id === "opd.encounter.clinical_inputs",
+    );
+    const orderActions = ACCESS_MATRIX_SURFACES.find(
+      (surface) => surface.id === "opd.encounter.order_actions",
+    );
+    const mrdAction = ACCESS_MATRIX_SURFACES.find(
+      (surface) => surface.id === "opd.encounter.mrd_case_sheet_action",
+    );
+    const summaryPrint = ACCESS_MATRIX_SURFACES.find(
+      (surface) => surface.id === "opd.encounter.visit_summary_print",
+    );
+
+    expect(tokenPrint?.activatesAfter).toEqual(
+      expect.arrayContaining(["opd.encounter.created", "opd.queue.called"]),
+    );
+    expect(vitalsRoute?.activatesAfter).toEqual(
+      expect.arrayContaining(["opd.encounter.created", "opd.queue.called"]),
+    );
+    expect(clinicalInputs?.activatesAfter).toEqual(
+      expect.arrayContaining([
+        "opd.encounter.created",
+        "opd.consultation.started",
+        "opd.vitals.recorded",
+      ]),
+    );
+    expect(orderActions?.activatesAfter).toEqual(
+      expect.arrayContaining([
+        "opd.encounter.created",
+        "opd.vitals.recorded",
+        "opd.consultation.saved",
+      ]),
+    );
+    expect(mrdAction?.activatesAfter).toEqual(
+      expect.arrayContaining([
+        "opd.consultation.saved",
+        "opd.prescription.updated",
+        "opd.encounter.completed",
+      ]),
+    );
+    expect(summaryPrint?.activatesAfter).toEqual(
+      expect.arrayContaining([
+        "opd.consultation.saved",
+        "opd.prescription.updated",
+        "opd.followup.scheduled",
+        "opd.encounter.completed",
+      ]),
+    );
+  });
+
+  it("maps cancelled orders to pharmacy queue and order-detail surfaces", () => {
+    const surfaceIds = [
+      "pharmacy.rx_queue.screen",
+      "pharmacy.orders.screen",
+      "pharmacy.order_detail.actions",
+    ];
+    const surfaces = ACCESS_MATRIX_SURFACES.filter((surface) => surfaceIds.includes(surface.id));
+
+    expect(surfaces).toHaveLength(surfaceIds.length);
+    expect(surfaces.map((surface) => surface.activatesAfter)).toEqual(
+      surfaceIds.map(() => ["order.created", "order.cancelled"]),
+    );
+  });
+
   it("separates IPD admission workspace activation from bed assignment activation", () => {
     const admissionSurfaceIds = [
       "ipd.admissions.screen",
