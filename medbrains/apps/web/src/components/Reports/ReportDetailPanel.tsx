@@ -7,6 +7,9 @@ interface DetailReport {
   permission: string;
   cadence: string;
   source: string;
+  sourceEvents: string[];
+  eventPayloadKeys: string[];
+  indicatorTargets: string[];
   outputs: string[];
   status: string;
   dataStatus: string;
@@ -39,6 +42,15 @@ function sourceContract(report: DetailReport): string[] {
     `Permission gate: ${report.permission}`,
     `Refresh cadence: ${report.cadence}`,
   ];
+  if (report.sourceEvents.length > 0) {
+    base.push(`Workflow events: ${report.sourceEvents.join(", ")}`);
+  }
+  if (report.eventPayloadKeys.length > 0) {
+    base.push(`Payload evidence: ${report.eventPayloadKeys.join(", ")}`);
+  }
+  if (report.indicatorTargets.length > 0) {
+    base.push(`Indicator targets: ${report.indicatorTargets.join(", ")}`);
+  }
   if (report.id.includes("village") || report.id.includes("pincode") || report.id.includes("map")) {
     base.push(
       "Required fields: patient locality, pincode/village, event date, complaint/diagnosis/lab/drug signal, and source module.",
@@ -172,6 +184,15 @@ export function ReportDetailPanel({ report, insights }: ReportDetailPanelProps) 
           <Text size="xs" fw={800} c="blue" tt="uppercase">
             Data contract
           </Text>
+          {report.sourceEvents.length > 0 && (
+            <Group gap={4}>
+              {report.sourceEvents.map((eventName) => (
+                <Badge key={eventName} variant="light" color="blue">
+                  {eventName}
+                </Badge>
+              ))}
+            </Group>
+          )}
           {sourceContract(report).map((item) => (
             <Text key={item} size="sm">
               {item}

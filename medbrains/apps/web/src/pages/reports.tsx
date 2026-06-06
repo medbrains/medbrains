@@ -75,6 +75,9 @@ interface ReportDefinition {
   title: string;
   purpose: string;
   sourceTables: string[];
+  sourceEvents?: string[];
+  eventPayloadKeys?: string[];
+  indicatorTargets?: string[];
   permissions: string[];
   priority: ReportPriority;
   readiness: ReportReadiness;
@@ -1281,6 +1284,9 @@ function apiReportToUi(report: ApiReportDefinition): ReportDefinition {
     title: report.title,
     purpose: report.purpose,
     sourceTables: report.source_tables,
+    sourceEvents: report.source_events,
+    eventPayloadKeys: report.event_payload_keys,
+    indicatorTargets: report.indicator_targets,
     permissions: report.permissions,
     priority: normalizePriority(report.priority),
     readiness: report.readiness,
@@ -2983,6 +2989,9 @@ export function ReportsPage() {
                 permission: selectedReport.permissions.join(", "),
                 cadence: selectedReport.refresh,
                 source: selectedReport.sourceTables.join(", "),
+                sourceEvents: selectedReport.sourceEvents ?? [],
+                eventPayloadKeys: selectedReport.eventPayloadKeys ?? [],
+                indicatorTargets: selectedReport.indicatorTargets ?? [],
                 outputs: selectedReport.exports,
                 status: READINESS_META[selectedReport.readiness].label,
                 dataStatus: formatReportDataStatus(reportDataById[selectedReport.id]),

@@ -20843,6 +20843,9 @@ export interface ReportDefinition {
   title: string;
   purpose: string;
   source_tables: string[];
+  source_events: string[];
+  event_payload_keys: string[];
+  indicator_targets: string[];
   permissions: string[];
   priority: ReportPriority;
   readiness: ReportReadiness;

@@ -4,6 +4,7 @@ use axum::{
 };
 use medbrains_core::{
     analytics::DateRangeQuery,
+    clinical_events::ClinicalEventName,
     permissions,
     reports::{
         EChartsTemplate, ReportCatalogResponse, ReportDataResponse, ReportDataStatus,
@@ -63,8 +64,214 @@ struct ReportFamilySeed {
     reports: Vec<ReportSeed>,
 }
 
+struct ReportEventSourceSeed {
+    report_targets: &'static [&'static str],
+    indicator_targets: &'static [&'static str],
+    source_events: &'static [ClinicalEventName],
+}
+
+struct ReportEventMetadata {
+    event_payload_keys: Vec<String>,
+    indicator_targets: Vec<String>,
+    source_events: Vec<String>,
+}
+
 fn strings(values: &[&str]) -> Vec<String> {
     values.iter().map(|value| (*value).to_owned()).collect()
+}
+
+fn push_unique(values: &mut Vec<String>, value: &str) {
+    if !values.iter().any(|current| current == value) {
+        values.push(value.to_owned());
+    }
+}
+
+const REPORT_EVENT_SOURCES: &[ReportEventSourceSeed] = &[
+    ReportEventSourceSeed {
+        report_targets: &[
+            "enterprise-kpi-command-board",
+            "opd-registration-arrivals",
+            "opd-queue-wait-heatmap",
+            "opd-consultant-slot-utilization",
+            "patient-journey-sankey",
+            "opd-doctor-productivity-bubble",
+            "predict-opd-noshow-load",
+            "nmc-opd-clinical-material",
+        ],
+        indicator_targets: &["access.flow", "opd.wait_time"],
+        source_events: &[
+            ClinicalEventName::PatientCreated,
+            ClinicalEventName::OpdEncounterCreated,
+            ClinicalEventName::OpdQueueCalled,
+            ClinicalEventName::OpdConsultationStarted,
+            ClinicalEventName::OpdEncounterCompleted,
+        ],
+    },
+    ReportEventSourceSeed {
+        report_targets: &[
+            "enterprise-kpi-command-board",
+            "occupancy-queue-pressure",
+            "patient-journey-sankey",
+            "ipd-census-bed-occupancy",
+            "ipd-alos-case-mix",
+            "ipd-bed-turnaround-delay",
+            "ipd-discharge-delay-readmission",
+            "billing-ar-dnfb-unpaid-discharge",
+            "predict-bed-demand-discharge",
+            "nmc-specialty-bed-occupancy",
+            "nmc-mrd-completeness-availability",
+        ],
+        indicator_targets: &["ipd.occupancy", "ipd.discharge_tat", "ipd.bed_turnaround"],
+        source_events: &[
+            ClinicalEventName::IpdAdmissionCreated,
+            ClinicalEventName::BedAssigned,
+            ClinicalEventName::BedTransferred,
+            ClinicalEventName::IpdDischargeInitiated,
+            ClinicalEventName::IpdDischargeCompleted,
+            ClinicalEventName::IpdDischargeFinalized,
+        ],
+    },
+    ReportEventSourceSeed {
+        report_targets: &[
+            "safety-compliance-red-flags",
+            "quality-incident-sentinel-trend",
+            "hospital-risk-radar",
+        ],
+        indicator_targets: &["emergency.triage", "mlc.reporting"],
+        source_events: &[
+            ClinicalEventName::EmergencyVisitCreated,
+            ClinicalEventName::MlcCreated,
+            ClinicalEventName::EmergencyMlcPoliceIntimationCreated,
+        ],
+    },
+    ReportEventSourceSeed {
+        report_targets: &[
+            "camp-coverage-turnout",
+            "camp-screening-referral-conversion",
+            "camp-disease-followup-map",
+            "geo-access-gap-underserved",
+            "geo-referral-network-catchment-flow",
+        ],
+        indicator_targets: &["camp.turnout", "camp.referral_conversion"],
+        source_events: &[
+            ClinicalEventName::CampStarted,
+            ClinicalEventName::CampRegistrationCreated,
+            ClinicalEventName::CampScreeningCompleted,
+        ],
+    },
+    ReportEventSourceSeed {
+        report_targets: &[
+            "enterprise-kpi-command-board",
+            "patient-journey-sankey",
+            "lab-end-to-end-tat",
+            "lab-critical-value-notification",
+            "lab-sample-rejection-recollection",
+            "radiology-modality-utilization",
+            "radiology-order-report-tat-backlog",
+            "radiology-quality-critical-findings",
+            "geo-disease-hotspot-seasonality",
+        ],
+        indicator_targets: &["lab.tat", "radiology.tat", "critical_results"],
+        source_events: &[
+            ClinicalEventName::OrderCreated,
+            ClinicalEventName::LabResultVerified,
+            ClinicalEventName::LabOrderCompleted,
+            ClinicalEventName::RadiologyOrderCompleted,
+            ClinicalEventName::RadiologyReportVerified,
+        ],
+    },
+    ReportEventSourceSeed {
+        report_targets: &[
+            "patient-journey-sankey",
+            "pharmacy-fulfillment-turnaround",
+            "pharmacy-stockout-expiry-days-on-hand",
+            "pharmacy-ndps-high-risk-compliance",
+            "pharmacy-safety-returns-margin-leakage",
+            "predict-stockout-near-expiry",
+        ],
+        indicator_targets: &[
+            "pharmacy.tat",
+            "pharmacy.ndps_compliance",
+            "inventory.stock_movement",
+        ],
+        source_events: &[
+            ClinicalEventName::OrderCreated,
+            ClinicalEventName::PharmacyOrderDispensed,
+            ClinicalEventName::PharmacyStockMovementCreated,
+            ClinicalEventName::PharmacyNdpsMovementCreated,
+        ],
+    },
+    ReportEventSourceSeed {
+        report_targets: &[
+            "enterprise-kpi-command-board",
+            "revenue-collections-leakage",
+            "patient-journey-sankey",
+            "opd-doctor-productivity-bubble",
+            "billing-gross-net-payer-mix",
+            "billing-collections-settlement",
+            "billing-ar-dnfb-unpaid-discharge",
+        ],
+        indicator_targets: &["billing.collection", "billing.dnfb", "finance.revenue"],
+        source_events: &[
+            ClinicalEventName::BillingInvoiceCreated,
+            ClinicalEventName::BillingInvoiceFinalized,
+            ClinicalEventName::BillingPaymentReceived,
+        ],
+    },
+    ReportEventSourceSeed {
+        report_targets: &[
+            "safety-compliance-red-flags",
+            "hospital-risk-radar",
+            "nabh-evidence-matrix",
+            "quality-incident-sentinel-trend",
+            "quality-capa-audit-aging",
+            "predict-infection-outbreak-incident",
+        ],
+        indicator_targets: &[
+            "quality.incidents",
+            "code_blue.response",
+            "blood.transfusion_reaction",
+            "bme.downtime",
+            "bmw.disposal",
+        ],
+        source_events: &[
+            ClinicalEventName::QualityIncidentReported,
+            ClinicalEventName::EmergencyCodeBlueActivated,
+            ClinicalEventName::EmergencyCodeBlueCompleted,
+            ClinicalEventName::BloodTransfusionReactionReported,
+            ClinicalEventName::BmeEquipmentDowntimeRecorded,
+            ClinicalEventName::HousekeepingBmwDisposalRecorded,
+        ],
+    },
+];
+
+fn event_metadata_for_report(id: &str) -> ReportEventMetadata {
+    let mut source_events = Vec::new();
+    let mut event_payload_keys = Vec::new();
+    let mut indicator_targets = Vec::new();
+
+    for source in REPORT_EVENT_SOURCES {
+        if !source.report_targets.iter().any(|target| *target == id) {
+            continue;
+        }
+
+        for event_name in source.source_events {
+            push_unique(&mut source_events, event_name.as_str());
+            for payload_key in event_name.required_payload_keys() {
+                push_unique(&mut event_payload_keys, payload_key);
+            }
+        }
+
+        for indicator_target in source.indicator_targets {
+            push_unique(&mut indicator_targets, indicator_target);
+        }
+    }
+
+    ReportEventMetadata {
+        event_payload_keys,
+        indicator_targets,
+        source_events,
+    }
 }
 
 fn infer_echarts_template(chart_types: &[&str], visual_kind: &str) -> EChartsTemplate {
@@ -143,12 +350,16 @@ fn report(
         ReportDataKind::NotWired => None,
         _ => Some(format!("/api/reports/{id}/data")),
     };
+    let event_metadata = event_metadata_for_report(id);
     ReportSeed {
         definition: ReportDefinition {
             id: id.to_owned(),
             title: title.to_owned(),
             purpose: purpose.to_owned(),
             source_tables: strings(source_tables),
+            source_events: event_metadata.source_events,
+            event_payload_keys: event_metadata.event_payload_keys,
+            indicator_targets: event_metadata.indicator_targets,
             permissions: strings(permissions),
             priority,
             readiness,
@@ -1945,4 +2156,50 @@ fn live_response<T: Serialize>(
         },
         rows: values,
     }))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::event_metadata_for_report;
+
+    #[test]
+    fn billing_report_carries_invoice_payment_event_sources() {
+        let metadata = event_metadata_for_report("billing-gross-net-payer-mix");
+
+        assert_eq!(
+            metadata.source_events,
+            vec![
+                "billing.invoice.created".to_owned(),
+                "billing.invoice.finalized".to_owned(),
+                "billing.payment.received".to_owned(),
+            ]
+        );
+        assert!(
+            metadata
+                .event_payload_keys
+                .iter()
+                .any(|key| key == "invoice_id")
+        );
+        assert!(
+            metadata
+                .event_payload_keys
+                .iter()
+                .any(|key| key == "payment_id")
+        );
+        assert!(
+            metadata
+                .indicator_targets
+                .iter()
+                .any(|target| target == "finance.revenue")
+        );
+    }
+
+    #[test]
+    fn report_without_event_source_has_empty_metadata() {
+        let metadata = event_metadata_for_report("lab-qc-eqas-outsourced");
+
+        assert!(metadata.source_events.is_empty());
+        assert!(metadata.event_payload_keys.is_empty());
+        assert!(metadata.indicator_targets.is_empty());
+    }
 }
