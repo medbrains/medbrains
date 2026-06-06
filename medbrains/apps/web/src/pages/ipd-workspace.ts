@@ -18,6 +18,15 @@ export type IpdActionRailSection =
   | "finance"
   | "discharge";
 
+export const IPD_ACTION_RAIL_SECTIONS: readonly IpdActionRailSection[] = [
+  "handoffs",
+  "orders",
+  "mrd",
+  "admission",
+  "finance",
+  "discharge",
+];
+
 export type IpdOrderBasketTab = "drug" | "lab" | "radiology";
 
 export type IpdActionRailActionId =
@@ -48,6 +57,14 @@ interface IpdActionRailActionDefinition {
 export interface ResolvedIpdActionRailAction extends IpdActionRailActionDefinition {
   disabledReasonText: string | null;
   enabled: boolean;
+}
+
+export interface IpdActionRailSectionSummary {
+  blockedActions: number;
+  enabledActions: number;
+  focused: boolean;
+  section: IpdActionRailSection;
+  totalActions: number;
 }
 
 const ADMISSION_CREATED: readonly ClinicalEventName[] = ["ipd.admission.created"];
@@ -257,6 +274,26 @@ export function resolveIpdActionRailActions(
       label: definition.label,
       requiredPermissions: definition.requiredPermissions,
       section: definition.section,
+    };
+  });
+}
+
+export function summarizeIpdActionRailSections(
+  actions: readonly ResolvedIpdActionRailAction[],
+  focusedSections: readonly IpdActionRailSection[],
+): readonly IpdActionRailSectionSummary[] {
+  const focused = new Set(focusedSections);
+
+  return IPD_ACTION_RAIL_SECTIONS.map((section) => {
+    const sectionActions = actions.filter((action) => action.section === section);
+    const enabledActions = sectionActions.filter((action) => action.enabled).length;
+
+    return {
+      blockedActions: sectionActions.length - enabledActions,
+      enabledActions,
+      focused: focused.has(section),
+      section,
+      totalActions: sectionActions.length,
     };
   });
 }

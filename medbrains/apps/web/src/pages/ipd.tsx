@@ -211,10 +211,12 @@ import {
   activeIpdPharmacyOrderIdForJourney,
   deriveIpdJourneyCompletedEvents,
   type IpdActionRailSection,
+  type IpdActionRailSectionSummary,
   ipdActionRailAction,
   ipdActionRailSectionsForTab,
   ipdWorkspaceTabForOrderBasket,
   resolveIpdActionRailActions,
+  summarizeIpdActionRailSections,
 } from "./ipd-workspace";
 
 const statusColors: Record<string, string> = {
@@ -346,6 +348,44 @@ function protectedIpdPatientIdentifier(
 
 function firstIpdWorkspaceTabForSection(section: (typeof IPD_WORKSPACE_SECTIONS)[number]) {
   return IPD_WORKSPACE_TABS.find((tab) => tab.section === section)?.value ?? "overview";
+}
+
+function actionRailReadinessLabel(summary: IpdActionRailSectionSummary | undefined) {
+  if (!summary || summary.totalActions === 0) {
+    return null;
+  }
+
+  return `${summary.enabledActions}/${summary.totalActions} ready`;
+}
+
+function ActionRailSectionHeading({
+  summary,
+  title,
+}: {
+  summary: IpdActionRailSectionSummary | undefined;
+  title: string;
+}) {
+  const readiness = actionRailReadinessLabel(summary);
+
+  return (
+    <Group justify="space-between" gap="xs" align="center" wrap="nowrap">
+      <Text size="xs" fw={700} c="dimmed" tt="uppercase">
+        {title}
+      </Text>
+      <Group gap={4} wrap="nowrap">
+        {summary?.focused && (
+          <Badge size="xs" color="primary" variant="light">
+            focus
+          </Badge>
+        )}
+        {readiness && (
+          <Badge size="xs" color={summary?.blockedActions ? "orange" : "green"} variant="light">
+            {readiness}
+          </Badge>
+        )}
+      </Group>
+    </Group>
+  );
 }
 
 export function IpdPage() {
@@ -1020,6 +1060,24 @@ function AdmissionDetail({
     canManageDeathRecords,
     canOrder,
   });
+  const actionRailSectionSummaries = summarizeIpdActionRailSections(
+    actionRailActions,
+    focusedActionRailSections,
+  );
+  const actionRailSummaryBySection = new Map(
+    actionRailSectionSummaries.map((summary) => [summary.section, summary]),
+  );
+  const actionRailSectionSummary = (section: IpdActionRailSection) =>
+    actionRailSummaryBySection.get(section);
+  const focusedModeledActions = actionRailSectionSummaries
+    .filter((summary) => summary.focused)
+    .reduce((sum, summary) => sum + summary.totalActions, 0);
+  const focusedReadyActions = actionRailSectionSummaries
+    .filter((summary) => summary.focused)
+    .reduce((sum, summary) => sum + summary.enabledActions, 0);
+  const focusedBlockedActions = actionRailSectionSummaries
+    .filter((summary) => summary.focused)
+    .reduce((sum, summary) => sum + summary.blockedActions, 0);
   const orderMedicinesAction = ipdActionRailAction(actionRailActions, "order_medicines");
   const orderLabAction = ipdActionRailAction(actionRailActions, "order_lab");
   const orderImagingAction = ipdActionRailAction(actionRailActions, "order_imaging");
@@ -1192,6 +1250,18 @@ function AdmissionDetail({
             <Text size="sm" fw={600}>
               {activeWorkspaceSection}
             </Text>
+            {focusedModeledActions > 0 && (
+              <Group gap={4}>
+                <Badge size="xs" color="green" variant="light">
+                  {focusedReadyActions} ready
+                </Badge>
+                {focusedBlockedActions > 0 && (
+                  <Badge size="xs" color="orange" variant="light">
+                    {focusedBlockedActions} blocked
+                  </Badge>
+                )}
+              </Group>
+            )}
           </Stack>
           <Group gap="xs">
             {IPD_WORKSPACE_SECTIONS.map((section) => (
@@ -1350,6 +1420,18 @@ function AdmissionDetail({
                         {section}
                       </Badge>
                     ))}
+                    {focusedModeledActions > 0 && (
+                      <>
+                        <Badge size="xs" color="green" variant="light">
+                          {focusedReadyActions} ready
+                        </Badge>
+                        {focusedBlockedActions > 0 && (
+                          <Badge size="xs" color="orange" variant="light">
+                            {focusedBlockedActions} blocked
+                          </Badge>
+                        )}
+                      </>
+                    )}
                   </Group>
                 </Stack>
                 <Stack
@@ -1357,9 +1439,10 @@ function AdmissionDetail({
                   className={classes.actionRailSection}
                   data-focused={actionRailSectionFocused("handoffs") || undefined}
                 >
-                  <Text size="xs" fw={700} c="dimmed" tt="uppercase">
-                    Patient handoffs
-                  </Text>
+                  <ActionRailSectionHeading
+                    title="Patient handoffs"
+                    summary={actionRailSectionSummary("handoffs")}
+                  />
                   <Text size="xs" c="dimmed">
                     Event-gated routes for billing, pharmacy, camp, and medico-legal workflows.
                   </Text>
@@ -1379,9 +1462,10 @@ function AdmissionDetail({
                   className={classes.actionRailSection}
                   data-focused={actionRailSectionFocused("orders") || undefined}
                 >
-                  <Text size="xs" fw={700} c="dimmed" tt="uppercase">
-                    Orders
-                  </Text>
+                  <ActionRailSectionHeading
+                    title="Orders"
+                    summary={actionRailSectionSummary("orders")}
+                  />
                   <Tooltip
                     label={orderMedicinesAction.disabledReasonText ?? orderMedicinesAction.label}
                   >
@@ -1437,9 +1521,10 @@ function AdmissionDetail({
                   className={classes.actionRailSection}
                   data-focused={actionRailSectionFocused("finance") || undefined}
                 >
-                  <Text size="xs" fw={700} c="dimmed" tt="uppercase">
-                    Finance
-                  </Text>
+                  <ActionRailSectionHeading
+                    title="Finance"
+                    summary={actionRailSectionSummary("finance")}
+                  />
                   <Button
                     size="xs"
                     variant={activeWorkspaceTab === "billing-tab" ? "filled" : "light"}
@@ -1491,9 +1576,7 @@ function AdmissionDetail({
                   className={classes.actionRailSection}
                   data-focused={actionRailSectionFocused("mrd") || undefined}
                 >
-                  <Text size="xs" fw={700} c="dimmed" tt="uppercase">
-                    MRD
-                  </Text>
+                  <ActionRailSectionHeading title="MRD" summary={actionRailSectionSummary("mrd")} />
                   <Tooltip
                     label={
                       canGenerateMrdCaseSheet
@@ -1535,9 +1618,10 @@ function AdmissionDetail({
                   className={classes.actionRailSection}
                   data-focused={actionRailSectionFocused("admission") || undefined}
                 >
-                  <Text size="xs" fw={700} c="dimmed" tt="uppercase">
-                    Admission
-                  </Text>
+                  <ActionRailSectionHeading
+                    title="Admission"
+                    summary={actionRailSectionSummary("admission")}
+                  />
                   <Button
                     size="xs"
                     variant="light"
@@ -1599,9 +1683,10 @@ function AdmissionDetail({
                   className={classes.actionRailSection}
                   data-focused={actionRailSectionFocused("discharge") || undefined}
                 >
-                  <Text size="xs" fw={700} c="dimmed" tt="uppercase">
-                    Discharge
-                  </Text>
+                  <ActionRailSectionHeading
+                    title="Discharge"
+                    summary={actionRailSectionSummary("discharge")}
+                  />
                   <Button
                     size="xs"
                     variant={activeWorkspaceTab === "discharge-summary" ? "filled" : "light"}

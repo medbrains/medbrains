@@ -12,6 +12,7 @@ import {
   ipdActionRailSectionsForTab,
   ipdWorkspaceTabForOrderBasket,
   resolveIpdActionRailActions,
+  summarizeIpdActionRailSections,
 } from "./ipd-workspace";
 
 const activeContext: IpdActionRailContext = {
@@ -172,6 +173,36 @@ describe("IPD workspace action rail focus", () => {
     expect(ipdActionRailAction(denied, "dama_lama").disabledReasonText).toBe(
       "Requires ipd.discharge.create",
     );
+  });
+
+  it("summarizes focused command sections by enabled and blocked local actions", () => {
+    const withoutBed = resolveIpdActionRailActions({
+      ...activeContext,
+      admissionHasAssignedBed: false,
+    });
+    const summaries = summarizeIpdActionRailSections(withoutBed, ["orders", "handoffs"]);
+    const orders = summaries.find((summary) => summary.section === "orders");
+    const handoffs = summaries.find((summary) => summary.section === "handoffs");
+    const admission = summaries.find((summary) => summary.section === "admission");
+
+    expect(orders).toMatchObject({
+      blockedActions: 3,
+      enabledActions: 0,
+      focused: true,
+      totalActions: 3,
+    });
+    expect(handoffs).toMatchObject({
+      blockedActions: 0,
+      enabledActions: 0,
+      focused: true,
+      totalActions: 0,
+    });
+    expect(admission).toMatchObject({
+      blockedActions: 0,
+      enabledActions: 3,
+      focused: false,
+      totalActions: 3,
+    });
   });
 });
 
