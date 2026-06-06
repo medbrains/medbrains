@@ -1,3 +1,8 @@
+import {
+  type TokenBoardReadinessTone,
+  tokenBoardFeedIsStale,
+  tokenBoardFeedReadiness,
+} from "@medbrains/types";
 import type { IntentTone } from "@medbrains/ui-mobile";
 import { COLORS, SPACING } from "@medbrains/ui-mobile";
 import { StyleSheet, View } from "react-native";
@@ -20,8 +25,20 @@ export function tvLastUpdatedLabel(updatedAt: number) {
 }
 
 export function tvFeedIsStale(updatedAt: number, refreshIntervalMs: number) {
-  if (updatedAt <= 0) return false;
-  return Date.now() - updatedAt > refreshIntervalMs * 3;
+  return tokenBoardFeedIsStale(updatedAt, refreshIntervalMs);
+}
+
+function tvReadinessTone(tone: TokenBoardReadinessTone): IntentTone {
+  switch (tone) {
+    case "danger":
+      return "alert";
+    case "warning":
+      return "warn";
+    case "success":
+      return "success";
+    default:
+      return "info";
+  }
 }
 
 export function tvFeedReadiness(
@@ -29,19 +46,8 @@ export function tvFeedReadiness(
   updatedAt: number,
   refreshIntervalMs: number,
 ): { label: string; tone: IntentTone; value: string } {
-  if (isError) {
-    return { label: "Feed", tone: "alert", value: "Degraded" };
-  }
-
-  if (tvFeedIsStale(updatedAt, refreshIntervalMs)) {
-    return { label: "Feed", tone: "warn", value: "Stale" };
-  }
-
-  if (updatedAt <= 0) {
-    return { label: "Feed", tone: "warn", value: "Waiting" };
-  }
-
-  return { label: "Feed", tone: "success", value: "Live" };
+  const readiness = tokenBoardFeedReadiness({ isError, refreshIntervalMs, updatedAt });
+  return { ...readiness, tone: tvReadinessTone(readiness.tone) };
 }
 
 export function TvFeedStatusBanner({

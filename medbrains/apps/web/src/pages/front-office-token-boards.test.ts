@@ -7,7 +7,15 @@ import type {
   QueueToken,
   RadiologyQueueToken,
 } from "@medbrains/types";
-import { TOKEN_BOARD_SURFACE_LIST } from "@medbrains/types";
+import {
+  TOKEN_BOARD_FAST_REFRESH_MS,
+  TOKEN_BOARD_STANDARD_REFRESH_MS,
+  TOKEN_BOARD_SURFACE_LIST,
+  TOKEN_BOARD_SURFACES,
+  tokenBoardFeedReadiness,
+  tokenBoardOperationalReadinessItems,
+  tokenBoardRefreshLabel,
+} from "@medbrains/types";
 import { describe, expect, it } from "vitest";
 import {
   billingDisplayToken,
@@ -43,7 +51,70 @@ describe("front-office token-board display mapping", () => {
       expect(surface.targets.webPath).toBe(`/front-office?board=${surface.id}#token-boards`);
       expect(surface.targets.mobileParams.surface).toBe(surface.id);
       expect(surface.targets.mobileRoute).toBe("TokenBoards");
+      expect(surface.readiness.privacy).toBe("Token only");
+      expect(tokenBoardRefreshLabel(surface)).toMatch(/^\d+s$/);
     }
+  });
+
+  it("keeps shared token-board refresh intervals and feed readiness deterministic", () => {
+    const refreshBySurface = Object.fromEntries(
+      TOKEN_BOARD_SURFACE_LIST.map((surface) => [surface.id, surface.refreshIntervalMs]),
+    );
+    const nowMs = Date.parse("2026-06-06T08:00:00.000Z");
+
+    expect(refreshBySurface).toEqual({
+      billing: TOKEN_BOARD_STANDARD_REFRESH_MS,
+      emergency: TOKEN_BOARD_FAST_REFRESH_MS,
+      lab: TOKEN_BOARD_STANDARD_REFRESH_MS,
+      opd: TOKEN_BOARD_FAST_REFRESH_MS,
+      pharmacy: TOKEN_BOARD_STANDARD_REFRESH_MS,
+      radiology: TOKEN_BOARD_STANDARD_REFRESH_MS,
+    });
+    expect(
+      tokenBoardFeedReadiness({
+        isError: false,
+        nowMs,
+        refreshIntervalMs: TOKEN_BOARD_FAST_REFRESH_MS,
+        updatedAt: 0,
+      }),
+    ).toEqual({ label: "Feed", tone: "warning", value: "Waiting" });
+    expect(
+      tokenBoardFeedReadiness({
+        isError: false,
+        nowMs,
+        refreshIntervalMs: TOKEN_BOARD_FAST_REFRESH_MS,
+        updatedAt: nowMs - TOKEN_BOARD_FAST_REFRESH_MS,
+      }),
+    ).toEqual({ label: "Feed", tone: "success", value: "Live" });
+    expect(
+      tokenBoardFeedReadiness({
+        isError: false,
+        nowMs,
+        refreshIntervalMs: TOKEN_BOARD_FAST_REFRESH_MS,
+        updatedAt: nowMs - TOKEN_BOARD_FAST_REFRESH_MS * 4,
+      }),
+    ).toEqual({ label: "Feed", tone: "warning", value: "Stale" });
+    expect(
+      tokenBoardFeedReadiness({
+        isError: true,
+        nowMs,
+        refreshIntervalMs: TOKEN_BOARD_FAST_REFRESH_MS,
+        updatedAt: nowMs,
+      }),
+    ).toEqual({ label: "Feed", tone: "danger", value: "Degraded" });
+    expect(
+      tokenBoardOperationalReadinessItems({
+        isError: false,
+        nowMs,
+        surface: TOKEN_BOARD_SURFACES.emergency,
+        updatedAt: nowMs,
+      }),
+    ).toEqual([
+      { label: "Privacy", tone: "success", value: "Token only" },
+      { label: "Feed", tone: "success", value: "Live" },
+      { label: "Refresh", tone: "info", value: "5s" },
+      { label: "Flow", tone: "danger", value: "Triage" },
+    ]);
   });
 
   it("keeps OPD public display tokens free of patient identifiers", () => {

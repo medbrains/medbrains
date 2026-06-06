@@ -5,7 +5,11 @@
  */
 
 import type { Module } from "@medbrains/mobile-shell";
-import { type PharmacyQueueToken, TOKEN_BOARD_SURFACES } from "@medbrains/types";
+import {
+  type PharmacyQueueToken,
+  TOKEN_BOARD_SURFACES,
+  tokenBoardRefreshLabel,
+} from "@medbrains/types";
 import { COLORS, SPACING } from "@medbrains/ui-mobile";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
@@ -19,9 +23,9 @@ import {
 } from "../components/tv-feed-status.js";
 import { tvQueueService } from "../services/tvQueue.service.js";
 
-const REFRESH_INTERVAL_MS = 10_000;
 const DISPLAY_TOKEN_LIMIT = 10;
 const PHARMACY_BOARD = TOKEN_BOARD_SURFACES.pharmacy;
+const REFRESH_INTERVAL_MS = PHARMACY_BOARD.refreshIntervalMs;
 
 function statusColor(status: string) {
   switch (status) {
@@ -66,13 +70,13 @@ function PharmacyQueueScreen() {
       eyebrow="PHARMACY"
       title={PHARMACY_BOARD.title}
       subtitle="Please proceed to the counter when your token shows."
-      legend={`Updates every 10 seconds · last sync ${syncLabel} · ${PHARMACY_BOARD.targets.tvDeepLink}`}
+      legend={`Updates every ${tokenBoardRefreshLabel(PHARMACY_BOARD)} · last sync ${syncLabel} · ${PHARMACY_BOARD.targets.tvDeepLink}`}
       privacyNotice={PHARMACY_BOARD.privacyNotice}
       readiness={[
-        { label: "Privacy", tone: "success", value: "Token only" },
+        { label: "Privacy", tone: "success", value: PHARMACY_BOARD.readiness.privacy },
         tvFeedReadiness(queueQuery.isError, queueQuery.dataUpdatedAt, REFRESH_INTERVAL_MS),
-        { label: "Refresh", tone: "info", value: "10s" },
-        { label: "Flow", tone: "info", value: "Dispensing" },
+        { label: "Refresh", tone: "info", value: tokenBoardRefreshLabel(PHARMACY_BOARD) },
+        { label: "Flow", tone: "info", value: PHARMACY_BOARD.readiness.flow },
       ]}
       tags={[...PHARMACY_BOARD.targets.tvAppCodes, "pharmacy", "dispense", "queue"]}
     >

@@ -4,6 +4,7 @@ import {
   type ErTriageToken,
   TOKEN_BOARD_SURFACES,
   type TriageLevelColor,
+  tokenBoardRefreshLabel,
 } from "@medbrains/types";
 import { COLORS, SPACING } from "@medbrains/ui-mobile";
 import { useQuery } from "@tanstack/react-query";
@@ -18,9 +19,9 @@ import {
 } from "../components/tv-feed-status.js";
 import { tvQueueService } from "../services/tvQueue.service.js";
 
-const REFRESH_INTERVAL_MS = 5_000;
 const DISPLAY_TOKEN_LIMIT = 8;
 const EMERGENCY_BOARD = TOKEN_BOARD_SURFACES.emergency;
+const REFRESH_INTERVAL_MS = EMERGENCY_BOARD.refreshIntervalMs;
 
 const TRIAGE_LANES: ReadonlyArray<{
   color: string;
@@ -97,13 +98,13 @@ function EmergencyTriageScreen() {
       eyebrow="EMERGENCY"
       title={EMERGENCY_BOARD.title}
       subtitle="Live triage queue with token-only public display."
-      legend={`Updates every 5 seconds · last sync ${syncLabel} · ${EMERGENCY_BOARD.targets.tvDeepLink}`}
+      legend={`Updates every ${tokenBoardRefreshLabel(EMERGENCY_BOARD)} · last sync ${syncLabel} · ${EMERGENCY_BOARD.targets.tvDeepLink}`}
       privacyNotice={EMERGENCY_BOARD.privacyNotice}
       readiness={[
-        { label: "Privacy", tone: "success", value: "Token only" },
+        { label: "Privacy", tone: "success", value: EMERGENCY_BOARD.readiness.privacy },
         tvFeedReadiness(queueQuery.isError, queueQuery.dataUpdatedAt, REFRESH_INTERVAL_MS),
-        { label: "Refresh", tone: "info", value: "5s" },
-        { label: "Flow", tone: "alert", value: "Triage" },
+        { label: "Refresh", tone: "info", value: tokenBoardRefreshLabel(EMERGENCY_BOARD) },
+        { label: "Flow", tone: "alert", value: EMERGENCY_BOARD.readiness.flow },
       ]}
       tags={[...EMERGENCY_BOARD.targets.tvAppCodes, "triage", "token-only", "staff-display"]}
     >

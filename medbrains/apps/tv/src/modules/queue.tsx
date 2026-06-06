@@ -10,6 +10,7 @@ import {
   type QueueToken,
   type QueueTokenStatus,
   TOKEN_BOARD_SURFACES,
+  tokenBoardRefreshLabel,
 } from "@medbrains/types";
 import { COLORS, SPACING } from "@medbrains/ui-mobile";
 import { useQuery } from "@tanstack/react-query";
@@ -24,9 +25,9 @@ import {
 } from "../components/tv-feed-status.js";
 import { tvQueueService } from "../services/tvQueue.service.js";
 
-const REFRESH_INTERVAL_MS = 5_000;
 const DISPLAY_TOKEN_LIMIT = 12;
 const OPD_BOARD = TOKEN_BOARD_SURFACES.opd;
+const REFRESH_INTERVAL_MS = OPD_BOARD.refreshIntervalMs;
 
 interface QueueScreenProps {
   route?: {
@@ -93,12 +94,12 @@ function QueueScreen({ route }: QueueScreenProps) {
           ? "Live department token call. Please proceed when your token is called."
           : "Live hospital token call. Please proceed when your token is called."
       }
-      legend={`Updates every 5 seconds · last sync ${syncLabel} · ${OPD_BOARD.targets.tvDeepLink}`}
+      legend={`Updates every ${tokenBoardRefreshLabel(OPD_BOARD)} · last sync ${syncLabel} · ${OPD_BOARD.targets.tvDeepLink}`}
       privacyNotice={OPD_BOARD.privacyNotice}
       readiness={[
-        { label: "Privacy", tone: "success", value: "Token only" },
+        { label: "Privacy", tone: "success", value: OPD_BOARD.readiness.privacy },
         tvFeedReadiness(tokensQuery.isError, tokensQuery.dataUpdatedAt, REFRESH_INTERVAL_MS),
-        { label: "Refresh", tone: "info", value: "5s" },
+        { label: "Refresh", tone: "info", value: tokenBoardRefreshLabel(OPD_BOARD) },
         { label: "Scope", tone: "info", value: departmentId ? "Department" : "Hospital" },
       ]}
       tags={[...OPD_BOARD.targets.tvAppCodes, "OPD"]}

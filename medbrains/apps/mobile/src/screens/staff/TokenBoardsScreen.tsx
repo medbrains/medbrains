@@ -7,6 +7,8 @@ import type {
   QueuePriority,
   QueueToken,
   RadiologyQueueToken,
+  TokenBoardReadinessItem,
+  TokenBoardReadinessTone,
   TokenBoardSurfaceDefinition,
   TokenBoardSurfaceId,
   TriageLevelColor,
@@ -15,6 +17,7 @@ import {
   TOKEN_BOARD_PUBLIC_PRIVACY_NOTICE,
   TOKEN_BOARD_SURFACE_LIST,
   TOKEN_BOARD_SURFACES,
+  tokenBoardOperationalReadinessItems,
 } from "@medbrains/types";
 import { type ReactNode, useState } from "react";
 import { ScrollView, StyleSheet, View } from "react-native";
@@ -259,6 +262,13 @@ function BoardCard({
           </Text>
         </View>
       </View>
+      <TokenBoardReadinessStrip
+        items={tokenBoardOperationalReadinessItems({
+          isError,
+          surface,
+          updatedAt: lastUpdatedAt,
+        })}
+      />
       {isLoading ? (
         <View style={styles.statePanel}>
           <ActivityIndicator size="small" />
@@ -277,6 +287,36 @@ function BoardCard({
         children
       )}
     </Surface>
+  );
+}
+
+function readinessChipStyle(tone: TokenBoardReadinessTone) {
+  switch (tone) {
+    case "danger":
+      return styles.readinessDangerChip;
+    case "warning":
+      return styles.readinessWarningChip;
+    case "success":
+      return styles.readinessSuccessChip;
+    default:
+      return styles.readinessInfoChip;
+  }
+}
+
+function TokenBoardReadinessStrip({ items }: { items: TokenBoardReadinessItem[] }) {
+  return (
+    <View style={styles.readinessRow}>
+      {items.map((item) => (
+        <Chip
+          compact
+          key={`${item.label}-${item.value}`}
+          mode="flat"
+          style={readinessChipStyle(item.tone)}
+        >
+          {item.label}: {item.value}
+        </Chip>
+      ))}
+    </View>
   );
 }
 
@@ -831,6 +871,23 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     letterSpacing: 0.8,
     textTransform: "uppercase",
+  },
+  readinessDangerChip: {
+    backgroundColor: MEDBRAINS_COLORS.statusDangerBg,
+  },
+  readinessInfoChip: {
+    backgroundColor: MEDBRAINS_COLORS.navActiveBg,
+  },
+  readinessRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+  },
+  readinessSuccessChip: {
+    backgroundColor: MEDBRAINS_COLORS.statusSuccessBg,
+  },
+  readinessWarningChip: {
+    backgroundColor: MEDBRAINS_COLORS.statusWarningBg,
   },
   restrictedPanel: {
     alignItems: "center",

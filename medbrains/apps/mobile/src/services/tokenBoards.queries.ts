@@ -7,19 +7,17 @@ import type {
   QueueToken,
   RadiologyQueueDisplay,
 } from "@medbrains/types";
+import { TOKEN_BOARD_SURFACES } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
 
 const TOKEN_BOARD_QUERY_KEY = ["token-boards"] as const;
-const STANDARD_REFRESH_MS = 10_000;
-const ER_REFRESH_MS = 5_000;
-const OPD_REFRESH_MS = 5_000;
 
 export function useOpdTokenBoardQuery(options?: { enabled?: boolean }) {
   return useQuery<QueueToken[]>({
     queryKey: [...TOKEN_BOARD_QUERY_KEY, "opd"],
     queryFn: () => api.listQueueTokens(),
     enabled: options?.enabled ?? true,
-    refetchInterval: OPD_REFRESH_MS,
+    refetchInterval: TOKEN_BOARD_SURFACES.opd.refreshIntervalMs,
   });
 }
 
@@ -28,7 +26,7 @@ export function useBillingTokenBoardQuery(options?: { enabled?: boolean }) {
     queryKey: [...TOKEN_BOARD_QUERY_KEY, "billing"],
     queryFn: api.getBillingQueueDisplay,
     enabled: options?.enabled ?? true,
-    refetchInterval: STANDARD_REFRESH_MS,
+    refetchInterval: TOKEN_BOARD_SURFACES.billing.refreshIntervalMs,
   });
 }
 
@@ -37,7 +35,7 @@ export function useErTokenBoardQuery(options?: { enabled?: boolean }) {
     queryKey: [...TOKEN_BOARD_QUERY_KEY, "er"],
     queryFn: api.getErQueueDisplay,
     enabled: options?.enabled ?? true,
-    refetchInterval: ER_REFRESH_MS,
+    refetchInterval: TOKEN_BOARD_SURFACES.emergency.refreshIntervalMs,
   });
 }
 
@@ -46,7 +44,7 @@ export function useLabTokenBoardQuery(options?: { enabled?: boolean }) {
     queryKey: [...TOKEN_BOARD_QUERY_KEY, "lab"],
     queryFn: api.getLabQueueDisplay,
     enabled: options?.enabled ?? true,
-    refetchInterval: STANDARD_REFRESH_MS,
+    refetchInterval: TOKEN_BOARD_SURFACES.lab.refreshIntervalMs,
   });
 }
 
@@ -55,7 +53,7 @@ export function useRadiologyTokenBoardQuery(modality = "xray", options?: { enabl
     queryKey: [...TOKEN_BOARD_QUERY_KEY, "radiology", modality],
     queryFn: () => api.getRadiologyQueueDisplay(modality),
     enabled: options?.enabled ?? true,
-    refetchInterval: STANDARD_REFRESH_MS,
+    refetchInterval: TOKEN_BOARD_SURFACES.radiology.refreshIntervalMs,
   });
 }
 
@@ -64,6 +62,6 @@ export function usePharmacyTokenBoardQuery(options?: { enabled?: boolean }) {
     queryKey: [...TOKEN_BOARD_QUERY_KEY, "pharmacy"],
     queryFn: api.getPharmacyQueueDisplay,
     enabled: options?.enabled ?? true,
-    refetchInterval: STANDARD_REFRESH_MS,
+    refetchInterval: TOKEN_BOARD_SURFACES.pharmacy.refreshIntervalMs,
   });
 }

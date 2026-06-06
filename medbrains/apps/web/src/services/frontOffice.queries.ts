@@ -6,11 +6,9 @@ import type {
   QueueToken,
   RadiologyQueueDisplay,
 } from "@medbrains/types";
+import { TOKEN_BOARD_SURFACES } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
 import { frontOfficeService } from "./frontOffice.service";
-
-const TOKEN_BOARD_REFRESH_MS = 10_000;
-const ER_TOKEN_BOARD_REFRESH_MS = 5_000;
 
 interface FrontOfficeTokenBoardQueryOptions {
   enabled: boolean;
@@ -21,7 +19,7 @@ export function useFrontOfficeOpdTokenBoardQuery({ enabled }: FrontOfficeTokenBo
     queryKey: ["front-office", "token-board", "opd"],
     queryFn: () => frontOfficeService.listQueueTokens(),
     enabled,
-    refetchInterval: ER_TOKEN_BOARD_REFRESH_MS,
+    refetchInterval: TOKEN_BOARD_SURFACES.opd.refreshIntervalMs,
   });
 }
 
@@ -30,7 +28,7 @@ export function useFrontOfficeLabTokenBoardQuery({ enabled }: FrontOfficeTokenBo
     queryKey: ["front-office", "token-board", "lab"],
     queryFn: () => frontOfficeService.getLabQueueDisplay(),
     enabled,
-    refetchInterval: TOKEN_BOARD_REFRESH_MS,
+    refetchInterval: TOKEN_BOARD_SURFACES.lab.refreshIntervalMs,
   });
 }
 
@@ -42,7 +40,7 @@ export function useFrontOfficeRadiologyTokenBoardQuery(
     queryKey: ["front-office", "token-board", "radiology", modality],
     queryFn: () => frontOfficeService.getRadiologyQueueDisplay(modality),
     enabled,
-    refetchInterval: TOKEN_BOARD_REFRESH_MS,
+    refetchInterval: TOKEN_BOARD_SURFACES.radiology.refreshIntervalMs,
   });
 }
 
@@ -53,7 +51,7 @@ export function useFrontOfficeEmergencyTokenBoardQuery({
     queryKey: ["front-office", "token-board", "er"],
     queryFn: () => frontOfficeService.getErQueueDisplay(),
     enabled,
-    refetchInterval: ER_TOKEN_BOARD_REFRESH_MS,
+    refetchInterval: TOKEN_BOARD_SURFACES.emergency.refreshIntervalMs,
   });
 }
 
@@ -64,7 +62,7 @@ export function useFrontOfficePharmacyTokenBoardQuery({
     queryKey: ["front-office", "token-board", "pharmacy"],
     queryFn: () => frontOfficeService.getPharmacyQueueDisplay(),
     enabled,
-    refetchInterval: TOKEN_BOARD_REFRESH_MS,
+    refetchInterval: TOKEN_BOARD_SURFACES.pharmacy.refreshIntervalMs,
   });
 }
 
@@ -75,6 +73,6 @@ export function useFrontOfficeBillingTokenBoardQuery({
     queryKey: ["front-office", "token-board", "billing"],
     queryFn: () => frontOfficeService.getBillingQueueDisplay(),
     enabled,
-    refetchInterval: TOKEN_BOARD_REFRESH_MS,
+    refetchInterval: TOKEN_BOARD_SURFACES.billing.refreshIntervalMs,
   });
 }

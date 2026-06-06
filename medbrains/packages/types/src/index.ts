@@ -57,6 +57,8 @@ export {
 export type {
   TokenBoardDisplayMode,
   TokenBoardLaunchTargets,
+  TokenBoardReadinessItem,
+  TokenBoardReadinessTone,
   TokenBoardSurfaceDefinition,
   TokenBoardSurfaceId,
   TokenBoardTvAppCode,
@@ -64,9 +66,15 @@ export type {
 } from "./token-board-surfaces.js";
 export {
   getTokenBoardSurface,
+  TOKEN_BOARD_FAST_REFRESH_MS,
   TOKEN_BOARD_PUBLIC_PRIVACY_NOTICE,
+  TOKEN_BOARD_STANDARD_REFRESH_MS,
   TOKEN_BOARD_SURFACE_LIST,
   TOKEN_BOARD_SURFACES,
+  tokenBoardFeedIsStale,
+  tokenBoardFeedReadiness,
+  tokenBoardOperationalReadinessItems,
+  tokenBoardRefreshLabel,
 } from "./token-board-surfaces.js";
 
 // Health

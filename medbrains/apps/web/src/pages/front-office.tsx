@@ -33,6 +33,8 @@ import type {
   QueueMetrics,
   QueuePriorityRule,
   QueueStatsResponse,
+  TokenBoardReadinessItem,
+  TokenBoardReadinessTone,
   TokenBoardSurfaceDefinition,
   TokenBoardSurfaceId,
   TriageLevelColor,
@@ -48,6 +50,7 @@ import {
   TOKEN_BOARD_PUBLIC_PRIVACY_NOTICE,
   TOKEN_BOARD_SURFACE_LIST,
   TOKEN_BOARD_SURFACES,
+  tokenBoardOperationalReadinessItems,
 } from "@medbrains/types";
 import {
   IconAmbulance,
@@ -1042,6 +1045,13 @@ function TokenBoardCard({
           </Badge>
         </Group>
         <TokenBoardLaunchMeta surface={surface} />
+        <TokenBoardReadinessStrip
+          items={tokenBoardOperationalReadinessItems({
+            isError,
+            surface,
+            updatedAt: lastUpdatedAt,
+          })}
+        />
         <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="xs">
           {summary.map((item) => (
             <Box
@@ -1107,6 +1117,35 @@ function TokenBoardLaunchMeta({ surface }: { surface: TokenBoardSurfaceDefinitio
         {surface.privacyNotice}
       </Text>
     </Stack>
+  );
+}
+
+function readinessColor(tone: TokenBoardReadinessTone) {
+  switch (tone) {
+    case "danger":
+      return "red";
+    case "warning":
+      return "orange";
+    case "success":
+      return "teal";
+    default:
+      return "blue";
+  }
+}
+
+function TokenBoardReadinessStrip({ items }: { items: TokenBoardReadinessItem[] }) {
+  return (
+    <Group gap={6} wrap="wrap">
+      {items.map((item) => (
+        <Badge
+          key={`${item.label}-${item.value}`}
+          color={readinessColor(item.tone)}
+          variant="light"
+        >
+          {item.label}: {item.value}
+        </Badge>
+      ))}
+    </Group>
   );
 }
 

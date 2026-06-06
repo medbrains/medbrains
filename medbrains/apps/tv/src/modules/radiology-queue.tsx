@@ -5,7 +5,11 @@
  */
 
 import type { Module } from "@medbrains/mobile-shell";
-import { type RadiologyQueueToken, TOKEN_BOARD_SURFACES } from "@medbrains/types";
+import {
+  type RadiologyQueueToken,
+  TOKEN_BOARD_SURFACES,
+  tokenBoardRefreshLabel,
+} from "@medbrains/types";
 import { COLORS, SPACING } from "@medbrains/ui-mobile";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
@@ -19,10 +23,10 @@ import {
 } from "../components/tv-feed-status.js";
 import { tvQueueService } from "../services/tvQueue.service.js";
 
-const REFRESH_INTERVAL_MS = 10_000;
 const DISPLAY_TOKEN_LIMIT = 12;
 const DEFAULT_MODALITY = "xray";
 const RADIOLOGY_BOARD = TOKEN_BOARD_SURFACES.radiology;
+const REFRESH_INTERVAL_MS = RADIOLOGY_BOARD.refreshIntervalMs;
 const MODALITY_LABELS: Record<string, string> = {
   ct: "CT",
   mri: "MRI",
@@ -98,12 +102,12 @@ function RadiologyQueueScreen({ route }: RadiologyQueueScreenProps) {
       eyebrow="RADIOLOGY"
       title={`${modalityLabel} imaging`}
       subtitle="Please proceed to the imaging room when your token shows."
-      legend={`Updates every 10 seconds · last sync ${syncLabel} · ${deepLink}`}
+      legend={`Updates every ${tokenBoardRefreshLabel(RADIOLOGY_BOARD)} · last sync ${syncLabel} · ${deepLink}`}
       privacyNotice={RADIOLOGY_BOARD.privacyNotice}
       readiness={[
-        { label: "Privacy", tone: "success", value: "Token only" },
+        { label: "Privacy", tone: "success", value: RADIOLOGY_BOARD.readiness.privacy },
         tvFeedReadiness(queueQuery.isError, queueQuery.dataUpdatedAt, REFRESH_INTERVAL_MS),
-        { label: "Refresh", tone: "info", value: "10s" },
+        { label: "Refresh", tone: "info", value: tokenBoardRefreshLabel(RADIOLOGY_BOARD) },
         { label: "Modality", tone: "info", value: modalityLabel },
       ]}
       tags={[...RADIOLOGY_BOARD.targets.tvAppCodes, "radiology", modalityLabel]}
