@@ -15,6 +15,7 @@ describe("clinical event normalization", () => {
     );
     expect(normalizeClinicalEventName("invoice.created")).toBe("billing.invoice.created");
     expect(normalizeClinicalEventName("lab.completed")).toBe("lab.result.posted");
+    expect(normalizeClinicalEventName("lab.results_entered")).toBe("lab.result.posted");
     expect(normalizeClinicalEventName("lab.results_verified")).toBe("lab.result.verified");
     expect(normalizeClinicalEventName("mrd.case_sheet.sent")).toBe("mrd.case_sheet.generated");
     expect(normalizeClinicalEventName("mlc.case.created")).toBe("mlc.created");
@@ -556,6 +557,18 @@ describe("clinical event normalization", () => {
       },
     });
 
+    const labResultsEntered = buildClinicalEventTrace({
+      contextCode: "lab-orders",
+      moduleCode: "lab",
+      occurredAt: "2026-05-29T10:51:00.000Z",
+      rawTrigger: "lab.results_entered",
+      payload: {
+        order_id: "lab-order-1",
+        patient_id: "patient-1",
+        result_count: 3,
+      },
+    });
+
     const labVerified = buildClinicalEventTrace({
       contextCode: "lab-orders",
       moduleCode: "lab",
@@ -614,6 +627,11 @@ describe("clinical event normalization", () => {
     expect(labCompleted.sourceRecordId).toBe("lab-order-1");
     expect(labCompleted.patientId).toBe("patient-1");
     expect(labCompleted.missingPayloadKeys).toEqual([]);
+
+    expect(labResultsEntered.eventName).toBe("lab.result.posted");
+    expect(labResultsEntered.sourceRecordId).toBe("lab-order-1");
+    expect(labResultsEntered.patientId).toBe("patient-1");
+    expect(labResultsEntered.missingPayloadKeys).toEqual([]);
 
     expect(labVerified.eventName).toBe("lab.result.verified");
     expect(labVerified.sourceRecordId).toBe("lab-order-1");

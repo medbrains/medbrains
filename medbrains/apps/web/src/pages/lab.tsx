@@ -920,7 +920,11 @@ function LabOrderDetail({
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["lab-order-detail", orderId] });
       void queryClient.invalidateQueries({ queryKey: ["lab-critical-alerts"] });
-      emit("lab.results_entered", { order_id: orderId, result_count: resultInputs.length });
+      emit("lab.results_entered", {
+        order_id: orderId,
+        patient_id: data?.order.patient_id,
+        result_count: resultInputs.length,
+      });
       resultFormHandlers.close();
       setResultInputs([{ parameter_name: "", value: "" }]);
     },

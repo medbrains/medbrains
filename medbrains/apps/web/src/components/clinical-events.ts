@@ -43,6 +43,7 @@ const TRIGGER_ALIASES: Record<string, ClinicalEventName> = {
   "lab.completed": "lab.result.posted",
   "lab.order_created": "order.created",
   "lab.ordered": "order.created",
+  "lab.results_entered": "lab.result.posted",
   "lab.results_verified": "lab.result.verified",
   "mlc.case.created": "mlc.created",
   "mlc.police_intimation.created": "emergency.mlc_police_intimation.created",
