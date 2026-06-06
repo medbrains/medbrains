@@ -1,13 +1,6 @@
 import { Badge, Button, Group, Stack, Text, Tooltip } from "@mantine/core";
 import { usePermissionStore } from "@medbrains/stores";
-import type {
-  ClinicalEventName,
-  ClinicalJourneyActionId,
-  ClinicalJourneyContext,
-  ClinicalOrderContext,
-  ResolvedClinicalJourneyAction,
-} from "@medbrains/types";
-import { P, resolveClinicalJourneyActions } from "@medbrains/types";
+import type { ClinicalEventName, ClinicalOrderContext } from "@medbrains/types";
 import {
   IconBed,
   IconBuildingStore,
@@ -22,17 +15,15 @@ import type { ReactNode } from "react";
 import { useNavigate } from "react-router";
 import { useClinicalEventStore } from "@/components/clinical-event-store";
 import styles from "./patient-flow-navigator.module.scss";
+import {
+  buildPatientFlowReadiness,
+  type PatientFlowModule,
+  type PatientFlowReadinessItem,
+  patientFlowJourneyContext,
+} from "./patient-flow-readiness";
 import { clinicalEventMatchesJourney, mergeJourneyEventNames } from "./patient-journey-events";
-import { patientJourneyActionRoute } from "./patient-journey-routes";
 
-export type PatientFlowModule =
-  | "patient"
-  | "opd"
-  | "ipd"
-  | "emergency"
-  | "camp"
-  | "pharmacy"
-  | "billing";
+export type { PatientFlowModule } from "./patient-flow-readiness";
 
 interface PatientFlowNavigatorProps {
   patientId: string | null | undefined;
@@ -52,61 +43,26 @@ interface PatientFlowNavigatorProps {
   compact?: boolean;
 }
 
-interface FlowItem {
-  id: PatientFlowModule;
-  label: string;
-  description: string;
-  href: string;
+interface FlowVisual {
   color: string;
   icon: ReactNode;
-  enabled: boolean;
-  disabledReason: string | null;
-  activationEvents: readonly ClinicalEventName[];
-  emittedEvent: ClinicalEventName | null;
-  requiredPermissions: readonly string[];
 }
 
-const OPD_FLOW_ACTION = "opd.open_visit" satisfies ClinicalJourneyActionId;
-const EMERGENCY_FLOW_ACTION = "emergency.open_visit" satisfies ClinicalJourneyActionId;
-const CAMP_FLOW_ACTION = "camp.open_context" satisfies ClinicalJourneyActionId;
-const PHARMACY_FLOW_ACTION = "pharmacy.open_patient_queue" satisfies ClinicalJourneyActionId;
-const BILLING_FLOW_ACTION = "billing.open_ledger" satisfies ClinicalJourneyActionId;
-
-function resolvedActionMap(actions: ResolvedClinicalJourneyAction[]) {
-  return new Map(actions.map((action) => [action.id, action]));
-}
-
-function itemState(
-  action: ResolvedClinicalJourneyAction | undefined,
-  fallbackEnabled: boolean,
-  fallbackReason = "Permission required",
-  fallbackActivationEvents: readonly ClinicalEventName[] = [],
-  fallbackPermissions: readonly string[] = [],
-) {
-  if (!action) {
-    return {
-      enabled: fallbackEnabled,
-      disabledReason: fallbackEnabled ? null : fallbackReason,
-      activationEvents: fallbackActivationEvents,
-      emittedEvent: null,
-      requiredPermissions: fallbackPermissions,
-    };
-  }
-
-  return {
-    enabled: action.enabled,
-    disabledReason: action.enabled ? null : action.disabledReasonText,
-    activationEvents: action.activatesAfter,
-    emittedEvent: action.emitsEvent ?? null,
-    requiredPermissions: action.requiredPermissions,
-  };
-}
+const FLOW_VISUALS: Record<PatientFlowModule, FlowVisual> = {
+  patient: { color: "primary", icon: <IconUser size={14} /> },
+  opd: { color: "teal", icon: <IconStethoscope size={14} /> },
+  ipd: { color: "indigo", icon: <IconBed size={14} /> },
+  emergency: { color: "red", icon: <IconFirstAidKit size={14} /> },
+  camp: { color: "green", icon: <IconBuildingStore size={14} /> },
+  pharmacy: { color: "lime", icon: <IconPill size={14} /> },
+  billing: { color: "orange", icon: <IconFileInvoice size={14} /> },
+};
 
 function eventLabel(eventName: string) {
   return eventName.replace(/\./g, " ");
 }
 
-function FlowTooltip({ item }: { item: FlowItem }) {
+function FlowTooltip({ item }: { item: PatientFlowReadinessItem }) {
   return (
     <Stack gap={5}>
       <Text size="xs" fw={700}>
@@ -162,7 +118,7 @@ export function PatientFlowNavigator({
 
   if (!patientId) return null;
 
-  const baseContext: ClinicalJourneyContext = {
+  const baseContext = patientFlowJourneyContext({
     patientId,
     isDeceased,
     activeEncounterId,
@@ -173,183 +129,18 @@ export function PatientFlowNavigator({
     activeCampRegistrationId,
     activeInvoiceId,
     activePharmacyOrderId,
-    activeAdmissionStatus: activeAdmissionStatus ?? (activeAdmissionId ? "admitted" : null),
-    activeOrderContext:
-      activeOrderContext ?? (activeEncounterId ? "opd" : activeAdmissionId ? "ipd" : null),
+    activeAdmissionStatus,
+    activeOrderContext,
     completedEvents,
-  };
-  const context: ClinicalJourneyContext = {
+  });
+  const context = {
     ...baseContext,
     completedEvents: mergeJourneyEventNames(baseContext, recentEvents),
   };
   const recentPatientEvent = recentEvents.find((event) =>
     clinicalEventMatchesJourney(event, context),
   );
-  const actions = resolvedActionMap(
-    resolveClinicalJourneyActions(context, hasPermission, "web", {
-      includePermissionDenied: true,
-    }),
-  );
-  const patientState = itemState(
-    undefined,
-    hasPermission(P.PATIENTS.VIEW),
-    "Permission required",
-    ["patient.created"],
-    [P.PATIENTS.VIEW],
-  );
-  const opdState = itemState(
-    actions.get(OPD_FLOW_ACTION),
-    hasPermission(P.OPD.VISIT_CREATE),
-    "Permission required",
-    ["patient.created"],
-    [P.OPD.VISIT_CREATE],
-  );
-  const ipdAction = actions.get(activeAdmissionId ? "ipd.open_admission" : "ipd.admit");
-  const ipdState = itemState(
-    ipdAction,
-    activeAdmissionId
-      ? hasPermission(P.IPD.ADMISSIONS_VIEW)
-      : hasPermission(P.IPD.ADMISSIONS_CREATE),
-    "Permission required",
-    activeAdmissionId ? ["ipd.admission.created"] : ["patient.created"],
-    activeAdmissionId ? [P.IPD.ADMISSIONS_VIEW] : [P.IPD.ADMISSIONS_CREATE],
-  );
-  const emergencyState = itemState(
-    actions.get(EMERGENCY_FLOW_ACTION),
-    hasPermission(P.EMERGENCY.VISITS_CREATE),
-    "Permission required",
-    ["patient.created"],
-    [P.EMERGENCY.VISITS_CREATE],
-  );
-  const campAllowed =
-    hasPermission(P.CAMP.LIST) ||
-    hasPermission(P.CAMP.REGISTRATIONS_LIST) ||
-    hasPermission(P.CAMP.REGISTRATIONS_CREATE);
-  const campState = itemState(
-    actions.get(CAMP_FLOW_ACTION),
-    campAllowed,
-    "Permission required",
-    ["patient.created", "camp.registration.created", "camp.screening.completed"],
-    [P.CAMP.LIST, P.CAMP.REGISTRATIONS_LIST, P.CAMP.REGISTRATIONS_CREATE],
-  );
-  const pharmacyState = itemState(
-    actions.get(PHARMACY_FLOW_ACTION),
-    hasPermission(P.PHARMACY.PRESCRIPTIONS_LIST),
-    "Permission required",
-    ["order.created", "pharmacy.order.dispensed"],
-    [P.PHARMACY.PRESCRIPTIONS_LIST],
-  );
-  const billingState = itemState(
-    actions.get(BILLING_FLOW_ACTION),
-    hasPermission(P.BILLING.INVOICES_LIST),
-    "Permission required",
-    ["patient.created", "order.created", "billing.invoice.created"],
-    [P.BILLING.INVOICES_LIST],
-  );
-  const ipdFlowAction: ClinicalJourneyActionId = activeAdmissionId
-    ? "ipd.open_admission"
-    : "ipd.admit";
-
-  const items: FlowItem[] = [
-    {
-      id: "patient",
-      label: "Patient",
-      description: "Open patient registration and longitudinal record.",
-      href: `/patients/${patientId}#overview`,
-      color: "primary",
-      icon: <IconUser size={14} />,
-      enabled: patientState.enabled,
-      disabledReason: patientState.disabledReason,
-      activationEvents: patientState.activationEvents,
-      emittedEvent: patientState.emittedEvent,
-      requiredPermissions: patientState.requiredPermissions,
-    },
-    {
-      id: "opd",
-      label: "OPD",
-      description: activeEncounterId ? "Open active OPD encounter." : "Start an OPD visit.",
-      href:
-        patientJourneyActionRoute(OPD_FLOW_ACTION, context) ?? `/opd/new?patient_id=${patientId}`,
-      color: "teal",
-      icon: <IconStethoscope size={14} />,
-      enabled: opdState.enabled,
-      disabledReason: opdState.disabledReason,
-      activationEvents: opdState.activationEvents,
-      emittedEvent: opdState.emittedEvent,
-      requiredPermissions: opdState.requiredPermissions,
-    },
-    {
-      id: "ipd",
-      label: "IPD",
-      description: activeAdmissionId ? "Open active IPD admission." : "Start an IPD admission.",
-      href: patientJourneyActionRoute(ipdFlowAction, context) ?? `/ipd/new?patient_id=${patientId}`,
-      color: "indigo",
-      icon: <IconBed size={14} />,
-      enabled: ipdState.enabled,
-      disabledReason: ipdState.disabledReason,
-      activationEvents: ipdState.activationEvents,
-      emittedEvent: ipdState.emittedEvent,
-      requiredPermissions: ipdState.requiredPermissions,
-    },
-    {
-      id: "emergency",
-      label: "ER",
-      description: activeEmergencyVisitId ? "Open emergency visit." : "Register emergency visit.",
-      href:
-        patientJourneyActionRoute(EMERGENCY_FLOW_ACTION, context) ??
-        `/emergency/visits/new?patient_id=${patientId}`,
-      color: "red",
-      icon: <IconFirstAidKit size={14} />,
-      enabled: emergencyState.enabled,
-      disabledReason: emergencyState.disabledReason,
-      activationEvents: emergencyState.activationEvents,
-      emittedEvent: emergencyState.emittedEvent,
-      requiredPermissions: emergencyState.requiredPermissions,
-    },
-    {
-      id: "camp",
-      label: "Camp",
-      description: "Open camp registration and screening workspace.",
-      href: patientJourneyActionRoute(CAMP_FLOW_ACTION, context) ?? `/camp?patient_id=${patientId}`,
-      color: "green",
-      icon: <IconBuildingStore size={14} />,
-      enabled: campState.enabled,
-      disabledReason: campState.disabledReason,
-      activationEvents: campState.activationEvents,
-      emittedEvent: campState.emittedEvent,
-      requiredPermissions: campState.requiredPermissions,
-    },
-    {
-      id: "pharmacy",
-      label: "Pharmacy",
-      description: "Open patient pharmacy orders and dispensing queue.",
-      href:
-        patientJourneyActionRoute(PHARMACY_FLOW_ACTION, context) ??
-        `/pharmacy?tab=orders&patient_id=${patientId}`,
-      color: "lime",
-      icon: <IconPill size={14} />,
-      enabled: pharmacyState.enabled,
-      disabledReason: pharmacyState.disabledReason,
-      activationEvents: pharmacyState.activationEvents,
-      emittedEvent: pharmacyState.emittedEvent,
-      requiredPermissions: pharmacyState.requiredPermissions,
-    },
-    {
-      id: "billing",
-      label: "Billing",
-      description: "Open patient billing ledger and invoice queue.",
-      href:
-        patientJourneyActionRoute(BILLING_FLOW_ACTION, context) ??
-        `/billing?tab=invoices&patient_id=${patientId}`,
-      color: "orange",
-      icon: <IconFileInvoice size={14} />,
-      enabled: billingState.enabled,
-      disabledReason: billingState.disabledReason,
-      activationEvents: billingState.activationEvents,
-      emittedEvent: billingState.emittedEvent,
-      requiredPermissions: billingState.requiredPermissions,
-    },
-  ];
+  const { items, summary } = buildPatientFlowReadiness(context, hasPermission);
 
   return (
     <div className={styles.wrapper} data-compact={compact || undefined}>
@@ -360,23 +151,29 @@ export function PatientFlowNavigator({
             Patient Flow
           </Text>
         </Group>
-        <Badge size="xs" color={recentPatientEvent ? "green" : "blue"} variant="light">
-          {recentPatientEvent
-            ? `last ${eventLabel(recentPatientEvent.eventName ?? recentPatientEvent.rawTrigger)}`
-            : "event activated"}
-        </Badge>
+        <Group gap={4}>
+          <Badge size="xs" color={summary.blocked > 0 ? "orange" : "green"} variant="light">
+            {summary.enabled}/{summary.total} ready
+          </Badge>
+          <Badge size="xs" color={recentPatientEvent ? "green" : "blue"} variant="light">
+            {recentPatientEvent
+              ? `last ${eventLabel(recentPatientEvent.eventName ?? recentPatientEvent.rawTrigger)}`
+              : "event activated"}
+          </Badge>
+        </Group>
       </Group>
       <Group gap="xs" wrap="wrap">
         {items.map((item) => {
           const isActive = item.id === active;
+          const visual = FLOW_VISUALS[item.id];
           const button = (
             <Button
               key={item.id}
               size="xs"
               radius="xl"
-              color={item.color}
+              color={visual.color}
               variant={isActive ? "filled" : "light"}
-              leftSection={item.icon}
+              leftSection={visual.icon}
               disabled={!item.enabled}
               onClick={() => navigate(item.href)}
             >
