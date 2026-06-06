@@ -29,6 +29,7 @@ interface PatientJourneyActionsProps {
   navigation: {
     navigate: (screen: string, params?: Record<string, unknown>) => void;
   };
+  showUnavailable?: boolean;
 }
 
 const SUPPORTED_MOBILE_ACTIONS = new Set<ClinicalJourneyActionId>([
@@ -159,11 +160,15 @@ function mobileOrderParams(context: ClinicalJourneyContext) {
   };
 }
 
-export function PatientJourneyActions({ context, navigation }: PatientJourneyActionsProps) {
+export function PatientJourneyActions({
+  context,
+  navigation,
+  showUnavailable = true,
+}: PatientJourneyActionsProps) {
   const hasPermission = usePermissionStore((state) => state.hasPermission);
-  const actions = resolveClinicalJourneyActions(context, hasPermission, "mobile").filter(
-    supportedAction,
-  );
+  const actions = resolveClinicalJourneyActions(context, hasPermission, "mobile", {
+    includePermissionDenied: showUnavailable,
+  }).filter(supportedAction);
   const actionStates = actions.map((action) => ({
     action,
     disabledReason: mobileDisabledReason(action, context, hasPermission),
@@ -306,12 +311,16 @@ export function PatientJourneyActions({ context, navigation }: PatientJourneyAct
       </View>
       <View style={styles.actions}>
         {actionStates.map(({ action, disabledReason }) => {
+          const blocked = Boolean(disabledReason);
           return (
-            <View key={action.id} style={styles.actionBlock}>
+            <View
+              key={action.id}
+              style={[styles.actionBlock, blocked && styles.blockedActionBlock]}
+            >
               <Button
                 mode={action.intent === "primary" ? "contained" : "outlined"}
                 icon={actionIcon(action.id)}
-                disabled={Boolean(disabledReason)}
+                disabled={blocked}
                 onPress={() => handleAction(action)}
                 compact
               >
@@ -361,6 +370,9 @@ const styles = StyleSheet.create({
     minWidth: 118,
     flexGrow: 1,
     gap: 4,
+  },
+  blockedActionBlock: {
+    opacity: 0.72,
   },
   reason: {
     opacity: 0.6,
