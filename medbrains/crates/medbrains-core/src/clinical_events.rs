@@ -64,6 +64,8 @@ pub enum ClinicalEventName {
     OrderCancelled,
     #[serde(rename = "lab.order.completed")]
     LabOrderCompleted,
+    #[serde(rename = "lab.sample_collected")]
+    LabSampleCollected,
     #[serde(rename = "lab.result.posted")]
     LabResultPosted,
     #[serde(rename = "lab.result.verified")]
@@ -144,6 +146,7 @@ impl ClinicalEventName {
             Self::OrderCreated => "order.created",
             Self::OrderCancelled => "order.cancelled",
             Self::LabOrderCompleted => "lab.order.completed",
+            Self::LabSampleCollected => "lab.sample_collected",
             Self::LabResultPosted => "lab.result.posted",
             Self::LabResultVerified => "lab.result.verified",
             Self::RadiologyOrderCompleted => "radiology.order.completed",
@@ -198,9 +201,10 @@ impl ClinicalEventName {
             | Self::MlcCreated
             | Self::EmergencyMlcPoliceIntimationCreated => ClinicalEventSourceModule::Emergency,
             Self::OrderCreated | Self::OrderCancelled => ClinicalEventSourceModule::OrderBasket,
-            Self::LabOrderCompleted | Self::LabResultPosted | Self::LabResultVerified => {
-                ClinicalEventSourceModule::Lab
-            }
+            Self::LabOrderCompleted
+            | Self::LabSampleCollected
+            | Self::LabResultPosted
+            | Self::LabResultVerified => ClinicalEventSourceModule::Lab,
             Self::RadiologyOrderCompleted | Self::RadiologyReportVerified => {
                 ClinicalEventSourceModule::Radiology
             }
@@ -259,7 +263,7 @@ impl ClinicalEventName {
             Self::CampScreeningCompleted => &["screening_id", "camp_id", "patient_id"],
             Self::OrderCreated => &["order_id", "order_type", "patient_id"],
             Self::OrderCancelled => &["order_id", "order_type", "reason"],
-            Self::LabOrderCompleted => &["order_id", "patient_id"],
+            Self::LabOrderCompleted | Self::LabSampleCollected => &["order_id", "patient_id"],
             Self::LabResultPosted | Self::LabResultVerified => &["order_id", "patient_id"],
             Self::RadiologyOrderCompleted => &["order_id", "patient_id"],
             Self::RadiologyReportVerified => &["report_id", "order_id", "patient_id"],
@@ -339,6 +343,7 @@ impl FromStr for ClinicalEventName {
             "order.created" => Ok(Self::OrderCreated),
             "order.cancelled" => Ok(Self::OrderCancelled),
             "lab.order.completed" => Ok(Self::LabOrderCompleted),
+            "lab.sample_collected" => Ok(Self::LabSampleCollected),
             "lab.result.posted" => Ok(Self::LabResultPosted),
             "lab.result.verified" => Ok(Self::LabResultVerified),
             "radiology.order.completed" => Ok(Self::RadiologyOrderCompleted),
@@ -840,6 +845,23 @@ mod tests {
 
     #[test]
     fn diagnostic_result_events_are_canonical() {
+        assert_eq!(
+            "lab.sample_collected".parse::<ClinicalEventName>().ok(),
+            Some(ClinicalEventName::LabSampleCollected)
+        );
+        assert_eq!(
+            ClinicalEventName::LabSampleCollected.as_str(),
+            "lab.sample_collected"
+        );
+        assert_eq!(
+            ClinicalEventName::LabSampleCollected.default_source_module(),
+            ClinicalEventSourceModule::Lab
+        );
+        assert_eq!(
+            ClinicalEventName::LabSampleCollected.required_payload_keys(),
+            &["order_id", "patient_id"]
+        );
+
         assert_eq!(
             "lab.result.posted".parse::<ClinicalEventName>().ok(),
             Some(ClinicalEventName::LabResultPosted)

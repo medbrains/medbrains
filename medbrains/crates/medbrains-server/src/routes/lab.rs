@@ -698,6 +698,27 @@ pub async fn collect_sample(
     .fetch_optional(&mut *tx)
     .await?;
 
+    if let Some(ref o) = order {
+        let event = ClinicalEventEnvelope::new(
+            claims.tenant_id,
+            ClinicalEventName::LabSampleCollected,
+            o.id,
+            claims.sub,
+            serde_json::json!({
+                "order_id": o.id,
+                "patient_id": o.patient_id,
+                "encounter_id": o.encounter_id,
+                "test_id": o.test_id,
+                "priority": format!("{:?}", o.priority).to_lowercase(),
+                "sample_barcode": o.sample_barcode.as_deref(),
+                "collected_at": o.collected_at.as_ref(),
+            }),
+        )
+        .with_patient(o.patient_id)
+        .with_encounter(o.encounter_id);
+        crate::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
+    }
+
     tx.commit().await?;
     order.map_or_else(|| Err(AppError::NotFound), |o| Ok(Json(o)))
 }

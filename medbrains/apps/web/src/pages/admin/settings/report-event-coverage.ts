@@ -135,6 +135,7 @@ export const REPORT_EVENT_SOURCE_DEFINITIONS: readonly ReportEventSourceDefiniti
     requiredPayloadKeys: ["patient_id", "order_id", "report_id"],
     sourceEvents: [
       "order.created",
+      "lab.sample_collected",
       "lab.result.verified",
       "lab.order.completed",
       "radiology.order.completed",

@@ -11339,6 +11339,7 @@ export type ClinicalEventName =
   | "camp.screening.completed"
   | "order.created"
   | "order.cancelled"
+  | "lab.sample_collected"
   | "lab.result.posted"
   | "lab.result.verified"
   | "lab.order.completed"
@@ -11423,6 +11424,7 @@ export const CLINICAL_EVENT_REQUIRED_PAYLOAD_KEYS: Record<ClinicalEventName, rea
   "camp.screening.completed": ["screening_id", "camp_id", "patient_id"],
   "order.created": ["order_id", "order_type", "patient_id"],
   "order.cancelled": ["order_id", "order_type", "reason"],
+  "lab.sample_collected": ["order_id", "patient_id"],
   "lab.result.posted": ["order_id", "patient_id"],
   "lab.result.verified": ["order_id", "patient_id"],
   "lab.order.completed": ["order_id", "patient_id"],

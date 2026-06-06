@@ -174,6 +174,7 @@ const REPORT_EVENT_SOURCES: &[ReportEventSourceSeed] = &[
         indicator_targets: &["lab.tat", "radiology.tat", "critical_results"],
         source_events: &[
             ClinicalEventName::OrderCreated,
+            ClinicalEventName::LabSampleCollected,
             ClinicalEventName::LabResultVerified,
             ClinicalEventName::LabOrderCompleted,
             ClinicalEventName::RadiologyOrderCompleted,
@@ -2191,6 +2192,42 @@ mod tests {
                 .indicator_targets
                 .iter()
                 .any(|target| target == "finance.revenue")
+        );
+    }
+
+    #[test]
+    fn diagnostic_tat_report_carries_sample_collection_event_source() {
+        let metadata = event_metadata_for_report("lab-end-to-end-tat");
+
+        assert!(
+            metadata
+                .source_events
+                .iter()
+                .any(|event| event == "order.created")
+        );
+        assert!(
+            metadata
+                .source_events
+                .iter()
+                .any(|event| event == "lab.sample_collected")
+        );
+        assert!(
+            metadata
+                .source_events
+                .iter()
+                .any(|event| event == "lab.order.completed")
+        );
+        assert!(
+            metadata
+                .event_payload_keys
+                .iter()
+                .any(|key| key == "order_id")
+        );
+        assert!(
+            metadata
+                .indicator_targets
+                .iter()
+                .any(|target| target == "lab.tat")
         );
     }
 

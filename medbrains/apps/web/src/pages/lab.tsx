@@ -864,9 +864,16 @@ function LabOrderDetail({
 
   const collectMutation = useMutation({
     mutationFn: () => labService.collectSample(orderId),
-    onSuccess: () => {
+    onSuccess: (result) => {
       void queryClient.invalidateQueries({ queryKey: ["lab-order-detail", orderId] });
-      emit("lab.sample_collected", { order_id: orderId });
+      emit("lab.sample_collected", {
+        encounter_id: result.encounter_id,
+        order_id: result.id,
+        patient_id: result.patient_id,
+        priority: result.priority,
+        sample_barcode: result.sample_barcode,
+        test_id: result.test_id,
+      });
     },
   });
   const processMutation = useMutation({

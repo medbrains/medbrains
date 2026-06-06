@@ -348,6 +348,7 @@ const TOKEN_BOARD_ACCESS_SURFACES: readonly AccessMatrixSurface[] = [
       "opd.encounter.created",
       "order.created",
       "emergency.visit.created",
+      "lab.sample_collected",
       "lab.order.completed",
       "radiology.order.completed",
       "pharmacy.order.dispensed",
@@ -370,7 +371,12 @@ const TOKEN_BOARD_ACCESS_SURFACES: readonly AccessMatrixSurface[] = [
     id: "lab",
     fieldAccessKeys: LAB_PUBLIC_QUEUE_FIELDS,
     masking: "clinical",
-    activatesAfter: ["order.created", "lab.order.completed", "lab.result.posted"],
+    activatesAfter: [
+      "order.created",
+      "lab.sample_collected",
+      "lab.order.completed",
+      "lab.result.posted",
+    ],
   }),
   tokenBoardAccessSurface({
     id: "radiology",
