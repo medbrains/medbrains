@@ -82,6 +82,11 @@ import {
   PRINTABLE_COVERAGE_GAP_LABELS,
   summarizePrintableCoverage,
 } from "./access-matrix-printables";
+import {
+  buildReportEventCoverage,
+  REPORT_EVENT_COVERAGE_GAP_LABELS,
+  summarizeReportEventCoverage,
+} from "./report-event-coverage";
 
 const FIELD_LEVELS: { label: string; value: FieldAccessLevel }[] = [
   { label: "Edit", value: "edit" },
@@ -1683,6 +1688,11 @@ function SurfaceCoverageMatrix() {
     () => summarizeJourneyActionCoverage(journeyActionCoverageRows),
     [journeyActionCoverageRows],
   );
+  const reportEventCoverageRows = useMemo(() => buildReportEventCoverage(), []);
+  const reportEventCoverageSummary = useMemo(
+    () => summarizeReportEventCoverage(reportEventCoverageRows),
+    [reportEventCoverageRows],
+  );
   const surfaceGovernanceRows = useMemo(
     () => buildAccessSurfaceGovernanceCoverage(ACCESS_MATRIX_SURFACES),
     [],
@@ -1813,6 +1823,18 @@ function SurfaceCoverageMatrix() {
           </Text>
           <Text size="xs" c="dimmed">
             {journeyActionCoverageSummary.gaps} handoff action gaps
+          </Text>
+        </Card>
+        <Card withBorder padding="sm">
+          <Text size="xs" c="dimmed" fw={700} tt="uppercase">
+            Report Events
+          </Text>
+          <Text fw={700}>
+            {reportEventCoverageSummary.complete}/{reportEventCoverageSummary.total}
+          </Text>
+          <Text size="xs" c="dimmed">
+            {reportEventCoverageSummary.reportTargets} reports,{" "}
+            {reportEventCoverageSummary.indicatorTargets} indicators
           </Text>
         </Card>
         <Card withBorder padding="sm">
@@ -1963,6 +1985,122 @@ function SurfaceCoverageMatrix() {
                       <Badge color={workflow.permissions.size > 0 ? "teal" : "red"} variant="light">
                         {workflow.permissions.size}
                       </Badge>
+                    </Table.Td>
+                  </Table.Tr>
+                ))}
+              </Table.Tbody>
+            </Table>
+          </ScrollArea.Autosize>
+        </Stack>
+      </Card>
+
+      <Card withBorder padding="md">
+        <Stack gap="sm">
+          <Group justify="space-between" align="flex-start">
+            <Stack gap={2}>
+              <Text fw={700}>Report Event Source Coverage</Text>
+              <Text size="sm" c="dimmed">
+                Shows which workflow events and payload keys feed report and indicator readiness so
+                operational dashboards stay connected to registration, OPD, IPD, ER, camp, pharmacy,
+                billing and NABH evidence.
+              </Text>
+            </Stack>
+            <Badge color={reportEventCoverageSummary.gaps > 0 ? "orange" : "green"} variant="light">
+              {reportEventCoverageSummary.gaps} event source gaps
+            </Badge>
+          </Group>
+
+          <ScrollArea.Autosize mah={420}>
+            <Table stickyHeader highlightOnHover verticalSpacing="xs">
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th>Source</Table.Th>
+                  <Table.Th>Events</Table.Th>
+                  <Table.Th>Payload evidence</Table.Th>
+                  <Table.Th>Reports / indicators</Table.Th>
+                  <Table.Th>Gaps</Table.Th>
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
+                {reportEventCoverageRows.map((row) => (
+                  <Table.Tr key={row.id}>
+                    <Table.Td>
+                      <Group gap={6} mb={2}>
+                        <Badge variant="light">{row.family}</Badge>
+                        <Badge color={row.readiness === "event_backed" ? "green" : "orange"}>
+                          {row.readiness === "event_backed" ? "event backed" : "capture needed"}
+                        </Badge>
+                      </Group>
+                      <Text size="sm" fw={600}>
+                        {row.label}
+                      </Text>
+                      <Text size="xs" ff="var(--font-mono, monospace)" c="dimmed">
+                        {row.id}
+                      </Text>
+                    </Table.Td>
+                    <Table.Td>
+                      <Group gap={4}>
+                        {row.sourceEvents.map((eventName) => (
+                          <Badge
+                            key={eventName}
+                            color={row.missingEvents.includes(eventName) ? "orange" : "blue"}
+                            variant="light"
+                          >
+                            {eventName}
+                          </Badge>
+                        ))}
+                      </Group>
+                    </Table.Td>
+                    <Table.Td>
+                      <Stack gap={4}>
+                        <Group gap={4}>
+                          {row.requiredPayloadKeys.map((key) => (
+                            <Badge
+                              key={key}
+                              color={row.missingPayloadKeys.includes(key) ? "orange" : "teal"}
+                              variant="light"
+                            >
+                              {key}
+                            </Badge>
+                          ))}
+                        </Group>
+                        <Text size="xs" c="dimmed">
+                          {row.availablePayloadKeys.length} registered payload keys available
+                        </Text>
+                      </Stack>
+                    </Table.Td>
+                    <Table.Td>
+                      <Stack gap={4}>
+                        <Group gap={4}>
+                          {row.reportTargets.map((reportId) => (
+                            <Badge key={reportId} color="violet" variant="light">
+                              {reportId}
+                            </Badge>
+                          ))}
+                        </Group>
+                        <Group gap={4}>
+                          {row.indicatorTargets.map((indicatorId) => (
+                            <Badge key={indicatorId} color="cyan" variant="light">
+                              {indicatorId}
+                            </Badge>
+                          ))}
+                        </Group>
+                      </Stack>
+                    </Table.Td>
+                    <Table.Td>
+                      {row.gaps.length > 0 ? (
+                        <Group gap={4}>
+                          {row.gaps.map((gap) => (
+                            <Badge key={gap} color="orange" variant="light">
+                              {REPORT_EVENT_COVERAGE_GAP_LABELS[gap]}
+                            </Badge>
+                          ))}
+                        </Group>
+                      ) : (
+                        <Badge color="green" variant="light">
+                          complete
+                        </Badge>
+                      )}
                     </Table.Td>
                   </Table.Tr>
                 ))}
