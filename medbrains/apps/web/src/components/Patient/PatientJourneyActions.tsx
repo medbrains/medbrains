@@ -3,11 +3,12 @@ import { usePermissionStore } from "@medbrains/stores";
 import type {
   ClinicalJourneyActionId,
   ClinicalJourneyActionIntent,
+  ClinicalJourneyActionReadinessSummary,
   ClinicalJourneyContext,
   ClinicalOrderContext,
   ResolvedClinicalJourneyAction,
 } from "@medbrains/types";
-import { resolveClinicalJourneyActions } from "@medbrains/types";
+import { resolveClinicalJourneyActions, summarizeClinicalJourneyActions } from "@medbrains/types";
 import {
   IconAlertTriangle,
   IconBed,
@@ -197,6 +198,7 @@ export function PatientJourneyActions({
         onShare,
       }),
   );
+  const readinessSummary = summarizeClinicalJourneyActions(actions);
 
   function handleAction(actionId: ClinicalJourneyActionId) {
     if (actionId === "patient.edit" && onEdit) {
@@ -251,6 +253,7 @@ export function PatientJourneyActions({
 
     return (
       <Stack gap={6} className={styles.railActions}>
+        <JourneyReadinessSummary summary={readinessSummary} />
         {actions.map((action) => (
           <PatientJourneyActionButton
             key={action.id}
@@ -275,6 +278,31 @@ export function PatientJourneyActions({
           onClick={() => handleAction(action.id)}
         />
       ))}
+    </Group>
+  );
+}
+
+function JourneyReadinessSummary({ summary }: { summary: ClinicalJourneyActionReadinessSummary }) {
+  return (
+    <Group gap={4} wrap="wrap" className={styles.railSummary}>
+      <Badge size="xs" color="green" variant="light">
+        {summary.enabled}/{summary.total} ready
+      </Badge>
+      {summary.blocked > 0 && (
+        <Badge size="xs" color="orange" variant="light">
+          {summary.blocked} blocked
+        </Badge>
+      )}
+      {summary.permissionBlocked > 0 && (
+        <Badge size="xs" color="red" variant="light">
+          {summary.permissionBlocked} permission
+        </Badge>
+      )}
+      {summary.eventBlocked > 0 && (
+        <Badge size="xs" color="blue" variant="light">
+          {summary.eventBlocked} awaiting event
+        </Badge>
+      )}
     </Group>
   );
 }
