@@ -34,6 +34,20 @@ pub enum ClinicalEventName {
     EmergencyMlcPoliceIntimationCreated,
     #[serde(rename = "opd.encounter.created")]
     OpdEncounterCreated,
+    #[serde(rename = "opd.queue.called")]
+    OpdQueueCalled,
+    #[serde(rename = "opd.consultation.started")]
+    OpdConsultationStarted,
+    #[serde(rename = "opd.vitals.recorded")]
+    OpdVitalsRecorded,
+    #[serde(rename = "opd.consultation.saved")]
+    OpdConsultationSaved,
+    #[serde(rename = "opd.encounter.completed")]
+    OpdEncounterCompleted,
+    #[serde(rename = "opd.followup.scheduled")]
+    OpdFollowupScheduled,
+    #[serde(rename = "opd.prescription.updated")]
+    OpdPrescriptionUpdated,
     #[serde(rename = "opd.certificate.created")]
     OpdCertificateCreated,
     #[serde(rename = "opd.consent.signed")]
@@ -66,6 +80,8 @@ pub enum ClinicalEventName {
     BillingPaymentReceived,
     #[serde(rename = "pharmacy.order.dispensed")]
     PharmacyOrderDispensed,
+    #[serde(rename = "pharmacy.stock.movement.created")]
+    PharmacyStockMovementCreated,
     #[serde(rename = "pharmacy.ndps.movement.created")]
     PharmacyNdpsMovementCreated,
     #[serde(rename = "ipd.admission.created")]
@@ -113,6 +129,13 @@ impl ClinicalEventName {
             Self::MlcCreated => "mlc.created",
             Self::EmergencyMlcPoliceIntimationCreated => "emergency.mlc_police_intimation.created",
             Self::OpdEncounterCreated => "opd.encounter.created",
+            Self::OpdQueueCalled => "opd.queue.called",
+            Self::OpdConsultationStarted => "opd.consultation.started",
+            Self::OpdVitalsRecorded => "opd.vitals.recorded",
+            Self::OpdConsultationSaved => "opd.consultation.saved",
+            Self::OpdEncounterCompleted => "opd.encounter.completed",
+            Self::OpdFollowupScheduled => "opd.followup.scheduled",
+            Self::OpdPrescriptionUpdated => "opd.prescription.updated",
             Self::OpdCertificateCreated => "opd.certificate.created",
             Self::OpdConsentSigned => "opd.consent.signed",
             Self::CampStarted => "camp.started",
@@ -129,6 +152,7 @@ impl ClinicalEventName {
             Self::BillingInvoiceFinalized => "billing.invoice.finalized",
             Self::BillingPaymentReceived => "billing.payment.received",
             Self::PharmacyOrderDispensed => "pharmacy.order.dispensed",
+            Self::PharmacyStockMovementCreated => "pharmacy.stock.movement.created",
             Self::PharmacyNdpsMovementCreated => "pharmacy.ndps.movement.created",
             Self::IpdAdmissionCreated => "ipd.admission.created",
             Self::BedAssigned => "bed.assigned",
@@ -158,6 +182,13 @@ impl ClinicalEventName {
             | Self::PatientSearchCompleted => ClinicalEventSourceModule::Patients,
             Self::VisitCreated
             | Self::OpdEncounterCreated
+            | Self::OpdQueueCalled
+            | Self::OpdConsultationStarted
+            | Self::OpdVitalsRecorded
+            | Self::OpdConsultationSaved
+            | Self::OpdEncounterCompleted
+            | Self::OpdFollowupScheduled
+            | Self::OpdPrescriptionUpdated
             | Self::OpdCertificateCreated
             | Self::OpdConsentSigned => ClinicalEventSourceModule::Opd,
             Self::CampStarted | Self::CampRegistrationCreated | Self::CampScreeningCompleted => {
@@ -176,9 +207,9 @@ impl ClinicalEventName {
             Self::BillingInvoiceCreated
             | Self::BillingInvoiceFinalized
             | Self::BillingPaymentReceived => ClinicalEventSourceModule::Billing,
-            Self::PharmacyOrderDispensed | Self::PharmacyNdpsMovementCreated => {
-                ClinicalEventSourceModule::Pharmacy
-            }
+            Self::PharmacyOrderDispensed
+            | Self::PharmacyStockMovementCreated
+            | Self::PharmacyNdpsMovementCreated => ClinicalEventSourceModule::Pharmacy,
             Self::IpdAdmissionCreated | Self::BedAssigned | Self::BedTransferred => {
                 ClinicalEventSourceModule::Ipd
             }
@@ -213,6 +244,14 @@ impl ClinicalEventName {
                 &["intimation_id", "mlc_case_id", "patient_id"]
             }
             Self::OpdEncounterCreated => &["encounter_id", "patient_id"],
+            Self::OpdQueueCalled | Self::OpdConsultationStarted => {
+                &["queue_entry_id", "encounter_id", "patient_id"]
+            }
+            Self::OpdVitalsRecorded => &["encounter_id", "patient_id"],
+            Self::OpdConsultationSaved => &["consultation_id", "encounter_id", "patient_id"],
+            Self::OpdEncounterCompleted => &["encounter_id", "patient_id"],
+            Self::OpdFollowupScheduled => &["appointment_id", "patient_id"],
+            Self::OpdPrescriptionUpdated => &["prescription_id", "encounter_id", "patient_id"],
             Self::OpdCertificateCreated => &["certificate_id", "patient_id"],
             Self::OpdConsentSigned => &["consent_id", "patient_id"],
             Self::CampStarted => &["camp_id"],
@@ -228,6 +267,7 @@ impl ClinicalEventName {
             Self::BillingInvoiceFinalized => &["invoice_id", "patient_id"],
             Self::BillingPaymentReceived => &["payment_id", "invoice_id", "patient_id"],
             Self::PharmacyOrderDispensed => &["order_id", "patient_id", "items"],
+            Self::PharmacyStockMovementCreated => &["transaction_type", "quantity"],
             Self::PharmacyNdpsMovementCreated => &["entry_id", "catalog_item_id", "action"],
             Self::IpdAdmissionCreated => &["admission_id", "patient_id"],
             Self::BedAssigned => &["bed_id", "admission_id", "patient_id"],
@@ -284,6 +324,13 @@ impl FromStr for ClinicalEventName {
                 Ok(Self::EmergencyMlcPoliceIntimationCreated)
             }
             "opd.encounter.created" => Ok(Self::OpdEncounterCreated),
+            "opd.queue.called" => Ok(Self::OpdQueueCalled),
+            "opd.consultation.started" => Ok(Self::OpdConsultationStarted),
+            "opd.vitals.recorded" => Ok(Self::OpdVitalsRecorded),
+            "opd.consultation.saved" => Ok(Self::OpdConsultationSaved),
+            "opd.encounter.completed" => Ok(Self::OpdEncounterCompleted),
+            "opd.followup.scheduled" => Ok(Self::OpdFollowupScheduled),
+            "opd.prescription.updated" => Ok(Self::OpdPrescriptionUpdated),
             "opd.certificate.created" => Ok(Self::OpdCertificateCreated),
             "opd.consent.signed" => Ok(Self::OpdConsentSigned),
             "camp.started" => Ok(Self::CampStarted),
@@ -300,6 +347,7 @@ impl FromStr for ClinicalEventName {
             "billing.invoice.finalized" => Ok(Self::BillingInvoiceFinalized),
             "billing.payment.received" => Ok(Self::BillingPaymentReceived),
             "pharmacy.order.dispensed" => Ok(Self::PharmacyOrderDispensed),
+            "pharmacy.stock.movement.created" => Ok(Self::PharmacyStockMovementCreated),
             "pharmacy.ndps.movement.created" => Ok(Self::PharmacyNdpsMovementCreated),
             "ipd.admission.created" => Ok(Self::IpdAdmissionCreated),
             "bed.assigned" => Ok(Self::BedAssigned),
@@ -662,6 +710,57 @@ mod tests {
     }
 
     #[test]
+    fn opd_lifecycle_events_are_canonical() {
+        let events = [
+            (
+                "opd.queue.called",
+                ClinicalEventName::OpdQueueCalled,
+                &["queue_entry_id", "encounter_id", "patient_id"][..],
+            ),
+            (
+                "opd.consultation.started",
+                ClinicalEventName::OpdConsultationStarted,
+                &["queue_entry_id", "encounter_id", "patient_id"],
+            ),
+            (
+                "opd.vitals.recorded",
+                ClinicalEventName::OpdVitalsRecorded,
+                &["encounter_id", "patient_id"],
+            ),
+            (
+                "opd.consultation.saved",
+                ClinicalEventName::OpdConsultationSaved,
+                &["consultation_id", "encounter_id", "patient_id"],
+            ),
+            (
+                "opd.encounter.completed",
+                ClinicalEventName::OpdEncounterCompleted,
+                &["encounter_id", "patient_id"],
+            ),
+            (
+                "opd.followup.scheduled",
+                ClinicalEventName::OpdFollowupScheduled,
+                &["appointment_id", "patient_id"],
+            ),
+            (
+                "opd.prescription.updated",
+                ClinicalEventName::OpdPrescriptionUpdated,
+                &["prescription_id", "encounter_id", "patient_id"],
+            ),
+        ];
+
+        for (event_name, parsed, payload_keys) in events {
+            assert_eq!(event_name.parse::<ClinicalEventName>().ok(), Some(parsed));
+            assert_eq!(parsed.as_str(), event_name);
+            assert_eq!(
+                parsed.default_source_module(),
+                ClinicalEventSourceModule::Opd
+            );
+            assert_eq!(parsed.required_payload_keys(), payload_keys);
+        }
+    }
+
+    #[test]
     fn mrd_case_sheet_events_are_canonical() {
         assert_eq!(
             "mrd.case_sheet.generated".parse::<ClinicalEventName>().ok(),
@@ -699,7 +798,26 @@ mod tests {
     }
 
     #[test]
-    fn pharmacy_ndps_movement_event_is_canonical() {
+    fn pharmacy_movement_events_are_canonical() {
+        assert_eq!(
+            "pharmacy.stock.movement.created"
+                .parse::<ClinicalEventName>()
+                .ok(),
+            Some(ClinicalEventName::PharmacyStockMovementCreated)
+        );
+        assert_eq!(
+            ClinicalEventName::PharmacyStockMovementCreated.as_str(),
+            "pharmacy.stock.movement.created"
+        );
+        assert_eq!(
+            ClinicalEventName::PharmacyStockMovementCreated.default_source_module(),
+            ClinicalEventSourceModule::Pharmacy
+        );
+        assert_eq!(
+            ClinicalEventName::PharmacyStockMovementCreated.required_payload_keys(),
+            &["transaction_type", "quantity"]
+        );
+
         assert_eq!(
             "pharmacy.ndps.movement.created"
                 .parse::<ClinicalEventName>()
