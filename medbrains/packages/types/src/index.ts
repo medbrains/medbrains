@@ -19691,7 +19691,10 @@ export interface AdmitFromErRequest {
 export interface AdmitFromErResponse {
   er_visit_id: string;
   admission_id: string;
+  encounter_id: string;
   patient_id: string;
+  ward_id: string | null;
+  bed_id: string;
   status: "admitted";
 }
 

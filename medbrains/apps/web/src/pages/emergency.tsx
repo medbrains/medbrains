@@ -1682,21 +1682,25 @@ function EmergencyVisitCommandBar({
     onSuccess: (result, request) => {
       emit("ipd.admission.created", {
         admission_id: result.admission_id,
-        bed_id: request.bed_id,
+        bed_id: result.bed_id,
+        encounter_id: result.encounter_id,
         er_visit_id: result.er_visit_id,
         patient_id: result.patient_id,
         reason: request.admission_notes ?? visit.chief_complaint ?? "ER admission",
         source_record_id: result.admission_id,
         status: result.status,
+        ward_id: result.ward_id,
       });
       emit("bed.assigned", {
         admission_id: result.admission_id,
-        bed_id: request.bed_id,
+        bed_id: result.bed_id,
+        encounter_id: result.encounter_id,
         er_visit_id: result.er_visit_id,
         patient_id: result.patient_id,
         reason: request.admission_notes ?? visit.chief_complaint ?? "ER admission",
         source_record_id: result.admission_id,
         status: result.status,
+        ward_id: result.ward_id,
       });
       void qc.invalidateQueries({ queryKey: ["er-visits"] });
       void qc.invalidateQueries({ queryKey: ["er-visit", visit.id] });

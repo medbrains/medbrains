@@ -1960,7 +1960,9 @@ function RegistrationsTab({
         emit("camp.registration.created", {
           camp_id: registration.camp_id,
           patient_id: registration.patient_id,
+          registration_number: registration.registration_number,
           registration_id: registration.id,
+          source_record_id: registration.id,
         });
       }
       void qc.invalidateQueries({ queryKey: ["camp-registrations"] });
@@ -1976,20 +1978,28 @@ function RegistrationsTab({
 
   const openClinicalVisitMut = useMutation({
     mutationFn: ({
-      registrationId,
+      registration,
       values,
     }: {
-      registrationId: string;
+      registration: CampRegistration;
       values: CampClinicalVisitFormInput;
     }) =>
-      campService.openCampRegistrationEncounter(registrationId, {
+      campService.openCampRegistrationEncounter(registration.id, {
         department_id: values.department_id,
         doctor_id: values.doctor_id,
       }),
-    onSuccess: (result) => {
+    onSuccess: (result, { registration }) => {
       emit("opd.encounter.created", {
+        camp_id: registration.camp_id,
+        camp_registration_id: registration.id,
+        department_id: result.department_id,
+        doctor_id: result.doctor_id,
         encounter_id: result.encounter_id,
         patient_id: result.patient_id,
+        queue_entry_id: result.queue_id,
+        registration_id: registration.id,
+        registration_number: registration.registration_number,
+        source_record_id: result.encounter_id,
       });
       setClinicalContext(result);
       routeHandlers.close();
@@ -2018,7 +2028,7 @@ function RegistrationsTab({
     };
 
     if (!forceRoute && registration.clinical_department_id) {
-      openClinicalVisitMut.mutate({ registrationId: registration.id, values });
+      openClinicalVisitMut.mutate({ registration, values });
       return;
     }
 
@@ -2030,7 +2040,7 @@ function RegistrationsTab({
   const submitClinicalRouting = (values: CampClinicalVisitFormInput) => {
     if (!selectedRegistrationForClinical) return;
     openClinicalVisitMut.mutate({
-      registrationId: selectedRegistrationForClinical.id,
+      registration: selectedRegistrationForClinical,
       values,
     });
   };
@@ -2656,7 +2666,10 @@ function ScreeningsTab({
         emit("camp.screening.completed", {
           camp_id: registration.camp_id,
           patient_id: registration.patient_id,
+          registration_id: registration.id,
+          registration_number: registration.registration_number,
           screening_id: screening.id,
+          source_record_id: screening.id,
         });
       }
       void qc.invalidateQueries({ queryKey: ["camp-screenings"] });

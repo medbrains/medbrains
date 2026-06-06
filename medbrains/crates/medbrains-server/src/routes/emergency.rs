@@ -2199,7 +2199,10 @@ pub async fn admit_from_er(
     Ok(Json(serde_json::json!({
         "er_visit_id": id,
         "admission_id": admission_id,
+        "encounter_id": encounter_id,
         "patient_id": visit.patient_id,
+        "ward_id": admission_ward_id,
+        "bed_id": body.bed_id,
         "status": "admitted"
     })))
 }
