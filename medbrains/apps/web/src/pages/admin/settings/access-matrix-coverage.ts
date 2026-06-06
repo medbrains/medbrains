@@ -146,6 +146,122 @@ export interface WorkflowKindCoverageSummary {
   permissionMapped: number;
 }
 
+export type PatientFlowGovernanceGap =
+  | "missing-surface"
+  | "missing-platform"
+  | "missing-launch-target"
+  | "missing-surface-kind"
+  | "missing-permission"
+  | "missing-field-keys"
+  | "missing-masking"
+  | "missing-activation"
+  | "missing-print"
+  | "missing-public-display-policy";
+
+export interface PatientFlowGovernanceExpectation {
+  key: string;
+  label: string;
+  modules: readonly string[];
+  requiredKinds: readonly AccessMatrixSurfaceKind[];
+  requiredPlatforms: readonly AccessMatrixPlatform[];
+  requiresPrint: boolean;
+  requiresPublicDisplayPolicy: boolean;
+}
+
+export interface PatientFlowGovernanceRow extends PatientFlowGovernanceExpectation {
+  surfaces: readonly AccessMatrixSurface[];
+  presentKinds: readonly AccessMatrixSurfaceKind[];
+  missingKinds: readonly AccessMatrixSurfaceKind[];
+  presentPlatforms: readonly AccessMatrixPlatform[];
+  missingPlatforms: readonly AccessMatrixPlatform[];
+  launchTargetPlatforms: readonly AccessMatrixPlatform[];
+  missingLaunchTargetPlatforms: readonly AccessMatrixPlatform[];
+  routeMapped: number;
+  permissionMapped: number;
+  fieldMapped: number;
+  maskingMapped: number;
+  eventActivated: number;
+  printSurfaces: number;
+  publicDisplaySurfaces: number;
+  publicDisclosureMapped: number;
+  gaps: readonly PatientFlowGovernanceGap[];
+}
+
+export interface PatientFlowGovernanceSummary {
+  total: number;
+  complete: number;
+  gaps: number;
+  publicDisplayMapped: number;
+  printMapped: number;
+  edgeReady: number;
+}
+
+export const PATIENT_FLOW_GOVERNANCE_EXPECTATIONS: readonly PatientFlowGovernanceExpectation[] = [
+  {
+    key: "registration",
+    label: "Registration desk",
+    modules: ["patients"],
+    requiredKinds: ["screen", "input", "action", "print"],
+    requiredPlatforms: ["web", "mobile", "kiosk"],
+    requiresPrint: true,
+    requiresPublicDisplayPolicy: false,
+  },
+  {
+    key: "opd",
+    label: "OPD clinic",
+    modules: ["opd"],
+    requiredKinds: ["screen", "column", "input", "action", "print"],
+    requiredPlatforms: ["web", "mobile", "tv", "kiosk"],
+    requiresPrint: true,
+    requiresPublicDisplayPolicy: true,
+  },
+  {
+    key: "ipd",
+    label: "IPD ward",
+    modules: ["ipd"],
+    requiredKinds: ["screen", "tab", "input", "action", "print"],
+    requiredPlatforms: ["web", "mobile", "tv", "kiosk"],
+    requiresPrint: true,
+    requiresPublicDisplayPolicy: false,
+  },
+  {
+    key: "emergency",
+    label: "Emergency and MLC",
+    modules: ["emergency"],
+    requiredKinds: ["screen", "table", "input", "action", "print"],
+    requiredPlatforms: ["web", "mobile", "tv", "kiosk"],
+    requiresPrint: true,
+    requiresPublicDisplayPolicy: true,
+  },
+  {
+    key: "camp",
+    label: "Camp workflow",
+    modules: ["camp"],
+    requiredKinds: ["screen", "tab", "input", "action", "print"],
+    requiredPlatforms: ["web", "mobile", "kiosk"],
+    requiresPrint: true,
+    requiresPublicDisplayPolicy: false,
+  },
+  {
+    key: "pharmacy",
+    label: "Pharmacy",
+    modules: ["pharmacy"],
+    requiredKinds: ["screen", "table", "column", "input", "action", "print"],
+    requiredPlatforms: ["web", "mobile", "tv", "kiosk"],
+    requiresPrint: true,
+    requiresPublicDisplayPolicy: true,
+  },
+  {
+    key: "billing",
+    label: "Billing",
+    modules: ["billing"],
+    requiredKinds: ["screen", "tab", "column", "input", "action", "print"],
+    requiredPlatforms: ["web", "mobile", "tv", "kiosk"],
+    requiresPrint: true,
+    requiresPublicDisplayPolicy: true,
+  },
+];
+
 interface NavRouteRequirement {
   path: string;
   labelKey: string;
@@ -588,5 +704,109 @@ export function summarizeWorkflowKindCoverage(
     eventDriven: rows.filter((row) => row.activatedSurfaces > 0).length,
     printMapped: rows.filter((row) => row.printSurfaces > 0).length,
     permissionMapped: rows.filter((row) => row.permissions.size > 0).length,
+  };
+}
+
+function publicDisplayPolicyMapped(surface: AccessMatrixSurface) {
+  return (
+    surface.id.startsWith("token_boards.") &&
+    surface.id.endsWith(".public_display") &&
+    surface.fieldAccessKeys.length > 0 &&
+    surface.masking !== "none" &&
+    surface.platforms.includes("tv") &&
+    surface.platforms.includes("kiosk") &&
+    surface.standardRefs.some((standard) => {
+      const normalized = standard.toLowerCase();
+      return (
+        normalized.includes("privacy") ||
+        normalized.includes("minimisation") ||
+        normalized.includes("ipsg")
+      );
+    })
+  );
+}
+
+export function buildPatientFlowGovernanceCoverage(
+  surfaces: readonly AccessMatrixSurface[],
+  expectations: readonly PatientFlowGovernanceExpectation[] = PATIENT_FLOW_GOVERNANCE_EXPECTATIONS,
+): PatientFlowGovernanceRow[] {
+  return expectations.map((expectation) => {
+    const flowSurfaces = surfaces.filter((surface) => expectation.modules.includes(surface.module));
+    const presentKinds = [...new Set(flowSurfaces.map((surface) => surface.kind))].sort();
+    const presentPlatforms = [
+      ...new Set(flowSurfaces.flatMap((surface) => [...surface.platforms])),
+    ].sort();
+    const launchTargetPlatforms = expectation.requiredPlatforms.filter((platform) =>
+      flowSurfaces.some((surface) => Boolean(accessSurfacePlatformRoute(surface, platform))),
+    );
+    const publicDisplaySurfaces = flowSurfaces.filter(
+      (surface) => surface.id.startsWith("token_boards.") && surface.id.endsWith(".public_display"),
+    );
+    const rowWithoutGaps = {
+      ...expectation,
+      eventActivated: flowSurfaces.filter((surface) => surface.activatesAfter.length > 0).length,
+      fieldMapped: flowSurfaces.filter((surface) => surface.fieldAccessKeys.length > 0).length,
+      gaps: [],
+      launchTargetPlatforms,
+      maskingMapped: flowSurfaces.filter((surface) => surface.masking !== "none").length,
+      missingKinds: expectation.requiredKinds.filter((kind) => !presentKinds.includes(kind)),
+      missingLaunchTargetPlatforms: expectation.requiredPlatforms.filter(
+        (platform) => !launchTargetPlatforms.includes(platform),
+      ),
+      missingPlatforms: expectation.requiredPlatforms.filter(
+        (platform) => !presentPlatforms.includes(platform),
+      ),
+      permissionMapped: flowSurfaces.filter((surface) => surface.requiredPermissions.length > 0)
+        .length,
+      presentKinds,
+      presentPlatforms,
+      printSurfaces: flowSurfaces.filter((surface) => surface.kind === "print").length,
+      publicDisclosureMapped: publicDisplaySurfaces.filter(publicDisplayPolicyMapped).length,
+      publicDisplaySurfaces: publicDisplaySurfaces.length,
+      routeMapped: flowSurfaces.filter((surface) => surface.route).length,
+      surfaces: flowSurfaces,
+    } satisfies Omit<PatientFlowGovernanceRow, "gaps"> & {
+      gaps: readonly PatientFlowGovernanceGap[];
+    };
+    const gaps: PatientFlowGovernanceGap[] = [];
+
+    if (rowWithoutGaps.surfaces.length === 0) gaps.push("missing-surface");
+    if (rowWithoutGaps.missingPlatforms.length > 0) gaps.push("missing-platform");
+    if (rowWithoutGaps.missingLaunchTargetPlatforms.length > 0) {
+      gaps.push("missing-launch-target");
+    }
+    if (rowWithoutGaps.missingKinds.length > 0) gaps.push("missing-surface-kind");
+    if (rowWithoutGaps.permissionMapped === 0) gaps.push("missing-permission");
+    if (rowWithoutGaps.fieldMapped === 0) gaps.push("missing-field-keys");
+    if (rowWithoutGaps.maskingMapped === 0) gaps.push("missing-masking");
+    if (rowWithoutGaps.eventActivated === 0) gaps.push("missing-activation");
+    if (expectation.requiresPrint && rowWithoutGaps.printSurfaces === 0) {
+      gaps.push("missing-print");
+    }
+    if (expectation.requiresPublicDisplayPolicy && rowWithoutGaps.publicDisclosureMapped === 0) {
+      gaps.push("missing-public-display-policy");
+    }
+
+    return {
+      ...rowWithoutGaps,
+      gaps,
+    };
+  });
+}
+
+export function summarizePatientFlowGovernance(
+  rows: readonly PatientFlowGovernanceRow[],
+): PatientFlowGovernanceSummary {
+  return {
+    total: rows.length,
+    complete: rows.filter((row) => row.gaps.length === 0).length,
+    gaps: rows.filter((row) => row.gaps.length > 0).length,
+    publicDisplayMapped: rows.filter(
+      (row) => !row.requiresPublicDisplayPolicy || row.publicDisclosureMapped > 0,
+    ).length,
+    printMapped: rows.filter((row) => !row.requiresPrint || row.printSurfaces > 0).length,
+    edgeReady: rows.filter(
+      (row) => row.missingPlatforms.length === 0 && row.missingLaunchTargetPlatforms.length === 0,
+    ).length,
   };
 }

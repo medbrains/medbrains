@@ -66,11 +66,14 @@ import {
   buildAccessSurfaceGovernanceCoverage,
   buildAccessSurfaceGovernanceGapRows,
   buildNavRouteCoverage,
+  buildPatientFlowGovernanceCoverage,
   buildWorkflowKindCoverage,
+  type PatientFlowGovernanceGap,
   summarizeAccessFieldCoverage,
   summarizeAccessPlatformCoverage,
   summarizeAccessSurfaceGovernance,
   summarizeNavRouteCoverage,
+  summarizePatientFlowGovernance,
   summarizeWorkflowKindCoverage,
 } from "./access-matrix-coverage";
 import {
@@ -116,6 +119,18 @@ const ACCESS_FIELD_COVERAGE_GAP_LABELS: Record<AccessFieldCoverageGap, string> =
   "missing-route": "route",
   "missing-permission": "permission",
   "missing-masking": "masking",
+};
+const PATIENT_FLOW_GOVERNANCE_GAP_LABELS: Record<PatientFlowGovernanceGap, string> = {
+  "missing-surface": "surface",
+  "missing-platform": "platform",
+  "missing-launch-target": "launch target",
+  "missing-surface-kind": "surface type",
+  "missing-permission": "permission",
+  "missing-field-keys": "field keys",
+  "missing-masking": "masking",
+  "missing-activation": "event",
+  "missing-print": "print",
+  "missing-public-display-policy": "public display",
 };
 
 type FieldOverrideLevel = FieldAccessLevel | "inherit";
@@ -1631,6 +1646,14 @@ function SurfaceCoverageMatrix() {
     () => summarizeWorkflowKindCoverage(workflowCoverage),
     [workflowCoverage],
   );
+  const patientFlowGovernanceRows = useMemo(
+    () => buildPatientFlowGovernanceCoverage(ACCESS_MATRIX_SURFACES),
+    [],
+  );
+  const patientFlowGovernanceSummary = useMemo(
+    () => summarizePatientFlowGovernance(patientFlowGovernanceRows),
+    [patientFlowGovernanceRows],
+  );
   const fieldKeysMissingFromRegistry = [...coveredFieldKeys].filter((key) => !fieldsByKey.has(key));
   const registeredFieldsNotMapped = FIELD_ACCESS_FIELDS.filter(
     (field) => !coveredFieldKeys.has(fieldKey(field)),
@@ -1851,6 +1874,18 @@ function SurfaceCoverageMatrix() {
         </Card>
         <Card withBorder padding="sm">
           <Text size="xs" c="dimmed" fw={700} tt="uppercase">
+            Patient Flow
+          </Text>
+          <Text fw={700}>
+            {patientFlowGovernanceSummary.complete}/{patientFlowGovernanceSummary.total}
+          </Text>
+          <Text size="xs" c="dimmed">
+            {patientFlowGovernanceSummary.edgeReady} edge-ready,{" "}
+            {patientFlowGovernanceSummary.publicDisplayMapped} public-safe
+          </Text>
+        </Card>
+        <Card withBorder padding="sm">
+          <Text size="xs" c="dimmed" fw={700} tt="uppercase">
             Surface Governance
           </Text>
           <Text fw={700}>
@@ -1883,6 +1918,160 @@ function SurfaceCoverageMatrix() {
           </Text>
         </Card>
       </SimpleGrid>
+
+      <Card withBorder padding="md">
+        <Stack gap="sm">
+          <Group justify="space-between" align="flex-start">
+            <Stack gap={2}>
+              <Text fw={700}>Patient Flow Governance</Text>
+              <Text size="sm" c="dimmed">
+                Tracks the real hospital chain from registration through OPD, IPD, emergency, camp,
+                pharmacy and billing, including web, mobile, TV, kiosk, print and public-display
+                governance evidence.
+              </Text>
+            </Stack>
+            <Badge
+              color={patientFlowGovernanceSummary.gaps > 0 ? "orange" : "green"}
+              variant="light"
+            >
+              {patientFlowGovernanceSummary.gaps} flow gaps
+            </Badge>
+          </Group>
+
+          <ScrollArea.Autosize mah={420}>
+            <Table stickyHeader highlightOnHover verticalSpacing="xs">
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th>Hospital step</Table.Th>
+                  <Table.Th>Platforms</Table.Th>
+                  <Table.Th>Launch targets</Table.Th>
+                  <Table.Th>Surface types</Table.Th>
+                  <Table.Th>Governance</Table.Th>
+                  <Table.Th>Print / public display</Table.Th>
+                  <Table.Th>Gaps</Table.Th>
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
+                {patientFlowGovernanceRows.map((row) => (
+                  <Table.Tr key={row.key}>
+                    <Table.Td>
+                      <Text size="sm" fw={600}>
+                        {row.label}
+                      </Text>
+                      <Group gap={4} mt={4}>
+                        {row.modules.map((module) => (
+                          <Badge key={module} variant="light">
+                            {module}
+                          </Badge>
+                        ))}
+                        <Badge color="gray" variant="light">
+                          {row.surfaces.length} surfaces
+                        </Badge>
+                      </Group>
+                    </Table.Td>
+                    <Table.Td>
+                      <Group gap={4}>
+                        {row.requiredPlatforms.map((platform) => (
+                          <Badge
+                            key={platform}
+                            color={row.missingPlatforms.includes(platform) ? "orange" : "blue"}
+                            variant="light"
+                          >
+                            {platform}
+                          </Badge>
+                        ))}
+                      </Group>
+                    </Table.Td>
+                    <Table.Td>
+                      <Group gap={4}>
+                        {row.requiredPlatforms.map((platform) => (
+                          <Badge
+                            key={platform}
+                            color={
+                              row.missingLaunchTargetPlatforms.includes(platform)
+                                ? "orange"
+                                : "green"
+                            }
+                            variant="light"
+                          >
+                            {platform}
+                          </Badge>
+                        ))}
+                      </Group>
+                    </Table.Td>
+                    <Table.Td>
+                      <Stack gap={4}>
+                        <Group gap={4}>
+                          {row.requiredKinds.map((kind) => (
+                            <Badge
+                              key={kind}
+                              color={row.missingKinds.includes(kind) ? "orange" : "gray"}
+                              variant="light"
+                            >
+                              {kind}
+                            </Badge>
+                          ))}
+                        </Group>
+                        <Text size="xs" c="dimmed">
+                          {row.presentKinds.length} mapped surface types
+                        </Text>
+                      </Stack>
+                    </Table.Td>
+                    <Table.Td>
+                      <Stack gap={4}>
+                        <Badge color={row.permissionMapped > 0 ? "teal" : "orange"} variant="light">
+                          {row.permissionMapped} permission
+                        </Badge>
+                        <Badge color={row.fieldMapped > 0 ? "blue" : "orange"} variant="light">
+                          {row.fieldMapped} field maps
+                        </Badge>
+                        <Badge color={row.maskingMapped > 0 ? "violet" : "orange"} variant="light">
+                          {row.maskingMapped} masking
+                        </Badge>
+                        <Badge color={row.eventActivated > 0 ? "green" : "orange"} variant="light">
+                          {row.eventActivated} events
+                        </Badge>
+                      </Stack>
+                    </Table.Td>
+                    <Table.Td>
+                      <Stack gap={4}>
+                        <Badge color={row.printSurfaces > 0 ? "blue" : "gray"} variant="light">
+                          {row.printSurfaces} print
+                        </Badge>
+                        <Badge
+                          color={
+                            !row.requiresPublicDisplayPolicy || row.publicDisclosureMapped > 0
+                              ? "green"
+                              : "orange"
+                          }
+                          variant="light"
+                        >
+                          {row.publicDisclosureMapped}/{row.publicDisplaySurfaces} public-safe
+                        </Badge>
+                      </Stack>
+                    </Table.Td>
+                    <Table.Td>
+                      {row.gaps.length > 0 ? (
+                        <Group gap={4}>
+                          {row.gaps.map((gap) => (
+                            <Badge key={gap} color="orange" variant="light">
+                              {PATIENT_FLOW_GOVERNANCE_GAP_LABELS[gap]}
+                            </Badge>
+                          ))}
+                        </Group>
+                      ) : (
+                        <Badge color="green" variant="light">
+                          complete
+                        </Badge>
+                      )}
+                    </Table.Td>
+                  </Table.Tr>
+                ))}
+              </Table.Tbody>
+            </Table>
+          </ScrollArea.Autosize>
+        </Stack>
+      </Card>
 
       <Card withBorder padding="md">
         <Stack gap="sm">

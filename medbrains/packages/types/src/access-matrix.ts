@@ -120,6 +120,12 @@ export const CAMP_REGISTRATION_FIELD_ACCESS_KEYS: readonly string[] = [
 
 export const ACCESS_MATRIX_WORKFLOW_EXPECTATIONS: readonly AccessMatrixWorkflowExpectation[] = [
   {
+    key: "patient_flow",
+    label: "Registration to billing patient flow",
+    modules: ["patients", "opd", "ipd", "emergency", "camp", "pharmacy", "billing"],
+    requiredKinds: ["screen", "action", "print", "widget"],
+  },
+  {
     key: "registration",
     label: "Patient registration",
     modules: ["patients"],
@@ -259,6 +265,33 @@ const BILLING_PAYER_FIELDS = [
   "insurance.prior_auth.auth_number",
   "insurance.prior_auth.denial_reason",
 ] as const;
+
+const PATIENT_FLOW_HANDOFF_PERMISSIONS = [
+  P.PATIENTS.VIEW,
+  P.OPD.VISIT_CREATE,
+  P.IPD.ADMISSIONS_CREATE,
+  P.IPD.ADMISSIONS_VIEW,
+  P.EMERGENCY.VISITS_CREATE,
+  P.CAMP.LIST,
+  P.CAMP.REGISTRATIONS_LIST,
+  P.CAMP.REGISTRATIONS_CREATE,
+  P.PHARMACY.PRESCRIPTIONS_LIST,
+  P.BILLING.INVOICES_LIST,
+] as const;
+
+const PATIENT_FLOW_HANDOFF_EVENTS = [
+  "patient.created",
+  "opd.encounter.created",
+  "ipd.admission.created",
+  "bed.assigned",
+  "emergency.visit.created",
+  "camp.registration.created",
+  "camp.screening.completed",
+  "order.created",
+  "pharmacy.order.dispensed",
+  "billing.invoice.created",
+  "billing.payment.received",
+] as const satisfies readonly ClinicalEventName[];
 
 const MRD_CASE_SHEET_FIELDS = [
   ...PATIENT_IDENTITY_FIELDS,
@@ -470,6 +503,10 @@ export const ACCESS_MATRIX_SURFACES: readonly AccessMatrixSurface[] = [
     masking: "identity",
     activatesAfter: ["patient.search.completed"],
     platforms: ["web", "mobile", "kiosk"],
+    platformRoutes: {
+      mobile: "PatientSearch",
+      kiosk: "/patients/register?display=kiosk",
+    },
     standardRefs: ["NABH AAC registration", "IPSG two identifiers"],
   }),
   surface({
@@ -538,6 +575,28 @@ export const ACCESS_MATRIX_SURFACES: readonly AccessMatrixSurface[] = [
     activatesAfter: ["patient.created", "patient.updated", "patient.access_shared"],
     platforms: ["web", "mobile", "kiosk"],
     standardRefs: ["DPDP Act lawful processing and correction rights", "NABH IMS confidentiality"],
+  }),
+  surface({
+    id: "patients.patient_flow.handoff_rail",
+    module: "patients",
+    area: "Patient Flow",
+    label: "Patient-flow rail for OPD, IPD, ER, camp, pharmacy and billing handoffs",
+    kind: "widget",
+    route: "/patients/:id#overview",
+    requiredPermissions: PATIENT_FLOW_HANDOFF_PERMISSIONS,
+    fieldAccessKeys: PATIENT_IDENTITY_FIELDS,
+    masking: "identity",
+    activatesAfter: PATIENT_FLOW_HANDOFF_EVENTS,
+    platformRoutes: {
+      mobile: "PatientDetail",
+      web: "/patients/:id#overview",
+    },
+    platforms: ["web", "mobile"],
+    standardRefs: [
+      "IPSG.1 patient identification",
+      "NABH AAC continuity of care",
+      "DPDP Act data minimisation",
+    ],
   }),
   surface({
     id: "patients.registration.printables",
@@ -835,6 +894,10 @@ export const ACCESS_MATRIX_SURFACES: readonly AccessMatrixSurface[] = [
     masking: "identity",
     activatesAfter: ["ipd.admission.created"],
     platforms: ["web", "mobile", "tv"],
+    platformRoutes: {
+      mobile: "PatientCareContext?module=ipd",
+      tv: "medbrains://tv/ipd-admissions",
+    },
     standardRefs: ["NABH AAC inpatient admission"],
   }),
   surface({
@@ -974,6 +1037,9 @@ export const ACCESS_MATRIX_SURFACES: readonly AccessMatrixSurface[] = [
     masking: "clinical",
     activatesAfter: ["ipd.admission.created"],
     platforms: ["web", "kiosk"],
+    platformRoutes: {
+      kiosk: "/ipd/admissions/:admissionId?display=kiosk#overview",
+    },
     printArtifacts: [
       "Admission sheet",
       "Case-sheet cover page",
@@ -1132,6 +1198,10 @@ export const ACCESS_MATRIX_SURFACES: readonly AccessMatrixSurface[] = [
     masking: "identity",
     activatesAfter: ["camp.started"],
     platforms: ["web", "mobile", "kiosk"],
+    platformRoutes: {
+      mobile: "PatientCareContext?module=camp",
+      kiosk: "/camp/:campId/work?display=kiosk#registrations",
+    },
     standardRefs: ["NABH outreach continuity"],
   }),
   surface({
@@ -1208,6 +1278,10 @@ export const ACCESS_MATRIX_SURFACES: readonly AccessMatrixSurface[] = [
     masking: "clinical",
     activatesAfter: ["order.created", "order.cancelled"],
     platforms: ["web", "mobile", "tv"],
+    platformRoutes: {
+      mobile: "PatientPharmacy",
+      tv: "medbrains://tv/pharmacy-queue",
+    },
     standardRefs: ["Drugs and Cosmetics Act", "NABH MOM"],
   }),
   surface({
@@ -1390,6 +1464,9 @@ export const ACCESS_MATRIX_SURFACES: readonly AccessMatrixSurface[] = [
     fieldAccessKeys: ["pharmacy.pos.patient_name", "pharmacy.pos.patient_phone"],
     masking: "identity",
     platforms: ["web", "kiosk"],
+    platformRoutes: {
+      kiosk: "/pharmacy?tab=pos&display=kiosk",
+    },
     standardRefs: ["DPDP Act customer data minimisation"],
   }),
   surface({
@@ -1473,6 +1550,10 @@ export const ACCESS_MATRIX_SURFACES: readonly AccessMatrixSurface[] = [
     masking: "financial",
     activatesAfter: ["billing.invoice.created", "order.created"],
     platforms: ["web", "mobile", "kiosk"],
+    platformRoutes: {
+      mobile: "Billing?filter=all",
+      kiosk: "/billing?tab=invoices&display=kiosk",
+    },
     standardRefs: ["DPDP Act financial data", "PCI scoping if card payment is enabled"],
   }),
   surface({

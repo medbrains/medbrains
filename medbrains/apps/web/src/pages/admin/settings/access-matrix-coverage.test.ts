@@ -17,6 +17,7 @@ import {
   buildAccessSurfaceGovernanceCoverage,
   buildAccessSurfaceGovernanceGapRows,
   buildNavRouteCoverage,
+  buildPatientFlowGovernanceCoverage,
   buildWorkflowKindCoverage,
   flattenNavRoutes,
   normalizeCoverageRoute,
@@ -24,6 +25,7 @@ import {
   summarizeAccessPlatformCoverage,
   summarizeAccessSurfaceGovernance,
   summarizeNavRouteCoverage,
+  summarizePatientFlowGovernance,
   summarizeWorkflowKindCoverage,
 } from "./access-matrix-coverage";
 import { REPORT_EVENT_SOURCE_DEFINITIONS } from "./report-event-coverage";
@@ -143,9 +145,7 @@ describe("access matrix route coverage", () => {
     );
     const gaps = rows.flatMap((row) => row.missingKinds.map((kind) => `${row.key}:${kind}`));
     const indentInventory = rows.find((row) => row.key === "indent_inventory");
-    const expectedPrintableWorkflows = ACCESS_MATRIX_WORKFLOW_EXPECTATIONS.filter((workflow) =>
-      workflow.requiredKinds.includes("print"),
-    ).length;
+    const printableWorkflows = rows.filter((row) => row.printSurfaces > 0).length;
 
     expect(gaps).toEqual([]);
     expect(indentInventory?.presentKinds).toEqual(
@@ -156,7 +156,7 @@ describe("access matrix route coverage", () => {
       complete: ACCESS_MATRIX_WORKFLOW_EXPECTATIONS.length,
       gaps: 0,
       eventDriven: ACCESS_MATRIX_WORKFLOW_EXPECTATIONS.length,
-      printMapped: expectedPrintableWorkflows,
+      printMapped: printableWorkflows,
       permissionMapped: ACCESS_MATRIX_WORKFLOW_EXPECTATIONS.length,
     });
   });
@@ -415,6 +415,81 @@ describe("access matrix route coverage", () => {
     ).toEqual(["ipd.admission.created", "mrd.case_sheet.generated"]);
   });
 
+  it("governs the shared patient-flow handoff rail across web and mobile", () => {
+    const surface = ACCESS_MATRIX_SURFACES.find(
+      (entry) => entry.id === "patients.patient_flow.handoff_rail",
+    );
+
+    expect(surface).toBeDefined();
+    expect(surface?.kind).toBe("widget");
+    expect(surface?.platforms).toEqual(["web", "mobile"]);
+    expect(surface?.platformRoutes).toEqual({
+      mobile: "PatientDetail",
+      web: "/patients/:id#overview",
+    });
+    expect(surface?.fieldAccessKeys).toEqual(
+      expect.arrayContaining([
+        "patients.uhid",
+        "patients.first_name",
+        "patients.middle_name",
+        "patients.last_name",
+      ]),
+    );
+    expect(surface?.requiredPermissions).toEqual(
+      expect.arrayContaining([
+        "patients.view",
+        "opd.visit.create",
+        "ipd.admissions.create",
+        "ipd.admissions.view",
+        "emergency.visits.create",
+        "camp.list",
+        "camp.registrations.list",
+        "camp.registrations.create",
+        "pharmacy.prescriptions.list",
+        "billing.invoices.list",
+      ]),
+    );
+    expect(surface?.activatesAfter).toEqual(
+      expect.arrayContaining([
+        "patient.created",
+        "opd.encounter.created",
+        "ipd.admission.created",
+        "bed.assigned",
+        "emergency.visit.created",
+        "camp.registration.created",
+        "camp.screening.completed",
+        "order.created",
+        "pharmacy.order.dispensed",
+        "billing.invoice.created",
+        "billing.payment.received",
+      ]),
+    );
+    expect(surface?.masking).toBe("identity");
+  });
+
+  it("summarizes registration-to-billing patient-flow governance without edge gaps", () => {
+    const rows = buildPatientFlowGovernanceCoverage(ACCESS_MATRIX_SURFACES);
+    const summary = summarizePatientFlowGovernance(rows);
+    const opd = rows.find((row) => row.key === "opd");
+    const pharmacy = rows.find((row) => row.key === "pharmacy");
+    const billing = rows.find((row) => row.key === "billing");
+
+    expect(summary).toEqual({
+      total: rows.length,
+      complete: rows.length,
+      gaps: 0,
+      publicDisplayMapped: rows.length,
+      printMapped: rows.length,
+      edgeReady: rows.length,
+    });
+    expect(opd?.missingLaunchTargetPlatforms).toEqual([]);
+    expect(opd?.publicDisclosureMapped).toBeGreaterThan(0);
+    expect(pharmacy?.presentPlatforms).toEqual(
+      expect.arrayContaining(["web", "mobile", "tv", "kiosk"]),
+    );
+    expect(billing?.publicDisclosureMapped).toBeGreaterThan(0);
+  });
+
   it("maps indent lifecycle and stock movement events to governed store surfaces", () => {
     const surfaces = ACCESS_MATRIX_SURFACES.filter((surface) => surface.module === "indent");
     const screen = surfaces.find((surface) => surface.id === "indent.requisitions.screen");
@@ -530,6 +605,75 @@ describe("access matrix route coverage", () => {
     expect(kioskRow?.platformRouteMapped).toBeGreaterThanOrEqual(TOKEN_BOARD_SURFACE_LIST.length);
     expect(kioskRow?.modules).toEqual(
       expect.arrayContaining(["billing", "emergency", "opd", "pharmacy"]),
+    );
+  });
+
+  it("summarizes real patient-flow governance across web, mobile, TV, kiosk and print", () => {
+    const rows = buildPatientFlowGovernanceCoverage(ACCESS_MATRIX_SURFACES);
+    const summary = summarizePatientFlowGovernance(rows);
+    const registration = rows.find((row) => row.key === "registration");
+    const opd = rows.find((row) => row.key === "opd");
+    const ipd = rows.find((row) => row.key === "ipd");
+    const billing = rows.find((row) => row.key === "billing");
+
+    expect(summary).toEqual({
+      total: 7,
+      complete: 7,
+      gaps: 0,
+      publicDisplayMapped: 7,
+      printMapped: 7,
+      edgeReady: 7,
+    });
+    expect(registration?.launchTargetPlatforms).toEqual(
+      expect.arrayContaining(["web", "mobile", "kiosk"]),
+    );
+    expect(opd?.publicDisclosureMapped).toBeGreaterThan(0);
+    expect(ipd?.launchTargetPlatforms).toEqual(
+      expect.arrayContaining(["web", "mobile", "tv", "kiosk"]),
+    );
+    expect(billing?.launchTargetPlatforms).toEqual(
+      expect.arrayContaining(["web", "mobile", "tv", "kiosk"]),
+    );
+  });
+
+  it("reports patient-flow governance gaps for missing launch and public display policy", () => {
+    const rows = buildPatientFlowGovernanceCoverage([
+      testSurface({
+        id: "billing.invoices.screen",
+        label: "Billing invoices",
+        module: "billing",
+        kind: "screen",
+        route: "/billing",
+        platforms: ["web", "mobile"],
+        requiredPermissions: ["billing.invoices.list"],
+        fieldAccessKeys: ["billing.amount"],
+        masking: "financial",
+        activatesAfter: ["billing.invoice.created"],
+      }),
+      testSurface({
+        id: "billing.receipt.print",
+        label: "Billing receipt",
+        module: "billing",
+        kind: "print",
+        route: "/billing",
+        platforms: ["web"],
+        requiredPermissions: ["billing.receipts.print"],
+        fieldAccessKeys: ["billing.amount"],
+        masking: "financial",
+        activatesAfter: ["billing.payment.received"],
+        printArtifacts: ["Receipt"],
+        printCopies: ["customer", "office"],
+      }),
+    ]);
+    const billing = rows.find((row) => row.key === "billing");
+
+    expect(billing?.gaps).toEqual(
+      expect.arrayContaining([
+        "missing-platform",
+        "missing-launch-target",
+        "missing-surface-kind",
+        "missing-public-display-policy",
+      ]),
     );
   });
 
