@@ -382,7 +382,12 @@ const TOKEN_BOARD_ACCESS_SURFACES: readonly AccessMatrixSurface[] = [
     id: "radiology",
     fieldAccessKeys: RADIOLOGY_PUBLIC_QUEUE_FIELDS,
     masking: "regulatory",
-    activatesAfter: ["order.created", "radiology.order.completed", "radiology.report.verified"],
+    activatesAfter: [
+      "order.created",
+      "radiology.order.completed",
+      "radiology.report.created",
+      "radiology.report.verified",
+    ],
   }),
   tokenBoardAccessSurface({
     id: "emergency",

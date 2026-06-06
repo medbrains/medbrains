@@ -701,11 +701,23 @@ function OrderDetailDrawer({
         is_critical: isCritical,
         status: "preliminary",
       }),
-    onSuccess: () => {
+    onSuccess: (result) => {
       void qc.invalidateQueries({ queryKey: ["radiology-order", id] });
       void qc.invalidateQueries({ queryKey: ["radiology-orders"] });
       notifications.show({ title: "Report created", message: "", color: "success" });
-      emit("radiology.report.created", { orderId: id });
+      if (order) {
+        emit("radiology.report.created", {
+          body_part: order.body_part,
+          encounter_id: order.encounter_id,
+          is_critical: result.is_critical,
+          modality_id: order.modality_id,
+          order_id: order.id,
+          patient_id: order.patient_id,
+          report_id: result.id,
+          report_status: result.status,
+          reported_at: result.created_at,
+        });
+      }
       setFindings("");
       setImpression("");
       setRecommendations("");

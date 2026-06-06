@@ -139,6 +139,7 @@ export const REPORT_EVENT_SOURCE_DEFINITIONS: readonly ReportEventSourceDefiniti
       "lab.result.verified",
       "lab.order.completed",
       "radiology.order.completed",
+      "radiology.report.created",
       "radiology.report.verified",
     ],
     standardRefs: ["NABL traceability", "DICOM workflow", "NABH AOP"],

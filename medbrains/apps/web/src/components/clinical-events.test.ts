@@ -37,6 +37,7 @@ describe("clinical event normalization", () => {
     expect(normalizeClinicalEventName("prescription.updated_before_pharmacy_approval")).toBe(
       "opd.prescription.updated",
     );
+    expect(normalizeClinicalEventName("radiology.report.created")).toBe("radiology.report.created");
     expect(normalizeClinicalEventName("stock.movement")).toBe("pharmacy.stock.movement.created");
     expect(normalizeClinicalEventName("vitals.recorded")).toBe("opd.vitals.recorded");
   });
@@ -619,6 +620,19 @@ describe("clinical event normalization", () => {
       },
     });
 
+    const radiologyReportCreated = buildClinicalEventTrace({
+      contextCode: "radiology-orders",
+      moduleCode: "radiology",
+      occurredAt: "2026-05-29T11:03:00.000Z",
+      rawTrigger: "radiology.report.created",
+      payload: {
+        order_id: "radiology-order-1",
+        patient_id: "patient-1",
+        report_id: "radiology-report-1",
+        report_status: "preliminary",
+      },
+    });
+
     const radiologyVerified = buildClinicalEventTrace({
       contextCode: "radiology-orders",
       moduleCode: "radiology",
@@ -666,6 +680,11 @@ describe("clinical event normalization", () => {
     expect(radiologyCompleted.sourceRecordId).toBe("radiology-order-1");
     expect(radiologyCompleted.patientId).toBe("patient-1");
     expect(radiologyCompleted.missingPayloadKeys).toEqual([]);
+
+    expect(radiologyReportCreated.eventName).toBe("radiology.report.created");
+    expect(radiologyReportCreated.sourceRecordId).toBe("radiology-report-1");
+    expect(radiologyReportCreated.patientId).toBe("patient-1");
+    expect(radiologyReportCreated.missingPayloadKeys).toEqual([]);
 
     expect(radiologyVerified.eventName).toBe("radiology.report.verified");
     expect(radiologyVerified.sourceRecordId).toBe("radiology-report-1");

@@ -178,6 +178,7 @@ const REPORT_EVENT_SOURCES: &[ReportEventSourceSeed] = &[
             ClinicalEventName::LabResultVerified,
             ClinicalEventName::LabOrderCompleted,
             ClinicalEventName::RadiologyOrderCompleted,
+            ClinicalEventName::RadiologyReportCreated,
             ClinicalEventName::RadiologyReportVerified,
         ],
     },
@@ -2216,6 +2217,12 @@ mod tests {
                 .source_events
                 .iter()
                 .any(|event| event == "lab.order.completed")
+        );
+        assert!(
+            metadata
+                .source_events
+                .iter()
+                .any(|event| event == "radiology.report.created")
         );
         assert!(
             metadata

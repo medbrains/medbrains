@@ -72,6 +72,8 @@ pub enum ClinicalEventName {
     LabResultVerified,
     #[serde(rename = "radiology.order.completed")]
     RadiologyOrderCompleted,
+    #[serde(rename = "radiology.report.created")]
+    RadiologyReportCreated,
     #[serde(rename = "radiology.report.verified")]
     RadiologyReportVerified,
     #[serde(rename = "billing.invoice.created")]
@@ -150,6 +152,7 @@ impl ClinicalEventName {
             Self::LabResultPosted => "lab.result.posted",
             Self::LabResultVerified => "lab.result.verified",
             Self::RadiologyOrderCompleted => "radiology.order.completed",
+            Self::RadiologyReportCreated => "radiology.report.created",
             Self::RadiologyReportVerified => "radiology.report.verified",
             Self::BillingInvoiceCreated => "billing.invoice.created",
             Self::BillingInvoiceFinalized => "billing.invoice.finalized",
@@ -205,9 +208,9 @@ impl ClinicalEventName {
             | Self::LabSampleCollected
             | Self::LabResultPosted
             | Self::LabResultVerified => ClinicalEventSourceModule::Lab,
-            Self::RadiologyOrderCompleted | Self::RadiologyReportVerified => {
-                ClinicalEventSourceModule::Radiology
-            }
+            Self::RadiologyOrderCompleted
+            | Self::RadiologyReportCreated
+            | Self::RadiologyReportVerified => ClinicalEventSourceModule::Radiology,
             Self::BillingInvoiceCreated
             | Self::BillingInvoiceFinalized
             | Self::BillingPaymentReceived => ClinicalEventSourceModule::Billing,
@@ -266,7 +269,9 @@ impl ClinicalEventName {
             Self::LabOrderCompleted | Self::LabSampleCollected => &["order_id", "patient_id"],
             Self::LabResultPosted | Self::LabResultVerified => &["order_id", "patient_id"],
             Self::RadiologyOrderCompleted => &["order_id", "patient_id"],
-            Self::RadiologyReportVerified => &["report_id", "order_id", "patient_id"],
+            Self::RadiologyReportCreated | Self::RadiologyReportVerified => {
+                &["report_id", "order_id", "patient_id"]
+            }
             Self::BillingInvoiceCreated => &["invoice_id", "patient_id", "total_amount"],
             Self::BillingInvoiceFinalized => &["invoice_id", "patient_id"],
             Self::BillingPaymentReceived => &["payment_id", "invoice_id", "patient_id"],
@@ -347,6 +352,7 @@ impl FromStr for ClinicalEventName {
             "lab.result.posted" => Ok(Self::LabResultPosted),
             "lab.result.verified" => Ok(Self::LabResultVerified),
             "radiology.order.completed" => Ok(Self::RadiologyOrderCompleted),
+            "radiology.report.created" => Ok(Self::RadiologyReportCreated),
             "radiology.report.verified" => Ok(Self::RadiologyReportVerified),
             "billing.invoice.created" => Ok(Self::BillingInvoiceCreated),
             "billing.invoice.finalized" => Ok(Self::BillingInvoiceFinalized),
@@ -890,6 +896,23 @@ mod tests {
         assert_eq!(
             ClinicalEventName::LabResultVerified.required_payload_keys(),
             &["order_id", "patient_id"]
+        );
+
+        assert_eq!(
+            "radiology.report.created".parse::<ClinicalEventName>().ok(),
+            Some(ClinicalEventName::RadiologyReportCreated)
+        );
+        assert_eq!(
+            ClinicalEventName::RadiologyReportCreated.as_str(),
+            "radiology.report.created"
+        );
+        assert_eq!(
+            ClinicalEventName::RadiologyReportCreated.default_source_module(),
+            ClinicalEventSourceModule::Radiology
+        );
+        assert_eq!(
+            ClinicalEventName::RadiologyReportCreated.required_payload_keys(),
+            &["report_id", "order_id", "patient_id"]
         );
 
         assert_eq!(

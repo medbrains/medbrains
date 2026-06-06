@@ -11343,6 +11343,7 @@ export type ClinicalEventName =
   | "lab.result.posted"
   | "lab.result.verified"
   | "lab.order.completed"
+  | "radiology.report.created"
   | "radiology.report.verified"
   | "radiology.order.completed"
   | "billing.invoice.created"
@@ -11428,6 +11429,7 @@ export const CLINICAL_EVENT_REQUIRED_PAYLOAD_KEYS: Record<ClinicalEventName, rea
   "lab.result.posted": ["order_id", "patient_id"],
   "lab.result.verified": ["order_id", "patient_id"],
   "lab.order.completed": ["order_id", "patient_id"],
+  "radiology.report.created": ["report_id", "order_id", "patient_id"],
   "radiology.report.verified": ["report_id", "order_id", "patient_id"],
   "radiology.order.completed": ["order_id", "patient_id"],
   "billing.invoice.created": ["invoice_id", "patient_id", "total_amount"],
