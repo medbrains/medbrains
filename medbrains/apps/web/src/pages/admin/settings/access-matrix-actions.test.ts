@@ -38,6 +38,7 @@ function surface(input: Partial<AccessMatrixSurface>): AccessMatrixSurface {
     label: "New OPD visit",
     masking: "clinical",
     module: "opd",
+    platformRoutes: {},
     platforms: ["web"],
     printArtifacts: [],
     printCopies: [],

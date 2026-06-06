@@ -58,6 +58,7 @@ import {
 import {
   ACCESS_MATRIX_PLATFORMS,
   type AccessSurfaceGovernanceGap,
+  accessSurfacePlatformRoute,
   buildAccessPlatformCoverage,
   buildAccessSurfaceGovernanceCoverage,
   buildAccessSurfaceGovernanceGapRows,
@@ -341,6 +342,7 @@ function surfaceMatches(
     ...surface.printArtifacts,
     ...surface.printCopies,
     ...surface.printerProfiles,
+    ...surface.platforms.map((platform) => accessSurfacePlatformRoute(surface, platform) ?? ""),
     ...surface.standardRefs,
   ]
     .join(" ")
@@ -1961,6 +1963,14 @@ function SurfaceCoverageMatrix() {
                           {row.routeMapped} routes
                         </Badge>
                         <Badge
+                          color={
+                            row.platformRouteMapped === row.surfaces.length ? "green" : "orange"
+                          }
+                          variant="light"
+                        >
+                          {row.platformRouteMapped} launch targets
+                        </Badge>
+                        <Badge
                           color={row.permissionMapped === row.surfaces.length ? "green" : "orange"}
                           variant="light"
                         >
@@ -2568,6 +2578,24 @@ function SurfaceCoverageMatrix() {
                               .join(" | ")}
                           </Text>
                         )}
+                        <Group gap={4}>
+                          {surface.platforms
+                            .map((platform) => ({
+                              platform,
+                              target: accessSurfacePlatformRoute(surface, platform),
+                            }))
+                            .filter(
+                              (item): item is { platform: AccessMatrixPlatform; target: string } =>
+                                Boolean(item.target),
+                            )
+                            .map((item) => (
+                              <Tooltip key={item.platform} label={item.target}>
+                                <Badge color="blue" variant="light">
+                                  {item.platform} target
+                                </Badge>
+                              </Tooltip>
+                            ))}
+                        </Group>
                       </Stack>
                     </Table.Td>
                     <Table.Td>

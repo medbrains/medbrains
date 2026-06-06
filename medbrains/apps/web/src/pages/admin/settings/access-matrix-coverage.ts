@@ -76,6 +76,7 @@ export interface AccessPlatformCoverageRow {
   modules: readonly string[];
   kindCounts: Readonly<Record<AccessMatrixSurfaceKind, number>>;
   routeMapped: number;
+  platformRouteMapped: number;
   permissionMapped: number;
   fieldMapped: number;
   maskingMapped: number;
@@ -225,6 +226,13 @@ function surfaceHasTabAnchor(surface: AccessMatrixSurface) {
   return Boolean(surface.tab || surface.route?.includes("#") || surface.route?.includes("tab="));
 }
 
+export function accessSurfacePlatformRoute(
+  surface: AccessMatrixSurface,
+  platform: AccessMatrixPlatform,
+): string | null {
+  return surface.platformRoutes[platform] ?? (platform === "web" ? (surface.route ?? null) : null);
+}
+
 function surfaceGovernanceGaps(surface: AccessMatrixSurface): AccessSurfaceGovernanceGap[] {
   const gaps: AccessSurfaceGovernanceGap[] = [];
 
@@ -367,6 +375,9 @@ export function buildAccessPlatformCoverage(
       modules: [...new Set(platformSurfaces.map((surface) => surface.module))].sort(),
       kindCounts,
       routeMapped: platformSurfaces.filter((surface) => surface.route).length,
+      platformRouteMapped: platformSurfaces.filter((surface) =>
+        Boolean(accessSurfacePlatformRoute(surface, platform)),
+      ).length,
       permissionMapped: platformSurfaces.filter((surface) => surface.requiredPermissions.length > 0)
         .length,
       fieldMapped: platformSurfaces.filter((surface) => surface.fieldAccessKeys.length > 0).length,

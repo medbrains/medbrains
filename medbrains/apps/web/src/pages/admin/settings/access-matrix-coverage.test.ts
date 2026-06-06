@@ -36,6 +36,7 @@ function testSurface(
     kind: "screen",
     masking: "none",
     module: "test",
+    platformRoutes: {},
     platforms: ["web"],
     printArtifacts: [],
     printCopies: [],
@@ -257,6 +258,12 @@ describe("access matrix route coverage", () => {
       );
 
       expect(surface?.route).toBe(board.targets.webPath);
+      expect(surface?.platformRoutes).toEqual({
+        kiosk: board.targets.kioskPath,
+        mobile: `${board.targets.mobileRoute}?surface=${board.id}`,
+        tv: board.targets.tvDeepLink,
+        web: board.targets.webPath,
+      });
       expect(surface?.platforms).toEqual(["web", "mobile", "tv", "kiosk"]);
       expect(surface?.fieldAccessKeys.length).toBeGreaterThan(0);
       expect(surface?.masking).not.toBe("none");
@@ -292,6 +299,8 @@ describe("access matrix route coverage", () => {
     expect(summary.tvSurfaces).toBeGreaterThanOrEqual(TOKEN_BOARD_SURFACE_LIST.length);
     expect(summary.kioskSurfaces).toBeGreaterThanOrEqual(TOKEN_BOARD_SURFACE_LIST.length);
     expect(tvRow?.kindCounts.screen).toBeGreaterThanOrEqual(TOKEN_BOARD_SURFACE_LIST.length);
+    expect(tvRow?.platformRouteMapped).toBeGreaterThanOrEqual(TOKEN_BOARD_SURFACE_LIST.length);
+    expect(kioskRow?.platformRouteMapped).toBeGreaterThanOrEqual(TOKEN_BOARD_SURFACE_LIST.length);
     expect(kioskRow?.modules).toEqual(
       expect.arrayContaining(["billing", "emergency", "opd", "pharmacy"]),
     );
@@ -314,6 +323,7 @@ describe("access matrix route coverage", () => {
         label: "TV queue",
         kind: "screen",
         route: TOKEN_BOARD_SURFACES.opd.targets.webPath,
+        platformRoutes: { tv: TOKEN_BOARD_SURFACES.opd.targets.tvDeepLink },
         platforms: ["tv"],
         requiredPermissions: [...TOKEN_BOARD_SURFACES.opd.requiredAnyPermissions],
         fieldAccessKeys: ["patients.uhid"],

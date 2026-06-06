@@ -45,6 +45,7 @@ export interface AccessMatrixSurface {
   requiredPermissions: readonly string[];
   activatesAfter: readonly ClinicalEventName[];
   platforms: readonly AccessMatrixPlatform[];
+  platformRoutes: Partial<Record<AccessMatrixPlatform, string>>;
   masking: AccessMatrixMaskingBehavior;
   printArtifacts: readonly string[];
   printCopies: readonly AccessMatrixPrintCopy[];
@@ -64,6 +65,7 @@ type SurfaceInput = Omit<
   AccessMatrixSurface,
   | "activatesAfter"
   | "fieldAccessKeys"
+  | "platformRoutes"
   | "platforms"
   | "printArtifacts"
   | "printCopies"
@@ -73,6 +75,7 @@ type SurfaceInput = Omit<
 > & {
   activatesAfter?: readonly ClinicalEventName[];
   fieldAccessKeys?: readonly string[];
+  platformRoutes?: Partial<Record<AccessMatrixPlatform, string>>;
   platforms?: readonly AccessMatrixPlatform[];
   printArtifacts?: readonly string[];
   printCopies?: readonly AccessMatrixPrintCopy[];
@@ -85,6 +88,7 @@ function surface(input: SurfaceInput): AccessMatrixSurface {
   return {
     activatesAfter: [],
     fieldAccessKeys: [],
+    platformRoutes: {},
     platforms: ["web"],
     printArtifacts: [],
     printCopies: [],
@@ -318,6 +322,12 @@ function tokenBoardAccessSurface({
     fieldAccessKeys,
     masking,
     activatesAfter,
+    platformRoutes: {
+      kiosk: board.targets.kioskPath,
+      mobile: `${board.targets.mobileRoute}?surface=${id}`,
+      tv: board.targets.tvDeepLink,
+      web: board.targets.webPath,
+    },
     platforms: ["web", "mobile", "tv", "kiosk"],
     standardRefs: [...board.standardRefs, "DPDP Act data minimisation"],
   });
@@ -343,6 +353,10 @@ const TOKEN_BOARD_ACCESS_SURFACES: readonly AccessMatrixSurface[] = [
       "pharmacy.order.dispensed",
       "billing.invoice.created",
     ],
+    platformRoutes: {
+      mobile: "TokenBoards",
+      web: "/front-office#token-boards",
+    },
     platforms: ["web", "mobile"],
     standardRefs: ["IPSG public queue privacy", "DPDP Act data minimisation"],
   }),

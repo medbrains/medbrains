@@ -14,6 +14,7 @@ function printSurface(input: Partial<AccessMatrixSurface>): AccessMatrixSurface 
     label: "Test printable",
     masking: "none",
     module: "test",
+    platformRoutes: {},
     platforms: ["web"],
     printArtifacts: [],
     printCopies: [],
