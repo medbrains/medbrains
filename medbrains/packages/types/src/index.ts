@@ -35,6 +35,8 @@ export type {
   ClinicalJourneyActionDefinition,
   ClinicalJourneyActionId,
   ClinicalJourneyActionIntent,
+  ClinicalJourneyActionReadinessSummary,
+  ClinicalJourneyBlockedReason,
   ClinicalJourneyContext,
   ClinicalJourneySurface,
   ClinicalOrderContext,
@@ -46,6 +48,7 @@ export {
   deriveCampJourneyCompletedEvents,
   inferClinicalJourneyEventNames,
   resolveClinicalJourneyActions,
+  summarizeClinicalJourneyActions,
 } from "./event-actions.js";
 export type { PermissionDef, PermissionGroup } from "./permissions.js";
 export {

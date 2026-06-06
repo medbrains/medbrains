@@ -4,7 +4,11 @@ import type {
   ClinicalJourneyContext,
   ResolvedClinicalJourneyAction,
 } from "@medbrains/types";
-import { P, resolveClinicalJourneyActions } from "@medbrains/types";
+import {
+  P,
+  resolveClinicalJourneyActions,
+  summarizeClinicalJourneyActions,
+} from "@medbrains/types";
 import { StyleSheet, View } from "react-native";
 import { Button, Chip, Text } from "react-native-paper";
 
@@ -160,6 +164,24 @@ function mobileOrderParams(context: ClinicalJourneyContext) {
   };
 }
 
+function applyMobileDisabledReason(
+  action: ResolvedClinicalJourneyAction & { id: MobileJourneyActionId },
+  disabledReason: string | null,
+): ResolvedClinicalJourneyAction & { id: MobileJourneyActionId } {
+  if (!disabledReason || disabledReason === action.disabledReasonText) {
+    return action;
+  }
+
+  return {
+    ...action,
+    activationDisabledReasonText: action.activationDisabledReasonText,
+    blockedReason: "context",
+    contextDisabledReasonText: disabledReason,
+    disabledReasonText: disabledReason,
+    enabled: false,
+  };
+}
+
 export function PatientJourneyActions({
   context,
   navigation,
@@ -169,15 +191,16 @@ export function PatientJourneyActions({
   const actions = resolveClinicalJourneyActions(context, hasPermission, "mobile", {
     includePermissionDenied: showUnavailable,
   }).filter(supportedAction);
-  const actionStates = actions.map((action) => ({
-    action,
-    disabledReason: mobileDisabledReason(action, context, hasPermission),
-  }));
-  const readyActionCount = actionStates.filter((state) => !state.disabledReason).length;
-  const blockedActionCount = actionStates.length - readyActionCount;
-  const eventGatedActionCount = actionStates.filter(
-    (state) => state.action.activatesAfter.length > 0,
-  ).length;
+  const actionStates = actions.map((action) => {
+    const disabledReason = mobileDisabledReason(action, context, hasPermission);
+    return {
+      action: applyMobileDisabledReason(action, disabledReason),
+      disabledReason,
+    };
+  });
+  const readinessSummary = summarizeClinicalJourneyActions(
+    actionStates.map((state) => state.action),
+  );
 
   function handleAction(action: ResolvedClinicalJourneyAction & { id: MobileJourneyActionId }) {
     if (mobileDisabledReason(action, context, hasPermission)) return;
@@ -295,16 +318,21 @@ export function PatientJourneyActions({
         </View>
         <View style={styles.summaryChips}>
           <Chip compact icon="check-circle" mode="outlined">
-            {readyActionCount} ready
+            {readinessSummary.enabled}/{readinessSummary.total} ready
           </Chip>
-          {blockedActionCount > 0 && (
+          {readinessSummary.blocked > 0 && (
             <Chip compact icon="lock-alert" mode="outlined">
-              {blockedActionCount} blocked
+              {readinessSummary.blocked} blocked
             </Chip>
           )}
-          {eventGatedActionCount > 0 && (
+          {readinessSummary.permissionBlocked > 0 && (
+            <Chip compact icon="shield-lock" mode="outlined">
+              {readinessSummary.permissionBlocked} permission
+            </Chip>
+          )}
+          {readinessSummary.eventBlocked > 0 && (
             <Chip compact icon="source-branch" mode="outlined">
-              {eventGatedActionCount} event gated
+              {readinessSummary.eventBlocked} awaiting event
             </Chip>
           )}
         </View>

@@ -84,13 +84,34 @@ export interface ClinicalJourneyActionDefinition {
   disabledReason: (context: ClinicalJourneyContext) => string | null;
 }
 
+export type ClinicalJourneyBlockedReason = "context" | "event" | "permission";
+
 export interface ResolvedClinicalJourneyAction extends ClinicalJourneyActionDefinition {
   enabled: boolean;
   disabledReasonText: string | null;
+  permissionAllowed: boolean;
+  permissionDisabledReasonText: string | null;
+  contextDisabledReasonText: string | null;
+  activationDisabledReasonText: string | null;
+  blockedReason: ClinicalJourneyBlockedReason | null;
 }
 
 export interface ResolveClinicalJourneyActionsOptions {
   includePermissionDenied?: boolean;
+}
+
+export interface ClinicalJourneyActionReadinessSummary {
+  blocked: number;
+  blockedActionIds: readonly ClinicalJourneyActionId[];
+  contextBlocked: number;
+  contextBlockedActionIds: readonly ClinicalJourneyActionId[];
+  enabled: number;
+  eventBlocked: number;
+  eventBlockedActionIds: readonly ClinicalJourneyActionId[];
+  permissionBlocked: number;
+  permissionBlockedActionIds: readonly ClinicalJourneyActionId[];
+  readyActionIds: readonly ClinicalJourneyActionId[];
+  total: number;
 }
 
 function activeAdmissionIsOpen(context: ClinicalJourneyContext): boolean {
@@ -508,10 +529,16 @@ export function resolveClinicalJourneyActions(
     const permissionReason = permissionAllowed
       ? null
       : permissionDisabledReason(permissionMode, requiredPermissions);
-    const disabledReasonText =
-      permissionReason ??
-      action.disabledReason(context) ??
-      activationDisabledReason(action, context);
+    const contextReason = action.disabledReason(context);
+    const activationReason = activationDisabledReason(action, context);
+    const disabledReasonText = permissionReason ?? contextReason ?? activationReason;
+    const blockedReason: ClinicalJourneyBlockedReason | null = permissionReason
+      ? "permission"
+      : contextReason
+        ? "context"
+        : activationReason
+          ? "event"
+          : null;
 
     resolved.push({
       ...action,
@@ -519,8 +546,53 @@ export function resolveClinicalJourneyActions(
       requiredPermissions,
       enabled: permissionAllowed && disabledReasonText === null,
       disabledReasonText,
+      permissionAllowed,
+      permissionDisabledReasonText: permissionReason,
+      contextDisabledReasonText: contextReason,
+      activationDisabledReasonText: activationReason,
+      blockedReason,
     });
 
     return resolved;
   }, []);
+}
+
+export function summarizeClinicalJourneyActions(
+  actions: readonly ResolvedClinicalJourneyAction[],
+): ClinicalJourneyActionReadinessSummary {
+  const blockedActionIds: ClinicalJourneyActionId[] = [];
+  const contextBlockedActionIds: ClinicalJourneyActionId[] = [];
+  const eventBlockedActionIds: ClinicalJourneyActionId[] = [];
+  const permissionBlockedActionIds: ClinicalJourneyActionId[] = [];
+  const readyActionIds: ClinicalJourneyActionId[] = [];
+
+  for (const action of actions) {
+    if (action.enabled) {
+      readyActionIds.push(action.id);
+    } else {
+      blockedActionIds.push(action.id);
+    }
+
+    if (action.blockedReason === "context") {
+      contextBlockedActionIds.push(action.id);
+    } else if (action.blockedReason === "event") {
+      eventBlockedActionIds.push(action.id);
+    } else if (action.blockedReason === "permission") {
+      permissionBlockedActionIds.push(action.id);
+    }
+  }
+
+  return {
+    blocked: blockedActionIds.length,
+    blockedActionIds,
+    contextBlocked: contextBlockedActionIds.length,
+    contextBlockedActionIds,
+    enabled: readyActionIds.length,
+    eventBlocked: eventBlockedActionIds.length,
+    eventBlockedActionIds,
+    permissionBlocked: permissionBlockedActionIds.length,
+    permissionBlockedActionIds,
+    readyActionIds,
+    total: actions.length,
+  };
 }
