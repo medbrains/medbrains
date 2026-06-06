@@ -215,6 +215,24 @@ function PrivacyNotice() {
   );
 }
 
+function LaunchTargetPill({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={styles.launchPathPill}>
+      <Text variant="labelSmall" style={styles.launchPathLabel}>
+        {label}
+      </Text>
+      <Text
+        ellipsizeMode="middle"
+        numberOfLines={1}
+        variant="labelSmall"
+        style={styles.launchPathText}
+      >
+        {value}
+      </Text>
+    </View>
+  );
+}
+
 function BoardCard({
   children,
   isError,
@@ -251,16 +269,13 @@ function BoardCard({
             {appCode}
           </Chip>
         ))}
-        <View style={styles.deepLinkPill}>
-          <Text
-            ellipsizeMode="middle"
-            numberOfLines={1}
-            variant="labelSmall"
-            style={styles.deepLinkText}
-          >
-            {surface.targets.tvDeepLink}
-          </Text>
-        </View>
+        <LaunchTargetPill
+          label="Mobile"
+          value={`${surface.targets.mobileRoute} · ${surface.targets.mobileParams.surface}`}
+        />
+        <LaunchTargetPill label="Web" value={surface.targets.webPath} />
+        <LaunchTargetPill label="TV" value={surface.targets.tvDeepLink} />
+        <LaunchTargetPill label="Kiosk" value={surface.targets.kioskPath} />
       </View>
       <TokenBoardReadinessStrip
         items={tokenBoardOperationalReadinessItems({
@@ -807,17 +822,23 @@ const styles = StyleSheet.create({
   launchChip: {
     backgroundColor: MEDBRAINS_COLORS.navActiveBg,
   },
-  deepLinkPill: {
+  launchPathLabel: {
+    color: MEDBRAINS_COLORS.brandDeep,
+    fontWeight: "700",
+  },
+  launchPathPill: {
     backgroundColor: MEDBRAINS_COLORS.navActiveBg,
     borderColor: MEDBRAINS_COLORS.rule,
-    borderRadius: 16,
+    borderRadius: 14,
     borderWidth: 1,
     flexShrink: 1,
+    gap: 2,
     maxWidth: "100%",
+    minWidth: 128,
     paddingHorizontal: 10,
-    paddingVertical: 5,
+    paddingVertical: 6,
   },
-  deepLinkText: {
+  launchPathText: {
     color: MEDBRAINS_COLORS.muted,
   },
   launchMeta: {

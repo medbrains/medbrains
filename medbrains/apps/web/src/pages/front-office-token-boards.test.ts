@@ -49,8 +49,12 @@ describe("front-office token-board display mapping", () => {
   it("keeps board launch targets focused to the same surface on web and mobile", () => {
     for (const surface of TOKEN_BOARD_SURFACE_LIST) {
       expect(surface.targets.webPath).toBe(`/front-office?board=${surface.id}#token-boards`);
+      expect(surface.targets.kioskPath).toBe(
+        `/front-office?board=${surface.id}&display=kiosk#token-boards`,
+      );
       expect(surface.targets.mobileParams.surface).toBe(surface.id);
       expect(surface.targets.mobileRoute).toBe("TokenBoards");
+      expect(surface.targets.tvDeepLink).toContain("medbrains://tv/");
       expect(surface.readiness.privacy).toBe("Token only");
       expect(tokenBoardRefreshLabel(surface)).toMatch(/^\d+s$/);
     }

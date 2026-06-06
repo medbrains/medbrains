@@ -27,6 +27,7 @@ export type TokenBoardTvAppCode =
   | "TV-Queue";
 
 export interface TokenBoardLaunchTargets {
+  kioskPath: string;
   mobileParams: {
     surface: TokenBoardSurfaceId;
   };
@@ -73,6 +74,10 @@ function tokenBoardWebPath(surface: TokenBoardSurfaceId): string {
   return `/front-office?board=${surface}#token-boards`;
 }
 
+function tokenBoardKioskPath(surface: TokenBoardSurfaceId): string {
+  return `/front-office?board=${surface}&display=kiosk#token-boards`;
+}
+
 export const TOKEN_BOARD_SURFACES: Readonly<
   Record<TokenBoardSurfaceId, TokenBoardSurfaceDefinition>
 > = {
@@ -95,6 +100,7 @@ export const TOKEN_BOARD_SURFACES: Readonly<
     standardRefs: ["IPSG.1 patient identification", "NABH PRE patient rights"],
     subtitle: "OPD, IPD discharge, advance and insurance desks",
     targets: {
+      kioskPath: tokenBoardKioskPath("billing"),
       mobileParams: { surface: "billing" },
       mobileRoute: "TokenBoards",
       tvAppCodes: ["TV-Billing"],
@@ -123,6 +129,7 @@ export const TOKEN_BOARD_SURFACES: Readonly<
     standardRefs: ["IPSG.2 effective communication", "NABH emergency care continuity"],
     subtitle: "Color-coded triage targets",
     targets: {
+      kioskPath: tokenBoardKioskPath("emergency"),
       mobileParams: { surface: "emergency" },
       mobileRoute: "TokenBoards",
       tvAppCodes: ["TV-Emergency"],
@@ -155,6 +162,7 @@ export const TOKEN_BOARD_SURFACES: Readonly<
     standardRefs: ["NABL sample collection traceability", "LOINC laboratory interoperability"],
     subtitle: "Sample collection and in-progress test queue",
     targets: {
+      kioskPath: tokenBoardKioskPath("lab"),
       mobileParams: { surface: "lab" },
       mobileRoute: "TokenBoards",
       tvAppCodes: ["TV-Lab"],
@@ -186,6 +194,7 @@ export const TOKEN_BOARD_SURFACES: Readonly<
     ],
     subtitle: "Modality room and scan waiting tokens",
     targets: {
+      kioskPath: tokenBoardKioskPath("radiology"),
       mobileParams: { surface: "radiology" },
       mobileRoute: "TokenBoards",
       tvAppCodes: ["TV-Radiology"],
@@ -213,6 +222,7 @@ export const TOKEN_BOARD_SURFACES: Readonly<
     standardRefs: ["IPSG.1 patient identification", "NABH access, assessment and continuity"],
     subtitle: "Token calls across outpatient departments",
     targets: {
+      kioskPath: tokenBoardKioskPath("opd"),
       mobileParams: { surface: "opd" },
       mobileRoute: "TokenBoards",
       tvAppCodes: ["TV-Queue", "TV-DoctorRoom", "Desktop-Kiosk"],
@@ -240,6 +250,7 @@ export const TOKEN_BOARD_SURFACES: Readonly<
     standardRefs: ["IPSG.3 medication safety", "NABH medication management"],
     subtitle: "Prescription preparation and handover",
     targets: {
+      kioskPath: tokenBoardKioskPath("pharmacy"),
       mobileParams: { surface: "pharmacy" },
       mobileRoute: "TokenBoards",
       tvAppCodes: ["TV-Pharmacy"],
