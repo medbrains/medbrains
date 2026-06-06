@@ -316,6 +316,11 @@ function permissionLabel(code: string) {
   return PERMISSIONS.find((permission) => permission.code === code)?.label ?? code;
 }
 
+function journeyPermissionScopeLabel(scope: string, mode: "all" | "any") {
+  const prefix = scope === "base" ? "base" : scope;
+  return mode === "any" ? `${prefix} any` : prefix;
+}
+
 function printCopyLabel(copy: string) {
   if (copy === "duplicate") return "Duplicate/reprint";
   return `${copy.replace(/_/g, " ")} copy`;
@@ -2391,20 +2396,29 @@ function SurfaceCoverageMatrix() {
                       </Text>
                     </Table.Td>
                     <Table.Td>
-                      <Group gap={4}>
-                        {row.requiredPermissions.map((permission) => (
-                          <Tooltip key={permission} label={permissionLabel(permission)}>
-                            <Badge
-                              color={
-                                row.missingPermissions.includes(permission) ? "orange" : "teal"
-                              }
-                              variant="light"
-                            >
-                              {permission}
+                      <Stack gap={4}>
+                        {row.permissionCoverage.map((coverage) => (
+                          <Group key={coverage.scope} gap={4} align="center">
+                            <Badge color={coverage.covered ? "gray" : "orange"} variant="light">
+                              {journeyPermissionScopeLabel(coverage.scope, coverage.permissionMode)}
                             </Badge>
-                          </Tooltip>
+                            {coverage.requiredPermissions.map((permission) => (
+                              <Tooltip key={permission} label={permissionLabel(permission)}>
+                                <Badge
+                                  color={
+                                    coverage.missingPermissions.includes(permission)
+                                      ? "orange"
+                                      : "teal"
+                                  }
+                                  variant="light"
+                                >
+                                  {permission}
+                                </Badge>
+                              </Tooltip>
+                            ))}
+                          </Group>
                         ))}
-                      </Group>
+                      </Stack>
                     </Table.Td>
                     <Table.Td>
                       <Group gap={4}>

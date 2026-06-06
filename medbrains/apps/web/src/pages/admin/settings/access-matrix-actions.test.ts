@@ -151,6 +151,22 @@ describe("journey action access-matrix coverage", () => {
     );
 
     expect(row?.gaps).toEqual([]);
+    expect(row?.permissionCoverage).toEqual([
+      {
+        covered: true,
+        missingPermissions: [],
+        permissionMode: "all",
+        requiredPermissions: ["order_basket.sign"],
+        scope: "base",
+      },
+      {
+        covered: true,
+        missingPermissions: [],
+        permissionMode: "all",
+        requiredPermissions: ["lab.orders.create"],
+        scope: "mobile",
+      },
+    ]);
     expect(row?.requiredPermissions).toEqual(["order_basket.sign", "lab.orders.create"]);
     expect(row?.matchedSurfaceIds).toEqual(["mobile.lab_order.action", "opd.order_basket.action"]);
   });
@@ -179,6 +195,14 @@ describe("journey action access-matrix coverage", () => {
     );
 
     expect(row?.gaps).toEqual(["missing-permission"]);
+    expect(row?.permissionCoverage.find((coverage) => coverage.scope === "base")).toMatchObject({
+      covered: true,
+      missingPermissions: [],
+    });
+    expect(row?.permissionCoverage.find((coverage) => coverage.scope === "mobile")).toMatchObject({
+      covered: false,
+      missingPermissions: ["radiology.orders.create", "radiology.orders.list"],
+    });
     expect(row?.missingPermissions).toEqual(["radiology.orders.create", "radiology.orders.list"]);
   });
 });

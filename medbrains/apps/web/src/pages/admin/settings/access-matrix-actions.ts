@@ -2,6 +2,7 @@ import type {
   AccessMatrixSurface,
   AccessMatrixSurfaceKind,
   ClinicalJourneyActionDefinition,
+  ClinicalJourneySurface,
 } from "@medbrains/types";
 
 export type JourneyActionCoverageGap =
@@ -14,6 +15,7 @@ export interface JourneyActionCoverageRow {
   label: string;
   module: string;
   surfaces: readonly string[];
+  permissionCoverage: readonly JourneyActionPermissionCoverage[];
   requiredPermissions: readonly string[];
   activationEvents: readonly string[];
   matchedSurfaceIds: readonly string[];
@@ -21,6 +23,16 @@ export interface JourneyActionCoverageRow {
   missingPermissions: readonly string[];
   missingActivationEvents: readonly string[];
   gaps: readonly JourneyActionCoverageGap[];
+}
+
+export type JourneyActionPermissionScope = "base" | ClinicalJourneySurface;
+
+export interface JourneyActionPermissionCoverage {
+  covered: boolean;
+  missingPermissions: readonly string[];
+  permissionMode: "all" | "any";
+  requiredPermissions: readonly string[];
+  scope: JourneyActionPermissionScope;
 }
 
 export interface JourneyActionCoverageSummary {
@@ -73,10 +85,14 @@ function candidateSurface(action: ClinicalJourneyActionDefinition, surface: Acce
 function actionPermissionSets(action: ClinicalJourneyActionDefinition) {
   return [
     {
+      scope: "base" as const,
       permissionMode: action.permissionMode,
       requiredPermissions: action.requiredPermissions,
     },
-    ...Object.values(action.surfacePermissions ?? {}),
+    ...Object.entries(action.surfacePermissions ?? {}).map(([scope, permissionSet]) => ({
+      scope: scope as ClinicalJourneySurface,
+      ...permissionSet,
+    })),
   ];
 }
 
@@ -121,6 +137,25 @@ function missingPermissions(action: ClinicalJourneyActionDefinition, permissions
   ];
 }
 
+function permissionCoverage(
+  action: ClinicalJourneyActionDefinition,
+  permissions: Set<string>,
+): JourneyActionPermissionCoverage[] {
+  return actionPermissionSets(action).map((permissionSet) => {
+    const covered = permissionSetSatisfied(permissionSet, permissions);
+
+    return {
+      covered,
+      missingPermissions: covered
+        ? []
+        : permissionSet.requiredPermissions.filter((permission) => !permissions.has(permission)),
+      permissionMode: permissionSet.permissionMode ?? "all",
+      requiredPermissions: permissionSet.requiredPermissions,
+      scope: permissionSet.scope,
+    };
+  });
+}
+
 function activationSatisfied(action: ClinicalJourneyActionDefinition, events: Set<string>) {
   return (
     action.activatesAfter.length === 0 || action.activatesAfter.some((event) => events.has(event))
@@ -148,6 +183,7 @@ export function buildJourneyActionCoverage(
       label: action.label,
       module: action.module,
       surfaces: action.surfaces,
+      permissionCoverage: permissionCoverage(action, permissions),
       requiredPermissions: actionRequiredPermissions(action),
       activationEvents: action.activatesAfter,
       matchedSurfaceIds: matchedSurfaces.map((surface) => surface.id).sort(),
