@@ -90,8 +90,10 @@ export interface IpdWorkspaceNavigationTab {
 
 export interface IpdWorkspaceTabReadinessSummary {
   actionSections: readonly IpdActionRailSection[];
+  blockedReasons: readonly string[];
   blockedActions: number;
   enabledActions: number;
+  primaryBlockedReason: string | null;
   tab: string;
   totalActions: number;
 }
@@ -460,6 +462,7 @@ export function summarizeIpdActionRailSections(
 export function summarizeIpdWorkspaceTabReadiness(
   tabs: readonly IpdWorkspaceNavigationTab[],
   sectionSummaries: readonly IpdActionRailSectionSummary[],
+  actions: readonly ResolvedIpdActionRailAction[] = [],
 ): readonly IpdWorkspaceTabReadinessSummary[] {
   const summaryBySection = new Map(
     sectionSummaries.map((summary) => [summary.section, summary] as const),
@@ -467,14 +470,30 @@ export function summarizeIpdWorkspaceTabReadiness(
 
   return tabs.map((tab) => {
     const actionSections = ipdActionRailSectionsForTab(tab.value);
+    const actionSectionSet = new Set(actionSections);
     const summaries = actionSections
       .map((section) => summaryBySection.get(section))
       .filter((summary): summary is IpdActionRailSectionSummary => Boolean(summary));
+    const blockedReasons = [
+      ...new Set(
+        actions
+          .filter(
+            (action) =>
+              actionSectionSet.has(action.section) &&
+              !action.enabled &&
+              action.disabledReasonText !== null,
+          )
+          .map((action) => action.disabledReasonText)
+          .filter((reason): reason is string => Boolean(reason)),
+      ),
+    ];
 
     return {
       actionSections,
+      blockedReasons,
       blockedActions: summaries.reduce((sum, summary) => sum + summary.blockedActions, 0),
       enabledActions: summaries.reduce((sum, summary) => sum + summary.enabledActions, 0),
+      primaryBlockedReason: blockedReasons[0] ?? null,
       tab: tab.value,
       totalActions: summaries.reduce((sum, summary) => sum + summary.totalActions, 0),
     };

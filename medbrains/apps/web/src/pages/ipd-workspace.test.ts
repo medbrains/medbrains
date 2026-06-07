@@ -347,16 +347,21 @@ describe("IPD workspace action rail focus", () => {
         { value: "overview", section: "Command" },
       ],
       sectionSummaries,
+      actions,
     );
 
     expect(summaries.find((summary) => summary.tab === "prescriptions")).toMatchObject({
+      blockedReasons: ["Assign a bed before inpatient orders"],
       blockedActions: 3,
       enabledActions: 0,
+      primaryBlockedReason: "Assign a bed before inpatient orders",
       totalActions: 3,
     });
     expect(summaries.find((summary) => summary.tab === "billing-tab")).toMatchObject({
+      blockedReasons: [],
       blockedActions: 0,
       enabledActions: 1,
+      primaryBlockedReason: null,
       totalActions: 1,
     });
     expect(summaries.find((summary) => summary.tab === "clinical-docs")).toMatchObject({

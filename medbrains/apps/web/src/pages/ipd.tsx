@@ -1094,6 +1094,7 @@ function AdmissionDetail({
   const workspaceTabReadinessSummaries = summarizeIpdWorkspaceTabReadiness(
     IPD_WORKSPACE_TABS,
     actionRailSectionSummaries,
+    actionRailActions,
   );
   const actionRailSummaryBySection = new Map(
     actionRailSectionSummaries.map((summary) => [summary.section, summary]),
@@ -1331,21 +1332,38 @@ function AdmissionDetail({
                     <Text size="xs" fw={700} c="dimmed" tt="uppercase">
                       {section}
                     </Text>
-                    {IPD_WORKSPACE_TABS.filter((tab) => tab.section === section).map((tab) => (
-                      <Button
-                        key={tab.value}
-                        size="xs"
-                        variant={activeWorkspaceTab === tab.value ? "light" : "subtle"}
-                        color={activeWorkspaceTab === tab.value ? "primary" : "slate"}
-                        onClick={() => setActiveWorkspaceTab(tab.value)}
-                        rightSection={actionRailReadinessBadge(
-                          workspaceTabReadinessByTab.get(tab.value),
-                        )}
-                        fullWidth
-                      >
-                        {tab.label}
-                      </Button>
-                    ))}
+                    {IPD_WORKSPACE_TABS.filter((tab) => tab.section === section).map((tab) => {
+                      const readiness = workspaceTabReadinessByTab.get(tab.value);
+                      const tooltipLabel =
+                        readiness?.primaryBlockedReason ??
+                        (readiness?.totalActions
+                          ? `${readiness.enabledActions}/${readiness.totalActions} actions ready`
+                          : `${tab.label} workspace`);
+
+                      return (
+                        <Tooltip key={tab.value} label={tooltipLabel} position="right">
+                          <Button
+                            size="xs"
+                            variant={activeWorkspaceTab === tab.value ? "light" : "subtle"}
+                            color={activeWorkspaceTab === tab.value ? "primary" : "slate"}
+                            onClick={() => setActiveWorkspaceTab(tab.value)}
+                            rightSection={actionRailReadinessBadge(readiness)}
+                            fullWidth
+                          >
+                            <Stack gap={0} className={classes.workspaceRailLabel}>
+                              <Text size="xs" fw={600}>
+                                {tab.label}
+                              </Text>
+                              {readiness?.primaryBlockedReason && (
+                                <Text size="10px" c="orange" truncate>
+                                  {readiness.primaryBlockedReason}
+                                </Text>
+                              )}
+                            </Stack>
+                          </Button>
+                        </Tooltip>
+                      );
+                    })}
                   </Stack>
                 ))}
               </Stack>

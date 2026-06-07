@@ -58,6 +58,11 @@
   }
 }
 
+.workspaceRailLabel {
+  min-width: 0;
+  overflow: hidden;
+}
+
 .actionRail {
   background:
     linear-gradient(180deg, light-dark(var(--mantine-color-blue-0), rgba(51, 154, 240, 0.12)), transparent 42%),
