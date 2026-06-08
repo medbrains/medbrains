@@ -62,6 +62,7 @@ export type {
 } from "./patient-flow.js";
 export {
   activePatientPharmacyOrderIdForJourney,
+  activePatientPharmacyRxQueueIdForJourney,
   buildPatientFlowReadiness,
   patientFlowJourneyContext,
 } from "./patient-flow.js";
@@ -4201,6 +4202,7 @@ export interface PrescriptionWithItems {
   prescription: Prescription;
   items: PrescriptionItem[];
   pharmacy_status?: PharmacyRxStatus | null;
+  pharmacy_rx_queue_id?: string | null;
   pharmacy_order_id?: string | null;
 }
 
@@ -4231,6 +4233,7 @@ export interface PrescriptionHistoryItem {
   encounter_date: string;
   doctor_name: string | null;
   pharmacy_status?: PharmacyRxStatus | null;
+  pharmacy_rx_queue_id?: string | null;
   pharmacy_order_id?: string | null;
 }
 

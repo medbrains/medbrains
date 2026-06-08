@@ -31,6 +31,7 @@ export interface PatientFlowContextInput {
   activeCampRegistrationId?: string | null;
   activeInvoiceId?: string | null;
   activePharmacyOrderId?: string | null;
+  activePharmacyRxQueueId?: string | null;
   activeOrderContext?: ClinicalOrderContext | null;
   billingPaymentConfigurationReady?: boolean;
   completedEvents?: readonly ClinicalEventName[];
@@ -183,6 +184,23 @@ export function activePatientPharmacyOrderIdForJourney(
   );
 }
 
+export function activePatientPharmacyRxQueueIdForJourney(
+  prescriptions: readonly PrescriptionHistoryItem[],
+): string | null {
+  return (
+    prescriptions.find(
+      (prescription) =>
+        !prescription.pharmacy_order_id &&
+        prescription.pharmacy_rx_queue_id &&
+        prescription.items.some((item) => item.item_status !== "discontinued"),
+    )?.pharmacy_rx_queue_id ??
+    prescriptions.find(
+      (prescription) => !prescription.pharmacy_order_id && prescription.pharmacy_rx_queue_id,
+    )?.pharmacy_rx_queue_id ??
+    null
+  );
+}
+
 export function patientFlowJourneyContext(input: PatientFlowContextInput): ClinicalJourneyContext {
   const {
     activeAdmissionId,
@@ -195,6 +213,7 @@ export function patientFlowJourneyContext(input: PatientFlowContextInput): Clini
     activeInvoiceId,
     activeOrderContext,
     activePharmacyOrderId,
+    activePharmacyRxQueueId,
     billingPaymentConfigurationReady,
     completedEvents,
     hasPendingConsent,
@@ -215,6 +234,7 @@ export function patientFlowJourneyContext(input: PatientFlowContextInput): Clini
     activeCampRegistrationId,
     activeInvoiceId,
     activePharmacyOrderId,
+    activePharmacyRxQueueId,
     activeAdmissionStatus: activeAdmissionStatus ?? (activeAdmissionId ? "admitted" : null),
     activeOrderContext:
       activeOrderContext ?? (activeEncounterId ? "opd" : activeAdmissionId ? "ipd" : null),
@@ -374,10 +394,10 @@ export function buildPatientFlowReadiness(
       actionId: PHARMACY_FLOW_ACTION,
       blockedReason: pharmacyState.blockedReason,
       label: "Pharmacy",
-      description: "Open patient pharmacy orders and dispensing queue.",
+      description: "Open patient pharmacy review, orders, and dispensing queue.",
       href:
         patientJourneyActionRoute(PHARMACY_FLOW_ACTION, context) ??
-        `/pharmacy?tab=orders&patient_id=${patientId}`,
+        `/pharmacy?tab=rx-queue&patient_id=${patientId}`,
       enabled: pharmacyState.enabled,
       disabledReason: pharmacyState.disabledReason,
       activationEvents: pharmacyState.activationEvents,

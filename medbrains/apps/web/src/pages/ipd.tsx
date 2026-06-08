@@ -209,6 +209,7 @@ import classes from "./ipd.module.scss";
 import {
   activeIpdInvoiceIdForJourney,
   activeIpdPharmacyOrderIdForJourney,
+  activeIpdPharmacyRxQueueIdForJourney,
   deriveIpdJourneyCompletedEvents,
   type IpdActionRailSection,
   type IpdActionRailSectionSummary,
@@ -1068,6 +1069,7 @@ function AdmissionDetail({
     pharmacyOrders: patientPharmacyOrderList?.orders ?? [],
     prescriptions: admissionPrescriptions,
   });
+  const activePharmacyRxQueueId = activeIpdPharmacyRxQueueIdForJourney(admissionPrescriptions);
   const admissionIsActive = adm.status === "admitted";
   const admissionHasAssignedBed = Boolean(adm.bed_id);
   const activeWorkspaceSection =
@@ -1139,6 +1141,7 @@ function AdmissionDetail({
     activeBedId: adm.bed_id,
     activeInvoiceId,
     activePharmacyOrderId,
+    activePharmacyRxQueueId,
     activeOrderContext: "ipd",
     completedEvents: journeyCompletedEvents,
   };
@@ -1158,6 +1161,7 @@ function AdmissionDetail({
             activeInvoiceId={activeInvoiceId}
             activeOrderContext="ipd"
             activePharmacyOrderId={activePharmacyOrderId}
+            activePharmacyRxQueueId={activePharmacyRxQueueId}
             completedEvents={journeyCompletedEvents}
             compact
           />

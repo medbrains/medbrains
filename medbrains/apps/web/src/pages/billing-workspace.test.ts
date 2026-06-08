@@ -1,0 +1,43 @@
+// @vitest-environment node
+
+import { describe, expect, it } from "vitest";
+import {
+  billingHandoffActionFromSearchParams,
+  billingInvoiceActionFromSearchParams,
+  billingInvoicePaymentRoute,
+  billingInvoiceWorkspaceRoute,
+} from "./billing-workspace";
+
+describe("billing workspace routing", () => {
+  it("parses patient-flow billing handoff actions from search params", () => {
+    expect(billingHandoffActionFromSearchParams(new URLSearchParams("action=payment"))).toBe(
+      "payment",
+    );
+    expect(billingHandoffActionFromSearchParams(new URLSearchParams("action=discharge_bill"))).toBe(
+      "discharge_bill",
+    );
+    expect(billingHandoffActionFromSearchParams(new URLSearchParams("source=ipd_discharge"))).toBe(
+      "discharge_bill",
+    );
+    expect(billingHandoffActionFromSearchParams(new URLSearchParams("action=refund"))).toBeNull();
+  });
+
+  it("parses invoice-detail actions without accepting list-level handoffs", () => {
+    expect(billingInvoiceActionFromSearchParams(new URLSearchParams("action=payment"))).toBe(
+      "payment",
+    );
+    expect(
+      billingInvoiceActionFromSearchParams(new URLSearchParams("action=discharge_bill")),
+    ).toBeNull();
+    expect(billingInvoiceActionFromSearchParams(new URLSearchParams("source=ipd_discharge"))).toBe(
+      null,
+    );
+  });
+
+  it("keeps payment collection route-addressable from the active invoice", () => {
+    expect(billingInvoiceWorkspaceRoute("invoice-1")).toBe("/billing/invoices/invoice-1");
+    expect(billingInvoicePaymentRoute("invoice-1")).toBe(
+      "/billing/invoices/invoice-1?action=payment",
+    );
+  });
+});

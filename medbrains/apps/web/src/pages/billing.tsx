@@ -249,6 +249,11 @@ import {
   printCopyRouteLabel,
 } from "@/utils/printCopies";
 import classes from "./billing.module.scss";
+import {
+  billingHandoffActionFromSearchParams,
+  billingInvoiceActionFromSearchParams,
+  billingInvoicePaymentRoute,
+} from "./billing-workspace";
 
 const statusColors: Record<string, string> = {
   draft: "slate",
@@ -288,8 +293,6 @@ const BILLING_TAB_VALUES = [
   "concessions",
   "settings",
 ] as const;
-
-type BillingHandoffAction = "payment" | "discharge_bill";
 
 function isBillingTab(value: string | null): value is (typeof BILLING_TAB_VALUES)[number] {
   return Boolean(value && (BILLING_TAB_VALUES as readonly string[]).includes(value));
@@ -547,19 +550,6 @@ function invoiceIsPayable(invoice: Invoice): boolean {
   );
 }
 
-function billingHandoffAction(searchParams: URLSearchParams): BillingHandoffAction | null {
-  if (searchParams.get("action") === "payment") {
-    return "payment";
-  }
-  if (
-    searchParams.get("action") === "discharge_bill" ||
-    searchParams.get("source") === "ipd_discharge"
-  ) {
-    return "discharge_bill";
-  }
-  return null;
-}
-
 export function BillingPage() {
   useRequirePermission(P.BILLING.INVOICES_LIST);
 
@@ -578,7 +568,7 @@ export function BillingInvoiceDetailPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const canCreate = useHasPermission(P.BILLING.INVOICES_CREATE);
   const canPay = useHasPermission(P.BILLING.PAYMENTS_CREATE);
-  const initialAction = searchParams.get("action") === "payment" ? "payment" : null;
+  const initialAction = billingInvoiceActionFromSearchParams(searchParams);
   const clearInvoiceAction = () => {
     const next = new URLSearchParams(searchParams);
     next.delete("action");
@@ -677,7 +667,7 @@ function BillingPageInner() {
   const patientFilterId = searchParams.get("patient_id")?.trim() || null;
   const requestedStatus = searchParams.get("status");
   const filterStatus = isInvoiceStatus(requestedStatus) ? requestedStatus : null;
-  const activeHandoff = billingHandoffAction(searchParams);
+  const activeHandoff = billingHandoffActionFromSearchParams(searchParams);
 
   const setBillingParam = (key: string, value: string | null) => {
     const next = new URLSearchParams(searchParams);
@@ -1409,6 +1399,7 @@ function InvoiceDetail({
         payment_id: result.id,
       });
       closePaymentPanel();
+      onClearAction?.();
       resetPayment(paymentDefaults);
     },
   });
@@ -1533,9 +1524,11 @@ function InvoiceDetail({
   const openPaymentForm = () => {
     if (paymentOpened) {
       closePaymentPanel();
+      onClearAction?.();
       return;
     }
     resetPayment({ ...paymentDefaults, amount: balance });
+    navigate(billingInvoicePaymentRoute(invoiceId), { replace: true });
     openPaymentPanel();
   };
   const handleAddInvoiceItem = (values: BillingInvoiceItemFormInput) => {
@@ -1574,6 +1567,7 @@ function InvoiceDetail({
     void queryClient.invalidateQueries({ queryKey: ["invoice-detail", invoiceId] });
     void queryClient.invalidateQueries({ queryKey: ["invoices"] });
     gatewayHandlers.close();
+    onClearAction?.();
   };
 
   return (

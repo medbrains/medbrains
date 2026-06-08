@@ -3195,6 +3195,7 @@ function PatientDetailPageInner() {
             activeEmergencyVisitId={activeEmergencyVisit?.id ?? null}
             activeInvoiceId={activeInvoiceId}
             activePharmacyOrderId={actionContext.activePharmacyOrderId ?? null}
+            activePharmacyRxQueueId={actionContext.activePharmacyRxQueueId ?? null}
             activeOrderContext={activeOrderContext}
             completedEvents={completedEvents}
             compact

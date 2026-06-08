@@ -143,6 +143,27 @@ describe("clinical journey event activation", () => {
     );
   });
 
+  it("enables pharmacy review when a prescription queue row exists before order creation", () => {
+    const events = inferClinicalJourneyEventNames({
+      patientId: "patient-1",
+      activePharmacyRxQueueId: "rx-queue-1",
+    });
+    const actions = resolveClinicalJourneyActions(
+      {
+        patientId: "patient-1",
+        activePharmacyRxQueueId: "rx-queue-1",
+      },
+      allowAll,
+      "web",
+    );
+
+    expect(events).toContain("order.created");
+    expect(actions.find((action) => action.id === "pharmacy.open_patient_queue")?.enabled).toBe(
+      true,
+    );
+    expect(actions.find((action) => action.id === "pharmacy.dispense_order")?.enabled).toBe(false);
+  });
+
   it("requires linked downstream records once billing, discharge, or pharmacy events exist", () => {
     const actions = resolveClinicalJourneyActions(
       {

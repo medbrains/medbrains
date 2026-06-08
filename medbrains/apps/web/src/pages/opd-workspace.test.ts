@@ -4,6 +4,7 @@ import { type PrescriptionWithItems, patientJourneyActionRoute } from "@medbrain
 import { describe, expect, it } from "vitest";
 import {
   activeOpdPharmacyOrderIdForJourney,
+  activeOpdPharmacyRxQueueIdForJourney,
   isOpdEncounterTabValue,
   opdEncounterOrderBasketRoute,
   opdEncounterTabForOrderBasket,
@@ -15,9 +16,11 @@ function prescriptionWithItems(
   id: string,
   itemStatus = "active",
   pharmacyOrderId: string | null = null,
+  pharmacyRxQueueId: string | null = null,
 ): PrescriptionWithItems {
   return {
     pharmacy_order_id: pharmacyOrderId,
+    pharmacy_rx_queue_id: pharmacyRxQueueId,
     pharmacy_status: pharmacyOrderId ? "dispensing" : "pending_review",
     items: [
       {
@@ -102,5 +105,22 @@ describe("OPD encounter workspace routing", () => {
         completedEvents: ["order.created"],
       }),
     ).toBe("/pharmacy/orders/order-active");
+  });
+
+  it("routes OPD pending prescription handoffs to the Rx review queue", () => {
+    expect(
+      activeOpdPharmacyRxQueueIdForJourney([
+        prescriptionWithItems("old-rx", "discontinued", null, "rx-queue-old"),
+        prescriptionWithItems("active-rx", "active", null, "rx-queue-active"),
+      ]),
+    ).toBe("rx-queue-active");
+    expect(
+      patientJourneyActionRoute("pharmacy.open_patient_queue", {
+        patientId: "patient-1",
+        activeEncounterId: "encounter-1",
+        activePharmacyRxQueueId: "rx-queue-active",
+        completedEvents: ["order.created"],
+      }),
+    ).toBe("/pharmacy?tab=rx-queue&rx_queue_id=rx-queue-active&patient_id=patient-1");
   });
 });

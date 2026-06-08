@@ -1,13 +1,14 @@
 import type { PatientFlowContextInput, PrescriptionHistoryItem } from "@medbrains/types";
 import {
   activePatientPharmacyOrderIdForJourney,
+  activePatientPharmacyRxQueueIdForJourney,
   patientFlowJourneyContext,
 } from "@medbrains/types";
 
 export type PatientDetailOrderBasketTab = "drug" | "lab" | "radiology";
 
 export interface PatientDetailJourneyContextInput
-  extends Omit<PatientFlowContextInput, "activePharmacyOrderId"> {
+  extends Omit<PatientFlowContextInput, "activePharmacyOrderId" | "activePharmacyRxQueueId"> {
   prescriptions: readonly PrescriptionHistoryItem[];
 }
 
@@ -69,5 +70,6 @@ export function patientDetailJourneyContext(input: PatientDetailJourneyContextIn
   return patientFlowJourneyContext({
     ...context,
     activePharmacyOrderId: activePatientPharmacyOrderIdForJourney(prescriptions),
+    activePharmacyRxQueueId: activePatientPharmacyRxQueueIdForJourney(prescriptions),
   });
 }

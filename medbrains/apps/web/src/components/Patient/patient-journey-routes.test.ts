@@ -112,6 +112,15 @@ describe("patient journey action routes", () => {
         activePharmacyOrderId: "order-1",
       }),
     ).toBe("/pharmacy/orders/order-1?action=dispense");
+    expect(
+      patientJourneyActionRoute("pharmacy.open_patient_queue", {
+        ...baseContext,
+        activePharmacyRxQueueId: "rx-queue-1",
+      }),
+    ).toBe("/pharmacy?tab=rx-queue&rx_queue_id=rx-queue-1&patient_id=patient-1");
+    expect(patientJourneyActionRoute("pharmacy.open_patient_queue", baseContext)).toBe(
+      "/pharmacy?tab=rx-queue&patient_id=patient-1",
+    );
     expect(patientJourneyActionRoute("pharmacy.dispense_order", baseContext)).toBe(
       "/pharmacy?tab=orders&patient_id=patient-1&action=dispense",
     );

@@ -4745,10 +4745,9 @@ pub async fn list_rx_queue(
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
-    let status_filter = params.status.as_deref().unwrap_or("pending_review");
-
-    let mut rows = sqlx::query_as::<_, RxQueueRow>(
-        "SELECT pr.id, pr.prescription_id, pr.patient_id,
+    let mut bind_idx = 2;
+    let mut conditions = vec!["pr.tenant_id = $1".to_owned()];
+    let mut data_sql = "SELECT pr.id, pr.prescription_id, pr.patient_id,
                 p.first_name || ' ' || p.last_name AS patient_name,
                 u.full_name AS doctor_name,
                 pr.source, pr.status, pr.priority, pr.received_at,
@@ -4757,17 +4756,49 @@ pub async fn list_rx_queue(
                    AND pa.allergy_type = 'drug') AS allergy_count
          FROM pharmacy_prescriptions pr
          JOIN patients p ON p.id = pr.patient_id
-         JOIN users u ON u.id = pr.doctor_id
-         WHERE pr.tenant_id = $1 AND pr.status::text = $2
-         ORDER BY
+         JOIN users u ON u.id = pr.doctor_id"
+        .to_owned();
+
+    if params.rx_queue_id.is_none() {
+        conditions.push(format!("pr.status::text = ${bind_idx}"));
+        bind_idx += 1;
+    } else if params.status.is_some() {
+        conditions.push(format!("pr.status::text = ${bind_idx}"));
+        bind_idx += 1;
+    }
+    if params.patient_id.is_some() {
+        conditions.push(format!("pr.patient_id = ${bind_idx}"));
+        if params.rx_queue_id.is_some() {
+            bind_idx += 1;
+        }
+    }
+    if params.rx_queue_id.is_some() {
+        conditions.push(format!("pr.id = ${bind_idx}"));
+    }
+
+    data_sql.push_str(" WHERE ");
+    data_sql.push_str(&conditions.join(" AND "));
+    data_sql.push_str(
+        " ORDER BY
            CASE pr.priority WHEN 'stat' THEN 0 WHEN 'urgent' THEN 1 ELSE 2 END,
            pr.received_at ASC
          LIMIT 50",
-    )
-    .bind(claims.tenant_id)
-    .bind(status_filter)
-    .fetch_all(&mut *tx)
-    .await?;
+    );
+
+    let mut query = sqlx::query_as::<_, RxQueueRow>(&data_sql).bind(claims.tenant_id);
+    if params.rx_queue_id.is_none() {
+        query = query.bind(params.status.as_deref().unwrap_or("pending_review"));
+    } else if let Some(status) = &params.status {
+        query = query.bind(status);
+    }
+    if let Some(patient_id) = params.patient_id {
+        query = query.bind(patient_id);
+    }
+    if let Some(rx_queue_id) = params.rx_queue_id {
+        query = query.bind(rx_queue_id);
+    }
+
+    let mut rows = query.fetch_all(&mut *tx).await?;
 
     if !can_view_patient_identity(&claims) {
         for row in &mut rows {
@@ -6248,6 +6279,8 @@ pub async fn margin_analysis(
 #[derive(Debug, Deserialize)]
 pub struct RxQueueQuery {
     pub status: Option<String>,
+    pub patient_id: Option<Uuid>,
+    pub rx_queue_id: Option<Uuid>,
 }
 
 #[derive(Debug, Deserialize)]

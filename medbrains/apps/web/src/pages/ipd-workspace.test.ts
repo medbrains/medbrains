@@ -11,6 +11,7 @@ import { describe, expect, it } from "vitest";
 import {
   activeIpdInvoiceIdForJourney,
   activeIpdPharmacyOrderIdForJourney,
+  activeIpdPharmacyRxQueueIdForJourney,
   deriveIpdJourneyCompletedEvents,
   IPD_ACTION_RAIL_ACTIONS,
   type IpdActionRailContext,
@@ -171,6 +172,7 @@ function prescriptionWithPharmacyOrder(pharmacyOrderId: string): PrescriptionWit
   return {
     items: [],
     pharmacy_order_id: pharmacyOrderId,
+    pharmacy_rx_queue_id: "rx-queue-1",
     pharmacy_status: null,
     prescription: {
       created_at: "2026-01-01T00:00:00Z",
@@ -181,6 +183,15 @@ function prescriptionWithPharmacyOrder(pharmacyOrderId: string): PrescriptionWit
       tenant_id: "tenant-1",
       updated_at: "2026-01-01T00:00:00Z",
     },
+  };
+}
+
+function prescriptionWithRxQueue(rxQueueId: string): PrescriptionWithItems {
+  return {
+    ...prescriptionWithPharmacyOrder(""),
+    pharmacy_order_id: null,
+    pharmacy_rx_queue_id: rxQueueId,
+    pharmacy_status: "pending_review",
   };
 }
 
@@ -415,6 +426,15 @@ describe("IPD journey handoff context", () => {
         prescriptions: [prescriptionWithPharmacyOrder("rx-order")],
       }),
     ).toBe("rx-order");
+  });
+
+  it("selects a pharmacy review queue id before an IPD prescription becomes an order", () => {
+    expect(activeIpdPharmacyRxQueueIdForJourney([prescriptionWithRxQueue("rx-queue-1")])).toBe(
+      "rx-queue-1",
+    );
+    expect(
+      activeIpdPharmacyRxQueueIdForJourney([prescriptionWithPharmacyOrder("rx-order")]),
+    ).toBeNull();
   });
 
   it("derives admission, bed, transfer and discharge events for rail activation", () => {

@@ -26,6 +26,7 @@ interface PatientPharmacyScreenProps {
       handoff?: PharmacyHandoff;
       patientId: string;
       pharmacyOrderId?: string;
+      pharmacyRxQueueId?: string;
     };
   };
 }
@@ -52,10 +53,12 @@ function prescriptionMatchesSearch(item: PrescriptionHistoryItem, search: string
 function prescriptionMatchesHandoff(
   item: PrescriptionHistoryItem,
   pharmacyOrderId: string | undefined,
+  pharmacyRxQueueId: string | undefined,
 ) {
-  if (!pharmacyOrderId) return false;
+  if (!pharmacyOrderId && !pharmacyRxQueueId) return false;
   return (
     item.pharmacy_order_id === pharmacyOrderId ||
+    item.pharmacy_rx_queue_id === pharmacyRxQueueId ||
     item.prescription.id === pharmacyOrderId ||
     item.items.some((prescriptionItem) => prescriptionItem.prescription_id === pharmacyOrderId)
   );
@@ -73,7 +76,7 @@ function activeMedicationCount(prescriptions: PrescriptionHistoryItem[]) {
 
 export function PatientPharmacyScreen({ route }: PatientPharmacyScreenProps) {
   const theme = useTheme();
-  const { handoff, patientId, pharmacyOrderId } = route.params;
+  const { handoff, patientId, pharmacyOrderId, pharmacyRxQueueId } = route.params;
   const [filter, setFilter] = useState<PharmacyFilter>("recent");
   const [search, setSearch] = useState("");
 
@@ -94,18 +97,18 @@ export function PatientPharmacyScreen({ route }: PatientPharmacyScreenProps) {
       ? data.filter(
           (item) =>
             new Date(item.encounter_date) >= thirtyDaysAgo ||
-            prescriptionMatchesHandoff(item, pharmacyOrderId),
+            prescriptionMatchesHandoff(item, pharmacyOrderId, pharmacyRxQueueId),
         )
       : data;
   const prescriptions = filteredByDate
     .filter(
       (item) =>
-        prescriptionMatchesHandoff(item, pharmacyOrderId) ||
+        prescriptionMatchesHandoff(item, pharmacyOrderId, pharmacyRxQueueId) ||
         prescriptionMatchesSearch(item, search),
     )
     .sort((left, right) => {
-      const leftMatches = prescriptionMatchesHandoff(left, pharmacyOrderId);
-      const rightMatches = prescriptionMatchesHandoff(right, pharmacyOrderId);
+      const leftMatches = prescriptionMatchesHandoff(left, pharmacyOrderId, pharmacyRxQueueId);
+      const rightMatches = prescriptionMatchesHandoff(right, pharmacyOrderId, pharmacyRxQueueId);
       if (leftMatches === rightMatches) return 0;
       return leftMatches ? -1 : 1;
     });
@@ -113,7 +116,7 @@ export function PatientPharmacyScreen({ route }: PatientPharmacyScreenProps) {
 
   function renderPrescription({ item }: { item: PrescriptionHistoryItem }) {
     const prescriptionDate = new Date(item.encounter_date);
-    const selectedForHandoff = prescriptionMatchesHandoff(item, pharmacyOrderId);
+    const selectedForHandoff = prescriptionMatchesHandoff(item, pharmacyOrderId, pharmacyRxQueueId);
     const visibleItems = search
       ? item.items.filter((prescriptionItem) => itemMatchesSearch(prescriptionItem, search))
       : item.items;
@@ -185,7 +188,9 @@ export function PatientPharmacyScreen({ route }: PatientPharmacyScreenProps) {
           <Text variant="bodySmall" style={styles.mutedText}>
             {pharmacyOrderId
               ? "Selected order is linked from the patient journey for dispensing."
-              : "Review active and recent medicines before pharmacy fulfilment."}
+              : pharmacyRxQueueId
+                ? "Selected prescription is waiting in pharmacy review before billing and dispense."
+                : "Review active and recent medicines before pharmacy fulfilment."}
           </Text>
         </View>
         <Chip compact mode="outlined">

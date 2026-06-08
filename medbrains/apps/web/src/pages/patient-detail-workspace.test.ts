@@ -15,11 +15,13 @@ function prescriptionHistory(
   id: string,
   itemStatus = "active",
   pharmacyOrderId: string | null = null,
+  pharmacyRxQueueId: string | null = null,
 ): PrescriptionHistoryItem {
   return {
     doctor_name: null,
     encounter_date: "2026-01-01",
     pharmacy_order_id: pharmacyOrderId,
+    pharmacy_rx_queue_id: pharmacyRxQueueId,
     pharmacy_status: pharmacyOrderId ? "dispensing" : "pending_review",
     items: [
       {
@@ -113,16 +115,17 @@ describe("patient-detail workspace routing", () => {
     );
   });
 
-  it("keeps pending prescription handoffs out of invalid pharmacy order detail routes", () => {
+  it("routes pending prescription handoffs to the pharmacy Rx review queue", () => {
     const context = patientDetailJourneyContext({
       patientId: "patient-1",
       completedEvents: ["order.created"],
-      prescriptions: [prescriptionHistory("pending-rx")],
+      prescriptions: [prescriptionHistory("pending-rx", "active", null, "rx-queue-1")],
     });
 
     expect(context.activePharmacyOrderId).toBeNull();
+    expect(context.activePharmacyRxQueueId).toBe("rx-queue-1");
     expect(patientJourneyActionRoute("pharmacy.open_patient_queue", context)).toBe(
-      "/pharmacy?tab=orders&patient_id=patient-1",
+      "/pharmacy?tab=rx-queue&rx_queue_id=rx-queue-1&patient_id=patient-1",
     );
   });
 });

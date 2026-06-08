@@ -133,6 +133,7 @@ export function PatientFlowNavigator({
           handoff: "queue",
           patientId: context.patientId,
           pharmacyOrderId: context.activePharmacyOrderId ?? undefined,
+          pharmacyRxQueueId: context.activePharmacyRxQueueId ?? undefined,
         });
         return;
       case "billing":

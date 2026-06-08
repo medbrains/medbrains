@@ -4998,9 +4998,13 @@ function RxQueueTab({
   canViewPatientRecord: boolean;
 }) {
   const queryClient = useQueryClient();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [filterStatus, setFilterStatus] = useState<string | null>(null);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [localSelectedId, setLocalSelectedId] = useState<string | null>(null);
   const [reviewOpened, { open: openReview, close: closeReview }] = useDisclosure(false);
+  const patientIdFilter = searchParams.get("patient_id")?.trim() || null;
+  const rxQueueIdFilter = searchParams.get("rx_queue_id")?.trim() || null;
+  const selectedId = localSelectedId ?? rxQueueIdFilter;
   const {
     control: reviewControl,
     reset: resetReviewForm,
@@ -5023,7 +5027,34 @@ function RxQueueTab({
     });
   }
 
-  const params = filterStatus ? { status: filterStatus } : undefined;
+  function setActiveRxQueueId(id: string | null) {
+    setLocalSelectedId(id);
+    const next = new URLSearchParams(searchParams);
+    if (id) {
+      next.set("tab", "rx-queue");
+      next.set("rx_queue_id", id);
+    } else {
+      next.delete("rx_queue_id");
+    }
+    setSearchParams(next, { replace: true });
+  }
+
+  function clearRxQueueHandoff() {
+    setLocalSelectedId(null);
+    const next = new URLSearchParams(searchParams);
+    next.delete("patient_id");
+    next.delete("rx_queue_id");
+    setSearchParams(next, { replace: true });
+  }
+
+  const params =
+    filterStatus || patientIdFilter || rxQueueIdFilter
+      ? {
+          ...(filterStatus ? { status: filterStatus } : {}),
+          ...(patientIdFilter ? { patient_id: patientIdFilter } : {}),
+          ...(rxQueueIdFilter ? { rx_queue_id: rxQueueIdFilter } : {}),
+        }
+      : undefined;
   const { data: queue = [], isLoading } = useQuery({
     queryKey: ["pharmacy-rx-queue", params],
     queryFn: () => pharmacyService.listRxQueue(params),
@@ -5050,7 +5081,7 @@ function RxQueueTab({
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
       queryClient.invalidateQueries({ queryKey: ["billing-report-daily"] });
       closeReview();
-      setSelectedId(null);
+      setActiveRxQueueId(null);
       resetReviewForm(DEFAULT_RX_REVIEW_FORM_VALUES);
       notifications.show({
         title: "Prescription reviewed",
@@ -5074,7 +5105,7 @@ function RxQueueTab({
 
   function closeReviewModal() {
     closeReview();
-    setSelectedId(null);
+    setActiveRxQueueId(null);
     resetReviewForm(DEFAULT_RX_REVIEW_FORM_VALUES);
   }
 
@@ -5087,7 +5118,7 @@ function RxQueueTab({
     } else {
       setReviewFormValue("action", action, { shouldDirty: true });
     }
-    setSelectedId(id);
+    setActiveRxQueueId(id);
     openReview();
   }
 
@@ -5199,7 +5230,7 @@ function RxQueueTab({
               color="primary"
               onClick={() => {
                 setReviewItems([]);
-                setSelectedId(row.id);
+                setActiveRxQueueId(row.id);
               }}
               aria-label="View prescription details"
             >
@@ -5262,7 +5293,14 @@ function RxQueueTab({
         </Alert>
       )}
       <Group justify="space-between">
-        <Text fw={600}>Prescription Queue</Text>
+        <Stack gap={2}>
+          <Text fw={600}>Prescription Queue</Text>
+          {patientIdFilter && (
+            <Text size="xs" c="dimmed">
+              Filtered to the patient from the clinical handoff.
+            </Text>
+          )}
+        </Stack>
         <Select
           size="xs"
           placeholder="All statuses"
@@ -5278,12 +5316,31 @@ function RxQueueTab({
           onChange={setFilterStatus}
         />
       </Group>
+      {patientIdFilter && (
+        <PharmacyPatientContext
+          patientId={patientIdFilter}
+          canViewPatientRecord={canViewPatientRecord}
+        />
+      )}
+      {(patientIdFilter || rxQueueIdFilter) && (
+        <Alert color="teal" variant="light" title="Prescription review handoff">
+          <Group justify="space-between" align="center" gap="sm">
+            <Text size="sm">
+              Review the prescription, allergy alerts, formulary mapping, and billing estimate
+              before creating the pharmacy order.
+            </Text>
+            <Button size="xs" variant="subtle" onClick={clearRxQueueHandoff}>
+              Clear handoff
+            </Button>
+          </Group>
+        </Alert>
+      )}
       <DataTable columns={columns} data={queue} loading={isLoading} rowKey={(row) => row.id} />
 
       {/* Prescription Detail Drawer */}
       <Drawer
         opened={Boolean(selectedId) && !reviewOpened}
-        onClose={() => setSelectedId(null)}
+        onClose={() => setActiveRxQueueId(null)}
         title="Prescription Detail"
         position="right"
         size="min(100%, 1040px)"

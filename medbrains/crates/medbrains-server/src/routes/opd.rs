@@ -331,6 +331,7 @@ pub struct PrescriptionWithItems {
     pub prescription: Prescription,
     pub items: Vec<PrescriptionItem>,
     pub pharmacy_status: Option<String>,
+    pub pharmacy_rx_queue_id: Option<Uuid>,
     pub pharmacy_order_id: Option<Uuid>,
 }
 
@@ -1970,13 +1971,13 @@ async fn prescription_pharmacy_statuses(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     tenant_id: Uuid,
     prescription_ids: &[Uuid],
-) -> Result<HashMap<Uuid, (Option<String>, Option<Uuid>)>, AppError> {
+) -> Result<HashMap<Uuid, (Uuid, Option<String>, Option<Uuid>)>, AppError> {
     if prescription_ids.is_empty() {
         return Ok(HashMap::new());
     }
 
-    let rows = sqlx::query_as::<_, (Uuid, String, Option<Uuid>)>(
-        "SELECT prescription_id, status::text, pharmacy_order_id \
+    let rows = sqlx::query_as::<_, (Uuid, Uuid, String, Option<Uuid>)>(
+        "SELECT prescription_id, id, status::text, pharmacy_order_id \
          FROM pharmacy_prescriptions \
          WHERE prescription_id = ANY($1) AND tenant_id = $2",
     )
@@ -1987,8 +1988,8 @@ async fn prescription_pharmacy_statuses(
 
     Ok(rows
         .into_iter()
-        .map(|(prescription_id, status, pharmacy_order_id)| {
-            (prescription_id, (Some(status), pharmacy_order_id))
+        .map(|(prescription_id, queue_id, status, pharmacy_order_id)| {
+            (prescription_id, (queue_id, Some(status), pharmacy_order_id))
         })
         .collect())
 }
@@ -2048,14 +2049,17 @@ pub async fn list_prescriptions(
     let mut result = Vec::with_capacity(prescriptions.len());
     for rx in prescriptions {
         let items = items_by_prescription.remove(&rx.id).unwrap_or_default();
-        let (pharmacy_status, pharmacy_order_id) = pharmacy_statuses
+        let (pharmacy_rx_queue_id, pharmacy_status, pharmacy_order_id) = pharmacy_statuses
             .get(&rx.id)
             .cloned()
-            .unwrap_or((None, None));
+            .map_or((None, None, None), |(queue_id, status, order_id)| {
+                (Some(queue_id), status, order_id)
+            });
         result.push(PrescriptionWithItems {
             prescription: rx,
             items,
             pharmacy_status,
+            pharmacy_rx_queue_id,
             pharmacy_order_id,
         });
     }
@@ -2099,14 +2103,19 @@ pub async fn get_prescription(
     .await?;
 
     let statuses = prescription_pharmacy_statuses(&mut tx, claims.tenant_id, &[rx.id]).await?;
-    let (pharmacy_status, pharmacy_order_id) =
-        statuses.get(&rx.id).cloned().unwrap_or((None, None));
+    let (pharmacy_rx_queue_id, pharmacy_status, pharmacy_order_id) = statuses
+        .get(&rx.id)
+        .cloned()
+        .map_or((None, None, None), |(queue_id, status, order_id)| {
+            (Some(queue_id), status, order_id)
+        });
 
     tx.commit().await?;
     Ok(Json(PrescriptionWithItems {
         prescription: rx,
         items,
         pharmacy_status,
+        pharmacy_rx_queue_id,
         pharmacy_order_id,
     }))
 }
@@ -2171,6 +2180,8 @@ pub async fn create_prescription(
     .await?
     .flatten();
 
+    let mut pharmacy_rx_queue_id = None;
+
     if let Some(pid) = patient_id {
         let encounter_type = sqlx::query_scalar::<_, Option<String>>(
             "SELECT encounter_type::text FROM encounters WHERE id = $1",
@@ -2187,11 +2198,12 @@ pub async fn create_prescription(
             _ => "opd",
         };
 
-        let _ = sqlx::query(
+        pharmacy_rx_queue_id = sqlx::query_scalar::<_, Uuid>(
             "INSERT INTO pharmacy_prescriptions \
              (tenant_id, prescription_id, patient_id, encounter_id, doctor_id, source, status, priority) \
              VALUES ($1, $2, $3, $4, $5, $6, 'pending_review', 'normal') \
-             ON CONFLICT DO NOTHING",
+             ON CONFLICT DO NOTHING \
+             RETURNING id",
         )
         .bind(claims.tenant_id)
         .bind(rx.id)
@@ -2199,8 +2211,19 @@ pub async fn create_prescription(
         .bind(encounter_id)
         .bind(claims.sub)
         .bind(source)
-        .execute(&mut *tx)
-        .await;
+        .fetch_optional(&mut *tx)
+        .await?;
+
+        if pharmacy_rx_queue_id.is_none() {
+            pharmacy_rx_queue_id = sqlx::query_scalar::<_, Uuid>(
+                "SELECT id FROM pharmacy_prescriptions \
+                 WHERE prescription_id = $1 AND tenant_id = $2",
+            )
+            .bind(rx.id)
+            .bind(claims.tenant_id)
+            .fetch_optional(&mut *tx)
+            .await?;
+        }
     }
 
     tx.commit().await?;
@@ -2235,6 +2258,7 @@ pub async fn create_prescription(
         prescription: rx,
         items,
         pharmacy_status: patient_id.map(|_| "pending_review".to_owned()),
+        pharmacy_rx_queue_id,
         pharmacy_order_id: None,
     }))
 }
@@ -2332,9 +2356,10 @@ pub async fn update_prescription(
         items.push(pi);
     }
 
-    let (pharmacy_status, pharmacy_order_id) = if let Some((queue_id, _, _)) = pharmacy_state {
-        sqlx::query(
-            "UPDATE pharmacy_prescriptions SET \
+    let (pharmacy_rx_queue_id, pharmacy_status, pharmacy_order_id) =
+        if let Some((queue_id, _, _)) = pharmacy_state {
+            sqlx::query(
+                "UPDATE pharmacy_prescriptions SET \
                 status = 'pending_review'::pharmacy_rx_status, \
                 reviewed_by = NULL, \
                 reviewed_at = NULL, \
@@ -2344,15 +2369,15 @@ pub async fn update_prescription(
                 interaction_check_done = false, \
                 interaction_check_result = NULL \
              WHERE id = $1 AND tenant_id = $2",
-        )
-        .bind(queue_id)
-        .bind(claims.tenant_id)
-        .execute(&mut *tx)
-        .await?;
-        (Some("pending_review".to_owned()), None)
-    } else {
-        (None, None)
-    };
+            )
+            .bind(queue_id)
+            .bind(claims.tenant_id)
+            .execute(&mut *tx)
+            .await?;
+            (Some(queue_id), Some("pending_review".to_owned()), None)
+        } else {
+            (None, None, None)
+        };
 
     tx.commit().await?;
 
@@ -2374,6 +2399,7 @@ pub async fn update_prescription(
         prescription: rx,
         items,
         pharmacy_status,
+        pharmacy_rx_queue_id,
         pharmacy_order_id,
     }))
 }
@@ -2487,6 +2513,7 @@ pub struct PrescriptionHistoryItem {
     pub encounter_date: NaiveDate,
     pub doctor_name: Option<String>,
     pub pharmacy_status: Option<String>,
+    pub pharmacy_rx_queue_id: Option<Uuid>,
     pub pharmacy_order_id: Option<Uuid>,
 }
 
@@ -2551,10 +2578,12 @@ pub async fn list_patient_prescriptions(
 
         let (encounter_date, doctor_name) =
             row.unwrap_or_else(|| (rx.created_at.date_naive(), None));
-        let (pharmacy_status, pharmacy_order_id) = pharmacy_statuses
+        let (pharmacy_rx_queue_id, pharmacy_status, pharmacy_order_id) = pharmacy_statuses
             .get(&rx.id)
             .cloned()
-            .unwrap_or((None, None));
+            .map_or((None, None, None), |(queue_id, status, order_id)| {
+                (Some(queue_id), status, order_id)
+            });
 
         result.push(PrescriptionHistoryItem {
             prescription: rx.clone(),
@@ -2562,6 +2591,7 @@ pub async fn list_patient_prescriptions(
             encounter_date,
             doctor_name,
             pharmacy_status,
+            pharmacy_rx_queue_id,
             pharmacy_order_id,
         });
     }

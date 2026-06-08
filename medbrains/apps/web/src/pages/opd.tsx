@@ -222,6 +222,7 @@ import {
 } from "./opd-queue-actions";
 import {
   activeOpdPharmacyOrderIdForJourney,
+  activeOpdPharmacyRxQueueIdForJourney,
   isOpdEncounterTabValue,
   OPD_ENCOUNTER_TAB_VALUES,
   opdEncounterOrderBasketRoute,
@@ -1601,6 +1602,7 @@ export function EncounterDetail({
     [encounterLabOrders, mrdCaseSheetPackets, prescriptions],
   );
   const activePharmacyOrderId = activeOpdPharmacyOrderIdForJourney(prescriptions);
+  const activePharmacyRxQueueId = activeOpdPharmacyRxQueueIdForJourney(prescriptions);
 
   const generateMrdCaseSheetMutation = useMutation({
     mutationFn: () => mrdService.generateOpdCaseSheetPacket(encounterId),
@@ -1664,6 +1666,7 @@ export function EncounterDetail({
     patientId,
     activeEncounterId: encounterId,
     activePharmacyOrderId,
+    activePharmacyRxQueueId,
     activeOrderContext: "opd",
     completedEvents: journeyCompletedEvents,
   };
@@ -1700,6 +1703,7 @@ export function EncounterDetail({
         active="opd"
         activeEncounterId={encounterId}
         activePharmacyOrderId={activePharmacyOrderId}
+        activePharmacyRxQueueId={activePharmacyRxQueueId}
         completedEvents={journeyCompletedEvents}
         compact
       />

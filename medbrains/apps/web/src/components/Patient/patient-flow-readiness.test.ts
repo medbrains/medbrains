@@ -2,6 +2,7 @@
 
 import {
   activePatientPharmacyOrderIdForJourney,
+  activePatientPharmacyRxQueueIdForJourney,
   buildPatientFlowReadiness,
   P,
   type PrescriptionHistoryItem,
@@ -19,11 +20,13 @@ function prescriptionHistory(
   id: string,
   itemStatus = "active",
   pharmacyOrderId: string | null = null,
+  pharmacyRxQueueId: string | null = null,
 ): PrescriptionHistoryItem {
   return {
     doctor_name: null,
     encounter_date: "2026-01-01",
     pharmacy_order_id: pharmacyOrderId,
+    pharmacy_rx_queue_id: pharmacyRxQueueId,
     pharmacy_status: pharmacyOrderId ? "dispensing" : "pending_review",
     items: [
       {
@@ -71,6 +74,17 @@ describe("patient flow readiness", () => {
     ).toBe("order-stopped");
     expect(activePatientPharmacyOrderIdForJourney([prescriptionHistory("pending-rx")])).toBeNull();
     expect(activePatientPharmacyOrderIdForJourney([])).toBeNull();
+    expect(
+      activePatientPharmacyRxQueueIdForJourney([
+        prescriptionHistory("old-stopped", "discontinued", null, "rx-queue-old"),
+        prescriptionHistory("active-rx", "active", null, "rx-queue-active"),
+      ]),
+    ).toBe("rx-queue-active");
+    expect(
+      activePatientPharmacyRxQueueIdForJourney([
+        prescriptionHistory("ordered-rx", "active", "order-active", "rx-queue-active"),
+      ]),
+    ).toBeNull();
   });
 
   it("summarizes the core module handoffs from a registered patient", () => {
@@ -165,6 +179,21 @@ describe("patient flow readiness", () => {
     );
   });
 
+  it("routes pending medication work to the pharmacy review queue before an order exists", () => {
+    const readiness = buildPatientFlowReadiness(
+      patientFlowJourneyContext({
+        patientId: "patient-1",
+        activePharmacyRxQueueId: "rx-queue-1",
+      }),
+      allowAll,
+    );
+
+    expect(readiness.items.find((item) => item.id === "pharmacy")).toMatchObject({
+      enabled: true,
+      href: "/pharmacy?tab=rx-queue&rx_queue_id=rx-queue-1&patient_id=patient-1",
+    });
+  });
+
   it("supports partial permissions while preserving workflow route hints", () => {
     const readiness = buildPatientFlowReadiness(
       patientFlowJourneyContext({
@@ -182,7 +211,7 @@ describe("patient flow readiness", () => {
     });
     expect(readiness.items.find((item) => item.id === "pharmacy")).toMatchObject({
       enabled: true,
-      href: "/pharmacy?tab=orders&patient_id=patient-1",
+      href: "/pharmacy?tab=rx-queue&patient_id=patient-1",
     });
     expect(readiness.items.find((item) => item.id === "opd")?.disabledReason).toBe(
       "Requires opd.visit.create",

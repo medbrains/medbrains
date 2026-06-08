@@ -45,6 +45,7 @@ export interface ClinicalJourneyContext {
   activeCampRegistrationId?: string | null;
   activeInvoiceId?: string | null;
   activePharmacyOrderId?: string | null;
+  activePharmacyRxQueueId?: string | null;
   activeOrderContext?: ClinicalOrderContext | null;
   billingPaymentConfigurationReady?: boolean;
   hasPendingConsent?: boolean;
@@ -268,7 +269,7 @@ export function inferClinicalJourneyEventNames(
   if (context.activeEmergencyVisitId) {
     events.add("emergency.visit.created");
   }
-  if (context.activePharmacyOrderId) {
+  if (context.activePharmacyOrderId || context.activePharmacyRxQueueId) {
     events.add("order.created");
   }
   if (context.activeInvoiceId) {
@@ -620,7 +621,8 @@ export const CORE_PATIENT_JOURNEY_ACTIONS: readonly ClinicalJourneyActionDefinit
     id: "pharmacy.open_patient_queue",
     label: "Pharmacy",
     shortLabel: "Pharmacy",
-    description: "Open pharmacy orders and dispensing context for this patient.",
+    description:
+      "Open pharmacy prescription review, orders, and dispensing context for this patient.",
     module: "pharmacy",
     intent: "clinical",
     requiredPermissions: [P.PHARMACY.PRESCRIPTIONS_LIST],

@@ -4845,9 +4845,10 @@ export const api = {
   getDrugUtilization: () => request<DrugUtilizationRow[]>("/pharmacy/analytics/utilization"),
 
   // Pharmacy Phase 3: Rx Queue
-  listRxQueue: (params?: { status?: string }) => {
-    const qs = params?.status ? `?status=${params.status}` : "";
-    return request<RxQueueRow[]>(`/pharmacy/rx-queue${qs}`);
+  listRxQueue: (params?: { patient_id?: string; rx_queue_id?: string; status?: string }) => {
+    const sp = params ? new URLSearchParams(params) : null;
+    const qs = sp?.toString();
+    return request<RxQueueRow[]>(`/pharmacy/rx-queue${qs ? `?${qs}` : ""}`);
   },
   getRxDetail: (id: string) => request<PharmacyRxDetailResponse>(`/pharmacy/rx-queue/${id}`),
   reviewPrescription: (id: string, data: ReviewPharmacyPrescriptionRequest) =>

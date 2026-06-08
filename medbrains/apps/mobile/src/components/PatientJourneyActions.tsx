@@ -315,6 +315,7 @@ export function PatientJourneyActions({
           handoff: "dispense",
           patientId: context.patientId,
           pharmacyOrderId: context.activePharmacyOrderId ?? undefined,
+          pharmacyRxQueueId: context.activePharmacyRxQueueId ?? undefined,
         });
         return;
       case "pharmacy.open_patient_queue":
@@ -322,6 +323,7 @@ export function PatientJourneyActions({
           handoff: "queue",
           patientId: context.patientId,
           pharmacyOrderId: context.activePharmacyOrderId ?? undefined,
+          pharmacyRxQueueId: context.activePharmacyRxQueueId ?? undefined,
         });
         return;
     }

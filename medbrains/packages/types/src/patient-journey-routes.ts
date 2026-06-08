@@ -73,7 +73,10 @@ export function patientJourneyActionRoute(
       if (context.activePharmacyOrderId) {
         return `/pharmacy/orders/${context.activePharmacyOrderId}`;
       }
-      return `/pharmacy?tab=orders&patient_id=${context.patientId}`;
+      if (context.activePharmacyRxQueueId) {
+        return `/pharmacy?tab=rx-queue&rx_queue_id=${context.activePharmacyRxQueueId}&patient_id=${context.patientId}`;
+      }
+      return `/pharmacy?tab=rx-queue&patient_id=${context.patientId}`;
     case "pharmacy.dispense_order":
       if (context.activePharmacyOrderId) {
         return `/pharmacy/orders/${context.activePharmacyOrderId}?action=dispense`;

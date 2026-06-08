@@ -70,3 +70,20 @@ export function activeOpdPharmacyOrderIdForJourney(
     null
   );
 }
+
+export function activeOpdPharmacyRxQueueIdForJourney(
+  prescriptions: readonly PrescriptionWithItems[],
+): string | null {
+  return (
+    prescriptions.find(
+      (prescription) =>
+        !prescription.pharmacy_order_id &&
+        prescription.pharmacy_rx_queue_id &&
+        prescription.items.some((item) => item.item_status !== "discontinued"),
+    )?.pharmacy_rx_queue_id ??
+    prescriptions.find(
+      (prescription) => !prescription.pharmacy_order_id && prescription.pharmacy_rx_queue_id,
+    )?.pharmacy_rx_queue_id ??
+    null
+  );
+}

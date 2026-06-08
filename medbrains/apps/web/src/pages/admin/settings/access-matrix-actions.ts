@@ -114,6 +114,7 @@ const JOURNEY_ACTION_ROUTE_CONTEXTS: Partial<
   ],
   "pharmacy.open_patient_queue": [
     { ...BASE_ROUTE_CONTEXT, activePharmacyOrderId: ":pharmacyOrderId" },
+    { ...BASE_ROUTE_CONTEXT, activePharmacyRxQueueId: ":pharmacyRxQueueId" },
     BASE_ROUTE_CONTEXT,
   ],
   "pharmacy.dispense_order": [

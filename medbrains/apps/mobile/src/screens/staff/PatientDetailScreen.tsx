@@ -11,6 +11,7 @@ import type {
 } from "@medbrains/types";
 import {
   activePatientPharmacyOrderIdForJourney,
+  activePatientPharmacyRxQueueIdForJourney,
   deriveCampJourneyCompletedEvents,
   P,
 } from "@medbrains/types";
@@ -282,6 +283,7 @@ export function PatientDetailScreen({ route, navigation }: PatientDetailScreenPr
   ).length;
   const activeInvoiceId = activePatientInvoiceIdForJourney(invoiceList);
   const activePharmacyOrderId = activePatientPharmacyOrderIdForJourney(prescriptionList);
+  const activePharmacyRxQueueId = activePatientPharmacyRxQueueIdForJourney(prescriptionList);
   const completedEvents: ClinicalEventName[] = [];
   if (hasMedicationOrder) completedEvents.push("order.created");
   completedEvents.push(...campCompletedEvents);
@@ -300,6 +302,7 @@ export function PatientDetailScreen({ route, navigation }: PatientDetailScreenPr
     activeEmergencyVisitId: activeErVisit?.id ?? null,
     activeInvoiceId,
     activePharmacyOrderId,
+    activePharmacyRxQueueId,
     activeOrderContext,
     completedEvents,
   };
