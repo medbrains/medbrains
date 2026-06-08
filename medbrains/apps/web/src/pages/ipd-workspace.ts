@@ -3,7 +3,6 @@ import type {
   ClinicalEventName,
   InvestigationsResponse,
   Invoice,
-  InvoiceStatus,
   IpdDischargeSummary,
   MrdCaseSheetPacket,
   PharmacyOrder,
@@ -11,7 +10,13 @@ import type {
   WorkflowSignalShape,
   WorkflowSignalTone,
 } from "@medbrains/types";
-import { hasReviewedPatientPharmacyPrescriptionForJourney, P } from "@medbrains/types";
+import {
+  activeBillingInvoiceIdForJourney,
+  billingInvoiceHasReceivedPayment,
+  billingInvoiceIsFinalized,
+  hasReviewedPatientPharmacyPrescriptionForJourney,
+  P,
+} from "@medbrains/types";
 
 export type IpdActionRailSection =
   | "handoffs"
@@ -121,8 +126,6 @@ export interface IpdWorkspaceTabReadinessSummary {
 
 const ADMISSION_CREATED: readonly ClinicalEventName[] = ["ipd.admission.created"];
 const ADMISSION_WITH_BED: readonly ClinicalEventName[] = ["ipd.admission.created", "bed.assigned"];
-const FINALIZED_INVOICE_STATUSES: readonly InvoiceStatus[] = ["issued", "partially_paid", "paid"];
-const OPEN_INVOICE_STATUSES: readonly InvoiceStatus[] = ["draft", "issued", "partially_paid"];
 const ACTIVE_ADMISSION_ACTIONS = new Set<IpdActionRailActionId>([
   "order_medicines",
   "order_lab",
@@ -145,27 +148,8 @@ interface IpdJourneyEventSources {
   prescriptions: readonly PrescriptionWithItems[];
 }
 
-function parseMoney(value: string): number {
-  const parsed = Number.parseFloat(value);
-  return Number.isFinite(parsed) ? parsed : 0;
-}
-
-function invoiceHasBalance(invoice: Invoice): boolean {
-  return parseMoney(invoice.total_amount) - parseMoney(invoice.paid_amount) > 0.004;
-}
-
-function invoiceIsOpen(invoice: Invoice): boolean {
-  return OPEN_INVOICE_STATUSES.includes(invoice.status);
-}
-
 export function activeIpdInvoiceIdForJourney(invoices: readonly Invoice[]): string | null {
-  return (
-    invoices.find((invoice) => invoiceIsOpen(invoice) && invoiceHasBalance(invoice))?.id ??
-    invoices.find((invoice) => invoiceIsOpen(invoice))?.id ??
-    invoices.find((invoice) => invoice.status !== "cancelled" && invoice.status !== "refunded")
-      ?.id ??
-    null
-  );
+  return activeBillingInvoiceIdForJourney(invoices);
 }
 
 export function activeIpdPharmacyOrderIdForJourney({
@@ -241,15 +225,16 @@ export function deriveIpdJourneyCompletedEvents({
   if (invoices.length > 0) {
     events.push("billing.invoice.created");
   }
-  if (invoices.some((invoice) => FINALIZED_INVOICE_STATUSES.includes(invoice.status))) {
+  if (
+    invoices.some((invoice) =>
+      billingInvoiceIsFinalized(invoice.status, invoice.total_amount, invoice.paid_amount),
+    )
+  ) {
     events.push("billing.invoice.finalized");
   }
   if (
-    invoices.some(
-      (invoice) =>
-        invoice.status === "partially_paid" ||
-        invoice.status === "paid" ||
-        parseMoney(invoice.paid_amount) > 0,
+    invoices.some((invoice) =>
+      billingInvoiceHasReceivedPayment(invoice.status, invoice.total_amount, invoice.paid_amount),
     )
   ) {
     events.push("billing.payment.received");

@@ -553,6 +553,20 @@ describe("IPD journey handoff context", () => {
     ]);
   });
 
+  it("derives billing events from invoice payment display state", () => {
+    expect(
+      deriveIpdJourneyCompletedEvents({
+        admission: null,
+        dischargeSummary: null,
+        investigations: null,
+        invoices: [invoice({ paid_amount: "100", status: "draft", total_amount: "100" })],
+        mrdCaseSheetPackets: [],
+        pharmacyOrders: [],
+        prescriptions: [],
+      }),
+    ).toEqual(["billing.invoice.created", "billing.invoice.finalized", "billing.payment.received"]);
+  });
+
   it("derives pharmacy review events from IPD reviewed prescription status", () => {
     expect(
       deriveIpdJourneyCompletedEvents({
