@@ -12,6 +12,7 @@ import type { IntentTone } from "@medbrains/ui-mobile";
 import { COLORS, SPACING } from "@medbrains/ui-mobile";
 import { StyleSheet, View } from "react-native";
 import { Text } from "react-native-paper";
+import { TV_TEXT, tvText } from "./tv-i18n.js";
 
 interface TvFeedStatusBannerProps {
   errorLabel: string;
@@ -21,7 +22,7 @@ interface TvFeedStatusBannerProps {
 }
 
 export function tvLastUpdatedLabel(updatedAt: number) {
-  if (updatedAt <= 0) return "not synced";
+  if (updatedAt <= 0) return tvText(TV_TEXT.feed.notSynced);
   return new Date(updatedAt).toLocaleTimeString([], {
     hour: "2-digit",
     minute: "2-digit",
@@ -64,7 +65,11 @@ export function tvTokenBoardLegend(
   updatedAt: number,
   deepLink = surface.targets.tvDeepLink,
 ) {
-  return `Updates every ${tokenBoardRefreshLabel(surface)} · last sync ${tvLastUpdatedLabel(updatedAt)} · ${deepLink}`;
+  return tvText(TV_TEXT.feed.legend, {
+    deepLink,
+    refresh: tokenBoardRefreshLabel(surface),
+    sync: tvLastUpdatedLabel(updatedAt),
+  });
 }
 
 export function tvTokenBoardReadinessItems({
@@ -96,13 +101,17 @@ export function TvFeedStatusBanner({
   }
 
   const tone = isError ? "error" : "stale";
-  const message = isError ? errorLabel : "Showing last known tokens while the display reconnects.";
+  const message = isError ? errorLabel : tvText(TV_TEXT.feed.reconnecting);
 
   return (
     <View style={[styles.banner, tone === "error" ? styles.error : styles.warning]}>
-      <Text style={styles.title}>{tone === "error" ? "Feed degraded" : "Feed status"}</Text>
+      <Text style={styles.title}>
+        {tone === "error" ? tvText(TV_TEXT.feed.degradedTitle) : tvText(TV_TEXT.feed.statusTitle)}
+      </Text>
       <Text style={styles.message}>{message}</Text>
-      <Text style={styles.meta}>Last sync {tvLastUpdatedLabel(lastUpdatedAt)}</Text>
+      <Text style={styles.meta}>
+        {tvText(TV_TEXT.feed.lastSync, { time: tvLastUpdatedLabel(lastUpdatedAt) })}
+      </Text>
     </View>
   );
 }

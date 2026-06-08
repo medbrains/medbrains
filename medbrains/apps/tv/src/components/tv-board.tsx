@@ -13,6 +13,7 @@ import { Badge, COLORS, INTENT_BG, INTENT_FG, SPACING } from "@medbrains/ui-mobi
 import type { ReactNode } from "react";
 import { ScrollView, View } from "react-native";
 import { Text } from "react-native-paper";
+import { TV_TEXT, tvText } from "./tv-i18n.js";
 
 export interface TvReadinessItem {
   label: string;
@@ -184,7 +185,7 @@ function TvPrivacyNotice({ label }: { label: string }): ReactNode {
           textTransform: "uppercase",
         }}
       >
-        Privacy display mode
+        {tvText(TV_TEXT.privacy.displayMode)}
       </Text>
       <Text
         style={{

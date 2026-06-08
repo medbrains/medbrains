@@ -1,7 +1,12 @@
 // @vitest-environment node
 
-import { TOKEN_BOARD_SURFACE_LIST } from "@medbrains/types";
+import { TOKEN_BOARD_SURFACE_LIST, tokenBoardRefreshLabel } from "@medbrains/types";
 import { describe, expect, it } from "vitest";
+import {
+  TV_TEXT,
+  tvText,
+  tvTokenBoardFeedErrorLabel,
+} from "../../../../../tv/src/components/tv-i18n";
 import {
   TOKEN_BOARD_TV_MODULE_IDS_BY_DISPLAY,
   TOKEN_BOARD_TV_MODULE_REGISTRY,
@@ -48,5 +53,23 @@ describe("TV token-board registry", () => {
     ).toBe(true);
     expect(TOKEN_BOARD_TV_MODULE_REGISTRY.every((entry) => entry.appCodes.length > 0)).toBe(true);
     expect(TOKEN_BOARD_TV_MODULE_REGISTRY.every((entry) => entry.moduleId.length > 0)).toBe(true);
+  });
+
+  it("backs token-board TV feed text with shared i18n keys", () => {
+    expect(tvText(TV_TEXT.feed.notSynced)).toBe("not synced");
+
+    for (const surface of TOKEN_BOARD_SURFACE_LIST) {
+      expect(tvTokenBoardFeedErrorLabel(surface.id)).toContain("feed is unreachable");
+      expect(tvTokenBoardFeedErrorLabel(surface.id)).not.toBe(
+        TV_TEXT.tokenBoards.feedError[surface.id],
+      );
+      expect(
+        tvText(TV_TEXT.feed.legend, {
+          deepLink: surface.targets.tvDeepLink,
+          refresh: tokenBoardRefreshLabel(surface),
+          sync: tvText(TV_TEXT.feed.notSynced),
+        }),
+      ).toContain(surface.targets.tvDeepLink);
+    }
   });
 });

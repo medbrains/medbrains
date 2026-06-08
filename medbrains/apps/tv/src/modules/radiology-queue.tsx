@@ -22,6 +22,7 @@ import {
   tvTokenBoardLegend,
   tvTokenBoardReadinessItems,
 } from "../components/tv-feed-status.js";
+import { tvTokenBoardFeedErrorLabel } from "../components/tv-i18n.js";
 import {
   TvTokenStatusShape,
   tvTokenStatusSignalColors,
@@ -115,7 +116,7 @@ function RadiologyQueueScreen({ route }: RadiologyQueueScreenProps) {
         ]}
       />
       <TvFeedStatusBanner
-        errorLabel="Radiology queue feed is unreachable. Continuing with the last available token state."
+        errorLabel={tvTokenBoardFeedErrorLabel(RADIOLOGY_BOARD.id)}
         isError={queueQuery.isError}
         lastUpdatedAt={queueQuery.dataUpdatedAt}
         refreshIntervalMs={REFRESH_INTERVAL_MS}

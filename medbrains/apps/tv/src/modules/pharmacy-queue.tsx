@@ -22,6 +22,7 @@ import {
   tvTokenBoardLegend,
   tvTokenBoardReadinessItems,
 } from "../components/tv-feed-status.js";
+import { tvTokenBoardFeedErrorLabel } from "../components/tv-i18n.js";
 import {
   TvTokenStatusShape,
   tvTokenStatusSignalColors,
@@ -81,7 +82,7 @@ function PharmacyQueueScreen() {
         ]}
       />
       <TvFeedStatusBanner
-        errorLabel="Pharmacy queue feed is unreachable. Continuing with the last available token state."
+        errorLabel={tvTokenBoardFeedErrorLabel(PHARMACY_BOARD.id)}
         isError={queueQuery.isError}
         lastUpdatedAt={queueQuery.dataUpdatedAt}
         refreshIntervalMs={REFRESH_INTERVAL_MS}

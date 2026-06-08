@@ -16,6 +16,7 @@ import {
   tvTokenBoardLegend,
   tvTokenBoardReadinessItems,
 } from "../components/tv-feed-status.js";
+import { tvTokenBoardFeedErrorLabel } from "../components/tv-i18n.js";
 import { tvQueueService } from "../services/tvQueue.service.js";
 
 const DISPLAY_TOKEN_LIMIT = 8;
@@ -114,7 +115,7 @@ function EmergencyTriageScreen() {
         ]}
       />
       <TvFeedStatusBanner
-        errorLabel="Emergency triage feed is unreachable. Continuing with the last available token state."
+        errorLabel={tvTokenBoardFeedErrorLabel(EMERGENCY_BOARD.id)}
         isError={queueQuery.isError}
         lastUpdatedAt={queueQuery.dataUpdatedAt}
         refreshIntervalMs={REFRESH_INTERVAL_MS}

@@ -24,6 +24,7 @@ import {
   tvTokenBoardLegend,
   tvTokenBoardReadinessItems,
 } from "../components/tv-feed-status.js";
+import { tvTokenBoardFeedErrorLabel } from "../components/tv-i18n.js";
 import {
   TvTokenStatusShape,
   tvTokenStatusSignalColors,
@@ -115,7 +116,7 @@ function QueueScreen({ route }: QueueScreenProps) {
         ]}
       />
       <TvFeedStatusBanner
-        errorLabel="Queue feed is unreachable. Continuing with the last available token state."
+        errorLabel={tvTokenBoardFeedErrorLabel(OPD_BOARD.id)}
         isError={tokensQuery.isError}
         lastUpdatedAt={tokensQuery.dataUpdatedAt}
         refreshIntervalMs={REFRESH_INTERVAL_MS}
