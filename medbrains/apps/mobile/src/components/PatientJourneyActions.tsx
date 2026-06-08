@@ -19,6 +19,8 @@ import { Button, Chip, Text } from "react-native-paper";
 import { mobileCampCareContextParams } from "../navigation/careContextParams";
 import {
   MOBILE_PATIENT_JOURNEY_BLOCKERS,
+  MOBILE_PATIENT_JOURNEY_TEXT,
+  mobilePatientJourneyText,
   mobilePatientJourneyTranslator,
 } from "./patientJourneyText";
 
@@ -126,7 +128,9 @@ function mobileActionBlocker(
   ) {
     return {
       key: MOBILE_PATIENT_JOURNEY_BLOCKERS.openOpdEncounterBeforeMobileConsultation,
-      message: "Open an OPD encounter before mobile consultation",
+      message: mobilePatientJourneyText(
+        MOBILE_PATIENT_JOURNEY_BLOCKERS.openOpdEncounterBeforeMobileConsultation,
+      ),
       reason: "context",
     };
   }
@@ -139,12 +143,16 @@ function mobileActionBlocker(
     return context.activeOrderContext === "ipd"
       ? {
           key: MOBILE_PATIENT_JOURNEY_BLOCKERS.openActiveIpdEncounterBeforeMobileInpatientOrders,
-          message: "Open an active IPD encounter before mobile inpatient orders",
+          message: mobilePatientJourneyText(
+            MOBILE_PATIENT_JOURNEY_BLOCKERS.openActiveIpdEncounterBeforeMobileInpatientOrders,
+          ),
           reason: "context",
         }
       : {
           key: MOBILE_PATIENT_JOURNEY_BLOCKERS.openOpdEncounterBeforeMobileOrders,
-          message: "Open an OPD encounter before mobile orders",
+          message: mobilePatientJourneyText(
+            MOBILE_PATIENT_JOURNEY_BLOCKERS.openOpdEncounterBeforeMobileOrders,
+          ),
           reason: "context",
         };
   }
@@ -316,44 +324,59 @@ export function PatientJourneyActions({
       <View style={styles.header}>
         <View>
           <Text variant="titleSmall" style={styles.title}>
-            Patient Flow
+            {mobilePatientJourneyText(MOBILE_PATIENT_JOURNEY_TEXT.actionPanel.title)}
           </Text>
           <Text variant="bodySmall" style={styles.subtitle}>
-            Event and permission driven mobile handoffs
+            {mobilePatientJourneyText(MOBILE_PATIENT_JOURNEY_TEXT.actionPanel.subtitle)}
           </Text>
         </View>
         <View style={styles.summaryChips}>
           <Chip compact icon="check-circle" mode="outlined">
-            {readinessSummary.enabled}/{readinessSummary.total} ready
+            {mobilePatientJourneyText(MOBILE_PATIENT_JOURNEY_TEXT.summary.readyCount, {
+              enabled: readinessSummary.enabled,
+              total: readinessSummary.total,
+            })}
           </Chip>
           {readinessSummary.blocked > 0 && (
             <Chip compact icon="lock-alert" mode="outlined">
-              {readinessSummary.blocked} blocked
+              {mobilePatientJourneyText(MOBILE_PATIENT_JOURNEY_TEXT.summary.blockedCount, {
+                count: readinessSummary.blocked,
+              })}
             </Chip>
           )}
           {readinessSummary.permissionBlocked > 0 && (
             <Chip compact icon="shield-lock" mode="outlined">
-              {readinessSummary.permissionBlocked} permission
+              {mobilePatientJourneyText(MOBILE_PATIENT_JOURNEY_TEXT.summary.permissionCount, {
+                count: readinessSummary.permissionBlocked,
+              })}
             </Chip>
           )}
           {readinessSummary.eventBlocked > 0 && (
             <Chip compact icon="source-branch" mode="outlined">
-              {readinessSummary.eventBlocked} awaiting event
+              {mobilePatientJourneyText(MOBILE_PATIENT_JOURNEY_TEXT.summary.awaitingEventCount, {
+                count: readinessSummary.eventBlocked,
+              })}
             </Chip>
           )}
           {readinessSummary.configurationBlocked > 0 && (
             <Chip compact icon="cog" mode="outlined">
-              {readinessSummary.configurationBlocked} config
+              {mobilePatientJourneyText(MOBILE_PATIENT_JOURNEY_TEXT.summary.configCount, {
+                count: readinessSummary.configurationBlocked,
+              })}
             </Chip>
           )}
           {readinessSummary.maskingBlocked > 0 && (
             <Chip compact icon="eye-off" mode="outlined">
-              {readinessSummary.maskingBlocked} masking
+              {mobilePatientJourneyText(MOBILE_PATIENT_JOURNEY_TEXT.summary.maskingCount, {
+                count: readinessSummary.maskingBlocked,
+              })}
             </Chip>
           )}
           {readinessSummary.regulatoryBlocked > 0 && (
             <Chip compact icon="shield-alert" mode="outlined">
-              {readinessSummary.regulatoryBlocked} regulatory
+              {mobilePatientJourneyText(MOBILE_PATIENT_JOURNEY_TEXT.summary.regulatoryCount, {
+                count: readinessSummary.regulatoryBlocked,
+              })}
             </Chip>
           )}
         </View>
@@ -383,7 +406,9 @@ export function PatientJourneyActions({
                 {journeyActionShortLabel(mobilePatientJourneyTranslator, action.id)}
               </Button>
               <Text variant="labelSmall" style={styles.reason}>
-                {blocked && reason ? `${blockedLabel ?? "Blocked"}: ${reason}` : reason}
+                {blocked && reason
+                  ? `${blockedLabel ?? mobilePatientJourneyText(MOBILE_PATIENT_JOURNEY_TEXT.status.blocked)}: ${reason}`
+                  : reason}
               </Text>
             </View>
           );

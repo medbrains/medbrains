@@ -19,6 +19,8 @@ import { Button, Chip, Text } from "react-native-paper";
 import { mobileCampCareContextParams } from "../navigation/careContextParams";
 import {
   MOBILE_PATIENT_JOURNEY_BLOCKERS,
+  MOBILE_PATIENT_JOURNEY_TEXT,
+  mobilePatientJourneyText,
   mobilePatientJourneyTranslator,
 } from "./patientJourneyText";
 
@@ -31,8 +33,8 @@ interface PatientFlowNavigatorProps {
 }
 
 interface FlowVisual {
+  handoffKey: string;
   icon: string;
-  handoff: string;
 }
 
 interface MobileFlowBlocker {
@@ -43,13 +45,19 @@ interface MobileFlowBlocker {
 }
 
 const FLOW_VISUALS: Record<PatientFlowModule, FlowVisual> = {
-  patient: { icon: "card-account-details", handoff: "Record" },
-  opd: { icon: "stethoscope", handoff: "Clinic" },
-  ipd: { icon: "bed", handoff: "Ward" },
-  emergency: { icon: "ambulance", handoff: "ER" },
-  camp: { icon: "account-group", handoff: "Camp" },
-  pharmacy: { icon: "pill", handoff: "Rx" },
-  billing: { icon: "receipt", handoff: "Bill" },
+  patient: {
+    icon: "card-account-details",
+    handoffKey: MOBILE_PATIENT_JOURNEY_TEXT.flow.handoffs.patient,
+  },
+  opd: { icon: "stethoscope", handoffKey: MOBILE_PATIENT_JOURNEY_TEXT.flow.handoffs.opd },
+  ipd: { icon: "bed", handoffKey: MOBILE_PATIENT_JOURNEY_TEXT.flow.handoffs.ipd },
+  emergency: {
+    icon: "ambulance",
+    handoffKey: MOBILE_PATIENT_JOURNEY_TEXT.flow.handoffs.emergency,
+  },
+  camp: { icon: "account-group", handoffKey: MOBILE_PATIENT_JOURNEY_TEXT.flow.handoffs.camp },
+  pharmacy: { icon: "pill", handoffKey: MOBILE_PATIENT_JOURNEY_TEXT.flow.handoffs.pharmacy },
+  billing: { icon: "receipt", handoffKey: MOBILE_PATIENT_JOURNEY_TEXT.flow.handoffs.billing },
 };
 
 function mobileFlowBlocker(
@@ -60,7 +68,9 @@ function mobileFlowBlocker(
     return {
       blockedReason: "context",
       key: MOBILE_PATIENT_JOURNEY_BLOCKERS.openOpdEncounterBeforeMobileConsultation,
-      message: "Open an OPD encounter before mobile consultation",
+      message: mobilePatientJourneyText(
+        MOBILE_PATIENT_JOURNEY_BLOCKERS.openOpdEncounterBeforeMobileConsultation,
+      ),
     };
   }
 
@@ -94,7 +104,9 @@ function readinessText(
     return blockedLabel ? `${blockedLabel}: ${disabledReason}` : disabledReason;
   }
   if (item.emittedEvent) {
-    return `Emits ${clinicalEventLabel(mobilePatientJourneyTranslator, item.emittedEvent)}`;
+    return mobilePatientJourneyText(MOBILE_PATIENT_JOURNEY_TEXT.status.emitsEvent, {
+      event: clinicalEventLabel(mobilePatientJourneyTranslator, item.emittedEvent),
+    });
   }
   if (item.activationEvents.length > 0) {
     const events = clinicalEventList(mobilePatientJourneyTranslator, item.activationEvents);
@@ -103,10 +115,10 @@ function readinessText(
       "patientJourney.status.afterEvents",
       { events },
       [],
-      `After ${events}`,
+      mobilePatientJourneyText("patientJourney.status.afterEvents", { events }),
     );
   }
-  return "Ready";
+  return mobilePatientJourneyText(MOBILE_PATIENT_JOURNEY_TEXT.status.ready);
 }
 
 function mobileBillingParams(context: ClinicalJourneyContext) {
@@ -195,15 +207,20 @@ export function PatientFlowNavigator({
     <View style={styles.container}>
       <View style={styles.header}>
         <Text variant="titleSmall" style={styles.title}>
-          Flow Handoffs
+          {mobilePatientJourneyText(MOBILE_PATIENT_JOURNEY_TEXT.flow.title)}
         </Text>
         <View style={styles.summaryChips}>
           <Chip compact icon="check-circle" mode="outlined">
-            {enabledCount}/{flowStates.length} ready
+            {mobilePatientJourneyText(MOBILE_PATIENT_JOURNEY_TEXT.summary.readyCount, {
+              enabled: enabledCount,
+              total: flowStates.length,
+            })}
           </Chip>
           {blockedCount > 0 && (
             <Chip compact icon="lock-alert" mode="outlined">
-              {blockedCount} blocked
+              {mobilePatientJourneyText(MOBILE_PATIENT_JOURNEY_TEXT.summary.blockedCount, {
+                count: blockedCount,
+              })}
             </Chip>
           )}
         </View>
@@ -237,7 +254,7 @@ export function PatientFlowNavigator({
                 {patientFlowItemLabel(mobilePatientJourneyTranslator, item)}
               </Button>
               <Text variant="labelSmall" style={styles.handoff}>
-                {visual.handoff}
+                {mobilePatientJourneyText(visual.handoffKey)}
               </Text>
               <Text variant="labelSmall" style={styles.reason}>
                 {readinessText(item, blockedReason, disabledReason)}
