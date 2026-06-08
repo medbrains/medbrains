@@ -14,6 +14,7 @@ const NS = [
   "billing",
   "camp",
   "ipd",
+  "careView",
   "admin",
   "emergency",
   "lms",
