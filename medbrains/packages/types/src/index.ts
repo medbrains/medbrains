@@ -22,6 +22,19 @@ export {
   PATIENT_UHID_FIELD_ACCESS_KEY,
 } from "./access-matrix.js";
 export type {
+  BedBoardSignalPhase,
+  BedBoardSignalShape,
+  BedBoardSignalTone,
+  BedBoardStatus,
+  BedBoardStatusSignal,
+} from "./bed-board-surfaces.js";
+export {
+  BED_BOARD_MUTABLE_STATUS_VALUES,
+  BED_BOARD_STATUS_VALUES,
+  bedBoardStatusIsAssignable,
+  bedBoardStatusSignal,
+} from "./bed-board-surfaces.js";
+export type {
   DashboardMobileIntent,
   DashboardMobileRoute,
   DashboardReportFamily,

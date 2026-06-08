@@ -106,6 +106,9 @@ import type {
   WardListRow,
 } from "@medbrains/types";
 import {
+  BED_BOARD_MUTABLE_STATUS_VALUES,
+  BED_BOARD_STATUS_VALUES,
+  bedBoardStatusSignal,
   P,
   PATIENT_BASIC_IDENTITY_FIELD_ACCESS_KEYS,
   PATIENT_NAME_FIELD_ACCESS_KEYS,
@@ -241,26 +244,11 @@ const bedStatusColors: Record<string, string> = {
   vacant_clean: "success",
   vacant_dirty: "warning",
   occupied: "primary",
+  occupied_transfer_pending: "orange",
   reserved: "orange",
   maintenance: "slate",
   blocked: "danger",
 };
-
-const BED_DASHBOARD_STATUS_VALUES = [
-  "vacant_clean",
-  "vacant_dirty",
-  "occupied",
-  "reserved",
-  "maintenance",
-  "blocked",
-] as const;
-
-const BED_DASHBOARD_MUTABLE_STATUS_VALUES = [
-  "vacant_clean",
-  "vacant_dirty",
-  "maintenance",
-  "blocked",
-] as const;
 
 type IpdTranslate = ReturnType<typeof useTranslation>["t"];
 
@@ -277,35 +265,11 @@ function bedDashboardSignalLabel(t: IpdTranslate, status: string): string {
 }
 
 function bedDashboardStatusTone(status: string): OperationalSignalTone {
-  switch (status) {
-    case "vacant_clean":
-      return "ready";
-    case "occupied":
-      return "active";
-    case "vacant_dirty":
-    case "reserved":
-      return "blocked";
-    case "blocked":
-      return "risk";
-    default:
-      return "neutral";
-  }
+  return bedBoardStatusSignal(status).tone;
 }
 
 function bedDashboardStatusShape(status: string): OperationalSignalShape {
-  switch (status) {
-    case "vacant_clean":
-    case "occupied":
-      return "bed";
-    case "vacant_dirty":
-    case "blocked":
-      return "diamond";
-    case "reserved":
-    case "maintenance":
-      return "token";
-    default:
-      return "pill";
-  }
+  return bedBoardStatusSignal(status).shape;
 }
 
 function bedDashboardStatusIcon(status: string) {
@@ -316,6 +280,8 @@ function bedDashboardStatusIcon(status: string) {
       return IconDoor;
     case "occupied":
       return IconBed;
+    case "occupied_transfer_pending":
+      return IconArrowRight;
     case "reserved":
       return IconCalendarTime;
     case "maintenance":
@@ -4101,7 +4067,7 @@ function BedDashboardTab() {
       ? [{ value: row.ward_id, label: row.ward_name ?? t("bedDashboard.unknownWard") }]
       : [],
   );
-  const statusOptions = BED_DASHBOARD_STATUS_VALUES.map((status) => ({
+  const statusOptions = BED_BOARD_STATUS_VALUES.map((status) => ({
     value: status,
     label: bedDashboardStatusLabel(t, status),
   }));
@@ -4280,7 +4246,7 @@ function BedDashboardTab() {
                     size="xs"
                     mt={4}
                     placeholder={t("placeholder.changeStatus")}
-                    data={BED_DASHBOARD_MUTABLE_STATUS_VALUES.filter(
+                    data={BED_BOARD_MUTABLE_STATUS_VALUES.filter(
                       (statusOption) => statusOption !== bedStatus,
                     ).map((statusOption) => ({
                       value: statusOption,

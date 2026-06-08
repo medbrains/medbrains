@@ -1,5 +1,12 @@
 import type { Module } from "@medbrains/mobile-shell";
-import { type BedAvailabilityDisplay, type BedWaitingEntry, P } from "@medbrains/types";
+import {
+  type BedAvailabilityDisplay,
+  type BedBoardSignalTone,
+  type BedBoardStatusSignal,
+  type BedWaitingEntry,
+  bedBoardStatusSignal,
+  P,
+} from "@medbrains/types";
 import { COLORS, SPACING } from "@medbrains/ui-mobile";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
@@ -63,6 +70,62 @@ function priorityColor(priority: string) {
 
 function statusLabel(status: string) {
   return status.replace(/_/g, " ");
+}
+
+function bedSignalColors(tone: BedBoardSignalTone) {
+  switch (tone) {
+    case "active":
+      return {
+        background: "rgba(103, 161, 236, 0.16)",
+        border: COLORS.vital,
+      };
+    case "blocked":
+      return {
+        background: "rgba(201, 145, 62, 0.18)",
+        border: COLORS.amber,
+      };
+    case "ready":
+      return {
+        background: "rgba(28, 183, 133, 0.18)",
+        border: COLORS.emerald,
+      };
+    case "risk":
+      return {
+        background: "rgba(200, 16, 46, 0.2)",
+        border: COLORS.red,
+      };
+    default:
+      return {
+        background: "transparent",
+        border: COLORS.tint,
+      };
+  }
+}
+
+function bedStatusShapeStyle(signal: BedBoardStatusSignal) {
+  const colors = bedSignalColors(signal.tone);
+  const base = {
+    backgroundColor: colors.background,
+    borderColor: colors.border,
+    borderWidth: 4,
+    height: signal.shape === "bed" ? 18 : 22,
+    width: signal.shape === "bed" ? 34 : 22,
+  };
+
+  switch (signal.shape) {
+    case "bed":
+      return { ...base, borderRadius: 5 };
+    case "diamond":
+      return { ...base, borderRadius: 4, transform: [{ rotate: "45deg" }] };
+    case "token":
+      return { ...base, borderRadius: 6 };
+    default:
+      return { ...base, borderRadius: 999 };
+  }
+}
+
+function BedStatusShape({ label, signal }: { label: string; signal: BedBoardStatusSignal }) {
+  return <View accessibilityLabel={label} style={bedStatusShapeStyle(signal)} />;
 }
 
 function waitingEntryKey(token: BedWaitingEntry) {
@@ -168,19 +231,27 @@ function WaitingListLane({ tokens }: { tokens: BedWaitingEntry[] }) {
         </View>
       ) : (
         <View style={styles.waitingGrid}>
-          {tokens.map((token) => (
-            <View
-              key={waitingEntryKey(token)}
-              style={[styles.waitingCard, { borderColor: priorityColor(token.priority) }]}
-            >
-              <Text style={styles.waitingCase}>Waiting case</Text>
-              <View style={styles.waitingMeta}>
-                <Text style={styles.metaText}>{token.priority}</Text>
-                <Text style={styles.metaText}>{statusLabel(token.status)}</Text>
-                <Text style={styles.metaText}>{token.wait_time_minutes} min</Text>
+          {tokens.map((token) => {
+            const statusText = statusLabel(token.status);
+            const signal = bedBoardStatusSignal(token.status);
+
+            return (
+              <View
+                key={waitingEntryKey(token)}
+                style={[styles.waitingCard, { borderColor: priorityColor(token.priority) }]}
+              >
+                <Text style={styles.waitingCase}>Waiting case</Text>
+                <View style={styles.waitingMeta}>
+                  <Text style={styles.metaText}>{token.priority}</Text>
+                  <View style={styles.statusMeta}>
+                    <BedStatusShape label={statusText} signal={signal} />
+                    <Text style={styles.metaText}>{statusText}</Text>
+                  </View>
+                  <Text style={styles.metaText}>{token.wait_time_minutes} min</Text>
+                </View>
               </View>
-            </View>
-          ))}
+            );
+          })}
         </View>
       )}
     </View>
@@ -296,6 +367,11 @@ const styles = StyleSheet.create({
     fontSize: 22,
     letterSpacing: 2,
     textTransform: "uppercase",
+  },
+  statusMeta: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: SPACING.xs,
   },
   waitingCard: {
     backgroundColor: COLORS.brandDeep,
