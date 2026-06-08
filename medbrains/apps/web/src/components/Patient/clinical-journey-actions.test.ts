@@ -3,6 +3,7 @@
 import {
   CLINICAL_EVENT_REQUIRED_PAYLOAD_KEYS,
   CORE_PATIENT_JOURNEY_ACTIONS,
+  clinicalJourneyActionSignal,
   inferClinicalJourneyEventNames,
   P,
   resolveClinicalJourneyActions,
@@ -299,6 +300,53 @@ describe("clinical journey event activation", () => {
         "patientJourney.blockers.completePharmacyRegulatoryClearanceBeforeDispensingMedicines",
       disabledReasonText: "Complete pharmacy regulatory clearance before dispensing medicines",
       enabled: false,
+    });
+  });
+
+  it("maps journey readiness to shared cross-surface visual signals", () => {
+    expect(clinicalJourneyActionSignal({ blockedReason: null, enabled: true })).toEqual({
+      emphasis: "standard",
+      phase: "ready",
+      shape: "pill",
+      tone: "ready",
+    });
+    expect(clinicalJourneyActionSignal({ blockedReason: "event", enabled: false })).toEqual({
+      emphasis: "standard",
+      phase: "waiting_for_event",
+      shape: "token",
+      tone: "active",
+    });
+    expect(clinicalJourneyActionSignal({ blockedReason: "context", enabled: false })).toEqual({
+      emphasis: "standard",
+      phase: "blocked_by_context",
+      shape: "diamond",
+      tone: "blocked",
+    });
+    expect(clinicalJourneyActionSignal({ blockedReason: "configuration", enabled: false })).toEqual(
+      {
+        emphasis: "standard",
+        phase: "blocked_by_configuration",
+        shape: "diamond",
+        tone: "blocked",
+      },
+    );
+    expect(clinicalJourneyActionSignal({ blockedReason: "permission", enabled: false })).toEqual({
+      emphasis: "high",
+      phase: "blocked_by_permission",
+      shape: "diamond",
+      tone: "risk",
+    });
+    expect(clinicalJourneyActionSignal({ blockedReason: "masking", enabled: false })).toEqual({
+      emphasis: "high",
+      phase: "blocked_by_masking",
+      shape: "diamond",
+      tone: "risk",
+    });
+    expect(clinicalJourneyActionSignal({ blockedReason: "regulatory", enabled: false })).toEqual({
+      emphasis: "high",
+      phase: "blocked_by_regulatory",
+      shape: "diamond",
+      tone: "risk",
     });
   });
 

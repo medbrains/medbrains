@@ -165,6 +165,91 @@ export interface ClinicalJourneyActionReadinessSummary {
   total: number;
 }
 
+export type ClinicalJourneyActionSignalPhase =
+  | "blocked_by_configuration"
+  | "blocked_by_context"
+  | "blocked_by_masking"
+  | "blocked_by_permission"
+  | "blocked_by_regulatory"
+  | "blocked"
+  | "ready"
+  | "waiting_for_event";
+
+export type ClinicalJourneyActionSignalShape = "diamond" | "pill" | "token";
+export type ClinicalJourneyActionSignalTone = "active" | "blocked" | "neutral" | "ready" | "risk";
+
+export interface ClinicalJourneyActionSignal {
+  emphasis: "high" | "standard";
+  phase: ClinicalJourneyActionSignalPhase;
+  shape: ClinicalJourneyActionSignalShape;
+  tone: ClinicalJourneyActionSignalTone;
+}
+
+export function clinicalJourneyActionSignal(
+  action: Pick<ResolvedClinicalJourneyAction, "blockedReason" | "enabled">,
+): ClinicalJourneyActionSignal {
+  if (action.enabled) {
+    return {
+      emphasis: "standard",
+      phase: "ready",
+      shape: "pill",
+      tone: "ready",
+    };
+  }
+
+  switch (action.blockedReason) {
+    case "configuration":
+      return {
+        emphasis: "standard",
+        phase: "blocked_by_configuration",
+        shape: "diamond",
+        tone: "blocked",
+      };
+    case "context":
+      return {
+        emphasis: "standard",
+        phase: "blocked_by_context",
+        shape: "diamond",
+        tone: "blocked",
+      };
+    case "event":
+      return {
+        emphasis: "standard",
+        phase: "waiting_for_event",
+        shape: "token",
+        tone: "active",
+      };
+    case "masking":
+      return {
+        emphasis: "high",
+        phase: "blocked_by_masking",
+        shape: "diamond",
+        tone: "risk",
+      };
+    case "permission":
+      return {
+        emphasis: "high",
+        phase: "blocked_by_permission",
+        shape: "diamond",
+        tone: "risk",
+      };
+    case "regulatory":
+      return {
+        emphasis: "high",
+        phase: "blocked_by_regulatory",
+        shape: "diamond",
+        tone: "risk",
+      };
+    default:
+      return {
+        emphasis: "standard",
+        phase: "blocked",
+        shape: "token",
+        tone: "neutral",
+      };
+  }
+}
+
 interface NormalizedActionBlocker {
   key: string | null;
   message: string | null;

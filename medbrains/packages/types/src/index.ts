@@ -71,6 +71,10 @@ export type {
   ClinicalJourneyActionIntent,
   ClinicalJourneyActionMessage,
   ClinicalJourneyActionReadinessSummary,
+  ClinicalJourneyActionSignal,
+  ClinicalJourneyActionSignalPhase,
+  ClinicalJourneyActionSignalShape,
+  ClinicalJourneyActionSignalTone,
   ClinicalJourneyBlockedReason,
   ClinicalJourneyBlockingControl,
   ClinicalJourneyContext,
@@ -82,6 +86,7 @@ export type {
 } from "./event-actions.js";
 export {
   CORE_PATIENT_JOURNEY_ACTIONS,
+  clinicalJourneyActionSignal,
   deriveCampJourneyCompletedEvents,
   inferClinicalJourneyEventNames,
   resolveClinicalJourneyActions,

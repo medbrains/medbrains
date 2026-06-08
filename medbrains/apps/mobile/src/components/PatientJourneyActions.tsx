@@ -1,12 +1,15 @@
 import { usePermissionStore } from "@medbrains/stores";
 import type {
   ClinicalJourneyActionId,
+  ClinicalJourneyActionSignal,
+  ClinicalJourneyActionSignalTone,
   ClinicalJourneyBlockedReason,
   ClinicalJourneyContext,
   ClinicalJourneyMessageValues,
   ResolvedClinicalJourneyAction,
 } from "@medbrains/types";
 import {
+  clinicalJourneyActionSignal,
   journeyActionAvailability,
   journeyActionDisabledReason,
   journeyActionShortLabel,
@@ -59,14 +62,8 @@ interface MobileActionBlocker {
   reason: ClinicalJourneyBlockedReason;
 }
 
-type MobileActionSignalShape = "circle" | "diamond" | "pill" | "ring" | "square";
-type MobileActionSignalTone = "danger" | "info" | "neutral" | "success" | "warning";
-
-interface MobileActionReadinessSignal {
-  emphasis: "high" | "standard";
-  shape: MobileActionSignalShape;
-  tone: MobileActionSignalTone;
-}
+type MobileActionReadinessSignal = ClinicalJourneyActionSignal;
+type MobileActionSignalTone = ClinicalJourneyActionSignalTone;
 
 const SUPPORTED_MOBILE_ACTIONS = new Set<ClinicalJourneyActionId>([
   "billing.collect_payment",
@@ -123,50 +120,27 @@ function supportedAction(
   return SUPPORTED_MOBILE_ACTIONS.has(action.id);
 }
 
-function actionReadinessSignal(action: ResolvedClinicalJourneyAction): MobileActionReadinessSignal {
-  if (action.enabled) {
-    return { emphasis: "standard", shape: "pill", tone: "success" };
-  }
-
-  switch (action.blockedReason) {
-    case "configuration":
-      return { emphasis: "standard", shape: "square", tone: "warning" };
-    case "context":
-      return { emphasis: "standard", shape: "circle", tone: "warning" };
-    case "event":
-      return { emphasis: "standard", shape: "ring", tone: "info" };
-    case "masking":
-      return { emphasis: "high", shape: "ring", tone: "danger" };
-    case "permission":
-      return { emphasis: "high", shape: "diamond", tone: "danger" };
-    case "regulatory":
-      return { emphasis: "high", shape: "diamond", tone: "warning" };
-    default:
-      return { emphasis: "standard", shape: "circle", tone: "neutral" };
-  }
-}
-
 function actionSignalColors(tone: MobileActionSignalTone) {
   switch (tone) {
-    case "danger":
+    case "risk":
       return {
         background: MEDBRAINS_COLORS.statusDangerBg,
         border: MEDBRAINS_COLORS.statusDanger,
         text: MEDBRAINS_COLORS.statusDanger,
       };
-    case "info":
+    case "active":
       return {
         background: MEDBRAINS_COLORS.navActiveBg,
         border: MEDBRAINS_COLORS.statusInfo,
         text: MEDBRAINS_COLORS.statusInfo,
       };
-    case "success":
+    case "ready":
       return {
         background: MEDBRAINS_COLORS.statusSuccessBg,
         border: MEDBRAINS_COLORS.statusSuccess,
         text: MEDBRAINS_COLORS.statusSuccess,
       };
-    case "warning":
+    case "blocked":
       return {
         background: MEDBRAINS_COLORS.statusWarningBg,
         border: MEDBRAINS_COLORS.statusWarning,
@@ -185,7 +159,7 @@ function actionSignalStyle(signal: MobileActionReadinessSignal) {
   const colors = actionSignalColors(signal.tone);
   const size = signal.emphasis === "high" ? 16 : 13;
   const base = {
-    backgroundColor: signal.shape === "ring" ? "transparent" : colors.background,
+    backgroundColor: colors.background,
     borderColor: colors.border,
     borderWidth: signal.emphasis === "high" ? 2 : 1.5,
     height: size,
@@ -193,13 +167,12 @@ function actionSignalStyle(signal: MobileActionReadinessSignal) {
   };
 
   switch (signal.shape) {
-    case "circle":
-    case "ring":
-      return { ...base, borderRadius: 999 };
     case "diamond":
       return { ...base, borderRadius: 3, transform: [{ rotate: "45deg" }] };
     case "pill":
       return { ...base, borderRadius: 999 };
+    case "token":
+      return { ...base, borderRadius: 4 };
     default:
       return { ...base, borderRadius: 4 };
   }
@@ -479,7 +452,7 @@ export function PatientJourneyActions({
       <View style={styles.actions}>
         {actionStates.map((action) => {
           const blocked = !action.enabled;
-          const signal = actionReadinessSignal(action);
+          const signal = clinicalJourneyActionSignal(action);
           const signalColors = actionSignalColors(signal.tone);
           const reason = blocked
             ? journeyActionDisabledReason(mobilePatientJourneyTranslator, action)

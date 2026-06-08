@@ -10,6 +10,7 @@ import type {
   ResolvedClinicalJourneyAction,
 } from "@medbrains/types";
 import {
+  clinicalJourneyActionSignal,
   patientJourneyActionRoute,
   resolveClinicalJourneyActions,
   summarizeClinicalJourneyActions,
@@ -31,11 +32,7 @@ import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router";
 import { useClinicalEventStore } from "@/components/clinical-event-store";
-import {
-  OperationalSignal,
-  type OperationalSignalShape,
-  type OperationalSignalTone,
-} from "../OperationalSignal";
+import { OperationalSignal } from "../OperationalSignal";
 import styles from "./patient-journey-actions.module.scss";
 import { mergeJourneyEventNames } from "./patient-journey-events";
 import {
@@ -172,29 +169,6 @@ function blockedReasonColor(reason: ClinicalJourneyBlockedReason | null) {
       return "yellow";
     default:
       return "gray";
-  }
-}
-
-function actionReadinessSignal(action: ResolvedClinicalJourneyAction): {
-  shape: OperationalSignalShape;
-  tone: OperationalSignalTone;
-} {
-  if (action.enabled) {
-    return { shape: "pill", tone: "ready" };
-  }
-
-  switch (action.blockedReason) {
-    case "event":
-      return { shape: "token", tone: "active" };
-    case "masking":
-    case "permission":
-    case "regulatory":
-      return { shape: "diamond", tone: "risk" };
-    case "configuration":
-    case "context":
-      return { shape: "diamond", tone: "blocked" };
-    default:
-      return { shape: "token", tone: "blocked" };
   }
 }
 
@@ -439,7 +413,7 @@ function PatientJourneyActionButton({
 
   if (layout === "rail") {
     const metaText = journeyActionAvailability(t, action);
-    const signal = actionReadinessSignal(action);
+    const signal = clinicalJourneyActionSignal(action);
     const signalLabel = actionReadinessLabel(action, t);
     const button = (
       <Button
