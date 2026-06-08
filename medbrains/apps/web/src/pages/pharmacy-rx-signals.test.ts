@@ -2,8 +2,14 @@
 
 import {
   PHARMACY_RX_STATUS_VALUES,
+  pharmacyRxPriorityLabel,
+  pharmacyRxPriorityLabelKey,
   pharmacyRxPrioritySignal,
+  pharmacyRxSourceLabel,
+  pharmacyRxSourceLabelKey,
   pharmacyRxSourceSignal,
+  pharmacyRxStatusLabel,
+  pharmacyRxStatusLabelKey,
   pharmacyRxStatusSignal,
 } from "@medbrains/types";
 import { describe, expect, it } from "vitest";
@@ -81,5 +87,23 @@ describe("pharmacy Rx operational signals", () => {
       shape: "token",
       tone: "active",
     });
+  });
+
+  it("keeps prescription status, priority and source labels on the shared signal contract", () => {
+    expect(pharmacyRxStatusLabelKey("pending_review")).toBe("rxStatus.pending_review");
+    expect(pharmacyRxStatusLabelKey("partially_dispensed")).toBe("rxStatus.partially_dispensed");
+    expect(pharmacyRxStatusLabel("dispensing")).toBe("Billing / dispense");
+    expect(pharmacyRxStatusLabel("custom_status")).toBe("custom status");
+    expect(pharmacyRxStatusLabelKey("custom_status")).toBeNull();
+
+    expect(pharmacyRxPriorityLabelKey("urgent")).toBe("rxPriority.urgent");
+    expect(pharmacyRxPriorityLabel("high")).toBe("High");
+    expect(pharmacyRxPriorityLabel("custom_priority")).toBe("custom priority");
+    expect(pharmacyRxPriorityLabelKey("custom_priority")).toBeNull();
+
+    expect(pharmacyRxSourceLabelKey("direct_sale")).toBe("rxSource.direct_sale");
+    expect(pharmacyRxSourceLabel("opd")).toBe("OPD");
+    expect(pharmacyRxSourceLabel("custom_source")).toBe("custom source");
+    expect(pharmacyRxSourceLabelKey("custom_source")).toBeNull();
   });
 });

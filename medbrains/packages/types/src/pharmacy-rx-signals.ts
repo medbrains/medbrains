@@ -113,6 +113,64 @@ const PHARMACY_RX_SOURCE_SIGNALS: Readonly<Record<string, PharmacyRxSignal>> = {
   },
 };
 
+const PHARMACY_RX_STATUS_LABEL_KEYS: Readonly<Record<string, string>> = {
+  approved: "rxStatus.approved",
+  cancelled: "rxStatus.cancelled",
+  dispensed: "rxStatus.dispensed",
+  dispensing: "rxStatus.dispensing",
+  on_hold: "rxStatus.on_hold",
+  partially_dispensed: "rxStatus.partially_dispensed",
+  pending_review: "rxStatus.pending_review",
+  rejected: "rxStatus.rejected",
+};
+
+const PHARMACY_RX_STATUS_LABELS: Readonly<Record<string, string>> = {
+  approved: "Approved",
+  cancelled: "Cancelled",
+  dispensed: "Dispensed",
+  dispensing: "Billing / dispense",
+  on_hold: "On hold",
+  partially_dispensed: "Partially dispensed",
+  pending_review: "Pending review",
+  rejected: "Rejected",
+};
+
+const PHARMACY_RX_PRIORITY_LABEL_KEYS: Readonly<Record<string, string>> = {
+  high: "rxPriority.high",
+  normal: "rxPriority.normal",
+  routine: "rxPriority.routine",
+  urgent: "rxPriority.urgent",
+};
+
+const PHARMACY_RX_PRIORITY_LABELS: Readonly<Record<string, string>> = {
+  high: "High",
+  normal: "Normal",
+  routine: "Routine",
+  urgent: "Urgent",
+};
+
+const PHARMACY_RX_SOURCE_LABEL_KEYS: Readonly<Record<string, string>> = {
+  camp: "rxSource.camp",
+  direct_sale: "rxSource.direct_sale",
+  emergency: "rxSource.emergency",
+  ipd: "rxSource.ipd",
+  manual: "rxSource.manual",
+  opd: "rxSource.opd",
+};
+
+const PHARMACY_RX_SOURCE_LABELS: Readonly<Record<string, string>> = {
+  camp: "Camp",
+  direct_sale: "Direct sale",
+  emergency: "Emergency",
+  ipd: "IPD",
+  manual: "Manual",
+  opd: "OPD",
+};
+
+function pharmacyRxFallbackLabel(value: string): string {
+  return value.replace(/_/g, " ");
+}
+
 export function pharmacyRxStatusSignal(status: string): PharmacyRxSignal {
   return PHARMACY_RX_STATUS_SIGNALS[status] ?? PHARMACY_RX_DEFAULT_SIGNAL;
 }
@@ -125,6 +183,30 @@ export function pharmacyRxPrioritySignal(priority: string): PharmacyRxSignal {
       tone: "neutral",
     }
   );
+}
+
+export function pharmacyRxStatusLabelKey(status: string): string | null {
+  return PHARMACY_RX_STATUS_LABEL_KEYS[status] ?? null;
+}
+
+export function pharmacyRxStatusLabel(status: string): string {
+  return PHARMACY_RX_STATUS_LABELS[status] ?? pharmacyRxFallbackLabel(status);
+}
+
+export function pharmacyRxPriorityLabelKey(priority: string): string | null {
+  return PHARMACY_RX_PRIORITY_LABEL_KEYS[priority] ?? null;
+}
+
+export function pharmacyRxPriorityLabel(priority: string): string {
+  return PHARMACY_RX_PRIORITY_LABELS[priority] ?? pharmacyRxFallbackLabel(priority);
+}
+
+export function pharmacyRxSourceLabelKey(source: string): string | null {
+  return PHARMACY_RX_SOURCE_LABEL_KEYS[source] ?? null;
+}
+
+export function pharmacyRxSourceLabel(source: string): string {
+  return PHARMACY_RX_SOURCE_LABELS[source] ?? pharmacyRxFallbackLabel(source);
 }
 
 export function pharmacyRxSourceSignal(source: string): PharmacyRxSignal {

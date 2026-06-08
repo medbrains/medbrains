@@ -76,6 +76,7 @@
   "rxSource.emergency": "Emergency",
   "rxSource.camp": "Camp",
   "rxSource.manual": "Manual",
+  "rxSource.direct_sale": "Direct sale",
   "rxQueue.title": "Prescription Queue",
   "rxQueue.filteredToPatient": "Filtered to the patient from the clinical handoff.",
   "rxQueue.allStatuses": "All statuses",

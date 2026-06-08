@@ -85,9 +85,15 @@ import type {
 import {
   P,
   PATIENT_BASIC_IDENTITY_FIELD_ACCESS_KEYS,
+  pharmacyRxPriorityLabelKey,
   pharmacyRxPrioritySignal,
+  pharmacyRxSourceLabelKey,
   pharmacyRxSourceSignal,
+  pharmacyRxStatusLabelKey,
   pharmacyRxStatusSignal,
+  pharmacyRxPriorityLabel as sharedPharmacyRxPriorityLabel,
+  pharmacyRxSourceLabel as sharedPharmacyRxSourceLabel,
+  pharmacyRxStatusLabel as sharedPharmacyRxStatusLabel,
 } from "@medbrains/types";
 import { fieldAccessText } from "@medbrains/utils";
 import {
@@ -186,12 +192,20 @@ const PHARMACY_ORDER_STATUS_OPTIONS = [
 
 type PharmacyTranslate = ReturnType<typeof useTranslation>["t"];
 
-function pharmacyWorkflowLabel(value: string): string {
-  return value.replace(/_/g, " ");
+function pharmacyRxTranslatedLabel(
+  t: PharmacyTranslate,
+  key: string | null,
+  fallback: string,
+): string {
+  return key ? t(key, { defaultValue: fallback }) : fallback;
 }
 
 function rxStatusLabel(t: PharmacyTranslate, status: string): string {
-  return t(`rxStatus.${status}`, { defaultValue: pharmacyWorkflowLabel(status) });
+  return pharmacyRxTranslatedLabel(
+    t,
+    pharmacyRxStatusLabelKey(status),
+    sharedPharmacyRxStatusLabel(status),
+  );
 }
 
 function rxStatusTone(status: string) {
@@ -222,7 +236,11 @@ function rxStatusIcon(status: string) {
 }
 
 function rxPriorityLabel(t: PharmacyTranslate, priority: string): string {
-  return t(`rxPriority.${priority}`, { defaultValue: pharmacyWorkflowLabel(priority) });
+  return pharmacyRxTranslatedLabel(
+    t,
+    pharmacyRxPriorityLabelKey(priority),
+    sharedPharmacyRxPriorityLabel(priority),
+  );
 }
 
 function rxPriorityTone(priority: string) {
@@ -234,7 +252,11 @@ function rxPriorityShape(priority: string) {
 }
 
 function rxSourceLabel(t: PharmacyTranslate, source: string): string {
-  return t(`rxSource.${source}`, { defaultValue: pharmacyWorkflowLabel(source) });
+  return pharmacyRxTranslatedLabel(
+    t,
+    pharmacyRxSourceLabelKey(source),
+    sharedPharmacyRxSourceLabel(source),
+  );
 }
 
 function rxSourceTone(source: string) {
