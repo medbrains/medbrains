@@ -1,5 +1,6 @@
 import type { ClinicalEventName } from "./index.js";
 import { P } from "./permissions.js";
+import type { WorkflowSignalShape, WorkflowSignalTone } from "./workflow-signal-shapes.js";
 
 export type ClinicalJourneySurface = "web" | "mobile" | "tv" | "kiosk";
 
@@ -175,8 +176,14 @@ export type ClinicalJourneyActionSignalPhase =
   | "ready"
   | "waiting_for_event";
 
-export type ClinicalJourneyActionSignalShape = "diamond" | "pill" | "token";
-export type ClinicalJourneyActionSignalTone = "active" | "blocked" | "neutral" | "ready" | "risk";
+export type ClinicalJourneyActionSignalShape = Extract<
+  WorkflowSignalShape,
+  "diamond" | "pill" | "token"
+>;
+export type ClinicalJourneyActionSignalTone = Extract<
+  WorkflowSignalTone,
+  "active" | "blocked" | "neutral" | "ready" | "risk"
+>;
 
 export interface ClinicalJourneyActionSignal {
   emphasis: "high" | "standard";

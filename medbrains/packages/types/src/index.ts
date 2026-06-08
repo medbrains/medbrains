@@ -188,6 +188,17 @@ export {
   tokenBoardStatusSignal,
   tokenBoardSurfaceFilterFromParam,
 } from "./token-board-surfaces.js";
+export type {
+  WorkflowSignalShape,
+  WorkflowSignalShapeDefinition,
+  WorkflowSignalShapeSemantic,
+  WorkflowSignalTone,
+} from "./workflow-signal-shapes.js";
+export {
+  WORKFLOW_SIGNAL_SHAPE_DEFINITIONS,
+  WORKFLOW_SIGNAL_SHAPES,
+  workflowSignalShapeDefinition,
+} from "./workflow-signal-shapes.js";
 
 // Health
 export interface HealthResponse {

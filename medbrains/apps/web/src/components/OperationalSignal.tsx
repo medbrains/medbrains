@@ -1,4 +1,6 @@
+import { type WorkflowSignalShape, workflowSignalShapeDefinition } from "@medbrains/types";
 import type { ComponentType, ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 import styles from "./operational-signal.module.scss";
 
 export type OperationalSignalTone =
@@ -8,7 +10,7 @@ export type OperationalSignalTone =
   | "neutral"
   | "ready"
   | "risk";
-export type OperationalSignalShape = "bed" | "diamond" | "pill" | "token";
+export type OperationalSignalShape = WorkflowSignalShape;
 
 interface OperationalSignalProps {
   icon?: ComponentType<{ className?: string; size?: number; stroke?: number }>;
@@ -27,8 +29,19 @@ export function OperationalSignal({
   tone = "neutral",
   value,
 }: OperationalSignalProps) {
+  const { t } = useTranslation("clinical");
+  const shapeDefinition = workflowSignalShapeDefinition(shape);
+  const shapeTitle = `${t(shapeDefinition.labelKey)}: ${t(shapeDefinition.descriptionKey)}`;
+
   return (
-    <span className={styles.signal} data-shape={shape} data-size={size} data-tone={tone}>
+    <span
+      className={styles.signal}
+      data-shape={shape}
+      data-shape-meaning={shapeDefinition.semantic}
+      data-size={size}
+      data-tone={tone}
+      title={shapeTitle}
+    >
       <span className={styles.marker} aria-hidden="true">
         {Icon && <Icon className={styles.icon} size={size === "xs" ? 10 : 12} stroke={2.4} />}
       </span>

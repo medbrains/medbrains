@@ -1,3 +1,5 @@
+import type { WorkflowSignalShape, WorkflowSignalTone } from "./workflow-signal-shapes.js";
+
 export type PatientContextSignalKind =
   | "allergy"
   | "balance_due"
@@ -10,8 +12,11 @@ export type PatientContextSignalKind =
   | "vitals_missing"
   | "vip";
 export type PatientContextSignalSeverity = "critical" | "info" | "warning";
-export type PatientContextSignalShape = "diamond" | "pill" | "token";
-export type PatientContextSignalTone = "active" | "blocked" | "neutral" | "ready" | "risk";
+export type PatientContextSignalShape = Extract<WorkflowSignalShape, "diamond" | "pill" | "token">;
+export type PatientContextSignalTone = Extract<
+  WorkflowSignalTone,
+  "active" | "blocked" | "neutral" | "ready" | "risk"
+>;
 
 export interface PatientContextSignal {
   severity: PatientContextSignalSeverity;

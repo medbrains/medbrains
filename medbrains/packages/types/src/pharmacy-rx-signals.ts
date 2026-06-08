@@ -1,5 +1,10 @@
-export type PharmacyRxSignalShape = "diamond" | "pill" | "token";
-export type PharmacyRxSignalTone = "active" | "blocked" | "neutral" | "ready" | "risk";
+import type { WorkflowSignalShape, WorkflowSignalTone } from "./workflow-signal-shapes.js";
+
+export type PharmacyRxSignalShape = Extract<WorkflowSignalShape, "diamond" | "pill" | "token">;
+export type PharmacyRxSignalTone = Extract<
+  WorkflowSignalTone,
+  "active" | "blocked" | "neutral" | "ready" | "risk"
+>;
 export type PharmacyRxStatusPhase =
   | "approved"
   | "blocked"

@@ -60,6 +60,24 @@
     "print": "Print Prescription",
     "typeCustomDrug": "Type to use custom drug name"
   },
+  "operationalShapes": {
+    "bed": {
+      "label": "Bed state",
+      "description": "Bed, ward, assignment, or inpatient census state."
+    },
+    "diamond": {
+      "label": "Stop check",
+      "description": "Safety, consent, regulatory, permission, or cleanup attention is needed before flow continues."
+    },
+    "pill": {
+      "label": "Ready state",
+      "description": "Complete, normal, safe, or ready-to-use workflow state."
+    },
+    "token": {
+      "label": "Handoff state",
+      "description": "Queued, waiting, in-progress, or handed off between hospital modules."
+    }
+  },
   "patientJourney": {
     "actions": {
       "patient": {

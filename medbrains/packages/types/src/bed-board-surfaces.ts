@@ -1,3 +1,5 @@
+import type { WorkflowSignalShape, WorkflowSignalTone } from "./workflow-signal-shapes.js";
+
 export type BedBoardStatus =
   | "blocked"
   | "maintenance"
@@ -16,8 +18,11 @@ export type BedBoardSignalPhase =
   | "transfer_pending"
   | "turnover"
   | "waiting";
-export type BedBoardSignalShape = "bed" | "diamond" | "pill" | "token";
-export type BedBoardSignalTone = "active" | "blocked" | "neutral" | "ready" | "risk";
+export type BedBoardSignalShape = WorkflowSignalShape;
+export type BedBoardSignalTone = Extract<
+  WorkflowSignalTone,
+  "active" | "blocked" | "neutral" | "ready" | "risk"
+>;
 
 export interface BedBoardStatusSignal {
   assignment: "assignable" | "blocked" | "occupied";
