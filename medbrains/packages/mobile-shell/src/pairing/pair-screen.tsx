@@ -16,6 +16,7 @@ import { Button, HelperText, Surface, Text } from "react-native-paper";
 import { FOREST_COPPER_PALETTE } from "../theme/forest-copper.js";
 import { SECRET_KEYS } from "../secret-store/index.js";
 import { useSecretStore } from "../auth/auth-provider.js";
+import { mobileShellPairingText } from "./pairing-text.js";
 
 export interface PairingPayload {
   pairingToken: string;
@@ -69,8 +70,8 @@ export function PairScreen(props: PairScreenProps): ReactNode {
         ),
       ]);
       onPaired();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Pairing failed");
+    } catch {
+      setError(mobileShellPairingText("mobileShell.pairing.error.failed"));
     } finally {
       setBusy(false);
     }
@@ -90,11 +91,10 @@ export function PairScreen(props: PairScreenProps): ReactNode {
           variant="headlineMedium"
           style={{ color: FOREST_COPPER_PALETTE.brand, marginBottom: 8 }}
         >
-          Pair this device
+          {mobileShellPairingText("mobileShell.pairing.title")}
         </Text>
         <Text variant="bodyMedium" style={{ color: FOREST_COPPER_PALETTE.ink }}>
-          Ask an administrator to generate a one-time QR. Scanning issues a
-          device certificate stored in the OS keychain.
+          {mobileShellPairingText("mobileShell.pairing.body")}
         </Text>
       </View>
       {error && (
@@ -108,7 +108,7 @@ export function PairScreen(props: PairScreenProps): ReactNode {
         disabled={busy}
         onPress={handle}
       >
-        Scan pairing QR
+        {mobileShellPairingText("mobileShell.pairing.action.scanQr")}
       </Button>
     </Surface>
   );
