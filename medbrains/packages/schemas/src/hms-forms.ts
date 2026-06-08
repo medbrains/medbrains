@@ -4864,10 +4864,12 @@ export const mobileShellLoginFormSchema = z.object({
 });
 
 export const mobileLoginFormSchema = z.object({
-  username: usernameField,
-  password: requiredTrimmed("Password is required").refine(
+  username: requiredTrimmed("auth.login.errors.usernameRequired", 30)
+    .refine((value) => value.length >= 3, "auth.login.errors.usernameMin")
+    .refine((value) => usernamePattern.test(value), "auth.login.errors.usernamePattern"),
+  password: requiredTrimmed("auth.login.errors.passwordRequired").refine(
     (value) => value.length >= 4,
-    "Password must be at least 4 characters",
+    "auth.login.errors.passwordMin",
   ),
 });
 

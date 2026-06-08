@@ -10,6 +10,14 @@ import { Button, HelperText, Surface, Text, TextInput, useTheme } from "react-na
 import { SafeAreaView } from "react-native-safe-area-context";
 import { authService } from "../../services/auth.service";
 import { MEDBRAINS_COLORS } from "../../theme/paper-theme";
+import { mobileLoginText } from "./loginText";
+
+function loginFieldErrorText(message: string | undefined): string | undefined {
+  if (!message) return undefined;
+
+  const translated = mobileLoginText(message);
+  return translated === message ? message : translated;
+}
 
 export function LoginScreen() {
   const theme = useTheme();
@@ -67,16 +75,16 @@ export function LoginScreen() {
         <View style={styles.header}>
           <BrandMark />
           <Text variant="headlineLarge" style={[styles.title, { color: theme.colors.primary }]}>
-            MedBrains
+            {mobileLoginText("auth.login.brand.name")}
           </Text>
           <Text variant="bodyMedium" style={[styles.subtitle, { color: theme.colors.onSurface }]}>
-            Hospital Management System
+            {mobileLoginText("auth.login.product.subtitle")}
           </Text>
         </View>
 
         <Surface style={styles.formCard} elevation={2}>
           <Text variant="titleLarge" style={[styles.formTitle, { color: theme.colors.onSurface }]}>
-            Sign In
+            {mobileLoginText("auth.login.action.signIn")}
           </Text>
 
           <Controller
@@ -84,7 +92,7 @@ export function LoginScreen() {
             name="username"
             render={({ field }) => (
               <TextInput
-                label="Username"
+                label={mobileLoginText("auth.login.form.username")}
                 value={field.value}
                 onChangeText={field.onChange}
                 mode="outlined"
@@ -98,7 +106,7 @@ export function LoginScreen() {
           />
           {errors.username?.message && (
             <HelperText type="error" visible>
-              {errors.username.message}
+              {loginFieldErrorText(errors.username.message)}
             </HelperText>
           )}
 
@@ -107,7 +115,7 @@ export function LoginScreen() {
             name="password"
             render={({ field }) => (
               <TextInput
-                label="Password"
+                label={mobileLoginText("auth.login.form.password")}
                 value={field.value}
                 onChangeText={field.onChange}
                 mode="outlined"
@@ -128,13 +136,13 @@ export function LoginScreen() {
           />
           {errors.password?.message && (
             <HelperText type="error" visible>
-              {errors.password.message}
+              {loginFieldErrorText(errors.password.message)}
             </HelperText>
           )}
 
           {loginMutation.isError && (
             <HelperText type="error" visible>
-              Invalid username or password. Please try again.
+              {mobileLoginText("auth.login.errors.invalidCredentials")}
             </HelperText>
           )}
 
@@ -146,7 +154,7 @@ export function LoginScreen() {
             style={styles.button}
             contentStyle={styles.buttonContent}
           >
-            Sign In
+            {mobileLoginText("auth.login.action.signIn")}
           </Button>
 
           <Button
@@ -156,17 +164,17 @@ export function LoginScreen() {
             }}
             style={styles.forgotButton}
           >
-            Forgot Password?
+            {mobileLoginText("auth.login.action.forgotPassword")}
           </Button>
         </Surface>
 
         {/* Footer */}
         <View style={styles.footer}>
           <Text variant="bodySmall" style={styles.footerText}>
-            Powered by Alagappa Group of Institutions
+            {mobileLoginText("auth.login.footer.poweredBy")}
           </Text>
           <Text variant="labelSmall" style={styles.version}>
-            v0.1.0
+            {mobileLoginText("auth.login.footer.version")}
           </Text>
         </View>
       </KeyboardAvoidingView>
@@ -178,7 +186,7 @@ function BrandMark() {
   return (
     <View style={styles.logoTile}>
       <Text variant="headlineMedium" style={styles.logoText}>
-        MB
+        {mobileLoginText("auth.login.brand.initials")}
       </Text>
       <View style={styles.logoAccent} />
     </View>
