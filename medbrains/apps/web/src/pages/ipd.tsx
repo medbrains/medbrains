@@ -108,6 +108,10 @@ import type {
 import {
   BED_BOARD_MUTABLE_STATUS_VALUES,
   BED_BOARD_STATUS_VALUES,
+  bedBoardSignalLabel,
+  bedBoardSignalLabelKey,
+  bedBoardStatusLabel,
+  bedBoardStatusLabelKey,
   bedBoardStatusSignal,
   P,
   PATIENT_BASIC_IDENTITY_FIELD_ACCESS_KEYS,
@@ -252,16 +256,28 @@ const bedStatusColors: Record<string, string> = {
 
 type IpdTranslate = ReturnType<typeof useTranslation>["t"];
 
-function ipdWorkflowLabel(value: string): string {
-  return value.replace(/_/g, " ");
+function translatedBedDashboardLabel(
+  t: IpdTranslate,
+  key: string | null,
+  fallback: string,
+): string {
+  return key ? t(key, { defaultValue: fallback }) : fallback;
 }
 
 function bedDashboardStatusLabel(t: IpdTranslate, status: string): string {
-  return t(`bedDashboard.status.${status}`, { defaultValue: ipdWorkflowLabel(status) });
+  return translatedBedDashboardLabel(
+    t,
+    bedBoardStatusLabelKey(status),
+    bedBoardStatusLabel(status),
+  );
 }
 
 function bedDashboardSignalLabel(t: IpdTranslate, status: string): string {
-  return t(`bedDashboard.signal.${status}`, { defaultValue: bedDashboardStatusLabel(t, status) });
+  return translatedBedDashboardLabel(
+    t,
+    bedBoardSignalLabelKey(status),
+    bedBoardSignalLabel(status),
+  );
 }
 
 function bedDashboardStatusTone(status: string): OperationalSignalTone {

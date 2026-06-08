@@ -31,7 +31,11 @@ export type {
 export {
   BED_BOARD_MUTABLE_STATUS_VALUES,
   BED_BOARD_STATUS_VALUES,
+  bedBoardSignalLabel,
+  bedBoardSignalLabelKey,
   bedBoardStatusIsAssignable,
+  bedBoardStatusLabel,
+  bedBoardStatusLabelKey,
   bedBoardStatusSignal,
 } from "./bed-board-surfaces.js";
 export type {

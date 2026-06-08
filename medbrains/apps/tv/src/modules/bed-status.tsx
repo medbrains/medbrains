@@ -3,6 +3,7 @@ import {
   type BedAvailabilityDisplay,
   type BedBoardStatusSignal,
   type BedWaitingEntry,
+  bedBoardStatusLabel,
   bedBoardStatusSignal,
   P,
 } from "@medbrains/types";
@@ -68,7 +69,7 @@ function priorityColor(priority: string) {
 }
 
 function statusLabel(status: string) {
-  return status.replace(/_/g, " ");
+  return bedBoardStatusLabel(status);
 }
 
 function BedStatusShape({ label, signal }: { label: string; signal: BedBoardStatusSignal }) {
