@@ -339,6 +339,12 @@ export function inferClinicalJourneyEventNames(
   if (context.activeEmergencyVisitId) {
     events.add("emergency.visit.created");
   }
+  if (context.activeCampId) {
+    events.add("camp.started");
+  }
+  if (context.activeCampRegistrationId) {
+    events.add("camp.registration.created");
+  }
   if (context.activePharmacyOrderId || context.activePharmacyRxQueueId) {
     events.add("order.created");
   }

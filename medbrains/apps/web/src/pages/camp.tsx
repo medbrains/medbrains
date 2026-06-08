@@ -95,6 +95,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type ReactNode, useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
+import { useTranslation } from "react-i18next";
 import { useNavigate, useParams, useSearchParams } from "react-router";
 import {
   ClinicalEventProvider,
@@ -129,6 +130,7 @@ import {
   CAMP_LANDING_TAB_VALUES,
   CAMP_WORK_TAB_VALUES,
   type CampWorkTabValue,
+  campJourneyContext,
   campWorkDefaultTab,
 } from "./camp-workspace";
 
@@ -244,15 +246,26 @@ function campRegistrationOptionLabel(
 }
 
 function CampPatientActionBar({
+  activeCampId,
+  activeCampRegistrationId,
   patientId,
   completedEvents,
 }: {
+  activeCampId?: string | null;
+  activeCampRegistrationId?: string | null;
   patientId: string;
   completedEvents?: readonly ClinicalEventName[];
 }) {
+  const { t } = useTranslation("camp");
   const journeyContext = useMemo<ClinicalJourneyContext>(
-    () => ({ patientId, completedEvents }),
-    [completedEvents, patientId],
+    () =>
+      campJourneyContext({
+        patientId,
+        activeCampId,
+        activeCampRegistrationId,
+        completedEvents,
+      }),
+    [activeCampId, activeCampRegistrationId, completedEvents, patientId],
   );
 
   return (
@@ -260,10 +273,10 @@ function CampPatientActionBar({
       <Group justify="space-between" gap="sm" align="center">
         <Stack gap={2}>
           <Text size="xs" fw={700} c="dimmed" tt="uppercase">
-            Patient handoff
+            {t("handoff.patient.title")}
           </Text>
           <Text size="xs" c="dimmed">
-            Continue from camp to OPD, emergency, IPD, billing or pharmacy without re-searching.
+            {t("handoff.patient.message")}
           </Text>
         </Stack>
         <PatientJourneyActions
@@ -382,12 +395,14 @@ function CampWorkPageInner({ initialTab = "registrations" }: CampWorkPageProps =
   const journeyContext = useMemo<ClinicalJourneyContext | null>(
     () =>
       contextPatientId
-        ? {
+        ? campJourneyContext({
             patientId: contextPatientId,
+            activeCampId: campId ?? null,
+            activeCampRegistrationId: focusedRegistrationId,
             completedEvents: campCompletedEvents,
-          }
+          })
         : null,
-    [campCompletedEvents, contextPatientId],
+    [campCompletedEvents, campId, contextPatientId, focusedRegistrationId],
   );
   const workTabs = [
     { value: "registrations", label: "Registrations", icon: <IconUsers size={16} /> },
@@ -761,7 +776,12 @@ function CampPatientContextPanel({ patientId }: { patientId: string }) {
         completedEvents={patientCampCompletedEvents}
         compact
       />
-      <CampPatientActionBar patientId={patientId} completedEvents={patientCampCompletedEvents} />
+      <CampPatientActionBar
+        patientId={patientId}
+        activeCampId={targetCampId}
+        activeCampRegistrationId={activePatientRegistration?.id ?? null}
+        completedEvents={patientCampCompletedEvents}
+      />
       {canViewRegistrations ? (
         <Card withBorder>
           <Stack>

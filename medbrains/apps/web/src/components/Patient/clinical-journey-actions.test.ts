@@ -82,6 +82,16 @@ describe("clinical journey event activation", () => {
     ]);
   });
 
+  it("infers camp continuity events from active camp and registration context", () => {
+    expect(
+      inferClinicalJourneyEventNames({
+        patientId: "patient-1",
+        activeCampId: "camp-1",
+        activeCampRegistrationId: "registration-1",
+      }),
+    ).toEqual(["patient.created", "camp.started", "camp.registration.created"]);
+  });
+
   it("does not infer bed assignment from an active admission that is still waiting for a bed", () => {
     expect(
       inferClinicalJourneyEventNames({
@@ -279,8 +289,7 @@ describe("clinical journey event activation", () => {
     });
     expect(actions.find((action) => action.id === "patient.share")).toMatchObject({
       blockedReason: "regulatory",
-      disabledReasonKey:
-        "patientJourney.blockers.resolvePendingPatientConsentBeforeSharingRecords",
+      disabledReasonKey: "patientJourney.blockers.resolvePendingPatientConsentBeforeSharingRecords",
       disabledReasonText: "Resolve pending patient consent before sharing records",
       enabled: false,
     });

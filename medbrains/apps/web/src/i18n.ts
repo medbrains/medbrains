@@ -12,6 +12,7 @@ const NS = [
   "lab",
   "pharmacy",
   "billing",
+  "camp",
   "ipd",
   "admin",
   "emergency",
