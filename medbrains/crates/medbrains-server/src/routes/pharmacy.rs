@@ -143,6 +143,7 @@ pub struct OrderDetailResponse {
     pub order: PharmacyOrder,
     pub items: Vec<PharmacyOrderItem>,
     pub admission_id: Option<Uuid>,
+    pub billing_invoice_id: Option<Uuid>,
 }
 
 #[derive(Debug, sqlx::FromRow)]
@@ -568,10 +569,34 @@ async fn order_detail_response_in_tx(
     items: Vec<PharmacyOrderItem>,
 ) -> Result<OrderDetailResponse, AppError> {
     let admission_id = admission_id_for_encounter_in_tx(tx, tenant_id, order.encounter_id).await?;
+    let billing_invoice_id = sqlx::query_scalar::<_, Uuid>(
+        "SELECT ii.invoice_id \
+         FROM invoice_items ii \
+         JOIN invoices i ON i.id = ii.invoice_id AND i.tenant_id = ii.tenant_id \
+         WHERE ii.tenant_id = $1 \
+           AND ii.pharmacy_order_id = $2 \
+           AND ii.reversal_of_id IS NULL \
+           AND ii.is_reversal = false \
+         ORDER BY \
+           CASE i.status::text \
+             WHEN 'draft' THEN 0 \
+             WHEN 'issued' THEN 1 \
+             WHEN 'partially_paid' THEN 2 \
+             WHEN 'paid' THEN 3 \
+             ELSE 4 \
+           END, \
+           ii.created_at DESC \
+         LIMIT 1",
+    )
+    .bind(tenant_id)
+    .bind(order.id)
+    .fetch_optional(&mut **tx)
+    .await?;
     Ok(OrderDetailResponse {
         order,
         items,
         admission_id,
+        billing_invoice_id,
     })
 }
 

@@ -7329,6 +7329,7 @@ export interface PharmacyOrderDetailResponse {
   order: PharmacyOrder;
   items: PharmacyOrderItem[];
   admission_id: string | null;
+  billing_invoice_id: string | null;
 }
 
 export interface UpdatePharmacyOrderItemRequest {

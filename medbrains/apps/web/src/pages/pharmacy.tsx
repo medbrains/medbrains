@@ -45,7 +45,6 @@ import {
 } from "@medbrains/schemas";
 import { useFieldAccess, useHasPermission } from "@medbrains/stores";
 import type {
-  ClinicalEventName,
   ClinicalJourneyContext,
   ComplianceSettings,
   CreateNdpsEntryRequest,
@@ -151,6 +150,7 @@ import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { instructionsDisplayText } from "@/lib/medication-timing-utils";
 import { pharmacyService } from "@/services/pharmacy.service";
 import styles from "./pharmacy.module.scss";
+import { pharmacyOrderJourneyContext } from "./pharmacy-workspace";
 
 const statusColors: Record<string, string> = {
   completed: "success",
@@ -2421,6 +2421,7 @@ function PharmacyOrderDetail({
   canViewReturns: boolean;
   canViewPatientRecord: boolean;
 }) {
+  const { t } = useTranslation("pharmacy");
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
   const [showAudit, setShowAudit] = useState(false);
@@ -2520,28 +2521,17 @@ function PharmacyOrderDetail({
   const isDispenseHandoff = searchParams.get("action") === "dispense";
   const isAwaitingDispense = detail.order.status === "ordered";
   const dispenseHandoffMessage = !isAwaitingDispense
-    ? "This order is no longer awaiting dispense."
+    ? t("handoff.dispense.completed")
     : canDispense
-      ? "Review FEFO, patient identity, allergies, and label context before dispensing this order."
-      : "Dispensing permission is required to complete this handoff.";
+      ? t("handoff.dispense.ready")
+      : t("handoff.dispense.permissionRequired");
   const canPrintMedicationLabels = canViewPatientRecord && hasRxItems;
   const prescriptionPatientName = canViewPatientRecord
     ? (patientName?.full_name ?? "Linked patient")
     : "Patient restricted";
   const prescriptionUhid = canViewPatientRecord ? (patientName?.uhid ?? "") : "";
-  const completedEvents: ClinicalEventName[] = ["order.created"];
-  if (detail.order.status === "dispensed" || detail.order.dispensed_at) {
-    completedEvents.push("pharmacy.order.dispensed");
-  }
-  const journeyContext: ClinicalJourneyContext = {
-    patientId: detail.order.patient_id,
-    activeEncounterId: detail.order.encounter_id,
-    activeAdmissionId: detail.admission_id,
-    activeAdmissionStatus: detail.admission_id ? "admitted" : null,
-    activePharmacyOrderId: detail.order.id,
-    activeOrderContext: detail.admission_id ? "ipd" : detail.order.encounter_id ? "opd" : null,
-    completedEvents,
-  };
+  const journeyContext: ClinicalJourneyContext = pharmacyOrderJourneyContext(detail);
+  const completedEvents = journeyContext.completedEvents ?? [];
 
   return (
     <Stack>
@@ -2575,13 +2565,14 @@ function PharmacyOrderDetail({
         active="pharmacy"
         activeEncounterId={detail.order.encounter_id ?? null}
         activeAdmissionId={detail.admission_id}
+        activeInvoiceId={detail.billing_invoice_id}
         activePharmacyOrderId={detail.order.id}
         activeOrderContext={detail.admission_id ? "ipd" : detail.order.encounter_id ? "opd" : null}
         completedEvents={completedEvents}
         compact
       />
       {isDispenseHandoff && (
-        <Alert color="teal" variant="light" title="Dispense handoff">
+        <Alert color="teal" variant="light" title={t("handoff.dispense.title")}>
           <Group justify="space-between" align="center" gap="sm">
             <Text size="sm">{dispenseHandoffMessage}</Text>
             <Group gap="xs">
@@ -2593,11 +2584,11 @@ function PharmacyOrderDetail({
                   loading={dispenseMutation.isPending}
                   onClick={() => dispenseMutation.mutate()}
                 >
-                  Dispense Order
+                  {t("button.dispenseOrder")}
                 </Button>
               )}
               <Button size="xs" variant="subtle" onClick={clearDispenseHandoff}>
-                Dismiss
+                {t("button.dismiss")}
               </Button>
             </Group>
           </Group>
@@ -2607,10 +2598,10 @@ function PharmacyOrderDetail({
         <Group justify="space-between" gap="sm" align="center">
           <Stack gap={2}>
             <Text size="xs" fw={700} c="dimmed" tt="uppercase">
-              Patient handoff
+              {t("handoff.patient.title")}
             </Text>
             <Text size="xs" c="dimmed">
-              Move from dispensing to clinical context, billing, or follow-up without re-searching.
+              {t("handoff.patient.message")}
             </Text>
           </Stack>
           <PatientJourneyActions
@@ -4997,6 +4988,7 @@ function RxQueueTab({
   canViewQueue: boolean;
   canViewPatientRecord: boolean;
 }) {
+  const { t } = useTranslation("pharmacy");
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
   const [filterStatus, setFilterStatus] = useState<string | null>(null);
@@ -5323,14 +5315,11 @@ function RxQueueTab({
         />
       )}
       {(patientIdFilter || rxQueueIdFilter) && (
-        <Alert color="teal" variant="light" title="Prescription review handoff">
+        <Alert color="teal" variant="light" title={t("handoff.prescriptionReview.title")}>
           <Group justify="space-between" align="center" gap="sm">
-            <Text size="sm">
-              Review the prescription, allergy alerts, formulary mapping, and billing estimate
-              before creating the pharmacy order.
-            </Text>
+            <Text size="sm">{t("handoff.prescriptionReview.message")}</Text>
             <Button size="xs" variant="subtle" onClick={clearRxQueueHandoff}>
-              Clear handoff
+              {t("button.clearHandoff")}
             </Button>
           </Group>
         </Alert>
