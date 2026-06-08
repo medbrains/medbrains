@@ -360,5 +360,18 @@
       "blockedBy": "blocked by {{reason}}",
       "permissions": "Permission: {{permissions}}"
     }
+  },
+  "prescriptionViews": {
+    "doseCalc": "Dose Calc",
+    "empty": "No prescriptions to display.",
+    "prose": "Prose",
+    "rules": "Rules",
+    "signals": {
+      "allergyCount_one": "{{count}} allergy",
+      "allergyCount_other": "{{count}} allergies",
+      "itemCount_one": "{{count}} medicine",
+      "itemCount_other": "{{count}} medicines"
+    },
+    "timeline": "Timeline"
   }
 }
