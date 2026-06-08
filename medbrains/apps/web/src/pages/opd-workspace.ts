@@ -1,3 +1,5 @@
+import type { PrescriptionWithItems } from "@medbrains/types";
+
 export type OpdOrderBasketTab = "drug" | "lab" | "radiology";
 
 export const OPD_ENCOUNTER_TAB_VALUES = [
@@ -53,4 +55,18 @@ export function opdEncounterWorkspaceTabRoute(
 
 export function opdEncounterOrderBasketRoute(encounterId: string, tab: OpdOrderBasketTab): string {
   return `/opd/encounters/${encounterId}?order=${tab}#${opdEncounterTabForOrderBasket(tab)}`;
+}
+
+export function activeOpdPharmacyOrderIdForJourney(
+  prescriptions: readonly PrescriptionWithItems[],
+): string | null {
+  return (
+    prescriptions.find(
+      (prescription) =>
+        prescription.pharmacy_order_id &&
+        prescription.items.some((item) => item.item_status !== "discontinued"),
+    )?.pharmacy_order_id ??
+    prescriptions.find((prescription) => prescription.pharmacy_order_id)?.pharmacy_order_id ??
+    null
+  );
 }

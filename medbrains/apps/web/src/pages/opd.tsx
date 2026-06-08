@@ -221,6 +221,7 @@ import {
   resolveOpdQueueRowActions,
 } from "./opd-queue-actions";
 import {
+  activeOpdPharmacyOrderIdForJourney,
   isOpdEncounterTabValue,
   OPD_ENCOUNTER_TAB_VALUES,
   opdEncounterOrderBasketRoute,
@@ -1566,7 +1567,7 @@ export function EncounterDetail({
     queryKey: ["diagnoses", encounterId],
     queryFn: () => opdService.listDiagnoses(encounterId),
   });
-  const { data: prescriptions = [] } = useQuery({
+  const { data: prescriptions = [] } = useQuery<PrescriptionWithItems[]>({
     queryKey: ["prescriptions", encounterId],
     queryFn: () => opdService.listPrescriptions(encounterId),
   });
@@ -1599,6 +1600,7 @@ export function EncounterDetail({
     () => deriveOpdJourneyCompletedEvents(prescriptions, encounterLabOrders, mrdCaseSheetPackets),
     [encounterLabOrders, mrdCaseSheetPackets, prescriptions],
   );
+  const activePharmacyOrderId = activeOpdPharmacyOrderIdForJourney(prescriptions);
 
   const generateMrdCaseSheetMutation = useMutation({
     mutationFn: () => mrdService.generateOpdCaseSheetPacket(encounterId),
@@ -1661,6 +1663,7 @@ export function EncounterDetail({
   const journeyContext: ClinicalJourneyContext = {
     patientId,
     activeEncounterId: encounterId,
+    activePharmacyOrderId,
     activeOrderContext: "opd",
     completedEvents: journeyCompletedEvents,
   };
@@ -1685,7 +1688,7 @@ export function EncounterDetail({
           vitals={vitals as Vital[]}
           consultation={consultation as Consultation | null}
           diagnoses={diagnoses as Diagnosis[]}
-          prescriptions={prescriptions as PrescriptionWithItems[]}
+          prescriptions={prescriptions}
           labOrders={encounterLabOrders}
           labCatalog={labCatalog as LabTestCatalog[]}
         />
@@ -1696,6 +1699,7 @@ export function EncounterDetail({
         patientId={patientId}
         active="opd"
         activeEncounterId={encounterId}
+        activePharmacyOrderId={activePharmacyOrderId}
         completedEvents={journeyCompletedEvents}
         compact
       />
