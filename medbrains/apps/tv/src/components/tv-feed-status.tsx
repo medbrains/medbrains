@@ -53,8 +53,12 @@ export function tvFeedReadiness(
   return { ...readiness, tone: tvReadinessTone(readiness.tone) };
 }
 
-export function tvTokenBoardLegend(surface: TokenBoardSurfaceDefinition, updatedAt: number) {
-  return `Updates every ${tokenBoardRefreshLabel(surface)} · last sync ${tvLastUpdatedLabel(updatedAt)} · ${surface.targets.tvDeepLink}`;
+export function tvTokenBoardLegend(
+  surface: TokenBoardSurfaceDefinition,
+  updatedAt: number,
+  deepLink = surface.targets.tvDeepLink,
+) {
+  return `Updates every ${tokenBoardRefreshLabel(surface)} · last sync ${tvLastUpdatedLabel(updatedAt)} · ${deepLink}`;
 }
 
 export function tvTokenBoardReadinessItems({

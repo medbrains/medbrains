@@ -4,7 +4,7 @@
  */
 
 import type { Module } from "@medbrains/mobile-shell";
-import { type LabQueueToken, TOKEN_BOARD_SURFACES, tokenBoardRefreshLabel } from "@medbrains/types";
+import { type LabQueueToken, TOKEN_BOARD_SURFACES } from "@medbrains/types";
 import { COLORS, SPACING } from "@medbrains/ui-mobile";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
@@ -13,8 +13,8 @@ import { ActivityIndicator, Text } from "react-native-paper";
 import { TvBoard, TvSummaryRow } from "../components/tv-board.js";
 import {
   TvFeedStatusBanner,
-  tvFeedReadiness,
-  tvLastUpdatedLabel,
+  tvTokenBoardLegend,
+  tvTokenBoardReadinessItems,
 } from "../components/tv-feed-status.js";
 import { tvQueueService } from "../services/tvQueue.service.js";
 
@@ -57,21 +57,19 @@ function LabStatusScreen() {
     }),
     [queue],
   );
-  const syncLabel = tvLastUpdatedLabel(queueQuery.dataUpdatedAt);
 
   return (
     <TvBoard
       eyebrow="LABORATORY"
       title={LAB_BOARD.title}
       subtitle="Please proceed to sample collection when your token shows."
-      legend={`Updates every ${tokenBoardRefreshLabel(LAB_BOARD)} · last sync ${syncLabel} · ${LAB_BOARD.targets.tvDeepLink}`}
+      legend={tvTokenBoardLegend(LAB_BOARD, queueQuery.dataUpdatedAt)}
       privacyNotice={LAB_BOARD.privacyNotice}
-      readiness={[
-        { label: "Privacy", tone: "success", value: LAB_BOARD.readiness.privacy },
-        tvFeedReadiness(queueQuery.isError, queueQuery.dataUpdatedAt, REFRESH_INTERVAL_MS),
-        { label: "Refresh", tone: "info", value: tokenBoardRefreshLabel(LAB_BOARD) },
-        { label: "Flow", tone: "info", value: LAB_BOARD.readiness.flow },
-      ]}
+      readiness={tvTokenBoardReadinessItems({
+        isError: queueQuery.isError,
+        surface: LAB_BOARD,
+        updatedAt: queueQuery.dataUpdatedAt,
+      })}
       tags={[...LAB_BOARD.targets.tvAppCodes, "lab", "samples", "queue"]}
     >
       <TvSummaryRow

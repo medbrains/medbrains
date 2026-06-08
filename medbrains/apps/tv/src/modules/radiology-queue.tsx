@@ -5,11 +5,7 @@
  */
 
 import type { Module } from "@medbrains/mobile-shell";
-import {
-  type RadiologyQueueToken,
-  TOKEN_BOARD_SURFACES,
-  tokenBoardRefreshLabel,
-} from "@medbrains/types";
+import { type RadiologyQueueToken, TOKEN_BOARD_SURFACES } from "@medbrains/types";
 import { COLORS, SPACING } from "@medbrains/ui-mobile";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
@@ -18,8 +14,8 @@ import { ActivityIndicator, Text } from "react-native-paper";
 import { TvBoard, TvSummaryRow } from "../components/tv-board.js";
 import {
   TvFeedStatusBanner,
-  tvFeedReadiness,
-  tvLastUpdatedLabel,
+  tvTokenBoardLegend,
+  tvTokenBoardReadinessItems,
 } from "../components/tv-feed-status.js";
 import { tvQueueService } from "../services/tvQueue.service.js";
 
@@ -93,7 +89,6 @@ function RadiologyQueueScreen({ route }: RadiologyQueueScreenProps) {
     }),
     [queue],
   );
-  const syncLabel = tvLastUpdatedLabel(queueQuery.dataUpdatedAt);
   const modalityLabel = displayModality(queue?.modality ?? modality);
   const deepLink = `medbrains://tv/radiology-queue?modality=${encodeURIComponent(modality)}`;
 
@@ -102,12 +97,14 @@ function RadiologyQueueScreen({ route }: RadiologyQueueScreenProps) {
       eyebrow="RADIOLOGY"
       title={`${modalityLabel} imaging`}
       subtitle="Please proceed to the imaging room when your token shows."
-      legend={`Updates every ${tokenBoardRefreshLabel(RADIOLOGY_BOARD)} · last sync ${syncLabel} · ${deepLink}`}
+      legend={tvTokenBoardLegend(RADIOLOGY_BOARD, queueQuery.dataUpdatedAt, deepLink)}
       privacyNotice={RADIOLOGY_BOARD.privacyNotice}
       readiness={[
-        { label: "Privacy", tone: "success", value: RADIOLOGY_BOARD.readiness.privacy },
-        tvFeedReadiness(queueQuery.isError, queueQuery.dataUpdatedAt, REFRESH_INTERVAL_MS),
-        { label: "Refresh", tone: "info", value: tokenBoardRefreshLabel(RADIOLOGY_BOARD) },
+        ...tvTokenBoardReadinessItems({
+          isError: queueQuery.isError,
+          surface: RADIOLOGY_BOARD,
+          updatedAt: queueQuery.dataUpdatedAt,
+        }),
         { label: "Modality", tone: "info", value: modalityLabel },
       ]}
       tags={[...RADIOLOGY_BOARD.targets.tvAppCodes, "radiology", modalityLabel]}

@@ -4,7 +4,6 @@ import {
   type ErTriageToken,
   TOKEN_BOARD_SURFACES,
   type TriageLevelColor,
-  tokenBoardRefreshLabel,
 } from "@medbrains/types";
 import { COLORS, SPACING } from "@medbrains/ui-mobile";
 import { useQuery } from "@tanstack/react-query";
@@ -14,8 +13,8 @@ import { ActivityIndicator, Text } from "react-native-paper";
 import { TvBoard, TvSummaryRow } from "../components/tv-board.js";
 import {
   TvFeedStatusBanner,
-  tvFeedReadiness,
-  tvLastUpdatedLabel,
+  tvTokenBoardLegend,
+  tvTokenBoardReadinessItems,
 } from "../components/tv-feed-status.js";
 import { tvQueueService } from "../services/tvQueue.service.js";
 
@@ -91,21 +90,19 @@ function EmergencyTriageScreen() {
     (count, lane) => count + lane.tokens.filter((token) => token.is_overdue).length,
     0,
   );
-  const syncLabel = tvLastUpdatedLabel(queueQuery.dataUpdatedAt);
 
   return (
     <TvBoard
       eyebrow="EMERGENCY"
       title={EMERGENCY_BOARD.title}
       subtitle="Live triage queue with token-only public display."
-      legend={`Updates every ${tokenBoardRefreshLabel(EMERGENCY_BOARD)} · last sync ${syncLabel} · ${EMERGENCY_BOARD.targets.tvDeepLink}`}
+      legend={tvTokenBoardLegend(EMERGENCY_BOARD, queueQuery.dataUpdatedAt)}
       privacyNotice={EMERGENCY_BOARD.privacyNotice}
-      readiness={[
-        { label: "Privacy", tone: "success", value: EMERGENCY_BOARD.readiness.privacy },
-        tvFeedReadiness(queueQuery.isError, queueQuery.dataUpdatedAt, REFRESH_INTERVAL_MS),
-        { label: "Refresh", tone: "info", value: tokenBoardRefreshLabel(EMERGENCY_BOARD) },
-        { label: "Flow", tone: "alert", value: EMERGENCY_BOARD.readiness.flow },
-      ]}
+      readiness={tvTokenBoardReadinessItems({
+        isError: queueQuery.isError,
+        surface: EMERGENCY_BOARD,
+        updatedAt: queueQuery.dataUpdatedAt,
+      })}
       tags={[...EMERGENCY_BOARD.targets.tvAppCodes, "triage", "token-only", "staff-display"]}
     >
       <TvSummaryRow
