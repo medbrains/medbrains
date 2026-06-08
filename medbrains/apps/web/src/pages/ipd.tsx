@@ -214,6 +214,9 @@ import {
   type IpdActionRailSectionSummary,
   ipdActionRailAction,
   ipdActionRailSectionsForTab,
+  ipdAdmissionOrderBasketRoute,
+  ipdAdmissionWorkspaceTabRoute,
+  ipdOrderBasketTabFromSearchParams,
   ipdWorkspaceTabForOrderBasket,
   resolveIpdActionRailActions,
   summarizeIpdActionRailSections,
@@ -279,12 +282,6 @@ const IPD_ACTION_RAIL_LOCAL_ACTION_IDS = [
   "emergency.open_visit",
   "mrd.open_case_sheet",
 ] satisfies ClinicalJourneyActionId[];
-
-function orderBasketTabFromSearchParams(searchParams: URLSearchParams): OrderBasketTab | null {
-  const value = searchParams.get("order");
-  if (value === "drug" || value === "lab" || value === "radiology") return value;
-  return null;
-}
 
 const DISCHARGE_TYPE_OPTIONS = [
   { value: "normal", label: "Normal" },
@@ -939,7 +936,7 @@ function AdmissionDetail({
   const [searchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const emit = useClinicalEmit();
-  const orderBasketDeepLinkTab = orderBasketTabFromSearchParams(searchParams);
+  const orderBasketDeepLinkTab = ipdOrderBasketTabFromSearchParams(searchParams);
   const [dischargeSummaryOpened, { open: openDischargeSummary, close: closeDischargeSummary }] =
     useDisclosure(false);
   const [bedTransferOpened, { open: openBedTransfer, close: closeBedTransfer }] =
@@ -949,19 +946,26 @@ function AdmissionDetail({
   const [wristbandOpened, { open: openWristband, close: closeWristband }] = useDisclosure(false);
   const [transferOutOpened, { open: openTransferOut, close: closeTransferOut }] =
     useDisclosure(false);
-  const [basketOpened, { open: openBasket, close: closeBasket }] = useDisclosure(
-    Boolean(orderBasketDeepLinkTab),
-  );
-  const [basketTab, setBasketTab] = useState<OrderBasketTab>(orderBasketDeepLinkTab ?? "drug");
   const [activeWorkspaceTab, setActiveWorkspaceTab] = useHashTabs(
     "overview",
     IPD_WORKSPACE_TAB_VALUES,
   );
+  const basketOpened = orderBasketDeepLinkTab !== null;
+  const basketTab = orderBasketDeepLinkTab ?? "drug";
 
   function openOrderBasket(tab: OrderBasketTab = "drug") {
+    const workspaceTab = ipdWorkspaceTabForOrderBasket(tab);
+    setActiveWorkspaceTab(workspaceTab);
+    navigate(ipdAdmissionOrderBasketRoute(admissionId, tab));
+  }
+
+  function changeOrderBasketTab(tab: OrderBasketTab) {
     setActiveWorkspaceTab(ipdWorkspaceTabForOrderBasket(tab));
-    setBasketTab(tab);
-    openBasket();
+    navigate(ipdAdmissionOrderBasketRoute(admissionId, tab), { replace: true });
+  }
+
+  function closeOrderBasket() {
+    navigate(ipdAdmissionWorkspaceTabRoute(admissionId, activeWorkspaceTab), { replace: true });
   }
 
   const { data } = useQuery({
@@ -1257,11 +1261,11 @@ function AdmissionDetail({
       />
       <OrderBasketWorkspace
         opened={basketOpened}
-        onClose={closeBasket}
+        onClose={closeOrderBasket}
         encounterId={adm.encounter_id}
         patientId={adm.patient_id}
         activeTab={basketTab}
-        onActiveTabChange={setBasketTab}
+        onActiveTabChange={changeOrderBasketTab}
         onSigned={() => {
           void queryClient.invalidateQueries({ queryKey: ["admission-detail", admissionId] });
           void queryClient.invalidateQueries({

@@ -16,6 +16,9 @@ import {
   type IpdActionRailContext,
   ipdActionRailAction,
   ipdActionRailSectionsForTab,
+  ipdAdmissionOrderBasketRoute,
+  ipdAdmissionWorkspaceTabRoute,
+  ipdOrderBasketTabFromSearchParams,
   ipdWorkspaceTabForOrderBasket,
   resolveIpdActionRailActions,
   summarizeIpdActionRailSections,
@@ -209,6 +212,19 @@ describe("IPD workspace action rail focus", () => {
     expect(ipdWorkspaceTabForOrderBasket("drug")).toBe("prescriptions");
     expect(ipdWorkspaceTabForOrderBasket("lab")).toBe("investigations");
     expect(ipdWorkspaceTabForOrderBasket("radiology")).toBe("investigations");
+    expect(ipdAdmissionOrderBasketRoute("admission-1", "drug")).toBe(
+      "/ipd/admissions/admission-1?order=drug#prescriptions",
+    );
+    expect(ipdAdmissionOrderBasketRoute("admission-1", "lab")).toBe(
+      "/ipd/admissions/admission-1?order=lab#investigations",
+    );
+    expect(ipdAdmissionWorkspaceTabRoute("admission-1", "investigations")).toBe(
+      "/ipd/admissions/admission-1#investigations",
+    );
+    expect(ipdOrderBasketTabFromSearchParams(new URLSearchParams("order=radiology"))).toBe(
+      "radiology",
+    );
+    expect(ipdOrderBasketTabFromSearchParams(new URLSearchParams("order=notes"))).toBeNull();
   });
 
   it("describes action activation events and permission contracts", () => {

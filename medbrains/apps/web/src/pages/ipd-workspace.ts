@@ -517,6 +517,22 @@ export function ipdWorkspaceTabForOrderBasket(
   return tab === "drug" ? "prescriptions" : "investigations";
 }
 
+export function ipdOrderBasketTabFromSearchParams(
+  searchParams: URLSearchParams,
+): IpdOrderBasketTab | null {
+  const value = searchParams.get("order");
+  if (value === "drug" || value === "lab" || value === "radiology") return value;
+  return null;
+}
+
+export function ipdAdmissionWorkspaceTabRoute(admissionId: string, tab: string): string {
+  return `/ipd/admissions/${admissionId}#${tab}`;
+}
+
+export function ipdAdmissionOrderBasketRoute(admissionId: string, tab: IpdOrderBasketTab): string {
+  return `/ipd/admissions/${admissionId}?order=${tab}#${ipdWorkspaceTabForOrderBasket(tab)}`;
+}
+
 export function ipdActionRailSectionsForTab(tab: string): readonly IpdActionRailSection[] {
   switch (tab) {
     case "prescriptions":
