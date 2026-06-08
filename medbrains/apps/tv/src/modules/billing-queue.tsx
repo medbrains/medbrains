@@ -6,6 +6,7 @@
 
 import type { Module } from "@medbrains/mobile-shell";
 import {
+  BILLING_QUEUE_LANES,
   type BillingQueueToken,
   TOKEN_BOARD_SURFACES,
   tokenBoardRefreshLabel,
@@ -54,19 +55,16 @@ function BillingQueueScreen() {
   });
   const queue = queueQuery.data;
   const board = useMemo(
-    () => ({
-      opd: queue?.opd_billing.slice(0, DISPLAY_TOKEN_LIMIT) ?? [],
-      ipd: queue?.ipd_discharge.slice(0, DISPLAY_TOKEN_LIMIT) ?? [],
-      advances: queue?.advance_deposit.slice(0, DISPLAY_TOKEN_LIMIT) ?? [],
-      insurance: queue?.insurance_desk.slice(0, DISPLAY_TOKEN_LIMIT) ?? [],
-    }),
+    () =>
+      BILLING_QUEUE_LANES.map((lane) => ({
+        ...lane,
+        tokens: queue?.[lane.key].slice(0, DISPLAY_TOKEN_LIMIT) ?? [],
+      })),
     [queue],
   );
   const syncLabel = tvLastUpdatedLabel(queueQuery.dataUpdatedAt);
-  const nowServing =
-    board.ipd[0] ?? board.insurance[0] ?? board.opd[0] ?? board.advances[0] ?? null;
-  const totalWaiting =
-    board.opd.length + board.ipd.length + board.advances.length + board.insurance.length;
+  const nowServing = board.find((lane) => lane.tokens.length > 0)?.tokens[0] ?? null;
+  const totalWaiting = board.reduce((count, lane) => count + lane.tokens.length, 0);
 
   return (
     <TvBoard
@@ -87,8 +85,10 @@ function BillingQueueScreen() {
         items={[
           { label: "NOW SERVING", value: nowServing?.token_number ?? "-" },
           { label: "WAITING", value: String(totalWaiting) },
-          { label: "IPD", value: String(board.ipd.length) },
-          { label: "INSURANCE", value: String(board.insurance.length) },
+          ...board.map((lane) => ({
+            label: lane.summaryLabel.toUpperCase(),
+            value: String(lane.tokens.length),
+          })),
         ]}
       />
       <TvFeedStatusBanner
@@ -111,18 +111,14 @@ function BillingQueueScreen() {
         </View>
       ) : (
         <View style={styles.boardGrid}>
-          <TokenLane title="OPD billing" emptyLabel="No OPD bills waiting" tokens={board.opd} />
-          <TokenLane title="IPD discharge" emptyLabel="No IPD discharge bills" tokens={board.ipd} />
-          <TokenLane
-            title="Advance deposit"
-            emptyLabel="No advance deposit tokens"
-            tokens={board.advances}
-          />
-          <TokenLane
-            title="Insurance desk"
-            emptyLabel="No insurance desk tokens"
-            tokens={board.insurance}
-          />
+          {board.map((lane) => (
+            <TokenLane
+              key={lane.key}
+              title={lane.title}
+              emptyLabel={lane.emptyLabel}
+              tokens={lane.tokens}
+            />
+          ))}
         </View>
       )}
     </TvBoard>

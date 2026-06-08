@@ -15,6 +15,7 @@ import type {
   TriageLevelColor,
 } from "@medbrains/types";
 import {
+  BILLING_QUEUE_LANES,
   TOKEN_BOARD_PUBLIC_PRIVACY_NOTICE,
   TOKEN_BOARD_SURFACE_LIST,
   TOKEN_BOARD_SURFACES,
@@ -491,11 +492,9 @@ export function TokenBoardsScreen({ navigation, route }: TokenBoardsScreenProps)
   );
   const pharmacyNowServing = pharmacy?.current_token ? [pharmacy.current_token] : [];
   const billingNowServing =
-    billing?.ipd_discharge[0] ??
-    billing?.insurance_desk[0] ??
-    billing?.opd_billing[0] ??
-    billing?.advance_deposit[0] ??
-    null;
+    BILLING_QUEUE_LANES.map((lane) => billing?.[lane.key][0]).find(
+      (token): token is BillingQueueToken => token !== undefined,
+    ) ?? null;
   const allMetrics: BoardMetric[] = [
     {
       color: MEDBRAINS_COLORS.copper,
@@ -753,21 +752,14 @@ export function TokenBoardsScreen({ navigation, route }: TokenBoardsScreenProps)
             lastUpdatedAt={billingQuery.dataUpdatedAt}
           >
             <View style={styles.laneStack}>
-              <TokenLane
-                title="IPD discharge"
-                emptyLabel="No IPD discharge bills"
-                tokens={(billing?.ipd_discharge ?? []).slice(0, TOKEN_LIMIT).map(billingToken)}
-              />
-              <TokenLane
-                title="OPD billing"
-                emptyLabel="No OPD bills waiting"
-                tokens={(billing?.opd_billing ?? []).slice(0, TOKEN_LIMIT).map(billingToken)}
-              />
-              <TokenLane
-                title="Insurance desk"
-                emptyLabel="No insurance tokens"
-                tokens={(billing?.insurance_desk ?? []).slice(0, TOKEN_LIMIT).map(billingToken)}
-              />
+              {BILLING_QUEUE_LANES.map((lane) => (
+                <TokenLane
+                  key={lane.key}
+                  title={lane.title}
+                  emptyLabel={lane.emptyLabel}
+                  tokens={(billing?.[lane.key] ?? []).slice(0, TOKEN_LIMIT).map(billingToken)}
+                />
+              ))}
             </View>
           </BoardCard>
         )}

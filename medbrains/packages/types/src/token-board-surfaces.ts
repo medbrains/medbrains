@@ -26,6 +26,18 @@ export type TokenBoardTvAppCode =
   | "TV-Pharmacy"
   | "TV-Radiology"
   | "TV-Queue";
+export type BillingQueueLaneKey =
+  | "opd_billing"
+  | "ipd_discharge"
+  | "advance_deposit"
+  | "insurance_desk";
+
+export interface BillingQueueLaneDefinition {
+  emptyLabel: string;
+  key: BillingQueueLaneKey;
+  summaryLabel: string;
+  title: string;
+}
 
 export interface TokenBoardLaunchTargets {
   kioskPath: string;
@@ -70,6 +82,33 @@ export const TOKEN_BOARD_PUBLIC_PRIVACY_NOTICE =
 
 export const TOKEN_BOARD_FAST_REFRESH_MS = 5_000;
 export const TOKEN_BOARD_STANDARD_REFRESH_MS = 10_000;
+
+export const BILLING_QUEUE_LANES = [
+  {
+    emptyLabel: "No OPD bills waiting",
+    key: "opd_billing",
+    summaryLabel: "OPD",
+    title: "OPD billing",
+  },
+  {
+    emptyLabel: "No IPD discharge bills",
+    key: "ipd_discharge",
+    summaryLabel: "IPD",
+    title: "IPD discharge",
+  },
+  {
+    emptyLabel: "No advance deposit tokens",
+    key: "advance_deposit",
+    summaryLabel: "Advance",
+    title: "Advance deposit",
+  },
+  {
+    emptyLabel: "No insurance desk tokens",
+    key: "insurance_desk",
+    summaryLabel: "Insurance",
+    title: "Insurance desk",
+  },
+] as const satisfies ReadonlyArray<BillingQueueLaneDefinition>;
 
 function tokenBoardWebPath(surface: TokenBoardSurfaceId): string {
   return `/front-office?board=${surface}#token-boards`;

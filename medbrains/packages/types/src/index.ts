@@ -95,6 +95,8 @@ export {
   ROLE_TEMPLATES,
 } from "./permissions.js";
 export type {
+  BillingQueueLaneDefinition,
+  BillingQueueLaneKey,
   TokenBoardDisplayMode,
   TokenBoardLaunchTargets,
   TokenBoardReadinessItem,
@@ -106,6 +108,7 @@ export type {
   TokenBoardTvDisplayType,
 } from "./token-board-surfaces.js";
 export {
+  BILLING_QUEUE_LANES,
   getTokenBoardSurface,
   isTokenBoardSurfaceId,
   TOKEN_BOARD_FAST_REFRESH_MS,

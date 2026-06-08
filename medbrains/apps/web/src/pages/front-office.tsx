@@ -24,6 +24,7 @@ import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import { useHasAnyPermission, useHasPermission } from "@medbrains/stores";
 import type {
+  BillingQueueToken,
   ClinicalEventName,
   ClinicalJourneyActionDefinition,
   ClinicalJourneyActionId,
@@ -45,6 +46,7 @@ import type {
   VisitorRegistration,
 } from "@medbrains/types";
 import {
+  BILLING_QUEUE_LANES,
   CORE_PATIENT_JOURNEY_ACTIONS,
   P,
   TOKEN_BOARD_PUBLIC_PRIVACY_NOTICE,
@@ -739,11 +741,9 @@ function TokenBoardsTab({
   const opdWaiting = opdTokens.filter((token) => token.status === "waiting");
   const currentPharmacy = pharmacy?.current_token ? [pharmacy.current_token] : [];
   const billingNowServing =
-    billing?.ipd_discharge[0] ??
-    billing?.insurance_desk[0] ??
-    billing?.opd_billing[0] ??
-    billing?.advance_deposit[0] ??
-    null;
+    BILLING_QUEUE_LANES.map((lane) => billing?.[lane.key][0]).find(
+      (token): token is BillingQueueToken => token !== undefined,
+    ) ?? null;
   const overdueErTokens = TRIAGE_LANES.reduce(
     (count, lane) => count + (er?.[lane.key] ?? []).filter((token) => token.is_overdue).length,
     0,
@@ -1029,32 +1029,23 @@ function TokenBoardsTab({
                 displayMode={displayMode}
                 summary={[
                   { label: "Now", value: billingNowServing?.token_number ?? "—" },
-                  { label: "IPD", value: billing?.ipd_discharge.length ?? "—" },
-                  { label: "Insurance", value: billing?.insurance_desk.length ?? "—" },
+                  ...BILLING_QUEUE_LANES.map((lane) => ({
+                    label: lane.summaryLabel,
+                    value: billing?.[lane.key].length ?? "—",
+                  })),
                 ]}
               >
                 <Stack gap="sm">
-                  <TokenLane
-                    title="IPD discharge"
-                    emptyLabel="No IPD discharge bills"
-                    tokens={(billing?.ipd_discharge ?? [])
-                      .slice(0, tokenLimit)
-                      .map(billingDisplayToken)}
-                  />
-                  <TokenLane
-                    title="OPD billing"
-                    emptyLabel="No OPD bills waiting"
-                    tokens={(billing?.opd_billing ?? [])
-                      .slice(0, tokenLimit)
-                      .map(billingDisplayToken)}
-                  />
-                  <TokenLane
-                    title="Insurance desk"
-                    emptyLabel="No insurance tokens"
-                    tokens={(billing?.insurance_desk ?? [])
-                      .slice(0, tokenLimit)
-                      .map(billingDisplayToken)}
-                  />
+                  {BILLING_QUEUE_LANES.map((lane) => (
+                    <TokenLane
+                      key={lane.key}
+                      title={lane.title}
+                      emptyLabel={lane.emptyLabel}
+                      tokens={(billing?.[lane.key] ?? [])
+                        .slice(0, tokenLimit)
+                        .map(billingDisplayToken)}
+                    />
+                  ))}
                 </Stack>
               </TokenBoardCard>
             )}

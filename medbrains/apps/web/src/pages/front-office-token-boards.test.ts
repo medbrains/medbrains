@@ -1,6 +1,7 @@
 // @vitest-environment node
 
 import type {
+  BillingQueueDisplay,
   BillingQueueToken,
   LabQueueToken,
   PharmacyQueueToken,
@@ -8,6 +9,7 @@ import type {
   RadiologyQueueToken,
 } from "@medbrains/types";
 import {
+  BILLING_QUEUE_LANES,
   isTokenBoardSurfaceId,
   TOKEN_BOARD_FAST_REFRESH_MS,
   TOKEN_BOARD_STANDARD_REFRESH_MS,
@@ -110,6 +112,46 @@ describe("front-office token-board display mapping", () => {
       expect(tokenBoardRefreshLabel(surface)).toMatch(/^\d+s$/);
     }
     expect(tokenBoardMobileRouteParams("all")).toBeUndefined();
+  });
+
+  it("keeps billing counter lanes complete and in operational order", () => {
+    expect(BILLING_QUEUE_LANES.map((lane) => lane.key)).toEqual([
+      "opd_billing",
+      "ipd_discharge",
+      "advance_deposit",
+      "insurance_desk",
+    ]);
+    expect(BILLING_QUEUE_LANES.map((lane) => lane.title)).toEqual([
+      "OPD billing",
+      "IPD discharge",
+      "Advance deposit",
+      "Insurance desk",
+    ]);
+
+    const display: BillingQueueDisplay = {
+      advance_deposit: [
+        {
+          counter: 4,
+          patient_name: "Asha Raman",
+          queue_type: "Advance deposit",
+          status: "active",
+          token_number: "ADV-004",
+        },
+      ],
+      insurance_desk: [],
+      ipd_discharge: [],
+      opd_billing: [],
+    };
+    const advanceLane = BILLING_QUEUE_LANES.find((lane) => lane.key === "advance_deposit");
+
+    expect(advanceLane?.emptyLabel).toBe("No advance deposit tokens");
+    expect(advanceLane ? display[advanceLane.key].map(billingDisplayToken) : []).toEqual([
+      {
+        meta: "Advance deposit · Counter 4",
+        status: "active",
+        tokenNumber: "ADV-004",
+      },
+    ]);
   });
 
   it("keeps shared token-board refresh intervals and feed readiness deterministic", () => {
