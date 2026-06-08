@@ -1,1 +1,110 @@
-{}
+{
+  "operationalShapes": {
+    "bed": {
+      "description": "Bed, ward, assignment, or inpatient census state.",
+      "label": "Bed state"
+    },
+    "diamond": {
+      "description": "Safety, consent, regulatory, permission, or cleanup attention is needed before flow continues.",
+      "label": "Stop check"
+    },
+    "pill": {
+      "description": "Complete, normal, safe, or ready-to-use workflow state.",
+      "label": "Ready state"
+    },
+    "token": {
+      "description": "Queued, waiting, in-progress, or handed off between hospital modules.",
+      "label": "Handoff state"
+    }
+  },
+  "prescriptionViews": {
+    "columns": {
+      "drug": "Drug"
+    },
+    "dose": {
+      "age": "Age: {{age}}",
+      "dailyFormula": "{{perDose}} mg/dose x {{dosesPerDay}} doses/day = {{totalDaily}} mg/day",
+      "enterWeight": "Enter patient weight to calculate",
+      "noItems": "No items to calculate.",
+      "noNumericDose": "No numeric dose found in \"{{dosage}}\" or drug name",
+      "patientWeight": "Patient weight (kg)",
+      "summary": "{{dosage}} -- {{frequency}} -- {{duration}}",
+      "weightFormula": "{{totalDaily}} mg/day / {{weight}} kg = {{mgPerKgDay}} mg/kg/day"
+    },
+    "doseCalc": "Dose Calc",
+    "empty": "No prescriptions to display.",
+    "frequency": {
+      "bd": "2x/day",
+      "hs": "Bedtime",
+      "od": "1x/day",
+      "prn": "PRN",
+      "qid": "4x/day",
+      "sos": "PRN",
+      "stat": "Once",
+      "tds": "3x/day"
+    },
+    "foodTiming": {
+      "after_food": {
+        "full": "After food (30 min)",
+        "short": "After food"
+      },
+      "any": {
+        "full": "Any time",
+        "short": "Any time"
+      },
+      "before_food": {
+        "full": "Before food (30 min)",
+        "short": "Before food"
+      },
+      "empty_stomach": {
+        "full": "Empty stomach",
+        "short": "Empty stomach"
+      },
+      "with_food": {
+        "full": "With food",
+        "short": "With food"
+      }
+    },
+    "prose": "Prose",
+    "prosePanel": {
+      "allergy": "Allergy: {{allergy}}",
+      "doctor": "-- Dr. {{doctor}}",
+      "duration": "x {{duration}}",
+      "rxLabel": "Rx {{index}}"
+    },
+    "rules": "Rules",
+    "rulesCard": {
+      "asNeeded": "As needed (PRN)",
+      "doseFrequency": "{{dosage}} -- {{frequency}}",
+      "for": "For",
+      "noItems": "No prescription items.",
+      "regularSchedule": "Regular schedule",
+      "trigger": "Trigger",
+      "via": "via {{route}}",
+      "when": "When"
+    },
+    "signals": {
+      "allergyCount_one": "{{count}} allergy",
+      "allergyCount_other": "{{count}} allergies",
+      "itemCount_one": "{{count}} medicine",
+      "itemCount_other": "{{count}} medicines"
+    },
+    "timeline": "Timeline",
+    "timelineSummary": {
+      "dosesPerDay": "Doses/day",
+      "drugs": "Drugs",
+      "earliest": "Earliest",
+      "latest": "Latest",
+      "noDose": "--",
+      "none": "--"
+    },
+    "timing": {
+      "afternoon": "Afternoon",
+      "anyTime": "Any time",
+      "bedtime": "Bedtime",
+      "evening": "Evening",
+      "morning": "Morning",
+      "noSpecific": "No specific timing"
+    }
+  }
+}

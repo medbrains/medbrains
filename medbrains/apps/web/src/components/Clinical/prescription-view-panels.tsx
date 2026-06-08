@@ -1,12 +1,9 @@
 import { Badge, Box, Card, Group, NumberInput, Stack, Table, Text } from "@mantine/core";
-import type { PrescriptionItem, TimeOfDay } from "@medbrains/types";
+import type { FoodTiming, MedicationTiming, PrescriptionItem, TimeOfDay } from "@medbrains/types";
+import type { TFunction } from "i18next";
 import { useMemo, useState } from "react";
-import {
-  foodTimingLabel,
-  frequencyToDefaultSlots,
-  instructionsDisplayText,
-  parseInstructions,
-} from "@/lib/medication-timing-utils";
+import { useTranslation } from "react-i18next";
+import { frequencyToDefaultSlots, parseInstructions } from "@/lib/medication-timing-utils";
 
 // ── Shared types & helpers ─────────────────────────────────────
 
@@ -14,17 +11,6 @@ export interface FlatItem extends PrescriptionItem {
   rxDate: string;
   rxIndex: number;
 }
-
-const FREQ_LABEL: Record<string, string> = {
-  OD: "1x/day",
-  BD: "2x/day",
-  TDS: "3x/day",
-  QID: "4x/day",
-  SOS: "PRN",
-  PRN: "PRN",
-  HS: "Bedtime",
-  STAT: "Once",
-};
 
 const FREQ_DOSES_PER_DAY: Record<string, number> = {
   OD: 1,
@@ -49,6 +35,28 @@ const TIMELINE_HOURS: Array<{ hour: number; label: string; slot: TimeOfDay | nul
   { hour: 22, label: "22", slot: "bedtime" },
 ];
 
+function frequencyLabel(t: TFunction<"clinical">, frequency: string) {
+  const normalized = frequency.toUpperCase();
+  const labels: Record<string, string> = {
+    BD: t("prescriptionViews.frequency.bd"),
+    HS: t("prescriptionViews.frequency.hs"),
+    OD: t("prescriptionViews.frequency.od"),
+    PRN: t("prescriptionViews.frequency.prn"),
+    QID: t("prescriptionViews.frequency.qid"),
+    SOS: t("prescriptionViews.frequency.sos"),
+    STAT: t("prescriptionViews.frequency.stat"),
+    TDS: t("prescriptionViews.frequency.tds"),
+  };
+  return labels[normalized] ?? frequency;
+}
+
+function foodTimingDisplay(t: TFunction<"clinical">, foodTiming: FoodTiming, short = false) {
+  const key = short
+    ? `prescriptionViews.foodTiming.${foodTiming}.short`
+    : `prescriptionViews.foodTiming.${foodTiming}.full`;
+  return t(key);
+}
+
 function matchesAllergy(drugName: string, allergies: string[]): string | undefined {
   const lower = drugName.toLowerCase();
   return allergies.find((a) => lower.includes(a.toLowerCase()));
@@ -67,24 +75,55 @@ function parseDosageNumeric(dosage: string): number | null {
   return m?.[1] ? Number.parseFloat(m[1]) : null;
 }
 
-function timingLabel(item: PrescriptionItem): string {
+function timingToDisplayText(timing: MedicationTiming, t: TFunction<"clinical">): string {
+  const parts: string[] = [];
+
+  if (timing.time_slots && timing.time_slots.length > 0) {
+    const labels: Record<string, string> = {
+      afternoon: t("prescriptionViews.timing.afternoon"),
+      bedtime: t("prescriptionViews.timing.bedtime"),
+      evening: t("prescriptionViews.timing.evening"),
+      morning: t("prescriptionViews.timing.morning"),
+    };
+    parts.push(timing.time_slots.map((slot) => labels[slot] ?? slot).join(" & "));
+  }
+
+  if (timing.food_timing && timing.food_timing !== "any") {
+    parts.push(foodTimingDisplay(t, timing.food_timing, true));
+  }
+
+  if (timing.custom_instruction) {
+    parts.push(timing.custom_instruction);
+  }
+
+  return parts.join(", ") || t("prescriptionViews.timing.noSpecific");
+}
+
+function instructionsDisplayText(raw: string | null | undefined, t: TFunction<"clinical">) {
+  const parsed = parseInstructions(raw);
+  if (!parsed) return null;
+  if ("text" in parsed) return parsed.text;
+  return timingToDisplayText(parsed, t);
+}
+
+function timingLabel(item: PrescriptionItem, t: TFunction<"clinical">): string {
   const parsed = parseInstructions(item.instructions);
-  if (!parsed) return "Any time";
+  if (!parsed) return t("prescriptionViews.timing.anyTime");
   if ("text" in parsed) return parsed.text;
   const parts: string[] = [];
   if (parsed.time_slots?.length) {
     const labels: Record<string, string> = {
-      morning: "Morning",
-      afternoon: "Afternoon",
-      evening: "Evening",
-      bedtime: "Bedtime",
+      afternoon: t("prescriptionViews.timing.afternoon"),
+      bedtime: t("prescriptionViews.timing.bedtime"),
+      evening: t("prescriptionViews.timing.evening"),
+      morning: t("prescriptionViews.timing.morning"),
     };
     parts.push(parsed.time_slots.map((s) => labels[s] ?? s).join(", "));
   }
   if (parsed.food_timing && parsed.food_timing !== "any") {
-    parts.push(foodTimingLabel(parsed.food_timing, true));
+    parts.push(foodTimingDisplay(t, parsed.food_timing, true));
   }
-  return parts.join(" -- ") || "Any time";
+  return parts.join(" -- ") || t("prescriptionViews.timing.anyTime");
 }
 
 // ── A. Prose View ──────────────────────────────────────────────
@@ -98,14 +137,15 @@ export function ProseView({
   allergies: string[];
   doctorName?: string;
 }) {
+  const { t } = useTranslation("clinical");
   const grouped = useMemo(() => {
-    const map = new Map<number, { date: string; entries: FlatItem[] }>();
+    const map = new Map<number, { date: string; entries: FlatItem[]; rxIndex: number }>();
     for (const item of items) {
       const existing = map.get(item.rxIndex);
       if (existing) {
         existing.entries.push(item);
       } else {
-        map.set(item.rxIndex, { date: item.rxDate, entries: [item] });
+        map.set(item.rxIndex, { date: item.rxDate, entries: [item], rxIndex: item.rxIndex });
       }
     }
     return Array.from(map.values());
@@ -113,25 +153,25 @@ export function ProseView({
 
   return (
     <Stack gap="xs">
-      {grouped.map((rx, gi) => (
-        <Card key={gi} padding="sm" radius="md" withBorder>
+      {grouped.map((rx) => (
+        <Card key={`rx-${rx.rxIndex}-${rx.date}`} padding="sm" radius="md" withBorder>
           <Group gap={6} mb="xs">
             <Text size="xs" ff="var(--fc-font-mono, monospace)" c="dimmed">
-              Rx {gi + 1}
+              {t("prescriptionViews.prosePanel.rxLabel", { index: rx.rxIndex + 1 })}
             </Text>
             <Text size="xs" c="dimmed">
               {formatDate(rx.date)}
             </Text>
             {doctorName && (
               <Text size="xs" c="dimmed" fs="italic">
-                -- Dr. {doctorName}
+                {t("prescriptionViews.prosePanel.doctor", { doctor: doctorName })}
               </Text>
             )}
           </Group>
           <Stack gap={4}>
             {rx.entries.map((item, idx) => {
               const allergyMatch = matchesAllergy(item.drug_name, allergies);
-              const timing = instructionsDisplayText(item.instructions);
+              const timing = instructionsDisplayText(item.instructions, t);
               return (
                 <Group key={item.id} gap={6} wrap="nowrap" align="baseline">
                   <Text size="xs" ff="var(--fc-font-mono, monospace)" c="dimmed" w={20} ta="right">
@@ -144,10 +184,10 @@ export function ProseView({
                     {item.dosage}
                   </Text>
                   <Badge size="xs" variant="light" color="gray" ff="var(--fc-font-mono, monospace)">
-                    {FREQ_LABEL[item.frequency.toUpperCase()] ?? item.frequency}
+                    {frequencyLabel(t, item.frequency)}
                   </Badge>
                   <Text size="xs" c="dimmed">
-                    x {item.duration}
+                    {t("prescriptionViews.prosePanel.duration", { duration: item.duration })}
                   </Text>
                   {timing && (
                     <Text size="xs" c="dimmed" fs="italic">
@@ -156,7 +196,7 @@ export function ProseView({
                   )}
                   {allergyMatch && (
                     <Badge size="xs" color="var(--fc-copper, #B8924A)" variant="filled">
-                      Allergy: {allergyMatch}
+                      {t("prescriptionViews.prosePanel.allergy", { allergy: allergyMatch })}
                     </Badge>
                   )}
                 </Group>
@@ -185,6 +225,7 @@ function SummaryPill({ label, value }: { label: string; value: string }) {
 }
 
 export function TimelineView({ items }: { items: FlatItem[] }) {
+  const { t } = useTranslation("clinical");
   const drugSlots = useMemo(() => {
     return items.map((item) => ({ item, slots: frequencyToDefaultSlots(item.frequency) }));
   }, [items]);
@@ -206,23 +247,38 @@ export function TimelineView({ items }: { items: FlatItem[] }) {
     return {
       totalDrugs: items.length,
       totalDoses,
-      earliest: earliest !== null ? `${String(earliest).padStart(2, "0")}:00` : "--",
-      latest: latest !== null ? `${String(latest).padStart(2, "0")}:00` : "--",
+      earliest:
+        earliest !== null
+          ? `${String(earliest).padStart(2, "0")}:00`
+          : t("prescriptionViews.timelineSummary.none"),
+      latest:
+        latest !== null
+          ? `${String(latest).padStart(2, "0")}:00`
+          : t("prescriptionViews.timelineSummary.none"),
     };
-  }, [drugSlots, items.length]);
+  }, [drugSlots, items.length, t]);
 
   return (
     <Card padding="sm" radius="md" withBorder>
       <Group gap="lg" mb="sm">
-        <SummaryPill label="Drugs" value={String(summary.totalDrugs)} />
-        <SummaryPill label="Doses/day" value={String(summary.totalDoses)} />
-        <SummaryPill label="Earliest" value={summary.earliest} />
-        <SummaryPill label="Latest" value={summary.latest} />
+        <SummaryPill
+          label={t("prescriptionViews.timelineSummary.drugs")}
+          value={String(summary.totalDrugs)}
+        />
+        <SummaryPill
+          label={t("prescriptionViews.timelineSummary.dosesPerDay")}
+          value={String(summary.totalDoses)}
+        />
+        <SummaryPill
+          label={t("prescriptionViews.timelineSummary.earliest")}
+          value={summary.earliest}
+        />
+        <SummaryPill label={t("prescriptionViews.timelineSummary.latest")} value={summary.latest} />
       </Group>
       <Table horizontalSpacing="xs" verticalSpacing={4} withTableBorder>
         <Table.Thead>
           <Table.Tr>
-            <Table.Th w={140}>Drug</Table.Th>
+            <Table.Th w={140}>{t("prescriptionViews.columns.drug")}</Table.Th>
             {TIMELINE_HOURS.map((h) => (
               <Table.Th key={h.hour} ta="center" w={40}>
                 <Text size="xs" ff="var(--fc-font-mono, monospace)">
@@ -256,7 +312,7 @@ export function TimelineView({ items }: { items: FlatItem[] }) {
                       />
                     ) : (
                       <Text size="xs" c="dimmed">
-                        --
+                        {t("prescriptionViews.timelineSummary.noDose")}
                       </Text>
                     )}
                   </Table.Td>
@@ -273,6 +329,7 @@ export function TimelineView({ items }: { items: FlatItem[] }) {
 // ── C. Dose Calculator View ────────────────────────────────────
 
 function DoseCalcCard({ item, weight }: { item: FlatItem; weight?: number }) {
+  const { t } = useTranslation("clinical");
   // Try dosage field first, fall back to extracting mg from drug name (e.g. "Amoxicillin 500mg")
   const doseMg = parseDosageNumeric(item.dosage) ?? parseDosageNumeric(item.drug_name);
   const dosesPerDay = FREQ_DOSES_PER_DAY[item.frequency.toUpperCase()] ?? 0;
@@ -288,8 +345,11 @@ function DoseCalcCard({ item, weight }: { item: FlatItem; weight?: number }) {
         {item.drug_name}
       </Text>
       <Text size="xs" c="dimmed" mb="xs">
-        {item.dosage} -- {FREQ_LABEL[item.frequency.toUpperCase()] ?? item.frequency} --{" "}
-        {item.duration}
+        {t("prescriptionViews.dose.summary", {
+          dosage: item.dosage,
+          duration: item.duration,
+          frequency: frequencyLabel(t, item.frequency),
+        })}
       </Text>
       {calc ? (
         <Box
@@ -304,17 +364,25 @@ function DoseCalcCard({ item, weight }: { item: FlatItem; weight?: number }) {
           }}
         >
           <div>
-            {calc.perDose} mg/dose x {dosesPerDay} doses/day = {calc.totalDaily} mg/day
+            {t("prescriptionViews.dose.dailyFormula", {
+              dosesPerDay,
+              perDose: calc.perDose,
+              totalDaily: calc.totalDaily,
+            })}
           </div>
           <div>
-            {calc.totalDaily} mg/day / {weight} kg = {calc.mgPerKgDay.toFixed(2)} mg/kg/day
+            {t("prescriptionViews.dose.weightFormula", {
+              mgPerKgDay: calc.mgPerKgDay.toFixed(2),
+              totalDaily: calc.totalDaily,
+              weight,
+            })}
           </div>
         </Box>
       ) : (
         <Text size="xs" c="dimmed" fs="italic">
           {!weight
-            ? "Enter patient weight to calculate"
-            : `No numeric dose found in "${item.dosage}" or drug name`}
+            ? t("prescriptionViews.dose.enterWeight")
+            : t("prescriptionViews.dose.noNumericDose", { dosage: item.dosage })}
         </Text>
       )}
     </Card>
@@ -330,12 +398,13 @@ export function DoseCalculatorView({
   patientWeight?: number;
   patientAge?: string;
 }) {
+  const { t } = useTranslation("clinical");
   const [weight, setWeight] = useState<number | undefined>(patientWeight);
   return (
     <Stack gap="sm">
       <Group gap="sm" align="flex-end">
         <NumberInput
-          label="Patient weight (kg)"
+          label={t("prescriptionViews.dose.patientWeight")}
           value={weight}
           onChange={(v) => setWeight(typeof v === "number" ? v : undefined)}
           min={0.5}
@@ -347,7 +416,7 @@ export function DoseCalculatorView({
         />
         {patientAge && (
           <Text size="xs" c="dimmed" pb={4}>
-            Age: {patientAge}
+            {t("prescriptionViews.dose.age", { age: patientAge })}
           </Text>
         )}
       </Group>
@@ -356,7 +425,7 @@ export function DoseCalculatorView({
       ))}
       {items.length === 0 && (
         <Text size="sm" c="dimmed" ta="center">
-          No items to calculate.
+          {t("prescriptionViews.dose.noItems")}
         </Text>
       )}
     </Stack>
@@ -366,9 +435,10 @@ export function DoseCalculatorView({
 // ── D. Rule Cards View ─────────────────────────────────────────
 
 function RuleCard({ item }: { item: FlatItem }) {
+  const { t } = useTranslation("clinical");
   const freqUpper = item.frequency.toUpperCase();
   const isPrn = freqUpper === "SOS" || freqUpper === "PRN";
-  const when = timingLabel(item);
+  const when = timingLabel(item, t);
   const bandLabelStyle = {
     fontFamily: "var(--fc-font-mono, monospace)",
     fontSize: 10,
@@ -389,28 +459,33 @@ function RuleCard({ item }: { item: FlatItem }) {
             backgroundColor: "var(--fc-panel, #f7f8f6)",
           }}
         >
-          <div style={bandLabelStyle}>When</div>
+          <div style={bandLabelStyle}>{t("prescriptionViews.rulesCard.when")}</div>
           <Text size="xs" fw={500}>
             {when}
           </Text>
         </Box>
         <Box p="xs" w="33.33%" style={{ borderRight: "1px solid var(--fc-rule, #e7ebe8)" }}>
-          <div style={bandLabelStyle}>Trigger</div>
+          <div style={bandLabelStyle}>{t("prescriptionViews.rulesCard.trigger")}</div>
           <Text size="xs" fw={500}>
-            {isPrn ? "As needed (PRN)" : "Regular schedule"}
+            {isPrn
+              ? t("prescriptionViews.rulesCard.asNeeded")
+              : t("prescriptionViews.rulesCard.regularSchedule")}
           </Text>
           <Text size="xs" c="dimmed">
-            {item.dosage} -- {FREQ_LABEL[freqUpper] ?? item.frequency}
+            {t("prescriptionViews.rulesCard.doseFrequency", {
+              dosage: item.dosage,
+              frequency: frequencyLabel(t, item.frequency),
+            })}
           </Text>
         </Box>
         <Box p="xs" w="33.33%">
-          <div style={bandLabelStyle}>For</div>
+          <div style={bandLabelStyle}>{t("prescriptionViews.rulesCard.for")}</div>
           <Text size="xs" fw={500}>
             {item.duration}
           </Text>
           {item.route && (
             <Text size="xs" c="dimmed">
-              via {item.route}
+              {t("prescriptionViews.rulesCard.via", { route: item.route })}
             </Text>
           )}
         </Box>
@@ -432,6 +507,7 @@ function RuleCard({ item }: { item: FlatItem }) {
 }
 
 export function RuleCardsView({ items }: { items: FlatItem[] }) {
+  const { t } = useTranslation("clinical");
   return (
     <Stack gap="xs">
       {items.map((item) => (
@@ -439,7 +515,7 @@ export function RuleCardsView({ items }: { items: FlatItem[] }) {
       ))}
       {items.length === 0 && (
         <Text size="sm" c="dimmed" ta="center">
-          No prescription items.
+          {t("prescriptionViews.rulesCard.noItems")}
         </Text>
       )}
     </Stack>
