@@ -360,7 +360,7 @@ function requireActivePharmacyOrderForDispense(
   }
   return requireLinkedContextAfterActivation(
     context,
-    ["order.created", "billing.payment.received"],
+    ["order.created", "pharmacy.prescription.reviewed", "billing.payment.received"],
     "Link the pharmacy order before dispensing medicines",
   );
 }
@@ -609,12 +609,12 @@ export const CORE_PATIENT_JOURNEY_ACTIONS: readonly ClinicalJourneyActionDefinit
     id: "pharmacy.dispense_order",
     label: "Dispense medicines",
     shortLabel: "Dispense",
-    description: "Open dispensing for medication orders after order or payment events.",
+    description: "Open dispensing for medication orders after pharmacy review or payment events.",
     module: "pharmacy",
     intent: "clinical",
     requiredPermissions: [P.PHARMACY.DISPENSING_CREATE],
     surfaces: ["web", "mobile"],
-    activatesAfter: ["order.created", "billing.payment.received"],
+    activatesAfter: ["order.created", "pharmacy.prescription.reviewed", "billing.payment.received"],
     emitsEvent: "pharmacy.order.dispensed",
     blockingControls: ["context", "regulatory"],
     standardRefs: ["NABH MOM", "Drugs and Cosmetics Act", "NDPS Act where applicable"],
@@ -630,7 +630,7 @@ export const CORE_PATIENT_JOURNEY_ACTIONS: readonly ClinicalJourneyActionDefinit
     intent: "clinical",
     requiredPermissions: [P.PHARMACY.PRESCRIPTIONS_LIST],
     surfaces: ["web", "mobile", "tv"],
-    activatesAfter: ["order.created", "pharmacy.order.dispensed"],
+    activatesAfter: ["order.created", "pharmacy.prescription.reviewed", "pharmacy.order.dispensed"],
     standardRefs: ["NABH MOM", "Drugs and Cosmetics Act", "NDPS Act where applicable"],
     disabledReason: () => null,
   },

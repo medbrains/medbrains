@@ -54,6 +54,17 @@ describe("clinical journey event activation", () => {
     });
   });
 
+  it("declares prescription review as a first-class pharmacy activation event", () => {
+    expect(
+      CORE_PATIENT_JOURNEY_ACTIONS.find((action) => action.id === "pharmacy.dispense_order")
+        ?.activatesAfter,
+    ).toContain("pharmacy.prescription.reviewed");
+    expect(
+      CORE_PATIENT_JOURNEY_ACTIONS.find((action) => action.id === "pharmacy.open_patient_queue")
+        ?.activatesAfter,
+    ).toContain("pharmacy.prescription.reviewed");
+  });
+
   it("infers completed events from active patient, OPD, IPD, and ER context", () => {
     expect(
       inferClinicalJourneyEventNames({
@@ -96,6 +107,9 @@ describe("clinical journey event activation", () => {
     expect(
       actions.find((action) => action.id === "pharmacy.open_patient_queue")?.disabledReasonText,
     ).toContain("order created");
+    expect(
+      actions.find((action) => action.id === "pharmacy.open_patient_queue")?.disabledReasonText,
+    ).toContain("pharmacy prescription reviewed");
   });
 
   it("can include permission-denied actions as disabled explainable handoffs", () => {
@@ -178,7 +192,7 @@ describe("clinical journey event activation", () => {
           "billing.invoice.created",
           "billing.invoice.finalized",
           "ipd.discharge.finalized",
-          "order.created",
+          "pharmacy.prescription.reviewed",
         ],
       },
       allowAll,

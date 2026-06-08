@@ -305,7 +305,7 @@ export function buildPatientFlowReadiness(
     actions.get(PHARMACY_FLOW_ACTION),
     hasPermission(P.PHARMACY.PRESCRIPTIONS_LIST),
     "Permission required",
-    ["order.created", "pharmacy.order.dispensed"],
+    ["order.created", "pharmacy.prescription.reviewed", "pharmacy.order.dispensed"],
     [P.PHARMACY.PRESCRIPTIONS_LIST],
   );
   const billingState = itemState(
