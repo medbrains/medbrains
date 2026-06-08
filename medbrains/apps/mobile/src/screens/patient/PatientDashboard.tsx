@@ -21,6 +21,10 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { patientService } from "../../services/patient.service";
 import { MEDBRAINS_COLORS } from "../../theme/paper-theme";
+import {
+  mobilePatientDashboardAppointmentStatusText,
+  mobilePatientDashboardText,
+} from "./patientDashboardText";
 
 type DashboardRoute = "Appointments" | "LabResults" | "Prescriptions" | "Billing";
 
@@ -33,7 +37,7 @@ interface PatientDashboardProps {
 interface QuickAction {
   id: string;
   icon: string;
-  label: string;
+  labelKey: string;
   color: string;
   route: DashboardRoute;
 }
@@ -52,28 +56,28 @@ const QUICK_ACTIONS: QuickAction[] = [
   {
     id: "appointments",
     icon: "calendar-clock",
-    label: "Appointments",
+    labelKey: "patientDashboard.quickActions.appointments",
     color: MEDBRAINS_COLORS.brand,
     route: "Appointments",
   },
   {
     id: "lab",
     icon: "flask",
-    label: "Lab Results",
+    labelKey: "patientDashboard.quickActions.lab",
     color: MEDBRAINS_COLORS.emerald,
     route: "LabResults",
   },
   {
     id: "prescription",
     icon: "pill",
-    label: "Prescriptions",
+    labelKey: "patientDashboard.quickActions.prescriptions",
     color: MEDBRAINS_COLORS.statusWarning,
     route: "Prescriptions",
   },
   {
     id: "billing",
     icon: "receipt",
-    label: "Bills",
+    labelKey: "patientDashboard.quickActions.billing",
     color: MEDBRAINS_COLORS.copper,
     route: "Billing",
   },
@@ -96,7 +100,9 @@ function getLocalDateKey(date = new Date()): string {
 
 function formatDate(value: string): string {
   const date = parseDate(value);
-  return date ? date.toLocaleDateString("en-IN") : "Date pending";
+  return date
+    ? date.toLocaleDateString("en-IN")
+    : mobilePatientDashboardText("patientDashboard.common.datePending");
 }
 
 function formatCurrency(amount: number): string {
@@ -119,17 +125,20 @@ function buildPatientName(patient: Patient | undefined, fallbackName: string | u
     }
   }
 
-  return fallbackName?.trim() || "Patient";
+  return fallbackName?.trim() || mobilePatientDashboardText("patientDashboard.common.patient");
 }
 
 function getInitials(name: string): string {
   const words = name.trim().split(/\s+/).filter(Boolean);
   if (words.length === 0) {
-    return "PT";
+    return mobilePatientDashboardText("patientDashboard.common.initials");
   }
 
   if (words.length === 1) {
-    return words[0]?.slice(0, 2).toUpperCase() || "PT";
+    return (
+      words[0]?.slice(0, 2).toUpperCase() ||
+      mobilePatientDashboardText("patientDashboard.common.initials")
+    );
   }
 
   return words
@@ -153,7 +162,7 @@ function getAppointmentTime(appointment: PatientAppointmentRow): string {
   const appointmentDate = parseDate(appointment.appointment_date);
   return appointmentDate
     ? appointmentDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-    : "Time pending";
+    : mobilePatientDashboardText("patientDashboard.common.timePending");
 }
 
 function isPendingInvoice(invoice: PatientInvoiceRow): boolean {
@@ -194,43 +203,56 @@ function buildSummaryItems(params: {
     {
       id: "appointments",
       icon: "calendar-check",
-      label: "Upcoming",
+      label: mobilePatientDashboardText("patientDashboard.summary.upcomingLabel"),
       value: String(params.upcomingAppointments.length),
       hint: nextAppointment
-        ? `${nextAppointment.doctor_name || "Doctor"} on ${formatDate(nextAppointment.appointment_date)}`
-        : "No appointments scheduled",
+        ? mobilePatientDashboardText("patientDashboard.summary.appointmentHint", {
+            doctor:
+              nextAppointment.doctor_name ||
+              mobilePatientDashboardText("patientDashboard.common.doctor"),
+            date: formatDate(nextAppointment.appointment_date),
+          })
+        : mobilePatientDashboardText("patientDashboard.summary.noAppointments"),
       color: MEDBRAINS_COLORS.brand,
       route: "Appointments",
     },
     {
       id: "billing",
       icon: "receipt-text",
-      label: "Outstanding",
+      label: mobilePatientDashboardText("patientDashboard.summary.billingLabel"),
       value: formatCurrency(params.outstandingBalance),
       hint:
         params.pendingInvoices.length > 0
-          ? `${params.pendingInvoices.length} pending bill${
-              params.pendingInvoices.length > 1 ? "s" : ""
-            }`
-          : "No pending bills",
+          ? mobilePatientDashboardText(
+              params.pendingInvoices.length === 1
+                ? "patientDashboard.summary.billingHintSingular"
+                : "patientDashboard.summary.billingHintPlural",
+              { count: params.pendingInvoices.length },
+            )
+          : mobilePatientDashboardText("patientDashboard.summary.noPendingBills"),
       color: MEDBRAINS_COLORS.copper,
       route: "Billing",
     },
     {
       id: "prescriptions",
       icon: "pill",
-      label: "Recent Meds",
+      label: mobilePatientDashboardText("patientDashboard.summary.medicationLabel"),
       value: String(params.recentMedicationCount),
-      hint: "Medication items in the last 30 days",
+      hint: mobilePatientDashboardText("patientDashboard.summary.medicationHint"),
       color: MEDBRAINS_COLORS.statusWarning,
       route: "Prescriptions",
     },
     {
       id: "labs",
       icon: "flask-check",
-      label: "Ready Labs",
+      label: mobilePatientDashboardText("patientDashboard.summary.labLabel"),
       value: String(readyLabOrders.length),
-      hint: `${params.labOrders.length} lab order${params.labOrders.length === 1 ? "" : "s"} total`,
+      hint: mobilePatientDashboardText(
+        params.labOrders.length === 1
+          ? "patientDashboard.summary.labHintSingular"
+          : "patientDashboard.summary.labHintPlural",
+        { count: params.labOrders.length },
+      ),
       color: MEDBRAINS_COLORS.emerald,
       route: "LabResults",
     },
@@ -250,7 +272,7 @@ function QuickActionButton({
       onPress={() => onPress(action.route)}
     >
       <Avatar.Icon size={40} icon={action.icon} style={styles.actionIcon} />
-      <Text style={styles.actionLabel}>{action.label}</Text>
+      <Text style={styles.actionLabel}>{mobilePatientDashboardText(action.labelKey)}</Text>
     </TouchableOpacity>
   );
 }
@@ -262,24 +284,32 @@ function AppointmentCard({ appointment }: { appointment: PatientAppointmentRow }
     <Card style={styles.appointmentCard}>
       <Card.Content style={styles.appointmentContent}>
         <View style={styles.dateBox}>
-          <Text style={styles.dateDay}>{appointmentDate ? appointmentDate.getDate() : "--"}</Text>
+          <Text style={styles.dateDay}>
+            {appointmentDate
+              ? appointmentDate.getDate()
+              : mobilePatientDashboardText("patientDashboard.common.dateDayPending")}
+          </Text>
           <Text style={styles.dateMonth}>
-            {appointmentDate ? appointmentDate.toLocaleString("en", { month: "short" }) : "TBD"}
+            {appointmentDate
+              ? appointmentDate.toLocaleString("en", { month: "short" })
+              : mobilePatientDashboardText("patientDashboard.common.tbd")}
           </Text>
         </View>
         <View style={styles.appointmentRight}>
           <Text variant="titleMedium" style={styles.appointmentDoctor}>
-            {appointment.doctor_name || "Doctor"}
+            {appointment.doctor_name ||
+              mobilePatientDashboardText("patientDashboard.common.doctor")}
           </Text>
           <Text variant="bodySmall" style={styles.department}>
-            {appointment.department_name || "General"}
+            {appointment.department_name ||
+              mobilePatientDashboardText("patientDashboard.common.general")}
           </Text>
           <View style={styles.appointmentMeta}>
             <Chip compact icon="clock-outline" style={styles.timeChip}>
               {getAppointmentTime(appointment)}
             </Chip>
             <Chip compact mode="flat" style={styles.statusChip}>
-              {appointment.status || "pending"}
+              {mobilePatientDashboardAppointmentStatusText(appointment.status || "pending")}
             </Chip>
           </View>
         </View>
@@ -363,10 +393,10 @@ export function PatientDashboard({ navigation }: PatientDashboardProps) {
         <View style={styles.unavailableContainer}>
           <Avatar.Icon size={56} icon="account-alert" />
           <Text variant="titleMedium" style={styles.emptyTitle}>
-            Patient context unavailable
+            {mobilePatientDashboardText("patientDashboard.unavailable.title")}
           </Text>
           <Text variant="bodyMedium" style={styles.emptyText}>
-            Sign in with a linked patient account to view dashboard details.
+            {mobilePatientDashboardText("patientDashboard.unavailable.message")}
           </Text>
         </View>
       </SafeAreaView>
@@ -408,7 +438,7 @@ export function PatientDashboard({ navigation }: PatientDashboardProps) {
             <Avatar.Text size={56} label={getInitials(patientName)} />
             <View style={styles.headerText}>
               <Text variant="headlineSmall" style={styles.welcomeText}>
-                Welcome back,
+                {mobilePatientDashboardText("patientDashboard.header.welcome")}
               </Text>
               {isPatientLoading ? (
                 <ActivityIndicator size="small" style={styles.headerLoader} />
@@ -427,7 +457,7 @@ export function PatientDashboard({ navigation }: PatientDashboardProps) {
         </Surface>
 
         <Text variant="titleMedium" style={styles.sectionTitle}>
-          Quick Actions
+          {mobilePatientDashboardText("patientDashboard.quickActions.section")}
         </Text>
         <View style={styles.actionsGrid}>
           {QUICK_ACTIONS.map((action) => (
@@ -437,11 +467,11 @@ export function PatientDashboard({ navigation }: PatientDashboardProps) {
 
         <View style={styles.sectionHeader}>
           <Text variant="titleMedium" style={styles.sectionHeaderTitle}>
-            Upcoming Appointments
+            {mobilePatientDashboardText("patientDashboard.appointments.section")}
           </Text>
           <TouchableOpacity onPress={() => navigation.navigate("Appointments")}>
             <Text variant="labelMedium" style={{ color: theme.colors.primary }}>
-              See All
+              {mobilePatientDashboardText("patientDashboard.appointments.seeAll")}
             </Text>
           </TouchableOpacity>
         </View>
@@ -450,7 +480,7 @@ export function PatientDashboard({ navigation }: PatientDashboardProps) {
           <Surface style={styles.loadingCard} elevation={1}>
             <ActivityIndicator />
             <Text variant="bodyMedium" style={styles.loadingText}>
-              Loading appointments...
+              {mobilePatientDashboardText("patientDashboard.appointments.loading")}
             </Text>
           </Surface>
         ) : upcomingAppointments.length > 0 ? (
@@ -463,21 +493,21 @@ export function PatientDashboard({ navigation }: PatientDashboardProps) {
           <Surface style={styles.emptyState} elevation={1}>
             <Avatar.Icon size={48} icon="calendar-blank" />
             <Text variant="bodyMedium" style={styles.emptyText}>
-              No upcoming appointments
+              {mobilePatientDashboardText("patientDashboard.appointments.empty")}
             </Text>
             <Button
               mode="text"
               icon="calendar-clock"
               onPress={() => navigation.navigate("Appointments")}
             >
-              View appointments
+              {mobilePatientDashboardText("patientDashboard.appointments.view")}
             </Button>
           </Surface>
         )}
 
         <View style={styles.sectionHeader}>
           <Text variant="titleMedium" style={styles.sectionHeaderTitle}>
-            Care Summary
+            {mobilePatientDashboardText("patientDashboard.summary.careSummary")}
           </Text>
           {isSummaryLoading && <ActivityIndicator size="small" />}
         </View>
