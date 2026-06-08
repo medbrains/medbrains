@@ -24,6 +24,7 @@ const MOBILE_BILLING_MESSAGES: Record<string, string> = {
   "billing.handoff.ipd.hint": "Reviewing invoices linked to the active IPD admission.",
   "billing.handoff.opd.hint": "Reviewing invoices linked to the active encounter.",
   "billing.handoff.payment.title": "Payment handoff",
+  "billing.invoice.fallbackNumber": "INV-{{id}}",
   "billing.itemCount.many": "{{count}} items",
   "billing.itemCount.one": "{{count}} item",
   "billing.label.acceptedPaymentMethods": "Accepted Payment Methods",
@@ -40,8 +41,11 @@ const MOBILE_BILLING_MESSAGES: Record<string, string> = {
   "billing.status.draft": "Draft",
   "billing.status.issued": "Issued",
   "billing.status.paid": "Paid",
+  "billing.status.partial": "Partially paid",
   "billing.status.partially_paid": "Partially paid",
+  "billing.status.pending": "Pending",
   "billing.status.refunded": "Refunded",
+  "billing.status.unpaid": "Unpaid",
 };
 
 function interpolate(template: string, values?: MobileBillingTextValues): string {

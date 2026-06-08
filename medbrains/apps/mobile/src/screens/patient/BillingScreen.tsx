@@ -250,7 +250,10 @@ export function BillingScreen({ navigation, route }: BillingScreenProps) {
             <View style={styles.cardHeader}>
               <View style={styles.invoiceInfo}>
                 <Text variant="titleMedium" style={styles.invoiceNumber}>
-                  {item.invoiceNumber || `INV-${item.id.slice(0, 8)}`}
+                  {item.invoiceNumber ||
+                    mobileBillingText("billing.invoice.fallbackNumber", {
+                      id: item.id.slice(0, 8),
+                    })}
                 </Text>
                 <Text variant="bodySmall" style={styles.invoiceDate}>
                   {invoiceDateLabel}
