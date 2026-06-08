@@ -4935,13 +4935,29 @@ export const mobileConsultationNotesFormSchema = z.object({
   plan: z.string(),
 });
 
+const mobilePrescriptionRequiredTrimmed = (requiredMessage: string) =>
+  z
+    .string()
+    .max(255, "patientJourney.mobile.prescription.errors.tooLong")
+    .refine((value) => value.trim().length > 0, requiredMessage);
+
 export const mobilePrescriptionItemFormSchema = z.object({
-  drug_name: requiredTrimmed("Drug name is required"),
+  drug_name: mobilePrescriptionRequiredTrimmed(
+    "patientJourney.mobile.prescription.errors.drugNameRequired",
+  ),
   generic_name: z.string().optional(),
-  dosage: requiredTrimmed("Dosage is required"),
-  frequency: requiredTrimmed("Frequency is required"),
-  duration: requiredTrimmed("Duration is required"),
-  route: requiredTrimmed("Route is required"),
+  dosage: mobilePrescriptionRequiredTrimmed(
+    "patientJourney.mobile.prescription.errors.dosageRequired",
+  ),
+  frequency: mobilePrescriptionRequiredTrimmed(
+    "patientJourney.mobile.prescription.errors.frequencyRequired",
+  ),
+  duration: mobilePrescriptionRequiredTrimmed(
+    "patientJourney.mobile.prescription.errors.durationRequired",
+  ),
+  route: mobilePrescriptionRequiredTrimmed(
+    "patientJourney.mobile.prescription.errors.routeRequired",
+  ),
   instructions: z.string().optional(),
 });
 

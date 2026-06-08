@@ -17,6 +17,7 @@ import {
   Dialog,
   Divider,
   FAB,
+  HelperText,
   IconButton,
   List,
   Portal,
@@ -28,6 +29,10 @@ import {
   useTheme,
 } from "react-native-paper";
 import { SafeAreaView } from "react-native-safe-area-context";
+import {
+  MOBILE_PRESCRIPTION_TEXT,
+  mobilePatientJourneyText,
+} from "../../components/patientJourneyText";
 import { clinicalService } from "../../services/clinical.service";
 
 interface PrescriptionScreenProps {
@@ -42,38 +47,85 @@ interface PrescriptionScreenProps {
 }
 
 type PrescriptionItem = MobilePrescriptionItemFormInput & { id: string };
+type PrescriptionOption = {
+  labelKey: string;
+  value: string;
+};
 
-const FREQUENCIES = [
-  "Once daily",
-  "Twice daily",
-  "Three times daily",
-  "Four times daily",
-  "As needed",
-  "Before meals",
-  "After meals",
-  "At bedtime",
+const PRESCRIPTION_TEXT = MOBILE_PRESCRIPTION_TEXT;
+const DEFAULT_FREQUENCY = "Once daily";
+const DEFAULT_DURATION = "7 days";
+const DEFAULT_ROUTE = "Oral";
+
+const FREQUENCY_OPTIONS: readonly PrescriptionOption[] = [
+  { value: DEFAULT_FREQUENCY, labelKey: PRESCRIPTION_TEXT.frequencies.onceDaily },
+  { value: "Twice daily", labelKey: PRESCRIPTION_TEXT.frequencies.twiceDaily },
+  { value: "Three times daily", labelKey: PRESCRIPTION_TEXT.frequencies.threeTimesDaily },
+  { value: "Four times daily", labelKey: PRESCRIPTION_TEXT.frequencies.fourTimesDaily },
+  { value: "As needed", labelKey: PRESCRIPTION_TEXT.frequencies.asNeeded },
+  { value: "Before meals", labelKey: PRESCRIPTION_TEXT.frequencies.beforeMeals },
+  { value: "After meals", labelKey: PRESCRIPTION_TEXT.frequencies.afterMeals },
+  { value: "At bedtime", labelKey: PRESCRIPTION_TEXT.frequencies.atBedtime },
 ];
-const ROUTES = ["Oral", "Topical", "IV", "IM", "SC", "Inhalation", "Sublingual", "Rectal"];
-const DURATIONS = [
-  "3 days",
-  "5 days",
-  "7 days",
-  "10 days",
-  "14 days",
-  "1 month",
-  "3 months",
-  "Continuous",
+const ROUTE_OPTIONS: readonly PrescriptionOption[] = [
+  { value: DEFAULT_ROUTE, labelKey: PRESCRIPTION_TEXT.routes.oral },
+  { value: "Topical", labelKey: PRESCRIPTION_TEXT.routes.topical },
+  { value: "IV", labelKey: PRESCRIPTION_TEXT.routes.iv },
+  { value: "IM", labelKey: PRESCRIPTION_TEXT.routes.im },
+  { value: "SC", labelKey: PRESCRIPTION_TEXT.routes.sc },
+  { value: "Inhalation", labelKey: PRESCRIPTION_TEXT.routes.inhalation },
+  { value: "Sublingual", labelKey: PRESCRIPTION_TEXT.routes.sublingual },
+  { value: "Rectal", labelKey: PRESCRIPTION_TEXT.routes.rectal },
+];
+const DURATION_OPTIONS: readonly PrescriptionOption[] = [
+  { value: "3 days", labelKey: PRESCRIPTION_TEXT.durations.threeDays },
+  { value: "5 days", labelKey: PRESCRIPTION_TEXT.durations.fiveDays },
+  { value: DEFAULT_DURATION, labelKey: PRESCRIPTION_TEXT.durations.sevenDays },
+  { value: "10 days", labelKey: PRESCRIPTION_TEXT.durations.tenDays },
+  { value: "14 days", labelKey: PRESCRIPTION_TEXT.durations.fourteenDays },
+  { value: "1 month", labelKey: PRESCRIPTION_TEXT.durations.oneMonth },
+  { value: "3 months", labelKey: PRESCRIPTION_TEXT.durations.threeMonths },
+  { value: "Continuous", labelKey: PRESCRIPTION_TEXT.durations.continuous },
 ];
 
 const defaultPrescriptionItemFormValues: MobilePrescriptionItemFormInput = {
   drug_name: "",
   generic_name: "",
   dosage: "",
-  frequency: FREQUENCIES[0] ?? "Once daily",
-  duration: DURATIONS[2] ?? "7 days",
-  route: ROUTES[0] ?? "Oral",
+  frequency: DEFAULT_FREQUENCY,
+  duration: DEFAULT_DURATION,
+  route: DEFAULT_ROUTE,
   instructions: "",
 };
+
+function prescriptionText(key: string, values?: Record<string, string | number | boolean>): string {
+  return mobilePatientJourneyText(key, values);
+}
+
+function optionLabel(options: readonly PrescriptionOption[], value: string): string {
+  const option = options.find((candidate) => candidate.value === value);
+  return option ? prescriptionText(option.labelKey) : value;
+}
+
+function fieldErrorText(message: string | undefined): string | undefined {
+  return message ? prescriptionText(message) : undefined;
+}
+
+function itemCountText(count: number): string {
+  return prescriptionText(
+    count === 1
+      ? PRESCRIPTION_TEXT.summary.itemCountSingular
+      : PRESCRIPTION_TEXT.summary.itemCountPlural,
+    { count },
+  );
+}
+
+function saveButtonText(count: number): string {
+  return prescriptionText(
+    count === 1 ? PRESCRIPTION_TEXT.actions.saveSingular : PRESCRIPTION_TEXT.actions.savePlural,
+    { count },
+  );
+}
 
 export function PrescriptionScreen({ route, navigation }: PrescriptionScreenProps) {
   const theme = useTheme();
@@ -113,7 +165,9 @@ export function PrescriptionScreen({ route, navigation }: PrescriptionScreenProp
 
   const saveMutation = useMutation({
     mutationFn: async () => {
-      if (!encounterId || items.length === 0) throw new Error("No items to save");
+      if (!encounterId || items.length === 0) {
+        throw new Error(prescriptionText(PRESCRIPTION_TEXT.errors.noItems));
+      }
 
       await clinicalService.createPrescription(encounterId, {
         items: items.map((item) => ({
@@ -128,11 +182,14 @@ export function PrescriptionScreen({ route, navigation }: PrescriptionScreenProp
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["prescriptions"] });
-      setSnackbar({ visible: true, message: "Prescription saved successfully" });
+      setSnackbar({ visible: true, message: prescriptionText(PRESCRIPTION_TEXT.status.saved) });
       setTimeout(() => navigation.goBack(), 1500);
     },
     onError: () => {
-      setSnackbar({ visible: true, message: "Failed to save prescription" });
+      setSnackbar({
+        visible: true,
+        message: prescriptionText(PRESCRIPTION_TEXT.errors.failedToSave),
+      });
     },
   });
 
@@ -161,11 +218,14 @@ export function PrescriptionScreen({ route, navigation }: PrescriptionScreenProp
       dosage: item.dosage,
       frequency: item.frequency,
       duration: item.duration,
-      route: item.route || "Oral",
+      route: item.route || DEFAULT_ROUTE,
       instructions: item.instructions || undefined,
     }));
     setItems([...items, ...newItems]);
-    setSnackbar({ visible: true, message: "Added items from previous prescription" });
+    setSnackbar({
+      visible: true,
+      message: prescriptionText(PRESCRIPTION_TEXT.status.copiedPrevious),
+    });
   };
 
   if (isLoading) {
@@ -186,17 +246,18 @@ export function PrescriptionScreen({ route, navigation }: PrescriptionScreenProp
           <Card style={styles.previousCard}>
             <Card.Content>
               <Text variant="titleSmall" style={styles.previousTitle}>
-                Previous Prescriptions
+                {prescriptionText(PRESCRIPTION_TEXT.sections.previous)}
               </Text>
               <Divider style={styles.divider} />
               {existingPrescriptions.slice(0, 3).map((rx) => (
                 <List.Item
                   key={rx.prescription.id}
-                  title={`${rx.items.length} medication(s)`}
+                  title={itemCountText(rx.items.length)}
                   description={new Date(rx.prescription.created_at).toLocaleDateString()}
                   left={(props) => <List.Icon {...props} icon="pill" />}
                   right={() => (
                     <IconButton
+                      accessibilityLabel={prescriptionText(PRESCRIPTION_TEXT.actions.copyPrevious)}
                       icon="content-copy"
                       size={20}
                       onPress={() => handleCopyFromPrevious(rx)}
@@ -210,7 +271,7 @@ export function PrescriptionScreen({ route, navigation }: PrescriptionScreenProp
 
         {/* Current Prescription Items */}
         <Text variant="titleMedium" style={styles.sectionTitle}>
-          Current Prescription
+          {prescriptionText(PRESCRIPTION_TEXT.sections.current)}
         </Text>
 
         {items.length > 0 ? (
@@ -237,18 +298,20 @@ export function PrescriptionScreen({ route, navigation }: PrescriptionScreenProp
                   {item.dosage}
                 </Chip>
                 <Chip compact icon="clock">
-                  {item.frequency}
+                  {optionLabel(FREQUENCY_OPTIONS, item.frequency)}
                 </Chip>
                 <Chip compact icon="calendar">
-                  {item.duration}
+                  {optionLabel(DURATION_OPTIONS, item.duration)}
                 </Chip>
                 <Chip compact icon="routes">
-                  {item.route}
+                  {optionLabel(ROUTE_OPTIONS, item.route)}
                 </Chip>
               </View>
               {item.instructions && (
                 <Text variant="bodySmall" style={styles.instructions}>
-                  Note: {item.instructions}
+                  {prescriptionText(PRESCRIPTION_TEXT.summary.note, {
+                    instructions: item.instructions,
+                  })}
                 </Text>
               )}
             </Surface>
@@ -257,10 +320,10 @@ export function PrescriptionScreen({ route, navigation }: PrescriptionScreenProp
           <Surface style={styles.emptyState} elevation={1}>
             <Avatar.Icon size={48} icon="pill" style={styles.emptyIcon} />
             <Text variant="bodyMedium" style={styles.emptyText}>
-              No medications added yet
+              {prescriptionText(PRESCRIPTION_TEXT.empty.title)}
             </Text>
             <Text variant="bodySmall" style={styles.emptyHint}>
-              Tap + to add medications
+              {prescriptionText(PRESCRIPTION_TEXT.empty.hint)}
             </Text>
           </Surface>
         )}
@@ -276,23 +339,28 @@ export function PrescriptionScreen({ route, navigation }: PrescriptionScreenProp
             contentStyle={styles.saveButtonContent}
             icon="content-save"
           >
-            Save Prescription ({items.length} item{items.length > 1 ? "s" : ""})
+            {saveButtonText(items.length)}
           </Button>
         )}
       </ScrollView>
 
       {/* Add FAB */}
-      <FAB icon="plus" style={styles.fab} onPress={() => setShowAddDialog(true)} label="Add Drug" />
+      <FAB
+        icon="plus"
+        style={styles.fab}
+        onPress={() => setShowAddDialog(true)}
+        label={prescriptionText(PRESCRIPTION_TEXT.actions.addDrug)}
+      />
 
       {/* Add Drug Dialog */}
       <Portal>
         <Dialog visible={showAddDialog} onDismiss={() => setShowAddDialog(false)}>
-          <Dialog.Title>Add Medication</Dialog.Title>
+          <Dialog.Title>{prescriptionText(PRESCRIPTION_TEXT.dialog.addMedication)}</Dialog.Title>
           <Dialog.ScrollArea style={styles.dialogScroll}>
             <ScrollView>
               {/* Drug Search */}
               <Searchbar
-                placeholder="Search drug..."
+                placeholder={prescriptionText(PRESCRIPTION_TEXT.dialog.searchPlaceholder)}
                 value={drugSearch}
                 onChangeText={setDrugSearch}
                 style={styles.drugSearch}
@@ -321,83 +389,105 @@ export function PrescriptionScreen({ route, navigation }: PrescriptionScreenProp
               <Controller
                 control={control}
                 name="drug_name"
-                render={({ field }) => (
-                  <TextInput
-                    label="Drug Name"
-                    value={field.value}
-                    onChangeText={field.onChange}
-                    mode="outlined"
-                    error={Boolean(errors.drug_name)}
-                    style={styles.dialogInput}
-                  />
-                )}
+                render={({ field }) => {
+                  const drugNameError = fieldErrorText(errors.drug_name?.message);
+                  return (
+                    <>
+                      <TextInput
+                        label={prescriptionText(PRESCRIPTION_TEXT.dialog.drugName)}
+                        value={field.value}
+                        onChangeText={field.onChange}
+                        mode="outlined"
+                        error={Boolean(drugNameError)}
+                        style={styles.dialogInput}
+                      />
+                      <HelperText type="error" visible={Boolean(drugNameError)}>
+                        {drugNameError ?? ""}
+                      </HelperText>
+                    </>
+                  );
+                }}
               />
 
               <Controller
                 control={control}
                 name="dosage"
-                render={({ field }) => (
-                  <TextInput
-                    label="Dosage (e.g., 500mg)"
-                    value={field.value}
-                    onChangeText={field.onChange}
-                    mode="outlined"
-                    error={Boolean(errors.dosage)}
-                    style={styles.dialogInput}
-                  />
-                )}
+                render={({ field }) => {
+                  const dosageError = fieldErrorText(errors.dosage?.message);
+                  return (
+                    <>
+                      <TextInput
+                        label={prescriptionText(PRESCRIPTION_TEXT.dialog.dosage)}
+                        value={field.value}
+                        onChangeText={field.onChange}
+                        mode="outlined"
+                        error={Boolean(dosageError)}
+                        style={styles.dialogInput}
+                      />
+                      <HelperText type="error" visible={Boolean(dosageError)}>
+                        {dosageError ?? ""}
+                      </HelperText>
+                    </>
+                  );
+                }}
               />
 
               <Text variant="labelMedium" style={styles.dialogLabel}>
-                Frequency
+                {prescriptionText(PRESCRIPTION_TEXT.dialog.frequency)}
               </Text>
               <View style={styles.chipGroup}>
-                {FREQUENCIES.slice(0, 4).map((freq) => (
+                {FREQUENCY_OPTIONS.slice(0, 4).map((option) => (
                   <Chip
-                    key={freq}
-                    selected={currentItem.frequency === freq}
+                    key={option.value}
+                    selected={currentItem.frequency === option.value}
                     onPress={() =>
-                      setValue("frequency", freq, { shouldDirty: true, shouldValidate: true })
+                      setValue("frequency", option.value, {
+                        shouldDirty: true,
+                        shouldValidate: true,
+                      })
                     }
                     style={styles.selectChip}
                   >
-                    {freq}
+                    {prescriptionText(option.labelKey)}
                   </Chip>
                 ))}
               </View>
 
               <Text variant="labelMedium" style={styles.dialogLabel}>
-                Duration
+                {prescriptionText(PRESCRIPTION_TEXT.dialog.duration)}
               </Text>
               <View style={styles.chipGroup}>
-                {DURATIONS.slice(0, 4).map((dur) => (
+                {DURATION_OPTIONS.slice(0, 4).map((option) => (
                   <Chip
-                    key={dur}
-                    selected={currentItem.duration === dur}
+                    key={option.value}
+                    selected={currentItem.duration === option.value}
                     onPress={() =>
-                      setValue("duration", dur, { shouldDirty: true, shouldValidate: true })
+                      setValue("duration", option.value, {
+                        shouldDirty: true,
+                        shouldValidate: true,
+                      })
                     }
                     style={styles.selectChip}
                   >
-                    {dur}
+                    {prescriptionText(option.labelKey)}
                   </Chip>
                 ))}
               </View>
 
               <Text variant="labelMedium" style={styles.dialogLabel}>
-                Route
+                {prescriptionText(PRESCRIPTION_TEXT.dialog.route)}
               </Text>
               <View style={styles.chipGroup}>
-                {ROUTES.slice(0, 4).map((rt) => (
+                {ROUTE_OPTIONS.slice(0, 4).map((option) => (
                   <Chip
-                    key={rt}
-                    selected={currentItem.route === rt}
+                    key={option.value}
+                    selected={currentItem.route === option.value}
                     onPress={() =>
-                      setValue("route", rt, { shouldDirty: true, shouldValidate: true })
+                      setValue("route", option.value, { shouldDirty: true, shouldValidate: true })
                     }
                     style={styles.selectChip}
                   >
-                    {rt}
+                    {prescriptionText(option.labelKey)}
                   </Chip>
                 ))}
               </View>
@@ -407,7 +497,7 @@ export function PrescriptionScreen({ route, navigation }: PrescriptionScreenProp
                 name="instructions"
                 render={({ field }) => (
                   <TextInput
-                    label="Special Instructions (optional)"
+                    label={prescriptionText(PRESCRIPTION_TEXT.dialog.instructions)}
                     value={field.value || ""}
                     onChangeText={field.onChange}
                     mode="outlined"
@@ -419,13 +509,15 @@ export function PrescriptionScreen({ route, navigation }: PrescriptionScreenProp
             </ScrollView>
           </Dialog.ScrollArea>
           <Dialog.Actions>
-            <Button onPress={() => setShowAddDialog(false)}>Cancel</Button>
+            <Button onPress={() => setShowAddDialog(false)}>
+              {prescriptionText(PRESCRIPTION_TEXT.actions.cancel)}
+            </Button>
             <Button
               mode="contained"
               onPress={() => void handleAddItem()}
               disabled={!currentItem.drug_name.trim() || !currentItem.dosage.trim()}
             >
-              Add
+              {prescriptionText(PRESCRIPTION_TEXT.actions.add)}
             </Button>
           </Dialog.Actions>
         </Dialog>
