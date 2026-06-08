@@ -158,6 +158,11 @@ import type {
   UpdateCreditPatientRequest,
 } from "@medbrains/types";
 import {
+  billingInvoiceBalance,
+  billingInvoiceBalanceSignal,
+  billingInvoiceDisplayStatus,
+  billingInvoiceIsPayable,
+  billingInvoiceStatusSignal,
   P,
   PATIENT_BASIC_IDENTITY_FIELD_ACCESS_KEYS,
   PATIENT_NAME_FIELD_ACCESS_KEYS,
@@ -304,6 +309,19 @@ function isInvoiceStatus(
   value: string | null,
 ): value is (typeof BILLING_INVOICE_STATUS_OPTIONS)[number]["value"] {
   return Boolean(value && BILLING_INVOICE_STATUS_OPTIONS.some((option) => option.value === value));
+}
+
+type BillingTranslate = ReturnType<typeof useTranslation>["t"];
+
+function invoiceStatusLabel(t: BillingTranslate, status: string): string {
+  return t(`invoiceStatus.${status}`, { defaultValue: status.replace(/_/g, " ") });
+}
+
+function invoiceBalanceLabel(t: BillingTranslate, balance: number, amountAccess: FieldAccessLevel) {
+  if (amountAccess === "hidden") {
+    return t("billingSignals.amountRestricted");
+  }
+  return balance > 0 ? t("billingSignals.balanceDue") : t("billingSignals.settled");
 }
 
 function money(value: number | string | null | undefined): string {
@@ -527,29 +545,15 @@ function printReceiptPacket(data: ReceiptPrintData, access: BillingDisplayAccess
 }
 
 function invoiceBalance(invoice: Invoice): number {
-  const total = Number(invoice.total_amount);
-  const paid = Number(invoice.paid_amount);
-  return Math.max(0, (Number.isFinite(total) ? total : 0) - (Number.isFinite(paid) ? paid : 0));
+  return billingInvoiceBalance(invoice.total_amount, invoice.paid_amount);
 }
 
 function invoiceDisplayStatus(invoice: Invoice): Invoice["status"] {
-  const paid = Number(invoice.paid_amount);
-  const balance = invoiceBalance(invoice);
-  if (invoice.status === "issued" && Number.isFinite(paid) && paid > 0 && balance > 0) {
-    return "partially_paid";
-  }
-  if (invoice.status !== "cancelled" && balance <= 0 && Number(invoice.total_amount) > 0) {
-    return "paid";
-  }
-  return invoice.status;
+  return billingInvoiceDisplayStatus(invoice.status, invoice.total_amount, invoice.paid_amount);
 }
 
 function invoiceIsPayable(invoice: Invoice): boolean {
-  const displayStatus = invoiceDisplayStatus(invoice);
-  return (
-    invoiceBalance(invoice) > 0 &&
-    (displayStatus === "issued" || displayStatus === "partially_paid")
-  );
+  return billingInvoiceIsPayable(invoice.status, invoice.total_amount, invoice.paid_amount);
 }
 
 export function BillingPage() {
@@ -742,23 +746,14 @@ function BillingPageInner() {
       label: "Status",
       render: (row: Invoice) => {
         const displayStatus = invoiceDisplayStatus(row);
+        const statusSignal = billingInvoiceStatusSignal(displayStatus);
         return (
           <Group gap={6}>
             <OperationalSignal
-              label={t(`invoiceStatus.${displayStatus}`, {
-                defaultValue: displayStatus.replace(/_/g, " "),
-              })}
-              shape={displayStatus === "partially_paid" ? "diamond" : "pill"}
+              label={invoiceStatusLabel(t, displayStatus)}
+              shape={statusSignal.shape}
               size="xs"
-              tone={
-                displayStatus === "paid"
-                  ? "ready"
-                  : displayStatus === "cancelled"
-                    ? "neutral"
-                    : displayStatus === "partially_paid"
-                      ? "blocked"
-                      : "active"
-              }
+              tone={statusSignal.tone}
             />
             {row.notes === "Auto-generated" && (
               <OperationalSignal label={t("auto")} shape="token" size="xs" tone="active" />
@@ -822,12 +817,13 @@ function BillingPageInner() {
       fieldKind: "money",
       render: (row: Invoice) => {
         const balance = invoiceBalance(row);
+        const balanceSignal = billingInvoiceBalanceSignal(balance, true);
         return (
           <OperationalSignal
-            label={balance > 0 ? t("billingSignals.balanceDue") : t("billingSignals.settled")}
-            shape={balance > 0 ? "diamond" : "pill"}
+            label={invoiceBalanceLabel(t, balance, "edit")}
+            shape={balanceSignal.shape}
             size="xs"
-            tone={balance > 0 ? "risk" : "ready"}
+            tone={balanceSignal.tone}
             value={`₹${money(balance)}`}
           />
         );
@@ -1594,7 +1590,10 @@ function InvoiceDetail({
   const detail = data as InvoiceDetailResponse;
   const inv = detail.invoice;
   const displayStatus = invoiceDisplayStatus(inv);
+  const invoiceSignal = billingInvoiceStatusSignal(displayStatus);
   const balance = invoiceBalance(inv);
+  const balanceSignal = billingInvoiceBalanceSignal(balance, amountAccess !== "hidden");
+  const balanceSignalLabel = invoiceBalanceLabel(t, balance, amountAccess);
   const completedEvents: ClinicalEventName[] = ["billing.invoice.created"];
   if (
     displayStatus === "issued" ||
@@ -1692,9 +1691,11 @@ function InvoiceDetail({
             <Stack gap={4}>
               <Group gap="xs">
                 <Text fw={700}>{inv.invoice_number}</Text>
-                <Badge color={statusColors[displayStatus] ?? "slate"} variant="light" size="lg">
-                  {displayStatus.replace(/_/g, " ")}
-                </Badge>
+                <OperationalSignal
+                  label={invoiceStatusLabel(t, displayStatus)}
+                  shape={invoiceSignal.shape}
+                  tone={invoiceSignal.tone}
+                />
                 {inv.is_interim && (
                   <Badge color="violet" variant="light">
                     Interim #{inv.sequence_number}
@@ -2261,22 +2262,18 @@ function InvoiceDetail({
                 </Text>
               </Stack>
               <Group gap="xs">
-                <Badge color={statusColors[displayStatus] ?? "slate"} variant="light">
-                  {displayStatus.replace(/_/g, " ")}
-                </Badge>
-                {amountAccess === "hidden" ? (
-                  <Badge color="slate" variant="light">
-                    Amount restricted
-                  </Badge>
-                ) : balance > 0 ? (
-                  <Badge color="danger" variant="light">
-                    Due
-                  </Badge>
-                ) : (
-                  <Badge color="success" variant="light">
-                    Settled
-                  </Badge>
-                )}
+                <OperationalSignal
+                  label={invoiceStatusLabel(t, displayStatus)}
+                  shape={invoiceSignal.shape}
+                  size="xs"
+                  tone={invoiceSignal.tone}
+                />
+                <OperationalSignal
+                  label={balanceSignalLabel}
+                  shape={balanceSignal.shape}
+                  size="xs"
+                  tone={balanceSignal.tone}
+                />
               </Group>
               <Divider />
               <SimpleGrid cols={{ base: 1, sm: 3, lg: 1 }}>

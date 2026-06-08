@@ -35,6 +35,21 @@ export {
   bedBoardStatusSignal,
 } from "./bed-board-surfaces.js";
 export type {
+  BillingInvoiceSignal,
+  BillingInvoiceSignalPhase,
+  BillingInvoiceSignalShape,
+  BillingInvoiceSignalTone,
+  BillingInvoiceStatus,
+} from "./billing-invoice-signals.js";
+export {
+  BILLING_INVOICE_STATUS_VALUES,
+  billingInvoiceBalance,
+  billingInvoiceBalanceSignal,
+  billingInvoiceDisplayStatus,
+  billingInvoiceIsPayable,
+  billingInvoiceStatusSignal,
+} from "./billing-invoice-signals.js";
+export type {
   DashboardMobileIntent,
   DashboardMobileRoute,
   DashboardReportFamily,
