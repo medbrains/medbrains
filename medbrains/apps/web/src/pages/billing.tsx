@@ -207,8 +207,8 @@ import {
   ClinicalEventProvider,
   type Column,
   DataTable,
+  OperationalSignal,
   PageHeader,
-  StatusDot,
   useClinicalEmit,
   useProtectedFieldAccess,
 } from "@/components";
@@ -744,34 +744,36 @@ function BillingPageInner() {
         const displayStatus = invoiceDisplayStatus(row);
         return (
           <Group gap={6}>
-            <StatusDot
-              color={statusColors[displayStatus] ?? "slate"}
-              label={displayStatus.replace(/_/g, " ")}
+            <OperationalSignal
+              label={t(`invoiceStatus.${displayStatus}`, {
+                defaultValue: displayStatus.replace(/_/g, " "),
+              })}
+              shape={displayStatus === "partially_paid" ? "diamond" : "pill"}
+              size="xs"
+              tone={
+                displayStatus === "paid"
+                  ? "ready"
+                  : displayStatus === "cancelled"
+                    ? "neutral"
+                    : displayStatus === "partially_paid"
+                      ? "blocked"
+                      : "active"
+              }
             />
             {row.notes === "Auto-generated" && (
-              <Badge size="xs" color="primary" variant="light">
-                Auto
-              </Badge>
+              <OperationalSignal label={t("auto")} shape="token" size="xs" tone="active" />
             )}
             {row.is_interim && (
-              <Badge size="xs" color="violet" variant="light">
-                Interim
-              </Badge>
+              <OperationalSignal label={t("interim")} shape="token" size="xs" tone="blocked" />
             )}
             {row.corporate_id && (
-              <Badge size="xs" color="info" variant="light">
-                Corporate
-              </Badge>
+              <OperationalSignal label={t("corporate")} shape="token" size="xs" tone="active" />
             )}
             {row.is_er_deferred && (
-              <Badge size="xs" color="danger" variant="light">
-                ER Deferred
-              </Badge>
+              <OperationalSignal label={t("erDeferred")} shape="diamond" size="xs" tone="risk" />
             )}
             {row.cloned_from_id && (
-              <Badge size="xs" color="violet" variant="light">
-                Cloned
-              </Badge>
+              <OperationalSignal label={t("cloned")} shape="token" size="xs" tone="neutral" />
             )}
           </Group>
         );
@@ -801,7 +803,12 @@ function BillingPageInner() {
               ₹{money(row.paid_amount)}
             </Text>
             {paid > 0 && paid < total && (
-              <Progress value={percent} size={4} color="warning" aria-label="Payment progress" />
+              <Progress
+                value={percent}
+                size={4}
+                color="warning"
+                aria-label={t("billingSignals.paymentProgress")}
+              />
             )}
           </Stack>
         );
@@ -816,9 +823,13 @@ function BillingPageInner() {
       render: (row: Invoice) => {
         const balance = invoiceBalance(row);
         return (
-          <Text size="sm" c={balance > 0 ? "danger" : "success"}>
-            ₹{money(balance)}
-          </Text>
+          <OperationalSignal
+            label={balance > 0 ? t("billingSignals.balanceDue") : t("billingSignals.settled")}
+            shape={balance > 0 ? "diamond" : "pill"}
+            size="xs"
+            tone={balance > 0 ? "risk" : "ready"}
+            value={`₹${money(balance)}`}
+          />
         );
       },
     },
@@ -932,11 +943,31 @@ function BillingPageInner() {
               }
             >
               <Group justify="space-between" align="center" gap="sm">
-                <Text size="sm">
-                  {activeHandoff === "payment"
-                    ? t("handoff.payment.message")
-                    : t("handoff.dischargeBill.message")}
-                </Text>
+                <Stack gap={6}>
+                  <Text size="sm">
+                    {activeHandoff === "payment"
+                      ? t("handoff.payment.message")
+                      : t("handoff.dischargeBill.message")}
+                  </Text>
+                  <Group gap={6}>
+                    <OperationalSignal
+                      label={t("billingSignals.filteredInvoices", { count: invoices.length })}
+                      shape="token"
+                      size="xs"
+                      tone="active"
+                    />
+                    <OperationalSignal
+                      label={
+                        firstPayableInvoice
+                          ? t("billingSignals.payableReady")
+                          : t("billingSignals.noPayableInvoice")
+                      }
+                      shape={firstPayableInvoice ? "pill" : "diamond"}
+                      size="xs"
+                      tone={firstPayableInvoice ? "ready" : "blocked"}
+                    />
+                  </Group>
+                </Stack>
                 <Group gap="xs">
                   {activeHandoff === "payment" && firstPayableInvoice && canPay && (
                     <Button
