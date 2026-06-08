@@ -26,6 +26,7 @@ import {
   radiologyDisplayToken,
   tokenBoardDisplayModeFromSearchParams,
   tokenBoardFilterFromSearchParams,
+  tokenBoardFilterRoute,
   updateTokenBoardFilterSearchParams,
 } from "./front-office-token-boards";
 
@@ -72,6 +73,16 @@ describe("front-office token-board display mapping", () => {
     expect(String(updateTokenBoardFilterSearchParams(kioskParams, "all"))).toBe(
       "display=kiosk&tenant=demo",
     );
+    expect(tokenBoardFilterRoute("/front-office", kioskParams, "billing")).toEqual({
+      hash: "token-boards",
+      pathname: "/front-office",
+      search: "board=billing&display=kiosk&tenant=demo",
+    });
+    expect(tokenBoardFilterRoute("/front-office", kioskParams, "all")).toEqual({
+      hash: "token-boards",
+      pathname: "/front-office",
+      search: "display=kiosk&tenant=demo",
+    });
   });
 
   it("keeps board launch targets focused to the same surface on web and mobile", () => {

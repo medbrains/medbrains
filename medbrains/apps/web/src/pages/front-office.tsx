@@ -79,7 +79,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type ReactNode, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
-import { useNavigate } from "react-router";
+import { useLocation, useNavigate } from "react-router";
 import { DataTable, PageHeader, TableValueBadge } from "@/components";
 import type { Column } from "@/components/DataTable";
 import {
@@ -137,7 +137,7 @@ import {
   type TokenBoardRouteDisplayMode,
   tokenBoardDisplayModeFromSearchParams,
   tokenBoardFilterFromSearchParams,
-  updateTokenBoardFilterSearchParams,
+  tokenBoardFilterRoute,
 } from "./front-office-token-boards";
 
 // ── Constants ──────────────────────────────────────────
@@ -185,6 +185,7 @@ export function FrontOfficePage() {
   useRequirePermission(P.FRONT_OFFICE.QUEUE_LIST);
 
   const navigate = useNavigate();
+  const location = useLocation();
   const [activeTab, setActiveTab] = useHashTabs("patient-flow", FRONT_OFFICE_TAB_VALUES);
   const canManageVisitors = useHasPermission(P.FRONT_OFFICE.VISITORS_MANAGE);
   const canCreateVisitors = useHasPermission(P.FRONT_OFFICE.VISITORS_CREATE);
@@ -216,7 +217,7 @@ export function FrontOfficePage() {
     canViewEmergency ||
     canViewPharmacy ||
     canViewBilling;
-  const tokenBoardSearchParams = new URLSearchParams(window.location.search);
+  const tokenBoardSearchParams = new URLSearchParams(location.search);
   const tokenBoardDisplayMode = tokenBoardDisplayModeFromSearchParams(tokenBoardSearchParams);
   const tokenBoardRouteFilter = tokenBoardFilterFromSearchParams(tokenBoardSearchParams);
   const isTokenBoardKioskMode =
@@ -239,8 +240,6 @@ export function FrontOfficePage() {
           canViewEmergency={canViewEmergency}
           canViewPharmacy={canViewPharmacy}
           canViewBilling={canViewBilling}
-          displayMode={tokenBoardDisplayMode}
-          initialFilter={tokenBoardRouteFilter}
         />
       </Box>
     );
@@ -312,7 +311,6 @@ export function FrontOfficePage() {
             canViewEmergency={canViewEmergency}
             canViewPharmacy={canViewPharmacy}
             canViewBilling={canViewBilling}
-            displayMode="workspace"
           />
         </Tabs.Panel>
         <Tabs.Panel value="visitors" pt="md">
@@ -698,21 +696,6 @@ const TRIAGE_LANES: ReadonlyArray<{
   { color: "blue", key: "blue", label: "Blue" },
 ];
 
-function readTokenBoardFilter(): TokenBoardFilter {
-  return tokenBoardFilterFromSearchParams(new URLSearchParams(window.location.search));
-}
-
-function writeTokenBoardFilter(filter: TokenBoardFilter) {
-  const searchParams = updateTokenBoardFilterSearchParams(
-    new URLSearchParams(window.location.search),
-    filter,
-  );
-
-  const search = searchParams.toString();
-  const nextUrl = `${window.location.pathname}${search ? `?${search}` : ""}#token-boards`;
-  window.history.replaceState(null, "", nextUrl);
-}
-
 interface TokenBoardsTabProps {
   canViewOpdQueue: boolean;
   canViewLab: boolean;
@@ -720,8 +703,6 @@ interface TokenBoardsTabProps {
   canViewEmergency: boolean;
   canViewPharmacy: boolean;
   canViewBilling: boolean;
-  displayMode?: TokenBoardRouteDisplayMode;
-  initialFilter?: TokenBoardFilter;
 }
 
 function TokenBoardsTab({
@@ -731,12 +712,12 @@ function TokenBoardsTab({
   canViewEmergency,
   canViewPharmacy,
   canViewBilling,
-  displayMode = "workspace",
-  initialFilter,
 }: TokenBoardsTabProps) {
-  const [selectedSurface, setSelectedSurface] = useState<TokenBoardFilter>(
-    () => initialFilter ?? readTokenBoardFilter(),
-  );
+  const routeNavigate = useNavigate();
+  const location = useLocation();
+  const routeSearchParams = new URLSearchParams(location.search);
+  const selectedSurface = tokenBoardFilterFromSearchParams(routeSearchParams);
+  const displayMode = tokenBoardDisplayModeFromSearchParams(routeSearchParams);
   const opdQuery = useFrontOfficeOpdTokenBoardQuery({ enabled: canViewOpdQueue });
   const pharmacyQuery = useFrontOfficePharmacyTokenBoardQuery({ enabled: canViewPharmacy });
   const billingQuery = useFrontOfficeBillingTokenBoardQuery({ enabled: canViewBilling });
@@ -793,8 +774,10 @@ function TokenBoardsTab({
   const tokenLimit = isKioskDisplay ? TOKEN_BOARD_KIOSK_LIMIT : TOKEN_BOARD_LIMIT;
 
   function handleBoardFilterChange(filter: TokenBoardFilter) {
-    setSelectedSurface(filter);
-    writeTokenBoardFilter(filter);
+    routeNavigate(
+      tokenBoardFilterRoute(location.pathname, new URLSearchParams(location.search), filter),
+      { replace: true },
+    );
   }
 
   return (

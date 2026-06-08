@@ -17,8 +17,15 @@ export interface DisplayToken {
 
 export const TOKEN_BOARD_QUERY_PARAM = "board";
 export const TOKEN_BOARD_DISPLAY_QUERY_PARAM = "display";
+export const TOKEN_BOARD_HASH = "token-boards";
 export type TokenBoardFilter = "all" | TokenBoardSurfaceId;
 export type TokenBoardRouteDisplayMode = "workspace" | "kiosk";
+
+export interface TokenBoardFilterRoute {
+  hash: typeof TOKEN_BOARD_HASH;
+  pathname: string;
+  search: string;
+}
 
 const TOKEN_BOARD_SURFACE_IDS = new Set(Object.keys(TOKEN_BOARD_SURFACES));
 
@@ -50,6 +57,18 @@ export function updateTokenBoardFilterSearchParams(
   }
 
   return nextSearchParams;
+}
+
+export function tokenBoardFilterRoute(
+  pathname: string,
+  searchParams: URLSearchParams,
+  filter: TokenBoardFilter,
+): TokenBoardFilterRoute {
+  return {
+    hash: TOKEN_BOARD_HASH,
+    pathname,
+    search: updateTokenBoardFilterSearchParams(searchParams, filter).toString(),
+  };
 }
 
 function priorityLabel(value: QueuePriority) {
