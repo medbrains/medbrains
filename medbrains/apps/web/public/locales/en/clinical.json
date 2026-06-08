@@ -459,7 +459,17 @@
       "allergyCount_one": "{{count}} allergy",
       "allergyCount_other": "{{count}} allergies",
       "itemCount_one": "{{count}} medicine",
-      "itemCount_other": "{{count}} medicines"
+      "itemCount_other": "{{count}} medicines",
+      "pharmacyStatus": {
+        "approved": "Approved",
+        "cancelled": "Cancelled",
+        "dispensed": "Dispensed",
+        "dispensing": "Billing / dispense",
+        "on_hold": "On hold",
+        "partially_dispensed": "Partially dispensed",
+        "pending_review": "Pending review",
+        "rejected": "Rejected"
+      }
     },
     "timeline": "Timeline",
     "timelineSummary": {

@@ -1,5 +1,11 @@
 import { Group, SegmentedControl, Stack, Text } from "@mantine/core";
-import type { PrescriptionWithItems } from "@medbrains/types";
+import {
+  PHARMACY_RX_STATUS_VALUES,
+  type PrescriptionWithItems,
+  pharmacyRxStatusLabel,
+  pharmacyRxStatusLabelKey,
+  pharmacyRxStatusSignal,
+} from "@medbrains/types";
 import { IconCalculator, IconCards, IconFileText, IconTimeline } from "@tabler/icons-react";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -38,6 +44,28 @@ function flattenItems(prescriptions: PrescriptionWithItems[]): FlatItem[] {
   );
 }
 
+function pharmacyStatuses(prescriptions: PrescriptionWithItems[]): string[] {
+  const statuses = new Set<string>();
+  for (const prescription of prescriptions) {
+    if (prescription.pharmacy_status) {
+      statuses.add(prescription.pharmacy_status);
+    }
+  }
+  const knownStatuses = new Set<string>(PHARMACY_RX_STATUS_VALUES);
+
+  return [
+    ...PHARMACY_RX_STATUS_VALUES.filter((status) => statuses.has(status)),
+    ...[...statuses].filter((status) => !knownStatuses.has(status)),
+  ];
+}
+
+function prescriptionViewPharmacyStatusKey(status: string): string | null {
+  const sharedKey = pharmacyRxStatusLabelKey(status);
+  if (!sharedKey) return null;
+
+  return `prescriptionViews.signals.pharmacyStatus.${sharedKey.replace("rxStatus.", "")}`;
+}
+
 function SegLabel({ icon, text }: { icon: React.ReactNode; text: string }) {
   return (
     <Group gap={4} wrap="nowrap">
@@ -61,6 +89,7 @@ export function PrescriptionViews({
   const { t } = useTranslation("clinical");
   const [view, setView] = useState<ViewMode>("prose");
   const items = useMemo(() => flattenItems(prescriptions), [prescriptions]);
+  const pharmacyStatusSignals = useMemo(() => pharmacyStatuses(prescriptions), [prescriptions]);
 
   if (prescriptions.length === 0) {
     return (
@@ -96,6 +125,22 @@ export function PrescriptionViews({
           size="xs"
           tone={allergies.length > 0 ? "risk" : "ready"}
         />
+        {pharmacyStatusSignals.map((status) => {
+          const signal = pharmacyRxStatusSignal(status);
+          const labelKey = prescriptionViewPharmacyStatusKey(status);
+
+          return (
+            <OperationalSignal
+              key={status}
+              label={
+                labelKey ? t(labelKey, { defaultValue: pharmacyRxStatusLabel(status) }) : status
+              }
+              shape={signal.shape}
+              size="xs"
+              tone={signal.tone}
+            />
+          );
+        })}
       </Group>
 
       <SegmentedControl

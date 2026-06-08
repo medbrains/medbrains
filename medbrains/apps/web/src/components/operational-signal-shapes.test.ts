@@ -7,7 +7,10 @@ import {
   billingInvoiceBalanceSignal,
   billingInvoiceStatusSignal,
   clinicalJourneyActionSignal,
+  PHARMACY_RX_STATUS_VALUES,
   patientContextSignal,
+  pharmacyRxStatusLabel,
+  pharmacyRxStatusLabelKey,
   pharmacyRxStatusSignal,
   WORKFLOW_SIGNAL_SHAPE_DEFINITIONS,
   WORKFLOW_SIGNAL_SHAPES,
@@ -33,6 +36,13 @@ function semantic(shape: WorkflowSignalShape) {
   return WORKFLOW_SIGNAL_SHAPE_DEFINITIONS[shape].semantic;
 }
 
+function prescriptionViewPharmacyStatusKey(status: string): string | null {
+  const sharedKey = pharmacyRxStatusLabelKey(status);
+  if (!sharedKey) return null;
+
+  return `prescriptionViews.signals.pharmacyStatus.${sharedKey.replace("rxStatus.", "")}`;
+}
+
 describe("operational signal shape grammar", () => {
   it("keeps every reusable shape backed by clinical i18n copy", () => {
     const locale: unknown = JSON.parse(
@@ -49,6 +59,21 @@ describe("operational signal shape grammar", () => {
     for (const shape of WORKFLOW_SIGNAL_SHAPES) {
       expect(getPathValue(locale, shape.labelKey)).toEqual(expect.any(String));
       expect(getPathValue(locale, shape.descriptionKey)).toEqual(expect.any(String));
+    }
+  });
+
+  it("keeps every prescription review status signal backed by clinical i18n copy", () => {
+    const locale: unknown = JSON.parse(
+      readFileSync(join(process.cwd(), "public/locales/en/clinical.json"), "utf8"),
+    );
+
+    for (const status of PHARMACY_RX_STATUS_VALUES) {
+      const key = prescriptionViewPharmacyStatusKey(status);
+      if (!key) {
+        throw new Error(`Missing prescription view status label key for ${status}`);
+      }
+
+      expect(getPathValue(locale, key)).toBe(pharmacyRxStatusLabel(status));
     }
   });
 
