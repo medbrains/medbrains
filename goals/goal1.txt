@@ -1,6 +1,6 @@
-# MedBrains Goal 1 - Problem Statement
+# MedBrains Goal 1 - Patient Continuity Problem Statement
 
-## Problem
+## Problem Statement
 
 MedBrains must stop behaving like separate hospital modules that only sit next to
 each other. The product problem is broken patient continuity.
@@ -39,6 +39,9 @@ Wherever a user enters the journey, the system should preserve the active contex
 - what information this user is allowed to see or edit;
 - how the same state appears in reports, settings, token boards, printouts, mobile,
   TV, and kiosk surfaces.
+- how every visible label, helper text, validation message, and error message is
+  delivered through i18n so multilingual hospital teams do not get hardcoded
+  workflow copy.
 
 ## User Pain To Remove
 
@@ -65,6 +68,10 @@ Administrators should be able to find patient-journey gaps in settings and repor
 missing event backing, missing permissions, unsafe masking, missing report coverage,
 or device surfaces that are not using the same source of truth.
 
+Hospital teams should be able to localize labels, form guidance, blocking reasons,
+validation feedback, and error messages without code edits, because language support
+is part of usable clinical workflow, not a later cosmetic layer.
+
 Patients and public viewers should see only the minimum safe information on token
 boards, kiosks, printouts, mobile screens, and TV displays while those surfaces still
 reflect the same live workflow as the staff app.
@@ -78,3 +85,8 @@ unexplained blocking, or disconnected reports.
 
 Each product slice should be selected because it removes one named break in that
 patient journey.
+
+Do not treat this as a generic rule list. For every implementation slice, state the
+specific patient-continuity problem being solved first, then change only the workflow,
+event, permission, masking, report, setting, or device behavior needed to remove that
+break.
