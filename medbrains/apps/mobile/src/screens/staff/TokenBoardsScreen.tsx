@@ -21,8 +21,8 @@ import {
   BILLING_QUEUE_LANES,
   TOKEN_BOARD_SURFACE_LIST,
   TOKEN_BOARD_SURFACES,
-  tokenBoardFeedIsStale,
   tokenBoardMobileRouteParams,
+  tokenBoardOperationalReadinessItems,
   tokenBoardStatusSignal,
   tokenBoardSurfaceFilterFromParam,
 } from "@medbrains/types";
@@ -247,29 +247,19 @@ function refreshValue(surface: TokenBoardSurfaceDefinition): string {
   });
 }
 
-function feedReadinessValue(
-  isError: boolean,
-  surface: TokenBoardSurfaceDefinition,
-  updatedAt: number,
-) {
-  if (isError) return tokenBoardsText(TOKEN_BOARDS_TEXT.readiness.values.degraded);
-  if (tokenBoardFeedIsStale(updatedAt, surface.refreshIntervalMs)) {
-    return tokenBoardsText(TOKEN_BOARDS_TEXT.readiness.values.stale);
+function feedReadinessValue(value: string): string {
+  switch (value) {
+    case "Degraded":
+      return tokenBoardsText(TOKEN_BOARDS_TEXT.readiness.values.degraded);
+    case "Live":
+      return tokenBoardsText(TOKEN_BOARDS_TEXT.readiness.values.live);
+    case "Stale":
+      return tokenBoardsText(TOKEN_BOARDS_TEXT.readiness.values.stale);
+    case "Waiting":
+      return tokenBoardsText(TOKEN_BOARDS_TEXT.readiness.values.waiting);
+    default:
+      return tokenBoardsText(TOKEN_BOARDS_TEXT.readiness.values.waiting);
   }
-  if (updatedAt <= 0) return tokenBoardsText(TOKEN_BOARDS_TEXT.readiness.values.waiting);
-  return tokenBoardsText(TOKEN_BOARDS_TEXT.readiness.values.live);
-}
-
-function feedReadinessTone(
-  isError: boolean,
-  surface: TokenBoardSurfaceDefinition,
-  updatedAt: number,
-): TokenBoardReadinessTone {
-  if (isError) return "danger";
-  if (updatedAt <= 0 || tokenBoardFeedIsStale(updatedAt, surface.refreshIntervalMs)) {
-    return "warning";
-  }
-  return "success";
 }
 
 function tokenBoardReadinessItems({
@@ -281,28 +271,36 @@ function tokenBoardReadinessItems({
   surface: TokenBoardSurfaceDefinition;
   updatedAt: number;
 }): TokenBoardReadinessItem[] {
-  return [
-    {
-      label: tokenBoardsText(TOKEN_BOARDS_TEXT.readiness.labels.privacy),
-      tone: "success",
-      value: tokenBoardsText(TOKEN_BOARDS_TEXT.readiness.values.tokenOnly),
-    },
-    {
-      label: tokenBoardsText(TOKEN_BOARDS_TEXT.readiness.labels.feed),
-      tone: feedReadinessTone(isError, surface, updatedAt),
-      value: feedReadinessValue(isError, surface, updatedAt),
-    },
-    {
-      label: tokenBoardsText(TOKEN_BOARDS_TEXT.readiness.labels.refresh),
-      tone: "info",
-      value: refreshValue(surface),
-    },
-    {
-      label: tokenBoardsText(TOKEN_BOARDS_TEXT.readiness.labels.flow),
-      tone: surface.id === "emergency" ? "danger" : "info",
-      value: surfaceFlowLabel(surface),
-    },
-  ];
+  return tokenBoardOperationalReadinessItems({ isError, surface, updatedAt }).map((item) => {
+    switch (item.label) {
+      case "Privacy":
+        return {
+          ...item,
+          label: tokenBoardsText(TOKEN_BOARDS_TEXT.readiness.labels.privacy),
+          value: tokenBoardsText(TOKEN_BOARDS_TEXT.readiness.values.tokenOnly),
+        };
+      case "Feed":
+        return {
+          ...item,
+          label: tokenBoardsText(TOKEN_BOARDS_TEXT.readiness.labels.feed),
+          value: feedReadinessValue(item.value),
+        };
+      case "Refresh":
+        return {
+          ...item,
+          label: tokenBoardsText(TOKEN_BOARDS_TEXT.readiness.labels.refresh),
+          value: refreshValue(surface),
+        };
+      case "Flow":
+        return {
+          ...item,
+          label: tokenBoardsText(TOKEN_BOARDS_TEXT.readiness.labels.flow),
+          value: surfaceFlowLabel(surface),
+        };
+      default:
+        return item;
+    }
+  });
 }
 
 function statusSignalColors(tone: TokenBoardStatusTone) {
