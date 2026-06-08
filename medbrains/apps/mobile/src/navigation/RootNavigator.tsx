@@ -2,6 +2,7 @@ import { useAuthStore } from "@medbrains/stores";
 import type { TokenBoardSurfaceId } from "@medbrains/types";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { AppBarGradient } from "../components/AppBarGradient";
+import { MOBILE_NAVIGATION_TEXT, mobilePatientJourneyText } from "../components/patientJourneyText";
 import {
   // Patient screens
   AppointmentsScreen,
@@ -109,6 +110,11 @@ const appBarScreenOptions = {
   headerTintColor: APP_BAR_COLORS.foreground,
   headerTitleStyle: { color: APP_BAR_COLORS.title, fontWeight: "700" as const },
 };
+const NAV_TEXT = MOBILE_NAVIGATION_TEXT;
+
+function navigationTitle(key: string): string {
+  return mobilePatientJourneyText(key);
+}
 
 function AuthStack() {
   return (
@@ -124,38 +130,42 @@ function PatientStack() {
       <Stack.Screen
         name="PatientDashboard"
         component={PatientDashboard}
-        options={{ title: "My Health" }}
+        options={{ title: navigationTitle(NAV_TEXT.patient.myHealth) }}
       />
       <Stack.Screen
         name="Appointments"
         component={AppointmentsScreen}
-        options={{ title: "Appointments" }}
+        options={{ title: navigationTitle(NAV_TEXT.patient.appointments) }}
       />
       <Stack.Screen
         name="LabResults"
         component={LabResultsScreen}
-        options={{ title: "Lab Results" }}
+        options={{ title: navigationTitle(NAV_TEXT.patient.labResults) }}
       />
       <Stack.Screen
         name="LabResultDetail"
         component={LabResultsViewScreen}
-        options={{ title: "Result Details" }}
+        options={{ title: navigationTitle(NAV_TEXT.patient.labResultDetails) }}
       />
       <Stack.Screen
         name="Prescriptions"
         component={PrescriptionsScreen}
-        options={{ title: "Prescriptions" }}
+        options={{ title: navigationTitle(NAV_TEXT.patient.prescriptions) }}
       />
       <Stack.Screen
         name="Billing"
         component={BillingScreen}
-        options={{ title: "Bills & Payments" }}
+        options={{ title: navigationTitle(NAV_TEXT.patient.billing) }}
       />
-      <Stack.Screen name="Profile" component={ProfileScreen} options={{ title: "Profile" }} />
+      <Stack.Screen
+        name="Profile"
+        component={ProfileScreen}
+        options={{ title: navigationTitle(NAV_TEXT.patient.profile) }}
+      />
       <Stack.Screen
         name="QueuePosition"
         component={QueuePositionScreen}
-        options={{ title: "Queue Status" }}
+        options={{ title: navigationTitle(NAV_TEXT.patient.queueStatus) }}
       />
     </Stack.Navigator>
   );
@@ -167,64 +177,72 @@ function StaffStack() {
       <Stack.Screen
         name="StaffDashboard"
         component={StaffDashboard}
-        options={{ title: "Dashboard" }}
+        options={{ title: navigationTitle(NAV_TEXT.staff.dashboard) }}
       />
       <Stack.Screen
         name="TokenBoards"
         component={TokenBoardsScreen}
-        options={{ title: "Token Boards" }}
+        options={{ title: navigationTitle(NAV_TEXT.staff.tokenBoards) }}
       />
       <Stack.Screen
         name="PatientSearch"
         component={PatientSearchScreen}
-        options={{ title: "Find Patient" }}
+        options={{ title: navigationTitle(NAV_TEXT.staff.findPatient) }}
       />
       <Stack.Screen
         name="PatientDetail"
         component={PatientDetailScreen}
-        options={{ title: "Patient Details" }}
+        options={{ title: navigationTitle(NAV_TEXT.staff.patientDetails) }}
       />
       <Stack.Screen
         name="PatientCareContext"
         component={PatientCareContextScreen}
-        options={{ title: "Care Context" }}
+        options={{ title: navigationTitle(NAV_TEXT.staff.careContext) }}
       />
       <Stack.Screen
         name="PatientPharmacy"
         component={PatientPharmacyScreen}
-        options={{ title: "Patient Pharmacy" }}
+        options={{ title: navigationTitle(NAV_TEXT.staff.patientPharmacy) }}
       />
-      <Stack.Screen name="Queue" component={QueueScreen} options={{ title: "Patient Queue" }} />
+      <Stack.Screen
+        name="Queue"
+        component={QueueScreen}
+        options={{ title: navigationTitle(NAV_TEXT.staff.patientQueue) }}
+      />
       <Stack.Screen
         name="Billing"
         component={BillingScreen}
-        options={{ title: "Patient Billing" }}
+        options={{ title: navigationTitle(NAV_TEXT.staff.billing) }}
       />
       <Stack.Screen
         name="Vitals"
         component={VitalsEntryScreen}
-        options={{ title: "Record Vitals" }}
+        options={{ title: navigationTitle(NAV_TEXT.staff.recordVitals) }}
       />
       <Stack.Screen
         name="Prescription"
         component={PrescriptionScreen}
-        options={{ title: "E-Prescription" }}
+        options={{ title: navigationTitle(NAV_TEXT.staff.ePrescription) }}
       />
-      <Stack.Screen name="LabOrder" component={LabOrderScreen} options={{ title: "Lab Orders" }} />
+      <Stack.Screen
+        name="LabOrder"
+        component={LabOrderScreen}
+        options={{ title: navigationTitle(NAV_TEXT.staff.labOrders) }}
+      />
       <Stack.Screen
         name="RadiologyOrder"
         component={RadiologyOrderScreen}
-        options={{ title: "Imaging Order" }}
+        options={{ title: navigationTitle(NAV_TEXT.staff.imagingOrder) }}
       />
       <Stack.Screen
         name="LabResultsView"
         component={LabResultsViewScreen}
-        options={{ title: "Lab Results" }}
+        options={{ title: navigationTitle(NAV_TEXT.staff.labResults) }}
       />
       <Stack.Screen
         name="ConsultationNotes"
         component={ConsultationNotesScreen}
-        options={{ title: "Consultation Notes" }}
+        options={{ title: navigationTitle(NAV_TEXT.staff.consultationNotes) }}
       />
     </Stack.Navigator>
   );
@@ -236,22 +254,22 @@ function PhlebotomistStack() {
       <Stack.Screen
         name="CollectionList"
         component={CollectionListScreen}
-        options={{ title: "Home Collections" }}
+        options={{ title: navigationTitle(NAV_TEXT.phlebotomy.homeCollections) }}
       />
       <Stack.Screen
         name="CollectionDetail"
         component={CollectionDetailScreen}
-        options={{ title: "Collection Details" }}
+        options={{ title: navigationTitle(NAV_TEXT.phlebotomy.collectionDetails) }}
       />
       <Stack.Screen
         name="SampleCollection"
         component={SampleCollectionScreen}
-        options={{ title: "Collect Samples" }}
+        options={{ title: navigationTitle(NAV_TEXT.phlebotomy.collectSamples) }}
       />
       <Stack.Screen
         name="TripSummary"
         component={TripSummaryScreen}
-        options={{ title: "Trip Summary" }}
+        options={{ title: navigationTitle(NAV_TEXT.phlebotomy.tripSummary) }}
       />
     </Stack.Navigator>
   );

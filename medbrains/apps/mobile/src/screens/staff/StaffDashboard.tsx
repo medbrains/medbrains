@@ -30,6 +30,10 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { QueueItem } from "../../components";
 import {
+  MOBILE_STAFF_DASHBOARD_TEXT,
+  mobilePatientJourneyText,
+} from "../../components/patientJourneyText";
+import {
   useCallQueueEntryMutation,
   useCompleteQueueEntryMutation,
   useMarkNoShowMutation,
@@ -44,6 +48,7 @@ type MobileQueueStatus = "waiting" | "called" | "in_consultation" | "completed" 
 const TOKEN_BOARD_VIEW_PERMISSIONS = TOKEN_BOARD_SURFACE_LIST.flatMap(
   (surface) => surface.requiredAnyPermissions,
 );
+const STAFF_DASHBOARD_TEXT = MOBILE_STAFF_DASHBOARD_TEXT;
 
 type StaffDashboardRoute =
   | DashboardMobileRoute
@@ -75,6 +80,10 @@ interface QuickAction {
   label: string;
   params?: Readonly<Record<string, unknown>>;
   route: StaffDashboardRoute;
+}
+
+function staffDashboardText(key: string): string {
+  return mobilePatientJourneyText(key);
 }
 
 function StatCardItem({
@@ -136,7 +145,7 @@ function elapsedMinutesSince(timestamp: string | null | undefined): number | und
 }
 
 function formatRole(role: string | undefined): string {
-  if (!role) return "Staff";
+  if (!role) return staffDashboardText(STAFF_DASHBOARD_TEXT.common.staffFallback);
   return role
     .split("_")
     .filter(Boolean)
@@ -151,7 +160,7 @@ function getInitials(name: string): string {
     .slice(0, 2)
     .map((part) => part.charAt(0).toUpperCase())
     .join("");
-  return initials || "ST";
+  return initials || staffDashboardText(STAFF_DASHBOARD_TEXT.common.staffInitials);
 }
 
 function queueItemView(
@@ -177,6 +186,22 @@ function resolveStatMobileIntent(
   const mobile = DASHBOARD_STAT_INTENTS[stat.intentId].mobile;
   if (!mobile) return undefined;
   return { intentId: stat.intentId, mobile };
+}
+
+function dashboardStatActionLabel(intentId: DashboardStatIntentId): string | undefined {
+  if (intentId === "labPending") {
+    return staffDashboardText(STAFF_DASHBOARD_TEXT.overview.openLabWorklist);
+  }
+  if (intentId === "opdQueue") {
+    return staffDashboardText(STAFF_DASHBOARD_TEXT.overview.openOpdQueue);
+  }
+  if (intentId === "revenueToday") {
+    return staffDashboardText(STAFF_DASHBOARD_TEXT.overview.openBillingDesk);
+  }
+  if (intentId === "totalPatients") {
+    return staffDashboardText(STAFF_DASHBOARD_TEXT.overview.openPatientSearch);
+  }
+  return undefined;
 }
 
 export function StaffDashboard({ navigation }: StaffDashboardProps) {
@@ -230,7 +255,7 @@ export function StaffDashboard({ navigation }: StaffDashboardProps) {
     {
       id: "patients",
       intentId: "opdQueue",
-      label: "Tokens Today",
+      label: staffDashboardText(STAFF_DASHBOARD_TEXT.overview.tokensToday),
       value: stats.total,
       icon: "account-group",
       color: MEDBRAINS_COLORS.brand,
@@ -238,7 +263,7 @@ export function StaffDashboard({ navigation }: StaffDashboardProps) {
     {
       id: "waiting",
       intentId: "opdQueue",
-      label: "Waiting",
+      label: staffDashboardText(STAFF_DASHBOARD_TEXT.overview.waiting),
       value: stats.waiting,
       icon: "clock-outline",
       color: MEDBRAINS_COLORS.statusWarning,
@@ -246,7 +271,7 @@ export function StaffDashboard({ navigation }: StaffDashboardProps) {
     {
       id: "active",
       intentId: "opdQueue",
-      label: "Active",
+      label: staffDashboardText(STAFF_DASHBOARD_TEXT.overview.active),
       value: stats.active,
       icon: "account-clock",
       color: MEDBRAINS_COLORS.statusInfo,
@@ -254,7 +279,7 @@ export function StaffDashboard({ navigation }: StaffDashboardProps) {
     {
       id: "completed",
       intentId: "opdQueue",
-      label: "Completed",
+      label: staffDashboardText(STAFF_DASHBOARD_TEXT.overview.completed),
       value: stats.completed,
       icon: "check-circle",
       color: MEDBRAINS_COLORS.emerald,
@@ -265,30 +290,33 @@ export function StaffDashboard({ navigation }: StaffDashboardProps) {
     .filter((item) => ["waiting", "called", "in_consultation"].includes(item.status))
     .slice(0, 6);
 
-  const staffName = user?.full_name ?? user?.username ?? "Staff";
+  const staffName =
+    user?.full_name ??
+    user?.username ??
+    staffDashboardText(STAFF_DASHBOARD_TEXT.common.staffFallback);
   const roleLabel = formatRole(user?.role);
   const enabledFlowLabels = [
-    canFindPatients ? "Patient" : null,
-    canViewQueue ? "Queue" : null,
-    canViewTokenBoards ? "Boards" : null,
-    canRecordVitals ? "Vitals" : null,
-    canSignOrders ? "Orders" : null,
-    canCreateRadiologyOrders ? "Imaging" : null,
-    canViewLabReports ? "Results" : null,
+    canFindPatients ? staffDashboardText(STAFF_DASHBOARD_TEXT.flow.patient) : null,
+    canViewQueue ? staffDashboardText(STAFF_DASHBOARD_TEXT.flow.queue) : null,
+    canViewTokenBoards ? staffDashboardText(STAFF_DASHBOARD_TEXT.flow.boards) : null,
+    canRecordVitals ? staffDashboardText(STAFF_DASHBOARD_TEXT.flow.vitals) : null,
+    canSignOrders ? staffDashboardText(STAFF_DASHBOARD_TEXT.flow.orders) : null,
+    canCreateRadiologyOrders ? staffDashboardText(STAFF_DASHBOARD_TEXT.flow.imaging) : null,
+    canViewLabReports ? staffDashboardText(STAFF_DASHBOARD_TEXT.flow.results) : null,
   ].filter((label): label is string => Boolean(label));
   const quickActions: QuickAction[] = [
     {
       id: "queue",
       enabled: canViewQueue,
       icon: "clipboard-list",
-      label: "Full Queue",
+      label: staffDashboardText(STAFF_DASHBOARD_TEXT.quickActions.fullQueue),
       route: "Queue",
     },
     {
       id: "token-boards",
       enabled: canViewTokenBoards,
       icon: "monitor-dashboard",
-      label: "Token Boards",
+      label: staffDashboardText(STAFF_DASHBOARD_TEXT.quickActions.tokenBoards),
       params: tokenBoardMobileRouteParams("all"),
       route: "TokenBoards",
     },
@@ -296,42 +324,42 @@ export function StaffDashboard({ navigation }: StaffDashboardProps) {
       id: "patient-search",
       enabled: canFindPatients,
       icon: "account-search",
-      label: "Find Patient",
+      label: staffDashboardText(STAFF_DASHBOARD_TEXT.quickActions.findPatient),
       route: "PatientSearch",
     },
     {
       id: "vitals",
       enabled: canRecordVitals,
       icon: "heart-pulse",
-      label: "Vitals",
+      label: staffDashboardText(STAFF_DASHBOARD_TEXT.quickActions.vitals),
       route: "Vitals",
     },
     {
       id: "prescription",
       enabled: canSignOrders,
       icon: "file-document-edit",
-      label: "Write Rx",
+      label: staffDashboardText(STAFF_DASHBOARD_TEXT.quickActions.writeRx),
       route: "Prescription",
     },
     {
       id: "lab-order",
       enabled: canSignOrders,
       icon: "flask-plus",
-      label: "Lab Order",
+      label: staffDashboardText(STAFF_DASHBOARD_TEXT.quickActions.labOrder),
       route: "LabOrder",
     },
     {
       id: "radiology-order",
       enabled: canCreateRadiologyOrders,
       icon: "radioactive",
-      label: "Imaging",
+      label: staffDashboardText(STAFF_DASHBOARD_TEXT.quickActions.imaging),
       route: "RadiologyOrder",
     },
     {
       id: "lab-results",
       enabled: canViewLabReports,
       icon: "flask",
-      label: "Lab Results",
+      label: staffDashboardText(STAFF_DASHBOARD_TEXT.quickActions.labResults),
       route: "LabResultsView",
     },
   ];
@@ -355,7 +383,7 @@ export function StaffDashboard({ navigation }: StaffDashboardProps) {
         <View style={styles.header}>
           <View>
             <Text variant="titleLarge" style={styles.greeting}>
-              Good Morning,
+              {staffDashboardText(STAFF_DASHBOARD_TEXT.common.greeting)}
             </Text>
             <Text variant="headlineSmall" style={styles.staffName}>
               {staffName}
@@ -368,7 +396,9 @@ export function StaffDashboard({ navigation }: StaffDashboardProps) {
         </View>
 
         <View style={styles.sectionHeader}>
-          <Text variant="titleMedium">Today's Overview</Text>
+          <Text variant="titleMedium">
+            {staffDashboardText(STAFF_DASHBOARD_TEXT.overview.title)}
+          </Text>
           {isFetching && <ActivityIndicator size="small" />}
         </View>
         <View style={styles.statsGrid}>
@@ -378,7 +408,7 @@ export function StaffDashboard({ navigation }: StaffDashboardProps) {
             return (
               <StatCardItem
                 key={stat.id}
-                actionLabel={action?.mobile.actionLabel}
+                actionLabel={action ? dashboardStatActionLabel(action.intentId) : undefined}
                 onPress={action ? () => handleDashboardStatPress(action.intentId) : undefined}
                 stat={stat}
               />
@@ -388,7 +418,7 @@ export function StaffDashboard({ navigation }: StaffDashboardProps) {
 
         <Surface style={styles.flowPanel} elevation={1}>
           <Text variant="labelSmall" style={styles.flowLabel}>
-            Enabled mobile flow
+            {staffDashboardText(STAFF_DASHBOARD_TEXT.flow.title)}
           </Text>
           <View style={styles.flowChips}>
             {enabledFlowLabels.length > 0 ? (
@@ -399,42 +429,48 @@ export function StaffDashboard({ navigation }: StaffDashboardProps) {
               ))
             ) : (
               <Text variant="bodySmall" style={styles.stateText}>
-                No mobile workflow actions are enabled for this role.
+                {staffDashboardText(STAFF_DASHBOARD_TEXT.flow.empty)}
               </Text>
             )}
           </View>
         </Surface>
 
         <View style={styles.sectionHeader}>
-          <Text variant="titleMedium">Current Queue</Text>
+          <Text variant="titleMedium">
+            {staffDashboardText(STAFF_DASHBOARD_TEXT.queue.currentQueue)}
+          </Text>
           <Badge size={24}>{stats.waiting}</Badge>
         </View>
 
         {!canViewQueue ? (
           <Surface style={styles.statePanel} elevation={1}>
             <Avatar.Icon size={48} icon="shield-lock-outline" style={styles.stateIcon} />
-            <Text variant="titleSmall">Queue restricted</Text>
+            <Text variant="titleSmall">
+              {staffDashboardText(STAFF_DASHBOARD_TEXT.queue.restrictedTitle)}
+            </Text>
             <Text variant="bodySmall" style={styles.stateText}>
-              OPD queue visibility is controlled by your permission matrix.
+              {staffDashboardText(STAFF_DASHBOARD_TEXT.queue.restrictedMessage)}
             </Text>
           </Surface>
         ) : isLoading ? (
           <Surface style={styles.statePanel} elevation={1}>
             <ActivityIndicator size="large" />
             <Text variant="bodyMedium" style={styles.stateText}>
-              Loading live queue...
+              {staffDashboardText(STAFF_DASHBOARD_TEXT.queue.loading)}
             </Text>
           </Surface>
         ) : isError ? (
           <Surface style={styles.statePanel} elevation={1}>
             <Avatar.Icon size={48} icon="wifi-alert" style={styles.stateIcon} />
-            <Text variant="titleSmall">Queue unavailable</Text>
+            <Text variant="titleSmall">
+              {staffDashboardText(STAFF_DASHBOARD_TEXT.queue.unavailableTitle)}
+            </Text>
             <Text variant="bodySmall" style={styles.stateText}>
-              Pull from the queue screen or retry when network is stable.
+              {staffDashboardText(STAFF_DASHBOARD_TEXT.queue.unavailableMessage)}
             </Text>
             <TouchableOpacity style={styles.retryButton} onPress={() => void refetch()}>
               <Text variant="labelLarge" style={styles.retryText}>
-                Retry
+                {staffDashboardText(STAFF_DASHBOARD_TEXT.queue.retry)}
               </Text>
             </TouchableOpacity>
           </Surface>
@@ -475,15 +511,17 @@ export function StaffDashboard({ navigation }: StaffDashboardProps) {
         ) : (
           <Surface style={styles.statePanel} elevation={1}>
             <Avatar.Icon size={48} icon="clipboard-check-outline" style={styles.stateIcon} />
-            <Text variant="titleSmall">No active queue tokens</Text>
+            <Text variant="titleSmall">
+              {staffDashboardText(STAFF_DASHBOARD_TEXT.queue.emptyTitle)}
+            </Text>
             <Text variant="bodySmall" style={styles.stateText}>
-              Checked-in patients will appear here from the shared OPD queue.
+              {staffDashboardText(STAFF_DASHBOARD_TEXT.queue.emptyMessage)}
             </Text>
           </Surface>
         )}
 
         <Text variant="titleMedium" style={styles.sectionTitle}>
-          Quick Actions
+          {staffDashboardText(STAFF_DASHBOARD_TEXT.quickActions.title)}
         </Text>
         <View style={styles.quickActions}>
           {enabledQuickActions.length > 0 ? (
@@ -500,9 +538,11 @@ export function StaffDashboard({ navigation }: StaffDashboardProps) {
           ) : (
             <Surface style={styles.statePanel} elevation={1}>
               <Avatar.Icon size={48} icon="shield-lock-outline" style={styles.stateIcon} />
-              <Text variant="titleSmall">No enabled shortcuts</Text>
+              <Text variant="titleSmall">
+                {staffDashboardText(STAFF_DASHBOARD_TEXT.quickActions.emptyTitle)}
+              </Text>
               <Text variant="bodySmall" style={styles.stateText}>
-                Your role has no mobile workflow actions enabled.
+                {staffDashboardText(STAFF_DASHBOARD_TEXT.quickActions.emptyMessage)}
               </Text>
             </Surface>
           )}
@@ -514,7 +554,7 @@ export function StaffDashboard({ navigation }: StaffDashboardProps) {
           icon="account-search"
           style={styles.fab}
           onPress={() => navigation.navigate("PatientSearch")}
-          label="Find"
+          label={staffDashboardText(STAFF_DASHBOARD_TEXT.quickActions.fabFind)}
         />
       )}
     </SafeAreaView>
