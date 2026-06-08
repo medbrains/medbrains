@@ -1205,15 +1205,17 @@ function AdmissionDetail({
       });
       void queryClient.invalidateQueries({ queryKey: ["mrd-case-sheets"] });
       notifications.show({
-        title: "Sent to MRD",
-        message: `${packet.packet_number} is available in MRD case sheets`,
+        title: t("notifications.mrdHandoffSent.title"),
+        message: t("notifications.mrdHandoffSent.message", {
+          packetNumber: packet.packet_number,
+        }),
         color: "success",
       });
     },
     onError: () => {
       notifications.show({
-        title: "MRD handoff failed",
-        message: "Unable to generate the IPD case-sheet packet",
+        title: t("notifications.mrdHandoffFailed.title"),
+        message: t("notifications.mrdHandoffFailed.message"),
         color: "danger",
       });
     },
@@ -1228,7 +1230,7 @@ function AdmissionDetail({
     prescriptions: admissionPrescriptions,
   });
 
-  if (!data) return <Text c="dimmed">Loading...</Text>;
+  if (!data) return <Text c="dimmed">{t("loading...")}</Text>;
 
   const detail = data as AdmissionDetailResponse;
   const adm = detail.admission;
@@ -1338,7 +1340,7 @@ function AdmissionDetail({
           <Group justify="space-between" align="flex-start" gap="sm">
             <Stack gap={4}>
               <Group gap="xs">
-                <Text fw={700}>Admission: {adm.id.slice(0, 8)}...</Text>
+                <Text fw={700}>{t("admissionContext.shortId", { id: adm.id.slice(0, 8) })}</Text>
                 {adm.is_critical && (
                   <OperationalSignal label={t("critical")} shape="diamond" size="xs" tone="risk" />
                 )}
@@ -1365,16 +1367,18 @@ function AdmissionDetail({
               </Group>
               <Group gap="xs">
                 <Badge variant="light" color="slate">
-                  Admitted {new Date(adm.admitted_at).toLocaleDateString()}
+                  {t("admissionContext.admittedAt", {
+                    date: new Date(adm.admitted_at).toLocaleDateString(),
+                  })}
                 </Badge>
                 {adm.admission_source && (
                   <Badge variant="light" color="slate">
-                    Source {adm.admission_source}
+                    {t("admissionContext.source", { source: adm.admission_source })}
                   </Badge>
                 )}
                 {adm.provisional_diagnosis && (
                   <Badge variant="light" color="indigo">
-                    Diagnosis linked
+                    {t("admissionContext.diagnosisLinked")}
                   </Badge>
                 )}
               </Group>
@@ -1389,7 +1393,7 @@ function AdmissionDetail({
               />
               <PrintAdmissionButton admissionId={admissionId} />
               {canCreateDischargeSummary && admissionIsActive && (
-                <Tooltip label="Generate Discharge Summary">
+                <Tooltip label={t("label.generateDischargeSummary")}>
                   <Button
                     size="xs"
                     variant="light"
@@ -1397,12 +1401,12 @@ function AdmissionDetail({
                     leftSection={<IconFileDescription size={14} />}
                     onClick={openDischargeSummary}
                   >
-                    Discharge Summary
+                    {t("label.dischargeSummary")}
                   </Button>
                 </Tooltip>
               )}
               {canManageBeds && admissionIsActive && (
-                <Tooltip label="Transfer Bed">
+                <Tooltip label={t("label.transferBed")}>
                   <Button
                     size="xs"
                     variant="light"
@@ -1410,7 +1414,7 @@ function AdmissionDetail({
                     leftSection={<IconArrowsTransferDown size={14} />}
                     onClick={openBedTransfer}
                   >
-                    Bed Transfer
+                    {t("label.transferBed")}
                   </Button>
                 </Tooltip>
               )}
@@ -1463,12 +1467,14 @@ function AdmissionDetail({
       />
       {adm.discharged_at && (
         <Alert color="gray" variant="light">
-          Discharged: {new Date(adm.discharged_at).toLocaleString()}
+          {t("admissionContext.dischargedAt", {
+            date: new Date(adm.discharged_at).toLocaleString(),
+          })}
         </Alert>
       )}
       {adm.provisional_diagnosis && (
         <Text size="sm" c="dimmed">
-          Diagnosis: {adm.provisional_diagnosis}
+          {t("admissionContext.diagnosis", { diagnosis: adm.provisional_diagnosis })}
         </Text>
       )}
 
