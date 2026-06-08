@@ -23,6 +23,10 @@ import {
   useTheme,
 } from "react-native-paper";
 import { SafeAreaView } from "react-native-safe-area-context";
+import {
+  MOBILE_CARE_CONTEXT_TEXT,
+  mobilePatientJourneyText,
+} from "../../components/patientJourneyText";
 import type {
   CareContextHandoff,
   CareContextModule,
@@ -44,8 +48,6 @@ interface PatientCareContextScreenProps {
   };
 }
 
-const HIDDEN_FIELD_TEXT = "Restricted";
-
 function formatStatus(status: string): string {
   return status
     .split("_")
@@ -54,9 +56,11 @@ function formatStatus(status: string): string {
 }
 
 function formatDateTime(value: string | null | undefined): string {
-  if (!value) return "Not recorded";
+  if (!value) return mobilePatientJourneyText(MOBILE_CARE_CONTEXT_TEXT.common.notRecorded);
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? "Not recorded" : date.toLocaleString();
+  return Number.isNaN(date.getTime())
+    ? mobilePatientJourneyText(MOBILE_CARE_CONTEXT_TEXT.common.notRecorded)
+    : date.toLocaleString();
 }
 
 function protectedField(
@@ -65,19 +69,31 @@ function protectedField(
   kind: "identifier" | "name" | "text",
   fallback: string,
 ): string {
+  if (access === "hidden") {
+    return mobilePatientJourneyText(MOBILE_CARE_CONTEXT_TEXT.common.hiddenField);
+  }
   const display = fieldAccessText(access, value, kind);
-  if (display === HIDDEN_FIELD_TEXT) return display;
   return display === "—" ? fallback : display;
 }
 
 function patientName(patient: Patient | undefined, access: FieldAccessLevel): string {
-  if (!patient) return "Patient context";
-  return protectedField(access, `${patient.first_name} ${patient.last_name}`, "name", "Patient");
+  if (!patient) return mobilePatientJourneyText(MOBILE_CARE_CONTEXT_TEXT.common.patientContext);
+  return protectedField(
+    access,
+    `${patient.first_name} ${patient.last_name}`,
+    "name",
+    mobilePatientJourneyText(MOBILE_CARE_CONTEXT_TEXT.common.patient),
+  );
 }
 
 function patientUhid(patient: Patient | undefined, access: FieldAccessLevel): string {
-  if (!patient) return "Patient identity";
-  return protectedField(access, patient.uhid, "identifier", "No UHID");
+  if (!patient) return mobilePatientJourneyText(MOBILE_CARE_CONTEXT_TEXT.common.patientIdentity);
+  return protectedField(
+    access,
+    patient.uhid,
+    "identifier",
+    mobilePatientJourneyText(MOBILE_CARE_CONTEXT_TEXT.common.noUhid),
+  );
 }
 
 function moduleIcon(moduleName: CareContextModule): string {
@@ -88,38 +104,50 @@ function moduleIcon(moduleName: CareContextModule): string {
 
 function moduleTitle(moduleName: CareContextModule, handoff: CareContextHandoff | undefined) {
   if (moduleName === "ipd") {
-    return handoff === "admit" ? "IPD admission handoff" : "IPD care context";
+    return mobilePatientJourneyText(
+      handoff === "admit"
+        ? MOBILE_CARE_CONTEXT_TEXT.modules.ipdAdmitTitle
+        : MOBILE_CARE_CONTEXT_TEXT.modules.ipdTitle,
+    );
   }
   if (moduleName === "emergency") {
-    return handoff === "open_mlc" ? "MLC handoff" : "Emergency handoff";
+    return mobilePatientJourneyText(
+      handoff === "open_mlc"
+        ? MOBILE_CARE_CONTEXT_TEXT.modules.emergencyMlcTitle
+        : MOBILE_CARE_CONTEXT_TEXT.modules.emergencyTitle,
+    );
   }
-  return "Camp continuity handoff";
+  return mobilePatientJourneyText(MOBILE_CARE_CONTEXT_TEXT.modules.campTitle);
 }
 
 function moduleSubtitle(moduleName: CareContextModule) {
   if (moduleName === "ipd") {
-    return "Review admission status, bed state, and inpatient handoff details.";
+    return mobilePatientJourneyText(MOBILE_CARE_CONTEXT_TEXT.modules.ipdSubtitle);
   }
   if (moduleName === "emergency") {
-    return "Review emergency visits, triage state, and MLC-sensitive context.";
+    return mobilePatientJourneyText(MOBILE_CARE_CONTEXT_TEXT.modules.emergencySubtitle);
   }
-  return "Review outreach registration and screening continuity for this patient.";
+  return mobilePatientJourneyText(MOBILE_CARE_CONTEXT_TEXT.modules.campSubtitle);
 }
 
 function permissionHint(moduleName: CareContextModule) {
   if (moduleName === "ipd") {
-    return "IPD admission list permission is required to show inpatient records.";
+    return mobilePatientJourneyText(MOBILE_CARE_CONTEXT_TEXT.modules.ipdPermission);
   }
   if (moduleName === "emergency") {
-    return "Emergency visit list permission is required to show ER records.";
+    return mobilePatientJourneyText(MOBILE_CARE_CONTEXT_TEXT.modules.emergencyPermission);
   }
-  return "Camp registration list permission is required to show outreach records.";
+  return mobilePatientJourneyText(MOBILE_CARE_CONTEXT_TEXT.modules.campPermission);
 }
 
 function unavailableMessage(moduleName: CareContextModule) {
-  if (moduleName === "ipd") return "The latest IPD records could not be loaded.";
-  if (moduleName === "emergency") return "The latest emergency records could not be loaded.";
-  return "The latest camp records could not be loaded.";
+  if (moduleName === "ipd") {
+    return mobilePatientJourneyText(MOBILE_CARE_CONTEXT_TEXT.modules.ipdUnavailable);
+  }
+  if (moduleName === "emergency") {
+    return mobilePatientJourneyText(MOBILE_CARE_CONTEXT_TEXT.modules.emergencyUnavailable);
+  }
+  return mobilePatientJourneyText(MOBILE_CARE_CONTEXT_TEXT.modules.campUnavailable);
 }
 
 function renderEmptyState(icon: string, title: string, message: string) {
@@ -135,7 +163,11 @@ function renderEmptyState(icon: string, title: string, message: string) {
 }
 
 function renderPermissionState(moduleName: CareContextModule) {
-  return renderEmptyState("shield-lock-outline", "Restricted context", permissionHint(moduleName));
+  return renderEmptyState(
+    "shield-lock-outline",
+    mobilePatientJourneyText(MOBILE_CARE_CONTEXT_TEXT.empty.restrictedTitle),
+    permissionHint(moduleName),
+  );
 }
 
 function activeAdmissionCount(admissions: AdmissionRow[]) {
@@ -245,7 +277,11 @@ export function PatientCareContextScreen({ route, navigation }: PatientCareConte
   function renderIpdSection() {
     if (!canListIpdAdmissions) return renderPermissionState(moduleName);
     if (admissions.length === 0) {
-      return renderEmptyState("bed-empty", "No IPD records", "No admissions match this patient.");
+      return renderEmptyState(
+        "bed-empty",
+        mobilePatientJourneyText(MOBILE_CARE_CONTEXT_TEXT.empty.noIpdTitle),
+        mobilePatientJourneyText(MOBILE_CARE_CONTEXT_TEXT.empty.noIpdMessage),
+      );
     }
 
     return (
@@ -255,9 +291,14 @@ export function PatientCareContextScreen({ route, navigation }: PatientCareConte
             <Card.Content>
               <View style={styles.cardHeader}>
                 <View style={styles.cardTitle}>
-                  <Text variant="titleSmall">{admission.ward_name ?? "Ward pending"}</Text>
+                  <Text variant="titleSmall">
+                    {admission.ward_name ??
+                      mobilePatientJourneyText(MOBILE_CARE_CONTEXT_TEXT.ipd.wardPending)}
+                  </Text>
                   <Text variant="bodySmall" style={styles.mutedText}>
-                    Admitted {formatDateTime(admission.admitted_at)}
+                    {mobilePatientJourneyText(MOBILE_CARE_CONTEXT_TEXT.ipd.admittedAt, {
+                      date: formatDateTime(admission.admitted_at),
+                    })}
                   </Text>
                 </View>
                 <Chip compact mode="outlined">
@@ -266,13 +307,23 @@ export function PatientCareContextScreen({ route, navigation }: PatientCareConte
               </View>
               <Divider style={styles.divider} />
               <List.Item
-                title={admission.bed_id ? "Bed assigned" : "Bed pending"}
-                description={admission.bed_id ?? "Admission cannot proceed to bedside orders yet"}
+                title={mobilePatientJourneyText(
+                  admission.bed_id
+                    ? MOBILE_CARE_CONTEXT_TEXT.ipd.bedAssigned
+                    : MOBILE_CARE_CONTEXT_TEXT.ipd.bedPending,
+                )}
+                description={
+                  admission.bed_id ??
+                  mobilePatientJourneyText(MOBILE_CARE_CONTEXT_TEXT.ipd.bedPendingDescription)
+                }
                 left={(props) => <List.Icon {...props} icon="bed" />}
               />
               <List.Item
-                title="Admitting doctor"
-                description={admission.admitting_doctor || "Not recorded"}
+                title={mobilePatientJourneyText(MOBILE_CARE_CONTEXT_TEXT.ipd.admittingDoctor)}
+                description={
+                  admission.admitting_doctor ||
+                  mobilePatientJourneyText(MOBILE_CARE_CONTEXT_TEXT.common.notRecorded)
+                }
                 left={(props) => <List.Icon {...props} icon="doctor" />}
               />
               {admission.encounter_id && (
@@ -287,7 +338,7 @@ export function PatientCareContextScreen({ route, navigation }: PatientCareConte
                   }
                   style={styles.inlineButton}
                 >
-                  Record vitals
+                  {mobilePatientJourneyText(MOBILE_CARE_CONTEXT_TEXT.ipd.recordVitals)}
                 </Button>
               )}
             </Card.Content>
@@ -302,8 +353,8 @@ export function PatientCareContextScreen({ route, navigation }: PatientCareConte
     if (emergencyVisits.length === 0) {
       return renderEmptyState(
         "ambulance",
-        "No emergency records",
-        "No ER visits match this patient.",
+        mobilePatientJourneyText(MOBILE_CARE_CONTEXT_TEXT.empty.noEmergencyTitle),
+        mobilePatientJourneyText(MOBILE_CARE_CONTEXT_TEXT.empty.noEmergencyMessage),
       );
     }
 
@@ -327,7 +378,9 @@ export function PatientCareContextScreen({ route, navigation }: PatientCareConte
                   <View style={styles.cardTitle}>
                     <Text variant="titleSmall">{visit.visit_number}</Text>
                     <Text variant="bodySmall" style={styles.mutedText}>
-                      Arrived {formatDateTime(visit.arrival_time)}
+                      {mobilePatientJourneyText(MOBILE_CARE_CONTEXT_TEXT.emergency.arrivedAt, {
+                        date: formatDateTime(visit.arrival_time),
+                      })}
                     </Text>
                   </View>
                   <View style={styles.statusChips}>
@@ -336,30 +389,39 @@ export function PatientCareContextScreen({ route, navigation }: PatientCareConte
                     </Chip>
                     {isTargetVisit && (
                       <Chip compact icon="link-variant" style={styles.selectedChip}>
-                        Selected
+                        {mobilePatientJourneyText(MOBILE_CARE_CONTEXT_TEXT.common.selected)}
                       </Chip>
                     )}
                     {visit.is_mlc && (
                       <Chip compact icon="file-alert" style={styles.warningChip}>
-                        MLC
+                        {mobilePatientJourneyText(MOBILE_CARE_CONTEXT_TEXT.emergency.mlc)}
                       </Chip>
                     )}
                   </View>
                 </View>
                 <Divider style={styles.divider} />
                 <List.Item
-                  title="Chief complaint"
-                  description={visit.chief_complaint ?? "Not recorded"}
+                  title={mobilePatientJourneyText(
+                    MOBILE_CARE_CONTEXT_TEXT.emergency.chiefComplaint,
+                  )}
+                  description={
+                    visit.chief_complaint ??
+                    mobilePatientJourneyText(MOBILE_CARE_CONTEXT_TEXT.common.notRecorded)
+                  }
                   left={(props) => <List.Icon {...props} icon="clipboard-text" />}
                 />
                 <List.Item
-                  title="Triage"
-                  description={visit.triage_level ? formatStatus(visit.triage_level) : "Unassigned"}
+                  title={mobilePatientJourneyText(MOBILE_CARE_CONTEXT_TEXT.emergency.triage)}
+                  description={
+                    visit.triage_level
+                      ? formatStatus(visit.triage_level)
+                      : mobilePatientJourneyText(MOBILE_CARE_CONTEXT_TEXT.emergency.unassigned)
+                  }
                   left={(props) => <List.Icon {...props} icon="alert-decagram" />}
                 />
                 {visit.bay_number && (
                   <List.Item
-                    title="Bay"
+                    title={mobilePatientJourneyText(MOBILE_CARE_CONTEXT_TEXT.emergency.bay)}
                     description={visit.bay_number}
                     left={(props) => <List.Icon {...props} icon="hospital-box" />}
                   />
@@ -377,8 +439,8 @@ export function PatientCareContextScreen({ route, navigation }: PatientCareConte
     if (campRegistrations.length === 0) {
       return renderEmptyState(
         "account-group",
-        "No camp records",
-        "No outreach registrations match this patient.",
+        mobilePatientJourneyText(MOBILE_CARE_CONTEXT_TEXT.empty.noCampTitle),
+        mobilePatientJourneyText(MOBILE_CARE_CONTEXT_TEXT.empty.noCampMessage),
       );
     }
 
@@ -391,7 +453,9 @@ export function PatientCareContextScreen({ route, navigation }: PatientCareConte
                 <View style={styles.cardTitle}>
                   <Text variant="titleSmall">{registration.registration_number}</Text>
                   <Text variant="bodySmall" style={styles.mutedText}>
-                    Registered {formatDateTime(registration.created_at)}
+                    {mobilePatientJourneyText(MOBILE_CARE_CONTEXT_TEXT.camp.registeredAt, {
+                      date: formatDateTime(registration.created_at),
+                    })}
                   </Text>
                 </View>
                 <Chip compact mode="outlined">
@@ -400,13 +464,19 @@ export function PatientCareContextScreen({ route, navigation }: PatientCareConte
               </View>
               <Divider style={styles.divider} />
               <List.Item
-                title="Service line"
-                description={registration.service_line ?? "Not recorded"}
+                title={mobilePatientJourneyText(MOBILE_CARE_CONTEXT_TEXT.camp.serviceLine)}
+                description={
+                  registration.service_line ??
+                  mobilePatientJourneyText(MOBILE_CARE_CONTEXT_TEXT.common.notRecorded)
+                }
                 left={(props) => <List.Icon {...props} icon="hospital-building" />}
               />
               <List.Item
-                title="Chief complaint"
-                description={registration.chief_complaint ?? "Not recorded"}
+                title={mobilePatientJourneyText(MOBILE_CARE_CONTEXT_TEXT.camp.chiefComplaint)}
+                description={
+                  registration.chief_complaint ??
+                  mobilePatientJourneyText(MOBILE_CARE_CONTEXT_TEXT.common.notRecorded)
+                }
                 left={(props) => <List.Icon {...props} icon="clipboard-text" />}
               />
             </Card.Content>
@@ -422,7 +492,7 @@ export function PatientCareContextScreen({ route, navigation }: PatientCareConte
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" />
           <Text variant="bodyMedium" style={styles.mutedText}>
-            Loading handoff context...
+            {mobilePatientJourneyText(MOBILE_CARE_CONTEXT_TEXT.loading.handoffContext)}
           </Text>
         </View>
       );
@@ -431,7 +501,7 @@ export function PatientCareContextScreen({ route, navigation }: PatientCareConte
     if (isModuleError) {
       return renderEmptyState(
         "alert-circle-outline",
-        "Context unavailable",
+        mobilePatientJourneyText(MOBILE_CARE_CONTEXT_TEXT.empty.contextUnavailableTitle),
         unavailableMessage(moduleName),
       );
     }
@@ -455,7 +525,9 @@ export function PatientCareContextScreen({ route, navigation }: PatientCareConte
             </Text>
           </View>
           <Chip compact mode="outlined">
-            {activeCount} active
+            {mobilePatientJourneyText(MOBILE_CARE_CONTEXT_TEXT.common.activeCount, {
+              count: activeCount,
+            })}
           </Chip>
         </Surface>
 
@@ -463,17 +535,25 @@ export function PatientCareContextScreen({ route, navigation }: PatientCareConte
           <View style={styles.identityText}>
             <Text variant="titleSmall">
               {isPatientLoading
-                ? "Loading patient..."
+                ? mobilePatientJourneyText(MOBILE_CARE_CONTEXT_TEXT.identity.loadingPatient)
                 : isPatientError
-                  ? "Patient identity unavailable"
+                  ? mobilePatientJourneyText(
+                      MOBILE_CARE_CONTEXT_TEXT.identity.patientIdentityUnavailable,
+                    )
                   : patientName(patient, patientNameAccess)}
             </Text>
             <Text variant="bodySmall" style={styles.mutedText}>
-              {isPatientError ? "UHID unavailable" : patientUhid(patient, uhidAccess)}
+              {isPatientError
+                ? mobilePatientJourneyText(MOBILE_CARE_CONTEXT_TEXT.identity.uhidUnavailable)
+                : patientUhid(patient, uhidAccess)}
             </Text>
           </View>
           <Chip compact icon={canListCurrentModule ? "shield-check" : "shield-lock-outline"}>
-            {canListCurrentModule ? "Linked" : "Restricted"}
+            {mobilePatientJourneyText(
+              canListCurrentModule
+                ? MOBILE_CARE_CONTEXT_TEXT.common.linked
+                : MOBILE_CARE_CONTEXT_TEXT.common.restricted,
+            )}
           </Chip>
         </Surface>
 
