@@ -120,6 +120,7 @@ import {
   IconChartLine,
   IconCheck,
   IconClipboardList,
+  IconClock,
   IconEye,
   IconFileCheck,
   IconFlask,
@@ -156,6 +157,9 @@ import {
   DataTable,
   DiagnosisPanel,
   DoctorSearchSelect,
+  OperationalSignal,
+  type OperationalSignalShape,
+  type OperationalSignalTone,
   PageHeader,
   PatientSearchSelect,
   PhysicalExamPanel,
@@ -164,7 +168,6 @@ import {
   PrescriptionWriter,
   ReviewOfSystems,
   SOAPNotes,
-  StatusDot,
   StructuredHistory,
   useClinicalEmit,
   useProtectedFieldAccess,
@@ -231,33 +234,11 @@ import {
   opdOrderBasketTabFromSearchParams,
 } from "./opd-workspace";
 
-const statusColors: Record<string, string> = {
-  waiting: "primary",
-  called: "warning",
-  in_consultation: "orange",
-  completed: "success",
-  no_show: "danger",
-};
+type OpdTranslate = ReturnType<typeof useTranslation>["t"];
 
-const appointmentStatusColors: Record<string, string> = {
-  scheduled: "gray",
-  confirmed: "primary",
-  checked_in: "warning",
-  in_consultation: "orange",
-  completed: "success",
-  cancelled: "danger",
-  no_show: "danger",
-};
-
-const appointmentStatusLabels: Record<string, string> = {
-  scheduled: "Scheduled",
-  confirmed: "Confirmed",
-  checked_in: "In OPD",
-  in_consultation: "Consulting",
-  completed: "Carried out",
-  cancelled: "Cancelled",
-  no_show: "No show",
-};
+function humanizeWorkflowValue(value: string): string {
+  return value.replace(/_/g, " ");
+}
 
 function deriveOpdJourneyCompletedEvents(
   prescriptions: readonly PrescriptionWithItems[],
@@ -279,31 +260,131 @@ function deriveOpdJourneyCompletedEvents(
   return events;
 }
 
-const appointmentTypeLabels: Record<string, string> = {
-  new_visit: "Booked",
-  follow_up: "Follow-up",
-  consultation: "Consultation",
-  procedure: "Procedure",
-  walk_in: "Walk-in",
-};
+function queueStatusLabel(t: OpdTranslate, status: string): string {
+  return t(`queueStatus.${status}`, { defaultValue: humanizeWorkflowValue(status) });
+}
 
-const queueVisitTypeLabels: Record<string, string> = {
-  walk_in: "Walk-in",
-  booked: "Booked",
-  follow_up: "Follow-up",
-  referral: "Referral",
-  emergency: "Emergency",
-  camp: "Camp",
-};
+function queueStatusTone(status: string): OperationalSignalTone {
+  switch (status) {
+    case "completed":
+      return "ready";
+    case "no_show":
+      return "risk";
+    case "called":
+    case "in_consultation":
+      return "active";
+    case "waiting":
+      return "blocked";
+    default:
+      return "neutral";
+  }
+}
 
-const queueVisitTypeColors: Record<string, string> = {
-  walk_in: "gray",
-  booked: "primary",
-  follow_up: "teal",
-  referral: "orange",
-  emergency: "danger",
-  camp: "success",
-};
+function queueStatusShape(status: string): OperationalSignalShape {
+  switch (status) {
+    case "called":
+    case "in_consultation":
+    case "no_show":
+      return "diamond";
+    case "waiting":
+      return "token";
+    default:
+      return "pill";
+  }
+}
+
+function queueStatusIcon(status: string) {
+  switch (status) {
+    case "waiting":
+      return IconClock;
+    case "called":
+      return IconPhone;
+    case "in_consultation":
+      return IconStethoscope;
+    case "completed":
+      return IconCheck;
+    case "no_show":
+      return IconUserOff;
+    default:
+      return undefined;
+  }
+}
+
+function appointmentStatusLabel(t: OpdTranslate, status: string): string {
+  return t(`appointmentStatus.${status}`, { defaultValue: humanizeWorkflowValue(status) });
+}
+
+function appointmentStatusTone(status: string): OperationalSignalTone {
+  switch (status) {
+    case "completed":
+      return "ready";
+    case "cancelled":
+    case "no_show":
+      return "risk";
+    case "checked_in":
+    case "in_consultation":
+      return "active";
+    case "scheduled":
+    case "confirmed":
+      return "blocked";
+    default:
+      return "neutral";
+  }
+}
+
+function appointmentStatusShape(status: string): OperationalSignalShape {
+  switch (status) {
+    case "checked_in":
+    case "in_consultation":
+    case "cancelled":
+    case "no_show":
+      return "diamond";
+    case "scheduled":
+    case "confirmed":
+      return "token";
+    default:
+      return "pill";
+  }
+}
+
+function appointmentTypeLabel(t: OpdTranslate, appointmentType: string): string {
+  return t(`appointmentType.${appointmentType}`, {
+    defaultValue: humanizeWorkflowValue(appointmentType),
+  });
+}
+
+function queueVisitTypeLabel(t: OpdTranslate, visitType: string): string {
+  return t(`queueVisitType.${visitType}`, { defaultValue: humanizeWorkflowValue(visitType) });
+}
+
+function queueVisitTypeTone(visitType: string): OperationalSignalTone {
+  switch (visitType) {
+    case "emergency":
+      return "risk";
+    case "camp":
+    case "referral":
+      return "active";
+    case "booked":
+    case "follow_up":
+      return "blocked";
+    default:
+      return "neutral";
+  }
+}
+
+function queueVisitTypeShape(visitType: string): OperationalSignalShape {
+  switch (visitType) {
+    case "emergency":
+    case "referral":
+      return "diamond";
+    case "booked":
+    case "follow_up":
+    case "camp":
+      return "token";
+    default:
+      return "pill";
+  }
+}
 
 function todayIsoDate(): string {
   return todayDateString();
@@ -313,16 +394,19 @@ function appointmentVisitType(appointmentType: AppointmentWithPatient["appointme
   return appointmentType === "follow_up" ? "follow_up" : "booked";
 }
 
-function appointmentSlotLabel(appointment: {
-  appointment_date?: string | null;
-  slot_start?: string | null;
-  slot_end?: string | null;
-  appointment_slot_start?: string | null;
-  appointment_slot_end?: string | null;
-}): string {
+function appointmentSlotLabel(
+  appointment: {
+    appointment_date?: string | null;
+    slot_start?: string | null;
+    slot_end?: string | null;
+    appointment_slot_start?: string | null;
+    appointment_slot_end?: string | null;
+  },
+  noSlotLabel = "No slot",
+): string {
   const start = appointment.slot_start ?? appointment.appointment_slot_start;
   const end = appointment.slot_end ?? appointment.appointment_slot_end;
-  return start && end ? `${start} - ${end}` : (appointment.appointment_date ?? "No slot");
+  return start && end ? `${start} - ${end}` : (appointment.appointment_date ?? noSlotLabel);
 }
 
 const referralUrgencyValues = [
@@ -664,6 +748,7 @@ export function OpdNewVisitPage() {
 export function OpdVitalsPage() {
   useRequirePermission(P.OPD.QUEUE_VIEW);
 
+  const { t } = useTranslation("opd");
   const navigate = useNavigate();
   const { queueEntryId } = useParams<{ queueEntryId: string }>();
   const emit = useClinicalEmit();
@@ -682,13 +767,17 @@ export function OpdVitalsPage() {
   });
   const entry = queue.find((row) => row.id === requestedQueueEntryId);
   const entryIdentity = entry
-    ? protectedOpdQueueIdentity(entry, { name: patientNameAccess, uhid: uhidAccess })
+    ? protectedOpdQueueIdentity(
+        entry,
+        { name: patientNameAccess, uhid: uhidAccess },
+        { patient: t("queueFallback.patient"), uhid: t("queueFallback.uhid") },
+      )
     : null;
 
   const vitalsMutation = useMutation({
     mutationFn: (data: CreateVitalRequest) => {
       if (!entry) {
-        throw new Error("OPD queue entry was not loaded");
+        throw new Error(t("vitals.error.queueEntryNotLoaded"));
       }
       return canRecordNurseVitals
         ? opdService.createNurseVital({ ...data, encounter_id: entry.encounter_id })
@@ -711,16 +800,18 @@ export function OpdVitalsPage() {
         vital_id: vital.id,
       });
       notifications.show({
-        title: "Vitals recorded",
-        message: `${entryIdentity?.name ?? "Patient"} vitals were saved`,
+        title: t("vitals.notify.recorded"),
+        message: t("vitals.notify.saved", {
+          patient: entryIdentity?.name ?? t("queueFallback.patient"),
+        }),
         color: "success",
       });
       navigate("/opd");
     },
     onError: () => {
       notifications.show({
-        title: "Unable to record vitals",
-        message: "Check vitals permission and try again.",
+        title: t("vitals.notify.unableToRecord"),
+        message: t("vitals.notify.permissionCheck"),
         color: "danger",
       });
     },
@@ -730,7 +821,7 @@ export function OpdVitalsPage() {
     return (
       <Stack align="center" py="xl">
         <Loader size="lg" />
-        <Text c="dimmed">Loading queue entry...</Text>
+        <Text c="dimmed">{t("vitals.loadingQueueEntry")}</Text>
       </Stack>
     );
   }
@@ -738,9 +829,9 @@ export function OpdVitalsPage() {
   if (!entry) {
     return (
       <Stack align="center" py="xl">
-        <Text c="dimmed">OPD queue entry not found for today.</Text>
+        <Text c="dimmed">{t("vitals.queueEntryNotFound")}</Text>
         <Button variant="light" onClick={() => navigate("/opd")}>
-          Back to OPD
+          {t("vitals.backToOpd")}
         </Button>
       </Stack>
     );
@@ -749,19 +840,23 @@ export function OpdVitalsPage() {
   const vitalsAllowed = canRecordVitals && canRecordVitalsFromQueue(entry);
   const identity =
     entryIdentity ??
-    protectedOpdQueueIdentity(entry, { name: patientNameAccess, uhid: uhidAccess });
+    protectedOpdQueueIdentity(
+      entry,
+      { name: patientNameAccess, uhid: uhidAccess },
+      { patient: t("queueFallback.patient"), uhid: t("queueFallback.uhid") },
+    );
 
   return (
     <ClinicalEventProvider moduleCode="opd" contextCode={`opd-vitals-${entry.id}`}>
       <Stack>
         <PageHeader
-          title="Record OPD vitals"
-          subtitle={`${identity.name} | Token ${identity.token}`}
+          title={t("vitals.recordOpdVitals")}
+          subtitle={t("vitals.subtitle", { patient: identity.name, token: identity.token })}
           icon={<IconHeartbeat size={20} stroke={1.5} />}
           color="primary"
           actions={
             <Button variant="subtle" onClick={() => navigate("/opd")}>
-              Back to OPD
+              {t("vitals.backToOpd")}
             </Button>
           }
         />
@@ -770,18 +865,20 @@ export function OpdVitalsPage() {
             <Stack gap={2}>
               <Text fw={700}>{identity.name}</Text>
               <Text size="xs" c="dimmed">
-                {identity.uhid} | Token {identity.token}
+                {t("vitals.identityLine", { token: identity.token, uhid: identity.uhid })}
               </Text>
             </Stack>
-            <Badge variant="light" color={statusColors[entry.status] ?? "slate"}>
-              {entry.status.replace(/_/g, " ")}
-            </Badge>
+            <OperationalSignal
+              icon={queueStatusIcon(entry.status)}
+              label={queueStatusLabel(t, entry.status)}
+              shape={queueStatusShape(entry.status)}
+              tone={queueStatusTone(entry.status)}
+            />
           </Group>
         </Card>
         {!vitalsAllowed ? (
           <Alert color="warning" icon={<IconAlertTriangle size={16} />}>
-            Vitals can be recorded only for waiting, called, or in-consultation queue entries by
-            staff with vitals permission.
+            {t("vitals.permissionBlocked")}
           </Alert>
         ) : (
           <Card withBorder radius="md" p="md">
@@ -824,11 +921,15 @@ function protectedPatientIdentifier(
 function protectedOpdQueueIdentity(
   entry: QueueEntry,
   access: { name: FieldAccessLevel; uhid: FieldAccessLevel },
+  fallback: { patient: string; uhid: string } = { patient: "Patient", uhid: "No UHID" },
 ): { name: string; token: string; uhid: string } {
+  const name = fieldAccessText(access.name, entry.patient_name, "name");
+  const uhid = fieldAccessText(access.uhid, entry.uhid, "identifier");
+
   return {
-    name: protectedPatientName(entry.patient_name, access.name),
+    name: name === "—" ? fallback.patient : name,
     token: formatQueueToken(entry.token_number),
-    uhid: protectedPatientIdentifier(entry.uhid, access.uhid),
+    uhid: uhid === "—" ? fallback.uhid : uhid,
   };
 }
 
@@ -837,6 +938,16 @@ const OPD_QUEUE_STATUS_ONLY_PERMISSIONS: OpdQueueRowActionPermissions = {
   canOpenVisit: true,
   canRecordVitals: true,
 };
+
+function queueActionLabel(t: OpdTranslate, actionId: OpdQueueRowActionId): string {
+  return t(`queueAction.${actionId}.label`);
+}
+
+function queueActionDisabledReason(t: OpdTranslate, action: ResolvedOpdQueueRowAction): string {
+  return t(`queueAction.${action.id}.disabled`, {
+    defaultValue: action.disabledReasonText ?? queueActionLabel(t, action.id),
+  });
+}
 
 function queueActionEnabled(row: QueueEntry, actionId: OpdQueueRowActionId): boolean {
   return (
@@ -861,7 +972,12 @@ function OpdPageInner() {
   const canRecordNurseVitals = useHasPermission(P.NURSE.VITALS_RECORD);
   const canRecordVitals = canRecordNurseVitals || canUpdate;
   const patientNameAccess = useProtectedFieldAccess(undefined, PATIENT_NAME_FIELD_ACCESS_KEYS);
+  const patientUhidAccess = useProtectedFieldAccess(PATIENT_UHID_FIELD_ACCESS_KEY);
   const currentUser = useAuthStore((s) => s.user);
+  const patientIdentityAccess = useMemo(
+    () => ({ name: patientNameAccess, uhid: patientUhidAccess }),
+    [patientNameAccess, patientUhidAccess],
+  );
 
   const queryClient = useQueryClient();
   const [filterDate, setFilterDate] = useState("");
@@ -872,6 +988,24 @@ function OpdPageInner() {
   const [myPatientsOnly, setMyPatientsOnly] = useState(false);
   const [queueSearch, setQueueSearch] = useState("");
   const [debouncedQueueSearch] = useDebouncedValue(queueSearch.trim(), 250);
+  const queueStatusOptions = useMemo(
+    () =>
+      ["waiting", "called", "in_consultation", "completed", "no_show"].map((status) => ({
+        value: status,
+        label: queueStatusLabel(t, status),
+      })),
+    [t],
+  );
+  const queueVisitTypeTabs = useMemo(
+    () =>
+      ["all", "walk_in", "booked", "follow_up", "referral", "emergency", "camp"].map(
+        (visitType) => ({
+          value: visitType,
+          label: visitType === "all" ? t("queueVisitType.all") : queueVisitTypeLabel(t, visitType),
+        }),
+      ),
+    [t],
+  );
 
   // Departments for filter dropdown
   const { data: departments = [] } = useQuery({
@@ -940,9 +1074,11 @@ function OpdPageInner() {
       void queryClient.invalidateQueries({ queryKey: ["opd-queue"] });
       void queryClient.invalidateQueries({ queryKey: ["opd-appointments"] });
       void queryClient.invalidateQueries({ queryKey: ["appointments"] });
+      const protectedName = fieldAccessText(patientNameAccess, appointment.patient_name, "name");
+      const patientName = protectedName === "—" ? t("queueFallback.patient") : protectedName;
       notifications.show({
-        title: "Appointment moved to OPD",
-        message: `${protectedPatientName(appointment.patient_name, patientNameAccess)} added to the OPD queue`,
+        title: t("notify.appointmentMovedToOpd"),
+        message: t("notify.appointmentAddedToOpdQueue", { patient: patientName }),
         color: "success",
       });
       emit("opd.encounter.created", {
@@ -958,8 +1094,8 @@ function OpdPageInner() {
     },
     onError: () => {
       notifications.show({
-        title: "Unable to move appointment",
-        message: "Check whether this appointment is already closed or linked to OPD",
+        title: t("notify.unableToMoveAppointment"),
+        message: t("notify.appointmentMoveBlocked"),
         color: "danger",
       });
     },
@@ -1005,9 +1141,8 @@ function OpdPageInner() {
   const renderQueueAction = (action: ResolvedOpdQueueRowAction, row: QueueEntry) => {
     if (!action.visible) return null;
 
-    const tooltipLabel = action.enabled
-      ? action.label
-      : (action.disabledReasonText ?? action.label);
+    const actionLabel = queueActionLabel(t, action.id);
+    const tooltipLabel = action.enabled ? actionLabel : queueActionDisabledReason(t, action);
     const disabled = !action.enabled;
     const iconButton = (() => {
       switch (action.id) {
@@ -1020,7 +1155,7 @@ function OpdPageInner() {
               onClick={() => {
                 if (action.enabled) navigate(`/opd/queue/${row.id}/vitals`);
               }}
-              aria-label={action.label}
+              aria-label={actionLabel}
             >
               <IconHeartbeat size={16} />
             </ActionIcon>
@@ -1035,7 +1170,7 @@ function OpdPageInner() {
                   navigate(`/opd/encounters/${row.encounter_id}#consultation`);
                 }
               }}
-              aria-label={action.label}
+              aria-label={actionLabel}
             >
               <IconEye size={16} />
             </ActionIcon>
@@ -1049,7 +1184,7 @@ function OpdPageInner() {
               onClick={() => {
                 if (action.enabled) callMutation.mutate(row);
               }}
-              aria-label={action.label}
+              aria-label={actionLabel}
             >
               <IconPhone size={16} />
             </ActionIcon>
@@ -1063,7 +1198,7 @@ function OpdPageInner() {
               onClick={() => {
                 if (action.enabled) startMutation.mutate(row);
               }}
-              aria-label={action.label}
+              aria-label={actionLabel}
             >
               <IconPlayerPlay size={16} />
             </ActionIcon>
@@ -1077,7 +1212,7 @@ function OpdPageInner() {
               onClick={() => {
                 if (action.enabled) completeMutation.mutate(row);
               }}
-              aria-label={action.label}
+              aria-label={actionLabel}
             >
               <IconCheck size={16} />
             </ActionIcon>
@@ -1091,7 +1226,7 @@ function OpdPageInner() {
               onClick={() => {
                 if (action.enabled) noShowMutation.mutate(row.id);
               }}
-              aria-label={action.label}
+              aria-label={actionLabel}
             >
               <IconUserOff size={16} />
             </ActionIcon>
@@ -1108,57 +1243,55 @@ function OpdPageInner() {
   const columns = [
     {
       key: "token_number",
-      label: "Token",
+      label: t("queueColumns.token"),
       render: (row: QueueEntry) => (
-        <Text fw={700}>T{String(row.token_number).padStart(3, "0")}</Text>
+        <OperationalSignal
+          label={t("queueSignals.token")}
+          shape="token"
+          tone={queueStatusTone(row.status)}
+          value={formatQueueToken(row.token_number)}
+        />
       ),
     },
     {
       key: "patient_name",
-      label: "Patient",
+      label: t("queueColumns.patient"),
       fieldAccessKeys: PATIENT_BASIC_IDENTITY_FIELD_ACCESS_KEYS,
       accessor: (row: QueueEntry) => row.patient_name ?? row.uhid,
       fieldKind: "name",
-      hiddenLabel: "Patient restricted",
-      render: (row: QueueEntry) => (
-        <Stack gap={0}>
-          <Text size="sm" fw={500}>
-            {row.patient_name}
-          </Text>
-          <Text size="xs" c="dimmed">
-            {row.uhid}
-          </Text>
-        </Stack>
-      ),
+      hiddenLabel: t("queue.restricted.patient"),
+      render: (row: QueueEntry) => <QueuePatientCell access={patientIdentityAccess} row={row} />,
     },
     {
       key: "visit_type",
-      label: "Visit",
+      label: t("queueColumns.visit"),
       render: (row: QueueEntry) => <QueueVisitTypeBadge row={row} />,
     },
     {
       key: "status",
-      label: "Status",
+      label: t("queueColumns.status"),
       render: (row: QueueEntry) => (
-        <StatusDot
-          color={statusColors[row.status] ?? "slate"}
-          label={row.status.replace(/_/g, " ")}
+        <OperationalSignal
+          icon={queueStatusIcon(row.status)}
+          label={queueStatusLabel(t, row.status)}
+          shape={queueStatusShape(row.status)}
+          tone={queueStatusTone(row.status)}
         />
       ),
     },
     {
       key: "appointment",
-      label: "Appointment",
+      label: t("queueColumns.appointment"),
       render: (row: QueueEntry) => <QueueAppointmentMarker row={row} />,
     },
     {
       key: "queue_date",
-      label: "Date",
+      label: t("queueColumns.date"),
       render: (row: QueueEntry) => <Text size="sm">{row.queue_date}</Text>,
     },
     {
       key: "actions",
-      label: "Actions",
+      label: t("queueColumns.actions"),
       requiredPermissions: [P.OPD.QUEUE_VIEW, P.OPD.VISIT_UPDATE, P.OPD.VITALS.CREATE],
       permissionMode: "any",
       render: (row: QueueEntry) => (
@@ -1181,7 +1314,7 @@ function OpdPageInner() {
         actions={
           canCreate ? (
             <Button leftSection={<IconPlus size={16} />} onClick={() => navigate("/opd/new")}>
-              New Visit
+              {t("action.newVisit")}
             </Button>
           ) : undefined
         }
@@ -1204,35 +1337,29 @@ function OpdPageInner() {
           <Stack gap="md" mb="md">
             <Group align="end">
               <TextInput
-                placeholder="Search token, patient, UHID, phone"
+                placeholder={t("queueFilters.search")}
                 leftSection={<IconSearch size={16} />}
                 value={queueSearch}
                 onChange={(e) => setQueueSearch(e.currentTarget.value)}
                 w={280}
               />
               <TextInput
-                placeholder="Date"
+                placeholder={t("placeholder.date")}
                 type="date"
                 value={filterDate}
                 onChange={(e) => setFilterDate(e.currentTarget.value)}
                 w={170}
               />
               <Select
-                placeholder="Status"
-                data={[
-                  { value: "waiting", label: "Waiting" },
-                  { value: "called", label: "Called" },
-                  { value: "in_consultation", label: "In Consultation" },
-                  { value: "completed", label: "Completed" },
-                  { value: "no_show", label: "No Show" },
-                ]}
+                placeholder={t("placeholder.status")}
+                data={queueStatusOptions}
                 value={filterStatus}
                 onChange={setFilterStatus}
                 clearable
                 w={170}
               />
               <Select
-                placeholder="Department"
+                placeholder={t("placeholder.department")}
                 data={deptOptions}
                 value={filterDeptId}
                 onChange={setFilterDeptId}
@@ -1242,8 +1369,8 @@ function OpdPageInner() {
               />
               <div style={{ width: 240 }}>
                 <DoctorSearchSelect
-                  label="Doctor"
-                  placeholder="Filter doctor"
+                  label={t("label.doctor")}
+                  placeholder={t("queueFilters.doctor")}
                   value={filterDoctorId ?? ""}
                   onChange={(value) => {
                     setFilterDoctorId(value || null);
@@ -1254,7 +1381,7 @@ function OpdPageInner() {
                 />
               </div>
               <Switch
-                label="My Patients"
+                label={t("label.myPatients")}
                 checked={myPatientsOnly}
                 onChange={(e) => {
                   setMyPatientsOnly(e.currentTarget.checked);
@@ -1283,13 +1410,11 @@ function OpdPageInner() {
           />
           <Tabs value={queueVisitTypeTab} onChange={setQueueVisitTypeTab} mb="xs">
             <Tabs.List>
-              <Tabs.Tab value="all">All</Tabs.Tab>
-              <Tabs.Tab value="walk_in">Walk-in</Tabs.Tab>
-              <Tabs.Tab value="booked">Appointments</Tabs.Tab>
-              <Tabs.Tab value="follow_up">Follow-up</Tabs.Tab>
-              <Tabs.Tab value="referral">Referral</Tabs.Tab>
-              <Tabs.Tab value="emergency">Emergency</Tabs.Tab>
-              <Tabs.Tab value="camp">Camp</Tabs.Tab>
+              {queueVisitTypeTabs.map((tab) => (
+                <Tabs.Tab key={tab.value} value={tab.value}>
+                  {tab.label}
+                </Tabs.Tab>
+              ))}
             </Tabs.List>
           </Tabs>
           <DataTable
@@ -1316,31 +1441,62 @@ function OpdPageInner() {
   );
 }
 
+function QueuePatientCell({
+  access,
+  row,
+}: {
+  access: { name: FieldAccessLevel; uhid: FieldAccessLevel };
+  row: QueueEntry;
+}) {
+  const { t } = useTranslation("opd");
+  const identity = protectedOpdQueueIdentity(row, access, {
+    patient: t("queueFallback.patient"),
+    uhid: t("queueFallback.uhid"),
+  });
+
+  return (
+    <Stack gap={2}>
+      <Text size="sm" fw={600} lineClamp={1}>
+        {identity.name}
+      </Text>
+      <Text size="xs" c="dimmed" ff="var(--fc-font-mono, monospace)">
+        {identity.uhid}
+      </Text>
+    </Stack>
+  );
+}
+
 function QueueAppointmentMarker({ row }: { row: QueueEntry }) {
+  const { t } = useTranslation("opd");
+
   if (!row.appointment_id) {
     return (
-      <Badge size="sm" variant="light" color="gray">
-        Walk-in
-      </Badge>
+      <OperationalSignal
+        label={t("queueSignals.directQueue")}
+        shape="pill"
+        size="xs"
+        tone="neutral"
+      />
     );
   }
 
-  const typeLabel = appointmentTypeLabels[row.appointment_type ?? "new_visit"] ?? "Appointment";
+  const typeLabel = appointmentTypeLabel(t, row.appointment_type ?? "new_visit");
   const status = row.appointment_status ?? row.status;
-  const statusLabel = appointmentStatusLabels[status] ?? status.replace(/_/g, " ");
+  const statusLabel = appointmentStatusLabel(t, status);
 
   return (
     <Stack gap={2}>
       <Group gap={4}>
-        <Badge size="sm" variant="light" color="primary">
-          {typeLabel}
-        </Badge>
-        <Badge size="sm" color={appointmentStatusColors[status] ?? "gray"}>
-          {statusLabel}
-        </Badge>
+        <OperationalSignal label={typeLabel} shape="token" size="xs" tone="active" />
+        <OperationalSignal
+          label={statusLabel}
+          shape={appointmentStatusShape(status)}
+          size="xs"
+          tone={appointmentStatusTone(status)}
+        />
       </Group>
       <Text size="xs" c="dimmed">
-        {appointmentSlotLabel(row)}
+        {appointmentSlotLabel(row, t("queue.noSlot"))}
       </Text>
       {row.appointment_reason && (
         <Text size="xs" c="dimmed" lineClamp={1}>
@@ -1352,12 +1508,16 @@ function QueueAppointmentMarker({ row }: { row: QueueEntry }) {
 }
 
 function QueueVisitTypeBadge({ row }: { row: QueueEntry }) {
+  const { t } = useTranslation("opd");
   const visitType = row.visit_type ?? (row.appointment_id ? "booked" : "walk_in");
   return (
     <Stack gap={2}>
-      <Badge size="sm" variant="light" color={queueVisitTypeColors[visitType] ?? "gray"}>
-        {queueVisitTypeLabels[visitType] ?? visitType.replace(/_/g, " ")}
-      </Badge>
+      <OperationalSignal
+        label={queueVisitTypeLabel(t, visitType)}
+        shape={queueVisitTypeShape(visitType)}
+        size="xs"
+        tone={queueVisitTypeTone(visitType)}
+      />
       {visitType === "camp" && row.camp_name && (
         <Text size="xs" c="dimmed" lineClamp={1}>
           {row.camp_name}
@@ -1386,6 +1546,7 @@ function TodayAppointmentsPanel({
   patientNameAccess: FieldAccessLevel;
   onCheckIn: (appointment: AppointmentWithPatient) => void;
 }) {
+  const { t } = useTranslation("opd");
   const today = todayIsoDate();
 
   return (
@@ -1393,37 +1554,40 @@ function TodayAppointmentsPanel({
       <Group justify="space-between" mb="xs">
         <div>
           <Text fw={600} size="sm">
-            Booked and follow-up appointments
+            {t("appointments.title")}
           </Text>
           <Text size="xs" c="dimmed">
-            {appointmentDate} - move time-based appointments into OPD from here
+            {t("appointments.subtitle", { date: appointmentDate })}
           </Text>
         </div>
-        <Badge variant="light" color="primary">
-          {appointments.length}
-        </Badge>
+        <OperationalSignal
+          label={t("appointments.count")}
+          shape="token"
+          tone={appointments.length > 0 ? "active" : "neutral"}
+          value={String(appointments.length)}
+        />
       </Group>
 
       {loading ? (
         <Group py="md" justify="center">
           <Loader size="sm" />
           <Text size="sm" c="dimmed">
-            Loading appointments
+            {t("appointments.loading")}
           </Text>
         </Group>
       ) : appointments.length === 0 ? (
         <Text size="sm" c="dimmed" py="xs">
-          No booked or follow-up appointments for this date.
+          {t("appointments.empty")}
         </Text>
       ) : (
         <Table verticalSpacing="xs" withRowBorders={false}>
           <Table.Thead>
             <Table.Tr>
-              <Table.Th>Time</Table.Th>
-              <Table.Th>Patient</Table.Th>
-              <Table.Th>Doctor</Table.Th>
-              <Table.Th>Type</Table.Th>
-              <Table.Th>Status</Table.Th>
+              <Table.Th>{t("appointments.time")}</Table.Th>
+              <Table.Th>{t("appointments.patient")}</Table.Th>
+              <Table.Th>{t("appointments.doctor")}</Table.Th>
+              <Table.Th>{t("appointments.type")}</Table.Th>
+              <Table.Th>{t("appointments.status")}</Table.Th>
               <Table.Th />
             </Table.Tr>
           </Table.Thead>
@@ -1434,14 +1598,18 @@ function TodayAppointmentsPanel({
                 !appointment.encounter_id &&
                 !isFutureAppointment &&
                 ["scheduled", "confirmed", "checked_in"].includes(appointment.status);
-              const statusLabel =
-                appointmentStatusLabels[appointment.status] ??
-                appointment.status.replace(/_/g, " ");
-              const patientName = protectedPatientName(appointment.patient_name, patientNameAccess);
+              const statusLabel = appointmentStatusLabel(t, appointment.status);
+              const protectedName = fieldAccessText(
+                patientNameAccess,
+                appointment.patient_name,
+                "name",
+              );
+              const patientName =
+                protectedName === "—" ? t("queueFallback.patient") : protectedName;
               return (
                 <Table.Tr key={appointment.id}>
                   <Table.Td>
-                    <Text size="sm">{appointmentSlotLabel(appointment)}</Text>
+                    <Text size="sm">{appointmentSlotLabel(appointment, t("queue.noSlot"))}</Text>
                   </Table.Td>
                   <Table.Td>
                     <Text size="sm" fw={500}>
@@ -1457,29 +1625,43 @@ function TodayAppointmentsPanel({
                     <Text size="sm">{appointment.doctor_name}</Text>
                   </Table.Td>
                   <Table.Td>
-                    <Badge size="sm" variant="light" color="primary">
-                      {appointmentTypeLabels[appointment.appointment_type] ??
-                        appointment.appointment_type}
-                    </Badge>
+                    <OperationalSignal
+                      label={appointmentTypeLabel(t, appointment.appointment_type)}
+                      shape="token"
+                      size="xs"
+                      tone="active"
+                    />
                   </Table.Td>
                   <Table.Td>
-                    <Badge size="sm" color={appointmentStatusColors[appointment.status] ?? "gray"}>
-                      {statusLabel}
-                    </Badge>
+                    <OperationalSignal
+                      label={statusLabel}
+                      shape={appointmentStatusShape(appointment.status)}
+                      size="xs"
+                      tone={appointmentStatusTone(appointment.status)}
+                    />
                   </Table.Td>
                   <Table.Td>
                     {appointment.status === "completed" ? (
-                      <Badge size="sm" color="success">
-                        Carried out
-                      </Badge>
+                      <OperationalSignal
+                        label={t("appointmentHandoff.carriedOut")}
+                        shape="pill"
+                        size="xs"
+                        tone="ready"
+                      />
                     ) : appointment.encounter_id ? (
-                      <Badge size="sm" variant="light" color="warning">
-                        In OPD
-                      </Badge>
+                      <OperationalSignal
+                        label={t("appointmentHandoff.inOpd")}
+                        shape="diamond"
+                        size="xs"
+                        tone="active"
+                      />
                     ) : isFutureAppointment ? (
-                      <Badge size="sm" variant="light" color="gray">
-                        Future slot
-                      </Badge>
+                      <OperationalSignal
+                        label={t("appointmentHandoff.futureSlot")}
+                        shape="token"
+                        size="xs"
+                        tone="neutral"
+                      />
                     ) : (
                       <Button
                         size="xs"
@@ -1489,7 +1671,7 @@ function TodayAppointmentsPanel({
                         loading={isCheckingIn && checkingInId === appointment.id}
                         onClick={() => onCheckIn(appointment)}
                       >
-                        Send to OPD
+                        {t("appointmentHandoff.sendToOpd")}
                       </Button>
                     )}
                   </Table.Td>
@@ -5939,6 +6121,7 @@ function FollowupComplianceTab() {
 }
 
 function WaitTimeBadge({ departmentId, doctorId }: { departmentId?: string; doctorId?: string }) {
+  const { t } = useTranslation("opd");
   const { data: estimate } = useQuery({
     queryKey: ["wait-estimate", departmentId, doctorId],
     queryFn: () => opdService.getWaitEstimate({ department_id: departmentId, doctor_id: doctorId }),
@@ -5948,9 +6131,13 @@ function WaitTimeBadge({ departmentId, doctorId }: { departmentId?: string; doct
   if (!estimate || estimate.queue_position === 0) return null;
 
   return (
-    <Badge size="lg" variant="light" color="orange" radius="sm">
-      ~{estimate.estimated_minutes} min wait ({estimate.queue_position} in queue)
-    </Badge>
+    <OperationalSignal
+      icon={IconClock}
+      label={t("waitEstimate.position", { position: estimate.queue_position })}
+      shape="diamond"
+      tone="blocked"
+      value={t("waitEstimate.minutes", { minutes: estimate.estimated_minutes })}
+    />
   );
 }
 
