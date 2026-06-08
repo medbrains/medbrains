@@ -1,4 +1,4 @@
-# MedBrains Goal 1 - Patient Flow Problem Statement
+# MedBrains Goal 1 - Continuous Patient Flow Problem
 
 ## Core Problem
 
@@ -12,13 +12,18 @@ readiness.
 When this happens, staff must re-search patients, repeat data entry, guess the next
 valid action, work around disabled buttons, or trust reports and displays that are
 not tied to the frontline workflow. That creates delay, billing leakage, privacy risk,
-patient-safety risk, and poor adoption even if every individual module technically
+patient-safety risk, and poor adoption even when every individual module technically
 exists.
 
 ## Problem To Solve
 
-The application must let hospital staff move one patient through real care workflows
-without losing context:
+The goal is to make one patient journey stay coherent across every operational
+handoff. A patient who starts at registration, OPD, emergency, camp, or IPD should
+carry the same identity, encounter, admission, order, invoice, permission, masking,
+and event context wherever the workflow goes next.
+
+The product problem is not "add more module rules." The problem is to remove the
+breaks that force hospital staff to manually reconnect patient context across:
 
 - Registration to OPD, emergency, camp, or IPD.
 - OPD or emergency to orders, pharmacy, admission, billing, reports, and follow-up.
@@ -28,7 +33,7 @@ without losing context:
   billing, and reports.
 - Pharmacy and billing work that starts from patient-linked events and orders rather
   than duplicated manual context.
-- Settings that explains which routes, actions, reports, token boards, printouts,
+- Settings that explain which routes, actions, reports, token boards, printouts,
   mobile screens, TV screens, kiosk flows, permissions, and masking rules govern the
   actual patient journey.
 
@@ -90,20 +95,24 @@ continue through OPD, IPD, emergency, camp, pharmacy, billing, reports, and devi
 surfaces without unnecessary re-searching, duplicated context entry, unsafe identity
 exposure, unexplained disabled actions, or disconnected reports.
 
-Every major patient-flow action should answer four questions in the product:
+Every patient-flow slice should be chosen because it reduces one of these concrete
+failure modes:
 
-- What patient, encounter, admission, camp, order, invoice, or queue context is this
-  action using?
-- Which canonical event or patient state makes the action available?
-- Which permission, masking, configuration, or regulatory condition controls it?
-- Which route, tab, report, printout, token board, mobile screen, TV screen, or kiosk
-  surface reflects the result?
+- Staff cannot tell which patient, encounter, admission, camp, order, invoice, or
+  queue context an action will use.
+- A handoff exists in one module but is hidden or unavailable in the next place staff
+  need it.
+- An action is blocked without a reason tied to patient state, event state,
+  permissions, configuration, masking, or regulatory requirements.
+- Reports, printouts, token boards, mobile screens, TV screens, or kiosk surfaces show
+  a different truth than the staff workflow.
+- Administrators cannot see which part of the patient journey is missing coverage or
+  governed by the wrong access policy.
 
 ## Evidence Of Progress
 
-Progress on this goal must be shown through working behavior, not broad design rules.
-Each completed slice should prove one concrete patient-flow problem is reduced, such
-as:
+Progress on this goal is measured by working reductions in those failure modes. A
+completed slice should show a before-and-after patient-flow improvement, such as:
 
 - A handoff becomes available from the patient workspace at the right time.
 - A blocked action shows a traceable reason: context, event, permission,
@@ -117,6 +126,6 @@ as:
 - A stable route or tab replaces a hidden drawer/menu for durable clinical,
   operational, or administrative work.
 
-Focused tests, type checks, API-contract checks, and UI/runtime evidence should be
-used for each touched workflow so the goal remains tied to hospital problems rather
-than general development rules.
+Verification exists to prove the hospital problem is fixed. Tests, type checks,
+API-contract checks, and UI/runtime evidence should be attached to the touched
+workflow only when they demonstrate that the patient-flow break no longer occurs.
