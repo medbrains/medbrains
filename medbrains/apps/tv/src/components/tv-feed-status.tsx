@@ -4,6 +4,8 @@ import {
   tokenBoardFeedIsStale,
   tokenBoardFeedReadiness,
   tokenBoardOperationalReadinessItems,
+  tokenBoardReadinessLabel,
+  tokenBoardReadinessValue,
   tokenBoardRefreshLabel,
 } from "@medbrains/types";
 import type { IntentTone } from "@medbrains/ui-mobile";
@@ -50,7 +52,11 @@ export function tvFeedReadiness(
   refreshIntervalMs: number,
 ): { label: string; tone: IntentTone; value: string } {
   const readiness = tokenBoardFeedReadiness({ isError, refreshIntervalMs, updatedAt });
-  return { ...readiness, tone: tvReadinessTone(readiness.tone) };
+  return {
+    label: tokenBoardReadinessLabel(readiness.label),
+    tone: tvReadinessTone(readiness.tone),
+    value: tokenBoardReadinessValue(readiness.value),
+  };
 }
 
 export function tvTokenBoardLegend(
@@ -71,8 +77,9 @@ export function tvTokenBoardReadinessItems({
   updatedAt: number;
 }): { label: string; tone: IntentTone; value: string }[] {
   return tokenBoardOperationalReadinessItems({ isError, surface, updatedAt }).map((item) => ({
-    ...item,
+    label: tokenBoardReadinessLabel(item.label),
     tone: tvReadinessTone(item.tone),
+    value: tokenBoardReadinessValue(item.value),
   }));
 }
 

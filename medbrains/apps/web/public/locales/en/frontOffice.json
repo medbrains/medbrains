@@ -17,6 +17,7 @@
   "tokenBoards.readiness.labels.refresh": "Refresh",
   "tokenBoards.readiness.values.degraded": "Degraded",
   "tokenBoards.readiness.values.live": "Live",
+  "tokenBoards.readiness.values.refreshSeconds": "{{seconds}}s",
   "tokenBoards.readiness.values.stale": "Stale",
   "tokenBoards.readiness.values.tokenOnly": "Token only",
   "tokenBoards.readiness.values.waiting": "Waiting",

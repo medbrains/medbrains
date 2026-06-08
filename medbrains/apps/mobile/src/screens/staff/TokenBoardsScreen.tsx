@@ -23,10 +23,16 @@ import {
   TOKEN_BOARD_SURFACES,
   tokenBoardMobileRouteParams,
   tokenBoardOperationalReadinessItems,
+  tokenBoardReadinessLabel,
+  tokenBoardReadinessLabelKey,
+  tokenBoardReadinessValue,
+  tokenBoardReadinessValueKey,
+  tokenBoardRefreshValueKey,
   tokenBoardStatusLabel,
   tokenBoardStatusLabelKey,
   tokenBoardStatusSignal,
   tokenBoardSurfaceFilterFromParam,
+  tokenBoardSurfaceFlowLabelKey,
 } from "@medbrains/types";
 import type { ReactNode } from "react";
 import { ScrollView, StyleSheet, View } from "react-native";
@@ -166,6 +172,22 @@ function tokenBoardsText(key: string, values?: Record<string, string | number | 
   return mobilePatientJourneyText(key, values);
 }
 
+function mobileTokenBoardI18nKey(sharedKey: string): string {
+  return `patientJourney.mobile.${sharedKey}`;
+}
+
+function mobileSharedTokenBoardText({
+  fallback,
+  key,
+  values,
+}: {
+  fallback: string;
+  key: string | null;
+  values?: Record<string, string | number | boolean>;
+}): string {
+  return key ? tokenBoardsText(mobileTokenBoardI18nKey(key), values) : fallback;
+}
+
 function countLabel(count: number, singularKey: string, pluralKey: string): string {
   return tokenBoardsText(count === 1 ? singularKey : pluralKey, { count });
 }
@@ -179,10 +201,10 @@ function overdueTargetLabel(count: number): string {
 }
 
 function statusLabel(value: string) {
-  const sharedKey = tokenBoardStatusLabelKey(value);
-  return sharedKey
-    ? tokenBoardsText(`patientJourney.mobile.${sharedKey}`)
-    : tokenBoardStatusLabel(value);
+  return mobileSharedTokenBoardText({
+    fallback: tokenBoardStatusLabel(value),
+    key: tokenBoardStatusLabelKey(value),
+  });
 }
 
 function priorityLabel(value: QueuePriority) {
@@ -211,10 +233,6 @@ function surfaceRestrictedLabel(surface: TokenBoardSurfaceDefinition): string {
   return tokenBoardsText(SURFACE_TEXT_KEYS[surface.id].restricted);
 }
 
-function surfaceFlowLabel(surface: TokenBoardSurfaceDefinition): string {
-  return tokenBoardsText(SURFACE_TEXT_KEYS[surface.id].flow);
-}
-
 function counterLabel(counter: number): string {
   return tokenBoardsText(TOKEN_BOARDS_TEXT.meta.counter, { counter });
 }
@@ -222,27 +240,6 @@ function counterLabel(counter: number): string {
 function billingQueueTypeLabel(queueType: string): string {
   const key = BILLING_QUEUE_TYPE_LABEL_KEYS[queueType];
   return key ? tokenBoardsText(key) : queueType;
-}
-
-function refreshValue(surface: TokenBoardSurfaceDefinition): string {
-  return tokenBoardsText(TOKEN_BOARDS_TEXT.readiness.values.refreshSeconds, {
-    seconds: surface.refreshIntervalMs / 1_000,
-  });
-}
-
-function feedReadinessValue(value: string): string {
-  switch (value) {
-    case "Degraded":
-      return tokenBoardsText(TOKEN_BOARDS_TEXT.readiness.values.degraded);
-    case "Live":
-      return tokenBoardsText(TOKEN_BOARDS_TEXT.readiness.values.live);
-    case "Stale":
-      return tokenBoardsText(TOKEN_BOARDS_TEXT.readiness.values.stale);
-    case "Waiting":
-      return tokenBoardsText(TOKEN_BOARDS_TEXT.readiness.values.waiting);
-    default:
-      return tokenBoardsText(TOKEN_BOARDS_TEXT.readiness.values.waiting);
-  }
 }
 
 function tokenBoardReadinessItems({
@@ -255,34 +252,28 @@ function tokenBoardReadinessItems({
   updatedAt: number;
 }): TokenBoardReadinessItem[] {
   return tokenBoardOperationalReadinessItems({ isError, surface, updatedAt }).map((item) => {
-    switch (item.label) {
-      case "Privacy":
-        return {
-          ...item,
-          label: tokenBoardsText(TOKEN_BOARDS_TEXT.readiness.labels.privacy),
-          value: tokenBoardsText(TOKEN_BOARDS_TEXT.readiness.values.tokenOnly),
-        };
-      case "Feed":
-        return {
-          ...item,
-          label: tokenBoardsText(TOKEN_BOARDS_TEXT.readiness.labels.feed),
-          value: feedReadinessValue(item.value),
-        };
-      case "Refresh":
-        return {
-          ...item,
-          label: tokenBoardsText(TOKEN_BOARDS_TEXT.readiness.labels.refresh),
-          value: refreshValue(surface),
-        };
-      case "Flow":
-        return {
-          ...item,
-          label: tokenBoardsText(TOKEN_BOARDS_TEXT.readiness.labels.flow),
-          value: surfaceFlowLabel(surface),
-        };
-      default:
-        return item;
-    }
+    const valueKey =
+      item.label === "Refresh"
+        ? tokenBoardRefreshValueKey()
+        : item.label === "Flow"
+          ? tokenBoardSurfaceFlowLabelKey(surface.id)
+          : tokenBoardReadinessValueKey(item.value);
+
+    const values =
+      item.label === "Refresh" ? { seconds: surface.refreshIntervalMs / 1_000 } : undefined;
+
+    return {
+      ...item,
+      label: mobileSharedTokenBoardText({
+        fallback: tokenBoardReadinessLabel(item.label),
+        key: tokenBoardReadinessLabelKey(item.label),
+      }),
+      value: mobileSharedTokenBoardText({
+        fallback: tokenBoardReadinessValue(item.value),
+        key: valueKey,
+        values,
+      }),
+    };
   });
 }
 

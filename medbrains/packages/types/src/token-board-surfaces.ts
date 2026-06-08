@@ -414,6 +414,71 @@ export function tokenBoardOperationalReadinessItems({
   ];
 }
 
+const TOKEN_BOARD_READINESS_LABEL_KEYS: Readonly<Record<string, string>> = {
+  Feed: "tokenBoards.readiness.labels.feed",
+  Flow: "tokenBoards.readiness.labels.flow",
+  Privacy: "tokenBoards.readiness.labels.privacy",
+  Refresh: "tokenBoards.readiness.labels.refresh",
+};
+
+const TOKEN_BOARD_READINESS_LABELS: Readonly<Record<string, string>> = {
+  Feed: "Feed",
+  Flow: "Flow",
+  Privacy: "Privacy",
+  Refresh: "Refresh",
+};
+
+const TOKEN_BOARD_READINESS_VALUE_KEYS: Readonly<Record<string, string>> = {
+  Degraded: "tokenBoards.readiness.values.degraded",
+  Live: "tokenBoards.readiness.values.live",
+  Stale: "tokenBoards.readiness.values.stale",
+  "Token only": "tokenBoards.readiness.values.tokenOnly",
+  Waiting: "tokenBoards.readiness.values.waiting",
+};
+
+const TOKEN_BOARD_READINESS_VALUES: Readonly<Record<string, string>> = {
+  Degraded: "Degraded",
+  Live: "Live",
+  Stale: "Stale",
+  "Token only": "Token only",
+  Waiting: "Waiting",
+};
+
+const TOKEN_BOARD_REFRESH_VALUE_KEY = "tokenBoards.readiness.values.refreshSeconds";
+
+const TOKEN_BOARD_SURFACE_FLOW_LABEL_KEYS: Readonly<Record<TokenBoardSurfaceId, string>> = {
+  billing: "tokenBoards.surfaces.billing.flow",
+  emergency: "tokenBoards.surfaces.emergency.flow",
+  lab: "tokenBoards.surfaces.lab.flow",
+  opd: "tokenBoards.surfaces.opd.flow",
+  pharmacy: "tokenBoards.surfaces.pharmacy.flow",
+  radiology: "tokenBoards.surfaces.radiology.flow",
+};
+
+export function tokenBoardReadinessLabelKey(label: string): string | null {
+  return TOKEN_BOARD_READINESS_LABEL_KEYS[label] ?? null;
+}
+
+export function tokenBoardReadinessLabel(label: string): string {
+  return TOKEN_BOARD_READINESS_LABELS[label] ?? label;
+}
+
+export function tokenBoardReadinessValueKey(value: string): string | null {
+  return TOKEN_BOARD_READINESS_VALUE_KEYS[value] ?? null;
+}
+
+export function tokenBoardReadinessValue(value: string): string {
+  return TOKEN_BOARD_READINESS_VALUES[value] ?? value;
+}
+
+export function tokenBoardRefreshValueKey(): string {
+  return TOKEN_BOARD_REFRESH_VALUE_KEY;
+}
+
+export function tokenBoardSurfaceFlowLabelKey(surfaceId: TokenBoardSurfaceId): string {
+  return TOKEN_BOARD_SURFACE_FLOW_LABEL_KEYS[surfaceId];
+}
+
 const TOKEN_BOARD_DEFAULT_STATUS_SIGNAL = {
   emphasis: "low",
   phase: "waiting",

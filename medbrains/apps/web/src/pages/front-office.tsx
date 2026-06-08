@@ -54,9 +54,14 @@ import {
   tokenBoardStatusLabel as sharedTokenBoardStatusLabel,
   TOKEN_BOARD_SURFACE_LIST,
   TOKEN_BOARD_SURFACES,
-  tokenBoardFeedReadiness,
-  tokenBoardRefreshLabel,
+  tokenBoardOperationalReadinessItems,
+  tokenBoardReadinessLabel,
+  tokenBoardReadinessLabelKey,
+  tokenBoardReadinessValue,
+  tokenBoardReadinessValueKey,
+  tokenBoardRefreshValueKey,
   tokenBoardStatusLabelKey,
+  tokenBoardSurfaceFlowLabelKey,
 } from "@medbrains/types";
 import {
   IconAmbulance,
@@ -184,22 +189,6 @@ const EMERGENCY_BOARD = TOKEN_BOARD_SURFACES.emergency;
 const PHARMACY_BOARD = TOKEN_BOARD_SURFACES.pharmacy;
 const BILLING_BOARD = TOKEN_BOARD_SURFACES.billing;
 
-const TOKEN_BOARD_READINESS_VALUE_I18N_KEYS: Partial<Record<string, string>> = {
-  Degraded: "tokenBoards.readiness.values.degraded",
-  Live: "tokenBoards.readiness.values.live",
-  Stale: "tokenBoards.readiness.values.stale",
-  Waiting: "tokenBoards.readiness.values.waiting",
-};
-
-const TOKEN_BOARD_SURFACE_FLOW_I18N_KEYS: Record<TokenBoardSurfaceId, string> = {
-  billing: "tokenBoards.surfaces.billing.flow",
-  emergency: "tokenBoards.surfaces.emergency.flow",
-  lab: "tokenBoards.surfaces.lab.flow",
-  opd: "tokenBoards.surfaces.opd.flow",
-  pharmacy: "tokenBoards.surfaces.pharmacy.flow",
-  radiology: "tokenBoards.surfaces.radiology.flow",
-};
-
 type FrontOfficeTranslator = (
   key: string,
   values?: Record<string, boolean | number | string>,
@@ -208,6 +197,23 @@ type FrontOfficeTranslator = (
 function tokenBoardStatusLabel(status: string, t: FrontOfficeTranslator): string {
   const key = tokenBoardStatusLabelKey(status);
   return key ? t(key) : sharedTokenBoardStatusLabel(status);
+}
+
+function translatedTokenBoardText({
+  fallback,
+  key,
+  t,
+  values,
+}: {
+  fallback: string;
+  key: string | null;
+  t: FrontOfficeTranslator;
+  values?: Record<string, boolean | number | string>;
+}): string {
+  if (!key) return fallback;
+
+  const translated = t(key, values);
+  return translated === key ? fallback : translated;
 }
 
 function tokenBoardReadinessItemsForWeb({
@@ -221,35 +227,32 @@ function tokenBoardReadinessItemsForWeb({
   t: FrontOfficeTranslator;
   updatedAt: number;
 }): TokenBoardReadinessItem[] {
-  const feed = tokenBoardFeedReadiness({
-    isError,
-    refreshIntervalMs: surface.refreshIntervalMs,
-    updatedAt,
-  });
-  const feedValueKey = TOKEN_BOARD_READINESS_VALUE_I18N_KEYS[feed.value];
+  return tokenBoardOperationalReadinessItems({ isError, surface, updatedAt }).map((item) => {
+    const valueKey =
+      item.label === "Refresh"
+        ? tokenBoardRefreshValueKey()
+        : item.label === "Flow"
+          ? tokenBoardSurfaceFlowLabelKey(surface.id)
+          : tokenBoardReadinessValueKey(item.value);
 
-  return [
-    {
-      label: t("tokenBoards.readiness.labels.privacy"),
-      tone: "success",
-      value: t("tokenBoards.readiness.values.tokenOnly"),
-    },
-    {
-      label: t("tokenBoards.readiness.labels.feed"),
-      tone: feed.tone,
-      value: feedValueKey ? t(feedValueKey) : feed.value,
-    },
-    {
-      label: t("tokenBoards.readiness.labels.refresh"),
-      tone: "info",
-      value: tokenBoardRefreshLabel(surface),
-    },
-    {
-      label: t("tokenBoards.readiness.labels.flow"),
-      tone: surface.id === "emergency" ? "danger" : "info",
-      value: t(TOKEN_BOARD_SURFACE_FLOW_I18N_KEYS[surface.id]),
-    },
-  ];
+    const values =
+      item.label === "Refresh" ? { seconds: surface.refreshIntervalMs / 1_000 } : undefined;
+
+    return {
+      ...item,
+      label: translatedTokenBoardText({
+        fallback: tokenBoardReadinessLabel(item.label),
+        key: tokenBoardReadinessLabelKey(item.label),
+        t,
+      }),
+      value: translatedTokenBoardText({
+        fallback: tokenBoardReadinessValue(item.value),
+        key: valueKey,
+        t,
+        values,
+      }),
+    };
+  });
 }
 
 // ══════════════════════════════════════════════════════════

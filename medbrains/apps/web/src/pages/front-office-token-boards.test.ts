@@ -18,11 +18,17 @@ import {
   tokenBoardFeedReadiness,
   tokenBoardMobileRouteParams,
   tokenBoardOperationalReadinessItems,
+  tokenBoardReadinessLabel,
+  tokenBoardReadinessLabelKey,
+  tokenBoardReadinessValue,
+  tokenBoardReadinessValueKey,
   tokenBoardRefreshLabel,
+  tokenBoardRefreshValueKey,
   tokenBoardStatusLabel,
   tokenBoardStatusLabelKey,
   tokenBoardStatusSignal,
   tokenBoardSurfaceFilterFromParam,
+  tokenBoardSurfaceFlowLabelKey,
 } from "@medbrains/types";
 import { describe, expect, it } from "vitest";
 import {
@@ -228,6 +234,30 @@ describe("front-office token-board display mapping", () => {
     expect(tokenBoardStatusLabel("partially_paid")).toBe("Partially paid");
     expect(tokenBoardStatusLabel("custom_status")).toBe("custom status");
     expect(tokenBoardStatusLabelKey("custom_status")).toBeNull();
+  });
+
+  it("keeps token-board readiness labels and values shared across device surfaces", () => {
+    expect(tokenBoardReadinessLabelKey("Privacy")).toBe("tokenBoards.readiness.labels.privacy");
+    expect(tokenBoardReadinessLabelKey("Feed")).toBe("tokenBoards.readiness.labels.feed");
+    expect(tokenBoardReadinessLabelKey("Refresh")).toBe("tokenBoards.readiness.labels.refresh");
+    expect(tokenBoardReadinessLabelKey("Flow")).toBe("tokenBoards.readiness.labels.flow");
+    expect(tokenBoardReadinessLabelKey("Unknown")).toBeNull();
+    expect(tokenBoardReadinessLabel("Unknown")).toBe("Unknown");
+
+    expect(tokenBoardReadinessValueKey("Token only")).toBe(
+      "tokenBoards.readiness.values.tokenOnly",
+    );
+    expect(tokenBoardReadinessValueKey("Degraded")).toBe("tokenBoards.readiness.values.degraded");
+    expect(tokenBoardReadinessValueKey("Live")).toBe("tokenBoards.readiness.values.live");
+    expect(tokenBoardReadinessValueKey("Stale")).toBe("tokenBoards.readiness.values.stale");
+    expect(tokenBoardReadinessValueKey("Waiting")).toBe("tokenBoards.readiness.values.waiting");
+    expect(tokenBoardReadinessValueKey("Custom")).toBeNull();
+    expect(tokenBoardReadinessValue("Custom")).toBe("Custom");
+
+    expect(tokenBoardRefreshValueKey()).toBe("tokenBoards.readiness.values.refreshSeconds");
+    expect(tokenBoardSurfaceFlowLabelKey("billing")).toBe("tokenBoards.surfaces.billing.flow");
+    expect(tokenBoardSurfaceFlowLabelKey("emergency")).toBe("tokenBoards.surfaces.emergency.flow");
+    expect(tokenBoardSurfaceFlowLabelKey("pharmacy")).toBe("tokenBoards.surfaces.pharmacy.flow");
   });
 
   it("keeps OPD public display tokens free of patient identifiers", () => {
