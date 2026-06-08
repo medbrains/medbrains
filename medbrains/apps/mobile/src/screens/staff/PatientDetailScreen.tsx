@@ -13,6 +13,7 @@ import {
   activePatientPharmacyOrderIdForJourney,
   activePatientPharmacyRxQueueIdForJourney,
   deriveCampJourneyCompletedEvents,
+  hasReviewedPatientPharmacyPrescriptionForJourney,
   P,
 } from "@medbrains/types";
 import { fieldAccessText, mostRestrictedFieldAccess } from "@medbrains/utils";
@@ -284,9 +285,14 @@ export function PatientDetailScreen({ route, navigation }: PatientDetailScreenPr
   const activeInvoiceId = activePatientInvoiceIdForJourney(invoiceList);
   const activePharmacyOrderId = activePatientPharmacyOrderIdForJourney(prescriptionList);
   const activePharmacyRxQueueId = activePatientPharmacyRxQueueIdForJourney(prescriptionList);
+  const hasReviewedPharmacyPrescription =
+    hasReviewedPatientPharmacyPrescriptionForJourney(prescriptionList);
   const completedEvents: ClinicalEventName[] = [];
   if (hasMedicationOrder) completedEvents.push("order.created");
   completedEvents.push(...campCompletedEvents);
+  if (hasReviewedPharmacyPrescription) {
+    completedEvents.push("pharmacy.prescription.reviewed");
+  }
   if (hasBillingInvoice) completedEvents.push("billing.invoice.created");
   if (hasFinalizedInvoice) completedEvents.push("billing.invoice.finalized");
   if (hasPaymentReceived) completedEvents.push("billing.payment.received");

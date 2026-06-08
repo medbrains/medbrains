@@ -110,6 +110,10 @@ describe("clinical journey event activation", () => {
     expect(
       actions.find((action) => action.id === "pharmacy.open_patient_queue")?.disabledReasonText,
     ).toContain("pharmacy prescription reviewed");
+    expect(actions.find((action) => action.id === "pharmacy.open_patient_queue")).toMatchObject({
+      activationDisabledReasonKey: "patientJourney.blockers.availableAfterEvents",
+      disabledReasonKey: "patientJourney.blockers.availableAfterEvents",
+    });
   });
 
   it("can include permission-denied actions as disabled explainable handoffs", () => {
@@ -127,12 +131,18 @@ describe("clinical journey event activation", () => {
 
     expect(defaultActions.some((action) => action.id === "billing.open_ledger")).toBe(false);
     expect(explainableActions.find((action) => action.id === "billing.open_ledger")).toMatchObject({
+      disabledReasonKey: "patientJourney.blockers.requiresPermissions",
       disabledReasonText: "Requires billing.invoices.list",
+      disabledReasonValues: { permissions: "billing.invoices.list" },
       enabled: false,
     });
     expect(explainableActions.find((action) => action.id === "camp.open_context")).toMatchObject({
+      disabledReasonKey: "patientJourney.blockers.requiresOneOfPermissions",
       disabledReasonText:
         "Requires one of camp.list / camp.registrations.list / camp.registrations.create",
+      disabledReasonValues: {
+        permissions: "camp.list / camp.registrations.list / camp.registrations.create",
+      },
       enabled: false,
     });
   });
@@ -201,16 +211,19 @@ describe("clinical journey event activation", () => {
 
     expect(actions.find((action) => action.id === "billing.collect_payment")).toMatchObject({
       blockedReason: "context",
+      disabledReasonKey: "patientJourney.blockers.linkInvoiceBeforeCollectingPayment",
       disabledReasonText: "Link an invoice before collecting payment",
       enabled: false,
     });
     expect(actions.find((action) => action.id === "billing.prepare_discharge_bill")).toMatchObject({
       blockedReason: "context",
+      disabledReasonKey: "patientJourney.blockers.linkFinalizedIpdAdmissionBeforeDischargeBill",
       disabledReasonText: "Link the finalized IPD admission before preparing the discharge bill",
       enabled: false,
     });
     expect(actions.find((action) => action.id === "pharmacy.dispense_order")).toMatchObject({
       blockedReason: "context",
+      disabledReasonKey: "patientJourney.blockers.linkPharmacyOrderBeforeDispensingMedicines",
       disabledReasonText: "Link the pharmacy order before dispensing medicines",
       enabled: false,
     });
@@ -228,6 +241,7 @@ describe("clinical journey event activation", () => {
 
     expect(actions.find((action) => action.id === "emergency.open_mlc")).toMatchObject({
       blockedReason: "context",
+      disabledReasonKey: "patientJourney.blockers.linkActiveErVisitBeforeMlc",
       disabledReasonText: "Link the active ER visit before opening MLC documentation",
       enabled: false,
     });
@@ -251,21 +265,29 @@ describe("clinical journey event activation", () => {
 
     expect(actions.find((action) => action.id === "billing.collect_payment")).toMatchObject({
       blockedReason: "configuration",
+      disabledReasonKey:
+        "patientJourney.blockers.configureActivePaymentMethodsBeforeCollectingPayment",
       disabledReasonText: "Configure active payment methods before collecting payment",
       enabled: false,
     });
     expect(actions.find((action) => action.id === "patient.print_card")).toMatchObject({
       blockedReason: "masking",
+      disabledReasonKey:
+        "patientJourney.blockers.configurePatientCardMaskingBeforePrintingIdentifiers",
       disabledReasonText: "Configure patient-card masking before printing identifiers",
       enabled: false,
     });
     expect(actions.find((action) => action.id === "patient.share")).toMatchObject({
       blockedReason: "regulatory",
+      disabledReasonKey:
+        "patientJourney.blockers.resolvePendingPatientConsentBeforeSharingRecords",
       disabledReasonText: "Resolve pending patient consent before sharing records",
       enabled: false,
     });
     expect(actions.find((action) => action.id === "pharmacy.dispense_order")).toMatchObject({
       blockedReason: "regulatory",
+      disabledReasonKey:
+        "patientJourney.blockers.completePharmacyRegulatoryClearanceBeforeDispensingMedicines",
       disabledReasonText: "Complete pharmacy regulatory clearance before dispensing medicines",
       enabled: false,
     });
@@ -285,9 +307,10 @@ describe("clinical journey event activation", () => {
     );
 
     expect(actions.find((action) => action.id === "orders.medication")?.enabled).toBe(false);
-    expect(actions.find((action) => action.id === "orders.medication")?.disabledReasonText).toBe(
-      "Assign a bed before inpatient orders",
-    );
+    expect(actions.find((action) => action.id === "orders.medication")).toMatchObject({
+      disabledReasonKey: "patientJourney.blockers.assignBedBeforeInpatientOrders",
+      disabledReasonText: "Assign a bed before inpatient orders",
+    });
   });
 
   it("enables inpatient orders once the active admission has a bed", () => {

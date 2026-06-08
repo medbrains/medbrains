@@ -59,5 +59,306 @@
     "items_other": "{{count}} items",
     "print": "Print Prescription",
     "typeCustomDrug": "Type to use custom drug name"
+  },
+  "patientJourney": {
+    "actions": {
+      "patient": {
+        "edit": {
+          "label": "Edit patient",
+          "shortLabel": "Edit",
+          "description": "Update patient demographics and identity data."
+        },
+        "share": {
+          "label": "Share record",
+          "shortLabel": "Share",
+          "description": "Grant time-bound patient record access."
+        },
+        "print_card": {
+          "label": "Print patient card",
+          "shortLabel": "Print",
+          "description": "Print a patient card with UHID and approved identifiers."
+        }
+      },
+      "opd": {
+        "open_visit": {
+          "label": "New OPD visit",
+          "shortLabel": "OPD",
+          "description": "Open a new OPD encounter for the registered patient."
+        }
+      },
+      "orders": {
+        "medication": {
+          "label": "Order medicines",
+          "shortLabel": "Medicines",
+          "description": "Create a medication order in the current OPD or IPD care context."
+        },
+        "lab": {
+          "label": "Order lab tests",
+          "shortLabel": "Lab",
+          "description": "Create a lab order in the current OPD or IPD care context."
+        },
+        "radiology": {
+          "label": "Order imaging",
+          "shortLabel": "Imaging",
+          "description": "Create a radiology order in the current OPD or IPD care context."
+        }
+      },
+      "ipd": {
+        "open_admission": {
+          "label": "Open IPD admission",
+          "shortLabel": "IPD",
+          "description": "Open the current active inpatient workspace."
+        },
+        "admit": {
+          "label": "Admit to IPD",
+          "shortLabel": "Admit",
+          "description": "Start inpatient admission from the patient context."
+        }
+      },
+      "emergency": {
+        "open_visit": {
+          "label": "Emergency visit",
+          "shortLabel": "ER",
+          "description": "Open an emergency visit using this patient's registration record."
+        },
+        "open_mlc": {
+          "label": "Open MLC",
+          "shortLabel": "MLC",
+          "description": "Open medico-legal case documentation from the emergency visit context."
+        }
+      },
+      "camp": {
+        "open_context": {
+          "label": "Camp context",
+          "shortLabel": "Camp",
+          "description": "Open outreach camp registration, screening, and follow-up context for this patient."
+        }
+      },
+      "billing": {
+        "open_ledger": {
+          "label": "Billing ledger",
+          "shortLabel": "Billing",
+          "description": "Open the patient billing ledger and payment context."
+        },
+        "prepare_discharge_bill": {
+          "label": "Prepare discharge bill",
+          "shortLabel": "Discharge Bill",
+          "description": "Open billing with this patient filtered after discharge summary finalization."
+        },
+        "collect_payment": {
+          "label": "Collect payment",
+          "shortLabel": "Payment",
+          "description": "Open payment collection for the patient's finalized or created invoice."
+        }
+      },
+      "pharmacy": {
+        "dispense_order": {
+          "label": "Dispense medicines",
+          "shortLabel": "Dispense",
+          "description": "Open dispensing for medication orders after pharmacy review or payment events."
+        },
+        "open_patient_queue": {
+          "label": "Pharmacy",
+          "shortLabel": "Pharmacy",
+          "description": "Open pharmacy prescription review, orders, and dispensing context for this patient."
+        }
+      },
+      "mrd": {
+        "open_case_sheet": {
+          "label": "MRD case sheet",
+          "shortLabel": "MRD",
+          "description": "Open the MRD case-sheet packet generated from the clinical workspace."
+        }
+      }
+    },
+    "badges": {
+      "afterEvent": "after {{event}}",
+      "always": "always",
+      "emitsEvent": "emits {{event}}"
+    },
+    "blockedReasons": {
+      "configuration": "configuration",
+      "context": "context",
+      "event": "event",
+      "masking": "masking",
+      "permission": "permission",
+      "regulatory": "regulatory control"
+    },
+    "blockers": {
+      "assignBedBeforeInpatientOrders": "Assign a bed before inpatient orders",
+      "availableAfterEvents": "Available after {{events}}",
+      "completePharmacyRegulatoryClearanceBeforeDispensingMedicines": "Complete pharmacy regulatory clearance before dispensing medicines",
+      "configureActivePaymentMethodsBeforeCollectingPayment": "Configure active payment methods before collecting payment",
+      "configurePatientCardMaskingBeforePrintingIdentifiers": "Configure patient-card masking before printing identifiers",
+      "linkActiveErVisitBeforeMlc": "Link the active ER visit before opening MLC documentation",
+      "linkFinalizedIpdAdmissionBeforeDischargeBill": "Link the finalized IPD admission before preparing the discharge bill",
+      "linkInvoiceBeforeCollectingPayment": "Link an invoice before collecting payment",
+      "linkPharmacyOrderBeforeDispensingMedicines": "Link the pharmacy order before dispensing medicines",
+      "noActiveIpdAdmission": "No active IPD admission for this patient",
+      "patientAlreadyHasActiveAdmission": "Patient already has an active admission",
+      "permissionRequired": "Permission required",
+      "requiresOneOfPermissions": "Requires one of {{permissions}}",
+      "requiresPermissions": "Requires {{permissions}}",
+      "resolvePendingPatientConsentBeforeSharingRecords": "Resolve pending patient consent before sharing records",
+      "startOpdOrIpdBeforeOrdering": "Start an OPD visit or use an active IPD admission before ordering",
+      "unavailableForDeceasedPatientRecords": "Unavailable for deceased patient records"
+    },
+    "events": {
+      "unknown": "unknown event: {{trigger}}",
+      "bed": {
+        "assigned": "bed assigned",
+        "transferred": "bed transferred"
+      },
+      "billing": {
+        "invoiceCreated": "billing invoice created",
+        "invoiceFinalized": "billing invoice finalized",
+        "paymentReceived": "billing payment received"
+      },
+      "blood": {
+        "transfusionReactionReported": "blood transfusion reaction reported"
+      },
+      "bme": {
+        "equipmentDowntimeRecorded": "equipment downtime recorded"
+      },
+      "camp": {
+        "registrationCreated": "camp registration created",
+        "screeningCompleted": "camp screening completed",
+        "started": "camp started"
+      },
+      "emergency": {
+        "codeBlueActivated": "code blue activated",
+        "codeBlueCompleted": "code blue completed",
+        "mlcPoliceIntimationCreated": "MLC police intimation created",
+        "visitCreated": "emergency visit created"
+      },
+      "housekeeping": {
+        "bmwDisposalRecorded": "BMW disposal recorded"
+      },
+      "indent": {
+        "requisitionApproved": "indent requisition approved",
+        "requisitionIssued": "indent requisition issued",
+        "requisitionSubmitted": "indent requisition submitted"
+      },
+      "ipd": {
+        "admissionCreated": "IPD admission created",
+        "dischargeCompleted": "IPD discharge completed",
+        "dischargeFinalized": "IPD discharge finalized",
+        "dischargeInitiated": "IPD discharge initiated"
+      },
+      "lab": {
+        "orderCompleted": "lab order completed",
+        "resultPosted": "lab result posted",
+        "resultVerified": "lab result verified",
+        "sampleCollected": "lab sample collected"
+      },
+      "mlc": {
+        "created": "MLC created"
+      },
+      "mrd": {
+        "caseSheetGenerated": "MRD case sheet generated",
+        "caseSheetPrinted": "MRD case sheet printed"
+      },
+      "opd": {
+        "certificateCreated": "OPD certificate created",
+        "consentSigned": "OPD consent signed",
+        "consultationSaved": "OPD consultation saved",
+        "consultationStarted": "OPD consultation started",
+        "encounterCompleted": "OPD encounter completed",
+        "encounterCreated": "OPD encounter created",
+        "followupScheduled": "OPD follow-up scheduled",
+        "prescriptionUpdated": "OPD prescription updated",
+        "queueCalled": "OPD queue called",
+        "vitalsRecorded": "OPD vitals recorded"
+      },
+      "order": {
+        "cancelled": "order cancelled",
+        "created": "order created"
+      },
+      "patient": {
+        "accessShared": "patient access shared",
+        "cardPrinted": "patient card printed",
+        "created": "patient registered",
+        "merged": "patient merged",
+        "searchCompleted": "patient search completed",
+        "updated": "patient updated"
+      },
+      "pharmacy": {
+        "ndpsMovementCreated": "pharmacy NDPS movement created",
+        "orderDispensed": "pharmacy order dispensed",
+        "prescriptionReviewed": "pharmacy prescription reviewed",
+        "stockMovementCreated": "pharmacy stock movement created"
+      },
+      "quality": {
+        "incidentReported": "quality incident reported"
+      },
+      "radiology": {
+        "orderCompleted": "radiology order completed",
+        "reportCreated": "radiology report created",
+        "reportVerified": "radiology report verified"
+      },
+      "visit": {
+        "created": "visit created"
+      }
+    },
+    "emptyState": "No available handoffs",
+    "flow": {
+      "eventActivated": "event activated",
+      "lastEvent": "last {{event}}",
+      "modules": {
+        "billing": {
+          "description": "Open patient billing ledger and invoice queue.",
+          "label": "Billing"
+        },
+        "camp": {
+          "description": "Open camp registration and screening workspace.",
+          "label": "Camp"
+        },
+        "emergency": {
+          "activeDescription": "Open emergency visit.",
+          "label": "ER",
+          "startDescription": "Register emergency visit."
+        },
+        "ipd": {
+          "activeDescription": "Open active IPD admission.",
+          "label": "IPD",
+          "startDescription": "Start an IPD admission."
+        },
+        "opd": {
+          "activeDescription": "Open active OPD encounter.",
+          "label": "OPD",
+          "startDescription": "Start an OPD visit."
+        },
+        "patient": {
+          "description": "Open patient registration and longitudinal record.",
+          "label": "Patient"
+        },
+        "pharmacy": {
+          "description": "Open patient pharmacy review, orders, and dispensing queue.",
+          "label": "Pharmacy"
+        }
+      },
+      "readySummary": "{{enabled}}/{{total}} ready",
+      "title": "Patient Flow"
+    },
+    "lists": {
+      "orJoin": "{{left}} or {{right}}"
+    },
+    "status": {
+      "afterEvents": "After {{events}}",
+      "available": "Available"
+    },
+    "summary": {
+      "awaitingEvent": "{{count}} awaiting event",
+      "blocked": "{{count}} blocked",
+      "configuration": "{{count}} configuration",
+      "masking": "{{count}} masking",
+      "permission": "{{count}} permission",
+      "ready": "{{enabled}}/{{total}} ready",
+      "regulatory": "{{count}} regulatory"
+    },
+    "tooltip": {
+      "blockedBy": "blocked by {{reason}}",
+      "permissions": "Permission: {{permissions}}"
+    }
   }
 }

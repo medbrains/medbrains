@@ -2,6 +2,7 @@ import type {
   ClinicalJourneyActionId,
   ClinicalJourneyBlockedReason,
   ClinicalJourneyContext,
+  ClinicalJourneyMessageValues,
   ClinicalJourneySurface,
   ClinicalOrderContext,
   ResolvedClinicalJourneyAction,
@@ -46,10 +47,14 @@ export interface PatientFlowReadinessItem {
   actionId: ClinicalJourneyActionId | null;
   blockedReason: ClinicalJourneyBlockedReason | null;
   label: string;
+  labelKey: string;
   description: string;
+  descriptionKey: string;
   href: string;
   enabled: boolean;
   disabledReason: string | null;
+  disabledReasonKey: string | null;
+  disabledReasonValues: ClinicalJourneyMessageValues | null;
   activationEvents: readonly ClinicalEventName[];
   emittedEvent: ClinicalEventName | null;
   requiredPermissions: readonly string[];
@@ -94,6 +99,8 @@ interface PatientFlowItemState {
   activationEvents: readonly ClinicalEventName[];
   blockedReason: ClinicalJourneyBlockedReason | null;
   disabledReason: string | null;
+  disabledReasonKey: string | null;
+  disabledReasonValues: ClinicalJourneyMessageValues | null;
   emittedEvent: ClinicalEventName | null;
   enabled: boolean;
   requiredPermissions: readonly string[];
@@ -105,11 +112,14 @@ function itemState(
   fallbackReason = "Permission required",
   fallbackActivationEvents: readonly ClinicalEventName[] = [],
   fallbackPermissions: readonly string[] = [],
+  fallbackReasonKey = "patientJourney.blockers.permissionRequired",
 ): PatientFlowItemState {
   if (!action) {
     return {
       enabled: fallbackEnabled,
       disabledReason: fallbackEnabled ? null : fallbackReason,
+      disabledReasonKey: fallbackEnabled ? null : fallbackReasonKey,
+      disabledReasonValues: null,
       blockedReason: fallbackEnabled ? null : "permission",
       activationEvents: fallbackActivationEvents,
       emittedEvent: null,
@@ -120,6 +130,8 @@ function itemState(
   return {
     enabled: action.enabled,
     disabledReason: action.enabled ? null : action.disabledReasonText,
+    disabledReasonKey: action.enabled ? null : action.disabledReasonKey,
+    disabledReasonValues: action.enabled ? null : action.disabledReasonValues,
     blockedReason: action.blockedReason,
     activationEvents: action.activatesAfter,
     emittedEvent: action.emitsEvent ?? null,
@@ -198,6 +210,24 @@ export function activePatientPharmacyRxQueueIdForJourney(
       (prescription) => !prescription.pharmacy_order_id && prescription.pharmacy_rx_queue_id,
     )?.pharmacy_rx_queue_id ??
     null
+  );
+}
+
+const REVIEWED_PHARMACY_STATUSES = new Set([
+  "approved",
+  "dispensing",
+  "dispensed",
+  "partially_dispensed",
+]);
+
+export function hasReviewedPatientPharmacyPrescriptionForJourney(
+  prescriptions: readonly PrescriptionHistoryItem[],
+): boolean {
+  return prescriptions.some(
+    (prescription) =>
+      prescription.pharmacy_order_id != null ||
+      (prescription.pharmacy_status != null &&
+        REVIEWED_PHARMACY_STATUSES.has(prescription.pharmacy_status)),
   );
 }
 
@@ -322,10 +352,14 @@ export function buildPatientFlowReadiness(
       actionId: null,
       blockedReason: patientState.blockedReason,
       label: "Patient",
+      labelKey: "patientJourney.flow.modules.patient.label",
       description: "Open patient registration and longitudinal record.",
+      descriptionKey: "patientJourney.flow.modules.patient.description",
       href: `/patients/${patientId}#overview`,
       enabled: patientState.enabled,
       disabledReason: patientState.disabledReason,
+      disabledReasonKey: patientState.disabledReasonKey,
+      disabledReasonValues: patientState.disabledReasonValues,
       activationEvents: patientState.activationEvents,
       emittedEvent: patientState.emittedEvent,
       requiredPermissions: patientState.requiredPermissions,
@@ -336,10 +370,16 @@ export function buildPatientFlowReadiness(
       blockedReason: opdState.blockedReason,
       label: "OPD",
       description: context.activeEncounterId ? "Open active OPD encounter." : "Start an OPD visit.",
+      labelKey: "patientJourney.flow.modules.opd.label",
+      descriptionKey: context.activeEncounterId
+        ? "patientJourney.flow.modules.opd.activeDescription"
+        : "patientJourney.flow.modules.opd.startDescription",
       href:
         patientJourneyActionRoute(OPD_FLOW_ACTION, context) ?? `/opd/new?patient_id=${patientId}`,
       enabled: opdState.enabled,
       disabledReason: opdState.disabledReason,
+      disabledReasonKey: opdState.disabledReasonKey,
+      disabledReasonValues: opdState.disabledReasonValues,
       activationEvents: opdState.activationEvents,
       emittedEvent: opdState.emittedEvent,
       requiredPermissions: opdState.requiredPermissions,
@@ -352,9 +392,15 @@ export function buildPatientFlowReadiness(
       description: context.activeAdmissionId
         ? "Open active IPD admission."
         : "Start an IPD admission.",
+      labelKey: "patientJourney.flow.modules.ipd.label",
+      descriptionKey: context.activeAdmissionId
+        ? "patientJourney.flow.modules.ipd.activeDescription"
+        : "patientJourney.flow.modules.ipd.startDescription",
       href: patientJourneyActionRoute(ipdActionId, context) ?? `/ipd/new?patient_id=${patientId}`,
       enabled: ipdState.enabled,
       disabledReason: ipdState.disabledReason,
+      disabledReasonKey: ipdState.disabledReasonKey,
+      disabledReasonValues: ipdState.disabledReasonValues,
       activationEvents: ipdState.activationEvents,
       emittedEvent: ipdState.emittedEvent,
       requiredPermissions: ipdState.requiredPermissions,
@@ -367,11 +413,17 @@ export function buildPatientFlowReadiness(
       description: context.activeEmergencyVisitId
         ? "Open emergency visit."
         : "Register emergency visit.",
+      labelKey: "patientJourney.flow.modules.emergency.label",
+      descriptionKey: context.activeEmergencyVisitId
+        ? "patientJourney.flow.modules.emergency.activeDescription"
+        : "patientJourney.flow.modules.emergency.startDescription",
       href:
         patientJourneyActionRoute(EMERGENCY_FLOW_ACTION, context) ??
         `/emergency/visits/new?patient_id=${patientId}`,
       enabled: emergencyState.enabled,
       disabledReason: emergencyState.disabledReason,
+      disabledReasonKey: emergencyState.disabledReasonKey,
+      disabledReasonValues: emergencyState.disabledReasonValues,
       activationEvents: emergencyState.activationEvents,
       emittedEvent: emergencyState.emittedEvent,
       requiredPermissions: emergencyState.requiredPermissions,
@@ -381,10 +433,14 @@ export function buildPatientFlowReadiness(
       actionId: CAMP_FLOW_ACTION,
       blockedReason: campState.blockedReason,
       label: "Camp",
+      labelKey: "patientJourney.flow.modules.camp.label",
       description: "Open camp registration and screening workspace.",
+      descriptionKey: "patientJourney.flow.modules.camp.description",
       href: patientJourneyActionRoute(CAMP_FLOW_ACTION, context) ?? `/camp?patient_id=${patientId}`,
       enabled: campState.enabled,
       disabledReason: campState.disabledReason,
+      disabledReasonKey: campState.disabledReasonKey,
+      disabledReasonValues: campState.disabledReasonValues,
       activationEvents: campState.activationEvents,
       emittedEvent: campState.emittedEvent,
       requiredPermissions: campState.requiredPermissions,
@@ -394,12 +450,16 @@ export function buildPatientFlowReadiness(
       actionId: PHARMACY_FLOW_ACTION,
       blockedReason: pharmacyState.blockedReason,
       label: "Pharmacy",
+      labelKey: "patientJourney.flow.modules.pharmacy.label",
       description: "Open patient pharmacy review, orders, and dispensing queue.",
+      descriptionKey: "patientJourney.flow.modules.pharmacy.description",
       href:
         patientJourneyActionRoute(PHARMACY_FLOW_ACTION, context) ??
         `/pharmacy?tab=rx-queue&patient_id=${patientId}`,
       enabled: pharmacyState.enabled,
       disabledReason: pharmacyState.disabledReason,
+      disabledReasonKey: pharmacyState.disabledReasonKey,
+      disabledReasonValues: pharmacyState.disabledReasonValues,
       activationEvents: pharmacyState.activationEvents,
       emittedEvent: pharmacyState.emittedEvent,
       requiredPermissions: pharmacyState.requiredPermissions,
@@ -409,12 +469,16 @@ export function buildPatientFlowReadiness(
       actionId: BILLING_FLOW_ACTION,
       blockedReason: billingState.blockedReason,
       label: "Billing",
+      labelKey: "patientJourney.flow.modules.billing.label",
       description: "Open patient billing ledger and invoice queue.",
+      descriptionKey: "patientJourney.flow.modules.billing.description",
       href:
         patientJourneyActionRoute(BILLING_FLOW_ACTION, context) ??
         `/billing?tab=invoices&patient_id=${patientId}`,
       enabled: billingState.enabled,
       disabledReason: billingState.disabledReason,
+      disabledReasonKey: billingState.disabledReasonKey,
+      disabledReasonValues: billingState.disabledReasonValues,
       activationEvents: billingState.activationEvents,
       emittedEvent: billingState.emittedEvent,
       requiredPermissions: billingState.requiredPermissions,

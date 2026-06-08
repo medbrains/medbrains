@@ -37,10 +37,12 @@ export type {
   ClinicalJourneyActionDisabledReason,
   ClinicalJourneyActionId,
   ClinicalJourneyActionIntent,
+  ClinicalJourneyActionMessage,
   ClinicalJourneyActionReadinessSummary,
   ClinicalJourneyBlockedReason,
   ClinicalJourneyBlockingControl,
   ClinicalJourneyContext,
+  ClinicalJourneyMessageValues,
   ClinicalJourneySurface,
   ClinicalOrderContext,
   ResolveClinicalJourneyActionsOptions,
@@ -64,6 +66,7 @@ export {
   activePatientPharmacyOrderIdForJourney,
   activePatientPharmacyRxQueueIdForJourney,
   buildPatientFlowReadiness,
+  hasReviewedPatientPharmacyPrescriptionForJourney,
   patientFlowJourneyContext,
 } from "./patient-flow.js";
 export { patientJourneyActionRoute } from "./patient-journey-routes.js";

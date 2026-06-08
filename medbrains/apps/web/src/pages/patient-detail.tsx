@@ -62,7 +62,7 @@ import type {
   RegistrationCardPrintData,
   TreatmentSummaryResponse,
 } from "@medbrains/types";
-import { P } from "@medbrains/types";
+import { hasReviewedPatientPharmacyPrescriptionForJourney, P } from "@medbrains/types";
 import { fieldAccessText } from "@medbrains/utils";
 import {
   IconAlertTriangle,
@@ -3022,14 +3022,8 @@ function PatientDetailPageInner() {
   const hasClinicalOrder =
     prescriptions.length > 0 ||
     visits.some((visit) => (visit.prescription_count ?? 0) > 0 || (visit.lab_order_count ?? 0) > 0);
-  const hasReviewedPharmacyPrescription = prescriptions.some(
-    (entry) =>
-      entry.pharmacy_order_id != null ||
-      entry.pharmacy_status === "approved" ||
-      entry.pharmacy_status === "dispensing" ||
-      entry.pharmacy_status === "dispensed" ||
-      entry.pharmacy_status === "partially_dispensed",
-  );
+  const hasReviewedPharmacyPrescription =
+    hasReviewedPatientPharmacyPrescriptionForJourney(prescriptions);
   const hasEmergencyVisit =
     patientEmergencyVisits.length > 0 ||
     visits.some((visit) => visit.encounter_type === "emergency");

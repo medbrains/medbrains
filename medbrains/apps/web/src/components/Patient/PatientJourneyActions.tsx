@@ -27,10 +27,21 @@ import {
   IconShare,
   IconStethoscope,
 } from "@tabler/icons-react";
+import type { TFunction } from "i18next";
+import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router";
 import { useClinicalEventStore } from "@/components/clinical-event-store";
 import styles from "./patient-journey-actions.module.scss";
 import { mergeJourneyEventNames } from "./patient-journey-events";
+import {
+  clinicalEventLabel,
+  journeyActionAvailability,
+  journeyActionDescription,
+  journeyActionDisabledReason,
+  journeyActionLabel,
+  journeyActionShortLabel,
+  journeyBlockedReasonLabel,
+} from "./patient-journey-i18n";
 
 type PatientOrderTab = "drug" | "lab" | "radiology";
 type PatientJourneyActionSize = "xs" | "sm";
@@ -140,29 +151,6 @@ function supportsAction(
   }
 }
 
-function eventLabel(eventName: string) {
-  return eventName.replace(/\./g, " ");
-}
-
-function blockedReasonLabel(reason: ClinicalJourneyBlockedReason | null) {
-  switch (reason) {
-    case "configuration":
-      return "configuration";
-    case "context":
-      return "context";
-    case "event":
-      return "event";
-    case "masking":
-      return "masking";
-    case "permission":
-      return "permission";
-    case "regulatory":
-      return "regulatory";
-    default:
-      return null;
-  }
-}
-
 function blockedReasonColor(reason: ClinicalJourneyBlockedReason | null) {
   switch (reason) {
     case "configuration":
@@ -182,33 +170,41 @@ function blockedReasonColor(reason: ClinicalJourneyBlockedReason | null) {
   }
 }
 
-function ActionTooltip({ action }: { action: ResolvedClinicalJourneyAction }) {
-  const blockedLabel = blockedReasonLabel(action.blockedReason);
+function ActionTooltip({ action, t }: { action: ResolvedClinicalJourneyAction; t: TFunction }) {
+  const blockedLabel = journeyBlockedReasonLabel(t, action.blockedReason);
 
   return (
     <Stack gap={5}>
       <Text size="xs" fw={700}>
-        {action.enabled ? action.description : action.disabledReasonText}
+        {action.enabled
+          ? journeyActionDescription(t, action.id)
+          : journeyActionDisabledReason(t, action)}
       </Text>
       {blockedLabel && (
         <Badge size="xs" color={blockedReasonColor(action.blockedReason)} variant="light">
-          blocked by {blockedLabel}
+          {t("patientJourney.tooltip.blockedBy", { reason: blockedLabel })}
         </Badge>
       )}
       <Group gap={4}>
         {action.activatesAfter.map((eventName) => (
           <Badge key={eventName} size="xs" color="blue" variant="light">
-            after {eventLabel(eventName)}
+            {t("patientJourney.badges.afterEvent", {
+              event: clinicalEventLabel(t, eventName),
+            })}
           </Badge>
         ))}
       </Group>
       {action.emitsEvent && (
         <Badge size="xs" color="green" variant="light">
-          emits {eventLabel(action.emitsEvent)}
+          {t("patientJourney.badges.emitsEvent", {
+            event: clinicalEventLabel(t, action.emitsEvent),
+          })}
         </Badge>
       )}
       <Text size="xs" c="dimmed">
-        Permission: {action.requiredPermissions.join(" / ")}
+        {t("patientJourney.tooltip.permissions", {
+          permissions: action.requiredPermissions.join(" / "),
+        })}
       </Text>
     </Stack>
   );
@@ -221,13 +217,14 @@ export function PatientJourneyActions({
   size = "sm",
   layout = "inline",
   showUnavailable,
-  emptyLabel = "No available handoffs",
+  emptyLabel,
   onEdit,
   onOpenOrderBasket,
   onShare,
   onPrintPatientCard,
 }: PatientJourneyActionsProps) {
   const navigate = useNavigate();
+  const { t } = useTranslation("clinical");
   const hasPermission = usePermissionStore((state) => state.hasPermission);
   const recentEvents = useClinicalEventStore((state) => state.recentEvents);
   const journeyContext: ClinicalJourneyContext = {
@@ -295,20 +292,21 @@ export function PatientJourneyActions({
     if (actions.length === 0) {
       return (
         <Text size="xs" c="dimmed" className={styles.emptyState}>
-          {emptyLabel}
+          {emptyLabel ?? t("patientJourney.emptyState")}
         </Text>
       );
     }
 
     return (
       <Stack gap={6} className={styles.railActions}>
-        <JourneyReadinessSummary summary={readinessSummary} />
+        <JourneyReadinessSummary summary={readinessSummary} t={t} />
         {actions.map((action) => (
           <PatientJourneyActionButton
             key={action.id}
             action={action}
             size={size}
             layout={layout}
+            t={t}
             onClick={() => handleAction(action.id)}
           />
         ))}
@@ -324,6 +322,7 @@ export function PatientJourneyActions({
           action={action}
           size={size}
           layout={layout}
+          t={t}
           onClick={() => handleAction(action.id)}
         />
       ))}
@@ -331,40 +330,51 @@ export function PatientJourneyActions({
   );
 }
 
-function JourneyReadinessSummary({ summary }: { summary: ClinicalJourneyActionReadinessSummary }) {
+function JourneyReadinessSummary({
+  summary,
+  t,
+}: {
+  summary: ClinicalJourneyActionReadinessSummary;
+  t: TFunction;
+}) {
   return (
     <Group gap={4} wrap="wrap" className={styles.railSummary}>
       <Badge size="xs" color="green" variant="light">
-        {summary.enabled}/{summary.total} ready
+        {t("patientJourney.summary.ready", {
+          enabled: summary.enabled,
+          total: summary.total,
+        })}
       </Badge>
       {summary.blocked > 0 && (
         <Badge size="xs" color="orange" variant="light">
-          {summary.blocked} blocked
+          {t("patientJourney.summary.blocked", { count: summary.blocked })}
         </Badge>
       )}
       {summary.permissionBlocked > 0 && (
         <Badge size="xs" color="red" variant="light">
-          {summary.permissionBlocked} permission
+          {t("patientJourney.summary.permission", { count: summary.permissionBlocked })}
         </Badge>
       )}
       {summary.eventBlocked > 0 && (
         <Badge size="xs" color="blue" variant="light">
-          {summary.eventBlocked} awaiting event
+          {t("patientJourney.summary.awaitingEvent", { count: summary.eventBlocked })}
         </Badge>
       )}
       {summary.configurationBlocked > 0 && (
         <Badge size="xs" color="grape" variant="light">
-          {summary.configurationBlocked} configuration
+          {t("patientJourney.summary.configuration", {
+            count: summary.configurationBlocked,
+          })}
         </Badge>
       )}
       {summary.maskingBlocked > 0 && (
         <Badge size="xs" color="violet" variant="light">
-          {summary.maskingBlocked} masking
+          {t("patientJourney.summary.masking", { count: summary.maskingBlocked })}
         </Badge>
       )}
       {summary.regulatoryBlocked > 0 && (
         <Badge size="xs" color="yellow" variant="light">
-          {summary.regulatoryBlocked} regulatory
+          {t("patientJourney.summary.regulatory", { count: summary.regulatoryBlocked })}
         </Badge>
       )}
     </Group>
@@ -375,22 +385,20 @@ function PatientJourneyActionButton({
   action,
   size,
   layout,
+  t,
   onClick,
 }: {
   action: ResolvedClinicalJourneyAction;
   size: PatientJourneyActionSize;
   layout: PatientJourneyActionLayout;
+  t: TFunction;
   onClick: () => void;
 }) {
   const disabled = !action.enabled;
-  const tooltip = <ActionTooltip action={action} />;
+  const tooltip = <ActionTooltip action={action} t={t} />;
 
   if (layout === "rail") {
-    const metaText = action.enabled
-      ? action.activatesAfter.length > 0
-        ? `After ${action.activatesAfter.map(eventLabel).join(" or ")}`
-        : "Available"
-      : action.disabledReasonText;
+    const metaText = journeyActionAvailability(t, action);
     const button = (
       <Button
         variant={actionVariant(action.intent)}
@@ -402,7 +410,7 @@ function PatientJourneyActionButton({
         fullWidth
         className={styles.railButton}
       >
-        {action.label}
+        {journeyActionLabel(t, action.id)}
       </Button>
     );
 
@@ -433,7 +441,7 @@ function PatientJourneyActionButton({
         size={size}
         onClick={onClick}
         disabled={disabled}
-        aria-label={action.label}
+        aria-label={journeyActionLabel(t, action.id)}
       >
         {actionIcon(action.id)}
       </ActionIcon>
@@ -454,7 +462,7 @@ function PatientJourneyActionButton({
       onClick={onClick}
       disabled={disabled}
     >
-      {action.shortLabel}
+      {journeyActionShortLabel(t, action.id)}
     </Button>
   );
 

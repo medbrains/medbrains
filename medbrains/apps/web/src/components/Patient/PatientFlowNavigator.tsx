@@ -18,10 +18,18 @@ import {
   IconUser,
 } from "@tabler/icons-react";
 import type { ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router";
 import { useClinicalEventStore } from "@/components/clinical-event-store";
 import styles from "./patient-flow-navigator.module.scss";
 import { clinicalEventMatchesJourney, mergeJourneyEventNames } from "./patient-journey-events";
+import {
+  clinicalEventLabel,
+  journeyBlockedReasonLabel,
+  patientFlowItemDescription,
+  patientFlowItemDisabledReason,
+  patientFlowItemLabel,
+} from "./patient-journey-i18n";
 
 export type { PatientFlowModule } from "@medbrains/types";
 
@@ -59,63 +67,49 @@ const FLOW_VISUALS: Record<PatientFlowModule, FlowVisual> = {
   billing: { color: "orange", icon: <IconFileInvoice size={14} /> },
 };
 
-function eventLabel(eventName: string) {
-  return eventName.replace(/\./g, " ");
-}
-
-function blockedReasonLabel(reason: PatientFlowReadinessItem["blockedReason"]) {
-  switch (reason) {
-    case "configuration":
-      return "blocked by configuration";
-    case "context":
-      return "blocked by context";
-    case "event":
-      return "blocked by event";
-    case "masking":
-      return "blocked by masking";
-    case "permission":
-      return "blocked by permission";
-    case "regulatory":
-      return "blocked by regulatory control";
-    default:
-      return null;
-  }
-}
-
 function FlowTooltip({ item }: { item: PatientFlowReadinessItem }) {
-  const blockedLabel = blockedReasonLabel(item.blockedReason);
+  const { t } = useTranslation("clinical");
+  const blockedLabel = journeyBlockedReasonLabel(t, item.blockedReason);
 
   return (
     <Stack gap={5}>
       <Text size="xs" fw={700}>
-        {item.enabled ? item.description : item.disabledReason}
+        {item.enabled
+          ? patientFlowItemDescription(t, item)
+          : patientFlowItemDisabledReason(t, item)}
       </Text>
       {blockedLabel && (
         <Badge size="xs" color="orange" variant="light">
-          {blockedLabel}
+          {t("patientJourney.tooltip.blockedBy", { reason: blockedLabel })}
         </Badge>
       )}
       <Group gap={4}>
         {item.activationEvents.length > 0 ? (
           item.activationEvents.map((eventName) => (
             <Badge key={eventName} size="xs" color="blue" variant="light">
-              after {eventLabel(eventName)}
+              {t("patientJourney.badges.afterEvent", {
+                event: clinicalEventLabel(t, eventName),
+              })}
             </Badge>
           ))
         ) : (
           <Badge size="xs" color="gray" variant="light">
-            always
+            {t("patientJourney.badges.always")}
           </Badge>
         )}
       </Group>
       {item.emittedEvent && (
         <Badge size="xs" color="green" variant="light">
-          emits {eventLabel(item.emittedEvent)}
+          {t("patientJourney.badges.emitsEvent", {
+            event: clinicalEventLabel(t, item.emittedEvent),
+          })}
         </Badge>
       )}
       {item.requiredPermissions.length > 0 && (
         <Text size="xs" c="dimmed">
-          Permission: {item.requiredPermissions.join(" / ")}
+          {t("patientJourney.tooltip.permissions", {
+            permissions: item.requiredPermissions.join(" / "),
+          })}
         </Text>
       )}
     </Stack>
@@ -141,6 +135,7 @@ export function PatientFlowNavigator({
   compact = false,
 }: PatientFlowNavigatorProps) {
   const navigate = useNavigate();
+  const { t } = useTranslation("clinical");
   const hasPermission = usePermissionStore((state) => state.hasPermission);
   const recentEvents = useClinicalEventStore((state) => state.recentEvents);
 
@@ -177,17 +172,26 @@ export function PatientFlowNavigator({
         <Group gap={6}>
           <IconCash size={14} />
           <Text size="xs" fw={700}>
-            Patient Flow
+            {t("patientJourney.flow.title")}
           </Text>
         </Group>
         <Group gap={4}>
           <Badge size="xs" color={summary.blocked > 0 ? "orange" : "green"} variant="light">
-            {summary.enabled}/{summary.total} ready
+            {t("patientJourney.flow.readySummary", {
+              enabled: summary.enabled,
+              total: summary.total,
+            })}
           </Badge>
           <Badge size="xs" color={recentPatientEvent ? "green" : "blue"} variant="light">
             {recentPatientEvent
-              ? `last ${eventLabel(recentPatientEvent.eventName ?? recentPatientEvent.rawTrigger)}`
-              : "event activated"}
+              ? t("patientJourney.flow.lastEvent", {
+                  event: recentPatientEvent.eventName
+                    ? clinicalEventLabel(t, recentPatientEvent.eventName)
+                    : t("patientJourney.events.unknown", {
+                        trigger: recentPatientEvent.rawTrigger,
+                      }),
+                })
+              : t("patientJourney.flow.eventActivated")}
           </Badge>
         </Group>
       </Group>
@@ -206,7 +210,7 @@ export function PatientFlowNavigator({
               disabled={!item.enabled}
               onClick={() => navigate(item.href)}
             >
-              {item.label}
+              {patientFlowItemLabel(t, item)}
             </Button>
           );
           return (

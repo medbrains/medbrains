@@ -102,20 +102,42 @@ export type ClinicalJourneyBlockingControl = Exclude<
   "event" | "permission"
 >;
 
-export interface ClinicalJourneyActionBlocker {
+export type ClinicalJourneyMessageValues = Readonly<Record<string, string | number | boolean>>;
+
+export interface ClinicalJourneyActionMessage {
+  key: string;
   message: string;
+  values?: ClinicalJourneyMessageValues;
+}
+
+export interface ClinicalJourneyActionBlocker {
+  key: string;
+  message: string;
+  values?: ClinicalJourneyMessageValues;
   reason: ClinicalJourneyBlockingControl;
 }
 
-export type ClinicalJourneyActionDisabledReason = ClinicalJourneyActionBlocker | string | null;
+export type ClinicalJourneyActionDisabledReason =
+  | ClinicalJourneyActionBlocker
+  | ClinicalJourneyActionMessage
+  | string
+  | null;
 
 export interface ResolvedClinicalJourneyAction extends ClinicalJourneyActionDefinition {
   enabled: boolean;
+  disabledReasonKey: string | null;
   disabledReasonText: string | null;
+  disabledReasonValues: ClinicalJourneyMessageValues | null;
+  permissionDisabledReasonKey: string | null;
   permissionAllowed: boolean;
   permissionDisabledReasonText: string | null;
+  permissionDisabledReasonValues: ClinicalJourneyMessageValues | null;
+  contextDisabledReasonKey: string | null;
   contextDisabledReasonText: string | null;
+  contextDisabledReasonValues: ClinicalJourneyMessageValues | null;
+  activationDisabledReasonKey: string | null;
   activationDisabledReasonText: string | null;
+  activationDisabledReasonValues: ClinicalJourneyMessageValues | null;
   blockedReason: ClinicalJourneyBlockedReason | null;
 }
 
@@ -144,7 +166,9 @@ export interface ClinicalJourneyActionReadinessSummary {
 }
 
 interface NormalizedActionBlocker {
+  key: string | null;
   message: string | null;
+  values: ClinicalJourneyMessageValues | null;
   reason: ClinicalJourneyBlockingControl | null;
 }
 
@@ -156,39 +180,78 @@ function activeAdmissionHasAssignedBed(context: ClinicalJourneyContext): boolean
   return context.activeBedId === undefined || Boolean(context.activeBedId);
 }
 
-function requireLivingPatient(context: ClinicalJourneyContext): string | null {
-  return context.isDeceased ? "Unavailable for deceased patient records" : null;
+function actionMessage(
+  key: string,
+  message: string,
+  values?: ClinicalJourneyMessageValues,
+): ClinicalJourneyActionMessage {
+  return values ? { key, message, values } : { key, message };
+}
+
+function requireLivingPatient(
+  context: ClinicalJourneyContext,
+): ClinicalJourneyActionDisabledReason {
+  return context.isDeceased
+    ? actionMessage(
+        "patientJourney.blockers.unavailableForDeceasedPatientRecords",
+        "Unavailable for deceased patient records",
+      )
+    : null;
 }
 
 function actionBlocker(
   reason: ClinicalJourneyActionBlocker["reason"],
+  key: string,
   message: string,
+  values?: ClinicalJourneyMessageValues,
 ): ClinicalJourneyActionBlocker {
-  return { message, reason };
+  return values ? { key, message, values, reason } : { key, message, reason };
 }
 
 function normalizeActionBlocker(
   disabledReason: ClinicalJourneyActionDisabledReason,
 ): NormalizedActionBlocker {
   if (!disabledReason) {
-    return { message: null, reason: null };
+    return { key: null, message: null, values: null, reason: null };
   }
 
   if (typeof disabledReason === "string") {
-    return { message: disabledReason, reason: "context" };
+    return { key: null, message: disabledReason, values: null, reason: "context" };
   }
 
-  return { message: disabledReason.message, reason: disabledReason.reason };
+  if ("reason" in disabledReason) {
+    return {
+      key: disabledReason.key,
+      message: disabledReason.message,
+      values: disabledReason.values ?? null,
+      reason: disabledReason.reason,
+    };
+  }
+
+  return {
+    key: disabledReason.key,
+    message: disabledReason.message,
+    values: disabledReason.values ?? null,
+    reason: "context",
+  };
 }
 
-function requireOrderContext(context: ClinicalJourneyContext): string | null {
+function requireOrderContext(context: ClinicalJourneyContext): ClinicalJourneyActionDisabledReason {
   const livingReason = requireLivingPatient(context);
   if (livingReason) return livingReason;
   if (context.activeOrderContext === "opd" && context.activeEncounterId) return null;
   if (context.activeOrderContext === "ipd" && activeAdmissionIsOpen(context)) {
-    return activeAdmissionHasAssignedBed(context) ? null : "Assign a bed before inpatient orders";
+    return activeAdmissionHasAssignedBed(context)
+      ? null
+      : actionMessage(
+          "patientJourney.blockers.assignBedBeforeInpatientOrders",
+          "Assign a bed before inpatient orders",
+        );
   }
-  return "Start an OPD visit or use an active IPD admission before ordering";
+  return actionMessage(
+    "patientJourney.blockers.startOpdOrIpdBeforeOrdering",
+    "Start an OPD visit or use an active IPD admission before ordering",
+  );
 }
 
 function eventLabel(eventName: string) {
@@ -210,16 +273,23 @@ function actionPermissionsForSurface(
 function permissionDisabledReason(
   permissionMode: "all" | "any" | undefined,
   requiredPermissions: readonly string[],
-): string | null {
+): ClinicalJourneyActionMessage | null {
   if (requiredPermissions.length === 0) {
     return null;
   }
 
+  const permissions = requiredPermissions.join(permissionMode === "any" ? " / " : " + ");
   if (permissionMode === "any") {
-    return `Requires one of ${requiredPermissions.join(" / ")}`;
+    return actionMessage(
+      "patientJourney.blockers.requiresOneOfPermissions",
+      `Requires one of ${permissions}`,
+      { permissions },
+    );
   }
 
-  return `Requires ${requiredPermissions.join(" + ")}`;
+  return actionMessage("patientJourney.blockers.requiresPermissions", `Requires ${permissions}`, {
+    permissions,
+  });
 }
 
 interface CampJourneyRegistration {
@@ -285,7 +355,7 @@ export function inferClinicalJourneyEventNames(
 function activationDisabledReason(
   action: ClinicalJourneyActionDefinition,
   context: ClinicalJourneyContext,
-): string | null {
+): ClinicalJourneyActionMessage | null {
   if (action.activatesAfter.length === 0) return null;
 
   const completedEvents = new Set(inferClinicalJourneyEventNames(context));
@@ -293,7 +363,10 @@ function activationDisabledReason(
     return null;
   }
 
-  return `Available after ${action.activatesAfter.map(eventLabel).join(" or ")}`;
+  return actionMessage(
+    "patientJourney.blockers.availableAfterEvents",
+    `Available after ${action.activatesAfter.map(eventLabel).join(" or ")}`,
+  );
 }
 
 function hasAnyCompletedJourneyEvent(
@@ -307,25 +380,32 @@ function hasAnyCompletedJourneyEvent(
 function requireLinkedContextAfterActivation(
   context: ClinicalJourneyContext,
   activationEvents: readonly ClinicalEventName[],
+  key: string,
   reason: string,
-): string | null {
-  return hasAnyCompletedJourneyEvent(context, activationEvents) ? reason : null;
+): ClinicalJourneyActionDisabledReason {
+  return hasAnyCompletedJourneyEvent(context, activationEvents) ? actionMessage(key, reason) : null;
 }
 
-function requireActiveAdmissionForDischargeBill(context: ClinicalJourneyContext): string | null {
+function requireActiveAdmissionForDischargeBill(
+  context: ClinicalJourneyContext,
+): ClinicalJourneyActionDisabledReason {
   if (context.activeAdmissionId) return null;
   return requireLinkedContextAfterActivation(
     context,
     ["ipd.discharge.finalized"],
+    "patientJourney.blockers.linkFinalizedIpdAdmissionBeforeDischargeBill",
     "Link the finalized IPD admission before preparing the discharge bill",
   );
 }
 
-function requireActiveInvoiceForPayment(context: ClinicalJourneyContext): string | null {
+function requireActiveInvoiceForPayment(
+  context: ClinicalJourneyContext,
+): ClinicalJourneyActionDisabledReason {
   if (context.activeInvoiceId) return null;
   return requireLinkedContextAfterActivation(
     context,
     ["billing.invoice.created", "billing.invoice.finalized"],
+    "patientJourney.blockers.linkInvoiceBeforeCollectingPayment",
     "Link an invoice before collecting payment",
   );
 }
@@ -336,6 +416,7 @@ function requirePaymentConfiguration(
   if (context.billingPaymentConfigurationReady === false) {
     return actionBlocker(
       "configuration",
+      "patientJourney.blockers.configureActivePaymentMethodsBeforeCollectingPayment",
       "Configure active payment methods before collecting payment",
     );
   }
@@ -352,6 +433,7 @@ function requireActivePharmacyOrderForDispense(
     if (context.pharmacyRegulatoryClearanceReady === false) {
       return actionBlocker(
         "regulatory",
+        "patientJourney.blockers.completePharmacyRegulatoryClearanceBeforeDispensingMedicines",
         "Complete pharmacy regulatory clearance before dispensing medicines",
       );
     }
@@ -361,15 +443,19 @@ function requireActivePharmacyOrderForDispense(
   return requireLinkedContextAfterActivation(
     context,
     ["order.created", "pharmacy.prescription.reviewed", "billing.payment.received"],
+    "patientJourney.blockers.linkPharmacyOrderBeforeDispensingMedicines",
     "Link the pharmacy order before dispensing medicines",
   );
 }
 
-function requireActiveEmergencyVisitForMlc(context: ClinicalJourneyContext): string | null {
+function requireActiveEmergencyVisitForMlc(
+  context: ClinicalJourneyContext,
+): ClinicalJourneyActionDisabledReason {
   if (context.activeEmergencyVisitId) return null;
   return requireLinkedContextAfterActivation(
     context,
     ["emergency.visit.created"],
+    "patientJourney.blockers.linkActiveErVisitBeforeMlc",
     "Link the active ER visit before opening MLC documentation",
   );
 }
@@ -378,7 +464,11 @@ function requireShareConsentClearance(
   context: ClinicalJourneyContext,
 ): ClinicalJourneyActionDisabledReason {
   if (context.hasPendingConsent) {
-    return actionBlocker("regulatory", "Resolve pending patient consent before sharing records");
+    return actionBlocker(
+      "regulatory",
+      "patientJourney.blockers.resolvePendingPatientConsentBeforeSharingRecords",
+      "Resolve pending patient consent before sharing records",
+    );
   }
 
   return null;
@@ -388,7 +478,11 @@ function requirePatientCardMasking(
   context: ClinicalJourneyContext,
 ): ClinicalJourneyActionDisabledReason {
   if (context.patientCardMaskingReady === false) {
-    return actionBlocker("masking", "Configure patient-card masking before printing identifiers");
+    return actionBlocker(
+      "masking",
+      "patientJourney.blockers.configurePatientCardMaskingBeforePrintingIdentifiers",
+      "Configure patient-card masking before printing identifiers",
+    );
   }
 
   return null;
@@ -492,7 +586,12 @@ export const CORE_PATIENT_JOURNEY_ACTIONS: readonly ClinicalJourneyActionDefinit
     blockingControls: ["context"],
     standardRefs: ["NABH AAC", "IPSG patient identification"],
     disabledReason: (context) =>
-      activeAdmissionIsOpen(context) ? null : "No active IPD admission for this patient",
+      activeAdmissionIsOpen(context)
+        ? null
+        : actionMessage(
+            "patientJourney.blockers.noActiveIpdAdmission",
+            "No active IPD admission for this patient",
+          ),
   },
   {
     id: "ipd.admit",
@@ -510,7 +609,12 @@ export const CORE_PATIENT_JOURNEY_ACTIONS: readonly ClinicalJourneyActionDefinit
     disabledReason: (context) => {
       const livingReason = requireLivingPatient(context);
       if (livingReason) return livingReason;
-      return activeAdmissionIsOpen(context) ? "Patient already has an active admission" : null;
+      return activeAdmissionIsOpen(context)
+        ? actionMessage(
+            "patientJourney.blockers.patientAlreadyHasActiveAdmission",
+            "Patient already has an active admission",
+          )
+        : null;
     },
   },
   {
@@ -703,7 +807,12 @@ export function resolveClinicalJourneyActions(
       : permissionDisabledReason(permissionMode, requiredPermissions);
     const contextBlocker = normalizeActionBlocker(action.disabledReason(context));
     const activationReason = activationDisabledReason(action, context);
-    const disabledReasonText = permissionReason ?? contextBlocker.message ?? activationReason;
+    const disabledReasonText =
+      permissionReason?.message ?? contextBlocker.message ?? activationReason?.message ?? null;
+    const disabledReasonKey =
+      permissionReason?.key ?? contextBlocker.key ?? activationReason?.key ?? null;
+    const disabledReasonValues =
+      permissionReason?.values ?? contextBlocker.values ?? activationReason?.values ?? null;
     const blockedReason: ClinicalJourneyBlockedReason | null = permissionReason
       ? "permission"
       : contextBlocker.reason
@@ -717,11 +826,19 @@ export function resolveClinicalJourneyActions(
       permissionMode,
       requiredPermissions,
       enabled: permissionAllowed && disabledReasonText === null,
+      disabledReasonKey,
       disabledReasonText,
+      disabledReasonValues,
+      permissionDisabledReasonKey: permissionReason?.key ?? null,
       permissionAllowed,
-      permissionDisabledReasonText: permissionReason,
+      permissionDisabledReasonText: permissionReason?.message ?? null,
+      permissionDisabledReasonValues: permissionReason?.values ?? null,
+      contextDisabledReasonKey: contextBlocker.key,
       contextDisabledReasonText: contextBlocker.message,
-      activationDisabledReasonText: activationReason,
+      contextDisabledReasonValues: contextBlocker.values,
+      activationDisabledReasonKey: activationReason?.key ?? null,
+      activationDisabledReasonText: activationReason?.message ?? null,
+      activationDisabledReasonValues: activationReason?.values ?? null,
       blockedReason,
     });
 

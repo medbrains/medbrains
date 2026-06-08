@@ -4,6 +4,7 @@ import {
   activePatientPharmacyOrderIdForJourney,
   activePatientPharmacyRxQueueIdForJourney,
   buildPatientFlowReadiness,
+  hasReviewedPatientPharmacyPrescriptionForJourney,
   P,
   type PrescriptionHistoryItem,
   patientFlowJourneyContext,
@@ -21,13 +22,14 @@ function prescriptionHistory(
   itemStatus = "active",
   pharmacyOrderId: string | null = null,
   pharmacyRxQueueId: string | null = null,
+  pharmacyStatus: PrescriptionHistoryItem["pharmacy_status"] = null,
 ): PrescriptionHistoryItem {
   return {
     doctor_name: null,
     encounter_date: "2026-01-01",
     pharmacy_order_id: pharmacyOrderId,
     pharmacy_rx_queue_id: pharmacyRxQueueId,
-    pharmacy_status: pharmacyOrderId ? "dispensing" : "pending_review",
+    pharmacy_status: pharmacyStatus ?? (pharmacyOrderId ? "dispensing" : "pending_review"),
     items: [
       {
         catalog_item_id: null,
@@ -85,6 +87,21 @@ describe("patient flow readiness", () => {
         prescriptionHistory("ordered-rx", "active", "order-active", "rx-queue-active"),
       ]),
     ).toBeNull();
+    expect(
+      hasReviewedPatientPharmacyPrescriptionForJourney([
+        prescriptionHistory("pending-rx", "active", null, "rx-queue-active", "pending_review"),
+      ]),
+    ).toBe(false);
+    expect(
+      hasReviewedPatientPharmacyPrescriptionForJourney([
+        prescriptionHistory("approved-rx", "active", null, "rx-queue-active", "approved"),
+      ]),
+    ).toBe(true);
+    expect(
+      hasReviewedPatientPharmacyPrescriptionForJourney([
+        prescriptionHistory("ordered-rx", "active", "order-active", "rx-queue-active"),
+      ]),
+    ).toBe(true);
   });
 
   it("summarizes the core module handoffs from a registered patient", () => {
@@ -102,6 +119,10 @@ describe("patient flow readiness", () => {
       "pharmacy",
       "billing",
     ]);
+    expect(readiness.items.find((item) => item.id === "patient")).toMatchObject({
+      descriptionKey: "patientJourney.flow.modules.patient.description",
+      labelKey: "patientJourney.flow.modules.patient.label",
+    });
     expect(readiness.summary).toMatchObject({
       blocked: 1,
       blockedModules: ["pharmacy"],
@@ -114,8 +135,10 @@ describe("patient flow readiness", () => {
     });
     expect(readiness.items.find((item) => item.id === "pharmacy")).toMatchObject({
       blockedReason: "event",
+      disabledReasonKey: "patientJourney.blockers.availableAfterEvents",
       disabledReason:
         "Available after order created or pharmacy prescription reviewed or pharmacy order dispensed",
+      labelKey: "patientJourney.flow.modules.pharmacy.label",
     });
   });
 
@@ -144,10 +167,13 @@ describe("patient flow readiness", () => {
     expect(readiness.items.find((item) => item.id === "patient")).toMatchObject({
       blockedReason: "permission",
       disabledReason: "Permission required",
+      disabledReasonKey: "patientJourney.blockers.permissionRequired",
     });
-    expect(readiness.items.find((item) => item.id === "camp")?.disabledReason).toBe(
-      "Requires one of camp.list / camp.registrations.list / camp.registrations.create",
-    );
+    expect(readiness.items.find((item) => item.id === "camp")).toMatchObject({
+      disabledReason:
+        "Requires one of camp.list / camp.registrations.list / camp.registrations.create",
+      disabledReasonKey: "patientJourney.blockers.requiresOneOfPermissions",
+    });
   });
 
   it("routes active IPD, pharmacy and billing contexts without re-searching the patient", () => {
