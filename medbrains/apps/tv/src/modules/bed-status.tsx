@@ -1,13 +1,12 @@
 import type { Module } from "@medbrains/mobile-shell";
 import {
   type BedAvailabilityDisplay,
-  type BedBoardSignalTone,
   type BedBoardStatusSignal,
   type BedWaitingEntry,
   bedBoardStatusSignal,
   P,
 } from "@medbrains/types";
-import { COLORS, SPACING } from "@medbrains/ui-mobile";
+import { COLORS, SPACING, WorkflowSignalMarker } from "@medbrains/ui-mobile";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { StyleSheet, View } from "react-native";
@@ -72,60 +71,21 @@ function statusLabel(status: string) {
   return status.replace(/_/g, " ");
 }
 
-function bedSignalColors(tone: BedBoardSignalTone) {
-  switch (tone) {
-    case "active":
-      return {
-        background: "rgba(103, 161, 236, 0.16)",
-        border: COLORS.vital,
-      };
-    case "blocked":
-      return {
-        background: "rgba(201, 145, 62, 0.18)",
-        border: COLORS.amber,
-      };
-    case "ready":
-      return {
-        background: "rgba(28, 183, 133, 0.18)",
-        border: COLORS.emerald,
-      };
-    case "risk":
-      return {
-        background: "rgba(200, 16, 46, 0.2)",
-        border: COLORS.red,
-      };
-    default:
-      return {
-        background: "transparent",
-        border: COLORS.tint,
-      };
-  }
-}
-
-function bedStatusShapeStyle(signal: BedBoardStatusSignal) {
-  const colors = bedSignalColors(signal.tone);
-  const base = {
-    backgroundColor: colors.background,
-    borderColor: colors.border,
-    borderWidth: 4,
-    height: signal.shape === "bed" ? 18 : 22,
-    width: signal.shape === "bed" ? 34 : 22,
-  };
-
-  switch (signal.shape) {
-    case "bed":
-      return { ...base, borderRadius: 5 };
-    case "diamond":
-      return { ...base, borderRadius: 4, transform: [{ rotate: "45deg" }] };
-    case "token":
-      return { ...base, borderRadius: 6 };
-    default:
-      return { ...base, borderRadius: 999 };
-  }
-}
-
 function BedStatusShape({ label, signal }: { label: string; signal: BedBoardStatusSignal }) {
-  return <View accessibilityLabel={label} style={bedStatusShapeStyle(signal)} />;
+  return (
+    <WorkflowSignalMarker
+      accessibilityLabel={label}
+      emphasis="high"
+      pillExtension={12}
+      shape={signal.shape}
+      size={22}
+      style={[
+        styles.statusMarker,
+        signal.shape === "bed" ? styles.statusMarkerBed : styles.statusMarkerDefault,
+      ]}
+      tone={signal.tone}
+    />
+  );
 }
 
 function waitingEntryKey(token: BedWaitingEntry) {
@@ -372,6 +332,18 @@ const styles = StyleSheet.create({
     alignItems: "center",
     flexDirection: "row",
     gap: SPACING.xs,
+  },
+  statusMarker: {
+    borderWidth: 4,
+  },
+  statusMarkerBed: {
+    borderRadius: 5,
+    height: 18,
+    width: 34,
+  },
+  statusMarkerDefault: {
+    height: 22,
+    width: 22,
   },
   waitingCard: {
     backgroundColor: COLORS.brandDeep,
