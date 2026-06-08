@@ -115,6 +115,9 @@ import {
   ClinicalEventProvider,
   type Column,
   DataTable,
+  OperationalSignal,
+  type OperationalSignalShape,
+  type OperationalSignalTone,
   PageHeader,
   PrescriptionViews,
   StatusDot,
@@ -176,6 +179,106 @@ const PHARMACY_ORDER_STATUS_OPTIONS = [
   { value: "cancelled", label: "Cancelled" },
   { value: "returned", label: "Returned" },
 ] as const;
+
+type PharmacyTranslate = ReturnType<typeof useTranslation>["t"];
+
+function pharmacyWorkflowLabel(value: string): string {
+  return value.replace(/_/g, " ");
+}
+
+function rxStatusLabel(t: PharmacyTranslate, status: string): string {
+  return t(`rxStatus.${status}`, { defaultValue: pharmacyWorkflowLabel(status) });
+}
+
+function rxStatusTone(status: string): OperationalSignalTone {
+  switch (status) {
+    case "approved":
+    case "dispensed":
+      return "ready";
+    case "pending_review":
+    case "on_hold":
+      return "blocked";
+    case "dispensing":
+    case "partially_dispensed":
+      return "active";
+    case "rejected":
+    case "cancelled":
+      return "risk";
+    default:
+      return "neutral";
+  }
+}
+
+function rxStatusShape(status: string): OperationalSignalShape {
+  switch (status) {
+    case "pending_review":
+    case "on_hold":
+      return "diamond";
+    case "dispensing":
+    case "partially_dispensed":
+      return "token";
+    default:
+      return "pill";
+  }
+}
+
+function rxStatusIcon(status: string) {
+  switch (status) {
+    case "approved":
+    case "dispensed":
+      return IconCheck;
+    case "pending_review":
+    case "on_hold":
+      return IconClock;
+    case "dispensing":
+    case "partially_dispensed":
+      return IconShoppingCart;
+    case "rejected":
+    case "cancelled":
+      return IconX;
+    default:
+      return undefined;
+  }
+}
+
+function rxPriorityLabel(t: PharmacyTranslate, priority: string): string {
+  return t(`rxPriority.${priority}`, { defaultValue: pharmacyWorkflowLabel(priority) });
+}
+
+function rxPriorityTone(priority: string): OperationalSignalTone {
+  switch (priority) {
+    case "urgent":
+      return "risk";
+    case "high":
+      return "blocked";
+    default:
+      return "neutral";
+  }
+}
+
+function rxPriorityShape(priority: string): OperationalSignalShape {
+  return priority === "urgent" || priority === "high" ? "diamond" : "pill";
+}
+
+function rxSourceLabel(t: PharmacyTranslate, source: string): string {
+  return t(`rxSource.${source}`, { defaultValue: pharmacyWorkflowLabel(source) });
+}
+
+function rxSourceTone(source: string): OperationalSignalTone {
+  switch (source) {
+    case "emergency":
+      return "risk";
+    case "ipd":
+    case "opd":
+      return "active";
+    default:
+      return "neutral";
+  }
+}
+
+function rxSourceShape(source: string): OperationalSignalShape {
+  return source === "emergency" ? "diamond" : "token";
+}
 
 type DraftPharmacyOrderItem = PharmacyOrderItemInput & {
   row_id: string;
@@ -4968,17 +5071,6 @@ function UtilizationView() {
 //  Rx Queue Tab (Phase 3)
 // ══════════════════════════════════════════════════════════
 
-const rxStatusColors: Record<string, string> = {
-  pending_review: "orange",
-  approved: "success",
-  rejected: "danger",
-  on_hold: "gray",
-  dispensing: "info",
-  dispensed: "primary",
-  partially_dispensed: "teal",
-  cancelled: "dimmed",
-};
-
 function RxQueueTab({
   canReview,
   canViewQueue,
@@ -5011,6 +5103,14 @@ function RxQueueTab({
   const reviewAction = watchReviewForm("action");
   const reviewNotes = watchReviewForm("notes");
   const reviewItems = rxReviewInputsFromForm(watchReviewForm("items"));
+  const rxStatusOptions = useMemo(
+    () =>
+      ["pending_review", "dispensing", "rejected", "on_hold"].map((status) => ({
+        value: status,
+        label: rxStatusLabel(t, status),
+      })),
+    [t],
+  );
 
   function setReviewItems(items: PharmacyRxReviewItemInput[]) {
     setReviewFormValue("items", items, {
@@ -5076,11 +5176,11 @@ function RxQueueTab({
       setActiveRxQueueId(null);
       resetReviewForm(DEFAULT_RX_REVIEW_FORM_VALUES);
       notifications.show({
-        title: "Prescription reviewed",
+        title: t("notify.prescriptionReviewed"),
         message:
           reviewAction === "approved"
-            ? "Pharmacy order and draft billing indent were created"
-            : "Queue status updated",
+            ? t("notify.pharmacyOrderAndBillingIndentCreated")
+            : t("notify.rxQueueStatusUpdated"),
         color: "green",
       });
     },
@@ -5089,7 +5189,7 @@ function RxQueueTab({
   const { data: reviewDetail, isLoading: reviewDetailLoading } = useQuery({
     queryKey: ["pharmacy-rx-detail", selectedId],
     queryFn: () => {
-      if (!selectedId) throw new Error("No prescription selected");
+      if (!selectedId) throw new Error(t("rxQueue.noPrescriptionSelected"));
       return pharmacyService.getRxDetail(selectedId);
     },
     enabled: reviewOpened && reviewAction === "approved" && Boolean(selectedId),
@@ -5137,11 +5237,11 @@ function RxQueueTab({
   const columns: Column<RxQueueRow>[] = [
     {
       key: "patient_name",
-      label: "Patient",
+      label: t("rxQueue.columns.patient"),
       fieldAccessKeys: PATIENT_BASIC_IDENTITY_FIELD_ACCESS_KEYS,
       accessor: (row: RxQueueRow) => row.patient_name,
       fieldKind: "name",
-      hiddenLabel: "Patient restricted",
+      hiddenLabel: t("rxQueue.restrictedPatient"),
       render: (row: RxQueueRow) => (
         <PharmacyPatientCell
           patientId={row.patient_id}
@@ -5151,71 +5251,84 @@ function RxQueueTab({
     },
     {
       key: "doctor_name",
-      label: "Doctor",
+      label: t("rxQueue.columns.doctor"),
       render: (row: RxQueueRow) => <Text size="sm">{row.doctor_name}</Text>,
     },
     {
       key: "source",
-      label: "Source",
-      render: (row: RxQueueRow) => <TableValueBadge value={row.source} kind="source" size="xs" />,
+      label: t("rxQueue.columns.source"),
+      render: (row: RxQueueRow) => (
+        <OperationalSignal
+          icon={IconPrescription}
+          label={rxSourceLabel(t, row.source)}
+          shape={rxSourceShape(row.source)}
+          size="xs"
+          tone={rxSourceTone(row.source)}
+        />
+      ),
     },
     {
       key: "priority",
-      label: "Priority",
+      label: t("rxQueue.columns.priority"),
       render: (row: RxQueueRow) => (
-        <TableValueBadge
-          value={row.priority}
-          kind="priority"
+        <OperationalSignal
+          icon={row.priority === "urgent" || row.priority === "high" ? IconAlertTriangle : IconPill}
+          label={rxPriorityLabel(t, row.priority)}
+          shape={rxPriorityShape(row.priority)}
           size="xs"
-          color={row.priority === "urgent" ? "danger" : row.priority === "high" ? "orange" : "gray"}
-          variant="filled"
+          tone={rxPriorityTone(row.priority)}
         />
       ),
     },
     {
       key: "status",
-      label: "Status",
+      label: t("rxQueue.columns.status"),
       render: (row: RxQueueRow) => (
-        <TableValueBadge
-          value={row.status}
-          color={rxStatusColors[row.status] ?? "gray"}
+        <OperationalSignal
+          icon={rxStatusIcon(row.status)}
+          label={rxStatusLabel(t, row.status)}
+          shape={rxStatusShape(row.status)}
           size="xs"
-          variant="filled"
+          tone={rxStatusTone(row.status)}
         />
       ),
     },
     {
       key: "allergy_count",
-      label: "Allergies",
+      label: t("rxQueue.columns.allergies"),
       render: (row: RxQueueRow) =>
         row.allergy_count > 0 ? (
-          <TableValueBadge
-            value="critical"
-            kind="priority"
+          <OperationalSignal
+            icon={IconAlertTriangle}
+            label={t("rxQueue.allergy.alerts", { count: row.allergy_count })}
+            shape="diamond"
             size="xs"
-            color="danger"
-            label={`${row.allergy_count} alerts`}
-            variant="filled"
+            tone="risk"
+            value={String(row.allergy_count)}
           />
         ) : (
-          <Text size="sm" c="dimmed">
-            None
-          </Text>
+          <OperationalSignal
+            icon={IconShieldCheck}
+            label={t("rxQueue.allergy.none")}
+            shape="pill"
+            size="xs"
+            tone="ready"
+          />
         ),
     },
     {
       key: "received_at",
-      label: "Received",
+      label: t("rxQueue.columns.received"),
       render: (row: RxQueueRow) => (
         <Text size="sm">{new Date(row.received_at).toLocaleTimeString()}</Text>
       ),
     },
     {
       key: "actions",
-      label: "Actions",
+      label: t("rxQueue.columns.actions"),
       render: (row: RxQueueRow) => (
         <Group gap={4}>
-          <Tooltip label="View prescription">
+          <Tooltip label={t("rxQueue.actions.viewPrescription")}>
             <ActionIcon
               size="sm"
               variant="subtle"
@@ -5224,42 +5337,42 @@ function RxQueueTab({
                 setReviewItems([]);
                 setActiveRxQueueId(row.id);
               }}
-              aria-label="View prescription details"
+              aria-label={t("rxQueue.actions.viewPrescriptionDetails")}
             >
               <IconEye size={14} />
             </ActionIcon>
           </Tooltip>
           {canReview && row.status === "pending_review" && (
             <>
-              <Tooltip label="Approve and create billing indent">
+              <Tooltip label={t("rxQueue.actions.approveAndCreateBillingIndent")}>
                 <ActionIcon
                   size="sm"
                   color="success"
                   variant="light"
                   onClick={() => handleOpenReview(row.id, "approved")}
-                  aria-label="Approve prescription review"
+                  aria-label={t("rxQueue.actions.approvePrescriptionReview")}
                 >
                   <IconCheck size={14} />
                 </ActionIcon>
               </Tooltip>
-              <Tooltip label="Hold for review">
+              <Tooltip label={t("rxQueue.actions.holdForReview")}>
                 <ActionIcon
                   size="sm"
                   color="warning"
                   variant="light"
                   onClick={() => handleOpenReview(row.id, "on_hold")}
-                  aria-label="Hold prescription for review"
+                  aria-label={t("rxQueue.actions.holdPrescriptionForReview")}
                 >
                   <IconClock size={14} />
                 </ActionIcon>
               </Tooltip>
-              <Tooltip label="Reject prescription">
+              <Tooltip label={t("rxQueue.actions.rejectPrescription")}>
                 <ActionIcon
                   size="sm"
                   color="danger"
                   variant="light"
                   onClick={() => handleOpenReview(row.id, "rejected")}
-                  aria-label="Reject prescription"
+                  aria-label={t("rxQueue.actions.rejectPrescription")}
                 >
                   <IconX size={14} />
                 </ActionIcon>
@@ -5280,30 +5393,24 @@ function RxQueueTab({
     <Stack>
       {!canViewQueue && canReview && (
         <Alert color="blue" variant="light" icon={<IconShieldCheck size={16} />}>
-          Review-only access is active. You can inspect pending prescriptions and approve, hold, or
-          reject them, but broad queue visibility remains limited to Rx queue list roles.
+          {t("rxQueue.reviewOnlyAccess")}
         </Alert>
       )}
       <Group justify="space-between">
         <Stack gap={2}>
-          <Text fw={600}>Prescription Queue</Text>
+          <Text fw={600}>{t("rxQueue.title")}</Text>
           {patientIdFilter && (
             <Text size="xs" c="dimmed">
-              Filtered to the patient from the clinical handoff.
+              {t("rxQueue.filteredToPatient")}
             </Text>
           )}
         </Stack>
         <Select
           size="xs"
-          placeholder="All statuses"
+          placeholder={t("rxQueue.allStatuses")}
           clearable
           w={180}
-          data={[
-            { value: "pending_review", label: "Pending Review" },
-            { value: "dispensing", label: "Billing / Dispense" },
-            { value: "rejected", label: "Rejected" },
-            { value: "on_hold", label: "On Hold" },
-          ]}
+          data={rxStatusOptions}
           value={filterStatus}
           onChange={setFilterStatus}
         />
@@ -5330,7 +5437,7 @@ function RxQueueTab({
       <Drawer
         opened={Boolean(selectedId) && !reviewOpened}
         onClose={() => setActiveRxQueueId(null)}
-        title="Prescription Detail"
+        title={t("rxQueue.prescriptionDetail")}
         position="right"
         size="min(100%, 1040px)"
       >
@@ -5351,7 +5458,7 @@ function RxQueueTab({
       <Modal
         opened={reviewOpened}
         onClose={closeReviewModal}
-        title={`${reviewAction === "approved" ? "Approve and bill" : reviewAction === "rejected" ? "Reject" : "Hold"} Prescription`}
+        title={t(`rxReviewModal.title.${reviewAction}`)}
         size="min(100%, 980px)"
       >
         <Stack component="form" onSubmit={handleSubmitReviewForm(handleSubmitReview)}>
@@ -5361,7 +5468,9 @@ function RxQueueTab({
             render={({ field, fieldState }) => (
               <Textarea
                 label={
-                  reviewAction === "approved" ? "Review notes / price override reason" : "Notes"
+                  reviewAction === "approved"
+                    ? t("rxReviewModal.reviewNotesPriceOverride")
+                    : t("label.notes")
                 }
                 value={field.value}
                 onChange={field.onChange}
@@ -5375,7 +5484,7 @@ function RxQueueTab({
               name="rejection_reason"
               render={({ field, fieldState }) => (
                 <Textarea
-                  label="Rejection Reason"
+                  label={t("rxReviewModal.rejectionReason")}
                   required
                   value={field.value}
                   onChange={field.onChange}
@@ -5399,13 +5508,12 @@ function RxQueueTab({
           )}
           {needsPriceOverrideReason && (
             <Alert color="orange" variant="light" icon={<IconAlertTriangle size={16} />}>
-              Enter a review note before approving because one or more item prices differ from
-              catalog price.
+              {t("rxReviewModal.priceOverrideReasonRequired")}
             </Alert>
           )}
           <Group justify="flex-end">
             <Button variant="default" onClick={closeReviewModal}>
-              Cancel
+              {t("label.cancel")}
             </Button>
             <Button
               type="submit"
@@ -5420,10 +5528,10 @@ function RxQueueTab({
               disabled={needsPriceOverrideReason || Boolean(reviewErrors.items?.message)}
             >
               {reviewAction === "approved"
-                ? "Approve & Create Billing Indent"
+                ? t("rxReviewModal.approveAndCreateBillingIndent")
                 : reviewAction === "on_hold"
-                  ? "Put on Hold"
-                  : "Reject"}
+                  ? t("rxReviewModal.putOnHold")
+                  : t("rxReviewModal.reject")}
             </Button>
           </Group>
         </Stack>
@@ -5448,6 +5556,7 @@ function RxDetailView({
   canViewPatientRecord: boolean;
   onReview: (action: PharmacyRxReviewAction) => void;
 }) {
+  const { t } = useTranslation("pharmacy");
   const { data, isLoading, error } = useQuery({
     queryKey: ["pharmacy-rx-detail", rxQueueId],
     queryFn: () => pharmacyService.getRxDetail(rxQueueId),
@@ -5460,11 +5569,11 @@ function RxDetailView({
   if (isLoading) return <Loader />;
   if (error)
     return (
-      <Alert color="danger" variant="light" title="Error">
+      <Alert color="danger" variant="light" title={t("notify.error")}>
         {String(error)}
       </Alert>
     );
-  if (!rxDetail) return <Text c="dimmed">No prescription data</Text>;
+  if (!rxDetail) return <Text c="dimmed">{t("rxQueue.noPrescriptionData")}</Text>;
 
   const { prescription, items: rxItems, allergies } = rxDetail;
   const pricedRxItems = applyRxReviewItems(rxItems, reviewItems);
@@ -5512,7 +5621,7 @@ function RxDetailView({
         <Alert
           color="danger"
           variant="light"
-          title="Drug Allergies"
+          title={t("rxQueue.drugAllergies")}
           icon={<IconAlertTriangle size={16} />}
         >
           <Group gap={6}>
@@ -5534,9 +5643,12 @@ function RxDetailView({
 
       {/* Status + actions */}
       <Group justify="space-between">
-        <Badge size="lg" color={rxStatusColors[status] ?? "gray"}>
-          {status.replace(/_/g, " ")}
-        </Badge>
+        <OperationalSignal
+          icon={rxStatusIcon(status)}
+          label={rxStatusLabel(t, status)}
+          shape={rxStatusShape(status)}
+          tone={rxStatusTone(status)}
+        />
         <Group gap="xs">
           {canReview && status === "pending_review" && (
             <>
@@ -5546,7 +5658,7 @@ function RxDetailView({
                 leftSection={<IconCheck size={14} />}
                 onClick={() => onReview("approved")}
               >
-                Approve & Create Billing
+                {t("rxQueue.actions.approveAndCreateBilling")}
               </Button>
               <Button
                 size="xs"
@@ -5555,7 +5667,7 @@ function RxDetailView({
                 leftSection={<IconClock size={14} />}
                 onClick={() => onReview("on_hold")}
               >
-                Hold
+                {t("rxQueue.actions.hold")}
               </Button>
               <Button
                 size="xs"
@@ -5564,13 +5676,13 @@ function RxDetailView({
                 leftSection={<IconX size={14} />}
                 onClick={() => onReview("rejected")}
               >
-                Reject
+                {t("rxQueue.actions.reject")}
               </Button>
             </>
           )}
           {status === "approved" && (
             <Button size="xs" color="primary" leftSection={<IconShoppingCart size={14} />}>
-              Create Dispense Order
+              {t("rxQueue.actions.createDispenseOrder")}
             </Button>
           )}
         </Group>
@@ -5582,12 +5694,12 @@ function RxDetailView({
           <Table.Thead>
             <Table.Tr>
               <Table.Th>#</Table.Th>
-              <Table.Th>Drug</Table.Th>
-              <Table.Th>Dosage</Table.Th>
-              <Table.Th>Frequency</Table.Th>
-              <Table.Th>Duration</Table.Th>
-              <Table.Th>Route</Table.Th>
-              <Table.Th>Instructions</Table.Th>
+              <Table.Th>{t("rxDetail.columns.drug")}</Table.Th>
+              <Table.Th>{t("rxDetail.columns.dosage")}</Table.Th>
+              <Table.Th>{t("rxDetail.columns.frequency")}</Table.Th>
+              <Table.Th>{t("rxDetail.columns.duration")}</Table.Th>
+              <Table.Th>{t("rxDetail.columns.route")}</Table.Th>
+              <Table.Th>{t("rxDetail.columns.instructions")}</Table.Th>
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
@@ -5614,7 +5726,9 @@ function RxDetailView({
       <PrescriptionViews
         prescriptions={rxForViews}
         patientName={
-          canViewPatientRecord ? (patientName?.full_name ?? "Linked patient") : "Patient restricted"
+          canViewPatientRecord
+            ? (patientName?.full_name ?? t("rxQueue.linkedPatient"))
+            : t("rxQueue.restrictedPatient")
         }
         uhid={canViewPatientRecord ? (patientName?.uhid ?? "") : ""}
         allergies={allergyNames}
