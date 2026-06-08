@@ -1,4 +1,8 @@
-import type { InvoiceStatus } from "@medbrains/types";
+import {
+  billingInvoiceStatusLabel,
+  billingInvoiceStatusLabelKey,
+  type InvoiceStatus,
+} from "@medbrains/types";
 
 type MobileBillingTextValues = Record<string, string | number | boolean>;
 
@@ -37,15 +41,12 @@ const MOBILE_BILLING_MESSAGES: Record<string, string> = {
   "billing.paymentMethod.cash": "Cash",
   "billing.paymentMethod.netBanking": "Net Banking",
   "billing.paymentMethod.upi": "UPI",
-  "billing.status.cancelled": "Cancelled",
-  "billing.status.draft": "Draft",
-  "billing.status.issued": "Issued",
-  "billing.status.paid": "Paid",
-  "billing.status.partial": "Partially paid",
-  "billing.status.partially_paid": "Partially paid",
-  "billing.status.pending": "Pending",
-  "billing.status.refunded": "Refunded",
-  "billing.status.unpaid": "Unpaid",
+  "invoiceStatus.cancelled": "Cancelled",
+  "invoiceStatus.draft": "Draft",
+  "invoiceStatus.issued": "Issued",
+  "invoiceStatus.paid": "Paid",
+  "invoiceStatus.partially_paid": "Partially paid",
+  "invoiceStatus.refunded": "Refunded",
 };
 
 function interpolate(template: string, values?: MobileBillingTextValues): string {
@@ -63,5 +64,10 @@ export function mobileBillingText(key: string, values?: MobileBillingTextValues)
 }
 
 export function mobileBillingStatusText(status: InvoiceStatus): string {
-  return mobileBillingText(`billing.status.${status}`);
+  const labelKey = billingInvoiceStatusLabelKey(status);
+  const fallback = billingInvoiceStatusLabel(status);
+  if (!labelKey) return fallback;
+
+  const translated = mobileBillingText(labelKey);
+  return translated === labelKey ? fallback : translated;
 }
