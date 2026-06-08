@@ -3287,6 +3287,7 @@ function TransferTab({
   patientId: string;
   status: string;
 }) {
+  const { t } = useTranslation("ipd");
   const queryClient = useQueryClient();
   const [bedId, setBedId] = useState("");
   const [notes, setNotes] = useState("");
@@ -3305,8 +3306,8 @@ function TransferTab({
       void queryClient.invalidateQueries({ queryKey: ["bed-dashboard"] });
       void queryClient.invalidateQueries({ queryKey: ["ipd-transfers", admissionId] });
       notifications.show({
-        title: "Transferred",
-        message: "Bed transfer recorded",
+        title: t("notify.transferred"),
+        message: t("notify.bedTransferRecorded"),
         color: "success",
       });
       emitIpdBedMovementEvent(emit, response, patientId, notes.trim());
@@ -3318,7 +3319,7 @@ function TransferTab({
   if (status !== "admitted") {
     return (
       <Text c="dimmed" size="sm">
-        Transfer is only available for admitted patients.
+        {t("transferIsOnlyAvailableForAdmittedPatients.")}
       </Text>
     );
   }
@@ -3327,9 +3328,14 @@ function TransferTab({
     <Stack>
       {canManage ? (
         <>
-          <BedSelect label="New Bed" value={bedId} onChange={(id) => setBedId(id)} required />
+          <BedSelect
+            label={t("label.newBed")}
+            value={bedId}
+            onChange={(id) => setBedId(id)}
+            required
+          />
           <Textarea
-            label="Transfer Notes"
+            label={t("label.transferNotes")}
             value={notes}
             onChange={(e) => setNotes(e.currentTarget.value)}
           />
@@ -3339,12 +3345,12 @@ function TransferTab({
             loading={transferMutation.isPending}
             disabled={!bedId || !notes.trim()}
           >
-            Transfer Bed
+            {t("label.transferBed")}
           </Button>
         </>
       ) : (
         <Text c="dimmed" size="sm">
-          You do not have permission to transfer beds.
+          {t("youDoNotHavePermissionToTransferBeds.")}
         </Text>
       )}
     </Stack>
@@ -7077,6 +7083,7 @@ function BedTransferModal({
   onClose: () => void;
   patientId: string;
 }) {
+  const { t } = useTranslation("ipd");
   const queryClient = useQueryClient();
   const emit = useClinicalEmit();
   const [toBedId, setToBedId] = useState("");
@@ -7091,8 +7098,8 @@ function BedTransferModal({
       void queryClient.invalidateQueries({ queryKey: ["bed-dashboard"] });
       void queryClient.invalidateQueries({ queryKey: ["ipd-transfers", admissionId] });
       notifications.show({
-        title: "Transferred",
-        message: "Bed transfer completed",
+        title: t("notify.transferred"),
+        message: t("notify.bedTransferCompleted"),
         color: "success",
       });
       emitIpdBedMovementEvent(emit, response, patientId, notes.trim());
@@ -7102,24 +7109,33 @@ function BedTransferModal({
       setNotes("");
     },
     onError: () => {
-      notifications.show({ title: "Error", message: "Failed to transfer bed", color: "danger" });
+      notifications.show({
+        title: t("notify.error"),
+        message: t("notify.bedTransferFailed"),
+        color: "danger",
+      });
     },
   });
 
   return (
-    <Modal opened={opened} onClose={onClose} title="Bed Transfer" size="md">
+    <Modal opened={opened} onClose={onClose} title={t("title.bedTransfer")} size="md">
       <Stack>
-        <BedSelect label="Target Bed" value={toBedId} onChange={(id) => setToBedId(id)} required />
+        <BedSelect
+          label={t("label.targetBed")}
+          value={toBedId}
+          onChange={(id) => setToBedId(id)}
+          required
+        />
         <TextInput
-          label="Reason"
-          placeholder="Reason for transfer"
+          label={t("label.reason")}
+          placeholder={t("placeholder.reasonForTransfer")}
           value={reason}
           onChange={(e) => setReason(e.currentTarget.value)}
           required
         />
         <Textarea
-          label="Notes"
-          placeholder="Optional transfer notes"
+          label={t("label.notes")}
+          placeholder={t("placeholder.optionalTransferNotes")}
           value={notes}
           onChange={(e) => setNotes(e.currentTarget.value)}
         />
@@ -7130,7 +7146,7 @@ function BedTransferModal({
           loading={transferMutation.isPending}
           disabled={!toBedId.trim() || !reason.trim()}
         >
-          Transfer
+          {t("transfer")}
         </Button>
       </Stack>
     </Modal>
