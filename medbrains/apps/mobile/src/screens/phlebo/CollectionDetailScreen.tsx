@@ -13,6 +13,7 @@ import {
 } from "react-native-paper";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { phlebotomyService } from "../../services/phlebotomy.service";
+import { mobilePhlebotomyStatusText, mobilePhlebotomyText } from "./phlebotomyText";
 
 interface CollectionDetailScreenProps {
   route: {
@@ -76,7 +77,7 @@ export function CollectionDetailScreen({ route, navigation }: CollectionDetailSc
       <SafeAreaView style={[styles.container, styles.centered]}>
         <ActivityIndicator size="large" />
         <Text variant="bodyMedium" style={styles.loadingText}>
-          Loading collection details...
+          {mobilePhlebotomyText("phlebotomy.collection.loadingDetails")}
         </Text>
       </SafeAreaView>
     );
@@ -86,9 +87,9 @@ export function CollectionDetailScreen({ route, navigation }: CollectionDetailSc
     return (
       <SafeAreaView style={[styles.container, styles.centered]}>
         <Avatar.Icon size={64} icon="alert-circle" style={styles.errorIcon} />
-        <Text variant="titleMedium">Collection not found</Text>
+        <Text variant="titleMedium">{mobilePhlebotomyText("phlebotomy.collection.notFound")}</Text>
         <Button mode="contained" onPress={() => navigation.goBack()} style={styles.backButton}>
-          Go Back
+          {mobilePhlebotomyText("phlebotomy.action.goBack")}
         </Button>
       </SafeAreaView>
     );
@@ -99,7 +100,10 @@ export function CollectionDetailScreen({ route, navigation }: CollectionDetailSc
   const addressParts = [collection.address_line, collection.city, collection.pincode].filter(
     Boolean,
   );
-  const address = addressParts.length > 0 ? addressParts.join(", ") : "Address not provided";
+  const address =
+    addressParts.length > 0
+      ? addressParts.join(", ")
+      : mobilePhlebotomyText("phlebotomy.collection.addressNotProvided");
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
@@ -116,10 +120,12 @@ export function CollectionDetailScreen({ route, navigation }: CollectionDetailSc
           />
           <View style={styles.statusInfo}>
             <Text variant="titleMedium" style={[styles.statusText, { color: statusColor }]}>
-              {collection.status.replace("_", " ").toUpperCase()}
+              {mobilePhlebotomyStatusText(collection.status)}
             </Text>
             <Text variant="bodySmall" style={styles.statusDate}>
-              Scheduled: {collection.scheduled_date}
+              {mobilePhlebotomyText("phlebotomy.collection.statusScheduled", {
+                date: collection.scheduled_date,
+              })}
             </Text>
           </View>
         </Surface>
@@ -128,7 +134,7 @@ export function CollectionDetailScreen({ route, navigation }: CollectionDetailSc
         <Card style={styles.infoCard}>
           <Card.Content>
             <Text variant="titleMedium" style={styles.sectionTitle}>
-              Collection Details
+              {mobilePhlebotomyText("phlebotomy.collection.details.section")}
             </Text>
             <Divider style={styles.divider} />
 
@@ -136,7 +142,7 @@ export function CollectionDetailScreen({ route, navigation }: CollectionDetailSc
               <Avatar.Icon size={40} icon="identifier" style={styles.infoIcon} />
               <View style={styles.infoContent}>
                 <Text variant="labelSmall" style={styles.infoLabel}>
-                  Collection ID
+                  {mobilePhlebotomyText("phlebotomy.collection.details.collectionId")}
                 </Text>
                 <Text variant="bodyMedium">{collection.id.slice(0, 8)}</Text>
               </View>
@@ -146,7 +152,7 @@ export function CollectionDetailScreen({ route, navigation }: CollectionDetailSc
               <Avatar.Icon size={40} icon="calendar" style={styles.infoIcon} />
               <View style={styles.infoContent}>
                 <Text variant="labelSmall" style={styles.infoLabel}>
-                  Date
+                  {mobilePhlebotomyText("phlebotomy.collection.details.date")}
                 </Text>
                 <Text variant="bodyMedium">{collection.scheduled_date}</Text>
               </View>
@@ -156,9 +162,12 @@ export function CollectionDetailScreen({ route, navigation }: CollectionDetailSc
               <Avatar.Icon size={40} icon="clock" style={styles.infoIcon} />
               <View style={styles.infoContent}>
                 <Text variant="labelSmall" style={styles.infoLabel}>
-                  Time Slot
+                  {mobilePhlebotomyText("phlebotomy.collection.details.timeSlot")}
                 </Text>
-                <Text variant="bodyMedium">{collection.scheduled_time_slot || "Flexible"}</Text>
+                <Text variant="bodyMedium">
+                  {collection.scheduled_time_slot ||
+                    mobilePhlebotomyText("phlebotomy.collection.flexible")}
+                </Text>
               </View>
             </View>
           </Card.Content>
@@ -169,7 +178,9 @@ export function CollectionDetailScreen({ route, navigation }: CollectionDetailSc
           <Card.Content>
             <View style={styles.addressHeader}>
               <Avatar.Icon size={32} icon="map-marker" style={styles.addressIconStyle} />
-              <Text variant="titleMedium">Collection Address</Text>
+              <Text variant="titleMedium">
+                {mobilePhlebotomyText("phlebotomy.collection.addressTitle")}
+              </Text>
             </View>
             <Text variant="bodyMedium" style={styles.addressText}>
               {address}
@@ -186,7 +197,7 @@ export function CollectionDetailScreen({ route, navigation }: CollectionDetailSc
             style={styles.quickButton}
             disabled={!collection.contact_phone}
           >
-            Call
+            {mobilePhlebotomyText("phlebotomy.action.call")}
           </Button>
           <Button
             mode="contained"
@@ -195,7 +206,7 @@ export function CollectionDetailScreen({ route, navigation }: CollectionDetailSc
             style={styles.quickButton}
             disabled={!collection.address_line}
           >
-            Navigate
+            {mobilePhlebotomyText("phlebotomy.action.navigate")}
           </Button>
         </View>
 
@@ -205,7 +216,9 @@ export function CollectionDetailScreen({ route, navigation }: CollectionDetailSc
             <Card.Content>
               <View style={styles.instructionsHeader}>
                 <Avatar.Icon size={32} icon="alert-circle" style={styles.instructionsIcon} />
-                <Text variant="titleMedium">Special Instructions</Text>
+                <Text variant="titleMedium">
+                  {mobilePhlebotomyText("phlebotomy.collection.specialInstructions")}
+                </Text>
               </View>
               <Text variant="bodyMedium" style={styles.instructionsText}>
                 {collection.special_instructions}
@@ -224,7 +237,7 @@ export function CollectionDetailScreen({ route, navigation }: CollectionDetailSc
               style={styles.collectButton}
               contentStyle={styles.collectButtonContent}
             >
-              Start Collection
+              {mobilePhlebotomyText("phlebotomy.action.startCollection")}
             </Button>
             <Button
               mode="outlined"
@@ -234,7 +247,7 @@ export function CollectionDetailScreen({ route, navigation }: CollectionDetailSc
               }}
               style={styles.notAvailableButton}
             >
-              Patient Not Available
+              {mobilePhlebotomyText("phlebotomy.action.patientNotAvailable")}
             </Button>
           </View>
         )}
@@ -244,7 +257,9 @@ export function CollectionDetailScreen({ route, navigation }: CollectionDetailSc
           <Surface style={styles.collectedBanner} elevation={0}>
             <Avatar.Icon size={32} icon="check-circle" style={styles.collectedIcon} />
             <View style={styles.collectedInfo}>
-              <Text variant="labelMedium">Collected At</Text>
+              <Text variant="labelMedium">
+                {mobilePhlebotomyText("phlebotomy.collection.collectedAt")}
+              </Text>
               <Text variant="bodyMedium">{new Date(collection.collected_at).toLocaleString()}</Text>
             </View>
           </Surface>
