@@ -132,6 +132,7 @@ export function PatientFlowNavigator({
         navigation.navigate("PatientPharmacy", {
           handoff: "queue",
           patientId: context.patientId,
+          pharmacyOrderId: context.activePharmacyOrderId ?? undefined,
         });
         return;
       case "billing":

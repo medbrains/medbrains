@@ -7,7 +7,7 @@ import type {
   ResolvedClinicalJourneyAction,
 } from "./event-actions.js";
 import { resolveClinicalJourneyActions } from "./event-actions.js";
-import type { ClinicalEventName } from "./index.js";
+import type { ClinicalEventName, PrescriptionHistoryItem } from "./index.js";
 import { patientJourneyActionRoute } from "./patient-journey-routes.js";
 import { P } from "./permissions.js";
 
@@ -169,6 +169,18 @@ function summarizePatientFlow(
     regulatoryBlockedModules,
     total: items.length,
   };
+}
+
+export function activePatientPharmacyOrderIdForJourney(
+  prescriptions: readonly PrescriptionHistoryItem[],
+): string | null {
+  return (
+    prescriptions.find((prescription) =>
+      prescription.items.some((item) => item.item_status !== "discontinued"),
+    )?.prescription.id ??
+    prescriptions[0]?.prescription.id ??
+    null
+  );
 }
 
 export function patientFlowJourneyContext(input: PatientFlowContextInput): ClinicalJourneyContext {

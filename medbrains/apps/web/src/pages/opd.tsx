@@ -220,7 +220,14 @@ import {
   type ResolvedOpdQueueRowAction,
   resolveOpdQueueRowActions,
 } from "./opd-queue-actions";
-import { opdEncounterTabForOrderBasket } from "./opd-workspace";
+import {
+  isOpdEncounterTabValue,
+  OPD_ENCOUNTER_TAB_VALUES,
+  opdEncounterOrderBasketRoute,
+  opdEncounterTabForOrderBasket,
+  opdEncounterWorkspaceTabRoute,
+  opdOrderBasketTabFromSearchParams,
+} from "./opd-workspace";
 
 const statusColors: Record<string, string> = {
   waiting: "primary",
@@ -250,30 +257,6 @@ const appointmentStatusLabels: Record<string, string> = {
   no_show: "No show",
 };
 
-const OPD_ENCOUNTER_TAB_VALUES = [
-  "vitals",
-  "consultation",
-  "history",
-  "ros",
-  "physical-exam",
-  "diagnoses",
-  "investigations",
-  "procedures",
-  "prescriptions",
-  "referrals",
-  "rx-history",
-  "charts",
-  "timeline",
-  "certificates",
-  "followup",
-  "reminders",
-  "feedback",
-  "consents",
-  "pre-auth",
-  "docket",
-  "pharmacy-dispatch",
-] as const;
-
 function deriveOpdJourneyCompletedEvents(
   prescriptions: readonly PrescriptionWithItems[],
   labOrders: readonly LabOrder[],
@@ -292,12 +275,6 @@ function deriveOpdJourneyCompletedEvents(
     events.push("mrd.case_sheet.printed");
   }
   return events;
-}
-
-function orderBasketTabFromSearchParams(searchParams: URLSearchParams): OrderBasketTab | null {
-  const value = searchParams.get("order");
-  if (value === "drug" || value === "lab" || value === "radiology") return value;
-  return null;
 }
 
 const appointmentTypeLabels: Record<string, string> = {
@@ -1550,21 +1527,30 @@ export function EncounterDetail({
   const [searchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const emit = useClinicalEmit();
-  const orderBasketDeepLinkTab = orderBasketTabFromSearchParams(searchParams);
+  const orderBasketDeepLinkTab = opdOrderBasketTabFromSearchParams(searchParams);
   const [summaryOpened, { open: openSummary, close: closeSummary }] = useDisclosure(false);
-  const [basketOpened, { open: openBasket, close: closeBasket }] = useDisclosure(
-    Boolean(orderBasketDeepLinkTab),
-  );
-  const [basketTab, setBasketTab] = useState<OrderBasketTab>(orderBasketDeepLinkTab ?? "drug");
   const [activeEncounterTab, setActiveEncounterTab] = useHashTabs(
     "consultation",
     OPD_ENCOUNTER_TAB_VALUES,
   );
+  const activeWorkspaceTab = isOpdEncounterTabValue(activeEncounterTab)
+    ? activeEncounterTab
+    : "consultation";
+  const basketOpened = orderBasketDeepLinkTab !== null;
+  const basketTab = orderBasketDeepLinkTab ?? "drug";
 
   function openOrderBasket(tab: OrderBasketTab = "drug") {
     setActiveEncounterTab(opdEncounterTabForOrderBasket(tab));
-    setBasketTab(tab);
-    openBasket();
+    navigate(opdEncounterOrderBasketRoute(encounterId, tab));
+  }
+
+  function changeOrderBasketTab(tab: OrderBasketTab) {
+    setActiveEncounterTab(opdEncounterTabForOrderBasket(tab));
+    navigate(opdEncounterOrderBasketRoute(encounterId, tab), { replace: true });
+  }
+
+  function closeOrderBasket() {
+    navigate(opdEncounterWorkspaceTabRoute(encounterId, activeWorkspaceTab), { replace: true });
   }
 
   // Fetch all data for visit summary print
@@ -2118,11 +2104,11 @@ export function EncounterDetail({
       </Tabs>
       <OrderBasketWorkspace
         opened={basketOpened}
-        onClose={closeBasket}
+        onClose={closeOrderBasket}
         encounterId={encounterId}
         patientId={patientId}
         activeTab={basketTab}
-        onActiveTabChange={setBasketTab}
+        onActiveTabChange={changeOrderBasketTab}
         onSigned={() => {
           void queryClient.invalidateQueries({ queryKey: ["lab-orders", encounterId] });
           void queryClient.invalidateQueries({ queryKey: ["prescriptions", encounterId] });

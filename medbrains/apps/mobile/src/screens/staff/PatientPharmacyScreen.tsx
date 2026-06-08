@@ -25,6 +25,7 @@ interface PatientPharmacyScreenProps {
     params: {
       handoff?: PharmacyHandoff;
       patientId: string;
+      pharmacyOrderId?: string;
     };
   };
 }
@@ -48,6 +49,17 @@ function prescriptionMatchesSearch(item: PrescriptionHistoryItem, search: string
   );
 }
 
+function prescriptionMatchesHandoff(
+  item: PrescriptionHistoryItem,
+  pharmacyOrderId: string | undefined,
+) {
+  if (!pharmacyOrderId) return false;
+  return (
+    item.prescription.id === pharmacyOrderId ||
+    item.items.some((prescriptionItem) => prescriptionItem.prescription_id === pharmacyOrderId)
+  );
+}
+
 function activeMedicationCount(prescriptions: PrescriptionHistoryItem[]) {
   return prescriptions.reduce(
     (count, item) =>
@@ -60,7 +72,7 @@ function activeMedicationCount(prescriptions: PrescriptionHistoryItem[]) {
 
 export function PatientPharmacyScreen({ route }: PatientPharmacyScreenProps) {
   const theme = useTheme();
-  const { handoff, patientId } = route.params;
+  const { handoff, patientId, pharmacyOrderId } = route.params;
   const [filter, setFilter] = useState<PharmacyFilter>("recent");
   const [search, setSearch] = useState("");
 
@@ -78,19 +90,35 @@ export function PatientPharmacyScreen({ route }: PatientPharmacyScreenProps) {
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
   const filteredByDate =
     filter === "recent"
-      ? data.filter((item) => new Date(item.encounter_date) >= thirtyDaysAgo)
+      ? data.filter(
+          (item) =>
+            new Date(item.encounter_date) >= thirtyDaysAgo ||
+            prescriptionMatchesHandoff(item, pharmacyOrderId),
+        )
       : data;
-  const prescriptions = filteredByDate.filter((item) => prescriptionMatchesSearch(item, search));
+  const prescriptions = filteredByDate
+    .filter(
+      (item) =>
+        prescriptionMatchesHandoff(item, pharmacyOrderId) ||
+        prescriptionMatchesSearch(item, search),
+    )
+    .sort((left, right) => {
+      const leftMatches = prescriptionMatchesHandoff(left, pharmacyOrderId);
+      const rightMatches = prescriptionMatchesHandoff(right, pharmacyOrderId);
+      if (leftMatches === rightMatches) return 0;
+      return leftMatches ? -1 : 1;
+    });
   const activeCount = activeMedicationCount(prescriptions);
 
   function renderPrescription({ item }: { item: PrescriptionHistoryItem }) {
     const prescriptionDate = new Date(item.encounter_date);
+    const selectedForHandoff = prescriptionMatchesHandoff(item, pharmacyOrderId);
     const visibleItems = search
       ? item.items.filter((prescriptionItem) => itemMatchesSearch(prescriptionItem, search))
       : item.items;
 
     return (
-      <Card style={styles.card}>
+      <Card style={[styles.card, selectedForHandoff && styles.selectedCard]}>
         <Card.Content>
           <View style={styles.cardHeader}>
             <Avatar.Icon size={36} icon="pill" style={styles.cardIcon} />
@@ -100,9 +128,16 @@ export function PatientPharmacyScreen({ route }: PatientPharmacyScreenProps) {
                 {prescriptionDate.toLocaleDateString()}
               </Text>
             </View>
-            <Chip compact mode="outlined">
-              {visibleItems.length} item{visibleItems.length === 1 ? "" : "s"}
-            </Chip>
+            <View style={styles.cardChips}>
+              {selectedForHandoff && (
+                <Chip compact icon="link-variant" style={styles.selectedChip}>
+                  Selected order
+                </Chip>
+              )}
+              <Chip compact mode="outlined">
+                {visibleItems.length} item{visibleItems.length === 1 ? "" : "s"}
+              </Chip>
+            </View>
           </View>
           <Divider style={styles.divider} />
           <View style={styles.medicationList}>
@@ -147,7 +182,9 @@ export function PatientPharmacyScreen({ route }: PatientPharmacyScreenProps) {
             {handoff === "dispense" ? "Dispense handoff" : "Patient pharmacy"}
           </Text>
           <Text variant="bodySmall" style={styles.mutedText}>
-            Review active and recent medicines before pharmacy fulfilment.
+            {pharmacyOrderId
+              ? "Selected order is linked from the patient journey for dispensing."
+              : "Review active and recent medicines before pharmacy fulfilment."}
           </Text>
         </View>
         <Chip compact mode="outlined">
@@ -220,6 +257,10 @@ const styles = StyleSheet.create({
   },
   cardIcon: {
     backgroundColor: "#e6fcf5",
+  },
+  cardChips: {
+    alignItems: "flex-end",
+    gap: 6,
   },
   cardTitle: {
     flex: 1,
@@ -303,5 +344,12 @@ const styles = StyleSheet.create({
   },
   searchbar: {
     borderRadius: 12,
+  },
+  selectedCard: {
+    borderColor: "#0ca678",
+    borderWidth: 1,
+  },
+  selectedChip: {
+    backgroundColor: "#d3f9d8",
   },
 });

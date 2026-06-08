@@ -1,6 +1,12 @@
 // @vitest-environment node
 
-import { buildPatientFlowReadiness, P, patientFlowJourneyContext } from "@medbrains/types";
+import {
+  activePatientPharmacyOrderIdForJourney,
+  buildPatientFlowReadiness,
+  P,
+  type PrescriptionHistoryItem,
+  patientFlowJourneyContext,
+} from "@medbrains/types";
 import { describe, expect, it } from "vitest";
 
 const allowAll = () => true;
@@ -9,7 +15,55 @@ const allowPermissions = (permissions: readonly string[]) => {
   return (permission: string) => allowed.has(permission);
 };
 
+function prescriptionHistory(id: string, itemStatus = "active"): PrescriptionHistoryItem {
+  return {
+    doctor_name: null,
+    encounter_date: "2026-01-01",
+    items: [
+      {
+        catalog_item_id: null,
+        created_at: "2026-01-01T00:00:00.000Z",
+        discontinued_at: null,
+        discontinued_by: null,
+        discontinue_reason: null,
+        dosage: "1 tab",
+        drug_name: "Paracetamol",
+        duration: "3 days",
+        frequency: "BD",
+        id: `${id}-item`,
+        instructions: null,
+        item_status: itemStatus,
+        prescription_id: id,
+        route: "oral",
+        tenant_id: "tenant-1",
+      },
+    ],
+    prescription: {
+      created_at: "2026-01-01T00:00:00.000Z",
+      doctor_id: "doctor-1",
+      encounter_id: "encounter-1",
+      id,
+      notes: null,
+      tenant_id: "tenant-1",
+      updated_at: "2026-01-01T00:00:00.000Z",
+    },
+  };
+}
+
 describe("patient flow readiness", () => {
+  it("selects the active prescription target for pharmacy handoffs", () => {
+    expect(
+      activePatientPharmacyOrderIdForJourney([
+        prescriptionHistory("old-stopped", "discontinued"),
+        prescriptionHistory("active-rx"),
+      ]),
+    ).toBe("active-rx");
+    expect(
+      activePatientPharmacyOrderIdForJourney([prescriptionHistory("stopped", "discontinued")]),
+    ).toBe("stopped");
+    expect(activePatientPharmacyOrderIdForJourney([])).toBeNull();
+  });
+
   it("summarizes the core module handoffs from a registered patient", () => {
     const readiness = buildPatientFlowReadiness(
       patientFlowJourneyContext({ patientId: "patient-1" }),

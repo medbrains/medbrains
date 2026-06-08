@@ -314,12 +314,14 @@ export function PatientJourneyActions({
         navigation.navigate("PatientPharmacy", {
           handoff: "dispense",
           patientId: context.patientId,
+          pharmacyOrderId: context.activePharmacyOrderId ?? undefined,
         });
         return;
       case "pharmacy.open_patient_queue":
         navigation.navigate("PatientPharmacy", {
           handoff: "queue",
           patientId: context.patientId,
+          pharmacyOrderId: context.activePharmacyOrderId ?? undefined,
         });
         return;
     }

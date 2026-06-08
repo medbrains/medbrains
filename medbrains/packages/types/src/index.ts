@@ -60,7 +60,11 @@ export type {
   PatientFlowReadinessItem,
   PatientFlowReadinessSummary,
 } from "./patient-flow.js";
-export { buildPatientFlowReadiness, patientFlowJourneyContext } from "./patient-flow.js";
+export {
+  activePatientPharmacyOrderIdForJourney,
+  buildPatientFlowReadiness,
+  patientFlowJourneyContext,
+} from "./patient-flow.js";
 export { patientJourneyActionRoute } from "./patient-journey-routes.js";
 export type { PermissionDef, PermissionGroup } from "./permissions.js";
 export {

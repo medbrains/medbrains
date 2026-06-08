@@ -68,7 +68,7 @@ export type RootStackParamList = {
     patientId: string;
   };
   PatientDetail: { patientId: string };
-  PatientPharmacy: { handoff?: "dispense" | "queue"; patientId: string };
+  PatientPharmacy: { handoff?: "dispense" | "queue"; patientId: string; pharmacyOrderId?: string };
   Queue: { departmentId?: string };
   Vitals: { encounterId?: string; patientId?: string };
   Prescription: {

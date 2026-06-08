@@ -9,7 +9,11 @@ import type {
   PatientInvoiceRow,
   PatientVisitRow,
 } from "@medbrains/types";
-import { deriveCampJourneyCompletedEvents, P } from "@medbrains/types";
+import {
+  activePatientPharmacyOrderIdForJourney,
+  deriveCampJourneyCompletedEvents,
+  P,
+} from "@medbrains/types";
 import { fieldAccessText, mostRestrictedFieldAccess } from "@medbrains/utils";
 import { useQuery } from "@tanstack/react-query";
 import { ScrollView, StyleSheet, View } from "react-native";
@@ -277,6 +281,7 @@ export function PatientDetailScreen({ route, navigation }: PatientDetailScreenPr
       invoice.status === "partially_paid",
   ).length;
   const activeInvoiceId = activePatientInvoiceIdForJourney(invoiceList);
+  const activePharmacyOrderId = activePatientPharmacyOrderIdForJourney(prescriptionList);
   const completedEvents: ClinicalEventName[] = [];
   if (hasMedicationOrder) completedEvents.push("order.created");
   completedEvents.push(...campCompletedEvents);
@@ -294,6 +299,7 @@ export function PatientDetailScreen({ route, navigation }: PatientDetailScreenPr
     activeCampRegistrationId: activeCampRegistration?.id ?? null,
     activeEmergencyVisitId: activeErVisit?.id ?? null,
     activeInvoiceId,
+    activePharmacyOrderId,
     activeOrderContext,
     completedEvents,
   };
