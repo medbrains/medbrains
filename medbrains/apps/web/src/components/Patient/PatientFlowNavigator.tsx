@@ -21,6 +21,7 @@ import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router";
 import { useClinicalEventStore } from "@/components/clinical-event-store";
+import { OperationalSignal } from "../OperationalSignal";
 import styles from "./patient-flow-navigator.module.scss";
 import { clinicalEventMatchesJourney, mergeJourneyEventNames } from "./patient-journey-events";
 import {
@@ -176,23 +177,31 @@ export function PatientFlowNavigator({
           </Text>
         </Group>
         <Group gap={4}>
-          <Badge size="xs" color={summary.blocked > 0 ? "orange" : "green"} variant="light">
-            {t("patientJourney.flow.readySummary", {
+          <OperationalSignal
+            label={t("patientJourney.flow.readySummary", {
               enabled: summary.enabled,
               total: summary.total,
             })}
-          </Badge>
-          <Badge size="xs" color={recentPatientEvent ? "green" : "blue"} variant="light">
-            {recentPatientEvent
-              ? t("patientJourney.flow.lastEvent", {
-                  event: recentPatientEvent.eventName
-                    ? clinicalEventLabel(t, recentPatientEvent.eventName)
-                    : t("patientJourney.events.unknown", {
-                        trigger: recentPatientEvent.rawTrigger,
-                      }),
-                })
-              : t("patientJourney.flow.eventActivated")}
-          </Badge>
+            shape={summary.blocked > 0 ? "diamond" : "pill"}
+            size="xs"
+            tone={summary.blocked > 0 ? "blocked" : "ready"}
+          />
+          <OperationalSignal
+            label={
+              recentPatientEvent
+                ? t("patientJourney.flow.lastEvent", {
+                    event: recentPatientEvent.eventName
+                      ? clinicalEventLabel(t, recentPatientEvent.eventName)
+                      : t("patientJourney.events.unknown", {
+                          trigger: recentPatientEvent.rawTrigger,
+                        }),
+                  })
+                : t("patientJourney.flow.eventActivated")
+            }
+            shape="token"
+            size="xs"
+            tone={recentPatientEvent ? "complete" : "active"}
+          />
         </Group>
       </Group>
       <Group gap="xs" wrap="wrap">

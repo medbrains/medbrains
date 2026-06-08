@@ -39,6 +39,8 @@ export { CreateLocationModal } from "./modals/CreateLocationModal";
 export { CreateRoleModal } from "./modals/CreateRoleModal";
 export { PageHeader } from "./PageHeader";
 export { PageSkeleton } from "./PageSkeleton";
+export type { OperationalSignalShape, OperationalSignalTone } from "./OperationalSignal";
+export { OperationalSignal } from "./OperationalSignal";
 export type { AbhaLinkPanelProps, AbhaLinkStatus } from "./Patient/AbhaLinkPanel";
 export { AbhaLinkPanel } from "./Patient/AbhaLinkPanel";
 export type { PatientFlowModule } from "./Patient/PatientFlowNavigator";

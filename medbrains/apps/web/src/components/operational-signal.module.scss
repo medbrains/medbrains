@@ -1,0 +1,109 @@
+.signal {
+  --signal-color: var(--mb-indicator-neutral);
+  --signal-fill: color-mix(in srgb, var(--signal-color), transparent 88%);
+  --signal-border: color-mix(in srgb, var(--signal-color), transparent 60%);
+
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 24px;
+  max-width: 100%;
+  padding: 3px 8px 3px 5px;
+  border: 1px solid var(--signal-border);
+  border-radius: 999px;
+  background: var(--signal-fill);
+  color: var(--signal-color);
+  white-space: nowrap;
+}
+
+.signal[data-size="xs"] {
+  min-height: 20px;
+  gap: 5px;
+  padding: 2px 7px 2px 4px;
+}
+
+.signal[data-tone="active"] {
+  --signal-color: var(--mb-indicator-info);
+}
+
+.signal[data-tone="blocked"] {
+  --signal-color: var(--mb-indicator-warning);
+}
+
+.signal[data-tone="complete"],
+.signal[data-tone="ready"] {
+  --signal-color: var(--mb-indicator-success);
+}
+
+.signal[data-tone="risk"] {
+  --signal-color: var(--mb-indicator-danger);
+}
+
+.marker {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 14px;
+  height: 14px;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  background: color-mix(in srgb, currentColor, transparent 82%);
+}
+
+.signal[data-size="xs"] .marker {
+  width: 12px;
+  height: 12px;
+}
+
+.signal[data-shape="diamond"] .marker {
+  border-radius: 3px;
+  transform: rotate(45deg);
+}
+
+.signal[data-shape="diamond"] .icon {
+  transform: rotate(-45deg);
+}
+
+.signal[data-shape="token"] .marker {
+  border-radius: 4px;
+}
+
+.signal[data-shape="bed"] .marker {
+  width: 20px;
+  height: 12px;
+  border-radius: 3px;
+}
+
+.signal[data-shape="bed"] .marker::before {
+  position: absolute;
+  left: 2px;
+  width: 4px;
+  height: 6px;
+  border-radius: 2px;
+  background: currentColor;
+  content: "";
+}
+
+.icon {
+  color: currentColor;
+}
+
+.value,
+.label {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--mb-text-body);
+  font-weight: 700;
+  line-height: var(--mb-line-height-caption);
+  text-overflow: ellipsis;
+}
+
+.value {
+  color: currentColor;
+  font-variant-numeric: tabular-nums;
+}
+
+.label {
+  font-size: var(--mantine-font-size-xs);
+}

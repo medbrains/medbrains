@@ -145,6 +145,7 @@ import {
   ClinicalEventProvider,
   type Column,
   DataTable,
+  OperationalSignal,
   PageHeader,
   PrescriptionViews,
   StatusDot,
@@ -351,28 +352,36 @@ function firstIpdWorkspaceTabForSection(section: (typeof IPD_WORKSPACE_SECTIONS)
 
 function actionRailReadinessLabel(
   summary: Pick<IpdActionRailSectionSummary, "enabledActions" | "totalActions"> | undefined,
+  t: ReturnType<typeof useTranslation>["t"],
 ) {
   if (!summary || summary.totalActions === 0) {
     return null;
   }
 
-  return `${summary.enabledActions}/${summary.totalActions} ready`;
+  return t("actionRail.readySummary", {
+    enabled: summary.enabledActions,
+    total: summary.totalActions,
+  });
 }
 
 function actionRailReadinessBadge(
   summary:
     | Pick<IpdActionRailSectionSummary, "blockedActions" | "enabledActions" | "totalActions">
     | undefined,
+  t: ReturnType<typeof useTranslation>["t"],
 ) {
-  const readiness = actionRailReadinessLabel(summary);
+  const readiness = actionRailReadinessLabel(summary, t);
   if (!readiness) {
     return null;
   }
 
   return (
-    <Badge size="xs" color={summary?.blockedActions ? "orange" : "green"} variant="light">
-      {readiness}
-    </Badge>
+    <OperationalSignal
+      label={readiness}
+      shape={summary?.blockedActions ? "diamond" : "pill"}
+      size="xs"
+      tone={summary?.blockedActions ? "blocked" : "ready"}
+    />
   );
 }
 
@@ -383,7 +392,8 @@ function ActionRailSectionHeading({
   summary: IpdActionRailSectionSummary | undefined;
   title: string;
 }) {
-  const readiness = actionRailReadinessLabel(summary);
+  const { t } = useTranslation("ipd");
+  const readiness = actionRailReadinessLabel(summary, t);
 
   return (
     <Group justify="space-between" gap="xs" align="center" wrap="nowrap">
@@ -392,11 +402,9 @@ function ActionRailSectionHeading({
       </Text>
       <Group gap={4} wrap="nowrap">
         {summary?.focused && (
-          <Badge size="xs" color="primary" variant="light">
-            focus
-          </Badge>
+          <OperationalSignal label={t("actionRail.focus")} shape="token" size="xs" tone="active" />
         )}
-        {readiness && actionRailReadinessBadge(summary)}
+        {readiness && actionRailReadinessBadge(summary, t)}
       </Group>
     </Group>
   );
@@ -923,6 +931,7 @@ function AdmissionDetail({
   canManageBeds: boolean;
   canDischarge: boolean;
 }) {
+  const { t } = useTranslation("ipd");
   const canCreateDischargeSummary = useHasPermission(P.IPD.DISCHARGE_SUMMARY_CREATE);
   const canGenerateMrdCaseSheet = useHasPermission(P.MRD.CASE_SHEETS_GENERATE);
   const canViewMrdCaseSheets = useHasPermission(P.MRD.CASE_SHEETS_VIEW);
@@ -1170,18 +1179,28 @@ function AdmissionDetail({
               <Group gap="xs">
                 <Text fw={700}>Admission: {adm.id.slice(0, 8)}...</Text>
                 {adm.is_critical && (
-                  <Badge color="danger" variant="filled" size="sm">
-                    CRITICAL
-                  </Badge>
+                  <OperationalSignal label={t("critical")} shape="diamond" size="xs" tone="risk" />
                 )}
                 {adm.mlc_case_id && (
-                  <Badge color="orange" variant="filled" size="sm">
-                    MLC
-                  </Badge>
+                  <OperationalSignal label={t("mlc")} shape="diamond" size="xs" tone="blocked" />
                 )}
-                <Badge color={statusColors[adm.status] ?? "slate"} variant="light" size="lg">
-                  {adm.status}
-                </Badge>
+                <OperationalSignal
+                  label={t(`admissionSignals.status.${adm.status}`, {
+                    defaultValue: adm.status,
+                  })}
+                  shape="pill"
+                  tone={adm.status === "admitted" ? "active" : "neutral"}
+                />
+                <OperationalSignal
+                  icon={IconBed}
+                  label={
+                    admissionHasAssignedBed
+                      ? t("admissionSignals.bedAssigned")
+                      : t("admissionSignals.bedNotAssigned")
+                  }
+                  shape="bed"
+                  tone={admissionHasAssignedBed ? "ready" : "blocked"}
+                />
               </Group>
               <Group gap="xs">
                 <Badge variant="light" color="slate">
@@ -1345,8 +1364,11 @@ function AdmissionDetail({
                       const tooltipLabel =
                         readiness?.primaryBlockedReason ??
                         (readiness?.totalActions
-                          ? `${readiness.enabledActions}/${readiness.totalActions} actions ready`
-                          : `${tab.label} workspace`);
+                          ? t("actionRail.actionsReady", {
+                              enabled: readiness.enabledActions,
+                              total: readiness.totalActions,
+                            })
+                          : t("actionRail.workspace", { tab: tab.label }));
 
                       return (
                         <Tooltip key={tab.value} label={tooltipLabel} position="right">
@@ -1355,7 +1377,7 @@ function AdmissionDetail({
                             variant={activeWorkspaceTab === tab.value ? "light" : "subtle"}
                             color={activeWorkspaceTab === tab.value ? "primary" : "slate"}
                             onClick={() => setActiveWorkspaceTab(tab.value)}
-                            rightSection={actionRailReadinessBadge(readiness)}
+                            rightSection={actionRailReadinessBadge(readiness, t)}
                             fullWidth
                           >
                             <Stack gap={0} className={classes.workspaceRailLabel}>
