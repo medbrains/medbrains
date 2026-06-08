@@ -127,6 +127,7 @@ import {
   isPatientDetailTabValue,
   PATIENT_DETAIL_TAB_VALUES,
   type PatientDetailTabValue,
+  patientDetailJourneyContext,
   patientDetailOrderBasketRoute,
   patientDetailOrderBasketTabFromSearchParams,
   patientDetailTabForOrderBasket,
@@ -3064,7 +3065,7 @@ function PatientDetailPageInner() {
   if (hasPaymentReceived) {
     completedEvents.push("billing.payment.received");
   }
-  const actionContext: ClinicalJourneyContext = {
+  const actionContext: ClinicalJourneyContext = patientDetailJourneyContext({
     patientId: patient.id,
     isDeceased: patient.is_deceased,
     activeEncounterId: activeEncounter?.id ?? null,
@@ -3078,7 +3079,8 @@ function PatientDetailPageInner() {
     activeOrderContext,
     hasPendingConsent,
     completedEvents,
-  };
+    prescriptions,
+  });
   const emitPatientShareCreated = (grant: {
     expiresAt: string | null;
     grantId: string;
@@ -3192,6 +3194,7 @@ function PatientDetailPageInner() {
             activeCampRegistrationId={activeCampRegistration?.id ?? null}
             activeEmergencyVisitId={activeEmergencyVisit?.id ?? null}
             activeInvoiceId={activeInvoiceId}
+            activePharmacyOrderId={actionContext.activePharmacyOrderId ?? null}
             activeOrderContext={activeOrderContext}
             completedEvents={completedEvents}
             compact

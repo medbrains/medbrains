@@ -1,4 +1,15 @@
+import type { PatientFlowContextInput, PrescriptionHistoryItem } from "@medbrains/types";
+import {
+  activePatientPharmacyOrderIdForJourney,
+  patientFlowJourneyContext,
+} from "@medbrains/types";
+
 export type PatientDetailOrderBasketTab = "drug" | "lab" | "radiology";
+
+export interface PatientDetailJourneyContextInput
+  extends Omit<PatientFlowContextInput, "activePharmacyOrderId"> {
+  prescriptions: readonly PrescriptionHistoryItem[];
+}
 
 export const PATIENT_DETAIL_TAB_VALUES = [
   "overview",
@@ -50,4 +61,13 @@ export function patientDetailOrderBasketRoute(
   tab: PatientDetailOrderBasketTab,
 ): string {
   return `/patients/${patientId}?order=${tab}#${patientDetailTabForOrderBasket(tab)}`;
+}
+
+export function patientDetailJourneyContext(input: PatientDetailJourneyContextInput) {
+  const { prescriptions, ...context } = input;
+
+  return patientFlowJourneyContext({
+    ...context,
+    activePharmacyOrderId: activePatientPharmacyOrderIdForJourney(prescriptions),
+  });
 }
