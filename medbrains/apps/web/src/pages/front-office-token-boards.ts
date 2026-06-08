@@ -5,12 +5,51 @@ import type {
   QueuePriority,
   QueueToken,
   RadiologyQueueToken,
+  TokenBoardSurfaceId,
 } from "@medbrains/types";
+import { TOKEN_BOARD_SURFACES } from "@medbrains/types";
 
 export interface DisplayToken {
   meta: string;
   status: string;
   tokenNumber: string;
+}
+
+export const TOKEN_BOARD_QUERY_PARAM = "board";
+export const TOKEN_BOARD_DISPLAY_QUERY_PARAM = "display";
+export type TokenBoardFilter = "all" | TokenBoardSurfaceId;
+export type TokenBoardRouteDisplayMode = "workspace" | "kiosk";
+
+const TOKEN_BOARD_SURFACE_IDS = new Set(Object.keys(TOKEN_BOARD_SURFACES));
+
+export function isTokenBoardSurfaceId(value: string | null): value is TokenBoardSurfaceId {
+  return value != null && TOKEN_BOARD_SURFACE_IDS.has(value);
+}
+
+export function tokenBoardFilterFromSearchParams(searchParams: URLSearchParams): TokenBoardFilter {
+  const board = searchParams.get(TOKEN_BOARD_QUERY_PARAM);
+  return isTokenBoardSurfaceId(board) ? board : "all";
+}
+
+export function tokenBoardDisplayModeFromSearchParams(
+  searchParams: URLSearchParams,
+): TokenBoardRouteDisplayMode {
+  return searchParams.get(TOKEN_BOARD_DISPLAY_QUERY_PARAM) === "kiosk" ? "kiosk" : "workspace";
+}
+
+export function updateTokenBoardFilterSearchParams(
+  searchParams: URLSearchParams,
+  filter: TokenBoardFilter,
+): URLSearchParams {
+  const nextSearchParams = new URLSearchParams(searchParams);
+
+  if (filter === "all") {
+    nextSearchParams.delete(TOKEN_BOARD_QUERY_PARAM);
+  } else {
+    nextSearchParams.set(TOKEN_BOARD_QUERY_PARAM, filter);
+  }
+
+  return nextSearchParams;
 }
 
 function priorityLabel(value: QueuePriority) {

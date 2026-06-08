@@ -133,6 +133,11 @@ import {
   opdDisplayToken,
   pharmacyDisplayToken,
   radiologyDisplayToken,
+  type TokenBoardFilter,
+  type TokenBoardRouteDisplayMode,
+  tokenBoardDisplayModeFromSearchParams,
+  tokenBoardFilterFromSearchParams,
+  updateTokenBoardFilterSearchParams,
 } from "./front-office-token-boards";
 
 // ── Constants ──────────────────────────────────────────
@@ -171,9 +176,6 @@ const RADIOLOGY_BOARD = TOKEN_BOARD_SURFACES.radiology;
 const EMERGENCY_BOARD = TOKEN_BOARD_SURFACES.emergency;
 const PHARMACY_BOARD = TOKEN_BOARD_SURFACES.pharmacy;
 const BILLING_BOARD = TOKEN_BOARD_SURFACES.billing;
-const TOKEN_BOARD_QUERY_PARAM = "board";
-
-type TokenBoardFilter = "all" | TokenBoardSurfaceId;
 
 // ══════════════════════════════════════════════════════════
 //  Main Page
@@ -214,6 +216,35 @@ export function FrontOfficePage() {
     canViewEmergency ||
     canViewPharmacy ||
     canViewBilling;
+  const tokenBoardSearchParams = new URLSearchParams(window.location.search);
+  const tokenBoardDisplayMode = tokenBoardDisplayModeFromSearchParams(tokenBoardSearchParams);
+  const tokenBoardRouteFilter = tokenBoardFilterFromSearchParams(tokenBoardSearchParams);
+  const isTokenBoardKioskMode =
+    tokenBoardDisplayMode === "kiosk" && tokenBoardRouteFilter !== "all";
+
+  if (isTokenBoardKioskMode) {
+    return (
+      <Box
+        mih="100vh"
+        p={{ base: "md", lg: "xl" }}
+        style={{
+          background:
+            "linear-gradient(180deg, var(--mantine-color-gray-0), var(--mantine-color-white))",
+        }}
+      >
+        <TokenBoardsTab
+          canViewOpdQueue={canViewOpdQueue}
+          canViewLab={canViewLab}
+          canViewRadiology={canViewRadiology}
+          canViewEmergency={canViewEmergency}
+          canViewPharmacy={canViewPharmacy}
+          canViewBilling={canViewBilling}
+          displayMode={tokenBoardDisplayMode}
+          initialFilter={tokenBoardRouteFilter}
+        />
+      </Box>
+    );
+  }
 
   return (
     <div>
@@ -281,6 +312,7 @@ export function FrontOfficePage() {
             canViewEmergency={canViewEmergency}
             canViewPharmacy={canViewPharmacy}
             canViewBilling={canViewBilling}
+            displayMode="workspace"
           />
         </Tabs.Panel>
         <Tabs.Panel value="visitors" pt="md">
@@ -652,6 +684,7 @@ function QueueDashboardTab() {
 // ══════════════════════════════════════════════════════════
 
 const TOKEN_BOARD_LIMIT = 8;
+const TOKEN_BOARD_KIOSK_LIMIT = 12;
 
 const TRIAGE_LANES: ReadonlyArray<{
   color: string;
@@ -665,23 +698,15 @@ const TRIAGE_LANES: ReadonlyArray<{
   { color: "blue", key: "blue", label: "Blue" },
 ];
 
-function isTokenBoardSurfaceId(value: string | null): value is TokenBoardSurfaceId {
-  return value != null && value in TOKEN_BOARD_SURFACES;
-}
-
 function readTokenBoardFilter(): TokenBoardFilter {
-  const searchParams = new URLSearchParams(window.location.search);
-  const board = searchParams.get(TOKEN_BOARD_QUERY_PARAM);
-  return isTokenBoardSurfaceId(board) ? board : "all";
+  return tokenBoardFilterFromSearchParams(new URLSearchParams(window.location.search));
 }
 
 function writeTokenBoardFilter(filter: TokenBoardFilter) {
-  const searchParams = new URLSearchParams(window.location.search);
-  if (filter === "all") {
-    searchParams.delete(TOKEN_BOARD_QUERY_PARAM);
-  } else {
-    searchParams.set(TOKEN_BOARD_QUERY_PARAM, filter);
-  }
+  const searchParams = updateTokenBoardFilterSearchParams(
+    new URLSearchParams(window.location.search),
+    filter,
+  );
 
   const search = searchParams.toString();
   const nextUrl = `${window.location.pathname}${search ? `?${search}` : ""}#token-boards`;
@@ -695,6 +720,8 @@ interface TokenBoardsTabProps {
   canViewEmergency: boolean;
   canViewPharmacy: boolean;
   canViewBilling: boolean;
+  displayMode?: TokenBoardRouteDisplayMode;
+  initialFilter?: TokenBoardFilter;
 }
 
 function TokenBoardsTab({
@@ -704,8 +731,12 @@ function TokenBoardsTab({
   canViewEmergency,
   canViewPharmacy,
   canViewBilling,
+  displayMode = "workspace",
+  initialFilter,
 }: TokenBoardsTabProps) {
-  const [selectedSurface, setSelectedSurface] = useState<TokenBoardFilter>(readTokenBoardFilter);
+  const [selectedSurface, setSelectedSurface] = useState<TokenBoardFilter>(
+    () => initialFilter ?? readTokenBoardFilter(),
+  );
   const opdQuery = useFrontOfficeOpdTokenBoardQuery({ enabled: canViewOpdQueue });
   const pharmacyQuery = useFrontOfficePharmacyTokenBoardQuery({ enabled: canViewPharmacy });
   const billingQuery = useFrontOfficeBillingTokenBoardQuery({ enabled: canViewBilling });
@@ -751,11 +782,15 @@ function TokenBoardsTab({
     pharmacy: canViewPharmacy,
     radiology: canViewRadiology,
   };
-  const activeSurface =
-    selectedSurface !== "all" && !boardAccess[selectedSurface] ? "all" : selectedSurface;
+  const isKioskDisplay = displayMode === "kiosk" && selectedSurface !== "all";
+  const selectedSurfaceAccessDenied = selectedSurface !== "all" && !boardAccess[selectedSurface];
+  const activeSurface = selectedSurfaceAccessDenied && !isKioskDisplay ? "all" : selectedSurface;
+  const activeKioskSurface =
+    isKioskDisplay && activeSurface !== "all" ? TOKEN_BOARD_SURFACES[activeSurface] : null;
   const accessibleSurfaces = TOKEN_BOARD_SURFACE_LIST.filter((surface) => boardAccess[surface.id]);
   const surfaceVisible = (surfaceId: TokenBoardSurfaceId) =>
     boardAccess[surfaceId] && (activeSurface === "all" || activeSurface === surfaceId);
+  const tokenLimit = isKioskDisplay ? TOKEN_BOARD_KIOSK_LIMIT : TOKEN_BOARD_LIMIT;
 
   function handleBoardFilterChange(filter: TokenBoardFilter) {
     setSelectedSurface(filter);
@@ -766,18 +801,38 @@ function TokenBoardsTab({
     <Stack gap="md">
       <Group justify="space-between" align="flex-start">
         <Stack gap={2}>
-          <Text fw={700}>Live token boards</Text>
+          <Text fw={700}>
+            {activeKioskSurface ? activeKioskSurface.title : "Live token boards"}
+          </Text>
           <Text size="sm" c="dimmed">
-            Workstation view of public queue feeds. {TOKEN_BOARD_PUBLIC_PRIVACY_NOTICE} Reception,
-            lab, radiology, ER, pharmacy and billing operations stay linked to the same token state.
+            {activeKioskSurface
+              ? `Kiosk public display for ${activeKioskSurface.subtitle}. ${TOKEN_BOARD_PUBLIC_PRIVACY_NOTICE}`
+              : `Workstation view of public queue feeds. ${TOKEN_BOARD_PUBLIC_PRIVACY_NOTICE} Reception, lab, radiology, ER, pharmacy and billing operations stay linked to the same token state.`}
           </Text>
         </Stack>
         <Badge variant="light" color="teal">
-          Auto-refresh
+          {isKioskDisplay ? "Kiosk mode" : "Auto-refresh"}
         </Badge>
       </Group>
 
-      {!canViewAnyBoard ? (
+      {isKioskDisplay && selectedSurfaceAccessDenied ? (
+        <Card withBorder padding="lg">
+          <Stack gap="xs">
+            <Text fw={700}>{TOKEN_BOARD_SURFACES[selectedSurface].restrictedLabel}</Text>
+            <Text size="sm" c="dimmed">
+              This kiosk route is locked to {TOKEN_BOARD_SURFACES[selectedSurface].title}. Display
+              access follows the configured permission matrix and token-board surface assignment.
+            </Text>
+            <TokenBoardReadinessStrip
+              items={tokenBoardOperationalReadinessItems({
+                isError: true,
+                surface: TOKEN_BOARD_SURFACES[selectedSurface],
+                updatedAt: 0,
+              })}
+            />
+          </Stack>
+        </Card>
+      ) : !canViewAnyBoard ? (
         <Card withBorder padding="md">
           <Text fw={600}>Token boards restricted</Text>
           <Text size="sm" c="dimmed">
@@ -787,32 +842,36 @@ function TokenBoardsTab({
         </Card>
       ) : (
         <>
-          <Group gap="xs" wrap="wrap">
-            <Button
-              size="xs"
-              variant={activeSurface === "all" ? "filled" : "light"}
-              onClick={() => handleBoardFilterChange("all")}
-            >
-              All boards
-            </Button>
-            {accessibleSurfaces.map((surface) => (
+          {!isKioskDisplay && (
+            <Group gap="xs" wrap="wrap">
               <Button
-                key={surface.id}
                 size="xs"
-                variant={activeSurface === surface.id ? "filled" : "light"}
-                onClick={() => handleBoardFilterChange(surface.id)}
+                variant={activeSurface === "all" ? "filled" : "light"}
+                onClick={() => handleBoardFilterChange("all")}
               >
-                {surface.title}
+                All boards
               </Button>
-            ))}
-          </Group>
-          <SimpleGrid cols={{ base: 1, xl: 2 }} spacing="md">
+              {accessibleSurfaces.map((surface) => (
+                <Button
+                  key={surface.id}
+                  size="xs"
+                  variant={activeSurface === surface.id ? "filled" : "light"}
+                  onClick={() => handleBoardFilterChange(surface.id)}
+                >
+                  {surface.title}
+                </Button>
+              ))}
+            </Group>
+          )}
+          <SimpleGrid cols={isKioskDisplay ? 1 : { base: 1, xl: 2 }} spacing="md">
             {surfaceVisible("opd") && (
               <TokenBoardCard
                 surface={OPD_BOARD}
                 isLoading={opdQuery.isLoading}
                 isError={opdQuery.isError}
                 lastUpdatedAt={opdQuery.dataUpdatedAt}
+                showLaunchMeta={!isKioskDisplay}
+                displayMode={displayMode}
                 summary={[
                   { label: "Now", value: opdNowServing[0]?.token_number ?? "—" },
                   { label: "Waiting", value: opdWaiting.length },
@@ -826,13 +885,13 @@ function TokenBoardsTab({
                   <TokenLane
                     title="Now serving"
                     emptyLabel="No OPD token is currently called"
-                    tokens={opdNowServing.slice(0, TOKEN_BOARD_LIMIT).map(opdDisplayToken)}
+                    tokens={opdNowServing.slice(0, tokenLimit).map(opdDisplayToken)}
                     highlight
                   />
                   <TokenLane
                     title="Next tokens"
                     emptyLabel="No OPD tokens waiting"
-                    tokens={opdWaiting.slice(0, TOKEN_BOARD_LIMIT).map(opdDisplayToken)}
+                    tokens={opdWaiting.slice(0, tokenLimit).map(opdDisplayToken)}
                   />
                 </Stack>
               </TokenBoardCard>
@@ -844,6 +903,8 @@ function TokenBoardsTab({
                 isLoading={labQuery.isLoading}
                 isError={labQuery.isError}
                 lastUpdatedAt={labQuery.dataUpdatedAt}
+                showLaunchMeta={!isKioskDisplay}
+                displayMode={displayMode}
                 summary={[
                   { label: "Now", value: lab?.current_tokens[0]?.token_number ?? "—" },
                   { label: "Waiting", value: lab?.stats.waiting_count ?? "—" },
@@ -854,21 +915,19 @@ function TokenBoardsTab({
                   <TokenLane
                     title="Collecting now"
                     emptyLabel="No lab token is currently called"
-                    tokens={(lab?.current_tokens ?? [])
-                      .slice(0, TOKEN_BOARD_LIMIT)
-                      .map(labDisplayToken)}
+                    tokens={(lab?.current_tokens ?? []).slice(0, tokenLimit).map(labDisplayToken)}
                     highlight
                   />
                   <TokenLane
                     title="Waiting samples"
                     emptyLabel="No lab sample tokens waiting"
-                    tokens={(lab?.waiting ?? []).slice(0, TOKEN_BOARD_LIMIT).map(labDisplayToken)}
+                    tokens={(lab?.waiting ?? []).slice(0, tokenLimit).map(labDisplayToken)}
                   />
                   <TokenLane
                     title="Collection in progress"
                     emptyLabel="No collections in progress"
                     tokens={(lab?.collection_in_progress ?? [])
-                      .slice(0, TOKEN_BOARD_LIMIT)
+                      .slice(0, tokenLimit)
                       .map(labDisplayToken)}
                   />
                 </Stack>
@@ -881,6 +940,8 @@ function TokenBoardsTab({
                 isLoading={radiologyQuery.isLoading}
                 isError={radiologyQuery.isError}
                 lastUpdatedAt={radiologyQuery.dataUpdatedAt}
+                showLaunchMeta={!isKioskDisplay}
+                displayMode={displayMode}
                 summary={[
                   { label: "Now", value: radiology?.current_token?.token_number ?? "—" },
                   { label: "Waiting", value: radiology?.stats.waiting_count ?? "—" },
@@ -902,7 +963,7 @@ function TokenBoardsTab({
                     title="Waiting scans"
                     emptyLabel="No radiology tokens waiting"
                     tokens={(radiology?.waiting ?? [])
-                      .slice(0, TOKEN_BOARD_LIMIT)
+                      .slice(0, tokenLimit)
                       .map(radiologyDisplayToken)}
                   />
                 </Stack>
@@ -915,6 +976,8 @@ function TokenBoardsTab({
                 isLoading={erQuery.isLoading}
                 isError={erQuery.isError}
                 lastUpdatedAt={erQuery.dataUpdatedAt}
+                showLaunchMeta={!isKioskDisplay}
+                displayMode={displayMode}
                 summary={[
                   { label: "Waiting", value: er?.total_waiting ?? "—" },
                   { label: "Overdue", value: overdueErTokens },
@@ -927,7 +990,7 @@ function TokenBoardsTab({
                       key={lane.key}
                       color={lane.color}
                       label={lane.label}
-                      tokens={(er?.[lane.key] ?? []).slice(0, TOKEN_BOARD_LIMIT)}
+                      tokens={(er?.[lane.key] ?? []).slice(0, tokenLimit)}
                     />
                   ))}
                 </Stack>
@@ -940,6 +1003,8 @@ function TokenBoardsTab({
                 isLoading={pharmacyQuery.isLoading}
                 isError={pharmacyQuery.isError}
                 lastUpdatedAt={pharmacyQuery.dataUpdatedAt}
+                showLaunchMeta={!isKioskDisplay}
+                displayMode={displayMode}
                 summary={[
                   { label: "Now", value: pharmacy?.current_token?.token_number ?? "—" },
                   { label: "Ready", value: pharmacy?.stats.ready_count ?? "—" },
@@ -957,14 +1022,14 @@ function TokenBoardsTab({
                     title="Ready pickup"
                     emptyLabel="No ready tokens"
                     tokens={(pharmacy?.ready_for_pickup ?? [])
-                      .slice(0, TOKEN_BOARD_LIMIT)
+                      .slice(0, tokenLimit)
                       .map(pharmacyDisplayToken)}
                   />
                   <TokenLane
                     title="Preparing"
                     emptyLabel="No preparing tokens"
                     tokens={(pharmacy?.preparing ?? [])
-                      .slice(0, TOKEN_BOARD_LIMIT)
+                      .slice(0, tokenLimit)
                       .map(pharmacyDisplayToken)}
                   />
                 </Stack>
@@ -977,6 +1042,8 @@ function TokenBoardsTab({
                 isLoading={billingQuery.isLoading}
                 isError={billingQuery.isError}
                 lastUpdatedAt={billingQuery.dataUpdatedAt}
+                showLaunchMeta={!isKioskDisplay}
+                displayMode={displayMode}
                 summary={[
                   { label: "Now", value: billingNowServing?.token_number ?? "—" },
                   { label: "IPD", value: billing?.ipd_discharge.length ?? "—" },
@@ -988,21 +1055,21 @@ function TokenBoardsTab({
                     title="IPD discharge"
                     emptyLabel="No IPD discharge bills"
                     tokens={(billing?.ipd_discharge ?? [])
-                      .slice(0, TOKEN_BOARD_LIMIT)
+                      .slice(0, tokenLimit)
                       .map(billingDisplayToken)}
                   />
                   <TokenLane
                     title="OPD billing"
                     emptyLabel="No OPD bills waiting"
                     tokens={(billing?.opd_billing ?? [])
-                      .slice(0, TOKEN_BOARD_LIMIT)
+                      .slice(0, tokenLimit)
                       .map(billingDisplayToken)}
                   />
                   <TokenLane
                     title="Insurance desk"
                     emptyLabel="No insurance tokens"
                     tokens={(billing?.insurance_desk ?? [])
-                      .slice(0, TOKEN_BOARD_LIMIT)
+                      .slice(0, tokenLimit)
                       .map(billingDisplayToken)}
                   />
                 </Stack>
@@ -1017,21 +1084,29 @@ function TokenBoardsTab({
 
 function TokenBoardCard({
   children,
+  displayMode,
   isError,
   isLoading,
   lastUpdatedAt,
+  showLaunchMeta,
   surface,
   summary,
 }: {
   children: ReactNode;
+  displayMode: TokenBoardRouteDisplayMode;
   isError: boolean;
   isLoading: boolean;
   lastUpdatedAt: number;
+  showLaunchMeta: boolean;
   surface: TokenBoardSurfaceDefinition;
   summary: Array<{ label: string; value: number | string }>;
 }) {
   return (
-    <Card withBorder padding="md">
+    <Card
+      withBorder
+      padding={displayMode === "kiosk" ? "lg" : "md"}
+      style={displayMode === "kiosk" ? { minHeight: "calc(100vh - 164px)" } : undefined}
+    >
       <Stack gap="md">
         <Group justify="space-between" align="flex-start">
           <Stack gap={0}>
@@ -1044,7 +1119,7 @@ function TokenBoardCard({
             {isError ? "Feed error" : `Sync ${lastUpdatedLabel(lastUpdatedAt)}`}
           </Badge>
         </Group>
-        <TokenBoardLaunchMeta surface={surface} />
+        {showLaunchMeta && <TokenBoardLaunchMeta surface={surface} />}
         <TokenBoardReadinessStrip
           items={tokenBoardOperationalReadinessItems({
             isError,

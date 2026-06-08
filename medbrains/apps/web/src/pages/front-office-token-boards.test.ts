@@ -24,6 +24,9 @@ import {
   opdDisplayToken,
   pharmacyDisplayToken,
   radiologyDisplayToken,
+  tokenBoardDisplayModeFromSearchParams,
+  tokenBoardFilterFromSearchParams,
+  updateTokenBoardFilterSearchParams,
 } from "./front-office-token-boards";
 
 const hiddenValues = [
@@ -46,6 +49,31 @@ function expectPublicTokenOnly(value: DisplayToken) {
 }
 
 describe("front-office token-board display mapping", () => {
+  it("parses shared web and kiosk token-board route filters", () => {
+    expect(tokenBoardFilterFromSearchParams(new URLSearchParams("board=pharmacy"))).toBe(
+      "pharmacy",
+    );
+    expect(
+      tokenBoardFilterFromSearchParams(new URLSearchParams("board=billing&display=kiosk")),
+    ).toBe("billing");
+    expect(tokenBoardFilterFromSearchParams(new URLSearchParams("board=unknown"))).toBe("all");
+    expect(tokenBoardFilterFromSearchParams(new URLSearchParams("display=kiosk"))).toBe("all");
+    expect(tokenBoardDisplayModeFromSearchParams(new URLSearchParams("display=kiosk"))).toBe(
+      "kiosk",
+    );
+    expect(tokenBoardDisplayModeFromSearchParams(new URLSearchParams("display=workspace"))).toBe(
+      "workspace",
+    );
+
+    const kioskParams = new URLSearchParams("board=opd&display=kiosk&tenant=demo");
+    expect(String(updateTokenBoardFilterSearchParams(kioskParams, "lab"))).toBe(
+      "board=lab&display=kiosk&tenant=demo",
+    );
+    expect(String(updateTokenBoardFilterSearchParams(kioskParams, "all"))).toBe(
+      "display=kiosk&tenant=demo",
+    );
+  });
+
   it("keeps board launch targets focused to the same surface on web and mobile", () => {
     for (const surface of TOKEN_BOARD_SURFACE_LIST) {
       expect(surface.targets.webPath).toBe(`/front-office?board=${surface.id}#token-boards`);
