@@ -137,7 +137,7 @@ import {
   IconUserOff,
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useRef, useState } from "react";
+import { type ReactNode, useMemo, useRef, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useParams, useSearchParams } from "react-router";
@@ -216,12 +216,14 @@ import {
   deriveIpdJourneyCompletedEvents,
   type IpdActionRailSection,
   type IpdActionRailSectionSummary,
+  type IpdWorkspaceTabReadinessSummary,
   ipdActionRailAction,
   ipdActionRailSectionsForTab,
   ipdAdmissionOrderBasketRoute,
   ipdAdmissionWorkspaceTabRoute,
   ipdOrderBasketTabFromSearchParams,
   ipdWorkspaceTabForOrderBasket,
+  type ResolvedIpdActionRailAction,
   resolveIpdActionRailActions,
   summarizeIpdActionRailSections,
   summarizeIpdWorkspaceTabReadiness,
@@ -433,6 +435,58 @@ function firstIpdWorkspaceTabForSection(section: (typeof IPD_WORKSPACE_SECTIONS)
   return IPD_WORKSPACE_TABS.find((tab) => tab.section === section)?.value ?? "overview";
 }
 
+function ipdWorkspaceSectionLabel(t: IpdTranslate, section: string): string {
+  return t(`workspace.sections.${section}`, { defaultValue: section });
+}
+
+function ipdWorkspaceTabLabel(t: IpdTranslate, tab: (typeof IPD_WORKSPACE_TABS)[number]): string {
+  return t(`workspace.tabs.${tab.value}`, { defaultValue: tab.label });
+}
+
+function actionRailSectionLabel(t: IpdTranslate, section: IpdActionRailSection): string {
+  return t(`actionRail.sections.${section}`, { defaultValue: section });
+}
+
+function actionRailActionLabel(t: IpdTranslate, action: ResolvedIpdActionRailAction): string {
+  return t(`actionRail.actions.${action.id}`, { defaultValue: action.label });
+}
+
+function actionRailDisabledReason(
+  t: IpdTranslate,
+  action: ResolvedIpdActionRailAction,
+): string | null {
+  if (!action.disabledReasonKey || !action.disabledReasonText) {
+    return null;
+  }
+
+  return t(action.disabledReasonKey, {
+    ...action.disabledReasonValues,
+    action: actionRailActionLabel(t, action),
+    defaultValue: action.disabledReasonText,
+  });
+}
+
+function workspaceReadinessBlockedReason(
+  t: IpdTranslate,
+  readiness: IpdWorkspaceTabReadinessSummary | undefined,
+  actions: readonly ResolvedIpdActionRailAction[],
+): string | null {
+  if (!readiness?.primaryBlockedReason) {
+    return null;
+  }
+
+  const blockedAction = actions.find(
+    (action) =>
+      readiness.actionSections.includes(action.section) &&
+      !action.enabled &&
+      action.disabledReasonText === readiness.primaryBlockedReason,
+  );
+
+  return blockedAction
+    ? actionRailDisabledReason(t, blockedAction)
+    : readiness.primaryBlockedReason;
+}
+
 function actionRailReadinessLabel(
   summary: Pick<IpdActionRailSectionSummary, "enabledActions" | "totalActions"> | undefined,
   t: ReturnType<typeof useTranslation>["t"],
@@ -465,6 +519,63 @@ function actionRailReadinessBadge(
       size="xs"
       tone={summary?.blockedActions ? "blocked" : "ready"}
     />
+  );
+}
+
+function ActionRailActionButton({
+  action,
+  children,
+  color,
+  leftSection,
+  loading,
+  onClick,
+  variant = "light",
+}: {
+  action: ResolvedIpdActionRailAction;
+  children?: ReactNode;
+  color?: string;
+  leftSection?: ReactNode;
+  loading?: boolean;
+  onClick: () => void;
+  variant?: "filled" | "light" | "subtle";
+}) {
+  const { t } = useTranslation("ipd");
+  const disabledReason = actionRailDisabledReason(t, action);
+  const statusLabel = action.enabled ? t("actionRail.state.ready") : t("actionRail.state.blocked");
+  const tooltipLabel = disabledReason ?? actionRailActionLabel(t, action);
+
+  return (
+    <Stack gap={3}>
+      <Tooltip label={tooltipLabel}>
+        <span className={classes.actionRailButtonTarget}>
+          <Button
+            size="xs"
+            variant={variant}
+            color={color}
+            leftSection={leftSection}
+            disabled={!action.enabled}
+            loading={loading}
+            onClick={onClick}
+            fullWidth
+          >
+            {children ?? actionRailActionLabel(t, action)}
+          </Button>
+        </span>
+      </Tooltip>
+      <Group gap={4} wrap="nowrap">
+        <OperationalSignal
+          label={statusLabel}
+          shape={action.enabled ? "pill" : "diamond"}
+          size="xs"
+          tone={action.enabled ? "ready" : "blocked"}
+        />
+        {!action.enabled && disabledReason && (
+          <Text size="10px" c="dimmed" lineClamp={2}>
+            {disabledReason}
+          </Text>
+        )}
+      </Group>
+    </Stack>
   );
 }
 
@@ -1166,6 +1277,7 @@ function AdmissionDetail({
   const admissionHasAssignedBed = Boolean(adm.bed_id);
   const activeWorkspaceSection =
     IPD_WORKSPACE_TABS.find((tab) => tab.value === activeWorkspaceTab)?.section ?? "Command";
+  const activeWorkspaceSectionLabel = ipdWorkspaceSectionLabel(t, activeWorkspaceSection);
   const focusedActionRailSections = ipdActionRailSectionsForTab(activeWorkspaceTab);
   const actionRailSectionFocused = (section: IpdActionRailSection) =>
     focusedActionRailSections.includes(section);
@@ -1398,19 +1510,19 @@ function AdmissionDetail({
         <Group justify="space-between" align="center" gap="sm">
           <Stack gap={2}>
             <Text size="xs" fw={700} c="dimmed" tt="uppercase">
-              IPD workspace
+              {t("workspace.title")}
             </Text>
             <Text size="sm" fw={600}>
-              {activeWorkspaceSection}
+              {activeWorkspaceSectionLabel}
             </Text>
             {focusedModeledActions > 0 && (
               <Group gap={4}>
                 <Badge size="xs" color="green" variant="light">
-                  {focusedReadyActions} ready
+                  {t("actionRail.readyCount", { count: focusedReadyActions })}
                 </Badge>
                 {focusedBlockedActions > 0 && (
                   <Badge size="xs" color="orange" variant="light">
-                    {focusedBlockedActions} blocked
+                    {t("actionRail.blockedCount", { count: focusedBlockedActions })}
                   </Badge>
                 )}
               </Group>
@@ -1425,7 +1537,7 @@ function AdmissionDetail({
                 color={activeWorkspaceSection === section ? "primary" : "slate"}
                 onClick={() => setActiveWorkspaceTab(firstIpdWorkspaceTabForSection(section))}
               >
-                {section}
+                {ipdWorkspaceSectionLabel(t, section)}
               </Button>
             ))}
           </Group>
@@ -1440,18 +1552,24 @@ function AdmissionDetail({
                 {IPD_WORKSPACE_SECTIONS.map((section) => (
                   <Stack key={section} gap={4}>
                     <Text size="xs" fw={700} c="dimmed" tt="uppercase">
-                      {section}
+                      {ipdWorkspaceSectionLabel(t, section)}
                     </Text>
                     {IPD_WORKSPACE_TABS.filter((tab) => tab.section === section).map((tab) => {
                       const readiness = workspaceTabReadinessByTab.get(tab.value);
+                      const tabLabel = ipdWorkspaceTabLabel(t, tab);
+                      const blockedReason = workspaceReadinessBlockedReason(
+                        t,
+                        readiness,
+                        actionRailActions,
+                      );
                       const tooltipLabel =
-                        readiness?.primaryBlockedReason ??
+                        blockedReason ??
                         (readiness?.totalActions
                           ? t("actionRail.actionsReady", {
                               enabled: readiness.enabledActions,
                               total: readiness.totalActions,
                             })
-                          : t("actionRail.workspace", { tab: tab.label }));
+                          : t("actionRail.workspace", { tab: tabLabel }));
 
                       return (
                         <Tooltip key={tab.value} label={tooltipLabel} position="right">
@@ -1465,11 +1583,11 @@ function AdmissionDetail({
                           >
                             <Stack gap={0} className={classes.workspaceRailLabel}>
                               <Text size="xs" fw={600}>
-                                {tab.label}
+                                {tabLabel}
                               </Text>
-                              {readiness?.primaryBlockedReason && (
+                              {blockedReason && (
                                 <Text size="10px" c="orange" truncate>
-                                  {readiness.primaryBlockedReason}
+                                  {blockedReason}
                                 </Text>
                               )}
                             </Stack>
@@ -1585,25 +1703,25 @@ function AdmissionDetail({
               <Stack gap="sm">
                 <Stack gap={2}>
                   <Text size="xs" fw={700} c="dimmed" tt="uppercase">
-                    Context actions
+                    {t("actionRail.title")}
                   </Text>
                   <Text size="xs" c="dimmed">
-                    Orders, transfers, print, and discharge-risk actions.
+                    {t("actionRail.description")}
                   </Text>
                   <Group gap={4} mt={4}>
                     {focusedActionRailSections.map((section) => (
                       <Badge key={section} size="xs" color="primary" variant="light">
-                        {section}
+                        {actionRailSectionLabel(t, section)}
                       </Badge>
                     ))}
                     {focusedModeledActions > 0 && (
                       <>
                         <Badge size="xs" color="green" variant="light">
-                          {focusedReadyActions} ready
+                          {t("actionRail.readyCount", { count: focusedReadyActions })}
                         </Badge>
                         {focusedBlockedActions > 0 && (
                           <Badge size="xs" color="orange" variant="light">
-                            {focusedBlockedActions} blocked
+                            {t("actionRail.blockedCount", { count: focusedBlockedActions })}
                           </Badge>
                         )}
                       </>
@@ -1616,11 +1734,11 @@ function AdmissionDetail({
                   data-focused={actionRailSectionFocused("handoffs") || undefined}
                 >
                   <ActionRailSectionHeading
-                    title="Patient handoffs"
+                    title={actionRailSectionLabel(t, "handoffs")}
                     summary={actionRailSectionSummary("handoffs")}
                   />
                   <Text size="xs" c="dimmed">
-                    Event-gated routes for billing, pharmacy, camp, and medico-legal workflows.
+                    {t("actionRail.sectionDescription.handoffs")}
                   </Text>
                   <Box className={classes.handoffActions}>
                     <PatientJourneyActions
@@ -1629,7 +1747,7 @@ function AdmissionDetail({
                       hiddenActionIds={IPD_ACTION_RAIL_LOCAL_ACTION_IDS}
                       size="xs"
                       layout="rail"
-                      emptyLabel="No patient handoffs available"
+                      emptyLabel={t("actionRail.emptyHandoffs")}
                     />
                   </Box>
                 </Stack>
@@ -1639,58 +1757,27 @@ function AdmissionDetail({
                   data-focused={actionRailSectionFocused("orders") || undefined}
                 >
                   <ActionRailSectionHeading
-                    title="Orders"
+                    title={actionRailSectionLabel(t, "orders")}
                     summary={actionRailSectionSummary("orders")}
                   />
-                  <Tooltip
-                    label={orderMedicinesAction.disabledReasonText ?? orderMedicinesAction.label}
-                  >
-                    <span>
-                      <Button
-                        size="xs"
-                        variant="light"
-                        color="teal"
-                        leftSection={<IconPill size={14} />}
-                        disabled={!orderMedicinesAction.enabled}
-                        onClick={() => openOrderBasket("drug")}
-                        fullWidth
-                      >
-                        Medicines
-                      </Button>
-                    </span>
-                  </Tooltip>
-                  <Tooltip label={orderLabAction.disabledReasonText ?? orderLabAction.label}>
-                    <span>
-                      <Button
-                        size="xs"
-                        variant="light"
-                        color="teal"
-                        leftSection={<IconFlask size={14} />}
-                        disabled={!orderLabAction.enabled}
-                        onClick={() => openOrderBasket("lab")}
-                        fullWidth
-                      >
-                        Lab
-                      </Button>
-                    </span>
-                  </Tooltip>
-                  <Tooltip
-                    label={orderImagingAction.disabledReasonText ?? orderImagingAction.label}
-                  >
-                    <span>
-                      <Button
-                        size="xs"
-                        variant="light"
-                        color="teal"
-                        leftSection={<IconEye size={14} />}
-                        disabled={!orderImagingAction.enabled}
-                        onClick={() => openOrderBasket("radiology")}
-                        fullWidth
-                      >
-                        Imaging
-                      </Button>
-                    </span>
-                  </Tooltip>
+                  <ActionRailActionButton
+                    action={orderMedicinesAction}
+                    color="teal"
+                    leftSection={<IconPill size={14} />}
+                    onClick={() => openOrderBasket("drug")}
+                  />
+                  <ActionRailActionButton
+                    action={orderLabAction}
+                    color="teal"
+                    leftSection={<IconFlask size={14} />}
+                    onClick={() => openOrderBasket("lab")}
+                  />
+                  <ActionRailActionButton
+                    action={orderImagingAction}
+                    color="teal"
+                    leftSection={<IconEye size={14} />}
+                    onClick={() => openOrderBasket("radiology")}
+                  />
                 </Stack>
                 <Stack
                   gap="xs"
@@ -1698,7 +1785,7 @@ function AdmissionDetail({
                   data-focused={actionRailSectionFocused("finance") || undefined}
                 >
                   <ActionRailSectionHeading
-                    title="Finance"
+                    title={actionRailSectionLabel(t, "finance")}
                     summary={actionRailSectionSummary("finance")}
                   />
                   <Button
@@ -1709,32 +1796,18 @@ function AdmissionDetail({
                     onClick={() => setActiveWorkspaceTab("billing-tab")}
                     fullWidth
                   >
-                    IPD Billing Tab
+                    {t("actionRail.nav.ipdBillingTab")}
                   </Button>
-                  <Tooltip
-                    label={
-                      patientLedgerAction.disabledReasonText ??
-                      "Open patient billing ledger without re-searching"
+                  <ActionRailActionButton
+                    action={patientLedgerAction}
+                    color="orange"
+                    leftSection={<IconArrowRight size={14} />}
+                    onClick={() =>
+                      navigate(
+                        `/billing?tab=invoices&patient_id=${adm.patient_id}&source=ipd_admission`,
+                      )
                     }
-                  >
-                    <span>
-                      <Button
-                        size="xs"
-                        variant="light"
-                        color="orange"
-                        leftSection={<IconArrowRight size={14} />}
-                        disabled={!patientLedgerAction.enabled}
-                        onClick={() =>
-                          navigate(
-                            `/billing?tab=invoices&patient_id=${adm.patient_id}&source=ipd_admission`,
-                          )
-                        }
-                        fullWidth
-                      >
-                        Patient Ledger
-                      </Button>
-                    </span>
-                  </Tooltip>
+                  />
                   <Button
                     size="xs"
                     variant={activeWorkspaceTab === "insurance-pa" ? "filled" : "subtle"}
@@ -1743,7 +1816,7 @@ function AdmissionDetail({
                     onClick={() => setActiveWorkspaceTab("insurance-pa")}
                     fullWidth
                   >
-                    Insurance / PA
+                    {t("actionRail.nav.insurancePa")}
                   </Button>
                 </Stack>
                 <Stack
@@ -1751,46 +1824,30 @@ function AdmissionDetail({
                   className={classes.actionRailSection}
                   data-focused={actionRailSectionFocused("mrd") || undefined}
                 >
-                  <ActionRailSectionHeading title="MRD" summary={actionRailSectionSummary("mrd")} />
-                  <Tooltip
-                    label={
-                      generateMrdCaseSheetAction.disabledReasonText ??
-                      "Generate or refresh the IPD case-sheet packet in MRD"
+                  <ActionRailSectionHeading
+                    title={actionRailSectionLabel(t, "mrd")}
+                    summary={actionRailSectionSummary("mrd")}
+                  />
+                  <ActionRailActionButton
+                    action={generateMrdCaseSheetAction}
+                    color="violet"
+                    leftSection={<IconClipboardList size={14} />}
+                    loading={generateMrdCaseSheetMutation.isPending}
+                    onClick={() => generateMrdCaseSheetMutation.mutate()}
+                    variant={latestMrdCaseSheet ? "subtle" : "light"}
+                  >
+                    {latestMrdCaseSheet
+                      ? t("actionRail.nav.updateCaseSheet")
+                      : t("actionRail.nav.sendCaseSheet")}
+                  </ActionRailActionButton>
+                  <ActionRailActionButton
+                    action={openMrdPacketAction}
+                    leftSection={<IconArrowRight size={12} />}
+                    onClick={() =>
+                      navigate(`/mrd?packet_type=ipd&admission_id=${admissionId}#case-sheets`)
                     }
-                  >
-                    <span>
-                      <Button
-                        size="xs"
-                        variant={latestMrdCaseSheet ? "subtle" : "light"}
-                        color="violet"
-                        leftSection={<IconClipboardList size={14} />}
-                        disabled={!generateMrdCaseSheetAction.enabled}
-                        loading={generateMrdCaseSheetMutation.isPending}
-                        onClick={() => generateMrdCaseSheetMutation.mutate()}
-                        fullWidth
-                      >
-                        {latestMrdCaseSheet ? "Update Case Sheet" : "Send Case Sheet"}
-                      </Button>
-                    </span>
-                  </Tooltip>
-                  <Tooltip
-                    label={openMrdPacketAction.disabledReasonText ?? openMrdPacketAction.label}
-                  >
-                    <span>
-                      <Button
-                        size="compact-xs"
-                        variant="subtle"
-                        leftSection={<IconArrowRight size={12} />}
-                        disabled={!openMrdPacketAction.enabled}
-                        onClick={() =>
-                          navigate(`/mrd?packet_type=ipd&admission_id=${admissionId}#case-sheets`)
-                        }
-                        fullWidth
-                      >
-                        Open MRD Packet
-                      </Button>
-                    </span>
-                  </Tooltip>
+                    variant="subtle"
+                  />
                 </Stack>
                 <Stack
                   gap="xs"
@@ -1798,71 +1855,33 @@ function AdmissionDetail({
                   data-focused={actionRailSectionFocused("admission") || undefined}
                 >
                   <ActionRailSectionHeading
-                    title="Admission"
+                    title={actionRailSectionLabel(t, "admission")}
                     summary={actionRailSectionSummary("admission")}
                   />
-                  <Tooltip
-                    label={printWristbandAction.disabledReasonText ?? printWristbandAction.label}
-                  >
-                    <span>
-                      <Button
-                        size="xs"
-                        variant="light"
-                        color="slate"
-                        leftSection={<IconPrinter size={14} />}
-                        disabled={!printWristbandAction.enabled}
-                        onClick={openWristband}
-                        fullWidth
-                      >
-                        Wristband
-                      </Button>
-                    </span>
-                  </Tooltip>
-                  <Tooltip label={referOutAction.disabledReasonText ?? referOutAction.label}>
-                    <span>
-                      <Button
-                        size="xs"
-                        variant="light"
-                        color="primary"
-                        leftSection={<IconArrowsTransferDown size={14} />}
-                        disabled={!referOutAction.enabled}
-                        onClick={openTransferOut}
-                        fullWidth
-                      >
-                        Refer out
-                      </Button>
-                    </span>
-                  </Tooltip>
-                  <Tooltip label={damaAction.disabledReasonText ?? damaAction.label}>
-                    <span>
-                      <Button
-                        size="xs"
-                        variant="light"
-                        color="warning"
-                        leftSection={<IconUserOff size={14} />}
-                        disabled={!damaAction.enabled}
-                        onClick={openDama}
-                        fullWidth
-                      >
-                        DAMA / LAMA
-                      </Button>
-                    </span>
-                  </Tooltip>
-                  <Tooltip label={markDeathAction.disabledReasonText ?? markDeathAction.label}>
-                    <span>
-                      <Button
-                        size="xs"
-                        variant="light"
-                        color="danger"
-                        leftSection={<IconCross size={14} />}
-                        disabled={!markDeathAction.enabled}
-                        onClick={openDeath}
-                        fullWidth
-                      >
-                        Mark Death
-                      </Button>
-                    </span>
-                  </Tooltip>
+                  <ActionRailActionButton
+                    action={printWristbandAction}
+                    color="slate"
+                    leftSection={<IconPrinter size={14} />}
+                    onClick={openWristband}
+                  />
+                  <ActionRailActionButton
+                    action={referOutAction}
+                    color="primary"
+                    leftSection={<IconArrowsTransferDown size={14} />}
+                    onClick={openTransferOut}
+                  />
+                  <ActionRailActionButton
+                    action={damaAction}
+                    color="warning"
+                    leftSection={<IconUserOff size={14} />}
+                    onClick={openDama}
+                  />
+                  <ActionRailActionButton
+                    action={markDeathAction}
+                    color="danger"
+                    leftSection={<IconCross size={14} />}
+                    onClick={openDeath}
+                  />
                 </Stack>
                 <Stack
                   gap="xs"
@@ -1870,7 +1889,7 @@ function AdmissionDetail({
                   data-focused={actionRailSectionFocused("discharge") || undefined}
                 >
                   <ActionRailSectionHeading
-                    title="Discharge"
+                    title={actionRailSectionLabel(t, "discharge")}
                     summary={actionRailSectionSummary("discharge")}
                   />
                   <Button
@@ -1881,7 +1900,7 @@ function AdmissionDetail({
                     onClick={() => setActiveWorkspaceTab("discharge-summary")}
                     fullWidth
                   >
-                    Summary Tab
+                    {t("actionRail.nav.summaryTab")}
                   </Button>
                   <Button
                     size="xs"
@@ -1891,27 +1910,15 @@ function AdmissionDetail({
                     onClick={() => setActiveWorkspaceTab("discharge")}
                     fullWidth
                   >
-                    Checklist
+                    {t("actionRail.nav.checklist")}
                   </Button>
-                  <Tooltip
-                    label={
-                      viewDischargeTatAction.disabledReasonText ?? viewDischargeTatAction.label
-                    }
-                  >
-                    <span>
-                      <Button
-                        size="xs"
-                        variant={activeWorkspaceTab === "discharge-tat" ? "filled" : "subtle"}
-                        color="teal"
-                        leftSection={<IconCalendarTime size={14} />}
-                        disabled={!viewDischargeTatAction.enabled}
-                        onClick={() => setActiveWorkspaceTab("discharge-tat")}
-                        fullWidth
-                      >
-                        TAT
-                      </Button>
-                    </span>
-                  </Tooltip>
+                  <ActionRailActionButton
+                    action={viewDischargeTatAction}
+                    color="teal"
+                    leftSection={<IconCalendarTime size={14} />}
+                    onClick={() => setActiveWorkspaceTab("discharge-tat")}
+                    variant={activeWorkspaceTab === "discharge-tat" ? "filled" : "subtle"}
+                  />
                 </Stack>
               </Stack>
             </Box>

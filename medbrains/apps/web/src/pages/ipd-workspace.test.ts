@@ -292,6 +292,26 @@ describe("IPD workspace action rail focus", () => {
     );
   });
 
+  it("exposes structured blocker keys for localized action rail UX", () => {
+    const withoutBed = resolveIpdActionRailActions({
+      ...activeContext,
+      admissionHasAssignedBed: false,
+    });
+    expect(ipdActionRailAction(withoutBed, "order_lab")).toMatchObject({
+      disabledReasonKey: "actionRail.reason.assignBedBeforeOrders",
+      disabledReasonValues: {},
+    });
+
+    const denied = resolveIpdActionRailActions({
+      ...activeContext,
+      canDischarge: false,
+    });
+    expect(ipdActionRailAction(denied, "dama_lama")).toMatchObject({
+      disabledReasonKey: "actionRail.reason.permission",
+      disabledReasonValues: { permissions: "ipd.discharge.create" },
+    });
+  });
+
   it("models finance, MRD, wristband, and discharge readiness with reasons", () => {
     const withoutMrdPacket = resolveIpdActionRailActions({
       ...activeContext,

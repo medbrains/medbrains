@@ -87,6 +87,10 @@
   background: light-dark(var(--mantine-color-blue-0), rgba(51, 154, 240, 0.14));
 }
 
+.actionRailButtonTarget {
+  display: block;
+}
+
 .workspaceMain {
   min-width: 0;
 }

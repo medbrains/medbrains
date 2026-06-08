@@ -71,7 +71,9 @@ interface IpdActionRailActionDefinition {
 }
 
 export interface ResolvedIpdActionRailAction extends IpdActionRailActionDefinition {
+  disabledReasonKey: string | null;
   disabledReasonText: string | null;
+  disabledReasonValues: Readonly<Record<string, string>>;
   enabled: boolean;
 }
 
@@ -382,7 +384,13 @@ function permissionReason(definition: IpdActionRailActionDefinition): string {
   return `Requires ${definition.requiredPermissions.join(" + ")}`;
 }
 
-function stateReason(
+function permissionReasonValues(
+  definition: IpdActionRailActionDefinition,
+): Readonly<Record<string, string>> {
+  return { permissions: definition.requiredPermissions.join(" + ") };
+}
+
+function stateReasonText(
   definition: IpdActionRailActionDefinition,
   context: IpdActionRailContext,
 ): string | null {
@@ -396,6 +404,25 @@ function stateReason(
 
   if (definition.id === "open_mrd_packet" && !context.hasMrdCaseSheet) {
     return "Generate an MRD case-sheet packet before opening it";
+  }
+
+  return null;
+}
+
+function stateReasonKey(
+  definition: IpdActionRailActionDefinition,
+  context: IpdActionRailContext,
+): string | null {
+  if (ACTIVE_ADMISSION_ACTIONS.has(definition.id) && !context.admissionIsActive) {
+    return "actionRail.reason.activeAdmission";
+  }
+
+  if (definition.section === "orders" && !context.admissionHasAssignedBed) {
+    return "actionRail.reason.assignBedBeforeOrders";
+  }
+
+  if (definition.id === "open_mrd_packet" && !context.hasMrdCaseSheet) {
+    return "actionRail.reason.generateMrdBeforeOpen";
   }
 
   return null;
@@ -431,6 +458,16 @@ function activationReason(
     .join(" or ")}`;
 }
 
+function activationReasonValues(
+  definition: IpdActionRailActionDefinition,
+): Readonly<Record<string, string>> {
+  return {
+    events: definition.activatesAfter
+      .map((eventName) => eventName.replace(/\./g, " "))
+      .join(" or "),
+  };
+}
+
 export function resolveIpdActionRailActions(
   context: IpdActionRailContext,
 ): readonly ResolvedIpdActionRailAction[] {
@@ -438,15 +475,25 @@ export function resolveIpdActionRailActions(
 
   return IPD_ACTION_RAIL_ACTIONS.map((definition) => {
     const hasPermission = permissionAllowed(definition.id, context);
-    const blockedByState = stateReason(definition, context);
+    const blockedByState = stateReasonText(definition, context);
+    const blockedByStateKey = stateReasonKey(definition, context);
     const blockedByActivation = activationReason(definition, completedEvents);
     const enabled = hasPermission && blockedByState === null && blockedByActivation === null;
+    const disabledReasonKey = !hasPermission
+      ? "actionRail.reason.permission"
+      : (blockedByStateKey ?? (blockedByActivation ? "actionRail.reason.availableAfter" : null));
 
     return {
       activatesAfter: definition.activatesAfter,
+      disabledReasonKey,
       disabledReasonText: hasPermission
         ? (blockedByState ?? blockedByActivation)
         : permissionReason(definition),
+      disabledReasonValues: !hasPermission
+        ? permissionReasonValues(definition)
+        : blockedByActivation
+          ? activationReasonValues(definition)
+          : {},
       enabled,
       id: definition.id,
       label: definition.label,
