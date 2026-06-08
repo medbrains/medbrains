@@ -531,9 +531,9 @@ function ActionRailActionButton({
       <Group gap={4} wrap="nowrap">
         <OperationalSignal
           label={statusLabel}
-          shape={action.enabled ? "pill" : "diamond"}
+          shape={action.signal.shape}
           size="xs"
-          tone={action.enabled ? "ready" : "blocked"}
+          tone={action.signal.tone}
         />
         {!action.enabled && disabledReason && (
           <Text size="10px" c="dimmed" lineClamp={2}>

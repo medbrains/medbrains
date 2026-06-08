@@ -17,6 +17,7 @@ import {
   type IpdActionRailContext,
   ipdActionRailAction,
   ipdActionRailSectionsForTab,
+  ipdActionRailSignal,
   ipdAdmissionOrderBasketRoute,
   ipdAdmissionWorkspaceTabRoute,
   ipdOrderBasketTabFromSearchParams,
@@ -298,8 +299,14 @@ describe("IPD workspace action rail focus", () => {
       admissionHasAssignedBed: false,
     });
     expect(ipdActionRailAction(withoutBed, "order_lab")).toMatchObject({
+      blocker: "state",
       disabledReasonKey: "actionRail.reason.assignBedBeforeOrders",
       disabledReasonValues: {},
+      signal: {
+        phase: "blocked_by_state",
+        shape: "diamond",
+        tone: "blocked",
+      },
     });
 
     const denied = resolveIpdActionRailActions({
@@ -307,8 +314,37 @@ describe("IPD workspace action rail focus", () => {
       canDischarge: false,
     });
     expect(ipdActionRailAction(denied, "dama_lama")).toMatchObject({
+      blocker: "permission",
       disabledReasonKey: "actionRail.reason.permission",
       disabledReasonValues: { permissions: "ipd.discharge.create" },
+      signal: {
+        phase: "blocked_by_permission",
+        shape: "diamond",
+        tone: "risk",
+      },
+    });
+  });
+
+  it("maps action rail blockers to scannable readiness shapes", () => {
+    expect(ipdActionRailSignal(null)).toEqual({
+      phase: "ready",
+      shape: "pill",
+      tone: "ready",
+    });
+    expect(ipdActionRailSignal("activation")).toEqual({
+      phase: "waiting_for_event",
+      shape: "token",
+      tone: "blocked",
+    });
+    expect(ipdActionRailSignal("permission")).toEqual({
+      phase: "blocked_by_permission",
+      shape: "diamond",
+      tone: "risk",
+    });
+    expect(ipdActionRailSignal("state")).toEqual({
+      phase: "blocked_by_state",
+      shape: "diamond",
+      tone: "blocked",
     });
   });
 

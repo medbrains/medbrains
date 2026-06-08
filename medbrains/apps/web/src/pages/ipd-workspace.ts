@@ -45,6 +45,21 @@ export type IpdActionRailActionId =
   | "discharge_patient"
   | "view_discharge_tat";
 
+export type IpdActionRailBlocker = "activation" | "permission" | "state" | null;
+export type IpdActionRailSignalPhase =
+  | "blocked_by_permission"
+  | "blocked_by_state"
+  | "ready"
+  | "waiting_for_event";
+export type IpdActionRailSignalShape = "diamond" | "pill" | "token";
+export type IpdActionRailSignalTone = "blocked" | "ready" | "risk";
+
+export interface IpdActionRailSignal {
+  phase: IpdActionRailSignalPhase;
+  shape: IpdActionRailSignalShape;
+  tone: IpdActionRailSignalTone;
+}
+
 export interface IpdActionRailContext {
   admissionHasAssignedBed: boolean;
   admissionIsActive: boolean;
@@ -71,10 +86,12 @@ interface IpdActionRailActionDefinition {
 }
 
 export interface ResolvedIpdActionRailAction extends IpdActionRailActionDefinition {
+  blocker: IpdActionRailBlocker;
   disabledReasonKey: string | null;
   disabledReasonText: string | null;
   disabledReasonValues: Readonly<Record<string, string>>;
   enabled: boolean;
+  signal: IpdActionRailSignal;
 }
 
 export interface IpdActionRailSectionSummary {
@@ -468,6 +485,35 @@ function activationReasonValues(
   };
 }
 
+export function ipdActionRailSignal(blocker: IpdActionRailBlocker): IpdActionRailSignal {
+  switch (blocker) {
+    case "activation":
+      return {
+        phase: "waiting_for_event",
+        shape: "token",
+        tone: "blocked",
+      };
+    case "permission":
+      return {
+        phase: "blocked_by_permission",
+        shape: "diamond",
+        tone: "risk",
+      };
+    case "state":
+      return {
+        phase: "blocked_by_state",
+        shape: "diamond",
+        tone: "blocked",
+      };
+    case null:
+      return {
+        phase: "ready",
+        shape: "pill",
+        tone: "ready",
+      };
+  }
+}
+
 export function resolveIpdActionRailActions(
   context: IpdActionRailContext,
 ): readonly ResolvedIpdActionRailAction[] {
@@ -479,12 +525,20 @@ export function resolveIpdActionRailActions(
     const blockedByStateKey = stateReasonKey(definition, context);
     const blockedByActivation = activationReason(definition, completedEvents);
     const enabled = hasPermission && blockedByState === null && blockedByActivation === null;
+    const blocker: IpdActionRailBlocker = !hasPermission
+      ? "permission"
+      : blockedByState
+        ? "state"
+        : blockedByActivation
+          ? "activation"
+          : null;
     const disabledReasonKey = !hasPermission
       ? "actionRail.reason.permission"
       : (blockedByStateKey ?? (blockedByActivation ? "actionRail.reason.availableAfter" : null));
 
     return {
       activatesAfter: definition.activatesAfter,
+      blocker,
       disabledReasonKey,
       disabledReasonText: hasPermission
         ? (blockedByState ?? blockedByActivation)
@@ -499,6 +553,7 @@ export function resolveIpdActionRailActions(
       label: definition.label,
       requiredPermissions: definition.requiredPermissions,
       section: definition.section,
+      signal: ipdActionRailSignal(blocker),
     };
   });
 }
