@@ -28,13 +28,17 @@ describe("patient flow readiness", () => {
     expect(readiness.summary).toMatchObject({
       blocked: 1,
       blockedModules: ["pharmacy"],
+      eventBlocked: 1,
+      eventBlockedModules: ["pharmacy"],
       enabled: 6,
+      permissionBlocked: 0,
       readyModules: ["patient", "opd", "ipd", "emergency", "camp", "billing"],
       total: 7,
     });
-    expect(readiness.items.find((item) => item.id === "pharmacy")?.disabledReason).toBe(
-      "Available after order created or pharmacy order dispensed",
-    );
+    expect(readiness.items.find((item) => item.id === "pharmacy")).toMatchObject({
+      blockedReason: "event",
+      disabledReason: "Available after order created or pharmacy order dispensed",
+    });
   });
 
   it("keeps permission-denied modules visible with reasons", () => {
@@ -45,12 +49,24 @@ describe("patient flow readiness", () => {
 
     expect(readiness.summary).toMatchObject({
       blocked: 7,
+      contextBlocked: 0,
       enabled: 0,
+      permissionBlocked: 7,
+      permissionBlockedModules: [
+        "patient",
+        "opd",
+        "ipd",
+        "emergency",
+        "camp",
+        "pharmacy",
+        "billing",
+      ],
       total: 7,
     });
-    expect(readiness.items.find((item) => item.id === "patient")?.disabledReason).toBe(
-      "Permission required",
-    );
+    expect(readiness.items.find((item) => item.id === "patient")).toMatchObject({
+      blockedReason: "permission",
+      disabledReason: "Permission required",
+    });
     expect(readiness.items.find((item) => item.id === "camp")?.disabledReason).toBe(
       "Requires one of camp.list / camp.registrations.list / camp.registrations.create",
     );
@@ -108,5 +124,28 @@ describe("patient flow readiness", () => {
     expect(readiness.items.find((item) => item.id === "opd")?.disabledReason).toBe(
       "Requires opd.visit.create",
     );
+  });
+
+  it("classifies patient-state blockers separately from permission and event blockers", () => {
+    const readiness = buildPatientFlowReadiness(
+      patientFlowJourneyContext({
+        patientId: "patient-1",
+        completedEvents: ["order.created"],
+        isDeceased: true,
+      }),
+      allowAll,
+    );
+
+    expect(readiness.summary).toMatchObject({
+      contextBlocked: 4,
+      contextBlockedModules: ["opd", "ipd", "emergency", "camp"],
+      eventBlocked: 0,
+      eventBlockedModules: [],
+      permissionBlocked: 0,
+    });
+    expect(readiness.items.find((item) => item.id === "opd")).toMatchObject({
+      blockedReason: "context",
+      disabledReason: "Unavailable for deceased patient records",
+    });
   });
 });

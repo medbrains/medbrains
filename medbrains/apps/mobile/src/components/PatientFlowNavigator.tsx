@@ -35,6 +35,19 @@ function eventLabel(eventName: string) {
   return eventName.replace(/\./g, " ");
 }
 
+function blockedReasonLabel(reason: PatientFlowReadinessItem["blockedReason"]) {
+  switch (reason) {
+    case "context":
+      return "Context";
+    case "event":
+      return "Event";
+    case "permission":
+      return "Permission";
+    default:
+      return null;
+  }
+}
+
 function mobileFlowDisabledReason(
   item: PatientFlowReadinessItem,
   context: ClinicalJourneyContext,
@@ -49,7 +62,10 @@ function mobileFlowDisabledReason(
 }
 
 function readinessText(item: PatientFlowReadinessItem, disabledReason: string | null) {
-  if (disabledReason) return disabledReason;
+  if (disabledReason) {
+    const blockedLabel = blockedReasonLabel(item.blockedReason);
+    return blockedLabel ? `${blockedLabel}: ${disabledReason}` : disabledReason;
+  }
   if (item.emittedEvent) return `Emits ${eventLabel(item.emittedEvent)}`;
   if (item.activationEvents.length > 0) {
     return `After ${item.activationEvents.map(eventLabel).join(" / ")}`;

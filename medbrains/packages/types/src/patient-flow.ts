@@ -1,5 +1,6 @@
 import type {
   ClinicalJourneyActionId,
+  ClinicalJourneyBlockedReason,
   ClinicalJourneyContext,
   ClinicalJourneySurface,
   ClinicalOrderContext,
@@ -38,6 +39,7 @@ export interface PatientFlowContextInput {
 export interface PatientFlowReadinessItem {
   id: PatientFlowModule;
   actionId: ClinicalJourneyActionId | null;
+  blockedReason: ClinicalJourneyBlockedReason | null;
   label: string;
   description: string;
   href: string;
@@ -51,7 +53,13 @@ export interface PatientFlowReadinessItem {
 export interface PatientFlowReadinessSummary {
   blocked: number;
   blockedModules: readonly PatientFlowModule[];
+  contextBlocked: number;
+  contextBlockedModules: readonly PatientFlowModule[];
   enabled: number;
+  eventBlocked: number;
+  eventBlockedModules: readonly PatientFlowModule[];
+  permissionBlocked: number;
+  permissionBlockedModules: readonly PatientFlowModule[];
   readyModules: readonly PatientFlowModule[];
   total: number;
 }
@@ -71,17 +79,27 @@ function resolvedActionMap(actions: ResolvedClinicalJourneyAction[]) {
   return new Map(actions.map((action) => [action.id, action]));
 }
 
+interface PatientFlowItemState {
+  activationEvents: readonly ClinicalEventName[];
+  blockedReason: ClinicalJourneyBlockedReason | null;
+  disabledReason: string | null;
+  emittedEvent: ClinicalEventName | null;
+  enabled: boolean;
+  requiredPermissions: readonly string[];
+}
+
 function itemState(
   action: ResolvedClinicalJourneyAction | undefined,
   fallbackEnabled: boolean,
   fallbackReason = "Permission required",
   fallbackActivationEvents: readonly ClinicalEventName[] = [],
   fallbackPermissions: readonly string[] = [],
-) {
+): PatientFlowItemState {
   if (!action) {
     return {
       enabled: fallbackEnabled,
       disabledReason: fallbackEnabled ? null : fallbackReason,
+      blockedReason: fallbackEnabled ? null : "permission",
       activationEvents: fallbackActivationEvents,
       emittedEvent: null,
       requiredPermissions: fallbackPermissions,
@@ -91,6 +109,7 @@ function itemState(
   return {
     enabled: action.enabled,
     disabledReason: action.enabled ? null : action.disabledReasonText,
+    blockedReason: action.blockedReason,
     activationEvents: action.activatesAfter,
     emittedEvent: action.emitsEvent ?? null,
     requiredPermissions: action.requiredPermissions,
@@ -102,11 +121,26 @@ function summarizePatientFlow(
 ): PatientFlowReadinessSummary {
   const readyModules = items.filter((item) => item.enabled).map((item) => item.id);
   const blockedModules = items.filter((item) => !item.enabled).map((item) => item.id);
+  const contextBlockedModules = items
+    .filter((item) => item.blockedReason === "context")
+    .map((item) => item.id);
+  const eventBlockedModules = items
+    .filter((item) => item.blockedReason === "event")
+    .map((item) => item.id);
+  const permissionBlockedModules = items
+    .filter((item) => item.blockedReason === "permission")
+    .map((item) => item.id);
 
   return {
     blocked: blockedModules.length,
     blockedModules,
+    contextBlocked: contextBlockedModules.length,
+    contextBlockedModules,
     enabled: readyModules.length,
+    eventBlocked: eventBlockedModules.length,
+    eventBlockedModules,
+    permissionBlocked: permissionBlockedModules.length,
+    permissionBlockedModules,
     readyModules,
     total: items.length,
   };
@@ -221,6 +255,7 @@ export function buildPatientFlowReadiness(
     {
       id: "patient",
       actionId: null,
+      blockedReason: patientState.blockedReason,
       label: "Patient",
       description: "Open patient registration and longitudinal record.",
       href: `/patients/${patientId}#overview`,
@@ -233,6 +268,7 @@ export function buildPatientFlowReadiness(
     {
       id: "opd",
       actionId: OPD_FLOW_ACTION,
+      blockedReason: opdState.blockedReason,
       label: "OPD",
       description: context.activeEncounterId ? "Open active OPD encounter." : "Start an OPD visit.",
       href:
@@ -246,6 +282,7 @@ export function buildPatientFlowReadiness(
     {
       id: "ipd",
       actionId: ipdActionId,
+      blockedReason: ipdState.blockedReason,
       label: "IPD",
       description: context.activeAdmissionId
         ? "Open active IPD admission."
@@ -260,6 +297,7 @@ export function buildPatientFlowReadiness(
     {
       id: "emergency",
       actionId: EMERGENCY_FLOW_ACTION,
+      blockedReason: emergencyState.blockedReason,
       label: "ER",
       description: context.activeEmergencyVisitId
         ? "Open emergency visit."
@@ -276,6 +314,7 @@ export function buildPatientFlowReadiness(
     {
       id: "camp",
       actionId: CAMP_FLOW_ACTION,
+      blockedReason: campState.blockedReason,
       label: "Camp",
       description: "Open camp registration and screening workspace.",
       href: patientJourneyActionRoute(CAMP_FLOW_ACTION, context) ?? `/camp?patient_id=${patientId}`,
@@ -288,6 +327,7 @@ export function buildPatientFlowReadiness(
     {
       id: "pharmacy",
       actionId: PHARMACY_FLOW_ACTION,
+      blockedReason: pharmacyState.blockedReason,
       label: "Pharmacy",
       description: "Open patient pharmacy orders and dispensing queue.",
       href:
@@ -302,6 +342,7 @@ export function buildPatientFlowReadiness(
     {
       id: "billing",
       actionId: BILLING_FLOW_ACTION,
+      blockedReason: billingState.blockedReason,
       label: "Billing",
       description: "Open patient billing ledger and invoice queue.",
       href:

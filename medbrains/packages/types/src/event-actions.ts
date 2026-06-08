@@ -238,6 +238,51 @@ function activationDisabledReason(
   return `Available after ${action.activatesAfter.map(eventLabel).join(" or ")}`;
 }
 
+function hasAnyCompletedJourneyEvent(
+  context: ClinicalJourneyContext,
+  eventNames: readonly ClinicalEventName[],
+): boolean {
+  const completedEvents = new Set(inferClinicalJourneyEventNames(context));
+  return eventNames.some((eventName) => completedEvents.has(eventName));
+}
+
+function requireLinkedContextAfterActivation(
+  context: ClinicalJourneyContext,
+  activationEvents: readonly ClinicalEventName[],
+  reason: string,
+): string | null {
+  return hasAnyCompletedJourneyEvent(context, activationEvents) ? reason : null;
+}
+
+function requireActiveAdmissionForDischargeBill(context: ClinicalJourneyContext): string | null {
+  if (context.activeAdmissionId) return null;
+  return requireLinkedContextAfterActivation(
+    context,
+    ["ipd.discharge.finalized"],
+    "Link the finalized IPD admission before preparing the discharge bill",
+  );
+}
+
+function requireActiveInvoiceForPayment(context: ClinicalJourneyContext): string | null {
+  if (context.activeInvoiceId) return null;
+  return requireLinkedContextAfterActivation(
+    context,
+    ["billing.invoice.created", "billing.invoice.finalized"],
+    "Link an invoice before collecting payment",
+  );
+}
+
+function requireActivePharmacyOrderForDispense(context: ClinicalJourneyContext): string | null {
+  const livingReason = requireLivingPatient(context);
+  if (livingReason) return livingReason;
+  if (context.activePharmacyOrderId) return null;
+  return requireLinkedContextAfterActivation(
+    context,
+    ["order.created", "billing.payment.received"],
+    "Link the pharmacy order before dispensing medicines",
+  );
+}
+
 export const CORE_PATIENT_JOURNEY_ACTIONS: readonly ClinicalJourneyActionDefinition[] = [
   {
     id: "patient.edit",
@@ -418,7 +463,7 @@ export const CORE_PATIENT_JOURNEY_ACTIONS: readonly ClinicalJourneyActionDefinit
     activatesAfter: ["ipd.discharge.finalized"],
     emitsEvent: "billing.invoice.created",
     standardRefs: ["NABH COP discharge process", "GST healthcare billing controls"],
-    disabledReason: () => null,
+    disabledReason: requireActiveAdmissionForDischargeBill,
   },
   {
     id: "billing.collect_payment",
@@ -435,7 +480,7 @@ export const CORE_PATIENT_JOURNEY_ACTIONS: readonly ClinicalJourneyActionDefinit
       "NABH PRE financial counselling",
       "PCI DSS scoping if card payments are enabled",
     ],
-    disabledReason: () => null,
+    disabledReason: requireActiveInvoiceForPayment,
   },
   {
     id: "pharmacy.dispense_order",
@@ -449,7 +494,7 @@ export const CORE_PATIENT_JOURNEY_ACTIONS: readonly ClinicalJourneyActionDefinit
     activatesAfter: ["order.created", "billing.payment.received"],
     emitsEvent: "pharmacy.order.dispensed",
     standardRefs: ["NABH MOM", "Drugs and Cosmetics Act", "NDPS Act where applicable"],
-    disabledReason: requireLivingPatient,
+    disabledReason: requireActivePharmacyOrderForDispense,
   },
   {
     id: "pharmacy.open_patient_queue",

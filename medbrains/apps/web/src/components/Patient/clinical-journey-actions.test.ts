@@ -100,6 +100,7 @@ describe("clinical journey event activation", () => {
       {
         patientId: "patient-1",
         activeEncounterId: "encounter-1",
+        activePharmacyOrderId: "pharmacy-order-1",
         activeOrderContext: "opd",
         completedEvents: ["order.created"],
       },
@@ -112,6 +113,38 @@ describe("clinical journey event activation", () => {
     expect(actions.find((action) => action.id === "pharmacy.open_patient_queue")?.enabled).toBe(
       true,
     );
+  });
+
+  it("requires linked downstream records once billing, discharge, or pharmacy events exist", () => {
+    const actions = resolveClinicalJourneyActions(
+      {
+        patientId: "patient-1",
+        completedEvents: [
+          "billing.invoice.created",
+          "billing.invoice.finalized",
+          "ipd.discharge.finalized",
+          "order.created",
+        ],
+      },
+      allowAll,
+      "web",
+    );
+
+    expect(actions.find((action) => action.id === "billing.collect_payment")).toMatchObject({
+      blockedReason: "context",
+      disabledReasonText: "Link an invoice before collecting payment",
+      enabled: false,
+    });
+    expect(actions.find((action) => action.id === "billing.prepare_discharge_bill")).toMatchObject({
+      blockedReason: "context",
+      disabledReasonText: "Link the finalized IPD admission before preparing the discharge bill",
+      enabled: false,
+    });
+    expect(actions.find((action) => action.id === "pharmacy.dispense_order")).toMatchObject({
+      blockedReason: "context",
+      disabledReasonText: "Link the pharmacy order before dispensing medicines",
+      enabled: false,
+    });
   });
 
   it("keeps inpatient orders disabled while an admitted patient is waiting for a bed", () => {
@@ -197,7 +230,10 @@ describe("clinical journey event activation", () => {
     const actions = resolveClinicalJourneyActions(
       {
         patientId: "patient-1",
+        activeAdmissionId: "admission-1",
         activeEmergencyVisitId: "visit-1",
+        activeInvoiceId: "invoice-1",
+        activePharmacyOrderId: "pharmacy-order-1",
         completedEvents: [
           "ipd.discharge.finalized",
           "billing.invoice.finalized",

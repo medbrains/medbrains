@@ -62,12 +62,32 @@ function eventLabel(eventName: string) {
   return eventName.replace(/\./g, " ");
 }
 
+function blockedReasonLabel(reason: PatientFlowReadinessItem["blockedReason"]) {
+  switch (reason) {
+    case "context":
+      return "blocked by context";
+    case "event":
+      return "blocked by event";
+    case "permission":
+      return "blocked by permission";
+    default:
+      return null;
+  }
+}
+
 function FlowTooltip({ item }: { item: PatientFlowReadinessItem }) {
+  const blockedLabel = blockedReasonLabel(item.blockedReason);
+
   return (
     <Stack gap={5}>
       <Text size="xs" fw={700}>
         {item.enabled ? item.description : item.disabledReason}
       </Text>
+      {blockedLabel && (
+        <Badge size="xs" color="orange" variant="light">
+          {blockedLabel}
+        </Badge>
+      )}
       <Group gap={4}>
         {item.activationEvents.length > 0 ? (
           item.activationEvents.map((eventName) => (
