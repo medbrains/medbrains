@@ -2,7 +2,12 @@
 
 import { inferClinicalJourneyEventNames, patientJourneyActionRoute } from "@medbrains/types";
 import { describe, expect, it } from "vitest";
-import { campJourneyContext, campWorkDefaultTab, campWorkTabFromString } from "./camp-workspace";
+import {
+  activeCampRegistrationIdForJourney,
+  campJourneyContext,
+  campWorkDefaultTab,
+  campWorkTabFromString,
+} from "./camp-workspace";
 
 describe("camp workspace tab routing", () => {
   it("normalizes valid work tab values and rejects unknown hashes", () => {
@@ -17,6 +22,25 @@ describe("camp workspace tab routing", () => {
     expect(campWorkDefaultTab("registrations", "registration-1")).toBe("screenings");
     expect(campWorkDefaultTab("analytics")).toBe("analytics");
     expect(campWorkDefaultTab("unknown")).toBe("registrations");
+  });
+
+  it("selects patient camp registration context for journey handoffs", () => {
+    expect(
+      activeCampRegistrationIdForJourney(
+        [
+          { id: "no-show", status: "no_show" },
+          { id: "registered", status: "registered" },
+        ],
+        null,
+      ),
+    ).toBe("registered");
+    expect(
+      activeCampRegistrationIdForJourney(
+        [{ id: "registered", status: "registered" }],
+        "focused-registration",
+      ),
+    ).toBe("focused-registration");
+    expect(activeCampRegistrationIdForJourney([{ id: "no-show", status: "no_show" }])).toBeNull();
   });
 
   it("preserves active camp and registration context for patient handoffs", () => {

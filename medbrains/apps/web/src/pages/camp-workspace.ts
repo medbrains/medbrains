@@ -1,4 +1,8 @@
-import type { ClinicalEventName, ClinicalJourneyContext } from "@medbrains/types";
+import type {
+  CampRegistrationStatus,
+  ClinicalEventName,
+  ClinicalJourneyContext,
+} from "@medbrains/types";
 
 export const CAMP_LANDING_TAB_VALUES = ["camps", "analytics"] as const;
 export const CAMP_WORK_TAB_VALUES = [
@@ -25,6 +29,20 @@ export function campWorkTabFromString(value: string | null | undefined): CampWor
 export function campWorkDefaultTab(initialTab: string, registrationId?: string): CampWorkTabValue {
   if (registrationId) return "screenings";
   return campWorkTabFromString(initialTab) ?? "registrations";
+}
+
+interface CampRegistrationJourneyRow {
+  id: string;
+  status: CampRegistrationStatus;
+}
+
+export function activeCampRegistrationIdForJourney(
+  registrations: readonly CampRegistrationJourneyRow[],
+  focusedRegistrationId?: string | null,
+): string | null {
+  if (focusedRegistrationId) return focusedRegistrationId;
+
+  return registrations.find((registration) => registration.status !== "no_show")?.id ?? null;
 }
 
 export function campJourneyContext(input: {

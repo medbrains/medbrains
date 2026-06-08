@@ -131,6 +131,7 @@ import { campService } from "@/services/camp.service";
 import { lookupsService } from "@/services/lookups.service";
 import classes from "./camp.module.scss";
 import {
+  activeCampRegistrationIdForJourney,
   CAMP_LANDING_TAB_VALUES,
   CAMP_WORK_TAB_VALUES,
   type CampWorkTabValue,
@@ -501,17 +502,21 @@ function CampWorkPageInner({ initialTab = "registrations" }: CampWorkPageProps =
     () => deriveCampJourneyCompletedEvents(patientCampRegistrations),
     [patientCampRegistrations],
   );
+  const journeyRegistrationId = useMemo(
+    () => activeCampRegistrationIdForJourney(patientCampRegistrations, focusedRegistrationId),
+    [focusedRegistrationId, patientCampRegistrations],
+  );
   const journeyContext = useMemo<ClinicalJourneyContext | null>(
     () =>
       contextPatientId
         ? campJourneyContext({
             patientId: contextPatientId,
             activeCampId: campId ?? null,
-            activeCampRegistrationId: focusedRegistrationId,
+            activeCampRegistrationId: journeyRegistrationId,
             completedEvents: campCompletedEvents,
           })
         : null,
-    [campCompletedEvents, campId, contextPatientId, focusedRegistrationId],
+    [campCompletedEvents, campId, contextPatientId, journeyRegistrationId],
   );
   const workTabs = [
     { value: "registrations", label: "Registrations", icon: <IconUsers size={16} /> },
@@ -556,7 +561,7 @@ function CampWorkPageInner({ initialTab = "registrations" }: CampWorkPageProps =
                 patientId={contextPatientId}
                 active="camp"
                 activeCampId={campId ?? null}
-                activeCampRegistrationId={focusedRegistrationId}
+                activeCampRegistrationId={journeyRegistrationId}
                 completedEvents={campCompletedEvents}
                 compact
               />
