@@ -5715,12 +5715,14 @@ function RxBillingEstimate({
   reviewItems?: PharmacyRxReviewItemInput[];
   onReviewItemsChange?: (items: PharmacyRxReviewItemInput[]) => void;
 }) {
+  const { t } = useTranslation("pharmacy");
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const priceAccess = useFieldAccess("pharmacy.pricing.unit_price");
   const subtotal = items.reduce((sum, item) => sum + Number(item.taxable_amount || 0), 0);
   const tax = items.reduce((sum, item) => sum + Number(item.tax_amount || 0), 0);
   const total = items.reduce((sum, item) => sum + Number(item.line_total || 0), 0);
   const unmatchedCount = items.filter((item) => item.price_source === "unmatched").length;
+  const canViewAmounts = canViewPharmacyField(priceAccess);
   const canEdit = editable && Boolean(onReviewItemsChange) && canEditPharmacyField(priceAccess);
 
   function updateReviewLine(item: PharmacyRxDetailItem, patch: Partial<PharmacyRxReviewItemInput>) {
@@ -5743,7 +5745,7 @@ function RxBillingEstimate({
         <Group gap="xs">
           <Loader size="xs" />
           <Text size="sm" c="dimmed">
-            Calculating price and GST...
+            {t("rxBillingEstimate.calculating")}
           </Text>
         </Group>
       </Card>
@@ -5754,23 +5756,50 @@ function RxBillingEstimate({
     <Card withBorder padding="sm" className={styles.rxEstimateCard}>
       <Stack gap="xs">
         <Group justify="space-between">
-          <Text fw={700}>Price & GST before approval</Text>
-          {unmatchedCount > 0 && (
-            <Badge color="warning" variant="light">
-              {unmatchedCount} unpriced
-            </Badge>
-          )}
+          <Text fw={700}>{t("rxBillingEstimate.title")}</Text>
+          <Group gap={6}>
+            <OperationalSignal
+              icon={canViewAmounts ? IconReceipt : IconLock}
+              label={
+                canViewAmounts
+                  ? t("rxBillingEstimate.signals.draftReady")
+                  : t("rxBillingEstimate.signals.amountMasked")
+              }
+              shape={canViewAmounts ? "token" : "diamond"}
+              size="xs"
+              tone={canViewAmounts ? "active" : "blocked"}
+            />
+            {unmatchedCount > 0 && (
+              <OperationalSignal
+                icon={IconAlertTriangle}
+                label={t("rxBillingEstimate.signals.unpriced", { count: unmatchedCount })}
+                shape="diamond"
+                size="xs"
+                tone="blocked"
+                value={String(unmatchedCount)}
+              />
+            )}
+            {canEdit && (
+              <OperationalSignal
+                icon={IconPencil}
+                label={t("rxBillingEstimate.signals.priceOverride")}
+                shape="token"
+                size="xs"
+                tone="active"
+              />
+            )}
+          </Group>
         </Group>
         <Table striped>
           <Table.Thead>
             <Table.Tr>
-              <Table.Th>Drug</Table.Th>
-              <Table.Th>Qty</Table.Th>
-              <Table.Th>Unit</Table.Th>
-              <Table.Th>GST</Table.Th>
-              <Table.Th>Tax</Table.Th>
-              <Table.Th>Total</Table.Th>
-              {canEdit && <Table.Th>Actions</Table.Th>}
+              <Table.Th>{t("rxBillingEstimate.columns.drug")}</Table.Th>
+              <Table.Th>{t("rxBillingEstimate.columns.qty")}</Table.Th>
+              <Table.Th>{t("rxBillingEstimate.columns.unit")}</Table.Th>
+              <Table.Th>{t("rxBillingEstimate.columns.gst")}</Table.Th>
+              <Table.Th>{t("rxBillingEstimate.columns.tax")}</Table.Th>
+              <Table.Th>{t("rxBillingEstimate.columns.total")}</Table.Th>
+              {canEdit && <Table.Th>{t("rxBillingEstimate.columns.actions")}</Table.Th>}
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
@@ -5785,7 +5814,7 @@ function RxBillingEstimate({
                       </Text>
                       {item.price_source === "unmatched" && (
                         <Text size="xs" c="warning">
-                          Not matched to formulary/catalog
+                          {t("rxBillingEstimate.unmatchedCatalog")}
                         </Text>
                       )}
                     </Stack>
@@ -5843,13 +5872,24 @@ function RxBillingEstimate({
                   </Table.Td>
                   {canEdit && (
                     <Table.Td>
-                      <Tooltip label={isEditing ? "Done editing" : "Edit quantity and price"}>
+                      <Tooltip
+                        label={
+                          isEditing
+                            ? t("rxBillingEstimate.actions.doneEditing")
+                            : t("rxBillingEstimate.actions.editQuantityPrice")
+                        }
+                      >
                         <ActionIcon
                           size="sm"
                           variant={isEditing ? "light" : "subtle"}
                           color={isEditing ? "primary" : "gray"}
                           onClick={() => setEditingItemId(isEditing ? null : item.id)}
-                          aria-label={`${isEditing ? "Save" : "Edit"} ${item.drug_name}`}
+                          aria-label={t(
+                            isEditing
+                              ? "rxBillingEstimate.actions.saveDrug"
+                              : "rxBillingEstimate.actions.editDrug",
+                            { drug: item.drug_name },
+                          )}
                         >
                           {isEditing ? <IconDeviceFloppy size={14} /> : <IconPencil size={14} />}
                         </ActionIcon>
@@ -5863,13 +5903,15 @@ function RxBillingEstimate({
         </Table>
         <Group justify="flex-end" gap="lg" className={styles.billingSummaryBand}>
           <Text size="sm" c="dimmed">
-            Subtotal {renderPharmacySensitiveCurrency(priceAccess, subtotal)}
+            {t("rxBillingEstimate.summary.subtotal")}{" "}
+            {renderPharmacySensitiveCurrency(priceAccess, subtotal)}
           </Text>
           <Text size="sm" c="dimmed">
-            GST {renderPharmacySensitiveCurrency(priceAccess, tax)}
+            {t("rxBillingEstimate.summary.gst")} {renderPharmacySensitiveCurrency(priceAccess, tax)}
           </Text>
           <Text fw={800}>
-            Billing indent total {renderPharmacySensitiveCurrency(priceAccess, total)}
+            {t("rxBillingEstimate.summary.total")}{" "}
+            {renderPharmacySensitiveCurrency(priceAccess, total)}
           </Text>
         </Group>
       </Stack>

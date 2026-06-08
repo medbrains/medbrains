@@ -1,1 +1,23 @@
-{}
+{
+  "rxBillingEstimate.actions.doneEditing": "Done editing",
+  "rxBillingEstimate.actions.editDrug": "Edit {{drug}}",
+  "rxBillingEstimate.actions.editQuantityPrice": "Edit quantity and price",
+  "rxBillingEstimate.actions.saveDrug": "Save {{drug}}",
+  "rxBillingEstimate.calculating": "Calculating price and GST...",
+  "rxBillingEstimate.columns.actions": "Actions",
+  "rxBillingEstimate.columns.drug": "Drug",
+  "rxBillingEstimate.columns.gst": "GST",
+  "rxBillingEstimate.columns.qty": "Qty",
+  "rxBillingEstimate.columns.tax": "Tax",
+  "rxBillingEstimate.columns.total": "Total",
+  "rxBillingEstimate.columns.unit": "Unit",
+  "rxBillingEstimate.signals.amountMasked": "Amount masked",
+  "rxBillingEstimate.signals.draftReady": "Draft billing ready",
+  "rxBillingEstimate.signals.priceOverride": "Price override allowed",
+  "rxBillingEstimate.signals.unpriced": "{{count}} unpriced",
+  "rxBillingEstimate.summary.gst": "GST",
+  "rxBillingEstimate.summary.subtotal": "Subtotal",
+  "rxBillingEstimate.summary.total": "Billing indent total",
+  "rxBillingEstimate.title": "Price and GST before approval",
+  "rxBillingEstimate.unmatchedCatalog": "Not matched to formulary/catalog"
+}
