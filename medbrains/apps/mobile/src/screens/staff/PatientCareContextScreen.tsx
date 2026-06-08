@@ -32,6 +32,7 @@ type CareContextHandoff = "admit" | "open_admission" | "open_context" | "open_ml
 interface PatientCareContextScreenProps {
   route: {
     params: {
+      erVisitId?: string;
       handoff?: CareContextHandoff;
       module: CareContextModule;
       patientId: string;
@@ -152,7 +153,7 @@ function activeCampCount(registrations: CampRegistration[]) {
 
 export function PatientCareContextScreen({ route, navigation }: PatientCareContextScreenProps) {
   const theme = useTheme();
-  const { handoff, module: moduleName, patientId } = route.params;
+  const { erVisitId, handoff, module: moduleName, patientId } = route.params;
   const canListIpdAdmissions = useHasPermission(P.IPD.ADMISSIONS_LIST);
   const canListEmergencyVisits = useHasPermission(P.EMERGENCY.VISITS_LIST);
   const canListCampRegistrations = useHasPermission(P.CAMP.REGISTRATIONS_LIST);
@@ -206,6 +207,13 @@ export function PatientCareContextScreen({ route, navigation }: PatientCareConte
 
   const admissions = admissionsQuery.data?.admissions ?? [];
   const emergencyVisits = emergencyVisitsQuery.data ?? [];
+  const orderedEmergencyVisits = erVisitId
+    ? [...emergencyVisits].sort((left, right) => {
+        if (left.id === erVisitId) return -1;
+        if (right.id === erVisitId) return 1;
+        return 0;
+      })
+    : emergencyVisits;
   const campRegistrations = campRegistrationsQuery.data ?? [];
   const isModuleLoading =
     admissionsQuery.isLoading || emergencyVisitsQuery.isLoading || campRegistrationsQuery.isLoading;
@@ -287,54 +295,65 @@ export function PatientCareContextScreen({ route, navigation }: PatientCareConte
 
     return (
       <View style={styles.recordList}>
-        {emergencyVisits.map((visit) => (
-          <Card
-            key={visit.id}
-            style={[
-              styles.card,
-              visit.is_mlc || handoff === "open_mlc" ? styles.warningCard : null,
-            ]}
-          >
-            <Card.Content>
-              <View style={styles.cardHeader}>
-                <View style={styles.cardTitle}>
-                  <Text variant="titleSmall">{visit.visit_number}</Text>
-                  <Text variant="bodySmall" style={styles.mutedText}>
-                    Arrived {formatDateTime(visit.arrival_time)}
-                  </Text>
-                </View>
-                <View style={styles.statusChips}>
-                  <Chip compact mode="outlined">
-                    {formatStatus(visit.status)}
-                  </Chip>
-                  {visit.is_mlc && (
-                    <Chip compact icon="file-alert" style={styles.warningChip}>
-                      MLC
+        {orderedEmergencyVisits.map((visit) => {
+          const isTargetVisit = Boolean(erVisitId && visit.id === erVisitId);
+
+          return (
+            <Card
+              key={visit.id}
+              style={[
+                styles.card,
+                visit.is_mlc || (handoff === "open_mlc" && isTargetVisit)
+                  ? styles.warningCard
+                  : null,
+              ]}
+            >
+              <Card.Content>
+                <View style={styles.cardHeader}>
+                  <View style={styles.cardTitle}>
+                    <Text variant="titleSmall">{visit.visit_number}</Text>
+                    <Text variant="bodySmall" style={styles.mutedText}>
+                      Arrived {formatDateTime(visit.arrival_time)}
+                    </Text>
+                  </View>
+                  <View style={styles.statusChips}>
+                    <Chip compact mode="outlined">
+                      {formatStatus(visit.status)}
                     </Chip>
-                  )}
+                    {isTargetVisit && (
+                      <Chip compact icon="link-variant" style={styles.selectedChip}>
+                        Selected
+                      </Chip>
+                    )}
+                    {visit.is_mlc && (
+                      <Chip compact icon="file-alert" style={styles.warningChip}>
+                        MLC
+                      </Chip>
+                    )}
+                  </View>
                 </View>
-              </View>
-              <Divider style={styles.divider} />
-              <List.Item
-                title="Chief complaint"
-                description={visit.chief_complaint ?? "Not recorded"}
-                left={(props) => <List.Icon {...props} icon="clipboard-text" />}
-              />
-              <List.Item
-                title="Triage"
-                description={visit.triage_level ? formatStatus(visit.triage_level) : "Unassigned"}
-                left={(props) => <List.Icon {...props} icon="alert-decagram" />}
-              />
-              {visit.bay_number && (
+                <Divider style={styles.divider} />
                 <List.Item
-                  title="Bay"
-                  description={visit.bay_number}
-                  left={(props) => <List.Icon {...props} icon="hospital-box" />}
+                  title="Chief complaint"
+                  description={visit.chief_complaint ?? "Not recorded"}
+                  left={(props) => <List.Icon {...props} icon="clipboard-text" />}
                 />
-              )}
-            </Card.Content>
-          </Card>
-        ))}
+                <List.Item
+                  title="Triage"
+                  description={visit.triage_level ? formatStatus(visit.triage_level) : "Unassigned"}
+                  left={(props) => <List.Icon {...props} icon="alert-decagram" />}
+                />
+                {visit.bay_number && (
+                  <List.Item
+                    title="Bay"
+                    description={visit.bay_number}
+                    left={(props) => <List.Icon {...props} icon="hospital-box" />}
+                  />
+                )}
+              </Card.Content>
+            </Card>
+          );
+        })}
       </View>
     );
   }
@@ -528,6 +547,9 @@ const styles = StyleSheet.create({
   statusChips: {
     alignItems: "flex-end",
     gap: 6,
+  },
+  selectedChip: {
+    backgroundColor: MEDBRAINS_COLORS.navActiveBg,
   },
   warningCard: {
     borderColor: MEDBRAINS_COLORS.statusWarning,

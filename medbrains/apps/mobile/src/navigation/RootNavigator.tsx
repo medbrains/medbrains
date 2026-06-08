@@ -62,6 +62,7 @@ export type RootStackParamList = {
   TokenBoards: { surface?: TokenBoardSurfaceId } | undefined;
   PatientSearch: undefined;
   PatientCareContext: {
+    erVisitId?: string;
     handoff?: "admit" | "open_admission" | "open_context" | "open_mlc" | "open_visit";
     module: "camp" | "emergency" | "ipd";
     patientId: string;

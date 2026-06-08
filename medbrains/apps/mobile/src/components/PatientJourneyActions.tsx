@@ -267,6 +267,7 @@ export function PatientJourneyActions({
         return;
       case "emergency.open_mlc":
         navigation.navigate("PatientCareContext", {
+          erVisitId: context.activeEmergencyVisitId ?? undefined,
           handoff: "open_mlc",
           module: "emergency",
           patientId: context.patientId,
@@ -274,6 +275,7 @@ export function PatientJourneyActions({
         return;
       case "emergency.open_visit":
         navigation.navigate("PatientCareContext", {
+          erVisitId: context.activeEmergencyVisitId ?? undefined,
           handoff: "open_visit",
           module: "emergency",
           patientId: context.patientId,

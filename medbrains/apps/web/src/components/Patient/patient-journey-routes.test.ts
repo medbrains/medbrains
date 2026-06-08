@@ -56,10 +56,8 @@ describe("patient journey action routes", () => {
     ).toBe("/emergency/visits/visit-1#mlc");
   });
 
-  it("falls back to filtered MLC list when no active emergency visit exists", () => {
-    expect(patientJourneyActionRoute("emergency.open_mlc", baseContext)).toBe(
-      "/emergency?tab=mlc&patient_id=patient-1",
-    );
+  it("does not route MLC documentation without an active emergency visit", () => {
+    expect(patientJourneyActionRoute("emergency.open_mlc", baseContext)).toBeNull();
   });
 
   it("routes camp context through active camp and registration state", () => {

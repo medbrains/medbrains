@@ -361,6 +361,15 @@ function requireActivePharmacyOrderForDispense(
   );
 }
 
+function requireActiveEmergencyVisitForMlc(context: ClinicalJourneyContext): string | null {
+  if (context.activeEmergencyVisitId) return null;
+  return requireLinkedContextAfterActivation(
+    context,
+    ["emergency.visit.created"],
+    "Link the active ER visit before opening MLC documentation",
+  );
+}
+
 function requireShareConsentClearance(
   context: ClinicalJourneyContext,
 ): ClinicalJourneyActionDisabledReason {
@@ -526,8 +535,9 @@ export const CORE_PATIENT_JOURNEY_ACTIONS: readonly ClinicalJourneyActionDefinit
     surfaces: ["web", "mobile"],
     activatesAfter: ["emergency.visit.created"],
     emitsEvent: "mlc.created",
+    blockingControls: ["context", "regulatory"],
     standardRefs: ["NABH AAC", "MLC SOP", "CrPC medico-legal reporting"],
-    disabledReason: () => null,
+    disabledReason: requireActiveEmergencyVisitForMlc,
   },
   {
     id: "camp.open_context",

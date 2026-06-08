@@ -115,6 +115,7 @@ export function PatientFlowNavigator({
         return;
       case "emergency":
         navigation.navigate("PatientCareContext", {
+          erVisitId: context.activeEmergencyVisitId ?? undefined,
           handoff: "open_visit",
           module: "emergency",
           patientId: context.patientId,

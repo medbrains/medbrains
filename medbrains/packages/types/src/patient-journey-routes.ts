@@ -48,7 +48,7 @@ export function patientJourneyActionRoute(
     case "emergency.open_mlc":
       return context.activeEmergencyVisitId
         ? `/emergency/visits/${context.activeEmergencyVisitId}#mlc`
-        : `/emergency?tab=mlc&patient_id=${context.patientId}`;
+        : null;
     case "camp.open_context":
       if (context.activeCampId && context.activeCampRegistrationId) {
         return `/camp/${context.activeCampId}/work/registrations/${context.activeCampRegistrationId}/clinical-route?patient_id=${context.patientId}#screenings`;

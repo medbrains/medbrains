@@ -47,6 +47,11 @@ describe("clinical journey event activation", () => {
     ).toMatchObject({
       blockingControls: ["context", "regulatory"],
     });
+    expect(
+      CORE_PATIENT_JOURNEY_ACTIONS.find((action) => action.id === "emergency.open_mlc"),
+    ).toMatchObject({
+      blockingControls: ["context", "regulatory"],
+    });
   });
 
   it("infers completed events from active patient, OPD, IPD, and ER context", () => {
@@ -166,6 +171,23 @@ describe("clinical journey event activation", () => {
     expect(actions.find((action) => action.id === "pharmacy.dispense_order")).toMatchObject({
       blockedReason: "context",
       disabledReasonText: "Link the pharmacy order before dispensing medicines",
+      enabled: false,
+    });
+  });
+
+  it("requires the active ER visit context before opening MLC documentation", () => {
+    const actions = resolveClinicalJourneyActions(
+      {
+        patientId: "patient-1",
+        completedEvents: ["emergency.visit.created"],
+      },
+      allowAll,
+      "web",
+    );
+
+    expect(actions.find((action) => action.id === "emergency.open_mlc")).toMatchObject({
+      blockedReason: "context",
+      disabledReasonText: "Link the active ER visit before opening MLC documentation",
       enabled: false,
     });
   });
