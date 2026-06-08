@@ -21,8 +21,25 @@ import {
 } from "react-native-paper";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { patientService } from "../../services/patient.service";
+import {
+  mobileMedicationCountText,
+  mobilePrescriptionCountText,
+  mobilePrescriptionText,
+} from "./prescriptionsText";
 
 type FilterType = "recent" | "all";
+
+function handleFilterValueChange(value: string, setFilter: (filter: FilterType) => void) {
+  if (value === "recent" || value === "all") {
+    setFilter(value);
+  }
+}
+
+function emptyFilterMessage(filter: FilterType): string {
+  return filter === "recent"
+    ? mobilePrescriptionText("patientPrescriptions.empty.recent")
+    : mobilePrescriptionText("patientPrescriptions.empty.all");
+}
 
 export function PrescriptionsScreen() {
   const theme = useTheme();
@@ -83,13 +100,13 @@ export function PrescriptionsScreen() {
             </View>
             <View style={styles.headerInfo}>
               <Text variant="titleMedium" style={styles.doctorName}>
-                {item.doctor_name || "Doctor"}
+                {item.doctor_name || mobilePrescriptionText("patientPrescriptions.fallback.doctor")}
               </Text>
               <Text variant="bodySmall" style={styles.prescriptionDate}>
                 {prescriptionDate.toLocaleDateString()}
               </Text>
               <Chip compact style={isRecent ? styles.recentChip : undefined}>
-                {item.items.length} medication{item.items.length > 1 ? "s" : ""}
+                {mobileMedicationCountText(item.items.length)}
               </Chip>
             </View>
           </View>
@@ -121,7 +138,7 @@ export function PrescriptionsScreen() {
               </View>
               {isRecent && (
                 <Button mode="text" compact onPress={() => handleRefillRequest(medication)}>
-                  Refill
+                  {mobilePrescriptionText("patientPrescriptions.action.refill")}
                 </Button>
               )}
             </View>
@@ -139,7 +156,7 @@ export function PrescriptionsScreen() {
       {/* Search Bar */}
       <View style={styles.searchContainer}>
         <Searchbar
-          placeholder="Search medications or doctors..."
+          placeholder={mobilePrescriptionText("patientPrescriptions.search.placeholder")}
           value={search}
           onChangeText={setSearch}
           style={styles.searchbar}
@@ -150,10 +167,13 @@ export function PrescriptionsScreen() {
       <View style={styles.filterContainer}>
         <SegmentedButtons
           value={filter}
-          onValueChange={(v) => setFilter(v as FilterType)}
+          onValueChange={(value) => handleFilterValueChange(value, setFilter)}
           buttons={[
-            { value: "recent", label: "Last 30 Days" },
-            { value: "all", label: "All History" },
+            {
+              value: "recent",
+              label: mobilePrescriptionText("patientPrescriptions.filter.recent"),
+            },
+            { value: "all", label: mobilePrescriptionText("patientPrescriptions.filter.all") },
           ]}
         />
       </View>
@@ -163,7 +183,7 @@ export function PrescriptionsScreen() {
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" />
           <Text variant="bodyMedium" style={styles.loadingText}>
-            Loading prescriptions...
+            {mobilePrescriptionText("patientPrescriptions.loading.list")}
           </Text>
         </View>
       ) : searchedPrescriptions.length > 0 ? (
@@ -180,12 +200,10 @@ export function PrescriptionsScreen() {
         <View style={styles.emptyContainer}>
           <Avatar.Icon size={64} icon="pill-off" style={styles.emptyIcon} />
           <Text variant="titleMedium" style={styles.emptyTitle}>
-            No prescriptions
+            {mobilePrescriptionText("patientPrescriptions.empty.title")}
           </Text>
           <Text variant="bodyMedium" style={styles.emptyText}>
-            {filter === "recent"
-              ? "No prescriptions in the last 30 days"
-              : "No prescription history found"}
+            {emptyFilterMessage(filter)}
           </Text>
         </View>
       )}
@@ -195,10 +213,11 @@ export function PrescriptionsScreen() {
         <Surface style={styles.summaryBanner} elevation={2}>
           <Avatar.Icon size={32} icon="pill" style={styles.bannerIcon} />
           <View style={styles.bannerInfo}>
-            <Text variant="labelMedium">Prescription History</Text>
+            <Text variant="labelMedium">
+              {mobilePrescriptionText("patientPrescriptions.summary.title")}
+            </Text>
             <Text variant="bodySmall" style={styles.bannerHint}>
-              {searchedPrescriptions.length} prescription
-              {searchedPrescriptions.length > 1 ? "s" : ""}
+              {mobilePrescriptionCountText(searchedPrescriptions.length)}
             </Text>
           </View>
           <Badge size={28} style={styles.countBadge}>
@@ -210,7 +229,9 @@ export function PrescriptionsScreen() {
       {/* Refill Request Dialog */}
       <Portal>
         <Dialog visible={refillDialogVisible} onDismiss={() => setRefillDialogVisible(false)}>
-          <Dialog.Title>Request Refill</Dialog.Title>
+          <Dialog.Title>
+            {mobilePrescriptionText("patientPrescriptions.dialog.refillTitle")}
+          </Dialog.Title>
           <Dialog.Content>
             {selectedItem && (
               <View style={styles.dialogContent}>
@@ -220,14 +241,15 @@ export function PrescriptionsScreen() {
                 </Text>
                 <Divider style={styles.dialogDivider} />
                 <Text variant="bodyMedium">
-                  A refill request will be sent to your prescribing doctor. You will be notified
-                  when your prescription is ready for pickup.
+                  {mobilePrescriptionText("patientPrescriptions.dialog.refillMessage")}
                 </Text>
               </View>
             )}
           </Dialog.Content>
           <Dialog.Actions>
-            <Button onPress={() => setRefillDialogVisible(false)}>Cancel</Button>
+            <Button onPress={() => setRefillDialogVisible(false)}>
+              {mobilePrescriptionText("patientPrescriptions.action.cancel")}
+            </Button>
             <Button
               mode="contained"
               onPress={() => {
@@ -235,7 +257,7 @@ export function PrescriptionsScreen() {
                 setRefillDialogVisible(false);
               }}
             >
-              Submit Request
+              {mobilePrescriptionText("patientPrescriptions.action.submitRequest")}
             </Button>
           </Dialog.Actions>
         </Dialog>
