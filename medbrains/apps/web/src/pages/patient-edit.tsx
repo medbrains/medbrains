@@ -3,6 +3,7 @@ import { notifications } from "@mantine/notifications";
 import type { CreatePatientRequest, UpdatePatientRequest } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { useNavigate, useParams } from "react-router";
 import { ClinicalEventProvider, PageHeader, useClinicalEmit } from "@/components";
 import { PatientRegisterForm } from "@/components/Patient/PatientRegisterForm";
@@ -19,6 +20,7 @@ export function PatientEditPage() {
 
 function PatientEditPageInner() {
   useRequirePermission(P.PATIENTS.UPDATE);
+  const { t } = useTranslation("patients");
   const { id } = useParams<{ id: string }>();
   const patientId = id ?? "";
   const navigate = useNavigate();
@@ -39,8 +41,8 @@ function PatientEditPageInner() {
         patient_id: row.id,
       });
       notifications.show({
-        title: "Patient updated",
-        message: "Changes saved",
+        title: t("notify.patientUpdated"),
+        message: t("notify.changesSaved"),
         color: "success",
       });
       void queryClient.invalidateQueries({ queryKey: ["patient", patientId] });
@@ -49,8 +51,8 @@ function PatientEditPageInner() {
     },
     onError: (err: Error) => {
       notifications.show({
-        title: "Update failed",
-        message: err.message,
+        title: t("notify.updateFailed"),
+        message: err.message || t("errors.unknown"),
         color: "danger",
       });
     },
@@ -59,7 +61,7 @@ function PatientEditPageInner() {
   if (isLoading || !patient) {
     return (
       <div>
-        <PageHeader title="Edit patient" subtitle="Loading…" />
+        <PageHeader title={t("registrationForm.title.edit")} subtitle={t("loading...")} />
         <Group justify="center" py="xl">
           <Loader />
         </Group>
@@ -101,14 +103,15 @@ function PatientEditPageInner() {
   return (
     <Stack>
       <PageHeader
-        title="Edit patient"
+        title={t("registrationForm.title.edit")}
         subtitle={`${patient.first_name} ${patient.last_name} · ${patient.uhid}`}
       />
       <PatientRegisterForm
         onSubmit={handleSubmit}
         onCancel={() => navigate(`/patients/${patientId}`)}
         isSubmitting={updateMutation.isPending}
-        submitLabel="Save"
+        mode="edit"
+        submitLabel={t("actions.save")}
         initialValues={{
           prefix: patient.prefix ?? undefined,
           first_name: patient.first_name,

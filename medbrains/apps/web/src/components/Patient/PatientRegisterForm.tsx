@@ -31,8 +31,10 @@ import type {
 } from "@medbrains/types";
 import { IconCalendarMonth } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
+import type { TFunction } from "i18next";
 import { useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
+import { useTranslation } from "react-i18next";
 import { Icd11CodeSelect } from "@/components/Clinical/Icd11CodeSelect";
 import { ClinicalForm, FormRow, FormSection } from "@/components/ClinicalForm";
 import {
@@ -66,6 +68,7 @@ import { AbhaLinkPanel } from "./AbhaLinkPanel";
 
 interface PatientRegisterFormProps {
   isSubmitting?: boolean;
+  mode?: "create" | "edit";
   submitLabel?: string;
   onSubmit: (
     req: CreatePatientRequest,
@@ -97,6 +100,71 @@ function drugAllergyOptionLabel(item: PharmacyCatalog): string {
   ]
     .filter(Boolean)
     .join(" · ");
+}
+
+interface LabelOption {
+  value: string;
+  label: string;
+}
+
+const PATIENT_REGISTRATION_ERROR_KEYS: Record<string, string> = {
+  "First name must be at most 100 characters": "validation.firstNameMax",
+  "Last name must be at most 100 characters": "validation.lastNameMax",
+  "Phone must contain only digits, +, -, spaces, and parentheses": "validation.phonePattern",
+  "Invalid email address": "validation.invalidEmail",
+  "ABHA number must be 14 digits": "validation.abhaNumberDigits",
+  "Aadhaar must be a 12 digit number": "validation.aadhaarDigits",
+  "First name is required": "validation.firstNameRequired",
+  "Last name is required": "validation.lastNameRequired",
+  "Phone is required": "validation.phoneRequired",
+  "Enter age or pick date of birth": "validation.ageOrDobRequired",
+  "Gender is required": "validation.genderRequired",
+  "Confirm allergy state (Not asked / No known / Known)": "validation.allergyStateRequired",
+  "Select a camp reference or enter the village / school camp name":
+    "validation.campReferenceRequired",
+  "Referral source is required": "validation.referralSourceRequired",
+  "Enter who referred the patient": "validation.referredByRequired",
+  "MLC number is required for medico-legal patients": "validation.mlcNumberRequired",
+  "Select a department to send the patient to OPD": "validation.departmentForOpdRequired",
+  "Select an existing camp before sending camp patient to OPD": "validation.existingCampRequired",
+  "Enter a valid whole number": "validation.validWholeNumber",
+};
+
+function optionKey(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
+function translateEnumOptions<T extends LabelOption>(
+  options: readonly T[],
+  keyPrefix: string,
+  t: TFunction,
+): T[] {
+  return options.map((option) => ({
+    ...option,
+    label: t(`${keyPrefix}.${option.value}`, { defaultValue: option.label }),
+  }));
+}
+
+function translateCodeOptions<T extends LabelOption>(
+  options: readonly T[],
+  keyPrefix: string,
+  t: TFunction,
+): T[] {
+  return options.map((option) => ({
+    ...option,
+    label: t(`${keyPrefix}.${optionKey(option.value)}`, { defaultValue: option.label }),
+  }));
+}
+
+function translatedError(t: TFunction, message: string | undefined): string | undefined {
+  if (!message) {
+    return undefined;
+  }
+  const key = PATIENT_REGISTRATION_ERROR_KEYS[message];
+  return key ? t(key) : t("validation.generic");
 }
 
 function calculateAgeYears(dateOfBirth: Date): number {
@@ -143,11 +211,11 @@ function toDatePickerValue(value: Date | string | null | undefined): string | nu
   return `${year}-${month}-${day}`;
 }
 
-function agePart(value: number, unit: string): string {
-  return `${value} ${unit}${value === 1 ? "" : "s"}`;
+function agePart(value: number, unit: "day" | "month" | "year", t: TFunction): string {
+  return t(`registrationForm.age.${unit}`, { count: value });
 }
 
-function formatAgeAsOfToday(value: Date | string | null | undefined): string | null {
+function formatAgeAsOfToday(value: Date | string | null | undefined, t: TFunction): string | null {
   const dateOfBirth = parseDatePickerValue(value);
   if (!dateOfBirth) {
     return null;
@@ -180,33 +248,38 @@ function formatAgeAsOfToday(value: Date | string | null | undefined): string | n
 
   const parts: string[] = [];
   if (years > 0) {
-    parts.push(agePart(years, "year"));
+    parts.push(agePart(years, "year", t));
   }
   if (months > 0) {
-    parts.push(agePart(months, "month"));
+    parts.push(agePart(months, "month", t));
   }
   if (years === 0 && days > 0) {
-    parts.push(agePart(days, "day"));
+    parts.push(agePart(days, "day", t));
   }
 
-  return parts.length > 0 ? parts.join(" ") : "0 days";
+  return parts.length > 0 ? parts.join(" ") : t("registrationForm.age.zeroDays");
 }
 
 function ageHintAsOfToday(
   dateOfBirth: Date | string | null | undefined,
   ageYears: number | undefined,
   isEstimated: boolean,
+  t: TFunction,
 ): string {
-  const exactAge = formatAgeAsOfToday(dateOfBirth);
+  const exactAge = formatAgeAsOfToday(dateOfBirth, t);
   if (exactAge) {
-    return `As of today: ${exactAge}${isEstimated ? " (estimated DOB)" : ""}`;
+    return isEstimated
+      ? t("registrationForm.hint.ageAsOfTodayEstimated", { age: exactAge })
+      : t("registrationForm.hint.ageAsOfToday", { age: exactAge });
   }
 
   if (typeof ageYears === "number") {
-    return `As of today: ${agePart(ageYears, "year")}; DOB is estimated until exact date is selected`;
+    return t("registrationForm.hint.ageEstimatedUntilDob", {
+      age: agePart(ageYears, "year", t),
+    });
   }
 
-  return "Select DOB to fill age automatically";
+  return t("registrationForm.hint.selectDob");
 }
 
 export interface PatientRegistrationLinkedServicesOptions {
@@ -216,12 +289,15 @@ export interface PatientRegistrationLinkedServicesOptions {
 
 export function PatientRegisterForm({
   isSubmitting,
-  submitLabel = "Register",
+  mode = "create",
+  submitLabel,
   onSubmit,
   onCancel,
   initialValues,
 }: PatientRegisterFormProps) {
-  const isEdit = submitLabel.toLowerCase().includes("save");
+  const { t } = useTranslation("patients");
+  const isEdit = mode === "edit";
+  const resolvedSubmitLabel = submitLabel ?? (isEdit ? t("actions.save") : t("actions.register"));
   const initialPhoneCountryCode = initialValues?.phone
     ? detectPhoneCountryCode(initialValues.phone)
     : null;
@@ -300,7 +376,8 @@ export function PatientRegisterForm({
   const ageYearsValue = watch("age_years");
   const drugAllergiesValue = watch("drug_allergies");
   const trimmedDrugAllergySearch = drugAllergySearch.trim();
-  const dateOfBirthAgeHint = ageHintAsOfToday(dateOfBirthValue, ageYearsValue, dobEstimated);
+  const dateOfBirthAgeHint = ageHintAsOfToday(dateOfBirthValue, ageYearsValue, dobEstimated, t);
+  const fieldError = (message: string | undefined) => translatedError(t, message);
 
   const { data: departments = [] } = useQuery<DepartmentRow[]>({
     queryKey: ["setup-departments"],
@@ -407,7 +484,7 @@ export function PatientRegisterForm({
     [geoCountries, tenant?.country_id],
   );
   const drugAllergyOptions = useMemo(() => {
-    const options = new Set<string>(["NKDA"]);
+    const options = new Set<string>([t("registrationForm.options.drugAllergy.nkda")]);
     for (const value of splitDrugAllergyTags(drugAllergiesValue)) {
       options.add(value);
     }
@@ -417,7 +494,70 @@ export function PatientRegisterForm({
       }
     }
     return [...options].sort();
-  }, [drugAllergyCatalog, drugAllergiesValue]);
+  }, [drugAllergyCatalog, drugAllergiesValue, t]);
+  const localizedGenderOptions = useMemo(
+    () => translateEnumOptions(genderOptions, "options.gender", t),
+    [t],
+  );
+  const localizedBloodGroupOptions = useMemo(
+    () => translateEnumOptions(bloodGroupOptions, "options.bloodGroup", t),
+    [t],
+  );
+  const localizedMaritalStatusOptions = useMemo(
+    () => translateEnumOptions(maritalStatusOptions, "options.maritalStatus", t),
+    [t],
+  );
+  const localizedCategoryOptions = useMemo(
+    () => translateEnumOptions(categoryOptions, "options.category", t),
+    [t],
+  );
+  const localizedRegistrationTypeOptions = useMemo(
+    () => translateEnumOptions(registrationTypeOptions, "options.registrationType", t),
+    [t],
+  );
+  const localizedRegistrationSourceOptions = useMemo(
+    () => translateEnumOptions(registrationSourceOptions, "options.registrationSource", t),
+    [t],
+  );
+  const localizedReferredByKindOptions = useMemo(
+    () => translateEnumOptions(referredByKindOptions, "options.referredByKind", t),
+    [t],
+  );
+  const localizedPrefixOptions = useMemo(
+    () => translateCodeOptions(prefixOptions, "options.prefix", t),
+    [t],
+  );
+  const allergyStatusOptions = useMemo(
+    () => [
+      { value: "not_asked_yet", label: t("options.allergyStatus.not_asked_yet") },
+      { value: "no_known_allergies", label: t("options.allergyStatus.no_known_allergies") },
+      { value: "known_allergies", label: t("options.allergyStatus.known_allergies") },
+    ],
+    [t],
+  );
+  const roomClassOptions = useMemo(
+    () => [
+      { value: "general", label: t("options.roomClass.general") },
+      { value: "semi_private", label: t("options.roomClass.semi_private") },
+      { value: "private", label: t("options.roomClass.private") },
+      { value: "deluxe", label: t("options.roomClass.deluxe") },
+      { value: "suite", label: t("options.roomClass.suite") },
+      { value: "icu", label: t("options.roomClass.icu") },
+    ],
+    [t],
+  );
+  const dietaryPreferenceOptions = useMemo(
+    () => [
+      { value: "vegetarian", label: t("options.dietaryPreference.vegetarian") },
+      { value: "vegan", label: t("options.dietaryPreference.vegan") },
+      { value: "non_veg", label: t("options.dietaryPreference.non_veg") },
+      { value: "jain", label: t("options.dietaryPreference.jain") },
+      { value: "halal", label: t("options.dietaryPreference.halal") },
+      { value: "kosher", label: t("options.dietaryPreference.kosher") },
+      { value: "diabetic", label: t("options.dietaryPreference.diabetic") },
+    ],
+    [t],
+  );
   const referredByKind = watch("referred_by_kind");
   const createOpdVisit = watch("create_opd_visit");
   const abhaNumber = watch("abha_number");
@@ -581,9 +721,7 @@ export function PatientRegisterForm({
 
   const saveNow = async () => {
     if (!(await validateImmediateStep())) {
-      setStepError(
-        "Fill the highlighted intake fields before saving. Tick 'Unknown patient' if name / DOB / phone are not available.",
-      );
+      setStepError(t("registrationForm.error.fillHighlightedBeforeSaving"));
       return;
     }
     setStepError(null);
@@ -597,7 +735,7 @@ export function PatientRegisterForm({
 
   const goNext = async () => {
     if (activeStep === 0 && !(await validateImmediateStep())) {
-      setStepError("Complete the highlighted intake fields before continuing.");
+      setStepError(t("registrationForm.error.completeHighlightedBeforeContinuing"));
       return;
     }
     setStepError(null);
@@ -621,51 +759,49 @@ export function PatientRegisterForm({
   const isLastStep = activeStep === lastStep;
 
   const stepLabels = [
-    "Intake",
-    "Contact & identity",
-    "Family · address · safety",
-    "Prefs & billing",
-    "Review",
+    t("registrationForm.steps.intake"),
+    t("registrationForm.steps.contactIdentity"),
+    t("registrationForm.steps.familyAddressSafety"),
+    t("registrationForm.steps.preferencesBilling"),
+    t("registrationForm.steps.review"),
   ];
 
   return (
     <Box w="100%">
       <ClinicalForm
-        title={isEdit ? "Edit patient" : "Patient registration"}
-        titleAccent={isEdit ? undefined : "— OPD"}
+        title={isEdit ? t("registrationForm.title.edit") : t("registrationForm.title.create")}
+        titleAccent={isEdit ? undefined : t("registrationForm.titleAccent.opd")}
         subtitle={
-          isEdit ? "Update demographic, contact, and clinical-safety fields" : "New patient intake"
+          isEdit ? t("registrationForm.subtitle.edit") : t("registrationForm.subtitle.create")
         }
         onSubmit={handleSubmit(submit)}
         footerMeta={
-          isEdit
-            ? "Changes are not saved until you click Save"
-            : "Save now creates a minimum-fields patient; Register complete saves the full record."
+          isEdit ? t("registrationForm.footer.edit") : t("registrationForm.footer.create")
         }
         actions={
           <>
             {isFirstStep ? (
               <Button variant="default" onClick={onCancel} type="button">
-                Cancel
+                {t("actions.cancel")}
               </Button>
             ) : (
               <Button variant="default" onClick={goBack} type="button">
-                Back
+                {t("actions.back")}
               </Button>
             )}
             {!isEdit && !isLastStep && (
               <Button variant="light" onClick={saveNow} loading={isSubmitting} type="button">
-                Save now
+                {t("actions.saveNow")}
               </Button>
             )}
             {!isLastStep && (
               <Button onClick={goNext} type="button">
-                Next
+                {t("actions.next")}
               </Button>
             )}
             {isLastStep && (
               <Button type="submit" loading={isSubmitting}>
-                {isEdit ? submitLabel : "Register complete"}
+                {isEdit ? resolvedSubmitLabel : t("actions.registerComplete")}
               </Button>
             )}
           </>
@@ -701,15 +837,15 @@ export function PatientRegisterForm({
         )}
 
         {activeStep === 0 && (
-          <FormSection num="01" name="Identity">
-            <FormRow label="Unknown / unidentified patient">
+          <FormSection num="01" name={t("registrationForm.section.identity")}>
+            <FormRow label={t("registrationForm.row.unknownPatient")}>
               <Controller
                 control={control}
                 name="is_unknown_patient"
                 render={({ field }) => (
                   <Checkbox
-                    aria-label="Unknown patient"
-                    label="Unknown / unidentified patient — skip name and use UHID only"
+                    aria-label={t("registrationForm.aria.unknownPatient")}
+                    label={t("registrationForm.label.unknownPatientSkipName")}
                     checked={field.value ?? false}
                     onChange={(event) => {
                       const checked = event.currentTarget.checked;
@@ -722,7 +858,7 @@ export function PatientRegisterForm({
                 )}
               />
             </FormRow>
-            <FormRow label="Name" required>
+            <FormRow label={t("registrationForm.row.name")} required>
               <Grid>
                 <Grid.Col span={{ base: 12, sm: 2 }}>
                   <Controller
@@ -730,9 +866,9 @@ export function PatientRegisterForm({
                     name="prefix"
                     render={({ field }) => (
                       <Select
-                        aria-label="Prefix"
-                        placeholder="Prefix"
-                        data={prefixOptions}
+                        aria-label={t("registrationForm.aria.prefix")}
+                        placeholder={t("registrationForm.placeholder.prefix")}
+                        data={localizedPrefixOptions}
                         value={field.value ?? null}
                         onChange={(v) => field.onChange(v ?? undefined)}
                         searchable
@@ -743,31 +879,31 @@ export function PatientRegisterForm({
                 </Grid.Col>
                 <Grid.Col span={{ base: 12, sm: 4 }}>
                   <TextInput
-                    aria-label="First Name"
-                    placeholder="First name"
-                    error={errors.first_name?.message}
+                    aria-label={t("registrationForm.aria.firstName")}
+                    placeholder={t("registrationForm.placeholder.firstName")}
+                    error={fieldError(errors.first_name?.message)}
                     {...register("first_name")}
                   />
                 </Grid.Col>
                 <Grid.Col span={{ base: 12, sm: 3 }}>
                   <TextInput
-                    aria-label="Middle name"
-                    placeholder="Middle"
+                    aria-label={t("registrationForm.aria.middleName")}
+                    placeholder={t("registrationForm.placeholder.middleName")}
                     {...register("middle_name")}
                   />
                 </Grid.Col>
                 <Grid.Col span={{ base: 12, sm: 3 }}>
                   <TextInput
-                    aria-label="Last Name"
-                    placeholder="Last name"
-                    error={errors.last_name?.message}
+                    aria-label={t("registrationForm.aria.lastName")}
+                    placeholder={t("registrationForm.placeholder.lastName")}
+                    error={fieldError(errors.last_name?.message)}
                     {...register("last_name")}
                   />
                 </Grid.Col>
               </Grid>
             </FormRow>
 
-            <FormRow label="Age · date of birth">
+            <FormRow label={t("registrationForm.row.ageDob")}>
               <Grid>
                 <Grid.Col span={{ base: 12, sm: 4 }}>
                   <Controller
@@ -788,8 +924,8 @@ export function PatientRegisterForm({
                         typeof field.value === "number" ? field.value : (derivedAge ?? "");
                       return (
                         <NumberInput
-                          aria-label="Age years"
-                          placeholder="Age in years"
+                          aria-label={t("registrationForm.aria.ageYears")}
+                          placeholder={t("registrationForm.placeholder.ageYears")}
                           min={0}
                           max={125}
                           value={displayValue}
@@ -823,8 +959,8 @@ export function PatientRegisterForm({
                     name="date_of_birth"
                     render={({ field }) => (
                       <DatePickerInput
-                        aria-label="Date of birth"
-                        placeholder="Select exact date of birth"
+                        aria-label={t("registrationForm.aria.dateOfBirth")}
+                        placeholder={t("registrationForm.placeholder.dateOfBirth")}
                         valueFormat="DD MMM YYYY"
                         value={toDatePickerValue(field.value)}
                         onChange={(v) => {
@@ -855,14 +991,13 @@ export function PatientRegisterForm({
                 </Grid.Col>
                 <Grid.Col span={12}>
                   <Text size="xs" c="yellow.7" fw={500}>
-                    {dateOfBirthAgeHint} · Pick day in the calendar to set DOB, or type age to
-                    estimate DOB.
+                    {dateOfBirthAgeHint} {t("registrationForm.hint.ageDobInstruction")}
                   </Text>
                 </Grid.Col>
               </Grid>
             </FormRow>
 
-            <FormRow label="Sex · blood group" required>
+            <FormRow label={t("registrationForm.row.sexBloodGroup")} required>
               <Grid>
                 <Grid.Col span={{ base: 12, sm: 6 }}>
                   <Controller
@@ -870,11 +1005,11 @@ export function PatientRegisterForm({
                     name="gender"
                     render={({ field }) => (
                       <Select
-                        aria-label="Gender"
-                        data={genderOptions}
+                        aria-label={t("registrationForm.aria.gender")}
+                        data={localizedGenderOptions}
                         value={field.value}
                         onChange={(v) => v && field.onChange(v)}
-                        error={errors.gender?.message}
+                        error={fieldError(errors.gender?.message)}
                       />
                     )}
                   />
@@ -885,9 +1020,9 @@ export function PatientRegisterForm({
                     name="blood_group"
                     render={({ field }) => (
                       <Select
-                        aria-label="Blood group"
-                        placeholder="Unknown"
-                        data={bloodGroupOptions}
+                        aria-label={t("registrationForm.aria.bloodGroup")}
+                        placeholder={t("options.bloodGroup.unknown")}
+                        data={localizedBloodGroupOptions}
                         value={field.value ?? null}
                         onChange={(v) => field.onChange(v ?? undefined)}
                         clearable
@@ -901,8 +1036,8 @@ export function PatientRegisterForm({
         )}
 
         {activeStep === 0 && (
-          <FormSection num="02" name="Phone">
-            <FormRow label="Phone" required>
+          <FormSection num="02" name={t("registrationForm.section.phone")}>
+            <FormRow label={t("registrationForm.row.phone")} required>
               <Grid>
                 <Grid.Col span={{ base: 12, sm: 6 }}>
                   <Controller
@@ -915,10 +1050,10 @@ export function PatientRegisterForm({
                         countryCode={phoneCountryCode}
                         onCountryCodeChange={setPhoneCountryCodeOverride}
                         countryOptions={phoneDialOptions}
-                        countryAriaLabel="Primary phone country"
-                        numberAriaLabel="Phone (primary) Phone Primary"
-                        placeholder="xxxxxxxxxx"
-                        error={errors.phone?.message}
+                        countryAriaLabel={t("registrationForm.aria.primaryPhoneCountry")}
+                        numberAriaLabel={t("registrationForm.aria.primaryPhone")}
+                        placeholder={t("registrationForm.placeholder.primaryPhone")}
+                        error={fieldError(errors.phone?.message)}
                       />
                     )}
                   />
@@ -934,10 +1069,10 @@ export function PatientRegisterForm({
                         countryCode={alternatePhoneCountryCode}
                         onCountryCodeChange={setAlternatePhoneCountryCodeOverride}
                         countryOptions={phoneDialOptions}
-                        countryAriaLabel="Alternate phone country"
-                        numberAriaLabel="Phone (alternate) Phone Alternate"
-                        placeholder="Alternate phone"
-                        error={errors.phone_secondary?.message}
+                        countryAriaLabel={t("registrationForm.aria.alternatePhoneCountry")}
+                        numberAriaLabel={t("registrationForm.aria.alternatePhone")}
+                        placeholder={t("registrationForm.placeholder.alternatePhone")}
+                        error={fieldError(errors.phone_secondary?.message)}
                       />
                     )}
                   />
@@ -948,13 +1083,13 @@ export function PatientRegisterForm({
         )}
 
         {activeStep === 1 && (
-          <FormSection num="02" name="Email">
-            <FormRow label="Email">
+          <FormSection num="02" name={t("registrationForm.section.email")}>
+            <FormRow label={t("registrationForm.row.email")}>
               <TextInput
-                aria-label="Email"
+                aria-label={t("registrationForm.aria.email")}
                 type="email"
-                placeholder="patient@example.com"
-                error={errors.email?.message}
+                placeholder={t("registrationForm.placeholder.email")}
+                error={fieldError(errors.email?.message)}
                 {...register("email")}
               />
             </FormRow>
@@ -962,34 +1097,34 @@ export function PatientRegisterForm({
         )}
 
         {activeStep === 1 && (
-          <FormSection num="03" name="Digital identity">
-            <FormRow label="ABHA">
+          <FormSection num="03" name={t("registrationForm.section.digitalIdentity")}>
+            <FormRow label={t("registrationForm.row.abha")}>
               <AbhaLinkPanel
                 status={abhaLinkStatus}
                 numberField={
                   <TextInput
-                    aria-label="ABHA number"
-                    placeholder="14 digit ABHA number"
-                    error={errors.abha_number?.message}
+                    aria-label={t("registrationForm.aria.abhaNumber")}
+                    placeholder={t("registrationForm.placeholder.abhaNumber")}
+                    error={fieldError(errors.abha_number?.message)}
                     {...register("abha_number")}
                   />
                 }
                 addressField={
                   <TextInput
-                    aria-label="ABHA address"
-                    placeholder="name@abdm"
-                    error={errors.abha_address?.message}
+                    aria-label={t("registrationForm.aria.abhaAddress")}
+                    placeholder={t("registrationForm.placeholder.abhaAddress")}
+                    error={fieldError(errors.abha_address?.message)}
                     {...register("abha_address")}
                   />
                 }
               />
             </FormRow>
-            <FormRow label="Aadhaar">
+            <FormRow label={t("registrationForm.row.aadhaar")}>
               <TextInput
-                aria-label="Aadhaar number"
-                placeholder="12 digit Aadhaar"
-                description="The server stores only a masked value and SHA-256 hash, not the raw Aadhaar number."
-                error={errors.aadhaar_number?.message}
+                aria-label={t("registrationForm.aria.aadhaarNumber")}
+                placeholder={t("registrationForm.placeholder.aadhaarNumber")}
+                description={t("registrationForm.description.aadhaarStorage")}
+                error={fieldError(errors.aadhaar_number?.message)}
                 {...register("aadhaar_number")}
               />
             </FormRow>
@@ -997,8 +1132,8 @@ export function PatientRegisterForm({
         )}
 
         {activeStep === 0 && (
-          <FormSection num="04" name="Registration context">
-            <FormRow label="Patient type · source">
+          <FormSection num="04" name={t("registrationForm.section.registrationContext")}>
+            <FormRow label={t("registrationForm.row.patientTypeSource")}>
               <Grid>
                 <Grid.Col span={{ base: 12, sm: 6 }}>
                   <Controller
@@ -1006,8 +1141,8 @@ export function PatientRegisterForm({
                     name="registration_type"
                     render={({ field }) => (
                       <Select
-                        aria-label="Registration type"
-                        data={registrationTypeOptions}
+                        aria-label={t("registrationForm.aria.registrationType")}
+                        data={localizedRegistrationTypeOptions}
                         value={field.value ?? null}
                         onChange={(v) => {
                           field.onChange(v ?? undefined);
@@ -1029,8 +1164,8 @@ export function PatientRegisterForm({
                     name="registration_source"
                     render={({ field }) => (
                       <Select
-                        aria-label="Registration source"
-                        data={registrationSourceOptions}
+                        aria-label={t("registrationForm.aria.registrationSource")}
+                        data={localizedRegistrationSourceOptions}
                         value={field.value ?? null}
                         onChange={(v) => field.onChange(v ?? undefined)}
                         clearable
@@ -1040,7 +1175,7 @@ export function PatientRegisterForm({
                 </Grid.Col>
               </Grid>
             </FormRow>
-            <FormRow label="Camp reference">
+            <FormRow label={t("registrationForm.row.campReference")}>
               <Grid>
                 <Grid.Col span={{ base: 12, sm: 5 }}>
                   <Controller
@@ -1048,11 +1183,11 @@ export function PatientRegisterForm({
                     name="camp_id"
                     render={({ field }) => (
                       <Select
-                        aria-label="Camp reference"
-                        placeholder="Select existing camp"
+                        aria-label={t("registrationForm.aria.campReference")}
+                        placeholder={t("registrationForm.placeholder.campReference")}
                         data={campOptions}
                         value={field.value ?? null}
-                        error={errors.camp_id?.message}
+                        error={fieldError(errors.camp_id?.message)}
                         onChange={(value) => {
                           field.onChange(value ?? undefined);
                           const camp = camps.find((item) => item.id === value);
@@ -1096,8 +1231,8 @@ export function PatientRegisterForm({
                     name="camp_name"
                     render={({ field }) => (
                       <Autocomplete
-                        aria-label="Camp name"
-                        placeholder="Village / school / outreach camp name"
+                        aria-label={t("registrationForm.aria.campName")}
+                        placeholder={t("registrationForm.placeholder.campName")}
                         data={campNameOptions}
                         value={field.value ?? ""}
                         onBlur={field.onBlur}
@@ -1113,8 +1248,8 @@ export function PatientRegisterForm({
         )}
 
         {activeStep === 1 && (
-          <FormSection num="04" name="Referrals">
-            <FormRow label="Referred by">
+          <FormSection num="04" name={t("registrationForm.section.referrals")}>
+            <FormRow label={t("registrationForm.row.referredBy")}>
               <Grid>
                 <Grid.Col span={{ base: 12, sm: 3 }}>
                   <Controller
@@ -1122,9 +1257,9 @@ export function PatientRegisterForm({
                     name="referred_by_kind"
                     render={({ field }) => (
                       <Select
-                        aria-label="Referral type"
-                        placeholder="Referral type"
-                        data={referredByKindOptions}
+                        aria-label={t("registrationForm.aria.referralType")}
+                        placeholder={t("registrationForm.placeholder.referralType")}
+                        data={localizedReferredByKindOptions}
                         value={field.value ?? null}
                         onChange={(value) => {
                           field.onChange(value ?? undefined);
@@ -1146,9 +1281,11 @@ export function PatientRegisterForm({
                     name="referred_by_user_id"
                     render={({ field }) => (
                       <Select
-                        aria-label="Referring doctor"
+                        aria-label={t("registrationForm.aria.referringDoctor")}
                         placeholder={
-                          referredByKind === "doctor" ? "Select doctor" : "Optional doctor link"
+                          referredByKind === "doctor"
+                            ? t("registrationForm.placeholder.selectDoctor")
+                            : t("registrationForm.placeholder.optionalDoctorLink")
                         }
                         data={consultantOptions}
                         value={field.value ?? null}
@@ -1175,8 +1312,8 @@ export function PatientRegisterForm({
                     name="referred_by_name"
                     render={({ field }) => (
                       <Autocomplete
-                        aria-label="Referred by"
-                        placeholder="Name of doctor / ASHA / camp worker"
+                        aria-label={t("registrationForm.aria.referredBy")}
+                        placeholder={t("registrationForm.placeholder.referredByName")}
                         data={referredByNameOptions}
                         value={field.value ?? ""}
                         onBlur={field.onBlur}
@@ -1188,9 +1325,9 @@ export function PatientRegisterForm({
                 </Grid.Col>
                 <Grid.Col span={{ base: 12, sm: 4 }}>
                   <TextInput
-                    aria-label="Referred by phone"
-                    placeholder="Phone"
-                    error={errors.referred_by_phone?.message}
+                    aria-label={t("registrationForm.aria.referredByPhone")}
+                    placeholder={t("registrationForm.placeholder.phone")}
+                    error={fieldError(errors.referred_by_phone?.message)}
                     {...register("referred_by_phone")}
                   />
                 </Grid.Col>
@@ -1200,8 +1337,8 @@ export function PatientRegisterForm({
                     name="referred_by_facility"
                     render={({ field }) => (
                       <Autocomplete
-                        aria-label="Referred by facility"
-                        placeholder="Facility / village / NGO"
+                        aria-label={t("registrationForm.aria.referredByFacility")}
+                        placeholder={t("registrationForm.placeholder.referredByFacility")}
                         data={referredByFacilityOptions}
                         value={field.value ?? ""}
                         onBlur={field.onBlur}
@@ -1217,8 +1354,8 @@ export function PatientRegisterForm({
         )}
 
         {activeStep === 0 && (
-          <FormSection num="05" name="Clinical ownership">
-            <FormRow label="Department · consultant">
+          <FormSection num="05" name={t("registrationForm.section.clinicalOwnership")}>
+            <FormRow label={t("registrationForm.row.departmentConsultant")}>
               <Grid>
                 <Grid.Col span={{ base: 12, sm: 5 }}>
                   <Controller
@@ -1226,12 +1363,12 @@ export function PatientRegisterForm({
                     name="department_id"
                     render={({ field }) => (
                       <Select
-                        aria-label="Department"
-                        placeholder="Select department"
+                        aria-label={t("registrationForm.aria.department")}
+                        placeholder={t("registrationForm.placeholder.department")}
                         data={departmentOptions}
                         value={field.value ?? null}
                         onChange={(v) => field.onChange(v ?? undefined)}
-                        error={errors.department_id?.message}
+                        error={fieldError(errors.department_id?.message)}
                         searchable
                         clearable
                       />
@@ -1244,8 +1381,8 @@ export function PatientRegisterForm({
                     name="consultant_id"
                     render={({ field }) => (
                       <Select
-                        aria-label="Concerned consultant"
-                        placeholder="Select concerned consultant"
+                        aria-label={t("registrationForm.aria.concernedConsultant")}
+                        placeholder={t("registrationForm.placeholder.concernedConsultant")}
                         data={consultantOptions}
                         value={field.value ?? null}
                         onChange={(v) => field.onChange(v ?? undefined)}
@@ -1257,19 +1394,19 @@ export function PatientRegisterForm({
                 </Grid.Col>
                 <Grid.Col span={{ base: 12, sm: 2 }}>
                   <TextInput
-                    aria-label="Clinical unit"
-                    placeholder="Unit"
+                    aria-label={t("registrationForm.aria.clinicalUnit")}
+                    placeholder={t("registrationForm.placeholder.clinicalUnit")}
                     {...register("clinical_unit")}
                   />
                 </Grid.Col>
               </Grid>
             </FormRow>
-            <FormRow label="Provisional diagnosis">
+            <FormRow label={t("registrationForm.row.provisionalDiagnosis")}>
               <Grid>
                 <Grid.Col span={{ base: 12, sm: 7 }}>
                   <TextInput
-                    aria-label="Initial diagnosis"
-                    placeholder="Clinical impression at registration"
+                    aria-label={t("registrationForm.aria.initialDiagnosis")}
+                    placeholder={t("registrationForm.placeholder.initialDiagnosis")}
                     {...register("initial_diagnosis_text")}
                   />
                 </Grid.Col>
@@ -1279,8 +1416,8 @@ export function PatientRegisterForm({
                     name="icd11_code"
                     render={({ field }) => (
                       <Icd11CodeSelect
-                        aria-label="ICD-11 code"
-                        placeholder="Search ICD-11"
+                        aria-label={t("registrationForm.aria.icd11Code")}
+                        placeholder={t("registrationForm.placeholder.icd11Code")}
                         value={field.value ?? null}
                         onChange={(value) => {
                           field.onChange(value ?? undefined);
@@ -1299,7 +1436,7 @@ export function PatientRegisterForm({
                             shouldValidate: true,
                           });
                         }}
-                        error={errors.icd11_code?.message}
+                        error={fieldError(errors.icd11_code?.message)}
                       />
                     )}
                   />
@@ -1307,7 +1444,7 @@ export function PatientRegisterForm({
               </Grid>
             </FormRow>
             {!isEdit && (
-              <FormRow label="Linked services">
+              <FormRow label={t("registrationForm.row.linkedServices")}>
                 <Grid>
                   <Grid.Col span={{ base: 12, sm: 6 }}>
                     <Controller
@@ -1315,8 +1452,8 @@ export function PatientRegisterForm({
                       name="create_opd_visit"
                       render={({ field }) => (
                         <Checkbox
-                          aria-label="Send to OPD queue"
-                          label="Send to OPD queue after registration"
+                          aria-label={t("registrationForm.aria.sendToOpdQueue")}
+                          label={t("registrationForm.label.sendToOpdQueue")}
                           checked={field.value ?? false}
                           onChange={(event) => {
                             field.onChange(event.currentTarget.checked);
@@ -1337,8 +1474,8 @@ export function PatientRegisterForm({
                       name="open_opd_after_registration"
                       render={({ field }) => (
                         <Checkbox
-                          aria-label="Open OPD after registration"
-                          label="Open OPD visit after queue entry"
+                          aria-label={t("registrationForm.aria.openOpdAfterRegistration")}
+                          label={t("registrationForm.label.openOpdAfterQueue")}
                           checked={(field.value ?? false) && Boolean(createOpdVisit)}
                           disabled={!createOpdVisit}
                           onChange={(event) => field.onChange(event.currentTarget.checked)}
@@ -1353,22 +1490,18 @@ export function PatientRegisterForm({
         )}
 
         {activeStep === 0 && (
-          <FormSection num="06" name="Allergy status">
-            <FormRow label="Allergy state" required>
+          <FormSection num="06" name={t("registrationForm.section.allergyStatus")}>
+            <FormRow label={t("registrationForm.row.allergyState")} required>
               <Controller
                 control={control}
                 name="allergy_status"
                 render={({ field }) => (
                   <Select
-                    aria-label="Allergy status"
-                    data={[
-                      { value: "not_asked_yet", label: "Not asked yet" },
-                      { value: "no_known_allergies", label: "No known allergies" },
-                      { value: "known_allergies", label: "Known allergies (record on next step)" },
-                    ]}
+                    aria-label={t("registrationForm.aria.allergyStatus")}
+                    data={allergyStatusOptions}
                     value={field.value ?? "not_asked_yet"}
                     onChange={(v) => field.onChange(v ?? "not_asked_yet")}
-                    error={errors.allergy_status?.message}
+                    error={fieldError(errors.allergy_status?.message)}
                   />
                 )}
               />
@@ -1377,8 +1510,8 @@ export function PatientRegisterForm({
         )}
 
         {activeStep === 2 && (
-          <FormSection num="07" name="Safety flags">
-            <FormRow label="Safety flags">
+          <FormSection num="07" name={t("registrationForm.section.safetyFlags")}>
+            <FormRow label={t("registrationForm.row.safetyFlags")}>
               <Grid>
                 <Grid.Col span={{ base: 12, sm: 4 }}>
                   <Controller
@@ -1386,8 +1519,8 @@ export function PatientRegisterForm({
                     name="is_medico_legal"
                     render={({ field }) => (
                       <Checkbox
-                        aria-label="Medico-legal case"
-                        label="Medico-legal case"
+                        aria-label={t("registrationForm.aria.medicoLegalCase")}
+                        label={t("registrationForm.label.medicoLegalCase")}
                         checked={field.value ?? false}
                         onChange={(event) => field.onChange(event.currentTarget.checked)}
                       />
@@ -1396,8 +1529,9 @@ export function PatientRegisterForm({
                 </Grid.Col>
                 <Grid.Col span={{ base: 12, sm: 4 }}>
                   <TextInput
-                    aria-label="MLC number"
-                    placeholder="MLC number"
+                    aria-label={t("registrationForm.aria.mlcNumber")}
+                    placeholder={t("registrationForm.placeholder.mlcNumber")}
+                    error={fieldError(errors.mlc_number?.message)}
                     {...register("mlc_number")}
                   />
                 </Grid.Col>
@@ -1407,8 +1541,8 @@ export function PatientRegisterForm({
                     name="is_vip"
                     render={({ field }) => (
                       <Checkbox
-                        aria-label="VIP patient"
-                        label="VIP patient"
+                        aria-label={t("registrationForm.aria.vipPatient")}
+                        label={t("registrationForm.label.vipPatient")}
                         checked={field.value ?? false}
                         onChange={(event) => field.onChange(event.currentTarget.checked)}
                       />
@@ -1421,12 +1555,12 @@ export function PatientRegisterForm({
         )}
 
         {activeStep === 3 && (
-          <FormSection num="08" name="Allergy details">
+          <FormSection num="08" name={t("registrationForm.section.allergyDetails")}>
             {/* Both fields are optional — many patients have no known
               allergies. Empty = "not yet recorded"; the prescriber
               still gets a banner before issuing meds, but registration
               is not blocked for routine OPD intake. */}
-            <FormRow label="General allergies (food, environmental, contact)">
+            <FormRow label={t("registrationForm.row.generalAllergies")}>
               <Controller
                 control={control}
                 name="known_allergies"
@@ -1437,16 +1571,20 @@ export function PatientRegisterForm({
                     <AllergyField
                       value={field.value ?? ""}
                       onChange={field.onChange}
-                      placeholder="Pollen, dust, peanuts, latex, etc. — or leave blank if none known"
+                      placeholder={t("registrationForm.placeholder.generalAllergies")}
                       severity="watch"
-                      badgeLabel={has ? "Logged" : "Optional"}
-                      hint="Examples: peanuts, shellfish, latex, dust mites. Skip if patient is unsure or has no known allergies."
+                      badgeLabel={
+                        has
+                          ? t("registrationForm.badge.logged")
+                          : t("registrationForm.badge.optional")
+                      }
+                      hint={t("registrationForm.hint.generalAllergies")}
                     />
                   );
                 }}
               />
             </FormRow>
-            <FormRow label="Drug allergies">
+            <FormRow label={t("registrationForm.row.drugAllergies")}>
               <Controller
                 control={control}
                 name="drug_allergies"
@@ -1460,17 +1598,17 @@ export function PatientRegisterForm({
                       data={drugAllergyOptions}
                       searchValue={drugAllergySearch}
                       onSearchChange={setDrugAllergySearch}
-                      placeholder="Search pharmacy drug, or type NKDA / outside drug allergy"
+                      placeholder={t("registrationForm.placeholder.drugAllergies")}
                       clearable
                       splitChars={[",", ";"]}
                       acceptValueOnBlur
                       loading={isDrugAllergyCatalogLoading}
                       description={
                         has
-                          ? "Selected drug allergies are saved on the patient profile and surfaced during prescribing."
-                          : "Select from pharmacy where possible. Free text is allowed for outside or unknown drugs."
+                          ? t("registrationForm.description.drugAllergiesSaved")
+                          : t("registrationForm.description.drugAllergiesEntry")
                       }
-                      error={errors.drug_allergies?.message}
+                      error={fieldError(errors.drug_allergies?.message)}
                     />
                   );
                 }}
@@ -1480,21 +1618,27 @@ export function PatientRegisterForm({
         )}
 
         {activeStep === 2 && (
-          <FormSection num="09" name="Family & background">
-            <FormRow label="Father's name">
+          <FormSection num="09" name={t("registrationForm.section.familyBackground")}>
+            <FormRow label={t("registrationForm.row.fatherName")}>
               <TextInput {...register("father_name")} />
             </FormRow>
-            <FormRow label="Guardian">
+            <FormRow label={t("registrationForm.row.guardian")}>
               <Grid>
                 <Grid.Col span={{ base: 12, sm: 8 }}>
-                  <TextInput placeholder="Name" {...register("guardian_name")} />
+                  <TextInput
+                    placeholder={t("registrationForm.placeholder.name")}
+                    {...register("guardian_name")}
+                  />
                 </Grid.Col>
                 <Grid.Col span={{ base: 12, sm: 4 }}>
-                  <TextInput placeholder="Relation" {...register("guardian_relation")} />
+                  <TextInput
+                    placeholder={t("registrationForm.placeholder.relation")}
+                    {...register("guardian_relation")}
+                  />
                 </Grid.Col>
               </Grid>
             </FormRow>
-            <FormRow label="Marital · religion · occupation">
+            <FormRow label={t("registrationForm.row.maritalReligionOccupation")}>
               <Grid>
                 <Grid.Col span={{ base: 12, sm: 4 }}>
                   <Controller
@@ -1502,8 +1646,8 @@ export function PatientRegisterForm({
                     name="marital_status"
                     render={({ field }) => (
                       <Select
-                        placeholder="Marital"
-                        data={maritalStatusOptions}
+                        placeholder={t("registrationForm.placeholder.marital")}
+                        data={localizedMaritalStatusOptions}
                         value={field.value ?? null}
                         onChange={(v) => field.onChange(v ?? undefined)}
                         clearable
@@ -1512,10 +1656,16 @@ export function PatientRegisterForm({
                   />
                 </Grid.Col>
                 <Grid.Col span={{ base: 12, sm: 4 }}>
-                  <TextInput placeholder="Religion" {...register("religion")} />
+                  <TextInput
+                    placeholder={t("registrationForm.placeholder.religion")}
+                    {...register("religion")}
+                  />
                 </Grid.Col>
                 <Grid.Col span={{ base: 12, sm: 4 }}>
-                  <TextInput placeholder="Occupation" {...register("occupation")} />
+                  <TextInput
+                    placeholder={t("registrationForm.placeholder.occupation")}
+                    {...register("occupation")}
+                  />
                 </Grid.Col>
               </Grid>
             </FormRow>
@@ -1523,40 +1673,58 @@ export function PatientRegisterForm({
         )}
 
         {activeStep === 2 && (
-          <FormSection num="10" name="Address">
-            <FormRow label="Address line 1">
+          <FormSection num="10" name={t("registrationForm.section.address")}>
+            <FormRow label={t("registrationForm.row.addressLine1")}>
               <Textarea
-                placeholder="House / building / street"
+                placeholder={t("registrationForm.placeholder.addressLine1")}
                 autosize
                 minRows={2}
                 {...register("line1")}
               />
             </FormRow>
-            <FormRow label="Address line 2">
-              <TextInput placeholder="Locality / area (optional)" {...register("line2")} />
-            </FormRow>
-            <FormRow label="Landmark">
+            <FormRow label={t("registrationForm.row.addressLine2")}>
               <TextInput
-                placeholder="Near temple / opposite school / etc."
+                placeholder={t("registrationForm.placeholder.addressLine2")}
+                {...register("line2")}
+              />
+            </FormRow>
+            <FormRow label={t("registrationForm.row.landmark")}>
+              <TextInput
+                placeholder={t("registrationForm.placeholder.landmark")}
                 {...register("landmark")}
               />
             </FormRow>
-            <FormRow label="City · district · state · pin">
+            <FormRow label={t("registrationForm.row.cityDistrictStatePin")}>
               <Grid>
                 <Grid.Col span={{ base: 12, sm: 3 }}>
-                  <TextInput placeholder="City / village" {...register("city")} />
+                  <TextInput
+                    placeholder={t("registrationForm.placeholder.city")}
+                    {...register("city")}
+                  />
                 </Grid.Col>
                 <Grid.Col span={{ base: 12, sm: 3 }}>
-                  <TextInput placeholder="District / Taluka" {...register("district")} />
+                  <TextInput
+                    placeholder={t("registrationForm.placeholder.district")}
+                    {...register("district")}
+                  />
                 </Grid.Col>
                 <Grid.Col span={{ base: 12, sm: 2 }}>
-                  <TextInput placeholder="State" {...register("state")} />
+                  <TextInput
+                    placeholder={t("registrationForm.placeholder.state")}
+                    {...register("state")}
+                  />
                 </Grid.Col>
                 <Grid.Col span={{ base: 6, sm: 2 }}>
-                  <TextInput placeholder="Pin" {...register("postal_code")} />
+                  <TextInput
+                    placeholder={t("registrationForm.placeholder.pin")}
+                    {...register("postal_code")}
+                  />
                 </Grid.Col>
                 <Grid.Col span={{ base: 6, sm: 2 }}>
-                  <TextInput defaultValue="India" {...register("country")} />
+                  <TextInput
+                    defaultValue={t("registrationForm.default.country")}
+                    {...register("country")}
+                  />
                 </Grid.Col>
               </Grid>
             </FormRow>
@@ -1564,36 +1732,48 @@ export function PatientRegisterForm({
         )}
 
         {activeStep === 2 && (
-          <FormSection num="11" name="Next of kin & emergency contact">
-            <FormRow label="Next of kin">
+          <FormSection num="11" name={t("registrationForm.section.nextOfKinEmergency")}>
+            <FormRow label={t("registrationForm.row.nextOfKin")}>
               <Grid>
                 <Grid.Col span={{ base: 12, sm: 5 }}>
-                  <TextInput placeholder="Full name" {...register("next_of_kin_name")} />
+                  <TextInput
+                    placeholder={t("registrationForm.placeholder.fullName")}
+                    {...register("next_of_kin_name")}
+                  />
                 </Grid.Col>
                 <Grid.Col span={{ base: 6, sm: 3 }}>
-                  <TextInput placeholder="Relation" {...register("next_of_kin_relation")} />
+                  <TextInput
+                    placeholder={t("registrationForm.placeholder.relation")}
+                    {...register("next_of_kin_relation")}
+                  />
                 </Grid.Col>
                 <Grid.Col span={{ base: 6, sm: 4 }}>
                   <TextInput
-                    placeholder="Phone"
-                    error={errors.next_of_kin_phone?.message}
+                    placeholder={t("registrationForm.placeholder.phone")}
+                    error={fieldError(errors.next_of_kin_phone?.message)}
                     {...register("next_of_kin_phone")}
                   />
                 </Grid.Col>
               </Grid>
             </FormRow>
-            <FormRow label="Emergency contact (different person if needed)">
+            <FormRow label={t("registrationForm.row.emergencyContact")}>
               <Grid>
                 <Grid.Col span={{ base: 12, sm: 5 }}>
-                  <TextInput placeholder="Full name" {...register("emergency_contact_name")} />
+                  <TextInput
+                    placeholder={t("registrationForm.placeholder.fullName")}
+                    {...register("emergency_contact_name")}
+                  />
                 </Grid.Col>
                 <Grid.Col span={{ base: 6, sm: 3 }}>
-                  <TextInput placeholder="Relation" {...register("emergency_contact_relation")} />
+                  <TextInput
+                    placeholder={t("registrationForm.placeholder.relation")}
+                    {...register("emergency_contact_relation")}
+                  />
                 </Grid.Col>
                 <Grid.Col span={{ base: 6, sm: 4 }}>
                   <TextInput
-                    placeholder="Phone"
-                    error={errors.emergency_contact_phone?.message}
+                    placeholder={t("registrationForm.placeholder.phone")}
+                    error={fieldError(errors.emergency_contact_phone?.message)}
                     {...register("emergency_contact_phone")}
                   />
                 </Grid.Col>
@@ -1603,22 +1783,15 @@ export function PatientRegisterForm({
         )}
 
         {activeStep === 3 && (
-          <FormSection num="12" name="Preferences & care continuity">
-            <FormRow label="Preferred ward / room class">
+          <FormSection num="12" name={t("registrationForm.section.preferencesCareContinuity")}>
+            <FormRow label={t("registrationForm.row.preferredWardRoomClass")}>
               <Controller
                 control={control}
                 name="preferred_room_class"
                 render={({ field }) => (
                   <Select
-                    placeholder="No preference"
-                    data={[
-                      { value: "general", label: "General ward" },
-                      { value: "semi_private", label: "Semi-private" },
-                      { value: "private", label: "Private" },
-                      { value: "deluxe", label: "Deluxe" },
-                      { value: "suite", label: "Suite" },
-                      { value: "icu", label: "ICU (clinical decision)" },
-                    ]}
+                    placeholder={t("registrationForm.placeholder.noPreference")}
+                    data={roomClassOptions}
                     value={field.value ?? null}
                     onChange={(v) => field.onChange(v ?? undefined)}
                     clearable
@@ -1626,7 +1799,7 @@ export function PatientRegisterForm({
                 )}
               />
             </FormRow>
-            <FormRow label="Dietary preference">
+            <FormRow label={t("registrationForm.row.dietaryPreference")}>
               <Grid>
                 <Grid.Col span={{ base: 12, sm: 5 }}>
                   <Controller
@@ -1634,16 +1807,8 @@ export function PatientRegisterForm({
                     name="dietary_preference"
                     render={({ field }) => (
                       <Select
-                        placeholder="No preference"
-                        data={[
-                          { value: "vegetarian", label: "Vegetarian" },
-                          { value: "vegan", label: "Vegan" },
-                          { value: "non_veg", label: "Non-vegetarian" },
-                          { value: "jain", label: "Jain" },
-                          { value: "halal", label: "Halal" },
-                          { value: "kosher", label: "Kosher" },
-                          { value: "diabetic", label: "Diabetic-friendly" },
-                        ]}
+                        placeholder={t("registrationForm.placeholder.noPreference")}
+                        data={dietaryPreferenceOptions}
                         value={field.value ?? null}
                         onChange={(v) => field.onChange(v ?? undefined)}
                         clearable
@@ -1653,32 +1818,35 @@ export function PatientRegisterForm({
                 </Grid.Col>
                 <Grid.Col span={{ base: 12, sm: 7 }}>
                   <TextInput
-                    placeholder="Restrictions / allergies — gluten-free, low-sodium, etc."
+                    placeholder={t("registrationForm.placeholder.dietaryRestrictions")}
                     {...register("dietary_restrictions")}
                   />
                 </Grid.Col>
               </Grid>
             </FormRow>
-            <FormRow label="Religious / cultural observances">
+            <FormRow label={t("registrationForm.row.religiousObservances")}>
               <TextInput
-                placeholder="Daily prayer times, fasting, pre-procedure rituals, female-only attendant, etc."
+                placeholder={t("registrationForm.placeholder.religiousObservances")}
                 {...register("religious_observances")}
               />
             </FormRow>
-            <FormRow label="Preferred language">
+            <FormRow label={t("registrationForm.row.preferredLanguage")}>
               <TextInput
-                placeholder="Tamil, Hindi, English, etc."
+                placeholder={t("registrationForm.placeholder.preferredLanguage")}
                 {...register("language_preference")}
               />
             </FormRow>
-            <FormRow label="Primary physician (referring / family doctor)">
+            <FormRow label={t("registrationForm.row.primaryPhysician")}>
               <Grid>
                 <Grid.Col span={{ base: 12, sm: 7 }}>
-                  <TextInput placeholder="Name" {...register("primary_physician_name")} />
+                  <TextInput
+                    placeholder={t("registrationForm.placeholder.name")}
+                    {...register("primary_physician_name")}
+                  />
                 </Grid.Col>
                 <Grid.Col span={{ base: 12, sm: 5 }}>
                   <TextInput
-                    placeholder="In-house staff ID (optional)"
+                    placeholder={t("registrationForm.placeholder.inHouseStaffId")}
                     {...register("primary_physician_id")}
                   />
                 </Grid.Col>
@@ -1688,28 +1856,28 @@ export function PatientRegisterForm({
         )}
 
         {activeStep === 3 && (
-          <FormSection num="13" name="Insurance & visitor pass">
-            <FormRow label="Secondary insurance">
+          <FormSection num="13" name={t("registrationForm.section.insuranceVisitorPass")}>
+            <FormRow label={t("registrationForm.row.secondaryInsurance")}>
               <Grid>
                 <Grid.Col span={{ base: 12, sm: 6 }}>
                   <TextInput
-                    placeholder="Provider — second policy (e.g. corporate top-up)"
+                    placeholder={t("registrationForm.placeholder.secondaryInsuranceProvider")}
                     {...register("secondary_insurance_provider")}
                   />
                 </Grid.Col>
                 <Grid.Col span={{ base: 12, sm: 6 }}>
                   <TextInput
-                    placeholder="Policy / member number"
+                    placeholder={t("registrationForm.placeholder.policyMemberNumber")}
                     {...register("secondary_insurance_policy_no")}
                   />
                 </Grid.Col>
               </Grid>
             </FormRow>
-            <FormRow label="Default attendant pass count">
+            <FormRow label={t("registrationForm.row.defaultAttendantPassCount")}>
               <TextInput
                 type="number"
-                placeholder="Number of bedside attendants allowed (defaults per ward type)"
-                error={errors.attendant_passes_count?.message}
+                placeholder={t("registrationForm.placeholder.attendantPassCount")}
+                error={fieldError(errors.attendant_passes_count?.message)}
                 {...register("attendant_passes_count")}
               />
             </FormRow>
@@ -1717,16 +1885,16 @@ export function PatientRegisterForm({
         )}
 
         {activeStep === 3 && (
-          <FormSection num="14" name="Registration">
-            <FormRow label="Patient category">
+          <FormSection num="14" name={t("registrationForm.section.registration")}>
+            <FormRow label={t("registrationForm.row.patientCategory")}>
               <Controller
                 control={control}
                 name="category"
                 render={({ field }) => (
                   <Select
-                    aria-label="Patient category"
-                    placeholder="General"
-                    data={categoryOptions}
+                    aria-label={t("registrationForm.aria.patientCategory")}
+                    placeholder={t("options.category.general")}
+                    data={localizedCategoryOptions}
                     value={field.value ?? null}
                     onChange={(v) => field.onChange(v ?? undefined)}
                     clearable
@@ -1749,55 +1917,72 @@ interface ReviewSummaryProps {
 }
 
 function ReviewSummary({ values, dobEstimated }: ReviewSummaryProps) {
+  const { t } = useTranslation("patients");
   const name = values.is_unknown_patient
-    ? "Unknown patient"
+    ? t("registrationForm.summary.unknownPatient")
     : [values.prefix, values.first_name, values.middle_name, values.last_name, values.suffix]
         .filter(Boolean)
-        .join(" ") || "—";
+        .join(" ") || t("common.dash");
   const dob = values.date_of_birth
     ? new Date(values.date_of_birth).toISOString().slice(0, 10)
-    : "—";
-  const allergyLabel: Record<string, string> = {
-    not_asked_yet: "Not asked yet",
-    no_known_allergies: "No known allergies",
-    known_allergies: "Known allergies",
-  };
+    : t("common.dash");
+  const allergyStatus = values.allergy_status ?? "not_asked_yet";
   return (
-    <FormSection num="15" name="Review">
-      <FormRow label="Identity">
+    <FormSection num="15" name={t("registrationForm.section.review")}>
+      <FormRow label={t("registrationForm.summary.identity")}>
         <Text size="sm">
-          {name} · {values.gender ?? "—"} · DOB {dob}
-          {dobEstimated ? " (estimated)" : ""}
+          {t("registrationForm.summary.identityLine", {
+            dob,
+            estimated: dobEstimated ? t("registrationForm.summary.estimatedSuffix") : "",
+            gender: values.gender ? t(`options.gender.${values.gender}`) : t("common.dash"),
+            name,
+          })}
         </Text>
       </FormRow>
-      <FormRow label="Contact">
+      <FormRow label={t("registrationForm.summary.contact")}>
         <Text size="sm">
-          {values.phone || "—"}
-          {values.phone_secondary ? ` · alt ${values.phone_secondary}` : ""}
-          {values.email ? ` · ${values.email}` : ""}
+          {values.phone || t("common.dash")}
+          {values.phone_secondary
+            ? t("registrationForm.summary.altPhone", { phone: values.phone_secondary })
+            : ""}
+          {values.email ? t("registrationForm.summary.email", { email: values.email }) : ""}
         </Text>
       </FormRow>
-      <FormRow label="Registration">
+      <FormRow label={t("registrationForm.summary.registration")}>
         <Text size="sm">
-          Type {values.registration_type ?? "—"} · source {values.registration_source ?? "—"}
-          {values.camp_name ? ` · camp ${values.camp_name}` : ""}
+          {t("registrationForm.summary.registrationLine", {
+            source: values.registration_source
+              ? t(`options.registrationSource.${values.registration_source}`)
+              : t("common.dash"),
+            type: values.registration_type
+              ? t(`options.registrationType.${values.registration_type}`)
+              : t("common.dash"),
+          })}
+          {values.camp_name ? t("registrationForm.summary.camp", { camp: values.camp_name }) : ""}
         </Text>
       </FormRow>
-      <FormRow label="Clinical">
+      <FormRow label={t("registrationForm.summary.clinical")}>
         <Text size="sm">
-          Dept {values.department_id ?? "—"} · consultant {values.consultant_id ?? "—"}
-          {values.create_opd_visit ? " · queued to OPD" : ""}
+          {t("registrationForm.summary.clinicalLine", {
+            consultant: values.consultant_id ?? t("common.dash"),
+            department: values.department_id ?? t("common.dash"),
+          })}
+          {values.create_opd_visit ? t("registrationForm.summary.queuedToOpd") : ""}
         </Text>
       </FormRow>
-      <FormRow label="Allergies">
+      <FormRow label={t("registrationForm.summary.allergies")}>
         <Text size="sm">
-          {allergyLabel[values.allergy_status ?? "not_asked_yet"]}
-          {values.known_allergies ? ` · ${values.known_allergies}` : ""}
-          {values.drug_allergies ? ` · drugs: ${values.drug_allergies}` : ""}
+          {t(`options.allergyStatus.${allergyStatus}`)}
+          {values.known_allergies
+            ? t("registrationForm.summary.knownAllergies", { allergies: values.known_allergies })
+            : ""}
+          {values.drug_allergies
+            ? t("registrationForm.summary.drugAllergies", { allergies: values.drug_allergies })
+            : ""}
         </Text>
       </FormRow>
       <Alert color="green" variant="light" mt="md">
-        Press Register complete to save the full record. Use Back to edit any step.
+        {t("registrationForm.summary.reviewAlert")}
       </Alert>
     </FormSection>
   );

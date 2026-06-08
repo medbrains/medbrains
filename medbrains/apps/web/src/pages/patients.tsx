@@ -122,17 +122,6 @@ const bloodGroupLabels: Record<string, string> = {
   unknown: "Unknown",
 };
 
-const registrationTypeLabels: Record<string, string> = {
-  new: "Registered",
-  revisit: "Active",
-  transfer_in: "Transfer",
-  referral: "Referred",
-  emergency: "Emergency",
-  camp: "Camp",
-  telemedicine: "Telemedicine",
-  pre_registration: "Pre-Registration",
-};
-
 function buildFullName(patient: Patient): string {
   const parts = [
     patient.prefix,
@@ -234,9 +223,9 @@ function patientAddressText(address: CreatePatientRequest["address"]): string | 
     .join(", ");
 }
 
-function errorMessage(error: unknown): string {
+function errorMessage(error: unknown, fallback: string): string {
   if (error instanceof Error) return error.message;
-  return "Unknown error";
+  return fallback;
 }
 
 // #endregion
@@ -298,7 +287,7 @@ function PatientsPageInner() {
   const columns = [
     {
       key: "uhid",
-      label: "UHID",
+      label: t("label.uhid"),
       fieldAccessKey: PATIENT_UHID_FIELD_ACCESS_KEY,
       accessor: (row: Patient) => row.uhid,
       fieldKind: "identifier",
@@ -310,7 +299,7 @@ function PatientsPageInner() {
     },
     {
       key: "name",
-      label: "Name",
+      label: t("name"),
       fieldAccessKeys: PATIENT_NAME_FIELD_ACCESS_KEYS,
       accessor: buildFullName,
       fieldKind: "name",
@@ -325,14 +314,20 @@ function PatientsPageInner() {
               </Text>
             </Tooltip>
             {row.is_vip && (
-              <Tooltip label="VIP Patient">
+              <Tooltip label={t("label.vipPatient")}>
                 <ThemeIcon variant="light" color="warning" size="xs">
                   <IconStarFilled size={10} />
                 </ThemeIcon>
               </Tooltip>
             )}
             {row.is_medico_legal && (
-              <Tooltip label={`MLC${row.mlc_number ? ` #${row.mlc_number}` : ""}`}>
+              <Tooltip
+                label={
+                  row.mlc_number
+                    ? t("directory.tooltip.mlcWithNumber", { number: row.mlc_number })
+                    : t("directory.tooltip.mlc")
+                }
+              >
                 <ThemeIcon variant="light" color="danger" size="xs">
                   <IconAlertTriangle size={10} />
                 </ThemeIcon>
@@ -344,7 +339,7 @@ function PatientsPageInner() {
     },
     {
       key: "phone",
-      label: "Phone",
+      label: t("phone"),
       fieldAccessKey: "patients.phone",
       accessor: (row: Patient) => row.phone,
       fieldKind: "phone",
@@ -352,25 +347,27 @@ function PatientsPageInner() {
     },
     {
       key: "gender",
-      label: "Gender",
+      label: t("label.gender"),
       render: (row: Patient) => (
         <StatusDot
           color={genderColors[row.gender] ?? "slate"}
           icon={genderIcon(row.gender)}
-          label={row.gender}
+          label={t(`options.gender.${row.gender}`, { defaultValue: row.gender })}
           size="sm"
         />
       ),
     },
     {
       key: "blood_group",
-      label: "Blood Group",
+      label: t("label.bloodGroup"),
       render: (row: Patient) =>
         row.blood_group && row.blood_group !== "unknown" ? (
           <StatusDot
             color="danger"
             icon={IconDroplet}
-            label={bloodGroupLabels[row.blood_group] ?? row.blood_group}
+            label={t(`options.bloodGroup.${row.blood_group}`, {
+              defaultValue: bloodGroupLabels[row.blood_group] ?? row.blood_group,
+            })}
             size="sm"
           />
         ) : (
@@ -381,20 +378,24 @@ function PatientsPageInner() {
     },
     {
       key: "category",
-      label: "Category",
+      label: t("label.category"),
       render: (row: Patient) => (
         <StatusDot
           color={categoryColors[row.category] ?? "slate"}
-          label={row.category.replace(/_/g, " ")}
+          label={t(`options.category.${row.category}`, {
+            defaultValue: row.category.replace(/_/g, " "),
+          })}
           size="sm"
         />
       ),
     },
     {
       key: "registration_type",
-      label: "Status",
+      label: t("status"),
       render: (row: Patient) => {
-        const label = registrationTypeLabels[row.registration_type] ?? row.registration_type;
+        const label = t(`directory.registrationStatus.${row.registration_type}`, {
+          defaultValue: row.registration_type,
+        });
         const color =
           row.registration_type === "revisit"
             ? "success"
@@ -413,7 +414,7 @@ function PatientsPageInner() {
     },
     {
       key: "payment_pending",
-      label: "Payment",
+      label: t("directory.column.payment"),
       requiredPermissions: [P.BILLING.INVOICES_LIST],
       fieldAccessKey: "billing.amount",
       accessor: (row: Patient) => row.outstanding_balance ?? 0,
@@ -429,11 +430,9 @@ function PatientsPageInner() {
           );
         }
         return (
-          <Tooltip
-            label={`${pendingCount || 1} invoice${pendingCount === 1 ? "" : "s"} with pending payment`}
-          >
+          <Tooltip label={t("directory.paymentPendingTooltip", { count: pendingCount || 1 })}>
             <Badge color="danger" variant="light" leftSection={<IconCash size={12} />}>
-              ₹{formatMoney(balance)} pending
+              {t("directory.paymentPending", { amount: formatMoney(balance) })}
             </Badge>
           </Tooltip>
         );
@@ -441,7 +440,7 @@ function PatientsPageInner() {
     },
     {
       key: "next_actions",
-      label: "Next Actions",
+      label: t("directory.column.nextActions"),
       render: (row: Patient) => (
         <PatientJourneyActions
           context={directoryJourneyContext(row)}
@@ -455,7 +454,7 @@ function PatientsPageInner() {
       label: "",
       requiredPermissions: [P.PATIENTS.VIEW],
       render: (row: Patient) => (
-        <Tooltip label="Full profile">
+        <Tooltip label={t("label.fullProfile")}>
           <ActionIcon variant="subtle" color="teal" onClick={() => navigate(`/patients/${row.id}`)}>
             <IconUsers size={16} />
           </ActionIcon>
@@ -477,23 +476,25 @@ function PatientsPageInner() {
         <Group justify="space-between" align="flex-end" gap="md">
           <Stack gap={2}>
             <Text size="xs" fw={700} c="dimmed" tt="uppercase">
-              Patient directory
+              {t("directory.commandTitle")}
             </Text>
             <Group gap="xs">
               <Badge color="teal" variant="light">
-                {data?.total == null ? "Loading records" : `${data.total} records`}
+                {data?.total == null
+                  ? t("directory.loadingRecords")
+                  : t("directory.recordCount", { count: data.total })}
               </Badge>
               <Badge color="blue" variant="light">
-                Permissioned fields
+                {t("directory.badge.permissionedFields")}
               </Badge>
               <Badge color="orange" variant="light">
-                Paced search
+                {t("directory.badge.pacedSearch")}
               </Badge>
             </Group>
           </Stack>
           <Group gap="xs" className={classes.directoryControls}>
             <TextInput
-              placeholder="Search by UHID, name, or phone..."
+              placeholder={t("placeholder.searchByUhid,Name,OrPhone...")}
               leftSection={<IconSearch size={16} />}
               value={search}
               onChange={(e) => handleSearchChange(e.currentTarget.value)}
@@ -502,7 +503,7 @@ function PatientsPageInner() {
             />
             {canCreate && (
               <Button leftSection={<IconUserPlus size={16} />} onClick={openRegister}>
-                Register Patient
+                {t("actions.registerPatient")}
               </Button>
             )}
           </Group>
@@ -516,15 +517,15 @@ function PatientsPageInner() {
         total={data?.total}
         rowKey={(row) => row.id}
         emptyIcon={<IconUsers size={32} />}
-        emptyTitle="No patients found"
+        emptyTitle={t("directory.empty.title")}
         emptyDescription={
           debouncedSearch
-            ? "Try adjusting your search terms"
-            : "Register your first patient to get started"
+            ? t("directory.empty.searchDescription")
+            : t("directory.empty.registerDescription")
         }
         emptyAction={
           !debouncedSearch && canCreate
-            ? { label: "Register Patient", onClick: openRegister }
+            ? { label: t("actions.registerPatient"), onClick: openRegister }
             : undefined
         }
         page={page}
@@ -551,6 +552,7 @@ export function PatientRegisterPage() {
 }
 
 function PatientRegisterPageInner() {
+  const { t } = useTranslation("patients");
   const emit = useClinicalEmit();
   const navigate = useNavigate();
   const [params] = useSearchParams();
@@ -567,10 +569,11 @@ function PatientRegisterPageInner() {
   });
   const selectedCamp = camps.find((camp) => camp.id === sourceCampId);
   const backTarget = isCampRegistration && returnTo ? returnTo : "/patients";
-  const backLabel = isCampRegistration && returnTo ? "Back to Camp" : "Back to Patients";
+  const backLabel =
+    isCampRegistration && returnTo ? t("actions.backToCamp") : t("actions.backToPatients");
   const registrationModeLabel = isCampRegistration
-    ? (selectedCamp?.name ?? "Camp registration")
-    : "Hospital registration";
+    ? (selectedCamp?.name ?? t("registrationPage.mode.camp"))
+    : t("registrationPage.mode.hospital");
   const campInitialValues: PatientRegistrationInitialValues | undefined = isCampRegistration
     ? {
         registration_type: "camp",
@@ -624,9 +627,10 @@ function PatientRegisterPageInner() {
                 returnTo: campContext.returnTo,
               };
             } catch (error) {
+              const queueWarning = errorMessage(error, t("errors.unknown"));
               return {
                 patient,
-                queueWarning: errorMessage(error),
+                queueWarning,
                 linkedServices,
                 campId: campContext.campId,
                 campRegistrationId: campRegistration.id,
@@ -643,9 +647,10 @@ function PatientRegisterPageInner() {
             returnTo: campContext.returnTo,
           };
         } catch (error) {
+          const queueWarning = errorMessage(error, t("errors.unknown"));
           return {
             patient,
-            queueWarning: errorMessage(error),
+            queueWarning,
             linkedServices,
             campId: campContext.campId,
             returnTo: campContext.returnTo,
@@ -673,9 +678,10 @@ function PatientRegisterPageInner() {
           linkedServices,
         };
       } catch (error) {
+        const queueWarning = errorMessage(error, t("errors.unknown"));
         return {
           patient,
-          queueWarning: errorMessage(error),
+          queueWarning,
           linkedServices,
         };
       }
@@ -706,12 +712,20 @@ function PatientRegisterPageInner() {
         });
       }
       notifications.show({
-        title: queueWarning ? "Patient registered, OPD queue pending" : "Patient registered",
+        title: queueWarning
+          ? t("notify.patientRegisteredOpdQueuePending")
+          : t("notify.patientRegistered"),
         message: queueWarning
-          ? `UHID: ${patient.uhid}. OPD queue was not created: ${queueWarning}`
+          ? t("notify.patientRegisteredQueueWarning", {
+              queueWarning,
+              uhid: patient.uhid,
+            })
           : tokenNumber
-            ? `UHID: ${patient.uhid} · OPD token T${String(tokenNumber).padStart(3, "0")}`
-            : `UHID: ${patient.uhid}`,
+            ? t("notify.patientRegisteredWithToken", {
+                token: String(tokenNumber).padStart(3, "0"),
+                uhid: patient.uhid,
+              })
+            : t("notify.patientRegisteredWithUhid", { uhid: patient.uhid }),
         color: queueWarning ? "warning" : "success",
       });
       void queryClient.invalidateQueries({ queryKey: ["patients"] });
@@ -741,8 +755,8 @@ function PatientRegisterPageInner() {
     },
     onError: (err: Error) => {
       notifications.show({
-        title: "Registration failed",
-        message: err.message,
+        title: t("notify.registrationFailed"),
+        message: err.message || t("errors.unknown"),
         color: "danger",
       });
     },
@@ -789,15 +803,18 @@ function PatientRegisterPageInner() {
   return (
     <Stack className={classes.registrationWorkspace}>
       <PageHeader
-        title="Register Patient"
+        title={t("registrationPage.title")}
         subtitle={
           isCampRegistration
-            ? "Create the hospital patient record from the camp context and keep camp OPD linked."
-            : "Create a patient record and link the first OPD workflow when required."
+            ? t("registrationPage.subtitle.camp")
+            : t("registrationPage.subtitle.hospital")
         }
         icon={<IconUserPlus size={20} stroke={1.5} />}
         color="teal"
-        breadcrumbs={[{ label: "Patients", href: "/patients" }, { label: "Register Patient" }]}
+        breadcrumbs={[
+          { label: t("title.patients"), href: "/patients" },
+          { label: t("registrationPage.title") },
+        ]}
         actions={
           <Button
             variant="light"
@@ -813,17 +830,17 @@ function PatientRegisterPageInner() {
         <Group justify="space-between" align="flex-start" gap="sm">
           <Stack gap={4}>
             <Text size="xs" fw={700} c="dimmed" tt="uppercase">
-              Registration context
+              {t("registrationPage.contextTitle")}
             </Text>
             <Group gap="xs">
               <Badge color={isCampRegistration ? "green" : "teal"} variant="light">
                 {registrationModeLabel}
               </Badge>
               <Badge color="blue" variant="light">
-                MPI duplicate check
+                {t("registrationPage.badge.mpiDuplicateCheck")}
               </Badge>
               <Badge color="orange" variant="light">
-                OPD queue link
+                {t("registrationPage.badge.opdQueueLink")}
               </Badge>
             </Group>
           </Stack>
@@ -835,14 +852,14 @@ function PatientRegisterPageInner() {
           <Stack className={classes.registrationMain}>
             {isCampRegistration && campContextLoading ? (
               <Card withBorder>
-                <Text c="dimmed">Loading camp context...</Text>
+                <Text c="dimmed">{t("registrationPage.loadingCampContext")}</Text>
               </Card>
             ) : (
               <PatientRegisterForm
                 onSubmit={handleRegisterSubmit}
                 onCancel={() => navigate(backTarget)}
                 isSubmitting={createMutation.isPending}
-                submitLabel="Register"
+                submitLabel={t("actions.register")}
                 initialValues={campInitialValues}
               />
             )}
@@ -854,7 +871,7 @@ function PatientRegisterPageInner() {
             <Stack gap="sm">
               <Stack gap={2}>
                 <Text size="xs" fw={700} c="dimmed" tt="uppercase">
-                  Intake checklist
+                  {t("registrationPage.checklistTitle")}
                 </Text>
                 <Text size="sm" fw={700}>
                   {registrationModeLabel}
@@ -871,11 +888,10 @@ function PatientRegisterPageInner() {
                   <IconClipboardCheck size={16} />
                   <Stack gap={0}>
                     <Text size="sm" fw={600}>
-                      Minimum-fields save
+                      {t("registrationPage.checklist.minimumSave.title")}
                     </Text>
                     <Text size="xs" c="dimmed">
-                      Identity, age/DOB, phone, department, and allergy state are checked before
-                      save.
+                      {t("registrationPage.checklist.minimumSave.description")}
                     </Text>
                   </Stack>
                 </Group>
@@ -883,11 +899,10 @@ function PatientRegisterPageInner() {
                   <IconShieldCheck size={16} />
                   <Stack gap={0}>
                     <Text size="sm" fw={600}>
-                      Duplicate guard
+                      {t("registrationPage.checklist.duplicateGuard.title")}
                     </Text>
                     <Text size="xs" c="dimmed">
-                      MPI matching runs before the record is created and routes matches to full
-                      profile review.
+                      {t("registrationPage.checklist.duplicateGuard.description")}
                     </Text>
                   </Stack>
                 </Group>
@@ -895,11 +910,10 @@ function PatientRegisterPageInner() {
                   <IconStethoscope size={16} />
                   <Stack gap={0}>
                     <Text size="sm" fw={600}>
-                      OPD handoff
+                      {t("registrationPage.checklist.opdHandoff.title")}
                     </Text>
                     <Text size="xs" c="dimmed">
-                      Registration can create and open the first OPD queue entry when department is
-                      selected.
+                      {t("registrationPage.checklist.opdHandoff.description")}
                     </Text>
                   </Stack>
                 </Group>
@@ -908,8 +922,7 @@ function PatientRegisterPageInner() {
                 <>
                   <Divider />
                   <Alert color="green" variant="light" icon={<IconUsers size={16} />}>
-                    Camp registration stays linked to the camp workspace and returns there when
-                    configured.
+                    {t("registrationPage.campLinkedAlert")}
                   </Alert>
                 </>
               )}
@@ -932,20 +945,19 @@ function PatientRegisterPageInner() {
           dupModalHandlers.close();
           pendingRegistrationRef.current = null;
         }}
-        title="Potential Duplicates Found"
+        title={t("title.potentialDuplicatesFound")}
         size="lg"
       >
         <Alert color="orange" icon={<IconAlertTriangle size={16} />} mb="md">
-          The following existing patients match the registration data. Please verify before creating
-          a new record.
+          {t("registrationPage.duplicateAlert")}
         </Alert>
         <Table striped highlightOnHover>
           <Table.Thead>
             <Table.Tr>
-              <Table.Th>UHID</Table.Th>
-              <Table.Th>Name</Table.Th>
-              <Table.Th>Phone</Table.Th>
-              <Table.Th>Score</Table.Th>
+              <Table.Th>{t("uhid")}</Table.Th>
+              <Table.Th>{t("name")}</Table.Th>
+              <Table.Th>{t("phone")}</Table.Th>
+              <Table.Th>{t("score")}</Table.Th>
               <Table.Th w={60} />
             </Table.Tr>
           </Table.Thead>
@@ -994,10 +1006,10 @@ function PatientRegisterPageInner() {
               pendingRegistrationRef.current = null;
             }}
           >
-            Cancel
+            {t("cancel")}
           </Button>
           <Button color="orange" onClick={handleCreateAnyway}>
-            Create Anyway
+            {t("createAnyway")}
           </Button>
         </Group>
       </Modal>
