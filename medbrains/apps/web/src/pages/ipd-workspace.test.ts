@@ -7,6 +7,7 @@ import type {
   PharmacyOrder,
   PrescriptionWithItems,
 } from "@medbrains/types";
+import { workflowSignalShapeDefinition } from "@medbrains/types";
 import { describe, expect, it } from "vitest";
 import {
   activeIpdInvoiceIdForJourney,
@@ -81,6 +82,10 @@ function admission(overrides: Partial<Admission> = {}): Admission {
     ward_id: "ward-1",
     ...overrides,
   };
+}
+
+function signalSemantic(shape: ReturnType<typeof ipdActionRailSignal>["shape"]) {
+  return workflowSignalShapeDefinition(shape).semantic;
 }
 
 function dischargeSummary(overrides: Partial<IpdDischargeSummary> = {}): IpdDischargeSummary {
@@ -326,26 +331,35 @@ describe("IPD workspace action rail focus", () => {
   });
 
   it("maps action rail blockers to scannable readiness shapes", () => {
-    expect(ipdActionRailSignal(null)).toEqual({
+    const ready = ipdActionRailSignal(null);
+    const activation = ipdActionRailSignal("activation");
+    const permission = ipdActionRailSignal("permission");
+    const state = ipdActionRailSignal("state");
+
+    expect(ready).toEqual({
       phase: "ready",
       shape: "pill",
       tone: "ready",
     });
-    expect(ipdActionRailSignal("activation")).toEqual({
+    expect(activation).toEqual({
       phase: "waiting_for_event",
       shape: "token",
       tone: "blocked",
     });
-    expect(ipdActionRailSignal("permission")).toEqual({
+    expect(permission).toEqual({
       phase: "blocked_by_permission",
       shape: "diamond",
       tone: "risk",
     });
-    expect(ipdActionRailSignal("state")).toEqual({
+    expect(state).toEqual({
       phase: "blocked_by_state",
       shape: "diamond",
       tone: "blocked",
     });
+    expect(signalSemantic(ready.shape)).toBe("ready_or_complete");
+    expect(signalSemantic(activation.shape)).toBe("handoff_or_queue");
+    expect(signalSemantic(permission.shape)).toBe("stop_or_safety_attention");
+    expect(signalSemantic(state.shape)).toBe("stop_or_safety_attention");
   });
 
   it("models finance, MRD, wristband, and discharge readiness with reasons", () => {

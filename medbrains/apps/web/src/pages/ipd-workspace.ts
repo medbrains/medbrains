@@ -8,6 +8,8 @@ import type {
   MrdCaseSheetPacket,
   PharmacyOrder,
   PrescriptionWithItems,
+  WorkflowSignalShape,
+  WorkflowSignalTone,
 } from "@medbrains/types";
 import { P } from "@medbrains/types";
 
@@ -51,8 +53,8 @@ export type IpdActionRailSignalPhase =
   | "blocked_by_state"
   | "ready"
   | "waiting_for_event";
-export type IpdActionRailSignalShape = "diamond" | "pill" | "token";
-export type IpdActionRailSignalTone = "blocked" | "ready" | "risk";
+export type IpdActionRailSignalShape = Extract<WorkflowSignalShape, "diamond" | "pill" | "token">;
+export type IpdActionRailSignalTone = Extract<WorkflowSignalTone, "blocked" | "ready" | "risk">;
 
 export interface IpdActionRailSignal {
   phase: IpdActionRailSignalPhase;
