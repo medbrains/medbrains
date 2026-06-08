@@ -67,6 +67,7 @@ import type {
   UpdateCampFollowupRequest,
 } from "@medbrains/types";
 import {
+  activeCampRegistrationIdForJourney,
   CAMP_REGISTRATION_ID_PROOF_FIELD_ACCESS_KEY,
   CAMP_REGISTRATION_NAME_FIELD_ACCESS_KEY,
   CAMP_REGISTRATION_PHONE_FIELD_ACCESS_KEY,
@@ -131,7 +132,6 @@ import { campService } from "@/services/camp.service";
 import { lookupsService } from "@/services/lookups.service";
 import classes from "./camp.module.scss";
 import {
-  activeCampRegistrationIdForJourney,
   CAMP_LANDING_TAB_VALUES,
   CAMP_WORK_TAB_VALUES,
   type CampWorkTabValue,

@@ -1,6 +1,6 @@
 // @vitest-environment node
 
-import type { CampRegistration } from "@medbrains/types";
+import { activeCampRegistrationIdForJourney, type CampRegistration } from "@medbrains/types";
 import { describe, expect, it } from "vitest";
 import type { ClinicalEventTrace } from "@/components/clinical-events";
 import {
@@ -112,5 +112,21 @@ describe("patient journey event matching", () => {
       "camp.registration.created",
       "camp.screening.completed",
     ]);
+  });
+
+  it("selects the active camp registration for cross-surface handoffs", () => {
+    expect(
+      activeCampRegistrationIdForJourney([
+        { id: "no-show", status: "no_show" },
+        { id: "registered", status: "registered" },
+      ]),
+    ).toBe("registered");
+    expect(
+      activeCampRegistrationIdForJourney(
+        [{ id: "screened", status: "screened" }],
+        "focused-registration",
+      ),
+    ).toBe("focused-registration");
+    expect(activeCampRegistrationIdForJourney([{ id: "no-show", status: "no_show" }])).toBeNull();
   });
 });

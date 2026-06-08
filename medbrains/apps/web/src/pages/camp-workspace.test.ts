@@ -1,13 +1,12 @@
 // @vitest-environment node
 
-import { inferClinicalJourneyEventNames, patientJourneyActionRoute } from "@medbrains/types";
-import { describe, expect, it } from "vitest";
 import {
   activeCampRegistrationIdForJourney,
-  campJourneyContext,
-  campWorkDefaultTab,
-  campWorkTabFromString,
-} from "./camp-workspace";
+  inferClinicalJourneyEventNames,
+  patientJourneyActionRoute,
+} from "@medbrains/types";
+import { describe, expect, it } from "vitest";
+import { campJourneyContext, campWorkDefaultTab, campWorkTabFromString } from "./camp-workspace";
 
 describe("camp workspace tab routing", () => {
   it("normalizes valid work tab values and rejects unknown hashes", () => {

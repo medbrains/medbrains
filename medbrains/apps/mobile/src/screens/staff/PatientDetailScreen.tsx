@@ -12,6 +12,7 @@ import type {
 } from "@medbrains/types";
 import {
   activeBillingInvoiceIdForJourney,
+  activeCampRegistrationIdForJourney,
   activePatientPharmacyOrderIdForJourney,
   activePatientPharmacyRxQueueIdForJourney,
   billingInvoiceHasReceivedPayment,
@@ -311,9 +312,10 @@ export function PatientDetailScreen({ route, navigation }: PatientDetailScreenPr
     (visit) => visit.encounter_type === "opd" && ACTIVE_VISIT_STATUSES.has(visit.status),
   );
   const activeErVisit = erVisitList.find((visit) => ACTIVE_ER_VISIT_STATUSES.has(visit.status));
-  const activeCampRegistration = campRegistrationList.find(
-    (registration) => registration.status !== "no_show",
-  );
+  const activeCampRegistrationId = activeCampRegistrationIdForJourney(campRegistrationList);
+  const activeCampRegistration =
+    campRegistrationList.find((registration) => registration.id === activeCampRegistrationId) ??
+    null;
   const activeCareEncounterId = activeAdmission
     ? (activeAdmission.encounter_id ?? null)
     : (activeOpdVisit?.id ?? null);
@@ -355,7 +357,7 @@ export function PatientDetailScreen({ route, navigation }: PatientDetailScreenPr
     activeAdmissionStatus: activeAdmission?.status ?? null,
     activeBedId: activeAdmission?.bed_id,
     activeCampId: activeCampRegistration?.camp_id ?? null,
-    activeCampRegistrationId: activeCampRegistration?.id ?? null,
+    activeCampRegistrationId,
     activeEmergencyVisitId: activeErVisit?.id ?? null,
     activeInvoiceId,
     activePharmacyOrderId,

@@ -420,7 +420,20 @@ interface CampJourneyRegistration {
   status: string;
 }
 
+interface CampRegistrationJourneyRow extends CampJourneyRegistration {
+  id: string;
+}
+
 const CAMP_SCREENING_COMPLETED_STATUSES = new Set(["screened", "referred", "converted"]);
+
+export function activeCampRegistrationIdForJourney(
+  registrations: readonly CampRegistrationJourneyRow[],
+  focusedRegistrationId?: string | null,
+): string | null {
+  if (focusedRegistrationId) return focusedRegistrationId;
+
+  return registrations.find((registration) => registration.status !== "no_show")?.id ?? null;
+}
 
 export function deriveCampJourneyCompletedEvents(
   registrations: readonly CampJourneyRegistration[],

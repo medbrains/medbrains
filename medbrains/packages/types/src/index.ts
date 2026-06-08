@@ -93,6 +93,7 @@ export type {
   ResolvedClinicalJourneyAction,
 } from "./event-actions.js";
 export {
+  activeCampRegistrationIdForJourney,
   CORE_PATIENT_JOURNEY_ACTIONS,
   clinicalJourneyActionSignal,
   clinicalJourneyActionSignalLabel,
