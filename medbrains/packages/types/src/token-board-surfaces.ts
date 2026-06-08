@@ -93,6 +93,31 @@ export interface TokenBoardStatusSignal {
   tone: TokenBoardStatusTone;
 }
 
+export const TOKEN_BOARD_STATUS_VALUES = [
+  "active",
+  "called",
+  "cancelled",
+  "collected",
+  "collection_in_progress",
+  "completed",
+  "dispensed",
+  "in_progress",
+  "issued",
+  "no_show",
+  "on_hold",
+  "paid",
+  "partially_paid",
+  "preparing",
+  "ready",
+  "scheduled",
+  "settled",
+  "waiting",
+] as const;
+
+export type TokenBoardStatusValue = (typeof TOKEN_BOARD_STATUS_VALUES)[number];
+
+const TOKEN_BOARD_STATUS_VALUE_SET: ReadonlySet<string> = new Set(TOKEN_BOARD_STATUS_VALUES);
+
 export const TOKEN_BOARD_PUBLIC_PRIVACY_NOTICE =
   "Token-only display mode. Patient names, identifiers, diagnoses, test names, imaging details, drug names and bill amounts stay hidden.";
 
@@ -486,7 +511,7 @@ const TOKEN_BOARD_DEFAULT_STATUS_SIGNAL = {
   tone: "neutral",
 } as const satisfies TokenBoardStatusSignal;
 
-const TOKEN_BOARD_STATUS_SIGNALS: Readonly<Record<string, TokenBoardStatusSignal>> = {
+const TOKEN_BOARD_STATUS_SIGNALS = {
   active: {
     emphasis: "high",
     phase: "serving",
@@ -595,9 +620,9 @@ const TOKEN_BOARD_STATUS_SIGNALS: Readonly<Record<string, TokenBoardStatusSignal
     shape: "ring",
     tone: "neutral",
   },
-};
+} as const satisfies Readonly<Record<TokenBoardStatusValue, TokenBoardStatusSignal>>;
 
-const TOKEN_BOARD_STATUS_LABEL_KEYS: Readonly<Record<string, string>> = {
+const TOKEN_BOARD_STATUS_LABEL_KEYS = {
   active: "tokenBoards.status.active",
   called: "tokenBoards.status.called",
   cancelled: "tokenBoards.status.cancelled",
@@ -616,9 +641,9 @@ const TOKEN_BOARD_STATUS_LABEL_KEYS: Readonly<Record<string, string>> = {
   scheduled: "tokenBoards.status.scheduled",
   settled: "tokenBoards.status.settled",
   waiting: "tokenBoards.status.waiting",
-};
+} as const satisfies Readonly<Record<TokenBoardStatusValue, string>>;
 
-const TOKEN_BOARD_STATUS_LABELS: Readonly<Record<string, string>> = {
+const TOKEN_BOARD_STATUS_LABELS = {
   active: "Active",
   called: "Called",
   cancelled: "Cancelled",
@@ -637,16 +662,24 @@ const TOKEN_BOARD_STATUS_LABELS: Readonly<Record<string, string>> = {
   scheduled: "Scheduled",
   settled: "Settled",
   waiting: "Waiting",
-};
+} as const satisfies Readonly<Record<TokenBoardStatusValue, string>>;
+
+export function isTokenBoardStatusValue(status: string): status is TokenBoardStatusValue {
+  return TOKEN_BOARD_STATUS_VALUE_SET.has(status);
+}
 
 export function tokenBoardStatusSignal(status: string): TokenBoardStatusSignal {
-  return TOKEN_BOARD_STATUS_SIGNALS[status] ?? TOKEN_BOARD_DEFAULT_STATUS_SIGNAL;
+  return isTokenBoardStatusValue(status)
+    ? TOKEN_BOARD_STATUS_SIGNALS[status]
+    : TOKEN_BOARD_DEFAULT_STATUS_SIGNAL;
 }
 
 export function tokenBoardStatusLabelKey(status: string): string | null {
-  return TOKEN_BOARD_STATUS_LABEL_KEYS[status] ?? null;
+  return isTokenBoardStatusValue(status) ? TOKEN_BOARD_STATUS_LABEL_KEYS[status] : null;
 }
 
 export function tokenBoardStatusLabel(status: string): string {
-  return TOKEN_BOARD_STATUS_LABELS[status] ?? status.replace(/_/g, " ");
+  return isTokenBoardStatusValue(status)
+    ? TOKEN_BOARD_STATUS_LABELS[status]
+    : status.replace(/_/g, " ");
 }

@@ -1,5 +1,7 @@
 // @vitest-environment node
 
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import type {
   BillingQueueDisplay,
   BillingQueueToken,
@@ -13,6 +15,7 @@ import {
   isTokenBoardSurfaceId,
   TOKEN_BOARD_FAST_REFRESH_MS,
   TOKEN_BOARD_STANDARD_REFRESH_MS,
+  TOKEN_BOARD_STATUS_VALUES,
   TOKEN_BOARD_SURFACE_LIST,
   TOKEN_BOARD_SURFACES,
   tokenBoardFeedReadiness,
@@ -31,6 +34,7 @@ import {
   tokenBoardSurfaceFlowLabelKey,
 } from "@medbrains/types";
 import { describe, expect, it } from "vitest";
+import { mobilePatientJourneyText } from "../../../mobile/src/components/patientJourneyText";
 import {
   billingDisplayToken,
   type DisplayToken,
@@ -61,6 +65,16 @@ function expectPublicTokenOnly(value: DisplayToken) {
   for (const hidden of hiddenValues) {
     expect(rendered).not.toContain(hidden);
   }
+}
+
+function frontOfficeLocale(): Record<string, string> {
+  return JSON.parse(
+    readFileSync(join(process.cwd(), "public/locales/en/frontOffice.json"), "utf8"),
+  ) as Record<string, string>;
+}
+
+function mobileTokenBoardKey(sharedKey: string): string {
+  return `patientJourney.mobile.${sharedKey}`;
 }
 
 describe("front-office token-board display mapping", () => {
@@ -234,6 +248,22 @@ describe("front-office token-board display mapping", () => {
     expect(tokenBoardStatusLabel("partially_paid")).toBe("Partially paid");
     expect(tokenBoardStatusLabel("custom_status")).toBe("custom status");
     expect(tokenBoardStatusLabelKey("custom_status")).toBeNull();
+  });
+
+  it("backs every shared token-board status label with web and mobile i18n copy", () => {
+    const locale = frontOfficeLocale();
+
+    for (const status of TOKEN_BOARD_STATUS_VALUES) {
+      const key = tokenBoardStatusLabelKey(status);
+      if (!key) {
+        throw new Error(`Missing token-board status i18n key for ${status}`);
+      }
+
+      const fallback = tokenBoardStatusLabel(status);
+
+      expect(locale[key]).toBe(fallback);
+      expect(mobilePatientJourneyText(mobileTokenBoardKey(key))).toBe(fallback);
+    }
   });
 
   it("keeps token-board readiness labels and values shared across device surfaces", () => {
