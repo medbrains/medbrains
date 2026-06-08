@@ -26,6 +26,29 @@ describe("clinical journey event activation", () => {
     ).toEqual([]);
   });
 
+  it("declares blocker controls for governed masking, configuration, and regulatory actions", () => {
+    expect(
+      CORE_PATIENT_JOURNEY_ACTIONS.find((action) => action.id === "patient.share"),
+    ).toMatchObject({
+      blockingControls: ["regulatory"],
+    });
+    expect(
+      CORE_PATIENT_JOURNEY_ACTIONS.find((action) => action.id === "patient.print_card"),
+    ).toMatchObject({
+      blockingControls: ["masking"],
+    });
+    expect(
+      CORE_PATIENT_JOURNEY_ACTIONS.find((action) => action.id === "billing.collect_payment"),
+    ).toMatchObject({
+      blockingControls: ["configuration", "context"],
+    });
+    expect(
+      CORE_PATIENT_JOURNEY_ACTIONS.find((action) => action.id === "pharmacy.dispense_order"),
+    ).toMatchObject({
+      blockingControls: ["context", "regulatory"],
+    });
+  });
+
   it("infers completed events from active patient, OPD, IPD, and ER context", () => {
     expect(
       inferClinicalJourneyEventNames({

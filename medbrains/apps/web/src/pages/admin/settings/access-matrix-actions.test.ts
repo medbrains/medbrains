@@ -64,6 +64,7 @@ describe("journey action access-matrix coverage", () => {
 
     expect(row?.gaps).toEqual([]);
     expect(row?.matchedSurfaceIds).toEqual(["opd.new_visit.screen"]);
+    expect(row?.routeTargets).toEqual(["/opd/new?patient_id=:patientId"]);
   });
 
   it("reports permission and activation gaps on loosely mapped surfaces", () => {
@@ -116,6 +117,75 @@ describe("journey action access-matrix coverage", () => {
       missingSurfaces: 1,
       permissionGaps: 1,
       activationGaps: 1,
+      guardedActions: 0,
+      routeLinked: 1,
+      configurationControls: 0,
+      contextControls: 0,
+      maskingControls: 0,
+      regulatoryControls: 0,
+    });
+  });
+
+  it("exposes blocker-control categories for settings governance", () => {
+    const rows = buildJourneyActionCoverage(
+      [
+        action({
+          id: "patient.share",
+          module: "patients",
+          blockingControls: ["regulatory"],
+          requiredPermissions: ["patients.view"],
+        }),
+        action({
+          id: "patient.print_card",
+          module: "patients",
+          blockingControls: ["masking"],
+          requiredPermissions: ["patients.view"],
+        }),
+        action({
+          id: "billing.collect_payment",
+          module: "billing",
+          blockingControls: ["configuration", "context"],
+          requiredPermissions: ["billing.payments.create"],
+        }),
+      ],
+      [
+        surface({
+          id: "patients.context.actions",
+          kind: "action",
+          module: "patients",
+          requiredPermissions: ["patients.view"],
+          activatesAfter: ["patient.created"],
+        }),
+        surface({
+          id: "billing.payment_inputs",
+          kind: "input",
+          module: "billing",
+          requiredPermissions: ["billing.payments.create"],
+          activatesAfter: ["patient.created"],
+        }),
+      ],
+    );
+
+    expect(rows.find((row) => row.actionId === "patient.share")?.blockingControls).toEqual([
+      "regulatory",
+    ]);
+    expect(rows.find((row) => row.actionId === "patient.print_card")?.blockingControls).toEqual([
+      "masking",
+    ]);
+    expect(
+      rows.find((row) => row.actionId === "billing.collect_payment")?.blockingControls,
+    ).toEqual(["configuration", "context"]);
+    expect(rows.find((row) => row.actionId === "billing.collect_payment")?.routeTargets).toEqual([
+      "/billing/invoices/:invoiceId?action=payment",
+      "/billing?tab=invoices&patient_id=:patientId&action=payment",
+    ]);
+    expect(summarizeJourneyActionCoverage(rows)).toMatchObject({
+      guardedActions: 3,
+      routeLinked: 1,
+      configurationControls: 1,
+      contextControls: 1,
+      maskingControls: 1,
+      regulatoryControls: 1,
     });
   });
 
@@ -169,6 +239,10 @@ describe("journey action access-matrix coverage", () => {
     ]);
     expect(row?.requiredPermissions).toEqual(["order_basket.sign", "lab.orders.create"]);
     expect(row?.matchedSurfaceIds).toEqual(["mobile.lab_order.action", "opd.order_basket.action"]);
+    expect(row?.routeTargets).toEqual([
+      "/opd/encounters/:encounterId?order=lab#investigations",
+      "/ipd/admissions/:admissionId?order=lab#investigations",
+    ]);
   });
 
   it("reports missing surface-specific permissions", () => {

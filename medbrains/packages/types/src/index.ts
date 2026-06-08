@@ -39,6 +39,7 @@ export type {
   ClinicalJourneyActionIntent,
   ClinicalJourneyActionReadinessSummary,
   ClinicalJourneyBlockedReason,
+  ClinicalJourneyBlockingControl,
   ClinicalJourneyContext,
   ClinicalJourneySurface,
   ClinicalOrderContext,

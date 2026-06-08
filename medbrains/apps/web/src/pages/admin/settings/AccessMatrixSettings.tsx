@@ -22,6 +22,7 @@ import type {
   AccessMatrixPlatform,
   AccessMatrixSurface,
   AccessMatrixSurfaceKind,
+  ClinicalJourneyBlockingControl,
   CustomRole,
   FieldAccessLevel,
   FieldMasterFull,
@@ -339,6 +340,32 @@ function permissionLabel(code: string) {
 function journeyPermissionScopeLabel(scope: string, mode: "all" | "any") {
   const prefix = scope === "base" ? "base" : scope;
   return mode === "any" ? `${prefix} any` : prefix;
+}
+
+function journeyBlockingControlLabel(control: ClinicalJourneyBlockingControl) {
+  switch (control) {
+    case "configuration":
+      return "configuration";
+    case "context":
+      return "context";
+    case "masking":
+      return "masking";
+    case "regulatory":
+      return "regulatory";
+  }
+}
+
+function journeyBlockingControlColor(control: ClinicalJourneyBlockingControl) {
+  switch (control) {
+    case "configuration":
+      return "grape";
+    case "context":
+      return "orange";
+    case "masking":
+      return "violet";
+    case "regulatory":
+      return "yellow";
+  }
 }
 
 function printCopyLabel(copy: string) {
@@ -1845,7 +1872,8 @@ function SurfaceCoverageMatrix() {
             {journeyActionCoverageSummary.covered}/{journeyActionCoverageSummary.total}
           </Text>
           <Text size="xs" c="dimmed">
-            {journeyActionCoverageSummary.gaps} handoff action gaps
+            {journeyActionCoverageSummary.routeLinked} routed, {journeyActionCoverageSummary.gaps}{" "}
+            gaps
           </Text>
         </Card>
         <Card withBorder padding="sm">
@@ -2733,14 +2761,36 @@ function SurfaceCoverageMatrix() {
               {journeyActionCoverageSummary.gaps} action gaps
             </Badge>
           </Group>
+          <Group gap={6}>
+            <Badge color="slate" variant="light">
+              {journeyActionCoverageSummary.guardedActions} guarded actions
+            </Badge>
+            <Badge color="blue" variant="light">
+              {journeyActionCoverageSummary.routeLinked} route targets
+            </Badge>
+            <Badge color="orange" variant="light">
+              {journeyActionCoverageSummary.contextControls} context
+            </Badge>
+            <Badge color="grape" variant="light">
+              {journeyActionCoverageSummary.configurationControls} configuration
+            </Badge>
+            <Badge color="violet" variant="light">
+              {journeyActionCoverageSummary.maskingControls} masking
+            </Badge>
+            <Badge color="yellow" variant="light">
+              {journeyActionCoverageSummary.regulatoryControls} regulatory
+            </Badge>
+          </Group>
 
           <ScrollArea.Autosize mah={360}>
             <Table stickyHeader highlightOnHover verticalSpacing="xs">
               <Table.Thead>
                 <Table.Tr>
                   <Table.Th>Action</Table.Th>
+                  <Table.Th>Route targets</Table.Th>
                   <Table.Th>Permissions</Table.Th>
                   <Table.Th>Events</Table.Th>
+                  <Table.Th>Controls</Table.Th>
                   <Table.Th>Mapped surfaces</Table.Th>
                   <Table.Th>Gaps</Table.Th>
                 </Table.Tr>
@@ -2763,6 +2813,21 @@ function SurfaceCoverageMatrix() {
                       <Text size="xs" ff="var(--font-mono, monospace)" c="dimmed">
                         {row.actionId}
                       </Text>
+                    </Table.Td>
+                    <Table.Td>
+                      {row.routeTargets.length > 0 ? (
+                        <Stack gap={4}>
+                          {row.routeTargets.map((route) => (
+                            <Badge key={route} color="blue" variant="light">
+                              {route}
+                            </Badge>
+                          ))}
+                        </Stack>
+                      ) : (
+                        <Badge color="gray" variant="light">
+                          component handler
+                        </Badge>
+                      )}
                     </Table.Td>
                     <Table.Td>
                       <Stack gap={4}>
@@ -2803,6 +2868,25 @@ function SurfaceCoverageMatrix() {
                           </Badge>
                         ))}
                       </Group>
+                    </Table.Td>
+                    <Table.Td>
+                      {row.blockingControls.length > 0 ? (
+                        <Group gap={4}>
+                          {row.blockingControls.map((control) => (
+                            <Badge
+                              key={control}
+                              color={journeyBlockingControlColor(control)}
+                              variant="light"
+                            >
+                              {journeyBlockingControlLabel(control)}
+                            </Badge>
+                          ))}
+                        </Group>
+                      ) : (
+                        <Badge color="gray" variant="light">
+                          event/permission only
+                        </Badge>
+                      )}
                     </Table.Td>
                     <Table.Td>
                       {row.matchedSurfaceIds.length > 0 ? (

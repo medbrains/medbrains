@@ -83,6 +83,7 @@ export interface ClinicalJourneyActionDefinition {
   surfaces: readonly ClinicalJourneySurface[];
   activatesAfter: readonly ClinicalEventName[];
   emitsEvent?: ClinicalEventName;
+  blockingControls?: readonly ClinicalJourneyBlockingControl[];
   standardRefs: readonly string[];
   disabledReason: (context: ClinicalJourneyContext) => ClinicalJourneyActionDisabledReason;
 }
@@ -95,9 +96,14 @@ export type ClinicalJourneyBlockedReason =
   | "permission"
   | "regulatory";
 
+export type ClinicalJourneyBlockingControl = Exclude<
+  ClinicalJourneyBlockedReason,
+  "event" | "permission"
+>;
+
 export interface ClinicalJourneyActionBlocker {
   message: string;
-  reason: Exclude<ClinicalJourneyBlockedReason, "event" | "permission">;
+  reason: ClinicalJourneyBlockingControl;
 }
 
 export type ClinicalJourneyActionDisabledReason = ClinicalJourneyActionBlocker | string | null;
@@ -138,7 +144,7 @@ export interface ClinicalJourneyActionReadinessSummary {
 
 interface NormalizedActionBlocker {
   message: string | null;
-  reason: Exclude<ClinicalJourneyBlockedReason, "event" | "permission"> | null;
+  reason: ClinicalJourneyBlockingControl | null;
 }
 
 function activeAdmissionIsOpen(context: ClinicalJourneyContext): boolean {
@@ -387,6 +393,7 @@ export const CORE_PATIENT_JOURNEY_ACTIONS: readonly ClinicalJourneyActionDefinit
     surfaces: ["web", "mobile"],
     activatesAfter: ["patient.created"],
     emitsEvent: "patient.updated",
+    blockingControls: ["context"],
     standardRefs: ["DPDP Act 2023 sections 8 and 12", "NABH IMS"],
     disabledReason: requireLivingPatient,
   },
@@ -401,6 +408,7 @@ export const CORE_PATIENT_JOURNEY_ACTIONS: readonly ClinicalJourneyActionDefinit
     surfaces: ["web", "mobile", "kiosk"],
     activatesAfter: ["patient.created"],
     emitsEvent: "opd.encounter.created",
+    blockingControls: ["context"],
     standardRefs: ["NABH AAC"],
     disabledReason: requireLivingPatient,
   },
@@ -418,6 +426,7 @@ export const CORE_PATIENT_JOURNEY_ACTIONS: readonly ClinicalJourneyActionDefinit
     surfaces: ["web", "mobile"],
     activatesAfter: ["opd.encounter.created", "bed.assigned"],
     emitsEvent: "order.created",
+    blockingControls: ["context"],
     standardRefs: ["NABH MOM", "IPSG medication safety"],
     disabledReason: requireOrderContext,
   },
@@ -435,6 +444,7 @@ export const CORE_PATIENT_JOURNEY_ACTIONS: readonly ClinicalJourneyActionDefinit
     surfaces: ["web", "mobile"],
     activatesAfter: ["opd.encounter.created", "bed.assigned"],
     emitsEvent: "order.created",
+    blockingControls: ["context"],
     standardRefs: ["NABH AAC", "NABL traceability"],
     disabledReason: requireOrderContext,
   },
@@ -452,6 +462,7 @@ export const CORE_PATIENT_JOURNEY_ACTIONS: readonly ClinicalJourneyActionDefinit
     surfaces: ["web", "mobile"],
     activatesAfter: ["opd.encounter.created", "bed.assigned"],
     emitsEvent: "order.created",
+    blockingControls: ["context"],
     standardRefs: ["NABH AAC", "DICOM integration"],
     disabledReason: requireOrderContext,
   },
@@ -465,6 +476,7 @@ export const CORE_PATIENT_JOURNEY_ACTIONS: readonly ClinicalJourneyActionDefinit
     requiredPermissions: [P.IPD.ADMISSIONS_VIEW],
     surfaces: ["web", "mobile"],
     activatesAfter: ["ipd.admission.created"],
+    blockingControls: ["context"],
     standardRefs: ["NABH AAC", "IPSG patient identification"],
     disabledReason: (context) =>
       activeAdmissionIsOpen(context) ? null : "No active IPD admission for this patient",
@@ -480,6 +492,7 @@ export const CORE_PATIENT_JOURNEY_ACTIONS: readonly ClinicalJourneyActionDefinit
     surfaces: ["web", "mobile"],
     activatesAfter: ["patient.created", "opd.encounter.created", "emergency.visit.created"],
     emitsEvent: "ipd.admission.created",
+    blockingControls: ["context"],
     standardRefs: ["NABH AAC", "IPSG patient identification"],
     disabledReason: (context) => {
       const livingReason = requireLivingPatient(context);
@@ -498,6 +511,7 @@ export const CORE_PATIENT_JOURNEY_ACTIONS: readonly ClinicalJourneyActionDefinit
     surfaces: ["web", "mobile", "kiosk"],
     activatesAfter: ["patient.created"],
     emitsEvent: "emergency.visit.created",
+    blockingControls: ["context"],
     standardRefs: ["NABH AAC", "MLC SOP"],
     disabledReason: requireLivingPatient,
   },
@@ -527,6 +541,7 @@ export const CORE_PATIENT_JOURNEY_ACTIONS: readonly ClinicalJourneyActionDefinit
     permissionMode: "any",
     surfaces: ["web", "mobile"],
     activatesAfter: ["patient.created", "camp.registration.created", "camp.screening.completed"],
+    blockingControls: ["context"],
     standardRefs: ["NABH AAC", "Continuity of care for outreach services"],
     disabledReason: requireLivingPatient,
   },
@@ -554,6 +569,7 @@ export const CORE_PATIENT_JOURNEY_ACTIONS: readonly ClinicalJourneyActionDefinit
     surfaces: ["web", "mobile"],
     activatesAfter: ["ipd.discharge.finalized"],
     emitsEvent: "billing.invoice.created",
+    blockingControls: ["context"],
     standardRefs: ["NABH COP discharge process", "GST healthcare billing controls"],
     disabledReason: requireActiveAdmissionForDischargeBill,
   },
@@ -568,6 +584,7 @@ export const CORE_PATIENT_JOURNEY_ACTIONS: readonly ClinicalJourneyActionDefinit
     surfaces: ["web", "mobile", "kiosk"],
     activatesAfter: ["billing.invoice.created", "billing.invoice.finalized"],
     emitsEvent: "billing.payment.received",
+    blockingControls: ["configuration", "context"],
     standardRefs: [
       "NABH PRE financial counselling",
       "PCI DSS scoping if card payments are enabled",
@@ -585,6 +602,7 @@ export const CORE_PATIENT_JOURNEY_ACTIONS: readonly ClinicalJourneyActionDefinit
     surfaces: ["web", "mobile"],
     activatesAfter: ["order.created", "billing.payment.received"],
     emitsEvent: "pharmacy.order.dispensed",
+    blockingControls: ["context", "regulatory"],
     standardRefs: ["NABH MOM", "Drugs and Cosmetics Act", "NDPS Act where applicable"],
     disabledReason: requireActivePharmacyOrderForDispense,
   },
@@ -625,6 +643,7 @@ export const CORE_PATIENT_JOURNEY_ACTIONS: readonly ClinicalJourneyActionDefinit
     surfaces: ["web", "mobile"],
     activatesAfter: ["patient.created"],
     emitsEvent: "patient.access_shared",
+    blockingControls: ["regulatory"],
     standardRefs: ["DPDP Act 2023 sections 5, 6, 8, and 11"],
     disabledReason: requireShareConsentClearance,
   },
@@ -639,6 +658,7 @@ export const CORE_PATIENT_JOURNEY_ACTIONS: readonly ClinicalJourneyActionDefinit
     surfaces: ["web", "kiosk"],
     activatesAfter: ["patient.created"],
     emitsEvent: "patient.card_printed",
+    blockingControls: ["masking"],
     standardRefs: ["NABH AAC", "IPSG patient identification"],
     disabledReason: requirePatientCardMasking,
   },

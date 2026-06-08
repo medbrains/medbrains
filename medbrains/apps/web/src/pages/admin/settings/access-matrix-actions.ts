@@ -2,8 +2,12 @@ import type {
   AccessMatrixSurface,
   AccessMatrixSurfaceKind,
   ClinicalJourneyActionDefinition,
+  ClinicalJourneyActionId,
+  ClinicalJourneyBlockingControl,
+  ClinicalJourneyContext,
   ClinicalJourneySurface,
 } from "@medbrains/types";
+import { patientJourneyActionRoute } from "@medbrains/types";
 
 export type JourneyActionCoverageGap =
   | "missing-surface"
@@ -18,6 +22,8 @@ export interface JourneyActionCoverageRow {
   permissionCoverage: readonly JourneyActionPermissionCoverage[];
   requiredPermissions: readonly string[];
   activationEvents: readonly string[];
+  blockingControls: readonly ClinicalJourneyBlockingControl[];
+  routeTargets: readonly string[];
   matchedSurfaceIds: readonly string[];
   matchedSurfaceKinds: readonly AccessMatrixSurfaceKind[];
   missingPermissions: readonly string[];
@@ -42,6 +48,12 @@ export interface JourneyActionCoverageSummary {
   missingSurfaces: number;
   permissionGaps: number;
   activationGaps: number;
+  guardedActions: number;
+  routeLinked: number;
+  configurationControls: number;
+  contextControls: number;
+  maskingControls: number;
+  regulatoryControls: number;
 }
 
 export const JOURNEY_ACTION_COVERAGE_GAP_LABELS: Record<JourneyActionCoverageGap, string> = {
@@ -53,6 +65,77 @@ export const JOURNEY_ACTION_COVERAGE_GAP_LABELS: Record<JourneyActionCoverageGap
 function intersects(left: readonly string[], right: readonly string[]) {
   const rightSet = new Set(right);
   return left.some((item) => rightSet.has(item));
+}
+
+const BASE_ROUTE_CONTEXT: ClinicalJourneyContext = {
+  patientId: ":patientId",
+};
+
+const JOURNEY_ACTION_ROUTE_CONTEXTS: Partial<
+  Record<ClinicalJourneyActionId, readonly ClinicalJourneyContext[]>
+> = {
+  "orders.medication": [
+    { ...BASE_ROUTE_CONTEXT, activeEncounterId: ":encounterId", activeOrderContext: "opd" },
+    { ...BASE_ROUTE_CONTEXT, activeAdmissionId: ":admissionId", activeOrderContext: "ipd" },
+  ],
+  "orders.lab": [
+    { ...BASE_ROUTE_CONTEXT, activeEncounterId: ":encounterId", activeOrderContext: "opd" },
+    { ...BASE_ROUTE_CONTEXT, activeAdmissionId: ":admissionId", activeOrderContext: "ipd" },
+  ],
+  "orders.radiology": [
+    { ...BASE_ROUTE_CONTEXT, activeEncounterId: ":encounterId", activeOrderContext: "opd" },
+    { ...BASE_ROUTE_CONTEXT, activeAdmissionId: ":admissionId", activeOrderContext: "ipd" },
+  ],
+  "ipd.open_admission": [{ ...BASE_ROUTE_CONTEXT, activeAdmissionId: ":admissionId" }],
+  "emergency.open_visit": [
+    { ...BASE_ROUTE_CONTEXT, activeEmergencyVisitId: ":emergencyVisitId" },
+    BASE_ROUTE_CONTEXT,
+  ],
+  "emergency.open_mlc": [
+    { ...BASE_ROUTE_CONTEXT, activeEmergencyVisitId: ":emergencyVisitId" },
+    BASE_ROUTE_CONTEXT,
+  ],
+  "camp.open_context": [
+    {
+      ...BASE_ROUTE_CONTEXT,
+      activeCampId: ":campId",
+      activeCampRegistrationId: ":campRegistrationId",
+    },
+    { ...BASE_ROUTE_CONTEXT, activeCampId: ":campId" },
+    BASE_ROUTE_CONTEXT,
+  ],
+  "billing.open_ledger": [
+    { ...BASE_ROUTE_CONTEXT, activeInvoiceId: ":invoiceId" },
+    BASE_ROUTE_CONTEXT,
+  ],
+  "billing.collect_payment": [
+    { ...BASE_ROUTE_CONTEXT, activeInvoiceId: ":invoiceId" },
+    BASE_ROUTE_CONTEXT,
+  ],
+  "pharmacy.open_patient_queue": [
+    { ...BASE_ROUTE_CONTEXT, activePharmacyOrderId: ":pharmacyOrderId" },
+    BASE_ROUTE_CONTEXT,
+  ],
+  "pharmacy.dispense_order": [
+    { ...BASE_ROUTE_CONTEXT, activePharmacyOrderId: ":pharmacyOrderId" },
+    BASE_ROUTE_CONTEXT,
+  ],
+  "mrd.open_case_sheet": [
+    { ...BASE_ROUTE_CONTEXT, activeAdmissionId: ":admissionId" },
+    { ...BASE_ROUTE_CONTEXT, activeEncounterId: ":encounterId" },
+    BASE_ROUTE_CONTEXT,
+  ],
+};
+
+function actionRouteTargets(actionId: ClinicalJourneyActionId) {
+  const contexts = JOURNEY_ACTION_ROUTE_CONTEXTS[actionId] ?? [BASE_ROUTE_CONTEXT];
+  return [
+    ...new Set(
+      contexts
+        .map((context) => patientJourneyActionRoute(actionId, context))
+        .filter((route): route is string => route !== null),
+    ),
+  ];
 }
 
 function acceptedSurfaceKinds(
@@ -186,6 +269,8 @@ export function buildJourneyActionCoverage(
       permissionCoverage: permissionCoverage(action, permissions),
       requiredPermissions: actionRequiredPermissions(action),
       activationEvents: action.activatesAfter,
+      blockingControls: action.blockingControls ?? [],
+      routeTargets: actionRouteTargets(action.id),
       matchedSurfaceIds: matchedSurfaces.map((surface) => surface.id).sort(),
       matchedSurfaceKinds: [...new Set(matchedSurfaces.map((surface) => surface.kind))].sort(),
       missingPermissions: missingPermissions(action, permissions),
@@ -205,5 +290,12 @@ export function summarizeJourneyActionCoverage(
     missingSurfaces: rows.filter((row) => row.gaps.includes("missing-surface")).length,
     permissionGaps: rows.filter((row) => row.gaps.includes("missing-permission")).length,
     activationGaps: rows.filter((row) => row.gaps.includes("missing-activation")).length,
+    guardedActions: rows.filter((row) => row.blockingControls.length > 0).length,
+    routeLinked: rows.filter((row) => row.routeTargets.length > 0).length,
+    configurationControls: rows.filter((row) => row.blockingControls.includes("configuration"))
+      .length,
+    contextControls: rows.filter((row) => row.blockingControls.includes("context")).length,
+    maskingControls: rows.filter((row) => row.blockingControls.includes("masking")).length,
+    regulatoryControls: rows.filter((row) => row.blockingControls.includes("regulatory")).length,
   };
 }
