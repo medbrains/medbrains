@@ -15,7 +15,8 @@
       "@medbrains/utils": ["../../packages/utils/src"],
       "@medbrains/schemas": ["../../packages/schemas/src"],
       "@medbrains/api": ["../../packages/api/src"],
-      "@medbrains/stores": ["../../packages/stores/src"]
+      "@medbrains/stores": ["../../packages/stores/src"],
+      "@medbrains/ui-mobile": ["../../packages/ui-mobile/src"]
     }
   },
   "include": ["src"]

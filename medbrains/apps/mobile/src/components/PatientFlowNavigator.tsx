@@ -1,7 +1,6 @@
 import { usePermissionStore } from "@medbrains/stores";
 import type {
   ClinicalJourneyActionSignal,
-  ClinicalJourneyActionSignalTone,
   ClinicalJourneyContext,
   ClinicalJourneyMessageValues,
   PatientFlowModule,
@@ -17,13 +16,13 @@ import {
   patientFlowItemLabel,
   patientFlowReadinessSignal,
 } from "@medbrains/types";
+import { WorkflowSignalMarker, workflowSignalColors } from "@medbrains/ui-mobile";
 import { ScrollView, StyleSheet, View } from "react-native";
 import { Button, Chip, Text } from "react-native-paper";
 import {
   mobileCampCareContextParams,
   mobileIpdCareContextParams,
 } from "../navigation/careContextParams";
-import { MEDBRAINS_COLORS } from "../theme/paper-theme";
 import {
   MOBILE_PATIENT_JOURNEY_BLOCKERS,
   MOBILE_PATIENT_JOURNEY_TEXT,
@@ -52,7 +51,6 @@ interface MobileFlowBlocker {
 }
 
 type MobileFlowReadinessSignal = ClinicalJourneyActionSignal;
-type MobileFlowSignalTone = ClinicalJourneyActionSignalTone;
 
 const FLOW_VISUALS: Record<PatientFlowModule, FlowVisual> = {
   patient: {
@@ -131,64 +129,6 @@ function readinessText(
   return mobilePatientJourneyText(MOBILE_PATIENT_JOURNEY_TEXT.status.ready);
 }
 
-function flowSignalColors(tone: MobileFlowSignalTone) {
-  switch (tone) {
-    case "risk":
-      return {
-        background: MEDBRAINS_COLORS.statusDangerBg,
-        border: MEDBRAINS_COLORS.statusDanger,
-        text: MEDBRAINS_COLORS.statusDanger,
-      };
-    case "active":
-      return {
-        background: MEDBRAINS_COLORS.navActiveBg,
-        border: MEDBRAINS_COLORS.statusInfo,
-        text: MEDBRAINS_COLORS.statusInfo,
-      };
-    case "ready":
-      return {
-        background: MEDBRAINS_COLORS.statusSuccessBg,
-        border: MEDBRAINS_COLORS.statusSuccess,
-        text: MEDBRAINS_COLORS.statusSuccess,
-      };
-    case "blocked":
-      return {
-        background: MEDBRAINS_COLORS.statusWarningBg,
-        border: MEDBRAINS_COLORS.statusWarning,
-        text: MEDBRAINS_COLORS.statusWarning,
-      };
-    default:
-      return {
-        background: MEDBRAINS_COLORS.navActiveBg,
-        border: MEDBRAINS_COLORS.muted,
-        text: MEDBRAINS_COLORS.muted,
-      };
-  }
-}
-
-function flowSignalStyle(signal: MobileFlowReadinessSignal) {
-  const colors = flowSignalColors(signal.tone);
-  const size = signal.emphasis === "high" ? 15 : 12;
-  const base = {
-    backgroundColor: colors.background,
-    borderColor: colors.border,
-    borderWidth: signal.emphasis === "high" ? 2 : 1.5,
-    height: size,
-    width: signal.shape === "pill" ? size + 13 : size,
-  };
-
-  switch (signal.shape) {
-    case "diamond":
-      return { ...base, borderRadius: 3, transform: [{ rotate: "45deg" }] };
-    case "pill":
-      return { ...base, borderRadius: 999 };
-    case "token":
-      return { ...base, borderRadius: 4 };
-    default:
-      return { ...base, borderRadius: 4 };
-  }
-}
-
 function FlowReadinessShape({
   label,
   signal,
@@ -196,7 +136,16 @@ function FlowReadinessShape({
   label: string;
   signal: MobileFlowReadinessSignal;
 }) {
-  return <View accessibilityLabel={label} style={flowSignalStyle(signal)} />;
+  return (
+    <WorkflowSignalMarker
+      accessibilityLabel={label}
+      emphasis={signal.emphasis}
+      pillExtension={13}
+      shape={signal.shape}
+      size={signal.emphasis === "high" ? 15 : 12}
+      tone={signal.tone}
+    />
+  );
 }
 
 function flowSignalLabel(blockedReason: PatientFlowReadinessItem["blockedReason"]) {
@@ -316,7 +265,7 @@ export function PatientFlowNavigator({
           const disabled = !enabled;
           const isActive = active === item.id;
           const signal = patientFlowReadinessSignal({ blockedReason, enabled });
-          const signalColors = flowSignalColors(signal.tone);
+          const signalColors = workflowSignalColors(signal.tone);
           const signalLabel = flowSignalLabel(blockedReason);
 
           return (

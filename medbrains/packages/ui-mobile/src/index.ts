@@ -17,5 +17,18 @@ export type { EmptyProps } from "./components/empty.js";
 export { Empty } from "./components/empty.js";
 export type { MobileTextFieldProps } from "./components/mobile-text-field.js";
 export { MobileTextField } from "./components/mobile-text-field.js";
+export type { WorkflowSignalMarkerProps } from "./components/workflow-signal-marker.js";
+export { WorkflowSignalMarker } from "./components/workflow-signal-marker.js";
+export type {
+  WorkflowSignalColors,
+  WorkflowSignalEmphasis,
+  WorkflowSignalMarkerShape,
+  WorkflowSignalMarkerTone,
+  WorkflowSignalShapeStyleInput,
+} from "./components/workflow-signal-shape-style.js";
+export {
+  workflowSignalColors,
+  workflowSignalShapeStyle,
+} from "./components/workflow-signal-shape-style.js";
 export type { IntentTone } from "./tokens.js";
 export { APP_BAR, COLORS, INTENT_BG, INTENT_FG, RADIUS, SPACING } from "./tokens.js";

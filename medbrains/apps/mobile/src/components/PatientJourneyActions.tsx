@@ -2,7 +2,6 @@ import { usePermissionStore } from "@medbrains/stores";
 import type {
   ClinicalJourneyActionId,
   ClinicalJourneyActionSignal,
-  ClinicalJourneyActionSignalTone,
   ClinicalJourneyBlockedReason,
   ClinicalJourneyContext,
   ClinicalJourneyMessageValues,
@@ -17,13 +16,13 @@ import {
   resolveClinicalJourneyActions,
   summarizeClinicalJourneyActions,
 } from "@medbrains/types";
+import { WorkflowSignalMarker, workflowSignalColors } from "@medbrains/ui-mobile";
 import { StyleSheet, View } from "react-native";
 import { Button, Chip, Text } from "react-native-paper";
 import {
   mobileCampCareContextParams,
   mobileIpdCareContextParams,
 } from "../navigation/careContextParams";
-import { MEDBRAINS_COLORS } from "../theme/paper-theme";
 import {
   MOBILE_PATIENT_JOURNEY_BLOCKERS,
   MOBILE_PATIENT_JOURNEY_TEXT,
@@ -63,7 +62,6 @@ interface MobileActionBlocker {
 }
 
 type MobileActionReadinessSignal = ClinicalJourneyActionSignal;
-type MobileActionSignalTone = ClinicalJourneyActionSignalTone;
 
 const SUPPORTED_MOBILE_ACTIONS = new Set<ClinicalJourneyActionId>([
   "billing.collect_payment",
@@ -120,64 +118,6 @@ function supportedAction(
   return SUPPORTED_MOBILE_ACTIONS.has(action.id);
 }
 
-function actionSignalColors(tone: MobileActionSignalTone) {
-  switch (tone) {
-    case "risk":
-      return {
-        background: MEDBRAINS_COLORS.statusDangerBg,
-        border: MEDBRAINS_COLORS.statusDanger,
-        text: MEDBRAINS_COLORS.statusDanger,
-      };
-    case "active":
-      return {
-        background: MEDBRAINS_COLORS.navActiveBg,
-        border: MEDBRAINS_COLORS.statusInfo,
-        text: MEDBRAINS_COLORS.statusInfo,
-      };
-    case "ready":
-      return {
-        background: MEDBRAINS_COLORS.statusSuccessBg,
-        border: MEDBRAINS_COLORS.statusSuccess,
-        text: MEDBRAINS_COLORS.statusSuccess,
-      };
-    case "blocked":
-      return {
-        background: MEDBRAINS_COLORS.statusWarningBg,
-        border: MEDBRAINS_COLORS.statusWarning,
-        text: MEDBRAINS_COLORS.statusWarning,
-      };
-    default:
-      return {
-        background: MEDBRAINS_COLORS.navActiveBg,
-        border: MEDBRAINS_COLORS.muted,
-        text: MEDBRAINS_COLORS.muted,
-      };
-  }
-}
-
-function actionSignalStyle(signal: MobileActionReadinessSignal) {
-  const colors = actionSignalColors(signal.tone);
-  const size = signal.emphasis === "high" ? 16 : 13;
-  const base = {
-    backgroundColor: colors.background,
-    borderColor: colors.border,
-    borderWidth: signal.emphasis === "high" ? 2 : 1.5,
-    height: size,
-    width: signal.shape === "pill" ? size + 14 : size,
-  };
-
-  switch (signal.shape) {
-    case "diamond":
-      return { ...base, borderRadius: 3, transform: [{ rotate: "45deg" }] };
-    case "pill":
-      return { ...base, borderRadius: 999 };
-    case "token":
-      return { ...base, borderRadius: 4 };
-    default:
-      return { ...base, borderRadius: 4 };
-  }
-}
-
 function ActionReadinessShape({
   label,
   signal,
@@ -185,7 +125,16 @@ function ActionReadinessShape({
   label: string;
   signal: MobileActionReadinessSignal;
 }) {
-  return <View accessibilityLabel={label} style={actionSignalStyle(signal)} />;
+  return (
+    <WorkflowSignalMarker
+      accessibilityLabel={label}
+      emphasis={signal.emphasis}
+      pillExtension={14}
+      shape={signal.shape}
+      size={signal.emphasis === "high" ? 16 : 13}
+      tone={signal.tone}
+    />
+  );
 }
 
 function mobileActionBlocker(
@@ -453,7 +402,7 @@ export function PatientJourneyActions({
         {actionStates.map((action) => {
           const blocked = !action.enabled;
           const signal = clinicalJourneyActionSignal(action);
-          const signalColors = actionSignalColors(signal.tone);
+          const signalColors = workflowSignalColors(signal.tone);
           const reason = blocked
             ? journeyActionDisabledReason(mobilePatientJourneyTranslator, action)
             : journeyActionAvailability(mobilePatientJourneyTranslator, action);
