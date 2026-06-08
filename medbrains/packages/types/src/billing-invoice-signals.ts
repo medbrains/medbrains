@@ -83,6 +83,40 @@ const BILLING_INVOICE_STATUS_SIGNALS: Readonly<Record<BillingInvoiceStatus, Bill
     },
   };
 
+const BILLING_INVOICE_STATUS_LABEL_KEYS: Readonly<Record<BillingInvoiceStatus, string>> = {
+  cancelled: "invoiceStatus.cancelled",
+  draft: "invoiceStatus.draft",
+  issued: "invoiceStatus.issued",
+  paid: "invoiceStatus.paid",
+  partially_paid: "invoiceStatus.partially_paid",
+  refunded: "invoiceStatus.refunded",
+};
+
+const BILLING_INVOICE_STATUS_LABELS: Readonly<Record<BillingInvoiceStatus, string>> = {
+  cancelled: "Cancelled",
+  draft: "Draft",
+  issued: "Issued",
+  paid: "Paid",
+  partially_paid: "Partially paid",
+  refunded: "Refunded",
+};
+
+const BILLING_INVOICE_BALANCE_LABEL_KEYS: Readonly<
+  Record<Extract<BillingInvoiceSignalPhase, "payable" | "restricted" | "settled">, string>
+> = {
+  payable: "billingSignals.balanceDue",
+  restricted: "billingSignals.amountRestricted",
+  settled: "billingSignals.settled",
+};
+
+const BILLING_INVOICE_BALANCE_LABELS: Readonly<
+  Record<Extract<BillingInvoiceSignalPhase, "payable" | "restricted" | "settled">, string>
+> = {
+  payable: "Balance due",
+  restricted: "Amount restricted",
+  settled: "Settled",
+};
+
 function amountNumber(value: number | string | null | undefined): number {
   const parsed = Number(value ?? 0);
   return Number.isFinite(parsed) ? parsed : 0;
@@ -90,6 +124,10 @@ function amountNumber(value: number | string | null | undefined): number {
 
 function isBillingInvoiceStatus(status: string): status is BillingInvoiceStatus {
   return (BILLING_INVOICE_STATUS_VALUES as readonly string[]).includes(status);
+}
+
+function billingInvoiceFallbackLabel(value: string): string {
+  return value.replace(/_/g, " ");
 }
 
 export function billingInvoiceBalance(
@@ -191,6 +229,16 @@ export function billingInvoiceStatusSignal(status: string): BillingInvoiceSignal
     : BILLING_INVOICE_DEFAULT_SIGNAL;
 }
 
+export function billingInvoiceStatusLabelKey(status: string): string | null {
+  return isBillingInvoiceStatus(status) ? BILLING_INVOICE_STATUS_LABEL_KEYS[status] : null;
+}
+
+export function billingInvoiceStatusLabel(status: string): string {
+  return isBillingInvoiceStatus(status)
+    ? BILLING_INVOICE_STATUS_LABELS[status]
+    : billingInvoiceFallbackLabel(status);
+}
+
 export function billingInvoiceBalanceSignal(
   balance: number,
   amountVisible: boolean,
@@ -214,4 +262,18 @@ export function billingInvoiceBalanceSignal(
     shape: "pill",
     tone: "ready",
   };
+}
+
+export function billingInvoiceBalanceSignalLabelKey(signal: BillingInvoiceSignal): string | null {
+  if (signal.phase === "payable" || signal.phase === "restricted" || signal.phase === "settled") {
+    return BILLING_INVOICE_BALANCE_LABEL_KEYS[signal.phase];
+  }
+  return null;
+}
+
+export function billingInvoiceBalanceSignalLabel(signal: BillingInvoiceSignal): string {
+  if (signal.phase === "payable" || signal.phase === "restricted" || signal.phase === "settled") {
+    return BILLING_INVOICE_BALANCE_LABELS[signal.phase];
+  }
+  return billingInvoiceFallbackLabel(signal.phase);
 }

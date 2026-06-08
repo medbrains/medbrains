@@ -5,11 +5,15 @@ import {
   BILLING_INVOICE_STATUS_VALUES,
   billingInvoiceBalance,
   billingInvoiceBalanceSignal,
+  billingInvoiceBalanceSignalLabel,
+  billingInvoiceBalanceSignalLabelKey,
   billingInvoiceDisplayStatus,
   billingInvoiceHasReceivedPayment,
   billingInvoiceIsFinalized,
   billingInvoiceIsPayable,
   billingInvoiceRequiresFollowUp,
+  billingInvoiceStatusLabel,
+  billingInvoiceStatusLabelKey,
   billingInvoiceStatusSignal,
 } from "@medbrains/types";
 import { describe, expect, it } from "vitest";
@@ -100,5 +104,25 @@ describe("billing invoice operational signals", () => {
       shape: "diamond",
       tone: "blocked",
     });
+  });
+
+  it("keeps invoice status and balance signal labels on the shared billing contract", () => {
+    expect(billingInvoiceStatusLabelKey("partially_paid")).toBe("invoiceStatus.partially_paid");
+    expect(billingInvoiceStatusLabel("partially_paid")).toBe("Partially paid");
+    expect(billingInvoiceStatusLabel("custom_status")).toBe("custom status");
+    expect(billingInvoiceStatusLabelKey("custom_status")).toBeNull();
+
+    const dueSignal = billingInvoiceBalanceSignal(500, true);
+    const settledSignal = billingInvoiceBalanceSignal(0, true);
+    const restrictedSignal = billingInvoiceBalanceSignal(500, false);
+
+    expect(billingInvoiceBalanceSignalLabelKey(dueSignal)).toBe("billingSignals.balanceDue");
+    expect(billingInvoiceBalanceSignalLabel(dueSignal)).toBe("Balance due");
+    expect(billingInvoiceBalanceSignalLabelKey(settledSignal)).toBe("billingSignals.settled");
+    expect(billingInvoiceBalanceSignalLabel(settledSignal)).toBe("Settled");
+    expect(billingInvoiceBalanceSignalLabelKey(restrictedSignal)).toBe(
+      "billingSignals.amountRestricted",
+    );
+    expect(billingInvoiceBalanceSignalLabel(restrictedSignal)).toBe("Amount restricted");
   });
 });

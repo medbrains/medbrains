@@ -160,13 +160,17 @@ import type {
 import {
   billingInvoiceBalance,
   billingInvoiceBalanceSignal,
+  billingInvoiceBalanceSignalLabel,
+  billingInvoiceBalanceSignalLabelKey,
   billingInvoiceDisplayStatus,
   billingInvoiceIsPayable,
+  billingInvoiceStatusLabelKey,
   billingInvoiceStatusSignal,
   P,
   PATIENT_BASIC_IDENTITY_FIELD_ACCESS_KEYS,
   PATIENT_NAME_FIELD_ACCESS_KEYS,
   PATIENT_UHID_FIELD_ACCESS_KEY,
+  billingInvoiceStatusLabel as sharedBillingInvoiceStatusLabel,
 } from "@medbrains/types";
 import { fieldAccessText } from "@medbrains/utils";
 import {
@@ -313,15 +317,27 @@ function isInvoiceStatus(
 
 type BillingTranslate = ReturnType<typeof useTranslation>["t"];
 
-function invoiceStatusLabel(t: BillingTranslate, status: string): string {
-  return t(`invoiceStatus.${status}`, { defaultValue: status.replace(/_/g, " ") });
+function billingSignalLabel(t: BillingTranslate, key: string | null, fallback: string): string {
+  return key ? t(key, { defaultValue: fallback }) : fallback;
 }
 
-function invoiceBalanceLabel(t: BillingTranslate, balance: number, amountAccess: FieldAccessLevel) {
-  if (amountAccess === "hidden") {
-    return t("billingSignals.amountRestricted");
-  }
-  return balance > 0 ? t("billingSignals.balanceDue") : t("billingSignals.settled");
+function invoiceStatusLabel(t: BillingTranslate, status: string): string {
+  return billingSignalLabel(
+    t,
+    billingInvoiceStatusLabelKey(status),
+    sharedBillingInvoiceStatusLabel(status),
+  );
+}
+
+function invoiceBalanceLabel(
+  t: BillingTranslate,
+  signal: ReturnType<typeof billingInvoiceBalanceSignal>,
+) {
+  return billingSignalLabel(
+    t,
+    billingInvoiceBalanceSignalLabelKey(signal),
+    billingInvoiceBalanceSignalLabel(signal),
+  );
 }
 
 function money(value: number | string | null | undefined): string {
@@ -820,7 +836,7 @@ function BillingPageInner() {
         const balanceSignal = billingInvoiceBalanceSignal(balance, true);
         return (
           <OperationalSignal
-            label={invoiceBalanceLabel(t, balance, "edit")}
+            label={invoiceBalanceLabel(t, balanceSignal)}
             shape={balanceSignal.shape}
             size="xs"
             tone={balanceSignal.tone}
@@ -1593,7 +1609,7 @@ function InvoiceDetail({
   const invoiceSignal = billingInvoiceStatusSignal(displayStatus);
   const balance = invoiceBalance(inv);
   const balanceSignal = billingInvoiceBalanceSignal(balance, amountAccess !== "hidden");
-  const balanceSignalLabel = invoiceBalanceLabel(t, balance, amountAccess);
+  const balanceSignalLabel = invoiceBalanceLabel(t, balanceSignal);
   const completedEvents: ClinicalEventName[] = ["billing.invoice.created"];
   if (
     displayStatus === "issued" ||
