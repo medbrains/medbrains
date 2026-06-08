@@ -6,6 +6,8 @@ import type {
   ErVisit,
   ErVisitStatus,
   FieldAccessLevel,
+  Gender,
+  MaritalStatus,
   PatientInvoiceRow,
   PatientVisitRow,
 } from "@medbrains/types";
@@ -33,6 +35,10 @@ import {
 } from "react-native-paper";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { PatientFlowNavigator, PatientJourneyActions } from "../../components";
+import {
+  MOBILE_PATIENT_DETAIL_TEXT,
+  mobilePatientJourneyText,
+} from "../../components/patientJourneyText";
 import { patientService } from "../../services/patient.service";
 
 interface PatientDetailScreenProps {
@@ -53,7 +59,7 @@ const ACTIVE_ER_VISIT_STATUSES = new Set<ErVisitStatus>([
   "in_treatment",
   "observation",
 ]);
-const HIDDEN_FIELD_TEXT = "Restricted";
+const PATIENT_DETAIL_TEXT = MOBILE_PATIENT_DETAIL_TEXT;
 
 function patientInvoiceBalance(invoice: PatientInvoiceRow): number {
   const parsed = Number.parseFloat(invoice.balance);
@@ -74,41 +80,60 @@ function activePatientInvoiceIdForJourney(invoices: readonly PatientInvoiceRow[]
   );
 }
 
+function patientDetailMessage(
+  key: string,
+  values?: Record<string, string | number | boolean>,
+): string {
+  return mobilePatientJourneyText(key, values);
+}
+
 function calculateAge(dob: string): string {
   const birthDate = new Date(dob);
-  if (Number.isNaN(birthDate.getTime())) return "Unknown";
+  if (Number.isNaN(birthDate.getTime())) {
+    return patientDetailMessage(PATIENT_DETAIL_TEXT.fields.unknown);
+  }
   const today = new Date();
   let years = today.getFullYear() - birthDate.getFullYear();
   const monthDiff = today.getMonth() - birthDate.getMonth();
   if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
     years--;
   }
-  return `${years} years`;
+  const key =
+    years === 1
+      ? PATIENT_DETAIL_TEXT.fields.ageYearSingular
+      : PATIENT_DETAIL_TEXT.fields.ageYearPlural;
+  return patientDetailMessage(key, { count: years });
 }
 
 function protectedField(
   access: FieldAccessLevel,
   value: string | null | undefined,
   kind: "email" | "identifier" | "name" | "phone" | "text" = "text",
-  fallback = "Not specified",
+  fallbackKey: string = PATIENT_DETAIL_TEXT.fields.notSpecified,
 ): string {
+  if (access === "hidden") return patientDetailMessage(PATIENT_DETAIL_TEXT.fields.hiddenField);
+  if (!value?.trim()) return patientDetailMessage(fallbackKey);
+  if (access === "mask" && kind === "text") {
+    return patientDetailMessage(PATIENT_DETAIL_TEXT.fields.maskedField);
+  }
   const display = fieldAccessText(access, value, kind);
-  if (display === HIDDEN_FIELD_TEXT) return display;
-  return display === "—" ? fallback : display;
+  return display === "\u2014" ? patientDetailMessage(fallbackKey) : display;
 }
 
 function protectedDateOfBirth(access: FieldAccessLevel, value: string | null | undefined): string {
-  if (access === "hidden") return HIDDEN_FIELD_TEXT;
-  if (!value) return "Not specified";
-  if (access === "mask") return "Date masked";
+  if (access === "hidden") return patientDetailMessage(PATIENT_DETAIL_TEXT.fields.hiddenField);
+  if (!value) return patientDetailMessage(PATIENT_DETAIL_TEXT.fields.notSpecified);
+  if (access === "mask") return patientDetailMessage(PATIENT_DETAIL_TEXT.fields.dateMasked);
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? "Unknown" : date.toLocaleDateString();
+  return Number.isNaN(date.getTime())
+    ? patientDetailMessage(PATIENT_DETAIL_TEXT.fields.unknown)
+    : date.toLocaleDateString();
 }
 
 function protectedAge(access: FieldAccessLevel, value: string | null | undefined): string {
-  if (access === "hidden") return HIDDEN_FIELD_TEXT;
-  if (!value) return "Unknown";
-  if (access === "mask") return "Age masked";
+  if (access === "hidden") return patientDetailMessage(PATIENT_DETAIL_TEXT.fields.hiddenField);
+  if (!value) return patientDetailMessage(PATIENT_DETAIL_TEXT.fields.unknown);
+  if (access === "mask") return patientDetailMessage(PATIENT_DETAIL_TEXT.fields.ageMasked);
   return calculateAge(value);
 }
 
@@ -118,19 +143,61 @@ function isAddressRecord(
   return Boolean(value) && typeof value === "object";
 }
 
-function formatAddress(addr: unknown): string {
-  if (!isAddressRecord(addr)) return "Not specified";
+function formatAddress(addr: unknown): string | null {
+  if (!isAddressRecord(addr)) return null;
   const parts = [addr.line1, addr.city, addr.state, addr.pincode].filter(
     (part): part is string => typeof part === "string" && part.trim().length > 0,
   );
-  return parts.length > 0 ? parts.join(", ") : "Not specified";
+  return parts.length > 0 ? parts.join(", ") : null;
 }
 
-function formatContextStatus(status: string): string {
-  return status
-    .split("_")
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ");
+function formatCampRegistrationStatus(status: CampRegistration["status"]): string {
+  if (status === "converted") return patientDetailMessage(PATIENT_DETAIL_TEXT.status.campConverted);
+  if (status === "registered") {
+    return patientDetailMessage(PATIENT_DETAIL_TEXT.status.campRegistered);
+  }
+  if (status === "referred") return patientDetailMessage(PATIENT_DETAIL_TEXT.status.campReferred);
+  if (status === "screened") return patientDetailMessage(PATIENT_DETAIL_TEXT.status.campScreened);
+  return patientDetailMessage(PATIENT_DETAIL_TEXT.fields.unknown);
+}
+
+function formatEncounterType(encounterType: PatientVisitRow["encounter_type"]): string {
+  if (encounterType === "emergency") {
+    return patientDetailMessage(PATIENT_DETAIL_TEXT.status.emergency);
+  }
+  if (encounterType === "ipd") return patientDetailMessage(PATIENT_DETAIL_TEXT.status.ipd);
+  return patientDetailMessage(PATIENT_DETAIL_TEXT.status.opd);
+}
+
+function formatGender(gender: Gender): string {
+  if (gender === "female") return patientDetailMessage(PATIENT_DETAIL_TEXT.status.female);
+  if (gender === "male") return patientDetailMessage(PATIENT_DETAIL_TEXT.status.male);
+  if (gender === "other") return patientDetailMessage(PATIENT_DETAIL_TEXT.status.other);
+  return patientDetailMessage(PATIENT_DETAIL_TEXT.status.unknown);
+}
+
+function formatMaritalStatus(status: MaritalStatus | null): string {
+  if (status === "divorced") {
+    return patientDetailMessage(PATIENT_DETAIL_TEXT.status.maritalDivorced);
+  }
+  if (status === "domestic_partner") {
+    return patientDetailMessage(PATIENT_DETAIL_TEXT.status.maritalDomesticPartner);
+  }
+  if (status === "married") return patientDetailMessage(PATIENT_DETAIL_TEXT.status.maritalMarried);
+  if (status === "separated") {
+    return patientDetailMessage(PATIENT_DETAIL_TEXT.status.maritalSeparated);
+  }
+  if (status === "single") return patientDetailMessage(PATIENT_DETAIL_TEXT.status.maritalSingle);
+  if (status === "widowed") return patientDetailMessage(PATIENT_DETAIL_TEXT.status.maritalWidowed);
+  if (status === "unknown") return patientDetailMessage(PATIENT_DETAIL_TEXT.status.maritalUnknown);
+  return patientDetailMessage(PATIENT_DETAIL_TEXT.fields.notSpecified);
+}
+
+function shouldShowProtectedField(
+  access: FieldAccessLevel,
+  value: string | null | undefined,
+): boolean {
+  return access === "hidden" || Boolean(value?.trim());
 }
 
 export function PatientDetailScreen({ route, navigation }: PatientDetailScreenProps) {
@@ -211,7 +278,7 @@ export function PatientDetailScreen({ route, navigation }: PatientDetailScreenPr
       <SafeAreaView style={[styles.container, styles.centered]}>
         <ActivityIndicator size="large" />
         <Text variant="bodyMedium" style={styles.loadingText}>
-          Loading patient details...
+          {patientDetailMessage(PATIENT_DETAIL_TEXT.loading.patientDetails)}
         </Text>
       </SafeAreaView>
     );
@@ -221,25 +288,34 @@ export function PatientDetailScreen({ route, navigation }: PatientDetailScreenPr
     return (
       <SafeAreaView style={[styles.container, styles.centered]}>
         <Avatar.Icon size={64} icon="account-off" style={styles.errorIcon} />
-        <Text variant="titleMedium">Patient not found</Text>
+        <Text variant="titleMedium">
+          {patientDetailMessage(PATIENT_DETAIL_TEXT.empty.patientNotFound)}
+        </Text>
       </SafeAreaView>
     );
   }
 
   const rawFullName = `${patient.first_name} ${patient.last_name}`;
-  const fullName = protectedField(patientNameAccess, rawFullName, "name", "Unknown patient");
+  const fullName = protectedField(
+    patientNameAccess,
+    rawFullName,
+    "name",
+    PATIENT_DETAIL_TEXT.fields.unknownPatient,
+  );
   const initials =
     patientNameAccess === "hidden" || patientNameAccess === "mask"
-      ? "PT"
+      ? patientDetailMessage(PATIENT_DETAIL_TEXT.fields.patientInitials)
       : `${patient.first_name.charAt(0)}${patient.last_name.charAt(0)}`.toUpperCase();
-  const protectedUhid = protectedField(uhidAccess, patient.uhid, "identifier", "No UHID");
+  const protectedUhid = protectedField(
+    uhidAccess,
+    patient.uhid,
+    "identifier",
+    PATIENT_DETAIL_TEXT.fields.noUhid,
+  );
   const protectedPhone = protectedField(phoneAccess, patient.phone, "phone");
   const protectedEmail = protectedField(emailAccess, patient.email, "email");
   const addressText = formatAddress(patient.address);
-  const protectedAddress =
-    addressText === "Not specified"
-      ? addressText
-      : protectedField(addressAccess, addressText, "text");
+  const protectedAddress = protectedField(addressAccess, addressText, "text");
   const ageLabel = protectedAge(dobAccess, patient.date_of_birth);
   const dobLabel = protectedDateOfBirth(dobAccess, patient.date_of_birth);
 
@@ -333,7 +409,7 @@ export function PatientDetailScreen({ route, navigation }: PatientDetailScreenPr
                 </Chip>
                 {patient.gender && (
                   <Chip compact icon={patient.gender === "male" ? "gender-male" : "gender-female"}>
-                    {patient.gender}
+                    {formatGender(patient.gender)}
                   </Chip>
                 )}
                 {patient.blood_group && (
@@ -346,13 +422,13 @@ export function PatientDetailScreen({ route, navigation }: PatientDetailScreenPr
           </View>
 
           {/* Contact Info */}
-          {protectedPhone !== "Not specified" && (
+          {shouldShowProtectedField(phoneAccess, patient.phone) && (
             <View style={styles.contactRow}>
               <Avatar.Icon size={32} icon="phone" style={styles.contactIcon} />
               <Text variant="bodyMedium">{protectedPhone}</Text>
             </View>
           )}
-          {protectedEmail !== "Not specified" && (
+          {shouldShowProtectedField(emailAccess, patient.email) && (
             <View style={styles.contactRow}>
               <Avatar.Icon size={32} icon="email" style={styles.contactIcon} />
               <Text variant="bodyMedium">{protectedEmail}</Text>
@@ -363,47 +439,54 @@ export function PatientDetailScreen({ route, navigation }: PatientDetailScreenPr
         <Surface style={styles.actionsPanel} elevation={1}>
           <View style={styles.actionsHeader}>
             <Text variant="titleSmall" style={styles.actionsTitle}>
-              Care Actions
+              {patientDetailMessage(PATIENT_DETAIL_TEXT.actions.title)}
             </Text>
             <View style={styles.actionChips}>
               {activeOpdVisit && (
                 <Chip compact icon="stethoscope" mode="outlined">
-                  Active OPD
+                  {patientDetailMessage(PATIENT_DETAIL_TEXT.actions.activeOpd)}
                 </Chip>
               )}
               {activeAdmission && (
                 <Chip compact icon="bed" mode="outlined">
-                  Active IPD
+                  {patientDetailMessage(PATIENT_DETAIL_TEXT.actions.activeIpd)}
                 </Chip>
               )}
               {activeErVisit && (
                 <Chip compact icon="ambulance" mode="outlined">
-                  Active ER
+                  {patientDetailMessage(PATIENT_DETAIL_TEXT.actions.activeEr)}
                 </Chip>
               )}
               {activeErVisit?.is_mlc && (
                 <Chip compact icon="file-alert" mode="outlined">
-                  MLC
+                  {patientDetailMessage(PATIENT_DETAIL_TEXT.actions.mlc)}
                 </Chip>
               )}
               {activeCampRegistration && (
                 <Chip compact icon="account-group" mode="outlined">
-                  Camp {formatContextStatus(activeCampRegistration.status)}
+                  {patientDetailMessage(PATIENT_DETAIL_TEXT.actions.campStatus, {
+                    status: formatCampRegistrationStatus(activeCampRegistration.status),
+                  })}
                 </Chip>
               )}
               {activeAdmission && !activeAdmission.bed_id && (
                 <Chip compact icon="alert" mode="outlined">
-                  Bed pending
+                  {patientDetailMessage(PATIENT_DETAIL_TEXT.actions.bedPending)}
                 </Chip>
               )}
               {hasMedicationOrder && (
                 <Chip compact icon="pill" mode="outlined">
-                  Rx handoff
+                  {patientDetailMessage(PATIENT_DETAIL_TEXT.actions.rxHandoff)}
                 </Chip>
               )}
               {pendingInvoiceCount > 0 && (
                 <Chip compact icon="receipt" mode="outlined">
-                  {pendingInvoiceCount} bill{pendingInvoiceCount === 1 ? "" : "s"}
+                  {patientDetailMessage(
+                    pendingInvoiceCount === 1
+                      ? PATIENT_DETAIL_TEXT.actions.pendingBillSingular
+                      : PATIENT_DETAIL_TEXT.actions.pendingBillPlural,
+                    { count: pendingInvoiceCount },
+                  )}
                 </Chip>
               )}
             </View>
@@ -421,18 +504,16 @@ export function PatientDetailScreen({ route, navigation }: PatientDetailScreenPr
               }
               style={styles.actionButton}
             >
-              Vitals
+              {patientDetailMessage(PATIENT_DETAIL_TEXT.actions.vitals)}
             </Button>
           </View>
           {!activeCareEncounterId && (
             <Text variant="bodySmall" style={styles.actionsHint}>
-              Open an OPD encounter or active IPD admission before recording vitals, prescriptions,
-              or lab orders.
+              {patientDetailMessage(PATIENT_DETAIL_TEXT.actions.missingCareContextHint)}
             </Text>
           )}
           <Text variant="bodySmall" style={styles.actionsHint}>
-            Mobile handoffs activate from OPD, IPD, ER, camp, prescription, invoice, and payment
-            events.
+            {patientDetailMessage(PATIENT_DETAIL_TEXT.actions.activationHint)}
           </Text>
           <PatientFlowNavigator active="patient" context={journeyContext} navigation={navigation} />
           <PatientJourneyActions context={journeyContext} navigation={navigation} />
@@ -445,7 +526,7 @@ export function PatientDetailScreen({ route, navigation }: PatientDetailScreenPr
               <View style={styles.alertHeader}>
                 <Avatar.Icon size={24} icon="alert" style={styles.alertIcon} color="#C8102E" />
                 <Text variant="titleSmall" style={styles.alertTitle}>
-                  Allergies
+                  {patientDetailMessage(PATIENT_DETAIL_TEXT.sections.allergies)}
                 </Text>
               </View>
               <View style={styles.allergyChips}>
@@ -468,7 +549,7 @@ export function PatientDetailScreen({ route, navigation }: PatientDetailScreenPr
         <Card style={styles.sectionCard}>
           <Card.Content>
             <Text variant="titleMedium" style={styles.sectionTitle}>
-              Recent Visits
+              {patientDetailMessage(PATIENT_DETAIL_TEXT.sections.recentVisits)}
             </Text>
             <Divider style={styles.divider} />
 
@@ -476,16 +557,19 @@ export function PatientDetailScreen({ route, navigation }: PatientDetailScreenPr
               visitsList.map((visit) => (
                 <List.Item
                   key={visit.id}
-                  title={visit.department_name || "Consultation"}
+                  title={
+                    visit.department_name ||
+                    patientDetailMessage(PATIENT_DETAIL_TEXT.visits.consultation)
+                  }
                   description={new Date(visit.encounter_date).toLocaleDateString()}
                   left={(props) => <List.Icon {...props} icon="calendar-clock" />}
-                  right={() => <Chip compact>{visit.encounter_type}</Chip>}
+                  right={() => <Chip compact>{formatEncounterType(visit.encounter_type)}</Chip>}
                 />
               ))
             ) : (
               <View style={styles.emptySection}>
                 <Text variant="bodyMedium" style={styles.emptyText}>
-                  No recent visits
+                  {patientDetailMessage(PATIENT_DETAIL_TEXT.empty.noRecentVisits)}
                 </Text>
               </View>
             )}
@@ -496,27 +580,29 @@ export function PatientDetailScreen({ route, navigation }: PatientDetailScreenPr
         <Card style={styles.sectionCard}>
           <Card.Content>
             <Text variant="titleMedium" style={styles.sectionTitle}>
-              Patient Information
+              {patientDetailMessage(PATIENT_DETAIL_TEXT.sections.patientInformation)}
             </Text>
             <Divider style={styles.divider} />
 
             <List.Item
-              title="Date of Birth"
+              title={patientDetailMessage(PATIENT_DETAIL_TEXT.fields.dateOfBirth)}
               description={dobLabel}
               left={(props) => <List.Icon {...props} icon="cake-variant" />}
             />
             <List.Item
-              title="Marital Status"
-              description={patient.marital_status || "Not specified"}
+              title={patientDetailMessage(PATIENT_DETAIL_TEXT.fields.maritalStatus)}
+              description={formatMaritalStatus(patient.marital_status)}
               left={(props) => <List.Icon {...props} icon="account-heart" />}
             />
             <List.Item
-              title="Occupation"
-              description={patient.occupation || "Not specified"}
+              title={patientDetailMessage(PATIENT_DETAIL_TEXT.fields.occupation)}
+              description={
+                patient.occupation || patientDetailMessage(PATIENT_DETAIL_TEXT.fields.notSpecified)
+              }
               left={(props) => <List.Icon {...props} icon="briefcase" />}
             />
             <List.Item
-              title="Address"
+              title={patientDetailMessage(PATIENT_DETAIL_TEXT.fields.address)}
               description={protectedAddress}
               left={(props) => <List.Icon {...props} icon="map-marker" />}
             />
