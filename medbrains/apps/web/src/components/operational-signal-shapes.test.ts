@@ -4,6 +4,8 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
   bedBoardStatusSignal,
+  billingInvoiceBalanceSignal,
+  billingInvoiceStatusSignal,
   clinicalJourneyActionSignal,
   patientContextSignal,
   pharmacyRxStatusSignal,
@@ -55,6 +57,7 @@ describe("operational signal shape grammar", () => {
     expect(semantic(pharmacyRxStatusSignal("pending_review").shape)).toBe(
       "stop_or_safety_attention",
     );
+    expect(semantic(billingInvoiceBalanceSignal(500, true).shape)).toBe("stop_or_safety_attention");
     expect(semantic(bedBoardStatusSignal("vacant_dirty").shape)).toBe("stop_or_safety_attention");
     expect(
       semantic(clinicalJourneyActionSignal({ blockedReason: "permission", enabled: false }).shape),
@@ -63,6 +66,7 @@ describe("operational signal shape grammar", () => {
 
   it("uses tokens for queued or in-progress module handoffs", () => {
     expect(semantic(pharmacyRxStatusSignal("dispensing").shape)).toBe("handoff_or_queue");
+    expect(semantic(billingInvoiceStatusSignal("issued").shape)).toBe("handoff_or_queue");
     expect(semantic(bedBoardStatusSignal("waiting").shape)).toBe("handoff_or_queue");
     expect(
       semantic(clinicalJourneyActionSignal({ blockedReason: "event", enabled: false }).shape),
@@ -72,6 +76,7 @@ describe("operational signal shape grammar", () => {
   it("uses ready and bed shapes for completion and inpatient assignment state", () => {
     expect(semantic(patientContextSignal("no_known_allergies").shape)).toBe("ready_or_complete");
     expect(semantic(pharmacyRxStatusSignal("dispensed").shape)).toBe("ready_or_complete");
+    expect(semantic(billingInvoiceStatusSignal("paid").shape)).toBe("ready_or_complete");
     expect(
       semantic(clinicalJourneyActionSignal({ blockedReason: null, enabled: true }).shape),
     ).toBe("ready_or_complete");

@@ -1,3 +1,5 @@
+import type { WorkflowSignalShape, WorkflowSignalTone } from "./workflow-signal-shapes.js";
+
 export type BillingInvoiceStatus =
   | "cancelled"
   | "draft"
@@ -5,8 +7,11 @@ export type BillingInvoiceStatus =
   | "paid"
   | "partially_paid"
   | "refunded";
-export type BillingInvoiceSignalShape = "diamond" | "pill" | "token";
-export type BillingInvoiceSignalTone = "active" | "blocked" | "neutral" | "ready" | "risk";
+export type BillingInvoiceSignalShape = Extract<WorkflowSignalShape, "diamond" | "pill" | "token">;
+export type BillingInvoiceSignalTone = Extract<
+  WorkflowSignalTone,
+  "active" | "blocked" | "neutral" | "ready" | "risk"
+>;
 export type BillingInvoiceSignalPhase =
   | "cancelled"
   | "draft"
