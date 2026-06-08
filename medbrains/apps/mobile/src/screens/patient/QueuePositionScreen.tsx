@@ -14,6 +14,7 @@ import {
 } from "react-native-paper";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { patientService } from "../../services/patient.service";
+import { mobileAppointmentText, mobileAppointmentTypeText } from "./appointmentsText";
 
 interface QueuePositionScreenProps {
   route: {
@@ -24,6 +25,21 @@ interface QueuePositionScreenProps {
   navigation: {
     goBack: () => void;
   };
+}
+
+function patientsAheadText(count: number): string {
+  return mobileAppointmentText(
+    count === 1
+      ? "appointments.queue.status.waitingSubtitleSingular"
+      : "appointments.queue.status.waitingSubtitlePlural",
+    { count },
+  );
+}
+
+function waitTimeText(minutes: number): string {
+  return minutes > 0
+    ? mobileAppointmentText("appointments.queue.waitMinutes", { minutes })
+    : mobileAppointmentText("appointments.queue.verySoon");
 }
 
 export function QueuePositionScreen({ route, navigation }: QueuePositionScreenProps) {
@@ -62,7 +78,7 @@ export function QueuePositionScreen({ route, navigation }: QueuePositionScreenPr
       <SafeAreaView style={[styles.container, styles.centered]}>
         <ActivityIndicator size="large" />
         <Text variant="bodyMedium" style={styles.loadingText}>
-          Loading queue status...
+          {mobileAppointmentText("appointments.loading.queue")}
         </Text>
       </SafeAreaView>
     );
@@ -72,9 +88,11 @@ export function QueuePositionScreen({ route, navigation }: QueuePositionScreenPr
     return (
       <SafeAreaView style={[styles.container, styles.centered]}>
         <Avatar.Icon size={64} icon="alert-circle" style={styles.errorIcon} />
-        <Text variant="titleMedium">Appointment not found</Text>
+        <Text variant="titleMedium">
+          {mobileAppointmentText("appointments.queue.appointmentNotFound")}
+        </Text>
         <Button mode="contained" onPress={() => navigation.goBack()} style={styles.backButton}>
-          Go Back
+          {mobileAppointmentText("appointments.action.goBack")}
         </Button>
       </SafeAreaView>
     );
@@ -89,40 +107,40 @@ export function QueuePositionScreen({ route, navigation }: QueuePositionScreenPr
       case "checked_in":
         return {
           icon: "account-check",
-          title: "Checked In",
-          subtitle: "Waiting to be called",
+          title: mobileAppointmentText("appointments.queue.status.checkedInTitle"),
+          subtitle: mobileAppointmentText("appointments.queue.status.checkedInSubtitle"),
           color: "#fab005",
           bgColor: "#fff3bf",
         };
       case "in_consultation":
         return {
           icon: "doctor",
-          title: "In Consultation",
-          subtitle: "Doctor is with you now",
+          title: mobileAppointmentText("appointments.queue.status.consultationTitle"),
+          subtitle: mobileAppointmentText("appointments.queue.status.consultationSubtitle"),
           color: "#0F766E",
           bgColor: "#e7f5ff",
         };
       case "completed":
         return {
           icon: "check-circle",
-          title: "Visit Complete",
-          subtitle: "Thank you for visiting",
+          title: mobileAppointmentText("appointments.queue.status.completedTitle"),
+          subtitle: mobileAppointmentText("appointments.queue.status.completedSubtitle"),
           color: "#10b981",
           bgColor: "#d3f9d8",
         };
       case "confirmed":
         return {
           icon: "clock-outline",
-          title: "Confirmed",
-          subtitle: "Please check in on arrival",
+          title: mobileAppointmentText("appointments.queue.status.confirmedTitle"),
+          subtitle: mobileAppointmentText("appointments.queue.status.confirmedSubtitle"),
           color: "#0F766E",
           bgColor: "#e7f5ff",
         };
       default:
         return {
           icon: "clock-outline",
-          title: "Waiting",
-          subtitle: `${queuePosition} patient(s) ahead of you`,
+          title: mobileAppointmentText("appointments.queue.status.waitingTitle"),
+          subtitle: patientsAheadText(queuePosition),
           color: "#fab005",
           bgColor: "#fff3bf",
         };
@@ -154,12 +172,12 @@ export function QueuePositionScreen({ route, navigation }: QueuePositionScreenPr
         <Card style={styles.tokenCard}>
           <Card.Content style={styles.tokenContent}>
             <Text variant="labelMedium" style={styles.tokenLabel}>
-              Your Token Number
+              {mobileAppointmentText("appointments.queue.tokenNumber")}
             </Text>
             <Text style={styles.tokenNumber}>{tokenNumber}</Text>
             {isInQueue && queuePosition > 0 && (
               <Chip icon="account-clock" style={styles.tokenChip}>
-                Position: #{queuePosition}
+                {mobileAppointmentText("appointments.queue.position", { position: queuePosition })}
               </Chip>
             )}
           </Card.Content>
@@ -171,7 +189,7 @@ export function QueuePositionScreen({ route, navigation }: QueuePositionScreenPr
         <Card style={styles.progressCard}>
           <Card.Content>
             <Text variant="titleMedium" style={styles.progressTitle}>
-              Queue Progress
+              {mobileAppointmentText("appointments.queue.progressTitle")}
             </Text>
             <Divider style={styles.divider} />
 
@@ -181,7 +199,7 @@ export function QueuePositionScreen({ route, navigation }: QueuePositionScreenPr
                   {queuePosition}
                 </Text>
                 <Text variant="labelSmall" style={styles.progressLabel}>
-                  Patients Ahead
+                  {mobileAppointmentText("appointments.queue.patientsAhead")}
                 </Text>
               </View>
 
@@ -190,7 +208,7 @@ export function QueuePositionScreen({ route, navigation }: QueuePositionScreenPr
                   ~{estimatedWait}
                 </Text>
                 <Text variant="labelSmall" style={styles.progressLabel}>
-                  Minutes Wait
+                  {mobileAppointmentText("appointments.queue.minutesWait")}
                 </Text>
               </View>
             </View>
@@ -199,9 +217,11 @@ export function QueuePositionScreen({ route, navigation }: QueuePositionScreenPr
             <Surface style={styles.waitEstimate} elevation={0}>
               <Avatar.Icon size={32} icon="clock-outline" style={styles.waitIcon} />
               <View style={styles.waitInfo}>
-                <Text variant="labelMedium">Estimated Wait Time</Text>
+                <Text variant="labelMedium">
+                  {mobileAppointmentText("appointments.queue.estimatedWaitTime")}
+                </Text>
                 <Text variant="titleLarge" style={styles.waitTime}>
-                  {estimatedWait > 0 ? `~${estimatedWait} minutes` : "Very soon!"}
+                  {waitTimeText(estimatedWait)}
                 </Text>
               </View>
             </Surface>
@@ -229,9 +249,11 @@ export function QueuePositionScreen({ route, navigation }: QueuePositionScreenPr
           <View style={styles.infoRow}>
             <Avatar.Icon size={48} icon="clipboard-text" style={styles.reasonIcon} />
             <View style={styles.infoText}>
-              <Text variant="titleMedium">{appointment.appointment_type}</Text>
+              <Text variant="titleMedium">
+                {mobileAppointmentTypeText(appointment.appointment_type)}
+              </Text>
               <Text variant="bodySmall" style={styles.infoSubtext}>
-                {appointment.reason || "General Consultation"}
+                {appointment.reason || mobileAppointmentText("appointments.fallback.reason")}
               </Text>
             </View>
           </View>
@@ -248,17 +270,19 @@ export function QueuePositionScreen({ route, navigation }: QueuePositionScreenPr
           }}
           style={styles.navButton}
         >
-          Get Directions
+          {mobileAppointmentText("appointments.action.directions")}
         </Button>
 
         <Button mode="text" icon="refresh" onPress={() => setRefreshKey((prev) => prev + 1)}>
-          Refresh Status
+          {mobileAppointmentText("appointments.action.refreshStatus")}
         </Button>
       </View>
 
       {/* Last Updated */}
       <Text variant="labelSmall" style={styles.lastUpdated}>
-        Last updated: {new Date().toLocaleTimeString()}
+        {mobileAppointmentText("appointments.queue.lastUpdated", {
+          time: new Date().toLocaleTimeString(),
+        })}
       </Text>
     </SafeAreaView>
   );
