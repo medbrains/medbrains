@@ -11,6 +11,7 @@ import {
   buildPatientFlowReadiness,
   clinicalEventLabel,
   clinicalEventList,
+  journeyActionSignalLabel,
   journeyBlockedReasonLabel,
   journeyMessage,
   patientFlowItemDisabledReason,
@@ -146,13 +147,6 @@ function FlowReadinessShape({
   );
 }
 
-function flowSignalLabel(blockedReason: PatientFlowReadinessItem["blockedReason"]) {
-  return (
-    journeyBlockedReasonLabel(mobilePatientJourneyTranslator, blockedReason) ??
-    mobilePatientJourneyText(MOBILE_PATIENT_JOURNEY_TEXT.status.ready)
-  );
-}
-
 function navigateMobileTarget(
   navigation: PatientFlowNavigatorProps["navigation"],
   target: PatientJourneyMobileTarget,
@@ -219,7 +213,7 @@ export function PatientFlowNavigator({
           const isActive = active === item.id;
           const signal = patientFlowReadinessSignal({ blockedReason, enabled });
           const signalColors = workflowSignalColors(signal.tone);
-          const signalLabel = flowSignalLabel(blockedReason);
+          const signalLabel = journeyActionSignalLabel(mobilePatientJourneyTranslator, signal);
 
           return (
             <View

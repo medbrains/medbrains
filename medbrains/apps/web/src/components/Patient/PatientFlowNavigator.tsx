@@ -30,6 +30,7 @@ import styles from "./patient-flow-navigator.module.scss";
 import { clinicalEventMatchesJourney, mergeJourneyEventNames } from "./patient-journey-events";
 import {
   clinicalEventLabel,
+  journeyActionSignalLabel,
   journeyBlockedReasonLabel,
   patientFlowItemDescription,
   patientFlowItemDisabledReason,
@@ -118,21 +119,6 @@ function FlowTooltip({ item }: { item: PatientFlowReadinessItem }) {
         </Text>
       )}
     </Stack>
-  );
-}
-
-function flowSignalLabel(
-  item: PatientFlowReadinessItem,
-  t: ReturnType<typeof useTranslation>["t"],
-) {
-  if (item.enabled) {
-    return t("patientJourney.status.available");
-  }
-
-  return (
-    journeyBlockedReasonLabel(t, item.blockedReason) ??
-    patientFlowItemDisabledReason(t, item) ??
-    patientFlowItemLabel(t, item)
   );
 }
 
@@ -228,7 +214,7 @@ export function PatientFlowNavigator({
           const isActive = item.id === active;
           const visual = FLOW_VISUALS[item.id];
           const signal = patientFlowReadinessSignal(item);
-          const signalLabel = flowSignalLabel(item, t);
+          const signalLabel = journeyActionSignalLabel(t, signal);
           const button = (
             <Button
               key={item.id}
