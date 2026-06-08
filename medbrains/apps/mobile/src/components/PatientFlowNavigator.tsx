@@ -1,12 +1,25 @@
 import { usePermissionStore } from "@medbrains/stores";
 import type {
   ClinicalJourneyContext,
+  ClinicalJourneyMessageValues,
   PatientFlowModule,
   PatientFlowReadinessItem,
 } from "@medbrains/types";
-import { buildPatientFlowReadiness } from "@medbrains/types";
+import {
+  buildPatientFlowReadiness,
+  clinicalEventLabel,
+  clinicalEventList,
+  journeyBlockedReasonLabel,
+  journeyMessage,
+  patientFlowItemDisabledReason,
+  patientFlowItemLabel,
+} from "@medbrains/types";
 import { ScrollView, StyleSheet, View } from "react-native";
 import { Button, Chip, Text } from "react-native-paper";
+import {
+  MOBILE_PATIENT_JOURNEY_BLOCKERS,
+  mobilePatientJourneyTranslator,
+} from "./patientJourneyText";
 
 interface PatientFlowNavigatorProps {
   active?: PatientFlowModule;
@@ -21,6 +34,13 @@ interface FlowVisual {
   handoff: string;
 }
 
+interface MobileFlowBlocker {
+  key: string;
+  message: string;
+  values?: ClinicalJourneyMessageValues;
+  blockedReason: NonNullable<PatientFlowReadinessItem["blockedReason"]>;
+}
+
 const FLOW_VISUALS: Record<PatientFlowModule, FlowVisual> = {
   patient: { icon: "card-account-details", handoff: "Record" },
   opd: { icon: "stethoscope", handoff: "Clinic" },
@@ -31,50 +51,59 @@ const FLOW_VISUALS: Record<PatientFlowModule, FlowVisual> = {
   billing: { icon: "receipt", handoff: "Bill" },
 };
 
-function eventLabel(eventName: string) {
-  return eventName.replace(/\./g, " ");
-}
-
-function blockedReasonLabel(reason: PatientFlowReadinessItem["blockedReason"]) {
-  switch (reason) {
-    case "configuration":
-      return "Configuration";
-    case "context":
-      return "Context";
-    case "event":
-      return "Event";
-    case "masking":
-      return "Masking";
-    case "permission":
-      return "Permission";
-    case "regulatory":
-      return "Regulatory";
-    default:
-      return null;
-  }
-}
-
-function mobileFlowDisabledReason(
+function mobileFlowBlocker(
   item: PatientFlowReadinessItem,
   context: ClinicalJourneyContext,
-): string | null {
-  if (item.disabledReason) return item.disabledReason;
-
+): MobileFlowBlocker | null {
   if (item.id === "opd" && !context.activeEncounterId) {
-    return "Open an OPD encounter from the queue";
+    return {
+      blockedReason: "context",
+      key: MOBILE_PATIENT_JOURNEY_BLOCKERS.openOpdEncounterBeforeMobileConsultation,
+      message: "Open an OPD encounter before mobile consultation",
+    };
   }
 
   return null;
 }
 
-function readinessText(item: PatientFlowReadinessItem, disabledReason: string | null) {
+function mobileFlowDisabledReason(
+  item: PatientFlowReadinessItem,
+  mobileBlocker: MobileFlowBlocker | null,
+): string | null {
+  if (mobileBlocker) {
+    return journeyMessage(
+      mobilePatientJourneyTranslator,
+      mobileBlocker.key,
+      mobileBlocker.values ?? null,
+      item.activationEvents,
+      mobileBlocker.message,
+    );
+  }
+
+  return patientFlowItemDisabledReason(mobilePatientJourneyTranslator, item);
+}
+
+function readinessText(
+  item: PatientFlowReadinessItem,
+  blockedReason: PatientFlowReadinessItem["blockedReason"],
+  disabledReason: string | null,
+) {
   if (disabledReason) {
-    const blockedLabel = blockedReasonLabel(item.blockedReason);
+    const blockedLabel = journeyBlockedReasonLabel(mobilePatientJourneyTranslator, blockedReason);
     return blockedLabel ? `${blockedLabel}: ${disabledReason}` : disabledReason;
   }
-  if (item.emittedEvent) return `Emits ${eventLabel(item.emittedEvent)}`;
+  if (item.emittedEvent) {
+    return `Emits ${clinicalEventLabel(mobilePatientJourneyTranslator, item.emittedEvent)}`;
+  }
   if (item.activationEvents.length > 0) {
-    return `After ${item.activationEvents.map(eventLabel).join(" / ")}`;
+    const events = clinicalEventList(mobilePatientJourneyTranslator, item.activationEvents);
+    return journeyMessage(
+      mobilePatientJourneyTranslator,
+      "patientJourney.status.afterEvents",
+      { events },
+      [],
+      `After ${events}`,
+    );
   }
   return "Ready";
 }
@@ -86,15 +115,21 @@ export function PatientFlowNavigator({
 }: PatientFlowNavigatorProps) {
   const hasPermission = usePermissionStore((state) => state.hasPermission);
   const { items } = buildPatientFlowReadiness(context, hasPermission, "mobile");
-  const flowStates = items.map((item) => ({
-    disabledReason: mobileFlowDisabledReason(item, context),
-    item,
-  }));
-  const enabledCount = flowStates.filter((state) => !state.disabledReason).length;
+  const flowStates = items.map((item) => {
+    const mobileBlocker = mobileFlowBlocker(item, context);
+    const disabledReason = mobileFlowDisabledReason(item, mobileBlocker);
+    return {
+      blockedReason: mobileBlocker?.blockedReason ?? item.blockedReason,
+      disabledReason,
+      enabled: item.enabled && !mobileBlocker,
+      item,
+    };
+  });
+  const enabledCount = flowStates.filter((state) => state.enabled).length;
   const blockedCount = flowStates.length - enabledCount;
 
   function handleFlowPress(item: PatientFlowReadinessItem) {
-    if (mobileFlowDisabledReason(item, context)) return;
+    if (!flowStates.find((state) => state.item.id === item.id)?.enabled) return;
 
     switch (item.id) {
       case "patient":
@@ -173,9 +208,9 @@ export function PatientFlowNavigator({
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.flowRail}
       >
-        {flowStates.map(({ disabledReason, item }) => {
+        {flowStates.map(({ blockedReason, disabledReason, enabled, item }) => {
           const visual = FLOW_VISUALS[item.id];
-          const disabled = Boolean(disabledReason);
+          const disabled = !enabled;
           const isActive = active === item.id;
 
           return (
@@ -194,13 +229,13 @@ export function PatientFlowNavigator({
                 onPress={() => handleFlowPress(item)}
                 compact
               >
-                {item.label}
+                {patientFlowItemLabel(mobilePatientJourneyTranslator, item)}
               </Button>
               <Text variant="labelSmall" style={styles.handoff}>
                 {visual.handoff}
               </Text>
               <Text variant="labelSmall" style={styles.reason}>
-                {readinessText(item, disabledReason)}
+                {readinessText(item, blockedReason, disabledReason)}
               </Text>
             </View>
           );

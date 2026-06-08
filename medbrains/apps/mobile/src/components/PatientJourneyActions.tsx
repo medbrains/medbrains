@@ -3,15 +3,23 @@ import type {
   ClinicalJourneyActionId,
   ClinicalJourneyBlockedReason,
   ClinicalJourneyContext,
+  ClinicalJourneyMessageValues,
   ResolvedClinicalJourneyAction,
 } from "@medbrains/types";
 import {
-  P,
+  journeyActionAvailability,
+  journeyActionDisabledReason,
+  journeyActionShortLabel,
+  journeyBlockedReasonLabel,
   resolveClinicalJourneyActions,
   summarizeClinicalJourneyActions,
 } from "@medbrains/types";
 import { StyleSheet, View } from "react-native";
 import { Button, Chip, Text } from "react-native-paper";
+import {
+  MOBILE_PATIENT_JOURNEY_BLOCKERS,
+  mobilePatientJourneyTranslator,
+} from "./patientJourneyText";
 
 type MobileJourneyActionId =
   | "billing.collect_payment"
@@ -35,6 +43,13 @@ interface PatientJourneyActionsProps {
     navigate: (screen: string, params?: Record<string, unknown>) => void;
   };
   showUnavailable?: boolean;
+}
+
+interface MobileActionBlocker {
+  key: string;
+  message: string;
+  values?: ClinicalJourneyMessageValues;
+  reason: ClinicalJourneyBlockedReason;
 }
 
 const SUPPORTED_MOBILE_ACTIONS = new Set<ClinicalJourneyActionId>([
@@ -86,63 +101,17 @@ function actionIcon(actionId: ClinicalJourneyActionId) {
   }
 }
 
-function actionLabel(action: ResolvedClinicalJourneyAction & { id: MobileJourneyActionId }) {
-  if (action.id === "billing.collect_payment") return "Payment";
-  if (action.id === "billing.open_ledger") return "Billing";
-  if (action.id === "billing.prepare_discharge_bill") return "Discharge Bill";
-  if (action.id === "camp.open_context") return "Camp";
-  if (action.id === "emergency.open_mlc") return "MLC";
-  if (action.id === "emergency.open_visit") return "ER";
-  if (action.id === "ipd.admit") return "Admit";
-  if (action.id === "ipd.open_admission") return "IPD";
-  if (action.id === "opd.open_visit") return "Notes";
-  if (action.id === "orders.radiology") return "Imaging";
-  if (action.id === "pharmacy.dispense_order") return "Dispense";
-  if (action.id === "pharmacy.open_patient_queue") return "Pharmacy";
-  return action.shortLabel;
-}
-
-function eventLabel(eventName: string) {
-  return eventName.replace(/\./g, " ");
-}
-
-function blockedReasonLabel(reason: ClinicalJourneyBlockedReason | null) {
-  switch (reason) {
-    case "configuration":
-      return "Configuration";
-    case "context":
-      return "Context";
-    case "event":
-      return "Event";
-    case "masking":
-      return "Masking";
-    case "permission":
-      return "Permission";
-    case "regulatory":
-      return "Regulatory";
-    default:
-      return null;
-  }
-}
-
-function actionActivationText(action: ResolvedClinicalJourneyAction) {
-  return action.activatesAfter.length > 0
-    ? `After ${action.activatesAfter.map(eventLabel).join(" / ")}`
-    : "Available";
-}
-
 function supportedAction(
   action: ResolvedClinicalJourneyAction,
 ): action is ResolvedClinicalJourneyAction & { id: MobileJourneyActionId } {
   return SUPPORTED_MOBILE_ACTIONS.has(action.id);
 }
 
-function mobileDisabledReason(
+function mobileActionBlocker(
   action: ResolvedClinicalJourneyAction & { id: MobileJourneyActionId },
   context: ClinicalJourneyContext,
-  hasPermission: (permission: string) => boolean,
-) {
-  if (action.disabledReasonText) return action.disabledReasonText;
+): MobileActionBlocker | null {
+  if (action.disabledReasonText) return null;
 
   const hasMobileOrderContext =
     (context.activeOrderContext === "opd" && Boolean(context.activeEncounterId)) ||
@@ -154,7 +123,11 @@ function mobileDisabledReason(
     action.id === "opd.open_visit" &&
     (!context.activeEncounterId || context.activeOrderContext !== "opd")
   ) {
-    return "Open an OPD encounter before mobile consultation";
+    return {
+      key: MOBILE_PATIENT_JOURNEY_BLOCKERS.openOpdEncounterBeforeMobileConsultation,
+      message: "Open an OPD encounter before mobile consultation",
+      reason: "context",
+    };
   }
   if (
     (action.id === "orders.medication" ||
@@ -163,14 +136,16 @@ function mobileDisabledReason(
     !hasMobileOrderContext
   ) {
     return context.activeOrderContext === "ipd"
-      ? "Open an active IPD encounter before mobile inpatient orders"
-      : "Open an OPD encounter before mobile orders";
-  }
-  if (
-    action.id === "orders.radiology" &&
-    (!hasPermission(P.RADIOLOGY.ORDERS_CREATE) || !hasPermission(P.RADIOLOGY.ORDERS_LIST))
-  ) {
-    return "Radiology order permission required";
+      ? {
+          key: MOBILE_PATIENT_JOURNEY_BLOCKERS.openActiveIpdEncounterBeforeMobileInpatientOrders,
+          message: "Open an active IPD encounter before mobile inpatient orders",
+          reason: "context",
+        }
+      : {
+          key: MOBILE_PATIENT_JOURNEY_BLOCKERS.openOpdEncounterBeforeMobileOrders,
+          message: "Open an OPD encounter before mobile orders",
+          reason: "context",
+        };
   }
   return null;
 }
@@ -186,18 +161,21 @@ function mobileOrderParams(context: ClinicalJourneyContext) {
 
 function applyMobileDisabledReason(
   action: ResolvedClinicalJourneyAction & { id: MobileJourneyActionId },
-  disabledReason: string | null,
+  blocker: MobileActionBlocker | null,
 ): ResolvedClinicalJourneyAction & { id: MobileJourneyActionId } {
-  if (!disabledReason || disabledReason === action.disabledReasonText) {
+  if (!blocker) {
     return action;
   }
 
   return {
     ...action,
-    activationDisabledReasonText: action.activationDisabledReasonText,
-    blockedReason: "context",
-    contextDisabledReasonText: disabledReason,
-    disabledReasonText: disabledReason,
+    blockedReason: blocker.reason,
+    contextDisabledReasonKey: blocker.key,
+    contextDisabledReasonText: blocker.message,
+    contextDisabledReasonValues: blocker.values ?? null,
+    disabledReasonKey: blocker.key,
+    disabledReasonText: blocker.message,
+    disabledReasonValues: blocker.values ?? null,
     enabled: false,
   };
 }
@@ -211,19 +189,13 @@ export function PatientJourneyActions({
   const actions = resolveClinicalJourneyActions(context, hasPermission, "mobile", {
     includePermissionDenied: showUnavailable,
   }).filter(supportedAction);
-  const actionStates = actions.map((action) => {
-    const disabledReason = mobileDisabledReason(action, context, hasPermission);
-    return {
-      action: applyMobileDisabledReason(action, disabledReason),
-      disabledReason,
-    };
-  });
-  const readinessSummary = summarizeClinicalJourneyActions(
-    actionStates.map((state) => state.action),
+  const actionStates = actions.map((action) =>
+    applyMobileDisabledReason(action, mobileActionBlocker(action, context)),
   );
+  const readinessSummary = summarizeClinicalJourneyActions(actionStates);
 
   function handleAction(action: ResolvedClinicalJourneyAction & { id: MobileJourneyActionId }) {
-    if (mobileDisabledReason(action, context, hasPermission)) return;
+    if (!action.enabled) return;
 
     switch (action.id) {
       case "billing.collect_payment":
@@ -379,8 +351,15 @@ export function PatientJourneyActions({
         </View>
       </View>
       <View style={styles.actions}>
-        {actionStates.map(({ action, disabledReason }) => {
-          const blocked = Boolean(disabledReason);
+        {actionStates.map((action) => {
+          const blocked = !action.enabled;
+          const reason = blocked
+            ? journeyActionDisabledReason(mobilePatientJourneyTranslator, action)
+            : journeyActionAvailability(mobilePatientJourneyTranslator, action);
+          const blockedLabel = blocked
+            ? journeyBlockedReasonLabel(mobilePatientJourneyTranslator, action.blockedReason)
+            : null;
+
           return (
             <View
               key={action.id}
@@ -393,12 +372,10 @@ export function PatientJourneyActions({
                 onPress={() => handleAction(action)}
                 compact
               >
-                {actionLabel(action)}
+                {journeyActionShortLabel(mobilePatientJourneyTranslator, action.id)}
               </Button>
               <Text variant="labelSmall" style={styles.reason}>
-                {disabledReason
-                  ? `${blockedReasonLabel(action.blockedReason) ?? "Blocked"}: ${disabledReason}`
-                  : actionActivationText(action)}
+                {blocked && reason ? `${blockedLabel ?? "Blocked"}: ${reason}` : reason}
               </Text>
             </View>
           );

@@ -69,6 +69,22 @@ export {
   hasReviewedPatientPharmacyPrescriptionForJourney,
   patientFlowJourneyContext,
 } from "./patient-flow.js";
+export type { PatientJourneyTranslator } from "./patient-journey-i18n.js";
+export {
+  CLINICAL_EVENT_I18N_KEYS,
+  clinicalEventLabel,
+  clinicalEventList,
+  journeyActionAvailability,
+  journeyActionDescription,
+  journeyActionDisabledReason,
+  journeyActionLabel,
+  journeyActionShortLabel,
+  journeyBlockedReasonLabel,
+  journeyMessage,
+  patientFlowItemDescription,
+  patientFlowItemDisabledReason,
+  patientFlowItemLabel,
+} from "./patient-journey-i18n.js";
 export { patientJourneyActionRoute } from "./patient-journey-routes.js";
 export type { PermissionDef, PermissionGroup } from "./permissions.js";
 export {
