@@ -80,6 +80,7 @@ import {
   IconCalendarCheck,
   IconChartBar,
   IconCheck,
+  IconClock,
   IconDownload,
   IconFirstAidKit,
   IconPencil,
@@ -101,6 +102,9 @@ import {
   ClinicalEventProvider,
   DataTable,
   DoctorSearchSelect,
+  OperationalSignal,
+  type OperationalSignalShape,
+  type OperationalSignalTone,
   PageHeader,
   useClinicalEmit,
   useProtectedFieldAccess,
@@ -145,20 +149,121 @@ const CAMP_STATUS_COLORS: Record<string, string> = {
   cancelled: "danger",
 };
 
-const REG_STATUS_COLORS: Record<string, string> = {
-  registered: "slate",
-  screened: "primary",
-  referred: "orange",
-  converted: "success",
-  no_show: "danger",
-};
-
 const FOLLOWUP_STATUS_COLORS: Record<string, string> = {
   scheduled: "primary",
   completed: "success",
   missed: "danger",
   cancelled: "slate",
 };
+
+type CampTranslate = ReturnType<typeof useTranslation>["t"];
+
+function campWorkflowLabel(value: string): string {
+  return value.replace(/_/g, " ");
+}
+
+function campRegistrationStatusLabel(t: CampTranslate, status: string): string {
+  return t(`registrationStatus.${status}`, { defaultValue: campWorkflowLabel(status) });
+}
+
+function campRegistrationStatusTone(status: string): OperationalSignalTone {
+  switch (status) {
+    case "converted":
+      return "ready";
+    case "screened":
+    case "referred":
+      return "active";
+    case "registered":
+      return "blocked";
+    case "no_show":
+      return "risk";
+    default:
+      return "neutral";
+  }
+}
+
+function campRegistrationStatusShape(status: string): OperationalSignalShape {
+  switch (status) {
+    case "registered":
+      return "token";
+    case "screened":
+    case "referred":
+    case "no_show":
+      return "diamond";
+    default:
+      return "pill";
+  }
+}
+
+function campRegistrationStatusIcon(status: string) {
+  switch (status) {
+    case "registered":
+      return IconUsers;
+    case "screened":
+      return IconStethoscope;
+    case "referred":
+      return IconTransferIn;
+    case "converted":
+      return IconCheck;
+    case "no_show":
+      return IconX;
+    default:
+      return undefined;
+  }
+}
+
+function campClinicalRouteReady(registration: CampRegistration): boolean {
+  return Boolean(registration.clinical_department_id);
+}
+
+function CampRegistrationSignals({
+  registration,
+  size = "xs",
+}: {
+  registration: CampRegistration;
+  size?: "xs" | "sm";
+}) {
+  const { t } = useTranslation("camp");
+  const routeReady = campClinicalRouteReady(registration);
+
+  return (
+    <Group gap={4} wrap="wrap">
+      <OperationalSignal
+        icon={campRegistrationStatusIcon(registration.status)}
+        label={campRegistrationStatusLabel(t, registration.status)}
+        shape={campRegistrationStatusShape(registration.status)}
+        size={size}
+        tone={campRegistrationStatusTone(registration.status)}
+      />
+      {registration.patient_id && (
+        <OperationalSignal
+          icon={IconUsers}
+          label={t("signals.patientLinked")}
+          shape="token"
+          size={size}
+          tone="ready"
+        />
+      )}
+      {routeReady ? (
+        <OperationalSignal
+          icon={IconArrowRight}
+          label={t("signals.opdReady")}
+          shape="diamond"
+          size={size}
+          tone="active"
+        />
+      ) : (
+        <OperationalSignal
+          icon={IconClock}
+          label={t("signals.routeNeeded")}
+          shape="token"
+          size={size}
+          tone="blocked"
+        />
+      )}
+    </Group>
+  );
+}
 
 const TEAM_ROLES = [
   { value: "coordinator", label: "Coordinator" },
@@ -176,6 +281,10 @@ const SAMPLE_TYPES = [
   { value: "swab", label: "Swab" },
   { value: "other", label: "Other" },
 ];
+
+function campFollowupStatusLabel(t: CampTranslate, status: string): string {
+  return t(`followups.status.${status}`, { defaultValue: campWorkflowLabel(status) });
+}
 
 const CAMP_SERVICE_LINE_OPTIONS = [
   { value: "opinion", label: "Opinion / specialist review" },
@@ -672,6 +781,7 @@ interface PatientCampRegistrationRow extends CampRegistration {
 }
 
 function CampPatientContextPanel({ patientId }: { patientId: string }) {
+  const { t } = useTranslation("camp");
   const navigate = useNavigate();
   const canViewRegistrations = useHasPermission(P.CAMP.REGISTRATIONS_LIST);
   const { data: camps = [] } = useQuery({
@@ -710,7 +820,7 @@ function CampPatientContextPanel({ patientId }: { patientId: string }) {
   const columns: Column<PatientCampRegistrationRow>[] = [
     {
       key: "camp_code",
-      label: "Camp",
+      label: t("patientHistory.columns.camp"),
       render: (row) => (
         <Stack gap={0}>
           <Text size="sm" fw={600}>
@@ -724,26 +834,22 @@ function CampPatientContextPanel({ patientId }: { patientId: string }) {
     },
     {
       key: "registration_number",
-      label: "Registration",
+      label: t("patientHistory.columns.registration"),
       render: (row) => row.registration_number,
     },
     {
       key: "status",
-      label: "Status",
-      render: (row) => (
-        <Badge color={REG_STATUS_COLORS[row.status] ?? "slate"} variant="filled" size="sm">
-          {row.status}
-        </Badge>
-      ),
+      label: t("patientHistory.columns.status"),
+      render: (row) => <CampRegistrationSignals registration={row} />,
     },
     {
       key: "chief_complaint",
-      label: "Complaint",
+      label: t("patientHistory.columns.complaint"),
       render: (row) => row.chief_complaint ?? "—",
     },
     {
       key: "actions",
-      label: "Actions",
+      label: t("patientHistory.columns.actions"),
       render: (row) => (
         <Group gap="xs">
           <Button
@@ -751,14 +857,14 @@ function CampPatientContextPanel({ patientId }: { patientId: string }) {
             variant="light"
             onClick={() => navigate(campClinicalRoutePath(row.camp_id, row.id, patientId))}
           >
-            Open Flow
+            {t("patientHistory.actions.openFlow")}
           </Button>
           <Button
             size="xs"
             variant="subtle"
             onClick={() => navigate(campWorkPath(row.camp_id, patientId))}
           >
-            Work Camp
+            {t("patientHistory.actions.workCamp")}
           </Button>
         </Group>
       ),
@@ -787,15 +893,14 @@ function CampPatientContextPanel({ patientId }: { patientId: string }) {
           <Stack>
             <Group justify="space-between" align="center">
               <Stack gap={0}>
-                <Text fw={700}>Camp history for this patient</Text>
+                <Text fw={700}>{t("patientHistory.title")}</Text>
                 <Text size="xs" c="dimmed">
-                  Open a previous camp registration or choose an active camp to register this
-                  patient.
+                  {t("patientHistory.description")}
                 </Text>
               </Stack>
               {activeCamps.length > 0 && (
                 <Select
-                  placeholder="Register in active camp"
+                  placeholder={t("patientHistory.registerInActiveCamp")}
                   data={activeCamps.map((camp) => ({
                     value: camp.id,
                     label: `${camp.camp_code} - ${camp.name}`,
@@ -820,7 +925,7 @@ function CampPatientContextPanel({ patientId }: { patientId: string }) {
         </Card>
       ) : (
         <Alert color="orange" variant="light">
-          Camp registration history is restricted for this role.
+          {t("patientHistory.restricted")}
         </Alert>
       )}
     </Stack>
@@ -1872,6 +1977,7 @@ function RegistrationsTab({
   contextPatientId: string;
   onScreenRegistration: (registrationId: string) => void;
 }) {
+  const { t } = useTranslation("camp");
   const canCreate = useHasPermission(P.CAMP.REGISTRATIONS_CREATE);
   const canOpenClinicalVisit = useHasPermission(P.OPD.VISIT_CREATE);
   const campNameAccess = useProtectedFieldAccess(CAMP_REGISTRATION_NAME_FIELD_ACCESS_KEY);
@@ -1989,8 +2095,8 @@ function RegistrationsTab({
       createHandlers.close();
       reset(registrationDefaults);
       notifications.show({
-        title: "Registered",
-        message: "Participant registered",
+        title: t("notify.registered"),
+        message: t("notify.participantRegistered"),
         color: "success",
       });
     },
@@ -2031,8 +2137,8 @@ function RegistrationsTab({
     },
     onError: () => {
       notifications.show({
-        title: "Unable to open clinical drawer",
-        message: "Select a department for the clinical visit and check OPD create permission.",
+        title: t("notify.unableToOpenClinicalDrawer"),
+        message: t("notify.selectDepartmentAndPermission"),
         color: "danger",
       });
     },
@@ -2088,7 +2194,7 @@ function RegistrationsTab({
   const columns: Column<CampRegistration>[] = [
     {
       key: "registration_number",
-      label: "Reg #",
+      label: t("registrations.columns.registration"),
       render: (r) => (
         <Text size="sm" fw={500}>
           {r.registration_number}
@@ -2097,40 +2203,44 @@ function RegistrationsTab({
     },
     {
       key: "person_name",
-      label: "Name",
+      label: t("registrations.columns.name"),
       fieldAccessKey: CAMP_REGISTRATION_NAME_FIELD_ACCESS_KEY,
       accessor: (r) => r.person_name,
       fieldKind: "name",
-      hiddenLabel: "Participant restricted",
+      hiddenLabel: t("registrations.restrictedParticipant"),
       render: (r) => r.person_name,
     },
-    { key: "age", label: "Age", render: (r) => r.age?.toString() ?? "—" },
-    { key: "gender", label: "Gender", render: (r) => r.gender ?? "—" },
+    { key: "age", label: t("registrations.columns.age"), render: (r) => r.age?.toString() ?? "—" },
+    { key: "gender", label: t("registrations.columns.gender"), render: (r) => r.gender ?? "—" },
     {
       key: "phone",
-      label: "Phone",
+      label: t("registrations.columns.phone"),
       fieldAccessKey: CAMP_REGISTRATION_PHONE_FIELD_ACCESS_KEY,
       accessor: (r) => r.phone,
       fieldKind: "phone",
-      hiddenLabel: "Phone restricted",
+      hiddenLabel: t("registrations.restrictedPhone"),
       render: (r) => r.phone ?? "—",
     },
     {
       key: "status",
-      label: "Status",
-      render: (r) => (
-        <Badge color={REG_STATUS_COLORS[r.status] ?? "slate"} variant="filled" size="sm">
-          {r.status}
-        </Badge>
-      ),
+      label: t("registrations.columns.status"),
+      render: (r) => <CampRegistrationSignals registration={r} />,
     },
-    { key: "chief_complaint", label: "Complaint", render: (r) => r.chief_complaint ?? "—" },
+    {
+      key: "chief_complaint",
+      label: t("registrations.columns.complaint"),
+      render: (r) => r.chief_complaint ?? "—",
+    },
     {
       key: "actions",
-      label: "Actions",
+      label: t("registrations.columns.actions"),
       render: (r) => (
         <Group gap={4}>
-          <Tooltip label="Record screening / vitals" closeDelay={0} withinPortal={false}>
+          <Tooltip
+            label={t("registrations.actions.recordScreening")}
+            closeDelay={0}
+            withinPortal={false}
+          >
             <ActionIcon
               variant="subtle"
               color="primary"
@@ -2139,7 +2249,7 @@ function RegistrationsTab({
                 event.currentTarget.blur();
                 onScreenRegistration(r.id);
               }}
-              aria-label="Record screening"
+              aria-label={t("registrations.actions.recordScreening")}
             >
               <IconStethoscope size={14} />
             </ActionIcon>
@@ -2147,7 +2257,9 @@ function RegistrationsTab({
           {canOpenClinicalVisit && (
             <Tooltip
               label={
-                r.clinical_department_id ? "Open OPD drawer" : "Select department and open OPD"
+                r.clinical_department_id
+                  ? t("registrations.actions.openOpd")
+                  : t("registrations.actions.selectDepartmentOpenOpd")
               }
               closeDelay={0}
               withinPortal={false}
@@ -2161,14 +2273,18 @@ function RegistrationsTab({
                   event.currentTarget.blur();
                   openClinicalRouting(r);
                 }}
-                aria-label="Open OPD drawer"
+                aria-label={t("registrations.actions.openOpd")}
               >
                 <IconArrowRight size={14} />
               </ActionIcon>
             </Tooltip>
           )}
           {canOpenClinicalVisit && r.clinical_department_id && (
-            <Tooltip label="Change department / doctor" closeDelay={0} withinPortal={false}>
+            <Tooltip
+              label={t("registrations.actions.changeDepartmentDoctor")}
+              closeDelay={0}
+              withinPortal={false}
+            >
               <ActionIcon
                 variant="subtle"
                 color="orange"
@@ -2177,7 +2293,7 @@ function RegistrationsTab({
                   event.currentTarget.blur();
                   openClinicalRouting(r, true);
                 }}
-                aria-label="Change department or doctor"
+                aria-label={t("registrations.actions.changeDepartmentDoctor")}
               >
                 <IconTransferIn size={14} />
               </ActionIcon>
@@ -2192,19 +2308,21 @@ function RegistrationsTab({
     <>
       <Group justify="space-between" mb="md">
         <Stack gap={2}>
-          <Text fw={600}>{selectedCamp ? selectedCamp.name : "Select an active camp"}</Text>
+          <Text fw={600}>
+            {selectedCamp ? selectedCamp.name : t("registrations.selectActiveCamp")}
+          </Text>
           <Text size="xs" c="dimmed">
             {contextPatientId
-              ? "Showing camp registrations linked to the selected patient."
-              : "New camp participants are registered against the selected camp context."}
+              ? t("registrations.linkedToPatient")
+              : t("registrations.newParticipantsContext")}
           </Text>
         </Stack>
         {canCreate && campId && (
           <Tooltip
             label={
               canEditCampName
-                ? "Register a camp participant"
-                : "Participant name field edit access is required"
+                ? t("registrations.actions.registerParticipant")
+                : t("registrations.nameEditRequired")
             }
           >
             <span>
@@ -2213,7 +2331,7 @@ function RegistrationsTab({
                 onClick={createHandlers.open}
                 disabled={!canEditCampName}
               >
-                Register Participant
+                {t("registrations.actions.registerParticipant")}
               </Button>
             </span>
           </Tooltip>
@@ -2223,11 +2341,11 @@ function RegistrationsTab({
       {campId ? (
         <Stack>
           <TextInput
-            label="Patient search"
+            label={t("registrations.searchLabel")}
             placeholder={
               contextPatientId
-                ? "Search within this patient's camp registrations"
-                : "Search name, registration number, phone, ID, complaint"
+                ? t("registrations.searchLinkedPlaceholder")
+                : t("registrations.searchPlaceholder")
             }
             value={patientSearch}
             onChange={(event) => setPatientSearch(event.currentTarget.value)}
@@ -2237,7 +2355,7 @@ function RegistrationsTab({
                 <ActionIcon
                   variant="subtle"
                   size="sm"
-                  aria-label="Clear patient search"
+                  aria-label={t("registrations.clearSearch")}
                   onClick={() => setPatientSearch("")}
                 >
                   <IconX size={14} />
@@ -2247,11 +2365,11 @@ function RegistrationsTab({
           />
           <Tabs value={statusTab} onChange={setStatusTab}>
             <Tabs.List>
-              <Tabs.Tab value="all">All</Tabs.Tab>
-              <Tabs.Tab value="registered">Registered</Tabs.Tab>
-              <Tabs.Tab value="screened">Screened</Tabs.Tab>
-              <Tabs.Tab value="referred">Referred</Tabs.Tab>
-              <Tabs.Tab value="converted">Converted</Tabs.Tab>
+              <Tabs.Tab value="all">{t("registrationStatus.all")}</Tabs.Tab>
+              <Tabs.Tab value="registered">{t("registrationStatus.registered")}</Tabs.Tab>
+              <Tabs.Tab value="screened">{t("registrationStatus.screened")}</Tabs.Tab>
+              <Tabs.Tab value="referred">{t("registrationStatus.referred")}</Tabs.Tab>
+              <Tabs.Tab value="converted">{t("registrationStatus.converted")}</Tabs.Tab>
             </Tabs.List>
           </Tabs>
           <DataTable
@@ -2263,7 +2381,7 @@ function RegistrationsTab({
         </Stack>
       ) : (
         <Text c="dimmed" ta="center" mt="xl">
-          Select an active camp to view registrations
+          {t("registrations.selectActiveCampToView")}
         </Text>
       )}
 
@@ -2428,8 +2546,8 @@ function RegistrationsTab({
         }}
         title={
           selectedRegistrationForClinical?.clinical_department_id
-            ? "Change department / doctor"
-            : "Open OPD clinical drawer"
+            ? t("registrations.routeDrawer.changeTitle")
+            : t("registrations.routeDrawer.openTitle")
         }
         position="right"
         size="md"
@@ -2443,8 +2561,7 @@ function RegistrationsTab({
               )}
             </Text>
             <Text size="xs" c="dimmed">
-              Select the department and doctor for this camp participant. Saved values will be
-              reused next time.
+              {t("registrations.routeDrawer.description")}
             </Text>
           </Stack>
           <Controller
@@ -2452,8 +2569,8 @@ function RegistrationsTab({
             name="department_id"
             render={({ field }) => (
               <Select
-                label="Department"
-                placeholder="Select department"
+                label={t("registrations.routeDrawer.department")}
+                placeholder={t("registrations.routeDrawer.selectDepartment")}
                 data={departmentOptions}
                 value={field.value}
                 onChange={(value) => field.onChange(value ?? null)}
@@ -2468,15 +2585,15 @@ function RegistrationsTab({
             name="doctor_id"
             render={({ field }) => (
               <DoctorSearchSelect
-                label="Doctor"
-                placeholder="Select doctor if assigned"
+                label={t("registrations.routeDrawer.doctor")}
+                placeholder={t("registrations.routeDrawer.selectDoctor")}
                 value={field.value ?? ""}
                 onChange={(value) => field.onChange(value || null)}
               />
             )}
           />
           <Button type="submit" loading={openClinicalVisitMut.isPending}>
-            Open OPD Drawer
+            {t("registrations.routeDrawer.openOpd")}
           </Button>
         </Stack>
       </Drawer>
@@ -2543,6 +2660,7 @@ function ScreeningsTab({
   focusedRegistrationId: string | null;
   onClearFocusedRegistration: () => void;
 }) {
+  const { t } = useTranslation("camp");
   const canManageScreenings = useHasPermission(P.CAMP.SCREENINGS_MANAGE);
   const canManageLab = useHasPermission(P.CAMP.LAB_MANAGE);
   const campNameAccess = useProtectedFieldAccess(CAMP_REGISTRATION_NAME_FIELD_ACCESS_KEY);
@@ -2644,6 +2762,22 @@ function ScreeningsTab({
       })),
     [campNameAccess, campPhoneAccess, registrations],
   );
+  const sampleTypeOptions = useMemo(
+    () =>
+      SAMPLE_TYPES.map((sampleType) => ({
+        value: sampleType.value,
+        label: t(`samples.type.${sampleType.value}`, { defaultValue: sampleType.label }),
+      })),
+    [t],
+  );
+  const referralUrgencyOptions = useMemo(
+    () => [
+      { value: "routine", label: t("screenings.referralUrgency.routine") },
+      { value: "urgent", label: t("screenings.referralUrgency.urgent") },
+      { value: "emergency", label: t("screenings.referralUrgency.emergency") },
+    ],
+    [t],
+  );
   const registrationsById = useMemo(
     () => new Map(registrations.map((registration) => [registration.id, registration])),
     [registrations],
@@ -2654,7 +2788,7 @@ function ScreeningsTab({
       return (
         <Stack gap={2}>
           <Text size="sm" fw={600}>
-            Unlinked registration
+            {t("registrations.unlinkedRegistration")}
           </Text>
           <Text size="xs" c="dimmed">
             {registrationId.slice(0, 8)}
@@ -2696,8 +2830,8 @@ function ScreeningsTab({
       void qc.invalidateQueries({ queryKey: ["camp-registrations"] });
       closeScreeningDrawer();
       notifications.show({
-        title: "Screening Recorded",
-        message: "Screening saved",
+        title: t("notify.screeningRecorded"),
+        message: t("notify.screeningSaved"),
         color: "success",
       });
     },
@@ -2710,8 +2844,8 @@ function ScreeningsTab({
       labHandlers.close();
       resetLab(labSampleDefaults);
       notifications.show({
-        title: "Sample Recorded",
-        message: "Lab sample recorded",
+        title: t("notify.sampleRecorded"),
+        message: t("notify.labSampleRecorded"),
         color: "success",
       });
     },
@@ -2765,34 +2899,46 @@ function ScreeningsTab({
   const scrCols: Column<CampScreening>[] = [
     {
       key: "registration_id",
-      label: "Participant",
+      label: t("screenings.columns.participant"),
       render: (r) => renderRegistrationCell(r.registration_id),
     },
     {
       key: "bp",
-      label: "BP",
+      label: t("screenings.columns.bp"),
       render: (r) => (r.bp_systolic && r.bp_diastolic ? `${r.bp_systolic}/${r.bp_diastolic}` : "—"),
     },
-    { key: "pulse_rate", label: "Pulse", render: (r) => r.pulse_rate?.toString() ?? "—" },
-    { key: "spo2", label: "SpO2", render: (r) => (r.spo2 ? `${r.spo2}%` : "—") },
+    {
+      key: "pulse_rate",
+      label: t("screenings.columns.pulse"),
+      render: (r) => r.pulse_rate?.toString() ?? "—",
+    },
+    {
+      key: "spo2",
+      label: t("screenings.columns.spo2"),
+      render: (r) => (r.spo2 ? `${r.spo2}%` : "—"),
+    },
     {
       key: "blood_sugar_random",
-      label: "BSR",
+      label: t("screenings.columns.bsr"),
       render: (r) => r.blood_sugar_random?.toString() ?? "—",
     },
-    { key: "bmi", label: "BMI", render: (r) => r.bmi?.toString() ?? "—" },
-    { key: "findings", label: "Findings", render: (r) => r.findings ?? "—" },
+    { key: "bmi", label: t("screenings.columns.bmi"), render: (r) => r.bmi?.toString() ?? "—" },
+    { key: "findings", label: t("screenings.columns.findings"), render: (r) => r.findings ?? "—" },
     {
       key: "referred",
-      label: "Referred",
+      label: t("screenings.columns.referred"),
       render: (r) =>
         r.referred_to_hospital ? (
           <Badge color="orange" size="sm">
-            {r.referral_urgency ?? "Yes"}
+            {r.referral_urgency
+              ? t(`screenings.referralUrgency.${r.referral_urgency}`, {
+                  defaultValue: campWorkflowLabel(r.referral_urgency),
+                })
+              : t("common.yes")}
           </Badge>
         ) : (
           <Text size="sm" c="dimmed">
-            No
+            {t("common.no")}
           </Text>
         ),
     },
@@ -2801,27 +2947,39 @@ function ScreeningsTab({
   const labCols: Column<CampLabSample>[] = [
     {
       key: "registration_id",
-      label: "Participant",
+      label: t("screenings.columns.participant"),
       render: (r) => renderRegistrationCell(r.registration_id),
     },
-    { key: "sample_type", label: "Sample", render: (r) => r.sample_type },
-    { key: "test_requested", label: "Test", render: (r) => r.test_requested ?? "—" },
-    { key: "barcode", label: "Barcode", render: (r) => r.barcode ?? "—" },
+    {
+      key: "sample_type",
+      label: t("samples.columns.sample"),
+      render: (r) => t(`samples.type.${r.sample_type}`, { defaultValue: r.sample_type }),
+    },
+    {
+      key: "test_requested",
+      label: t("samples.columns.test"),
+      render: (r) => r.test_requested ?? "—",
+    },
+    { key: "barcode", label: t("samples.columns.barcode"), render: (r) => r.barcode ?? "—" },
     {
       key: "sent_to_lab",
-      label: "Sent to Lab",
+      label: t("samples.columns.sentToLab"),
       render: (r) =>
         r.sent_to_lab ? (
           <Badge color="success" size="sm">
-            Yes
+            {t("common.yes")}
           </Badge>
         ) : (
           <Badge color="slate" size="sm">
-            No
+            {t("common.no")}
           </Badge>
         ),
     },
-    { key: "result_summary", label: "Result", render: (r) => r.result_summary ?? "—" },
+    {
+      key: "result_summary",
+      label: t("samples.columns.result"),
+      render: (r) => r.result_summary ?? "—",
+    },
   ];
 
   return (
@@ -2831,12 +2989,12 @@ function ScreeningsTab({
           <Group justify="space-between">
             <Stack gap={2}>
               <Text fw={600} size="lg">
-                Screenings
+                {t("screenings.title")}
               </Text>
               <Text size="xs" c="dimmed">
                 {selectedCamp
                   ? `${selectedCamp.camp_code} · ${selectedCamp.name}`
-                  : "Selected camp"}
+                  : t("common.selectedCamp")}
               </Text>
             </Stack>
             {canManageScreenings && (
@@ -2845,7 +3003,7 @@ function ScreeningsTab({
                 leftSection={<IconPlus size={14} />}
                 onClick={() => openScreeningDrawer()}
               >
-                Record Screening
+                {t("screenings.actions.recordScreening")}
               </Button>
             )}
           </Group>
@@ -2858,11 +3016,11 @@ function ScreeningsTab({
 
           <Group justify="space-between" mt="lg">
             <Text fw={600} size="lg">
-              Lab Samples
+              {t("samples.title")}
             </Text>
             {canManageLab && (
               <Button size="xs" leftSection={<IconPlus size={14} />} onClick={labHandlers.open}>
-                Record Sample
+                {t("samples.actions.recordSample")}
               </Button>
             )}
           </Group>
@@ -2875,7 +3033,7 @@ function ScreeningsTab({
         </Stack>
       ) : (
         <Text c="dimmed" ta="center" mt="xl">
-          Select an active camp to view screenings and lab samples
+          {t("screenings.selectActiveCampToView")}
         </Text>
       )}
 
@@ -2883,7 +3041,7 @@ function ScreeningsTab({
       <Drawer
         opened={scrOpen}
         onClose={closeScreeningDrawer}
-        title="Record Screening"
+        title={t("screenings.drawer.title")}
         position="right"
         size="xl"
       >
@@ -2893,8 +3051,8 @@ function ScreeningsTab({
             name="registration_id"
             render={({ field }) => (
               <Select
-                label="Camp participant"
-                placeholder="Search registration, name, phone"
+                label={t("common.campParticipant")}
+                placeholder={t("common.searchRegistrationNamePhone")}
                 data={registrationOptions}
                 value={field.value || null}
                 onChange={(value) => field.onChange(value ?? "")}
@@ -2906,7 +3064,7 @@ function ScreeningsTab({
           />
           <Stack gap="xs">
             <Text fw={600} size="sm">
-              Vitals
+              {t("screenings.form.vitals")}
             </Text>
             <VitalsRecorder onChange={setScreeningVitals} showActions={false} showNotes={false} />
           </Stack>
@@ -2915,7 +3073,7 @@ function ScreeningsTab({
             name="blood_sugar_random"
             render={({ field }) => (
               <NumberInput
-                label="Random Blood Sugar"
+                label={t("screenings.form.randomBloodSugar")}
                 decimalScale={1}
                 value={field.value}
                 onChange={field.onChange}
@@ -2925,18 +3083,27 @@ function ScreeningsTab({
             )}
           />
           <Group grow>
-            <TextInput label="Visual Acuity (L)" {...registerScreening("visual_acuity_left")} />
-            <TextInput label="Visual Acuity (R)" {...registerScreening("visual_acuity_right")} />
+            <TextInput
+              label={t("screenings.form.visualAcuityLeft")}
+              {...registerScreening("visual_acuity_left")}
+            />
+            <TextInput
+              label={t("screenings.form.visualAcuityRight")}
+              {...registerScreening("visual_acuity_right")}
+            />
           </Group>
-          <Textarea label="Findings" {...registerScreening("findings")} />
-          <Textarea label="Provisional Diagnosis" {...registerScreening("diagnosis")} />
-          <Textarea label="Advice" {...registerScreening("advice")} />
+          <Textarea label={t("screenings.form.findings")} {...registerScreening("findings")} />
+          <Textarea
+            label={t("screenings.form.provisionalDiagnosis")}
+            {...registerScreening("diagnosis")}
+          />
+          <Textarea label={t("screenings.form.advice")} {...registerScreening("advice")} />
           <Controller
             control={screeningControl}
             name="referred_to_hospital"
             render={({ field }) => (
               <Switch
-                label="Refer to hospital / OPD"
+                label={t("screenings.form.referToHospital")}
                 checked={field.value}
                 onChange={(event) => field.onChange(event.currentTarget.checked)}
               />
@@ -2945,7 +3112,7 @@ function ScreeningsTab({
           {referredToHospital && (
             <Group grow>
               <TextInput
-                label="Referral Department"
+                label={t("screenings.form.referralDepartment")}
                 {...registerScreening("referral_department")}
               />
               <Controller
@@ -2953,12 +3120,8 @@ function ScreeningsTab({
                 name="referral_urgency"
                 render={({ field }) => (
                   <Select
-                    label="Urgency"
-                    data={[
-                      { value: "routine", label: "Routine" },
-                      { value: "urgent", label: "Urgent" },
-                      { value: "emergency", label: "Emergency" },
-                    ]}
+                    label={t("screenings.form.urgency")}
+                    data={referralUrgencyOptions}
                     value={field.value || null}
                     onChange={(value) => field.onChange(value ?? "")}
                     clearable
@@ -2968,7 +3131,7 @@ function ScreeningsTab({
             </Group>
           )}
           <Button type="submit" loading={scrMut.isPending}>
-            Save Screening
+            {t("screenings.actions.saveScreening")}
           </Button>
         </Stack>
       </Drawer>
@@ -2977,7 +3140,7 @@ function ScreeningsTab({
       <Drawer
         opened={labOpen}
         onClose={labHandlers.close}
-        title="Record Lab Sample"
+        title={t("samples.drawer.title")}
         position="right"
         size="sm"
       >
@@ -2987,8 +3150,8 @@ function ScreeningsTab({
             name="registration_id"
             render={({ field }) => (
               <Select
-                label="Camp participant"
-                placeholder="Search registration, name, phone"
+                label={t("common.campParticipant")}
+                placeholder={t("common.searchRegistrationNamePhone")}
                 data={registrationOptions}
                 value={field.value || null}
                 onChange={(value) => field.onChange(value ?? "")}
@@ -3003,9 +3166,9 @@ function ScreeningsTab({
             name="sample_type"
             render={({ field }) => (
               <Select
-                label="Sample Type"
+                label={t("samples.form.sampleType")}
                 required
-                data={SAMPLE_TYPES}
+                data={sampleTypeOptions}
                 value={field.value}
                 onChange={(value) => field.onChange(value ?? "blood")}
                 error={labErrors.sample_type?.message}
@@ -3013,17 +3176,17 @@ function ScreeningsTab({
             )}
           />
           <TextInput
-            label="Test Requested"
+            label={t("samples.form.testRequested")}
             error={labErrors.test_requested?.message}
             {...registerLab("test_requested")}
           />
           <TextInput
-            label="Barcode"
+            label={t("samples.form.barcode")}
             error={labErrors.barcode?.message}
             {...registerLab("barcode")}
           />
           <Button type="submit" loading={labMut.isPending}>
-            Save Sample
+            {t("samples.actions.saveSample")}
           </Button>
         </Stack>
       </Drawer>
@@ -3042,6 +3205,7 @@ function FollowupsTab({
   campId: string | null;
   selectedCamp: Camp | null;
 }) {
+  const { t } = useTranslation("camp");
   const canManage = useHasPermission(P.CAMP.FOLLOWUPS_MANAGE);
   const campNameAccess = useProtectedFieldAccess(CAMP_REGISTRATION_NAME_FIELD_ACCESS_KEY);
   const campPhoneAccess = useProtectedFieldAccess(CAMP_REGISTRATION_PHONE_FIELD_ACCESS_KEY);
@@ -3094,6 +3258,14 @@ function FollowupsTab({
       })),
     [campNameAccess, campPhoneAccess, registrations],
   );
+  const followupTypeOptions = useMemo(
+    () =>
+      campFollowupTypeOptions.map((followupType) => ({
+        value: followupType.value,
+        label: t(`followups.type.${followupType.value}`, { defaultValue: followupType.label }),
+      })),
+    [t],
+  );
   const registrationsById = useMemo(
     () => new Map(registrations.map((registration) => [registration.id, registration])),
     [registrations],
@@ -3108,7 +3280,7 @@ function FollowupsTab({
       return (
         <Stack gap={2}>
           <Text size="sm" fw={600}>
-            Unlinked registration
+            {t("registrations.unlinkedRegistration")}
           </Text>
           <Text size="xs" c="dimmed">
             {registrationId.slice(0, 8)}
@@ -3140,8 +3312,8 @@ function FollowupsTab({
       createHandlers.close();
       reset(followupDefaults);
       notifications.show({
-        title: "Follow-up Created",
-        message: "Follow-up scheduled",
+        title: t("notify.followupCreated"),
+        message: t("notify.followupScheduled"),
         color: "success",
       });
     },
@@ -3168,64 +3340,65 @@ function FollowupsTab({
   const columns: Column<CampFollowup>[] = [
     {
       key: "registration_id",
-      label: "Participant",
+      label: t("followups.columns.participant"),
       render: (r) => renderRegistrationCell(r.registration_id),
     },
-    { key: "followup_date", label: "Date", render: (r) => r.followup_date },
+    { key: "followup_date", label: t("followups.columns.date"), render: (r) => r.followup_date },
     {
       key: "followup_type",
-      label: "Type",
+      label: t("followups.columns.type"),
       render: (r) =>
-        campFollowupTypeOptions.find((t) => t.value === r.followup_type)?.label ?? r.followup_type,
+        followupTypeOptions.find((option) => option.value === r.followup_type)?.label ??
+        r.followup_type,
     },
     {
       key: "status",
-      label: "Status",
+      label: t("followups.columns.status"),
       render: (r) => (
         <Badge color={FOLLOWUP_STATUS_COLORS[r.status] ?? "slate"} variant="filled" size="sm">
-          {r.status}
+          {campFollowupStatusLabel(t, r.status)}
         </Badge>
       ),
     },
     {
       key: "converted",
-      label: "Converted",
+      label: t("followups.columns.converted"),
       render: (r) =>
         r.converted_to_patient ? (
           <Badge color="success" size="sm">
-            Yes
+            {t("common.yes")}
           </Badge>
         ) : (
           <Text size="sm" c="dimmed">
-            No
+            {t("common.no")}
           </Text>
         ),
     },
-    { key: "outcome", label: "Outcome", render: (r) => r.outcome ?? "—" },
+    { key: "outcome", label: t("followups.columns.outcome"), render: (r) => r.outcome ?? "—" },
     {
       key: "actions",
       label: "",
       render: (r) =>
         canManage && r.status === "scheduled" ? (
           <Group gap={4}>
-            <Tooltip label="Mark Completed">
+            <Tooltip label={t("followups.actions.markCompleted")}>
               <ActionIcon
                 variant="subtle"
                 color="success"
                 size="sm"
                 onClick={() => completeMut.mutate({ id: r.id, data: { status: "completed" } })}
-                aria-label="Confirm"
+                aria-label={t("followups.actions.confirm")}
               >
                 <IconCheck size={14} />
               </ActionIcon>
             </Tooltip>
-            <Tooltip label="Mark Missed">
+            <Tooltip label={t("followups.actions.markMissed")}>
               <ActionIcon
                 variant="subtle"
                 color="danger"
                 size="sm"
                 onClick={() => completeMut.mutate({ id: r.id, data: { status: "missed" } })}
-                aria-label="Close"
+                aria-label={t("followups.actions.close")}
               >
                 <IconX size={14} />
               </ActionIcon>
@@ -3239,26 +3412,31 @@ function FollowupsTab({
     <>
       <Group justify="space-between" mb="md">
         <Stack gap={2}>
-          <Text fw={600}>{selectedCamp ? selectedCamp.name : "Select an active camp"}</Text>
+          <Text fw={600}>
+            {selectedCamp ? selectedCamp.name : t("registrations.selectActiveCamp")}
+          </Text>
           <Text size="xs" c="dimmed">
-            Follow-ups are scheduled from the current camp registration list.
+            {t("followups.description")}
           </Text>
         </Stack>
         {canManage && campId && (
           <Button leftSection={<IconPlus size={16} />} onClick={createHandlers.open}>
-            Schedule Follow-up
+            {t("followups.actions.scheduleFollowup")}
           </Button>
         )}
       </Group>
 
       {stats && campId && (
         <SimpleGrid cols={5} mb="md">
-          <StatCard label="Total Registrations" value={stats.total_registrations} />
-          <StatCard label="Referred" value={stats.referred} />
-          <StatCard label="Follow-ups" value={stats.followups_scheduled} />
-          <StatCard label="Converted" value={stats.converted} />
           <StatCard
-            label="Conversion Rate"
+            label={t("followups.stats.totalRegistrations")}
+            value={stats.total_registrations}
+          />
+          <StatCard label={t("followups.stats.referred")} value={stats.referred} />
+          <StatCard label={t("followups.stats.followups")} value={stats.followups_scheduled} />
+          <StatCard label={t("followups.stats.converted")} value={stats.converted} />
+          <StatCard
+            label={t("followups.stats.conversionRate")}
             value={
               stats.total_registrations > 0
                 ? Math.round((stats.converted / stats.total_registrations) * 100)
@@ -3273,11 +3451,11 @@ function FollowupsTab({
         <Stack>
           <Tabs value={statusTab} onChange={setStatusTab}>
             <Tabs.List>
-              <Tabs.Tab value="all">All</Tabs.Tab>
-              <Tabs.Tab value="scheduled">Scheduled</Tabs.Tab>
-              <Tabs.Tab value="completed">Completed</Tabs.Tab>
-              <Tabs.Tab value="missed">Missed</Tabs.Tab>
-              <Tabs.Tab value="cancelled">Cancelled</Tabs.Tab>
+              <Tabs.Tab value="all">{t("followups.status.all")}</Tabs.Tab>
+              <Tabs.Tab value="scheduled">{t("followups.status.scheduled")}</Tabs.Tab>
+              <Tabs.Tab value="completed">{t("followups.status.completed")}</Tabs.Tab>
+              <Tabs.Tab value="missed">{t("followups.status.missed")}</Tabs.Tab>
+              <Tabs.Tab value="cancelled">{t("followups.status.cancelled")}</Tabs.Tab>
             </Tabs.List>
           </Tabs>
           <DataTable
@@ -3289,7 +3467,7 @@ function FollowupsTab({
         </Stack>
       ) : (
         <Text c="dimmed" ta="center" mt="xl">
-          Open an active camp workspace to view follow-ups
+          {t("followups.openActiveCamp")}
         </Text>
       )}
 
@@ -3299,7 +3477,7 @@ function FollowupsTab({
           createHandlers.close();
           reset(followupDefaults);
         }}
-        title="Schedule Follow-up"
+        title={t("followups.drawer.title")}
         position="right"
         size="sm"
       >
@@ -3309,8 +3487,8 @@ function FollowupsTab({
             name="registration_id"
             render={({ field }) => (
               <Select
-                label="Camp participant"
-                placeholder="Search registration, name, phone"
+                label={t("common.campParticipant")}
+                placeholder={t("common.searchRegistrationNamePhone")}
                 data={registrationOptions}
                 value={field.value || null}
                 onChange={(value) => field.onChange(value ?? "")}
@@ -3325,7 +3503,7 @@ function FollowupsTab({
             name="followup_date"
             render={({ field }) => (
               <DateInput
-                label="Follow-up Date"
+                label={t("followups.form.followupDate")}
                 required
                 value={field.value ? new Date(field.value) : null}
                 onChange={(date) =>
@@ -3340,17 +3518,21 @@ function FollowupsTab({
             name="followup_type"
             render={({ field }) => (
               <Select
-                label="Follow-up Type"
-                data={campFollowupTypeOptions}
+                label={t("followups.form.followupType")}
+                data={followupTypeOptions}
                 value={field.value}
                 onChange={(value) => field.onChange(value ?? "phone_call")}
                 error={errors.followup_type?.message}
               />
             )}
           />
-          <Textarea label="Notes" error={errors.notes?.message} {...register("notes")} />
+          <Textarea
+            label={t("followups.form.notes")}
+            error={errors.notes?.message}
+            {...register("notes")}
+          />
           <Button type="submit" loading={createMut.isPending}>
-            Schedule
+            {t("followups.actions.schedule")}
           </Button>
         </Stack>
       </Drawer>
