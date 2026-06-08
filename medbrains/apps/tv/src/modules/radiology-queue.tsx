@@ -9,6 +9,7 @@ import {
   type RadiologyQueueToken,
   TOKEN_BOARD_SURFACES,
   tokenBoardStatusLabel,
+  tokenBoardStatusSignal,
 } from "@medbrains/types";
 import { COLORS, SPACING } from "@medbrains/ui-mobile";
 import { useQuery } from "@tanstack/react-query";
@@ -21,6 +22,11 @@ import {
   tvTokenBoardLegend,
   tvTokenBoardReadinessItems,
 } from "../components/tv-feed-status.js";
+import {
+  TvTokenStatusShape,
+  tvTokenStatusSignalColors,
+  tvTokenStatusTextColor,
+} from "../components/tv-token-status-shape.js";
 import { tvQueueService } from "../services/tvQueue.service.js";
 
 const DISPLAY_TOKEN_LIMIT = 12;
@@ -56,20 +62,7 @@ function displayModality(value: string) {
 }
 
 function statusColor(status: string) {
-  switch (status) {
-    case "called":
-    case "in_progress":
-      return COLORS.emerald;
-    case "completed":
-      return COLORS.vital;
-    case "cancelled":
-    case "rejected":
-      return COLORS.red;
-    case "scheduled":
-      return COLORS.amber;
-    default:
-      return COLORS.tint;
-  }
+  return tvTokenStatusSignalColors(tokenBoardStatusSignal(status).tone).border;
 }
 
 function statusLabel(status: string) {
@@ -178,25 +171,37 @@ function TokenLane({
         </View>
       ) : (
         <View style={styles.tokenGrid}>
-          {tokens.map((token) => (
-            <View
-              key={`${token.token_number}-${token.room_number}-${token.status}`}
-              style={[
-                styles.tokenCard,
-                large && styles.primaryTokenCard,
-                { borderColor: statusColor(token.status) },
-              ]}
-            >
-              <Text style={[styles.tokenNumber, large && styles.primaryTokenNumber]}>
-                {token.token_number}
-              </Text>
-              <View style={styles.tokenMeta}>
-                <Text style={styles.tokenStatus}>{statusLabel(token.status)}</Text>
-                <Text style={styles.tokenMetaText}>{displayModality(token.modality)}</Text>
-                <Text style={styles.tokenMetaText}>Room {token.room_number}</Text>
+          {tokens.map((token) => {
+            const signal = tokenBoardStatusSignal(token.status);
+            const statusText = statusLabel(token.status);
+
+            return (
+              <View
+                key={`${token.token_number}-${token.room_number}-${token.status}`}
+                style={[
+                  styles.tokenCard,
+                  large && styles.primaryTokenCard,
+                  { borderColor: statusColor(token.status) },
+                ]}
+              >
+                <View style={styles.tokenNumberRow}>
+                  <TvTokenStatusShape label={statusText} signal={signal} />
+                  <Text style={[styles.tokenNumber, large && styles.primaryTokenNumber]}>
+                    {token.token_number}
+                  </Text>
+                </View>
+                <View style={styles.tokenMeta}>
+                  <Text
+                    style={[styles.tokenStatus, { color: tvTokenStatusTextColor(signal.tone) }]}
+                  >
+                    {statusText}
+                  </Text>
+                  <Text style={styles.tokenMetaText}>{displayModality(token.modality)}</Text>
+                  <Text style={styles.tokenMetaText}>Room {token.room_number}</Text>
+                </View>
               </View>
-            </View>
-          ))}
+            );
+          })}
         </View>
       )}
     </View>
@@ -309,6 +314,11 @@ const styles = StyleSheet.create({
     color: COLORS.canvas,
     fontFamily: "JetBrainsMono-Regular",
     fontSize: 48,
+  },
+  tokenNumberRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: SPACING.md,
   },
   tokenStatus: {
     color: COLORS.emerald,

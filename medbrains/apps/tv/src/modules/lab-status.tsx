@@ -4,7 +4,12 @@
  */
 
 import type { Module } from "@medbrains/mobile-shell";
-import { type LabQueueToken, TOKEN_BOARD_SURFACES, tokenBoardStatusLabel } from "@medbrains/types";
+import {
+  type LabQueueToken,
+  TOKEN_BOARD_SURFACES,
+  tokenBoardStatusLabel,
+  tokenBoardStatusSignal,
+} from "@medbrains/types";
 import { COLORS, SPACING } from "@medbrains/ui-mobile";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
@@ -16,6 +21,11 @@ import {
   tvTokenBoardLegend,
   tvTokenBoardReadinessItems,
 } from "../components/tv-feed-status.js";
+import {
+  TvTokenStatusShape,
+  tvTokenStatusSignalColors,
+  tvTokenStatusTextColor,
+} from "../components/tv-token-status-shape.js";
 import { tvQueueService } from "../services/tvQueue.service.js";
 
 const DISPLAY_TOKEN_LIMIT = 10;
@@ -23,19 +33,7 @@ const LAB_BOARD = TOKEN_BOARD_SURFACES.lab;
 const REFRESH_INTERVAL_MS = LAB_BOARD.refreshIntervalMs;
 
 function statusColor(status: string) {
-  switch (status) {
-    case "collected":
-    case "completed":
-      return COLORS.emerald;
-    case "collection_in_progress":
-    case "in_progress":
-      return COLORS.copper;
-    case "cancelled":
-    case "rejected":
-      return COLORS.red;
-    default:
-      return COLORS.tint;
-  }
+  return tvTokenStatusSignalColors(tokenBoardStatusSignal(status).tone).border;
 }
 
 function statusLabel(status: string) {
@@ -140,31 +138,43 @@ function TokenLane({
         </View>
       ) : (
         <View style={styles.tokenGrid}>
-          {tokens.map((token) => (
-            <View
-              key={`${title}-${token.token_number}`}
-              style={[
-                styles.tokenCard,
-                large && styles.primaryTokenCard,
-                { borderColor: statusColor(token.status) },
-              ]}
-            >
-              <Text style={[styles.tokenNumber, large && styles.primaryTokenNumber]}>
-                {token.token_number}
-              </Text>
-              <View style={styles.tokenMeta}>
-                <Text style={styles.tokenStatus}>{statusLabel(token.status)}</Text>
-                <Text style={styles.tokenMetaText}>
-                  {token.test_count} test{token.test_count === 1 ? "" : "s"}
-                </Text>
-                {token.counter !== null && (
-                  <Text style={styles.tokenMetaText}>Counter {token.counter}</Text>
-                )}
-                {token.is_fasting && <Text style={styles.tokenFlag}>Fasting</Text>}
-                {token.is_pediatric && <Text style={styles.tokenFlag}>Pediatric</Text>}
+          {tokens.map((token) => {
+            const signal = tokenBoardStatusSignal(token.status);
+            const statusText = statusLabel(token.status);
+
+            return (
+              <View
+                key={`${title}-${token.token_number}`}
+                style={[
+                  styles.tokenCard,
+                  large && styles.primaryTokenCard,
+                  { borderColor: statusColor(token.status) },
+                ]}
+              >
+                <View style={styles.tokenNumberRow}>
+                  <TvTokenStatusShape label={statusText} signal={signal} />
+                  <Text style={[styles.tokenNumber, large && styles.primaryTokenNumber]}>
+                    {token.token_number}
+                  </Text>
+                </View>
+                <View style={styles.tokenMeta}>
+                  <Text
+                    style={[styles.tokenStatus, { color: tvTokenStatusTextColor(signal.tone) }]}
+                  >
+                    {statusText}
+                  </Text>
+                  <Text style={styles.tokenMetaText}>
+                    {token.test_count} test{token.test_count === 1 ? "" : "s"}
+                  </Text>
+                  {token.counter !== null && (
+                    <Text style={styles.tokenMetaText}>Counter {token.counter}</Text>
+                  )}
+                  {token.is_fasting && <Text style={styles.tokenFlag}>Fasting</Text>}
+                  {token.is_pediatric && <Text style={styles.tokenFlag}>Pediatric</Text>}
+                </View>
               </View>
-            </View>
-          ))}
+            );
+          })}
         </View>
       )}
     </View>
@@ -283,6 +293,11 @@ const styles = StyleSheet.create({
     color: COLORS.canvas,
     fontFamily: "JetBrainsMono-Regular",
     fontSize: 46,
+  },
+  tokenNumberRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: SPACING.md,
   },
   tokenStatus: {
     color: COLORS.emerald,

@@ -9,6 +9,7 @@ import {
   type PharmacyQueueToken,
   TOKEN_BOARD_SURFACES,
   tokenBoardStatusLabel,
+  tokenBoardStatusSignal,
 } from "@medbrains/types";
 import { COLORS, SPACING } from "@medbrains/ui-mobile";
 import { useQuery } from "@tanstack/react-query";
@@ -21,6 +22,11 @@ import {
   tvTokenBoardLegend,
   tvTokenBoardReadinessItems,
 } from "../components/tv-feed-status.js";
+import {
+  TvTokenStatusShape,
+  tvTokenStatusSignalColors,
+  tvTokenStatusTextColor,
+} from "../components/tv-token-status-shape.js";
 import { tvQueueService } from "../services/tvQueue.service.js";
 
 const DISPLAY_TOKEN_LIMIT = 10;
@@ -28,19 +34,7 @@ const PHARMACY_BOARD = TOKEN_BOARD_SURFACES.pharmacy;
 const REFRESH_INTERVAL_MS = PHARMACY_BOARD.refreshIntervalMs;
 
 function statusColor(status: string) {
-  switch (status) {
-    case "ready":
-    case "dispensed":
-      return COLORS.emerald;
-    case "preparing":
-    case "ordered":
-    case "dispensing":
-      return COLORS.copper;
-    case "on_hold":
-      return COLORS.amber;
-    default:
-      return COLORS.tint;
-  }
+  return tvTokenStatusSignalColors(tokenBoardStatusSignal(status).tone).border;
 }
 
 function statusLabel(status: string) {
@@ -145,32 +139,46 @@ function TokenLane({
         </View>
       ) : (
         <View style={styles.tokenGrid}>
-          {tokens.map((token) => (
-            <View
-              key={`${token.token_number}-${token.status}`}
-              style={[
-                styles.tokenCard,
-                large && styles.primaryTokenCard,
-                { borderColor: statusColor(token.status) },
-              ]}
-            >
-              <Text style={[styles.tokenNumber, large && styles.primaryTokenNumber]}>
-                {token.token_number}
-              </Text>
-              <View style={styles.tokenMeta}>
-                <Text style={styles.tokenStatus}>{statusLabel(token.status)}</Text>
-                <Text style={styles.tokenMetaText}>
-                  {token.prescription_count} item{token.prescription_count === 1 ? "" : "s"}
-                </Text>
-                {token.counter !== null && (
-                  <Text style={styles.tokenMetaText}>Counter {token.counter}</Text>
-                )}
-                {token.estimated_wait_minutes !== null && (
-                  <Text style={styles.tokenMetaText}>{token.estimated_wait_minutes} min wait</Text>
-                )}
+          {tokens.map((token) => {
+            const signal = tokenBoardStatusSignal(token.status);
+            const statusText = statusLabel(token.status);
+
+            return (
+              <View
+                key={`${token.token_number}-${token.status}`}
+                style={[
+                  styles.tokenCard,
+                  large && styles.primaryTokenCard,
+                  { borderColor: statusColor(token.status) },
+                ]}
+              >
+                <View style={styles.tokenNumberRow}>
+                  <TvTokenStatusShape label={statusText} signal={signal} />
+                  <Text style={[styles.tokenNumber, large && styles.primaryTokenNumber]}>
+                    {token.token_number}
+                  </Text>
+                </View>
+                <View style={styles.tokenMeta}>
+                  <Text
+                    style={[styles.tokenStatus, { color: tvTokenStatusTextColor(signal.tone) }]}
+                  >
+                    {statusText}
+                  </Text>
+                  <Text style={styles.tokenMetaText}>
+                    {token.prescription_count} item{token.prescription_count === 1 ? "" : "s"}
+                  </Text>
+                  {token.counter !== null && (
+                    <Text style={styles.tokenMetaText}>Counter {token.counter}</Text>
+                  )}
+                  {token.estimated_wait_minutes !== null && (
+                    <Text style={styles.tokenMetaText}>
+                      {token.estimated_wait_minutes} min wait
+                    </Text>
+                  )}
+                </View>
               </View>
-            </View>
-          ))}
+            );
+          })}
         </View>
       )}
     </View>
@@ -289,6 +297,11 @@ const styles = StyleSheet.create({
     color: COLORS.canvas,
     fontFamily: "Fraunces-Regular",
     fontSize: 58,
+  },
+  tokenNumberRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: SPACING.md,
   },
   tokenStatus: {
     color: COLORS.emerald,
