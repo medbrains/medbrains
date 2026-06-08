@@ -12,6 +12,7 @@ import type { AppStateStatus } from "react-native";
 import { Button, Surface, Text } from "react-native-paper";
 import { FOREST_COPPER_PALETTE } from "../theme/forest-copper.js";
 import { requestBiometricUnlock } from "../biometric/expo-local-auth.js";
+import { mobileShellBiometricText } from "../biometric/biometric-text.js";
 import { useAuthStore } from "./auth-store.js";
 
 export interface BiometricUnlockGateProps {
@@ -21,7 +22,7 @@ export interface BiometricUnlockGateProps {
 
 export function BiometricUnlockGate({
   children,
-  promptMessage = "Unlock MedBrains",
+  promptMessage = mobileShellBiometricText("mobileShell.biometric.unlock.prompt"),
 }: BiometricUnlockGateProps): ReactNode {
   const required = useAuthStore((s) => s.biometricRequired);
   const identity = useAuthStore((s) => s.identity);
@@ -74,7 +75,7 @@ export function BiometricUnlockGate({
           variant="headlineSmall"
           style={{ color: FOREST_COPPER_PALETTE.brand, marginBottom: 12 }}
         >
-          Locked
+          {mobileShellBiometricText("mobileShell.biometric.unlock.lockedTitle")}
         </Text>
         <Text
           variant="bodyMedium"
@@ -83,7 +84,7 @@ export function BiometricUnlockGate({
           {promptMessage}
         </Text>
         <Button mode="contained" onPress={attemptUnlock}>
-          Unlock
+          {mobileShellBiometricText("mobileShell.biometric.unlock.action")}
         </Button>
       </View>
     </Surface>

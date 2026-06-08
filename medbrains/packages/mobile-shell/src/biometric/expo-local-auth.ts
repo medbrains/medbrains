@@ -4,6 +4,7 @@
  * package can be typechecked without it.
  */
 
+import { mobileShellBiometricText } from "./biometric-text.js";
 import type {
   BiometricCapability,
   BiometricUnlockOptions,
@@ -68,7 +69,8 @@ export async function requestBiometricUnlock(
   const auth = await loadExpoLocalAuth();
   const result = await auth.authenticateAsync({
     promptMessage: opts.promptMessage,
-    cancelLabel: opts.cancelLabel ?? "Cancel",
+    cancelLabel:
+      opts.cancelLabel ?? mobileShellBiometricText("mobileShell.biometric.action.cancel"),
     disableDeviceFallback: opts.fallbackToPasscode === false,
   });
   if (result.success) {

@@ -9,6 +9,7 @@ import { View } from "react-native";
 import { Button, Card, Text } from "react-native-paper";
 import { FOREST_COPPER_PALETTE } from "../theme/forest-copper.js";
 import { useBiometricCapability } from "../biometric/use-biometric-capability.js";
+import { mobileShellBiometricText } from "../biometric/biometric-text.js";
 import { useAuthStore } from "./auth-store.js";
 
 export interface BiometricEnrollmentPromptProps {
@@ -30,12 +31,14 @@ export function BiometricEnrollmentPrompt({
   }
 
   const titleByKind: Record<NonNullable<typeof capability.kind>, string> = {
-    face: "Use Face ID to unlock",
-    fingerprint: "Use fingerprint to unlock",
-    iris: "Use iris scan to unlock",
-    passcode: "Use device passcode to unlock",
+    face: mobileShellBiometricText("mobileShell.biometric.enrollment.title.face"),
+    fingerprint: mobileShellBiometricText("mobileShell.biometric.enrollment.title.fingerprint"),
+    iris: mobileShellBiometricText("mobileShell.biometric.enrollment.title.iris"),
+    passcode: mobileShellBiometricText("mobileShell.biometric.enrollment.title.passcode"),
   };
-  const title = capability.kind ? titleByKind[capability.kind] : "Enable quick unlock";
+  const title = capability.kind
+    ? titleByKind[capability.kind]
+    : mobileShellBiometricText("mobileShell.biometric.enrollment.title.default");
 
   return (
     <Card
@@ -49,13 +52,15 @@ export function BiometricEnrollmentPrompt({
       <Card.Content>
         <Text variant="bodyMedium" style={{ color: FOREST_COPPER_PALETTE.ink }}>
           {policy === "required"
-            ? "Your hospital policy requires biometric unlock. We'll prompt every time the app comes back to the foreground."
-            : "Quick unlock keeps your session in OS-managed secure storage. You can change this later in Settings."}
+            ? mobileShellBiometricText("mobileShell.biometric.enrollment.message.required")
+            : mobileShellBiometricText("mobileShell.biometric.enrollment.message.optional")}
         </Text>
       </Card.Content>
       <Card.Actions>
         {policy !== "required" && (
-          <Button onPress={onSkip}>Skip</Button>
+          <Button onPress={onSkip}>
+            {mobileShellBiometricText("mobileShell.biometric.action.skip")}
+          </Button>
         )}
         <Button
           mode="contained"
@@ -64,13 +69,13 @@ export function BiometricEnrollmentPrompt({
             setBiometricRequired(true);
           }}
         >
-          Enable
+          {mobileShellBiometricText("mobileShell.biometric.action.enable")}
         </Button>
       </Card.Actions>
       {policy === "required" && (
         <View style={{ paddingHorizontal: 16, paddingBottom: 12 }}>
           <Text variant="bodySmall" style={{ color: FOREST_COPPER_PALETTE.brandDeep }}>
-            Required by hospital policy.
+            {mobileShellBiometricText("mobileShell.biometric.enrollment.requiredNotice")}
           </Text>
         </View>
       )}
