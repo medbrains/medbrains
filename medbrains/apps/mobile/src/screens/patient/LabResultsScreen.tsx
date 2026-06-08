@@ -15,6 +15,11 @@ import {
 } from "react-native-paper";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { patientService } from "../../services/patient.service";
+import {
+  mobileLabOrderStatusText,
+  mobileLabPriorityText,
+  mobileLabResultsText,
+} from "./labResultsText";
 
 type FilterType = "all" | "pending" | "completed";
 
@@ -38,6 +43,32 @@ function getStatusColor(status: string): string {
     default:
       return "#868e96";
   }
+}
+
+function handleFilterValueChange(value: string, setFilter: (filter: FilterType) => void) {
+  if (value === "all" || value === "pending" || value === "completed") {
+    setFilter(value);
+  }
+}
+
+function emptyFilterMessage(filter: FilterType): string {
+  switch (filter) {
+    case "all":
+      return mobileLabResultsText("patientLabResults.empty.all");
+    case "pending":
+      return mobileLabResultsText("patientLabResults.empty.pending");
+    case "completed":
+      return mobileLabResultsText("patientLabResults.empty.completed");
+  }
+}
+
+function resultReadyText(count: number): string {
+  return mobileLabResultsText(
+    count === 1
+      ? "patientLabResults.preview.resultReadySingular"
+      : "patientLabResults.preview.resultReadyPlural",
+    { count },
+  );
 }
 
 export function LabResultsScreen({ navigation }: LabResultsScreenProps) {
@@ -89,11 +120,13 @@ export function LabResultsScreen({ navigation }: LabResultsScreenProps) {
             />
             <View style={styles.orderInfo}>
               <Text variant="titleMedium" style={styles.testName}>
-                {item.test_name || "Lab Test"}
+                {item.test_name || mobileLabResultsText("patientLabResults.fallback.testName")}
               </Text>
               <Text variant="bodySmall" style={styles.orderDate}>
-                {orderDate.toLocaleDateString()} at{" "}
-                {orderDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                {mobileLabResultsText("patientLabResults.date.line", {
+                  date: orderDate.toLocaleDateString(),
+                  time: orderDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+                })}
               </Text>
               <View style={styles.orderMeta}>
                 <Chip
@@ -101,11 +134,11 @@ export function LabResultsScreen({ navigation }: LabResultsScreenProps) {
                   style={{ backgroundColor: `${statusColor}20` }}
                   textStyle={{ color: statusColor }}
                 >
-                  {item.status}
+                  {mobileLabOrderStatusText(item.status)}
                 </Chip>
                 {item.priority && item.priority !== "routine" && (
                   <Chip compact icon="alert" style={styles.priorityChip}>
-                    {item.priority.toUpperCase()}
+                    {mobileLabPriorityText(item.priority)}
                   </Chip>
                 )}
               </View>
@@ -117,11 +150,9 @@ export function LabResultsScreen({ navigation }: LabResultsScreenProps) {
           {isReady && item.result_count != null && item.result_count > 0 && (
             <Card.Content style={styles.resultPreview}>
               <Text variant="labelSmall" style={styles.previewLabel}>
-                Results Available
+                {mobileLabResultsText("patientLabResults.preview.available")}
               </Text>
-              <Text variant="bodySmall">
-                {item.result_count} result{item.result_count > 1 ? "s" : ""} ready
-              </Text>
+              <Text variant="bodySmall">{resultReadyText(item.result_count)}</Text>
             </Card.Content>
           )}
 
@@ -134,7 +165,7 @@ export function LabResultsScreen({ navigation }: LabResultsScreenProps) {
                   // Handle PDF download
                 }}
               >
-                Download Report
+                {mobileLabResultsText("patientLabResults.action.downloadReport")}
               </Chip>
               <Chip
                 icon="share"
@@ -142,7 +173,7 @@ export function LabResultsScreen({ navigation }: LabResultsScreenProps) {
                   // Handle share
                 }}
               >
-                Share
+                {mobileLabResultsText("patientLabResults.action.share")}
               </Chip>
             </Card.Actions>
           )}
@@ -156,7 +187,7 @@ export function LabResultsScreen({ navigation }: LabResultsScreenProps) {
       {/* Search Bar */}
       <View style={styles.searchContainer}>
         <Searchbar
-          placeholder="Search lab tests..."
+          placeholder={mobileLabResultsText("patientLabResults.search.placeholder")}
           value={search}
           onChangeText={setSearch}
           style={styles.searchbar}
@@ -167,11 +198,17 @@ export function LabResultsScreen({ navigation }: LabResultsScreenProps) {
       <View style={styles.filterContainer}>
         <SegmentedButtons
           value={filter}
-          onValueChange={(v) => setFilter(v as FilterType)}
+          onValueChange={(value) => handleFilterValueChange(value, setFilter)}
           buttons={[
-            { value: "all", label: "All" },
-            { value: "pending", label: "Pending" },
-            { value: "completed", label: "Completed" },
+            { value: "all", label: mobileLabResultsText("patientLabResults.filter.all") },
+            {
+              value: "pending",
+              label: mobileLabResultsText("patientLabResults.filter.pending"),
+            },
+            {
+              value: "completed",
+              label: mobileLabResultsText("patientLabResults.filter.completed"),
+            },
           ]}
         />
       </View>
@@ -181,7 +218,7 @@ export function LabResultsScreen({ navigation }: LabResultsScreenProps) {
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" />
           <Text variant="bodyMedium" style={styles.loadingText}>
-            Loading lab results...
+            {mobileLabResultsText("patientLabResults.loading.list")}
           </Text>
         </View>
       ) : labOrders.length > 0 ? (
@@ -198,14 +235,10 @@ export function LabResultsScreen({ navigation }: LabResultsScreenProps) {
         <View style={styles.emptyContainer}>
           <Avatar.Icon size={64} icon="flask-empty-outline" style={styles.emptyIcon} />
           <Text variant="titleMedium" style={styles.emptyTitle}>
-            No lab results
+            {mobileLabResultsText("patientLabResults.empty.title")}
           </Text>
           <Text variant="bodyMedium" style={styles.emptyText}>
-            {filter === "all"
-              ? "You have no lab orders"
-              : filter === "pending"
-                ? "No pending lab orders"
-                : "No completed lab results"}
+            {emptyFilterMessage(filter)}
           </Text>
         </View>
       )}
@@ -218,7 +251,7 @@ export function LabResultsScreen({ navigation }: LabResultsScreenProps) {
               {allOrders.length}
             </Text>
             <Text variant="labelSmall" style={styles.statLabel}>
-              Total
+              {mobileLabResultsText("patientLabResults.stats.total")}
             </Text>
           </View>
           <View style={styles.statDivider} />
@@ -227,7 +260,7 @@ export function LabResultsScreen({ navigation }: LabResultsScreenProps) {
               {allOrders.filter((i) => i.status !== "completed" && i.status !== "verified").length}
             </Text>
             <Text variant="labelSmall" style={styles.statLabel}>
-              Pending
+              {mobileLabResultsText("patientLabResults.stats.pending")}
             </Text>
           </View>
           <View style={styles.statDivider} />
@@ -236,7 +269,7 @@ export function LabResultsScreen({ navigation }: LabResultsScreenProps) {
               {allOrders.filter((i) => i.status === "completed" || i.status === "verified").length}
             </Text>
             <Text variant="labelSmall" style={styles.statLabel}>
-              Ready
+              {mobileLabResultsText("patientLabResults.stats.ready")}
             </Text>
           </View>
         </Surface>
