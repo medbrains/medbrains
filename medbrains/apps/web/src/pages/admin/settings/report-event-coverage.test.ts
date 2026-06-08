@@ -21,6 +21,7 @@ describe("report event coverage", () => {
       gaps: 0,
       total: REPORT_EVENT_SOURCE_DEFINITIONS.length,
     });
+    expect(summary.journeyActionLinks).toBeGreaterThan(10);
     expect(summary.reportTargets).toBeGreaterThan(20);
     expect(summary.indicatorTargets).toBeGreaterThan(15);
   });
@@ -31,6 +32,7 @@ describe("report event coverage", () => {
         family: "test",
         id: "opd-gap",
         indicatorTargets: ["opd.wait_time"],
+        journeyActionIds: ["opd.open_visit"],
         label: "OPD payload gap",
         readiness: "event_backed",
         reportTargets: ["opd-queue-wait-heatmap"],
@@ -43,6 +45,29 @@ describe("report event coverage", () => {
     expect(row?.gaps).toEqual(["missing-payload-evidence"]);
     expect(row?.missingPayloadKeys).toEqual(["doctor_id"]);
     expect(row?.availablePayloadKeys).toEqual(["encounter_id", "patient_id"]);
+    expect(row?.journeyActionEvents).toEqual(["opd.encounter.created"]);
+  });
+
+  it("reports journey action events missing from report event sources", () => {
+    const [row] = buildReportEventCoverage([
+      {
+        family: "test",
+        id: "journey-event-gap",
+        indicatorTargets: ["opd.wait_time"],
+        journeyActionIds: ["opd.open_visit"],
+        label: "Journey action source gap",
+        readiness: "event_backed",
+        reportTargets: ["opd-registration-arrivals"],
+        requiredPayloadKeys: ["patient_id"],
+        sourceEvents: ["patient.created"],
+        standardRefs: ["NABH AAC"],
+      },
+    ]);
+
+    expect(row?.gaps).toEqual(["missing-journey-event"]);
+    expect(row?.journeyActionLabels).toEqual(["New OPD visit"]);
+    expect(row?.journeyActionEvents).toEqual(["opd.encounter.created"]);
+    expect(row?.missingJourneyActionEvents).toEqual(["opd.encounter.created"]);
   });
 
   it("keeps emitted patient-flow evidence visible to reports and indicators", () => {
@@ -68,6 +93,16 @@ describe("report event coverage", () => {
     expect(registration?.requiredPayloadKeys).toEqual(
       expect.arrayContaining(["search_id", "consultation_id", "prescription_id", "consent_id"]),
     );
+    expect(registration?.journeyActionIds).toEqual(
+      expect.arrayContaining(["opd.open_visit", "patient.print_card", "patient.share"]),
+    );
+    expect(registration?.journeyActionEvents).toEqual(
+      expect.arrayContaining([
+        "opd.encounter.created",
+        "patient.access_shared",
+        "patient.card_printed",
+      ]),
+    );
 
     expect(ipd?.sourceEvents).toEqual(
       expect.arrayContaining(["mrd.case_sheet.generated", "mrd.case_sheet.printed"]),
@@ -81,5 +116,8 @@ describe("report event coverage", () => {
 
     expect(pharmacy?.sourceEvents).toContain("order.cancelled");
     expect(pharmacy?.requiredPayloadKeys).toContain("reason");
+    expect(pharmacy?.journeyActionEvents).toEqual(
+      expect.arrayContaining(["order.created", "pharmacy.order.dispensed"]),
+    );
   });
 });

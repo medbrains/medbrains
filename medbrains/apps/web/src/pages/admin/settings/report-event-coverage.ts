@@ -1,10 +1,15 @@
-import type { ClinicalEventName } from "@medbrains/types";
-import { CLINICAL_EVENT_REQUIRED_PAYLOAD_KEYS } from "@medbrains/types";
+import type { ClinicalEventName, ClinicalJourneyActionId } from "@medbrains/types";
+import {
+  CLINICAL_EVENT_REQUIRED_PAYLOAD_KEYS,
+  CORE_PATIENT_JOURNEY_ACTIONS,
+} from "@medbrains/types";
 
 export type ReportEventCoverageReadiness = "capture_needed" | "event_backed";
 
 export type ReportEventCoverageGap =
   | "capture-needed"
+  | "missing-journey-action"
+  | "missing-journey-event"
   | "missing-event-registry"
   | "missing-payload-evidence";
 
@@ -12,6 +17,7 @@ export interface ReportEventSourceDefinition {
   family: string;
   id: string;
   indicatorTargets: readonly string[];
+  journeyActionIds: readonly ClinicalJourneyActionId[];
   label: string;
   readiness: ReportEventCoverageReadiness;
   reportTargets: readonly string[];
@@ -23,6 +29,10 @@ export interface ReportEventSourceDefinition {
 export interface ReportEventCoverageRow extends ReportEventSourceDefinition {
   availablePayloadKeys: readonly string[];
   gaps: readonly ReportEventCoverageGap[];
+  journeyActionEvents: readonly ClinicalEventName[];
+  journeyActionLabels: readonly string[];
+  missingJourneyActionEvents: readonly ClinicalEventName[];
+  missingJourneyActionIds: readonly string[];
   missingEvents: readonly string[];
   missingPayloadKeys: readonly string[];
 }
@@ -33,12 +43,15 @@ export interface ReportEventCoverageSummary {
   eventBacked: number;
   gaps: number;
   indicatorTargets: number;
+  journeyActionLinks: number;
   reportTargets: number;
   total: number;
 }
 
 export const REPORT_EVENT_COVERAGE_GAP_LABELS: Record<ReportEventCoverageGap, string> = {
   "capture-needed": "capture needed",
+  "missing-journey-action": "journey action missing",
+  "missing-journey-event": "journey event missing",
   "missing-event-registry": "event registry missing",
   "missing-payload-evidence": "payload evidence missing",
 };
@@ -48,6 +61,7 @@ export const REPORT_EVENT_SOURCE_DEFINITIONS: readonly ReportEventSourceDefiniti
     family: "patient_flow",
     id: "patient-registration-opd-flow",
     indicatorTargets: ["access.flow", "opd.wait_time"],
+    journeyActionIds: ["opd.open_visit", "patient.edit", "patient.share", "patient.print_card"],
     label: "Registration and OPD flow",
     readiness: "event_backed",
     reportTargets: [
@@ -90,6 +104,7 @@ export const REPORT_EVENT_SOURCE_DEFINITIONS: readonly ReportEventSourceDefiniti
     family: "patient_flow",
     id: "ipd-census-discharge-flow",
     indicatorTargets: ["ipd.occupancy", "ipd.discharge_tat", "ipd.bed_turnaround"],
+    journeyActionIds: ["ipd.admit", "ipd.open_admission", "mrd.open_case_sheet"],
     label: "IPD census, bed movement and discharge",
     readiness: "event_backed",
     reportTargets: [
@@ -122,6 +137,7 @@ export const REPORT_EVENT_SOURCE_DEFINITIONS: readonly ReportEventSourceDefiniti
     family: "patient_flow",
     id: "emergency-mlc-flow",
     indicatorTargets: ["emergency.triage", "mlc.reporting"],
+    journeyActionIds: ["emergency.open_visit", "emergency.open_mlc"],
     label: "Emergency and medico-legal flow",
     readiness: "event_backed",
     reportTargets: ["safety-compliance-red-flags", "quality-incident-sentinel-trend"],
@@ -137,6 +153,7 @@ export const REPORT_EVENT_SOURCE_DEFINITIONS: readonly ReportEventSourceDefiniti
     family: "outreach",
     id: "camp-outreach-flow",
     indicatorTargets: ["camp.turnout", "camp.referral_conversion"],
+    journeyActionIds: ["camp.open_context"],
     label: "Camp outreach registration and screening",
     readiness: "event_backed",
     reportTargets: [
@@ -152,6 +169,7 @@ export const REPORT_EVENT_SOURCE_DEFINITIONS: readonly ReportEventSourceDefiniti
     family: "diagnostics",
     id: "diagnostic-order-result-flow",
     indicatorTargets: ["lab.tat", "radiology.tat", "critical_results"],
+    journeyActionIds: ["orders.lab", "orders.radiology"],
     label: "Orders, lab results and radiology reports",
     readiness: "event_backed",
     reportTargets: [
@@ -179,6 +197,11 @@ export const REPORT_EVENT_SOURCE_DEFINITIONS: readonly ReportEventSourceDefiniti
     family: "pharmacy",
     id: "pharmacy-fulfillment-regulatory-flow",
     indicatorTargets: ["pharmacy.tat", "pharmacy.ndps_compliance", "inventory.stock_movement"],
+    journeyActionIds: [
+      "orders.medication",
+      "pharmacy.dispense_order",
+      "pharmacy.open_patient_queue",
+    ],
     label: "Pharmacy fulfillment, stock and NDPS movement",
     readiness: "event_backed",
     reportTargets: [
@@ -212,6 +235,11 @@ export const REPORT_EVENT_SOURCE_DEFINITIONS: readonly ReportEventSourceDefiniti
     family: "finance",
     id: "billing-revenue-flow",
     indicatorTargets: ["billing.collection", "billing.dnfb", "finance.revenue"],
+    journeyActionIds: [
+      "billing.open_ledger",
+      "billing.prepare_discharge_bill",
+      "billing.collect_payment",
+    ],
     label: "Billing invoice, finalization and payment",
     readiness: "event_backed",
     reportTargets: [
@@ -238,6 +266,7 @@ export const REPORT_EVENT_SOURCE_DEFINITIONS: readonly ReportEventSourceDefiniti
       "bme.downtime",
       "bmw.disposal",
     ],
+    journeyActionIds: [],
     label: "NABH safety, emergency response and facility evidence",
     readiness: "event_backed",
     reportTargets: ["nabh-evidence-matrix", "safety-compliance-red-flags"],
@@ -264,6 +293,10 @@ function registeredEventNames() {
   return new Set(Object.keys(CLINICAL_EVENT_REQUIRED_PAYLOAD_KEYS));
 }
 
+function journeyActionById() {
+  return new Map(CORE_PATIENT_JOURNEY_ACTIONS.map((action) => [action.id, action]));
+}
+
 function payloadKeysForEvents(events: readonly ClinicalEventName[]) {
   return [
     ...new Set(events.flatMap((eventName) => [...CLINICAL_EVENT_REQUIRED_PAYLOAD_KEYS[eventName]])),
@@ -274,10 +307,27 @@ export function buildReportEventCoverage(
   definitions: readonly ReportEventSourceDefinition[] = REPORT_EVENT_SOURCE_DEFINITIONS,
 ): ReportEventCoverageRow[] {
   const events = registeredEventNames();
+  const actionsById = journeyActionById();
 
   return definitions.map((definition) => {
     const availablePayloadKeys = payloadKeysForEvents(definition.sourceEvents);
     const availablePayloadKeySet = new Set(availablePayloadKeys);
+    const sourceEventSet = new Set(definition.sourceEvents);
+    const journeyActions = definition.journeyActionIds
+      .map((actionId) => actionsById.get(actionId))
+      .filter((action) => action !== undefined);
+    const journeyActionLabels = journeyActions.map((action) => action.label);
+    const journeyActionEvents = [
+      ...new Set(
+        journeyActions.flatMap((action) => (action.emitsEvent ? [action.emitsEvent] : [])),
+      ),
+    ];
+    const missingJourneyActionIds = definition.journeyActionIds.filter(
+      (actionId) => !actionsById.has(actionId),
+    );
+    const missingJourneyActionEvents = journeyActionEvents.filter(
+      (eventName) => !sourceEventSet.has(eventName),
+    );
     const missingEvents = definition.sourceEvents.filter((eventName) => !events.has(eventName));
     const missingPayloadKeys = definition.requiredPayloadKeys.filter(
       (key) => !availablePayloadKeySet.has(key),
@@ -285,6 +335,8 @@ export function buildReportEventCoverage(
     const gaps: ReportEventCoverageGap[] = [];
 
     if (definition.readiness === "capture_needed") gaps.push("capture-needed");
+    if (missingJourneyActionIds.length > 0) gaps.push("missing-journey-action");
+    if (missingJourneyActionEvents.length > 0) gaps.push("missing-journey-event");
     if (missingEvents.length > 0) gaps.push("missing-event-registry");
     if (missingPayloadKeys.length > 0) gaps.push("missing-payload-evidence");
 
@@ -292,6 +344,10 @@ export function buildReportEventCoverage(
       ...definition,
       availablePayloadKeys,
       gaps,
+      journeyActionEvents,
+      journeyActionLabels,
+      missingJourneyActionEvents,
+      missingJourneyActionIds,
       missingEvents,
       missingPayloadKeys,
     };
@@ -307,6 +363,7 @@ export function summarizeReportEventCoverage(
     eventBacked: rows.filter((row) => row.readiness === "event_backed").length,
     gaps: rows.filter((row) => row.gaps.length > 0).length,
     indicatorTargets: new Set(rows.flatMap((row) => [...row.indicatorTargets])).size,
+    journeyActionLinks: new Set(rows.flatMap((row) => [...row.journeyActionIds])).size,
     reportTargets: new Set(rows.flatMap((row) => [...row.reportTargets])).size,
     total: rows.length,
   };

@@ -1857,7 +1857,8 @@ function SurfaceCoverageMatrix() {
           </Text>
           <Text size="xs" c="dimmed">
             {reportEventCoverageSummary.reportTargets} reports,{" "}
-            {reportEventCoverageSummary.indicatorTargets} indicators
+            {reportEventCoverageSummary.indicatorTargets} indicators,{" "}
+            {reportEventCoverageSummary.journeyActionLinks} journey actions
           </Text>
         </Card>
         <Card withBorder padding="sm">
@@ -2205,6 +2206,7 @@ function SurfaceCoverageMatrix() {
                 <Table.Tr>
                   <Table.Th>Source</Table.Th>
                   <Table.Th>Events</Table.Th>
+                  <Table.Th>Journey actions</Table.Th>
                   <Table.Th>Payload evidence</Table.Th>
                   <Table.Th>Reports / indicators</Table.Th>
                   <Table.Th>Gaps</Table.Th>
@@ -2239,6 +2241,46 @@ function SurfaceCoverageMatrix() {
                           </Badge>
                         ))}
                       </Group>
+                    </Table.Td>
+                    <Table.Td>
+                      <Stack gap={4}>
+                        <Group gap={4}>
+                          {row.journeyActionIds.length === 0 ? (
+                            <Badge color="gray" variant="light">
+                              direct event source
+                            </Badge>
+                          ) : (
+                            row.journeyActionIds.map((actionId) => (
+                              <Badge
+                                key={actionId}
+                                color={
+                                  row.missingJourneyActionIds.includes(actionId) ? "orange" : "teal"
+                                }
+                                variant="light"
+                              >
+                                {actionId}
+                              </Badge>
+                            ))
+                          )}
+                        </Group>
+                        {row.journeyActionEvents.length > 0 && (
+                          <Group gap={4}>
+                            {row.journeyActionEvents.map((eventName) => (
+                              <Badge
+                                key={eventName}
+                                color={
+                                  row.missingJourneyActionEvents.includes(eventName)
+                                    ? "orange"
+                                    : "blue"
+                                }
+                                variant="light"
+                              >
+                                emits {eventName}
+                              </Badge>
+                            ))}
+                          </Group>
+                        )}
+                      </Stack>
                     </Table.Td>
                     <Table.Td>
                       <Stack gap={4}>
