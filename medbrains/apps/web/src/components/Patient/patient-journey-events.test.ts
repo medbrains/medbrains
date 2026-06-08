@@ -28,30 +28,59 @@ function trace(input: Partial<ClinicalEventTrace>): ClinicalEventTrace {
 }
 
 describe("patient journey event matching", () => {
-  it("matches recent events by patient, admission, encounter, or ER source record", () => {
+  it("matches recent events by patient, admission, encounter, ER, or camp context", () => {
     const context = {
       patientId: "patient-1",
       activeAdmissionId: "admission-1",
       activeEncounterId: "encounter-1",
       activeEmergencyVisitId: "visit-1",
+      activeCampId: "camp-1",
+      activeCampRegistrationId: "registration-1",
     };
 
     expect(clinicalEventMatchesJourney(trace({ patientId: "patient-1" }), context)).toBe(true);
     expect(clinicalEventMatchesJourney(trace({ admissionId: "admission-1" }), context)).toBe(true);
     expect(clinicalEventMatchesJourney(trace({ encounterId: "encounter-1" }), context)).toBe(true);
     expect(clinicalEventMatchesJourney(trace({ sourceRecordId: "visit-1" }), context)).toBe(true);
+    expect(clinicalEventMatchesJourney(trace({ sourceRecordId: "camp-1" }), context)).toBe(true);
+    expect(clinicalEventMatchesJourney(trace({ sourceRecordId: "registration-1" }), context)).toBe(
+      true,
+    );
+    expect(clinicalEventMatchesJourney(trace({ payload: { camp_id: "camp-1" } }), context)).toBe(
+      true,
+    );
+    expect(
+      clinicalEventMatchesJourney(
+        trace({ payload: { camp_registration_id: "registration-1" } }),
+        context,
+      ),
+    ).toBe(true);
+    expect(
+      clinicalEventMatchesJourney(
+        trace({ payload: { registration_id: "registration-1" } }),
+        context,
+      ),
+    ).toBe(true);
     expect(clinicalEventMatchesJourney(trace({ patientId: "patient-2" }), context)).toBe(false);
   });
 
   it("merges explicit context events with matching recent event names", () => {
     expect(
-      mergeJourneyEventNames({ patientId: "patient-1", completedEvents: ["patient.created"] }, [
-        trace({ eventName: "order.created", patientId: "patient-1" }),
-        trace({ eventName: "billing.invoice.created", patientId: "patient-1" }),
-        trace({ eventName: "pharmacy.order.dispensed", patientId: "patient-2" }),
-        trace({ rawTrigger: "legacy.unmapped", patientId: "patient-1" }),
-      ]),
-    ).toEqual(["patient.created", "order.created", "billing.invoice.created"]);
+      mergeJourneyEventNames(
+        {
+          patientId: "patient-1",
+          activeCampId: "camp-1",
+          completedEvents: ["patient.created"],
+        },
+        [
+          trace({ eventName: "order.created", patientId: "patient-1" }),
+          trace({ eventName: "billing.invoice.created", patientId: "patient-1" }),
+          trace({ eventName: "camp.started", patientId: null, sourceRecordId: "camp-1" }),
+          trace({ eventName: "pharmacy.order.dispensed", patientId: "patient-2" }),
+          trace({ rawTrigger: "legacy.unmapped", patientId: "patient-1" }),
+        ],
+      ),
+    ).toEqual(["patient.created", "order.created", "billing.invoice.created", "camp.started"]);
   });
 
   it("derives camp registration and screening events from patient camp history", () => {
