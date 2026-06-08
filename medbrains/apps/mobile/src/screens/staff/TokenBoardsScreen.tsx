@@ -23,6 +23,8 @@ import {
   TOKEN_BOARD_SURFACES,
   tokenBoardMobileRouteParams,
   tokenBoardOperationalReadinessItems,
+  tokenBoardStatusLabel,
+  tokenBoardStatusLabelKey,
   tokenBoardStatusSignal,
   tokenBoardSurfaceFilterFromParam,
 } from "@medbrains/types";
@@ -112,27 +114,6 @@ const PRIORITY_LABEL_KEYS: Record<QueuePriority, string> = {
   vip: TOKEN_BOARDS_TEXT.priority.vip,
 };
 
-const TOKEN_STATUS_LABEL_KEYS: Partial<Record<string, string>> = {
-  active: TOKEN_BOARDS_TEXT.status.active,
-  called: TOKEN_BOARDS_TEXT.status.called,
-  cancelled: TOKEN_BOARDS_TEXT.status.cancelled,
-  collected: TOKEN_BOARDS_TEXT.status.collected,
-  collection_in_progress: TOKEN_BOARDS_TEXT.status.collectionInProgress,
-  completed: TOKEN_BOARDS_TEXT.status.completed,
-  dispensed: TOKEN_BOARDS_TEXT.status.dispensed,
-  in_progress: TOKEN_BOARDS_TEXT.status.inProgress,
-  issued: TOKEN_BOARDS_TEXT.status.issued,
-  no_show: TOKEN_BOARDS_TEXT.status.noShow,
-  on_hold: TOKEN_BOARDS_TEXT.status.onHold,
-  paid: TOKEN_BOARDS_TEXT.status.paid,
-  partially_paid: TOKEN_BOARDS_TEXT.status.partiallyPaid,
-  preparing: TOKEN_BOARDS_TEXT.status.preparing,
-  ready: TOKEN_BOARDS_TEXT.status.ready,
-  scheduled: TOKEN_BOARDS_TEXT.status.scheduled,
-  settled: TOKEN_BOARDS_TEXT.status.settled,
-  waiting: TOKEN_BOARDS_TEXT.status.waiting,
-};
-
 const BILLING_QUEUE_TYPE_LABEL_KEYS: Partial<Record<string, string>> = {
   advance_deposit: TOKEN_BOARDS_TEXT.lanes.billing.advanceDeposit,
   insurance_desk: TOKEN_BOARDS_TEXT.lanes.billing.insuranceDesk,
@@ -198,8 +179,10 @@ function overdueTargetLabel(count: number): string {
 }
 
 function statusLabel(value: string) {
-  const key = TOKEN_STATUS_LABEL_KEYS[value];
-  return key ? tokenBoardsText(key) : value;
+  const sharedKey = tokenBoardStatusLabelKey(value);
+  return sharedKey
+    ? tokenBoardsText(`patientJourney.mobile.${sharedKey}`)
+    : tokenBoardStatusLabel(value);
 }
 
 function priorityLabel(value: QueuePriority) {

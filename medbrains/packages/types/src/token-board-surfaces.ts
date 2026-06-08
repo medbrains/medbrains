@@ -532,6 +532,56 @@ const TOKEN_BOARD_STATUS_SIGNALS: Readonly<Record<string, TokenBoardStatusSignal
   },
 };
 
+const TOKEN_BOARD_STATUS_LABEL_KEYS: Readonly<Record<string, string>> = {
+  active: "tokenBoards.status.active",
+  called: "tokenBoards.status.called",
+  cancelled: "tokenBoards.status.cancelled",
+  collected: "tokenBoards.status.collected",
+  collection_in_progress: "tokenBoards.status.collectionInProgress",
+  completed: "tokenBoards.status.completed",
+  dispensed: "tokenBoards.status.dispensed",
+  in_progress: "tokenBoards.status.inProgress",
+  issued: "tokenBoards.status.issued",
+  no_show: "tokenBoards.status.noShow",
+  on_hold: "tokenBoards.status.onHold",
+  paid: "tokenBoards.status.paid",
+  partially_paid: "tokenBoards.status.partiallyPaid",
+  preparing: "tokenBoards.status.preparing",
+  ready: "tokenBoards.status.ready",
+  scheduled: "tokenBoards.status.scheduled",
+  settled: "tokenBoards.status.settled",
+  waiting: "tokenBoards.status.waiting",
+};
+
+const TOKEN_BOARD_STATUS_LABELS: Readonly<Record<string, string>> = {
+  active: "Active",
+  called: "Called",
+  cancelled: "Cancelled",
+  collected: "Collected",
+  collection_in_progress: "Collection in progress",
+  completed: "Completed",
+  dispensed: "Dispensed",
+  in_progress: "In progress",
+  issued: "Issued",
+  no_show: "No show",
+  on_hold: "On hold",
+  paid: "Paid",
+  partially_paid: "Partially paid",
+  preparing: "Preparing",
+  ready: "Ready",
+  scheduled: "Scheduled",
+  settled: "Settled",
+  waiting: "Waiting",
+};
+
 export function tokenBoardStatusSignal(status: string): TokenBoardStatusSignal {
   return TOKEN_BOARD_STATUS_SIGNALS[status] ?? TOKEN_BOARD_DEFAULT_STATUS_SIGNAL;
+}
+
+export function tokenBoardStatusLabelKey(status: string): string | null {
+  return TOKEN_BOARD_STATUS_LABEL_KEYS[status] ?? null;
+}
+
+export function tokenBoardStatusLabel(status: string): string {
+  return TOKEN_BOARD_STATUS_LABELS[status] ?? status.replace(/_/g, " ");
 }

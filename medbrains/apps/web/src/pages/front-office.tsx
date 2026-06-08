@@ -51,10 +51,12 @@ import {
   BILLING_QUEUE_LANES,
   CORE_PATIENT_JOURNEY_ACTIONS,
   P,
+  tokenBoardStatusLabel as sharedTokenBoardStatusLabel,
   TOKEN_BOARD_SURFACE_LIST,
   TOKEN_BOARD_SURFACES,
   tokenBoardFeedReadiness,
   tokenBoardRefreshLabel,
+  tokenBoardStatusLabelKey,
 } from "@medbrains/types";
 import {
   IconAmbulance,
@@ -182,27 +184,6 @@ const EMERGENCY_BOARD = TOKEN_BOARD_SURFACES.emergency;
 const PHARMACY_BOARD = TOKEN_BOARD_SURFACES.pharmacy;
 const BILLING_BOARD = TOKEN_BOARD_SURFACES.billing;
 
-const TOKEN_BOARD_STATUS_I18N_KEYS: Partial<Record<string, string>> = {
-  active: "tokenBoards.status.active",
-  called: "tokenBoards.status.called",
-  cancelled: "tokenBoards.status.cancelled",
-  collected: "tokenBoards.status.collected",
-  collection_in_progress: "tokenBoards.status.collectionInProgress",
-  completed: "tokenBoards.status.completed",
-  dispensed: "tokenBoards.status.dispensed",
-  in_progress: "tokenBoards.status.inProgress",
-  issued: "tokenBoards.status.issued",
-  no_show: "tokenBoards.status.noShow",
-  on_hold: "tokenBoards.status.onHold",
-  paid: "tokenBoards.status.paid",
-  partially_paid: "tokenBoards.status.partiallyPaid",
-  preparing: "tokenBoards.status.preparing",
-  ready: "tokenBoards.status.ready",
-  scheduled: "tokenBoards.status.scheduled",
-  settled: "tokenBoards.status.settled",
-  waiting: "tokenBoards.status.waiting",
-};
-
 const TOKEN_BOARD_READINESS_VALUE_I18N_KEYS: Partial<Record<string, string>> = {
   Degraded: "tokenBoards.readiness.values.degraded",
   Live: "tokenBoards.readiness.values.live",
@@ -224,13 +205,9 @@ type FrontOfficeTranslator = (
   values?: Record<string, boolean | number | string>,
 ) => string;
 
-function fallbackStatusLabel(status: string): string {
-  return status.replace(/_/g, " ");
-}
-
 function tokenBoardStatusLabel(status: string, t: FrontOfficeTranslator): string {
-  const key = TOKEN_BOARD_STATUS_I18N_KEYS[status];
-  return key ? t(key) : fallbackStatusLabel(status);
+  const key = tokenBoardStatusLabelKey(status);
+  return key ? t(key) : sharedTokenBoardStatusLabel(status);
 }
 
 function tokenBoardReadinessItemsForWeb({

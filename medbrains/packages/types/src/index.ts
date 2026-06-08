@@ -197,6 +197,8 @@ export {
   tokenBoardMobileRouteParams,
   tokenBoardOperationalReadinessItems,
   tokenBoardRefreshLabel,
+  tokenBoardStatusLabel,
+  tokenBoardStatusLabelKey,
   tokenBoardStatusSignal,
   tokenBoardSurfaceFilterFromParam,
 } from "./token-board-surfaces.js";

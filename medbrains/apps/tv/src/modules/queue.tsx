@@ -10,6 +10,7 @@ import {
   type QueueToken,
   type QueueTokenStatus,
   TOKEN_BOARD_SURFACES,
+  tokenBoardStatusLabel,
   tokenBoardStatusSignal,
 } from "@medbrains/types";
 import { COLORS, SPACING } from "@medbrains/ui-mobile";
@@ -44,7 +45,7 @@ interface QueueScreenProps {
 }
 
 function tokenStatusLabel(status: QueueTokenStatus | string) {
-  return status.replace(/_/g, " ");
+  return tokenBoardStatusLabel(status);
 }
 
 function priorityLabel(priority: QueuePriority | string) {

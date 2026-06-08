@@ -9,6 +9,7 @@ import {
   BILLING_QUEUE_LANES,
   type BillingQueueToken,
   TOKEN_BOARD_SURFACES,
+  tokenBoardStatusLabel,
   tokenBoardStatusSignal,
 } from "@medbrains/types";
 import { COLORS, SPACING } from "@medbrains/ui-mobile";
@@ -38,7 +39,7 @@ function statusColor(status: string) {
 }
 
 function statusLabel(status: string) {
-  return status.replace(/_/g, " ");
+  return tokenBoardStatusLabel(status);
 }
 
 function BillingQueueScreen() {

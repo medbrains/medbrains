@@ -5,7 +5,11 @@
  */
 
 import type { Module } from "@medbrains/mobile-shell";
-import { type RadiologyQueueToken, TOKEN_BOARD_SURFACES } from "@medbrains/types";
+import {
+  type RadiologyQueueToken,
+  TOKEN_BOARD_SURFACES,
+  tokenBoardStatusLabel,
+} from "@medbrains/types";
 import { COLORS, SPACING } from "@medbrains/ui-mobile";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
@@ -69,7 +73,7 @@ function statusColor(status: string) {
 }
 
 function statusLabel(status: string) {
-  return status.replace(/_/g, " ");
+  return tokenBoardStatusLabel(status);
 }
 
 function RadiologyQueueScreen({ route }: RadiologyQueueScreenProps) {

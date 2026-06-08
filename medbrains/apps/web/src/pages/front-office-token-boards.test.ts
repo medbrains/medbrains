@@ -19,6 +19,8 @@ import {
   tokenBoardMobileRouteParams,
   tokenBoardOperationalReadinessItems,
   tokenBoardRefreshLabel,
+  tokenBoardStatusLabel,
+  tokenBoardStatusLabelKey,
   tokenBoardStatusSignal,
   tokenBoardSurfaceFilterFromParam,
 } from "@medbrains/types";
@@ -215,6 +217,17 @@ describe("front-office token-board display mapping", () => {
       { label: "Refresh", tone: "info", value: "5s" },
       { label: "Flow", tone: "danger", value: "Triage" },
     ]);
+  });
+
+  it("keeps token-board status labels shared across web, mobile and TV surfaces", () => {
+    expect(tokenBoardStatusLabelKey("collection_in_progress")).toBe(
+      "tokenBoards.status.collectionInProgress",
+    );
+    expect(tokenBoardStatusLabelKey("partially_paid")).toBe("tokenBoards.status.partiallyPaid");
+    expect(tokenBoardStatusLabel("collection_in_progress")).toBe("Collection in progress");
+    expect(tokenBoardStatusLabel("partially_paid")).toBe("Partially paid");
+    expect(tokenBoardStatusLabel("custom_status")).toBe("custom status");
+    expect(tokenBoardStatusLabelKey("custom_status")).toBeNull();
   });
 
   it("keeps OPD public display tokens free of patient identifiers", () => {
