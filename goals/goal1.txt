@@ -36,7 +36,11 @@ availability, order handoff, billing readiness, discharge clearance, device disp
 auditability, and permission-controlled visibility.
 
 Use creative, shape-aware, high-recognition components where they make the work
-clearer:
+clearer. "Shapes" means actual reusable visual primitives and layouts, not only
+status words or color tokens: rectangles, squares, circles, diamonds, pills,
+bed-shapes, token-shapes, prescription/order shapes, billing-clearance shapes, and
+other domain-specific forms that can be composed into tables, cards, side rails,
+action bars, mobile lists, TV boards, kiosk screens, and print previews.
 
 - bed-shaped occupancy and transfer signals for IPD and ICU;
 - prescription and medication-state shapes for ordering, review, dispense, return,
@@ -70,6 +74,14 @@ Wherever a user enters the journey, the system should preserve the active contex
 - how every visible label, helper text, validation message, and error message is
   delivered through i18n so multilingual hospital teams do not get hardcoded
   workflow copy.
+- how security-sensitive UI state uses immutable shared keys for permissions,
+  routes, tabs, workflow events, field access, query keys, connector IDs, action IDs,
+  and device surfaces instead of translated labels, array indexes, display order, or
+  user-editable names.
+- how mutable configuration values under those immutable keys are changed only
+  through trusted application functions that enforce permission checks, tenant scope,
+  validation, masking/secret handling, and audit trails. The key is stable; the value
+  may change only through the authorized workflow.
 
 ## User Pain To Remove
 
