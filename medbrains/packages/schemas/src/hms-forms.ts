@@ -4872,14 +4872,22 @@ export const mobileLoginFormSchema = z.object({
 });
 
 export const mobileVitalsEntryFormSchema = z.object({
-  temperature: optionalNumericText("Enter a valid temperature", 80, 115),
-  pulse: optionalNumericText("Enter a valid pulse", 1, 260),
-  systolic: optionalNumericText("Enter a valid systolic BP", 1, 300),
-  diastolic: optionalNumericText("Enter a valid diastolic BP", 1, 200),
-  respiration: optionalNumericText("Enter a valid respiratory rate", 1, 100),
-  spo2: optionalNumericText("Enter a valid SpO2", 1, 100),
-  weight: optionalNumericText("Enter a valid weight", 0, 500),
-  height: optionalNumericText("Enter a valid height", 0, 250),
+  temperature: optionalNumericText(
+    "patientJourney.mobile.vitals.errors.invalidTemperature",
+    80,
+    115,
+  ),
+  pulse: optionalNumericText("patientJourney.mobile.vitals.errors.invalidPulse", 1, 260),
+  systolic: optionalNumericText("patientJourney.mobile.vitals.errors.invalidSystolic", 1, 300),
+  diastolic: optionalNumericText("patientJourney.mobile.vitals.errors.invalidDiastolic", 1, 200),
+  respiration: optionalNumericText(
+    "patientJourney.mobile.vitals.errors.invalidRespiration",
+    1,
+    100,
+  ),
+  spo2: optionalNumericText("patientJourney.mobile.vitals.errors.invalidSpo2", 1, 100),
+  weight: optionalNumericText("patientJourney.mobile.vitals.errors.invalidWeight", 0, 500),
+  height: optionalNumericText("patientJourney.mobile.vitals.errors.invalidHeight", 0, 250),
   notes: z.string(),
 });
 

@@ -19,6 +19,10 @@ import {
 } from "react-native-paper";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { VITAL_CONFIGS, VitalInput } from "../../components";
+import {
+  MOBILE_VITALS_ENTRY_TEXT,
+  mobilePatientJourneyText,
+} from "../../components/patientJourneyText";
 import { clinicalService } from "../../services/clinical.service";
 
 interface VitalsEntryScreenProps {
@@ -44,6 +48,36 @@ const initialVitalsEntryFormValues: MobileVitalsEntryFormInput = {
   height: "",
   notes: "",
 };
+const VITALS_TEXT = MOBILE_VITALS_ENTRY_TEXT;
+
+const VITAL_FIELD_LABEL_KEYS = {
+  diastolic: VITALS_TEXT.fields.diastolic,
+  height: VITALS_TEXT.fields.height,
+  pulse: VITALS_TEXT.fields.pulse,
+  respiration: VITALS_TEXT.fields.respiration,
+  spo2: VITALS_TEXT.fields.spo2,
+  systolic: VITALS_TEXT.fields.systolic,
+  temperature: VITALS_TEXT.fields.temperature,
+  weight: VITALS_TEXT.fields.weight,
+} as const;
+
+type VitalFieldKey = keyof typeof VITAL_FIELD_LABEL_KEYS;
+
+function vitalsText(key: string, values?: Record<string, string | number | boolean>): string {
+  return mobilePatientJourneyText(key, values);
+}
+
+function vitalInputConfig(field: VitalFieldKey) {
+  return {
+    ...VITAL_CONFIGS[field],
+    label: vitalsText(VITAL_FIELD_LABEL_KEYS[field]),
+    normalRangeLabel: vitalsText(VITALS_TEXT.fields.normalRange),
+  };
+}
+
+function fieldErrorText(message: string | undefined): string | undefined {
+  return message ? vitalsText(message) : undefined;
+}
 
 function calculateBMI(weight: string, height: string): string {
   const w = Number.parseFloat(weight);
@@ -84,7 +118,7 @@ export function VitalsEntryScreen({ route, navigation }: VitalsEntryScreenProps)
 
   const saveMutation = useMutation({
     mutationFn: async (values: MobileVitalsEntryFormInput) => {
-      if (!encounterId) throw new Error("No encounter ID");
+      if (!encounterId) throw new Error(vitalsText(VITALS_TEXT.errors.noEncounterId));
 
       const data = {
         temperature: toOptionalNumber(values.temperature),
@@ -102,11 +136,11 @@ export function VitalsEntryScreen({ route, navigation }: VitalsEntryScreenProps)
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["vitals"] });
-      setSnackbar({ visible: true, message: "Vitals saved successfully" });
+      setSnackbar({ visible: true, message: vitalsText(VITALS_TEXT.status.saved) });
       setTimeout(() => navigation.goBack(), 1500);
     },
     onError: () => {
-      setSnackbar({ visible: true, message: "Failed to save vitals" });
+      setSnackbar({ visible: true, message: vitalsText(VITALS_TEXT.errors.saveFailed) });
     },
   });
 
@@ -123,16 +157,26 @@ export function VitalsEntryScreen({ route, navigation }: VitalsEntryScreenProps)
     );
   }
 
-  // Helper to format vital display
   const formatVitalDisplay = (vital: Vital): string => {
     const parts: string[] = [];
-    if (vital.temperature) parts.push(`Temp: ${vital.temperature}°F`);
-    if (vital.pulse) parts.push(`Pulse: ${vital.pulse} bpm`);
-    if (vital.systolic_bp && vital.diastolic_bp) {
-      parts.push(`BP: ${vital.systolic_bp}/${vital.diastolic_bp} mmHg`);
+    if (vital.temperature) {
+      parts.push(vitalsText(VITALS_TEXT.summary.temperature, { value: vital.temperature }));
     }
-    if (vital.spo2) parts.push(`SpO2: ${vital.spo2}%`);
-    return parts.join(" • ") || "Vitals recorded";
+    if (vital.pulse) {
+      parts.push(vitalsText(VITALS_TEXT.summary.pulse, { value: vital.pulse }));
+    }
+    if (vital.systolic_bp && vital.diastolic_bp) {
+      parts.push(
+        vitalsText(VITALS_TEXT.summary.bp, {
+          diastolic: vital.diastolic_bp,
+          systolic: vital.systolic_bp,
+        }),
+      );
+    }
+    if (vital.spo2) {
+      parts.push(vitalsText(VITALS_TEXT.summary.spo2, { value: vital.spo2 }));
+    }
+    return parts.join(" • ") || vitalsText(VITALS_TEXT.summary.recorded);
   };
 
   return (
@@ -143,7 +187,7 @@ export function VitalsEntryScreen({ route, navigation }: VitalsEntryScreenProps)
           <Card style={styles.previousCard}>
             <Card.Content>
               <Text variant="titleSmall" style={styles.previousTitle}>
-                Previous Vitals
+                {vitalsText(VITALS_TEXT.sections.previousVitals)}
               </Text>
               <Divider style={styles.divider} />
               {existingVitals.slice(0, 3).map((vital) => (
@@ -161,7 +205,7 @@ export function VitalsEntryScreen({ route, navigation }: VitalsEntryScreenProps)
 
         {/* Vital Signs Section */}
         <Text variant="titleMedium" style={styles.sectionTitle}>
-          Vital Signs
+          {vitalsText(VITALS_TEXT.sections.vitalSigns)}
         </Text>
 
         <Controller
@@ -169,10 +213,10 @@ export function VitalsEntryScreen({ route, navigation }: VitalsEntryScreenProps)
           name="temperature"
           render={({ field }) => (
             <VitalInput
-              {...VITAL_CONFIGS.temperature}
+              {...vitalInputConfig("temperature")}
               value={field.value}
               onChangeText={field.onChange}
-              error={errors.temperature?.message}
+              error={fieldErrorText(errors.temperature?.message)}
             />
           )}
         />
@@ -182,10 +226,10 @@ export function VitalsEntryScreen({ route, navigation }: VitalsEntryScreenProps)
           name="pulse"
           render={({ field }) => (
             <VitalInput
-              {...VITAL_CONFIGS.pulse}
+              {...vitalInputConfig("pulse")}
               value={field.value}
               onChangeText={field.onChange}
-              error={errors.pulse?.message}
+              error={fieldErrorText(errors.pulse?.message)}
               required
             />
           )}
@@ -198,10 +242,10 @@ export function VitalsEntryScreen({ route, navigation }: VitalsEntryScreenProps)
               name="systolic"
               render={({ field }) => (
                 <VitalInput
-                  {...VITAL_CONFIGS.systolic}
+                  {...vitalInputConfig("systolic")}
                   value={field.value}
                   onChangeText={field.onChange}
-                  error={errors.systolic?.message}
+                  error={fieldErrorText(errors.systolic?.message)}
                   required
                 />
               )}
@@ -213,10 +257,10 @@ export function VitalsEntryScreen({ route, navigation }: VitalsEntryScreenProps)
               name="diastolic"
               render={({ field }) => (
                 <VitalInput
-                  {...VITAL_CONFIGS.diastolic}
+                  {...vitalInputConfig("diastolic")}
                   value={field.value}
                   onChangeText={field.onChange}
-                  error={errors.diastolic?.message}
+                  error={fieldErrorText(errors.diastolic?.message)}
                   required
                 />
               )}
@@ -229,10 +273,10 @@ export function VitalsEntryScreen({ route, navigation }: VitalsEntryScreenProps)
           name="respiration"
           render={({ field }) => (
             <VitalInput
-              {...VITAL_CONFIGS.respiration}
+              {...vitalInputConfig("respiration")}
               value={field.value}
               onChangeText={field.onChange}
-              error={errors.respiration?.message}
+              error={fieldErrorText(errors.respiration?.message)}
             />
           )}
         />
@@ -242,17 +286,17 @@ export function VitalsEntryScreen({ route, navigation }: VitalsEntryScreenProps)
           name="spo2"
           render={({ field }) => (
             <VitalInput
-              {...VITAL_CONFIGS.spo2}
+              {...vitalInputConfig("spo2")}
               value={field.value}
               onChangeText={field.onChange}
-              error={errors.spo2?.message}
+              error={fieldErrorText(errors.spo2?.message)}
             />
           )}
         />
 
         {/* Anthropometry Section */}
         <Text variant="titleMedium" style={styles.sectionTitle}>
-          Anthropometry
+          {vitalsText(VITALS_TEXT.sections.anthropometry)}
         </Text>
 
         <View style={styles.bpRow}>
@@ -262,10 +306,10 @@ export function VitalsEntryScreen({ route, navigation }: VitalsEntryScreenProps)
               name="weight"
               render={({ field }) => (
                 <VitalInput
-                  {...VITAL_CONFIGS.weight}
+                  {...vitalInputConfig("weight")}
                   value={field.value}
                   onChangeText={field.onChange}
-                  error={errors.weight?.message}
+                  error={fieldErrorText(errors.weight?.message)}
                 />
               )}
             />
@@ -276,10 +320,10 @@ export function VitalsEntryScreen({ route, navigation }: VitalsEntryScreenProps)
               name="height"
               render={({ field }) => (
                 <VitalInput
-                  {...VITAL_CONFIGS.height}
+                  {...vitalInputConfig("height")}
                   value={field.value}
                   onChangeText={field.onChange}
-                  error={errors.height?.message}
+                  error={fieldErrorText(errors.height?.message)}
                 />
               )}
             />
@@ -292,7 +336,7 @@ export function VitalsEntryScreen({ route, navigation }: VitalsEntryScreenProps)
             <Avatar.Icon size={40} icon="calculator" style={styles.bmiIcon} />
             <View style={styles.bmiInfo}>
               <Text variant="labelMedium" style={styles.bmiLabel}>
-                Calculated BMI
+                {vitalsText(VITALS_TEXT.bmi.calculated)}
               </Text>
               <Text variant="headlineMedium" style={styles.bmiValue}>
                 {bmi}
@@ -314,7 +358,7 @@ export function VitalsEntryScreen({ route, navigation }: VitalsEntryScreenProps)
           contentStyle={styles.saveButtonContent}
           icon="content-save"
         >
-          Save Vitals
+          {vitalsText(VITALS_TEXT.actions.save)}
         </Button>
       </ScrollView>
 
