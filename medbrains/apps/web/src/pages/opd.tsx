@@ -45,7 +45,6 @@ import { useAuthStore, useHasPermission } from "@medbrains/stores";
 import type {
   AdmitFromOpdRequest,
   AppointmentWithPatient,
-  AvailableBed,
   AvailableSlot,
   BookAppointmentGroupRequest,
   BookAppointmentRequest,
@@ -174,6 +173,7 @@ import {
   VisitSummaryPrint,
   VitalsRecorder,
 } from "@/components";
+import { BedSelect } from "@/components/BedSelect";
 import { Icd11CodeSelect } from "@/components/Clinical/Icd11CodeSelect";
 import { OrderBasketChip } from "@/components/OrderBasket/OrderBasketChip";
 import {
@@ -6152,6 +6152,7 @@ function AdmitToIpdButton({
   encounterId: string;
   patientName: string;
 }) {
+  const { t } = useTranslation("opd");
   const [opened, { open, close }] = useDisclosure(false);
   const queryClient = useQueryClient();
   const [deptId, setDeptId] = useState<string | null>(null);
@@ -6165,12 +6166,6 @@ function AdmitToIpdButton({
     queryFn: () => opdService.listDepartments(),
   });
 
-  const { data: beds = [] } = useQuery({
-    queryKey: ["available-beds", wardId],
-    queryFn: () => opdService.listAvailableBeds(wardId ? { ward_id: wardId } : undefined),
-    enabled: opened,
-  });
-
   const { data: wards = [] } = useQuery({
     queryKey: ["ipd-wards"],
     queryFn: () => opdService.listWards(),
@@ -6181,10 +6176,6 @@ function AdmitToIpdButton({
   const wardOptions = (wards as Array<{ id: string; name: string }>).map((w) => ({
     value: w.id,
     label: w.name,
-  }));
-  const bedOptions = (beds as AvailableBed[]).map((b) => ({
-    value: b.bed_id,
-    label: `${b.bed_number}${b.ward_name ? ` (${b.ward_name})` : ""}${b.is_isolation ? " [Isolation]" : ""}`,
   }));
 
   const admitMutation = useMutation({
@@ -6214,14 +6205,23 @@ function AdmitToIpdButton({
         });
       }
       notifications.show({
-        title: "Patient admitted to IPD",
-        message: `${patientName} admitted. ${result.vitals_copied} vitals, ${result.diagnoses_copied} diagnoses, ${result.prescriptions_copied} prescriptions copied.`,
+        title: t("notify.patientAdmittedToIpd"),
+        message: t("notify.patientAdmittedToIpdDetail", {
+          diagnoses: result.diagnoses_copied,
+          patient: patientName,
+          prescriptions: result.prescriptions_copied,
+          vitals: result.vitals_copied,
+        }),
         color: "success",
       });
       close();
     },
     onError: () => {
-      notifications.show({ title: "Error", message: "Failed to admit patient", color: "danger" });
+      notifications.show({
+        title: t("notify.error"),
+        message: t("notify.admissionFailed"),
+        color: "danger",
+      });
     },
   });
 
@@ -6244,13 +6244,18 @@ function AdmitToIpdButton({
         leftSection={<IconMedicalCross size={14} />}
         onClick={open}
       >
-        Admit to IPD
+        {t("admission.admitToIpd")}
       </Button>
-      <Modal opened={opened} onClose={close} title={`Admit ${patientName} to IPD`} size="md">
+      <Modal
+        opened={opened}
+        onClose={close}
+        title={t("admission.modalTitle", { patient: patientName })}
+        size="md"
+      >
         <Stack gap="sm">
           <Select
-            label="Department"
-            placeholder="Select department"
+            label={t("label.department")}
+            placeholder={t("placeholder.selectDepartment")}
             data={deptOptions}
             value={deptId}
             onChange={setDeptId}
@@ -6258,8 +6263,8 @@ function AdmitToIpdButton({
             required
           />
           <Select
-            label="Ward"
-            placeholder="Select ward (optional)"
+            label={t("label.ward")}
+            placeholder={t("placeholder.selectWard(optional)")}
             data={wardOptions}
             value={wardId}
             onChange={(val) => {
@@ -6269,19 +6274,18 @@ function AdmitToIpdButton({
             searchable
             clearable
           />
-          <Select
-            label="Bed"
-            placeholder="Select available bed"
-            data={bedOptions}
-            value={bedId}
-            onChange={setBedId}
-            searchable
+          <BedSelect
+            label={t("label.bed")}
+            placeholder={t("placeholder.selectAvailableBed")}
+            value={bedId ?? ""}
+            onChange={(nextBedId) => setBedId(nextBedId || null)}
             clearable
-            description={`${bedOptions.length} bed(s) available`}
+            enabled={opened}
+            wardId={wardId ?? undefined}
           />
           <Textarea
-            label="Notes"
-            placeholder="Admission notes"
+            label={t("label.notes")}
+            placeholder={t("placeholder.admissionNotes")}
             value={notes}
             onChange={(e) => setNotes(e.currentTarget.value)}
             autosize
@@ -6289,7 +6293,7 @@ function AdmitToIpdButton({
           />
           <Group justify="flex-end">
             <Button variant="subtle" onClick={close}>
-              Cancel
+              {t("cancel")}
             </Button>
             <Button
               color="teal"
@@ -6297,7 +6301,7 @@ function AdmitToIpdButton({
               loading={admitMutation.isPending}
               disabled={!deptId}
             >
-              Admit Patient
+              {t("admission.admitPatient")}
             </Button>
           </Group>
         </Stack>

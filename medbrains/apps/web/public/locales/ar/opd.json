@@ -1,1 +1,18 @@
-{}
+{
+  "admission.admitPatient": "Admit patient",
+  "admission.admitToIpd": "Admit to IPD",
+  "admission.modalTitle": "Admit {{patient}} to IPD",
+  "cancel": "Cancel",
+  "label.bed": "Bed",
+  "label.department": "Department",
+  "label.notes": "Notes",
+  "label.ward": "Ward",
+  "notify.admissionFailed": "Failed to admit patient",
+  "notify.error": "Error",
+  "notify.patientAdmittedToIpd": "Patient admitted to IPD",
+  "notify.patientAdmittedToIpdDetail": "{{patient}} admitted. {{vitals}} vitals, {{diagnoses}} diagnoses, {{prescriptions}} prescriptions copied.",
+  "placeholder.admissionNotes": "Admission notes",
+  "placeholder.selectAvailableBed": "Select available bed",
+  "placeholder.selectDepartment": "Select department",
+  "placeholder.selectWard(optional)": "Select ward (optional)"
+}

@@ -18,6 +18,7 @@ interface BedSelectProps {
   required?: boolean;
   size?: string;
   clearable?: boolean;
+  enabled?: boolean;
   error?: string;
   wardId?: string;
 }
@@ -30,6 +31,7 @@ export function BedSelect({
   required,
   size = "sm",
   clearable = true,
+  enabled = true,
   error,
   wardId,
 }: BedSelectProps) {
@@ -42,6 +44,7 @@ export function BedSelect({
   const { data: beds = [] } = useQuery({
     queryKey: ["available-beds", wardId],
     queryFn: () => lookupsService.listAvailableBeds(wardId ? { ward_id: wardId } : undefined),
+    enabled,
     staleTime: 30_000,
   });
 
