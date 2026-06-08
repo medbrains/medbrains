@@ -18,6 +18,7 @@ import {
 } from "react-native-paper";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { patientService } from "../../services/patient.service";
+import { mobileAppointmentStatusText, mobileAppointmentText } from "./appointmentsText";
 
 type FilterType = "upcoming" | "past" | "cancelled";
 
@@ -44,6 +45,23 @@ function getStatusColor(status: string): string {
   }
 }
 
+function handleFilterValueChange(value: string, setFilter: (filter: FilterType) => void) {
+  if (value === "upcoming" || value === "past" || value === "cancelled") {
+    setFilter(value);
+  }
+}
+
+function emptyFilterMessage(filter: FilterType): string {
+  switch (filter) {
+    case "upcoming":
+      return mobileAppointmentText("appointments.empty.upcoming");
+    case "past":
+      return mobileAppointmentText("appointments.empty.past");
+    case "cancelled":
+      return mobileAppointmentText("appointments.empty.cancelled");
+  }
+}
+
 export function AppointmentsScreen({ navigation }: AppointmentsScreenProps) {
   const theme = useTheme();
   const queryClient = useQueryClient();
@@ -64,11 +82,17 @@ export function AppointmentsScreen({ navigation }: AppointmentsScreenProps) {
     mutationFn: (id: string) => patientService.cancelAppointment(id, {}),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["appointments"] });
-      setSnackbar({ visible: true, message: "Appointment cancelled" });
+      setSnackbar({
+        visible: true,
+        message: mobileAppointmentText("appointments.snackbar.cancelled"),
+      });
       setCancelDialogVisible(false);
     },
     onError: () => {
-      setSnackbar({ visible: true, message: "Failed to cancel appointment" });
+      setSnackbar({
+        visible: true,
+        message: mobileAppointmentText("appointments.snackbar.cancelFailed"),
+      });
     },
   });
 
@@ -105,10 +129,10 @@ export function AppointmentsScreen({ navigation }: AppointmentsScreenProps) {
             </View>
             <View style={styles.cardInfo}>
               <Text variant="titleMedium" style={styles.doctorName}>
-                {item.doctor_name || "Doctor"}
+                {item.doctor_name || mobileAppointmentText("appointments.fallback.doctor")}
               </Text>
               <Text variant="bodySmall" style={styles.department}>
-                {item.department_name || "General"}
+                {item.department_name || mobileAppointmentText("appointments.fallback.department")}
               </Text>
               <View style={styles.cardMeta}>
                 <Chip compact icon="clock">
@@ -119,7 +143,7 @@ export function AppointmentsScreen({ navigation }: AppointmentsScreenProps) {
                   style={{ backgroundColor: `${statusColor}20` }}
                   textStyle={{ color: statusColor }}
                 >
-                  {item.status || "pending"}
+                  {mobileAppointmentStatusText(item.status || "pending")}
                 </Chip>
               </View>
             </View>
@@ -135,7 +159,7 @@ export function AppointmentsScreen({ navigation }: AppointmentsScreenProps) {
                 onPress={() => navigation.navigate("AppointmentBook", { appointmentId: item.id })}
                 style={styles.actionButton}
               >
-                Reschedule
+                {mobileAppointmentText("appointments.action.reschedule")}
               </Button>
               <Button
                 mode="outlined"
@@ -145,7 +169,7 @@ export function AppointmentsScreen({ navigation }: AppointmentsScreenProps) {
                 style={[styles.actionButton, styles.cancelButton]}
                 textColor="#C8102E"
               >
-                Cancel
+                {mobileAppointmentText("appointments.action.cancel")}
               </Button>
             </View>
           )}
@@ -158,7 +182,7 @@ export function AppointmentsScreen({ navigation }: AppointmentsScreenProps) {
               onPress={() => navigation.navigate("QueuePosition", { appointmentId: item.id })}
               style={styles.queueButton}
             >
-              Track Queue Position
+              {mobileAppointmentText("appointments.action.trackQueue")}
             </Button>
           )}
         </Card.Content>
@@ -172,11 +196,11 @@ export function AppointmentsScreen({ navigation }: AppointmentsScreenProps) {
       <View style={styles.filterContainer}>
         <SegmentedButtons
           value={filter}
-          onValueChange={(v) => setFilter(v as FilterType)}
+          onValueChange={(value) => handleFilterValueChange(value, setFilter)}
           buttons={[
-            { value: "upcoming", label: "Upcoming" },
-            { value: "past", label: "Past" },
-            { value: "cancelled", label: "Cancelled" },
+            { value: "upcoming", label: mobileAppointmentText("appointments.filter.upcoming") },
+            { value: "past", label: mobileAppointmentText("appointments.filter.past") },
+            { value: "cancelled", label: mobileAppointmentText("appointments.filter.cancelled") },
           ]}
         />
       </View>
@@ -186,7 +210,7 @@ export function AppointmentsScreen({ navigation }: AppointmentsScreenProps) {
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" />
           <Text variant="bodyMedium" style={styles.loadingText}>
-            Loading appointments...
+            {mobileAppointmentText("appointments.loading.list")}
           </Text>
         </View>
       ) : appointments.length > 0 ? (
@@ -203,14 +227,10 @@ export function AppointmentsScreen({ navigation }: AppointmentsScreenProps) {
         <View style={styles.emptyContainer}>
           <Avatar.Icon size={64} icon="calendar-blank" style={styles.emptyIcon} />
           <Text variant="titleMedium" style={styles.emptyTitle}>
-            No appointments
+            {mobileAppointmentText("appointments.empty.noAppointments")}
           </Text>
           <Text variant="bodyMedium" style={styles.emptyText}>
-            {filter === "upcoming"
-              ? "You have no upcoming appointments"
-              : filter === "past"
-                ? "No past appointments found"
-                : "No cancelled appointments"}
+            {emptyFilterMessage(filter)}
           </Text>
           {filter === "upcoming" && (
             <Button
@@ -219,7 +239,7 @@ export function AppointmentsScreen({ navigation }: AppointmentsScreenProps) {
               style={styles.bookButton}
               icon="calendar-plus"
             >
-              Book Appointment
+              {mobileAppointmentText("appointments.action.bookAppointment")}
             </Button>
           )}
         </View>
@@ -230,24 +250,26 @@ export function AppointmentsScreen({ navigation }: AppointmentsScreenProps) {
         icon="plus"
         style={styles.fab}
         onPress={() => navigation.navigate("AppointmentBook", {})}
-        label="Book"
+        label={mobileAppointmentText("appointments.action.book")}
       />
 
       {/* Cancel Confirmation Dialog */}
       <Portal>
         <Dialog visible={cancelDialogVisible} onDismiss={() => setCancelDialogVisible(false)}>
-          <Dialog.Title>Cancel Appointment</Dialog.Title>
+          <Dialog.Title>{mobileAppointmentText("appointments.dialog.cancelTitle")}</Dialog.Title>
           <Dialog.Content>
-            <Text>Are you sure you want to cancel this appointment?</Text>
+            <Text>{mobileAppointmentText("appointments.dialog.cancelPrompt")}</Text>
           </Dialog.Content>
           <Dialog.Actions>
-            <Button onPress={() => setCancelDialogVisible(false)}>No, Keep It</Button>
+            <Button onPress={() => setCancelDialogVisible(false)}>
+              {mobileAppointmentText("appointments.action.dismissCancel")}
+            </Button>
             <Button
               onPress={handleConfirmCancel}
               loading={cancelMutation.isPending}
               textColor="#C8102E"
             >
-              Yes, Cancel
+              {mobileAppointmentText("appointments.action.confirmCancel")}
             </Button>
           </Dialog.Actions>
         </Dialog>
