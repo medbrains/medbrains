@@ -85,7 +85,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type ReactNode, useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
-import { useNavigate, useParams } from "react-router";
+import { useNavigate, useParams, useSearchParams } from "react-router";
 import { PrescriptionViews } from "@/components/Clinical";
 import { ClinicalEventProvider, useClinicalEmit } from "@/components/ClinicalEventProvider";
 import { NotesPanel } from "@/components/crdt/NotesPanel";
@@ -123,7 +123,15 @@ import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { patientDetailService } from "@/services/patientDetail.service";
 import { buildCopyPrintHtml, copyPrintStyles, PRINT_COPY_PACKETS } from "@/utils/printCopies";
 import classes from "./patient-detail.module.scss";
-import { patientDetailTabForOrderBasket } from "./patient-detail-workspace";
+import {
+  isPatientDetailTabValue,
+  PATIENT_DETAIL_TAB_VALUES,
+  type PatientDetailTabValue,
+  patientDetailOrderBasketRoute,
+  patientDetailOrderBasketTabFromSearchParams,
+  patientDetailTabForOrderBasket,
+  patientDetailWorkspaceTabRoute,
+} from "./patient-detail-workspace";
 
 // ── Helpers ────────────────────────────────────────────────
 
@@ -142,25 +150,6 @@ const LAB_STATUS_COLORS: Record<string, string> = {
   verified: "teal",
   cancelled: "danger",
 };
-
-const PATIENT_DETAIL_TAB_VALUES = [
-  "overview",
-  "allergies",
-  "visits",
-  "prescriptions",
-  "lab",
-  "imaging",
-  "billing",
-  "appointments",
-  "family",
-  "documents",
-  "chronic",
-  "packages",
-  "notes",
-  "merge",
-] as const;
-
-type PatientDetailTabValue = (typeof PATIENT_DETAIL_TAB_VALUES)[number];
 
 const PATIENT_CARD_PRINT_COPIES = PRINT_COPY_PACKETS.patientCard;
 const ACTIVE_ER_VISIT_STATUSES = new Set<ErVisit["status"]>([
@@ -2924,6 +2913,7 @@ function PatientDetailPageInner() {
   const { id } = useParams<{ id: string }>();
   const patientId = id ?? "";
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const emit = useClinicalEmit();
   const queryClient = useQueryClient();
   const canListPatients = useHasPermission(P.PATIENTS.LIST);
@@ -2935,18 +2925,27 @@ function PatientDetailPageInner() {
   const lastNameAccess = useFieldAccess("patients.last_name");
   const phoneAccess = useFieldAccess("patients.phone");
   const dobAccess = useFieldAccess("patients.date_of_birth");
-  const [basketOpen, basketHandlers] = useDisclosure(false);
-  const [basketTab, setBasketTab] = useState<OrderBasketTab>("drug");
   const [shareOpen, { open: openShare, close: closeShare }] = useDisclosure(false);
   const [activePatientTab, setActivePatientTab] = useHashTabs(
     "overview",
     PATIENT_DETAIL_TAB_VALUES,
   );
+  const orderBasketDeepLinkTab = patientDetailOrderBasketTabFromSearchParams(searchParams);
+  const basketOpen = orderBasketDeepLinkTab !== null;
+  const basketTab = orderBasketDeepLinkTab ?? "drug";
 
   function openOrderBasket(tab: OrderBasketTab = "drug") {
     setActivePatientTab(patientDetailTabForOrderBasket(tab));
-    setBasketTab(tab);
-    basketHandlers.open();
+    navigate(patientDetailOrderBasketRoute(patientId, tab));
+  }
+
+  function changeOrderBasketTab(tab: OrderBasketTab) {
+    setActivePatientTab(patientDetailTabForOrderBasket(tab));
+    navigate(patientDetailOrderBasketRoute(patientId, tab), { replace: true });
+  }
+
+  function closeOrderBasket() {
+    navigate(patientDetailWorkspaceTabRoute(patientId, activeDetailTab), { replace: true });
   }
 
   const { data: patient, isLoading } = useQuery({
@@ -3161,7 +3160,7 @@ function PatientDetailPageInner() {
     icon: ReactNode;
   }>;
   const tabSections = [...new Set(detailTabs.map((tab) => tab.section))];
-  const activeDetailTab = detailTabs.some((tab) => tab.value === activePatientTab)
+  const activeDetailTab: PatientDetailTabValue = isPatientDetailTabValue(activePatientTab)
     ? activePatientTab
     : "overview";
 
@@ -3425,11 +3424,11 @@ function PatientDetailPageInner() {
       {activeEncounter && (
         <OrderBasketWorkspace
           opened={basketOpen}
-          onClose={basketHandlers.close}
+          onClose={closeOrderBasket}
           encounterId={activeEncounter.id}
           patientId={patient.id}
           activeTab={basketTab}
-          onActiveTabChange={setBasketTab}
+          onActiveTabChange={changeOrderBasketTab}
           onSigned={() => {
             void queryClient.invalidateQueries({ queryKey: ["patient-visits", patient.id] });
             void queryClient.invalidateQueries({ queryKey: ["patient-prescriptions", patient.id] });
