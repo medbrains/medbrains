@@ -84,6 +84,14 @@ export {
   summarizeClinicalJourneyActions,
 } from "./event-actions.js";
 export type {
+  PatientContextSignal,
+  PatientContextSignalKind,
+  PatientContextSignalSeverity,
+  PatientContextSignalShape,
+  PatientContextSignalTone,
+} from "./patient-context-signals.js";
+export { patientContextSignal } from "./patient-context-signals.js";
+export type {
   PatientFlowContextInput,
   PatientFlowModule,
   PatientFlowReadiness,

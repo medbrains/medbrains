@@ -11,9 +11,13 @@
 //
 // Plan section 1 — feeds form defaults via the hook elsewhere.
 
-import { Alert, Badge, Group, Skeleton, Text, Tooltip } from "@mantine/core";
+import { Alert, Group, Skeleton, Text, Tooltip } from "@mantine/core";
 import type { PatientContext } from "@medbrains/types";
-import { PATIENT_NAME_FIELD_ACCESS_KEYS, PATIENT_UHID_FIELD_ACCESS_KEY } from "@medbrains/types";
+import {
+  PATIENT_NAME_FIELD_ACCESS_KEYS,
+  PATIENT_UHID_FIELD_ACCESS_KEY,
+  patientContextSignal,
+} from "@medbrains/types";
 import {
   IconAlertTriangle,
   IconBan,
@@ -23,6 +27,9 @@ import {
   IconStarFilled,
   IconUserExclamation,
 } from "@tabler/icons-react";
+import type { ComponentType, ReactNode } from "react";
+import { useTranslation } from "react-i18next";
+import { OperationalSignal } from "@/components/OperationalSignal";
 import { useProtectedFieldValue } from "@/components/PermissionedFieldValue";
 import { usePatientContext } from "@/hooks/usePatientContext";
 
@@ -31,6 +38,12 @@ interface PatientContextBannerProps {
   /** When true, hide the loading skeleton. Useful when the parent
    * screen already shows a header skeleton. */
   hideLoadingState?: boolean;
+}
+
+interface PatientContextChip {
+  key: string;
+  node: ReactNode;
+  severity: "critical" | "info" | "warning";
 }
 
 function PatientContextIdentity({ data }: { data: PatientContext }) {
@@ -88,6 +101,7 @@ export function PatientContextBanner({
   patientId,
   hideLoadingState = false,
 }: PatientContextBannerProps) {
+  const { t } = useTranslation("patients");
   const { data, isLoading, isError } = usePatientContext(patientId);
 
   if (!patientId) return null;
@@ -107,130 +121,152 @@ export function PatientContextBanner({
   const hasKnownAllergies = !data.no_known_allergies && data.known_allergies.length > 0;
   const hasPendingConsents = data.pending_consents.length > 0;
 
-  const reds: React.ReactNode[] = [];
-  const ambers: React.ReactNode[] = [];
-  const infos: React.ReactNode[] = [];
+  const chips: PatientContextChip[] = [];
+
+  const pushChip = (
+    kind: Parameters<typeof patientContextSignal>[0],
+    key: string,
+    label: ReactNode,
+    icon?: ComponentType<{ className?: string; size?: number; stroke?: number }>,
+    value?: ReactNode,
+  ) => {
+    const signal = patientContextSignal(kind);
+    chips.push({
+      key,
+      severity: signal.severity,
+      node: (
+        <OperationalSignal
+          icon={icon}
+          label={label}
+          shape={signal.shape}
+          size="xs"
+          tone={signal.tone}
+          value={value}
+        />
+      ),
+    });
+  };
 
   if (data.is_deceased) {
-    reds.push(
-      <Badge key="deceased" color="red" leftSection={<IconBan size={12} />} variant="filled">
-        Deceased
-      </Badge>,
-    );
+    pushChip("deceased", "deceased", t("contextSignals.deceased"), IconBan);
   }
 
   if (data.is_medico_legal) {
-    reds.push(
-      <Badge key="mlc" color="red" leftSection={<IconUserExclamation size={12} />} variant="filled">
-        MLC{data.mlc_number ? ` ${data.mlc_number}` : ""}
-      </Badge>,
+    pushChip(
+      "medico_legal",
+      "mlc",
+      t("contextSignals.mlc"),
+      IconUserExclamation,
+      data.mlc_number ?? undefined,
     );
   }
 
   if (hasDrugAllergies) {
-    reds.push(
-      <Tooltip key="drug-allergies" label={data.drug_allergies.join(", ")} multiline w={260}>
-        <Badge color="red" leftSection={<IconAlertTriangle size={12} />} variant="filled">
-          {data.drug_allergies.length} drug{" "}
-          {data.drug_allergies.length === 1 ? "allergy" : "allergies"}
-        </Badge>
-      </Tooltip>,
-    );
+    const signal = patientContextSignal("drug_allergy");
+    chips.push({
+      key: "drug-allergies",
+      severity: signal.severity,
+      node: (
+        <Tooltip label={data.drug_allergies.join(", ")} multiline w={260}>
+          <OperationalSignal
+            icon={IconAlertTriangle}
+            label={t("contextSignals.drugAllergies", { count: data.drug_allergies.length })}
+            shape={signal.shape}
+            size="xs"
+            tone={signal.tone}
+          />
+        </Tooltip>
+      ),
+    });
   }
 
   if (hasKnownAllergies) {
-    reds.push(
-      <Tooltip
-        key="allergies"
-        label={data.known_allergies.map((a) => `${a.substance} (${a.severity})`).join(", ")}
-        multiline
-        w={260}
-      >
-        <Badge color="red" leftSection={<IconAlertTriangle size={12} />} variant="light">
-          {data.known_allergies.length} other{" "}
-          {data.known_allergies.length === 1 ? "allergy" : "allergies"}
-        </Badge>
-      </Tooltip>,
-    );
+    const signal = patientContextSignal("allergy");
+    chips.push({
+      key: "allergies",
+      severity: signal.severity,
+      node: (
+        <Tooltip
+          label={data.known_allergies.map((a) => `${a.substance} (${a.severity})`).join(", ")}
+          multiline
+          w={260}
+        >
+          <OperationalSignal
+            icon={IconAlertTriangle}
+            label={t("contextSignals.otherAllergies", { count: data.known_allergies.length })}
+            shape={signal.shape}
+            size="xs"
+            tone={signal.tone}
+          />
+        </Tooltip>
+      ),
+    });
   }
 
   if (hasBalance) {
-    reds.push(
-      <Badge key="balance" color="red" leftSection={<IconCash size={12} />} variant="light">
-        Outstanding <ProtectedBalanceAmount balance={balance} />
-      </Badge>,
+    pushChip(
+      "balance_due",
+      "balance",
+      t("contextSignals.outstanding"),
+      IconCash,
+      <ProtectedBalanceAmount balance={balance} />,
     );
   }
 
   if (hasPendingConsents) {
-    ambers.push(
-      <Tooltip
-        key="consents"
-        label={data.pending_consents.map((c) => `${c.consent_type} (${c.status})`).join(", ")}
-        multiline
-        w={260}
-      >
-        <Badge color="yellow" variant="light">
-          {data.pending_consents.length} pending consent
-          {data.pending_consents.length === 1 ? "" : "s"}
-        </Badge>
-      </Tooltip>,
-    );
+    const signal = patientContextSignal("consent_pending");
+    chips.push({
+      key: "consents",
+      severity: signal.severity,
+      node: (
+        <Tooltip
+          label={data.pending_consents.map((c) => `${c.consent_type} (${c.status})`).join(", ")}
+          multiline
+          w={260}
+        >
+          <OperationalSignal
+            label={t("contextSignals.pendingConsents", { count: data.pending_consents.length })}
+            shape={signal.shape}
+            size="xs"
+            tone={signal.tone}
+          />
+        </Tooltip>
+      ),
+    });
   }
 
   if (!data.last_vitals) {
-    ambers.push(
-      <Badge
-        key="no-vitals"
-        color="yellow"
-        leftSection={<IconHeartbeat size={12} />}
-        variant="light"
-      >
-        No vitals on record
-      </Badge>,
-    );
+    pushChip("vitals_missing", "no-vitals", t("contextSignals.noVitals"), IconHeartbeat);
   }
 
   if (data.is_vip) {
-    infos.push(
-      <Badge key="vip" color="brand" leftSection={<IconStarFilled size={12} />} variant="light">
-        VIP
-      </Badge>,
-    );
+    pushChip("vip", "vip", t("contextSignals.vip"), IconStarFilled);
   }
 
   if (data.primary_insurance) {
-    infos.push(
-      <Badge
-        key="insurance"
-        color="brand"
-        leftSection={<IconShieldCheck size={12} />}
-        variant="light"
-      >
-        {data.primary_insurance.provider_name}
-      </Badge>,
-    );
+    pushChip("insurance", "insurance", data.primary_insurance.provider_name, IconShieldCheck);
   }
 
   if (data.no_known_allergies && !hasDrugAllergies) {
-    infos.push(
-      <Badge key="nka" color="gray" variant="light">
-        NKA
-      </Badge>,
-    );
+    pushChip("no_known_allergies", "nka", t("contextSignals.noKnownAllergies"));
   }
 
-  const allChips = [...reds, ...ambers, ...infos];
-  if (allChips.length === 0) return null;
+  if (chips.length === 0) return null;
 
   // Use the highest severity present to colour the alert frame.
-  const alertColor = reds.length > 0 ? "red" : ambers.length > 0 ? "yellow" : "brand";
+  const alertColor = chips.some((chip) => chip.severity === "critical")
+    ? "red"
+    : chips.some((chip) => chip.severity === "warning")
+      ? "yellow"
+      : "brand";
 
   return (
     <Alert color={alertColor} variant="light" mb="sm" radius="sm" withCloseButton={false}>
       <Group gap="xs" wrap="wrap" align="center">
         <PatientContextIdentity data={data} />
-        {allChips}
+        {chips.map((chip) => (
+          <span key={chip.key}>{chip.node}</span>
+        ))}
       </Group>
     </Alert>
   );
