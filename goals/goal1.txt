@@ -83,10 +83,15 @@ care delivery, dispensing, billing, reporting, and device display without unnece
 re-searching, duplicated entry, ambiguous actions, unsafe identity exposure,
 unexplained blocking, or disconnected reports.
 
-Each product slice should be selected because it removes one named break in that
-patient journey.
+## Working Decision Filter
 
-Do not treat this as a generic rule list. For every implementation slice, state the
-specific patient-continuity problem being solved first, then change only the workflow,
-event, permission, masking, report, setting, or device behavior needed to remove that
-break.
+Each product slice starts with one concrete patient-continuity break:
+
+- which patient context is getting lost;
+- which hospital role feels that loss;
+- which workflow, event, permission, masking, report, setting, or device surface is
+  responsible;
+- what evidence will show the break is fixed.
+
+The goal is not to add general HMS rules. The goal is to remove named breaks that
+make real patient work slower, less safe, less traceable, or harder to adopt.
