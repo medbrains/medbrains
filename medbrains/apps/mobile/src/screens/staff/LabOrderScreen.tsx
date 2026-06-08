@@ -1,4 +1,4 @@
-import type { LabOrder, LabPriority, LabTestCatalog } from "@medbrains/types";
+import type { LabOrder, LabOrderStatus, LabPriority, LabTestCatalog } from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { ScrollView, StyleSheet, View } from "react-native";
@@ -19,6 +19,10 @@ import {
   useTheme,
 } from "react-native-paper";
 import { SafeAreaView } from "react-native-safe-area-context";
+import {
+  MOBILE_LAB_ORDER_TEXT,
+  mobilePatientJourneyText,
+} from "../../components/patientJourneyText";
 import { clinicalService } from "../../services/clinical.service";
 
 interface LabOrderScreenProps {
@@ -42,16 +46,104 @@ interface SelectedTest {
   tat_hours?: number;
 }
 
-const COMMON_TESTS: SelectedTest[] = [
-  { id: "cbc", name: "Complete Blood Count", code: "CBC", category: "Hematology" },
-  { id: "lft", name: "Liver Function Test", code: "LFT", category: "Biochemistry" },
-  { id: "rft", name: "Renal Function Test", code: "RFT", category: "Biochemistry" },
-  { id: "lipid", name: "Lipid Profile", code: "LIPID", category: "Biochemistry" },
-  { id: "thyroid", name: "Thyroid Profile", code: "TFT", category: "Hormones" },
-  { id: "hba1c", name: "HbA1c", code: "HBA1C", category: "Diabetes" },
-  { id: "urine", name: "Urine Routine", code: "URINE", category: "Clinical Pathology" },
-  { id: "ecg", name: "ECG", code: "ECG", category: "Cardiology" },
+interface CommonTest {
+  categoryKey: string;
+  code: string;
+  id: string;
+  nameKey: string;
+}
+
+const LAB_ORDER_TEXT = MOBILE_LAB_ORDER_TEXT;
+
+const COMMON_TESTS: CommonTest[] = [
+  {
+    id: "cbc",
+    nameKey: LAB_ORDER_TEXT.commonTests.cbc,
+    code: "CBC",
+    categoryKey: LAB_ORDER_TEXT.categories.hematology,
+  },
+  {
+    id: "lft",
+    nameKey: LAB_ORDER_TEXT.commonTests.lft,
+    code: "LFT",
+    categoryKey: LAB_ORDER_TEXT.categories.biochemistry,
+  },
+  {
+    id: "rft",
+    nameKey: LAB_ORDER_TEXT.commonTests.rft,
+    code: "RFT",
+    categoryKey: LAB_ORDER_TEXT.categories.biochemistry,
+  },
+  {
+    id: "lipid",
+    nameKey: LAB_ORDER_TEXT.commonTests.lipid,
+    code: "LIPID",
+    categoryKey: LAB_ORDER_TEXT.categories.biochemistry,
+  },
+  {
+    id: "thyroid",
+    nameKey: LAB_ORDER_TEXT.commonTests.thyroid,
+    code: "TFT",
+    categoryKey: LAB_ORDER_TEXT.categories.hormones,
+  },
+  {
+    id: "hba1c",
+    nameKey: LAB_ORDER_TEXT.commonTests.hba1c,
+    code: "HBA1C",
+    categoryKey: LAB_ORDER_TEXT.categories.diabetes,
+  },
+  {
+    id: "urine",
+    nameKey: LAB_ORDER_TEXT.commonTests.urine,
+    code: "URINE",
+    categoryKey: LAB_ORDER_TEXT.categories.clinicalPathology,
+  },
+  {
+    id: "ecg",
+    nameKey: LAB_ORDER_TEXT.commonTests.ecg,
+    code: "ECG",
+    categoryKey: LAB_ORDER_TEXT.categories.cardiology,
+  },
 ];
+
+const PRIORITY_OPTIONS: ReadonlyArray<{ value: LabPriority; labelKey: string }> = [
+  { value: "routine", labelKey: LAB_ORDER_TEXT.priority.routine },
+  { value: "urgent", labelKey: LAB_ORDER_TEXT.priority.urgent },
+  { value: "stat", labelKey: LAB_ORDER_TEXT.priority.stat },
+];
+
+const LAB_STATUS_LABEL_KEYS: Record<LabOrderStatus, string> = {
+  cancelled: LAB_ORDER_TEXT.status.cancelled,
+  completed: LAB_ORDER_TEXT.status.completed,
+  ordered: LAB_ORDER_TEXT.status.ordered,
+  processing: LAB_ORDER_TEXT.status.processing,
+  sample_collected: LAB_ORDER_TEXT.status.sampleCollected,
+  verified: LAB_ORDER_TEXT.status.verified,
+};
+
+function labOrderText(key: string, values?: Record<string, string | number | boolean>): string {
+  return mobilePatientJourneyText(key, values);
+}
+
+function selectedCommonTest(test: CommonTest): SelectedTest {
+  return {
+    id: test.id,
+    name: labOrderText(test.nameKey),
+    code: test.code,
+    category: labOrderText(test.categoryKey),
+  };
+}
+
+function labStatusText(status: LabOrderStatus): string {
+  return labOrderText(LAB_STATUS_LABEL_KEYS[status]);
+}
+
+function placeLabOrderText(count: number): string {
+  return labOrderText(
+    count === 1 ? LAB_ORDER_TEXT.actions.placeSingular : LAB_ORDER_TEXT.actions.placePlural,
+    { count },
+  );
+}
 
 export function LabOrderScreen({ route, navigation }: LabOrderScreenProps) {
   const theme = useTheme();
@@ -79,7 +171,9 @@ export function LabOrderScreen({ route, navigation }: LabOrderScreenProps) {
 
   const createOrderMutation = useMutation({
     mutationFn: async () => {
-      if (!patientId || selectedTests.length === 0) throw new Error("No tests selected");
+      if (!patientId || selectedTests.length === 0) {
+        throw new Error(labOrderText(LAB_ORDER_TEXT.errors.noTestsSelected));
+      }
 
       // Create orders for each selected test
       for (const test of selectedTests) {
@@ -93,11 +187,11 @@ export function LabOrderScreen({ route, navigation }: LabOrderScreenProps) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["lab", "orders"] });
-      setSnackbar({ visible: true, message: "Lab order(s) created successfully" });
+      setSnackbar({ visible: true, message: labOrderText(LAB_ORDER_TEXT.status.created) });
       setTimeout(() => navigation.goBack(), 1500);
     },
     onError: () => {
-      setSnackbar({ visible: true, message: "Failed to create lab order" });
+      setSnackbar({ visible: true, message: labOrderText(LAB_ORDER_TEXT.errors.failedToCreate) });
     },
   });
 
@@ -106,6 +200,10 @@ export function LabOrderScreen({ route, navigation }: LabOrderScreenProps) {
       setSelectedTests([...selectedTests, test]);
     }
     setTestSearch("");
+  };
+
+  const handleAddCommonTest = (test: CommonTest) => {
+    handleAddTest(selectedCommonTest(test));
   };
 
   const handleAddFromCatalog = (test: LabTestCatalog) => {
@@ -142,7 +240,7 @@ export function LabOrderScreen({ route, navigation }: LabOrderScreenProps) {
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {/* Search Tests */}
         <Searchbar
-          placeholder="Search tests..."
+          placeholder={labOrderText(LAB_ORDER_TEXT.search.placeholder)}
           value={testSearch}
           onChangeText={setTestSearch}
           style={styles.searchbar}
@@ -158,10 +256,14 @@ export function LabOrderScreen({ route, navigation }: LabOrderScreenProps) {
                 <List.Item
                   key={test.id}
                   title={test.name}
-                  description={`${test.code} • ${test.sample_type || "General"}`}
+                  description={labOrderText(LAB_ORDER_TEXT.search.resultDescription, {
+                    code: test.code,
+                    sample: test.sample_type || labOrderText(LAB_ORDER_TEXT.categories.general),
+                  })}
                   left={(props) => <List.Icon {...props} icon="flask" />}
                   right={() => (
                     <IconButton
+                      accessibilityLabel={labOrderText(LAB_ORDER_TEXT.actions.addTest)}
                       icon={selectedTests.find((t) => t.id === test.id) ? "check" : "plus"}
                       onPress={() => handleAddFromCatalog(test)}
                     />
@@ -170,61 +272,54 @@ export function LabOrderScreen({ route, navigation }: LabOrderScreenProps) {
                 />
               ))
             ) : (
-              <Text style={styles.noResults}>No tests found</Text>
+              <Text style={styles.noResults}>{labOrderText(LAB_ORDER_TEXT.empty.noResults)}</Text>
             )}
           </Surface>
         )}
 
         {/* Quick Add - Common Tests */}
         <Text variant="titleMedium" style={styles.sectionTitle}>
-          Common Tests
+          {labOrderText(LAB_ORDER_TEXT.sections.commonTests)}
         </Text>
         <View style={styles.commonTests}>
           {COMMON_TESTS.map((test) => (
             <Chip
               key={test.id}
-              onPress={() => handleAddTest(test)}
+              onPress={() => handleAddCommonTest(test)}
               selected={selectedTests.some((t) => t.id === test.id)}
               style={styles.commonChip}
               icon={selectedTests.some((t) => t.id === test.id) ? "check" : "plus"}
             >
-              {test.name}
+              {labOrderText(test.nameKey)}
             </Chip>
           ))}
         </View>
 
         {/* Priority Selection */}
         <Text variant="titleMedium" style={styles.sectionTitle}>
-          Priority
+          {labOrderText(LAB_ORDER_TEXT.sections.priority)}
         </Text>
         <View style={styles.priorityRow}>
-          <Chip
-            selected={priority === "routine"}
-            onPress={() => setPriority("routine")}
-            style={styles.priorityChip}
-          >
-            Routine
-          </Chip>
-          <Chip
-            selected={priority === "urgent"}
-            onPress={() => setPriority("urgent")}
-            style={[styles.priorityChip, priority === "urgent" && styles.urgentChip]}
-          >
-            Urgent
-          </Chip>
-          <Chip
-            selected={priority === "stat"}
-            onPress={() => setPriority("stat")}
-            style={[styles.priorityChip, priority === "stat" && styles.statChip]}
-          >
-            STAT
-          </Chip>
+          {PRIORITY_OPTIONS.map((option) => (
+            <Chip
+              key={option.value}
+              selected={priority === option.value}
+              onPress={() => setPriority(option.value)}
+              style={[
+                styles.priorityChip,
+                priority === "urgent" && option.value === "urgent" && styles.urgentChip,
+                priority === "stat" && option.value === "stat" && styles.statChip,
+              ]}
+            >
+              {labOrderText(option.labelKey)}
+            </Chip>
+          ))}
         </View>
 
         {/* Selected Tests */}
         <View style={styles.selectedHeader}>
           <Text variant="titleMedium" style={styles.sectionTitle}>
-            Selected Tests
+            {labOrderText(LAB_ORDER_TEXT.sections.selectedTests)}
           </Text>
           {selectedTests.length > 0 && <Badge size={24}>{selectedTests.length}</Badge>}
         </View>
@@ -242,7 +337,7 @@ export function LabOrderScreen({ route, navigation }: LabOrderScreenProps) {
                     {test.category && <Chip compact>{test.category}</Chip>}
                     {test.tat_hours && (
                       <Chip compact icon="clock">
-                        {test.tat_hours}h TAT
+                        {labOrderText(LAB_ORDER_TEXT.tests.tatHours, { hours: test.tat_hours })}
                       </Chip>
                     )}
                   </View>
@@ -259,7 +354,7 @@ export function LabOrderScreen({ route, navigation }: LabOrderScreenProps) {
             {/* Total */}
             {totalPrice > 0 && (
               <Surface style={styles.totalCard} elevation={1}>
-                <Text variant="titleMedium">Total</Text>
+                <Text variant="titleMedium">{labOrderText(LAB_ORDER_TEXT.tests.total)}</Text>
                 <Text variant="headlineSmall" style={styles.totalAmount}>
                   ₹{totalPrice}
                 </Text>
@@ -270,10 +365,10 @@ export function LabOrderScreen({ route, navigation }: LabOrderScreenProps) {
           <Surface style={styles.emptyState} elevation={1}>
             <Avatar.Icon size={48} icon="flask-outline" style={styles.emptyIcon} />
             <Text variant="bodyMedium" style={styles.emptyText}>
-              No tests selected
+              {labOrderText(LAB_ORDER_TEXT.empty.title)}
             </Text>
             <Text variant="bodySmall" style={styles.emptyHint}>
-              Search or tap common tests to add
+              {labOrderText(LAB_ORDER_TEXT.empty.hint)}
             </Text>
           </Surface>
         )}
@@ -283,21 +378,24 @@ export function LabOrderScreen({ route, navigation }: LabOrderScreenProps) {
           <Card style={styles.previousCard}>
             <Card.Content>
               <Text variant="titleSmall" style={styles.previousTitle}>
-                Recent Lab Orders
+                {labOrderText(LAB_ORDER_TEXT.recent.title)}
               </Text>
               <Divider style={styles.divider} />
               {ordersList.slice(0, 3).map((order) => (
                 <List.Item
                   key={order.id}
-                  title="Lab Order"
-                  description={`${order.status} • ${new Date(order.created_at).toLocaleDateString()}`}
+                  title={labOrderText(LAB_ORDER_TEXT.recent.orderTitle)}
+                  description={labOrderText(LAB_ORDER_TEXT.recent.description, {
+                    status: labStatusText(order.status),
+                    date: new Date(order.created_at).toLocaleDateString(),
+                  })}
                   left={(props) => <List.Icon {...props} icon="flask" />}
                   right={() => (
                     <Chip
                       compact
                       style={order.status === "completed" ? styles.completedChip : undefined}
                     >
-                      {order.status}
+                      {labStatusText(order.status)}
                     </Chip>
                   )}
                 />
@@ -317,7 +415,7 @@ export function LabOrderScreen({ route, navigation }: LabOrderScreenProps) {
             contentStyle={styles.submitButtonContent}
             icon="flask-plus"
           >
-            Place Lab Order ({selectedTests.length} test{selectedTests.length > 1 ? "s" : ""})
+            {placeLabOrderText(selectedTests.length)}
           </Button>
         )}
       </ScrollView>
