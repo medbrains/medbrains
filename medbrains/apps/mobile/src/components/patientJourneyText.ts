@@ -578,6 +578,41 @@ export const MOBILE_LAB_ORDER_TEXT = {
   },
 } as const;
 
+export const MOBILE_LAB_RESULTS_TEXT = {
+  empty: {
+    noOrder: "patientJourney.mobile.labResults.empty.noOrder",
+    noPreviousOrders: "patientJourney.mobile.labResults.empty.noPreviousOrders",
+    pendingHint: "patientJourney.mobile.labResults.empty.pendingHint",
+    pendingTitle: "patientJourney.mobile.labResults.empty.pendingTitle",
+    trendsHint: "patientJourney.mobile.labResults.empty.trendsHint",
+    trendsTitle: "patientJourney.mobile.labResults.empty.trendsTitle",
+  },
+  fields: {
+    orderedBy: "patientJourney.mobile.labResults.fields.orderedBy",
+    orderDate: "patientJourney.mobile.labResults.fields.orderDate",
+    referenceRange: "patientJourney.mobile.labResults.fields.referenceRange",
+  },
+  loading: {
+    results: "patientJourney.mobile.labResults.loading.results",
+  },
+  resultStatus: {
+    critical: "patientJourney.mobile.labResults.resultStatus.critical",
+    high: "patientJourney.mobile.labResults.resultStatus.high",
+    low: "patientJourney.mobile.labResults.resultStatus.low",
+    normal: "patientJourney.mobile.labResults.resultStatus.normal",
+  },
+  sections: {
+    notes: "patientJourney.mobile.labResults.sections.notes",
+    previousOrders: "patientJourney.mobile.labResults.sections.previousOrders",
+    testResults: "patientJourney.mobile.labResults.sections.testResults",
+  },
+  tabs: {
+    history: "patientJourney.mobile.labResults.tabs.history",
+    latest: "patientJourney.mobile.labResults.tabs.latest",
+    trends: "patientJourney.mobile.labResults.tabs.trends",
+  },
+} as const;
+
 export const MOBILE_RADIOLOGY_ORDER_TEXT = {
   actions: {
     place: "patientJourney.mobile.radiologyOrder.actions.place",
@@ -1090,6 +1125,27 @@ const MOBILE_PATIENT_JOURNEY_MESSAGES: Record<string, string> = {
   "patientJourney.mobile.labOrder.status.verified": "Verified",
   "patientJourney.mobile.labOrder.tests.tatHours": "{{hours}}h TAT",
   "patientJourney.mobile.labOrder.tests.total": "Total",
+  "patientJourney.mobile.labResults.empty.noOrder": "Lab order not found",
+  "patientJourney.mobile.labResults.empty.noPreviousOrders": "No previous orders",
+  "patientJourney.mobile.labResults.empty.pendingHint":
+    "Results will appear here once processing is complete",
+  "patientJourney.mobile.labResults.empty.pendingTitle": "Results pending",
+  "patientJourney.mobile.labResults.empty.trendsHint": "View historical trends for lab parameters",
+  "patientJourney.mobile.labResults.empty.trendsTitle": "Trend analysis coming soon",
+  "patientJourney.mobile.labResults.fields.orderedBy": "Ordered by: {{user}}",
+  "patientJourney.mobile.labResults.fields.orderDate": "{{date}} at {{time}}",
+  "patientJourney.mobile.labResults.fields.referenceRange": "Ref: {{range}} {{unit}}",
+  "patientJourney.mobile.labResults.loading.results": "Loading lab results...",
+  "patientJourney.mobile.labResults.resultStatus.critical": "CRITICAL",
+  "patientJourney.mobile.labResults.resultStatus.high": "HIGH",
+  "patientJourney.mobile.labResults.resultStatus.low": "LOW",
+  "patientJourney.mobile.labResults.resultStatus.normal": "NORMAL",
+  "patientJourney.mobile.labResults.sections.notes": "Notes",
+  "patientJourney.mobile.labResults.sections.previousOrders": "Previous Lab Orders",
+  "patientJourney.mobile.labResults.sections.testResults": "Test Results",
+  "patientJourney.mobile.labResults.tabs.history": "History",
+  "patientJourney.mobile.labResults.tabs.latest": "Results",
+  "patientJourney.mobile.labResults.tabs.trends": "Trends",
   "patientJourney.mobile.radiologyOrder.actions.place": "Place Imaging Order",
   "patientJourney.mobile.radiologyOrder.context.encounterLinked": "Encounter linked",
   "patientJourney.mobile.radiologyOrder.context.noEncounter": "No encounter",

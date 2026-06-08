@@ -1,4 +1,4 @@
-import type { LabOrder, LabResult } from "@medbrains/types";
+import type { LabOrder, LabOrderStatus, LabPriority, LabResult } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { ScrollView, StyleSheet, View } from "react-native";
@@ -15,6 +15,11 @@ import {
   useTheme,
 } from "react-native-paper";
 import { SafeAreaView } from "react-native-safe-area-context";
+import {
+  MOBILE_LAB_ORDER_TEXT,
+  MOBILE_LAB_RESULTS_TEXT,
+  mobilePatientJourneyText,
+} from "../../components/patientJourneyText";
 import { clinicalService } from "../../services/clinical.service";
 
 interface LabResultsViewScreenProps {
@@ -27,6 +32,48 @@ interface LabResultsViewScreenProps {
 }
 
 type ViewMode = "latest" | "history" | "trends";
+type ResultStatus = "normal" | "low" | "high" | "critical";
+
+const LAB_ORDER_TEXT = MOBILE_LAB_ORDER_TEXT;
+const LAB_RESULTS_TEXT = MOBILE_LAB_RESULTS_TEXT;
+
+const LAB_ORDER_STATUS_LABEL_KEYS: Record<LabOrderStatus, string> = {
+  cancelled: LAB_ORDER_TEXT.status.cancelled,
+  completed: LAB_ORDER_TEXT.status.completed,
+  ordered: LAB_ORDER_TEXT.status.ordered,
+  processing: LAB_ORDER_TEXT.status.processing,
+  sample_collected: LAB_ORDER_TEXT.status.sampleCollected,
+  verified: LAB_ORDER_TEXT.status.verified,
+};
+
+const LAB_PRIORITY_LABEL_KEYS: Record<LabPriority, string> = {
+  routine: LAB_ORDER_TEXT.priority.routine,
+  stat: LAB_ORDER_TEXT.priority.stat,
+  urgent: LAB_ORDER_TEXT.priority.urgent,
+};
+
+const RESULT_STATUS_LABEL_KEYS: Record<ResultStatus, string> = {
+  critical: LAB_RESULTS_TEXT.resultStatus.critical,
+  high: LAB_RESULTS_TEXT.resultStatus.high,
+  low: LAB_RESULTS_TEXT.resultStatus.low,
+  normal: LAB_RESULTS_TEXT.resultStatus.normal,
+};
+
+function labResultsText(key: string, values?: Record<string, string | number | boolean>): string {
+  return mobilePatientJourneyText(key, values);
+}
+
+function labOrderStatusText(status: LabOrderStatus): string {
+  return labResultsText(LAB_ORDER_STATUS_LABEL_KEYS[status]);
+}
+
+function labPriorityText(priority: LabPriority): string {
+  return labResultsText(LAB_PRIORITY_LABEL_KEYS[priority]);
+}
+
+function resultStatusText(status: ResultStatus): string {
+  return labResultsText(RESULT_STATUS_LABEL_KEYS[status]);
+}
 
 function parseNormalRange(range: string | null | undefined): { low?: number; high?: number } {
   if (!range) return {};
@@ -38,10 +85,7 @@ function parseNormalRange(range: string | null | undefined): { low?: number; hig
   return {};
 }
 
-function getResultStatus(
-  value: string,
-  normalRange: string | null,
-): "normal" | "low" | "high" | "critical" {
+function getResultStatus(value: string, normalRange: string | null): ResultStatus {
   const numValue = parseFloat(value);
   if (Number.isNaN(numValue)) return "normal";
 
@@ -97,7 +141,7 @@ export function LabResultsViewScreen({ route }: LabResultsViewScreenProps) {
       <SafeAreaView style={[styles.container, styles.centered]}>
         <ActivityIndicator size="large" />
         <Text variant="bodyMedium" style={styles.loadingText}>
-          Loading lab results...
+          {labResultsText(LAB_RESULTS_TEXT.loading.results)}
         </Text>
       </SafeAreaView>
     );
@@ -107,14 +151,14 @@ export function LabResultsViewScreen({ route }: LabResultsViewScreenProps) {
     return (
       <SafeAreaView style={[styles.container, styles.centered]}>
         <Avatar.Icon size={64} icon="flask-empty-outline" style={styles.errorIcon} />
-        <Text variant="titleMedium">Lab order not found</Text>
+        <Text variant="titleMedium">{labResultsText(LAB_RESULTS_TEXT.empty.noOrder)}</Text>
       </SafeAreaView>
     );
   }
 
   const order: LabOrder = orderDetail.order;
   const results: LabResult[] = orderDetail.results || [];
-  const orderStatus = order.status || "pending";
+  const orderStatus = order.status;
   const hasResults = results.length > 0;
 
   return (
@@ -134,11 +178,13 @@ export function LabResultsViewScreen({ route }: LabResultsViewScreenProps) {
             />
             <View style={styles.headerInfo}>
               <Text variant="titleLarge" style={styles.orderTitle}>
-                Lab Order
+                {labResultsText(LAB_ORDER_TEXT.recent.orderTitle)}
               </Text>
               <Text variant="bodySmall" style={styles.orderDate}>
-                {new Date(order.created_at).toLocaleDateString()} at{" "}
-                {new Date(order.created_at).toLocaleTimeString()}
+                {labResultsText(LAB_RESULTS_TEXT.fields.orderDate, {
+                  date: new Date(order.created_at).toLocaleDateString(),
+                  time: new Date(order.created_at).toLocaleTimeString(),
+                })}
               </Text>
             </View>
           </View>
@@ -151,7 +197,7 @@ export function LabResultsViewScreen({ route }: LabResultsViewScreenProps) {
                 { backgroundColor: orderStatus === "completed" ? "#d3f9d8" : "#fff3bf" },
               ]}
             >
-              {orderStatus.charAt(0).toUpperCase() + orderStatus.slice(1)}
+              {labOrderStatusText(orderStatus)}
             </Chip>
 
             {order.priority && order.priority !== "routine" && (
@@ -162,14 +208,14 @@ export function LabResultsViewScreen({ route }: LabResultsViewScreenProps) {
                   { backgroundColor: order.priority === "stat" ? "#ffe3e3" : "#fff3bf" },
                 ]}
               >
-                {order.priority.toUpperCase()}
+                {labPriorityText(order.priority)}
               </Chip>
             )}
           </View>
 
           {order.ordered_by && (
             <Text variant="bodySmall" style={styles.physician}>
-              Ordered by: {order.ordered_by}
+              {labResultsText(LAB_RESULTS_TEXT.fields.orderedBy, { user: order.ordered_by })}
             </Text>
           )}
         </Surface>
@@ -179,9 +225,9 @@ export function LabResultsViewScreen({ route }: LabResultsViewScreenProps) {
           value={viewMode}
           onValueChange={(v) => setViewMode(v as ViewMode)}
           buttons={[
-            { value: "latest", label: "Results" },
-            { value: "history", label: "History" },
-            { value: "trends", label: "Trends" },
+            { value: "latest", label: labResultsText(LAB_RESULTS_TEXT.tabs.latest) },
+            { value: "history", label: labResultsText(LAB_RESULTS_TEXT.tabs.history) },
+            { value: "trends", label: labResultsText(LAB_RESULTS_TEXT.tabs.trends) },
           ]}
           style={styles.segmented}
         />
@@ -193,7 +239,7 @@ export function LabResultsViewScreen({ route }: LabResultsViewScreenProps) {
               <Card style={styles.resultsCard}>
                 <Card.Content>
                   <Text variant="titleMedium" style={styles.sectionTitle}>
-                    Test Results
+                    {labResultsText(LAB_RESULTS_TEXT.sections.testResults)}
                   </Text>
                   <Divider style={styles.divider} />
 
@@ -209,7 +255,10 @@ export function LabResultsViewScreen({ route }: LabResultsViewScreenProps) {
                           </Text>
                           {result.normal_range && (
                             <Text variant="bodySmall" style={styles.refRange}>
-                              Ref: {result.normal_range} {result.unit || ""}
+                              {labResultsText(LAB_RESULTS_TEXT.fields.referenceRange, {
+                                range: result.normal_range,
+                                unit: result.unit || "",
+                              })}
                             </Text>
                           )}
                         </View>
@@ -234,7 +283,7 @@ export function LabResultsViewScreen({ route }: LabResultsViewScreenProps) {
                             style={[styles.statusBadge, { backgroundColor: `${statusColor}20` }]}
                             textStyle={{ color: statusColor }}
                           >
-                            {status === "critical" ? "CRITICAL" : status.toUpperCase()}
+                            {resultStatusText(status)}
                           </Chip>
                         )}
                       </View>
@@ -246,10 +295,10 @@ export function LabResultsViewScreen({ route }: LabResultsViewScreenProps) {
               <Surface style={styles.emptyState} elevation={1}>
                 <Avatar.Icon size={48} icon="flask-empty" style={styles.emptyIcon} />
                 <Text variant="bodyMedium" style={styles.emptyText}>
-                  Results pending
+                  {labResultsText(LAB_RESULTS_TEXT.empty.pendingTitle)}
                 </Text>
                 <Text variant="bodySmall" style={styles.emptyHint}>
-                  Results will appear here once processing is complete
+                  {labResultsText(LAB_RESULTS_TEXT.empty.pendingHint)}
                 </Text>
               </Surface>
             )}
@@ -260,7 +309,9 @@ export function LabResultsViewScreen({ route }: LabResultsViewScreenProps) {
                 <Card.Content>
                   <View style={styles.interpretationHeader}>
                     <Avatar.Icon size={32} icon="text" style={styles.interpretationIcon} />
-                    <Text variant="titleSmall">Notes</Text>
+                    <Text variant="titleSmall">
+                      {labResultsText(LAB_RESULTS_TEXT.sections.notes)}
+                    </Text>
                   </View>
                   <Text variant="bodyMedium" style={styles.interpretationText}>
                     {order.notes}
@@ -276,14 +327,14 @@ export function LabResultsViewScreen({ route }: LabResultsViewScreenProps) {
           <Card style={styles.historyCard}>
             <Card.Content>
               <Text variant="titleMedium" style={styles.sectionTitle}>
-                Previous Lab Orders
+                {labResultsText(LAB_RESULTS_TEXT.sections.previousOrders)}
               </Text>
               <Divider style={styles.divider} />
 
               {patientOrders.orders.map((historyOrder) => (
                 <List.Item
                   key={historyOrder.id}
-                  title="Lab Order"
+                  title={labResultsText(LAB_ORDER_TEXT.recent.orderTitle)}
                   description={new Date(historyOrder.created_at).toLocaleDateString()}
                   left={(props) => (
                     <Avatar.Icon
@@ -301,7 +352,7 @@ export function LabResultsViewScreen({ route }: LabResultsViewScreenProps) {
                       compact
                       style={historyOrder.status === "completed" ? styles.completedChip : undefined}
                     >
-                      {historyOrder.status}
+                      {labOrderStatusText(historyOrder.status)}
                     </Chip>
                   )}
                 />
@@ -315,7 +366,7 @@ export function LabResultsViewScreen({ route }: LabResultsViewScreenProps) {
             <Surface style={styles.emptyState} elevation={1}>
               <Avatar.Icon size={48} icon="history" style={styles.emptyIcon} />
               <Text variant="bodyMedium" style={styles.emptyText}>
-                No previous orders
+                {labResultsText(LAB_RESULTS_TEXT.empty.noPreviousOrders)}
               </Text>
             </Surface>
           )}
@@ -325,10 +376,10 @@ export function LabResultsViewScreen({ route }: LabResultsViewScreenProps) {
           <Surface style={styles.trendsPlaceholder} elevation={1}>
             <Avatar.Icon size={48} icon="chart-line" style={styles.trendsIcon} />
             <Text variant="bodyMedium" style={styles.trendsText}>
-              Trend analysis coming soon
+              {labResultsText(LAB_RESULTS_TEXT.empty.trendsTitle)}
             </Text>
             <Text variant="bodySmall" style={styles.trendsHint}>
-              View historical trends for lab parameters
+              {labResultsText(LAB_RESULTS_TEXT.empty.trendsHint)}
             </Text>
           </Surface>
         )}
