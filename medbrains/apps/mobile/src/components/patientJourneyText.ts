@@ -578,6 +578,78 @@ export const MOBILE_LAB_ORDER_TEXT = {
   },
 } as const;
 
+export const MOBILE_RADIOLOGY_ORDER_TEXT = {
+  actions: {
+    place: "patientJourney.mobile.radiologyOrder.actions.place",
+  },
+  context: {
+    encounterLinked: "patientJourney.mobile.radiologyOrder.context.encounterLinked",
+    noEncounter: "patientJourney.mobile.radiologyOrder.context.noEncounter",
+    patientLinked: "patientJourney.mobile.radiologyOrder.context.patientLinked",
+    patientRequired: "patientJourney.mobile.radiologyOrder.context.patientRequired",
+    subtitle: "patientJourney.mobile.radiologyOrder.context.subtitle",
+    title: "patientJourney.mobile.radiologyOrder.context.title",
+  },
+  empty: {
+    noActiveModalities: "patientJourney.mobile.radiologyOrder.empty.noActiveModalities",
+  },
+  errors: {
+    failedToCreate: "patientJourney.mobile.radiologyOrder.errors.failedToCreate",
+    modalityRequired: "patientJourney.mobile.radiologyOrder.errors.modalityRequired",
+    patientRequired: "patientJourney.mobile.radiologyOrder.errors.patientRequired",
+  },
+  fields: {
+    bodyPart: "patientJourney.mobile.radiologyOrder.fields.bodyPart",
+    clinicalIndication: "patientJourney.mobile.radiologyOrder.fields.clinicalIndication",
+    modality: "patientJourney.mobile.radiologyOrder.fields.modality",
+    notes: "patientJourney.mobile.radiologyOrder.fields.notes",
+    patientId: "patientJourney.mobile.radiologyOrder.fields.patientId",
+    selectedModality: "patientJourney.mobile.radiologyOrder.fields.selectedModality",
+  },
+  placeholders: {
+    bodyPart: "patientJourney.mobile.radiologyOrder.placeholders.bodyPart",
+    clinicalIndication: "patientJourney.mobile.radiologyOrder.placeholders.clinicalIndication",
+    notes: "patientJourney.mobile.radiologyOrder.placeholders.notes",
+  },
+  priority: {
+    routine: "patientJourney.mobile.radiologyOrder.priority.routine",
+    stat: "patientJourney.mobile.radiologyOrder.priority.stat",
+    urgent: "patientJourney.mobile.radiologyOrder.priority.urgent",
+  },
+  recent: {
+    description: "patientJourney.mobile.radiologyOrder.recent.description",
+    fallbackTitle: "patientJourney.mobile.radiologyOrder.recent.fallbackTitle",
+    title: "patientJourney.mobile.radiologyOrder.recent.title",
+  },
+  restricted: {
+    message: "patientJourney.mobile.radiologyOrder.restricted.message",
+    title: "patientJourney.mobile.radiologyOrder.restricted.title",
+  },
+  safety: {
+    allergyDescription: "patientJourney.mobile.radiologyOrder.safety.allergyDescription",
+    allergyTitle: "patientJourney.mobile.radiologyOrder.safety.allergyTitle",
+    contrastDescription: "patientJourney.mobile.radiologyOrder.safety.contrastDescription",
+    contrastTitle: "patientJourney.mobile.radiologyOrder.safety.contrastTitle",
+    pregnancyDescription: "patientJourney.mobile.radiologyOrder.safety.pregnancyDescription",
+    pregnancyTitle: "patientJourney.mobile.radiologyOrder.safety.pregnancyTitle",
+  },
+  sections: {
+    clinicalDetails: "patientJourney.mobile.radiologyOrder.sections.clinicalDetails",
+    patientModality: "patientJourney.mobile.radiologyOrder.sections.patientModality",
+    prioritySafety: "patientJourney.mobile.radiologyOrder.sections.prioritySafety",
+  },
+  status: {
+    cancelled: "patientJourney.mobile.radiologyOrder.status.cancelled",
+    completed: "patientJourney.mobile.radiologyOrder.status.completed",
+    created: "patientJourney.mobile.radiologyOrder.status.created",
+    inProgress: "patientJourney.mobile.radiologyOrder.status.inProgress",
+    ordered: "patientJourney.mobile.radiologyOrder.status.ordered",
+    reported: "patientJourney.mobile.radiologyOrder.status.reported",
+    scheduled: "patientJourney.mobile.radiologyOrder.status.scheduled",
+    verified: "patientJourney.mobile.radiologyOrder.status.verified",
+  },
+} as const;
+
 export const MOBILE_PRESCRIPTION_TEXT = {
   actions: {
     add: "patientJourney.mobile.prescription.actions.add",
@@ -1018,6 +1090,58 @@ const MOBILE_PATIENT_JOURNEY_MESSAGES: Record<string, string> = {
   "patientJourney.mobile.labOrder.status.verified": "Verified",
   "patientJourney.mobile.labOrder.tests.tatHours": "{{hours}}h TAT",
   "patientJourney.mobile.labOrder.tests.total": "Total",
+  "patientJourney.mobile.radiologyOrder.actions.place": "Place Imaging Order",
+  "patientJourney.mobile.radiologyOrder.context.encounterLinked": "Encounter linked",
+  "patientJourney.mobile.radiologyOrder.context.noEncounter": "No encounter",
+  "patientJourney.mobile.radiologyOrder.context.patientLinked": "Patient linked",
+  "patientJourney.mobile.radiologyOrder.context.patientRequired": "Patient required",
+  "patientJourney.mobile.radiologyOrder.context.subtitle":
+    "Radiology handoff linked to the active OPD or IPD encounter.",
+  "patientJourney.mobile.radiologyOrder.context.title": "Imaging order",
+  "patientJourney.mobile.radiologyOrder.empty.noActiveModalities":
+    "No active radiology modalities are available.",
+  "patientJourney.mobile.radiologyOrder.errors.failedToCreate": "Failed to create imaging order",
+  "patientJourney.mobile.radiologyOrder.errors.modalityRequired": "Modality is required",
+  "patientJourney.mobile.radiologyOrder.errors.patientRequired": "Patient is required",
+  "patientJourney.mobile.radiologyOrder.fields.bodyPart": "Body part",
+  "patientJourney.mobile.radiologyOrder.fields.clinicalIndication": "Clinical indication",
+  "patientJourney.mobile.radiologyOrder.fields.modality": "Modality",
+  "patientJourney.mobile.radiologyOrder.fields.notes": "Notes",
+  "patientJourney.mobile.radiologyOrder.fields.patientId": "Patient ID",
+  "patientJourney.mobile.radiologyOrder.fields.selectedModality": "Selected: {{modality}}",
+  "patientJourney.mobile.radiologyOrder.placeholders.bodyPart": "e.g. Chest, abdomen, left knee",
+  "patientJourney.mobile.radiologyOrder.placeholders.clinicalIndication": "Reason for imaging",
+  "patientJourney.mobile.radiologyOrder.placeholders.notes":
+    "Preparation, transport or scheduling notes",
+  "patientJourney.mobile.radiologyOrder.priority.routine": "Routine",
+  "patientJourney.mobile.radiologyOrder.priority.stat": "STAT",
+  "patientJourney.mobile.radiologyOrder.priority.urgent": "Urgent",
+  "patientJourney.mobile.radiologyOrder.recent.description": "{{status}} - {{date}}",
+  "patientJourney.mobile.radiologyOrder.recent.fallbackTitle": "Radiology order",
+  "patientJourney.mobile.radiologyOrder.recent.title": "Recent imaging orders",
+  "patientJourney.mobile.radiologyOrder.restricted.message":
+    "Creating mobile imaging orders requires radiology order create permission and modality list access.",
+  "patientJourney.mobile.radiologyOrder.restricted.title": "Radiology order access restricted",
+  "patientJourney.mobile.radiologyOrder.safety.allergyDescription":
+    "Highlights allergy or renal/contrast risk for radiology",
+  "patientJourney.mobile.radiologyOrder.safety.allergyTitle": "Allergy or contrast risk flagged",
+  "patientJourney.mobile.radiologyOrder.safety.contrastDescription":
+    "Mark before sending patient to contrast workflow",
+  "patientJourney.mobile.radiologyOrder.safety.contrastTitle": "Contrast required",
+  "patientJourney.mobile.radiologyOrder.safety.pregnancyDescription":
+    "Required safety check where applicable",
+  "patientJourney.mobile.radiologyOrder.safety.pregnancyTitle": "Pregnancy status checked",
+  "patientJourney.mobile.radiologyOrder.sections.clinicalDetails": "Clinical details",
+  "patientJourney.mobile.radiologyOrder.sections.patientModality": "Patient and modality",
+  "patientJourney.mobile.radiologyOrder.sections.prioritySafety": "Priority and safety",
+  "patientJourney.mobile.radiologyOrder.status.cancelled": "Cancelled",
+  "patientJourney.mobile.radiologyOrder.status.completed": "Completed",
+  "patientJourney.mobile.radiologyOrder.status.created": "Imaging order {{orderId}} created",
+  "patientJourney.mobile.radiologyOrder.status.inProgress": "In progress",
+  "patientJourney.mobile.radiologyOrder.status.ordered": "Ordered",
+  "patientJourney.mobile.radiologyOrder.status.reported": "Reported",
+  "patientJourney.mobile.radiologyOrder.status.scheduled": "Scheduled",
+  "patientJourney.mobile.radiologyOrder.status.verified": "Verified",
   "patientJourney.mobile.prescription.actions.add": "Add",
   "patientJourney.mobile.prescription.actions.addDrug": "Add Drug",
   "patientJourney.mobile.prescription.actions.cancel": "Cancel",
