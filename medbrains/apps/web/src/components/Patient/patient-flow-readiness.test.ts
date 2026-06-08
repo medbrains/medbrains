@@ -114,8 +114,7 @@ describe("patient flow readiness", () => {
     });
     expect(readiness.items.find((item) => item.id === "pharmacy")).toMatchObject({
       blockedReason: "event",
-      disabledReason:
-        "Available after order created or pharmacy prescription reviewed or pharmacy order dispensed",
+      disabledReason: "Available after order created or pharmacy order dispensed",
     });
   });
 
