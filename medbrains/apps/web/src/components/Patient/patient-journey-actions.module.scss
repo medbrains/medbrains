@@ -25,6 +25,15 @@
   background: light-dark(var(--mantine-color-gray-0), var(--mantine-color-dark-8));
 }
 
+.railItemHeader {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.railItemHeader > * {
+  min-width: 0;
+}
+
 .railButton {
   min-height: 32px;
   padding-inline: 10px;

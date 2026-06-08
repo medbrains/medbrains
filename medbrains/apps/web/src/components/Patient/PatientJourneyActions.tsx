@@ -31,6 +31,11 @@ import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router";
 import { useClinicalEventStore } from "@/components/clinical-event-store";
+import {
+  OperationalSignal,
+  type OperationalSignalShape,
+  type OperationalSignalTone,
+} from "../OperationalSignal";
 import styles from "./patient-journey-actions.module.scss";
 import { mergeJourneyEventNames } from "./patient-journey-events";
 import {
@@ -168,6 +173,41 @@ function blockedReasonColor(reason: ClinicalJourneyBlockedReason | null) {
     default:
       return "gray";
   }
+}
+
+function actionReadinessSignal(action: ResolvedClinicalJourneyAction): {
+  shape: OperationalSignalShape;
+  tone: OperationalSignalTone;
+} {
+  if (action.enabled) {
+    return { shape: "pill", tone: "ready" };
+  }
+
+  switch (action.blockedReason) {
+    case "event":
+      return { shape: "token", tone: "active" };
+    case "masking":
+    case "permission":
+    case "regulatory":
+      return { shape: "diamond", tone: "risk" };
+    case "configuration":
+    case "context":
+      return { shape: "diamond", tone: "blocked" };
+    default:
+      return { shape: "token", tone: "blocked" };
+  }
+}
+
+function actionReadinessLabel(action: ResolvedClinicalJourneyAction, t: TFunction): string {
+  if (action.enabled) {
+    return journeyActionAvailability(t, action) ?? journeyActionLabel(t, action.id);
+  }
+
+  return (
+    journeyBlockedReasonLabel(t, action.blockedReason) ??
+    journeyActionDisabledReason(t, action) ??
+    journeyActionLabel(t, action.id)
+  );
 }
 
 function ActionTooltip({ action, t }: { action: ResolvedClinicalJourneyAction; t: TFunction }) {
@@ -399,6 +439,8 @@ function PatientJourneyActionButton({
 
   if (layout === "rail") {
     const metaText = journeyActionAvailability(t, action);
+    const signal = actionReadinessSignal(action);
+    const signalLabel = actionReadinessLabel(action, t);
     const button = (
       <Button
         variant={actionVariant(action.intent)}
@@ -417,6 +459,14 @@ function PatientJourneyActionButton({
     return (
       <Tooltip label={tooltip} multiline w={280}>
         <Stack gap={3} className={styles.railItem} data-disabled={disabled || undefined}>
+          <Group gap={6} justify="space-between" wrap="nowrap" className={styles.railItemHeader}>
+            <OperationalSignal
+              label={signalLabel}
+              shape={signal.shape}
+              size="xs"
+              tone={signal.tone}
+            />
+          </Group>
           {button}
           {metaText && (
             <Text
