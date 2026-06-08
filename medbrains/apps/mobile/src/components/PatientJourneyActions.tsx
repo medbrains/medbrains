@@ -5,6 +5,7 @@ import type {
   ClinicalJourneyBlockedReason,
   ClinicalJourneyContext,
   ClinicalJourneyMessageValues,
+  PatientJourneyMobileTarget,
   ResolvedClinicalJourneyAction,
 } from "@medbrains/types";
 import {
@@ -13,16 +14,13 @@ import {
   journeyActionDisabledReason,
   journeyActionShortLabel,
   journeyBlockedReasonLabel,
+  patientJourneyMobileActionTarget,
   resolveClinicalJourneyActions,
   summarizeClinicalJourneyActions,
 } from "@medbrains/types";
 import { WorkflowSignalMarker, workflowSignalColors } from "@medbrains/ui-mobile";
 import { StyleSheet, View } from "react-native";
 import { Button, Chip, Text } from "react-native-paper";
-import {
-  mobileCampCareContextParams,
-  mobileIpdCareContextParams,
-} from "../navigation/careContextParams";
 import {
   MOBILE_PATIENT_JOURNEY_BLOCKERS,
   MOBILE_PATIENT_JOURNEY_TEXT,
@@ -186,29 +184,11 @@ function mobileActionBlocker(
   return null;
 }
 
-function mobileOrderParams(context: ClinicalJourneyContext) {
-  return {
-    admissionId: context.activeAdmissionId ?? undefined,
-    encounterId: context.activeEncounterId,
-    orderContext: context.activeOrderContext ?? undefined,
-    patientId: context.patientId,
-  };
-}
-
-function mobileBillingParams(
-  context: ClinicalJourneyContext,
-  params: {
-    filter: "all" | "paid" | "pending";
-    handoff?: "discharge_bill" | "payment";
-  },
+function navigateMobileTarget(
+  navigation: PatientJourneyActionsProps["navigation"],
+  target: PatientJourneyMobileTarget,
 ) {
-  return {
-    admissionId: context.activeAdmissionId ?? undefined,
-    encounterId: context.activeAdmissionId ? undefined : (context.activeEncounterId ?? undefined),
-    filter: params.filter,
-    handoff: params.handoff,
-    patientId: context.patientId,
-  };
+  navigation.navigate(target.screen, target.params);
 }
 
 function applyMobileDisabledReason(
@@ -249,89 +229,8 @@ export function PatientJourneyActions({
   function handleAction(action: ResolvedClinicalJourneyAction & { id: MobileJourneyActionId }) {
     if (!action.enabled) return;
 
-    switch (action.id) {
-      case "billing.collect_payment":
-        if (context.activeInvoiceId) {
-          navigation.navigate("Payment", {
-            invoiceId: context.activeInvoiceId,
-          });
-          return;
-        }
-        navigation.navigate(
-          "Billing",
-          mobileBillingParams(context, { filter: "pending", handoff: "payment" }),
-        );
-        return;
-      case "billing.open_ledger":
-        if (context.activeInvoiceId) {
-          navigation.navigate("BillDetail", {
-            invoiceId: context.activeInvoiceId,
-          });
-          return;
-        }
-        navigation.navigate("Billing", mobileBillingParams(context, { filter: "all" }));
-        return;
-      case "billing.prepare_discharge_bill":
-        navigation.navigate(
-          "Billing",
-          mobileBillingParams(context, { filter: "pending", handoff: "discharge_bill" }),
-        );
-        return;
-      case "camp.open_context":
-        navigation.navigate("PatientCareContext", mobileCampCareContextParams(context));
-        return;
-      case "emergency.open_mlc":
-        navigation.navigate("PatientCareContext", {
-          erVisitId: context.activeEmergencyVisitId ?? undefined,
-          handoff: "open_mlc",
-          module: "emergency",
-          patientId: context.patientId,
-        });
-        return;
-      case "emergency.open_visit":
-        navigation.navigate("PatientCareContext", {
-          erVisitId: context.activeEmergencyVisitId ?? undefined,
-          handoff: "open_visit",
-          module: "emergency",
-          patientId: context.patientId,
-        });
-        return;
-      case "ipd.admit":
-      case "ipd.open_admission":
-        navigation.navigate("PatientCareContext", mobileIpdCareContextParams(context));
-        return;
-      case "opd.open_visit":
-        navigation.navigate("ConsultationNotes", {
-          encounterId: context.activeEncounterId ?? "",
-          patientId: context.patientId,
-        });
-        return;
-      case "orders.medication":
-        navigation.navigate("Prescription", mobileOrderParams(context));
-        return;
-      case "orders.lab":
-        navigation.navigate("LabOrder", mobileOrderParams(context));
-        return;
-      case "orders.radiology":
-        navigation.navigate("RadiologyOrder", mobileOrderParams(context));
-        return;
-      case "pharmacy.dispense_order":
-        navigation.navigate("PatientPharmacy", {
-          handoff: "dispense",
-          patientId: context.patientId,
-          pharmacyOrderId: context.activePharmacyOrderId ?? undefined,
-          pharmacyRxQueueId: context.activePharmacyRxQueueId ?? undefined,
-        });
-        return;
-      case "pharmacy.open_patient_queue":
-        navigation.navigate("PatientPharmacy", {
-          handoff: "queue",
-          patientId: context.patientId,
-          pharmacyOrderId: context.activePharmacyOrderId ?? undefined,
-          pharmacyRxQueueId: context.activePharmacyRxQueueId ?? undefined,
-        });
-        return;
-    }
+    const target = patientJourneyMobileActionTarget(action.id, context);
+    if (target) navigateMobileTarget(navigation, target);
   }
 
   if (actions.length === 0) return null;

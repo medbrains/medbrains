@@ -131,6 +131,18 @@ export {
   patientFlowItemDisabledReason,
   patientFlowItemLabel,
 } from "./patient-journey-i18n.js";
+export type {
+  PatientJourneyMobileBillingParams,
+  PatientJourneyMobileCareContextModule,
+  PatientJourneyMobileCareContextParams,
+  PatientJourneyMobileOrderParams,
+  PatientJourneyMobilePharmacyParams,
+  PatientJourneyMobileTarget,
+} from "./patient-journey-mobile-targets.js";
+export {
+  patientFlowMobileTarget,
+  patientJourneyMobileActionTarget,
+} from "./patient-journey-mobile-targets.js";
 export { patientJourneyActionRoute } from "./patient-journey-routes.js";
 export type { PermissionDef, PermissionGroup } from "./permissions.js";
 export {

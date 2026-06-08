@@ -5,6 +5,7 @@ import type {
   ClinicalJourneyMessageValues,
   PatientFlowModule,
   PatientFlowReadinessItem,
+  PatientJourneyMobileTarget,
 } from "@medbrains/types";
 import {
   buildPatientFlowReadiness,
@@ -14,15 +15,12 @@ import {
   journeyMessage,
   patientFlowItemDisabledReason,
   patientFlowItemLabel,
+  patientFlowMobileTarget,
   patientFlowReadinessSignal,
 } from "@medbrains/types";
 import { WorkflowSignalMarker, workflowSignalColors } from "@medbrains/ui-mobile";
 import { ScrollView, StyleSheet, View } from "react-native";
 import { Button, Chip, Text } from "react-native-paper";
-import {
-  mobileCampCareContextParams,
-  mobileIpdCareContextParams,
-} from "../navigation/careContextParams";
 import {
   MOBILE_PATIENT_JOURNEY_BLOCKERS,
   MOBILE_PATIENT_JOURNEY_TEXT,
@@ -155,12 +153,11 @@ function flowSignalLabel(blockedReason: PatientFlowReadinessItem["blockedReason"
   );
 }
 
-function mobileBillingParams(context: ClinicalJourneyContext) {
-  return {
-    admissionId: context.activeAdmissionId ?? undefined,
-    encounterId: context.activeAdmissionId ? undefined : (context.activeEncounterId ?? undefined),
-    patientId: context.patientId,
-  };
+function navigateMobileTarget(
+  navigation: PatientFlowNavigatorProps["navigation"],
+  target: PatientJourneyMobileTarget,
+) {
+  navigation.navigate(target.screen, target.params);
 }
 
 export function PatientFlowNavigator({
@@ -186,51 +183,7 @@ export function PatientFlowNavigator({
   function handleFlowPress(item: PatientFlowReadinessItem) {
     if (!flowStates.find((state) => state.item.id === item.id)?.enabled) return;
 
-    switch (item.id) {
-      case "patient":
-        navigation.navigate("PatientDetail", { patientId: context.patientId });
-        return;
-      case "opd":
-        navigation.navigate("ConsultationNotes", {
-          encounterId: context.activeEncounterId ?? "",
-          patientId: context.patientId,
-        });
-        return;
-      case "ipd":
-        navigation.navigate("PatientCareContext", mobileIpdCareContextParams(context));
-        return;
-      case "emergency":
-        navigation.navigate("PatientCareContext", {
-          erVisitId: context.activeEmergencyVisitId ?? undefined,
-          handoff: "open_visit",
-          module: "emergency",
-          patientId: context.patientId,
-        });
-        return;
-      case "camp":
-        navigation.navigate("PatientCareContext", mobileCampCareContextParams(context));
-        return;
-      case "pharmacy":
-        navigation.navigate("PatientPharmacy", {
-          handoff: "queue",
-          patientId: context.patientId,
-          pharmacyOrderId: context.activePharmacyOrderId ?? undefined,
-          pharmacyRxQueueId: context.activePharmacyRxQueueId ?? undefined,
-        });
-        return;
-      case "billing":
-        if (context.activeInvoiceId) {
-          navigation.navigate("BillDetail", {
-            invoiceId: context.activeInvoiceId,
-          });
-          return;
-        }
-        navigation.navigate("Billing", {
-          filter: "all",
-          ...mobileBillingParams(context),
-        });
-        return;
-    }
+    navigateMobileTarget(navigation, patientFlowMobileTarget(item.id, context));
   }
 
   return (

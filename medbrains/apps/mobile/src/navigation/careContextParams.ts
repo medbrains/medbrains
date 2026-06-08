@@ -1,45 +1,13 @@
-import type { AdmissionRow, CampRegistration, ClinicalJourneyContext } from "@medbrains/types";
+import type {
+  AdmissionRow,
+  CampRegistration,
+  PatientJourneyMobileCareContextModule,
+  PatientJourneyMobileCareContextParams,
+} from "@medbrains/types";
 
-export type CareContextModule = "camp" | "emergency" | "ipd";
-export type CareContextHandoff =
-  | "admit"
-  | "open_admission"
-  | "open_context"
-  | "open_mlc"
-  | "open_visit";
-
-export type PatientCareContextRouteParams = {
-  admissionId?: string;
-  campId?: string;
-  campRegistrationId?: string;
-  erVisitId?: string;
-  handoff?: CareContextHandoff;
-  module: CareContextModule;
-  patientId: string;
-} & Record<string, unknown>;
-
-export function mobileIpdCareContextParams(
-  context: ClinicalJourneyContext,
-): PatientCareContextRouteParams {
-  return {
-    admissionId: context.activeAdmissionId ?? undefined,
-    handoff: context.activeAdmissionId ? "open_admission" : "admit",
-    module: "ipd",
-    patientId: context.patientId,
-  };
-}
-
-export function mobileCampCareContextParams(
-  context: ClinicalJourneyContext,
-): PatientCareContextRouteParams {
-  return {
-    campId: context.activeCampId ?? undefined,
-    campRegistrationId: context.activeCampRegistrationId ?? undefined,
-    handoff: "open_context",
-    module: "camp",
-    patientId: context.patientId,
-  };
-}
+export type CareContextModule = PatientJourneyMobileCareContextModule;
+export type CareContextHandoff = NonNullable<PatientJourneyMobileCareContextParams["handoff"]>;
+export type PatientCareContextRouteParams = PatientJourneyMobileCareContextParams;
 
 export function prioritizeAdmissionsForRoute(
   admissions: readonly AdmissionRow[],

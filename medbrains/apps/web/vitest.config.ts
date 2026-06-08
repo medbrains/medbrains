@@ -19,6 +19,7 @@ export default defineConfig({
         __dirname,
         "../../packages/design-system/src",
       ),
+      "@medbrains/types": path.resolve(__dirname, "../../packages/types/src/index.ts"),
     },
   },
 });

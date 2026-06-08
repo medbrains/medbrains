@@ -1,7 +1,11 @@
 // @vitest-environment node
 
 import type { ClinicalJourneyContext } from "@medbrains/types";
-import { patientJourneyActionRoute } from "@medbrains/types";
+import {
+  patientFlowMobileTarget,
+  patientJourneyActionRoute,
+  patientJourneyMobileActionTarget,
+} from "@medbrains/types";
 import { describe, expect, it } from "vitest";
 
 const baseContext: ClinicalJourneyContext = {
@@ -183,5 +187,101 @@ describe("patient journey action routes", () => {
     expect(patientJourneyActionRoute("mrd.open_case_sheet", baseContext)).toBe(
       "/mrd?patient_id=patient-1#case-sheets",
     );
+  });
+
+  it("resolves mobile action handoffs from the same patient journey context", () => {
+    const context: ClinicalJourneyContext = {
+      ...baseContext,
+      activeAdmissionId: "admission-1",
+      activeEncounterId: "encounter-1",
+      activeInvoiceId: "invoice-1",
+      activeOrderContext: "ipd",
+      activePharmacyOrderId: "pharmacy-order-1",
+    };
+
+    expect(patientJourneyMobileActionTarget("billing.collect_payment", context)).toEqual({
+      screen: "Payment",
+      params: { invoiceId: "invoice-1" },
+    });
+    expect(patientJourneyMobileActionTarget("orders.medication", context)).toEqual({
+      screen: "Prescription",
+      params: {
+        admissionId: "admission-1",
+        encounterId: "encounter-1",
+        orderContext: "ipd",
+        patientId: "patient-1",
+      },
+    });
+    expect(patientJourneyMobileActionTarget("pharmacy.dispense_order", context)).toEqual({
+      screen: "PatientPharmacy",
+      params: {
+        handoff: "dispense",
+        patientId: "patient-1",
+        pharmacyOrderId: "pharmacy-order-1",
+        pharmacyRxQueueId: undefined,
+      },
+    });
+  });
+
+  it("resolves mobile flow rail targets for care, pharmacy and billing modules", () => {
+    const context: ClinicalJourneyContext = {
+      ...baseContext,
+      activeAdmissionId: "admission-1",
+      activeCampId: "camp-1",
+      activeCampRegistrationId: "registration-1",
+      activeEmergencyVisitId: "er-1",
+      activeInvoiceId: "invoice-1",
+      activePharmacyRxQueueId: "rx-queue-1",
+    };
+
+    expect(patientFlowMobileTarget("ipd", context)).toEqual({
+      screen: "PatientCareContext",
+      params: {
+        admissionId: "admission-1",
+        campId: undefined,
+        campRegistrationId: undefined,
+        erVisitId: undefined,
+        handoff: "open_admission",
+        module: "ipd",
+        patientId: "patient-1",
+      },
+    });
+    expect(patientFlowMobileTarget("emergency", context)).toEqual({
+      screen: "PatientCareContext",
+      params: {
+        admissionId: undefined,
+        campId: undefined,
+        campRegistrationId: undefined,
+        erVisitId: "er-1",
+        handoff: "open_visit",
+        module: "emergency",
+        patientId: "patient-1",
+      },
+    });
+    expect(patientFlowMobileTarget("camp", context)).toEqual({
+      screen: "PatientCareContext",
+      params: {
+        admissionId: undefined,
+        campId: "camp-1",
+        campRegistrationId: "registration-1",
+        erVisitId: undefined,
+        handoff: "open_context",
+        module: "camp",
+        patientId: "patient-1",
+      },
+    });
+    expect(patientFlowMobileTarget("pharmacy", context)).toEqual({
+      screen: "PatientPharmacy",
+      params: {
+        handoff: "queue",
+        patientId: "patient-1",
+        pharmacyOrderId: undefined,
+        pharmacyRxQueueId: "rx-queue-1",
+      },
+    });
+    expect(patientFlowMobileTarget("billing", context)).toEqual({
+      screen: "BillDetail",
+      params: { invoiceId: "invoice-1" },
+    });
   });
 });
