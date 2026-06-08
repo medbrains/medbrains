@@ -69,11 +69,6 @@ const RADIOLOGY_STATUS_LABEL_KEYS: Record<RadiologyOrderStatus, string> = {
   verified: RADIOLOGY_ORDER_TEXT.status.verified,
 };
 
-const RADIOLOGY_ERROR_KEY_BY_MESSAGE: Record<string, string> = {
-  "Modality is required": RADIOLOGY_ORDER_TEXT.errors.modalityRequired,
-  "Patient is required": RADIOLOGY_ORDER_TEXT.errors.patientRequired,
-};
-
 function radiologyOrderDefaults(patientId?: string): RadiologyOrderFormInput {
   return {
     patient_id: patientId ?? "",
@@ -105,9 +100,7 @@ function radiologyOrderText(
 }
 
 function fieldErrorText(message: string | undefined): string | undefined {
-  return message
-    ? radiologyOrderText(RADIOLOGY_ERROR_KEY_BY_MESSAGE[message] ?? message)
-    : undefined;
+  return message ? radiologyOrderText(message) : undefined;
 }
 
 function radiologyPriorityText(priority: RadiologyPriority): string {

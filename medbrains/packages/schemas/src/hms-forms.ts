@@ -3802,8 +3802,8 @@ export const schedulingBlockFormSchema = z.object({
 });
 
 export const radiologyOrderFormSchema = z.object({
-  patient_id: requiredTrimmed("Patient is required"),
-  modality_id: requiredTrimmed("Modality is required"),
+  patient_id: requiredTrimmed("patientJourney.mobile.radiologyOrder.errors.patientRequired"),
+  modality_id: requiredTrimmed("patientJourney.mobile.radiologyOrder.errors.modalityRequired"),
   body_part: z.string(),
   clinical_indication: z.string(),
   priority: orderBasketRadiologyPriorityFormSchema,
