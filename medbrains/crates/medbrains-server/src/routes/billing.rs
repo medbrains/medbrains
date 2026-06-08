@@ -430,6 +430,7 @@ pub struct ListInvoicesQuery {
     pub per_page: Option<i64>,
     pub status: Option<String>,
     pub patient_id: Option<Uuid>,
+    pub encounter_id: Option<Uuid>,
     pub admission_id: Option<Uuid>,
     pub search: Option<String>,
     pub service_lane: Option<String>,
@@ -1190,6 +1191,14 @@ pub async fn list_invoices(
         conditions.push(format!("patient_id = ${bind_idx}"));
         binds.push(Bind {
             uuid_val: Some(pid),
+            string_val: None,
+        });
+        bind_idx += 1;
+    }
+    if let Some(encounter_id) = params.encounter_id {
+        conditions.push(format!("encounter_id = ${bind_idx}"));
+        binds.push(Bind {
+            uuid_val: Some(encounter_id),
             string_val: None,
         });
         bind_idx += 1;

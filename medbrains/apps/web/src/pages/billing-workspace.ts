@@ -35,3 +35,9 @@ export function billingAdmissionFilterFromSearchParams(
 ): string | null {
   return searchParams.get("admission_id")?.trim() || null;
 }
+
+export function billingEncounterFilterFromSearchParams(
+  searchParams: URLSearchParams,
+): string | null {
+  return searchParams.get("encounter_id")?.trim() || null;
+}

@@ -16,6 +16,7 @@ import {
 } from "react-native-paper";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { patientService } from "../../services/patient.service";
+import { mobileBillingStatusText, mobileBillingText } from "./billingText";
 
 type FilterType = "pending" | "paid" | "all";
 type BillingHandoff = "discharge_bill" | "payment";
@@ -115,11 +116,11 @@ function billingInvoiceParams(params: {
 function handoffTitle(handoff: BillingHandoff | undefined): string {
   switch (handoff) {
     case "payment":
-      return "Payment handoff";
+      return mobileBillingText("billing.handoff.payment.title");
     case "discharge_bill":
-      return "Discharge billing handoff";
+      return mobileBillingText("billing.handoff.dischargeBill.title");
     default:
-      return "Patient billing";
+      return mobileBillingText("billing.handoff.default.title");
   }
 }
 
@@ -129,24 +130,24 @@ function handoffHint(params: {
   handoff?: BillingHandoff;
 }): string {
   if (params.handoff === "discharge_bill" && params.admissionId) {
-    return "Reviewing invoices linked to this IPD admission so unrelated patient bills stay out of the discharge queue.";
+    return mobileBillingText("billing.handoff.dischargeBill.hint");
   }
   if (params.admissionId) {
-    return "Reviewing invoices linked to the active IPD admission.";
+    return mobileBillingText("billing.handoff.ipd.hint");
   }
   if (params.encounterId) {
-    return "Reviewing invoices linked to the active encounter.";
+    return mobileBillingText("billing.handoff.opd.hint");
   }
-  return "Reviewing invoices for the selected patient context.";
+  return mobileBillingText("billing.handoff.default.hint");
 }
 
 function emptyBillingText(filter: FilterType, handoff: BillingHandoff | undefined): string {
   if (handoff === "discharge_bill" && filter === "pending") {
-    return "No pending discharge bills found for this admission";
+    return mobileBillingText("billing.empty.pendingDischargeBills");
   }
-  if (filter === "pending") return "You have no pending bills";
-  if (filter === "paid") return "No paid bills found";
-  return "No billing history";
+  if (filter === "pending") return mobileBillingText("billing.empty.pending");
+  if (filter === "paid") return mobileBillingText("billing.empty.paid");
+  return mobileBillingText("billing.empty.history");
 }
 
 function getStatusColor(status: string): string {
@@ -154,6 +155,7 @@ function getStatusColor(status: string): string {
     case "paid":
       return "#10b981";
     case "partial":
+    case "partially_paid":
       return "#fab005";
     case "pending":
     case "unpaid":
@@ -235,7 +237,7 @@ export function BillingScreen({ navigation, route }: BillingScreenProps) {
   const renderInvoiceCard = ({ item }: { item: MobileBillingInvoice }) => {
     const invoiceDate = new Date(item.issuedAt || item.createdAt);
     const invoiceDateLabel = Number.isNaN(invoiceDate.getTime())
-      ? "Not dated"
+      ? mobileBillingText("billing.date.notDated")
       : invoiceDate.toLocaleDateString();
     const statusColor = getStatusColor(item.status);
     const isPending =
@@ -263,7 +265,7 @@ export function BillingScreen({ navigation, route }: BillingScreenProps) {
                   style={{ backgroundColor: `${statusColor}20` }}
                   textStyle={{ color: statusColor }}
                 >
-                  {item.status}
+                  {mobileBillingStatusText(item.status)}
                 </Chip>
               </View>
             </View>
@@ -273,7 +275,10 @@ export function BillingScreen({ navigation, route }: BillingScreenProps) {
               <View style={styles.servicesRow}>
                 <Avatar.Icon size={24} icon="clipboard-list" style={styles.servicesIcon} />
                 <Text variant="bodySmall" style={styles.servicesText}>
-                  {item.itemCount} item{item.itemCount > 1 ? "s" : ""}
+                  {mobileBillingText(
+                    item.itemCount === 1 ? "billing.itemCount.one" : "billing.itemCount.many",
+                    { count: item.itemCount },
+                  )}
                 </Text>
               </View>
             )}
@@ -281,12 +286,12 @@ export function BillingScreen({ navigation, route }: BillingScreenProps) {
               <View style={styles.contextChips}>
                 {item.admissionId && (
                   <Chip compact icon="bed" mode="outlined">
-                    IPD admission-linked
+                    {mobileBillingText("billing.context.admissionLinked")}
                   </Chip>
                 )}
                 {!item.admissionId && item.encounterId && (
                   <Chip compact icon="stethoscope" mode="outlined">
-                    Encounter-linked
+                    {mobileBillingText("billing.context.encounterLinked")}
                   </Chip>
                 )}
               </View>
@@ -296,7 +301,7 @@ export function BillingScreen({ navigation, route }: BillingScreenProps) {
             <View style={styles.paymentRow}>
               <View style={styles.paymentItem}>
                 <Text variant="labelSmall" style={styles.paymentLabel}>
-                  Total
+                  {mobileBillingText("billing.label.total")}
                 </Text>
                 <Text variant="bodyMedium" style={styles.paymentValue}>
                   {formatCurrency(item.totalAmount)}
@@ -304,7 +309,7 @@ export function BillingScreen({ navigation, route }: BillingScreenProps) {
               </View>
               <View style={styles.paymentItem}>
                 <Text variant="labelSmall" style={styles.paymentLabel}>
-                  Paid
+                  {mobileBillingText("billing.label.paid")}
                 </Text>
                 <Text variant="bodyMedium" style={[styles.paymentValue, { color: "#10b981" }]}>
                   {formatCurrency(item.paidAmount)}
@@ -312,7 +317,7 @@ export function BillingScreen({ navigation, route }: BillingScreenProps) {
               </View>
               <View style={styles.paymentItem}>
                 <Text variant="labelSmall" style={styles.paymentLabel}>
-                  Due
+                  {mobileBillingText("billing.label.due")}
                 </Text>
                 <Text
                   variant="bodyMedium"
@@ -331,7 +336,7 @@ export function BillingScreen({ navigation, route }: BillingScreenProps) {
                 onPress={() => navigation.navigate("Payment", { invoiceId: item.id })}
                 style={styles.payButton}
               >
-                Pay Now
+                {mobileBillingText("billing.button.payNow")}
               </Button>
             )}
           </Card.Content>
@@ -362,13 +367,13 @@ export function BillingScreen({ navigation, route }: BillingScreenProps) {
       {totalPending > 0 && (
         <Surface style={styles.outstandingBanner} elevation={2}>
           <View style={styles.outstandingInfo}>
-            <Text variant="labelMedium">Total Outstanding</Text>
+            <Text variant="labelMedium">{mobileBillingText("billing.label.totalOutstanding")}</Text>
             <Text variant="headlineMedium" style={styles.outstandingAmount}>
               {formatCurrency(totalPending)}
             </Text>
           </View>
           <Button mode="contained" compact icon="credit-card">
-            Pay All
+            {mobileBillingText("billing.button.payAll")}
           </Button>
         </Surface>
       )}
@@ -381,9 +386,9 @@ export function BillingScreen({ navigation, route }: BillingScreenProps) {
             if (isFilterType(value)) setFilter(value);
           }}
           buttons={[
-            { value: "pending", label: "Pending" },
-            { value: "paid", label: "Paid" },
-            { value: "all", label: "All" },
+            { value: "pending", label: mobileBillingText("billing.filter.pending") },
+            { value: "paid", label: mobileBillingText("billing.filter.paid") },
+            { value: "all", label: mobileBillingText("billing.filter.all") },
           ]}
         />
       </View>
@@ -393,7 +398,7 @@ export function BillingScreen({ navigation, route }: BillingScreenProps) {
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" />
           <Text variant="bodyMedium" style={styles.loadingText}>
-            Loading bills...
+            {mobileBillingText("billing.loading.bills")}
           </Text>
         </View>
       ) : invoices.length > 0 ? (
@@ -410,7 +415,7 @@ export function BillingScreen({ navigation, route }: BillingScreenProps) {
         <View style={styles.emptyContainer}>
           <Avatar.Icon size={64} icon="receipt" style={styles.emptyIcon} />
           <Text variant="titleMedium" style={styles.emptyTitle}>
-            No bills
+            {mobileBillingText("billing.empty.noBills")}
           </Text>
           <Text variant="bodyMedium" style={styles.emptyText}>
             {emptyBillingText(filter, routeHandoff)}
@@ -421,20 +426,20 @@ export function BillingScreen({ navigation, route }: BillingScreenProps) {
       {/* Payment Methods Info */}
       <Surface style={styles.paymentMethodsBanner} elevation={1}>
         <Text variant="labelMedium" style={styles.methodsTitle}>
-          Accepted Payment Methods
+          {mobileBillingText("billing.label.acceptedPaymentMethods")}
         </Text>
         <View style={styles.methodsRow}>
           <Chip compact icon="cellphone">
-            UPI
+            {mobileBillingText("billing.paymentMethod.upi")}
           </Chip>
           <Chip compact icon="credit-card">
-            Card
+            {mobileBillingText("billing.paymentMethod.card")}
           </Chip>
           <Chip compact icon="bank">
-            Net Banking
+            {mobileBillingText("billing.paymentMethod.netBanking")}
           </Chip>
           <Chip compact icon="cash">
-            Cash
+            {mobileBillingText("billing.paymentMethod.cash")}
           </Chip>
         </View>
       </Surface>

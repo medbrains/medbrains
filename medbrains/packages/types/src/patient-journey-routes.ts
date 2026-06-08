@@ -1,5 +1,18 @@
 import type { ClinicalJourneyActionId, ClinicalJourneyContext } from "./event-actions.js";
 
+function billingInvoiceListRoute(context: ClinicalJourneyContext, action?: string): string {
+  const params = [`tab=invoices`, `patient_id=${context.patientId}`];
+  if (context.activeAdmissionId) {
+    params.push(`admission_id=${context.activeAdmissionId}`);
+  } else if (context.activeEncounterId) {
+    params.push(`encounter_id=${context.activeEncounterId}`);
+  }
+  if (action) {
+    params.push(`action=${action}`);
+  }
+  return `/billing?${params.join("&")}`;
+}
+
 export function patientJourneyActionRoute(
   actionId: ClinicalJourneyActionId,
   context: ClinicalJourneyContext,
@@ -61,7 +74,7 @@ export function patientJourneyActionRoute(
       if (context.activeInvoiceId) {
         return `/billing/invoices/${context.activeInvoiceId}`;
       }
-      return `/billing?tab=invoices&patient_id=${context.patientId}`;
+      return billingInvoiceListRoute(context);
     case "billing.prepare_discharge_bill":
       if (context.activeAdmissionId) {
         return `/billing?tab=invoices&patient_id=${context.patientId}&admission_id=${context.activeAdmissionId}&source=ipd_discharge`;
@@ -71,7 +84,7 @@ export function patientJourneyActionRoute(
       if (context.activeInvoiceId) {
         return `/billing/invoices/${context.activeInvoiceId}?action=payment`;
       }
-      return `/billing?tab=invoices&patient_id=${context.patientId}&action=payment`;
+      return billingInvoiceListRoute(context, "payment");
     case "pharmacy.open_patient_queue":
       if (context.activePharmacyOrderId) {
         return `/pharmacy/orders/${context.activePharmacyOrderId}`;

@@ -97,6 +97,30 @@ describe("patient journey action routes", () => {
     expect(patientJourneyActionRoute("billing.collect_payment", baseContext)).toBe(
       "/billing?tab=invoices&patient_id=patient-1&action=payment",
     );
+    expect(
+      patientJourneyActionRoute("billing.open_ledger", {
+        ...baseContext,
+        activeEncounterId: "encounter-1",
+      }),
+    ).toBe("/billing?tab=invoices&patient_id=patient-1&encounter_id=encounter-1");
+    expect(
+      patientJourneyActionRoute("billing.collect_payment", {
+        ...baseContext,
+        activeEncounterId: "encounter-1",
+      }),
+    ).toBe("/billing?tab=invoices&patient_id=patient-1&encounter_id=encounter-1&action=payment");
+    expect(
+      patientJourneyActionRoute("billing.open_ledger", {
+        ...baseContext,
+        activeAdmissionId: "admission-1",
+      }),
+    ).toBe("/billing?tab=invoices&patient_id=patient-1&admission_id=admission-1");
+    expect(
+      patientJourneyActionRoute("billing.collect_payment", {
+        ...baseContext,
+        activeAdmissionId: "admission-1",
+      }),
+    ).toBe("/billing?tab=invoices&patient_id=patient-1&admission_id=admission-1&action=payment");
   });
 
   it("routes IPD discharge billing through the active admission", () => {

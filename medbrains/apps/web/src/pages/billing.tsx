@@ -251,6 +251,7 @@ import {
 import classes from "./billing.module.scss";
 import {
   billingAdmissionFilterFromSearchParams,
+  billingEncounterFilterFromSearchParams,
   billingHandoffActionFromSearchParams,
   billingInvoiceActionFromSearchParams,
   billingInvoicePaymentRoute,
@@ -667,6 +668,7 @@ function BillingPageInner() {
     isBillingTab(requestedTab) && visibleBillingTabs.has(requestedTab) ? requestedTab : "invoices";
   const patientFilterId = searchParams.get("patient_id")?.trim() || null;
   const admissionFilterId = billingAdmissionFilterFromSearchParams(searchParams);
+  const encounterFilterId = billingEncounterFilterFromSearchParams(searchParams);
   const requestedStatus = searchParams.get("status");
   const filterStatus = isInvoiceStatus(requestedStatus) ? requestedStatus : null;
   const activeHandoff = billingHandoffActionFromSearchParams(searchParams);
@@ -690,6 +692,7 @@ function BillingPageInner() {
     const next = new URLSearchParams(searchParams);
     next.delete("patient_id");
     next.delete("admission_id");
+    next.delete("encounter_id");
     next.delete("action");
     next.delete("source");
     setSearchParams(next, { replace: true });
@@ -702,6 +705,7 @@ function BillingPageInner() {
   const params: Record<string, string> = { page: String(page), per_page: "20" };
   if (filterStatus) params.status = filterStatus;
   if (patientFilterId) params.patient_id = patientFilterId;
+  if (encounterFilterId) params.encounter_id = encounterFilterId;
   if (admissionFilterId) params.admission_id = admissionFilterId;
 
   const queryClient = useQueryClient();
@@ -880,7 +884,7 @@ function BillingPageInner() {
           canCreate ? (
             <Group gap="xs">
               <Button leftSection={<IconPlus size={16} />} onClick={openCreate}>
-                New Invoice
+                {t("button.newInvoice")}
               </Button>
               <Button
                 variant="light"
@@ -888,7 +892,7 @@ function BillingPageInner() {
                 leftSection={<IconAmbulance size={16} />}
                 onClick={openErInvoice}
               >
-                ER Fast Invoice
+                {t("title.erFastInvoice")}
               </Button>
             </Group>
           ) : undefined
@@ -902,9 +906,10 @@ function BillingPageInner() {
             <PatientFlowNavigator
               patientId={patientFilterId}
               active="billing"
+              activeEncounterId={encounterFilterId}
               activeAdmissionId={admissionFilterId}
               activeAdmissionStatus={admissionFilterId ? "admitted" : null}
-              activeOrderContext={admissionFilterId ? "ipd" : null}
+              activeOrderContext={admissionFilterId ? "ipd" : encounterFilterId ? "opd" : null}
               compact
             />
             <Button
@@ -921,14 +926,16 @@ function BillingPageInner() {
               color={activeHandoff === "payment" ? "orange" : "teal"}
               variant="light"
               title={
-                activeHandoff === "payment" ? "Payment handoff" : "IPD discharge billing handoff"
+                activeHandoff === "payment"
+                  ? t("handoff.payment.title")
+                  : t("handoff.dischargeBill.title")
               }
             >
               <Group justify="space-between" align="center" gap="sm">
                 <Text size="sm">
                   {activeHandoff === "payment"
-                    ? "Patient invoices are filtered for payment collection. Use a payable invoice row or open the first payable invoice."
-                    : "Patient invoices are filtered after discharge finalization. Create or review the discharge invoice before collecting payment."}
+                    ? t("handoff.payment.message")
+                    : t("handoff.dischargeBill.message")}
                 </Text>
                 <Group gap="xs">
                   {activeHandoff === "payment" && firstPayableInvoice && canPay && (
@@ -940,16 +947,16 @@ function BillingPageInner() {
                         navigate(`/billing/invoices/${firstPayableInvoice.id}?action=payment`)
                       }
                     >
-                      Open Payable Invoice
+                      {t("button.openPayableInvoice")}
                     </Button>
                   )}
                   {activeHandoff === "discharge_bill" && canCreate && (
                     <Button size="xs" color="teal" onClick={openCreate}>
-                      New Invoice
+                      {t("button.newInvoice")}
                     </Button>
                   )}
                   <Button size="xs" variant="subtle" onClick={clearBillingHandoff}>
-                    Dismiss
+                    {t("button.dismiss")}
                   </Button>
                 </Group>
               </Group>
@@ -1154,10 +1161,11 @@ function BillingPageInner() {
       </Tabs>
 
       <CreateInvoiceDrawer
-        key={`${patientFilterId ?? "all-billing"}:${admissionFilterId ?? "all-admissions"}`}
+        key={`${patientFilterId ?? "all-billing"}:${encounterFilterId ?? "all-encounters"}:${admissionFilterId ?? "all-admissions"}`}
         opened={createOpened}
         onClose={closeCreate}
         initialPatientId={patientFilterId ?? ""}
+        initialEncounterId={encounterFilterId ?? ""}
         initialAdmissionId={admissionFilterId ?? ""}
       />
       <ErFastInvoiceModal opened={erInvoiceOpened} onClose={closeErInvoice} />
@@ -1169,11 +1177,13 @@ function CreateInvoiceDrawer({
   opened,
   onClose,
   initialPatientId,
+  initialEncounterId,
   initialAdmissionId,
 }: {
   opened: boolean;
   onClose: () => void;
   initialPatientId: string;
+  initialEncounterId: string;
   initialAdmissionId: string;
 }) {
   const { t } = useTranslation("billing");
@@ -1181,7 +1191,7 @@ function CreateInvoiceDrawer({
   const queryClient = useQueryClient();
   const invoiceDefaults: BillingCreateInvoiceFormInput = {
     patient_id: initialPatientId,
-    encounter_id: "",
+    encounter_id: initialEncounterId,
     admission_id: initialAdmissionId,
     notes: "",
   };
@@ -1316,6 +1326,7 @@ function InvoiceDetail({
   initialAction?: "payment" | null;
   onClearAction?: () => void;
 }) {
+  const { t } = useTranslation("billing");
   const emit = useClinicalEmit();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -1728,7 +1739,7 @@ function InvoiceDetail({
               {canRecordPayment && (
                 <>
                   <Button size="xs" leftSection={<IconCash size={14} />} onClick={openPaymentForm}>
-                    Payment
+                    {t("button.payment")}
                   </Button>
                   <Button
                     size="xs"
@@ -1736,7 +1747,7 @@ function InvoiceDetail({
                     leftSection={<IconCreditCard size={14} />}
                     onClick={gatewayHandlers.open}
                   >
-                    Gateway
+                    {t("button.gateway")}
                   </Button>
                 </>
               )}
@@ -1746,22 +1757,26 @@ function InvoiceDetail({
       </Card>
 
       {initialAction === "payment" && (
-        <Alert color={canRecordPayment ? "orange" : "gray"} variant="light" title="Payment handoff">
+        <Alert
+          color={canRecordPayment ? "orange" : "gray"}
+          variant="light"
+          title={t("handoff.payment.title")}
+        >
           <Group justify="space-between" align="center" gap="sm">
             <Text size="sm">
               {canRecordPayment
-                ? "This invoice is ready for payment collection. Review the balance and record a cashier payment or gateway settlement."
-                : "Payment collection is unavailable for this invoice because it is not issued, has no balance, the amount is hidden, or payment permission is missing."}
+                ? t("handoff.invoicePayment.readyMessage")
+                : t("handoff.invoicePayment.unavailableMessage")}
             </Text>
             <Group gap="xs">
               {canRecordPayment && (
                 <Button size="xs" leftSection={<IconCash size={14} />} onClick={openPaymentForm}>
-                  Record Payment
+                  {t("button.recordPayment")}
                 </Button>
               )}
               {onClearAction && (
                 <Button size="xs" variant="subtle" onClick={onClearAction}>
-                  Dismiss
+                  {t("button.dismiss")}
                 </Button>
               )}
             </Group>
@@ -1958,7 +1973,7 @@ function InvoiceDetail({
             <Card id="billing-payments" withBorder>
               <Stack gap="sm">
                 <Group justify="space-between" align="center">
-                  <Text fw={700}>Payments</Text>
+                  <Text fw={700}>{t("payments")}</Text>
                   {canRecordPayment && (
                     <Group gap="xs">
                       <Button
@@ -1966,7 +1981,7 @@ function InvoiceDetail({
                         leftSection={<IconCash size={14} />}
                         onClick={openPaymentForm}
                       >
-                        {paymentOpened ? "Close" : "Record Payment"}
+                        {paymentOpened ? t("label.close") : t("button.recordPayment")}
                       </Button>
                       <Button
                         size="xs"
@@ -1974,7 +1989,7 @@ function InvoiceDetail({
                         leftSection={<IconCreditCard size={14} />}
                         onClick={gatewayHandlers.open}
                       >
-                        Gateway
+                        {t("button.gateway")}
                       </Button>
                     </Group>
                   )}
@@ -1982,10 +1997,10 @@ function InvoiceDetail({
                 <Table striped>
                   <Table.Thead>
                     <Table.Tr>
-                      <Table.Th>Amount</Table.Th>
-                      <Table.Th>Mode</Table.Th>
-                      <Table.Th>Reference</Table.Th>
-                      <Table.Th>Date</Table.Th>
+                      <Table.Th>{t("label.amount")}</Table.Th>
+                      <Table.Th>{t("label.mode")}</Table.Th>
+                      <Table.Th>{t("label.reference")}</Table.Th>
+                      <Table.Th>{t("label.date")}</Table.Th>
                       {canPrintBillingDocs && <Table.Th />}
                     </Table.Tr>
                   </Table.Thead>
@@ -2026,7 +2041,7 @@ function InvoiceDetail({
                       name="amount"
                       render={({ field }) => (
                         <NumberInput
-                          label="Amount"
+                          label={t("label.amount")}
                           required
                           min={0.01}
                           max={balance}
@@ -2042,7 +2057,7 @@ function InvoiceDetail({
                       name="mode"
                       render={({ field }) => (
                         <Select
-                          label="Mode"
+                          label={t("label.mode")}
                           data={billingPaymentModeOptions}
                           value={field.value}
                           onChange={(value) => field.onChange(value ?? "cash")}
@@ -2051,24 +2066,26 @@ function InvoiceDetail({
                       )}
                     />
                     <TextInput
-                      label="Reference #"
+                      label={t("label.reference#")}
                       error={paymentErrors.reference_number?.message}
                       {...registerPayment("reference_number")}
                     />
                     <Group justify="space-between">
                       <Text size="xs" c="dimmed">
-                        Outstanding: {billingAmountText(balance, amountAccess)}
+                        {t("label.outstandingAmount", {
+                          amount: billingAmountText(balance, amountAccess),
+                        })}
                       </Text>
                       <Button
                         size="xs"
                         variant="subtle"
                         onClick={() => resetPayment({ ...paymentDefaults, amount: balance })}
                       >
-                        Use balance
+                        {t("button.useBalance")}
                       </Button>
                     </Group>
                     <Button size="xs" type="submit" loading={payMutation.isPending}>
-                      Save Payment
+                      {t("button.savePayment")}
                     </Button>
                   </Stack>
                 )}
@@ -2299,7 +2316,7 @@ function InvoiceDetail({
               <Divider />
               <Stack gap="xs">
                 <Text size="xs" fw={700} c="dimmed" tt="uppercase">
-                  Actions
+                  {t("label.actions")}
                 </Text>
                 {canRecordPayment && (
                   <>
@@ -2309,7 +2326,7 @@ function InvoiceDetail({
                       onClick={openPaymentForm}
                       fullWidth
                     >
-                      Record Payment
+                      {t("button.recordPayment")}
                     </Button>
                     <Button
                       size="xs"
@@ -2318,7 +2335,7 @@ function InvoiceDetail({
                       onClick={gatewayHandlers.open}
                       fullWidth
                     >
-                      Gateway
+                      {t("button.gateway")}
                     </Button>
                   </>
                 )}

@@ -106,6 +106,8 @@ const JOURNEY_ACTION_ROUTE_CONTEXTS: Partial<
   ],
   "billing.open_ledger": [
     { ...BASE_ROUTE_CONTEXT, activeInvoiceId: ":invoiceId" },
+    { ...BASE_ROUTE_CONTEXT, activeAdmissionId: ":admissionId" },
+    { ...BASE_ROUTE_CONTEXT, activeEncounterId: ":encounterId" },
     BASE_ROUTE_CONTEXT,
   ],
   "billing.prepare_discharge_bill": [
@@ -114,6 +116,8 @@ const JOURNEY_ACTION_ROUTE_CONTEXTS: Partial<
   ],
   "billing.collect_payment": [
     { ...BASE_ROUTE_CONTEXT, activeInvoiceId: ":invoiceId" },
+    { ...BASE_ROUTE_CONTEXT, activeAdmissionId: ":admissionId" },
+    { ...BASE_ROUTE_CONTEXT, activeEncounterId: ":encounterId" },
     BASE_ROUTE_CONTEXT,
   ],
   "pharmacy.open_patient_queue": [

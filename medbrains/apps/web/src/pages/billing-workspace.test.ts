@@ -3,6 +3,7 @@
 import { describe, expect, it } from "vitest";
 import {
   billingAdmissionFilterFromSearchParams,
+  billingEncounterFilterFromSearchParams,
   billingHandoffActionFromSearchParams,
   billingInvoiceActionFromSearchParams,
   billingInvoicePaymentRoute,
@@ -31,6 +32,17 @@ describe("billing workspace routing", () => {
     ).toBe("admission-1");
     expect(
       billingAdmissionFilterFromSearchParams(new URLSearchParams("patient_id=patient-1")),
+    ).toBe(null);
+  });
+
+  it("parses encounter filters from OPD billing handoffs", () => {
+    expect(
+      billingEncounterFilterFromSearchParams(
+        new URLSearchParams("patient_id=patient-1&encounter_id=encounter-1"),
+      ),
+    ).toBe("encounter-1");
+    expect(
+      billingEncounterFilterFromSearchParams(new URLSearchParams("patient_id=patient-1")),
     ).toBe(null);
   });
 

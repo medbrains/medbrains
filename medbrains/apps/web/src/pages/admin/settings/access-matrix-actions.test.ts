@@ -148,6 +148,12 @@ describe("journey action access-matrix coverage", () => {
           requiredPermissions: ["billing.payments.create"],
         }),
         action({
+          id: "billing.open_ledger",
+          module: "billing",
+          requiredPermissions: ["billing.invoices.list"],
+          activatesAfter: ["billing.invoice.created"],
+        }),
+        action({
           id: "billing.prepare_discharge_bill",
           module: "billing",
           blockingControls: ["context"],
@@ -171,6 +177,13 @@ describe("journey action access-matrix coverage", () => {
           activatesAfter: ["patient.created"],
         }),
         surface({
+          id: "billing.invoice_ledger",
+          kind: "screen",
+          module: "billing",
+          requiredPermissions: ["billing.invoices.list"],
+          activatesAfter: ["billing.invoice.created"],
+        }),
+        surface({
           id: "billing.discharge_invoice_actions",
           kind: "action",
           module: "billing",
@@ -189,8 +202,16 @@ describe("journey action access-matrix coverage", () => {
     expect(
       rows.find((row) => row.actionId === "billing.collect_payment")?.blockingControls,
     ).toEqual(["configuration", "context"]);
+    expect(rows.find((row) => row.actionId === "billing.open_ledger")?.routeTargets).toEqual([
+      "/billing/invoices/:invoiceId",
+      "/billing?tab=invoices&patient_id=:patientId&admission_id=:admissionId",
+      "/billing?tab=invoices&patient_id=:patientId&encounter_id=:encounterId",
+      "/billing?tab=invoices&patient_id=:patientId",
+    ]);
     expect(rows.find((row) => row.actionId === "billing.collect_payment")?.routeTargets).toEqual([
       "/billing/invoices/:invoiceId?action=payment",
+      "/billing?tab=invoices&patient_id=:patientId&admission_id=:admissionId&action=payment",
+      "/billing?tab=invoices&patient_id=:patientId&encounter_id=:encounterId&action=payment",
       "/billing?tab=invoices&patient_id=:patientId&action=payment",
     ]);
     expect(
@@ -201,7 +222,7 @@ describe("journey action access-matrix coverage", () => {
     ]);
     expect(summarizeJourneyActionCoverage(rows)).toMatchObject({
       guardedActions: 4,
-      routeLinked: 2,
+      routeLinked: 3,
       configurationControls: 1,
       contextControls: 2,
       maskingControls: 1,
