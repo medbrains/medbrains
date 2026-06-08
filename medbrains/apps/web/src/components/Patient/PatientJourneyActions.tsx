@@ -4,6 +4,7 @@ import type {
   ClinicalJourneyActionId,
   ClinicalJourneyActionIntent,
   ClinicalJourneyActionReadinessSummary,
+  ClinicalJourneyBlockedReason,
   ClinicalJourneyContext,
   ClinicalOrderContext,
   ResolvedClinicalJourneyAction,
@@ -143,12 +144,57 @@ function eventLabel(eventName: string) {
   return eventName.replace(/\./g, " ");
 }
 
+function blockedReasonLabel(reason: ClinicalJourneyBlockedReason | null) {
+  switch (reason) {
+    case "configuration":
+      return "configuration";
+    case "context":
+      return "context";
+    case "event":
+      return "event";
+    case "masking":
+      return "masking";
+    case "permission":
+      return "permission";
+    case "regulatory":
+      return "regulatory";
+    default:
+      return null;
+  }
+}
+
+function blockedReasonColor(reason: ClinicalJourneyBlockedReason | null) {
+  switch (reason) {
+    case "configuration":
+      return "grape";
+    case "context":
+      return "orange";
+    case "event":
+      return "blue";
+    case "masking":
+      return "violet";
+    case "permission":
+      return "red";
+    case "regulatory":
+      return "yellow";
+    default:
+      return "gray";
+  }
+}
+
 function ActionTooltip({ action }: { action: ResolvedClinicalJourneyAction }) {
+  const blockedLabel = blockedReasonLabel(action.blockedReason);
+
   return (
     <Stack gap={5}>
       <Text size="xs" fw={700}>
         {action.enabled ? action.description : action.disabledReasonText}
       </Text>
+      {blockedLabel && (
+        <Badge size="xs" color={blockedReasonColor(action.blockedReason)} variant="light">
+          blocked by {blockedLabel}
+        </Badge>
+      )}
       <Group gap={4}>
         {action.activatesAfter.map((eventName) => (
           <Badge key={eventName} size="xs" color="blue" variant="light">
@@ -304,6 +350,21 @@ function JourneyReadinessSummary({ summary }: { summary: ClinicalJourneyActionRe
       {summary.eventBlocked > 0 && (
         <Badge size="xs" color="blue" variant="light">
           {summary.eventBlocked} awaiting event
+        </Badge>
+      )}
+      {summary.configurationBlocked > 0 && (
+        <Badge size="xs" color="grape" variant="light">
+          {summary.configurationBlocked} configuration
+        </Badge>
+      )}
+      {summary.maskingBlocked > 0 && (
+        <Badge size="xs" color="violet" variant="light">
+          {summary.maskingBlocked} masking
+        </Badge>
+      )}
+      {summary.regulatoryBlocked > 0 && (
+        <Badge size="xs" color="yellow" variant="light">
+          {summary.regulatoryBlocked} regulatory
         </Badge>
       )}
     </Group>

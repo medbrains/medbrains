@@ -64,12 +64,18 @@ function eventLabel(eventName: string) {
 
 function blockedReasonLabel(reason: PatientFlowReadinessItem["blockedReason"]) {
   switch (reason) {
+    case "configuration":
+      return "blocked by configuration";
     case "context":
       return "blocked by context";
     case "event":
       return "blocked by event";
+    case "masking":
+      return "blocked by masking";
     case "permission":
       return "blocked by permission";
+    case "regulatory":
+      return "blocked by regulatory control";
     default:
       return null;
   }

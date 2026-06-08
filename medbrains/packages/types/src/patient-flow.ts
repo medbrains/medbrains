@@ -32,8 +32,12 @@ export interface PatientFlowContextInput {
   activeInvoiceId?: string | null;
   activePharmacyOrderId?: string | null;
   activeOrderContext?: ClinicalOrderContext | null;
+  billingPaymentConfigurationReady?: boolean;
   completedEvents?: readonly ClinicalEventName[];
+  hasPendingConsent?: boolean;
   isDeceased?: boolean;
+  patientCardMaskingReady?: boolean;
+  pharmacyRegulatoryClearanceReady?: boolean;
 }
 
 export interface PatientFlowReadinessItem {
@@ -53,14 +57,20 @@ export interface PatientFlowReadinessItem {
 export interface PatientFlowReadinessSummary {
   blocked: number;
   blockedModules: readonly PatientFlowModule[];
+  configurationBlocked: number;
+  configurationBlockedModules: readonly PatientFlowModule[];
   contextBlocked: number;
   contextBlockedModules: readonly PatientFlowModule[];
   enabled: number;
   eventBlocked: number;
   eventBlockedModules: readonly PatientFlowModule[];
+  maskingBlocked: number;
+  maskingBlockedModules: readonly PatientFlowModule[];
   permissionBlocked: number;
   permissionBlockedModules: readonly PatientFlowModule[];
   readyModules: readonly PatientFlowModule[];
+  regulatoryBlocked: number;
+  regulatoryBlockedModules: readonly PatientFlowModule[];
   total: number;
 }
 
@@ -121,27 +131,42 @@ function summarizePatientFlow(
 ): PatientFlowReadinessSummary {
   const readyModules = items.filter((item) => item.enabled).map((item) => item.id);
   const blockedModules = items.filter((item) => !item.enabled).map((item) => item.id);
+  const configurationBlockedModules = items
+    .filter((item) => item.blockedReason === "configuration")
+    .map((item) => item.id);
   const contextBlockedModules = items
     .filter((item) => item.blockedReason === "context")
     .map((item) => item.id);
   const eventBlockedModules = items
     .filter((item) => item.blockedReason === "event")
     .map((item) => item.id);
+  const maskingBlockedModules = items
+    .filter((item) => item.blockedReason === "masking")
+    .map((item) => item.id);
   const permissionBlockedModules = items
     .filter((item) => item.blockedReason === "permission")
+    .map((item) => item.id);
+  const regulatoryBlockedModules = items
+    .filter((item) => item.blockedReason === "regulatory")
     .map((item) => item.id);
 
   return {
     blocked: blockedModules.length,
     blockedModules,
+    configurationBlocked: configurationBlockedModules.length,
+    configurationBlockedModules,
     contextBlocked: contextBlockedModules.length,
     contextBlockedModules,
     enabled: readyModules.length,
     eventBlocked: eventBlockedModules.length,
     eventBlockedModules,
+    maskingBlocked: maskingBlockedModules.length,
+    maskingBlockedModules,
     permissionBlocked: permissionBlockedModules.length,
     permissionBlockedModules,
     readyModules,
+    regulatoryBlocked: regulatoryBlockedModules.length,
+    regulatoryBlockedModules,
     total: items.length,
   };
 }
@@ -158,9 +183,13 @@ export function patientFlowJourneyContext(input: PatientFlowContextInput): Clini
     activeInvoiceId,
     activeOrderContext,
     activePharmacyOrderId,
+    billingPaymentConfigurationReady,
     completedEvents,
+    hasPendingConsent,
     isDeceased,
     patientId,
+    patientCardMaskingReady,
+    pharmacyRegulatoryClearanceReady,
   } = input;
 
   return {
@@ -177,7 +206,11 @@ export function patientFlowJourneyContext(input: PatientFlowContextInput): Clini
     activeAdmissionStatus: activeAdmissionStatus ?? (activeAdmissionId ? "admitted" : null),
     activeOrderContext:
       activeOrderContext ?? (activeEncounterId ? "opd" : activeAdmissionId ? "ipd" : null),
+    billingPaymentConfigurationReady,
     completedEvents,
+    hasPendingConsent,
+    patientCardMaskingReady,
+    pharmacyRegulatoryClearanceReady,
   };
 }
 

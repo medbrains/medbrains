@@ -46,7 +46,10 @@ export interface ClinicalJourneyContext {
   activeInvoiceId?: string | null;
   activePharmacyOrderId?: string | null;
   activeOrderContext?: ClinicalOrderContext | null;
+  billingPaymentConfigurationReady?: boolean;
   hasPendingConsent?: boolean;
+  patientCardMaskingReady?: boolean;
+  pharmacyRegulatoryClearanceReady?: boolean;
   completedEvents?: readonly ClinicalEventName[];
 }
 
@@ -81,10 +84,23 @@ export interface ClinicalJourneyActionDefinition {
   activatesAfter: readonly ClinicalEventName[];
   emitsEvent?: ClinicalEventName;
   standardRefs: readonly string[];
-  disabledReason: (context: ClinicalJourneyContext) => string | null;
+  disabledReason: (context: ClinicalJourneyContext) => ClinicalJourneyActionDisabledReason;
 }
 
-export type ClinicalJourneyBlockedReason = "context" | "event" | "permission";
+export type ClinicalJourneyBlockedReason =
+  | "configuration"
+  | "context"
+  | "event"
+  | "masking"
+  | "permission"
+  | "regulatory";
+
+export interface ClinicalJourneyActionBlocker {
+  message: string;
+  reason: Exclude<ClinicalJourneyBlockedReason, "event" | "permission">;
+}
+
+export type ClinicalJourneyActionDisabledReason = ClinicalJourneyActionBlocker | string | null;
 
 export interface ResolvedClinicalJourneyAction extends ClinicalJourneyActionDefinition {
   enabled: boolean;
@@ -103,15 +119,26 @@ export interface ResolveClinicalJourneyActionsOptions {
 export interface ClinicalJourneyActionReadinessSummary {
   blocked: number;
   blockedActionIds: readonly ClinicalJourneyActionId[];
+  configurationBlocked: number;
+  configurationBlockedActionIds: readonly ClinicalJourneyActionId[];
   contextBlocked: number;
   contextBlockedActionIds: readonly ClinicalJourneyActionId[];
   enabled: number;
   eventBlocked: number;
   eventBlockedActionIds: readonly ClinicalJourneyActionId[];
+  maskingBlocked: number;
+  maskingBlockedActionIds: readonly ClinicalJourneyActionId[];
   permissionBlocked: number;
   permissionBlockedActionIds: readonly ClinicalJourneyActionId[];
   readyActionIds: readonly ClinicalJourneyActionId[];
+  regulatoryBlocked: number;
+  regulatoryBlockedActionIds: readonly ClinicalJourneyActionId[];
   total: number;
+}
+
+interface NormalizedActionBlocker {
+  message: string | null;
+  reason: Exclude<ClinicalJourneyBlockedReason, "event" | "permission"> | null;
 }
 
 function activeAdmissionIsOpen(context: ClinicalJourneyContext): boolean {
@@ -124,6 +151,27 @@ function activeAdmissionHasAssignedBed(context: ClinicalJourneyContext): boolean
 
 function requireLivingPatient(context: ClinicalJourneyContext): string | null {
   return context.isDeceased ? "Unavailable for deceased patient records" : null;
+}
+
+function actionBlocker(
+  reason: ClinicalJourneyActionBlocker["reason"],
+  message: string,
+): ClinicalJourneyActionBlocker {
+  return { message, reason };
+}
+
+function normalizeActionBlocker(
+  disabledReason: ClinicalJourneyActionDisabledReason,
+): NormalizedActionBlocker {
+  if (!disabledReason) {
+    return { message: null, reason: null };
+  }
+
+  if (typeof disabledReason === "string") {
+    return { message: disabledReason, reason: "context" };
+  }
+
+  return { message: disabledReason.message, reason: disabledReason.reason };
 }
 
 function requireOrderContext(context: ClinicalJourneyContext): string | null {
@@ -272,15 +320,59 @@ function requireActiveInvoiceForPayment(context: ClinicalJourneyContext): string
   );
 }
 
-function requireActivePharmacyOrderForDispense(context: ClinicalJourneyContext): string | null {
+function requirePaymentConfiguration(
+  context: ClinicalJourneyContext,
+): ClinicalJourneyActionDisabledReason {
+  if (context.billingPaymentConfigurationReady === false) {
+    return actionBlocker(
+      "configuration",
+      "Configure active payment methods before collecting payment",
+    );
+  }
+
+  return requireActiveInvoiceForPayment(context);
+}
+
+function requireActivePharmacyOrderForDispense(
+  context: ClinicalJourneyContext,
+): ClinicalJourneyActionDisabledReason {
   const livingReason = requireLivingPatient(context);
   if (livingReason) return livingReason;
-  if (context.activePharmacyOrderId) return null;
+  if (context.activePharmacyOrderId) {
+    if (context.pharmacyRegulatoryClearanceReady === false) {
+      return actionBlocker(
+        "regulatory",
+        "Complete pharmacy regulatory clearance before dispensing medicines",
+      );
+    }
+
+    return null;
+  }
   return requireLinkedContextAfterActivation(
     context,
     ["order.created", "billing.payment.received"],
     "Link the pharmacy order before dispensing medicines",
   );
+}
+
+function requireShareConsentClearance(
+  context: ClinicalJourneyContext,
+): ClinicalJourneyActionDisabledReason {
+  if (context.hasPendingConsent) {
+    return actionBlocker("regulatory", "Resolve pending patient consent before sharing records");
+  }
+
+  return null;
+}
+
+function requirePatientCardMasking(
+  context: ClinicalJourneyContext,
+): ClinicalJourneyActionDisabledReason {
+  if (context.patientCardMaskingReady === false) {
+    return actionBlocker("masking", "Configure patient-card masking before printing identifiers");
+  }
+
+  return null;
 }
 
 export const CORE_PATIENT_JOURNEY_ACTIONS: readonly ClinicalJourneyActionDefinition[] = [
@@ -480,7 +572,7 @@ export const CORE_PATIENT_JOURNEY_ACTIONS: readonly ClinicalJourneyActionDefinit
       "NABH PRE financial counselling",
       "PCI DSS scoping if card payments are enabled",
     ],
-    disabledReason: requireActiveInvoiceForPayment,
+    disabledReason: requirePaymentConfiguration,
   },
   {
     id: "pharmacy.dispense_order",
@@ -534,7 +626,7 @@ export const CORE_PATIENT_JOURNEY_ACTIONS: readonly ClinicalJourneyActionDefinit
     activatesAfter: ["patient.created"],
     emitsEvent: "patient.access_shared",
     standardRefs: ["DPDP Act 2023 sections 5, 6, 8, and 11"],
-    disabledReason: () => null,
+    disabledReason: requireShareConsentClearance,
   },
   {
     id: "patient.print_card",
@@ -548,7 +640,7 @@ export const CORE_PATIENT_JOURNEY_ACTIONS: readonly ClinicalJourneyActionDefinit
     activatesAfter: ["patient.created"],
     emitsEvent: "patient.card_printed",
     standardRefs: ["NABH AAC", "IPSG patient identification"],
-    disabledReason: () => null,
+    disabledReason: requirePatientCardMasking,
   },
 ] as const;
 
@@ -574,13 +666,13 @@ export function resolveClinicalJourneyActions(
     const permissionReason = permissionAllowed
       ? null
       : permissionDisabledReason(permissionMode, requiredPermissions);
-    const contextReason = action.disabledReason(context);
+    const contextBlocker = normalizeActionBlocker(action.disabledReason(context));
     const activationReason = activationDisabledReason(action, context);
-    const disabledReasonText = permissionReason ?? contextReason ?? activationReason;
+    const disabledReasonText = permissionReason ?? contextBlocker.message ?? activationReason;
     const blockedReason: ClinicalJourneyBlockedReason | null = permissionReason
       ? "permission"
-      : contextReason
-        ? "context"
+      : contextBlocker.reason
+        ? contextBlocker.reason
         : activationReason
           ? "event"
           : null;
@@ -593,7 +685,7 @@ export function resolveClinicalJourneyActions(
       disabledReasonText,
       permissionAllowed,
       permissionDisabledReasonText: permissionReason,
-      contextDisabledReasonText: contextReason,
+      contextDisabledReasonText: contextBlocker.message,
       activationDisabledReasonText: activationReason,
       blockedReason,
     });
@@ -606,9 +698,12 @@ export function summarizeClinicalJourneyActions(
   actions: readonly ResolvedClinicalJourneyAction[],
 ): ClinicalJourneyActionReadinessSummary {
   const blockedActionIds: ClinicalJourneyActionId[] = [];
+  const configurationBlockedActionIds: ClinicalJourneyActionId[] = [];
   const contextBlockedActionIds: ClinicalJourneyActionId[] = [];
   const eventBlockedActionIds: ClinicalJourneyActionId[] = [];
+  const maskingBlockedActionIds: ClinicalJourneyActionId[] = [];
   const permissionBlockedActionIds: ClinicalJourneyActionId[] = [];
+  const regulatoryBlockedActionIds: ClinicalJourneyActionId[] = [];
   const readyActionIds: ClinicalJourneyActionId[] = [];
 
   for (const action of actions) {
@@ -624,20 +719,32 @@ export function summarizeClinicalJourneyActions(
       eventBlockedActionIds.push(action.id);
     } else if (action.blockedReason === "permission") {
       permissionBlockedActionIds.push(action.id);
+    } else if (action.blockedReason === "configuration") {
+      configurationBlockedActionIds.push(action.id);
+    } else if (action.blockedReason === "masking") {
+      maskingBlockedActionIds.push(action.id);
+    } else if (action.blockedReason === "regulatory") {
+      regulatoryBlockedActionIds.push(action.id);
     }
   }
 
   return {
     blocked: blockedActionIds.length,
     blockedActionIds,
+    configurationBlocked: configurationBlockedActionIds.length,
+    configurationBlockedActionIds,
     contextBlocked: contextBlockedActionIds.length,
     contextBlockedActionIds,
     enabled: readyActionIds.length,
     eventBlocked: eventBlockedActionIds.length,
     eventBlockedActionIds,
+    maskingBlocked: maskingBlockedActionIds.length,
+    maskingBlockedActionIds,
     permissionBlocked: permissionBlockedActionIds.length,
     permissionBlockedActionIds,
     readyActionIds,
+    regulatoryBlocked: regulatoryBlockedActionIds.length,
+    regulatoryBlockedActionIds,
     total: actions.length,
   };
 }

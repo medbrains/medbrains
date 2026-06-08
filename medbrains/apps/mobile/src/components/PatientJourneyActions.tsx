@@ -1,6 +1,7 @@
 import { usePermissionStore } from "@medbrains/stores";
 import type {
   ClinicalJourneyActionId,
+  ClinicalJourneyBlockedReason,
   ClinicalJourneyContext,
   ResolvedClinicalJourneyAction,
 } from "@medbrains/types";
@@ -103,6 +104,25 @@ function actionLabel(action: ResolvedClinicalJourneyAction & { id: MobileJourney
 
 function eventLabel(eventName: string) {
   return eventName.replace(/\./g, " ");
+}
+
+function blockedReasonLabel(reason: ClinicalJourneyBlockedReason | null) {
+  switch (reason) {
+    case "configuration":
+      return "Configuration";
+    case "context":
+      return "Context";
+    case "event":
+      return "Event";
+    case "masking":
+      return "Masking";
+    case "permission":
+      return "Permission";
+    case "regulatory":
+      return "Regulatory";
+    default:
+      return null;
+  }
 }
 
 function actionActivationText(action: ResolvedClinicalJourneyAction) {
@@ -335,6 +355,21 @@ export function PatientJourneyActions({
               {readinessSummary.eventBlocked} awaiting event
             </Chip>
           )}
+          {readinessSummary.configurationBlocked > 0 && (
+            <Chip compact icon="cog" mode="outlined">
+              {readinessSummary.configurationBlocked} config
+            </Chip>
+          )}
+          {readinessSummary.maskingBlocked > 0 && (
+            <Chip compact icon="eye-off" mode="outlined">
+              {readinessSummary.maskingBlocked} masking
+            </Chip>
+          )}
+          {readinessSummary.regulatoryBlocked > 0 && (
+            <Chip compact icon="shield-alert" mode="outlined">
+              {readinessSummary.regulatoryBlocked} regulatory
+            </Chip>
+          )}
         </View>
       </View>
       <View style={styles.actions}>
@@ -355,7 +390,9 @@ export function PatientJourneyActions({
                 {actionLabel(action)}
               </Button>
               <Text variant="labelSmall" style={styles.reason}>
-                {disabledReason ?? actionActivationText(action)}
+                {disabledReason
+                  ? `${blockedReasonLabel(action.blockedReason) ?? "Blocked"}: ${disabledReason}`
+                  : actionActivationText(action)}
               </Text>
             </View>
           );

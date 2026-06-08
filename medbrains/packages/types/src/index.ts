@@ -32,7 +32,9 @@ export type {
 } from "./dashboard-intents.js";
 export { buildDashboardReportPath, DASHBOARD_STAT_INTENTS } from "./dashboard-intents.js";
 export type {
+  ClinicalJourneyActionBlocker,
   ClinicalJourneyActionDefinition,
+  ClinicalJourneyActionDisabledReason,
   ClinicalJourneyActionId,
   ClinicalJourneyActionIntent,
   ClinicalJourneyActionReadinessSummary,

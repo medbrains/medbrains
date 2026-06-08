@@ -47,4 +47,35 @@ describe("clinical journey readiness summary", () => {
     expect(summary.permissionBlockedActionIds).toContain("opd.open_visit");
     expect(summary.permissionBlockedActionIds).toContain("orders.lab");
   });
+
+  it("summarizes configuration, masking, and regulatory blocker causes", () => {
+    const actions = resolveClinicalJourneyActions(
+      {
+        activeInvoiceId: "invoice-1",
+        activePharmacyOrderId: "pharmacy-order-1",
+        billingPaymentConfigurationReady: false,
+        completedEvents: ["billing.invoice.created", "order.created"],
+        hasPendingConsent: true,
+        patientCardMaskingReady: false,
+        patientId: "patient-1",
+        pharmacyRegulatoryClearanceReady: false,
+      },
+      allowAll,
+      "web",
+      { includePermissionDenied: true },
+    );
+    const summary = summarizeClinicalJourneyActions(actions);
+
+    expect(summary).toMatchObject({
+      configurationBlocked: 1,
+      maskingBlocked: 1,
+      regulatoryBlocked: 2,
+    });
+    expect(summary.configurationBlockedActionIds).toEqual(["billing.collect_payment"]);
+    expect(summary.maskingBlockedActionIds).toEqual(["patient.print_card"]);
+    expect(summary.regulatoryBlockedActionIds).toEqual([
+      "pharmacy.dispense_order",
+      "patient.share",
+    ]);
+  });
 });

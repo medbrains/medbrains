@@ -147,6 +147,44 @@ describe("clinical journey event activation", () => {
     });
   });
 
+  it("classifies configuration, masking, and regulatory blockers on operational handoffs", () => {
+    const actions = resolveClinicalJourneyActions(
+      {
+        activeInvoiceId: "invoice-1",
+        activePharmacyOrderId: "pharmacy-order-1",
+        billingPaymentConfigurationReady: false,
+        completedEvents: ["billing.invoice.created", "order.created"],
+        hasPendingConsent: true,
+        patientCardMaskingReady: false,
+        patientId: "patient-1",
+        pharmacyRegulatoryClearanceReady: false,
+      },
+      allowAll,
+      "web",
+    );
+
+    expect(actions.find((action) => action.id === "billing.collect_payment")).toMatchObject({
+      blockedReason: "configuration",
+      disabledReasonText: "Configure active payment methods before collecting payment",
+      enabled: false,
+    });
+    expect(actions.find((action) => action.id === "patient.print_card")).toMatchObject({
+      blockedReason: "masking",
+      disabledReasonText: "Configure patient-card masking before printing identifiers",
+      enabled: false,
+    });
+    expect(actions.find((action) => action.id === "patient.share")).toMatchObject({
+      blockedReason: "regulatory",
+      disabledReasonText: "Resolve pending patient consent before sharing records",
+      enabled: false,
+    });
+    expect(actions.find((action) => action.id === "pharmacy.dispense_order")).toMatchObject({
+      blockedReason: "regulatory",
+      disabledReasonText: "Complete pharmacy regulatory clearance before dispensing medicines",
+      enabled: false,
+    });
+  });
+
   it("keeps inpatient orders disabled while an admitted patient is waiting for a bed", () => {
     const actions = resolveClinicalJourneyActions(
       {

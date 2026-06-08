@@ -118,6 +118,7 @@ import {
   toMergePatientRequest,
 } from "@/forms/patient-detail.form";
 import { useHashTabs } from "@/hooks/useHashTabs";
+import { usePatientContext } from "@/hooks/usePatientContext";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { patientDetailService } from "@/services/patientDetail.service";
 import { buildCopyPrintHtml, copyPrintStyles, PRINT_COPY_PACKETS } from "@/utils/printCopies";
@@ -2953,6 +2954,7 @@ function PatientDetailPageInner() {
     queryFn: () => patientDetailService.getPatient(patientId),
     enabled: patientId.length > 0,
   });
+  const { data: patientContext } = usePatientContext(patientId);
 
   // Latest active encounter — basket needs an encounter to scope orders to.
   const { data: visits = [] } = useQuery({
@@ -3041,6 +3043,7 @@ function PatientDetailPageInner() {
   ).length;
   const activeInvoiceId = activePatientInvoiceIdForJourney(invoices);
   const activeOrderContext = activeAdmission ? "ipd" : activeEncounter ? "opd" : null;
+  const hasPendingConsent = Boolean(patientContext?.pending_consents.length);
   const campCompletedEvents = deriveCampJourneyCompletedEvents(campRegistrations);
   const activeCampRegistration =
     campRegistrations.find((registration) => registration.status !== "no_show") ?? null;
@@ -3074,6 +3077,7 @@ function PatientDetailPageInner() {
     activeAdmissionStatus: activeAdmission?.status ?? null,
     activeInvoiceId,
     activeOrderContext,
+    hasPendingConsent,
     completedEvents,
   };
   const emitPatientShareCreated = (grant: {
