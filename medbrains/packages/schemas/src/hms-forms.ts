@@ -4853,13 +4853,13 @@ export const chronicEnrollmentFormSchema = z.object({
 });
 
 export const mobileShellLoginFormSchema = z.object({
-  identifier: requiredTrimmed("Identifier is required").refine(
+  identifier: requiredTrimmed("mobileShell.auth.login.errors.identifierRequired").refine(
     (value) => value.trim().length >= 3,
-    "Identifier must be at least 3 characters",
+    "mobileShell.auth.login.errors.identifierMin",
   ),
-  password: requiredTrimmed("Password is required").refine(
+  password: requiredTrimmed("mobileShell.auth.login.errors.passwordRequired").refine(
     (value) => value.length >= 4,
-    "Password must be at least 4 characters",
+    "mobileShell.auth.login.errors.passwordMin",
   ),
 });
 

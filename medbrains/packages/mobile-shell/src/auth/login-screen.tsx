@@ -20,6 +20,7 @@ import { FOREST_COPPER_PALETTE } from "../theme/forest-copper.js";
 import type { TenantIdentity } from "../types.js";
 import { useAuthStore } from "./auth-store.js";
 import { useSecretStore } from "./auth-provider.js";
+import { mobileShellLoginErrorText, mobileShellLoginText } from "./login-text.js";
 
 export interface LoginScreenProps {
   title?: string;
@@ -36,10 +37,10 @@ export interface LoginScreenProps {
 
 export function LoginScreen(props: LoginScreenProps): ReactNode {
   const {
-    title = "MedBrains",
-    subtitle = "Sign in to continue",
-    identifierLabel = "Username or email",
-    passwordLabel = "Password",
+    title = mobileShellLoginText("mobileShell.auth.login.defaultTitle"),
+    subtitle = mobileShellLoginText("mobileShell.auth.login.defaultSubtitle"),
+    identifierLabel = mobileShellLoginText("mobileShell.auth.login.defaultIdentifierLabel"),
+    passwordLabel = mobileShellLoginText("mobileShell.auth.login.defaultPasswordLabel"),
     logoSource,
     onSubmit,
     footer,
@@ -68,9 +69,9 @@ export function LoginScreen(props: LoginScreenProps): ReactNode {
     try {
       const result = await onSubmit(values.identifier, values.password);
       await signIn(secretStore, result.identity, result.refreshToken);
-    } catch (err) {
+    } catch {
       setError("root", {
-        message: err instanceof Error ? err.message : "Sign in failed",
+        message: mobileShellLoginText("mobileShell.auth.login.errors.signInFailed"),
       });
     }
   });
@@ -110,7 +111,7 @@ export function LoginScreen(props: LoginScreenProps): ReactNode {
               variant="headlineMedium"
               style={{ color: FOREST_COPPER_PALETTE.canvas, fontWeight: "700" }}
             >
-              MB
+              {mobileShellLoginText("mobileShell.auth.login.brandInitials")}
             </Text>
           </View>
         )}
@@ -137,7 +138,7 @@ export function LoginScreen(props: LoginScreenProps): ReactNode {
             autoCapitalize="none"
             autoCorrect={false}
             containerStyle={{ marginBottom: 12 }}
-            errorText={errors.identifier?.message}
+            errorText={mobileShellLoginErrorText(errors.identifier?.message)}
             required
           />
         )}
@@ -152,7 +153,7 @@ export function LoginScreen(props: LoginScreenProps): ReactNode {
             onChangeText={field.onChange}
             secureTextEntry
             containerStyle={{ marginBottom: 8 }}
-            errorText={errors.password?.message}
+            errorText={mobileShellLoginErrorText(errors.password?.message)}
             required
           />
         )}
@@ -169,7 +170,7 @@ export function LoginScreen(props: LoginScreenProps): ReactNode {
         onPress={() => void submit()}
         style={{ marginTop: 8 }}
       >
-        Sign in
+        {mobileShellLoginText("mobileShell.auth.login.action.signIn")}
       </Button>
       {footer && <View style={{ marginTop: 24 }}>{footer}</View>}
     </Surface>
