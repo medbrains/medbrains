@@ -117,7 +117,15 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useParams, useSearchParams } from "react-router";
-import { DataTable, PageHeader, TableValueBadge, useProtectedFieldAccess } from "@/components";
+import {
+  DataTable,
+  OperationalSignal,
+  type OperationalSignalShape,
+  type OperationalSignalTone,
+  PageHeader,
+  TableValueBadge,
+  useProtectedFieldAccess,
+} from "@/components";
 import { BedSelect } from "@/components/BedSelect";
 import { ClinicalEventProvider, useClinicalEmit } from "@/components/ClinicalEventProvider";
 import { TriagePanel } from "@/components/crdt/TriagePanel";
@@ -170,6 +178,12 @@ const CRASH_CART_ITEMS = [
   { key: "oxygen_supply", label: "Oxygen supply connected and flowing" },
   { key: "monitor_leads", label: "Cardiac monitor leads and pads" },
 ];
+
+type EmergencyTranslate = ReturnType<typeof useTranslation>["t"];
+
+function humanizeWorkflowValue(value: string): string {
+  return value.replace(/_/g, " ");
+}
 
 function canViewSensitiveField(access: FieldAccessLevel) {
   return access !== "hidden";
@@ -480,28 +494,102 @@ function triageInfo(level: string | null): TriageInfo {
   }
 }
 
-function statusColor(status: string): string {
+function triageLabel(t: EmergencyTranslate, level: string | null): string {
+  return t(`triage.${level ?? "unassigned"}`, { defaultValue: triageInfo(level).label });
+}
+
+function triageTone(level: string | null): OperationalSignalTone {
+  switch (level) {
+    case "immediate":
+    case "expectant":
+      return "risk";
+    case "emergent":
+      return "active";
+    case "urgent":
+    case null:
+      return "blocked";
+    case "less_urgent":
+    case "non_urgent":
+      return "ready";
+    default:
+      return "neutral";
+  }
+}
+
+function triageShape(level: string | null): OperationalSignalShape {
+  switch (level) {
+    case "immediate":
+    case "emergent":
+    case "urgent":
+    case "expectant":
+      return "diamond";
+    case null:
+      return "token";
+    default:
+      return "pill";
+  }
+}
+
+function visitStatusLabel(t: EmergencyTranslate, status: string): string {
+  return t(`visitStatus.${status}`, { defaultValue: humanizeWorkflowValue(status) });
+}
+
+function visitStatusTone(status: string): OperationalSignalTone {
+  switch (status) {
+    case "admitted":
+    case "discharged":
+    case "transferred":
+      return "ready";
+    case "in_treatment":
+    case "observation":
+    case "triaged":
+      return "active";
+    case "registered":
+      return "blocked";
+    case "lama":
+    case "deceased":
+      return "risk";
+    default:
+      return "neutral";
+  }
+}
+
+function visitStatusShape(status: string): OperationalSignalShape {
+  switch (status) {
+    case "admitted":
+      return "bed";
+    case "lama":
+    case "deceased":
+    case "in_treatment":
+      return "diamond";
+    case "registered":
+      return "token";
+    default:
+      return "pill";
+  }
+}
+
+function visitStatusIcon(status: string) {
   switch (status) {
     case "registered":
-      return "primary";
+      return IconFileText;
     case "triaged":
-      return "cyan";
+      return IconHeartbeat;
     case "in_treatment":
-      return "orange";
+      return IconFirstAidKit;
     case "observation":
-      return "warning";
+      return IconClock;
     case "admitted":
-      return "teal";
+      return IconBuildingHospital;
     case "discharged":
-      return "success";
+      return IconCheck;
     case "transferred":
-      return "violet";
+      return IconArrowLeft;
     case "lama":
-      return "danger";
     case "deceased":
-      return "dark";
+      return IconAlertTriangle;
     default:
-      return "gray";
+      return undefined;
   }
 }
 
@@ -603,27 +691,97 @@ function WaitTimeBadge({
   arrivalTime: string;
   doorToDoctorMins: number | null;
 }) {
+  const { t } = useTranslation("emergency");
   const display = useTimer(arrivalTime, doorToDoctorMins);
 
   if (!display)
     return (
       <Text size="sm" c="dimmed">
-        --
+        {t("common.notAvailable")}
       </Text>
     );
 
   if (doorToDoctorMins !== null && doorToDoctorMins !== undefined) {
     return (
-      <Badge color="success" variant="light" size="lg" leftSection={<IconCheck size={12} />}>
-        {display}
-      </Badge>
+      <OperationalSignal
+        icon={IconCheck}
+        label={t("waitTime.seen")}
+        shape="pill"
+        tone="ready"
+        value={display}
+      />
     );
   }
 
   return (
-    <Badge color="orange" variant="filled" size="lg" leftSection={<IconClock size={12} />}>
-      {display}
-    </Badge>
+    <OperationalSignal
+      icon={IconClock}
+      label={t("waitTime.waiting")}
+      shape="diamond"
+      tone="blocked"
+      value={display}
+    />
+  );
+}
+
+function EmergencyVisitSignals({ size = "xs", visit }: { size?: "xs" | "sm"; visit: ErVisit }) {
+  const { t } = useTranslation("emergency");
+  const info = triageInfo(visit.triage_level);
+
+  return (
+    <Group gap={4} wrap="wrap">
+      <OperationalSignal
+        icon={visitStatusIcon(visit.status)}
+        label={visitStatusLabel(t, visit.status)}
+        shape={visitStatusShape(visit.status)}
+        size={size}
+        tone={visitStatusTone(visit.status)}
+      />
+      <OperationalSignal
+        icon={IconHeartbeat}
+        label={triageLabel(t, visit.triage_level)}
+        shape={triageShape(visit.triage_level)}
+        size={size}
+        tone={triageTone(visit.triage_level)}
+        value={info.level > 0 ? String(info.level) : undefined}
+      />
+      {visit.is_mlc && (
+        <OperationalSignal
+          icon={IconGavel}
+          label={t("signals.mlc")}
+          shape="diamond"
+          size={size}
+          tone="risk"
+        />
+      )}
+      {visit.is_brought_dead && (
+        <OperationalSignal
+          icon={IconAlertOctagon}
+          label={t("signals.broughtDead")}
+          shape="diamond"
+          size={size}
+          tone="risk"
+        />
+      )}
+      {visit.bay_number && (
+        <OperationalSignal
+          label={t("signals.bay")}
+          shape="token"
+          size={size}
+          tone="active"
+          value={visit.bay_number}
+        />
+      )}
+      {visit.admission_id && (
+        <OperationalSignal
+          icon={IconBuildingHospital}
+          label={t("signals.ipdAdmission")}
+          shape="bed"
+          size={size}
+          tone="ready"
+        />
+      )}
+    </Group>
   );
 }
 
@@ -1503,6 +1661,7 @@ function EmergencyVisitForm({
   onCancel: () => void;
   onSuccess: (visit: ErVisit) => void;
 }) {
+  const { t } = useTranslation("emergency");
   const qc = useQueryClient();
   const emit = useClinicalEmit();
   const {
@@ -1538,8 +1697,8 @@ function EmergencyVisitForm({
       });
       reset({ ...emptyErVisitForm, patient_id: initialPatientId });
       notifications.show({
-        title: "ER visit registered",
-        message: "Visit is ready for triage and emergency care actions.",
+        title: t("notify.erVisitRegistered"),
+        message: t("notify.erVisitReadyForTriage"),
         color: "success",
       });
       onSuccess(visit);
@@ -1577,7 +1736,7 @@ function EmergencyVisitForm({
         )}
         {!canViewPatientRecord && selectedPatientId && (
           <Alert color="orange" variant="light" icon={<IconAlertTriangle size={16} />}>
-            Patient identity and demographics are restricted for this role.
+            {t("patient.restrictedIdentity")}
           </Alert>
         )}
         <SimpleGrid cols={{ base: 1, sm: 2 }}>
@@ -1586,7 +1745,7 @@ function EmergencyVisitForm({
             control={control}
             render={({ field }) => (
               <Select
-                label="Arrival Mode"
+                label={t("label.arrivalMode")}
                 data={emergencyArrivalModeOptions}
                 value={field.value || null}
                 onChange={(value) => field.onChange(value ?? "")}
@@ -1598,13 +1757,13 @@ function EmergencyVisitForm({
           <Controller
             name="bay_number"
             control={control}
-            render={({ field }) => <TextInput label="Bay Number" {...field} />}
+            render={({ field }) => <TextInput label={t("label.bayNumber")} {...field} />}
           />
         </SimpleGrid>
         <Controller
           name="chief_complaint"
           control={control}
-          render={({ field }) => <TextInput label="Chief Complaint" {...field} />}
+          render={({ field }) => <TextInput label={t("label.chiefComplaint")} {...field} />}
         />
         {canCreateMlc ? (
           <Controller
@@ -1612,10 +1771,10 @@ function EmergencyVisitForm({
             control={control}
             render={({ field }) => (
               <Select
-                label="Medico-legal case"
+                label={t("label.medicoLegalCase")}
                 data={[
-                  { value: "true", label: "Yes" },
-                  { value: "false", label: "No" },
+                  { value: "true", label: t("label.yes") },
+                  { value: "false", label: t("label.no") },
                 ]}
                 value={field.value ? "true" : "false"}
                 onChange={(value) => field.onChange(value === "true")}
@@ -1624,20 +1783,20 @@ function EmergencyVisitForm({
           />
         ) : (
           <Alert color="orange" variant="light" icon={<IconAlertTriangle size={16} />}>
-            MLC marking creates medico-legal workflow and requires MLC create permission.
+            {t("mlc.permissionRequired")}
           </Alert>
         )}
         <Controller
           name="notes"
           control={control}
-          render={({ field }) => <Textarea label="Notes" {...field} />}
+          render={({ field }) => <Textarea label={t("label.notes")} {...field} />}
         />
         <Group justify="flex-end">
           <Button variant="default" onClick={onCancel}>
-            Cancel
+            {t("label.cancel")}
           </Button>
           <Button type="submit" loading={mutation.isPending}>
-            Register
+            {t("register")}
           </Button>
         </Group>
       </Stack>
@@ -1654,6 +1813,7 @@ function EmergencyVisitCommandBar({
   canAdmit: boolean;
   canViewPatientRecord: boolean;
 }) {
+  const { t } = useTranslation("emergency");
   const qc = useQueryClient();
   const emit = useClinicalEmit();
   const [admitOpen, admitHandlers] = useDisclosure(false);
@@ -1709,8 +1869,8 @@ function EmergencyVisitCommandBar({
       void qc.invalidateQueries({ queryKey: ["ipd-bed-dashboard-summary"] });
       void qc.invalidateQueries({ queryKey: ["ipd-bed-dashboard-beds"] });
       notifications.show({
-        title: "Patient admitted",
-        message: "ER visit has been linked to an IPD admission.",
+        title: t("notify.patientAdmitted"),
+        message: t("notify.erVisitLinkedToIpd"),
         color: "success",
       });
       reset(emptyErAdmitForm);
@@ -1727,8 +1887,6 @@ function EmergencyVisitCommandBar({
     });
   };
 
-  const info = triageInfo(visit.triage_level);
-
   return (
     <Card withBorder className={classes.commandBar}>
       <Stack>
@@ -1738,7 +1896,7 @@ function EmergencyVisitCommandBar({
               <PatientContextBanner patientId={visit.patient_id} hideLoadingState />
             ) : (
               <Alert color="orange" variant="light" icon={<IconAlertTriangle size={16} />}>
-                Patient identity and demographics are restricted for this role.
+                {t("patient.restrictedIdentity")}
               </Alert>
             )}
             <PatientFlowNavigator
@@ -1758,26 +1916,8 @@ function EmergencyVisitCommandBar({
               size="xs"
             />
             <Group gap="xs">
-              <Text fw={700}>Visit {visit.visit_number}</Text>
-              <TableValueBadge value={visit.status} color={statusColor(visit.status)} />
-              <Badge color={info.color} variant={visit.triage_level ? "filled" : "outline"}>
-                {info.label}
-              </Badge>
-              {visit.is_mlc && (
-                <Badge color="danger" variant="filled">
-                  MLC
-                </Badge>
-              )}
-              {visit.is_brought_dead && (
-                <Badge color="dark" variant="filled">
-                  Brought dead
-                </Badge>
-              )}
-              {visit.bay_number && (
-                <Badge color="slate" variant="light">
-                  Bay {visit.bay_number}
-                </Badge>
-              )}
+              <Text fw={700}>{t("visit.number", { number: visit.visit_number })}</Text>
+              <EmergencyVisitSignals visit={visit} />
             </Group>
           </Stack>
           {canShowAdmit && (
@@ -1786,7 +1926,7 @@ function EmergencyVisitCommandBar({
               leftSection={<IconBuildingHospital size={14} />}
               onClick={admitHandlers.open}
             >
-              Admit to IPD
+              {t("label.admitToIpd")}
             </Button>
           )}
         </Group>
@@ -1797,7 +1937,7 @@ function EmergencyVisitCommandBar({
           admitHandlers.close();
           reset(emptyErAdmitForm);
         }}
-        title="Admit Patient to IPD"
+        title={t("title.admitPatientToIpd")}
         size="md"
       >
         <Stack component="form" onSubmit={handleSubmit(submitAdmit)}>
@@ -1818,7 +1958,7 @@ function EmergencyVisitCommandBar({
             control={control}
             render={({ field }) => (
               <DoctorSearchSelect
-                label="Admitting Doctor"
+                label={t("label.admittingDoctor")}
                 value={field.value}
                 onChange={field.onChange}
                 required
@@ -1835,9 +1975,9 @@ function EmergencyVisitCommandBar({
             control={control}
             render={({ field }) => (
               <Textarea
-                label="Admission Notes"
+                label={t("label.admissionNotes")}
                 {...field}
-                placeholder="Reason for admission, clinical notes..."
+                placeholder={t("placeholder.reasonForAdmission,ClinicalNotes...")}
                 minRows={3}
               />
             )}
@@ -1848,7 +1988,7 @@ function EmergencyVisitCommandBar({
             leftSection={<IconBuildingHospital size={16} />}
             loading={admitMutation.isPending}
           >
-            Confirm Admission
+            {t("label.confirmAdmission")}
           </Button>
         </Stack>
       </Modal>
@@ -1867,35 +2007,25 @@ function EmergencyVisitContextRail({
   canShowResuscitation: boolean;
   canShowMlc: boolean;
 }) {
+  const { t } = useTranslation("emergency");
   const navigate = useNavigate();
-  const info = triageInfo(visit.triage_level);
 
   return (
     <Box className={classes.contextRail}>
       <Stack gap="sm">
         <Stack gap={2}>
           <Text size="xs" fw={700} c="dimmed" tt="uppercase">
-            ER workspace
+            {t("workspace.title")}
           </Text>
           <Text size="sm" fw={700}>
             {visit.visit_number}
           </Text>
         </Stack>
-        <Group gap="xs">
-          <TableValueBadge value={visit.status} color={statusColor(visit.status)} />
-          <Badge color={info.color} variant={visit.triage_level ? "filled" : "outline"}>
-            {info.label}
-          </Badge>
-          {visit.is_mlc && (
-            <Badge color="danger" variant="filled">
-              MLC
-            </Badge>
-          )}
-        </Group>
+        <EmergencyVisitSignals visit={visit} />
         <Divider />
         <Stack gap="xs">
           <Text size="xs" fw={700} c="dimmed" tt="uppercase">
-            Navigate
+            {t("workspace.navigate")}
           </Text>
           <Button
             size="xs"
@@ -1907,7 +2037,7 @@ function EmergencyVisitContextRail({
             disabled={!canShowTriage}
             fullWidth
           >
-            Triage
+            {t("workspace.triage")}
           </Button>
           <Button
             size="xs"
@@ -1919,7 +2049,7 @@ function EmergencyVisitContextRail({
             disabled={!canShowResuscitation}
             fullWidth
           >
-            Resuscitation
+            {t("workspace.resuscitation")}
           </Button>
           <Button
             size="xs"
@@ -1929,7 +2059,7 @@ function EmergencyVisitContextRail({
             onClick={() => navigate("/emergency?tab=visits")}
             fullWidth
           >
-            ER queue
+            {t("workspace.erQueue")}
           </Button>
           {visit.is_mlc && (
             <Button
@@ -1942,7 +2072,7 @@ function EmergencyVisitContextRail({
               disabled={!canShowMlc}
               fullWidth
             >
-              MLC case
+              {t("workspace.mlcCase")}
             </Button>
           )}
           {visit.admission_id && (
@@ -1954,40 +2084,48 @@ function EmergencyVisitContextRail({
               onClick={() => navigate(`/ipd/admissions/${visit.admission_id}#overview`)}
               fullWidth
             >
-              IPD admission
+              {t("workspace.ipdAdmission")}
             </Button>
           )}
         </Stack>
         <Divider />
         <SimpleGrid cols={{ base: 1, sm: 2, lg: 1 }}>
           <VisitSummaryValue
-            label="Arrival"
+            label={t("summary.arrival")}
             value={new Date(visit.arrival_time).toLocaleString()}
           />
-          <VisitSummaryValue label="Mode" value={visit.arrival_mode ?? "---"} />
-          <VisitSummaryValue label="Bay" value={visit.bay_number ?? "---"} />
-          <VisitSummaryValue label="Chief complaint" value={visit.chief_complaint ?? "---"} />
-          <VisitSummaryValue label="Disposition" value={visit.disposition ?? "---"} />
+          <VisitSummaryValue label={t("summary.mode")} value={visit.arrival_mode ?? "---"} />
+          <VisitSummaryValue label={t("summary.bay")} value={visit.bay_number ?? "---"} />
           <VisitSummaryValue
-            label="Door to doctor"
+            label={t("summary.chiefComplaint")}
+            value={visit.chief_complaint ?? "---"}
+          />
+          <VisitSummaryValue label={t("summary.disposition")} value={visit.disposition ?? "---"} />
+          <VisitSummaryValue
+            label={t("summary.doorToDoctor")}
             value={
-              visit.door_to_doctor_mins !== null ? `${visit.door_to_doctor_mins} min` : "Pending"
+              visit.door_to_doctor_mins !== null
+                ? t("summary.minutes", { minutes: visit.door_to_doctor_mins })
+                : t("summary.pending")
             }
           />
           <VisitSummaryValue
-            label="Door to disposition"
+            label={t("summary.doorToDisposition")}
             value={
               visit.door_to_disposition_mins !== null
-                ? `${visit.door_to_disposition_mins} min`
-                : "Pending"
+                ? t("summary.minutes", { minutes: visit.door_to_disposition_mins })
+                : t("summary.pending")
             }
           />
-          <VisitSummaryValue label="Admission" value={visit.admission_id ?? "---"} />
+          <VisitSummaryValue
+            label={t("summary.admission")}
+            value={visit.admission_id ? t("signals.ipdAdmission") : "---"}
+          />
         </SimpleGrid>
         {visit.notes && (
           <Paper withBorder p="sm">
             <Text size="xs" c="dimmed">
-              Notes
+              {t("summary.notes")}
             </Text>
             <Text size="sm">{visit.notes}</Text>
           </Paper>
@@ -2270,6 +2408,7 @@ function VisitsTab({
   canViewPatientRecord: boolean;
   contextPatientId: string;
 }) {
+  const { t } = useTranslation("emergency");
   const navigate = useNavigate();
   const canUpdateVisit = useHasPermission(P.EMERGENCY.VISITS_UPDATE);
   const canCreateIpdAdmission = useHasPermission(P.IPD.ADMISSIONS_CREATE);
@@ -2286,12 +2425,12 @@ function VisitsTab({
   const columns = [
     {
       key: "visit_number",
-      label: "Visit #",
+      label: t("queueColumns.visitNumber"),
       render: (r: ErVisit) => <Text fw={600}>{r.visit_number}</Text>,
     },
     {
       key: "patient_id",
-      label: "Patient",
+      label: t("queueColumns.patient"),
       render: (r: ErVisit) =>
         canViewPatientRecord ? (
           <PatientNameCell patientId={r.patient_id} showUhid={false} />
@@ -2301,12 +2440,12 @@ function VisitsTab({
     },
     {
       key: "arrival_time",
-      label: "Arrival",
+      label: t("queueColumns.arrival"),
       render: (r: ErVisit) => new Date(r.arrival_time).toLocaleString(),
     },
     {
       key: "arrival_mode",
-      label: "Mode",
+      label: t("queueColumns.mode"),
       render: (r: ErVisit) =>
         r.arrival_mode ? (
           <TableValueBadge value={r.arrival_mode} kind="source" variant="outline" />
@@ -2316,88 +2455,92 @@ function VisitsTab({
     },
     {
       key: "chief_complaint",
-      label: "Chief Complaint",
+      label: t("queueColumns.chiefComplaint"),
       render: (r: ErVisit) => r.chief_complaint ?? "---",
     },
     {
       key: "triage_level",
-      label: "Triage",
+      label: t("queueColumns.triage"),
       render: (r: ErVisit) => {
         const info = triageInfo(r.triage_level);
-        if (!r.triage_level) {
-          return (
-            <Badge color="slate" size="lg" variant="outline">
-              Unassigned
-            </Badge>
-          );
-        }
         return (
-          <Badge
-            color={info.color}
-            size="lg"
-            variant="filled"
-            leftSection={
-              <ThemeIcon color={info.color} size="xs" radius="xl" variant="white">
-                <Text size="xs" fw={900}>
-                  {info.level}
-                </Text>
-              </ThemeIcon>
-            }
-          >
-            {info.label}
-          </Badge>
+          <OperationalSignal
+            icon={IconHeartbeat}
+            label={triageLabel(t, r.triage_level)}
+            shape={triageShape(r.triage_level)}
+            tone={triageTone(r.triage_level)}
+            value={info.level > 0 ? String(info.level) : undefined}
+          />
         );
       },
     },
     {
       key: "status",
-      label: "Status",
+      label: t("queueColumns.status"),
       render: (r: ErVisit) => (
-        <TableValueBadge value={r.status} color={statusColor(r.status)} variant="filled" />
+        <OperationalSignal
+          icon={visitStatusIcon(r.status)}
+          label={visitStatusLabel(t, r.status)}
+          shape={visitStatusShape(r.status)}
+          tone={visitStatusTone(r.status)}
+        />
       ),
     },
     {
       key: "is_mlc",
-      label: "MLC",
+      label: t("queueColumns.mlc"),
       render: (r: ErVisit) =>
         r.is_mlc ? (
-          <TableValueBadge
-            value="mlc"
-            kind="category"
-            label="MLC"
-            color="danger"
-            variant="filled"
+          <OperationalSignal
+            icon={IconGavel}
+            label={t("signals.mlc")}
+            shape="diamond"
+            tone="risk"
           />
         ) : null,
     },
-    { key: "bay_number", label: "Bay", render: (r: ErVisit) => r.bay_number ?? "---" },
+    {
+      key: "bay_number",
+      label: t("queueColumns.bay"),
+      render: (r: ErVisit) =>
+        r.bay_number ? (
+          <OperationalSignal
+            label={t("signals.bay")}
+            shape="token"
+            tone="active"
+            value={r.bay_number}
+          />
+        ) : (
+          "---"
+        ),
+    },
     {
       key: "wait_time",
-      label: "Wait Time",
+      label: t("queueColumns.waitTime"),
       render: (r: ErVisit) => (
         <WaitTimeBadge arrivalTime={r.arrival_time} doorToDoctorMins={r.door_to_doctor_mins} />
       ),
     },
     {
       key: "actions",
-      label: "Actions",
+      label: t("queueColumns.actions"),
       render: (r: ErVisit) => {
         const canShowAdmit =
           canAdmit && ["registered", "triaged", "in_treatment", "observation"].includes(r.status);
         return (
           <Group gap="xs" wrap="nowrap">
-            <Tooltip label="Open ER visit">
+            <Tooltip label={t("actions.openErVisit")}>
               <ActionIcon
                 variant="subtle"
                 color="primary"
-                aria-label="Open ER visit"
+                aria-label={t("actions.openErVisit")}
                 onClick={() => navigate(`/emergency/visits/${r.id}`)}
               >
                 <IconEye size={16} />
               </ActionIcon>
             </Tooltip>
             {canShowAdmit && (
-              <Tooltip label="Open visit to admit to IPD">
+              <Tooltip label={t("actions.openVisitToAdmit")}>
                 <Button
                   size="xs"
                   variant="light"
@@ -2405,7 +2548,7 @@ function VisitsTab({
                   leftSection={<IconBuildingHospital size={14} />}
                   onClick={() => navigate(`/emergency/visits/${r.id}`)}
                 >
-                  Admit
+                  {t("actions.admit")}
                 </Button>
               </Tooltip>
             )}
@@ -2429,7 +2572,7 @@ function VisitsTab({
               )
             }
           >
-            Register ER Visit
+            {t("registerErVisit")}
           </Button>
         </Group>
       )}
