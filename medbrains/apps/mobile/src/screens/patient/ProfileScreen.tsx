@@ -15,6 +15,7 @@ import {
   Card,
   Dialog,
   Divider,
+  HelperText,
   List,
   Portal,
   Snackbar,
@@ -26,12 +27,18 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { authService } from "../../services/auth.service";
 import { patientService } from "../../services/patient.service";
+import { mobileProfileText } from "./profileText";
 
 const emptyProfileContactForm: MobilePatientProfileContactFormInput = {
   phone: "",
   email: "",
   phone_secondary: "",
 };
+const APP_VERSION = "0.1.0";
+
+function profileFieldErrorText(message: string | undefined): string | undefined {
+  return message ? mobileProfileText(message) : undefined;
+}
 
 export function ProfileScreen() {
   const theme = useTheme();
@@ -61,11 +68,7 @@ export function ProfileScreen() {
     [patient],
   );
 
-  const {
-    control,
-    handleSubmit,
-    formState: { errors },
-  } = useForm<MobilePatientProfileContactFormInput>({
+  const { control, handleSubmit } = useForm<MobilePatientProfileContactFormInput>({
     resolver: zodResolver(mobilePatientProfileContactFormSchema),
     values: profileContactValues,
   });
@@ -80,10 +83,16 @@ export function ProfileScreen() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["patient"] });
       setEditMode(false);
-      setSnackbar({ visible: true, message: "Profile updated successfully" });
+      setSnackbar({
+        visible: true,
+        message: mobileProfileText("profile.snackbar.updated"),
+      });
     },
     onError: () => {
-      setSnackbar({ visible: true, message: "Failed to update profile" });
+      setSnackbar({
+        visible: true,
+        message: mobileProfileText("profile.snackbar.updateFailed"),
+      });
     },
   });
 
@@ -112,7 +121,7 @@ export function ProfileScreen() {
 
   const fullName = patient
     ? `${patient.first_name} ${patient.last_name}`
-    : user?.full_name || "User";
+    : user?.full_name || mobileProfileText("profile.fallback.user");
   const initials = fullName
     .split(" ")
     .map((n) => n.charAt(0))
@@ -129,8 +138,8 @@ export function ProfileScreen() {
         (patient.address as Record<string, string>).pincode,
       ]
         .filter(Boolean)
-        .join(", ") || "Not provided"
-    : "Not provided";
+        .join(", ") || mobileProfileText("profile.fallback.notProvided")
+    : mobileProfileText("profile.fallback.notProvided");
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
@@ -164,11 +173,11 @@ export function ProfileScreen() {
           <Card.Content>
             <View style={styles.sectionHeader}>
               <Text variant="titleMedium" style={styles.sectionTitle}>
-                Contact Information
+                {mobileProfileText("profile.contact.section")}
               </Text>
               {!editMode && (
                 <Button mode="text" onPress={handleEditStart} icon="pencil">
-                  Edit
+                  {mobileProfileText("profile.action.edit")}
                 </Button>
               )}
             </View>
@@ -179,50 +188,71 @@ export function ProfileScreen() {
                 <Controller
                   control={control}
                   name="phone"
-                  render={({ field }) => (
-                    <TextInput
-                      label="Phone"
-                      value={field.value}
-                      onChangeText={field.onChange}
-                      mode="outlined"
-                      keyboardType="phone-pad"
-                      error={Boolean(errors.phone)}
-                      left={<TextInput.Icon icon="phone" />}
-                      style={styles.input}
-                    />
+                  render={({ field, fieldState }) => (
+                    <>
+                      <TextInput
+                        label={mobileProfileText("profile.contact.phone")}
+                        value={field.value}
+                        onChangeText={field.onChange}
+                        mode="outlined"
+                        keyboardType="phone-pad"
+                        error={Boolean(fieldState.error)}
+                        left={<TextInput.Icon icon="phone" />}
+                        style={styles.input}
+                      />
+                      {fieldState.error?.message && (
+                        <HelperText type="error" visible>
+                          {profileFieldErrorText(fieldState.error.message)}
+                        </HelperText>
+                      )}
+                    </>
                   )}
                 />
                 <Controller
                   control={control}
                   name="phone_secondary"
-                  render={({ field }) => (
-                    <TextInput
-                      label="Secondary Phone"
-                      value={field.value}
-                      onChangeText={field.onChange}
-                      mode="outlined"
-                      keyboardType="phone-pad"
-                      error={Boolean(errors.phone_secondary)}
-                      left={<TextInput.Icon icon="phone-plus" />}
-                      style={styles.input}
-                    />
+                  render={({ field, fieldState }) => (
+                    <>
+                      <TextInput
+                        label={mobileProfileText("profile.contact.secondaryPhone")}
+                        value={field.value}
+                        onChangeText={field.onChange}
+                        mode="outlined"
+                        keyboardType="phone-pad"
+                        error={Boolean(fieldState.error)}
+                        left={<TextInput.Icon icon="phone-plus" />}
+                        style={styles.input}
+                      />
+                      {fieldState.error?.message && (
+                        <HelperText type="error" visible>
+                          {profileFieldErrorText(fieldState.error.message)}
+                        </HelperText>
+                      )}
+                    </>
                   )}
                 />
                 <Controller
                   control={control}
                   name="email"
-                  render={({ field }) => (
-                    <TextInput
-                      label="Email"
-                      value={field.value || ""}
-                      onChangeText={field.onChange}
-                      mode="outlined"
-                      keyboardType="email-address"
-                      autoCapitalize="none"
-                      error={Boolean(errors.email)}
-                      left={<TextInput.Icon icon="email" />}
-                      style={styles.input}
-                    />
+                  render={({ field, fieldState }) => (
+                    <>
+                      <TextInput
+                        label={mobileProfileText("profile.contact.email")}
+                        value={field.value || ""}
+                        onChangeText={field.onChange}
+                        mode="outlined"
+                        keyboardType="email-address"
+                        autoCapitalize="none"
+                        error={Boolean(fieldState.error)}
+                        left={<TextInput.Icon icon="email" />}
+                        style={styles.input}
+                      />
+                      {fieldState.error?.message && (
+                        <HelperText type="error" visible>
+                          {profileFieldErrorText(fieldState.error.message)}
+                        </HelperText>
+                      )}
+                    </>
                   )}
                 />
 
@@ -232,7 +262,7 @@ export function ProfileScreen() {
                     onPress={() => setEditMode(false)}
                     style={styles.editButton}
                   >
-                    Cancel
+                    {mobileProfileText("profile.action.cancel")}
                   </Button>
                   <Button
                     mode="contained"
@@ -240,31 +270,31 @@ export function ProfileScreen() {
                     loading={updateMutation.isPending}
                     style={styles.editButton}
                   >
-                    Save
+                    {mobileProfileText("profile.action.save")}
                   </Button>
                 </View>
               </View>
             ) : (
               <>
                 <List.Item
-                  title="Phone"
-                  description={patient?.phone || "Not provided"}
+                  title={mobileProfileText("profile.contact.phone")}
+                  description={patient?.phone || mobileProfileText("profile.fallback.notProvided")}
                   left={(props) => <List.Icon {...props} icon="phone" />}
                 />
                 {patient?.phone_secondary && (
                   <List.Item
-                    title="Secondary Phone"
+                    title={mobileProfileText("profile.contact.secondaryPhone")}
                     description={patient.phone_secondary}
                     left={(props) => <List.Icon {...props} icon="phone-plus" />}
                   />
                 )}
                 <List.Item
-                  title="Email"
-                  description={patient?.email || "Not provided"}
+                  title={mobileProfileText("profile.contact.email")}
+                  description={patient?.email || mobileProfileText("profile.fallback.notProvided")}
                   left={(props) => <List.Icon {...props} icon="email" />}
                 />
                 <List.Item
-                  title="Address"
+                  title={mobileProfileText("profile.contact.address")}
                   description={addressDisplay}
                   left={(props) => <List.Icon {...props} icon="map-marker" />}
                 />
@@ -278,20 +308,27 @@ export function ProfileScreen() {
           <Card style={styles.sectionCard}>
             <Card.Content>
               <Text variant="titleMedium" style={styles.sectionTitle}>
-                Guardian / Family
+                {mobileProfileText("profile.family.section")}
               </Text>
               <Divider style={styles.divider} />
 
               {patient.guardian_name && (
                 <List.Item
-                  title="Guardian"
-                  description={`${patient.guardian_name}${patient.guardian_relation ? ` (${patient.guardian_relation})` : ""}`}
+                  title={mobileProfileText("profile.family.guardian")}
+                  description={
+                    patient.guardian_relation
+                      ? mobileProfileText("profile.family.guardianWithRelation", {
+                          name: patient.guardian_name,
+                          relation: patient.guardian_relation,
+                        })
+                      : patient.guardian_name
+                  }
                   left={(props) => <List.Icon {...props} icon="account-child" />}
                 />
               )}
               {patient.father_name && (
                 <List.Item
-                  title="Father"
+                  title={mobileProfileText("profile.family.father")}
                   description={patient.father_name}
                   left={(props) => <List.Icon {...props} icon="account" />}
                 />
@@ -304,27 +341,33 @@ export function ProfileScreen() {
         <Card style={styles.sectionCard}>
           <Card.Content>
             <Text variant="titleMedium" style={styles.sectionTitle}>
-              Medical Information
+              {mobileProfileText("profile.medical.section")}
             </Text>
             <Divider style={styles.divider} />
 
             <List.Item
-              title="Blood Group"
-              description={patient?.blood_group || "Not specified"}
+              title={mobileProfileText("profile.medical.bloodGroup")}
+              description={
+                patient?.blood_group || mobileProfileText("profile.fallback.notSpecified")
+              }
               left={(props) => <List.Icon {...props} icon="water" />}
             />
             <List.Item
-              title="Date of Birth"
+              title={mobileProfileText("profile.medical.dateOfBirth")}
               description={
                 patient?.date_of_birth
                   ? new Date(patient.date_of_birth).toLocaleDateString()
-                  : "Not specified"
+                  : mobileProfileText("profile.fallback.notSpecified")
               }
               left={(props) => <List.Icon {...props} icon="calendar" />}
             />
             <List.Item
-              title="Allergies"
-              description={patient?.no_known_allergies ? "No known allergies" : "View allergies"}
+              title={mobileProfileText("profile.medical.allergies")}
+              description={
+                patient?.no_known_allergies
+                  ? mobileProfileText("profile.medical.noKnownAllergies")
+                  : mobileProfileText("profile.medical.viewAllergies")
+              }
               left={(props) => <List.Icon {...props} icon="alert-circle" />}
               right={
                 !patient?.no_known_allergies
@@ -340,24 +383,24 @@ export function ProfileScreen() {
         <Card style={styles.sectionCard}>
           <Card.Content>
             <Text variant="titleMedium" style={styles.sectionTitle}>
-              Account
+              {mobileProfileText("profile.account.section")}
             </Text>
             <Divider style={styles.divider} />
 
             <List.Item
-              title="Change Password"
+              title={mobileProfileText("profile.account.changePassword")}
               left={(props) => <List.Icon {...props} icon="lock" />}
               right={(props) => <List.Icon {...props} icon="chevron-right" />}
               onPress={() => {}}
             />
             <List.Item
-              title="Notifications"
+              title={mobileProfileText("profile.account.notifications")}
               left={(props) => <List.Icon {...props} icon="bell" />}
               right={(props) => <List.Icon {...props} icon="chevron-right" />}
               onPress={() => {}}
             />
             <List.Item
-              title="Privacy Settings"
+              title={mobileProfileText("profile.account.privacySettings")}
               left={(props) => <List.Icon {...props} icon="shield-account" />}
               right={(props) => <List.Icon {...props} icon="chevron-right" />}
               onPress={() => {}}
@@ -373,25 +416,27 @@ export function ProfileScreen() {
           textColor="#C8102E"
           icon="logout"
         >
-          Sign Out
+          {mobileProfileText("profile.action.signOut")}
         </Button>
 
         <Text variant="labelSmall" style={styles.versionText}>
-          MedBrains v0.1.0
+          {mobileProfileText("profile.version", { version: APP_VERSION })}
         </Text>
       </ScrollView>
 
       {/* Logout Confirmation Dialog */}
       <Portal>
         <Dialog visible={logoutDialogVisible} onDismiss={() => setLogoutDialogVisible(false)}>
-          <Dialog.Title>Sign Out</Dialog.Title>
+          <Dialog.Title>{mobileProfileText("profile.dialog.signOutTitle")}</Dialog.Title>
           <Dialog.Content>
-            <Text>Are you sure you want to sign out?</Text>
+            <Text>{mobileProfileText("profile.dialog.signOutMessage")}</Text>
           </Dialog.Content>
           <Dialog.Actions>
-            <Button onPress={() => setLogoutDialogVisible(false)}>Cancel</Button>
+            <Button onPress={() => setLogoutDialogVisible(false)}>
+              {mobileProfileText("profile.action.cancel")}
+            </Button>
             <Button onPress={handleLogout} textColor="#C8102E">
-              Sign Out
+              {mobileProfileText("profile.action.signOut")}
             </Button>
           </Dialog.Actions>
         </Dialog>

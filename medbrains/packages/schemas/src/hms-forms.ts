@@ -4961,10 +4961,28 @@ export const mobilePrescriptionItemFormSchema = z.object({
   instructions: z.string().optional(),
 });
 
+const mobileProfileOptionalPhone = z
+  .string()
+  .refine(
+    (value) => value.trim().length === 0 || phonePattern.test(value.trim()),
+    "profile.errors.invalidPhone",
+  );
+
+const mobileProfileOptionalEmail = z
+  .string()
+  .optional()
+  .refine(
+    (value) =>
+      !value ||
+      value.trim().length === 0 ||
+      /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(value.trim()),
+    "profile.errors.invalidEmail",
+  );
+
 export const mobilePatientProfileContactFormSchema = z.object({
-  phone: optionalPhone,
-  phone_secondary: optionalPhone,
-  email: optionalEmail,
+  phone: mobileProfileOptionalPhone,
+  phone_secondary: mobileProfileOptionalPhone,
+  email: mobileProfileOptionalEmail,
 });
 
 export const bedTypeSettingsFormSchema = z.object({
