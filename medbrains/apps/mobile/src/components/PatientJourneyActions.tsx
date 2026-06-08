@@ -159,6 +159,22 @@ function mobileOrderParams(context: ClinicalJourneyContext) {
   };
 }
 
+function mobileBillingParams(
+  context: ClinicalJourneyContext,
+  params: {
+    filter: "all" | "paid" | "pending";
+    handoff?: "discharge_bill" | "payment";
+  },
+) {
+  return {
+    admissionId: context.activeAdmissionId ?? undefined,
+    encounterId: context.activeAdmissionId ? undefined : (context.activeEncounterId ?? undefined),
+    filter: params.filter,
+    handoff: params.handoff,
+    patientId: context.patientId,
+  };
+}
+
 function applyMobileDisabledReason(
   action: ResolvedClinicalJourneyAction & { id: MobileJourneyActionId },
   blocker: MobileActionBlocker | null,
@@ -205,11 +221,10 @@ export function PatientJourneyActions({
           });
           return;
         }
-        navigation.navigate("Billing", {
-          filter: "pending",
-          handoff: "payment",
-          patientId: context.patientId,
-        });
+        navigation.navigate(
+          "Billing",
+          mobileBillingParams(context, { filter: "pending", handoff: "payment" }),
+        );
         return;
       case "billing.open_ledger":
         if (context.activeInvoiceId) {
@@ -218,17 +233,13 @@ export function PatientJourneyActions({
           });
           return;
         }
-        navigation.navigate("Billing", {
-          filter: "all",
-          patientId: context.patientId,
-        });
+        navigation.navigate("Billing", mobileBillingParams(context, { filter: "all" }));
         return;
       case "billing.prepare_discharge_bill":
-        navigation.navigate("Billing", {
-          filter: "pending",
-          handoff: "discharge_bill",
-          patientId: context.patientId,
-        });
+        navigation.navigate(
+          "Billing",
+          mobileBillingParams(context, { filter: "pending", handoff: "discharge_bill" }),
+        );
         return;
       case "camp.open_context":
         navigation.navigate("PatientCareContext", {

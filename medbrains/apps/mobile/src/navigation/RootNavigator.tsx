@@ -47,6 +47,8 @@ export type RootStackParamList = {
   Prescriptions: undefined;
   Billing:
     | {
+        admissionId?: string;
+        encounterId?: string;
         filter?: "all" | "paid" | "pending";
         handoff?: "discharge_bill" | "payment";
         patientId?: string;

@@ -3,6 +3,7 @@ import { api } from "@medbrains/api";
 export type UpdatePatientInput = Parameters<typeof api.updatePatient>[1];
 export type ListPatientsInput = Parameters<typeof api.listPatients>[0];
 export type ListAdmissionsInput = Parameters<typeof api.listAdmissions>[0];
+export type ListBillingInvoicesInput = Parameters<typeof api.listInvoices>[0];
 export type ListCampRegistrationsInput = Parameters<typeof api.listCampRegistrations>[0];
 export type ListErVisitsInput = Parameters<typeof api.listErVisits>[0];
 export type CancelAppointmentInput = Parameters<typeof api.cancelAppointment>[1];
@@ -16,6 +17,7 @@ export const patientService = {
   listPatientAllergies: (patientId: string) => api.listPatientAllergies(patientId),
   listPatientLabOrders: (patientId: string) => api.listPatientLabOrders(patientId),
   listPatientInvoices: (patientId: string) => api.listPatientInvoices(patientId),
+  listBillingInvoices: (params?: ListBillingInvoicesInput) => api.listInvoices(params),
   listPatientAppointments: (patientId: string) => api.listPatientAppointments(patientId),
   listPatientPrescriptions: (patientId: string) => api.listPatientPrescriptions(patientId),
   listAdmissions: (params?: ListAdmissionsInput) => api.listAdmissions(params),

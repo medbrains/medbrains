@@ -1,4 +1,5 @@
 import { useAuthStore } from "@medbrains/stores";
+import type { Invoice, InvoiceStatus, PatientInvoiceRow } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { FlatList, StyleSheet, TouchableOpacity, View } from "react-native";
@@ -19,9 +20,25 @@ import { patientService } from "../../services/patient.service";
 type FilterType = "pending" | "paid" | "all";
 type BillingHandoff = "discharge_bill" | "payment";
 
+interface MobileBillingInvoice {
+  id: string;
+  invoiceNumber: string;
+  status: InvoiceStatus;
+  totalAmount: number;
+  paidAmount: number;
+  balanceAmount: number;
+  itemCount: number | null;
+  issuedAt: string | null;
+  createdAt: string;
+  admissionId: string | null;
+  encounterId: string | null;
+}
+
 interface BillingScreenProps {
   route?: {
     params?: {
+      admissionId?: string;
+      encounterId?: string;
       filter?: FilterType;
       handoff?: BillingHandoff;
       patientId?: string;
@@ -30,6 +47,106 @@ interface BillingScreenProps {
   navigation: {
     navigate: (screen: string, params?: Record<string, unknown>) => void;
   };
+}
+
+const FILTER_TYPES: FilterType[] = ["pending", "paid", "all"];
+
+function isFilterType(value: string): value is FilterType {
+  return FILTER_TYPES.some((filterType) => filterType === value);
+}
+
+function parseAmount(value: string | null | undefined): number {
+  if (!value) return 0;
+  const parsed = Number.parseFloat(value);
+  return Number.isNaN(parsed) ? 0 : parsed;
+}
+
+function invoiceBalance(invoice: Invoice): number {
+  return Math.max(parseAmount(invoice.total_amount) - parseAmount(invoice.paid_amount), 0);
+}
+
+function patientInvoiceToMobileInvoice(row: PatientInvoiceRow): MobileBillingInvoice {
+  return {
+    id: row.id,
+    invoiceNumber: row.invoice_number,
+    status: row.status,
+    totalAmount: parseAmount(row.total_amount),
+    paidAmount: parseAmount(row.paid_amount),
+    balanceAmount: parseAmount(row.balance),
+    itemCount: row.item_count,
+    issuedAt: row.issued_at,
+    createdAt: row.created_at,
+    admissionId: null,
+    encounterId: null,
+  };
+}
+
+function billingInvoiceToMobileInvoice(row: Invoice): MobileBillingInvoice {
+  return {
+    id: row.id,
+    invoiceNumber: row.invoice_number,
+    status: row.status,
+    totalAmount: parseAmount(row.total_amount),
+    paidAmount: parseAmount(row.paid_amount),
+    balanceAmount: invoiceBalance(row),
+    itemCount: null,
+    issuedAt: row.issued_at,
+    createdAt: row.created_at,
+    admissionId: row.admission_id,
+    encounterId: row.encounter_id,
+  };
+}
+
+function billingInvoiceParams(params: {
+  admissionId?: string;
+  encounterId?: string;
+  patientId?: string;
+}): Record<string, string> {
+  const queryParams: Record<string, string> = { page: "1", per_page: "100" };
+  if (params.patientId) queryParams.patient_id = params.patientId;
+  if (params.admissionId) {
+    queryParams.admission_id = params.admissionId;
+  } else if (params.encounterId) {
+    queryParams.encounter_id = params.encounterId;
+  }
+  return queryParams;
+}
+
+function handoffTitle(handoff: BillingHandoff | undefined): string {
+  switch (handoff) {
+    case "payment":
+      return "Payment handoff";
+    case "discharge_bill":
+      return "Discharge billing handoff";
+    default:
+      return "Patient billing";
+  }
+}
+
+function handoffHint(params: {
+  admissionId?: string;
+  encounterId?: string;
+  handoff?: BillingHandoff;
+}): string {
+  if (params.handoff === "discharge_bill" && params.admissionId) {
+    return "Reviewing invoices linked to this IPD admission so unrelated patient bills stay out of the discharge queue.";
+  }
+  if (params.admissionId) {
+    return "Reviewing invoices linked to the active IPD admission.";
+  }
+  if (params.encounterId) {
+    return "Reviewing invoices linked to the active encounter.";
+  }
+  return "Reviewing invoices for the selected patient context.";
+}
+
+function emptyBillingText(filter: FilterType, handoff: BillingHandoff | undefined): string {
+  if (handoff === "discharge_bill" && filter === "pending") {
+    return "No pending discharge bills found for this admission";
+  }
+  if (filter === "pending") return "You have no pending bills";
+  if (filter === "paid") return "No paid bills found";
+  return "No billing history";
 }
 
 function getStatusColor(status: string): string {
@@ -60,15 +177,38 @@ export function BillingScreen({ navigation, route }: BillingScreenProps) {
   const theme = useTheme();
   const { user } = useAuthStore();
   const routePatientId = route?.params?.patientId;
+  const routeAdmissionId = route?.params?.admissionId;
+  const routeEncounterId = route?.params?.encounterId;
+  const routeHandoff = route?.params?.handoff;
   const patientId = routePatientId ?? user?.id ?? "";
-  const isStaffPatientContext = Boolean(routePatientId);
+  const isStaffPatientContext = Boolean(routePatientId || routeAdmissionId || routeEncounterId);
   const initialFilter = route?.params?.filter ?? "pending";
 
   const [filter, setFilter] = useState<FilterType>(initialFilter);
 
   const { data, isLoading, refetch } = useQuery({
-    queryKey: ["patient", "invoices", patientId, filter],
-    queryFn: () => patientService.listPatientInvoices(patientId),
+    queryKey: [
+      "patient",
+      "invoices",
+      patientId,
+      routeAdmissionId ?? null,
+      routeEncounterId ?? null,
+      filter,
+    ],
+    queryFn: async () => {
+      if (isStaffPatientContext) {
+        const response = await patientService.listBillingInvoices(
+          billingInvoiceParams({
+            admissionId: routeAdmissionId,
+            encounterId: routeEncounterId,
+            patientId,
+          }),
+        );
+        return response.invoices.map(billingInvoiceToMobileInvoice);
+      }
+      const patientInvoices = await patientService.listPatientInvoices(patientId);
+      return patientInvoices.map(patientInvoiceToMobileInvoice);
+    },
     enabled: Boolean(patientId),
   });
 
@@ -90,16 +230,16 @@ export function BillingScreen({ navigation, route }: BillingScreenProps) {
     .filter(
       (inv) => inv.status === "draft" || inv.status === "issued" || inv.status === "partially_paid",
     )
-    .reduce((sum, inv) => sum + Number.parseFloat(inv.balance || "0"), 0);
+    .reduce((sum, inv) => sum + inv.balanceAmount, 0);
 
-  const renderInvoiceCard = ({ item }: { item: (typeof invoices)[0] }) => {
-    const invoiceDate = new Date(item.issued_at || item.created_at);
+  const renderInvoiceCard = ({ item }: { item: MobileBillingInvoice }) => {
+    const invoiceDate = new Date(item.issuedAt || item.createdAt);
+    const invoiceDateLabel = Number.isNaN(invoiceDate.getTime())
+      ? "Not dated"
+      : invoiceDate.toLocaleDateString();
     const statusColor = getStatusColor(item.status);
     const isPending =
       item.status === "draft" || item.status === "issued" || item.status === "partially_paid";
-    const totalAmount = Number.parseFloat(item.total_amount || "0");
-    const paidAmount = Number.parseFloat(item.paid_amount || "0");
-    const balance = Number.parseFloat(item.balance || "0");
 
     return (
       <TouchableOpacity onPress={() => navigation.navigate("BillDetail", { invoiceId: item.id })}>
@@ -108,15 +248,15 @@ export function BillingScreen({ navigation, route }: BillingScreenProps) {
             <View style={styles.cardHeader}>
               <View style={styles.invoiceInfo}>
                 <Text variant="titleMedium" style={styles.invoiceNumber}>
-                  {item.invoice_number || `INV-${item.id.slice(0, 8)}`}
+                  {item.invoiceNumber || `INV-${item.id.slice(0, 8)}`}
                 </Text>
                 <Text variant="bodySmall" style={styles.invoiceDate}>
-                  {invoiceDate.toLocaleDateString()}
+                  {invoiceDateLabel}
                 </Text>
               </View>
               <View style={styles.amountInfo}>
                 <Text variant="titleLarge" style={[styles.amount, isPending && styles.amountDue]}>
-                  {formatCurrency(isPending ? balance : totalAmount)}
+                  {formatCurrency(isPending ? item.balanceAmount : item.totalAmount)}
                 </Text>
                 <Chip
                   compact
@@ -129,12 +269,26 @@ export function BillingScreen({ navigation, route }: BillingScreenProps) {
             </View>
 
             {/* Item Count */}
-            {item.item_count != null && item.item_count > 0 && (
+            {item.itemCount != null && item.itemCount > 0 && (
               <View style={styles.servicesRow}>
                 <Avatar.Icon size={24} icon="clipboard-list" style={styles.servicesIcon} />
                 <Text variant="bodySmall" style={styles.servicesText}>
-                  {item.item_count} item{item.item_count > 1 ? "s" : ""}
+                  {item.itemCount} item{item.itemCount > 1 ? "s" : ""}
                 </Text>
+              </View>
+            )}
+            {(item.admissionId || item.encounterId) && (
+              <View style={styles.contextChips}>
+                {item.admissionId && (
+                  <Chip compact icon="bed" mode="outlined">
+                    IPD admission-linked
+                  </Chip>
+                )}
+                {!item.admissionId && item.encounterId && (
+                  <Chip compact icon="stethoscope" mode="outlined">
+                    Encounter-linked
+                  </Chip>
+                )}
               </View>
             )}
 
@@ -145,7 +299,7 @@ export function BillingScreen({ navigation, route }: BillingScreenProps) {
                   Total
                 </Text>
                 <Text variant="bodyMedium" style={styles.paymentValue}>
-                  {formatCurrency(totalAmount)}
+                  {formatCurrency(item.totalAmount)}
                 </Text>
               </View>
               <View style={styles.paymentItem}>
@@ -153,7 +307,7 @@ export function BillingScreen({ navigation, route }: BillingScreenProps) {
                   Paid
                 </Text>
                 <Text variant="bodyMedium" style={[styles.paymentValue, { color: "#10b981" }]}>
-                  {formatCurrency(paidAmount)}
+                  {formatCurrency(item.paidAmount)}
                 </Text>
               </View>
               <View style={styles.paymentItem}>
@@ -164,13 +318,13 @@ export function BillingScreen({ navigation, route }: BillingScreenProps) {
                   variant="bodyMedium"
                   style={[styles.paymentValue, { color: isPending ? "#C8102E" : "#868e96" }]}
                 >
-                  {formatCurrency(balance)}
+                  {formatCurrency(item.balanceAmount)}
                 </Text>
               </View>
             </View>
 
             {/* Pay Now Button */}
-            {isPending && balance > 0 && (
+            {isPending && item.balanceAmount > 0 && (
               <Button
                 mode="contained"
                 icon="credit-card"
@@ -192,15 +346,13 @@ export function BillingScreen({ navigation, route }: BillingScreenProps) {
         <Surface style={styles.handoffBanner} elevation={1}>
           <Avatar.Icon size={36} icon="account-cash" style={styles.handoffIcon} />
           <View style={styles.handoffText}>
-            <Text variant="labelMedium">
-              {route?.params?.handoff === "payment"
-                ? "Payment handoff"
-                : route?.params?.handoff === "discharge_bill"
-                  ? "Discharge billing handoff"
-                  : "Patient billing"}
-            </Text>
+            <Text variant="labelMedium">{handoffTitle(routeHandoff)}</Text>
             <Text variant="bodySmall" style={styles.handoffHint}>
-              Reviewing invoices for the selected patient context.
+              {handoffHint({
+                admissionId: routeAdmissionId,
+                encounterId: routeEncounterId,
+                handoff: routeHandoff,
+              })}
             </Text>
           </View>
         </Surface>
@@ -225,7 +377,9 @@ export function BillingScreen({ navigation, route }: BillingScreenProps) {
       <View style={styles.filterContainer}>
         <SegmentedButtons
           value={filter}
-          onValueChange={(v) => setFilter(v as FilterType)}
+          onValueChange={(value) => {
+            if (isFilterType(value)) setFilter(value);
+          }}
           buttons={[
             { value: "pending", label: "Pending" },
             { value: "paid", label: "Paid" },
@@ -259,11 +413,7 @@ export function BillingScreen({ navigation, route }: BillingScreenProps) {
             No bills
           </Text>
           <Text variant="bodyMedium" style={styles.emptyText}>
-            {filter === "pending"
-              ? "You have no pending bills"
-              : filter === "paid"
-                ? "No paid bills found"
-                : "No billing history"}
+            {emptyBillingText(filter, routeHandoff)}
           </Text>
         </View>
       )}
@@ -383,6 +533,12 @@ const styles = StyleSheet.create({
   servicesText: {
     flex: 1,
     opacity: 0.7,
+  },
+  contextChips: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginBottom: 12,
   },
   paymentRow: {
     flexDirection: "row",

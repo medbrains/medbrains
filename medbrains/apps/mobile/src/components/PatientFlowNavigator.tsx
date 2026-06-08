@@ -108,6 +108,14 @@ function readinessText(
   return "Ready";
 }
 
+function mobileBillingParams(context: ClinicalJourneyContext) {
+  return {
+    admissionId: context.activeAdmissionId ?? undefined,
+    encounterId: context.activeAdmissionId ? undefined : (context.activeEncounterId ?? undefined),
+    patientId: context.patientId,
+  };
+}
+
 export function PatientFlowNavigator({
   active = "patient",
   context,
@@ -180,7 +188,7 @@ export function PatientFlowNavigator({
         }
         navigation.navigate("Billing", {
           filter: "all",
-          patientId: context.patientId,
+          ...mobileBillingParams(context),
         });
         return;
     }
