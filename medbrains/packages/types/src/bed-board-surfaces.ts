@@ -8,6 +8,7 @@ export type BedBoardStatus =
   | "reserved"
   | "vacant_clean"
   | "vacant_dirty";
+export type BedBoardSignalStatus = BedBoardStatus | "waiting";
 
 export type BedBoardSignalPhase =
   | "active_care"
@@ -41,6 +42,11 @@ export const BED_BOARD_STATUS_VALUES = [
   "blocked",
 ] as const satisfies ReadonlyArray<BedBoardStatus>;
 
+export const BED_BOARD_SIGNAL_STATUS_VALUES = [
+  ...BED_BOARD_STATUS_VALUES,
+  "waiting",
+] as const satisfies ReadonlyArray<BedBoardSignalStatus>;
+
 export const BED_BOARD_MUTABLE_STATUS_VALUES = [
   "vacant_clean",
   "vacant_dirty",
@@ -55,7 +61,11 @@ const BED_BOARD_DEFAULT_STATUS_SIGNAL = {
   tone: "neutral",
 } as const satisfies BedBoardStatusSignal;
 
-const BED_BOARD_STATUS_SIGNALS: Readonly<Record<string, BedBoardStatusSignal>> = {
+const BED_BOARD_SIGNAL_STATUS_VALUE_SET: ReadonlySet<string> = new Set(
+  BED_BOARD_SIGNAL_STATUS_VALUES,
+);
+
+const BED_BOARD_STATUS_SIGNALS = {
   blocked: {
     assignment: "blocked",
     phase: "blocked",
@@ -104,9 +114,9 @@ const BED_BOARD_STATUS_SIGNALS: Readonly<Record<string, BedBoardStatusSignal>> =
     shape: "token",
     tone: "blocked",
   },
-};
+} as const satisfies Readonly<Record<BedBoardSignalStatus, BedBoardStatusSignal>>;
 
-const BED_BOARD_STATUS_LABEL_KEYS: Readonly<Record<string, string>> = {
+const BED_BOARD_STATUS_LABEL_KEYS = {
   blocked: "bedDashboard.status.blocked",
   maintenance: "bedDashboard.status.maintenance",
   occupied: "bedDashboard.status.occupied",
@@ -115,9 +125,9 @@ const BED_BOARD_STATUS_LABEL_KEYS: Readonly<Record<string, string>> = {
   vacant_clean: "bedDashboard.status.vacant_clean",
   vacant_dirty: "bedDashboard.status.vacant_dirty",
   waiting: "bedDashboard.status.waiting",
-};
+} as const satisfies Readonly<Record<BedBoardSignalStatus, string>>;
 
-const BED_BOARD_STATUS_LABELS: Readonly<Record<string, string>> = {
+const BED_BOARD_STATUS_LABELS = {
   blocked: "Blocked",
   maintenance: "Maintenance",
   occupied: "Occupied",
@@ -126,9 +136,9 @@ const BED_BOARD_STATUS_LABELS: Readonly<Record<string, string>> = {
   vacant_clean: "Vacant clean",
   vacant_dirty: "Vacant dirty",
   waiting: "Waiting",
-};
+} as const satisfies Readonly<Record<BedBoardSignalStatus, string>>;
 
-const BED_BOARD_SIGNAL_LABEL_KEYS: Readonly<Record<string, string>> = {
+const BED_BOARD_SIGNAL_LABEL_KEYS = {
   blocked: "bedDashboard.signal.blocked",
   maintenance: "bedDashboard.signal.maintenance",
   occupied: "bedDashboard.signal.occupied",
@@ -137,9 +147,9 @@ const BED_BOARD_SIGNAL_LABEL_KEYS: Readonly<Record<string, string>> = {
   vacant_clean: "bedDashboard.signal.vacant_clean",
   vacant_dirty: "bedDashboard.signal.vacant_dirty",
   waiting: "bedDashboard.signal.waiting",
-};
+} as const satisfies Readonly<Record<BedBoardSignalStatus, string>>;
 
-const BED_BOARD_SIGNAL_LABELS: Readonly<Record<string, string>> = {
+const BED_BOARD_SIGNAL_LABELS = {
   blocked: "Blocked",
   maintenance: "Maintenance",
   occupied: "Active care",
@@ -148,14 +158,20 @@ const BED_BOARD_SIGNAL_LABELS: Readonly<Record<string, string>> = {
   vacant_clean: "Assignment ready",
   vacant_dirty: "Turnover needed",
   waiting: "Waiting list",
-};
+} as const satisfies Readonly<Record<BedBoardSignalStatus, string>>;
 
 function bedBoardFallbackLabel(value: string): string {
   return value.replace(/_/g, " ");
 }
 
+export function isBedBoardSignalStatus(status: string): status is BedBoardSignalStatus {
+  return BED_BOARD_SIGNAL_STATUS_VALUE_SET.has(status);
+}
+
 export function bedBoardStatusSignal(status: string): BedBoardStatusSignal {
-  return BED_BOARD_STATUS_SIGNALS[status] ?? BED_BOARD_DEFAULT_STATUS_SIGNAL;
+  return isBedBoardSignalStatus(status)
+    ? BED_BOARD_STATUS_SIGNALS[status]
+    : BED_BOARD_DEFAULT_STATUS_SIGNAL;
 }
 
 export function bedBoardStatusIsAssignable(status: string): boolean {
@@ -163,17 +179,21 @@ export function bedBoardStatusIsAssignable(status: string): boolean {
 }
 
 export function bedBoardStatusLabelKey(status: string): string | null {
-  return BED_BOARD_STATUS_LABEL_KEYS[status] ?? null;
+  return isBedBoardSignalStatus(status) ? BED_BOARD_STATUS_LABEL_KEYS[status] : null;
 }
 
 export function bedBoardStatusLabel(status: string): string {
-  return BED_BOARD_STATUS_LABELS[status] ?? bedBoardFallbackLabel(status);
+  return isBedBoardSignalStatus(status)
+    ? BED_BOARD_STATUS_LABELS[status]
+    : bedBoardFallbackLabel(status);
 }
 
 export function bedBoardSignalLabelKey(status: string): string | null {
-  return BED_BOARD_SIGNAL_LABEL_KEYS[status] ?? null;
+  return isBedBoardSignalStatus(status) ? BED_BOARD_SIGNAL_LABEL_KEYS[status] : null;
 }
 
 export function bedBoardSignalLabel(status: string): string {
-  return BED_BOARD_SIGNAL_LABELS[status] ?? bedBoardStatusLabel(status);
+  return isBedBoardSignalStatus(status)
+    ? BED_BOARD_SIGNAL_LABELS[status]
+    : bedBoardStatusLabel(status);
 }

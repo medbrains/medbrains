@@ -24,12 +24,14 @@ export {
 export type {
   BedBoardSignalPhase,
   BedBoardSignalShape,
+  BedBoardSignalStatus,
   BedBoardSignalTone,
   BedBoardStatus,
   BedBoardStatusSignal,
 } from "./bed-board-surfaces.js";
 export {
   BED_BOARD_MUTABLE_STATUS_VALUES,
+  BED_BOARD_SIGNAL_STATUS_VALUES,
   BED_BOARD_STATUS_VALUES,
   bedBoardSignalLabel,
   bedBoardSignalLabelKey,
@@ -37,6 +39,7 @@ export {
   bedBoardStatusLabel,
   bedBoardStatusLabelKey,
   bedBoardStatusSignal,
+  isBedBoardSignalStatus,
 } from "./bed-board-surfaces.js";
 export type {
   BillingInvoiceSignal,

@@ -1,7 +1,10 @@
 // @vitest-environment node
 
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import {
   BED_BOARD_MUTABLE_STATUS_VALUES,
+  BED_BOARD_SIGNAL_STATUS_VALUES,
   BED_BOARD_STATUS_VALUES,
   bedBoardSignalLabel,
   bedBoardSignalLabelKey,
@@ -9,8 +12,15 @@ import {
   bedBoardStatusLabel,
   bedBoardStatusLabelKey,
   bedBoardStatusSignal,
+  isBedBoardSignalStatus,
 } from "@medbrains/types";
 import { describe, expect, it } from "vitest";
+
+function ipdLocale(): Record<string, string> {
+  return JSON.parse(
+    readFileSync(join(process.cwd(), "public/locales/en/ipd.json"), "utf8"),
+  ) as Record<string, string>;
+}
 
 describe("IPD bed-board operational signals", () => {
   it("keeps bed dashboard status ordering aligned to hospital bed flow", () => {
@@ -23,6 +33,7 @@ describe("IPD bed-board operational signals", () => {
       "maintenance",
       "blocked",
     ]);
+    expect(BED_BOARD_SIGNAL_STATUS_VALUES).toEqual([...BED_BOARD_STATUS_VALUES, "waiting"]);
     expect(BED_BOARD_MUTABLE_STATUS_VALUES).toEqual([
       "vacant_clean",
       "vacant_dirty",
@@ -72,6 +83,10 @@ describe("IPD bed-board operational signals", () => {
   });
 
   it("keeps bed status and signal labels shared with IPD and TV surfaces", () => {
+    expect(isBedBoardSignalStatus("vacant_clean")).toBe(true);
+    expect(isBedBoardSignalStatus("waiting")).toBe(true);
+    expect(isBedBoardSignalStatus("unknown_status")).toBe(false);
+
     expect(bedBoardStatusLabelKey("vacant_clean")).toBe("bedDashboard.status.vacant_clean");
     expect(bedBoardStatusLabelKey("occupied_transfer_pending")).toBe(
       "bedDashboard.status.occupied_transfer_pending",
@@ -85,5 +100,21 @@ describe("IPD bed-board operational signals", () => {
     expect(bedBoardSignalLabel("vacant_clean")).toBe("Assignment ready");
     expect(bedBoardSignalLabel("unknown_status")).toBe("unknown status");
     expect(bedBoardSignalLabelKey("unknown_status")).toBeNull();
+  });
+
+  it("backs every bed board status and signal label with IPD i18n copy", () => {
+    const locale = ipdLocale();
+
+    for (const status of BED_BOARD_SIGNAL_STATUS_VALUES) {
+      const statusKey = bedBoardStatusLabelKey(status);
+      const signalKey = bedBoardSignalLabelKey(status);
+
+      if (!statusKey || !signalKey) {
+        throw new Error(`Missing bed-board i18n keys for ${status}`);
+      }
+
+      expect(locale[statusKey]).toBe(bedBoardStatusLabel(status));
+      expect(locale[signalKey]).toBe(bedBoardSignalLabel(status));
+    }
   });
 });
