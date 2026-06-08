@@ -17,6 +17,7 @@ import {
 } from "react-native-paper";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { phlebotomyService } from "../../services/phlebotomy.service";
+import { mobilePhlebotomyStatusText, mobilePhlebotomyText } from "./phlebotomyText";
 
 type FilterType = "pending" | "collected" | "all";
 
@@ -41,6 +42,23 @@ function getStatusColor(status: string): string {
       return "#C8102E";
     default:
       return "#868e96";
+  }
+}
+
+function handleFilterValueChange(value: string, setFilter: (filter: FilterType) => void) {
+  if (value === "pending" || value === "collected" || value === "all") {
+    setFilter(value);
+  }
+}
+
+function emptyFilterMessage(filter: FilterType): string {
+  switch (filter) {
+    case "pending":
+      return mobilePhlebotomyText("phlebotomy.collection.empty.pending");
+    case "collected":
+      return mobilePhlebotomyText("phlebotomy.collection.empty.collected");
+    case "all":
+      return mobilePhlebotomyText("phlebotomy.collection.empty.all");
   }
 }
 
@@ -85,7 +103,10 @@ export function CollectionListScreen({ navigation }: CollectionListScreenProps) 
     const statusColor = getStatusColor(item.status);
 
     const addressParts = [item.address_line, item.city, item.pincode].filter(Boolean);
-    const address = addressParts.length > 0 ? addressParts.join(", ") : "Address not provided";
+    const address =
+      addressParts.length > 0
+        ? addressParts.join(", ")
+        : mobilePhlebotomyText("phlebotomy.collection.addressNotProvided");
 
     return (
       <TouchableOpacity
@@ -96,14 +117,16 @@ export function CollectionListScreen({ navigation }: CollectionListScreenProps) 
             <View style={styles.cardHeader}>
               <View style={styles.patientInfo}>
                 <Text variant="titleMedium" style={styles.collectionId}>
-                  Collection #{item.id.slice(0, 8)}
+                  {mobilePhlebotomyText("phlebotomy.collection.collectionId", {
+                    id: item.id.slice(0, 8),
+                  })}
                 </Text>
                 <Text variant="bodySmall" style={styles.dateText}>
                   {item.scheduled_date}
                 </Text>
               </View>
               <Badge style={[styles.statusBadge, { backgroundColor: `${statusColor}20` }]}>
-                {item.status.replace("_", " ")}
+                {mobilePhlebotomyStatusText(item.status)}
               </Badge>
             </View>
 
@@ -118,7 +141,7 @@ export function CollectionListScreen({ navigation }: CollectionListScreenProps) 
             {/* Time & Contact */}
             <View style={styles.timeRow}>
               <Chip icon="clock" compact>
-                {item.scheduled_time_slot || "Flexible"}
+                {item.scheduled_time_slot || mobilePhlebotomyText("phlebotomy.collection.flexible")}
               </Chip>
               {item.contact_phone && (
                 <Chip icon="phone" compact>
@@ -149,19 +172,19 @@ export function CollectionListScreen({ navigation }: CollectionListScreenProps) 
         <Surface style={styles.statCard} elevation={1}>
           <Text style={[styles.statValue, { color: "#fab005" }]}>{pendingCount}</Text>
           <Text variant="labelSmall" style={styles.statLabel}>
-            Pending
+            {mobilePhlebotomyText("phlebotomy.collection.stats.pending")}
           </Text>
         </Surface>
         <Surface style={styles.statCard} elevation={1}>
           <Text style={[styles.statValue, { color: "#10b981" }]}>{collectedCount}</Text>
           <Text variant="labelSmall" style={styles.statLabel}>
-            Collected
+            {mobilePhlebotomyText("phlebotomy.collection.stats.collected")}
           </Text>
         </Surface>
         <Surface style={styles.statCard} elevation={1}>
           <Text style={[styles.statValue, { color: "#0F766E" }]}>{collections.length}</Text>
           <Text variant="labelSmall" style={styles.statLabel}>
-            Total
+            {mobilePhlebotomyText("phlebotomy.collection.stats.total")}
           </Text>
         </Surface>
       </View>
@@ -170,11 +193,17 @@ export function CollectionListScreen({ navigation }: CollectionListScreenProps) 
       <View style={styles.filterContainer}>
         <SegmentedButtons
           value={filter}
-          onValueChange={(v) => setFilter(v as FilterType)}
+          onValueChange={(value) => handleFilterValueChange(value, setFilter)}
           buttons={[
-            { value: "pending", label: "Pending" },
-            { value: "collected", label: "Collected" },
-            { value: "all", label: "All" },
+            {
+              value: "pending",
+              label: mobilePhlebotomyText("phlebotomy.collection.filter.pending"),
+            },
+            {
+              value: "collected",
+              label: mobilePhlebotomyText("phlebotomy.collection.filter.collected"),
+            },
+            { value: "all", label: mobilePhlebotomyText("phlebotomy.collection.filter.all") },
           ]}
         />
       </View>
@@ -184,7 +213,7 @@ export function CollectionListScreen({ navigation }: CollectionListScreenProps) 
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" />
           <Text variant="bodyMedium" style={styles.loadingText}>
-            Loading collections...
+            {mobilePhlebotomyText("phlebotomy.collection.loading")}
           </Text>
         </View>
       ) : collections.length > 0 ? (
@@ -201,14 +230,10 @@ export function CollectionListScreen({ navigation }: CollectionListScreenProps) 
         <View style={styles.emptyContainer}>
           <Avatar.Icon size={64} icon="test-tube-empty" style={styles.emptyIcon} />
           <Text variant="titleMedium" style={styles.emptyTitle}>
-            No collections
+            {mobilePhlebotomyText("phlebotomy.collection.empty.title")}
           </Text>
           <Text variant="bodyMedium" style={styles.emptyText}>
-            {filter === "pending"
-              ? "No pending collections for today"
-              : filter === "collected"
-                ? "No samples collected yet"
-                : "No collections assigned"}
+            {emptyFilterMessage(filter)}
           </Text>
         </View>
       )}
@@ -220,7 +245,7 @@ export function CollectionListScreen({ navigation }: CollectionListScreenProps) 
         onPress={() => {
           // Open route navigation
         }}
-        label="Navigate"
+        label={mobilePhlebotomyText("phlebotomy.action.navigate")}
       />
     </SafeAreaView>
   );
