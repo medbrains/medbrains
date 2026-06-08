@@ -321,6 +321,26 @@ export const MOBILE_STAFF_DASHBOARD_TEXT = {
   },
 } as const;
 
+export const MOBILE_QUEUE_ITEM_TEXT = {
+  actions: {
+    call: "patientJourney.mobile.queueItem.actions.call",
+    done: "patientJourney.mobile.queueItem.actions.done",
+    noShow: "patientJourney.mobile.queueItem.actions.noShow",
+    start: "patientJourney.mobile.queueItem.actions.start",
+  },
+  fields: {
+    doctor: "patientJourney.mobile.queueItem.fields.doctor",
+    waitMinutes: "patientJourney.mobile.queueItem.fields.waitMinutes",
+  },
+  status: {
+    called: "patientJourney.mobile.queueItem.status.called",
+    completed: "patientJourney.mobile.queueItem.status.completed",
+    inProgress: "patientJourney.mobile.queueItem.status.inProgress",
+    noShow: "patientJourney.mobile.queueItem.status.noShow",
+    waiting: "patientJourney.mobile.queueItem.status.waiting",
+  },
+} as const;
+
 const MOBILE_PATIENT_JOURNEY_MESSAGES: Record<string, string> = {
   "patientJourney.blockedReasons.configuration": "Configuration",
   "patientJourney.blockedReasons.context": "Context",
@@ -515,6 +535,17 @@ const MOBILE_PATIENT_JOURNEY_MESSAGES: Record<string, string> = {
   "patientJourney.mobile.navigation.staff.patientQueue": "Patient Queue",
   "patientJourney.mobile.navigation.staff.recordVitals": "Record Vitals",
   "patientJourney.mobile.navigation.staff.tokenBoards": "Token Boards",
+  "patientJourney.mobile.queueItem.actions.call": "Call",
+  "patientJourney.mobile.queueItem.actions.done": "Done",
+  "patientJourney.mobile.queueItem.actions.noShow": "Mark no-show",
+  "patientJourney.mobile.queueItem.actions.start": "Start",
+  "patientJourney.mobile.queueItem.fields.doctor": "Dr. {{name}}",
+  "patientJourney.mobile.queueItem.fields.waitMinutes": "{{count}} min",
+  "patientJourney.mobile.queueItem.status.called": "Called",
+  "patientJourney.mobile.queueItem.status.completed": "Completed",
+  "patientJourney.mobile.queueItem.status.inProgress": "In Progress",
+  "patientJourney.mobile.queueItem.status.noShow": "No Show",
+  "patientJourney.mobile.queueItem.status.waiting": "Waiting",
   "patientJourney.mobile.staffDashboard.common.greeting": "Good Morning,",
   "patientJourney.mobile.staffDashboard.common.staffFallback": "Staff",
   "patientJourney.mobile.staffDashboard.common.staffInitials": "ST",

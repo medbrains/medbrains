@@ -1,6 +1,7 @@
 import { StyleSheet, View } from "react-native";
 import { Button, Card, Chip, IconButton, Text } from "react-native-paper";
 import { MEDBRAINS_COLORS } from "../theme/paper-theme";
+import { MOBILE_QUEUE_ITEM_TEXT, mobilePatientJourneyText } from "./patientJourneyText";
 
 type QueueStatus = "waiting" | "called" | "in_consultation" | "completed" | "no_show";
 
@@ -22,13 +23,21 @@ interface QueueItemProps {
   compact?: boolean;
 }
 
-const STATUS_CONFIG: Record<QueueStatus, { color: string; label: string }> = {
-  waiting: { color: MEDBRAINS_COLORS.muted, label: "Waiting" },
-  called: { color: MEDBRAINS_COLORS.brand, label: "Called" },
-  in_consultation: { color: MEDBRAINS_COLORS.emerald, label: "In Progress" },
-  completed: { color: MEDBRAINS_COLORS.emerald, label: "Completed" },
-  no_show: { color: MEDBRAINS_COLORS.red, label: "No Show" },
+const QUEUE_ITEM_TEXT = MOBILE_QUEUE_ITEM_TEXT;
+const STATUS_CONFIG: Record<QueueStatus, { color: string; labelKey: string }> = {
+  waiting: { color: MEDBRAINS_COLORS.muted, labelKey: QUEUE_ITEM_TEXT.status.waiting },
+  called: { color: MEDBRAINS_COLORS.brand, labelKey: QUEUE_ITEM_TEXT.status.called },
+  in_consultation: {
+    color: MEDBRAINS_COLORS.emerald,
+    labelKey: QUEUE_ITEM_TEXT.status.inProgress,
+  },
+  completed: { color: MEDBRAINS_COLORS.emerald, labelKey: QUEUE_ITEM_TEXT.status.completed },
+  no_show: { color: MEDBRAINS_COLORS.red, labelKey: QUEUE_ITEM_TEXT.status.noShow },
 };
+
+function queueItemText(key: string, values?: Record<string, string | number | boolean>): string {
+  return mobilePatientJourneyText(key, values);
+}
 
 export function QueueItem({
   item,
@@ -65,19 +74,21 @@ export function QueueItem({
               style={[styles.statusChip, { backgroundColor: `${statusConfig.color}20` }]}
               textStyle={{ color: statusConfig.color }}
             >
-              {statusConfig.label}
+              {queueItemText(statusConfig.labelKey)}
             </Chip>
 
             {isWaiting && item.wait_time_minutes !== undefined && (
               <Text variant="labelSmall" style={styles.waitTime}>
-                {item.wait_time_minutes} min
+                {queueItemText(QUEUE_ITEM_TEXT.fields.waitMinutes, {
+                  count: item.wait_time_minutes,
+                })}
               </Text>
             )}
           </View>
 
           {!compact && item.doctor_name && (
             <Text variant="bodySmall" style={styles.doctor}>
-              Dr. {item.doctor_name}
+              {queueItemText(QUEUE_ITEM_TEXT.fields.doctor, { name: item.doctor_name })}
             </Text>
           )}
         </View>
@@ -91,7 +102,7 @@ export function QueueItem({
               icon="phone"
               style={styles.actionButton}
             >
-              Call
+              {queueItemText(QUEUE_ITEM_TEXT.actions.call)}
             </Button>
           )}
 
@@ -103,7 +114,7 @@ export function QueueItem({
               icon="play"
               style={styles.actionButton}
             >
-              Start
+              {queueItemText(QUEUE_ITEM_TEXT.actions.start)}
             </Button>
           )}
 
@@ -115,12 +126,13 @@ export function QueueItem({
               icon="check"
               style={[styles.actionButton, { backgroundColor: MEDBRAINS_COLORS.emerald }]}
             >
-              Done
+              {queueItemText(QUEUE_ITEM_TEXT.actions.done)}
             </Button>
           )}
 
           {(isWaiting || isCalled) && onNoShow && (
             <IconButton
+              accessibilityLabel={queueItemText(QUEUE_ITEM_TEXT.actions.noShow)}
               icon="account-off"
               iconColor={MEDBRAINS_COLORS.red}
               mode="contained-tonal"
