@@ -82,7 +82,13 @@ import type {
   RxQueueRow,
   TenantSettingsRow,
 } from "@medbrains/types";
-import { P, PATIENT_BASIC_IDENTITY_FIELD_ACCESS_KEYS } from "@medbrains/types";
+import {
+  P,
+  PATIENT_BASIC_IDENTITY_FIELD_ACCESS_KEYS,
+  pharmacyRxPrioritySignal,
+  pharmacyRxSourceSignal,
+  pharmacyRxStatusSignal,
+} from "@medbrains/types";
 import { fieldAccessText } from "@medbrains/utils";
 import {
   IconAlertTriangle,
@@ -116,8 +122,6 @@ import {
   type Column,
   DataTable,
   OperationalSignal,
-  type OperationalSignalShape,
-  type OperationalSignalTone,
   PageHeader,
   PrescriptionViews,
   StatusDot,
@@ -190,36 +194,12 @@ function rxStatusLabel(t: PharmacyTranslate, status: string): string {
   return t(`rxStatus.${status}`, { defaultValue: pharmacyWorkflowLabel(status) });
 }
 
-function rxStatusTone(status: string): OperationalSignalTone {
-  switch (status) {
-    case "approved":
-    case "dispensed":
-      return "ready";
-    case "pending_review":
-    case "on_hold":
-      return "blocked";
-    case "dispensing":
-    case "partially_dispensed":
-      return "active";
-    case "rejected":
-    case "cancelled":
-      return "risk";
-    default:
-      return "neutral";
-  }
+function rxStatusTone(status: string) {
+  return pharmacyRxStatusSignal(status).tone;
 }
 
-function rxStatusShape(status: string): OperationalSignalShape {
-  switch (status) {
-    case "pending_review":
-    case "on_hold":
-      return "diamond";
-    case "dispensing":
-    case "partially_dispensed":
-      return "token";
-    default:
-      return "pill";
-  }
+function rxStatusShape(status: string) {
+  return pharmacyRxStatusSignal(status).shape;
 }
 
 function rxStatusIcon(status: string) {
@@ -245,39 +225,24 @@ function rxPriorityLabel(t: PharmacyTranslate, priority: string): string {
   return t(`rxPriority.${priority}`, { defaultValue: pharmacyWorkflowLabel(priority) });
 }
 
-function rxPriorityTone(priority: string): OperationalSignalTone {
-  switch (priority) {
-    case "urgent":
-      return "risk";
-    case "high":
-      return "blocked";
-    default:
-      return "neutral";
-  }
+function rxPriorityTone(priority: string) {
+  return pharmacyRxPrioritySignal(priority).tone;
 }
 
-function rxPriorityShape(priority: string): OperationalSignalShape {
-  return priority === "urgent" || priority === "high" ? "diamond" : "pill";
+function rxPriorityShape(priority: string) {
+  return pharmacyRxPrioritySignal(priority).shape;
 }
 
 function rxSourceLabel(t: PharmacyTranslate, source: string): string {
   return t(`rxSource.${source}`, { defaultValue: pharmacyWorkflowLabel(source) });
 }
 
-function rxSourceTone(source: string): OperationalSignalTone {
-  switch (source) {
-    case "emergency":
-      return "risk";
-    case "ipd":
-    case "opd":
-      return "active";
-    default:
-      return "neutral";
-  }
+function rxSourceTone(source: string) {
+  return pharmacyRxSourceSignal(source).tone;
 }
 
-function rxSourceShape(source: string): OperationalSignalShape {
-  return source === "emergency" ? "diamond" : "token";
+function rxSourceShape(source: string) {
+  return pharmacyRxSourceSignal(source).shape;
 }
 
 type DraftPharmacyOrderItem = PharmacyOrderItemInput & {

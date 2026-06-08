@@ -108,6 +108,20 @@ export {
   ROLE_TEMPLATES,
 } from "./permissions.js";
 export type {
+  PharmacyRxPriorityPhase,
+  PharmacyRxSignal,
+  PharmacyRxSignalShape,
+  PharmacyRxSignalTone,
+  PharmacyRxSourcePhase,
+  PharmacyRxStatusPhase,
+} from "./pharmacy-rx-signals.js";
+export {
+  PHARMACY_RX_STATUS_VALUES,
+  pharmacyRxPrioritySignal,
+  pharmacyRxSourceSignal,
+  pharmacyRxStatusSignal,
+} from "./pharmacy-rx-signals.js";
+export type {
   BillingQueueLaneDefinition,
   BillingQueueLaneKey,
   TokenBoardDisplayMode,
