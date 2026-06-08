@@ -202,6 +202,11 @@ describe("journey action access-matrix coverage", () => {
     expect(
       rows.find((row) => row.actionId === "billing.collect_payment")?.blockingControls,
     ).toEqual(["configuration", "context"]);
+    expect(rows.find((row) => row.actionId === "billing.collect_payment")).toMatchObject({
+      gaps: [],
+      matchedSurfaceIds: ["billing.payment_inputs"],
+      missingPermissions: [],
+    });
     expect(rows.find((row) => row.actionId === "billing.open_ledger")?.routeTargets).toEqual([
       "/billing/invoices/:invoiceId",
       "/billing?tab=invoices&patient_id=:patientId&admission_id=:admissionId",

@@ -152,6 +152,7 @@ function acceptedSurfaceKinds(
 ): readonly AccessMatrixSurfaceKind[] {
   if (action.id === "patient.print_card") return ["print"];
   if (action.id === "patient.share") return ["action"];
+  if (action.id === "billing.collect_payment") return ["screen", "tab", "input", "action", "print"];
   if (action.module === "orders") return ["action"];
   return ["screen", "tab", "action", "print"];
 }
