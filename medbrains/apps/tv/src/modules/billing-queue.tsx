@@ -23,7 +23,16 @@ import {
   tvTokenBoardLegend,
   tvTokenBoardReadinessItems,
 } from "../components/tv-feed-status.js";
-import { tvTokenBoardFeedErrorLabel } from "../components/tv-i18n.js";
+import {
+  tvTokenBoardFeedErrorLabel,
+  tvTokenBoardLaneEmptyLabel,
+  tvTokenBoardLaneTitle,
+  tvTokenBoardLoadingLabel,
+  tvTokenBoardSubtitle,
+  tvTokenBoardSummaryLabel,
+  tvTokenBoardUnavailableMessage,
+  tvTokenBoardUnavailableTitle,
+} from "../components/tv-i18n.js";
 import {
   TvTokenStatusShape,
   tvTokenStatusSignalColors,
@@ -65,7 +74,7 @@ function BillingQueueScreen() {
     <TvBoard
       eyebrow="BILLING"
       title={BILLING_BOARD.title}
-      subtitle="Please proceed to the billing desk when your token shows."
+      subtitle={tvTokenBoardSubtitle(BILLING_BOARD.id)}
       legend={tvTokenBoardLegend(BILLING_BOARD, queueQuery.dataUpdatedAt)}
       privacyNotice={BILLING_BOARD.privacyNotice}
       readiness={tvTokenBoardReadinessItems({
@@ -77,8 +86,8 @@ function BillingQueueScreen() {
     >
       <TvSummaryRow
         items={[
-          { label: "NOW SERVING", value: nowServing?.token_number ?? "-" },
-          { label: "WAITING", value: String(totalWaiting) },
+          { label: tvTokenBoardSummaryLabel("nowServing"), value: nowServing?.token_number ?? "-" },
+          { label: tvTokenBoardSummaryLabel("waiting"), value: String(totalWaiting) },
           ...board.map((lane) => ({
             label: lane.summaryLabel.toUpperCase(),
             value: String(lane.tokens.length),
@@ -94,22 +103,20 @@ function BillingQueueScreen() {
       {queueQuery.isLoading ? (
         <View style={styles.centerPanel}>
           <ActivityIndicator size="large" color={COLORS.emerald} />
-          <Text style={styles.loadingText}>Loading billing queue...</Text>
+          <Text style={styles.loadingText}>{tvTokenBoardLoadingLabel(BILLING_BOARD.id)}</Text>
         </View>
       ) : queueQuery.isError ? (
         <View style={styles.centerPanel}>
-          <Text style={styles.errorTitle}>Billing feed unavailable</Text>
-          <Text style={styles.errorText}>
-            Check TV pairing, network, and billing queue display permissions.
-          </Text>
+          <Text style={styles.errorTitle}>{tvTokenBoardUnavailableTitle(BILLING_BOARD.id)}</Text>
+          <Text style={styles.errorText}>{tvTokenBoardUnavailableMessage(BILLING_BOARD.id)}</Text>
         </View>
       ) : (
         <View style={styles.boardGrid}>
           {board.map((lane) => (
             <TokenLane
               key={lane.key}
-              title={lane.title}
-              emptyLabel={lane.emptyLabel}
+              title={tvTokenBoardLaneTitle(lane.key)}
+              emptyLabel={tvTokenBoardLaneEmptyLabel(lane.key)}
               tokens={lane.tokens}
             />
           ))}

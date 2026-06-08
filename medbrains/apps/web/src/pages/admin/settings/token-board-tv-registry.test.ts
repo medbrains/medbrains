@@ -1,11 +1,22 @@
 // @vitest-environment node
 
-import { TOKEN_BOARD_SURFACE_LIST, tokenBoardRefreshLabel } from "@medbrains/types";
+import {
+  BILLING_QUEUE_LANES,
+  TOKEN_BOARD_SURFACE_LIST,
+  tokenBoardRefreshLabel,
+} from "@medbrains/types";
 import { describe, expect, it } from "vitest";
 import {
   TV_TEXT,
   tvText,
   tvTokenBoardFeedErrorLabel,
+  tvTokenBoardLaneEmptyLabel,
+  tvTokenBoardLaneTitle,
+  tvTokenBoardLoadingLabel,
+  tvTokenBoardSummaryLabel,
+  tvTokenBoardTriageLaneText,
+  tvTokenBoardUnavailableMessage,
+  tvTokenBoardUnavailableTitle,
 } from "../../../../../tv/src/components/tv-i18n";
 import {
   TOKEN_BOARD_TV_MODULE_IDS_BY_DISPLAY,
@@ -60,6 +71,9 @@ describe("TV token-board registry", () => {
 
     for (const surface of TOKEN_BOARD_SURFACE_LIST) {
       expect(tvTokenBoardFeedErrorLabel(surface.id)).toContain("feed is unreachable");
+      expect(tvTokenBoardLoadingLabel(surface.id)).toContain("Loading");
+      expect(tvTokenBoardUnavailableTitle(surface.id)).toContain("unavailable");
+      expect(tvTokenBoardUnavailableMessage(surface.id)).toContain("TV pairing");
       expect(tvTokenBoardFeedErrorLabel(surface.id)).not.toBe(
         TV_TEXT.tokenBoards.feedError[surface.id],
       );
@@ -71,5 +85,20 @@ describe("TV token-board registry", () => {
         }),
       ).toContain(surface.targets.tvDeepLink);
     }
+
+    for (const lane of BILLING_QUEUE_LANES) {
+      expect(tvTokenBoardLaneTitle(lane.key)).toBe(lane.title);
+      expect(tvTokenBoardLaneEmptyLabel(lane.key)).toBe(lane.emptyLabel);
+    }
+
+    expect(tvTokenBoardSummaryLabel("nowServing")).toBe("NOW SERVING");
+    expect(tvTokenBoardSummaryLabel("avgWait")).toBe("AVG WAIT");
+    expect(tvTokenBoardLaneTitle("calledNow")).toBe("Called now");
+    expect(tvTokenBoardLaneEmptyLabel("waitingScans")).toBe("No radiology tokens waiting");
+    expect(tvTokenBoardTriageLaneText("red")).toEqual({
+      emptyLabel: "No red triage tokens",
+      targetLabel: "Immediate",
+      title: "Red",
+    });
   });
 });

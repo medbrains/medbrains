@@ -24,7 +24,17 @@ import {
   tvTokenBoardLegend,
   tvTokenBoardReadinessItems,
 } from "../components/tv-feed-status.js";
-import { tvTokenBoardFeedErrorLabel } from "../components/tv-i18n.js";
+import {
+  tvTokenBoardFeedErrorLabel,
+  tvTokenBoardLaneEmptyLabel,
+  tvTokenBoardLaneTitle,
+  tvTokenBoardLoadingLabel,
+  tvTokenBoardScopeLabel,
+  tvTokenBoardSubtitle,
+  tvTokenBoardSummaryLabel,
+  tvTokenBoardUnavailableMessage,
+  tvTokenBoardUnavailableTitle,
+} from "../components/tv-i18n.js";
 import {
   TvTokenStatusShape,
   tvTokenStatusSignalColors,
@@ -84,11 +94,9 @@ function QueueScreen({ route }: QueueScreenProps) {
     <TvBoard
       eyebrow="OPD"
       title={OPD_BOARD.title}
-      subtitle={
-        departmentId
-          ? "Live department token call. Please proceed when your token is called."
-          : "Live hospital token call. Please proceed when your token is called."
-      }
+      subtitle={tvTokenBoardSubtitle(OPD_BOARD.id, {
+        scope: departmentId ? "department" : "hospital",
+      })}
       legend={tvTokenBoardLegend(OPD_BOARD, tokensQuery.dataUpdatedAt)}
       privacyNotice={OPD_BOARD.privacyNotice}
       readiness={[
@@ -97,22 +105,32 @@ function QueueScreen({ route }: QueueScreenProps) {
           surface: OPD_BOARD,
           updatedAt: tokensQuery.dataUpdatedAt,
         }),
-        { label: "Scope", tone: "info", value: departmentId ? "Department" : "Hospital" },
+        {
+          label: tvTokenBoardSummaryLabel("scope"),
+          tone: "info",
+          value: tvTokenBoardScopeLabel(departmentId ? "department" : "hospital"),
+        },
       ]}
       tags={[...OPD_BOARD.targets.tvAppCodes, "OPD"]}
     >
       <TvSummaryRow
         items={[
-          { label: "NOW SERVING", value: boardState.current?.token_number ?? "—" },
           {
-            label: "WAITING",
+            label: tvTokenBoardSummaryLabel("nowServing"),
+            value: boardState.current?.token_number ?? "—",
+          },
+          {
+            label: tvTokenBoardSummaryLabel("waiting"),
             value: String(metricsQuery.data?.current_waiting ?? boardState.waiting.length),
           },
           {
-            label: "AVG WAIT",
+            label: tvTokenBoardSummaryLabel("avgWait"),
             value: `${metricsQuery.data?.avg_wait_minutes ?? "—"} min`,
           },
-          { label: "COMPLETED", value: String(boardState.completed.length) },
+          {
+            label: tvTokenBoardSummaryLabel("completed"),
+            value: String(boardState.completed.length),
+          },
         ]}
       />
       <TvFeedStatusBanner
@@ -124,26 +142,24 @@ function QueueScreen({ route }: QueueScreenProps) {
       {tokensQuery.isLoading ? (
         <View style={styles.centerPanel}>
           <ActivityIndicator size="large" color={COLORS.emerald} />
-          <Text style={styles.loadingText}>Loading live queue...</Text>
+          <Text style={styles.loadingText}>{tvTokenBoardLoadingLabel(OPD_BOARD.id)}</Text>
         </View>
       ) : tokensQuery.isError ? (
         <View style={styles.centerPanel}>
-          <Text style={styles.errorTitle}>Queue feed unavailable</Text>
-          <Text style={styles.errorText}>
-            Check TV pairing, network, and queue display permissions.
-          </Text>
+          <Text style={styles.errorTitle}>{tvTokenBoardUnavailableTitle(OPD_BOARD.id)}</Text>
+          <Text style={styles.errorText}>{tvTokenBoardUnavailableMessage(OPD_BOARD.id)}</Text>
         </View>
       ) : (
         <View style={styles.boardGrid}>
           <TokenLane
-            title="Called now"
-            emptyLabel="No token is currently called"
+            title={tvTokenBoardLaneTitle("calledNow")}
+            emptyLabel={tvTokenBoardLaneEmptyLabel("calledNow")}
             tokens={boardState.current ? [boardState.current] : []}
             large
           />
           <TokenLane
-            title="Next tokens"
-            emptyLabel="No waiting tokens"
+            title={tvTokenBoardLaneTitle("nextTokens")}
+            emptyLabel={tvTokenBoardLaneEmptyLabel("nextTokens")}
             tokens={boardState.waiting.slice(0, DISPLAY_TOKEN_LIMIT)}
           />
         </View>

@@ -22,7 +22,16 @@ import {
   tvTokenBoardLegend,
   tvTokenBoardReadinessItems,
 } from "../components/tv-feed-status.js";
-import { tvTokenBoardFeedErrorLabel } from "../components/tv-i18n.js";
+import {
+  tvTokenBoardFeedErrorLabel,
+  tvTokenBoardLaneEmptyLabel,
+  tvTokenBoardLaneTitle,
+  tvTokenBoardLoadingLabel,
+  tvTokenBoardSubtitle,
+  tvTokenBoardSummaryLabel,
+  tvTokenBoardUnavailableMessage,
+  tvTokenBoardUnavailableTitle,
+} from "../components/tv-i18n.js";
 import {
   TvTokenStatusShape,
   tvTokenStatusSignalColors,
@@ -94,7 +103,7 @@ function RadiologyQueueScreen({ route }: RadiologyQueueScreenProps) {
     <TvBoard
       eyebrow="RADIOLOGY"
       title={`${modalityLabel} imaging`}
-      subtitle="Please proceed to the imaging room when your token shows."
+      subtitle={tvTokenBoardSubtitle(RADIOLOGY_BOARD.id)}
       legend={tvTokenBoardLegend(RADIOLOGY_BOARD, queueQuery.dataUpdatedAt, deepLink)}
       privacyNotice={RADIOLOGY_BOARD.privacyNotice}
       readiness={[
@@ -103,16 +112,28 @@ function RadiologyQueueScreen({ route }: RadiologyQueueScreenProps) {
           surface: RADIOLOGY_BOARD,
           updatedAt: queueQuery.dataUpdatedAt,
         }),
-        { label: "Modality", tone: "info", value: modalityLabel },
+        { label: tvTokenBoardSummaryLabel("modality"), tone: "info", value: modalityLabel },
       ]}
       tags={[...RADIOLOGY_BOARD.targets.tvAppCodes, "radiology", modalityLabel]}
     >
       <TvSummaryRow
         items={[
-          { label: "NOW", value: queue?.current_token?.token_number ?? "—" },
-          { label: "WAITING", value: String(queue?.stats.waiting_count ?? "—") },
-          { label: "COMPLETED", value: String(queue?.stats.completed_today ?? "—") },
-          { label: "AVG SCAN", value: `${queue?.stats.avg_scan_minutes ?? "—"} min` },
+          {
+            label: tvTokenBoardSummaryLabel("now"),
+            value: queue?.current_token?.token_number ?? "—",
+          },
+          {
+            label: tvTokenBoardSummaryLabel("waiting"),
+            value: String(queue?.stats.waiting_count ?? "—"),
+          },
+          {
+            label: tvTokenBoardSummaryLabel("completed"),
+            value: String(queue?.stats.completed_today ?? "—"),
+          },
+          {
+            label: tvTokenBoardSummaryLabel("avgScan"),
+            value: `${queue?.stats.avg_scan_minutes ?? "—"} min`,
+          },
         ]}
       />
       <TvFeedStatusBanner
@@ -124,26 +145,24 @@ function RadiologyQueueScreen({ route }: RadiologyQueueScreenProps) {
       {queueQuery.isLoading ? (
         <View style={styles.centerPanel}>
           <ActivityIndicator size="large" color={COLORS.emerald} />
-          <Text style={styles.loadingText}>Loading radiology queue...</Text>
+          <Text style={styles.loadingText}>{tvTokenBoardLoadingLabel(RADIOLOGY_BOARD.id)}</Text>
         </View>
       ) : queueQuery.isError ? (
         <View style={styles.centerPanel}>
-          <Text style={styles.errorTitle}>Radiology feed unavailable</Text>
-          <Text style={styles.errorText}>
-            Check TV pairing, network, and radiology display access.
-          </Text>
+          <Text style={styles.errorTitle}>{tvTokenBoardUnavailableTitle(RADIOLOGY_BOARD.id)}</Text>
+          <Text style={styles.errorText}>{tvTokenBoardUnavailableMessage(RADIOLOGY_BOARD.id)}</Text>
         </View>
       ) : (
         <View style={styles.boardGrid}>
           <TokenLane
-            title="Called now"
-            emptyLabel="No radiology token is currently called"
+            title={tvTokenBoardLaneTitle("calledNow")}
+            emptyLabel={tvTokenBoardLaneEmptyLabel("calledNow")}
             tokens={board.called}
             large
           />
           <TokenLane
-            title="Waiting scans"
-            emptyLabel="No radiology tokens waiting"
+            title={tvTokenBoardLaneTitle("waitingScans")}
+            emptyLabel={tvTokenBoardLaneEmptyLabel("waitingScans")}
             tokens={board.waiting}
           />
         </View>

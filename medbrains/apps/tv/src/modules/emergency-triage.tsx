@@ -16,7 +16,15 @@ import {
   tvTokenBoardLegend,
   tvTokenBoardReadinessItems,
 } from "../components/tv-feed-status.js";
-import { tvTokenBoardFeedErrorLabel } from "../components/tv-i18n.js";
+import {
+  tvTokenBoardFeedErrorLabel,
+  tvTokenBoardLoadingLabel,
+  tvTokenBoardSubtitle,
+  tvTokenBoardSummaryLabel,
+  tvTokenBoardTriageLaneText,
+  tvTokenBoardUnavailableMessage,
+  tvTokenBoardUnavailableTitle,
+} from "../components/tv-i18n.js";
 import { tvQueueService } from "../services/tvQueue.service.js";
 
 const DISPLAY_TOKEN_LIMIT = 8;
@@ -25,45 +33,27 @@ const REFRESH_INTERVAL_MS = EMERGENCY_BOARD.refreshIntervalMs;
 
 const TRIAGE_LANES: ReadonlyArray<{
   color: string;
-  emptyLabel: string;
   key: TriageLevelColor;
-  targetLabel: string;
-  title: string;
 }> = [
   {
     color: COLORS.red,
-    emptyLabel: "No red triage tokens",
     key: "red",
-    targetLabel: "Immediate",
-    title: "Red",
   },
   {
     color: COLORS.copper,
-    emptyLabel: "No orange triage tokens",
     key: "orange",
-    targetLabel: "Very urgent",
-    title: "Orange",
   },
   {
     color: COLORS.amber,
-    emptyLabel: "No yellow triage tokens",
     key: "yellow",
-    targetLabel: "Urgent",
-    title: "Yellow",
   },
   {
     color: COLORS.emerald,
-    emptyLabel: "No green triage tokens",
     key: "green",
-    targetLabel: "Standard",
-    title: "Green",
   },
   {
     color: COLORS.brand,
-    emptyLabel: "No blue triage tokens",
     key: "blue",
-    targetLabel: "Non-urgent",
-    title: "Blue",
   },
 ];
 
@@ -96,7 +86,7 @@ function EmergencyTriageScreen() {
     <TvBoard
       eyebrow="EMERGENCY"
       title={EMERGENCY_BOARD.title}
-      subtitle="Live triage queue with token-only public display."
+      subtitle={tvTokenBoardSubtitle(EMERGENCY_BOARD.id)}
       legend={tvTokenBoardLegend(EMERGENCY_BOARD, queueQuery.dataUpdatedAt)}
       privacyNotice={EMERGENCY_BOARD.privacyNotice}
       readiness={tvTokenBoardReadinessItems({
@@ -108,10 +98,13 @@ function EmergencyTriageScreen() {
     >
       <TvSummaryRow
         items={[
-          { label: "RED", value: String(tokenCount(queue, "red")) },
-          { label: "ORANGE", value: String(tokenCount(queue, "orange")) },
-          { label: "TOTAL", value: String(queue?.total_waiting ?? "—") },
-          { label: "BAYS", value: String(queue?.resuscitation_bays_available ?? "—") },
+          { label: tvTokenBoardSummaryLabel("red"), value: String(tokenCount(queue, "red")) },
+          { label: tvTokenBoardSummaryLabel("orange"), value: String(tokenCount(queue, "orange")) },
+          { label: tvTokenBoardSummaryLabel("total"), value: String(queue?.total_waiting ?? "—") },
+          {
+            label: tvTokenBoardSummaryLabel("bays"),
+            value: String(queue?.resuscitation_bays_available ?? "—"),
+          },
         ]}
       />
       <TvFeedStatusBanner
@@ -123,14 +116,12 @@ function EmergencyTriageScreen() {
       {queueQuery.isLoading ? (
         <View style={styles.centerPanel}>
           <ActivityIndicator size="large" color={COLORS.emerald} />
-          <Text style={styles.loadingText}>Loading emergency triage...</Text>
+          <Text style={styles.loadingText}>{tvTokenBoardLoadingLabel(EMERGENCY_BOARD.id)}</Text>
         </View>
       ) : queueQuery.isError ? (
         <View style={styles.centerPanel}>
-          <Text style={styles.errorTitle}>Triage feed unavailable</Text>
-          <Text style={styles.errorText}>
-            Check TV pairing, network, and emergency display permissions.
-          </Text>
+          <Text style={styles.errorTitle}>{tvTokenBoardUnavailableTitle(EMERGENCY_BOARD.id)}</Text>
+          <Text style={styles.errorText}>{tvTokenBoardUnavailableMessage(EMERGENCY_BOARD.id)}</Text>
         </View>
       ) : (
         <View style={styles.boardGrid}>
@@ -144,9 +135,7 @@ function EmergencyTriageScreen() {
             <TriageLane
               key={lane.key}
               color={lane.color}
-              emptyLabel={lane.emptyLabel}
-              targetLabel={lane.targetLabel}
-              title={lane.title}
+              {...tvTokenBoardTriageLaneText(lane.key)}
               tokens={lane.tokens}
             />
           ))}

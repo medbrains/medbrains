@@ -22,7 +22,16 @@ import {
   tvTokenBoardLegend,
   tvTokenBoardReadinessItems,
 } from "../components/tv-feed-status.js";
-import { tvTokenBoardFeedErrorLabel } from "../components/tv-i18n.js";
+import {
+  tvTokenBoardFeedErrorLabel,
+  tvTokenBoardLaneEmptyLabel,
+  tvTokenBoardLaneTitle,
+  tvTokenBoardLoadingLabel,
+  tvTokenBoardSubtitle,
+  tvTokenBoardSummaryLabel,
+  tvTokenBoardUnavailableMessage,
+  tvTokenBoardUnavailableTitle,
+} from "../components/tv-i18n.js";
 import {
   TvTokenStatusShape,
   tvTokenStatusSignalColors,
@@ -63,7 +72,7 @@ function PharmacyQueueScreen() {
     <TvBoard
       eyebrow="PHARMACY"
       title={PHARMACY_BOARD.title}
-      subtitle="Please proceed to the counter when your token shows."
+      subtitle={tvTokenBoardSubtitle(PHARMACY_BOARD.id)}
       legend={tvTokenBoardLegend(PHARMACY_BOARD, queueQuery.dataUpdatedAt)}
       privacyNotice={PHARMACY_BOARD.privacyNotice}
       readiness={tvTokenBoardReadinessItems({
@@ -75,10 +84,22 @@ function PharmacyQueueScreen() {
     >
       <TvSummaryRow
         items={[
-          { label: "NOW SERVING", value: board.current?.token_number ?? "—" },
-          { label: "READY", value: String(queue?.stats.ready_count ?? "—") },
-          { label: "WAITING", value: String(queue?.stats.waiting_count ?? "—") },
-          { label: "AVG WAIT", value: `${queue?.stats.avg_wait_minutes ?? "—"} min` },
+          {
+            label: tvTokenBoardSummaryLabel("nowServing"),
+            value: board.current?.token_number ?? "—",
+          },
+          {
+            label: tvTokenBoardSummaryLabel("ready"),
+            value: String(queue?.stats.ready_count ?? "—"),
+          },
+          {
+            label: tvTokenBoardSummaryLabel("waiting"),
+            value: String(queue?.stats.waiting_count ?? "—"),
+          },
+          {
+            label: tvTokenBoardSummaryLabel("avgWait"),
+            value: `${queue?.stats.avg_wait_minutes ?? "—"} min`,
+          },
         ]}
       />
       <TvFeedStatusBanner
@@ -90,30 +111,36 @@ function PharmacyQueueScreen() {
       {queueQuery.isLoading ? (
         <View style={styles.centerPanel}>
           <ActivityIndicator size="large" color={COLORS.emerald} />
-          <Text style={styles.loadingText}>Loading pharmacy queue...</Text>
+          <Text style={styles.loadingText}>{tvTokenBoardLoadingLabel(PHARMACY_BOARD.id)}</Text>
         </View>
       ) : queueQuery.isError ? (
         <View style={styles.centerPanel}>
-          <Text style={styles.errorTitle}>Pharmacy feed unavailable</Text>
-          <Text style={styles.errorText}>
-            Check TV pairing, network, and pharmacy queue display permissions.
-          </Text>
+          <Text style={styles.errorTitle}>{tvTokenBoardUnavailableTitle(PHARMACY_BOARD.id)}</Text>
+          <Text style={styles.errorText}>{tvTokenBoardUnavailableMessage(PHARMACY_BOARD.id)}</Text>
         </View>
       ) : (
         <View style={styles.boardGrid}>
           <TokenLane
-            title="Now serving"
-            emptyLabel="No token is currently being dispensed"
+            title={tvTokenBoardLaneTitle("nowServing")}
+            emptyLabel={tvTokenBoardLaneEmptyLabel("nowServing")}
             tokens={board.current ? [board.current] : []}
             large
           />
-          <TokenLane title="Ready pickup" emptyLabel="No ready tokens" tokens={board.ready} />
           <TokenLane
-            title="Preparing"
-            emptyLabel="No tokens in preparation"
+            title={tvTokenBoardLaneTitle("readyPickup")}
+            emptyLabel={tvTokenBoardLaneEmptyLabel("readyPickup")}
+            tokens={board.ready}
+          />
+          <TokenLane
+            title={tvTokenBoardLaneTitle("preparing")}
+            emptyLabel={tvTokenBoardLaneEmptyLabel("preparing")}
             tokens={board.preparing}
           />
-          <TokenLane title="Waiting" emptyLabel="No prescriptions waiting" tokens={board.waiting} />
+          <TokenLane
+            title={tvTokenBoardLaneTitle("waiting")}
+            emptyLabel={tvTokenBoardLaneEmptyLabel("waiting")}
+            tokens={board.waiting}
+          />
         </View>
       )}
     </TvBoard>

@@ -21,7 +21,16 @@ import {
   tvTokenBoardLegend,
   tvTokenBoardReadinessItems,
 } from "../components/tv-feed-status.js";
-import { tvTokenBoardFeedErrorLabel } from "../components/tv-i18n.js";
+import {
+  tvTokenBoardFeedErrorLabel,
+  tvTokenBoardLaneEmptyLabel,
+  tvTokenBoardLaneTitle,
+  tvTokenBoardLoadingLabel,
+  tvTokenBoardSubtitle,
+  tvTokenBoardSummaryLabel,
+  tvTokenBoardUnavailableMessage,
+  tvTokenBoardUnavailableTitle,
+} from "../components/tv-i18n.js";
 import {
   TvTokenStatusShape,
   tvTokenStatusSignalColors,
@@ -61,7 +70,7 @@ function LabStatusScreen() {
     <TvBoard
       eyebrow="LABORATORY"
       title={LAB_BOARD.title}
-      subtitle="Please proceed to sample collection when your token shows."
+      subtitle={tvTokenBoardSubtitle(LAB_BOARD.id)}
       legend={tvTokenBoardLegend(LAB_BOARD, queueQuery.dataUpdatedAt)}
       privacyNotice={LAB_BOARD.privacyNotice}
       readiness={tvTokenBoardReadinessItems({
@@ -73,10 +82,19 @@ function LabStatusScreen() {
     >
       <TvSummaryRow
         items={[
-          { label: "NOW", value: board.current[0]?.token_number ?? "—" },
-          { label: "WAITING", value: String(queue?.stats.waiting_count ?? "—") },
-          { label: "COLLECTED", value: String(queue?.stats.collected_today ?? "—") },
-          { label: "AVG WAIT", value: `${queue?.stats.avg_wait_minutes ?? "—"} min` },
+          { label: tvTokenBoardSummaryLabel("now"), value: board.current[0]?.token_number ?? "—" },
+          {
+            label: tvTokenBoardSummaryLabel("waiting"),
+            value: String(queue?.stats.waiting_count ?? "—"),
+          },
+          {
+            label: tvTokenBoardSummaryLabel("collected"),
+            value: String(queue?.stats.collected_today ?? "—"),
+          },
+          {
+            label: tvTokenBoardSummaryLabel("avgWait"),
+            value: `${queue?.stats.avg_wait_minutes ?? "—"} min`,
+          },
         ]}
       />
       <TvFeedStatusBanner
@@ -88,29 +106,29 @@ function LabStatusScreen() {
       {queueQuery.isLoading ? (
         <View style={styles.centerPanel}>
           <ActivityIndicator size="large" color={COLORS.emerald} />
-          <Text style={styles.loadingText}>Loading lab collection queue...</Text>
+          <Text style={styles.loadingText}>{tvTokenBoardLoadingLabel(LAB_BOARD.id)}</Text>
         </View>
       ) : queueQuery.isError ? (
         <View style={styles.centerPanel}>
-          <Text style={styles.errorTitle}>Lab feed unavailable</Text>
-          <Text style={styles.errorText}>Check TV pairing, network, and lab display access.</Text>
+          <Text style={styles.errorTitle}>{tvTokenBoardUnavailableTitle(LAB_BOARD.id)}</Text>
+          <Text style={styles.errorText}>{tvTokenBoardUnavailableMessage(LAB_BOARD.id)}</Text>
         </View>
       ) : (
         <View style={styles.boardGrid}>
           <TokenLane
-            title="Collecting now"
-            emptyLabel="No token is currently called"
+            title={tvTokenBoardLaneTitle("collectingNow")}
+            emptyLabel={tvTokenBoardLaneEmptyLabel("collectingNow")}
             tokens={board.current}
             large
           />
           <TokenLane
-            title="Waiting samples"
-            emptyLabel="No sample tokens waiting"
+            title={tvTokenBoardLaneTitle("waitingSamples")}
+            emptyLabel={tvTokenBoardLaneEmptyLabel("waitingSamples")}
             tokens={board.waiting}
           />
           <TokenLane
-            title="In progress"
-            emptyLabel="No collections in progress"
+            title={tvTokenBoardLaneTitle("inProgress")}
+            emptyLabel={tvTokenBoardLaneEmptyLabel("inProgress")}
             tokens={board.inProgress}
           />
         </View>
