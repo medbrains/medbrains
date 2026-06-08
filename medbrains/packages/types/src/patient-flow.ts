@@ -1,5 +1,6 @@
 import type {
   ClinicalJourneyActionId,
+  ClinicalJourneyActionSignal,
   ClinicalJourneyBlockedReason,
   ClinicalJourneyContext,
   ClinicalJourneyMessageValues,
@@ -7,7 +8,7 @@ import type {
   ClinicalOrderContext,
   ResolvedClinicalJourneyAction,
 } from "./event-actions.js";
-import { resolveClinicalJourneyActions } from "./event-actions.js";
+import { clinicalJourneyActionSignal, resolveClinicalJourneyActions } from "./event-actions.js";
 import type { ClinicalEventName, PrescriptionHistoryItem } from "./index.js";
 import { patientJourneyActionRoute } from "./patient-journey-routes.js";
 import { P } from "./permissions.js";
@@ -83,6 +84,12 @@ export interface PatientFlowReadinessSummary {
 export interface PatientFlowReadiness {
   items: readonly PatientFlowReadinessItem[];
   summary: PatientFlowReadinessSummary;
+}
+
+export function patientFlowReadinessSignal(
+  item: Pick<PatientFlowReadinessItem, "blockedReason" | "enabled">,
+): ClinicalJourneyActionSignal {
+  return clinicalJourneyActionSignal(item);
 }
 
 const OPD_FLOW_ACTION = "opd.open_visit" satisfies ClinicalJourneyActionId;

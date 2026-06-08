@@ -6,7 +6,11 @@ import type {
   PatientFlowModule,
   PatientFlowReadinessItem,
 } from "@medbrains/types";
-import { buildPatientFlowReadiness, patientFlowJourneyContext } from "@medbrains/types";
+import {
+  buildPatientFlowReadiness,
+  patientFlowJourneyContext,
+  patientFlowReadinessSignal,
+} from "@medbrains/types";
 import {
   IconBed,
   IconBuildingStore,
@@ -117,6 +121,21 @@ function FlowTooltip({ item }: { item: PatientFlowReadinessItem }) {
   );
 }
 
+function flowSignalLabel(
+  item: PatientFlowReadinessItem,
+  t: ReturnType<typeof useTranslation>["t"],
+) {
+  if (item.enabled) {
+    return t("patientJourney.status.available");
+  }
+
+  return (
+    journeyBlockedReasonLabel(t, item.blockedReason) ??
+    patientFlowItemDisabledReason(t, item) ??
+    patientFlowItemLabel(t, item)
+  );
+}
+
 export function PatientFlowNavigator({
   patientId,
   active,
@@ -208,6 +227,8 @@ export function PatientFlowNavigator({
         {items.map((item) => {
           const isActive = item.id === active;
           const visual = FLOW_VISUALS[item.id];
+          const signal = patientFlowReadinessSignal(item);
+          const signalLabel = flowSignalLabel(item, t);
           const button = (
             <Button
               key={item.id}
@@ -224,7 +245,15 @@ export function PatientFlowNavigator({
           );
           return (
             <Tooltip key={item.id} label={<FlowTooltip item={item} />} multiline w={280}>
-              <span>{button}</span>
+              <span className={styles.flowItem}>
+                <OperationalSignal
+                  label={signalLabel}
+                  shape={signal.shape}
+                  size="xs"
+                  tone={signal.tone}
+                />
+                {button}
+              </span>
             </Tooltip>
           );
         })}

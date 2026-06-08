@@ -6,8 +6,11 @@ import {
   buildPatientFlowReadiness,
   hasReviewedPatientPharmacyPrescriptionForJourney,
   P,
+  type PatientFlowModule,
+  type PatientFlowReadiness,
   type PrescriptionHistoryItem,
   patientFlowJourneyContext,
+  patientFlowReadinessSignal,
 } from "@medbrains/types";
 import { describe, expect, it } from "vitest";
 
@@ -59,6 +62,14 @@ function prescriptionHistory(
       updated_at: "2026-01-01T00:00:00.000Z",
     },
   };
+}
+
+function flowItem(readiness: PatientFlowReadiness, module: PatientFlowModule) {
+  const item = readiness.items.find((candidate) => candidate.id === module);
+  if (!item) {
+    throw new Error(`Missing patient flow module: ${module}`);
+  }
+  return item;
 }
 
 describe("patient flow readiness", () => {
@@ -140,6 +151,16 @@ describe("patient flow readiness", () => {
         "Available after order created or pharmacy prescription reviewed or pharmacy order dispensed",
       labelKey: "patientJourney.flow.modules.pharmacy.label",
     });
+    expect(patientFlowReadinessSignal(flowItem(readiness, "patient"))).toMatchObject({
+      phase: "ready",
+      shape: "pill",
+      tone: "ready",
+    });
+    expect(patientFlowReadinessSignal(flowItem(readiness, "pharmacy"))).toMatchObject({
+      phase: "waiting_for_event",
+      shape: "token",
+      tone: "active",
+    });
   });
 
   it("keeps permission-denied modules visible with reasons", () => {
@@ -168,6 +189,12 @@ describe("patient flow readiness", () => {
       blockedReason: "permission",
       disabledReason: "Permission required",
       disabledReasonKey: "patientJourney.blockers.permissionRequired",
+    });
+    expect(patientFlowReadinessSignal(flowItem(readiness, "patient"))).toMatchObject({
+      emphasis: "high",
+      phase: "blocked_by_permission",
+      shape: "diamond",
+      tone: "risk",
     });
     expect(readiness.items.find((item) => item.id === "camp")).toMatchObject({
       disabledReason:
@@ -265,6 +292,11 @@ describe("patient flow readiness", () => {
     expect(readiness.items.find((item) => item.id === "opd")).toMatchObject({
       blockedReason: "context",
       disabledReason: "Unavailable for deceased patient records",
+    });
+    expect(patientFlowReadinessSignal(flowItem(readiness, "opd"))).toMatchObject({
+      phase: "blocked_by_context",
+      shape: "diamond",
+      tone: "blocked",
     });
   });
 });

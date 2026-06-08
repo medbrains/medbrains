@@ -16,3 +16,15 @@
 .header {
   min-height: 20px;
 }
+
+.flowItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.flowItem > :first-child {
+  max-width: 118px;
+}
