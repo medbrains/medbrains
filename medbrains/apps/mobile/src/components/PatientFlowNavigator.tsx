@@ -16,6 +16,7 @@ import {
 } from "@medbrains/types";
 import { ScrollView, StyleSheet, View } from "react-native";
 import { Button, Chip, Text } from "react-native-paper";
+import { mobileCampCareContextParams } from "../navigation/careContextParams";
 import {
   MOBILE_PATIENT_JOURNEY_BLOCKERS,
   mobilePatientJourneyTranslator,
@@ -165,11 +166,7 @@ export function PatientFlowNavigator({
         });
         return;
       case "camp":
-        navigation.navigate("PatientCareContext", {
-          handoff: "open_context",
-          module: "camp",
-          patientId: context.patientId,
-        });
+        navigation.navigate("PatientCareContext", mobileCampCareContextParams(context));
         return;
       case "pharmacy":
         navigation.navigate("PatientPharmacy", {

@@ -33,6 +33,7 @@ import {
   VitalsEntryScreen,
 } from "../screens";
 import { APP_BAR_COLORS } from "../theme/paper-theme";
+import type { PatientCareContextRouteParams } from "./careContextParams";
 
 export type RootStackParamList = {
   // Auth screens
@@ -63,12 +64,7 @@ export type RootStackParamList = {
   StaffDashboard: undefined;
   TokenBoards: { surface?: TokenBoardSurfaceId } | undefined;
   PatientSearch: undefined;
-  PatientCareContext: {
-    erVisitId?: string;
-    handoff?: "admit" | "open_admission" | "open_context" | "open_mlc" | "open_visit";
-    module: "camp" | "emergency" | "ipd";
-    patientId: string;
-  };
+  PatientCareContext: PatientCareContextRouteParams;
   PatientDetail: { patientId: string };
   PatientPharmacy: {
     handoff?: "dispense" | "queue";

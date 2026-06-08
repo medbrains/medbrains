@@ -23,20 +23,18 @@ import {
   useTheme,
 } from "react-native-paper";
 import { SafeAreaView } from "react-native-safe-area-context";
+import type {
+  CareContextHandoff,
+  CareContextModule,
+  PatientCareContextRouteParams,
+} from "../../navigation/careContextParams";
+import { prioritizeCampRegistrationsForRoute } from "../../navigation/careContextParams";
 import { patientService } from "../../services/patient.service";
 import { MEDBRAINS_COLORS } from "../../theme/paper-theme";
 
-type CareContextModule = "camp" | "emergency" | "ipd";
-type CareContextHandoff = "admit" | "open_admission" | "open_context" | "open_mlc" | "open_visit";
-
 interface PatientCareContextScreenProps {
   route: {
-    params: {
-      erVisitId?: string;
-      handoff?: CareContextHandoff;
-      module: CareContextModule;
-      patientId: string;
-    };
+    params: PatientCareContextRouteParams;
   };
   navigation: {
     navigate: (screen: string, params?: Record<string, unknown>) => void;
@@ -153,7 +151,14 @@ function activeCampCount(registrations: CampRegistration[]) {
 
 export function PatientCareContextScreen({ route, navigation }: PatientCareContextScreenProps) {
   const theme = useTheme();
-  const { erVisitId, handoff, module: moduleName, patientId } = route.params;
+  const {
+    campId,
+    campRegistrationId,
+    erVisitId,
+    handoff,
+    module: moduleName,
+    patientId,
+  } = route.params;
   const canListIpdAdmissions = useHasPermission(P.IPD.ADMISSIONS_LIST);
   const canListEmergencyVisits = useHasPermission(P.EMERGENCY.VISITS_LIST);
   const canListCampRegistrations = useHasPermission(P.CAMP.REGISTRATIONS_LIST);
@@ -215,6 +220,10 @@ export function PatientCareContextScreen({ route, navigation }: PatientCareConte
       })
     : emergencyVisits;
   const campRegistrations = campRegistrationsQuery.data ?? [];
+  const orderedCampRegistrations = prioritizeCampRegistrationsForRoute(campRegistrations, {
+    campId,
+    campRegistrationId,
+  });
   const isModuleLoading =
     admissionsQuery.isLoading || emergencyVisitsQuery.isLoading || campRegistrationsQuery.isLoading;
   const isModuleError =
@@ -370,7 +379,7 @@ export function PatientCareContextScreen({ route, navigation }: PatientCareConte
 
     return (
       <View style={styles.recordList}>
-        {campRegistrations.map((registration) => (
+        {orderedCampRegistrations.map((registration) => (
           <Card key={registration.id} style={styles.card}>
             <Card.Content>
               <View style={styles.cardHeader}>
