@@ -357,7 +357,7 @@ describe("access matrix route coverage", () => {
     );
   });
 
-  it("maps cancelled orders to pharmacy queue and order-detail surfaces", () => {
+  it("maps reviewed and cancelled orders to pharmacy queue and order-detail surfaces", () => {
     const surfaceIds = [
       "pharmacy.rx_queue.screen",
       "pharmacy.orders.screen",
@@ -367,7 +367,7 @@ describe("access matrix route coverage", () => {
 
     expect(surfaces).toHaveLength(surfaceIds.length);
     expect(surfaces.map((surface) => surface.activatesAfter)).toEqual(
-      surfaceIds.map(() => ["order.created", "order.cancelled"]),
+      surfaceIds.map(() => ["order.created", "pharmacy.prescription.reviewed", "order.cancelled"]),
     );
   });
 
@@ -459,6 +459,7 @@ describe("access matrix route coverage", () => {
         "camp.registration.created",
         "camp.screening.completed",
         "order.created",
+        "pharmacy.prescription.reviewed",
         "pharmacy.order.dispensed",
         "billing.invoice.created",
         "billing.payment.received",

@@ -217,6 +217,7 @@ const REPORT_EVENT_SOURCES: &[ReportEventSourceSeed] = &[
             ClinicalEventName::IndentRequisitionApproved,
             ClinicalEventName::IndentRequisitionIssued,
             ClinicalEventName::PharmacyOrderDispensed,
+            ClinicalEventName::PharmacyPrescriptionReviewed,
             ClinicalEventName::PharmacyStockMovementCreated,
             ClinicalEventName::PharmacyNdpsMovementCreated,
         ],

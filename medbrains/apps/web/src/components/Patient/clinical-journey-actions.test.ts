@@ -124,6 +124,10 @@ describe("clinical journey event activation", () => {
   });
 
   it("enables clinical and fulfillment actions when the care event chain is present", () => {
+    const events = inferClinicalJourneyEventNames({
+      patientId: "patient-1",
+      activePharmacyOrderId: "pharmacy-order-1",
+    });
     const actions = resolveClinicalJourneyActions(
       {
         patientId: "patient-1",
@@ -136,6 +140,7 @@ describe("clinical journey event activation", () => {
       "web",
     );
 
+    expect(events).toContain("pharmacy.prescription.reviewed");
     expect(actions.find((action) => action.id === "orders.medication")?.enabled).toBe(true);
     expect(actions.find((action) => action.id === "pharmacy.dispense_order")?.enabled).toBe(true);
     expect(actions.find((action) => action.id === "pharmacy.open_patient_queue")?.enabled).toBe(
@@ -158,6 +163,7 @@ describe("clinical journey event activation", () => {
     );
 
     expect(events).toContain("order.created");
+    expect(events).not.toContain("pharmacy.prescription.reviewed");
     expect(actions.find((action) => action.id === "pharmacy.open_patient_queue")?.enabled).toBe(
       true,
     );

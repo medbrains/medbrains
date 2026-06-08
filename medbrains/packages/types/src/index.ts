@@ -11424,6 +11424,7 @@ export type ClinicalEventName =
   | "billing.invoice.finalized"
   | "billing.payment.received"
   | "pharmacy.order.dispensed"
+  | "pharmacy.prescription.reviewed"
   | "pharmacy.stock.movement.created"
   | "pharmacy.ndps.movement.created"
   | "indent.requisition.submitted"
@@ -11514,6 +11515,14 @@ export const CLINICAL_EVENT_REQUIRED_PAYLOAD_KEYS: Record<ClinicalEventName, rea
   "billing.invoice.finalized": ["invoice_id", "patient_id"],
   "billing.payment.received": ["payment_id", "invoice_id", "patient_id"],
   "pharmacy.order.dispensed": ["order_id", "patient_id", "items"],
+  "pharmacy.prescription.reviewed": [
+    "rx_queue_id",
+    "prescription_id",
+    "patient_id",
+    "review_status",
+    "pharmacy_order_id",
+    "billing_invoice_id",
+  ],
   "pharmacy.stock.movement.created": ["transaction_type", "quantity"],
   "pharmacy.ndps.movement.created": ["entry_id", "catalog_item_id", "action"],
   "indent.requisition.submitted": [

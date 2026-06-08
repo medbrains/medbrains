@@ -84,6 +84,8 @@ pub enum ClinicalEventName {
     BillingPaymentReceived,
     #[serde(rename = "pharmacy.order.dispensed")]
     PharmacyOrderDispensed,
+    #[serde(rename = "pharmacy.prescription.reviewed")]
+    PharmacyPrescriptionReviewed,
     #[serde(rename = "pharmacy.stock.movement.created")]
     PharmacyStockMovementCreated,
     #[serde(rename = "pharmacy.ndps.movement.created")]
@@ -164,6 +166,7 @@ impl ClinicalEventName {
             Self::BillingInvoiceFinalized => "billing.invoice.finalized",
             Self::BillingPaymentReceived => "billing.payment.received",
             Self::PharmacyOrderDispensed => "pharmacy.order.dispensed",
+            Self::PharmacyPrescriptionReviewed => "pharmacy.prescription.reviewed",
             Self::PharmacyStockMovementCreated => "pharmacy.stock.movement.created",
             Self::PharmacyNdpsMovementCreated => "pharmacy.ndps.movement.created",
             Self::IndentRequisitionSubmitted => "indent.requisition.submitted",
@@ -224,6 +227,7 @@ impl ClinicalEventName {
             | Self::BillingInvoiceFinalized
             | Self::BillingPaymentReceived => ClinicalEventSourceModule::Billing,
             Self::PharmacyOrderDispensed
+            | Self::PharmacyPrescriptionReviewed
             | Self::PharmacyStockMovementCreated
             | Self::PharmacyNdpsMovementCreated => ClinicalEventSourceModule::Pharmacy,
             Self::IndentRequisitionSubmitted
@@ -288,6 +292,14 @@ impl ClinicalEventName {
             Self::BillingInvoiceFinalized => &["invoice_id", "patient_id"],
             Self::BillingPaymentReceived => &["payment_id", "invoice_id", "patient_id"],
             Self::PharmacyOrderDispensed => &["order_id", "patient_id", "items"],
+            Self::PharmacyPrescriptionReviewed => &[
+                "rx_queue_id",
+                "prescription_id",
+                "patient_id",
+                "review_status",
+                "pharmacy_order_id",
+                "billing_invoice_id",
+            ],
             Self::PharmacyStockMovementCreated => &["transaction_type", "quantity"],
             Self::PharmacyNdpsMovementCreated => &["entry_id", "catalog_item_id", "action"],
             Self::IndentRequisitionSubmitted => &[
@@ -391,6 +403,7 @@ impl FromStr for ClinicalEventName {
             "billing.invoice.finalized" => Ok(Self::BillingInvoiceFinalized),
             "billing.payment.received" => Ok(Self::BillingPaymentReceived),
             "pharmacy.order.dispensed" => Ok(Self::PharmacyOrderDispensed),
+            "pharmacy.prescription.reviewed" => Ok(Self::PharmacyPrescriptionReviewed),
             "pharmacy.stock.movement.created" => Ok(Self::PharmacyStockMovementCreated),
             "pharmacy.ndps.movement.created" => Ok(Self::PharmacyNdpsMovementCreated),
             "indent.requisition.submitted" => Ok(Self::IndentRequisitionSubmitted),
@@ -849,6 +862,32 @@ mod tests {
 
     #[test]
     fn pharmacy_movement_events_are_canonical() {
+        assert_eq!(
+            "pharmacy.prescription.reviewed"
+                .parse::<ClinicalEventName>()
+                .ok(),
+            Some(ClinicalEventName::PharmacyPrescriptionReviewed)
+        );
+        assert_eq!(
+            ClinicalEventName::PharmacyPrescriptionReviewed.as_str(),
+            "pharmacy.prescription.reviewed"
+        );
+        assert_eq!(
+            ClinicalEventName::PharmacyPrescriptionReviewed.default_source_module(),
+            ClinicalEventSourceModule::Pharmacy
+        );
+        assert_eq!(
+            ClinicalEventName::PharmacyPrescriptionReviewed.required_payload_keys(),
+            &[
+                "rx_queue_id",
+                "prescription_id",
+                "patient_id",
+                "review_status",
+                "pharmacy_order_id",
+                "billing_invoice_id",
+            ]
+        );
+
         assert_eq!(
             "pharmacy.stock.movement.created"
                 .parse::<ClinicalEventName>()

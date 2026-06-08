@@ -115,7 +115,9 @@ describe("report event coverage", () => {
     expect(diagnostics?.requiredPayloadKeys).toContain("reason");
 
     expect(pharmacy?.sourceEvents).toContain("order.cancelled");
+    expect(pharmacy?.sourceEvents).toContain("pharmacy.prescription.reviewed");
     expect(pharmacy?.requiredPayloadKeys).toContain("reason");
+    expect(pharmacy?.requiredPayloadKeys).toContain("billing_invoice_id");
     expect(pharmacy?.journeyActionEvents).toEqual(
       expect.arrayContaining(["order.created", "pharmacy.order.dispensed"]),
     );

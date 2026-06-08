@@ -25,6 +25,9 @@ describe("clinical event normalization", () => {
     );
     expect(normalizeClinicalEventName("payment.recorded")).toBe("billing.payment.received");
     expect(normalizeClinicalEventName("order.dispensed")).toBe("pharmacy.order.dispensed");
+    expect(normalizeClinicalEventName("prescription.reviewed")).toBe(
+      "pharmacy.prescription.reviewed",
+    );
     expect(normalizeClinicalEventName("er.visit.created")).toBe("emergency.visit.created");
     expect(normalizeClinicalEventName("camp.registration_created")).toBe(
       "camp.registration.created",

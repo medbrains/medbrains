@@ -272,6 +272,9 @@ export function inferClinicalJourneyEventNames(
   if (context.activePharmacyOrderId || context.activePharmacyRxQueueId) {
     events.add("order.created");
   }
+  if (context.activePharmacyOrderId) {
+    events.add("pharmacy.prescription.reviewed");
+  }
   if (context.activeInvoiceId) {
     events.add("billing.invoice.created");
   }

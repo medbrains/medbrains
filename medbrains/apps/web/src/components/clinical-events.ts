@@ -55,6 +55,8 @@ const TRIGGER_ALIASES: Record<string, ClinicalEventName> = {
   "patient.called": "opd.queue.called",
   "payment.recorded": "billing.payment.received",
   "pharmacy.order.created": "order.created",
+  "pharmacy.prescription_reviewed": "pharmacy.prescription.reviewed",
+  "prescription.reviewed": "pharmacy.prescription.reviewed",
   "prescription.updated_before_pharmacy_approval": "opd.prescription.updated",
   "prescription.created": "order.created",
   "procedure.ordered": "order.created",

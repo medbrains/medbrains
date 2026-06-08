@@ -3022,6 +3022,14 @@ function PatientDetailPageInner() {
   const hasClinicalOrder =
     prescriptions.length > 0 ||
     visits.some((visit) => (visit.prescription_count ?? 0) > 0 || (visit.lab_order_count ?? 0) > 0);
+  const hasReviewedPharmacyPrescription = prescriptions.some(
+    (entry) =>
+      entry.pharmacy_order_id != null ||
+      entry.pharmacy_status === "approved" ||
+      entry.pharmacy_status === "dispensing" ||
+      entry.pharmacy_status === "dispensed" ||
+      entry.pharmacy_status === "partially_dispensed",
+  );
   const hasEmergencyVisit =
     patientEmergencyVisits.length > 0 ||
     visits.some((visit) => visit.encounter_type === "emergency");
@@ -3055,6 +3063,9 @@ function PatientDetailPageInner() {
   }
   if (hasClinicalOrder) {
     completedEvents.push("order.created");
+  }
+  if (hasReviewedPharmacyPrescription) {
+    completedEvents.push("pharmacy.prescription.reviewed");
   }
   if (hasBillingInvoice) {
     completedEvents.push("billing.invoice.created");

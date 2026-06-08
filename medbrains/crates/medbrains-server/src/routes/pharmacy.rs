@@ -19,8 +19,8 @@ use medbrains_core::pharmacy_phase2::{
 };
 use medbrains_core::pharmacy_phase3::{
     PharmacyAllergyCheckLog, PharmacyPaymentMode, PharmacyPosSale, PharmacyPosSaleItem,
-    PharmacyPrescriptionRx, PharmacyPricingTier, PharmacyStockReconciliation, PosDaySummary,
-    RxQueueRow,
+    PharmacyPrescriptionRx, PharmacyPricingTier, PharmacyRxStatus, PharmacyStockReconciliation,
+    PosDaySummary, RxQueueRow,
 };
 use medbrains_core::privacy::{mask_name, mask_phone};
 use rust_decimal::{Decimal, prelude::ToPrimitive};
@@ -151,6 +151,19 @@ struct CatalogPriceRow {
     base_price: Decimal,
 }
 
+fn pharmacy_rx_status_code(status: &PharmacyRxStatus) -> &'static str {
+    match status {
+        PharmacyRxStatus::PendingReview => "pending_review",
+        PharmacyRxStatus::Approved => "approved",
+        PharmacyRxStatus::Rejected => "rejected",
+        PharmacyRxStatus::OnHold => "on_hold",
+        PharmacyRxStatus::Dispensing => "dispensing",
+        PharmacyRxStatus::Dispensed => "dispensed",
+        PharmacyRxStatus::PartiallyDispensed => "partially_dispensed",
+        PharmacyRxStatus::Cancelled => "cancelled",
+    }
+}
+
 #[derive(Debug, sqlx::FromRow)]
 struct RxDetailItemPriceRow {
     id: Uuid,
@@ -171,6 +184,19 @@ struct LinkedPharmacyInvoiceItem {
     invoice_item_id: Uuid,
     invoice_id: Uuid,
     invoice_status: String,
+}
+
+#[derive(Debug, Default, Clone, Copy)]
+struct PharmacyBillingIndentResult {
+    invoice_id: Option<Uuid>,
+    created_invoice_id: Option<Uuid>,
+}
+
+#[derive(Debug, sqlx::FromRow)]
+struct BillingInvoiceEventRow {
+    invoice_number: String,
+    total_amount: Decimal,
+    status: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1926,10 +1952,12 @@ async fn ensure_pharmacy_billing_indent_for_order_in_tx(
     tenant_id: &Uuid,
     order: &PharmacyOrder,
     items: &[PharmacyOrderItem],
-) -> Result<(), AppError> {
+) -> Result<PharmacyBillingIndentResult, AppError> {
     if !super::billing::is_auto_billing_enabled(tx, tenant_id, "pharmacy").await? {
-        return Ok(());
+        return Ok(PharmacyBillingIndentResult::default());
     }
+
+    let mut result = PharmacyBillingIndentResult::default();
 
     for item in items {
         let tax_percent = match item.catalog_item_id {
@@ -1969,6 +1997,10 @@ async fn ensure_pharmacy_billing_indent_for_order_in_tx(
             },
         )
         .await?;
+        result.invoice_id.get_or_insert(charge.invoice_id);
+        if charge.was_new_invoice {
+            result.created_invoice_id.get_or_insert(charge.invoice_id);
+        }
 
         sqlx::query(
             "UPDATE invoice_items SET \
@@ -1987,7 +2019,7 @@ async fn ensure_pharmacy_billing_indent_for_order_in_tx(
         .await?;
     }
 
-    Ok(())
+    Ok(result)
 }
 
 // ══════════════════════════════════════════════════════════
@@ -4989,6 +5021,11 @@ pub async fn review_prescription(
     .await?
     .ok_or(AppError::NotFound)?;
 
+    let mut billing_invoice_id = None;
+    let mut created_billing_invoice_id = None;
+    let mut created_order_id = None;
+    let mut created_order_items: Vec<PharmacyOrderItem> = Vec::new();
+
     // On approval: auto-create pharmacy order from prescription items
     if new_status == "approved" {
         // Get prescription items
@@ -5120,13 +5157,17 @@ pub async fn review_prescription(
             &order_items,
         )
         .await?;
-        ensure_pharmacy_billing_indent_for_order_in_tx(
+        let billing_indent = ensure_pharmacy_billing_indent_for_order_in_tx(
             &mut tx,
             &claims.tenant_id,
             &order,
             &order_items,
         )
         .await?;
+        billing_invoice_id = billing_indent.invoice_id;
+        created_billing_invoice_id = billing_indent.created_invoice_id;
+        created_order_id = Some(order.id);
+        created_order_items = order_items;
 
         // Link order back to rx queue
         sqlx::query(
@@ -5146,7 +5187,153 @@ pub async fn review_prescription(
     .fetch_one(&mut *tx)
     .await?;
 
+    let admission_id =
+        admission_id_for_encounter_in_tx(&mut tx, &claims.tenant_id, Some(final_rx.encounter_id))
+            .await?;
+    let mut billing_invoice_lifecycle_payload = None;
+    let mut created_order_lifecycle_payload = None;
+
+    if let Some(invoice_id) = created_billing_invoice_id {
+        let invoice = sqlx::query_as::<_, BillingInvoiceEventRow>(
+            "SELECT invoice_number, total_amount, status::text AS status \
+             FROM invoices WHERE id = $1 AND tenant_id = $2",
+        )
+        .bind(invoice_id)
+        .bind(claims.tenant_id)
+        .fetch_one(&mut *tx)
+        .await?;
+        let billing_payload = json!({
+            "invoice_id": invoice_id,
+            "patient_id": final_rx.patient_id,
+            "encounter_id": final_rx.encounter_id,
+            "admission_id": admission_id,
+            "invoice_number": invoice.invoice_number,
+            "total_amount": invoice.total_amount,
+            "status": invoice.status,
+            "source_module": "pharmacy",
+            "pharmacy_order_id": created_order_id,
+            "rx_queue_id": final_rx.id,
+            "prescription_id": final_rx.prescription_id,
+        });
+        let mut event = ClinicalEventEnvelope::new(
+            claims.tenant_id,
+            ClinicalEventName::BillingInvoiceCreated,
+            invoice_id,
+            claims.sub,
+            billing_payload.clone(),
+        )
+        .with_patient(final_rx.patient_id)
+        .with_encounter(final_rx.encounter_id);
+        if let Some(admission_id) = admission_id {
+            event = event.with_admission(admission_id);
+        }
+        crate::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
+        billing_invoice_lifecycle_payload = Some(billing_payload);
+    }
+
+    if let Some(order_id) = created_order_id {
+        let total_amount: Decimal = created_order_items
+            .iter()
+            .map(|item| item.total_price)
+            .sum();
+        let order_payload = json!({
+            "order_id": order_id,
+            "order_type": "pharmacy",
+            "patient_id": final_rx.patient_id,
+            "encounter_id": final_rx.encounter_id,
+            "admission_id": admission_id,
+            "prescription_id": final_rx.prescription_id,
+            "rx_queue_id": final_rx.id,
+            "billing_invoice_id": billing_invoice_id,
+            "items_count": created_order_items.len(),
+            "total_amount": total_amount.to_string(),
+            "items": created_order_items.iter().map(|item| {
+                json!({
+                    "catalog_item_id": item.catalog_item_id,
+                    "drug_name": item.drug_name,
+                    "quantity": item.quantity,
+                    "unit_price": item.unit_price,
+                    "total_price": item.total_price,
+                })
+            }).collect::<Vec<_>>(),
+        });
+        let mut event = ClinicalEventEnvelope::new(
+            claims.tenant_id,
+            ClinicalEventName::OrderCreated,
+            order_id,
+            claims.sub,
+            order_payload.clone(),
+        )
+        .with_source_module(ClinicalEventSourceModule::Pharmacy)
+        .with_patient(final_rx.patient_id)
+        .with_encounter(final_rx.encounter_id);
+        if let Some(admission_id) = admission_id {
+            event = event.with_admission(admission_id);
+        }
+        crate::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
+        created_order_lifecycle_payload = Some(order_payload);
+    }
+
+    let review_payload = json!({
+        "rx_queue_id": final_rx.id,
+        "prescription_id": final_rx.prescription_id,
+        "patient_id": final_rx.patient_id,
+        "encounter_id": final_rx.encounter_id,
+        "admission_id": admission_id,
+        "review_status": pharmacy_rx_status_code(&final_rx.status),
+        "review_action": body.action.as_str(),
+        "pharmacy_order_id": final_rx.pharmacy_order_id.or(created_order_id),
+        "billing_invoice_id": billing_invoice_id,
+        "items_count": created_order_items.len(),
+        "reviewed_by": claims.sub,
+        "allergy_check_done": final_rx.allergy_check_done,
+        "interaction_check_done": final_rx.interaction_check_done,
+    });
+    let mut review_event = ClinicalEventEnvelope::new(
+        claims.tenant_id,
+        ClinicalEventName::PharmacyPrescriptionReviewed,
+        final_rx.id,
+        claims.sub,
+        review_payload.clone(),
+    )
+    .with_patient(final_rx.patient_id)
+    .with_encounter(final_rx.encounter_id);
+    if let Some(admission_id) = admission_id {
+        review_event = review_event.with_admission(admission_id);
+    }
+    crate::events::queue_clinical_event_in_tx(&mut tx, &review_event).await?;
+
     tx.commit().await?;
+
+    if let Some(billing_payload) = billing_invoice_lifecycle_payload {
+        let _ = crate::orchestration::lifecycle::emit_after_event(
+            &state.db,
+            claims.tenant_id,
+            claims.sub,
+            ClinicalEventName::BillingInvoiceCreated.as_str(),
+            billing_payload,
+        )
+        .await;
+    }
+    if let Some(order_payload) = created_order_lifecycle_payload {
+        let _ = crate::orchestration::lifecycle::emit_after_event(
+            &state.db,
+            claims.tenant_id,
+            claims.sub,
+            ClinicalEventName::OrderCreated.as_str(),
+            order_payload,
+        )
+        .await;
+    }
+    let _ = crate::orchestration::lifecycle::emit_after_event(
+        &state.db,
+        claims.tenant_id,
+        claims.sub,
+        ClinicalEventName::PharmacyPrescriptionReviewed.as_str(),
+        review_payload,
+    )
+    .await;
+
     Ok(Json(final_rx))
 }
 
