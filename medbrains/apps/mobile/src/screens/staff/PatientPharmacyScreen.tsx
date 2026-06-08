@@ -15,10 +15,15 @@ import {
   useTheme,
 } from "react-native-paper";
 import { SafeAreaView } from "react-native-safe-area-context";
+import {
+  MOBILE_PATIENT_PHARMACY_TEXT,
+  mobilePatientJourneyText,
+} from "../../components/patientJourneyText";
 import { patientService } from "../../services/patient.service";
 
 type PharmacyFilter = "recent" | "all";
 type PharmacyHandoff = "dispense" | "queue";
+const PATIENT_PHARMACY_TEXT = MOBILE_PATIENT_PHARMACY_TEXT;
 
 interface PatientPharmacyScreenProps {
   route: {
@@ -74,6 +79,48 @@ function activeMedicationCount(prescriptions: PrescriptionHistoryItem[]) {
   );
 }
 
+function patientPharmacyText(
+  key: string,
+  values?: Record<string, string | number | boolean>,
+): string {
+  return mobilePatientJourneyText(key, values);
+}
+
+function handoffTitle(handoff: PharmacyHandoff | undefined): string {
+  return patientPharmacyText(
+    handoff === "dispense"
+      ? PATIENT_PHARMACY_TEXT.handoff.dispenseTitle
+      : PATIENT_PHARMACY_TEXT.handoff.pharmacyTitle,
+  );
+}
+
+function handoffDescription(pharmacyOrderId?: string, pharmacyRxQueueId?: string): string {
+  if (pharmacyOrderId) {
+    return patientPharmacyText(PATIENT_PHARMACY_TEXT.handoff.dispenseDescription);
+  }
+  if (pharmacyRxQueueId) {
+    return patientPharmacyText(PATIENT_PHARMACY_TEXT.handoff.queueDescription);
+  }
+  return patientPharmacyText(PATIENT_PHARMACY_TEXT.handoff.reviewDescription);
+}
+
+function itemCountText(count: number): string {
+  const key =
+    count === 1
+      ? PATIENT_PHARMACY_TEXT.medication.itemCountSingular
+      : PATIENT_PHARMACY_TEXT.medication.itemCountPlural;
+  return patientPharmacyText(key, { count });
+}
+
+function medicationStatusText(status: string): string {
+  if (status === "active") return patientPharmacyText(PATIENT_PHARMACY_TEXT.status.active);
+  if (status === "changed") return patientPharmacyText(PATIENT_PHARMACY_TEXT.status.changed);
+  if (status === "discontinued") {
+    return patientPharmacyText(PATIENT_PHARMACY_TEXT.status.discontinued);
+  }
+  return patientPharmacyText(PATIENT_PHARMACY_TEXT.status.unknown);
+}
+
 export function PatientPharmacyScreen({ route }: PatientPharmacyScreenProps) {
   const theme = useTheme();
   const { handoff, patientId, pharmacyOrderId, pharmacyRxQueueId } = route.params;
@@ -127,7 +174,10 @@ export function PatientPharmacyScreen({ route }: PatientPharmacyScreenProps) {
           <View style={styles.cardHeader}>
             <Avatar.Icon size={36} icon="pill" style={styles.cardIcon} />
             <View style={styles.cardTitle}>
-              <Text variant="titleMedium">{item.doctor_name || "Prescriber"}</Text>
+              <Text variant="titleMedium">
+                {item.doctor_name ||
+                  patientPharmacyText(PATIENT_PHARMACY_TEXT.medication.prescriberFallback)}
+              </Text>
               <Text variant="bodySmall" style={styles.mutedText}>
                 {prescriptionDate.toLocaleDateString()}
               </Text>
@@ -135,11 +185,11 @@ export function PatientPharmacyScreen({ route }: PatientPharmacyScreenProps) {
             <View style={styles.cardChips}>
               {selectedForHandoff && (
                 <Chip compact icon="link-variant" style={styles.selectedChip}>
-                  Selected order
+                  {patientPharmacyText(PATIENT_PHARMACY_TEXT.medication.selectedOrder)}
                 </Chip>
               )}
               <Chip compact mode="outlined">
-                {visibleItems.length} item{visibleItems.length === 1 ? "" : "s"}
+                {itemCountText(visibleItems.length)}
               </Chip>
             </View>
           </View>
@@ -167,7 +217,7 @@ export function PatientPharmacyScreen({ route }: PatientPharmacyScreenProps) {
                       : styles.activeChip
                   }
                 >
-                  {prescriptionItem.item_status}
+                  {medicationStatusText(prescriptionItem.item_status)}
                 </Chip>
               </View>
             ))}
@@ -182,25 +232,21 @@ export function PatientPharmacyScreen({ route }: PatientPharmacyScreenProps) {
       <Surface style={styles.handoffBanner} elevation={1}>
         <Avatar.Icon size={40} icon="pill" style={styles.handoffIcon} />
         <View style={styles.handoffText}>
-          <Text variant="titleSmall">
-            {handoff === "dispense" ? "Dispense handoff" : "Patient pharmacy"}
-          </Text>
+          <Text variant="titleSmall">{handoffTitle(handoff)}</Text>
           <Text variant="bodySmall" style={styles.mutedText}>
-            {pharmacyOrderId
-              ? "Selected order is linked from the patient journey for dispensing."
-              : pharmacyRxQueueId
-                ? "Selected prescription is waiting in pharmacy review before billing and dispense."
-                : "Review active and recent medicines before pharmacy fulfilment."}
+            {handoffDescription(pharmacyOrderId, pharmacyRxQueueId)}
           </Text>
         </View>
         <Chip compact mode="outlined">
-          {activeCount} active
+          {patientPharmacyText(PATIENT_PHARMACY_TEXT.handoff.activeCount, {
+            count: activeCount,
+          })}
         </Chip>
       </Surface>
 
       <View style={styles.searchContainer}>
         <Searchbar
-          placeholder="Search medicine, dosage, or doctor"
+          placeholder={patientPharmacyText(PATIENT_PHARMACY_TEXT.search.placeholder)}
           value={search}
           onChangeText={setSearch}
           style={styles.searchbar}
@@ -212,8 +258,14 @@ export function PatientPharmacyScreen({ route }: PatientPharmacyScreenProps) {
           value={filter}
           onValueChange={(value) => setFilter(value as PharmacyFilter)}
           buttons={[
-            { label: "Last 30 days", value: "recent" },
-            { label: "All history", value: "all" },
+            {
+              label: patientPharmacyText(PATIENT_PHARMACY_TEXT.filters.recent),
+              value: "recent",
+            },
+            {
+              label: patientPharmacyText(PATIENT_PHARMACY_TEXT.filters.allHistory),
+              value: "all",
+            },
           ]}
         />
       </View>
@@ -222,7 +274,7 @@ export function PatientPharmacyScreen({ route }: PatientPharmacyScreenProps) {
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" />
           <Text variant="bodyMedium" style={styles.mutedText}>
-            Loading pharmacy context...
+            {patientPharmacyText(PATIENT_PHARMACY_TEXT.loading.context)}
           </Text>
         </View>
       ) : prescriptions.length > 0 ? (
@@ -238,9 +290,11 @@ export function PatientPharmacyScreen({ route }: PatientPharmacyScreenProps) {
       ) : (
         <View style={styles.emptyContainer}>
           <Avatar.Icon size={64} icon="pill-off" style={styles.emptyIcon} />
-          <Text variant="titleMedium">No pharmacy context</Text>
+          <Text variant="titleMedium">
+            {patientPharmacyText(PATIENT_PHARMACY_TEXT.empty.title)}
+          </Text>
           <Text variant="bodyMedium" style={styles.emptyText}>
-            No medicines match this patient handoff.
+            {patientPharmacyText(PATIENT_PHARMACY_TEXT.empty.message)}
           </Text>
         </View>
       )}

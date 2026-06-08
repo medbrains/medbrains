@@ -409,6 +409,43 @@ export const MOBILE_PATIENT_CARD_TEXT = {
   },
 } as const;
 
+export const MOBILE_PATIENT_PHARMACY_TEXT = {
+  empty: {
+    message: "patientJourney.mobile.patientPharmacy.empty.message",
+    title: "patientJourney.mobile.patientPharmacy.empty.title",
+  },
+  filters: {
+    allHistory: "patientJourney.mobile.patientPharmacy.filters.allHistory",
+    recent: "patientJourney.mobile.patientPharmacy.filters.recent",
+  },
+  handoff: {
+    activeCount: "patientJourney.mobile.patientPharmacy.handoff.activeCount",
+    dispenseDescription: "patientJourney.mobile.patientPharmacy.handoff.dispenseDescription",
+    dispenseTitle: "patientJourney.mobile.patientPharmacy.handoff.dispenseTitle",
+    pharmacyTitle: "patientJourney.mobile.patientPharmacy.handoff.pharmacyTitle",
+    queueDescription: "patientJourney.mobile.patientPharmacy.handoff.queueDescription",
+    reviewDescription: "patientJourney.mobile.patientPharmacy.handoff.reviewDescription",
+  },
+  loading: {
+    context: "patientJourney.mobile.patientPharmacy.loading.context",
+  },
+  medication: {
+    itemCountPlural: "patientJourney.mobile.patientPharmacy.medication.itemCountPlural",
+    itemCountSingular: "patientJourney.mobile.patientPharmacy.medication.itemCountSingular",
+    prescriberFallback: "patientJourney.mobile.patientPharmacy.medication.prescriberFallback",
+    selectedOrder: "patientJourney.mobile.patientPharmacy.medication.selectedOrder",
+  },
+  search: {
+    placeholder: "patientJourney.mobile.patientPharmacy.search.placeholder",
+  },
+  status: {
+    active: "patientJourney.mobile.patientPharmacy.status.active",
+    changed: "patientJourney.mobile.patientPharmacy.status.changed",
+    discontinued: "patientJourney.mobile.patientPharmacy.status.discontinued",
+    unknown: "patientJourney.mobile.patientPharmacy.status.unknown",
+  },
+} as const;
+
 const MOBILE_PATIENT_JOURNEY_MESSAGES: Record<string, string> = {
   "patientJourney.blockedReasons.configuration": "Configuration",
   "patientJourney.blockedReasons.context": "Context",
@@ -654,6 +691,29 @@ const MOBILE_PATIENT_JOURNEY_MESSAGES: Record<string, string> = {
   "patientJourney.mobile.patientCard.fields.noUhid": "No UHID",
   "patientJourney.mobile.patientCard.fields.patientInitials": "PT",
   "patientJourney.mobile.patientCard.fields.unknownPatient": "Unknown patient",
+  "patientJourney.mobile.patientPharmacy.empty.message": "No medicines match this patient handoff.",
+  "patientJourney.mobile.patientPharmacy.empty.title": "No pharmacy context",
+  "patientJourney.mobile.patientPharmacy.filters.allHistory": "All history",
+  "patientJourney.mobile.patientPharmacy.filters.recent": "Last 30 days",
+  "patientJourney.mobile.patientPharmacy.handoff.activeCount": "{{count}} active",
+  "patientJourney.mobile.patientPharmacy.handoff.dispenseDescription":
+    "Selected order is linked from the patient journey for dispensing.",
+  "patientJourney.mobile.patientPharmacy.handoff.dispenseTitle": "Dispense handoff",
+  "patientJourney.mobile.patientPharmacy.handoff.pharmacyTitle": "Patient pharmacy",
+  "patientJourney.mobile.patientPharmacy.handoff.queueDescription":
+    "Selected prescription is waiting in pharmacy review before billing and dispense.",
+  "patientJourney.mobile.patientPharmacy.handoff.reviewDescription":
+    "Review active and recent medicines before pharmacy fulfilment.",
+  "patientJourney.mobile.patientPharmacy.loading.context": "Loading pharmacy context...",
+  "patientJourney.mobile.patientPharmacy.medication.itemCountPlural": "{{count}} items",
+  "patientJourney.mobile.patientPharmacy.medication.itemCountSingular": "{{count}} item",
+  "patientJourney.mobile.patientPharmacy.medication.prescriberFallback": "Prescriber",
+  "patientJourney.mobile.patientPharmacy.medication.selectedOrder": "Selected order",
+  "patientJourney.mobile.patientPharmacy.search.placeholder": "Search medicine, dosage, or doctor",
+  "patientJourney.mobile.patientPharmacy.status.active": "Active",
+  "patientJourney.mobile.patientPharmacy.status.changed": "Changed",
+  "patientJourney.mobile.patientPharmacy.status.discontinued": "Discontinued",
+  "patientJourney.mobile.patientPharmacy.status.unknown": "Unknown",
   "patientJourney.mobile.staffDashboard.common.greeting": "Good Morning,",
   "patientJourney.mobile.staffDashboard.common.staffFallback": "Staff",
   "patientJourney.mobile.staffDashboard.common.staffInitials": "ST",
