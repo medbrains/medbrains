@@ -220,21 +220,30 @@ export function activePatientPharmacyRxQueueIdForJourney(
   );
 }
 
-const REVIEWED_PHARMACY_STATUSES = new Set([
-  "approved",
-  "dispensing",
-  "dispensed",
-  "partially_dispensed",
-]);
+type PatientPharmacyPrescriptionReviewRow = Pick<
+  PrescriptionHistoryItem,
+  "pharmacy_order_id" | "pharmacy_status"
+>;
+
+const REVIEWED_PHARMACY_STATUSES = new Set<
+  NonNullable<PatientPharmacyPrescriptionReviewRow["pharmacy_status"]>
+>(["approved", "dispensing", "dispensed", "partially_dispensed"]);
+
+export function patientPharmacyPrescriptionHasReviewedStatus(
+  prescription: PatientPharmacyPrescriptionReviewRow,
+): boolean {
+  return (
+    prescription.pharmacy_order_id != null ||
+    (prescription.pharmacy_status != null &&
+      REVIEWED_PHARMACY_STATUSES.has(prescription.pharmacy_status))
+  );
+}
 
 export function hasReviewedPatientPharmacyPrescriptionForJourney(
-  prescriptions: readonly PrescriptionHistoryItem[],
+  prescriptions: readonly PatientPharmacyPrescriptionReviewRow[],
 ): boolean {
-  return prescriptions.some(
-    (prescription) =>
-      prescription.pharmacy_order_id != null ||
-      (prescription.pharmacy_status != null &&
-        REVIEWED_PHARMACY_STATUSES.has(prescription.pharmacy_status)),
+  return prescriptions.some((prescription) =>
+    patientPharmacyPrescriptionHasReviewedStatus(prescription),
   );
 }
 

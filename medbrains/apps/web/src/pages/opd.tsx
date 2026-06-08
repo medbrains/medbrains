@@ -49,7 +49,6 @@ import type {
   BookAppointmentGroupRequest,
   BookAppointmentRequest,
   Camp,
-  ClinicalEventName,
   ClinicalJourneyContext,
   Consultation,
   ConsultationTemplate,
@@ -72,7 +71,6 @@ import type {
   LabResult,
   LabTestCatalog,
   MedicalCertificate,
-  MrdCaseSheetPacket,
   PastMedicalEntry,
   PastSurgicalEntry,
   Patient,
@@ -226,6 +224,7 @@ import {
 import {
   activeOpdPharmacyOrderIdForJourney,
   activeOpdPharmacyRxQueueIdForJourney,
+  deriveOpdJourneyCompletedEvents,
   isOpdEncounterTabValue,
   OPD_ENCOUNTER_TAB_VALUES,
   opdEncounterOrderBasketRoute,
@@ -238,26 +237,6 @@ type OpdTranslate = ReturnType<typeof useTranslation>["t"];
 
 function humanizeWorkflowValue(value: string): string {
   return value.replace(/_/g, " ");
-}
-
-function deriveOpdJourneyCompletedEvents(
-  prescriptions: readonly PrescriptionWithItems[],
-  labOrders: readonly LabOrder[],
-  mrdCaseSheetPackets: readonly MrdCaseSheetPacket[],
-): readonly ClinicalEventName[] {
-  const events: ClinicalEventName[] = [];
-  if (prescriptions.length > 0 || labOrders.length > 0) {
-    events.push("order.created");
-  }
-  if (mrdCaseSheetPackets.length > 0) {
-    events.push("mrd.case_sheet.generated");
-  }
-  if (
-    mrdCaseSheetPackets.some((packet) => packet.status === "printed" || packet.printed_at !== null)
-  ) {
-    events.push("mrd.case_sheet.printed");
-  }
-  return events;
 }
 
 function queueStatusLabel(t: OpdTranslate, status: string): string {

@@ -11,7 +11,7 @@ import type {
   WorkflowSignalShape,
   WorkflowSignalTone,
 } from "@medbrains/types";
-import { P } from "@medbrains/types";
+import { hasReviewedPatientPharmacyPrescriptionForJourney, P } from "@medbrains/types";
 
 export type IpdActionRailSection =
   | "handoffs"
@@ -234,6 +234,9 @@ export function deriveIpdJourneyCompletedEvents({
   }
   if (hasOrders) {
     events.push("order.created");
+  }
+  if (hasReviewedPatientPharmacyPrescriptionForJourney(prescriptions)) {
+    events.push("pharmacy.prescription.reviewed");
   }
   if (invoices.length > 0) {
     events.push("billing.invoice.created");

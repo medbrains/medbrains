@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import {
   activeOpdPharmacyOrderIdForJourney,
   activeOpdPharmacyRxQueueIdForJourney,
+  deriveOpdJourneyCompletedEvents,
   isOpdEncounterTabValue,
   opdEncounterOrderBasketRoute,
   opdEncounterTabForOrderBasket,
@@ -17,11 +18,14 @@ function prescriptionWithItems(
   itemStatus = "active",
   pharmacyOrderId: string | null = null,
   pharmacyRxQueueId: string | null = null,
+  pharmacyStatus: PrescriptionWithItems["pharmacy_status"] = pharmacyOrderId
+    ? "dispensing"
+    : "pending_review",
 ): PrescriptionWithItems {
   return {
     pharmacy_order_id: pharmacyOrderId,
     pharmacy_rx_queue_id: pharmacyRxQueueId,
-    pharmacy_status: pharmacyOrderId ? "dispensing" : "pending_review",
+    pharmacy_status: pharmacyStatus,
     items: [
       {
         catalog_item_id: null,
@@ -122,5 +126,22 @@ describe("OPD encounter workspace routing", () => {
         completedEvents: ["order.created"],
       }),
     ).toBe("/pharmacy?tab=rx-queue&rx_queue_id=rx-queue-active&patient_id=patient-1");
+  });
+
+  it("derives pharmacy review events from OPD reviewed prescription status", () => {
+    expect(
+      deriveOpdJourneyCompletedEvents(
+        [prescriptionWithItems("approved-rx", "active", null, "rx-queue-1", "approved")],
+        [],
+        [],
+      ),
+    ).toEqual(["order.created", "pharmacy.prescription.reviewed"]);
+    expect(
+      deriveOpdJourneyCompletedEvents(
+        [prescriptionWithItems("pending-rx", "active", null, "rx-queue-1", "pending_review")],
+        [],
+        [],
+      ),
+    ).toEqual(["order.created"]);
   });
 });

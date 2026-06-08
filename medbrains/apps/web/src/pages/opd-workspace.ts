@@ -1,4 +1,10 @@
-import type { PrescriptionWithItems } from "@medbrains/types";
+import type {
+  ClinicalEventName,
+  LabOrder,
+  MrdCaseSheetPacket,
+  PrescriptionWithItems,
+} from "@medbrains/types";
+import { hasReviewedPatientPharmacyPrescriptionForJourney } from "@medbrains/types";
 
 export type OpdOrderBasketTab = "drug" | "lab" | "radiology";
 
@@ -86,4 +92,27 @@ export function activeOpdPharmacyRxQueueIdForJourney(
     )?.pharmacy_rx_queue_id ??
     null
   );
+}
+
+export function deriveOpdJourneyCompletedEvents(
+  prescriptions: readonly PrescriptionWithItems[],
+  labOrders: readonly LabOrder[],
+  mrdCaseSheetPackets: readonly MrdCaseSheetPacket[],
+): readonly ClinicalEventName[] {
+  const events: ClinicalEventName[] = [];
+  if (prescriptions.length > 0 || labOrders.length > 0) {
+    events.push("order.created");
+  }
+  if (hasReviewedPatientPharmacyPrescriptionForJourney(prescriptions)) {
+    events.push("pharmacy.prescription.reviewed");
+  }
+  if (mrdCaseSheetPackets.length > 0) {
+    events.push("mrd.case_sheet.generated");
+  }
+  if (
+    mrdCaseSheetPackets.some((packet) => packet.status === "printed" || packet.printed_at !== null)
+  ) {
+    events.push("mrd.case_sheet.printed");
+  }
+  return events;
 }

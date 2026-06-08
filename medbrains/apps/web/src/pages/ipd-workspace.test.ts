@@ -192,12 +192,15 @@ function prescriptionWithPharmacyOrder(pharmacyOrderId: string): PrescriptionWit
   };
 }
 
-function prescriptionWithRxQueue(rxQueueId: string): PrescriptionWithItems {
+function prescriptionWithRxQueue(
+  rxQueueId: string,
+  pharmacyStatus: PrescriptionWithItems["pharmacy_status"] = "pending_review",
+): PrescriptionWithItems {
   return {
     ...prescriptionWithPharmacyOrder(""),
     pharmacy_order_id: null,
     pharmacy_rx_queue_id: rxQueueId,
-    pharmacy_status: "pending_review",
+    pharmacy_status: pharmacyStatus,
   };
 }
 
@@ -548,5 +551,30 @@ describe("IPD journey handoff context", () => {
       "billing.payment.received",
       "pharmacy.order.dispensed",
     ]);
+  });
+
+  it("derives pharmacy review events from IPD reviewed prescription status", () => {
+    expect(
+      deriveIpdJourneyCompletedEvents({
+        admission: null,
+        dischargeSummary: null,
+        investigations: null,
+        invoices: [],
+        mrdCaseSheetPackets: [],
+        pharmacyOrders: [],
+        prescriptions: [prescriptionWithRxQueue("rx-queue-1", "approved")],
+      }),
+    ).toEqual(["order.created", "pharmacy.prescription.reviewed"]);
+    expect(
+      deriveIpdJourneyCompletedEvents({
+        admission: null,
+        dischargeSummary: null,
+        investigations: null,
+        invoices: [],
+        mrdCaseSheetPackets: [],
+        pharmacyOrders: [],
+        prescriptions: [prescriptionWithRxQueue("rx-queue-1", "pending_review")],
+      }),
+    ).toEqual(["order.created"]);
   });
 });

@@ -124,6 +124,7 @@ export {
   hasReviewedPatientPharmacyPrescriptionForJourney,
   patientFlowJourneyContext,
   patientFlowReadinessSignal,
+  patientPharmacyPrescriptionHasReviewedStatus,
 } from "./patient-flow.js";
 export type { PatientJourneyTranslator } from "./patient-journey-i18n.js";
 export {
