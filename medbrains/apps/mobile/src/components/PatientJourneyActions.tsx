@@ -20,6 +20,7 @@ import {
   mobileCampCareContextParams,
   mobileIpdCareContextParams,
 } from "../navigation/careContextParams";
+import { MEDBRAINS_COLORS } from "../theme/paper-theme";
 import {
   MOBILE_PATIENT_JOURNEY_BLOCKERS,
   MOBILE_PATIENT_JOURNEY_TEXT,
@@ -56,6 +57,15 @@ interface MobileActionBlocker {
   message: string;
   values?: ClinicalJourneyMessageValues;
   reason: ClinicalJourneyBlockedReason;
+}
+
+type MobileActionSignalShape = "circle" | "diamond" | "pill" | "ring" | "square";
+type MobileActionSignalTone = "danger" | "info" | "neutral" | "success" | "warning";
+
+interface MobileActionReadinessSignal {
+  emphasis: "high" | "standard";
+  shape: MobileActionSignalShape;
+  tone: MobileActionSignalTone;
 }
 
 const SUPPORTED_MOBILE_ACTIONS = new Set<ClinicalJourneyActionId>([
@@ -111,6 +121,98 @@ function supportedAction(
   action: ResolvedClinicalJourneyAction,
 ): action is ResolvedClinicalJourneyAction & { id: MobileJourneyActionId } {
   return SUPPORTED_MOBILE_ACTIONS.has(action.id);
+}
+
+function actionReadinessSignal(action: ResolvedClinicalJourneyAction): MobileActionReadinessSignal {
+  if (action.enabled) {
+    return { emphasis: "standard", shape: "pill", tone: "success" };
+  }
+
+  switch (action.blockedReason) {
+    case "configuration":
+      return { emphasis: "standard", shape: "square", tone: "warning" };
+    case "context":
+      return { emphasis: "standard", shape: "circle", tone: "warning" };
+    case "event":
+      return { emphasis: "standard", shape: "ring", tone: "info" };
+    case "masking":
+      return { emphasis: "high", shape: "ring", tone: "danger" };
+    case "permission":
+      return { emphasis: "high", shape: "diamond", tone: "danger" };
+    case "regulatory":
+      return { emphasis: "high", shape: "diamond", tone: "warning" };
+    default:
+      return { emphasis: "standard", shape: "circle", tone: "neutral" };
+  }
+}
+
+function actionSignalColors(tone: MobileActionSignalTone) {
+  switch (tone) {
+    case "danger":
+      return {
+        background: MEDBRAINS_COLORS.statusDangerBg,
+        border: MEDBRAINS_COLORS.statusDanger,
+        text: MEDBRAINS_COLORS.statusDanger,
+      };
+    case "info":
+      return {
+        background: MEDBRAINS_COLORS.navActiveBg,
+        border: MEDBRAINS_COLORS.statusInfo,
+        text: MEDBRAINS_COLORS.statusInfo,
+      };
+    case "success":
+      return {
+        background: MEDBRAINS_COLORS.statusSuccessBg,
+        border: MEDBRAINS_COLORS.statusSuccess,
+        text: MEDBRAINS_COLORS.statusSuccess,
+      };
+    case "warning":
+      return {
+        background: MEDBRAINS_COLORS.statusWarningBg,
+        border: MEDBRAINS_COLORS.statusWarning,
+        text: MEDBRAINS_COLORS.statusWarning,
+      };
+    default:
+      return {
+        background: MEDBRAINS_COLORS.navActiveBg,
+        border: MEDBRAINS_COLORS.muted,
+        text: MEDBRAINS_COLORS.muted,
+      };
+  }
+}
+
+function actionSignalStyle(signal: MobileActionReadinessSignal) {
+  const colors = actionSignalColors(signal.tone);
+  const size = signal.emphasis === "high" ? 16 : 13;
+  const base = {
+    backgroundColor: signal.shape === "ring" ? "transparent" : colors.background,
+    borderColor: colors.border,
+    borderWidth: signal.emphasis === "high" ? 2 : 1.5,
+    height: size,
+    width: signal.shape === "pill" ? size + 14 : size,
+  };
+
+  switch (signal.shape) {
+    case "circle":
+    case "ring":
+      return { ...base, borderRadius: 999 };
+    case "diamond":
+      return { ...base, borderRadius: 3, transform: [{ rotate: "45deg" }] };
+    case "pill":
+      return { ...base, borderRadius: 999 };
+    default:
+      return { ...base, borderRadius: 4 };
+  }
+}
+
+function ActionReadinessShape({
+  label,
+  signal,
+}: {
+  label: string;
+  signal: MobileActionReadinessSignal;
+}) {
+  return <View accessibilityLabel={label} style={actionSignalStyle(signal)} />;
 }
 
 function mobileActionBlocker(
@@ -377,18 +479,35 @@ export function PatientJourneyActions({
       <View style={styles.actions}>
         {actionStates.map((action) => {
           const blocked = !action.enabled;
+          const signal = actionReadinessSignal(action);
+          const signalColors = actionSignalColors(signal.tone);
           const reason = blocked
             ? journeyActionDisabledReason(mobilePatientJourneyTranslator, action)
             : journeyActionAvailability(mobilePatientJourneyTranslator, action);
           const blockedLabel = blocked
             ? journeyBlockedReasonLabel(mobilePatientJourneyTranslator, action.blockedReason)
             : null;
+          const readinessLabel =
+            blockedLabel ?? mobilePatientJourneyText(MOBILE_PATIENT_JOURNEY_TEXT.status.ready);
 
           return (
             <View
               key={action.id}
-              style={[styles.actionBlock, blocked && styles.blockedActionBlock]}
+              style={[
+                styles.actionBlock,
+                { borderLeftColor: signalColors.border },
+                blocked && styles.blockedActionBlock,
+              ]}
             >
+              <View style={styles.actionStateRow}>
+                <ActionReadinessShape label={readinessLabel} signal={signal} />
+                <Text
+                  variant="labelSmall"
+                  style={[styles.actionStateText, { color: signalColors.text }]}
+                >
+                  {readinessLabel}
+                </Text>
+              </View>
               <Button
                 mode={action.intent === "primary" ? "contained" : "outlined"}
                 icon={actionIcon(action.id)}
@@ -399,9 +518,7 @@ export function PatientJourneyActions({
                 {journeyActionShortLabel(mobilePatientJourneyTranslator, action.id)}
               </Button>
               <Text variant="labelSmall" style={styles.reason}>
-                {blocked && reason
-                  ? `${blockedLabel ?? mobilePatientJourneyText(MOBILE_PATIENT_JOURNEY_TEXT.status.blocked)}: ${reason}`
-                  : reason}
+                {reason}
               </Text>
             </View>
           );
@@ -443,10 +560,21 @@ const styles = StyleSheet.create({
   actionBlock: {
     minWidth: 118,
     flexGrow: 1,
-    gap: 4,
+    borderLeftWidth: 3,
+    gap: 5,
+    paddingLeft: 8,
   },
   blockedActionBlock: {
     opacity: 0.72,
+  },
+  actionStateRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 6,
+    minHeight: 18,
+  },
+  actionStateText: {
+    fontWeight: "700",
   },
   reason: {
     opacity: 0.6,
