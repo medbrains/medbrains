@@ -5,6 +5,20 @@ import type {
   AccessMatrixSurfaceKind,
   AccessMatrixWorkflowExpectation,
   FieldMasterFull,
+  WorkflowSignalShape,
+  WorkflowSignalShapeSemantic,
+  WorkflowSignalTone,
+} from "@medbrains/types";
+import {
+  bedBoardStatusSignal,
+  billingInvoiceBalanceSignal,
+  billingInvoiceStatusSignal,
+  clinicalJourneyActionSignal,
+  patientContextSignal,
+  pharmacyRxPrioritySignal,
+  pharmacyRxSourceSignal,
+  pharmacyRxStatusSignal,
+  WORKFLOW_SIGNAL_SHAPE_DEFINITIONS,
 } from "@medbrains/types";
 import type { NavGroupConfig, NavItemConfig } from "@/config/navigation";
 
@@ -196,6 +210,57 @@ export interface PatientFlowGovernanceSummary {
   edgeReady: number;
 }
 
+export type WorkflowShapeGovernanceGap =
+  | "missing-access-surface"
+  | "missing-event"
+  | "missing-masking"
+  | "missing-platform"
+  | "missing-semantic";
+
+export interface WorkflowShapeSignalScenario {
+  key: string;
+  labelKey: string;
+  shape: WorkflowSignalShape;
+  tone: WorkflowSignalTone;
+  semantic: WorkflowSignalShapeSemantic;
+  expectedSemantic: WorkflowSignalShapeSemantic;
+  covered: boolean;
+}
+
+export interface WorkflowShapeGovernanceExpectation {
+  key: string;
+  labelKey: string;
+  descriptionKey: string;
+  modules: readonly string[];
+  requiredSemantics: readonly WorkflowSignalShapeSemantic[];
+  requiredPlatforms: readonly AccessMatrixPlatform[];
+  requiresEventActivation: boolean;
+  requiresMasking: boolean;
+  scenarios: readonly WorkflowShapeSignalScenario[];
+}
+
+export interface WorkflowShapeGovernanceRow extends WorkflowShapeGovernanceExpectation {
+  accessSurfaceCount: number;
+  eventActivated: number;
+  gaps: readonly WorkflowShapeGovernanceGap[];
+  maskingMapped: number;
+  missingPlatforms: readonly AccessMatrixPlatform[];
+  missingSemantics: readonly WorkflowSignalShapeSemantic[];
+  platforms: readonly AccessMatrixPlatform[];
+  presentSemantics: readonly WorkflowSignalShapeSemantic[];
+  semanticMismatches: number;
+}
+
+export interface WorkflowShapeGovernanceSummary {
+  total: number;
+  complete: number;
+  gaps: number;
+  stopCheckMapped: number;
+  handoffMapped: number;
+  readyMapped: number;
+  bedAssignmentMapped: number;
+}
+
 export const PATIENT_FLOW_GOVERNANCE_EXPECTATIONS: readonly PatientFlowGovernanceExpectation[] = [
   {
     key: "registration",
@@ -261,6 +326,203 @@ export const PATIENT_FLOW_GOVERNANCE_EXPECTATIONS: readonly PatientFlowGovernanc
     requiresPublicDisplayPolicy: true,
   },
 ];
+
+function workflowShapeScenario(
+  key: string,
+  labelKey: string,
+  signal: { shape: WorkflowSignalShape; tone: WorkflowSignalTone },
+  expectedSemantic: WorkflowSignalShapeSemantic,
+): WorkflowShapeSignalScenario {
+  const semantic = WORKFLOW_SIGNAL_SHAPE_DEFINITIONS[signal.shape].semantic;
+
+  return {
+    key,
+    labelKey,
+    shape: signal.shape,
+    tone: signal.tone,
+    semantic,
+    expectedSemantic,
+    covered: semantic === expectedSemantic,
+  };
+}
+
+export const WORKFLOW_SHAPE_GOVERNANCE_EXPECTATIONS: readonly WorkflowShapeGovernanceExpectation[] =
+  [
+    {
+      key: "patient_context",
+      labelKey: "accessMatrix.shapeGovernance.families.patientContext.label",
+      descriptionKey: "accessMatrix.shapeGovernance.families.patientContext.description",
+      modules: ["patients", "opd", "emergency"],
+      requiredSemantics: ["stop_or_safety_attention", "handoff_or_queue", "ready_or_complete"],
+      requiredPlatforms: ["web", "mobile"],
+      requiresEventActivation: true,
+      requiresMasking: true,
+      scenarios: [
+        workflowShapeScenario(
+          "patient_context.drug_allergy",
+          "accessMatrix.shapeGovernance.scenarios.patientDrugAllergy",
+          patientContextSignal("drug_allergy"),
+          "stop_or_safety_attention",
+        ),
+        workflowShapeScenario(
+          "patient_context.vitals_missing",
+          "accessMatrix.shapeGovernance.scenarios.patientVitalsMissing",
+          patientContextSignal("vitals_missing"),
+          "handoff_or_queue",
+        ),
+        workflowShapeScenario(
+          "patient_context.no_known_allergies",
+          "accessMatrix.shapeGovernance.scenarios.patientNoKnownAllergies",
+          patientContextSignal("no_known_allergies"),
+          "ready_or_complete",
+        ),
+      ],
+    },
+    {
+      key: "prescription",
+      labelKey: "accessMatrix.shapeGovernance.families.prescription.label",
+      descriptionKey: "accessMatrix.shapeGovernance.families.prescription.description",
+      modules: ["opd", "pharmacy"],
+      requiredSemantics: ["stop_or_safety_attention", "handoff_or_queue", "ready_or_complete"],
+      requiredPlatforms: ["web", "mobile", "tv", "kiosk"],
+      requiresEventActivation: true,
+      requiresMasking: true,
+      scenarios: [
+        workflowShapeScenario(
+          "prescription.pending_review",
+          "accessMatrix.shapeGovernance.scenarios.prescriptionPendingReview",
+          pharmacyRxStatusSignal("pending_review"),
+          "stop_or_safety_attention",
+        ),
+        workflowShapeScenario(
+          "prescription.urgent_priority",
+          "accessMatrix.shapeGovernance.scenarios.prescriptionUrgentPriority",
+          pharmacyRxPrioritySignal("urgent"),
+          "stop_or_safety_attention",
+        ),
+        workflowShapeScenario(
+          "prescription.ipd_source",
+          "accessMatrix.shapeGovernance.scenarios.prescriptionIpdSource",
+          pharmacyRxSourceSignal("ipd"),
+          "handoff_or_queue",
+        ),
+        workflowShapeScenario(
+          "prescription.dispensing",
+          "accessMatrix.shapeGovernance.scenarios.prescriptionDispensing",
+          pharmacyRxStatusSignal("dispensing"),
+          "handoff_or_queue",
+        ),
+        workflowShapeScenario(
+          "prescription.dispensed",
+          "accessMatrix.shapeGovernance.scenarios.prescriptionDispensed",
+          pharmacyRxStatusSignal("dispensed"),
+          "ready_or_complete",
+        ),
+      ],
+    },
+    {
+      key: "bed_management",
+      labelKey: "accessMatrix.shapeGovernance.families.bedManagement.label",
+      descriptionKey: "accessMatrix.shapeGovernance.families.bedManagement.description",
+      modules: ["ipd", "emergency"],
+      requiredSemantics: ["bed_assignment", "handoff_or_queue", "stop_or_safety_attention"],
+      requiredPlatforms: ["web", "mobile", "tv", "kiosk"],
+      requiresEventActivation: true,
+      requiresMasking: true,
+      scenarios: [
+        workflowShapeScenario(
+          "bed_management.vacant_clean",
+          "accessMatrix.shapeGovernance.scenarios.bedVacantClean",
+          bedBoardStatusSignal("vacant_clean"),
+          "bed_assignment",
+        ),
+        workflowShapeScenario(
+          "bed_management.occupied",
+          "accessMatrix.shapeGovernance.scenarios.bedOccupied",
+          bedBoardStatusSignal("occupied"),
+          "bed_assignment",
+        ),
+        workflowShapeScenario(
+          "bed_management.waiting",
+          "accessMatrix.shapeGovernance.scenarios.bedWaiting",
+          bedBoardStatusSignal("waiting"),
+          "handoff_or_queue",
+        ),
+        workflowShapeScenario(
+          "bed_management.vacant_dirty",
+          "accessMatrix.shapeGovernance.scenarios.bedVacantDirty",
+          bedBoardStatusSignal("vacant_dirty"),
+          "stop_or_safety_attention",
+        ),
+      ],
+    },
+    {
+      key: "billing",
+      labelKey: "accessMatrix.shapeGovernance.families.billing.label",
+      descriptionKey: "accessMatrix.shapeGovernance.families.billing.description",
+      modules: ["billing"],
+      requiredSemantics: ["stop_or_safety_attention", "handoff_or_queue", "ready_or_complete"],
+      requiredPlatforms: ["web", "mobile", "tv", "kiosk"],
+      requiresEventActivation: true,
+      requiresMasking: true,
+      scenarios: [
+        workflowShapeScenario(
+          "billing.restricted_balance",
+          "accessMatrix.shapeGovernance.scenarios.billingRestrictedBalance",
+          billingInvoiceBalanceSignal(100, false),
+          "stop_or_safety_attention",
+        ),
+        workflowShapeScenario(
+          "billing.payable_invoice",
+          "accessMatrix.shapeGovernance.scenarios.billingPayableInvoice",
+          billingInvoiceStatusSignal("issued"),
+          "handoff_or_queue",
+        ),
+        workflowShapeScenario(
+          "billing.settled_invoice",
+          "accessMatrix.shapeGovernance.scenarios.billingSettledInvoice",
+          billingInvoiceStatusSignal("paid"),
+          "ready_or_complete",
+        ),
+      ],
+    },
+    {
+      key: "module_handoff",
+      labelKey: "accessMatrix.shapeGovernance.families.moduleHandoff.label",
+      descriptionKey: "accessMatrix.shapeGovernance.families.moduleHandoff.description",
+      modules: ["patients", "opd", "ipd", "emergency", "camp", "pharmacy", "billing", "mrd"],
+      requiredSemantics: ["stop_or_safety_attention", "handoff_or_queue", "ready_or_complete"],
+      requiredPlatforms: ["web", "mobile", "tv", "kiosk"],
+      requiresEventActivation: true,
+      requiresMasking: true,
+      scenarios: [
+        workflowShapeScenario(
+          "module_handoff.ready",
+          "accessMatrix.shapeGovernance.scenarios.handoffReady",
+          clinicalJourneyActionSignal({ blockedReason: null, enabled: true }),
+          "ready_or_complete",
+        ),
+        workflowShapeScenario(
+          "module_handoff.waiting_event",
+          "accessMatrix.shapeGovernance.scenarios.handoffWaitingEvent",
+          clinicalJourneyActionSignal({ blockedReason: "event", enabled: false }),
+          "handoff_or_queue",
+        ),
+        workflowShapeScenario(
+          "module_handoff.permission_blocked",
+          "accessMatrix.shapeGovernance.scenarios.handoffPermissionBlocked",
+          clinicalJourneyActionSignal({ blockedReason: "permission", enabled: false }),
+          "stop_or_safety_attention",
+        ),
+        workflowShapeScenario(
+          "module_handoff.masking_blocked",
+          "accessMatrix.shapeGovernance.scenarios.handoffMaskingBlocked",
+          clinicalJourneyActionSignal({ blockedReason: "masking", enabled: false }),
+          "stop_or_safety_attention",
+        ),
+      ],
+    },
+  ];
 
 interface NavRouteRequirement {
   path: string;
@@ -808,5 +1070,77 @@ export function summarizePatientFlowGovernance(
     edgeReady: rows.filter(
       (row) => row.missingPlatforms.length === 0 && row.missingLaunchTargetPlatforms.length === 0,
     ).length,
+  };
+}
+
+export function buildWorkflowShapeGovernanceCoverage(
+  surfaces: readonly AccessMatrixSurface[],
+  expectations: readonly WorkflowShapeGovernanceExpectation[] = WORKFLOW_SHAPE_GOVERNANCE_EXPECTATIONS,
+): WorkflowShapeGovernanceRow[] {
+  return expectations.map((expectation) => {
+    const workflowSurfaces = surfaces.filter((surface) =>
+      expectation.modules.includes(surface.module),
+    );
+    const presentSemantics = [
+      ...new Set(expectation.scenarios.map((scenario) => scenario.semantic)),
+    ].sort();
+    const platforms = [
+      ...new Set(workflowSurfaces.flatMap((surface) => [...surface.platforms])),
+    ].sort();
+    const missingPlatforms = expectation.requiredPlatforms.filter(
+      (platform) => !platforms.includes(platform),
+    );
+    const missingSemantics = expectation.requiredSemantics.filter(
+      (semantic) => !presentSemantics.includes(semantic),
+    );
+    const rowWithoutGaps = {
+      ...expectation,
+      accessSurfaceCount: workflowSurfaces.length,
+      eventActivated: workflowSurfaces.filter((surface) => surface.activatesAfter.length > 0)
+        .length,
+      gaps: [],
+      maskingMapped: workflowSurfaces.filter((surface) => surface.masking !== "none").length,
+      missingPlatforms,
+      missingSemantics,
+      platforms,
+      presentSemantics,
+      semanticMismatches: expectation.scenarios.filter((scenario) => !scenario.covered).length,
+    } satisfies Omit<WorkflowShapeGovernanceRow, "gaps"> & {
+      gaps: readonly WorkflowShapeGovernanceGap[];
+    };
+    const gaps: WorkflowShapeGovernanceGap[] = [];
+
+    if (rowWithoutGaps.accessSurfaceCount === 0) gaps.push("missing-access-surface");
+    if (rowWithoutGaps.missingPlatforms.length > 0) gaps.push("missing-platform");
+    if (rowWithoutGaps.missingSemantics.length > 0 || rowWithoutGaps.semanticMismatches > 0) {
+      gaps.push("missing-semantic");
+    }
+    if (expectation.requiresMasking && rowWithoutGaps.maskingMapped === 0) {
+      gaps.push("missing-masking");
+    }
+    if (expectation.requiresEventActivation && rowWithoutGaps.eventActivated === 0) {
+      gaps.push("missing-event");
+    }
+
+    return {
+      ...rowWithoutGaps,
+      gaps,
+    };
+  });
+}
+
+export function summarizeWorkflowShapeGovernance(
+  rows: readonly WorkflowShapeGovernanceRow[],
+): WorkflowShapeGovernanceSummary {
+  return {
+    total: rows.length,
+    complete: rows.filter((row) => row.gaps.length === 0).length,
+    gaps: rows.filter((row) => row.gaps.length > 0).length,
+    stopCheckMapped: rows.filter((row) => row.presentSemantics.includes("stop_or_safety_attention"))
+      .length,
+    handoffMapped: rows.filter((row) => row.presentSemantics.includes("handoff_or_queue")).length,
+    readyMapped: rows.filter((row) => row.presentSemantics.includes("ready_or_complete")).length,
+    bedAssignmentMapped: rows.filter((row) => row.presentSemantics.includes("bed_assignment"))
+      .length,
   };
 }

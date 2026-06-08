@@ -47,7 +47,9 @@ import {
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useSearchParams } from "react-router";
+import { OperationalSignal } from "@/components/OperationalSignal";
 import { NAV_GROUPS } from "@/config/navigation";
 import { usePacedQueryValue } from "@/hooks/usePacedQueryValue";
 import { adminAccessService } from "@/services/adminAccess.service";
@@ -69,6 +71,7 @@ import {
   buildNavRouteCoverage,
   buildPatientFlowGovernanceCoverage,
   buildWorkflowKindCoverage,
+  buildWorkflowShapeGovernanceCoverage,
   type PatientFlowGovernanceGap,
   summarizeAccessFieldCoverage,
   summarizeAccessPlatformCoverage,
@@ -76,6 +79,8 @@ import {
   summarizeNavRouteCoverage,
   summarizePatientFlowGovernance,
   summarizeWorkflowKindCoverage,
+  summarizeWorkflowShapeGovernance,
+  type WorkflowShapeGovernanceGap,
 } from "./access-matrix-coverage";
 import {
   type PermissionSourceResolution,
@@ -132,6 +137,13 @@ const PATIENT_FLOW_GOVERNANCE_GAP_LABELS: Record<PatientFlowGovernanceGap, strin
   "missing-activation": "event",
   "missing-print": "print",
   "missing-public-display-policy": "public display",
+};
+const WORKFLOW_SHAPE_GOVERNANCE_GAP_KEYS: Record<WorkflowShapeGovernanceGap, string> = {
+  "missing-access-surface": "accessMatrix.shapeGovernance.gaps.accessSurface",
+  "missing-event": "accessMatrix.shapeGovernance.gaps.event",
+  "missing-masking": "accessMatrix.shapeGovernance.gaps.masking",
+  "missing-platform": "accessMatrix.shapeGovernance.gaps.platform",
+  "missing-semantic": "accessMatrix.shapeGovernance.gaps.semantic",
 };
 
 type FieldOverrideLevel = FieldAccessLevel | "inherit";
@@ -1623,6 +1635,7 @@ function EffectiveUserAccessMatrix({
 }
 
 function SurfaceCoverageMatrix() {
+  const { t } = useTranslation("admin");
   const [surfaceFilter, setSurfaceFilter] = useState("");
   const pacedSurfaceFilter = usePacedQueryValue(surfaceFilter, 200).trim().toLowerCase();
   const [moduleFilter, setModuleFilter] = useState<string | null>(null);
@@ -1680,6 +1693,14 @@ function SurfaceCoverageMatrix() {
   const patientFlowGovernanceSummary = useMemo(
     () => summarizePatientFlowGovernance(patientFlowGovernanceRows),
     [patientFlowGovernanceRows],
+  );
+  const workflowShapeGovernanceRows = useMemo(
+    () => buildWorkflowShapeGovernanceCoverage(ACCESS_MATRIX_SURFACES),
+    [],
+  );
+  const workflowShapeGovernanceSummary = useMemo(
+    () => summarizeWorkflowShapeGovernance(workflowShapeGovernanceRows),
+    [workflowShapeGovernanceRows],
   );
   const fieldKeysMissingFromRegistry = [...coveredFieldKeys].filter((key) => !fieldsByKey.has(key));
   const registeredFieldsNotMapped = FIELD_ACCESS_FIELDS.filter(
@@ -1915,6 +1936,21 @@ function SurfaceCoverageMatrix() {
         </Card>
         <Card withBorder padding="sm">
           <Text size="xs" c="dimmed" fw={700} tt="uppercase">
+            {t("accessMatrix.shapeGovernance.summaryLabel")}
+          </Text>
+          <Text fw={700}>
+            {workflowShapeGovernanceSummary.complete}/{workflowShapeGovernanceSummary.total}
+          </Text>
+          <Text size="xs" c="dimmed">
+            {t("accessMatrix.shapeGovernance.summaryDetail", {
+              bed: workflowShapeGovernanceSummary.bedAssignmentMapped,
+              handoff: workflowShapeGovernanceSummary.handoffMapped,
+              stop: workflowShapeGovernanceSummary.stopCheckMapped,
+            })}
+          </Text>
+        </Card>
+        <Card withBorder padding="sm">
+          <Text size="xs" c="dimmed" fw={700} tt="uppercase">
             Surface Governance
           </Text>
           <Text fw={700}>
@@ -2091,6 +2127,139 @@ function SurfaceCoverageMatrix() {
                       ) : (
                         <Badge color="green" variant="light">
                           complete
+                        </Badge>
+                      )}
+                    </Table.Td>
+                  </Table.Tr>
+                ))}
+              </Table.Tbody>
+            </Table>
+          </ScrollArea.Autosize>
+        </Stack>
+      </Card>
+
+      <Card withBorder padding="md">
+        <Stack gap="sm">
+          <Group justify="space-between" align="flex-start">
+            <Stack gap={2}>
+              <Text fw={700}>{t("accessMatrix.shapeGovernance.title")}</Text>
+              <Text size="sm" c="dimmed">
+                {t("accessMatrix.shapeGovernance.description")}
+              </Text>
+            </Stack>
+            <Badge
+              color={workflowShapeGovernanceSummary.gaps > 0 ? "orange" : "green"}
+              variant="light"
+            >
+              {t("accessMatrix.shapeGovernance.gapBadge", {
+                count: workflowShapeGovernanceSummary.gaps,
+              })}
+            </Badge>
+          </Group>
+
+          <ScrollArea.Autosize mah={420}>
+            <Table stickyHeader highlightOnHover verticalSpacing="xs">
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th>{t("accessMatrix.shapeGovernance.columns.workflow")}</Table.Th>
+                  <Table.Th>{t("accessMatrix.shapeGovernance.columns.shapeCues")}</Table.Th>
+                  <Table.Th>{t("accessMatrix.shapeGovernance.columns.semantics")}</Table.Th>
+                  <Table.Th>{t("accessMatrix.shapeGovernance.columns.platforms")}</Table.Th>
+                  <Table.Th>{t("accessMatrix.shapeGovernance.columns.accessEvidence")}</Table.Th>
+                  <Table.Th>{t("accessMatrix.shapeGovernance.columns.gaps")}</Table.Th>
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
+                {workflowShapeGovernanceRows.map((row) => (
+                  <Table.Tr key={row.key}>
+                    <Table.Td>
+                      <Text size="sm" fw={600}>
+                        {t(row.labelKey)}
+                      </Text>
+                      <Text size="xs" c="dimmed">
+                        {t(row.descriptionKey)}
+                      </Text>
+                      <Group gap={4} mt={4}>
+                        {row.modules.map((module) => (
+                          <Badge key={module} variant="light">
+                            {module}
+                          </Badge>
+                        ))}
+                      </Group>
+                    </Table.Td>
+                    <Table.Td>
+                      <Stack gap={4}>
+                        {row.scenarios.map((scenario) => (
+                          <OperationalSignal
+                            key={scenario.key}
+                            label={t(scenario.labelKey)}
+                            shape={scenario.shape}
+                            size="xs"
+                            tone={scenario.tone}
+                          />
+                        ))}
+                      </Stack>
+                    </Table.Td>
+                    <Table.Td>
+                      <Stack gap={4}>
+                        {row.requiredSemantics.map((semantic) => (
+                          <Badge
+                            key={semantic}
+                            color={row.missingSemantics.includes(semantic) ? "orange" : "blue"}
+                            variant="light"
+                          >
+                            {t(`accessMatrix.shapeGovernance.semantics.${semantic}`)}
+                          </Badge>
+                        ))}
+                      </Stack>
+                    </Table.Td>
+                    <Table.Td>
+                      <Group gap={4}>
+                        {row.requiredPlatforms.map((platform) => (
+                          <Badge
+                            key={platform}
+                            color={row.missingPlatforms.includes(platform) ? "orange" : "green"}
+                            variant="light"
+                          >
+                            {platform}
+                          </Badge>
+                        ))}
+                      </Group>
+                    </Table.Td>
+                    <Table.Td>
+                      <Stack gap={4}>
+                        <Badge
+                          color={row.accessSurfaceCount > 0 ? "blue" : "orange"}
+                          variant="light"
+                        >
+                          {t("accessMatrix.shapeGovernance.evidence.surfaces", {
+                            count: row.accessSurfaceCount,
+                          })}
+                        </Badge>
+                        <Badge color={row.maskingMapped > 0 ? "violet" : "orange"} variant="light">
+                          {t("accessMatrix.shapeGovernance.evidence.masking", {
+                            count: row.maskingMapped,
+                          })}
+                        </Badge>
+                        <Badge color={row.eventActivated > 0 ? "green" : "orange"} variant="light">
+                          {t("accessMatrix.shapeGovernance.evidence.events", {
+                            count: row.eventActivated,
+                          })}
+                        </Badge>
+                      </Stack>
+                    </Table.Td>
+                    <Table.Td>
+                      {row.gaps.length > 0 ? (
+                        <Group gap={4}>
+                          {row.gaps.map((gap) => (
+                            <Badge key={gap} color="orange" variant="light">
+                              {t(WORKFLOW_SHAPE_GOVERNANCE_GAP_KEYS[gap])}
+                            </Badge>
+                          ))}
+                        </Group>
+                      ) : (
+                        <Badge color="green" variant="light">
+                          {t("accessMatrix.shapeGovernance.complete")}
                         </Badge>
                       )}
                     </Table.Td>

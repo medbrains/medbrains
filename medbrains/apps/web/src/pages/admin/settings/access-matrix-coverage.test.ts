@@ -19,6 +19,7 @@ import {
   buildNavRouteCoverage,
   buildPatientFlowGovernanceCoverage,
   buildWorkflowKindCoverage,
+  buildWorkflowShapeGovernanceCoverage,
   flattenNavRoutes,
   normalizeCoverageRoute,
   summarizeAccessFieldCoverage,
@@ -27,6 +28,7 @@ import {
   summarizeNavRouteCoverage,
   summarizePatientFlowGovernance,
   summarizeWorkflowKindCoverage,
+  summarizeWorkflowShapeGovernance,
 } from "./access-matrix-coverage";
 import { REPORT_EVENT_SOURCE_DEFINITIONS } from "./report-event-coverage";
 
@@ -489,6 +491,79 @@ describe("access matrix route coverage", () => {
       expect.arrayContaining(["web", "mobile", "tv", "kiosk"]),
     );
     expect(billing?.publicDisclosureMapped).toBeGreaterThan(0);
+  });
+
+  it("governs shape semantics for patient, prescription, bed, billing and handoff workflows", () => {
+    const rows = buildWorkflowShapeGovernanceCoverage(ACCESS_MATRIX_SURFACES);
+    const summary = summarizeWorkflowShapeGovernance(rows);
+    const prescription = rows.find((row) => row.key === "prescription");
+    const bedManagement = rows.find((row) => row.key === "bed_management");
+    const billing = rows.find((row) => row.key === "billing");
+
+    expect(summary).toEqual({
+      total: 5,
+      complete: 5,
+      gaps: 0,
+      stopCheckMapped: 5,
+      handoffMapped: 5,
+      readyMapped: 4,
+      bedAssignmentMapped: 1,
+    });
+    expect(prescription?.presentSemantics).toEqual(
+      expect.arrayContaining(["handoff_or_queue", "ready_or_complete", "stop_or_safety_attention"]),
+    );
+    expect(bedManagement?.presentSemantics).toEqual(
+      expect.arrayContaining(["bed_assignment", "handoff_or_queue", "stop_or_safety_attention"]),
+    );
+    expect(bedManagement?.platforms).toEqual(
+      expect.arrayContaining(["web", "mobile", "tv", "kiosk"]),
+    );
+    expect(billing?.maskingMapped).toBeGreaterThan(0);
+  });
+
+  it("reports shape governance gaps when semantics are missing or not platform linked", () => {
+    const rows = buildWorkflowShapeGovernanceCoverage(
+      [
+        testSurface({
+          id: "ipd.demo.screen",
+          label: "IPD demo",
+          module: "ipd",
+          route: "/ipd",
+          requiredPermissions: ["ipd.admissions.view"],
+          fieldAccessKeys: ["patients.uhid"],
+          masking: "identity",
+          platforms: ["web"],
+        }),
+      ],
+      [
+        {
+          key: "demo_bed_management",
+          labelKey: "demo.label",
+          descriptionKey: "demo.description",
+          modules: ["ipd"],
+          requiredSemantics: ["bed_assignment", "stop_or_safety_attention"],
+          requiredPlatforms: ["web", "tv"],
+          requiresEventActivation: true,
+          requiresMasking: true,
+          scenarios: [
+            {
+              key: "demo.ready",
+              labelKey: "demo.ready",
+              shape: "pill",
+              tone: "ready",
+              semantic: "ready_or_complete",
+              expectedSemantic: "bed_assignment",
+              covered: false,
+            },
+          ],
+        },
+      ],
+    );
+
+    expect(rows[0]?.gaps).toEqual(
+      expect.arrayContaining(["missing-event", "missing-platform", "missing-semantic"]),
+    );
+    expect(rows[0]?.missingSemantics).toEqual(["bed_assignment", "stop_or_safety_attention"]);
   });
 
   it("maps indent lifecycle and stock movement events to governed store surfaces", () => {
