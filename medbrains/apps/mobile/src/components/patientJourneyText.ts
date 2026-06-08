@@ -942,6 +942,14 @@ export const MOBILE_PRESCRIPTION_TEXT = {
 } as const;
 
 const MOBILE_PATIENT_JOURNEY_MESSAGES: Record<string, string> = {
+  "patientJourney.actionSignals.blocked": "Blocked",
+  "patientJourney.actionSignals.blockedByConfiguration": "Configuration needed",
+  "patientJourney.actionSignals.blockedByContext": "Context needed",
+  "patientJourney.actionSignals.blockedByMasking": "Masking setup needed",
+  "patientJourney.actionSignals.blockedByPermission": "Permission blocked",
+  "patientJourney.actionSignals.blockedByRegulatory": "Regulatory check needed",
+  "patientJourney.actionSignals.ready": "Ready",
+  "patientJourney.actionSignals.waitingForEvent": "Waiting on event",
   "patientJourney.blockedReasons.configuration": "Configuration",
   "patientJourney.blockedReasons.context": "Context",
   "patientJourney.blockedReasons.event": "Event",

@@ -95,6 +95,8 @@ export type {
 export {
   CORE_PATIENT_JOURNEY_ACTIONS,
   clinicalJourneyActionSignal,
+  clinicalJourneyActionSignalLabel,
+  clinicalJourneyActionSignalLabelKey,
   deriveCampJourneyCompletedEvents,
   inferClinicalJourneyEventNames,
   resolveClinicalJourneyActions,
@@ -133,6 +135,7 @@ export {
   journeyActionDisabledReason,
   journeyActionLabel,
   journeyActionShortLabel,
+  journeyActionSignalLabel,
   journeyBlockedReasonLabel,
   journeyMessage,
   patientFlowItemDescription,

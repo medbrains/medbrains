@@ -192,6 +192,38 @@ export interface ClinicalJourneyActionSignal {
   tone: ClinicalJourneyActionSignalTone;
 }
 
+const CLINICAL_JOURNEY_ACTION_SIGNAL_LABEL_KEYS = {
+  blocked: "patientJourney.actionSignals.blocked",
+  blocked_by_configuration: "patientJourney.actionSignals.blockedByConfiguration",
+  blocked_by_context: "patientJourney.actionSignals.blockedByContext",
+  blocked_by_masking: "patientJourney.actionSignals.blockedByMasking",
+  blocked_by_permission: "patientJourney.actionSignals.blockedByPermission",
+  blocked_by_regulatory: "patientJourney.actionSignals.blockedByRegulatory",
+  ready: "patientJourney.actionSignals.ready",
+  waiting_for_event: "patientJourney.actionSignals.waitingForEvent",
+} as const satisfies Record<ClinicalJourneyActionSignalPhase, string>;
+
+const CLINICAL_JOURNEY_ACTION_SIGNAL_LABELS = {
+  blocked: "Blocked",
+  blocked_by_configuration: "Configuration needed",
+  blocked_by_context: "Context needed",
+  blocked_by_masking: "Masking setup needed",
+  blocked_by_permission: "Permission blocked",
+  blocked_by_regulatory: "Regulatory check needed",
+  ready: "Ready",
+  waiting_for_event: "Waiting on event",
+} as const satisfies Record<ClinicalJourneyActionSignalPhase, string>;
+
+export function clinicalJourneyActionSignalLabelKey(
+  phase: ClinicalJourneyActionSignalPhase,
+): string {
+  return CLINICAL_JOURNEY_ACTION_SIGNAL_LABEL_KEYS[phase];
+}
+
+export function clinicalJourneyActionSignalLabel(phase: ClinicalJourneyActionSignalPhase): string {
+  return CLINICAL_JOURNEY_ACTION_SIGNAL_LABELS[phase];
+}
+
 export function clinicalJourneyActionSignal(
   action: Pick<ResolvedClinicalJourneyAction, "blockedReason" | "enabled">,
 ): ClinicalJourneyActionSignal {

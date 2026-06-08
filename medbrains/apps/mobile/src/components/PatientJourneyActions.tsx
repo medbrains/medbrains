@@ -13,7 +13,7 @@ import {
   journeyActionAvailability,
   journeyActionDisabledReason,
   journeyActionShortLabel,
-  journeyBlockedReasonLabel,
+  journeyActionSignalLabel,
   patientJourneyMobileActionTarget,
   resolveClinicalJourneyActions,
   summarizeClinicalJourneyActions,
@@ -305,11 +305,7 @@ export function PatientJourneyActions({
           const reason = blocked
             ? journeyActionDisabledReason(mobilePatientJourneyTranslator, action)
             : journeyActionAvailability(mobilePatientJourneyTranslator, action);
-          const blockedLabel = blocked
-            ? journeyBlockedReasonLabel(mobilePatientJourneyTranslator, action.blockedReason)
-            : null;
-          const readinessLabel =
-            blockedLabel ?? mobilePatientJourneyText(MOBILE_PATIENT_JOURNEY_TEXT.status.ready);
+          const readinessLabel = journeyActionSignalLabel(mobilePatientJourneyTranslator, signal);
 
           return (
             <View

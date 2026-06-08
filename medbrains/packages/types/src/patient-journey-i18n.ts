@@ -1,9 +1,13 @@
 import {
   type ClinicalJourneyActionDefinition,
   type ClinicalJourneyActionId,
+  type ClinicalJourneyActionSignal,
+  type ClinicalJourneyActionSignalPhase,
   type ClinicalJourneyBlockedReason,
   type ClinicalJourneyMessageValues,
   CORE_PATIENT_JOURNEY_ACTIONS,
+  clinicalJourneyActionSignalLabel,
+  clinicalJourneyActionSignalLabelKey,
   type ResolvedClinicalJourneyAction,
 } from "./event-actions.js";
 import type { ClinicalEventName } from "./index.js";
@@ -214,6 +218,20 @@ export function journeyBlockedReasonLabel(
         BLOCKED_REASON_FALLBACK_LABELS[reason],
       )
     : null;
+}
+
+export function journeyActionSignalLabel(
+  t: PatientJourneyTranslator,
+  signalOrPhase: ClinicalJourneyActionSignal | ClinicalJourneyActionSignalPhase,
+): string {
+  const phase = typeof signalOrPhase === "string" ? signalOrPhase : signalOrPhase.phase;
+
+  return translate(
+    t,
+    clinicalJourneyActionSignalLabelKey(phase),
+    undefined,
+    clinicalJourneyActionSignalLabel(phase),
+  );
 }
 
 export function journeyMessage(

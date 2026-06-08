@@ -8,6 +8,7 @@ export {
   journeyActionDisabledReason,
   journeyActionLabel,
   journeyActionShortLabel,
+  journeyActionSignalLabel,
   journeyBlockedReasonLabel,
   journeyMessage,
   patientFlowItemDescription,

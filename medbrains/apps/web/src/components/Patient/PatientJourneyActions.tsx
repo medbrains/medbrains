@@ -42,6 +42,7 @@ import {
   journeyActionDisabledReason,
   journeyActionLabel,
   journeyActionShortLabel,
+  journeyActionSignalLabel,
   journeyBlockedReasonLabel,
 } from "./patient-journey-i18n";
 
@@ -170,18 +171,6 @@ function blockedReasonColor(reason: ClinicalJourneyBlockedReason | null) {
     default:
       return "gray";
   }
-}
-
-function actionReadinessLabel(action: ResolvedClinicalJourneyAction, t: TFunction): string {
-  if (action.enabled) {
-    return journeyActionAvailability(t, action) ?? journeyActionLabel(t, action.id);
-  }
-
-  return (
-    journeyBlockedReasonLabel(t, action.blockedReason) ??
-    journeyActionDisabledReason(t, action) ??
-    journeyActionLabel(t, action.id)
-  );
 }
 
 function ActionTooltip({ action, t }: { action: ResolvedClinicalJourneyAction; t: TFunction }) {
@@ -414,7 +403,7 @@ function PatientJourneyActionButton({
   if (layout === "rail") {
     const metaText = journeyActionAvailability(t, action);
     const signal = clinicalJourneyActionSignal(action);
-    const signalLabel = actionReadinessLabel(action, t);
+    const signalLabel = journeyActionSignalLabel(t, signal);
     const button = (
       <Button
         variant={actionVariant(action.intent)}

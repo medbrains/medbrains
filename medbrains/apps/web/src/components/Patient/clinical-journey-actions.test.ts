@@ -2,8 +2,11 @@
 
 import {
   CLINICAL_EVENT_REQUIRED_PAYLOAD_KEYS,
+  type ClinicalJourneyActionSignalPhase,
   CORE_PATIENT_JOURNEY_ACTIONS,
   clinicalJourneyActionSignal,
+  clinicalJourneyActionSignalLabel,
+  clinicalJourneyActionSignalLabelKey,
   inferClinicalJourneyEventNames,
   P,
   resolveClinicalJourneyActions,
@@ -15,6 +18,39 @@ const allowPermissions = (permissions: readonly string[]) => {
   const allowed = new Set(permissions);
   return (permission: string) => allowed.has(permission);
 };
+
+const EXPECTED_SIGNAL_LABELS = {
+  blocked: "Blocked",
+  blocked_by_configuration: "Configuration needed",
+  blocked_by_context: "Context needed",
+  blocked_by_masking: "Masking setup needed",
+  blocked_by_permission: "Permission blocked",
+  blocked_by_regulatory: "Regulatory check needed",
+  ready: "Ready",
+  waiting_for_event: "Waiting on event",
+} as const satisfies Record<ClinicalJourneyActionSignalPhase, string>;
+
+const EXPECTED_SIGNAL_LABEL_KEYS = {
+  blocked: "patientJourney.actionSignals.blocked",
+  blocked_by_configuration: "patientJourney.actionSignals.blockedByConfiguration",
+  blocked_by_context: "patientJourney.actionSignals.blockedByContext",
+  blocked_by_masking: "patientJourney.actionSignals.blockedByMasking",
+  blocked_by_permission: "patientJourney.actionSignals.blockedByPermission",
+  blocked_by_regulatory: "patientJourney.actionSignals.blockedByRegulatory",
+  ready: "patientJourney.actionSignals.ready",
+  waiting_for_event: "patientJourney.actionSignals.waitingForEvent",
+} as const satisfies Record<ClinicalJourneyActionSignalPhase, string>;
+
+const SIGNAL_PHASES: readonly ClinicalJourneyActionSignalPhase[] = [
+  "blocked",
+  "blocked_by_configuration",
+  "blocked_by_context",
+  "blocked_by_masking",
+  "blocked_by_permission",
+  "blocked_by_regulatory",
+  "ready",
+  "waiting_for_event",
+];
 
 describe("clinical journey event activation", () => {
   it("declares only canonical emitted clinical events", () => {
@@ -348,6 +384,15 @@ describe("clinical journey event activation", () => {
       shape: "diamond",
       tone: "risk",
     });
+  });
+
+  it("maps journey readiness phases to shared i18n labels", () => {
+    expect(SIGNAL_PHASES.map((phase) => clinicalJourneyActionSignalLabel(phase))).toEqual(
+      SIGNAL_PHASES.map((phase) => EXPECTED_SIGNAL_LABELS[phase]),
+    );
+    expect(SIGNAL_PHASES.map((phase) => clinicalJourneyActionSignalLabelKey(phase))).toEqual(
+      SIGNAL_PHASES.map((phase) => EXPECTED_SIGNAL_LABEL_KEYS[phase]),
+    );
   });
 
   it("keeps inpatient orders disabled while an admitted patient is waiting for a bed", () => {

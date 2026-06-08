@@ -17,6 +17,18 @@
       "label": "Handoff state"
     }
   },
+  "patientJourney": {
+    "actionSignals": {
+      "blocked": "Blocked",
+      "blockedByConfiguration": "Configuration needed",
+      "blockedByContext": "Context needed",
+      "blockedByMasking": "Masking setup needed",
+      "blockedByPermission": "Permission blocked",
+      "blockedByRegulatory": "Regulatory check needed",
+      "ready": "Ready",
+      "waitingForEvent": "Waiting on event"
+    }
+  },
   "prescriptionViews": {
     "columns": {
       "drug": "Drug"

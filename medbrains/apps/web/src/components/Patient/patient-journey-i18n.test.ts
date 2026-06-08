@@ -2,22 +2,40 @@
 
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { CLINICAL_EVENT_REQUIRED_PAYLOAD_KEYS, type ClinicalEventName } from "@medbrains/types";
+import {
+  CLINICAL_EVENT_REQUIRED_PAYLOAD_KEYS,
+  type ClinicalEventName,
+  type ClinicalJourneyActionSignalPhase,
+  clinicalJourneyActionSignalLabelKey,
+} from "@medbrains/types";
 import { describe, expect, it } from "vitest";
 import {
   CLINICAL_EVENT_I18N_KEYS,
   clinicalEventLabel,
+  journeyActionSignalLabel,
   journeyMessage,
   type PatientJourneyTranslator,
 } from "./patient-journey-i18n";
 
 const dictionary: Record<string, string> = {
+  "patientJourney.actionSignals.blockedByPermission": "Permission blocked",
   "patientJourney.blockers.availableAfterEvents": "Available after {{events}}",
   "patientJourney.events.order.created": "order created",
   "patientJourney.events.pharmacy.orderDispensed": "pharmacy order dispensed",
   "patientJourney.events.pharmacy.prescriptionReviewed": "pharmacy prescription reviewed",
   "patientJourney.lists.orJoin": "{{left}} or {{right}}",
 };
+
+const SIGNAL_PHASES: readonly ClinicalJourneyActionSignalPhase[] = [
+  "blocked",
+  "blocked_by_configuration",
+  "blocked_by_context",
+  "blocked_by_masking",
+  "blocked_by_permission",
+  "blocked_by_regulatory",
+  "ready",
+  "waiting_for_event",
+];
 
 const t: PatientJourneyTranslator = (key, values) => {
   const template = dictionary[key] ?? key;
@@ -55,8 +73,12 @@ describe("patient journey i18n", () => {
     const missingEventKeys = Object.values(CLINICAL_EVENT_I18N_KEYS).filter(
       (key) => typeof getPathValue(locale, key) !== "string",
     );
+    const missingSignalKeys = SIGNAL_PHASES.map((phase) =>
+      clinicalJourneyActionSignalLabelKey(phase),
+    ).filter((key) => typeof getPathValue(locale, key) !== "string");
 
     expect(missingEventKeys).toEqual([]);
+    expect(missingSignalKeys).toEqual([]);
     expect(getPathValue(locale, "patientJourney.actions.pharmacy.dispense_order.label")).toBe(
       "Dispense medicines",
     );
@@ -69,6 +91,11 @@ describe("patient journey i18n", () => {
     expect(clinicalEventLabel(t, "pharmacy.prescription.reviewed")).toBe(
       "pharmacy prescription reviewed",
     );
+  });
+
+  it("labels action readiness signals through the translation catalog", () => {
+    expect(journeyActionSignalLabel(t, "blocked_by_permission")).toBe("Permission blocked");
+    expect(journeyActionSignalLabel(t, "blocked_by_regulatory")).toBe("Regulatory check needed");
   });
 
   it("formats activation blockers from event translation labels", () => {
