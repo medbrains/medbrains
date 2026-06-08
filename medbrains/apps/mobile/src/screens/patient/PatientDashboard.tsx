@@ -6,6 +6,7 @@ import type {
   PatientLabOrderRow,
   PrescriptionHistoryItem,
 } from "@medbrains/types";
+import { billingInvoiceBalance, billingInvoiceRequiresFollowUp } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
 import { ScrollView, StyleSheet, TouchableOpacity, View } from "react-native";
 import {
@@ -166,11 +167,14 @@ function getAppointmentTime(appointment: PatientAppointmentRow): string {
 }
 
 function isPendingInvoice(invoice: PatientInvoiceRow): boolean {
-  return ["draft", "issued", "partially_paid"].includes(invoice.status);
+  return billingInvoiceRequiresFollowUp(invoice.status, invoice.total_amount, invoice.paid_amount);
 }
 
 function sumInvoiceBalance(invoices: PatientInvoiceRow[]): number {
-  return invoices.reduce((sum, invoice) => sum + Number.parseFloat(invoice.balance || "0"), 0);
+  return invoices.reduce(
+    (sum, invoice) => sum + billingInvoiceBalance(invoice.total_amount, invoice.paid_amount),
+    0,
+  );
 }
 
 function countRecentMedicationItems(prescriptions: PrescriptionHistoryItem[]): number {

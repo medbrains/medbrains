@@ -1,5 +1,10 @@
 import { useAuthStore } from "@medbrains/stores";
 import type { Invoice, InvoiceStatus, PatientInvoiceRow } from "@medbrains/types";
+import {
+  billingInvoiceBalance,
+  billingInvoiceDisplayStatus,
+  billingInvoiceRequiresFollowUp,
+} from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { FlatList, StyleSheet, TouchableOpacity, View } from "react-native";
@@ -63,17 +68,17 @@ function parseAmount(value: string | null | undefined): number {
 }
 
 function invoiceBalance(invoice: Invoice): number {
-  return Math.max(parseAmount(invoice.total_amount) - parseAmount(invoice.paid_amount), 0);
+  return billingInvoiceBalance(invoice.total_amount, invoice.paid_amount);
 }
 
 function patientInvoiceToMobileInvoice(row: PatientInvoiceRow): MobileBillingInvoice {
   return {
     id: row.id,
     invoiceNumber: row.invoice_number,
-    status: row.status,
+    status: billingInvoiceDisplayStatus(row.status, row.total_amount, row.paid_amount),
     totalAmount: parseAmount(row.total_amount),
     paidAmount: parseAmount(row.paid_amount),
-    balanceAmount: parseAmount(row.balance),
+    balanceAmount: billingInvoiceBalance(row.total_amount, row.paid_amount),
     itemCount: row.item_count,
     issuedAt: row.issued_at,
     createdAt: row.created_at,
@@ -86,7 +91,7 @@ function billingInvoiceToMobileInvoice(row: Invoice): MobileBillingInvoice {
   return {
     id: row.id,
     invoiceNumber: row.invoice_number,
-    status: row.status,
+    status: billingInvoiceDisplayStatus(row.status, row.total_amount, row.paid_amount),
     totalAmount: parseAmount(row.total_amount),
     paidAmount: parseAmount(row.paid_amount),
     balanceAmount: invoiceBalance(row),
@@ -167,6 +172,12 @@ function getStatusColor(status: string): string {
   }
 }
 
+function isPendingInvoice(
+  invoice: Pick<MobileBillingInvoice, "paidAmount" | "status" | "totalAmount">,
+) {
+  return billingInvoiceRequiresFollowUp(invoice.status, invoice.totalAmount, invoice.paidAmount);
+}
+
 function formatCurrency(amount: number): string {
   return new Intl.NumberFormat("en-IN", {
     style: "currency",
@@ -220,18 +231,13 @@ export function BillingScreen({ navigation, route }: BillingScreenProps) {
     filter === "all"
       ? allInvoices
       : allInvoices.filter((inv) => {
-          if (filter === "pending")
-            return (
-              inv.status === "draft" || inv.status === "issued" || inv.status === "partially_paid"
-            );
+          if (filter === "pending") return isPendingInvoice(inv);
           if (filter === "paid") return inv.status === "paid";
           return true;
         });
 
   const totalPending = allInvoices
-    .filter(
-      (inv) => inv.status === "draft" || inv.status === "issued" || inv.status === "partially_paid",
-    )
+    .filter(isPendingInvoice)
     .reduce((sum, inv) => sum + inv.balanceAmount, 0);
 
   const renderInvoiceCard = ({ item }: { item: MobileBillingInvoice }) => {
@@ -240,8 +246,7 @@ export function BillingScreen({ navigation, route }: BillingScreenProps) {
       ? mobileBillingText("billing.date.notDated")
       : invoiceDate.toLocaleDateString();
     const statusColor = getStatusColor(item.status);
-    const isPending =
-      item.status === "draft" || item.status === "issued" || item.status === "partially_paid";
+    const isPending = isPendingInvoice(item);
 
     return (
       <TouchableOpacity onPress={() => navigation.navigate("BillDetail", { invoiceId: item.id })}>
