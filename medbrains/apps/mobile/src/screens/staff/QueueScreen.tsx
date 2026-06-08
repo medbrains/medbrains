@@ -14,6 +14,10 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { QueueItem } from "../../components";
 import {
+  MOBILE_QUEUE_SCREEN_TEXT,
+  mobilePatientJourneyText,
+} from "../../components/patientJourneyText";
+import {
   type QueueFilter,
   useCallQueueEntryMutation,
   useCompleteQueueEntryMutation,
@@ -28,6 +32,7 @@ import { protectedQueueIdentity, queuePatientNameAccess } from "../../utils/queu
 type MobileQueueStatus = "waiting" | "called" | "in_consultation" | "completed" | "no_show";
 
 const QUEUE_FILTERS = new Set<string>(["all", "waiting", "called", "in_progress"]);
+const QUEUE_SCREEN_TEXT = MOBILE_QUEUE_SCREEN_TEXT;
 
 interface QueueScreenProps {
   route?: {
@@ -55,6 +60,17 @@ function toMobileQueueStatus(status: string): MobileQueueStatus {
 
 function isQueueFilter(value: string): value is QueueFilter {
   return QUEUE_FILTERS.has(value);
+}
+
+function queueScreenText(key: string, values?: Record<string, string | number | boolean>): string {
+  return mobilePatientJourneyText(key, values);
+}
+
+function queueFilterLabel(filter: QueueFilter): string {
+  if (filter === "called") return queueScreenText(QUEUE_SCREEN_TEXT.filters.called);
+  if (filter === "in_progress") return queueScreenText(QUEUE_SCREEN_TEXT.filters.active);
+  if (filter === "waiting") return queueScreenText(QUEUE_SCREEN_TEXT.filters.waiting);
+  return queueScreenText(QUEUE_SCREEN_TEXT.filters.all);
 }
 
 export function QueueScreen({ route, navigation }: QueueScreenProps) {
@@ -123,10 +139,10 @@ export function QueueScreen({ route, navigation }: QueueScreenProps) {
         <View style={styles.emptyContainer}>
           <Avatar.Icon size={64} icon="shield-lock-outline" style={styles.emptyIcon} />
           <Text variant="titleMedium" style={styles.emptyTitle}>
-            Queue access restricted
+            {queueScreenText(QUEUE_SCREEN_TEXT.restricted.title)}
           </Text>
           <Text variant="bodyMedium" style={styles.emptyText}>
-            OPD queue visibility is controlled by your permission matrix.
+            {queueScreenText(QUEUE_SCREEN_TEXT.restricted.message)}
           </Text>
         </View>
       </SafeAreaView>
@@ -140,13 +156,13 @@ export function QueueScreen({ route, navigation }: QueueScreenProps) {
         <Surface style={styles.statCard} elevation={1}>
           <Text style={[styles.statValue, { color: MEDBRAINS_COLORS.muted }]}>{stats.waiting}</Text>
           <Text variant="labelSmall" style={styles.statLabel}>
-            Waiting
+            {queueScreenText(QUEUE_SCREEN_TEXT.stats.waiting)}
           </Text>
         </Surface>
         <Surface style={styles.statCard} elevation={1}>
           <Text style={[styles.statValue, { color: MEDBRAINS_COLORS.brand }]}>{stats.called}</Text>
           <Text variant="labelSmall" style={styles.statLabel}>
-            Called
+            {queueScreenText(QUEUE_SCREEN_TEXT.stats.called)}
           </Text>
         </Surface>
         <Surface style={styles.statCard} elevation={1}>
@@ -154,7 +170,7 @@ export function QueueScreen({ route, navigation }: QueueScreenProps) {
             {stats.inProgress}
           </Text>
           <Text variant="labelSmall" style={styles.statLabel}>
-            In Progress
+            {queueScreenText(QUEUE_SCREEN_TEXT.stats.inProgress)}
           </Text>
         </Surface>
       </View>
@@ -167,10 +183,10 @@ export function QueueScreen({ route, navigation }: QueueScreenProps) {
             if (isQueueFilter(value)) setFilter(value);
           }}
           buttons={[
-            { value: "all", label: "All" },
-            { value: "waiting", label: "Waiting" },
-            { value: "called", label: "Called" },
-            { value: "in_progress", label: "Active" },
+            { value: "all", label: queueScreenText(QUEUE_SCREEN_TEXT.filters.all) },
+            { value: "waiting", label: queueScreenText(QUEUE_SCREEN_TEXT.filters.waiting) },
+            { value: "called", label: queueScreenText(QUEUE_SCREEN_TEXT.filters.called) },
+            { value: "in_progress", label: queueScreenText(QUEUE_SCREEN_TEXT.filters.active) },
           ]}
           style={styles.segmented}
         />
@@ -181,7 +197,7 @@ export function QueueScreen({ route, navigation }: QueueScreenProps) {
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" />
           <Text variant="bodyMedium" style={styles.loadingText}>
-            Loading queue...
+            {queueScreenText(QUEUE_SCREEN_TEXT.loading.queue)}
           </Text>
         </View>
       ) : queueItems.length > 0 ? (
@@ -239,12 +255,14 @@ export function QueueScreen({ route, navigation }: QueueScreenProps) {
         <View style={styles.emptyContainer}>
           <Avatar.Icon size={64} icon="clipboard-list-outline" style={styles.emptyIcon} />
           <Text variant="titleMedium" style={styles.emptyTitle}>
-            No patients in queue
+            {queueScreenText(QUEUE_SCREEN_TEXT.empty.title)}
           </Text>
           <Text variant="bodyMedium" style={styles.emptyText}>
             {filter === "all"
-              ? "The queue is empty. Patients will appear here when they check in."
-              : `No patients with "${filter}" status.`}
+              ? queueScreenText(QUEUE_SCREEN_TEXT.empty.allMessage)
+              : queueScreenText(QUEUE_SCREEN_TEXT.empty.filteredMessage, {
+                  status: queueFilterLabel(filter),
+                })}
           </Text>
         </View>
       )}
@@ -254,9 +272,12 @@ export function QueueScreen({ route, navigation }: QueueScreenProps) {
         <Surface style={styles.currentPatientBanner} elevation={3}>
           <Avatar.Icon size={32} icon="account-check" style={styles.bannerIcon} />
           <View style={styles.bannerText}>
-            <Text variant="labelMedium">Currently seeing</Text>
+            <Text variant="labelMedium">
+              {queueScreenText(QUEUE_SCREEN_TEXT.banner.currentlySeeing)}
+            </Text>
             <Text variant="titleSmall" style={styles.bannerTitle}>
-              {currentPatientIdentity?.patient_name ?? "Patient"}
+              {currentPatientIdentity?.patient_name ??
+                queueScreenText(QUEUE_SCREEN_TEXT.banner.patientFallback)}
             </Text>
           </View>
           <Badge style={styles.tokenBadge}>{`#${currentPatient?.token_number ?? ""}`}</Badge>

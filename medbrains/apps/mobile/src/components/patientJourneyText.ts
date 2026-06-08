@@ -341,6 +341,36 @@ export const MOBILE_QUEUE_ITEM_TEXT = {
   },
 } as const;
 
+export const MOBILE_QUEUE_SCREEN_TEXT = {
+  banner: {
+    currentlySeeing: "patientJourney.mobile.queueScreen.banner.currentlySeeing",
+    patientFallback: "patientJourney.mobile.queueScreen.banner.patientFallback",
+  },
+  empty: {
+    allMessage: "patientJourney.mobile.queueScreen.empty.allMessage",
+    filteredMessage: "patientJourney.mobile.queueScreen.empty.filteredMessage",
+    title: "patientJourney.mobile.queueScreen.empty.title",
+  },
+  filters: {
+    active: "patientJourney.mobile.queueScreen.filters.active",
+    all: "patientJourney.mobile.queueScreen.filters.all",
+    called: "patientJourney.mobile.queueScreen.filters.called",
+    waiting: "patientJourney.mobile.queueScreen.filters.waiting",
+  },
+  loading: {
+    queue: "patientJourney.mobile.queueScreen.loading.queue",
+  },
+  restricted: {
+    message: "patientJourney.mobile.queueScreen.restricted.message",
+    title: "patientJourney.mobile.queueScreen.restricted.title",
+  },
+  stats: {
+    called: "patientJourney.mobile.queueScreen.stats.called",
+    inProgress: "patientJourney.mobile.queueScreen.stats.inProgress",
+    waiting: "patientJourney.mobile.queueScreen.stats.waiting",
+  },
+} as const;
+
 const MOBILE_PATIENT_JOURNEY_MESSAGES: Record<string, string> = {
   "patientJourney.blockedReasons.configuration": "Configuration",
   "patientJourney.blockedReasons.context": "Context",
@@ -546,6 +576,24 @@ const MOBILE_PATIENT_JOURNEY_MESSAGES: Record<string, string> = {
   "patientJourney.mobile.queueItem.status.inProgress": "In Progress",
   "patientJourney.mobile.queueItem.status.noShow": "No Show",
   "patientJourney.mobile.queueItem.status.waiting": "Waiting",
+  "patientJourney.mobile.queueScreen.banner.currentlySeeing": "Currently seeing",
+  "patientJourney.mobile.queueScreen.banner.patientFallback": "Patient",
+  "patientJourney.mobile.queueScreen.empty.allMessage":
+    "The queue is empty. Patients will appear here when they check in.",
+  "patientJourney.mobile.queueScreen.empty.filteredMessage":
+    'No patients with "{{status}}" status.',
+  "patientJourney.mobile.queueScreen.empty.title": "No patients in queue",
+  "patientJourney.mobile.queueScreen.filters.active": "Active",
+  "patientJourney.mobile.queueScreen.filters.all": "All",
+  "patientJourney.mobile.queueScreen.filters.called": "Called",
+  "patientJourney.mobile.queueScreen.filters.waiting": "Waiting",
+  "patientJourney.mobile.queueScreen.loading.queue": "Loading queue...",
+  "patientJourney.mobile.queueScreen.restricted.message":
+    "OPD queue visibility is controlled by your permission matrix.",
+  "patientJourney.mobile.queueScreen.restricted.title": "Queue access restricted",
+  "patientJourney.mobile.queueScreen.stats.called": "Called",
+  "patientJourney.mobile.queueScreen.stats.inProgress": "In Progress",
+  "patientJourney.mobile.queueScreen.stats.waiting": "Waiting",
   "patientJourney.mobile.staffDashboard.common.greeting": "Good Morning,",
   "patientJourney.mobile.staffDashboard.common.staffFallback": "Staff",
   "patientJourney.mobile.staffDashboard.common.staffInitials": "ST",
