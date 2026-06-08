@@ -21,6 +21,7 @@ import {
 } from "react-native-paper";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { phlebotomyService } from "../../services/phlebotomy.service";
+import { mobilePhlebotomyText } from "./phlebotomyText";
 
 interface TripSummaryScreenProps {
   navigation: {
@@ -70,7 +71,10 @@ export function TripSummaryScreen({ navigation }: TripSummaryScreenProps) {
 
   const handleEndTrip = () => {
     // In a real app, this would submit the trip report
-    setSnackbar({ visible: true, message: "Trip ended successfully" });
+    setSnackbar({
+      visible: true,
+      message: mobilePhlebotomyText("phlebotomy.trip.snackbar.ended"),
+    });
     setEndTripDialogVisible(false);
   };
 
@@ -91,7 +95,7 @@ export function TripSummaryScreen({ navigation }: TripSummaryScreenProps) {
         {/* Day Summary Card */}
         <Surface style={styles.summaryCard} elevation={2}>
           <Text variant="titleLarge" style={styles.summaryTitle}>
-            Today's Summary
+            {mobilePhlebotomyText("phlebotomy.trip.summaryTitle")}
           </Text>
           <Text variant="bodySmall" style={styles.summaryDate}>
             {new Date().toLocaleDateString("en-IN", {
@@ -108,7 +112,7 @@ export function TripSummaryScreen({ navigation }: TripSummaryScreenProps) {
                 {collections.length}
               </Text>
               <Text variant="labelSmall" style={styles.statLabel}>
-                Total Assigned
+                {mobilePhlebotomyText("phlebotomy.trip.stats.totalAssigned")}
               </Text>
             </View>
             <View style={styles.statItem}>
@@ -116,7 +120,7 @@ export function TripSummaryScreen({ navigation }: TripSummaryScreenProps) {
                 {completed.length}
               </Text>
               <Text variant="labelSmall" style={styles.statLabel}>
-                Completed
+                {mobilePhlebotomyText("phlebotomy.trip.stats.completed")}
               </Text>
             </View>
             <View style={styles.statItem}>
@@ -124,7 +128,7 @@ export function TripSummaryScreen({ navigation }: TripSummaryScreenProps) {
                 {pending.length}
               </Text>
               <Text variant="labelSmall" style={styles.statLabel}>
-                Pending
+                {mobilePhlebotomyText("phlebotomy.trip.stats.pending")}
               </Text>
             </View>
             <View style={styles.statItem}>
@@ -132,7 +136,7 @@ export function TripSummaryScreen({ navigation }: TripSummaryScreenProps) {
                 {cancelled.length}
               </Text>
               <Text variant="labelSmall" style={styles.statLabel}>
-                Cancelled
+                {mobilePhlebotomyText("phlebotomy.trip.stats.cancelled")}
               </Text>
             </View>
           </View>
@@ -140,7 +144,9 @@ export function TripSummaryScreen({ navigation }: TripSummaryScreenProps) {
           {/* Completion Progress */}
           <View style={styles.progressSection}>
             <View style={styles.progressHeader}>
-              <Text variant="labelMedium">Completion Rate</Text>
+              <Text variant="labelMedium">
+                {mobilePhlebotomyText("phlebotomy.trip.completionRate")}
+              </Text>
               <Text variant="titleMedium" style={styles.progressPercent}>
                 {completionRate}%
               </Text>
@@ -157,7 +163,9 @@ export function TripSummaryScreen({ navigation }: TripSummaryScreenProps) {
             <View style={styles.samplesHeader}>
               <Avatar.Icon size={40} icon="flask" style={styles.samplesIcon} />
               <View style={styles.samplesInfo}>
-                <Text variant="titleMedium">Collections Completed</Text>
+                <Text variant="titleMedium">
+                  {mobilePhlebotomyText("phlebotomy.trip.totalCollectionsCompleted")}
+                </Text>
                 <Text variant="headlineMedium" style={styles.samplesCount}>
                   {estimatedSamples}
                 </Text>
@@ -170,7 +178,7 @@ export function TripSummaryScreen({ navigation }: TripSummaryScreenProps) {
         <Card style={styles.listCard}>
           <Card.Content>
             <Text variant="titleMedium" style={styles.sectionTitle}>
-              Completed Collections
+              {mobilePhlebotomyText("phlebotomy.trip.completedCollectionsTitle")}
             </Text>
             <Divider style={styles.divider} />
 
@@ -178,12 +186,25 @@ export function TripSummaryScreen({ navigation }: TripSummaryScreenProps) {
               completed.map((collection) => {
                 const addressParts = [collection.address_line, collection.city].filter(Boolean);
                 const address =
-                  addressParts.length > 0 ? addressParts.join(", ") : "Address not provided";
+                  addressParts.length > 0
+                    ? addressParts.join(", ")
+                    : mobilePhlebotomyText("phlebotomy.collection.addressNotProvided");
+                const collectedTime = collection.collected_at
+                  ? new Date(collection.collected_at).toLocaleTimeString([], {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })
+                  : mobilePhlebotomyText("phlebotomy.trip.notAvailable");
                 return (
                   <List.Item
                     key={collection.id}
-                    title={`Collection #${collection.id.slice(0, 8)}`}
-                    description={`${address} • ${collection.collected_at ? new Date(collection.collected_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "N/A"}`}
+                    title={mobilePhlebotomyText("phlebotomy.collection.collectionId", {
+                      id: collection.id.slice(0, 8),
+                    })}
+                    description={mobilePhlebotomyText("phlebotomy.trip.description.completed", {
+                      address,
+                      time: collectedTime,
+                    })}
                     left={(props) => (
                       <Avatar.Icon
                         {...props}
@@ -197,7 +218,7 @@ export function TripSummaryScreen({ navigation }: TripSummaryScreenProps) {
               })
             ) : (
               <Text variant="bodyMedium" style={styles.noData}>
-                No collections completed yet
+                {mobilePhlebotomyText("phlebotomy.trip.empty.completed")}
               </Text>
             )}
           </Card.Content>
@@ -208,17 +229,22 @@ export function TripSummaryScreen({ navigation }: TripSummaryScreenProps) {
           <Card style={styles.listCard}>
             <Card.Content>
               <Text variant="titleMedium" style={styles.sectionTitle}>
-                Pending Collections
+                {mobilePhlebotomyText("phlebotomy.trip.pendingCollectionsTitle")}
               </Text>
               <Divider style={styles.divider} />
 
               {pending.map((collection) => {
                 const addressParts = [collection.address_line, collection.city].filter(Boolean);
-                const address = addressParts.length > 0 ? addressParts[0] : "Address not provided";
+                const address =
+                  addressParts.length > 0
+                    ? addressParts[0]
+                    : mobilePhlebotomyText("phlebotomy.collection.addressNotProvided");
                 return (
                   <List.Item
                     key={collection.id}
-                    title={`Collection #${collection.id.slice(0, 8)}`}
+                    title={mobilePhlebotomyText("phlebotomy.collection.collectionId", {
+                      id: collection.id.slice(0, 8),
+                    })}
                     description={address}
                     left={(props) => (
                       <Avatar.Icon {...props} size={40} icon="clock" style={styles.pendingIcon} />
@@ -231,7 +257,7 @@ export function TripSummaryScreen({ navigation }: TripSummaryScreenProps) {
                           navigation.navigate("CollectionDetail", { orderId: collection.id })
                         }
                       >
-                        View
+                        {mobilePhlebotomyText("phlebotomy.trip.action.view")}
                       </Button>
                     )}
                   />
@@ -246,15 +272,18 @@ export function TripSummaryScreen({ navigation }: TripSummaryScreenProps) {
           <Card.Content>
             <View style={styles.handoverHeader}>
               <Avatar.Icon size={40} icon="hand-extended" style={styles.handoverIcon} />
-              <Text variant="titleMedium">Sample Handover</Text>
+              <Text variant="titleMedium">
+                {mobilePhlebotomyText("phlebotomy.trip.handover.title")}
+              </Text>
             </View>
             <Text variant="bodyMedium" style={styles.handoverText}>
-              All collected samples must be handed over to the lab reception with proper
-              chain-of-custody documentation.
+              {mobilePhlebotomyText("phlebotomy.trip.handover.message")}
             </Text>
             <View style={styles.handoverChips}>
-              <Chip icon="check">Cold chain maintained</Chip>
-              <Chip icon="check">Labels verified</Chip>
+              <Chip icon="check">{mobilePhlebotomyText("phlebotomy.trip.handover.coldChain")}</Chip>
+              <Chip icon="check">
+                {mobilePhlebotomyText("phlebotomy.trip.handover.labelsVerified")}
+              </Chip>
             </View>
           </Card.Content>
         </Card>
@@ -268,12 +297,12 @@ export function TripSummaryScreen({ navigation }: TripSummaryScreenProps) {
           icon="flag-checkered"
           disabled={pending.length > 0}
         >
-          End Trip & Submit Report
+          {mobilePhlebotomyText("phlebotomy.trip.action.endTripSubmit")}
         </Button>
 
         {pending.length > 0 && (
           <Text variant="labelSmall" style={styles.pendingWarning}>
-            Complete all pending collections before ending the trip
+            {mobilePhlebotomyText("phlebotomy.trip.pendingWarning")}
           </Text>
         )}
       </ScrollView>
@@ -281,15 +310,14 @@ export function TripSummaryScreen({ navigation }: TripSummaryScreenProps) {
       {/* End Trip Dialog */}
       <Portal>
         <Dialog visible={endTripDialogVisible} onDismiss={() => setEndTripDialogVisible(false)}>
-          <Dialog.Title>End Trip</Dialog.Title>
+          <Dialog.Title>{mobilePhlebotomyText("phlebotomy.trip.dialog.title")}</Dialog.Title>
           <Dialog.Content>
             <Text variant="bodyMedium" style={styles.dialogText}>
-              You are about to end today's collection trip. Please enter the total distance
-              traveled.
+              {mobilePhlebotomyText("phlebotomy.trip.dialog.message")}
             </Text>
             <TextInput
               mode="outlined"
-              label="Total Distance (km)"
+              label={mobilePhlebotomyText("phlebotomy.trip.dialog.distanceLabel")}
               value={totalDistance}
               onChangeText={setTotalDistance}
               keyboardType="decimal-pad"
@@ -297,15 +325,33 @@ export function TripSummaryScreen({ navigation }: TripSummaryScreenProps) {
               left={<TextInput.Icon icon="map-marker-distance" />}
             />
             <View style={styles.dialogSummary}>
-              <Text variant="labelMedium">Trip Summary:</Text>
-              <Text variant="bodySmall">• {completed.length} collections completed</Text>
-              <Text variant="bodySmall">• {estimatedSamples} samples collected</Text>
+              <Text variant="labelMedium">
+                {mobilePhlebotomyText("phlebotomy.trip.dialog.summaryTitle")}
+              </Text>
+              <Text variant="bodySmall">
+                {mobilePhlebotomyText(
+                  completed.length === 1
+                    ? "phlebotomy.trip.collectionsCompletedSingular"
+                    : "phlebotomy.trip.collectionsCompletedPlural",
+                  { count: completed.length },
+                )}
+              </Text>
+              <Text variant="bodySmall">
+                {mobilePhlebotomyText(
+                  estimatedSamples === 1
+                    ? "phlebotomy.trip.samplesCollectedSingular"
+                    : "phlebotomy.trip.samplesCollectedPlural",
+                  { count: estimatedSamples },
+                )}
+              </Text>
             </View>
           </Dialog.Content>
           <Dialog.Actions>
-            <Button onPress={() => setEndTripDialogVisible(false)}>Cancel</Button>
+            <Button onPress={() => setEndTripDialogVisible(false)}>
+              {mobilePhlebotomyText("phlebotomy.action.cancel")}
+            </Button>
             <Button mode="contained" onPress={handleEndTrip}>
-              End Trip
+              {mobilePhlebotomyText("phlebotomy.trip.action.endTrip")}
             </Button>
           </Dialog.Actions>
         </Dialog>
