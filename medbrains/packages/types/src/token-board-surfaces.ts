@@ -10,6 +10,15 @@ export type TokenBoardSurfaceId =
 export type TokenBoardSurfaceFilter = "all" | TokenBoardSurfaceId;
 export type TokenBoardDisplayMode = "token_only_public";
 export type TokenBoardReadinessTone = "danger" | "info" | "success" | "warning";
+export type TokenBoardStatusTone = TokenBoardReadinessTone | "neutral";
+export type TokenBoardStatusPhase =
+  | "blocked"
+  | "done"
+  | "in_progress"
+  | "ready"
+  | "serving"
+  | "waiting";
+export type TokenBoardStatusShape = "circle" | "diamond" | "pill" | "ring" | "square";
 export type TokenBoardTvDisplayType =
   | "billing_queue"
   | "emergency_triage"
@@ -75,6 +84,13 @@ export interface TokenBoardReadinessItem {
   label: string;
   tone: TokenBoardReadinessTone;
   value: string;
+}
+
+export interface TokenBoardStatusSignal {
+  emphasis: "high" | "low" | "medium";
+  phase: TokenBoardStatusPhase;
+  shape: TokenBoardStatusShape;
+  tone: TokenBoardStatusTone;
 }
 
 export const TOKEN_BOARD_PUBLIC_PRIVACY_NOTICE =
@@ -396,4 +412,126 @@ export function tokenBoardOperationalReadinessItems({
       value: surface.readiness.flow,
     },
   ];
+}
+
+const TOKEN_BOARD_DEFAULT_STATUS_SIGNAL = {
+  emphasis: "low",
+  phase: "waiting",
+  shape: "ring",
+  tone: "neutral",
+} as const satisfies TokenBoardStatusSignal;
+
+const TOKEN_BOARD_STATUS_SIGNALS: Readonly<Record<string, TokenBoardStatusSignal>> = {
+  active: {
+    emphasis: "high",
+    phase: "serving",
+    shape: "diamond",
+    tone: "warning",
+  },
+  called: {
+    emphasis: "high",
+    phase: "serving",
+    shape: "diamond",
+    tone: "success",
+  },
+  cancelled: {
+    emphasis: "high",
+    phase: "blocked",
+    shape: "square",
+    tone: "danger",
+  },
+  collected: {
+    emphasis: "medium",
+    phase: "done",
+    shape: "circle",
+    tone: "success",
+  },
+  collection_in_progress: {
+    emphasis: "medium",
+    phase: "in_progress",
+    shape: "pill",
+    tone: "warning",
+  },
+  completed: {
+    emphasis: "low",
+    phase: "done",
+    shape: "circle",
+    tone: "success",
+  },
+  dispensed: {
+    emphasis: "medium",
+    phase: "done",
+    shape: "circle",
+    tone: "success",
+  },
+  in_progress: {
+    emphasis: "high",
+    phase: "serving",
+    shape: "diamond",
+    tone: "success",
+  },
+  issued: {
+    emphasis: "medium",
+    phase: "in_progress",
+    shape: "pill",
+    tone: "warning",
+  },
+  no_show: {
+    emphasis: "high",
+    phase: "blocked",
+    shape: "square",
+    tone: "danger",
+  },
+  on_hold: {
+    emphasis: "medium",
+    phase: "blocked",
+    shape: "square",
+    tone: "warning",
+  },
+  paid: {
+    emphasis: "medium",
+    phase: "ready",
+    shape: "circle",
+    tone: "success",
+  },
+  partially_paid: {
+    emphasis: "medium",
+    phase: "blocked",
+    shape: "square",
+    tone: "warning",
+  },
+  preparing: {
+    emphasis: "medium",
+    phase: "in_progress",
+    shape: "pill",
+    tone: "warning",
+  },
+  ready: {
+    emphasis: "high",
+    phase: "ready",
+    shape: "circle",
+    tone: "success",
+  },
+  scheduled: {
+    emphasis: "low",
+    phase: "waiting",
+    shape: "ring",
+    tone: "info",
+  },
+  settled: {
+    emphasis: "medium",
+    phase: "ready",
+    shape: "circle",
+    tone: "success",
+  },
+  waiting: {
+    emphasis: "low",
+    phase: "waiting",
+    shape: "ring",
+    tone: "neutral",
+  },
+};
+
+export function tokenBoardStatusSignal(status: string): TokenBoardStatusSignal {
+  return TOKEN_BOARD_STATUS_SIGNALS[status] ?? TOKEN_BOARD_DEFAULT_STATUS_SIGNAL;
 }

@@ -19,6 +19,7 @@ import {
   tokenBoardMobileRouteParams,
   tokenBoardOperationalReadinessItems,
   tokenBoardRefreshLabel,
+  tokenBoardStatusSignal,
   tokenBoardSurfaceFilterFromParam,
 } from "@medbrains/types";
 import { describe, expect, it } from "vitest";
@@ -48,7 +49,7 @@ const hiddenValues = [
 function expectPublicTokenOnly(value: DisplayToken) {
   const rendered = JSON.stringify(value);
 
-  expect(Object.keys(value).sort()).toEqual(["meta", "status", "tokenNumber"]);
+  expect(Object.keys(value).sort()).toEqual(["meta", "signal", "status", "tokenNumber"]);
   for (const hidden of hiddenValues) {
     expect(rendered).not.toContain(hidden);
   }
@@ -148,6 +149,7 @@ describe("front-office token-board display mapping", () => {
     expect(advanceLane ? display[advanceLane.key].map(billingDisplayToken) : []).toEqual([
       {
         meta: "Advance deposit · Counter 4",
+        signal: tokenBoardStatusSignal("active"),
         status: "active",
         tokenNumber: "ADV-004",
       },
@@ -234,6 +236,7 @@ describe("front-office token-board display mapping", () => {
 
     expect(opdDisplayToken(token)).toEqual({
       meta: "Standard priority",
+      signal: tokenBoardStatusSignal("waiting"),
       status: "waiting",
       tokenNumber: "OPD-014",
     });
@@ -276,21 +279,25 @@ describe("front-office token-board display mapping", () => {
 
     expect(labDisplayToken(lab)).toEqual({
       meta: "3 tests · Counter 2 · Fasting",
+      signal: tokenBoardStatusSignal("waiting"),
       status: "waiting",
       tokenNumber: "LAB-009",
     });
     expect(radiologyDisplayToken(radiology)).toEqual({
       meta: "X-ray · Room 4",
+      signal: tokenBoardStatusSignal("called"),
       status: "called",
       tokenNumber: "RAD-004",
     });
     expect(pharmacyDisplayToken(pharmacy)).toEqual({
       meta: "2 items · Counter 1 · 12 min wait",
+      signal: tokenBoardStatusSignal("preparing"),
       status: "preparing",
       tokenNumber: "PHA-021",
     });
     expect(billingDisplayToken(billing)).toEqual({
       meta: "IPD discharge · Counter 3",
+      signal: tokenBoardStatusSignal("issued"),
       status: "issued",
       tokenNumber: "BIL-011",
     });
@@ -303,5 +310,38 @@ describe("front-office token-board display mapping", () => {
     ]) {
       expectPublicTokenOnly(token);
     }
+  });
+
+  it("maps token statuses to shared operational shapes for web, mobile and TV", () => {
+    expect(tokenBoardStatusSignal("called")).toEqual({
+      emphasis: "high",
+      phase: "serving",
+      shape: "diamond",
+      tone: "success",
+    });
+    expect(tokenBoardStatusSignal("waiting")).toEqual({
+      emphasis: "low",
+      phase: "waiting",
+      shape: "ring",
+      tone: "neutral",
+    });
+    expect(tokenBoardStatusSignal("preparing")).toEqual({
+      emphasis: "medium",
+      phase: "in_progress",
+      shape: "pill",
+      tone: "warning",
+    });
+    expect(tokenBoardStatusSignal("ready")).toEqual({
+      emphasis: "high",
+      phase: "ready",
+      shape: "circle",
+      tone: "success",
+    });
+    expect(tokenBoardStatusSignal("no_show")).toEqual({
+      emphasis: "high",
+      phase: "blocked",
+      shape: "square",
+      tone: "danger",
+    });
   });
 });

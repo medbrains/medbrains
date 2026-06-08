@@ -5,12 +5,14 @@ import type {
   QueuePriority,
   QueueToken,
   RadiologyQueueToken,
+  TokenBoardStatusSignal,
   TokenBoardSurfaceFilter,
 } from "@medbrains/types";
-import { tokenBoardSurfaceFilterFromParam } from "@medbrains/types";
+import { tokenBoardStatusSignal, tokenBoardSurfaceFilterFromParam } from "@medbrains/types";
 
 export interface DisplayToken {
   meta: string;
+  signal: TokenBoardStatusSignal;
   status: string;
   tokenNumber: string;
 }
@@ -71,6 +73,7 @@ function priorityLabel(value: QueuePriority) {
 export function opdDisplayToken(token: QueueToken): DisplayToken {
   return {
     meta: token.priority === "normal" ? "Standard priority" : priorityLabel(token.priority),
+    signal: tokenBoardStatusSignal(token.status),
     status: token.status,
     tokenNumber: token.token_number,
   };
@@ -86,6 +89,7 @@ export function labDisplayToken(token: LabQueueToken): DisplayToken {
     ]
       .filter((part): part is string => Boolean(part))
       .join(" · "),
+    signal: tokenBoardStatusSignal(token.status),
     status: token.status,
     tokenNumber: token.token_number,
   };
@@ -96,6 +100,7 @@ export function radiologyDisplayToken(token: RadiologyQueueToken): DisplayToken 
     meta: [token.modality, token.room_number]
       .filter((part): part is string => Boolean(part))
       .join(" · "),
+    signal: tokenBoardStatusSignal(token.status),
     status: token.status,
     tokenNumber: token.token_number,
   };
@@ -110,6 +115,7 @@ export function pharmacyDisplayToken(token: PharmacyQueueToken): DisplayToken {
     ]
       .filter((part): part is string => Boolean(part))
       .join(" · "),
+    signal: tokenBoardStatusSignal(token.status),
     status: token.status,
     tokenNumber: token.token_number,
   };
@@ -120,6 +126,7 @@ export function billingDisplayToken(token: BillingQueueToken): DisplayToken {
     meta: [token.queue_type, token.counter !== null ? `Counter ${token.counter}` : null]
       .filter((part): part is string => Boolean(part))
       .join(" · "),
+    signal: tokenBoardStatusSignal(token.status),
     status: token.status,
     tokenNumber: token.token_number,
   };

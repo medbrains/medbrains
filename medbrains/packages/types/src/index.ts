@@ -101,6 +101,10 @@ export type {
   TokenBoardLaunchTargets,
   TokenBoardReadinessItem,
   TokenBoardReadinessTone,
+  TokenBoardStatusPhase,
+  TokenBoardStatusShape,
+  TokenBoardStatusSignal,
+  TokenBoardStatusTone,
   TokenBoardSurfaceDefinition,
   TokenBoardSurfaceFilter,
   TokenBoardSurfaceId,
@@ -121,6 +125,7 @@ export {
   tokenBoardMobileRouteParams,
   tokenBoardOperationalReadinessItems,
   tokenBoardRefreshLabel,
+  tokenBoardStatusSignal,
   tokenBoardSurfaceFilterFromParam,
 } from "./token-board-surfaces.js";
 

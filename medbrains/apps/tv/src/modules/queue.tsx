@@ -10,7 +10,10 @@ import {
   type QueueToken,
   type QueueTokenStatus,
   TOKEN_BOARD_SURFACES,
+  type TokenBoardStatusSignal,
+  type TokenBoardStatusTone,
   tokenBoardRefreshLabel,
+  tokenBoardStatusSignal,
 } from "@medbrains/types";
 import { COLORS, SPACING } from "@medbrains/ui-mobile";
 import { useQuery } from "@tanstack/react-query";
@@ -47,17 +50,79 @@ function priorityLabel(priority: QueuePriority | string) {
 }
 
 function statusColor(status: QueueTokenStatus | string) {
-  switch (status) {
-    case "called":
-    case "in_progress":
-      return COLORS.emerald;
-    case "completed":
-      return COLORS.vital;
-    case "no_show":
-    case "cancelled":
-      return COLORS.red;
+  return statusSignalColors(tokenBoardStatusSignal(status).tone).border;
+}
+
+function statusSignalColors(tone: TokenBoardStatusTone) {
+  switch (tone) {
+    case "success":
+      return {
+        background: "rgba(28, 183, 133, 0.18)",
+        border: COLORS.emerald,
+      };
+    case "danger":
+      return {
+        background: "rgba(200, 16, 46, 0.2)",
+        border: COLORS.red,
+      };
+    case "warning":
+      return {
+        background: "rgba(201, 145, 62, 0.18)",
+        border: COLORS.copper,
+      };
+    case "info":
+      return {
+        background: "rgba(103, 161, 236, 0.16)",
+        border: COLORS.vital,
+      };
     default:
+      return {
+        background: "transparent",
+        border: COLORS.tint,
+      };
+  }
+}
+
+function statusShapeStyle(signal: TokenBoardStatusSignal) {
+  const colors = statusSignalColors(signal.tone);
+  const size = signal.emphasis === "high" ? 26 : 20;
+  const base = {
+    backgroundColor: signal.shape === "ring" ? "transparent" : colors.background,
+    borderColor: colors.border,
+    borderWidth: 4,
+    height: size,
+    width: signal.shape === "pill" ? size + 18 : size,
+  };
+
+  switch (signal.shape) {
+    case "circle":
+    case "ring":
+      return { ...base, borderRadius: 999 };
+    case "diamond":
+      return { ...base, borderRadius: 4, transform: [{ rotate: "45deg" }] };
+    case "pill":
+      return { ...base, borderRadius: 999 };
+    default:
+      return { ...base, borderRadius: 6 };
+  }
+}
+
+function TokenStatusShape({ label, signal }: { label: string; signal: TokenBoardStatusSignal }) {
+  return <View accessibilityLabel={label} style={statusShapeStyle(signal)} />;
+}
+
+function tokenStatusTextColor(tone: TokenBoardStatusTone) {
+  switch (tone) {
+    case "success":
+      return COLORS.emerald;
+    case "danger":
+      return COLORS.red;
+    case "warning":
       return COLORS.copper;
+    case "info":
+      return COLORS.vital;
+    default:
+      return COLORS.tint;
   }
 }
 
@@ -175,26 +240,36 @@ function TokenLane({
         </View>
       ) : (
         <View style={styles.tokenGrid}>
-          {tokens.map((token) => (
-            <View
-              key={token.id}
-              style={[
-                styles.tokenCard,
-                large && styles.primaryTokenCard,
-                { borderColor: statusColor(token.status) },
-              ]}
-            >
-              <Text style={[styles.tokenNumber, large && styles.primaryTokenNumber]}>
-                {token.token_number}
-              </Text>
-              <View style={styles.tokenMeta}>
-                <Text style={styles.tokenStatus}>{tokenStatusLabel(token.status)}</Text>
-                {token.priority !== "normal" && (
-                  <Text style={styles.tokenPriority}>{priorityLabel(token.priority)}</Text>
-                )}
+          {tokens.map((token) => {
+            const signal = tokenBoardStatusSignal(token.status);
+            const statusText = tokenStatusLabel(token.status);
+
+            return (
+              <View
+                key={token.id}
+                style={[
+                  styles.tokenCard,
+                  large && styles.primaryTokenCard,
+                  { borderColor: statusColor(token.status) },
+                ]}
+              >
+                <View style={styles.tokenNumberRow}>
+                  <TokenStatusShape label={statusText} signal={signal} />
+                  <Text style={[styles.tokenNumber, large && styles.primaryTokenNumber]}>
+                    {token.token_number}
+                  </Text>
+                </View>
+                <View style={styles.tokenMeta}>
+                  <Text style={[styles.tokenStatus, { color: tokenStatusTextColor(signal.tone) }]}>
+                    {statusText}
+                  </Text>
+                  {token.priority !== "normal" && (
+                    <Text style={styles.tokenPriority}>{priorityLabel(token.priority)}</Text>
+                  )}
+                </View>
               </View>
-            </View>
-          ))}
+            );
+          })}
         </View>
       )}
     </View>
@@ -306,6 +381,11 @@ const styles = StyleSheet.create({
     color: COLORS.canvas,
     fontFamily: "Fraunces-Regular",
     fontSize: 64,
+  },
+  tokenNumberRow: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: SPACING.md,
   },
   tokenPriority: {
     color: COLORS.copper,

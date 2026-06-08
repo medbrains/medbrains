@@ -10,6 +10,8 @@ import type {
   RadiologyQueueToken,
   TokenBoardReadinessItem,
   TokenBoardReadinessTone,
+  TokenBoardStatusSignal,
+  TokenBoardStatusTone,
   TokenBoardSurfaceDefinition,
   TokenBoardSurfaceFilter,
   TokenBoardSurfaceId,
@@ -21,6 +23,7 @@ import {
   TOKEN_BOARD_SURFACES,
   tokenBoardFeedIsStale,
   tokenBoardMobileRouteParams,
+  tokenBoardStatusSignal,
   tokenBoardSurfaceFilterFromParam,
 } from "@medbrains/types";
 import type { ReactNode } from "react";
@@ -155,6 +158,7 @@ const TRIAGE_LANES: ReadonlyArray<{
 
 interface DisplayToken {
   meta: string;
+  signal: TokenBoardStatusSignal;
   status: string;
   tokenNumber: string;
 }
@@ -301,34 +305,68 @@ function tokenBoardReadinessItems({
   ];
 }
 
-function statusColor(status: string) {
-  switch (status) {
-    case "ready":
-    case "dispensed":
-    case "paid":
-    case "settled":
-    case "called":
-    case "collected":
-    case "completed":
-    case "in_progress":
-      return MEDBRAINS_COLORS.statusSuccessBg;
-    case "scheduled":
-    case "collection_in_progress":
-    case "preparing":
-    case "issued":
-    case "active":
-      return MEDBRAINS_COLORS.statusWarningBg;
-    case "partially_paid":
-    case "on_hold":
-      return MEDBRAINS_COLORS.accentMuted;
+function statusSignalColors(tone: TokenBoardStatusTone) {
+  switch (tone) {
+    case "danger":
+      return {
+        background: MEDBRAINS_COLORS.statusDangerBg,
+        border: MEDBRAINS_COLORS.statusDanger,
+      };
+    case "info":
+      return {
+        background: MEDBRAINS_COLORS.navActiveBg,
+        border: MEDBRAINS_COLORS.brand,
+      };
+    case "success":
+      return {
+        background: MEDBRAINS_COLORS.statusSuccessBg,
+        border: MEDBRAINS_COLORS.emerald,
+      };
+    case "warning":
+      return {
+        background: MEDBRAINS_COLORS.statusWarningBg,
+        border: MEDBRAINS_COLORS.statusWarning,
+      };
     default:
-      return MEDBRAINS_COLORS.navActiveBg;
+      return {
+        background: MEDBRAINS_COLORS.navActiveBg,
+        border: MEDBRAINS_COLORS.muted,
+      };
   }
+}
+
+function statusShapeStyle(signal: TokenBoardStatusSignal) {
+  const colors = statusSignalColors(signal.tone);
+  const size = signal.emphasis === "high" ? 18 : 14;
+  const base = {
+    backgroundColor: signal.shape === "ring" ? "transparent" : colors.background,
+    borderColor: colors.border,
+    borderWidth: 2,
+    height: size,
+    width: signal.shape === "pill" ? size + 12 : size,
+  };
+
+  switch (signal.shape) {
+    case "circle":
+    case "ring":
+      return { ...base, borderRadius: 999 };
+    case "diamond":
+      return { ...base, borderRadius: 3, transform: [{ rotate: "45deg" }] };
+    case "pill":
+      return { ...base, borderRadius: 999 };
+    default:
+      return { ...base, borderRadius: 4 };
+  }
+}
+
+function TokenStatusShape({ label, signal }: { label: string; signal: TokenBoardStatusSignal }) {
+  return <View accessibilityLabel={label} style={statusShapeStyle(signal)} />;
 }
 
 function opdToken(token: QueueToken): DisplayToken {
   return {
     meta: priorityLabel(token.priority),
+    signal: tokenBoardStatusSignal(token.status),
     status: token.status,
     tokenNumber: token.token_number,
   };
@@ -348,6 +386,7 @@ function labToken(token: LabQueueToken): DisplayToken {
     ]
       .filter((part): part is string => Boolean(part))
       .join(" · "),
+    signal: tokenBoardStatusSignal(token.status),
     status: token.status,
     tokenNumber: token.token_number,
   };
@@ -358,6 +397,7 @@ function radiologyToken(token: RadiologyQueueToken): DisplayToken {
     meta: [token.modality, token.room_number]
       .filter((part): part is string => Boolean(part))
       .join(" · "),
+    signal: tokenBoardStatusSignal(token.status),
     status: token.status,
     tokenNumber: token.token_number,
   };
@@ -380,6 +420,7 @@ function pharmacyToken(token: PharmacyQueueToken): DisplayToken {
     ]
       .filter((part): part is string => Boolean(part))
       .join(" · "),
+    signal: tokenBoardStatusSignal(token.status),
     status: token.status,
     tokenNumber: token.token_number,
   };
@@ -393,6 +434,7 @@ function billingToken(token: BillingQueueToken): DisplayToken {
     ]
       .filter((part): part is string => Boolean(part))
       .join(" · "),
+    signal: tokenBoardStatusSignal(token.status),
     status: token.status,
     tokenNumber: token.token_number,
   };
@@ -590,16 +632,22 @@ function TokenLane({
           {tokens.map((token) => (
             <Surface
               key={`${title}-${token.tokenNumber}`}
-              style={[styles.tokenCard, { backgroundColor: statusColor(token.status) }]}
+              style={[
+                styles.tokenCard,
+                { backgroundColor: statusSignalColors(token.signal.tone).background },
+              ]}
               elevation={0}
             >
-              <View>
-                <Text variant="titleMedium" style={styles.tokenNumber}>
-                  {token.tokenNumber}
-                </Text>
-                <Text variant="bodySmall" style={styles.tokenMeta}>
-                  {token.meta}
-                </Text>
+              <View style={styles.tokenIdentity}>
+                <TokenStatusShape label={statusLabel(token.status)} signal={token.signal} />
+                <View>
+                  <Text variant="titleMedium" style={styles.tokenNumber}>
+                    {token.tokenNumber}
+                  </Text>
+                  <Text variant="bodySmall" style={styles.tokenMeta}>
+                    {token.meta}
+                  </Text>
+                </View>
               </View>
               <Text variant="labelSmall" style={styles.tokenStatus}>
                 {statusLabel(token.status)}
@@ -1211,6 +1259,12 @@ const styles = StyleSheet.create({
     gap: 10,
     justifyContent: "space-between",
     padding: 12,
+  },
+  tokenIdentity: {
+    alignItems: "center",
+    flex: 1,
+    flexDirection: "row",
+    gap: 10,
   },
   tokenList: {
     gap: 8,

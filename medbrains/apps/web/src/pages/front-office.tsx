@@ -36,6 +36,8 @@ import type {
   QueueStatsResponse,
   TokenBoardReadinessItem,
   TokenBoardReadinessTone,
+  TokenBoardStatusSignal,
+  TokenBoardStatusTone,
   TokenBoardSurfaceDefinition,
   TokenBoardSurfaceId,
   TriageLevelColor,
@@ -49,10 +51,10 @@ import {
   BILLING_QUEUE_LANES,
   CORE_PATIENT_JOURNEY_ACTIONS,
   P,
-  TOKEN_BOARD_PUBLIC_PRIVACY_NOTICE,
   TOKEN_BOARD_SURFACE_LIST,
   TOKEN_BOARD_SURFACES,
-  tokenBoardOperationalReadinessItems,
+  tokenBoardFeedReadiness,
+  tokenBoardRefreshLabel,
 } from "@medbrains/types";
 import {
   IconAmbulance,
@@ -79,8 +81,9 @@ import {
   IconX,
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { type ReactNode, useState } from "react";
+import { type CSSProperties, type ReactNode, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
+import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate } from "react-router";
 import { DataTable, PageHeader, TableValueBadge } from "@/components";
 import type { Column } from "@/components/DataTable";
@@ -178,6 +181,99 @@ const RADIOLOGY_BOARD = TOKEN_BOARD_SURFACES.radiology;
 const EMERGENCY_BOARD = TOKEN_BOARD_SURFACES.emergency;
 const PHARMACY_BOARD = TOKEN_BOARD_SURFACES.pharmacy;
 const BILLING_BOARD = TOKEN_BOARD_SURFACES.billing;
+
+const TOKEN_BOARD_STATUS_I18N_KEYS: Partial<Record<string, string>> = {
+  active: "tokenBoards.status.active",
+  called: "tokenBoards.status.called",
+  cancelled: "tokenBoards.status.cancelled",
+  collected: "tokenBoards.status.collected",
+  collection_in_progress: "tokenBoards.status.collectionInProgress",
+  completed: "tokenBoards.status.completed",
+  dispensed: "tokenBoards.status.dispensed",
+  in_progress: "tokenBoards.status.inProgress",
+  issued: "tokenBoards.status.issued",
+  no_show: "tokenBoards.status.noShow",
+  on_hold: "tokenBoards.status.onHold",
+  paid: "tokenBoards.status.paid",
+  partially_paid: "tokenBoards.status.partiallyPaid",
+  preparing: "tokenBoards.status.preparing",
+  ready: "tokenBoards.status.ready",
+  scheduled: "tokenBoards.status.scheduled",
+  settled: "tokenBoards.status.settled",
+  waiting: "tokenBoards.status.waiting",
+};
+
+const TOKEN_BOARD_READINESS_VALUE_I18N_KEYS: Partial<Record<string, string>> = {
+  Degraded: "tokenBoards.readiness.values.degraded",
+  Live: "tokenBoards.readiness.values.live",
+  Stale: "tokenBoards.readiness.values.stale",
+  Waiting: "tokenBoards.readiness.values.waiting",
+};
+
+const TOKEN_BOARD_SURFACE_FLOW_I18N_KEYS: Record<TokenBoardSurfaceId, string> = {
+  billing: "tokenBoards.surfaces.billing.flow",
+  emergency: "tokenBoards.surfaces.emergency.flow",
+  lab: "tokenBoards.surfaces.lab.flow",
+  opd: "tokenBoards.surfaces.opd.flow",
+  pharmacy: "tokenBoards.surfaces.pharmacy.flow",
+  radiology: "tokenBoards.surfaces.radiology.flow",
+};
+
+type FrontOfficeTranslator = (
+  key: string,
+  values?: Record<string, boolean | number | string>,
+) => string;
+
+function fallbackStatusLabel(status: string): string {
+  return status.replace(/_/g, " ");
+}
+
+function tokenBoardStatusLabel(status: string, t: FrontOfficeTranslator): string {
+  const key = TOKEN_BOARD_STATUS_I18N_KEYS[status];
+  return key ? t(key) : fallbackStatusLabel(status);
+}
+
+function tokenBoardReadinessItemsForWeb({
+  isError,
+  surface,
+  t,
+  updatedAt,
+}: {
+  isError: boolean;
+  surface: TokenBoardSurfaceDefinition;
+  t: FrontOfficeTranslator;
+  updatedAt: number;
+}): TokenBoardReadinessItem[] {
+  const feed = tokenBoardFeedReadiness({
+    isError,
+    refreshIntervalMs: surface.refreshIntervalMs,
+    updatedAt,
+  });
+  const feedValueKey = TOKEN_BOARD_READINESS_VALUE_I18N_KEYS[feed.value];
+
+  return [
+    {
+      label: t("tokenBoards.readiness.labels.privacy"),
+      tone: "success",
+      value: t("tokenBoards.readiness.values.tokenOnly"),
+    },
+    {
+      label: t("tokenBoards.readiness.labels.feed"),
+      tone: feed.tone,
+      value: feedValueKey ? t(feedValueKey) : feed.value,
+    },
+    {
+      label: t("tokenBoards.readiness.labels.refresh"),
+      tone: "info",
+      value: tokenBoardRefreshLabel(surface),
+    },
+    {
+      label: t("tokenBoards.readiness.labels.flow"),
+      tone: surface.id === "emergency" ? "danger" : "info",
+      value: t(TOKEN_BOARD_SURFACE_FLOW_I18N_KEYS[surface.id]),
+    },
+  ];
+}
 
 // ══════════════════════════════════════════════════════════
 //  Main Page
@@ -715,6 +811,7 @@ function TokenBoardsTab({
   canViewPharmacy,
   canViewBilling,
 }: TokenBoardsTabProps) {
+  const { t } = useTranslation("frontOffice");
   const routeNavigate = useNavigate();
   const location = useLocation();
   const routeSearchParams = new URLSearchParams(location.search);
@@ -785,16 +882,21 @@ function TokenBoardsTab({
       <Group justify="space-between" align="flex-start">
         <Stack gap={2}>
           <Text fw={700}>
-            {activeKioskSurface ? activeKioskSurface.title : "Live token boards"}
+            {activeKioskSurface ? activeKioskSurface.title : t("tokenBoards.liveTitle")}
           </Text>
           <Text size="sm" c="dimmed">
             {activeKioskSurface
-              ? `Kiosk public display for ${activeKioskSurface.subtitle}. ${TOKEN_BOARD_PUBLIC_PRIVACY_NOTICE}`
-              : `Workstation view of public queue feeds. ${TOKEN_BOARD_PUBLIC_PRIVACY_NOTICE} Reception, lab, radiology, ER, pharmacy and billing operations stay linked to the same token state.`}
+              ? t("tokenBoards.kioskDescription", {
+                  notice: t("tokenBoards.privacyNotice"),
+                  subtitle: activeKioskSurface.subtitle,
+                })
+              : t("tokenBoards.workspaceDescription", {
+                  notice: t("tokenBoards.privacyNotice"),
+                })}
           </Text>
         </Stack>
         <Badge variant="light" color="teal">
-          {isKioskDisplay ? "Kiosk mode" : "Auto-refresh"}
+          {isKioskDisplay ? t("tokenBoards.mode.kiosk") : t("tokenBoards.mode.autoRefresh")}
         </Badge>
       </Group>
 
@@ -807,9 +909,10 @@ function TokenBoardsTab({
               access follows the configured permission matrix and token-board surface assignment.
             </Text>
             <TokenBoardReadinessStrip
-              items={tokenBoardOperationalReadinessItems({
+              items={tokenBoardReadinessItemsForWeb({
                 isError: true,
                 surface: TOKEN_BOARD_SURFACES[selectedSurface],
+                t,
                 updatedAt: 0,
               })}
             />
@@ -832,7 +935,7 @@ function TokenBoardsTab({
                 variant={activeSurface === "all" ? "filled" : "light"}
                 onClick={() => handleBoardFilterChange("all")}
               >
-                All boards
+                {t("tokenBoards.filters.allBoards")}
               </Button>
               {accessibleSurfaces.map((surface) => (
                 <Button
@@ -1075,6 +1178,8 @@ function TokenBoardCard({
   surface: TokenBoardSurfaceDefinition;
   summary: Array<{ label: string; value: number | string }>;
 }) {
+  const { t } = useTranslation("frontOffice");
+
   return (
     <Card
       withBorder
@@ -1090,14 +1195,17 @@ function TokenBoardCard({
             </Text>
           </Stack>
           <Badge color={isError ? "danger" : "teal"} variant="light">
-            {isError ? "Feed error" : `Sync ${lastUpdatedLabel(lastUpdatedAt)}`}
+            {isError
+              ? t("tokenBoards.card.feedError")
+              : t("tokenBoards.card.sync", { time: lastUpdatedLabel(lastUpdatedAt) })}
           </Badge>
         </Group>
         {showLaunchMeta && <TokenBoardLaunchMeta surface={surface} />}
         <TokenBoardReadinessStrip
-          items={tokenBoardOperationalReadinessItems({
+          items={tokenBoardReadinessItemsForWeb({
             isError,
             surface,
+            t,
             updatedAt: lastUpdatedAt,
           })}
         />
@@ -1122,11 +1230,11 @@ function TokenBoardCard({
         </SimpleGrid>
         {isLoading ? (
           <Text size="sm" c="dimmed">
-            Loading token feed...
+            {t("tokenBoards.card.loading")}
           </Text>
         ) : isError ? (
           <Text size="sm" c="danger">
-            Feed unavailable. Check queue-display permissions and network state.
+            {t("tokenBoards.card.feedUnavailable")}
           </Text>
         ) : (
           children
@@ -1137,6 +1245,8 @@ function TokenBoardCard({
 }
 
 function TokenBoardLaunchMeta({ surface }: { surface: TokenBoardSurfaceDefinition }) {
+  const { t } = useTranslation("frontOffice");
+
   return (
     <Stack gap={6}>
       <Group gap={6} wrap="wrap">
@@ -1146,7 +1256,8 @@ function TokenBoardLaunchMeta({ surface }: { surface: TokenBoardSurfaceDefinitio
           </Badge>
         ))}
         <Badge size="xs" variant="light" color="blue">
-          Mobile: {surface.targets.mobileRoute} · {surface.targets.mobileParams.surface}
+          {t("tokenBoards.launch.mobile")}: {surface.targets.mobileRoute} ·{" "}
+          {surface.targets.mobileParams.surface}
         </Badge>
         <Badge size="xs" variant="light" color="green">
           {surface.targets.tvDisplayType}
@@ -1154,7 +1265,7 @@ function TokenBoardLaunchMeta({ surface }: { surface: TokenBoardSurfaceDefinitio
       </Group>
       <Group gap={8} wrap="nowrap">
         <Text size="xs" c="dimmed" fw={700}>
-          TV link
+          {t("tokenBoards.launch.tvLink")}
         </Text>
         <Tooltip label={surface.targets.tvDeepLink}>
           <Text size="xs" c="dimmed" truncate style={{ flex: 1, minWidth: 0 }}>
@@ -1209,6 +1320,8 @@ function TokenLane({
   title: string;
   tokens: DisplayToken[];
 }) {
+  const { t } = useTranslation("frontOffice");
+
   return (
     <Stack gap="xs">
       <Group justify="space-between">
@@ -1233,30 +1346,41 @@ function TokenLane({
         </Box>
       ) : (
         <Stack gap="xs">
-          {tokens.map((token) => (
-            <Box
-              key={`${title}-${token.tokenNumber}`}
-              p="sm"
-              style={{
-                border: "1px solid var(--mantine-color-gray-3)",
-                borderRadius: 8,
-              }}
-            >
-              <Group justify="space-between" align="center">
-                <Stack gap={0}>
-                  <Text fw={800} size={highlight ? "xl" : "lg"}>
-                    {token.tokenNumber}
-                  </Text>
-                  <Text size="xs" c="dimmed">
-                    {token.meta}
-                  </Text>
-                </Stack>
-                <Badge color={tokenStatusColor(token.status)} variant="light">
-                  {statusLabel(token.status)}
-                </Badge>
-              </Group>
-            </Box>
-          ))}
+          {tokens.map((token) => {
+            const statusText = tokenBoardStatusLabel(token.status, t);
+
+            return (
+              <Box
+                key={`${title}-${token.tokenNumber}`}
+                p="sm"
+                style={{
+                  border: "1px solid var(--mantine-color-gray-3)",
+                  borderRadius: 8,
+                }}
+              >
+                <Group justify="space-between" align="center">
+                  <Group gap="sm" wrap="nowrap">
+                    <TokenStatusShapeGlyph
+                      highlight={highlight}
+                      label={statusText}
+                      signal={token.signal}
+                    />
+                    <Stack gap={0}>
+                      <Text fw={800} size={highlight ? "xl" : "lg"}>
+                        {token.tokenNumber}
+                      </Text>
+                      <Text size="xs" c="dimmed">
+                        {token.meta}
+                      </Text>
+                    </Stack>
+                  </Group>
+                  <Badge color={tokenStatusBadgeColor(token.signal.tone)} variant="light">
+                    {statusText}
+                  </Badge>
+                </Group>
+              </Box>
+            );
+          })}
         </Stack>
       )}
     </Stack>
@@ -1311,33 +1435,94 @@ function ErTriageLane({
   );
 }
 
-function tokenStatusColor(status: string) {
-  switch (status) {
-    case "ready":
-    case "dispensed":
-    case "paid":
-    case "settled":
-    case "called":
-    case "collected":
-    case "completed":
-    case "in_progress":
+function tokenStatusBadgeColor(tone: TokenBoardStatusTone) {
+  switch (tone) {
+    case "success":
       return "teal";
-    case "scheduled":
-    case "collection_in_progress":
-    case "preparing":
-    case "issued":
-    case "active":
+    case "warning":
       return "orange";
-    case "partially_paid":
-    case "on_hold":
-      return "yellow";
+    case "danger":
+      return "red";
+    case "info":
+      return "blue";
     default:
       return "slate";
   }
 }
 
-function statusLabel(status: string) {
-  return status.replace(/_/g, " ");
+function tokenStatusShapeColors(tone: TokenBoardStatusTone) {
+  switch (tone) {
+    case "danger":
+      return {
+        background: "var(--mantine-color-red-1)",
+        border: "var(--mantine-color-red-7)",
+      };
+    case "info":
+      return {
+        background: "var(--mantine-color-blue-1)",
+        border: "var(--mantine-color-blue-7)",
+      };
+    case "success":
+      return {
+        background: "var(--mantine-color-teal-1)",
+        border: "var(--mantine-color-teal-7)",
+      };
+    case "warning":
+      return {
+        background: "var(--mantine-color-orange-1)",
+        border: "var(--mantine-color-orange-7)",
+      };
+    default:
+      return {
+        background: "var(--mantine-color-gray-0)",
+        border: "var(--mantine-color-gray-6)",
+      };
+  }
+}
+
+function tokenStatusShapeStyle(signal: TokenBoardStatusSignal, highlight: boolean): CSSProperties {
+  const colors = tokenStatusShapeColors(signal.tone);
+  const size = signal.emphasis === "high" || highlight ? 18 : 14;
+  const base: CSSProperties = {
+    background: signal.shape === "ring" ? "transparent" : colors.background,
+    border: `2px solid ${colors.border}`,
+    flex: "0 0 auto",
+    height: size,
+    width: signal.shape === "pill" ? size + 12 : size,
+  };
+
+  switch (signal.shape) {
+    case "circle":
+    case "ring":
+      return { ...base, borderRadius: 999 };
+    case "diamond":
+      return { ...base, borderRadius: 3, transform: "rotate(45deg)" };
+    case "pill":
+      return { ...base, borderRadius: 999 };
+    default:
+      return { ...base, borderRadius: 4 };
+  }
+}
+
+function TokenStatusShapeGlyph({
+  highlight,
+  label,
+  signal,
+}: {
+  highlight: boolean;
+  label: string;
+  signal: TokenBoardStatusSignal;
+}) {
+  return (
+    <Tooltip label={label}>
+      <Box
+        aria-label={label}
+        role="img"
+        style={tokenStatusShapeStyle(signal, highlight)}
+        title={label}
+      />
+    </Tooltip>
+  );
 }
 
 function lastUpdatedLabel(value: number) {
