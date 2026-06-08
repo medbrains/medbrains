@@ -2486,6 +2486,8 @@ pub struct PrescriptionHistoryItem {
     pub items: Vec<PrescriptionItem>,
     pub encounter_date: NaiveDate,
     pub doctor_name: Option<String>,
+    pub pharmacy_status: Option<String>,
+    pub pharmacy_order_id: Option<Uuid>,
 }
 
 pub async fn list_patient_prescriptions(
@@ -2519,6 +2521,10 @@ pub async fn list_patient_prescriptions(
     .fetch_all(&mut *tx)
     .await?;
 
+    let prescription_ids: Vec<Uuid> = prescriptions.iter().map(|rx| rx.id).collect();
+    let pharmacy_statuses =
+        prescription_pharmacy_statuses(&mut tx, claims.tenant_id, &prescription_ids).await?;
+
     let mut result = Vec::with_capacity(prescriptions.len());
     for rx in &prescriptions {
         let items = sqlx::query_as::<_, PrescriptionItem>(
@@ -2545,12 +2551,18 @@ pub async fn list_patient_prescriptions(
 
         let (encounter_date, doctor_name) =
             row.unwrap_or_else(|| (rx.created_at.date_naive(), None));
+        let (pharmacy_status, pharmacy_order_id) = pharmacy_statuses
+            .get(&rx.id)
+            .cloned()
+            .unwrap_or((None, None));
 
         result.push(PrescriptionHistoryItem {
             prescription: rx.clone(),
             items,
             encounter_date,
             doctor_name,
+            pharmacy_status,
+            pharmacy_order_id,
         });
     }
 

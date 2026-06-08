@@ -4230,6 +4230,8 @@ export interface PrescriptionHistoryItem {
   items: PrescriptionItem[];
   encounter_date: string;
   doctor_name: string | null;
+  pharmacy_status?: PharmacyRxStatus | null;
+  pharmacy_order_id?: string | null;
 }
 
 export type CertificateType =

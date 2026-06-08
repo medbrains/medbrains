@@ -177,8 +177,8 @@ export function activePatientPharmacyOrderIdForJourney(
   return (
     prescriptions.find((prescription) =>
       prescription.items.some((item) => item.item_status !== "discontinued"),
-    )?.prescription.id ??
-    prescriptions[0]?.prescription.id ??
+    )?.pharmacy_order_id ??
+    prescriptions.find((prescription) => prescription.pharmacy_order_id)?.pharmacy_order_id ??
     null
   );
 }

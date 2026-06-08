@@ -15,10 +15,16 @@ const allowPermissions = (permissions: readonly string[]) => {
   return (permission: string) => allowed.has(permission);
 };
 
-function prescriptionHistory(id: string, itemStatus = "active"): PrescriptionHistoryItem {
+function prescriptionHistory(
+  id: string,
+  itemStatus = "active",
+  pharmacyOrderId: string | null = null,
+): PrescriptionHistoryItem {
   return {
     doctor_name: null,
     encounter_date: "2026-01-01",
+    pharmacy_order_id: pharmacyOrderId,
+    pharmacy_status: pharmacyOrderId ? "dispensing" : "pending_review",
     items: [
       {
         catalog_item_id: null,
@@ -54,13 +60,16 @@ describe("patient flow readiness", () => {
   it("selects the active prescription target for pharmacy handoffs", () => {
     expect(
       activePatientPharmacyOrderIdForJourney([
-        prescriptionHistory("old-stopped", "discontinued"),
-        prescriptionHistory("active-rx"),
+        prescriptionHistory("old-stopped", "discontinued", "order-old"),
+        prescriptionHistory("active-rx", "active", "order-active"),
       ]),
-    ).toBe("active-rx");
+    ).toBe("order-active");
     expect(
-      activePatientPharmacyOrderIdForJourney([prescriptionHistory("stopped", "discontinued")]),
-    ).toBe("stopped");
+      activePatientPharmacyOrderIdForJourney([
+        prescriptionHistory("stopped", "discontinued", "order-stopped"),
+      ]),
+    ).toBe("order-stopped");
+    expect(activePatientPharmacyOrderIdForJourney([prescriptionHistory("pending-rx")])).toBeNull();
     expect(activePatientPharmacyOrderIdForJourney([])).toBeNull();
   });
 

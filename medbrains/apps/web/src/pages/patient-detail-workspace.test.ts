@@ -11,10 +11,16 @@ import {
   patientDetailWorkspaceTabRoute,
 } from "./patient-detail-workspace";
 
-function prescriptionHistory(id: string, itemStatus = "active"): PrescriptionHistoryItem {
+function prescriptionHistory(
+  id: string,
+  itemStatus = "active",
+  pharmacyOrderId: string | null = null,
+): PrescriptionHistoryItem {
   return {
     doctor_name: null,
     encounter_date: "2026-01-01",
+    pharmacy_order_id: pharmacyOrderId,
+    pharmacy_status: pharmacyOrderId ? "dispensing" : "pending_review",
     items: [
       {
         catalog_item_id: null,
@@ -93,17 +99,30 @@ describe("patient-detail workspace routing", () => {
       patientId: "patient-1",
       completedEvents: ["order.created"],
       prescriptions: [
-        prescriptionHistory("old-stopped", "discontinued"),
-        prescriptionHistory("active-rx"),
+        prescriptionHistory("old-stopped", "discontinued", "order-old"),
+        prescriptionHistory("active-rx", "active", "order-active"),
       ],
     });
 
-    expect(context.activePharmacyOrderId).toBe("active-rx");
+    expect(context.activePharmacyOrderId).toBe("order-active");
     expect(patientJourneyActionRoute("pharmacy.open_patient_queue", context)).toBe(
-      "/pharmacy/orders/active-rx",
+      "/pharmacy/orders/order-active",
     );
     expect(patientJourneyActionRoute("pharmacy.dispense_order", context)).toBe(
-      "/pharmacy/orders/active-rx?action=dispense",
+      "/pharmacy/orders/order-active?action=dispense",
+    );
+  });
+
+  it("keeps pending prescription handoffs out of invalid pharmacy order detail routes", () => {
+    const context = patientDetailJourneyContext({
+      patientId: "patient-1",
+      completedEvents: ["order.created"],
+      prescriptions: [prescriptionHistory("pending-rx")],
+    });
+
+    expect(context.activePharmacyOrderId).toBeNull();
+    expect(patientJourneyActionRoute("pharmacy.open_patient_queue", context)).toBe(
+      "/pharmacy?tab=orders&patient_id=patient-1",
     );
   });
 });

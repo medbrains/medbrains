@@ -55,6 +55,7 @@ function prescriptionMatchesHandoff(
 ) {
   if (!pharmacyOrderId) return false;
   return (
+    item.pharmacy_order_id === pharmacyOrderId ||
     item.prescription.id === pharmacyOrderId ||
     item.items.some((prescriptionItem) => prescriptionItem.prescription_id === pharmacyOrderId)
   );
