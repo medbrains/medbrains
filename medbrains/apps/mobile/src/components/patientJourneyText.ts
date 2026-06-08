@@ -446,6 +446,70 @@ export const MOBILE_PATIENT_PHARMACY_TEXT = {
   },
 } as const;
 
+export const MOBILE_CONSULTATION_NOTES_TEXT = {
+  actions: {
+    completeSign: "patientJourney.mobile.consultationNotes.actions.completeSign",
+    save: "patientJourney.mobile.consultationNotes.actions.save",
+  },
+  diagnoses: {
+    active: "patientJourney.mobile.consultationNotes.diagnoses.active",
+  },
+  errors: {
+    failedToSave: "patientJourney.mobile.consultationNotes.errors.failedToSave",
+  },
+  progress: {
+    soap: "patientJourney.mobile.consultationNotes.progress.soap",
+  },
+  sections: {
+    assessment: "patientJourney.mobile.consultationNotes.sections.assessment",
+    assessmentShort: "patientJourney.mobile.consultationNotes.sections.assessmentShort",
+    objective: "patientJourney.mobile.consultationNotes.sections.objective",
+    objectiveShort: "patientJourney.mobile.consultationNotes.sections.objectiveShort",
+    plan: "patientJourney.mobile.consultationNotes.sections.plan",
+    planShort: "patientJourney.mobile.consultationNotes.sections.planShort",
+    subjective: "patientJourney.mobile.consultationNotes.sections.subjective",
+    subjectiveShort: "patientJourney.mobile.consultationNotes.sections.subjectiveShort",
+  },
+  placeholders: {
+    assessment: "patientJourney.mobile.consultationNotes.placeholders.assessment",
+    objective: "patientJourney.mobile.consultationNotes.placeholders.objective",
+    plan: "patientJourney.mobile.consultationNotes.placeholders.plan",
+    subjective: "patientJourney.mobile.consultationNotes.placeholders.subjective",
+  },
+  status: {
+    saved: "patientJourney.mobile.consultationNotes.status.saved",
+  },
+  templates: {
+    complainsOf: "patientJourney.mobile.consultationNotes.templates.complainsOf",
+    complainsOfSnippet: "patientJourney.mobile.consultationNotes.templates.complainsOfSnippet",
+    continueMeds: "patientJourney.mobile.consultationNotes.templates.continueMeds",
+    continueMedsSnippet: "patientJourney.mobile.consultationNotes.templates.continueMedsSnippet",
+    diagnosis: "patientJourney.mobile.consultationNotes.templates.diagnosis",
+    diagnosisSnippet: "patientJourney.mobile.consultationNotes.templates.diagnosisSnippet",
+    historyOf: "patientJourney.mobile.consultationNotes.templates.historyOf",
+    historyOfSnippet: "patientJourney.mobile.consultationNotes.templates.historyOfSnippet",
+    noAbnormality: "patientJourney.mobile.consultationNotes.templates.noAbnormality",
+    noAbnormalitySnippet: "patientJourney.mobile.consultationNotes.templates.noAbnormalitySnippet",
+    noKnownAllergies: "patientJourney.mobile.consultationNotes.templates.noKnownAllergies",
+    noKnownAllergiesSnippet:
+      "patientJourney.mobile.consultationNotes.templates.noKnownAllergiesSnippet",
+    onExamination: "patientJourney.mobile.consultationNotes.templates.onExamination",
+    onExaminationSnippet: "patientJourney.mobile.consultationNotes.templates.onExaminationSnippet",
+    quickPhrases: "patientJourney.mobile.consultationNotes.templates.quickPhrases",
+    restAdvised: "patientJourney.mobile.consultationNotes.templates.restAdvised",
+    restAdvisedSnippet: "patientJourney.mobile.consultationNotes.templates.restAdvisedSnippet",
+    reviewOneWeek: "patientJourney.mobile.consultationNotes.templates.reviewOneWeek",
+    reviewOneWeekSnippet: "patientJourney.mobile.consultationNotes.templates.reviewOneWeekSnippet",
+    ruleOut: "patientJourney.mobile.consultationNotes.templates.ruleOut",
+    ruleOutSnippet: "patientJourney.mobile.consultationNotes.templates.ruleOutSnippet",
+    stableCondition: "patientJourney.mobile.consultationNotes.templates.stableCondition",
+    stableConditionSnippet:
+      "patientJourney.mobile.consultationNotes.templates.stableConditionSnippet",
+    vitalsStable: "patientJourney.mobile.consultationNotes.templates.vitalsStable",
+    vitalsStableSnippet: "patientJourney.mobile.consultationNotes.templates.vitalsStableSnippet",
+  },
+} as const;
+
 export const MOBILE_PRESCRIPTION_TEXT = {
   actions: {
     add: "patientJourney.mobile.prescription.actions.add",
@@ -792,6 +856,57 @@ const MOBILE_PATIENT_JOURNEY_MESSAGES: Record<string, string> = {
   "patientJourney.mobile.patientPharmacy.status.changed": "Changed",
   "patientJourney.mobile.patientPharmacy.status.discontinued": "Discontinued",
   "patientJourney.mobile.patientPharmacy.status.unknown": "Unknown",
+  "patientJourney.mobile.consultationNotes.actions.completeSign": "Complete & Sign",
+  "patientJourney.mobile.consultationNotes.actions.save": "Save Notes",
+  "patientJourney.mobile.consultationNotes.diagnoses.active": "Active Diagnoses",
+  "patientJourney.mobile.consultationNotes.errors.failedToSave": "Failed to save notes",
+  "patientJourney.mobile.consultationNotes.progress.soap": "SOAP Note Progress",
+  "patientJourney.mobile.consultationNotes.sections.assessment": "Assessment",
+  "patientJourney.mobile.consultationNotes.sections.assessmentShort": "A",
+  "patientJourney.mobile.consultationNotes.sections.objective": "Objective",
+  "patientJourney.mobile.consultationNotes.sections.objectiveShort": "O",
+  "patientJourney.mobile.consultationNotes.sections.plan": "Plan",
+  "patientJourney.mobile.consultationNotes.sections.planShort": "P",
+  "patientJourney.mobile.consultationNotes.sections.subjective": "Subjective",
+  "patientJourney.mobile.consultationNotes.sections.subjectiveShort": "S",
+  "patientJourney.mobile.consultationNotes.placeholders.assessment":
+    "Diagnosis, differential diagnosis, clinical impression...",
+  "patientJourney.mobile.consultationNotes.placeholders.objective":
+    "Physical examination findings, vital signs, lab results...",
+  "patientJourney.mobile.consultationNotes.placeholders.plan":
+    "Treatment plan, medications, follow-up, referrals...",
+  "patientJourney.mobile.consultationNotes.placeholders.subjective":
+    "Patient's symptoms, complaints, and history in their own words...",
+  "patientJourney.mobile.consultationNotes.status.saved": "Notes saved successfully",
+  "patientJourney.mobile.consultationNotes.templates.complainsOf": "Complains of",
+  "patientJourney.mobile.consultationNotes.templates.complainsOfSnippet": "Patient complains of",
+  "patientJourney.mobile.consultationNotes.templates.continueMeds": "Continue meds",
+  "patientJourney.mobile.consultationNotes.templates.continueMedsSnippet":
+    "Continue current medications.",
+  "patientJourney.mobile.consultationNotes.templates.diagnosis": "Dx",
+  "patientJourney.mobile.consultationNotes.templates.diagnosisSnippet": "Primary diagnosis:",
+  "patientJourney.mobile.consultationNotes.templates.historyOf": "H/O",
+  "patientJourney.mobile.consultationNotes.templates.historyOfSnippet": "History of",
+  "patientJourney.mobile.consultationNotes.templates.noAbnormality": "NAD",
+  "patientJourney.mobile.consultationNotes.templates.noAbnormalitySnippet":
+    "No abnormality detected.",
+  "patientJourney.mobile.consultationNotes.templates.noKnownAllergies": "NKA",
+  "patientJourney.mobile.consultationNotes.templates.noKnownAllergiesSnippet":
+    "No known allergies.",
+  "patientJourney.mobile.consultationNotes.templates.onExamination": "O/E",
+  "patientJourney.mobile.consultationNotes.templates.onExaminationSnippet": "On examination:",
+  "patientJourney.mobile.consultationNotes.templates.quickPhrases": "Quick phrases:",
+  "patientJourney.mobile.consultationNotes.templates.restAdvised": "Rest advised",
+  "patientJourney.mobile.consultationNotes.templates.restAdvisedSnippet":
+    "Advised rest and hydration.",
+  "patientJourney.mobile.consultationNotes.templates.reviewOneWeek": "Review 1w",
+  "patientJourney.mobile.consultationNotes.templates.reviewOneWeekSnippet": "Review after 1 week.",
+  "patientJourney.mobile.consultationNotes.templates.ruleOut": "R/O",
+  "patientJourney.mobile.consultationNotes.templates.ruleOutSnippet": "Rule out",
+  "patientJourney.mobile.consultationNotes.templates.stableCondition": "Stable",
+  "patientJourney.mobile.consultationNotes.templates.stableConditionSnippet": "Stable condition.",
+  "patientJourney.mobile.consultationNotes.templates.vitalsStable": "Vitals stable",
+  "patientJourney.mobile.consultationNotes.templates.vitalsStableSnippet": "Vitals stable.",
   "patientJourney.mobile.prescription.actions.add": "Add",
   "patientJourney.mobile.prescription.actions.addDrug": "Add Drug",
   "patientJourney.mobile.prescription.actions.cancel": "Cancel",

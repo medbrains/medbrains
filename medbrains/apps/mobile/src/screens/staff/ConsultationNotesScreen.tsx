@@ -23,6 +23,10 @@ import {
   useTheme,
 } from "react-native-paper";
 import { SafeAreaView } from "react-native-safe-area-context";
+import {
+  MOBILE_CONSULTATION_NOTES_TEXT,
+  mobilePatientJourneyText,
+} from "../../components/patientJourneyText";
 import { clinicalService } from "../../services/clinical.service";
 
 interface ConsultationNotesScreenProps {
@@ -38,8 +42,19 @@ interface ConsultationNotesScreenProps {
 }
 
 type NoteSection = keyof MobileConsultationNotesFormInput;
+type NoteSectionConfig = {
+  icon: string;
+  labelKey: string;
+  placeholderKey: string;
+  shortLabelKey: string;
+};
+type NoteTemplate = {
+  labelKey: string;
+  snippetKey: string;
+};
 
 const NOTE_SECTIONS: NoteSection[] = ["subjective", "objective", "assessment", "plan"];
+const CONSULTATION_TEXT = MOBILE_CONSULTATION_NOTES_TEXT;
 
 const EMPTY_CONSULTATION_NOTES_FORM: MobileConsultationNotesFormInput = {
   subjective: "",
@@ -48,19 +63,95 @@ const EMPTY_CONSULTATION_NOTES_FORM: MobileConsultationNotesFormInput = {
   plan: "",
 };
 
-const SECTION_PROMPTS = {
-  subjective: "Patient's symptoms, complaints, and history in their own words...",
-  objective: "Physical examination findings, vital signs, lab results...",
-  assessment: "Diagnosis, differential diagnosis, clinical impression...",
-  plan: "Treatment plan, medications, follow-up, referrals...",
+const NOTE_SECTION_CONFIGS: Record<NoteSection, NoteSectionConfig> = {
+  subjective: {
+    icon: "account-voice",
+    labelKey: CONSULTATION_TEXT.sections.subjective,
+    placeholderKey: CONSULTATION_TEXT.placeholders.subjective,
+    shortLabelKey: CONSULTATION_TEXT.sections.subjectiveShort,
+  },
+  objective: {
+    icon: "stethoscope",
+    labelKey: CONSULTATION_TEXT.sections.objective,
+    placeholderKey: CONSULTATION_TEXT.placeholders.objective,
+    shortLabelKey: CONSULTATION_TEXT.sections.objectiveShort,
+  },
+  assessment: {
+    icon: "clipboard-text",
+    labelKey: CONSULTATION_TEXT.sections.assessment,
+    placeholderKey: CONSULTATION_TEXT.placeholders.assessment,
+    shortLabelKey: CONSULTATION_TEXT.sections.assessmentShort,
+  },
+  plan: {
+    icon: "clipboard-check",
+    labelKey: CONSULTATION_TEXT.sections.plan,
+    placeholderKey: CONSULTATION_TEXT.placeholders.plan,
+    shortLabelKey: CONSULTATION_TEXT.sections.planShort,
+  },
 };
 
-const SECTION_ICONS = {
-  subjective: "account-voice",
-  objective: "stethoscope",
-  assessment: "clipboard-text",
-  plan: "clipboard-check",
+const NOTE_TEMPLATES: Record<NoteSection, readonly NoteTemplate[]> = {
+  subjective: [
+    {
+      labelKey: CONSULTATION_TEXT.templates.complainsOf,
+      snippetKey: CONSULTATION_TEXT.templates.complainsOfSnippet,
+    },
+    {
+      labelKey: CONSULTATION_TEXT.templates.historyOf,
+      snippetKey: CONSULTATION_TEXT.templates.historyOfSnippet,
+    },
+    {
+      labelKey: CONSULTATION_TEXT.templates.noKnownAllergies,
+      snippetKey: CONSULTATION_TEXT.templates.noKnownAllergiesSnippet,
+    },
+  ],
+  objective: [
+    {
+      labelKey: CONSULTATION_TEXT.templates.onExamination,
+      snippetKey: CONSULTATION_TEXT.templates.onExaminationSnippet,
+    },
+    {
+      labelKey: CONSULTATION_TEXT.templates.vitalsStable,
+      snippetKey: CONSULTATION_TEXT.templates.vitalsStableSnippet,
+    },
+    {
+      labelKey: CONSULTATION_TEXT.templates.noAbnormality,
+      snippetKey: CONSULTATION_TEXT.templates.noAbnormalitySnippet,
+    },
+  ],
+  assessment: [
+    {
+      labelKey: CONSULTATION_TEXT.templates.diagnosis,
+      snippetKey: CONSULTATION_TEXT.templates.diagnosisSnippet,
+    },
+    {
+      labelKey: CONSULTATION_TEXT.templates.ruleOut,
+      snippetKey: CONSULTATION_TEXT.templates.ruleOutSnippet,
+    },
+    {
+      labelKey: CONSULTATION_TEXT.templates.stableCondition,
+      snippetKey: CONSULTATION_TEXT.templates.stableConditionSnippet,
+    },
+  ],
+  plan: [
+    {
+      labelKey: CONSULTATION_TEXT.templates.continueMeds,
+      snippetKey: CONSULTATION_TEXT.templates.continueMedsSnippet,
+    },
+    {
+      labelKey: CONSULTATION_TEXT.templates.reviewOneWeek,
+      snippetKey: CONSULTATION_TEXT.templates.reviewOneWeekSnippet,
+    },
+    {
+      labelKey: CONSULTATION_TEXT.templates.restAdvised,
+      snippetKey: CONSULTATION_TEXT.templates.restAdvisedSnippet,
+    },
+  ],
 };
+
+function consultationText(key: string): string {
+  return mobilePatientJourneyText(key);
+}
 
 export function ConsultationNotesScreen({ route }: ConsultationNotesScreenProps) {
   const theme = useTheme();
@@ -122,10 +213,13 @@ export function ConsultationNotesScreen({ route }: ConsultationNotesScreenProps)
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["consultation"] });
-      setSnackbar({ visible: true, message: "Notes saved successfully" });
+      setSnackbar({ visible: true, message: consultationText(CONSULTATION_TEXT.status.saved) });
     },
     onError: () => {
-      setSnackbar({ visible: true, message: "Failed to save notes" });
+      setSnackbar({
+        visible: true,
+        message: consultationText(CONSULTATION_TEXT.errors.failedToSave),
+      });
     },
   });
 
@@ -133,6 +227,13 @@ export function ConsultationNotesScreen({ route }: ConsultationNotesScreenProps)
 
   const updateNote = (section: NoteSection, value: string) => {
     setValue(section, value, { shouldDirty: true, shouldValidate: true });
+  };
+
+  const appendTemplate = (section: NoteSection, snippetKey: string) => {
+    const current = notes[section];
+    const snippet = consultationText(snippetKey);
+    const separator = current.trim().length > 0 && !current.endsWith(" ") ? " " : "";
+    updateNote(section, `${current}${separator}${snippet} `);
   };
 
   const getSectionProgress = (): number => {
@@ -158,7 +259,7 @@ export function ConsultationNotesScreen({ route }: ConsultationNotesScreenProps)
         {/* Progress Indicator */}
         <Surface style={styles.progressCard} elevation={1}>
           <View style={styles.progressHeader}>
-            <Text variant="labelMedium">SOAP Note Progress</Text>
+            <Text variant="labelMedium">{consultationText(CONSULTATION_TEXT.progress.soap)}</Text>
             <Text variant="labelLarge" style={styles.progressPercent}>
               {Math.round(getSectionProgress())}%
             </Text>
@@ -188,12 +289,11 @@ export function ConsultationNotesScreen({ route }: ConsultationNotesScreenProps)
               setActiveSection(nextSection);
             }
           }}
-          buttons={[
-            { value: "subjective", label: "S", icon: SECTION_ICONS.subjective },
-            { value: "objective", label: "O", icon: SECTION_ICONS.objective },
-            { value: "assessment", label: "A", icon: SECTION_ICONS.assessment },
-            { value: "plan", label: "P", icon: SECTION_ICONS.plan },
-          ]}
+          buttons={NOTE_SECTIONS.map((section) => ({
+            value: section,
+            label: consultationText(NOTE_SECTION_CONFIGS[section].shortLabelKey),
+            icon: NOTE_SECTION_CONFIGS[section].icon,
+          }))}
           style={styles.segmented}
         />
 
@@ -203,11 +303,11 @@ export function ConsultationNotesScreen({ route }: ConsultationNotesScreenProps)
             <View style={styles.sectionHeader}>
               <Avatar.Icon
                 size={32}
-                icon={SECTION_ICONS[activeSection]}
+                icon={NOTE_SECTION_CONFIGS[activeSection].icon}
                 style={styles.sectionIcon}
               />
               <Text variant="titleMedium" style={styles.sectionTitle}>
-                {activeSection.charAt(0).toUpperCase() + activeSection.slice(1)}
+                {consultationText(NOTE_SECTION_CONFIGS[activeSection].labelKey)}
               </Text>
             </View>
 
@@ -221,7 +321,7 @@ export function ConsultationNotesScreen({ route }: ConsultationNotesScreenProps)
                   numberOfLines={8}
                   value={field.value}
                   onChangeText={field.onChange}
-                  placeholder={SECTION_PROMPTS[activeSection]}
+                  placeholder={consultationText(NOTE_SECTION_CONFIGS[activeSection].placeholderKey)}
                   style={styles.noteInput}
                 />
               )}
@@ -230,128 +330,18 @@ export function ConsultationNotesScreen({ route }: ConsultationNotesScreenProps)
             {/* Quick Templates */}
             <View style={styles.templates}>
               <Text variant="labelSmall" style={styles.templatesLabel}>
-                Quick phrases:
+                {consultationText(CONSULTATION_TEXT.templates.quickPhrases)}
               </Text>
               <View style={styles.templateChips}>
-                {activeSection === "subjective" && (
-                  <>
-                    <Chip
-                      compact
-                      onPress={() =>
-                        updateNote(activeSection, `${notes[activeSection]}Patient complains of `)
-                      }
-                    >
-                      Complains of
-                    </Chip>
-                    <Chip
-                      compact
-                      onPress={() =>
-                        updateNote(activeSection, `${notes[activeSection]}History of `)
-                      }
-                    >
-                      H/O
-                    </Chip>
-                    <Chip
-                      compact
-                      onPress={() =>
-                        updateNote(activeSection, `${notes[activeSection]}No known allergies. `)
-                      }
-                    >
-                      NKA
-                    </Chip>
-                  </>
-                )}
-                {activeSection === "objective" && (
-                  <>
-                    <Chip
-                      compact
-                      onPress={() =>
-                        updateNote(activeSection, `${notes[activeSection]}On examination: `)
-                      }
-                    >
-                      O/E
-                    </Chip>
-                    <Chip
-                      compact
-                      onPress={() =>
-                        updateNote(activeSection, `${notes[activeSection]}Vitals stable. `)
-                      }
-                    >
-                      Vitals stable
-                    </Chip>
-                    <Chip
-                      compact
-                      onPress={() =>
-                        updateNote(
-                          activeSection,
-                          `${notes[activeSection]}No abnormality detected. `,
-                        )
-                      }
-                    >
-                      NAD
-                    </Chip>
-                  </>
-                )}
-                {activeSection === "assessment" && (
-                  <>
-                    <Chip
-                      compact
-                      onPress={() =>
-                        updateNote(activeSection, `${notes[activeSection]}Primary diagnosis: `)
-                      }
-                    >
-                      Dx
-                    </Chip>
-                    <Chip
-                      compact
-                      onPress={() => updateNote(activeSection, `${notes[activeSection]}Rule out `)}
-                    >
-                      R/O
-                    </Chip>
-                    <Chip
-                      compact
-                      onPress={() =>
-                        updateNote(activeSection, `${notes[activeSection]}Stable condition. `)
-                      }
-                    >
-                      Stable
-                    </Chip>
-                  </>
-                )}
-                {activeSection === "plan" && (
-                  <>
-                    <Chip
-                      compact
-                      onPress={() =>
-                        updateNote(
-                          activeSection,
-                          `${notes[activeSection]}Continue current medications. `,
-                        )
-                      }
-                    >
-                      Continue meds
-                    </Chip>
-                    <Chip
-                      compact
-                      onPress={() =>
-                        updateNote(activeSection, `${notes[activeSection]}Review after 1 week. `)
-                      }
-                    >
-                      Review 1w
-                    </Chip>
-                    <Chip
-                      compact
-                      onPress={() =>
-                        updateNote(
-                          activeSection,
-                          `${notes[activeSection]}Advised rest and hydration. `,
-                        )
-                      }
-                    >
-                      Rest advised
-                    </Chip>
-                  </>
-                )}
+                {NOTE_TEMPLATES[activeSection].map((template) => (
+                  <Chip
+                    key={template.labelKey}
+                    compact
+                    onPress={() => appendTemplate(activeSection, template.snippetKey)}
+                  >
+                    {consultationText(template.labelKey)}
+                  </Chip>
+                ))}
               </View>
             </View>
           </Card.Content>
@@ -362,7 +352,7 @@ export function ConsultationNotesScreen({ route }: ConsultationNotesScreenProps)
           <Card style={styles.diagnosesCard}>
             <Card.Content>
               <Text variant="titleSmall" style={styles.diagnosesTitle}>
-                Active Diagnoses
+                {consultationText(CONSULTATION_TEXT.diagnoses.active)}
               </Text>
               <Divider style={styles.divider} />
               <View style={styles.diagnosisChips}>
@@ -387,7 +377,7 @@ export function ConsultationNotesScreen({ route }: ConsultationNotesScreenProps)
           contentStyle={styles.saveButtonContent}
           icon="content-save"
         >
-          Save Notes
+          {consultationText(CONSULTATION_TEXT.actions.save)}
         </Button>
 
         {/* Complete & Sign Button */}
@@ -400,7 +390,7 @@ export function ConsultationNotesScreen({ route }: ConsultationNotesScreenProps)
             style={styles.signButton}
             icon="check-decagram"
           >
-            Complete & Sign
+            {consultationText(CONSULTATION_TEXT.actions.completeSign)}
           </Button>
         )}
       </ScrollView>
