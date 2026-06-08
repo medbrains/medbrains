@@ -146,6 +146,8 @@ import {
   type Column,
   DataTable,
   OperationalSignal,
+  type OperationalSignalShape,
+  type OperationalSignalTone,
   PageHeader,
   PrescriptionViews,
   StatusDot,
@@ -241,6 +243,87 @@ const bedStatusColors: Record<string, string> = {
   maintenance: "slate",
   blocked: "danger",
 };
+
+const BED_DASHBOARD_STATUS_VALUES = [
+  "vacant_clean",
+  "vacant_dirty",
+  "occupied",
+  "reserved",
+  "maintenance",
+  "blocked",
+] as const;
+
+const BED_DASHBOARD_MUTABLE_STATUS_VALUES = [
+  "vacant_clean",
+  "vacant_dirty",
+  "maintenance",
+  "blocked",
+] as const;
+
+type IpdTranslate = ReturnType<typeof useTranslation>["t"];
+
+function ipdWorkflowLabel(value: string): string {
+  return value.replace(/_/g, " ");
+}
+
+function bedDashboardStatusLabel(t: IpdTranslate, status: string): string {
+  return t(`bedDashboard.status.${status}`, { defaultValue: ipdWorkflowLabel(status) });
+}
+
+function bedDashboardSignalLabel(t: IpdTranslate, status: string): string {
+  return t(`bedDashboard.signal.${status}`, { defaultValue: bedDashboardStatusLabel(t, status) });
+}
+
+function bedDashboardStatusTone(status: string): OperationalSignalTone {
+  switch (status) {
+    case "vacant_clean":
+      return "ready";
+    case "occupied":
+      return "active";
+    case "vacant_dirty":
+    case "reserved":
+      return "blocked";
+    case "blocked":
+      return "risk";
+    default:
+      return "neutral";
+  }
+}
+
+function bedDashboardStatusShape(status: string): OperationalSignalShape {
+  switch (status) {
+    case "vacant_clean":
+    case "occupied":
+      return "bed";
+    case "vacant_dirty":
+    case "blocked":
+      return "diamond";
+    case "reserved":
+    case "maintenance":
+      return "token";
+    default:
+      return "pill";
+  }
+}
+
+function bedDashboardStatusIcon(status: string) {
+  switch (status) {
+    case "vacant_clean":
+      return IconCheck;
+    case "vacant_dirty":
+      return IconDoor;
+    case "occupied":
+      return IconBed;
+    case "reserved":
+      return IconCalendarTime;
+    case "maintenance":
+      return IconAlertTriangle;
+    case "blocked":
+      return IconUserOff;
+    default:
+      return undefined;
+  }
+}
 
 const IPD_WORKSPACE_TABS = [
   { value: "overview", label: "Overview", section: "Command" },
@@ -3946,11 +4029,13 @@ function IpTypeConfigSection() {
 // ═══════════════════════════════════════════════════════════
 
 function BedDashboardTab() {
+  const { t } = useTranslation("ipd");
   const canManageBeds = useHasPermission(P.IPD.BEDS_MANAGE);
+  const canViewAdmissions = useHasPermission(P.IPD.ADMISSIONS_VIEW);
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [filterWard, setFilterWard] = useState<string | null>(null);
   const [filterStatus, setFilterStatus] = useState<string | null>(null);
-  const [filterIpType, setFilterIpType] = useState<string | null>(null);
   const [showTurnaround, setShowTurnaround] = useState(false);
   const patientNameAccess = useProtectedFieldAccess(undefined, PATIENT_NAME_FIELD_ACCESS_KEYS);
   const uhidAccess = useProtectedFieldAccess(PATIENT_UHID_FIELD_ACCESS_KEY);
@@ -4004,72 +4089,93 @@ function BedDashboardTab() {
     },
   );
 
-  const wardOptions = summaryRows
-    .filter((r) => r.ward_id)
-    .map((r) => ({ value: r.ward_id as string, label: r.ward_name ?? "Unknown" }));
+  const wardOptions = summaryRows.flatMap((row) =>
+    row.ward_id
+      ? [{ value: row.ward_id, label: row.ward_name ?? t("bedDashboard.unknownWard") }]
+      : [],
+  );
+  const statusOptions = BED_DASHBOARD_STATUS_VALUES.map((status) => ({
+    value: status,
+    label: bedDashboardStatusLabel(t, status),
+  }));
 
   return (
     <Stack>
       <SimpleGrid cols={{ base: 2, sm: 4, md: 7 }}>
         <Card withBorder p="xs">
-          <Text size="xs" c="dimmed">
-            Total
-          </Text>
-          <Text fw={700}>{totals.total}</Text>
+          <OperationalSignal
+            label={t("bedDashboard.summary.total")}
+            shape="pill"
+            size="xs"
+            tone="neutral"
+            value={totals.total}
+          />
         </Card>
         <Card withBorder p="xs">
-          <Text size="xs" c="dimmed">
-            Vacant (Clean)
-          </Text>
-          <Text fw={700} c="success">
-            {totals.vacant_clean}
-          </Text>
+          <OperationalSignal
+            icon={bedDashboardStatusIcon("vacant_clean")}
+            label={bedDashboardSignalLabel(t, "vacant_clean")}
+            shape={bedDashboardStatusShape("vacant_clean")}
+            size="xs"
+            tone={bedDashboardStatusTone("vacant_clean")}
+            value={totals.vacant_clean}
+          />
         </Card>
         <Card withBorder p="xs">
-          <Text size="xs" c="dimmed">
-            Vacant (Dirty)
-          </Text>
-          <Text fw={700} c="warning">
-            {totals.vacant_dirty}
-          </Text>
+          <OperationalSignal
+            icon={bedDashboardStatusIcon("vacant_dirty")}
+            label={bedDashboardSignalLabel(t, "vacant_dirty")}
+            shape={bedDashboardStatusShape("vacant_dirty")}
+            size="xs"
+            tone={bedDashboardStatusTone("vacant_dirty")}
+            value={totals.vacant_dirty}
+          />
         </Card>
         <Card withBorder p="xs">
-          <Text size="xs" c="dimmed">
-            Occupied
-          </Text>
-          <Text fw={700} c="primary">
-            {totals.occupied}
-          </Text>
+          <OperationalSignal
+            icon={bedDashboardStatusIcon("occupied")}
+            label={bedDashboardSignalLabel(t, "occupied")}
+            shape={bedDashboardStatusShape("occupied")}
+            size="xs"
+            tone={bedDashboardStatusTone("occupied")}
+            value={totals.occupied}
+          />
         </Card>
         <Card withBorder p="xs">
-          <Text size="xs" c="dimmed">
-            Reserved
-          </Text>
-          <Text fw={700} c="orange">
-            {totals.reserved}
-          </Text>
+          <OperationalSignal
+            icon={bedDashboardStatusIcon("reserved")}
+            label={bedDashboardSignalLabel(t, "reserved")}
+            shape={bedDashboardStatusShape("reserved")}
+            size="xs"
+            tone={bedDashboardStatusTone("reserved")}
+            value={totals.reserved}
+          />
         </Card>
         <Card withBorder p="xs">
-          <Text size="xs" c="dimmed">
-            Maintenance
-          </Text>
-          <Text fw={700} c="slate">
-            {totals.maintenance}
-          </Text>
+          <OperationalSignal
+            icon={bedDashboardStatusIcon("maintenance")}
+            label={bedDashboardSignalLabel(t, "maintenance")}
+            shape={bedDashboardStatusShape("maintenance")}
+            size="xs"
+            tone={bedDashboardStatusTone("maintenance")}
+            value={totals.maintenance}
+          />
         </Card>
         <Card withBorder p="xs">
-          <Text size="xs" c="dimmed">
-            Blocked
-          </Text>
-          <Text fw={700} c="danger">
-            {totals.blocked}
-          </Text>
+          <OperationalSignal
+            icon={bedDashboardStatusIcon("blocked")}
+            label={bedDashboardSignalLabel(t, "blocked")}
+            shape={bedDashboardStatusShape("blocked")}
+            size="xs"
+            tone={bedDashboardStatusTone("blocked")}
+            value={totals.blocked}
+          />
         </Card>
       </SimpleGrid>
 
       <Group>
         <Select
-          placeholder="Filter by ward"
+          placeholder={t("placeholder.filterByWard")}
           data={wardOptions}
           value={filterWard}
           onChange={setFilterWard}
@@ -4077,25 +4183,10 @@ function BedDashboardTab() {
           w={200}
         />
         <Select
-          placeholder="Filter by status"
-          data={["vacant_clean", "vacant_dirty", "occupied", "reserved", "maintenance", "blocked"]}
+          placeholder={t("placeholder.filterByStatus")}
+          data={statusOptions}
           value={filterStatus}
           onChange={setFilterStatus}
-          clearable
-          w={200}
-        />
-        <Select
-          placeholder="Filter by unit type"
-          data={[
-            { value: "icu", label: "ICU" },
-            { value: "nicu", label: "NICU" },
-            { value: "picu", label: "PICU" },
-            { value: "hdu", label: "HDU" },
-            { value: "nursery", label: "Nursery" },
-            { value: "isolation", label: "Isolation" },
-          ]}
-          value={filterIpType}
-          onChange={setFilterIpType}
           clearable
           w={200}
         />
@@ -4104,18 +4195,19 @@ function BedDashboardTab() {
           size="sm"
           onClick={() => setShowTurnaround((v) => !v)}
         >
-          Bed Turnaround
+          {t("bedDashboard.actions.turnaround")}
         </Button>
       </Group>
 
       {showTurnaround && <BedTurnaroundView />}
 
       {isLoading ? (
-        <Text c="dimmed">Loading beds...</Text>
+        <Text c="dimmed">{t("bedDashboard.loadingBeds")}</Text>
       ) : (
         <SimpleGrid cols={{ base: 2, sm: 3, md: 4, lg: 6 }}>
           {beds.map((bed) => {
             const bedStatus = bed.bed_status;
+            const admissionId = bed.admission_id;
             const patientName = protectedIpdPatientName(bed.patient_name, patientNameAccess);
             const patientUhid = protectedIpdPatientIdentifier(bed.patient_uhid, uhidAccess);
 
@@ -4132,27 +4224,61 @@ function BedDashboardTab() {
                   {bed.bed_name}
                 </Text>
                 <Text size="xs" c="dimmed">
-                  {bed.ward_name ?? "Unassigned"}
+                  {bed.ward_name ?? t("bedDashboard.unassignedWard")}
                 </Text>
-                <Badge size="xs" color={bedStatusColors[bedStatus] ?? "slate"} mt={4}>
-                  {bedStatus.replace("_", " ")}
-                </Badge>
-                {bed.patient_name && (
+                <Group gap={4} mt={6} wrap="wrap">
+                  <OperationalSignal
+                    icon={bedDashboardStatusIcon(bedStatus)}
+                    label={bedDashboardSignalLabel(t, bedStatus)}
+                    shape={bedDashboardStatusShape(bedStatus)}
+                    size="xs"
+                    tone={bedDashboardStatusTone(bedStatus)}
+                    value={bedDashboardStatusLabel(t, bedStatus)}
+                  />
+                  {admissionId && (
+                    <OperationalSignal
+                      icon={IconBuildingHospital}
+                      label={t("bedDashboard.patient.activeAdmission")}
+                      shape="token"
+                      size="xs"
+                      tone="active"
+                    />
+                  )}
+                </Group>
+                {admissionId ? (
                   <Stack gap={0} mt={4}>
                     <Text size="xs">{patientName}</Text>
                     <Text size="xs" c="dimmed">
                       {patientUhid}
                     </Text>
                   </Stack>
+                ) : (
+                  <Text size="xs" c="dimmed" mt={4}>
+                    {t("bedDashboard.patient.noActiveAdmission")}
+                  </Text>
+                )}
+                {canViewAdmissions && admissionId && (
+                  <Button
+                    size="compact-xs"
+                    variant="subtle"
+                    mt={6}
+                    leftSection={<IconEye size={12} />}
+                    onClick={() => navigate(ipdAdmissionWorkspaceTabRoute(admissionId, "overview"))}
+                  >
+                    {t("bedDashboard.actions.openAdmission")}
+                  </Button>
                 )}
                 {canManageBeds && bedStatus !== "occupied" && (
                   <Select
                     size="xs"
                     mt={4}
-                    placeholder="Change status"
-                    data={["vacant_clean", "vacant_dirty", "maintenance", "blocked"].filter(
+                    placeholder={t("placeholder.changeStatus")}
+                    data={BED_DASHBOARD_MUTABLE_STATUS_VALUES.filter(
                       (statusOption) => statusOption !== bedStatus,
-                    )}
+                    ).map((statusOption) => ({
+                      value: statusOption,
+                      label: bedDashboardStatusLabel(t, statusOption),
+                    }))}
                     onChange={(value) => {
                       if (value) {
                         updateStatusMutation.mutate({
@@ -4171,7 +4297,7 @@ function BedDashboardTab() {
       )}
       {beds.length === 0 && !isLoading && (
         <Text c="dimmed" size="sm">
-          No beds found.
+          {t("bedDashboard.noBedsFound")}
         </Text>
       )}
     </Stack>
