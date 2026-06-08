@@ -21,6 +21,7 @@ import {
 } from "react-native-paper";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { phlebotomyService } from "../../services/phlebotomy.service";
+import { mobilePhlebotomyText } from "./phlebotomyText";
 
 interface SampleCollectionScreenProps {
   route: {
@@ -38,6 +39,15 @@ interface CollectedSample {
   sampleId: string;
   barcode: string;
   collected: boolean;
+}
+
+function confirmMessage(sampleCount: number, collectionId: string): string {
+  return mobilePhlebotomyText(
+    sampleCount === 1
+      ? "phlebotomy.collection.confirmMessageSingular"
+      : "phlebotomy.collection.confirmMessagePlural",
+    { count: sampleCount, id: collectionId },
+  );
 }
 
 export function SampleCollectionScreen({ route, navigation }: SampleCollectionScreenProps) {
@@ -70,11 +80,17 @@ export function SampleCollectionScreen({ route, navigation }: SampleCollectionSc
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["homeCollections"] });
-      setSnackbar({ visible: true, message: "Collection completed successfully" });
+      setSnackbar({
+        visible: true,
+        message: mobilePhlebotomyText("phlebotomy.collection.snackbar.completed"),
+      });
       setTimeout(() => navigation.goBack(), 1500);
     },
     onError: () => {
-      setSnackbar({ visible: true, message: "Failed to submit collection" });
+      setSnackbar({
+        visible: true,
+        message: mobilePhlebotomyText("phlebotomy.collection.snackbar.failed"),
+      });
     },
   });
 
@@ -98,7 +114,12 @@ export function SampleCollectionScreen({ route, navigation }: SampleCollectionSc
     const uncollectedSample = samples.find((s) => !s.collected);
     if (uncollectedSample) {
       handleSetBarcode(uncollectedSample.sampleId, mockBarcode);
-      setSnackbar({ visible: true, message: `Barcode scanned: ${mockBarcode}` });
+      setSnackbar({
+        visible: true,
+        message: mobilePhlebotomyText("phlebotomy.collection.barcodeScanned", {
+          barcode: mockBarcode,
+        }),
+      });
     }
   };
 
@@ -123,9 +144,9 @@ export function SampleCollectionScreen({ route, navigation }: SampleCollectionSc
     return (
       <SafeAreaView style={[styles.container, styles.centered]}>
         <Avatar.Icon size={64} icon="alert-circle" style={styles.errorIcon} />
-        <Text variant="titleMedium">Collection not found</Text>
+        <Text variant="titleMedium">{mobilePhlebotomyText("phlebotomy.collection.notFound")}</Text>
         <Button mode="contained" onPress={() => navigation.goBack()} style={styles.backButton}>
-          Go Back
+          {mobilePhlebotomyText("phlebotomy.action.goBack")}
         </Button>
       </SafeAreaView>
     );
@@ -134,7 +155,10 @@ export function SampleCollectionScreen({ route, navigation }: SampleCollectionSc
   const addressParts = [collection.address_line, collection.city, collection.pincode].filter(
     Boolean,
   );
-  const address = addressParts.length > 0 ? addressParts.join(", ") : "Address not provided";
+  const address =
+    addressParts.length > 0
+      ? addressParts.join(", ")
+      : mobilePhlebotomyText("phlebotomy.collection.addressNotProvided");
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
@@ -144,7 +168,9 @@ export function SampleCollectionScreen({ route, navigation }: SampleCollectionSc
           <Avatar.Icon size={48} icon="test-tube" style={styles.avatar} />
           <View style={styles.patientInfo}>
             <Text variant="titleMedium" style={styles.patientName}>
-              Collection #{collection.id.slice(0, 8)}
+              {mobilePhlebotomyText("phlebotomy.collection.collectionId", {
+                id: collection.id.slice(0, 8),
+              })}
             </Text>
             <Text variant="bodySmall" style={styles.uhid}>
               {collection.scheduled_date}
@@ -160,7 +186,9 @@ export function SampleCollectionScreen({ route, navigation }: SampleCollectionSc
           <Card.Content>
             <View style={styles.addressHeader}>
               <Avatar.Icon size={32} icon="map-marker" style={styles.addressIconStyle} />
-              <Text variant="titleSmall">Collection Address</Text>
+              <Text variant="titleSmall">
+                {mobilePhlebotomyText("phlebotomy.collection.addressTitle")}
+              </Text>
             </View>
             <Text variant="bodyMedium" style={styles.addressText}>
               {address}
@@ -176,10 +204,10 @@ export function SampleCollectionScreen({ route, navigation }: SampleCollectionSc
         {/* Samples to Collect */}
         <View style={styles.sectionHeader}>
           <Text variant="titleMedium" style={styles.sectionTitle}>
-            Samples to Collect
+            {mobilePhlebotomyText("phlebotomy.collection.samplesSection")}
           </Text>
           <Button mode="text" icon="plus" onPress={handleAddSample} compact>
-            Add Sample
+            {mobilePhlebotomyText("phlebotomy.action.addSample")}
           </Button>
         </View>
 
@@ -190,7 +218,9 @@ export function SampleCollectionScreen({ route, navigation }: SampleCollectionSc
                 <View style={styles.tubeIndicator} />
                 <View style={styles.sampleInfo}>
                   <Text variant="titleSmall" style={styles.testName}>
-                    Sample {index + 1}
+                    {mobilePhlebotomyText("phlebotomy.collection.sampleTitle", {
+                      number: index + 1,
+                    })}
                   </Text>
                 </View>
                 <Checkbox
@@ -203,7 +233,7 @@ export function SampleCollectionScreen({ route, navigation }: SampleCollectionSc
               <View style={styles.barcodeRow}>
                 <TextInput
                   mode="outlined"
-                  label="Barcode / Sample ID"
+                  label={mobilePhlebotomyText("phlebotomy.collection.barcodeLabel")}
                   value={sample.barcode}
                   onChangeText={(v) => handleSetBarcode(sample.sampleId, v)}
                   style={styles.barcodeInput}
@@ -217,13 +247,13 @@ export function SampleCollectionScreen({ route, navigation }: SampleCollectionSc
                   compact
                   style={styles.scanButton}
                 >
-                  Scan
+                  {mobilePhlebotomyText("phlebotomy.action.scan")}
                 </Button>
               </View>
 
               {sample.collected && (
                 <Chip icon="check" style={styles.collectedChip}>
-                  Sample collected
+                  {mobilePhlebotomyText("phlebotomy.collection.sampleCollected")}
                 </Chip>
               )}
             </Card.Content>
@@ -232,7 +262,7 @@ export function SampleCollectionScreen({ route, navigation }: SampleCollectionSc
 
         {/* Collection Notes */}
         <Text variant="titleMedium" style={styles.sectionTitle}>
-          Collection Notes
+          {mobilePhlebotomyText("phlebotomy.collection.notesTitle")}
         </Text>
         <TextInput
           mode="outlined"
@@ -240,7 +270,7 @@ export function SampleCollectionScreen({ route, navigation }: SampleCollectionSc
           numberOfLines={3}
           value={notes}
           onChangeText={setNotes}
-          placeholder="Any observations or issues during collection..."
+          placeholder={mobilePhlebotomyText("phlebotomy.collection.notesPlaceholder")}
           style={styles.notesInput}
         />
 
@@ -250,7 +280,9 @@ export function SampleCollectionScreen({ route, navigation }: SampleCollectionSc
             <Card.Content>
               <View style={styles.instructionsHeader}>
                 <Avatar.Icon size={32} icon="alert-circle" style={styles.instructionsIcon} />
-                <Text variant="titleSmall">Special Instructions</Text>
+                <Text variant="titleSmall">
+                  {mobilePhlebotomyText("phlebotomy.collection.specialInstructions")}
+                </Text>
               </View>
               <Text variant="bodyMedium" style={styles.instructionsText}>
                 {collection.special_instructions}
@@ -263,19 +295,22 @@ export function SampleCollectionScreen({ route, navigation }: SampleCollectionSc
         <Card style={styles.checklistCard}>
           <Card.Content>
             <Text variant="titleSmall" style={styles.checklistTitle}>
-              Pre-submission Checklist
+              {mobilePhlebotomyText("phlebotomy.collection.checklistTitle")}
             </Text>
             <Divider style={styles.divider} />
 
             <List.Item
-              title="Patient identity verified"
+              title={mobilePhlebotomyText("phlebotomy.collection.checklist.patientVerified")}
               left={() => <Checkbox status="checked" />}
             />
             <List.Item
-              title="All samples labeled correctly"
+              title={mobilePhlebotomyText("phlebotomy.collection.checklist.labeled")}
               left={() => <Checkbox status={allCollected ? "checked" : "unchecked"} />}
             />
-            <List.Item title="Samples stored properly" left={() => <Checkbox status="checked" />} />
+            <List.Item
+              title={mobilePhlebotomyText("phlebotomy.collection.checklist.stored")}
+              left={() => <Checkbox status="checked" />}
+            />
           </Card.Content>
         </Card>
 
@@ -288,13 +323,16 @@ export function SampleCollectionScreen({ route, navigation }: SampleCollectionSc
           contentStyle={styles.submitButtonContent}
           icon="check-circle"
         >
-          Complete Collection
+          {mobilePhlebotomyText("phlebotomy.action.completeCollection")}
         </Button>
 
         {/* Progress Indicator */}
         <View style={styles.progressRow}>
           <Text variant="labelMedium" style={styles.progressText}>
-            {samples.filter((s) => s.collected).length} / {samples.length} samples collected
+            {mobilePhlebotomyText("phlebotomy.collection.progress", {
+              collected: samples.filter((s) => s.collected).length,
+              total: samples.length,
+            })}
           </Text>
           <View style={styles.progressBar}>
             <View
@@ -312,18 +350,17 @@ export function SampleCollectionScreen({ route, navigation }: SampleCollectionSc
       {/* Confirmation Dialog */}
       <Portal>
         <Dialog visible={confirmDialogVisible} onDismiss={() => setConfirmDialogVisible(false)}>
-          <Dialog.Title>Confirm Collection</Dialog.Title>
+          <Dialog.Title>{mobilePhlebotomyText("phlebotomy.collection.confirmTitle")}</Dialog.Title>
           <Dialog.Content>
-            <Text>
-              You are about to submit {samples.length} sample(s) for collection #
-              {collection.id.slice(0, 8)}.
-            </Text>
+            <Text>{confirmMessage(samples.length, collection.id.slice(0, 8))}</Text>
             <Text style={styles.dialogWarning}>
-              Please ensure all samples are correctly labeled and stored.
+              {mobilePhlebotomyText("phlebotomy.collection.submitWarning")}
             </Text>
           </Dialog.Content>
           <Dialog.Actions>
-            <Button onPress={() => setConfirmDialogVisible(false)}>Cancel</Button>
+            <Button onPress={() => setConfirmDialogVisible(false)}>
+              {mobilePhlebotomyText("phlebotomy.action.cancel")}
+            </Button>
             <Button
               mode="contained"
               onPress={() => {
@@ -332,7 +369,7 @@ export function SampleCollectionScreen({ route, navigation }: SampleCollectionSc
               }}
               loading={submitMutation.isPending}
             >
-              Confirm
+              {mobilePhlebotomyText("phlebotomy.action.confirm")}
             </Button>
           </Dialog.Actions>
         </Dialog>
