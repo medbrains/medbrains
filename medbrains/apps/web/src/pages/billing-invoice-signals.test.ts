@@ -1,11 +1,15 @@
 // @vitest-environment node
 
 import {
+  activeBillingInvoiceIdForJourney,
   BILLING_INVOICE_STATUS_VALUES,
   billingInvoiceBalance,
   billingInvoiceBalanceSignal,
   billingInvoiceDisplayStatus,
+  billingInvoiceHasReceivedPayment,
+  billingInvoiceIsFinalized,
   billingInvoiceIsPayable,
+  billingInvoiceRequiresFollowUp,
   billingInvoiceStatusSignal,
 } from "@medbrains/types";
 import { describe, expect, it } from "vitest";
@@ -29,6 +33,27 @@ describe("billing invoice operational signals", () => {
     expect(billingInvoiceDisplayStatus("refunded", "1000", "1000")).toBe("refunded");
     expect(billingInvoiceIsPayable("issued", "1000", "0")).toBe(true);
     expect(billingInvoiceIsPayable("paid", "1000", "1000")).toBe(false);
+    expect(billingInvoiceIsFinalized("issued", "1000", "0")).toBe(true);
+    expect(billingInvoiceIsFinalized("draft", "1000", "0")).toBe(false);
+    expect(billingInvoiceHasReceivedPayment("issued", "1000", "250")).toBe(true);
+    expect(billingInvoiceRequiresFollowUp("draft", "0", "0")).toBe(true);
+    expect(billingInvoiceRequiresFollowUp("paid", "1000", "1000")).toBe(false);
+  });
+
+  it("selects the best active invoice for patient journey handoffs", () => {
+    expect(
+      activeBillingInvoiceIdForJourney([
+        { id: "paid", paid_amount: "1000", status: "paid", total_amount: "1000" },
+        { id: "draft", paid_amount: "0", status: "draft", total_amount: "500" },
+        { id: "due", paid_amount: "100", status: "issued", total_amount: "500" },
+      ]),
+    ).toBe("due");
+    expect(
+      activeBillingInvoiceIdForJourney([
+        { id: "refunded", paid_amount: "1000", status: "refunded", total_amount: "1000" },
+        { id: "draft", paid_amount: "0", status: "draft", total_amount: "0" },
+      ]),
+    ).toBe("draft");
   });
 
   it("maps invoice status to scannable billing workflow shapes", () => {

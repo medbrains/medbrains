@@ -22,6 +22,13 @@ export interface BillingInvoiceSignal {
   tone: BillingInvoiceSignalTone;
 }
 
+interface BillingInvoiceJourneyRow {
+  id: string;
+  paid_amount: number | string | null | undefined;
+  status: string;
+  total_amount: number | string | null | undefined;
+}
+
 export const BILLING_INVOICE_STATUS_VALUES = [
   "draft",
   "issued",
@@ -115,6 +122,61 @@ export function billingInvoiceIsPayable(
   return (
     billingInvoiceBalance(totalAmount, paidAmount) > 0 &&
     (displayStatus === "issued" || displayStatus === "partially_paid")
+  );
+}
+
+export function billingInvoiceIsFinalized(
+  status: string,
+  totalAmount: number | string | null | undefined,
+  paidAmount: number | string | null | undefined,
+): boolean {
+  const displayStatus = billingInvoiceDisplayStatus(status, totalAmount, paidAmount);
+  return (
+    displayStatus === "issued" || displayStatus === "partially_paid" || displayStatus === "paid"
+  );
+}
+
+export function billingInvoiceHasReceivedPayment(
+  status: string,
+  totalAmount: number | string | null | undefined,
+  paidAmount: number | string | null | undefined,
+): boolean {
+  const displayStatus = billingInvoiceDisplayStatus(status, totalAmount, paidAmount);
+  return (
+    displayStatus === "partially_paid" || displayStatus === "paid" || amountNumber(paidAmount) > 0
+  );
+}
+
+export function billingInvoiceRequiresFollowUp(
+  status: string,
+  totalAmount: number | string | null | undefined,
+  paidAmount: number | string | null | undefined,
+): boolean {
+  const displayStatus = billingInvoiceDisplayStatus(status, totalAmount, paidAmount);
+  return (
+    displayStatus === "draft" || displayStatus === "issued" || displayStatus === "partially_paid"
+  );
+}
+
+export function activeBillingInvoiceIdForJourney<TInvoice extends BillingInvoiceJourneyRow>(
+  invoices: readonly TInvoice[],
+): string | null {
+  return (
+    invoices.find((invoice) =>
+      billingInvoiceIsPayable(invoice.status, invoice.total_amount, invoice.paid_amount),
+    )?.id ??
+    invoices.find((invoice) =>
+      billingInvoiceRequiresFollowUp(invoice.status, invoice.total_amount, invoice.paid_amount),
+    )?.id ??
+    invoices.find((invoice) => {
+      const displayStatus = billingInvoiceDisplayStatus(
+        invoice.status,
+        invoice.total_amount,
+        invoice.paid_amount,
+      );
+      return displayStatus !== "cancelled" && displayStatus !== "refunded";
+    })?.id ??
+    null
   );
 }
 

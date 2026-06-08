@@ -8,12 +8,15 @@ import type {
   FieldAccessLevel,
   Gender,
   MaritalStatus,
-  PatientInvoiceRow,
   PatientVisitRow,
 } from "@medbrains/types";
 import {
+  activeBillingInvoiceIdForJourney,
   activePatientPharmacyOrderIdForJourney,
   activePatientPharmacyRxQueueIdForJourney,
+  billingInvoiceHasReceivedPayment,
+  billingInvoiceIsFinalized,
+  billingInvoiceRequiresFollowUp,
   deriveCampJourneyCompletedEvents,
   hasReviewedPatientPharmacyPrescriptionForJourney,
   P,
@@ -60,25 +63,6 @@ const ACTIVE_ER_VISIT_STATUSES = new Set<ErVisitStatus>([
   "observation",
 ]);
 const PATIENT_DETAIL_TEXT = MOBILE_PATIENT_DETAIL_TEXT;
-
-function patientInvoiceBalance(invoice: PatientInvoiceRow): number {
-  const parsed = Number.parseFloat(invoice.balance);
-  return Number.isFinite(parsed) ? parsed : 0;
-}
-
-function activePatientInvoiceIdForJourney(invoices: readonly PatientInvoiceRow[]): string | null {
-  return (
-    invoices.find(
-      (invoice) =>
-        patientInvoiceBalance(invoice) > 0.004 &&
-        invoice.status !== "cancelled" &&
-        invoice.status !== "refunded",
-    )?.id ??
-    invoices.find((invoice) => invoice.status !== "cancelled" && invoice.status !== "refunded")
-      ?.id ??
-    null
-  );
-}
 
 function patientDetailMessage(
   key: string,
@@ -339,26 +323,17 @@ export function PatientDetailScreen({ route, navigation }: PatientDetailScreenPr
   const hasMedicationOrder =
     prescriptionList.length > 0 || visitsList.some((visit) => (visit.prescription_count ?? 0) > 0);
   const hasBillingInvoice = invoiceList.length > 0;
-  const hasFinalizedInvoice = invoiceList.some(
-    (invoice) =>
-      invoice.status === "issued" ||
-      invoice.status === "partially_paid" ||
-      invoice.status === "paid",
+  const hasFinalizedInvoice = invoiceList.some((invoice) =>
+    billingInvoiceIsFinalized(invoice.status, invoice.total_amount, invoice.paid_amount),
   );
-  const hasPaymentReceived = invoiceList.some(
-    (invoice) =>
-      invoice.status === "paid" ||
-      invoice.status === "partially_paid" ||
-      Number.parseFloat(invoice.paid_amount || "0") > 0,
+  const hasPaymentReceived = invoiceList.some((invoice) =>
+    billingInvoiceHasReceivedPayment(invoice.status, invoice.total_amount, invoice.paid_amount),
   );
   const campCompletedEvents = deriveCampJourneyCompletedEvents(campRegistrationList);
-  const pendingInvoiceCount = invoiceList.filter(
-    (invoice) =>
-      invoice.status === "draft" ||
-      invoice.status === "issued" ||
-      invoice.status === "partially_paid",
+  const pendingInvoiceCount = invoiceList.filter((invoice) =>
+    billingInvoiceRequiresFollowUp(invoice.status, invoice.total_amount, invoice.paid_amount),
   ).length;
-  const activeInvoiceId = activePatientInvoiceIdForJourney(invoiceList);
+  const activeInvoiceId = activeBillingInvoiceIdForJourney(invoiceList);
   const activePharmacyOrderId = activePatientPharmacyOrderIdForJourney(prescriptionList);
   const activePharmacyRxQueueId = activePatientPharmacyRxQueueIdForJourney(prescriptionList);
   const hasReviewedPharmacyPrescription =

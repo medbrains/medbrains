@@ -42,11 +42,15 @@ export type {
   BillingInvoiceStatus,
 } from "./billing-invoice-signals.js";
 export {
+  activeBillingInvoiceIdForJourney,
   BILLING_INVOICE_STATUS_VALUES,
   billingInvoiceBalance,
   billingInvoiceBalanceSignal,
   billingInvoiceDisplayStatus,
+  billingInvoiceHasReceivedPayment,
+  billingInvoiceIsFinalized,
   billingInvoiceIsPayable,
+  billingInvoiceRequiresFollowUp,
   billingInvoiceStatusSignal,
 } from "./billing-invoice-signals.js";
 export type {
