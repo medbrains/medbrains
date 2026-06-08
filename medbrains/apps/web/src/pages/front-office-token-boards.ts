@@ -5,9 +5,9 @@ import type {
   QueuePriority,
   QueueToken,
   RadiologyQueueToken,
-  TokenBoardSurfaceId,
+  TokenBoardSurfaceFilter,
 } from "@medbrains/types";
-import { TOKEN_BOARD_SURFACES } from "@medbrains/types";
+import { tokenBoardSurfaceFilterFromParam } from "@medbrains/types";
 
 export interface DisplayToken {
   meta: string;
@@ -18,7 +18,7 @@ export interface DisplayToken {
 export const TOKEN_BOARD_QUERY_PARAM = "board";
 export const TOKEN_BOARD_DISPLAY_QUERY_PARAM = "display";
 export const TOKEN_BOARD_HASH = "token-boards";
-export type TokenBoardFilter = "all" | TokenBoardSurfaceId;
+export type TokenBoardFilter = TokenBoardSurfaceFilter;
 export type TokenBoardRouteDisplayMode = "workspace" | "kiosk";
 
 export interface TokenBoardFilterRoute {
@@ -27,15 +27,8 @@ export interface TokenBoardFilterRoute {
   search: string;
 }
 
-const TOKEN_BOARD_SURFACE_IDS = new Set(Object.keys(TOKEN_BOARD_SURFACES));
-
-export function isTokenBoardSurfaceId(value: string | null): value is TokenBoardSurfaceId {
-  return value != null && TOKEN_BOARD_SURFACE_IDS.has(value);
-}
-
 export function tokenBoardFilterFromSearchParams(searchParams: URLSearchParams): TokenBoardFilter {
-  const board = searchParams.get(TOKEN_BOARD_QUERY_PARAM);
-  return isTokenBoardSurfaceId(board) ? board : "all";
+  return tokenBoardSurfaceFilterFromParam(searchParams.get(TOKEN_BOARD_QUERY_PARAM));
 }
 
 export function tokenBoardDisplayModeFromSearchParams(

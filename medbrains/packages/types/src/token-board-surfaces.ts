@@ -7,6 +7,7 @@ export type TokenBoardSurfaceId =
   | "opd"
   | "pharmacy"
   | "radiology";
+export type TokenBoardSurfaceFilter = "all" | TokenBoardSurfaceId;
 export type TokenBoardDisplayMode = "token_only_public";
 export type TokenBoardReadinessTone = "danger" | "info" | "success" | "warning";
 export type TokenBoardTvDisplayType =
@@ -270,6 +271,16 @@ export const TOKEN_BOARD_SURFACE_LIST = [
   TOKEN_BOARD_SURFACES.pharmacy,
   TOKEN_BOARD_SURFACES.billing,
 ] as const satisfies ReadonlyArray<TokenBoardSurfaceDefinition>;
+
+export function isTokenBoardSurfaceId(value: unknown): value is TokenBoardSurfaceId {
+  return (
+    typeof value === "string" && TOKEN_BOARD_SURFACE_LIST.some((surface) => surface.id === value)
+  );
+}
+
+export function tokenBoardSurfaceFilterFromParam(value: unknown): TokenBoardSurfaceFilter {
+  return isTokenBoardSurfaceId(value) ? value : "all";
+}
 
 export function getTokenBoardSurface(id: TokenBoardSurfaceId): TokenBoardSurfaceDefinition {
   return TOKEN_BOARD_SURFACES[id];

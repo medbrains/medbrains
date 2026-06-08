@@ -10,6 +10,7 @@ import type {
   TokenBoardReadinessItem,
   TokenBoardReadinessTone,
   TokenBoardSurfaceDefinition,
+  TokenBoardSurfaceFilter,
   TokenBoardSurfaceId,
   TriageLevelColor,
 } from "@medbrains/types";
@@ -18,8 +19,9 @@ import {
   TOKEN_BOARD_SURFACE_LIST,
   TOKEN_BOARD_SURFACES,
   tokenBoardOperationalReadinessItems,
+  tokenBoardSurfaceFilterFromParam,
 } from "@medbrains/types";
-import { type ReactNode, useState } from "react";
+import type { ReactNode } from "react";
 import { ScrollView, StyleSheet, View } from "react-native";
 import {
   ActivityIndicator,
@@ -48,7 +50,6 @@ const RADIOLOGY_BOARD = TOKEN_BOARD_SURFACES.radiology;
 const EMERGENCY_BOARD = TOKEN_BOARD_SURFACES.emergency;
 const PHARMACY_BOARD = TOKEN_BOARD_SURFACES.pharmacy;
 const BILLING_BOARD = TOKEN_BOARD_SURFACES.billing;
-type TokenBoardFilter = "all" | TokenBoardSurfaceId;
 
 const TRIAGE_LANES: ReadonlyArray<{
   color: string;
@@ -76,11 +77,20 @@ interface BoardMetric {
 }
 
 interface TokenBoardsScreenProps {
+  navigation?: {
+    setParams: (params: { surface?: TokenBoardSurfaceId }) => void;
+  };
   route?: {
     params?: {
       surface?: TokenBoardSurfaceId;
     };
   };
+}
+
+function tokenBoardMobileRouteParams(filter: TokenBoardSurfaceFilter) {
+  return filter === "all"
+    ? { surface: undefined }
+    : TOKEN_BOARD_SURFACES[filter].targets.mobileParams;
 }
 
 function statusLabel(value: string) {
@@ -430,11 +440,9 @@ function TriageLane({
   );
 }
 
-export function TokenBoardsScreen({ route }: TokenBoardsScreenProps) {
+export function TokenBoardsScreen({ navigation, route }: TokenBoardsScreenProps) {
   const theme = useTheme();
-  const [selectedSurface, setSelectedSurface] = useState<TokenBoardFilter>(
-    route?.params?.surface ?? "all",
-  );
+  const selectedSurface = tokenBoardSurfaceFilterFromParam(route?.params?.surface);
   const canViewOpd = useHasAnyPermission(OPD_BOARD.requiredAnyPermissions);
   const canViewLab = useHasAnyPermission(LAB_BOARD.requiredAnyPermissions);
   const canViewRadiology = useHasAnyPermission(RADIOLOGY_BOARD.requiredAnyPermissions);
@@ -451,11 +459,20 @@ export function TokenBoardsScreen({ route }: TokenBoardsScreenProps) {
     pharmacy: canViewPharmacy,
     radiology: canViewRadiology,
   };
-  const activeSurface =
-    selectedSurface !== "all" && !boardAccess[selectedSurface] ? "all" : selectedSurface;
+  const selectedSurfaceAccessDenied = selectedSurface !== "all" && !boardAccess[selectedSurface];
+  const activeSurface = selectedSurface;
+  const restrictedSurface = selectedSurfaceAccessDenied
+    ? TOKEN_BOARD_SURFACES[selectedSurface]
+    : null;
   const accessibleSurfaces = TOKEN_BOARD_SURFACE_LIST.filter((surface) => boardAccess[surface.id]);
   const surfaceVisible = (surfaceId: TokenBoardSurfaceId) =>
-    boardAccess[surfaceId] && (activeSurface === "all" || activeSurface === surfaceId);
+    !selectedSurfaceAccessDenied &&
+    boardAccess[surfaceId] &&
+    (activeSurface === "all" || activeSurface === surfaceId);
+
+  function handleSurfaceChange(filter: TokenBoardSurfaceFilter) {
+    navigation?.setParams(tokenBoardMobileRouteParams(filter));
+  }
 
   const opdQuery = useOpdTokenBoardQuery({ enabled: canViewOpd });
   const labQuery = useLabTokenBoardQuery({ enabled: canViewLab });
@@ -565,7 +582,7 @@ export function TokenBoardsScreen({ route }: TokenBoardsScreenProps) {
             compact
             mode={activeSurface === "all" ? "flat" : "outlined"}
             selected={activeSurface === "all"}
-            onPress={() => setSelectedSurface("all")}
+            onPress={() => handleSurfaceChange("all")}
             style={activeSurface === "all" ? styles.activeFilterChip : styles.filterChip}
           >
             All boards
@@ -576,13 +593,27 @@ export function TokenBoardsScreen({ route }: TokenBoardsScreenProps) {
               key={surface.id}
               mode={activeSurface === surface.id ? "flat" : "outlined"}
               selected={activeSurface === surface.id}
-              onPress={() => setSelectedSurface(surface.id)}
+              onPress={() => handleSurfaceChange(surface.id)}
               style={activeSurface === surface.id ? styles.activeFilterChip : styles.filterChip}
             >
               {surface.title}
             </Chip>
           ))}
         </ScrollView>
+
+        {restrictedSurface && (
+          <Surface style={styles.boardRestrictedPanel} elevation={1}>
+            <Avatar.Icon size={44} icon="shield-lock-outline" style={styles.stateIcon} />
+            <View style={styles.privacyTextBlock}>
+              <Text variant="titleSmall">{restrictedSurface.restrictedLabel}</Text>
+              <Text variant="bodySmall" style={styles.stateTextLeft}>
+                Mobile launch access follows the configured permission matrix for{" "}
+                {restrictedSurface.title}. Token-board data stays unavailable on this device until
+                access is granted.
+              </Text>
+            </View>
+          </Surface>
+        )}
 
         <View style={styles.metricGrid}>
           {metrics.map((metric) => (
@@ -772,6 +803,16 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: 2,
   },
+  boardRestrictedPanel: {
+    alignItems: "center",
+    backgroundColor: MEDBRAINS_COLORS.statusWarningBg,
+    borderColor: MEDBRAINS_COLORS.statusWarning,
+    borderRadius: 14,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 12,
+    padding: 12,
+  },
   container: {
     flex: 1,
   },
@@ -933,6 +974,9 @@ const styles = StyleSheet.create({
   stateText: {
     color: MEDBRAINS_COLORS.muted,
     textAlign: "center",
+  },
+  stateTextLeft: {
+    color: MEDBRAINS_COLORS.muted,
   },
   subtitle: {
     color: MEDBRAINS_COLORS.muted,

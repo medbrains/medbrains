@@ -8,6 +8,7 @@ import type {
   RadiologyQueueToken,
 } from "@medbrains/types";
 import {
+  isTokenBoardSurfaceId,
   TOKEN_BOARD_FAST_REFRESH_MS,
   TOKEN_BOARD_STANDARD_REFRESH_MS,
   TOKEN_BOARD_SURFACE_LIST,
@@ -15,6 +16,7 @@ import {
   tokenBoardFeedReadiness,
   tokenBoardOperationalReadinessItems,
   tokenBoardRefreshLabel,
+  tokenBoardSurfaceFilterFromParam,
 } from "@medbrains/types";
 import { describe, expect, it } from "vitest";
 import {
@@ -65,6 +67,14 @@ describe("front-office token-board display mapping", () => {
     expect(tokenBoardDisplayModeFromSearchParams(new URLSearchParams("display=workspace"))).toBe(
       "workspace",
     );
+    expect(isTokenBoardSurfaceId("opd")).toBe(true);
+    expect(isTokenBoardSurfaceId("billing")).toBe(true);
+    expect(isTokenBoardSurfaceId("unknown")).toBe(false);
+    expect(isTokenBoardSurfaceId("prototype")).toBe(false);
+    expect(isTokenBoardSurfaceId(null)).toBe(false);
+    expect(tokenBoardSurfaceFilterFromParam("radiology")).toBe("radiology");
+    expect(tokenBoardSurfaceFilterFromParam("unknown")).toBe("all");
+    expect(tokenBoardSurfaceFilterFromParam(undefined)).toBe("all");
 
     const kioskParams = new URLSearchParams("board=opd&display=kiosk&tenant=demo");
     expect(String(updateTokenBoardFilterSearchParams(kioskParams, "lab"))).toBe(
