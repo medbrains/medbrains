@@ -69,6 +69,7 @@ import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { campService } from "@/services/camp.service";
 import { opdService } from "@/services/opd.service";
 import { patientsService } from "@/services/patients.service";
+import { patientRegistrationOpdHandoffRoute } from "./patient-registration-flow";
 import classes from "./patients.module.scss";
 
 const PER_PAGE = 20;
@@ -722,13 +723,14 @@ function PatientRegisterPageInner() {
         void queryClient.invalidateQueries({ queryKey: ["camp-registrations"] });
       }
       if (encounterId && linkedServices?.openOpdAfterRegistration) {
-        if (campId) {
-          const query = new URLSearchParams({ source: "camp", campId });
-          if (result.campRegistrationId) query.set("registrationId", result.campRegistrationId);
-          navigate(`/opd/encounters/${encounterId}?${query.toString()}`);
-          return;
-        }
-        navigate(`/opd/encounters/${encounterId}`);
+        navigate(
+          patientRegistrationOpdHandoffRoute({
+            campId,
+            campRegistrationId: result.campRegistrationId,
+            encounterId,
+            patientId: patient.id,
+          }),
+        );
         return;
       }
       if (campId && resultReturnTo) {
