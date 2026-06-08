@@ -1,4 +1,4 @@
-import type { CampRegistration, ClinicalJourneyContext } from "@medbrains/types";
+import type { AdmissionRow, CampRegistration, ClinicalJourneyContext } from "@medbrains/types";
 
 export type CareContextModule = "camp" | "emergency" | "ipd";
 export type CareContextHandoff =
@@ -9,6 +9,7 @@ export type CareContextHandoff =
   | "open_visit";
 
 export type PatientCareContextRouteParams = {
+  admissionId?: string;
   campId?: string;
   campRegistrationId?: string;
   erVisitId?: string;
@@ -16,6 +17,17 @@ export type PatientCareContextRouteParams = {
   module: CareContextModule;
   patientId: string;
 } & Record<string, unknown>;
+
+export function mobileIpdCareContextParams(
+  context: ClinicalJourneyContext,
+): PatientCareContextRouteParams {
+  return {
+    admissionId: context.activeAdmissionId ?? undefined,
+    handoff: context.activeAdmissionId ? "open_admission" : "admit",
+    module: "ipd",
+    patientId: context.patientId,
+  };
+}
 
 export function mobileCampCareContextParams(
   context: ClinicalJourneyContext,
@@ -27,6 +39,24 @@ export function mobileCampCareContextParams(
     module: "camp",
     patientId: context.patientId,
   };
+}
+
+export function prioritizeAdmissionsForRoute(
+  admissions: readonly AdmissionRow[],
+  routeContext: Pick<PatientCareContextRouteParams, "admissionId">,
+): AdmissionRow[] {
+  if (!routeContext.admissionId) {
+    return [...admissions];
+  }
+
+  return admissions
+    .map((admission, index) => ({
+      admission,
+      index,
+      score: admission.id === routeContext.admissionId ? 0 : 1,
+    }))
+    .sort((left, right) => left.score - right.score || left.index - right.index)
+    .map(({ admission }) => admission);
 }
 
 function campRegistrationRouteScore(

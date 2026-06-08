@@ -28,7 +28,10 @@ import type {
   CareContextModule,
   PatientCareContextRouteParams,
 } from "../../navigation/careContextParams";
-import { prioritizeCampRegistrationsForRoute } from "../../navigation/careContextParams";
+import {
+  prioritizeAdmissionsForRoute,
+  prioritizeCampRegistrationsForRoute,
+} from "../../navigation/careContextParams";
 import { patientService } from "../../services/patient.service";
 import { MEDBRAINS_COLORS } from "../../theme/paper-theme";
 
@@ -152,6 +155,7 @@ function activeCampCount(registrations: CampRegistration[]) {
 export function PatientCareContextScreen({ route, navigation }: PatientCareContextScreenProps) {
   const theme = useTheme();
   const {
+    admissionId,
     campId,
     campRegistrationId,
     erVisitId,
@@ -211,6 +215,7 @@ export function PatientCareContextScreen({ route, navigation }: PatientCareConte
   });
 
   const admissions = admissionsQuery.data?.admissions ?? [];
+  const orderedAdmissions = prioritizeAdmissionsForRoute(admissions, { admissionId });
   const emergencyVisits = emergencyVisitsQuery.data ?? [];
   const orderedEmergencyVisits = erVisitId
     ? [...emergencyVisits].sort((left, right) => {
@@ -245,7 +250,7 @@ export function PatientCareContextScreen({ route, navigation }: PatientCareConte
 
     return (
       <View style={styles.recordList}>
-        {admissions.map((admission) => (
+        {orderedAdmissions.map((admission) => (
           <Card key={admission.id} style={styles.card}>
             <Card.Content>
               <View style={styles.cardHeader}>

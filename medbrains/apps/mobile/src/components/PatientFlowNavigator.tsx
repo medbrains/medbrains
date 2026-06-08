@@ -16,7 +16,10 @@ import {
 } from "@medbrains/types";
 import { ScrollView, StyleSheet, View } from "react-native";
 import { Button, Chip, Text } from "react-native-paper";
-import { mobileCampCareContextParams } from "../navigation/careContextParams";
+import {
+  mobileCampCareContextParams,
+  mobileIpdCareContextParams,
+} from "../navigation/careContextParams";
 import {
   MOBILE_PATIENT_JOURNEY_BLOCKERS,
   MOBILE_PATIENT_JOURNEY_TEXT,
@@ -163,11 +166,7 @@ export function PatientFlowNavigator({
         });
         return;
       case "ipd":
-        navigation.navigate("PatientCareContext", {
-          handoff: context.activeAdmissionId ? "open_admission" : "admit",
-          module: "ipd",
-          patientId: context.patientId,
-        });
+        navigation.navigate("PatientCareContext", mobileIpdCareContextParams(context));
         return;
       case "emergency":
         navigation.navigate("PatientCareContext", {
