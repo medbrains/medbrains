@@ -2,6 +2,9 @@ import { useQuery } from "@tanstack/react-query";
 import { ScrollView, StyleSheet, View } from "react-native";
 import { ActivityIndicator, Banner, Card, Chip, Text, useTheme } from "react-native-paper";
 import { appService } from "../services/app.service";
+import { mobileHomeStatusText, mobileHomeText } from "./homeText";
+
+const APP_VERSION = "0.1.0";
 
 function StatusChip({ label, status }: { label: string; status: string }) {
   const isConnected = status === "connected" || status === "ok";
@@ -15,7 +18,7 @@ function StatusChip({ label, status }: { label: string; status: string }) {
         {label}
       </Chip>
       <Text variant="bodySmall" style={styles.statusText}>
-        {status}
+        {mobileHomeStatusText(status)}
       </Text>
     </View>
   );
@@ -36,36 +39,39 @@ export function HomeScreen() {
     >
       <View style={styles.header}>
         <Text variant="headlineLarge" style={styles.title}>
-          MedBrains
+          {mobileHomeText("home.app.name")}
         </Text>
         <Text variant="bodyMedium" style={styles.subtitle}>
-          Hospital Management System
+          {mobileHomeText("home.app.subtitle")}
         </Text>
       </View>
 
       <Card style={styles.card}>
-        <Card.Title title="System Health" />
+        <Card.Title title={mobileHomeText("home.health.system")} />
         <Card.Content>
           {isLoading && <ActivityIndicator size="small" />}
 
           {error && (
             <Banner visible icon="alert">
-              Unable to reach API server. Is the backend running?
+              {mobileHomeText("home.error.apiUnavailable")}
             </Banner>
           )}
 
           {data && (
             <View style={styles.statusList}>
-              <StatusChip label="Overall" status={data.status} />
-              <StatusChip label="PostgreSQL" status={data.postgres} />
-              <StatusChip label="YottaDB" status={data.yottadb} />
+              <StatusChip label={mobileHomeText("home.health.overall")} status={data.status} />
+              <StatusChip label={mobileHomeText("home.health.postgres")} status={data.postgres} />
+              <StatusChip label={mobileHomeText("home.health.yottadb")} status={data.yottadb} />
             </View>
           )}
         </Card.Content>
       </Card>
 
       <Text variant="bodySmall" style={styles.footer}>
-        v0.1.0 · Alagappa Group of Institutions
+        {mobileHomeText("home.footer", {
+          organization: mobileHomeText("home.organization"),
+          version: APP_VERSION,
+        })}
       </Text>
     </ScrollView>
   );
