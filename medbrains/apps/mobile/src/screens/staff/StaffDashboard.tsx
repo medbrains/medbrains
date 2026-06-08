@@ -13,7 +13,7 @@ import {
   P,
   type QueueEntry,
   TOKEN_BOARD_SURFACE_LIST,
-  TOKEN_BOARD_SURFACES,
+  tokenBoardMobileRouteParams,
 } from "@medbrains/types";
 import { useMemo } from "react";
 import { ScrollView, StyleSheet, TouchableOpacity, View } from "react-native";
@@ -289,7 +289,7 @@ export function StaffDashboard({ navigation }: StaffDashboardProps) {
       enabled: canViewTokenBoards,
       icon: "monitor-dashboard",
       label: "Token Boards",
-      params: TOKEN_BOARD_SURFACES.opd.targets.mobileParams,
+      params: tokenBoardMobileRouteParams("all"),
       route: "TokenBoards",
     },
     {

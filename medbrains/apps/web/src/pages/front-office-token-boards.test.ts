@@ -14,6 +14,7 @@ import {
   TOKEN_BOARD_SURFACE_LIST,
   TOKEN_BOARD_SURFACES,
   tokenBoardFeedReadiness,
+  tokenBoardMobileRouteParams,
   tokenBoardOperationalReadinessItems,
   tokenBoardRefreshLabel,
   tokenBoardSurfaceFilterFromParam,
@@ -102,11 +103,13 @@ describe("front-office token-board display mapping", () => {
         `/front-office?board=${surface.id}&display=kiosk#token-boards`,
       );
       expect(surface.targets.mobileParams.surface).toBe(surface.id);
+      expect(tokenBoardMobileRouteParams(surface.id)).toEqual(surface.targets.mobileParams);
       expect(surface.targets.mobileRoute).toBe("TokenBoards");
       expect(surface.targets.tvDeepLink).toContain("medbrains://tv/");
       expect(surface.readiness.privacy).toBe("Token only");
       expect(tokenBoardRefreshLabel(surface)).toMatch(/^\d+s$/);
     }
+    expect(tokenBoardMobileRouteParams("all")).toBeUndefined();
   });
 
   it("keeps shared token-board refresh intervals and feed readiness deterministic", () => {

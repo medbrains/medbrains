@@ -18,6 +18,7 @@ import {
   TOKEN_BOARD_PUBLIC_PRIVACY_NOTICE,
   TOKEN_BOARD_SURFACE_LIST,
   TOKEN_BOARD_SURFACES,
+  tokenBoardMobileRouteParams,
   tokenBoardOperationalReadinessItems,
   tokenBoardSurfaceFilterFromParam,
 } from "@medbrains/types";
@@ -85,12 +86,6 @@ interface TokenBoardsScreenProps {
       surface?: TokenBoardSurfaceId;
     };
   };
-}
-
-function tokenBoardMobileRouteParams(filter: TokenBoardSurfaceFilter) {
-  return filter === "all"
-    ? { surface: undefined }
-    : TOKEN_BOARD_SURFACES[filter].targets.mobileParams;
 }
 
 function statusLabel(value: string) {
@@ -471,7 +466,7 @@ export function TokenBoardsScreen({ navigation, route }: TokenBoardsScreenProps)
     (activeSurface === "all" || activeSurface === surfaceId);
 
   function handleSurfaceChange(filter: TokenBoardSurfaceFilter) {
-    navigation?.setParams(tokenBoardMobileRouteParams(filter));
+    navigation?.setParams(tokenBoardMobileRouteParams(filter) ?? { surface: undefined });
   }
 
   const opdQuery = useOpdTokenBoardQuery({ enabled: canViewOpd });

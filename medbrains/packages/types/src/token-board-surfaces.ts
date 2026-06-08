@@ -282,6 +282,12 @@ export function tokenBoardSurfaceFilterFromParam(value: unknown): TokenBoardSurf
   return isTokenBoardSurfaceId(value) ? value : "all";
 }
 
+export function tokenBoardMobileRouteParams(
+  filter: TokenBoardSurfaceFilter,
+): TokenBoardLaunchTargets["mobileParams"] | undefined {
+  return filter === "all" ? undefined : TOKEN_BOARD_SURFACES[filter].targets.mobileParams;
+}
+
 export function getTokenBoardSurface(id: TokenBoardSurfaceId): TokenBoardSurfaceDefinition {
   return TOKEN_BOARD_SURFACES[id];
 }

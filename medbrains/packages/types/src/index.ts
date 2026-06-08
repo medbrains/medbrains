@@ -96,6 +96,7 @@ export {
   TOKEN_BOARD_SURFACES,
   tokenBoardFeedIsStale,
   tokenBoardFeedReadiness,
+  tokenBoardMobileRouteParams,
   tokenBoardOperationalReadinessItems,
   tokenBoardRefreshLabel,
   tokenBoardSurfaceFilterFromParam,
