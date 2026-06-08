@@ -63,6 +63,9 @@ export function patientJourneyActionRoute(
       }
       return `/billing?tab=invoices&patient_id=${context.patientId}`;
     case "billing.prepare_discharge_bill":
+      if (context.activeAdmissionId) {
+        return `/billing?tab=invoices&patient_id=${context.patientId}&admission_id=${context.activeAdmissionId}&source=ipd_discharge`;
+      }
       return `/billing?tab=invoices&patient_id=${context.patientId}&source=ipd_discharge`;
     case "billing.collect_payment":
       if (context.activeInvoiceId) {

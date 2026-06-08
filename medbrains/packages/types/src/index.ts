@@ -4998,6 +4998,7 @@ export interface InvoiceListResponse {
 export interface CreateInvoiceRequest {
   patient_id: string;
   encounter_id?: string;
+  admission_id?: string;
   notes?: string;
   is_er_deferred?: boolean;
 }

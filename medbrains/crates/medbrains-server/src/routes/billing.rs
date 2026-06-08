@@ -96,6 +96,49 @@ pub(crate) async fn admission_id_for_encounter_in_tx(
     .map_err(AppError::from)
 }
 
+async fn verified_admission_id_for_invoice_in_tx(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: &Uuid,
+    patient_id: Uuid,
+    encounter_id: Option<Uuid>,
+    admission_id: Option<Uuid>,
+) -> Result<Option<Uuid>, AppError> {
+    if let Some(admission_id) = admission_id {
+        let linked_patient_id = sqlx::query_scalar::<_, Uuid>(
+            "SELECT patient_id FROM admissions WHERE id = $1 AND tenant_id = $2",
+        )
+        .bind(admission_id)
+        .bind(tenant_id)
+        .fetch_optional(&mut **tx)
+        .await?
+        .ok_or_else(|| AppError::BadRequest("billing.error.admissionNotFound".to_owned()))?;
+
+        if linked_patient_id != patient_id {
+            return Err(AppError::BadRequest(
+                "billing.error.admissionPatientMismatch".to_owned(),
+            ));
+        }
+
+        if let Some(encounter_admission_id) =
+            admission_id_for_encounter_in_tx(tx, tenant_id, encounter_id).await?
+        {
+            if encounter_admission_id != admission_id {
+                return Err(AppError::BadRequest(
+                    "billing.error.encounterAdmissionMismatch".to_owned(),
+                ));
+            }
+        } else if encounter_id.is_some() {
+            return Err(AppError::BadRequest(
+                "billing.error.encounterAdmissionMismatch".to_owned(),
+            ));
+        }
+
+        return Ok(Some(admission_id));
+    }
+
+    admission_id_for_encounter_in_tx(tx, tenant_id, encounter_id).await
+}
+
 /// Check if auto-billing is enabled for a specific module.
 pub(crate) async fn is_auto_billing_enabled(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
@@ -387,6 +430,7 @@ pub struct ListInvoicesQuery {
     pub per_page: Option<i64>,
     pub status: Option<String>,
     pub patient_id: Option<Uuid>,
+    pub admission_id: Option<Uuid>,
     pub search: Option<String>,
     pub service_lane: Option<String>,
 }
@@ -403,6 +447,7 @@ pub struct InvoiceListResponse {
 pub struct CreateInvoiceRequest {
     pub patient_id: Uuid,
     pub encounter_id: Option<Uuid>,
+    pub admission_id: Option<Uuid>,
     pub notes: Option<String>,
     pub is_er_deferred: Option<bool>,
 }
@@ -1149,6 +1194,14 @@ pub async fn list_invoices(
         });
         bind_idx += 1;
     }
+    if let Some(admission_id) = params.admission_id {
+        conditions.push(format!("admission_id = ${bind_idx}"));
+        binds.push(Bind {
+            uuid_val: Some(admission_id),
+            string_val: None,
+        });
+        bind_idx += 1;
+    }
     if let Some(ref search) = params.search {
         let pattern = format!("%{search}%");
         conditions.push(format!("invoice_number ILIKE ${bind_idx}"));
@@ -1233,8 +1286,14 @@ pub async fn create_invoice(
     let inv_number = generate_invoice_number(&mut tx, &claims.tenant_id).await?;
 
     let er_deferred = body.is_er_deferred.unwrap_or(false);
-    let admission_id =
-        admission_id_for_encounter_in_tx(&mut tx, &claims.tenant_id, body.encounter_id).await?;
+    let admission_id = verified_admission_id_for_invoice_in_tx(
+        &mut tx,
+        &claims.tenant_id,
+        body.patient_id,
+        body.encounter_id,
+        body.admission_id,
+    )
+    .await?;
 
     let invoice = sqlx::query_as::<_, Invoice>(
         "INSERT INTO invoices \

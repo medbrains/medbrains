@@ -250,6 +250,7 @@ import {
 } from "@/utils/printCopies";
 import classes from "./billing.module.scss";
 import {
+  billingAdmissionFilterFromSearchParams,
   billingHandoffActionFromSearchParams,
   billingInvoiceActionFromSearchParams,
   billingInvoicePaymentRoute,
@@ -665,6 +666,7 @@ function BillingPageInner() {
   const selectedTab =
     isBillingTab(requestedTab) && visibleBillingTabs.has(requestedTab) ? requestedTab : "invoices";
   const patientFilterId = searchParams.get("patient_id")?.trim() || null;
+  const admissionFilterId = billingAdmissionFilterFromSearchParams(searchParams);
   const requestedStatus = searchParams.get("status");
   const filterStatus = isInvoiceStatus(requestedStatus) ? requestedStatus : null;
   const activeHandoff = billingHandoffActionFromSearchParams(searchParams);
@@ -684,6 +686,14 @@ function BillingPageInner() {
     next.delete("source");
     setSearchParams(next, { replace: true });
   };
+  const clearPatientBillingFilter = () => {
+    const next = new URLSearchParams(searchParams);
+    next.delete("patient_id");
+    next.delete("admission_id");
+    next.delete("action");
+    next.delete("source");
+    setSearchParams(next, { replace: true });
+  };
 
   const setSelectedTab = (value: string | null) => {
     setBillingParam("tab", value && visibleBillingTabs.has(value) ? value : "invoices");
@@ -692,6 +702,7 @@ function BillingPageInner() {
   const params: Record<string, string> = { page: String(page), per_page: "20" };
   if (filterStatus) params.status = filterStatus;
   if (patientFilterId) params.patient_id = patientFilterId;
+  if (admissionFilterId) params.admission_id = admissionFilterId;
 
   const queryClient = useQueryClient();
 
@@ -888,14 +899,21 @@ function BillingPageInner() {
         <Stack gap="xs" mb="md">
           <PatientContextBanner patientId={patientFilterId} hideLoadingState />
           <Group justify="space-between" align="center">
-            <PatientFlowNavigator patientId={patientFilterId} active="billing" compact />
+            <PatientFlowNavigator
+              patientId={patientFilterId}
+              active="billing"
+              activeAdmissionId={admissionFilterId}
+              activeAdmissionStatus={admissionFilterId ? "admitted" : null}
+              activeOrderContext={admissionFilterId ? "ipd" : null}
+              compact
+            />
             <Button
               variant="subtle"
               size="xs"
               leftSection={<IconX size={14} />}
-              onClick={() => setBillingParam("patient_id", null)}
+              onClick={clearPatientBillingFilter}
             >
-              All billing
+              {t("button.allBilling")}
             </Button>
           </Group>
           {activeHandoff && (
@@ -1136,10 +1154,11 @@ function BillingPageInner() {
       </Tabs>
 
       <CreateInvoiceDrawer
-        key={patientFilterId ?? "all-billing"}
+        key={`${patientFilterId ?? "all-billing"}:${admissionFilterId ?? "all-admissions"}`}
         opened={createOpened}
         onClose={closeCreate}
         initialPatientId={patientFilterId ?? ""}
+        initialAdmissionId={admissionFilterId ?? ""}
       />
       <ErFastInvoiceModal opened={erInvoiceOpened} onClose={closeErInvoice} />
     </div>
@@ -1150,16 +1169,20 @@ function CreateInvoiceDrawer({
   opened,
   onClose,
   initialPatientId,
+  initialAdmissionId,
 }: {
   opened: boolean;
   onClose: () => void;
   initialPatientId: string;
+  initialAdmissionId: string;
 }) {
+  const { t } = useTranslation("billing");
   const emit = useClinicalEmit();
   const queryClient = useQueryClient();
   const invoiceDefaults: BillingCreateInvoiceFormInput = {
     patient_id: initialPatientId,
     encounter_id: "",
+    admission_id: initialAdmissionId,
     notes: "",
   };
   const {
@@ -1173,6 +1196,24 @@ function CreateInvoiceDrawer({
     resolver: zodResolver(billingCreateInvoiceFormSchema),
     defaultValues: invoiceDefaults,
   });
+  const invoiceFieldError = (field: keyof BillingCreateInvoiceFormInput) => {
+    const message = errors[field]?.message;
+    if (!message) return undefined;
+    if (field === "patient_id") return t("validation.patientRequired");
+    return t("validation.invalidField");
+  };
+  const createInvoiceErrorMessage = (error: Error) => {
+    if (error.message === "billing.error.admissionNotFound") {
+      return t("error.admissionNotFound");
+    }
+    if (error.message === "billing.error.admissionPatientMismatch") {
+      return t("error.admissionPatientMismatch");
+    }
+    if (error.message === "billing.error.encounterAdmissionMismatch") {
+      return t("error.encounterAdmissionMismatch");
+    }
+    return t("notification.createInvoiceFailed");
+  };
 
   const createMutation = useMutation({
     mutationFn: (data: CreateInvoiceRequest) => billingService.createInvoice(data),
@@ -1180,8 +1221,8 @@ function CreateInvoiceDrawer({
       void queryClient.invalidateQueries({ queryKey: ["invoices"] });
       void queryClient.invalidateQueries({ queryKey: ["patient-invoices", result.patient_id] });
       notifications.show({
-        title: "Invoice created",
-        message: "Draft invoice created",
+        title: t("notification.invoiceCreatedTitle"),
+        message: t("notification.draftInvoiceCreated"),
         color: "success",
       });
       emit("billing.invoice.created", {
@@ -1194,8 +1235,12 @@ function CreateInvoiceDrawer({
       onClose();
       reset(invoiceDefaults);
     },
-    onError: () => {
-      notifications.show({ title: "Error", message: "Failed to create invoice", color: "danger" });
+    onError: (error: Error) => {
+      notifications.show({
+        title: t("notification.errorTitle"),
+        message: createInvoiceErrorMessage(error),
+        color: "danger",
+      });
     },
   });
   const patientId = watch("patient_id");
@@ -1208,12 +1253,19 @@ function CreateInvoiceDrawer({
     createMutation.mutate({
       patient_id: values.patient_id.trim(),
       encounter_id: billingOptionalText(values.encounter_id),
+      admission_id: billingOptionalText(values.admission_id),
       notes: billingOptionalText(values.notes),
     });
   });
 
   return (
-    <Drawer opened={opened} onClose={closeDrawer} title="Create Invoice" position="right" size="xl">
+    <Drawer
+      opened={opened}
+      onClose={closeDrawer}
+      title={t("title.createInvoice")}
+      position="right"
+      size="xl"
+    >
       <Stack component="form" onSubmit={submitInvoice}>
         <Controller
           control={control}
@@ -1224,18 +1276,27 @@ function CreateInvoiceDrawer({
         />
         {errors.patient_id?.message && (
           <Text size="xs" c="danger">
-            {errors.patient_id.message}
+            {invoiceFieldError("patient_id")}
           </Text>
         )}
         {contextPatientId && <PatientContextBanner patientId={contextPatientId} hideLoadingState />}
         <TextInput
-          label="Encounter ID"
-          error={errors.encounter_id?.message}
+          label={t("label.encounterId")}
+          error={invoiceFieldError("encounter_id")}
           {...register("encounter_id")}
         />
-        <Textarea label="Notes" error={errors.notes?.message} {...register("notes")} />
+        <TextInput
+          label={t("label.admissionId")}
+          error={invoiceFieldError("admission_id")}
+          {...register("admission_id")}
+        />
+        <Textarea
+          label={t("label.notes")}
+          error={invoiceFieldError("notes")}
+          {...register("notes")}
+        />
         <Button type="submit" loading={createMutation.isPending}>
-          Create Draft Invoice
+          {t("button.createDraftInvoice")}
         </Button>
       </Stack>
     </Drawer>

@@ -29,3 +29,9 @@ export function billingInvoiceWorkspaceRoute(invoiceId: string): string {
 export function billingInvoicePaymentRoute(invoiceId: string): string {
   return `${billingInvoiceWorkspaceRoute(invoiceId)}?action=payment`;
 }
+
+export function billingAdmissionFilterFromSearchParams(
+  searchParams: URLSearchParams,
+): string | null {
+  return searchParams.get("admission_id")?.trim() || null;
+}

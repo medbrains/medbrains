@@ -2,6 +2,7 @@
 
 import { describe, expect, it } from "vitest";
 import {
+  billingAdmissionFilterFromSearchParams,
   billingHandoffActionFromSearchParams,
   billingInvoiceActionFromSearchParams,
   billingInvoicePaymentRoute,
@@ -20,6 +21,17 @@ describe("billing workspace routing", () => {
       "discharge_bill",
     );
     expect(billingHandoffActionFromSearchParams(new URLSearchParams("action=refund"))).toBeNull();
+  });
+
+  it("parses admission filters from IPD discharge billing handoffs", () => {
+    expect(
+      billingAdmissionFilterFromSearchParams(
+        new URLSearchParams("patient_id=patient-1&admission_id=admission-1"),
+      ),
+    ).toBe("admission-1");
+    expect(
+      billingAdmissionFilterFromSearchParams(new URLSearchParams("patient_id=patient-1")),
+    ).toBe(null);
   });
 
   it("parses invoice-detail actions without accepting list-level handoffs", () => {

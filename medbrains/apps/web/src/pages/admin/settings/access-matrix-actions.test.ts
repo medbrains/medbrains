@@ -147,6 +147,13 @@ describe("journey action access-matrix coverage", () => {
           blockingControls: ["configuration", "context"],
           requiredPermissions: ["billing.payments.create"],
         }),
+        action({
+          id: "billing.prepare_discharge_bill",
+          module: "billing",
+          blockingControls: ["context"],
+          requiredPermissions: ["billing.invoices.create"],
+          activatesAfter: ["ipd.discharge.finalized"],
+        }),
       ],
       [
         surface({
@@ -162,6 +169,13 @@ describe("journey action access-matrix coverage", () => {
           module: "billing",
           requiredPermissions: ["billing.payments.create"],
           activatesAfter: ["patient.created"],
+        }),
+        surface({
+          id: "billing.discharge_invoice_actions",
+          kind: "action",
+          module: "billing",
+          requiredPermissions: ["billing.invoices.create"],
+          activatesAfter: ["ipd.discharge.finalized"],
         }),
       ],
     );
@@ -179,11 +193,17 @@ describe("journey action access-matrix coverage", () => {
       "/billing/invoices/:invoiceId?action=payment",
       "/billing?tab=invoices&patient_id=:patientId&action=payment",
     ]);
+    expect(
+      rows.find((row) => row.actionId === "billing.prepare_discharge_bill")?.routeTargets,
+    ).toEqual([
+      "/billing?tab=invoices&patient_id=:patientId&admission_id=:admissionId&source=ipd_discharge",
+      "/billing?tab=invoices&patient_id=:patientId&source=ipd_discharge",
+    ]);
     expect(summarizeJourneyActionCoverage(rows)).toMatchObject({
-      guardedActions: 3,
-      routeLinked: 1,
+      guardedActions: 4,
+      routeLinked: 2,
       configurationControls: 1,
-      contextControls: 1,
+      contextControls: 2,
       maskingControls: 1,
       regulatoryControls: 1,
     });

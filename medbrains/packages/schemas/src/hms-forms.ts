@@ -1942,8 +1942,9 @@ export const billingPaymentFormSchema = z.object({
 });
 
 export const billingCreateInvoiceFormSchema = z.object({
-  patient_id: requiredTrimmed("Patient is required"),
+  patient_id: requiredTrimmed("validation.patientRequired"),
   encounter_id: z.string(),
+  admission_id: z.string(),
   notes: z.string(),
 });
 

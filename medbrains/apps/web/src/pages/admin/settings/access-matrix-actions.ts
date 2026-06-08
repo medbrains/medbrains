@@ -108,6 +108,10 @@ const JOURNEY_ACTION_ROUTE_CONTEXTS: Partial<
     { ...BASE_ROUTE_CONTEXT, activeInvoiceId: ":invoiceId" },
     BASE_ROUTE_CONTEXT,
   ],
+  "billing.prepare_discharge_bill": [
+    { ...BASE_ROUTE_CONTEXT, activeAdmissionId: ":admissionId" },
+    BASE_ROUTE_CONTEXT,
+  ],
   "billing.collect_payment": [
     { ...BASE_ROUTE_CONTEXT, activeInvoiceId: ":invoiceId" },
     BASE_ROUTE_CONTEXT,

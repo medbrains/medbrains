@@ -99,6 +99,20 @@ describe("patient journey action routes", () => {
     );
   });
 
+  it("routes IPD discharge billing through the active admission", () => {
+    expect(
+      patientJourneyActionRoute("billing.prepare_discharge_bill", {
+        ...baseContext,
+        activeAdmissionId: "admission-1",
+      }),
+    ).toBe(
+      "/billing?tab=invoices&patient_id=patient-1&admission_id=admission-1&source=ipd_discharge",
+    );
+    expect(patientJourneyActionRoute("billing.prepare_discharge_bill", baseContext)).toBe(
+      "/billing?tab=invoices&patient_id=patient-1&source=ipd_discharge",
+    );
+  });
+
   it("routes pharmacy handoffs to the active order when available", () => {
     expect(
       patientJourneyActionRoute("pharmacy.open_patient_queue", {
