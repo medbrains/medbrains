@@ -113,6 +113,7 @@ import {
   bedBoardStatusLabel,
   bedBoardStatusLabelKey,
   bedBoardStatusSignal,
+  journeyActionSignalLabel,
   P,
   PATIENT_BASIC_IDENTITY_FIELD_ACCESS_KEYS,
   PATIENT_NAME_FIELD_ACCESS_KEYS,
@@ -448,6 +449,14 @@ function actionRailDisabledReason(
   });
 }
 
+function actionRailStatusLabel(t: IpdTranslate, action: ResolvedIpdActionRailAction): string {
+  if (action.signal.phase === "blocked_by_state") {
+    return journeyActionSignalLabel(t, "blocked_by_context");
+  }
+
+  return journeyActionSignalLabel(t, action.signal.phase);
+}
+
 function workspaceReadinessBlockedReason(
   t: IpdTranslate,
   readiness: IpdWorkspaceTabReadinessSummary | undefined,
@@ -523,7 +532,7 @@ function ActionRailActionButton({
 }) {
   const { t } = useTranslation("ipd");
   const disabledReason = actionRailDisabledReason(t, action);
-  const statusLabel = action.enabled ? t("actionRail.state.ready") : t("actionRail.state.blocked");
+  const statusLabel = actionRailStatusLabel(t, action);
   const tooltipLabel = disabledReason ?? actionRailActionLabel(t, action);
 
   return (
