@@ -10,7 +10,6 @@ import {
   type QueueToken,
   type QueueTokenStatus,
   TOKEN_BOARD_SURFACES,
-  tokenBoardRefreshLabel,
   tokenBoardStatusSignal,
 } from "@medbrains/types";
 import { COLORS, SPACING } from "@medbrains/ui-mobile";
@@ -21,8 +20,8 @@ import { ActivityIndicator, Text } from "react-native-paper";
 import { TvBoard, TvSummaryRow } from "../components/tv-board.js";
 import {
   TvFeedStatusBanner,
-  tvFeedReadiness,
-  tvLastUpdatedLabel,
+  tvTokenBoardLegend,
+  tvTokenBoardReadinessItems,
 } from "../components/tv-feed-status.js";
 import {
   TvTokenStatusShape,
@@ -78,7 +77,6 @@ function QueueScreen({ route }: QueueScreenProps) {
     const completed = tokens.filter((token) => token.status === "completed");
     return { completed, current, waiting };
   }, [tokens]);
-  const syncLabel = tvLastUpdatedLabel(tokensQuery.dataUpdatedAt);
 
   return (
     <TvBoard
@@ -89,12 +87,14 @@ function QueueScreen({ route }: QueueScreenProps) {
           ? "Live department token call. Please proceed when your token is called."
           : "Live hospital token call. Please proceed when your token is called."
       }
-      legend={`Updates every ${tokenBoardRefreshLabel(OPD_BOARD)} · last sync ${syncLabel} · ${OPD_BOARD.targets.tvDeepLink}`}
+      legend={tvTokenBoardLegend(OPD_BOARD, tokensQuery.dataUpdatedAt)}
       privacyNotice={OPD_BOARD.privacyNotice}
       readiness={[
-        { label: "Privacy", tone: "success", value: OPD_BOARD.readiness.privacy },
-        tvFeedReadiness(tokensQuery.isError, tokensQuery.dataUpdatedAt, REFRESH_INTERVAL_MS),
-        { label: "Refresh", tone: "info", value: tokenBoardRefreshLabel(OPD_BOARD) },
+        ...tvTokenBoardReadinessItems({
+          isError: tokensQuery.isError,
+          surface: OPD_BOARD,
+          updatedAt: tokensQuery.dataUpdatedAt,
+        }),
         { label: "Scope", tone: "info", value: departmentId ? "Department" : "Hospital" },
       ]}
       tags={[...OPD_BOARD.targets.tvAppCodes, "OPD"]}

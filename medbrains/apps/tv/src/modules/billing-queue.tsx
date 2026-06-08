@@ -9,7 +9,6 @@ import {
   BILLING_QUEUE_LANES,
   type BillingQueueToken,
   TOKEN_BOARD_SURFACES,
-  tokenBoardRefreshLabel,
   tokenBoardStatusSignal,
 } from "@medbrains/types";
 import { COLORS, SPACING } from "@medbrains/ui-mobile";
@@ -20,8 +19,8 @@ import { ActivityIndicator, Text } from "react-native-paper";
 import { TvBoard, TvSummaryRow } from "../components/tv-board.js";
 import {
   TvFeedStatusBanner,
-  tvFeedReadiness,
-  tvLastUpdatedLabel,
+  tvTokenBoardLegend,
+  tvTokenBoardReadinessItems,
 } from "../components/tv-feed-status.js";
 import {
   TvTokenStatusShape,
@@ -57,7 +56,6 @@ function BillingQueueScreen() {
       })),
     [queue],
   );
-  const syncLabel = tvLastUpdatedLabel(queueQuery.dataUpdatedAt);
   const nowServing = board.find((lane) => lane.tokens.length > 0)?.tokens[0] ?? null;
   const totalWaiting = board.reduce((count, lane) => count + lane.tokens.length, 0);
 
@@ -66,14 +64,13 @@ function BillingQueueScreen() {
       eyebrow="BILLING"
       title={BILLING_BOARD.title}
       subtitle="Please proceed to the billing desk when your token shows."
-      legend={`Updates every ${tokenBoardRefreshLabel(BILLING_BOARD)} · last sync ${syncLabel} · ${BILLING_BOARD.targets.tvDeepLink}`}
+      legend={tvTokenBoardLegend(BILLING_BOARD, queueQuery.dataUpdatedAt)}
       privacyNotice={BILLING_BOARD.privacyNotice}
-      readiness={[
-        { label: "Privacy", tone: "success", value: BILLING_BOARD.readiness.privacy },
-        tvFeedReadiness(queueQuery.isError, queueQuery.dataUpdatedAt, REFRESH_INTERVAL_MS),
-        { label: "Refresh", tone: "info", value: tokenBoardRefreshLabel(BILLING_BOARD) },
-        { label: "Flow", tone: "info", value: BILLING_BOARD.readiness.flow },
-      ]}
+      readiness={tvTokenBoardReadinessItems({
+        isError: queueQuery.isError,
+        surface: BILLING_BOARD,
+        updatedAt: queueQuery.dataUpdatedAt,
+      })}
       tags={[...BILLING_BOARD.targets.tvAppCodes, "billing", "cashier", "insurance"]}
     >
       <TvSummaryRow

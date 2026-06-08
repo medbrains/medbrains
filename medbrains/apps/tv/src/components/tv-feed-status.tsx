@@ -1,7 +1,10 @@
 import {
   type TokenBoardReadinessTone,
+  type TokenBoardSurfaceDefinition,
   tokenBoardFeedIsStale,
   tokenBoardFeedReadiness,
+  tokenBoardOperationalReadinessItems,
+  tokenBoardRefreshLabel,
 } from "@medbrains/types";
 import type { IntentTone } from "@medbrains/ui-mobile";
 import { COLORS, SPACING } from "@medbrains/ui-mobile";
@@ -48,6 +51,25 @@ export function tvFeedReadiness(
 ): { label: string; tone: IntentTone; value: string } {
   const readiness = tokenBoardFeedReadiness({ isError, refreshIntervalMs, updatedAt });
   return { ...readiness, tone: tvReadinessTone(readiness.tone) };
+}
+
+export function tvTokenBoardLegend(surface: TokenBoardSurfaceDefinition, updatedAt: number) {
+  return `Updates every ${tokenBoardRefreshLabel(surface)} · last sync ${tvLastUpdatedLabel(updatedAt)} · ${surface.targets.tvDeepLink}`;
+}
+
+export function tvTokenBoardReadinessItems({
+  isError,
+  surface,
+  updatedAt,
+}: {
+  isError: boolean;
+  surface: TokenBoardSurfaceDefinition;
+  updatedAt: number;
+}): { label: string; tone: IntentTone; value: string }[] {
+  return tokenBoardOperationalReadinessItems({ isError, surface, updatedAt }).map((item) => ({
+    ...item,
+    tone: tvReadinessTone(item.tone),
+  }));
 }
 
 export function TvFeedStatusBanner({
