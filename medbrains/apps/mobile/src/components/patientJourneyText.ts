@@ -371,6 +371,44 @@ export const MOBILE_QUEUE_SCREEN_TEXT = {
   },
 } as const;
 
+export const MOBILE_PATIENT_SEARCH_TEXT = {
+  empty: {
+    message: "patientJourney.mobile.patientSearch.empty.message",
+    title: "patientJourney.mobile.patientSearch.empty.title",
+  },
+  loading: {
+    patients: "patientJourney.mobile.patientSearch.loading.patients",
+  },
+  results: {
+    countPlural: "patientJourney.mobile.patientSearch.results.countPlural",
+    countSingular: "patientJourney.mobile.patientSearch.results.countSingular",
+  },
+  restricted: {
+    message: "patientJourney.mobile.patientSearch.restricted.message",
+    title: "patientJourney.mobile.patientSearch.restricted.title",
+  },
+  search: {
+    hint: "patientJourney.mobile.patientSearch.search.hint",
+    placeholder: "patientJourney.mobile.patientSearch.search.placeholder",
+    title: "patientJourney.mobile.patientSearch.search.title",
+  },
+} as const;
+
+export const MOBILE_PATIENT_CARD_TEXT = {
+  fields: {
+    ageMasked: "patientJourney.mobile.patientCard.fields.ageMasked",
+    ageYearsShort: "patientJourney.mobile.patientCard.fields.ageYearsShort",
+    genderFemaleShort: "patientJourney.mobile.patientCard.fields.genderFemaleShort",
+    genderMaleShort: "patientJourney.mobile.patientCard.fields.genderMaleShort",
+    genderOtherShort: "patientJourney.mobile.patientCard.fields.genderOtherShort",
+    genderUnknownShort: "patientJourney.mobile.patientCard.fields.genderUnknownShort",
+    hiddenField: "patientJourney.mobile.patientCard.fields.hiddenField",
+    noUhid: "patientJourney.mobile.patientCard.fields.noUhid",
+    patientInitials: "patientJourney.mobile.patientCard.fields.patientInitials",
+    unknownPatient: "patientJourney.mobile.patientCard.fields.unknownPatient",
+  },
+} as const;
+
 const MOBILE_PATIENT_JOURNEY_MESSAGES: Record<string, string> = {
   "patientJourney.blockedReasons.configuration": "Configuration",
   "patientJourney.blockedReasons.context": "Context",
@@ -594,6 +632,28 @@ const MOBILE_PATIENT_JOURNEY_MESSAGES: Record<string, string> = {
   "patientJourney.mobile.queueScreen.stats.called": "Called",
   "patientJourney.mobile.queueScreen.stats.inProgress": "In Progress",
   "patientJourney.mobile.queueScreen.stats.waiting": "Waiting",
+  "patientJourney.mobile.patientSearch.empty.message": "Try searching with different criteria",
+  "patientJourney.mobile.patientSearch.empty.title": "No patients found",
+  "patientJourney.mobile.patientSearch.loading.patients": "Searching patients...",
+  "patientJourney.mobile.patientSearch.results.countPlural": "{{count}} patients found",
+  "patientJourney.mobile.patientSearch.results.countSingular": "{{count}} patient found",
+  "patientJourney.mobile.patientSearch.restricted.message":
+    "Patient list access is controlled by your permission matrix.",
+  "patientJourney.mobile.patientSearch.restricted.title": "Patient search restricted",
+  "patientJourney.mobile.patientSearch.search.hint":
+    "Enter at least 2 characters to search patients.",
+  "patientJourney.mobile.patientSearch.search.placeholder": "Search by UHID, name, phone...",
+  "patientJourney.mobile.patientSearch.search.title": "Search Patients",
+  "patientJourney.mobile.patientCard.fields.ageMasked": "Age masked",
+  "patientJourney.mobile.patientCard.fields.ageYearsShort": "{{count}}Y",
+  "patientJourney.mobile.patientCard.fields.genderFemaleShort": "F",
+  "patientJourney.mobile.patientCard.fields.genderMaleShort": "M",
+  "patientJourney.mobile.patientCard.fields.genderOtherShort": "O",
+  "patientJourney.mobile.patientCard.fields.genderUnknownShort": "U",
+  "patientJourney.mobile.patientCard.fields.hiddenField": "Restricted",
+  "patientJourney.mobile.patientCard.fields.noUhid": "No UHID",
+  "patientJourney.mobile.patientCard.fields.patientInitials": "PT",
+  "patientJourney.mobile.patientCard.fields.unknownPatient": "Unknown patient",
   "patientJourney.mobile.staffDashboard.common.greeting": "Good Morning,",
   "patientJourney.mobile.staffDashboard.common.staffFallback": "Staff",
   "patientJourney.mobile.staffDashboard.common.staffInitials": "ST",

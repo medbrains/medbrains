@@ -7,12 +7,32 @@ import { FlatList, StyleSheet, View } from "react-native";
 import { ActivityIndicator, Avatar, Searchbar, Text, useTheme } from "react-native-paper";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { PatientCard } from "../../components";
+import {
+  MOBILE_PATIENT_SEARCH_TEXT,
+  mobilePatientJourneyText,
+} from "../../components/patientJourneyText";
 import { patientService } from "../../services/patient.service";
 
 interface PatientSearchScreenProps {
   navigation: {
     navigate: (screen: string, params?: Record<string, unknown>) => void;
   };
+}
+const PATIENT_SEARCH_TEXT = MOBILE_PATIENT_SEARCH_TEXT;
+
+function patientSearchText(
+  key: string,
+  values?: Record<string, string | number | boolean>,
+): string {
+  return mobilePatientJourneyText(key, values);
+}
+
+function patientResultCountText(count: number): string {
+  const key =
+    count === 1
+      ? PATIENT_SEARCH_TEXT.results.countSingular
+      : PATIENT_SEARCH_TEXT.results.countPlural;
+  return patientSearchText(key, { count });
 }
 
 export function PatientSearchScreen({ navigation }: PatientSearchScreenProps) {
@@ -54,7 +74,7 @@ export function PatientSearchScreen({ navigation }: PatientSearchScreenProps) {
       {/* Search Bar */}
       <View style={styles.searchContainer}>
         <Searchbar
-          placeholder="Search by UHID, name, phone..."
+          placeholder={patientSearchText(PATIENT_SEARCH_TEXT.search.placeholder)}
           value={search}
           onChangeText={setSearch}
           style={styles.searchbar}
@@ -68,10 +88,10 @@ export function PatientSearchScreen({ navigation }: PatientSearchScreenProps) {
         <View style={styles.restrictedContainer}>
           <Avatar.Icon size={64} icon="shield-lock-outline" style={styles.emptyIcon} />
           <Text variant="titleMedium" style={styles.emptyTitle}>
-            Patient search restricted
+            {patientSearchText(PATIENT_SEARCH_TEXT.restricted.title)}
           </Text>
           <Text variant="bodyMedium" style={styles.emptyText}>
-            Patient list access is controlled by your permission matrix.
+            {patientSearchText(PATIENT_SEARCH_TEXT.restricted.message)}
           </Text>
         </View>
       )}
@@ -80,10 +100,10 @@ export function PatientSearchScreen({ navigation }: PatientSearchScreenProps) {
       {!showResults && canSearchPatients && (
         <View style={styles.searchHintSection}>
           <Text variant="titleSmall" style={styles.sectionTitle}>
-            Search Patients
+            {patientSearchText(PATIENT_SEARCH_TEXT.search.title)}
           </Text>
           <Text variant="bodySmall" style={styles.searchHint}>
-            Enter at least 2 characters to search patients.
+            {patientSearchText(PATIENT_SEARCH_TEXT.search.hint)}
           </Text>
         </View>
       )}
@@ -95,13 +115,13 @@ export function PatientSearchScreen({ navigation }: PatientSearchScreenProps) {
             <View style={styles.loadingContainer}>
               <ActivityIndicator size="large" />
               <Text variant="bodyMedium" style={styles.loadingText}>
-                Searching patients...
+                {patientSearchText(PATIENT_SEARCH_TEXT.loading.patients)}
               </Text>
             </View>
           ) : patients.length > 0 ? (
             <>
               <Text variant="labelMedium" style={styles.resultsCount}>
-                {data?.total || patients.length} patient(s) found
+                {patientResultCountText(data?.total || patients.length)}
               </Text>
               <FlatList
                 data={patients}
@@ -134,10 +154,10 @@ export function PatientSearchScreen({ navigation }: PatientSearchScreenProps) {
             <View style={styles.emptyContainer}>
               <Avatar.Icon size={64} icon="account-search" style={styles.emptyIcon} />
               <Text variant="titleMedium" style={styles.emptyTitle}>
-                No patients found
+                {patientSearchText(PATIENT_SEARCH_TEXT.empty.title)}
               </Text>
               <Text variant="bodyMedium" style={styles.emptyText}>
-                Try searching with different criteria
+                {patientSearchText(PATIENT_SEARCH_TEXT.empty.message)}
               </Text>
             </View>
           )}

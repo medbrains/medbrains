@@ -2,6 +2,7 @@ import type { FieldAccessLevel } from "@medbrains/types";
 import { fieldAccessText } from "@medbrains/utils";
 import { StyleSheet, TouchableOpacity, View } from "react-native";
 import { Avatar, Card, Chip, Text } from "react-native-paper";
+import { MOBILE_PATIENT_CARD_TEXT, mobilePatientJourneyText } from "./patientJourneyText";
 
 interface PatientCardAccess {
   dateOfBirth?: FieldAccessLevel;
@@ -23,6 +24,11 @@ interface PatientCardProps {
   access?: PatientCardAccess;
   onPress?: () => void;
 }
+const PATIENT_CARD_TEXT = MOBILE_PATIENT_CARD_TEXT;
+
+function patientCardText(key: string, values?: Record<string, string | number | boolean>): string {
+  return mobilePatientJourneyText(key, values);
+}
 
 function calculateAge(dob?: string): string {
   if (!dob) return "";
@@ -34,7 +40,7 @@ function calculateAge(dob?: string): string {
   if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
     age--;
   }
-  return `${age}Y`;
+  return patientCardText(PATIENT_CARD_TEXT.fields.ageYearsShort, { count: age });
 }
 
 function protectedText(
@@ -43,14 +49,16 @@ function protectedText(
   kind: "identifier" | "name" | "phone" | "text",
   fallback: string,
 ) {
+  if (access === "hidden") return patientCardText(PATIENT_CARD_TEXT.fields.hiddenField);
+  if (!value?.trim()) return fallback;
   const display = fieldAccessText(access, value, kind);
-  return display === "—" ? fallback : display;
+  return display === "\u2014" ? fallback : display;
 }
 
 function protectedAge(access: FieldAccessLevel, dob?: string): string {
-  if (access === "hidden") return "Restricted";
+  if (access === "hidden") return patientCardText(PATIENT_CARD_TEXT.fields.hiddenField);
   if (!dob) return "";
-  if (access === "mask") return "Age masked";
+  if (access === "mask") return patientCardText(PATIENT_CARD_TEXT.fields.ageMasked);
   return calculateAge(dob);
 }
 
@@ -69,21 +77,46 @@ function getInitials(firstName: string, lastName: string): string {
   return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
 }
 
+function genderDisplayLabel(gender?: string): string {
+  switch (gender?.toLowerCase()) {
+    case "female":
+      return patientCardText(PATIENT_CARD_TEXT.fields.genderFemaleShort);
+    case "male":
+      return patientCardText(PATIENT_CARD_TEXT.fields.genderMaleShort);
+    case "other":
+      return patientCardText(PATIENT_CARD_TEXT.fields.genderOtherShort);
+    case "unknown":
+      return patientCardText(PATIENT_CARD_TEXT.fields.genderUnknownShort);
+    default:
+      return "";
+  }
+}
+
 export function PatientCard({ access, patient, onPress }: PatientCardProps) {
   const nameAccess = access?.name ?? "edit";
   const uhidAccess = access?.uhid ?? "edit";
   const phoneAccess = access?.phone ?? "edit";
   const dobAccess = access?.dateOfBirth ?? "edit";
   const rawFullName = `${patient.first_name} ${patient.last_name}`;
-  const fullName = protectedText(nameAccess, rawFullName, "name", "Unknown patient");
+  const fullName = protectedText(
+    nameAccess,
+    rawFullName,
+    "name",
+    patientCardText(PATIENT_CARD_TEXT.fields.unknownPatient),
+  );
   const initials =
     nameAccess === "mask" || nameAccess === "hidden"
-      ? "PT"
+      ? patientCardText(PATIENT_CARD_TEXT.fields.patientInitials)
       : getInitials(patient.first_name, patient.last_name);
-  const uhid = protectedText(uhidAccess, patient.uhid, "identifier", "No UHID");
+  const uhid = protectedText(
+    uhidAccess,
+    patient.uhid,
+    "identifier",
+    patientCardText(PATIENT_CARD_TEXT.fields.noUhid),
+  );
   const phone = protectedText(phoneAccess, patient.phone, "phone", "");
   const age = protectedAge(dobAccess, patient.date_of_birth);
-  const genderDisplay = patient.gender ? patient.gender.charAt(0).toUpperCase() : "";
+  const genderDisplay = genderDisplayLabel(patient.gender);
 
   return (
     <TouchableOpacity onPress={onPress} disabled={!onPress}>
