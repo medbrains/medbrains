@@ -1,6 +1,8 @@
 import type { BillingQueueLaneKey, TokenBoardSurfaceId } from "@medbrains/types";
 
 type TvTextValues = Record<string, string | number | boolean>;
+export type TvBedStatusReadinessKey = "privacy" | "refresh" | "ward";
+export type TvBedStatusSummaryKey = "available" | "occupied" | "total" | "waiting";
 export type TvTokenBoardScope = "department" | "hospital";
 export type TvTokenBoardSummaryKey =
   | "avgScan"
@@ -32,6 +34,43 @@ export type TvTokenBoardLaneKey =
 export type TvTriageLaneKey = "blue" | "green" | "orange" | "red" | "yellow";
 
 export const TV_TEXT = {
+  bedStatus: {
+    availableLegend: "tv.bedStatus.availableLegend",
+    displayName: "tv.bedStatus.displayName",
+    emptyWaiting: "tv.bedStatus.emptyWaiting",
+    eyebrow: "tv.bedStatus.eyebrow",
+    feedError: "tv.bedStatus.feedError",
+    loading: "tv.bedStatus.loading",
+    occupancyTitle: "tv.bedStatus.occupancyTitle",
+    occupiedLegend: "tv.bedStatus.occupiedLegend",
+    privacyNotice: "tv.bedStatus.privacyNotice",
+    readiness: {
+      privacy: {
+        label: "tv.bedStatus.readiness.privacy.label",
+        value: "tv.bedStatus.readiness.privacy.value",
+      },
+      refresh: {
+        label: "tv.bedStatus.readiness.refresh.label",
+        value: "tv.bedStatus.readiness.refresh.value",
+      },
+      ward: {
+        label: "tv.bedStatus.readiness.ward.label",
+      },
+    },
+    subtitle: "tv.bedStatus.subtitle",
+    summary: {
+      available: "tv.bedStatus.summary.available",
+      occupied: "tv.bedStatus.summary.occupied",
+      total: "tv.bedStatus.summary.total",
+      waiting: "tv.bedStatus.summary.waiting",
+    },
+    title: "tv.bedStatus.title",
+    unavailableMessage: "tv.bedStatus.unavailableMessage",
+    unavailableTitle: "tv.bedStatus.unavailableTitle",
+    waitingCase: "tv.bedStatus.waitingCase",
+    waitingLaneTitle: "tv.bedStatus.waitingLaneTitle",
+    waitMinutes: "tv.bedStatus.waitMinutes",
+  },
   feed: {
     degradedTitle: "tv.feed.degradedTitle",
     lastSync: "tv.feed.lastSync",
@@ -168,6 +207,33 @@ export const TV_TEXT = {
 } as const;
 
 const TV_MESSAGES: Readonly<Record<string, string>> = {
+  "tv.bedStatus.availableLegend": "{{count}} available",
+  "tv.bedStatus.displayName": "Bed occupancy",
+  "tv.bedStatus.emptyWaiting": "No waiting patients for this ward type",
+  "tv.bedStatus.eyebrow": "WARD",
+  "tv.bedStatus.feedError":
+    "Bed status feed is unreachable. Continuing with the last available occupancy state.",
+  "tv.bedStatus.loading": "Loading bed state...",
+  "tv.bedStatus.occupancyTitle": "Occupancy",
+  "tv.bedStatus.occupiedLegend": "{{count}} occupied",
+  "tv.bedStatus.privacyNotice":
+    "Waiting list stays masked; names, UHIDs, diagnoses, and bed-transfer notes stay off the ward display.",
+  "tv.bedStatus.readiness.privacy.label": "Privacy",
+  "tv.bedStatus.readiness.privacy.value": "Masked list",
+  "tv.bedStatus.readiness.refresh.label": "Refresh",
+  "tv.bedStatus.readiness.refresh.value": "{{seconds}}s",
+  "tv.bedStatus.readiness.ward.label": "Ward",
+  "tv.bedStatus.subtitle": "Live ward occupancy and masked waiting-list state.",
+  "tv.bedStatus.summary.available": "AVAILABLE",
+  "tv.bedStatus.summary.occupied": "OCCUPIED",
+  "tv.bedStatus.summary.total": "TOTAL",
+  "tv.bedStatus.summary.waiting": "WAITING",
+  "tv.bedStatus.title": "{{ward}} beds",
+  "tv.bedStatus.unavailableMessage": "Check TV pairing, network, and ward display access.",
+  "tv.bedStatus.unavailableTitle": "Bed feed unavailable",
+  "tv.bedStatus.waitingCase": "Waiting case",
+  "tv.bedStatus.waitingLaneTitle": "Waiting list",
+  "tv.bedStatus.waitMinutes": "{{minutes}} min",
   "tv.feed.degradedTitle": "Feed degraded",
   "tv.feed.lastSync": "Last sync {{time}}",
   "tv.feed.legend": "Updates every {{refresh}} · last sync {{sync}} · {{deepLink}}",
@@ -290,6 +356,101 @@ function interpolate(template: string, values?: TvTextValues): string {
 
 export function tvText(key: string, values?: TvTextValues): string {
   return interpolate(TV_MESSAGES[key] ?? key, values);
+}
+
+export function tvBedStatusAvailableLegend(count: number): string {
+  return tvText(TV_TEXT.bedStatus.availableLegend, { count });
+}
+
+export function tvBedStatusDisplayName(): string {
+  return tvText(TV_TEXT.bedStatus.displayName);
+}
+
+export function tvBedStatusEmptyWaitingLabel(): string {
+  return tvText(TV_TEXT.bedStatus.emptyWaiting);
+}
+
+export function tvBedStatusEyebrow(): string {
+  return tvText(TV_TEXT.bedStatus.eyebrow);
+}
+
+export function tvBedStatusFeedErrorLabel(): string {
+  return tvText(TV_TEXT.bedStatus.feedError);
+}
+
+export function tvBedStatusLoadingLabel(): string {
+  return tvText(TV_TEXT.bedStatus.loading);
+}
+
+export function tvBedStatusLegend({
+  deepLink,
+  refreshLabel,
+  syncLabel,
+}: {
+  deepLink: string;
+  refreshLabel: string;
+  syncLabel: string;
+}): string {
+  return tvText(TV_TEXT.feed.legend, {
+    deepLink,
+    refresh: refreshLabel,
+    sync: syncLabel,
+  });
+}
+
+export function tvBedStatusOccupancyTitle(): string {
+  return tvText(TV_TEXT.bedStatus.occupancyTitle);
+}
+
+export function tvBedStatusOccupiedLegend(count: number): string {
+  return tvText(TV_TEXT.bedStatus.occupiedLegend, { count });
+}
+
+export function tvBedStatusPrivacyNotice(): string {
+  return tvText(TV_TEXT.bedStatus.privacyNotice);
+}
+
+export function tvBedStatusReadinessLabel(readinessKey: TvBedStatusReadinessKey): string {
+  return tvText(TV_TEXT.bedStatus.readiness[readinessKey].label);
+}
+
+export function tvBedStatusReadinessValue(
+  readinessKey: Exclude<TvBedStatusReadinessKey, "ward">,
+  values?: TvTextValues,
+): string {
+  return tvText(TV_TEXT.bedStatus.readiness[readinessKey].value, values);
+}
+
+export function tvBedStatusSubtitle(): string {
+  return tvText(TV_TEXT.bedStatus.subtitle);
+}
+
+export function tvBedStatusSummaryLabel(summaryKey: TvBedStatusSummaryKey): string {
+  return tvText(TV_TEXT.bedStatus.summary[summaryKey]);
+}
+
+export function tvBedStatusTitle(ward: string): string {
+  return tvText(TV_TEXT.bedStatus.title, { ward });
+}
+
+export function tvBedStatusUnavailableMessage(): string {
+  return tvText(TV_TEXT.bedStatus.unavailableMessage);
+}
+
+export function tvBedStatusUnavailableTitle(): string {
+  return tvText(TV_TEXT.bedStatus.unavailableTitle);
+}
+
+export function tvBedStatusWaitingCaseLabel(): string {
+  return tvText(TV_TEXT.bedStatus.waitingCase);
+}
+
+export function tvBedStatusWaitingLaneTitle(): string {
+  return tvText(TV_TEXT.bedStatus.waitingLaneTitle);
+}
+
+export function tvBedStatusWaitMinutes(minutes: number): string {
+  return tvText(TV_TEXT.bedStatus.waitMinutes, { minutes });
 }
 
 export function tvTokenBoardFeedErrorLabel(surfaceId: TokenBoardSurfaceId): string {

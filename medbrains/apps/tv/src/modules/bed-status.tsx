@@ -18,9 +18,32 @@ import {
   tvFeedReadiness,
   tvLastUpdatedLabel,
 } from "../components/tv-feed-status.js";
+import {
+  tvBedStatusAvailableLegend,
+  tvBedStatusDisplayName,
+  tvBedStatusEmptyWaitingLabel,
+  tvBedStatusEyebrow,
+  tvBedStatusFeedErrorLabel,
+  tvBedStatusLegend,
+  tvBedStatusLoadingLabel,
+  tvBedStatusOccupancyTitle,
+  tvBedStatusOccupiedLegend,
+  tvBedStatusPrivacyNotice,
+  tvBedStatusReadinessLabel,
+  tvBedStatusReadinessValue,
+  tvBedStatusSubtitle,
+  tvBedStatusSummaryLabel,
+  tvBedStatusTitle,
+  tvBedStatusUnavailableMessage,
+  tvBedStatusUnavailableTitle,
+  tvBedStatusWaitingCaseLabel,
+  tvBedStatusWaitingLaneTitle,
+  tvBedStatusWaitMinutes,
+} from "../components/tv-i18n.js";
 import { tvQueueService } from "../services/tvQueue.service.js";
 
 const REFRESH_INTERVAL_MS = 10_000;
+const REFRESH_INTERVAL_SECONDS = REFRESH_INTERVAL_MS / 1_000;
 const WAITING_LIST_LIMIT = 8;
 const DEFAULT_WARD_TYPE = "general";
 
@@ -118,32 +141,50 @@ function BedStatusScreen({ route }: BedStatusScreenProps) {
   const totalBeds = bedState?.total_beds ?? 0;
   const percentOccupied = occupancyPercent(bedState);
   const syncLabel = tvLastUpdatedLabel(bedQuery.dataUpdatedAt);
+  const wardLabel = displayWardType(wardType);
+  const refreshLabel = tvBedStatusReadinessValue("refresh", {
+    seconds: REFRESH_INTERVAL_SECONDS,
+  });
 
   return (
     <TvBoard
-      eyebrow="WARD"
-      title={`${displayWardType(wardType)} beds`}
-      subtitle="Live ward occupancy and masked waiting-list state."
-      legend={`Updates every 10 seconds · last sync ${syncLabel} · medbrains://tv/bed-status?ward=${wardType}`}
-      privacyNotice="Waiting list stays masked; names, UHIDs, diagnoses, and bed-transfer notes stay off the ward display."
+      eyebrow={tvBedStatusEyebrow()}
+      title={tvBedStatusTitle(wardLabel)}
+      subtitle={tvBedStatusSubtitle()}
+      legend={tvBedStatusLegend({
+        deepLink: `medbrains://tv/bed-status?ward=${wardType}`,
+        refreshLabel,
+        syncLabel,
+      })}
+      privacyNotice={tvBedStatusPrivacyNotice()}
       readiness={[
-        { label: "Privacy", tone: "success", value: "Masked list" },
+        {
+          label: tvBedStatusReadinessLabel("privacy"),
+          tone: "success",
+          value: tvBedStatusReadinessValue("privacy"),
+        },
         tvFeedReadiness(bedQuery.isError, bedQuery.dataUpdatedAt, REFRESH_INTERVAL_MS),
-        { label: "Refresh", tone: "info", value: "10s" },
-        { label: "Ward", tone: "info", value: displayWardType(wardType) },
+        { label: tvBedStatusReadinessLabel("refresh"), tone: "info", value: refreshLabel },
+        { label: tvBedStatusReadinessLabel("ward"), tone: "info", value: wardLabel },
       ]}
       tags={["TV-Ward", "TV-ICU", "IPD", "beds"]}
     >
       <TvSummaryRow
         items={[
-          { label: "OCCUPIED", value: bedState ? String(occupied) : "—" },
-          { label: "AVAILABLE", value: bedState ? String(available) : "—" },
-          { label: "TOTAL", value: bedState ? String(totalBeds) : "—" },
-          { label: "WAITING", value: String(bedState?.waiting_list.length ?? "—") },
+          { label: tvBedStatusSummaryLabel("occupied"), value: bedState ? String(occupied) : "—" },
+          {
+            label: tvBedStatusSummaryLabel("available"),
+            value: bedState ? String(available) : "—",
+          },
+          { label: tvBedStatusSummaryLabel("total"), value: bedState ? String(totalBeds) : "—" },
+          {
+            label: tvBedStatusSummaryLabel("waiting"),
+            value: bedState ? String(bedState.waiting_list.length) : "—",
+          },
         ]}
       />
       <TvFeedStatusBanner
-        errorLabel="Bed status feed is unreachable. Continuing with the last available occupancy state."
+        errorLabel={tvBedStatusFeedErrorLabel()}
         isError={bedQuery.isError}
         lastUpdatedAt={bedQuery.dataUpdatedAt}
         refreshIntervalMs={REFRESH_INTERVAL_MS}
@@ -151,18 +192,18 @@ function BedStatusScreen({ route }: BedStatusScreenProps) {
       {bedQuery.isLoading ? (
         <View style={styles.centerPanel}>
           <ActivityIndicator size="large" color={COLORS.emerald} />
-          <Text style={styles.loadingText}>Loading bed state...</Text>
+          <Text style={styles.loadingText}>{tvBedStatusLoadingLabel()}</Text>
         </View>
       ) : bedQuery.isError ? (
         <View style={styles.centerPanel}>
-          <Text style={styles.errorTitle}>Bed feed unavailable</Text>
-          <Text style={styles.errorText}>Check TV pairing, network, and ward display access.</Text>
+          <Text style={styles.errorTitle}>{tvBedStatusUnavailableTitle()}</Text>
+          <Text style={styles.errorText}>{tvBedStatusUnavailableMessage()}</Text>
         </View>
       ) : (
         <View style={styles.boardGrid}>
           <View style={styles.occupancyPanel}>
             <View style={styles.occupancyHeader}>
-              <Text style={styles.panelLabel}>Occupancy</Text>
+              <Text style={styles.panelLabel}>{tvBedStatusOccupancyTitle()}</Text>
               <Text style={styles.occupancyValue}>{percentOccupied}%</Text>
             </View>
             <View style={styles.occupancyBar}>
@@ -170,8 +211,8 @@ function BedStatusScreen({ route }: BedStatusScreenProps) {
               <View style={[styles.availableSegment, { flex: available }]} />
             </View>
             <View style={styles.occupancyLegend}>
-              <Text style={styles.legendText}>{occupied} occupied</Text>
-              <Text style={styles.legendText}>{available} available</Text>
+              <Text style={styles.legendText}>{tvBedStatusOccupiedLegend(occupied)}</Text>
+              <Text style={styles.legendText}>{tvBedStatusAvailableLegend(available)}</Text>
             </View>
           </View>
 
@@ -185,10 +226,10 @@ function BedStatusScreen({ route }: BedStatusScreenProps) {
 function WaitingListLane({ tokens }: { tokens: BedWaitingEntry[] }) {
   return (
     <View style={styles.waitingLane}>
-      <Text style={styles.panelLabel}>Waiting list</Text>
+      <Text style={styles.panelLabel}>{tvBedStatusWaitingLaneTitle()}</Text>
       {tokens.length === 0 ? (
         <View style={styles.emptyToken}>
-          <Text style={styles.emptyTokenText}>No waiting patients for this ward type</Text>
+          <Text style={styles.emptyTokenText}>{tvBedStatusEmptyWaitingLabel()}</Text>
         </View>
       ) : (
         <View style={styles.waitingGrid}>
@@ -201,14 +242,16 @@ function WaitingListLane({ tokens }: { tokens: BedWaitingEntry[] }) {
                 key={waitingEntryKey(token)}
                 style={[styles.waitingCard, { borderColor: priorityColor(token.priority) }]}
               >
-                <Text style={styles.waitingCase}>Waiting case</Text>
+                <Text style={styles.waitingCase}>{tvBedStatusWaitingCaseLabel()}</Text>
                 <View style={styles.waitingMeta}>
                   <Text style={styles.metaText}>{token.priority}</Text>
                   <View style={styles.statusMeta}>
                     <BedStatusShape label={statusText} signal={signal} />
                     <Text style={styles.metaText}>{statusText}</Text>
                   </View>
-                  <Text style={styles.metaText}>{token.wait_time_minutes} min</Text>
+                  <Text style={styles.metaText}>
+                    {tvBedStatusWaitMinutes(token.wait_time_minutes)}
+                  </Text>
                 </View>
               </View>
             );
@@ -221,7 +264,7 @@ function WaitingListLane({ tokens }: { tokens: BedWaitingEntry[] }) {
 
 export const bedStatusModule: Module = {
   id: "bed-status",
-  displayName: "Bed occupancy",
+  displayName: tvBedStatusDisplayName(),
   icon: () => null,
   requiredPermissions: [],
   requiredAnyPermissions: [P.IPD.BED_DASHBOARD_VIEW],

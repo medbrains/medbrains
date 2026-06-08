@@ -8,6 +8,26 @@ import {
 import { describe, expect, it } from "vitest";
 import {
   TV_TEXT,
+  tvBedStatusAvailableLegend,
+  tvBedStatusDisplayName,
+  tvBedStatusEmptyWaitingLabel,
+  tvBedStatusEyebrow,
+  tvBedStatusFeedErrorLabel,
+  tvBedStatusLegend,
+  tvBedStatusLoadingLabel,
+  tvBedStatusOccupancyTitle,
+  tvBedStatusOccupiedLegend,
+  tvBedStatusPrivacyNotice,
+  tvBedStatusReadinessLabel,
+  tvBedStatusReadinessValue,
+  tvBedStatusSubtitle,
+  tvBedStatusSummaryLabel,
+  tvBedStatusTitle,
+  tvBedStatusUnavailableMessage,
+  tvBedStatusUnavailableTitle,
+  tvBedStatusWaitingCaseLabel,
+  tvBedStatusWaitingLaneTitle,
+  tvBedStatusWaitMinutes,
   tvText,
   tvTokenBoardFeedErrorLabel,
   tvTokenBoardLaneEmptyLabel,
@@ -100,5 +120,44 @@ describe("TV token-board registry", () => {
       targetLabel: "Immediate",
       title: "Red",
     });
+  });
+
+  it("backs bed-status TV board text with shared i18n keys", () => {
+    const refreshLabel = tvBedStatusReadinessValue("refresh", { seconds: 10 });
+    const legend = tvBedStatusLegend({
+      deepLink: "medbrains://tv/bed-status?ward=icu",
+      refreshLabel,
+      syncLabel: "09:15:00",
+    });
+
+    expect(tvBedStatusDisplayName()).toBe("Bed occupancy");
+    expect(tvBedStatusEyebrow()).toBe("WARD");
+    expect(tvBedStatusTitle("ICU")).toBe("ICU beds");
+    expect(tvBedStatusSubtitle()).toContain("ward occupancy");
+    expect(tvBedStatusPrivacyNotice()).toContain("Waiting list stays masked");
+    expect(tvBedStatusReadinessLabel("privacy")).toBe("Privacy");
+    expect(tvBedStatusReadinessValue("privacy")).toBe("Masked list");
+    expect(tvBedStatusReadinessLabel("refresh")).toBe("Refresh");
+    expect(refreshLabel).toBe("10s");
+    expect(tvBedStatusReadinessLabel("ward")).toBe("Ward");
+    expect(legend).toContain("medbrains://tv/bed-status?ward=icu");
+    expect(legend).toContain("09:15:00");
+    expect(tvBedStatusSummaryLabel("occupied")).toBe("OCCUPIED");
+    expect(tvBedStatusSummaryLabel("available")).toBe("AVAILABLE");
+    expect(tvBedStatusSummaryLabel("total")).toBe("TOTAL");
+    expect(tvBedStatusSummaryLabel("waiting")).toBe("WAITING");
+    expect(tvBedStatusFeedErrorLabel()).toContain("Bed status feed is unreachable");
+    expect(tvBedStatusLoadingLabel()).toBe("Loading bed state...");
+    expect(tvBedStatusUnavailableTitle()).toBe("Bed feed unavailable");
+    expect(tvBedStatusUnavailableMessage()).toContain("ward display access");
+    expect(tvBedStatusOccupancyTitle()).toBe("Occupancy");
+    expect(tvBedStatusOccupiedLegend(12)).toBe("12 occupied");
+    expect(tvBedStatusAvailableLegend(3)).toBe("3 available");
+    expect(tvBedStatusWaitingLaneTitle()).toBe("Waiting list");
+    expect(tvBedStatusEmptyWaitingLabel()).toContain("No waiting patients");
+    expect(tvBedStatusWaitingCaseLabel()).toBe("Waiting case");
+    expect(tvBedStatusWaitMinutes(18)).toBe("18 min");
+    expect(tvBedStatusTitle("ICU")).not.toBe(TV_TEXT.bedStatus.title);
+    expect(tvBedStatusFeedErrorLabel()).not.toBe(TV_TEXT.bedStatus.feedError);
   });
 });
