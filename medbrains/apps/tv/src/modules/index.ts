@@ -5,7 +5,7 @@
  */
 
 import type { Module } from "@medbrains/mobile-shell";
-import { TOKEN_BOARD_SURFACE_LIST, type TokenBoardTvDisplayType } from "@medbrains/types";
+import type { TokenBoardTvDisplayType } from "@medbrains/types";
 import { bedStatusModule } from "./bed-status";
 import { billingQueueModule } from "./billing-queue";
 import { digitalSignageModule } from "./digital-signage";
@@ -14,6 +14,10 @@ import { labStatusModule } from "./lab-status";
 import { pharmacyQueueModule } from "./pharmacy-queue";
 import { queueModule } from "./queue";
 import { radiologyQueueModule } from "./radiology-queue";
+import {
+  TOKEN_BOARD_TV_MODULE_REGISTRY,
+  type TokenBoardTvModuleRegistryEntry,
+} from "./token-board-tv-registry";
 
 export const TOKEN_BOARD_TV_MODULES = {
   billing_queue: billingQueueModule,
@@ -24,8 +28,18 @@ export const TOKEN_BOARD_TV_MODULES = {
   radiology_queue: radiologyQueueModule,
 } satisfies Record<TokenBoardTvDisplayType, Module>;
 
-export const TOKEN_BOARD_TV_MODULE_LIST = TOKEN_BOARD_SURFACE_LIST.map(
-  (surface) => TOKEN_BOARD_TV_MODULES[surface.targets.tvDisplayType],
+function tokenBoardTvModuleForEntry(entry: TokenBoardTvModuleRegistryEntry): Module {
+  const module = TOKEN_BOARD_TV_MODULES[entry.displayType];
+  if (module.id !== entry.moduleId) {
+    throw new Error(
+      `Token-board TV module mismatch for ${entry.surfaceId}: expected ${entry.moduleId}, got ${module.id}`,
+    );
+  }
+  return module;
+}
+
+export const TOKEN_BOARD_TV_MODULE_LIST = TOKEN_BOARD_TV_MODULE_REGISTRY.map(
+  tokenBoardTvModuleForEntry,
 );
 
 export const MODULES: ReadonlyArray<Module> = [
