@@ -1,5 +1,6 @@
 import { useHasAnyPermission } from "@medbrains/stores";
 import type {
+  BillingQueueLaneKey,
   BillingQueueToken,
   ErTriageToken,
   LabQueueToken,
@@ -16,11 +17,10 @@ import type {
 } from "@medbrains/types";
 import {
   BILLING_QUEUE_LANES,
-  TOKEN_BOARD_PUBLIC_PRIVACY_NOTICE,
   TOKEN_BOARD_SURFACE_LIST,
   TOKEN_BOARD_SURFACES,
+  tokenBoardFeedIsStale,
   tokenBoardMobileRouteParams,
-  tokenBoardOperationalReadinessItems,
   tokenBoardSurfaceFilterFromParam,
 } from "@medbrains/types";
 import type { ReactNode } from "react";
@@ -35,6 +35,10 @@ import {
   useTheme,
 } from "react-native-paper";
 import { SafeAreaView } from "react-native-safe-area-context";
+import {
+  MOBILE_TOKEN_BOARDS_TEXT,
+  mobilePatientJourneyText,
+} from "../../components/patientJourneyText";
 import {
   useBillingTokenBoardQuery,
   useErTokenBoardQuery,
@@ -52,17 +56,101 @@ const RADIOLOGY_BOARD = TOKEN_BOARD_SURFACES.radiology;
 const EMERGENCY_BOARD = TOKEN_BOARD_SURFACES.emergency;
 const PHARMACY_BOARD = TOKEN_BOARD_SURFACES.pharmacy;
 const BILLING_BOARD = TOKEN_BOARD_SURFACES.billing;
+const TOKEN_BOARDS_TEXT = MOBILE_TOKEN_BOARDS_TEXT;
+
+const SURFACE_TEXT_KEYS: Record<
+  TokenBoardSurfaceId,
+  {
+    flow: string;
+    restricted: string;
+    subtitle: string;
+    title: string;
+  }
+> = {
+  billing: TOKEN_BOARDS_TEXT.surfaces.billing,
+  emergency: TOKEN_BOARDS_TEXT.surfaces.emergency,
+  lab: TOKEN_BOARDS_TEXT.surfaces.lab,
+  opd: TOKEN_BOARDS_TEXT.surfaces.opd,
+  pharmacy: TOKEN_BOARDS_TEXT.surfaces.pharmacy,
+  radiology: TOKEN_BOARDS_TEXT.surfaces.radiology,
+};
+
+const BILLING_LANE_TEXT_KEYS: Record<
+  BillingQueueLaneKey,
+  {
+    empty: string;
+    title: string;
+  }
+> = {
+  advance_deposit: {
+    empty: TOKEN_BOARDS_TEXT.lanes.billing.advanceDepositEmpty,
+    title: TOKEN_BOARDS_TEXT.lanes.billing.advanceDeposit,
+  },
+  insurance_desk: {
+    empty: TOKEN_BOARDS_TEXT.lanes.billing.insuranceDeskEmpty,
+    title: TOKEN_BOARDS_TEXT.lanes.billing.insuranceDesk,
+  },
+  ipd_discharge: {
+    empty: TOKEN_BOARDS_TEXT.lanes.billing.ipdDischargeEmpty,
+    title: TOKEN_BOARDS_TEXT.lanes.billing.ipdDischarge,
+  },
+  opd_billing: {
+    empty: TOKEN_BOARDS_TEXT.lanes.billing.opdBillingEmpty,
+    title: TOKEN_BOARDS_TEXT.lanes.billing.opdBilling,
+  },
+};
+
+const PRIORITY_LABEL_KEYS: Record<QueuePriority, string> = {
+  disabled: TOKEN_BOARDS_TEXT.priority.disabled,
+  elderly: TOKEN_BOARDS_TEXT.priority.elderly,
+  emergency_referral: TOKEN_BOARDS_TEXT.priority.emergencyReferral,
+  normal: TOKEN_BOARDS_TEXT.priority.normal,
+  pregnant: TOKEN_BOARDS_TEXT.priority.pregnant,
+  vip: TOKEN_BOARDS_TEXT.priority.vip,
+};
+
+const TOKEN_STATUS_LABEL_KEYS: Partial<Record<string, string>> = {
+  active: TOKEN_BOARDS_TEXT.status.active,
+  called: TOKEN_BOARDS_TEXT.status.called,
+  cancelled: TOKEN_BOARDS_TEXT.status.cancelled,
+  collected: TOKEN_BOARDS_TEXT.status.collected,
+  collection_in_progress: TOKEN_BOARDS_TEXT.status.collectionInProgress,
+  completed: TOKEN_BOARDS_TEXT.status.completed,
+  dispensed: TOKEN_BOARDS_TEXT.status.dispensed,
+  in_progress: TOKEN_BOARDS_TEXT.status.inProgress,
+  issued: TOKEN_BOARDS_TEXT.status.issued,
+  no_show: TOKEN_BOARDS_TEXT.status.noShow,
+  on_hold: TOKEN_BOARDS_TEXT.status.onHold,
+  paid: TOKEN_BOARDS_TEXT.status.paid,
+  partially_paid: TOKEN_BOARDS_TEXT.status.partiallyPaid,
+  preparing: TOKEN_BOARDS_TEXT.status.preparing,
+  ready: TOKEN_BOARDS_TEXT.status.ready,
+  scheduled: TOKEN_BOARDS_TEXT.status.scheduled,
+  settled: TOKEN_BOARDS_TEXT.status.settled,
+  waiting: TOKEN_BOARDS_TEXT.status.waiting,
+};
+
+const BILLING_QUEUE_TYPE_LABEL_KEYS: Partial<Record<string, string>> = {
+  advance_deposit: TOKEN_BOARDS_TEXT.lanes.billing.advanceDeposit,
+  insurance_desk: TOKEN_BOARDS_TEXT.lanes.billing.insuranceDesk,
+  ipd_discharge: TOKEN_BOARDS_TEXT.lanes.billing.ipdDischarge,
+  opd_billing: TOKEN_BOARDS_TEXT.lanes.billing.opdBilling,
+};
 
 const TRIAGE_LANES: ReadonlyArray<{
   color: string;
   key: TriageLevelColor;
-  label: string;
+  labelKey: string;
 }> = [
-  { color: MEDBRAINS_COLORS.red, key: "red", label: "Red" },
-  { color: MEDBRAINS_COLORS.copper, key: "orange", label: "Orange" },
-  { color: MEDBRAINS_COLORS.statusWarning, key: "yellow", label: "Yellow" },
-  { color: MEDBRAINS_COLORS.emerald, key: "green", label: "Green" },
-  { color: MEDBRAINS_COLORS.brand, key: "blue", label: "Blue" },
+  { color: MEDBRAINS_COLORS.red, key: "red", labelKey: TOKEN_BOARDS_TEXT.triage.red },
+  { color: MEDBRAINS_COLORS.copper, key: "orange", labelKey: TOKEN_BOARDS_TEXT.triage.orange },
+  {
+    color: MEDBRAINS_COLORS.statusWarning,
+    key: "yellow",
+    labelKey: TOKEN_BOARDS_TEXT.triage.yellow,
+  },
+  { color: MEDBRAINS_COLORS.emerald, key: "green", labelKey: TOKEN_BOARDS_TEXT.triage.green },
+  { color: MEDBRAINS_COLORS.brand, key: "blue", labelKey: TOKEN_BOARDS_TEXT.triage.blue },
 ];
 
 interface DisplayToken {
@@ -89,17 +177,128 @@ interface TokenBoardsScreenProps {
   };
 }
 
+function tokenBoardsText(key: string, values?: Record<string, string | number | boolean>): string {
+  return mobilePatientJourneyText(key, values);
+}
+
+function countLabel(count: number, singularKey: string, pluralKey: string): string {
+  return tokenBoardsText(count === 1 ? singularKey : pluralKey, { count });
+}
+
+function overdueTargetLabel(count: number): string {
+  return countLabel(
+    count,
+    TOKEN_BOARDS_TEXT.triage.overdueTargetsSingular,
+    TOKEN_BOARDS_TEXT.triage.overdueTargetsPlural,
+  );
+}
+
 function statusLabel(value: string) {
-  return value.replace(/_/g, " ");
+  const key = TOKEN_STATUS_LABEL_KEYS[value];
+  return key ? tokenBoardsText(key) : value;
 }
 
 function priorityLabel(value: QueuePriority) {
-  return value.replace(/_/g, " ");
+  return tokenBoardsText(PRIORITY_LABEL_KEYS[value]);
 }
 
 function lastSyncLabel(updatedAt: number) {
-  if (updatedAt === 0) return "pending";
+  if (updatedAt === 0) return tokenBoardsText(TOKEN_BOARDS_TEXT.common.pending);
   return new Date(updatedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+function syncLabel(isError: boolean, updatedAt: number): string {
+  if (isError) return tokenBoardsText(TOKEN_BOARDS_TEXT.common.feedError);
+  return tokenBoardsText(TOKEN_BOARDS_TEXT.common.syncStatus, { time: lastSyncLabel(updatedAt) });
+}
+
+function surfaceTitle(surface: TokenBoardSurfaceDefinition): string {
+  return tokenBoardsText(SURFACE_TEXT_KEYS[surface.id].title);
+}
+
+function surfaceSubtitle(surface: TokenBoardSurfaceDefinition): string {
+  return tokenBoardsText(SURFACE_TEXT_KEYS[surface.id].subtitle);
+}
+
+function surfaceRestrictedLabel(surface: TokenBoardSurfaceDefinition): string {
+  return tokenBoardsText(SURFACE_TEXT_KEYS[surface.id].restricted);
+}
+
+function surfaceFlowLabel(surface: TokenBoardSurfaceDefinition): string {
+  return tokenBoardsText(SURFACE_TEXT_KEYS[surface.id].flow);
+}
+
+function counterLabel(counter: number): string {
+  return tokenBoardsText(TOKEN_BOARDS_TEXT.meta.counter, { counter });
+}
+
+function billingQueueTypeLabel(queueType: string): string {
+  const key = BILLING_QUEUE_TYPE_LABEL_KEYS[queueType];
+  return key ? tokenBoardsText(key) : queueType;
+}
+
+function refreshValue(surface: TokenBoardSurfaceDefinition): string {
+  return tokenBoardsText(TOKEN_BOARDS_TEXT.readiness.values.refreshSeconds, {
+    seconds: surface.refreshIntervalMs / 1_000,
+  });
+}
+
+function feedReadinessValue(
+  isError: boolean,
+  surface: TokenBoardSurfaceDefinition,
+  updatedAt: number,
+) {
+  if (isError) return tokenBoardsText(TOKEN_BOARDS_TEXT.readiness.values.degraded);
+  if (tokenBoardFeedIsStale(updatedAt, surface.refreshIntervalMs)) {
+    return tokenBoardsText(TOKEN_BOARDS_TEXT.readiness.values.stale);
+  }
+  if (updatedAt <= 0) return tokenBoardsText(TOKEN_BOARDS_TEXT.readiness.values.waiting);
+  return tokenBoardsText(TOKEN_BOARDS_TEXT.readiness.values.live);
+}
+
+function feedReadinessTone(
+  isError: boolean,
+  surface: TokenBoardSurfaceDefinition,
+  updatedAt: number,
+): TokenBoardReadinessTone {
+  if (isError) return "danger";
+  if (updatedAt <= 0 || tokenBoardFeedIsStale(updatedAt, surface.refreshIntervalMs)) {
+    return "warning";
+  }
+  return "success";
+}
+
+function tokenBoardReadinessItems({
+  isError,
+  surface,
+  updatedAt,
+}: {
+  isError: boolean;
+  surface: TokenBoardSurfaceDefinition;
+  updatedAt: number;
+}): TokenBoardReadinessItem[] {
+  return [
+    {
+      label: tokenBoardsText(TOKEN_BOARDS_TEXT.readiness.labels.privacy),
+      tone: "success",
+      value: tokenBoardsText(TOKEN_BOARDS_TEXT.readiness.values.tokenOnly),
+    },
+    {
+      label: tokenBoardsText(TOKEN_BOARDS_TEXT.readiness.labels.feed),
+      tone: feedReadinessTone(isError, surface, updatedAt),
+      value: feedReadinessValue(isError, surface, updatedAt),
+    },
+    {
+      label: tokenBoardsText(TOKEN_BOARDS_TEXT.readiness.labels.refresh),
+      tone: "info",
+      value: refreshValue(surface),
+    },
+    {
+      label: tokenBoardsText(TOKEN_BOARDS_TEXT.readiness.labels.flow),
+      tone: surface.id === "emergency" ? "danger" : "info",
+      value: surfaceFlowLabel(surface),
+    },
+  ];
 }
 
 function statusColor(status: string) {
@@ -129,7 +328,7 @@ function statusColor(status: string) {
 
 function opdToken(token: QueueToken): DisplayToken {
   return {
-    meta: token.priority === "normal" ? "Standard priority" : priorityLabel(token.priority),
+    meta: priorityLabel(token.priority),
     status: token.status,
     tokenNumber: token.token_number,
   };
@@ -138,10 +337,14 @@ function opdToken(token: QueueToken): DisplayToken {
 function labToken(token: LabQueueToken): DisplayToken {
   return {
     meta: [
-      `${token.test_count} test${token.test_count === 1 ? "" : "s"}`,
-      token.counter !== null ? `Counter ${token.counter}` : null,
-      token.is_fasting ? "Fasting" : null,
-      token.is_pediatric ? "Pediatric" : null,
+      countLabel(
+        token.test_count,
+        TOKEN_BOARDS_TEXT.meta.testsCountSingular,
+        TOKEN_BOARDS_TEXT.meta.testsCountPlural,
+      ),
+      token.counter !== null ? counterLabel(token.counter) : null,
+      token.is_fasting ? tokenBoardsText(TOKEN_BOARDS_TEXT.meta.fasting) : null,
+      token.is_pediatric ? tokenBoardsText(TOKEN_BOARDS_TEXT.meta.pediatric) : null,
     ]
       .filter((part): part is string => Boolean(part))
       .join(" · "),
@@ -163,9 +366,17 @@ function radiologyToken(token: RadiologyQueueToken): DisplayToken {
 function pharmacyToken(token: PharmacyQueueToken): DisplayToken {
   return {
     meta: [
-      `${token.prescription_count} item${token.prescription_count === 1 ? "" : "s"}`,
-      token.counter !== null ? `Counter ${token.counter}` : null,
-      token.estimated_wait_minutes !== null ? `${token.estimated_wait_minutes} min wait` : null,
+      countLabel(
+        token.prescription_count,
+        TOKEN_BOARDS_TEXT.meta.itemsCountSingular,
+        TOKEN_BOARDS_TEXT.meta.itemsCountPlural,
+      ),
+      token.counter !== null ? counterLabel(token.counter) : null,
+      token.estimated_wait_minutes !== null
+        ? tokenBoardsText(TOKEN_BOARDS_TEXT.meta.waitMinutes, {
+            minutes: token.estimated_wait_minutes,
+          })
+        : null,
     ]
       .filter((part): part is string => Boolean(part))
       .join(" · "),
@@ -176,7 +387,10 @@ function pharmacyToken(token: PharmacyQueueToken): DisplayToken {
 
 function billingToken(token: BillingQueueToken): DisplayToken {
   return {
-    meta: [token.queue_type, token.counter !== null ? `Counter ${token.counter}` : null]
+    meta: [
+      billingQueueTypeLabel(token.queue_type),
+      token.counter !== null ? counterLabel(token.counter) : null,
+    ]
       .filter((part): part is string => Boolean(part))
       .join(" · "),
     status: token.status,
@@ -211,10 +425,10 @@ function PrivacyNotice() {
       <Avatar.Icon size={34} icon="shield-check-outline" style={styles.privacyIcon} />
       <View style={styles.privacyTextBlock}>
         <Text variant="labelSmall" style={styles.privacyTitle}>
-          Privacy display mode
+          {tokenBoardsText(TOKEN_BOARDS_TEXT.common.privacyMode)}
         </Text>
         <Text variant="bodySmall" style={styles.privacyText}>
-          {TOKEN_BOARD_PUBLIC_PRIVACY_NOTICE}
+          {tokenBoardsText(TOKEN_BOARDS_TEXT.common.privacyNotice)}
         </Text>
       </View>
     </Surface>
@@ -259,14 +473,14 @@ function BoardCard({
       <View style={styles.boardHeader}>
         <View style={styles.boardTitleBlock}>
           <Text variant="titleMedium" style={styles.boardTitle}>
-            {surface.title}
+            {surfaceTitle(surface)}
           </Text>
           <Text variant="bodySmall" style={styles.boardSubtitle}>
             {subtitle}
           </Text>
         </View>
         <Chip compact mode="outlined" style={isError ? styles.errorChip : styles.syncChip}>
-          {isError ? "Feed error" : `Sync ${lastSyncLabel(lastUpdatedAt)}`}
+          {syncLabel(isError, lastUpdatedAt)}
         </Chip>
       </View>
       <View style={styles.launchMeta}>
@@ -276,15 +490,24 @@ function BoardCard({
           </Chip>
         ))}
         <LaunchTargetPill
-          label="Mobile"
+          label={tokenBoardsText(TOKEN_BOARDS_TEXT.launch.mobile)}
           value={`${surface.targets.mobileRoute} · ${surface.targets.mobileParams.surface}`}
         />
-        <LaunchTargetPill label="Web" value={surface.targets.webPath} />
-        <LaunchTargetPill label="TV" value={surface.targets.tvDeepLink} />
-        <LaunchTargetPill label="Kiosk" value={surface.targets.kioskPath} />
+        <LaunchTargetPill
+          label={tokenBoardsText(TOKEN_BOARDS_TEXT.launch.web)}
+          value={surface.targets.webPath}
+        />
+        <LaunchTargetPill
+          label={tokenBoardsText(TOKEN_BOARDS_TEXT.launch.tv)}
+          value={surface.targets.tvDeepLink}
+        />
+        <LaunchTargetPill
+          label={tokenBoardsText(TOKEN_BOARDS_TEXT.launch.kiosk)}
+          value={surface.targets.kioskPath}
+        />
       </View>
       <TokenBoardReadinessStrip
-        items={tokenBoardOperationalReadinessItems({
+        items={tokenBoardReadinessItems({
           isError,
           surface,
           updatedAt: lastUpdatedAt,
@@ -294,14 +517,14 @@ function BoardCard({
         <View style={styles.statePanel}>
           <ActivityIndicator size="small" />
           <Text variant="bodySmall" style={styles.stateText}>
-            Loading token feed...
+            {tokenBoardsText(TOKEN_BOARDS_TEXT.common.loadingFeed)}
           </Text>
         </View>
       ) : isError ? (
         <View style={styles.statePanel}>
           <Avatar.Icon size={40} icon="wifi-alert" style={styles.stateIcon} />
           <Text variant="bodySmall" style={styles.stateText}>
-            Feed unavailable. Check network and display permissions.
+            {tokenBoardsText(TOKEN_BOARDS_TEXT.common.feedUnavailable)}
           </Text>
         </View>
       ) : (
@@ -391,32 +614,37 @@ function TokenLane({
 
 function TriageLane({
   color,
-  label,
+  labelKey,
   tokens,
 }: {
   color: string;
-  label: string;
+  labelKey: string;
   tokens: ErTriageToken[];
 }) {
   const overdueCount = tokens.filter((token) => token.is_overdue).length;
+  const waitingSummary =
+    tokens.length === 0
+      ? tokenBoardsText(TOKEN_BOARDS_TEXT.triage.noWaitingTokens)
+      : tokenBoardsText(TOKEN_BOARDS_TEXT.triage.waitingSummary, {
+          count: tokens.length,
+          overdue: overdueCount,
+        });
 
   return (
     <View style={[styles.triageLane, { borderLeftColor: color }]}>
       <View style={styles.laneHeader}>
         <View>
           <Text variant="labelSmall" style={[styles.triageLabel, { color }]}>
-            {label}
+            {tokenBoardsText(labelKey)}
           </Text>
           <Text variant="bodySmall" style={styles.tokenMeta}>
-            {tokens.length === 0
-              ? "No waiting tokens"
-              : `${tokens.length} waiting · ${overdueCount} overdue`}
+            {waitingSummary}
           </Text>
         </View>
         <View style={styles.triageTokens}>
           {tokens.length === 0 ? (
             <Chip compact mode="outlined">
-              Clear
+              {tokenBoardsText(TOKEN_BOARDS_TEXT.triage.clear)}
             </Chip>
           ) : (
             tokens.map((token) => (
@@ -495,42 +723,43 @@ export function TokenBoardsScreen({ navigation, route }: TokenBoardsScreenProps)
     BILLING_QUEUE_LANES.map((lane) => billing?.[lane.key][0]).find(
       (token): token is BillingQueueToken => token !== undefined,
     ) ?? null;
+  const unavailableMetric = tokenBoardsText(TOKEN_BOARDS_TEXT.common.unavailable);
   const allMetrics: BoardMetric[] = [
     {
       color: MEDBRAINS_COLORS.copper,
       id: "opd",
-      label: "OPD waiting",
+      label: tokenBoardsText(TOKEN_BOARDS_TEXT.metrics.opdWaiting),
       value: opdWaiting.length,
     },
     {
       color: MEDBRAINS_COLORS.red,
       id: "emergency",
-      label: "ER waiting",
-      value: er?.total_waiting ?? "—",
+      label: tokenBoardsText(TOKEN_BOARDS_TEXT.metrics.erWaiting),
+      value: er?.total_waiting ?? unavailableMetric,
     },
     {
       color: MEDBRAINS_COLORS.brand,
       id: "lab",
-      label: "Lab waiting",
-      value: lab?.stats.waiting_count ?? "—",
+      label: tokenBoardsText(TOKEN_BOARDS_TEXT.metrics.labWaiting),
+      value: lab?.stats.waiting_count ?? unavailableMetric,
     },
     {
       color: MEDBRAINS_COLORS.copper,
       id: "radiology",
-      label: "Radiology waiting",
-      value: radiology?.stats.waiting_count ?? "—",
+      label: tokenBoardsText(TOKEN_BOARDS_TEXT.metrics.radiologyWaiting),
+      value: radiology?.stats.waiting_count ?? unavailableMetric,
     },
     {
       color: MEDBRAINS_COLORS.emerald,
       id: "pharmacy",
-      label: "Pharmacy ready",
-      value: pharmacy?.stats.ready_count ?? "—",
+      label: tokenBoardsText(TOKEN_BOARDS_TEXT.metrics.pharmacyReady),
+      value: pharmacy?.stats.ready_count ?? unavailableMetric,
     },
     {
       color: MEDBRAINS_COLORS.brand,
       id: "billing",
-      label: "Billing now",
-      value: billingNowServing?.token_number ?? "—",
+      label: tokenBoardsText(TOKEN_BOARDS_TEXT.metrics.billingNow),
+      value: billingNowServing?.token_number ?? unavailableMetric,
     },
   ];
   const metrics = allMetrics.filter((metric) => surfaceVisible(metric.id));
@@ -540,10 +769,11 @@ export function TokenBoardsScreen({ navigation, route }: TokenBoardsScreenProps)
       <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
         <View style={styles.restrictedPanel}>
           <Avatar.Icon size={56} icon="shield-lock-outline" style={styles.stateIcon} />
-          <Text variant="titleMedium">Token boards restricted</Text>
+          <Text variant="titleMedium">
+            {tokenBoardsText(TOKEN_BOARDS_TEXT.common.noBoardAccessTitle)}
+          </Text>
           <Text variant="bodySmall" style={styles.stateText}>
-            Queue-board visibility follows your OPD, lab, radiology, emergency, pharmacy and billing
-            permissions.
+            {tokenBoardsText(TOKEN_BOARDS_TEXT.common.noBoardAccessMessage)}
           </Text>
         </View>
       </SafeAreaView>
@@ -556,10 +786,10 @@ export function TokenBoardsScreen({ navigation, route }: TokenBoardsScreenProps)
         <View style={styles.header}>
           <View style={styles.headerText}>
             <Text variant="headlineSmall" style={styles.title}>
-              Token Boards
+              {tokenBoardsText(TOKEN_BOARDS_TEXT.common.title)}
             </Text>
             <Text variant="bodyMedium" style={styles.subtitle}>
-              Mobile view of token-only OPD, lab, radiology, ER, pharmacy and billing queues.
+              {tokenBoardsText(TOKEN_BOARDS_TEXT.common.subtitle)}
             </Text>
           </View>
           <Avatar.Icon size={48} icon="monitor-dashboard" />
@@ -579,7 +809,7 @@ export function TokenBoardsScreen({ navigation, route }: TokenBoardsScreenProps)
             onPress={() => handleSurfaceChange("all")}
             style={activeSurface === "all" ? styles.activeFilterChip : styles.filterChip}
           >
-            All boards
+            {tokenBoardsText(TOKEN_BOARDS_TEXT.common.allBoards)}
           </Chip>
           {accessibleSurfaces.map((surface) => (
             <Chip
@@ -590,7 +820,7 @@ export function TokenBoardsScreen({ navigation, route }: TokenBoardsScreenProps)
               onPress={() => handleSurfaceChange(surface.id)}
               style={activeSurface === surface.id ? styles.activeFilterChip : styles.filterChip}
             >
-              {surface.title}
+              {surfaceTitle(surface)}
             </Chip>
           ))}
         </ScrollView>
@@ -599,11 +829,11 @@ export function TokenBoardsScreen({ navigation, route }: TokenBoardsScreenProps)
           <Surface style={styles.boardRestrictedPanel} elevation={1}>
             <Avatar.Icon size={44} icon="shield-lock-outline" style={styles.stateIcon} />
             <View style={styles.privacyTextBlock}>
-              <Text variant="titleSmall">{restrictedSurface.restrictedLabel}</Text>
+              <Text variant="titleSmall">{surfaceRestrictedLabel(restrictedSurface)}</Text>
               <Text variant="bodySmall" style={styles.stateTextLeft}>
-                Mobile launch access follows the configured permission matrix for{" "}
-                {restrictedSurface.title}. Token-board data stays unavailable on this device until
-                access is granted.
+                {tokenBoardsText(TOKEN_BOARDS_TEXT.common.restrictedSurfaceMessage, {
+                  surface: surfaceTitle(restrictedSurface),
+                })}
               </Text>
             </View>
           </Surface>
@@ -623,20 +853,20 @@ export function TokenBoardsScreen({ navigation, route }: TokenBoardsScreenProps)
         {surfaceVisible("opd") && (
           <BoardCard
             surface={OPD_BOARD}
-            subtitle={OPD_BOARD.subtitle}
+            subtitle={surfaceSubtitle(OPD_BOARD)}
             isLoading={opdQuery.isLoading}
             isError={opdQuery.isError}
             lastUpdatedAt={opdQuery.dataUpdatedAt}
           >
             <View style={styles.laneStack}>
               <TokenLane
-                title="Now serving"
-                emptyLabel="No OPD token is currently called"
+                title={tokenBoardsText(TOKEN_BOARDS_TEXT.lanes.opd.nowServing)}
+                emptyLabel={tokenBoardsText(TOKEN_BOARDS_TEXT.lanes.opd.nowServingEmpty)}
                 tokens={opdNowServing.slice(0, TOKEN_LIMIT).map(opdToken)}
               />
               <TokenLane
-                title="Next tokens"
-                emptyLabel="No OPD tokens waiting"
+                title={tokenBoardsText(TOKEN_BOARDS_TEXT.lanes.opd.nextTokens)}
+                emptyLabel={tokenBoardsText(TOKEN_BOARDS_TEXT.lanes.opd.nextTokensEmpty)}
                 tokens={opdWaiting.slice(0, TOKEN_LIMIT).map(opdToken)}
               />
             </View>
@@ -646,25 +876,25 @@ export function TokenBoardsScreen({ navigation, route }: TokenBoardsScreenProps)
         {surfaceVisible("lab") && (
           <BoardCard
             surface={LAB_BOARD}
-            subtitle={LAB_BOARD.subtitle}
+            subtitle={surfaceSubtitle(LAB_BOARD)}
             isLoading={labQuery.isLoading}
             isError={labQuery.isError}
             lastUpdatedAt={labQuery.dataUpdatedAt}
           >
             <View style={styles.laneStack}>
               <TokenLane
-                title="Collecting now"
-                emptyLabel="No lab token is currently called"
+                title={tokenBoardsText(TOKEN_BOARDS_TEXT.lanes.lab.collectingNow)}
+                emptyLabel={tokenBoardsText(TOKEN_BOARDS_TEXT.lanes.lab.collectingNowEmpty)}
                 tokens={(lab?.current_tokens ?? []).slice(0, TOKEN_LIMIT).map(labToken)}
               />
               <TokenLane
-                title="Waiting samples"
-                emptyLabel="No lab sample tokens waiting"
+                title={tokenBoardsText(TOKEN_BOARDS_TEXT.lanes.lab.waitingSamples)}
+                emptyLabel={tokenBoardsText(TOKEN_BOARDS_TEXT.lanes.lab.waitingSamplesEmpty)}
                 tokens={(lab?.waiting ?? []).slice(0, TOKEN_LIMIT).map(labToken)}
               />
               <TokenLane
-                title="In progress"
-                emptyLabel="No collections in progress"
+                title={tokenBoardsText(TOKEN_BOARDS_TEXT.lanes.lab.inProgress)}
+                emptyLabel={tokenBoardsText(TOKEN_BOARDS_TEXT.lanes.lab.inProgressEmpty)}
                 tokens={(lab?.collection_in_progress ?? []).slice(0, TOKEN_LIMIT).map(labToken)}
               />
             </View>
@@ -674,20 +904,20 @@ export function TokenBoardsScreen({ navigation, route }: TokenBoardsScreenProps)
         {surfaceVisible("radiology") && (
           <BoardCard
             surface={RADIOLOGY_BOARD}
-            subtitle={RADIOLOGY_BOARD.subtitle}
+            subtitle={surfaceSubtitle(RADIOLOGY_BOARD)}
             isLoading={radiologyQuery.isLoading}
             isError={radiologyQuery.isError}
             lastUpdatedAt={radiologyQuery.dataUpdatedAt}
           >
             <View style={styles.laneStack}>
               <TokenLane
-                title="Called now"
-                emptyLabel="No radiology token is currently called"
+                title={tokenBoardsText(TOKEN_BOARDS_TEXT.lanes.radiology.calledNow)}
+                emptyLabel={tokenBoardsText(TOKEN_BOARDS_TEXT.lanes.radiology.calledNowEmpty)}
                 tokens={radiology?.current_token ? [radiologyToken(radiology.current_token)] : []}
               />
               <TokenLane
-                title="Waiting scans"
-                emptyLabel="No radiology tokens waiting"
+                title={tokenBoardsText(TOKEN_BOARDS_TEXT.lanes.radiology.waitingScans)}
+                emptyLabel={tokenBoardsText(TOKEN_BOARDS_TEXT.lanes.radiology.waitingScansEmpty)}
                 tokens={(radiology?.waiting ?? []).slice(0, TOKEN_LIMIT).map(radiologyToken)}
               />
             </View>
@@ -697,7 +927,7 @@ export function TokenBoardsScreen({ navigation, route }: TokenBoardsScreenProps)
         {surfaceVisible("emergency") && (
           <BoardCard
             surface={EMERGENCY_BOARD}
-            subtitle={`${overdueErTokens} overdue target${overdueErTokens === 1 ? "" : "s"}`}
+            subtitle={overdueTargetLabel(overdueErTokens)}
             isLoading={erQuery.isLoading}
             isError={erQuery.isError}
             lastUpdatedAt={erQuery.dataUpdatedAt}
@@ -707,7 +937,7 @@ export function TokenBoardsScreen({ navigation, route }: TokenBoardsScreenProps)
                 <TriageLane
                   key={lane.key}
                   color={lane.color}
-                  label={lane.label}
+                  labelKey={lane.labelKey}
                   tokens={(er?.[lane.key] ?? []).slice(0, TOKEN_LIMIT)}
                 />
               ))}
@@ -718,25 +948,25 @@ export function TokenBoardsScreen({ navigation, route }: TokenBoardsScreenProps)
         {surfaceVisible("pharmacy") && (
           <BoardCard
             surface={PHARMACY_BOARD}
-            subtitle={PHARMACY_BOARD.subtitle}
+            subtitle={surfaceSubtitle(PHARMACY_BOARD)}
             isLoading={pharmacyQuery.isLoading}
             isError={pharmacyQuery.isError}
             lastUpdatedAt={pharmacyQuery.dataUpdatedAt}
           >
             <View style={styles.laneStack}>
               <TokenLane
-                title="Now serving"
-                emptyLabel="No current token"
+                title={tokenBoardsText(TOKEN_BOARDS_TEXT.lanes.pharmacy.nowServing)}
+                emptyLabel={tokenBoardsText(TOKEN_BOARDS_TEXT.lanes.pharmacy.nowServingEmpty)}
                 tokens={pharmacyNowServing.map(pharmacyToken)}
               />
               <TokenLane
-                title="Ready pickup"
-                emptyLabel="No ready tokens"
+                title={tokenBoardsText(TOKEN_BOARDS_TEXT.lanes.pharmacy.readyPickup)}
+                emptyLabel={tokenBoardsText(TOKEN_BOARDS_TEXT.lanes.pharmacy.readyPickupEmpty)}
                 tokens={(pharmacy?.ready_for_pickup ?? []).slice(0, TOKEN_LIMIT).map(pharmacyToken)}
               />
               <TokenLane
-                title="Preparing"
-                emptyLabel="No preparing tokens"
+                title={tokenBoardsText(TOKEN_BOARDS_TEXT.lanes.pharmacy.preparing)}
+                emptyLabel={tokenBoardsText(TOKEN_BOARDS_TEXT.lanes.pharmacy.preparingEmpty)}
                 tokens={(pharmacy?.preparing ?? []).slice(0, TOKEN_LIMIT).map(pharmacyToken)}
               />
             </View>
@@ -746,7 +976,7 @@ export function TokenBoardsScreen({ navigation, route }: TokenBoardsScreenProps)
         {surfaceVisible("billing") && (
           <BoardCard
             surface={BILLING_BOARD}
-            subtitle={BILLING_BOARD.subtitle}
+            subtitle={surfaceSubtitle(BILLING_BOARD)}
             isLoading={billingQuery.isLoading}
             isError={billingQuery.isError}
             lastUpdatedAt={billingQuery.dataUpdatedAt}
@@ -755,8 +985,8 @@ export function TokenBoardsScreen({ navigation, route }: TokenBoardsScreenProps)
               {BILLING_QUEUE_LANES.map((lane) => (
                 <TokenLane
                   key={lane.key}
-                  title={lane.title}
-                  emptyLabel={lane.emptyLabel}
+                  title={tokenBoardsText(BILLING_LANE_TEXT_KEYS[lane.key].title)}
+                  emptyLabel={tokenBoardsText(BILLING_LANE_TEXT_KEYS[lane.key].empty)}
                   tokens={(billing?.[lane.key] ?? []).slice(0, TOKEN_LIMIT).map(billingToken)}
                 />
               ))}
