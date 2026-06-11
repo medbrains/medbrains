@@ -1,10 +1,10 @@
 //! Critical-value acknowledgment escalation (audit P0 #16, NABH/IPSG).
 //!
 //! A critical lab alert that nobody acknowledges within the tenant's
-//! window (lab.critical_ack_minutes, default 15) escalates: SMS to the
-//! ordering doctor's supervisor when one is on file with a phone,
-//! otherwise a repeat SMS to the doctor. Each alert escalates once;
-//! the outbox idempotency key guards against double-sends.
+//! window (lab.critical_ack_minutes, default 15) escalates by SMS.
+//! Recipient priority: department on-call (duty roster) → ordering
+//! doctor's supervisor → repeat to the doctor. Each alert escalates
+//! once; the outbox idempotency key guards against double-sends.
 
 use std::time::Duration;
 
@@ -36,6 +36,7 @@ struct OverdueAlert {
     id: Uuid,
     tenant_id: Uuid,
     order_id: Uuid,
+    department_id: Option<Uuid>,
     parameter_name: String,
     value: String,
     doctor_id: Option<Uuid>,
@@ -47,10 +48,13 @@ struct OverdueAlert {
 async fn escalate_unacknowledged(pool: &PgPool) -> Result<u64, AppError> {
     // notified_to is the ordering doctor recorded when the alert fired.
     let overdue = sqlx::query_as::<_, OverdueAlert>(
-        "SELECT ca.id, ca.tenant_id, ca.order_id, ca.parameter_name, ca.value, \
+        "SELECT ca.id, ca.tenant_id, ca.order_id, enc.department_id, \
+                ca.parameter_name, ca.value, \
                 d.id AS doctor_id, d.phone AS doctor_phone, \
                 s.id AS supervisor_id, s.phone AS supervisor_phone \
          FROM lab_critical_alerts ca \
+         LEFT JOIN lab_orders lo ON lo.id = ca.order_id \
+         LEFT JOIN encounters enc ON enc.id = lo.encounter_id \
          LEFT JOIN users d ON d.id = ca.notified_to \
          LEFT JOIN users s ON s.id = d.supervisor_id \
          LEFT JOIN tenant_settings ts \
@@ -77,7 +81,11 @@ async fn escalate_unacknowledged(pool: &PgPool) -> Result<u64, AppError> {
                 .as_deref()
                 .is_some_and(|value| !value.trim().is_empty())
         };
-        let (recipient_id, recipient_phone) = if has_phone(&alert.supervisor_phone) {
+        let on_call =
+            super::on_call::current_on_call(&mut tx, alert.tenant_id, alert.department_id).await?;
+        let (recipient_id, recipient_phone) = if let Some(contact) = on_call {
+            (contact.user_id, Some(contact.phone))
+        } else if has_phone(&alert.supervisor_phone) {
             (alert.supervisor_id, alert.supervisor_phone.clone())
         } else {
             (alert.doctor_id, alert.doctor_phone.clone())
