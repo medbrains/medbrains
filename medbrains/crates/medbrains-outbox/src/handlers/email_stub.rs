@@ -1,13 +1,15 @@
-//! Email handler — real outbound via `SendGrid` HTTP API (preferred) or
-//! AWS SES HTTP API. SMTP-only providers should run their own SES-like
-//! relay; we don't link `lettre` to keep the dep tree small.
+//! Email handler — real outbound via `SendGrid` HTTP API or plain SMTP
+//! (`lettre`, STARTTLS/implicit-TLS). SMTP covers on-prem deployments
+//! and Indian hosting realities (Zoho, Google Workspace, local relay).
 //!
 //! Credentials resolved per-tenant via `ctx.secret_resolver`:
-//!   - `EMAIL_PROVIDER`         — `sendgrid` (default) | `ses`
+//!   - `EMAIL_PROVIDER`         — `sendgrid` (default) | `smtp` | `ses`
 //!   - `SENDGRID_API_KEY`       — when provider=sendgrid
-//!   - `AWS_SES_REGION`         — when provider=ses (e.g. `ap-south-1`)
-//!   - `AWS_SES_ACCESS_KEY_ID`  — when provider=ses
-//!   - `AWS_SES_SECRET_KEY`     — when provider=ses
+//!   - `SMTP_HOST`              — when provider=smtp
+//!   - `SMTP_PORT`              — optional (default 587)
+//!   - `SMTP_USERNAME` / `SMTP_PASSWORD` — optional (open relay when unset)
+//!   - `SMTP_TLS`               — `starttls` (default) | `implicit` | `none`
+//!   - `AWS_SES_*`              — when provider=ses (pending SigV4)
 //!   - `EMAIL_FROM_ADDRESS`     — from-address (required, must be verified with provider)
 //!   - `EMAIL_FROM_NAME`        — display name (optional)
 //!
@@ -89,6 +91,18 @@ impl Handler for SmtpSendHandler {
         match provider.as_str() {
             "sendgrid" => {
                 send_via_sendgrid(
+                    ctx,
+                    &from_address,
+                    from_name.as_deref(),
+                    to,
+                    subject,
+                    html,
+                    text,
+                )
+                .await
+            }
+            "smtp" => {
+                send_via_smtp(
                     ctx,
                     &from_address,
                     from_name.as_deref(),
@@ -205,5 +219,120 @@ async fn send_via_sendgrid(
             "sendgrid {}: {body_text}",
             status.as_u16()
         )))
+    }
+}
+
+#[allow(clippy::too_many_lines)]
+async fn send_via_smtp(
+    ctx: &HandlerCtx,
+    from_addr: &str,
+    from_name: Option<&str>,
+    to: &str,
+    subject: &str,
+    html: Option<&str>,
+    text: Option<&str>,
+) -> Result<Value, HandlerError> {
+    use lettre::message::{Mailbox, MultiPart, SinglePart};
+    use lettre::transport::smtp::AsyncSmtpTransport;
+    use lettre::transport::smtp::authentication::Credentials;
+    use lettre::{AsyncTransport, Message, Tokio1Executor};
+
+    let host = match ctx.secret_resolver.get("SMTP_HOST").await {
+        Ok(v) if !v.is_empty() => v,
+        _ => {
+            tracing::warn!(
+                tenant_id = %ctx.tenant_id,
+                event_id = %ctx.event_id,
+                "smtp: SMTP_HOST unset — running as stub"
+            );
+            return Ok(json!({
+                "provider": "smtp",
+                "stub": true,
+                "reason": "creds_unset",
+            }));
+        }
+    };
+    let port: u16 = ctx
+        .secret_resolver
+        .get("SMTP_PORT")
+        .await
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(587);
+    let tls_mode = ctx
+        .secret_resolver
+        .get("SMTP_TLS")
+        .await
+        .unwrap_or_else(|_| "starttls".to_owned());
+
+    let from: Mailbox = match from_name {
+        Some(name) => format!("{name} <{from_addr}>"),
+        None => from_addr.to_owned(),
+    }
+    .parse()
+    .map_err(|e| HandlerError::Permanent(format!("smtp: invalid from address: {e}")))?;
+    let to_mailbox: Mailbox = to
+        .parse()
+        .map_err(|e| HandlerError::Permanent(format!("smtp: invalid recipient: {e}")))?;
+
+    let builder = Message::builder()
+        .from(from)
+        .to(to_mailbox)
+        .subject(subject);
+    let message = match (html, text) {
+        (Some(h), Some(t)) => builder.multipart(MultiPart::alternative_plain_html(
+            t.to_owned(),
+            h.to_owned(),
+        )),
+        (Some(h), None) => builder.singlepart(SinglePart::html(h.to_owned())),
+        (None, Some(t)) => builder.singlepart(SinglePart::plain(t.to_owned())),
+        (None, None) => unreachable!("validated above"),
+    }
+    .map_err(|e| HandlerError::Permanent(format!("smtp: message build: {e}")))?;
+
+    let mut transport = match tls_mode.as_str() {
+        "implicit" => AsyncSmtpTransport::<Tokio1Executor>::relay(&host)
+            .map_err(|e| HandlerError::Permanent(format!("smtp: relay config: {e}")))?,
+        "none" => AsyncSmtpTransport::<Tokio1Executor>::builder_dangerous(&host),
+        _ => AsyncSmtpTransport::<Tokio1Executor>::starttls_relay(&host)
+            .map_err(|e| HandlerError::Permanent(format!("smtp: starttls config: {e}")))?,
+    }
+    .port(port);
+
+    let username = ctx.secret_resolver.get("SMTP_USERNAME").await.ok();
+    let password = ctx.secret_resolver.get("SMTP_PASSWORD").await.ok();
+    if let (Some(user), Some(pass)) = (
+        username.filter(|v| !v.is_empty()),
+        password.filter(|v| !v.is_empty()),
+    ) {
+        transport = transport.credentials(Credentials::new(user, pass));
+    }
+
+    match transport.build().send(message).await {
+        Ok(response) => {
+            tracing::info!(
+                tenant_id = %ctx.tenant_id,
+                event_id = %ctx.event_id,
+                code = %response.code(),
+                "smtp: email dispatched"
+            );
+            Ok(json!({
+                "provider": "smtp",
+                "status": "sent",
+                "smtp_code": response.code().to_string(),
+            }))
+        }
+        Err(error) => {
+            // 5xx SMTP codes are permanent (bad mailbox, policy reject);
+            // everything else (connect, timeout, 4xx) retries via outbox.
+            if error.status().is_some_and(|code| {
+                code.severity
+                    == lettre::transport::smtp::response::Severity::PermanentNegativeCompletion
+            }) {
+                Err(HandlerError::Permanent(format!("smtp: {error}")))
+            } else {
+                Err(HandlerError::Transient(format!("smtp: {error}")))
+            }
+        }
     }
 }
