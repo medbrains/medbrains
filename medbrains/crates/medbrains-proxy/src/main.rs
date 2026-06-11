@@ -213,6 +213,9 @@ fn default_edge_policy_configs() -> Vec<EdgePolicyConfig> {
         edge_policy("/api/", "api"),
         edge_policy("/ws", "websocket"),
         edge_policy("/assets/", "assets"),
+        edge_policy("/locales/", "static"),
+        edge_policy("/favicon.ico", "static"),
+        edge_policy("/manifest.json", "static"),
         edge_policy("/", "spa"),
     ]
 }
@@ -236,6 +239,11 @@ fn edge_policy(prefix: &str, class: &str) -> EdgePolicyConfig {
 fn infer_class(prefix: &str) -> String {
     if prefix.starts_with("/assets/") {
         "assets"
+    } else if prefix.starts_with("/locales/")
+        || prefix == "/favicon.ico"
+        || prefix == "/manifest.json"
+    {
+        "static"
     } else if prefix.starts_with("/api/sync/") || prefix.starts_with("/api/outbox/") {
         "outbox"
     } else if prefix.starts_with("/api/") {
@@ -302,6 +310,27 @@ fn class_defaults(prefix: &str, class: &str, default_body_limit: u64) -> EdgePol
             block: false,
             allowed_methods: methods(["GET", "OPTIONS"]),
         },
+        // Non-hashed static files (locales, favicon, manifest). Deploys are
+        // immutable binary swaps, so a day of browser caching is safe;
+        // stale-while-revalidate refreshes in the background after a deploy.
+        "static" => EdgePolicy {
+            prefix: prefix.to_owned(),
+            class: class.to_owned(),
+            upstream: None,
+            body_limit_bytes: 1024 * 1024,
+            upstream_total_timeout: Some(Duration::from_millis(10_000)),
+            upstream_read_timeout: Some(Duration::from_millis(30_000)),
+            require_idempotency_key: false,
+            retry_after_seconds: None,
+            cache_control: Some("public, max-age=86400, stale-while-revalidate=604800".to_owned()),
+            block: false,
+            allowed_methods: methods(["GET", "HEAD", "OPTIONS"]),
+        },
+        // SPA shell (index.html). no-cache (NOT no-store) lets the browser
+        // keep a copy and revalidate via ETag/Last-Modified — a 304 instead
+        // of a full download on every navigation, while a new deploy is
+        // picked up immediately because the hash-referencing shell is
+        // always revalidated.
         "spa" => EdgePolicy {
             prefix: prefix.to_owned(),
             class: class.to_owned(),
@@ -311,7 +340,7 @@ fn class_defaults(prefix: &str, class: &str, default_body_limit: u64) -> EdgePol
             upstream_read_timeout: Some(Duration::from_millis(30_000)),
             require_idempotency_key: false,
             retry_after_seconds: Some(5),
-            cache_control: Some("no-store".to_owned()),
+            cache_control: Some("no-cache".to_owned()),
             block: false,
             allowed_methods: methods(["GET", "HEAD", "OPTIONS"]),
         },

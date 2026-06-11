@@ -1210,6 +1210,103 @@ pub struct UpdateUserRequest {
     pub is_active: Option<bool>,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct AdminResetPasswordRequest {
+    /// When omitted, a random temporary password is generated and
+    /// returned once in the response.
+    pub new_password: Option<String>,
+}
+
+/// Admin-mediated reset — the offline path (no SMS/email dependency).
+/// The account is flagged must_change_password so the temporary
+/// credential cannot be kept.
+pub async fn reset_user_password(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<AdminResetPasswordRequest>,
+) -> Result<Json<Value>, AppError> {
+    require_permission(&claims, permissions::admin::users::UPDATE)?;
+
+    let (password, generated) = match body.new_password {
+        Some(provided) => {
+            let mut errors = ValidationErrors::new();
+            validation::validate_password(&mut errors, "new_password", &provided);
+            if errors.has_errors() {
+                return Err(AppError::ValidationFailed(errors));
+            }
+            (provided, false)
+        }
+        None => {
+            let mut buf = [0u8; 12];
+            getrandom::fill(&mut buf)
+                .map_err(|e| AppError::Internal(format!("password generation failed: {e}")))?;
+            // Unambiguous alphabet — temp passwords get read out loud.
+            const ALPHABET: &[u8] = b"abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789";
+            let password: String = buf
+                .iter()
+                .map(|b| ALPHABET[usize::from(*b) % ALPHABET.len()] as char)
+                .collect();
+            (password, true)
+        }
+    };
+
+    let salt = SaltString::generate(&mut OsRng);
+    let password_hash = Argon2::default()
+        .hash_password(password.as_bytes(), &salt)
+        .map_err(|e| AppError::Internal(format!("password hash error: {e}")))?
+        .to_string();
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
+
+    let updated = sqlx::query(
+        "UPDATE users SET password_hash = $1, must_change_password = true, \
+         failed_login_attempts = 0, locked_until = NULL, \
+         perm_version = perm_version + 1 \
+         WHERE id = $2 AND tenant_id = $3",
+    )
+    .bind(&password_hash)
+    .bind(id)
+    .bind(claims.tenant_id)
+    .execute(&mut *tx)
+    .await?;
+
+    if updated.rows_affected() == 0 {
+        return Err(AppError::NotFound);
+    }
+
+    sqlx::query("UPDATE refresh_tokens SET revoked = true WHERE user_id = $1 AND revoked = false")
+        .bind(id)
+        .execute(&mut *tx)
+        .await?;
+
+    medbrains_db::audit::AuditLogger::log(
+        &mut tx,
+        &medbrains_db::audit::AuditEntry {
+            tenant_id: claims.tenant_id,
+            user_id: Some(claims.sub),
+            action: "admin_password_reset",
+            entity_type: "user",
+            entity_id: Some(id),
+            old_values: None,
+            new_values: None,
+            ip_address: None,
+        },
+    )
+    .await
+    .map_err(AppError::from)?;
+
+    tx.commit().await?;
+
+    Ok(Json(if generated {
+        serde_json::json!({ "status": "ok", "temp_password": password })
+    } else {
+        serde_json::json!({ "status": "ok" })
+    }))
+}
+
 pub async fn delete_user(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,

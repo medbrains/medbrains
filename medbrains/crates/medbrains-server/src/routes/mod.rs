@@ -155,9 +155,23 @@ pub fn build_router(state: AppState) -> Router {
         .route("/api/auth/login", post(auth::login))
         .layer(from_fn_with_state(login_limiter, rate_limit_middleware));
 
+    // Password reset — public, shares the login limiter shape (per-IP)
+    let reset_limiter = RateLimiter::new();
+    let password_reset_routes = Router::new()
+        .route(
+            "/api/auth/password-reset/request",
+            post(auth::request_password_reset),
+        )
+        .route(
+            "/api/auth/password-reset/confirm",
+            post(auth::confirm_password_reset),
+        )
+        .layer(from_fn_with_state(reset_limiter, rate_limit_middleware));
+
     // Public routes (no auth required)
     let public = Router::new()
         .merge(login_route)
+        .merge(password_reset_routes)
         .route("/api/health", get(health::health_check))
         .route("/api/auth/refresh", post(auth::refresh_token))
         // NHCX async-response webhook — gateway authenticates via JWS,
@@ -366,6 +380,10 @@ pub fn build_router(state: AppState) -> Router {
         .route(
             "/api/setup/users/{id}",
             put(setup::update_user).delete(setup::delete_user),
+        )
+        .route(
+            "/api/setup/users/{id}/reset-password",
+            post(setup::reset_user_password),
         )
         .route(
             "/api/setup/users/{id}/access-matrix",

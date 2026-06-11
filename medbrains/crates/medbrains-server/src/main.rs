@@ -431,9 +431,41 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let listener = tokio::net::TcpListener::bind(addr).await?;
     tracing::info!(%addr, "listening");
 
-    axum::serve(listener, app).await?;
+    // Graceful shutdown: stop accepting new connections on SIGTERM/SIGINT
+    // and let in-flight requests (and their transactions) finish instead
+    // of aborting mid-write on every deploy restart.
+    axum::serve(listener, app)
+        .with_graceful_shutdown(shutdown_signal())
+        .await?;
 
+    tracing::info!("shutdown complete — all in-flight requests drained");
     Ok(())
+}
+
+async fn shutdown_signal() {
+    let ctrl_c = async {
+        if let Err(error) = tokio::signal::ctrl_c().await {
+            tracing::error!(%error, "failed to install ctrl-c handler");
+        }
+    };
+
+    #[cfg(unix)]
+    let terminate = async {
+        match tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate()) {
+            Ok(mut sigterm) => {
+                sigterm.recv().await;
+            }
+            Err(error) => tracing::error!(%error, "failed to install SIGTERM handler"),
+        }
+    };
+
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+
+    tokio::select! {
+        () = ctrl_c => tracing::info!("SIGINT received — draining"),
+        () = terminate => tracing::info!("SIGTERM received — draining"),
+    }
 }
 
 /// Sprint A.8 — assemble the outbox Handler Registry.
@@ -461,6 +493,7 @@ fn build_outbox_registry() -> Arc<medbrains_outbox::Registry> {
     registry.register(twilio::SmsSendHandler::new("sms.vaccination_reminder"));
     registry.register(twilio::SmsSendHandler::new("sms.cds_critical_interaction"));
     registry.register(twilio::SmsSendHandler::new("sms.payment_failed"));
+    registry.register(twilio::SmsSendHandler::new("sms.password_reset_otp"));
 
     // Email — real SendGrid HTTP API (falls back to stub if creds unset).
     registry.register(email_stub::SmtpSendHandler::new("email.discharge_summary"));
