@@ -1296,7 +1296,7 @@ pub async fn get_pharmacy_queue(
 
     let prepared_tokens = preparing_rows
         .into_iter()
-        .map(|row| pharmacy_queue_token(row, "preparing"))
+        .map(|row| pharmacy_queue_token(&row, "preparing"))
         .collect::<Vec<_>>();
     let current_token = prepared_tokens.first().cloned();
     let preparing = prepared_tokens
@@ -1305,11 +1305,11 @@ pub async fn get_pharmacy_queue(
         .collect::<Vec<_>>();
     let ready_for_pickup = ready_rows
         .into_iter()
-        .map(|row| pharmacy_queue_token(row, "ready"))
+        .map(|row| pharmacy_queue_token(&row, "ready"))
         .collect::<Vec<_>>();
     let waiting = waiting_rows
         .into_iter()
-        .map(|row| pharmacy_queue_token(row, "waiting"))
+        .map(|row| pharmacy_queue_token(&row, "waiting"))
         .collect::<Vec<_>>();
 
     Ok(Json(PharmacyQueueDisplay {
@@ -1327,7 +1327,7 @@ pub async fn get_pharmacy_queue(
     }))
 }
 
-fn pharmacy_queue_token(row: PharmacyQueueSourceRow, display_status: &str) -> PharmacyQueueToken {
+fn pharmacy_queue_token(row: &PharmacyQueueSourceRow, display_status: &str) -> PharmacyQueueToken {
     let waited_minutes = Utc::now()
         .signed_duration_since(row.queued_at)
         .num_minutes()

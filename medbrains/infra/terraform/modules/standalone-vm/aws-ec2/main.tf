@@ -4,6 +4,10 @@ terraform {
       source  = "hashicorp/aws"
       version = "~> 5.50"
     }
+    http = {
+      source  = "hashicorp/http"
+      version = "~> 3.4"
+    }
   }
 }
 
@@ -45,6 +49,24 @@ variable "reset_pgdata" {
   default     = false
 }
 
+variable "uploads_bucket_arn" {
+  description = "ARN of the patient-uploads S3 bucket. When provided, attaches an IAM policy granting presigned URL generation on that bucket."
+  type        = string
+  default     = ""
+}
+
+variable "ssh_allowed_cidrs" {
+  description = "CIDRs allowed to reach SSH. Empty = auto-detect the operator's current egress IP at plan time (never 0.0.0.0/0)."
+  type        = list(string)
+  default     = []
+}
+
+variable "alarm_email" {
+  description = "Email for CloudWatch alarm notifications. Empty = SNS topic created without subscription."
+  type        = string
+  default     = ""
+}
+
 # Use the default VPC + a default subnet in this region — keeps the
 # kit minimal. If the account doesn't have a default VPC (e.g. a
 # managed enterprise account), pre-create one and pass it via a
@@ -69,6 +91,17 @@ locals {
   app_kms_key_arn    = lookup(var.kms_key_arns, "app", null)
   audit_kms_key_arn  = lookup(var.kms_key_arns, "audit", null)
   backup_kms_key_arn = local.audit_kms_key_arn != null ? local.audit_kms_key_arn : local.app_kms_key_arn
+  is_burstable       = can(regex("^t[0-9]", var.instance_type))
+  ssh_cidrs = length(var.ssh_allowed_cidrs) > 0 ? var.ssh_allowed_cidrs : [
+    "${trimspace(data.http.operator_ip[0].response_body)}/32"
+  ]
+}
+
+# Operator egress IP — keeps `terraform apply` fully automated while
+# never leaving SSH open to the world.
+data "http" "operator_ip" {
+  count = length(var.ssh_allowed_cidrs) == 0 ? 1 : 0
+  url   = "https://checkip.amazonaws.com"
 }
 
 # Auto-resolve latest Canonical Ubuntu 24.04 AMI matching the arch
@@ -98,11 +131,11 @@ resource "aws_security_group" "this" {
   vpc_id      = data.aws_vpc.default.id
 
   ingress {
-    description = "SSH"
+    description = "SSH - operator CIDRs only"
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
+    cidr_blocks = local.ssh_cidrs
   }
   ingress {
     description = "HTTP - ACME challenge + redirect"
@@ -146,6 +179,9 @@ resource "aws_instance" "this" {
     volume_type = "gp3"
     encrypted   = true
     kms_key_id  = local.app_kms_key_arn
+    # Hospital data lives on this volume (docker postgres) — never let
+    # instance termination take it along.
+    delete_on_termination = false
     tags = {
       Name           = "${var.hostname}-root"
       Project        = "medbrains"
@@ -449,4 +485,23 @@ output "backup_bucket" {
 
 output "ssh_endpoint" {
   value = "${var.ssh_user}@${aws_eip.this.public_ip}"
+}
+
+output "instance_iam_role_name" {
+  value       = aws_iam_role.instance.name
+  description = "IAM role attached to the EC2 instance — pass to iam-uploads module."
+}
+
+# ── Optional: attach uploads IAM policy to instance role ─────────────────
+# Active only when uploads_bucket_arn is provided.
+
+module "uploads_iam" {
+  count  = var.uploads_bucket_arn != "" ? 1 : 0
+  source = "../../iam-uploads"
+
+  environment            = "standalone"
+  uploads_bucket_arn     = var.uploads_bucket_arn
+  kms_key_arn            = lookup(var.kms_key_arns, "app", "")
+  ec2_instance_role_name = aws_iam_role.instance.name
+  create_iam_user        = false
 }

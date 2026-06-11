@@ -3267,6 +3267,18 @@ export const PERMISSIONS: PermissionDef[] = [
     description: "Manage MRD rooms, racks, shelves, bins, and barcodes",
     module: "mrd",
   },
+  {
+    code: "mrd.forms.view",
+    label: "View Form Records",
+    description: "View nursing/clinical form completion status for admissions",
+    module: "mrd",
+  },
+  {
+    code: "mrd.forms.manage",
+    label: "Manage Form Records",
+    description: "Mark forms complete/verified and attach scanned documents",
+    module: "mrd",
+  },
 
   // Emergency
   {
@@ -5272,6 +5284,8 @@ export const P = {
     CASE_SHEETS_FILE: "mrd.case_sheets.file" as const,
     CASE_SHEETS_REPRINT: "mrd.case_sheets.reprint" as const,
     STORAGE_MANAGE: "mrd.storage.manage" as const,
+    FORMS_VIEW: "mrd.forms.view" as const,
+    FORMS_MANAGE: "mrd.forms.manage" as const,
   },
   EMERGENCY: {
     VISITS_LIST: "emergency.visits.list" as const,
@@ -6008,6 +6022,8 @@ export const ROLE_TEMPLATES: Record<string, { label: string; permissions: string
       P.IPD.DISCHARGE_TAT_UPDATE,
       P.IPD.DISCHARGE_TAT_DOCTOR_UPDATE,
       P.IPD.DISCHARGE_TAT_COMPLETE,
+      P.IPD.PROGRESS_NOTES_LIST,
+      P.IPD.PROGRESS_NOTES_CREATE,
       P.IPD.TARIFFS_LIST,
       P.INDENT.LIST,
       P.INDENT.VIEW,

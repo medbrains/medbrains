@@ -12,7 +12,7 @@
        check-rls check-sharing check-authz-posture check-tenant-leak check-runtime-sqlx check-audit check-tracing \
        check-migration-headers \
        check-region-pinning check-no-card-logging check-egress-allowlist check-cert-readiness check-encryption-at-rest check-redaction-masking \
-       smoke-test e2e-test e2e-smoke e2e-crud e2e-forms e2e-analytics e2e-rbac e2e-journeys e2e-full e2e-all generate-smoke generate-e2e \
+       smoke-test e2e-test e2e-smoke e2e-crud e2e-forms e2e-analytics e2e-rbac e2e-journeys e2e-ui-aaa e2e-full e2e-all generate-smoke generate-e2e \
        test-rust test-unit test-ts test-all test-coverage \
        ship ship-quick ship-cold hotpush-ui ship-help \
        docker-build \
@@ -427,6 +427,9 @@ e2e-rbac: ## Layer 6 — RBAC matrix (REST, multi-role)
 
 e2e-journeys: ## Layer 5 — End-to-end journeys (hybrid UI + REST)
 	cd apps/web && pnpm exec playwright test --project=journeys
+
+e2e-ui-aaa: ## Accessibility — WCAG 2 AAA UI journey gates
+	cd apps/web && pnpm exec playwright test --project=accessibility
 
 e2e-full: ## Full E2E gate: smoke + CRUD + forms + analytics + RBAC + journeys
 	cd apps/web && pnpm exec playwright test --project=smoke --project=crud --project=forms --project=analytics --project=rbac --project=journeys

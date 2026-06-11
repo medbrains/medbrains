@@ -21,7 +21,9 @@ use medbrains_server::{
         request_id::{MakeRequestUuid, request_id_header},
         system_state::SystemStateCache,
     },
-    orchestration, routes, seed,
+    orchestration, routes,
+    s3_presign::S3PresignClient,
+    seed,
     state::{AppState, CookieConfig},
 };
 
@@ -208,6 +210,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let state_secret_resolver: Arc<dyn medbrains_core::secrets::SecretResolver> =
         Arc::new(medbrains_core::secrets::EnvSecretResolver::new());
 
+    let s3_client = S3PresignClient::from_config(&config).await.map(Arc::new);
+    if s3_client.is_none() {
+        tracing::info!("S3_BUCKET not configured — presigned upload/download endpoints disabled");
+    }
+
     let state = AppState {
         db: db_pool.clone(),
         yottadb,
@@ -221,6 +228,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         topology: topology_router,
         authz,
         secret_resolver: state_secret_resolver,
+        s3: s3_client,
     };
 
     // Run seed (insert default tenant + super_admin if not exists)
@@ -412,10 +420,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Simulator cron scheduler — fires enabled simulator_schedules with
     // a cron expression every 30 seconds. Disabled via env var if needed.
-    if std::env::var("MEDBRAINS_DISABLE_SIMULATOR_SCHEDULER").as_deref() != Ok("true") {
-        medbrains_server::services::simulator::scheduler::spawn(db_pool.clone());
-    } else {
+    if std::env::var("MEDBRAINS_DISABLE_SIMULATOR_SCHEDULER").as_deref() == Ok("true") {
         tracing::warn!("MEDBRAINS_DISABLE_SIMULATOR_SCHEDULER=true — scheduler NOT spawned");
+    } else {
+        medbrains_server::services::simulator::scheduler::spawn(db_pool.clone());
     }
 
     // Start server

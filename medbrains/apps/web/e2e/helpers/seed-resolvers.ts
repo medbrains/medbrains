@@ -125,11 +125,15 @@ async function hasUsableFefoStock(
   drug: CatalogRow,
   quantityNeeded: number,
 ): Promise<boolean> {
-  const result = await api<FefoSelectResponse>(ctx, "POST", "/api/pharmacy/batches/fefo-select", {
-    catalog_item_id: drug.id,
-    quantity_needed: quantityNeeded,
-  });
-  return result.batches.some((batch) => batch.quantity_on_hand >= quantityNeeded);
+  try {
+    const result = await api<FefoSelectResponse>(ctx, "POST", "/api/pharmacy/batches/fefo-select", {
+      catalog_item_id: drug.id,
+      quantity_needed: quantityNeeded,
+    });
+    return result.batches.some((batch) => batch.quantity_on_hand >= quantityNeeded);
+  } catch {
+    return false;
+  }
 }
 
 async function createSafeE2eDrug(ctx: AuthContext): Promise<CatalogRow> {
@@ -178,6 +182,54 @@ async function createUsableE2eBatch(
 
 function dateDaysFromNow(days: number): string {
   return new Date(Date.now() + days * 86_400_000).toISOString().slice(0, 10);
+}
+
+export async function getOrCreateNdpsDrug(ctx: AuthContext): Promise<CatalogRow> {
+  const list = await api<CatalogRow[]>(ctx, "GET", "/api/pharmacy/catalog");
+  const existing = list.find(
+    (d) =>
+      d.is_controlled === true ||
+      ["NDPS", "X"].includes((d.drug_schedule ?? "").toUpperCase()),
+  );
+  if (existing) {
+    // Ensure sufficient balance by adding a receipt
+    await api(ctx, "POST", "/api/pharmacy/ndps-register", {
+      catalog_item_id: existing.id,
+      action: "receipt",
+      quantity: 50,
+      notes: "E2E balance top-up",
+    }).catch(() => {});
+    return existing;
+  }
+
+  const stamp = Date.now().toString(36);
+  const drug = await api<CatalogRow>(ctx, "POST", "/api/pharmacy/catalog", {
+    code: `E2E-NDPS-${stamp}`,
+    name: `E2E Morphine Sulfate ${stamp}`,
+    generic_name: "Morphine Sulfate",
+    category: "opioid_analgesic",
+    manufacturer: "E2E Fixtures",
+    unit: "tablet",
+    base_price: 50,
+    tax_percent: 0,
+    current_stock: 100,
+    reorder_level: 10,
+    drug_schedule: "NDPS",
+    is_controlled: true,
+    inn_name: "morphine",
+    atc_code: "N02AA01",
+    formulary_status: "approved",
+    is_lasa: false,
+    batch_tracking_required: true,
+  });
+  // Add a receipt entry to establish balance before dispensing
+  await api(ctx, "POST", "/api/pharmacy/ndps-register", {
+    catalog_item_id: drug.id,
+    action: "receipt",
+    quantity: 100,
+    notes: "E2E initial stock receipt",
+  });
+  return drug;
 }
 
 export async function getFirstLabTest(ctx: AuthContext): Promise<CatalogRow> {

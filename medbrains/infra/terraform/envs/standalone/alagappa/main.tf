@@ -22,9 +22,11 @@
 terraform {
   required_version = ">= 1.7"
 
-  backend "local" {
-    path = "./terraform.tfstate"
-  }
+  # Partial config — bucket/key/region/lock-table are injected by
+  # `make init` (-backend-config), which also creates the bucket and
+  # DynamoDB lock table on first run. State is encrypted + versioned
+  # in S3; the lock prevents concurrent applies.
+  backend "s3" {}
 
   required_providers {
     aws = {
@@ -117,4 +119,9 @@ output "object_store_bucket" {
 output "backup_bucket" {
   value       = module.hospital.backup_bucket
   description = "S3 bucket holding daily pg dumps + 5y Object Lock retention. Used by `make pre-apply-backup`."
+}
+
+output "uploads_bucket" {
+  value       = module.hospital.uploads_bucket
+  description = "S3 bucket for patient document uploads (MLC, MRD, consent forms, etc.). Set S3_BUCKET in .env."
 }

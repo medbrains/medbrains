@@ -43,4 +43,12 @@ export const mrdService = {
     api.printMrdCaseSheetPacket(...args),
   fileMrdCaseSheetPacket: (...args: Parameters<typeof api.fileMrdCaseSheetPacket>) =>
     api.fileMrdCaseSheetPacket(...args),
+  listMrdFormRecords: (...args: Parameters<typeof api.listMrdFormRecords>) =>
+    api.listMrdFormRecords(...args),
+  completeMrdFormRecord: (...args: Parameters<typeof api.completeMrdFormRecord>) =>
+    api.completeMrdFormRecord(...args),
+  verifyMrdFormRecord: (...args: Parameters<typeof api.verifyMrdFormRecord>) =>
+    api.verifyMrdFormRecord(...args),
+  attachMrdFormDocument: (...args: Parameters<typeof api.attachMrdFormDocument>) =>
+    api.attachMrdFormDocument(...args),
 };

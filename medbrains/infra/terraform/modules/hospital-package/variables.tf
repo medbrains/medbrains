@@ -153,3 +153,15 @@ variable "reset_pgdata" {
   type        = bool
   default     = false
 }
+
+variable "ssh_allowed_cidrs" {
+  description = "CIDRs allowed to reach SSH on EC2-backed tiers. Empty = auto-detect the operator's current egress IP (never 0.0.0.0/0)."
+  type        = list(string)
+  default     = []
+}
+
+variable "alarm_email" {
+  description = "Email for CloudWatch alarm notifications on EC2-backed tiers. Defaults to admin_email when unset."
+  type        = string
+  default     = ""
+}

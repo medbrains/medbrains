@@ -9,6 +9,7 @@ use sqlx::PgPool;
 
 use crate::middleware::system_state::SystemStateCache;
 use crate::routes::ws::QueueBroadcaster;
+use crate::s3_presign::S3PresignClient;
 
 /// Cookie configuration for `HttpOnly` cookie-based auth.
 #[derive(Debug, Clone)]
@@ -49,6 +50,9 @@ pub struct AppState {
     /// (NHCX callback, ABDM consent CM webhooks) that arrive without
     /// a JWT and need to look up tenant crypto material.
     pub secret_resolver: Arc<dyn medbrains_core::secrets::SecretResolver>,
+    /// S3-compatible presigned URL generator. None when S3_BUCKET is not configured
+    /// (dev/on-prem deployments that use local file storage).
+    pub s3: Option<Arc<S3PresignClient>>,
 }
 
 impl std::fmt::Debug for AppState {
@@ -65,6 +69,7 @@ impl std::fmt::Debug for AppState {
             .field("outbox", &"Arc<OutboxRegistry>")
             .field("topology", &"Arc<dyn TopologyDispatcher>")
             .field("authz", &"Arc<dyn AuthzBackend>")
+            .field("s3", &self.s3.is_some())
             .finish()
     }
 }

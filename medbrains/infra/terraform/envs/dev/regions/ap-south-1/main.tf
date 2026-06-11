@@ -38,11 +38,28 @@ module "vpc" {
   environment = var.environment
 }
 
+data "aws_caller_identity" "current" {}
+
 module "s3" {
-  source       = "../../../../modules/s3"
-  region       = var.region
-  environment  = var.environment
-  kms_key_arns = module.kms.key_arns
+  source               = "../../../../modules/s3"
+  region               = var.region
+  environment          = var.environment
+  kms_key_arns         = module.kms.key_arns
+  account_id           = data.aws_caller_identity.current.account_id
+  uploads_cors_origins = ["https://medbrains.localhost"]
+}
+
+module "iam_uploads" {
+  source = "../../../../modules/iam-uploads"
+
+  environment        = var.environment
+  uploads_bucket_arn = module.s3.uploads_bucket_arn
+  kms_key_arn        = module.kms.key_arns.app
+  # EKS uses IRSA — no IAM user needed; instance role attachment also not
+  # needed at the eks module level since pods get pod-level IAM.
+  # For dev (non-EKS paths), set create_iam_user = true to generate creds.
+  create_iam_user        = false
+  ec2_instance_role_name = ""
 }
 
 module "aurora" {

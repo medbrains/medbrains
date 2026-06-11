@@ -90,6 +90,17 @@ export default defineConfig({
       dependencies: ["setup"],
     },
 
+    // Accessibility — UI journeys with WCAG 2 AAA machine-testable gates
+    {
+      name: "accessibility",
+      testMatch: /accessibility\/.*\.spec\.ts/,
+      use: {
+        ...devices["Desktop Chrome"],
+        storageState: authStatePath,
+      },
+      dependencies: ["setup"],
+    },
+
     // Default project — every spec not in a layered directory.
     {
       name: "chromium",

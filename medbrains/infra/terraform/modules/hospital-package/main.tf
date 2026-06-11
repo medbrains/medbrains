@@ -155,6 +155,9 @@ module "starter" {
   deploy_kit_dir = var.deploy_kit_dir
   reset_pgdata   = var.reset_pgdata
   kms_key_arns   = local.kms_key_arns
+
+  ssh_allowed_cidrs = var.ssh_allowed_cidrs
+  alarm_email       = var.alarm_email != "" ? var.alarm_email : var.admin_email
 }
 
 # ── Growth (Fargate + RDS + S3) — Phase 1 scaffold ────────────────────
@@ -218,4 +221,97 @@ module "enterprise" {
   image_uri        = var.image_uri
   hot_to_cold_days = var.hot_to_cold_days
   kms_key_arns     = local.kms_key_arns
+}
+
+# ── Patient uploads S3 bucket (all tiers) ─────────────────────────────────
+# PHI-grade: KMS SSE, versioning, Glacier after 90d, block all public access.
+# CORS allows PUT via presigned URL from the hospital's SaaS origin.
+
+locals {
+  uploads_bucket_name = "medbrains-${var.hospital_id}-uploads-${data.aws_region.current.name}"
+  app_kms_key_arn     = lookup(local.kms_key_arns, "app", "")
+}
+
+resource "aws_s3_bucket" "uploads" {
+  bucket        = local.uploads_bucket_name
+  force_destroy = false
+
+  tags = {
+    Project    = "medbrains"
+    HospitalId = var.hospital_id
+    Tier       = var.tier
+    PHI        = "true"
+    ManagedBy  = "terraform"
+  }
+}
+
+resource "aws_s3_bucket_versioning" "uploads" {
+  bucket = aws_s3_bucket.uploads.id
+  versioning_configuration { status = "Enabled" }
+}
+
+resource "aws_s3_bucket_server_side_encryption_configuration" "uploads" {
+  bucket = aws_s3_bucket.uploads.id
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm     = local.app_kms_key_arn != "" ? "aws:kms" : "AES256"
+      kms_master_key_id = local.app_kms_key_arn != "" ? local.app_kms_key_arn : null
+    }
+    bucket_key_enabled = true
+  }
+}
+
+resource "aws_s3_bucket_public_access_block" "uploads" {
+  bucket                  = aws_s3_bucket.uploads.id
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+resource "aws_s3_bucket_lifecycle_configuration" "uploads" {
+  bucket = aws_s3_bucket.uploads.id
+  rule {
+    id     = "transition-phi-to-glacier"
+    status = "Enabled"
+    transition {
+      days          = 90
+      storage_class = "GLACIER"
+    }
+    noncurrent_version_expiration {
+      noncurrent_days = 365
+    }
+  }
+}
+
+resource "aws_s3_bucket_cors_configuration" "uploads" {
+  bucket = aws_s3_bucket.uploads.id
+
+  cors_rule {
+    allowed_headers = ["Content-Type", "Content-MD5", "x-amz-server-side-encryption"]
+    allowed_methods = ["PUT"]
+    allowed_origins = ["https://${var.domain}"]
+    expose_headers  = ["ETag"]
+    max_age_seconds = 3600
+  }
+
+  cors_rule {
+    allowed_headers = ["*"]
+    allowed_methods = ["GET"]
+    allowed_origins = ["https://${var.domain}"]
+    max_age_seconds = 86400
+  }
+}
+
+# IAM: attach uploads policy to the starter EC2 instance role when that tier is active
+module "uploads_iam" {
+  source = "../iam-uploads"
+
+  environment            = var.tier
+  uploads_bucket_arn     = aws_s3_bucket.uploads.arn
+  kms_key_arn            = local.app_kms_key_arn
+  ec2_instance_role_name = local.is_starter ? "${local.hostname}-instance" : ""
+  create_iam_user        = false
+
+  depends_on = [module.starter]
 }

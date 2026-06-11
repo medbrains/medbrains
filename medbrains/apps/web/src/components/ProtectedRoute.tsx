@@ -23,6 +23,7 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const setPermissions = usePermissionStore((s) => s.setPermissions);
   const clearPermissions = usePermissionStore((s) => s.clearPermissions);
   const [verified, setVerified] = useState<boolean | null>(null);
+  const [mustChangePassword, setMustChangePassword] = useState(false);
   const refreshTimer = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // ── Initial session verification ──
@@ -39,6 +40,7 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
       .me()
       .then(async (resp) => {
         if (cancelled) return;
+        setMustChangePassword(resp.must_change_password);
         setPermissions(resp.role, resp.permissions, resp.field_access);
 
         // Load locale/units settings for the tenant
@@ -130,6 +132,11 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
   // Wait for session verification to complete and permissions to load before rendering
   if (verified === null) {
     return <PageSkeleton />;
+  }
+
+  // Seeded/provisioned credential — block the app until the password is rotated
+  if (mustChangePassword) {
+    return <Navigate to="/force-password-change" replace />;
   }
 
   return <>{children}</>;

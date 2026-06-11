@@ -8,6 +8,10 @@ use serde::{Deserialize, Serialize};
 /// Fields match the env var names (lowercased) and config.toml keys.
 #[derive(Debug, Deserialize, Serialize)]
 struct RawConfig {
+    /// Deployment environment: "development" (default) or "production".
+    /// Set via MEDBRAINS_ENV. Production refuses to start without real JWT keys.
+    #[serde(default)]
+    medbrains_env: Option<String>,
     #[serde(default)]
     database_url: Option<String>,
     #[serde(default)]
@@ -46,6 +50,17 @@ struct RawConfig {
     trusted_proxies: Option<String>,
     #[serde(default)]
     static_dir: Option<String>,
+    // S3-compatible object storage for file uploads (MLC, MRD, consent, etc.)
+    #[serde(default)]
+    s3_bucket: Option<String>,
+    #[serde(default)]
+    s3_region: Option<String>,
+    #[serde(default)]
+    s3_endpoint: Option<String>,
+    #[serde(default)]
+    s3_access_key_id: Option<String>,
+    #[serde(default)]
+    s3_secret_access_key: Option<String>,
 }
 
 fn default_host() -> String {
@@ -99,6 +114,8 @@ const fn default_db_slow_query_ms() -> u64 {
 /// so `.env` values participate in layer 3.
 #[derive(Debug, Clone)]
 pub struct AppConfig {
+    /// "development" or "production" (MEDBRAINS_ENV).
+    pub environment: String,
     pub database_url: String,
     pub yottadb_url: Option<String>,
     pub db_pool_max_connections: u32,
@@ -119,6 +136,11 @@ pub struct AppConfig {
     pub trusted_proxies: Vec<ipnet::IpNet>,
     /// Directory containing frontend static files (SPA dist)
     pub static_dir: Option<String>,
+    pub s3_bucket: Option<String>,
+    pub s3_region: Option<String>,
+    pub s3_endpoint: Option<String>,
+    pub s3_access_key_id: Option<String>,
+    pub s3_secret_access_key: Option<String>,
 }
 
 impl AppConfig {
@@ -126,6 +148,7 @@ impl AppConfig {
     pub fn load() -> Result<Self, ConfigError> {
         let raw: RawConfig = Figment::new()
             .merge(Serialized::defaults(RawConfig {
+                medbrains_env: None,
                 database_url: None,
                 yottadb_url: None,
                 db_pool_max_connections: default_db_pool_max_connections(),
@@ -144,6 +167,11 @@ impl AppConfig {
                 secure_cookies: None,
                 trusted_proxies: None,
                 static_dir: None,
+                s3_bucket: None,
+                s3_region: None,
+                s3_endpoint: None,
+                s3_access_key_id: None,
+                s3_secret_access_key: None,
             }))
             .merge(Toml::file("config.toml"))
             .merge(Env::raw())
@@ -161,9 +189,24 @@ impl AppConfig {
             });
         }
 
-        // JWT keys: if both are set use them, otherwise generate dev keypair
+        let environment = raw
+            .medbrains_env
+            .unwrap_or_else(|| "development".to_owned())
+            .to_lowercase();
+
+        // JWT keys: if both are set use them, otherwise generate dev keypair.
+        // Production must never run on an ephemeral keypair — a restart would
+        // silently invalidate every active session.
         let (private_pem, public_pem) = match (raw.jwt_private_key, raw.jwt_public_key) {
             (Some(priv_key), Some(pub_key)) => (priv_key, pub_key),
+            _ if environment == "production" => {
+                return Err(ConfigError::Invalid {
+                    key: "JWT_PRIVATE_KEY / JWT_PUBLIC_KEY".to_owned(),
+                    reason: "both must be set when MEDBRAINS_ENV=production; refusing to \
+                             generate an ephemeral keypair"
+                        .to_owned(),
+                });
+            }
             _ => generate_dev_keypair()?,
         };
 
@@ -199,8 +242,14 @@ impl AppConfig {
         }
 
         Ok(Self {
+            environment,
             database_url,
             yottadb_url: raw.yottadb_url,
+            s3_bucket: raw.s3_bucket,
+            s3_region: raw.s3_region,
+            s3_endpoint: raw.s3_endpoint,
+            s3_access_key_id: raw.s3_access_key_id,
+            s3_secret_access_key: raw.s3_secret_access_key,
             db_pool_max_connections: raw.db_pool_max_connections,
             db_pool_min_connections: raw.db_pool_min_connections,
             db_pool_acquire_timeout_secs: raw.db_pool_acquire_timeout_secs,

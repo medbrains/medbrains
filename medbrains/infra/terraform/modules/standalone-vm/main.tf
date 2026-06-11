@@ -37,6 +37,9 @@ module "aws_ec2" {
   deploy_kit_dir       = var.deploy_kit_dir
   reset_pgdata         = var.reset_pgdata
   kms_key_arns         = var.kms_key_arns
+  uploads_bucket_arn   = var.uploads_bucket_arn
+  ssh_allowed_cidrs    = var.ssh_allowed_cidrs
+  alarm_email          = var.alarm_email
 }
 
 module "aws_fargate" {

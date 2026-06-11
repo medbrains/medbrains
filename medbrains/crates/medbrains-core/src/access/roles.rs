@@ -101,6 +101,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::lab::orders::VIEW,
             permissions::lab::orders::CREATE,
             permissions::lab::reports::VIEW,
+            permissions::lab::results::UPDATE,
             permissions::lab::dispatch::LIST,
             permissions::lab::specialized::LIST,
             permissions::lab::specialized::CREATE,
@@ -125,6 +126,8 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::ipd::discharge_summary::CREATE,
             permissions::ipd::bed_dashboard::VIEW,
             permissions::ipd::reports::VIEW,
+            permissions::ipd::progress_notes::LIST,
+            permissions::ipd::progress_notes::CREATE,
             permissions::ipd::clinical_docs::LIST,
             permissions::ipd::clinical_docs::CREATE,
             permissions::ipd::transfers::CREATE,
@@ -378,6 +381,8 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::nurse::code_blue::RECORD,
             permissions::nurse::equipment::VIEW,
             permissions::nurse::equipment::RECORD,
+            permissions::mrd::forms::VIEW,
+            permissions::mrd::forms::MANAGE,
         ],
     },
     BuiltInRole {
@@ -844,6 +849,9 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
         description: "Quality & compliance — full regulatory access",
         permissions: &[
             permissions::dashboard::VIEW,
+            permissions::lab::orders::LIST,
+            permissions::lab::orders::VIEW,
+            permissions::lab::reports::VIEW,
             permissions::quality::indicators::LIST,
             permissions::quality::indicators::MANAGE,
             permissions::quality::documents::LIST,
@@ -968,6 +976,8 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::mrd::case_sheets::FILE,
             permissions::mrd::case_sheets::REPRINT,
             permissions::mrd::storage::MANAGE,
+            permissions::mrd::forms::VIEW,
+            permissions::mrd::forms::MANAGE,
             // File-room work needs patient demographics + encounter lookup.
             // Read-only; MRD doesn't create or edit clinical records.
             permissions::patients::LIST,
@@ -1135,8 +1145,12 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::procurement::vendors::UPDATE,
             permissions::procurement::purchase_orders::LIST,
             permissions::procurement::purchase_orders::CREATE,
+            permissions::procurement::purchase_orders::APPROVE,
             permissions::procurement::grn::LIST,
             permissions::procurement::grn::CREATE,
+            permissions::procurement::payments::LIST,
+            permissions::procurement::payments::MANAGE,
+            permissions::procurement::PERFORMANCE_VIEW,
         ],
     },
     BuiltInRole {
@@ -1151,6 +1165,10 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::indent::STOCK_MANAGE,
             permissions::indent::CONSUMABLES_LIST,
             permissions::indent::CONSUMABLES_MANAGE,
+            permissions::procurement::purchase_orders::LIST,
+            permissions::procurement::grn::LIST,
+            permissions::procurement::grn::CREATE,
+            permissions::procurement::stores::LIST,
         ],
     },
     BuiltInRole {
@@ -1210,6 +1228,7 @@ pub const BUILT_IN_ROLES: &[BuiltInRole] = &[
             permissions::insurance::prior_auth::SUBMIT,
             permissions::insurance::appeals::LIST,
             permissions::insurance::appeals::CREATE,
+            permissions::insurance::dashboard::VIEW,
         ],
     },
     BuiltInRole {

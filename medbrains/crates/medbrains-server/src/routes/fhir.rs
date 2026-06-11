@@ -41,7 +41,7 @@ pub async fn read_patient(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
-) -> Result<Json<medbrains_fhir::r4::patient::Patient>, AppError> {
+) -> Result<Json<Resource>, AppError> {
     require_permission(&claims, permissions::patients::VIEW)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -60,7 +60,7 @@ pub async fn read_patient(
 
     tx.commit().await?;
     let view = row.ok_or(AppError::NotFound)?;
-    Ok(Json(patient_to_fhir(&view)))
+    Ok(Json(Resource::Patient(patient_to_fhir(&view))))
 }
 
 #[derive(sqlx::FromRow)]
@@ -104,7 +104,7 @@ pub async fn read_encounter(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
-) -> Result<Json<medbrains_fhir::r4::encounter::Encounter>, AppError> {
+) -> Result<Json<Resource>, AppError> {
     require_permission(&claims, permissions::opd::queue::VIEW)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -140,7 +140,7 @@ pub async fn read_encounter(
         started_at: row.started_at,
         ended_at: row.ended_at,
     };
-    Ok(Json(encounter_to_fhir(&view)))
+    Ok(Json(Resource::Encounter(encounter_to_fhir(&view))))
 }
 
 #[derive(sqlx::FromRow)]
@@ -165,7 +165,7 @@ pub async fn patient_everything(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
-) -> Result<Json<Bundle>, AppError> {
+) -> Result<Json<Resource>, AppError> {
     require_permission(&claims, permissions::patients::VIEW)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
@@ -230,13 +230,13 @@ pub async fn patient_everything(
     }
 
     let total = u32::try_from(entries.len()).unwrap_or(u32::MAX);
-    Ok(Json(Bundle {
+    Ok(Json(Resource::Bundle(Bundle {
         id: Uuid::new_v4().to_string(),
         r#type: BundleType::Searchset,
         timestamp: Utc::now().to_rfc3339(),
         total: Some(total),
         entry: entries,
-    }))
+    })))
 }
 
 // ── Capabilities ──────────────────────────────────────────────────

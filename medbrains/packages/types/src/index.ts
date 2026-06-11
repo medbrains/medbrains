@@ -16149,6 +16149,54 @@ export interface MrdAdmissionDischargeSummary {
   overall_avg_los_days: number | null;
 }
 
+export type MrdFormType =
+  | "progress_note"
+  | "nursing_assessment"
+  | "mar"
+  | "vitals_chart"
+  | "io_chart"
+  | "discharge_checklist"
+  | "pain_assessment"
+  | "fall_risk"
+  | "pressure_ulcer_risk"
+  | "gcs"
+  | "restraint_doc"
+  | "preop_checklist"
+  | "who_surgical_safety"
+  | "anesthesia_record"
+  | "operation_notes"
+  | "postop_orders"
+  | "blood_requisition"
+  | "transfusion_monitoring"
+  | "wound_assessment"
+  | "nutrition_screening";
+
+export interface MrdFormRecord {
+  id: string;
+  tenant_id: string;
+  admission_id: string;
+  form_type: MrdFormType;
+  template_id: string | null;
+  form_date: string;
+  form_time: string | null;
+  shift: "morning" | "afternoon" | "night" | null;
+  form_data: Record<string, unknown>;
+  completed_by: string | null;
+  completed_at: string | null;
+  verified_by: string | null;
+  verified_at: string | null;
+  pdf_url: string | null;
+  created_at: string;
+  created_by: string;
+  updated_at: string;
+  completed_by_name: string | null;
+  verified_by_name: string | null;
+}
+
+export interface AttachFormDocumentRequest {
+  s3_key: string;
+}
+
 // ══════════════════════════════════════════════════════════════
 //  Specialty Clinical
 // ══════════════════════════════════════════════════════════════

@@ -553,16 +553,18 @@ pub async fn list_bridge_agents(
     Ok(Json(rows))
 }
 
+fn hash_agent_key(agent_key: &str) -> String {
+    use sha2::{Digest, Sha256};
+    let mut hasher = Sha256::new();
+    hasher.update(agent_key.as_bytes());
+    hex::encode(hasher.finalize())
+}
+
 pub async fn register_bridge_agent(
     State(state): State<AppState>,
     Json(body): Json<BridgeRegisterRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let key_hash = {
-        use sha2::{Digest, Sha256};
-        let mut hasher = Sha256::new();
-        hasher.update(body.agent_key.as_bytes());
-        hex::encode(hasher.finalize())
-    };
+    let key_hash = hash_agent_key(&body.agent_key);
 
     let agent_id = sqlx::query_scalar::<_, Uuid>(
         "INSERT INTO bridge_agents (name, agent_key_hash, deployment_mode, version, hostname, capabilities, status) \
@@ -586,15 +588,23 @@ pub async fn bridge_heartbeat(
     State(state): State<AppState>,
     Json(body): Json<BridgeHeartbeatRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    sqlx::query(
+    // Heartbeat is unauthenticated at the HTTP layer; the agent key proves
+    // ownership so one tenant's agent cannot update another's row.
+    let result = sqlx::query(
         "UPDATE bridge_agents SET status = 'online', last_heartbeat = now(), \
-         devices_connected = $2, buffer_depth = $3 WHERE id = $1",
+         devices_connected = $2, buffer_depth = $3 \
+         WHERE id = $1 AND agent_key_hash = $4 AND is_active = true",
     )
     .bind(body.agent_id)
     .bind(body.devices_connected)
     .bind(body.buffer_depth)
+    .bind(hash_agent_key(&body.agent_key))
     .execute(&state.db)
     .await?;
+
+    if result.rows_affected() == 0 {
+        return Err(AppError::Unauthorized);
+    }
 
     Ok(Json(serde_json::json!({"status": "ok"})))
 }

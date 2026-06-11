@@ -209,7 +209,7 @@ fn validate_credit_note_request(body: &CreateCreditNoteRequest) -> Result<(), Ap
         (None, None) => {}
     }
 
-    if body.items.as_array().map_or(true, Vec::is_empty) {
+    if body.items.as_array().is_none_or(Vec::is_empty) {
         return Err(AppError::BadRequest(
             "Credit note must include at least one item".to_owned(),
         ));

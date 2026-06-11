@@ -34,7 +34,7 @@ import {
   procurementSupplierPaymentFormSchema,
   procurementVendorFormSchema,
 } from "@medbrains/schemas";
-import { useHasPermission } from "@medbrains/stores";
+import { useHasAnyPermission, useHasPermission } from "@medbrains/stores";
 import type {
   BatchStock,
   CreateGrnItemInput,
@@ -65,7 +65,7 @@ import {
   IconUsers,
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import { Controller, useFieldArray, useForm, useWatch } from "react-hook-form";
 import { DataTable, PageHeader, TableValueBadge, VendorSearchSelect } from "@/components";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
@@ -200,22 +200,117 @@ function formatLinkedIndentLabel(requisition: IndentRequisition) {
   return `${requisition.indent_number} • ${requisition.status.replace(/_/g, " ")}`;
 }
 
+const PROCUREMENT_PAGE_PERMISSIONS: readonly string[] = [
+  P.PROCUREMENT.VENDORS_LIST,
+  P.PROCUREMENT.PO_LIST,
+  P.PROCUREMENT.GRN_LIST,
+  P.PROCUREMENT.RC_LIST,
+  P.PROCUREMENT.STORES_LIST,
+  P.PROCUREMENT.STORES_MANAGE,
+  P.PROCUREMENT.PAYMENTS_LIST,
+  P.PROCUREMENT.PERFORMANCE_VIEW,
+  P.INDENT.STOCK_MANAGE,
+];
+
+interface ProcurementTabConfig {
+  value: string;
+  label: string;
+  icon: ReactNode;
+}
+
 // ══════════════════════════════════════════════════════════
 //  Main Page
 // ══════════════════════════════════════════════════════════
 
 export function ProcurementPage() {
-  useRequirePermission(P.PROCUREMENT.VENDORS_LIST);
+  useRequirePermission(PROCUREMENT_PAGE_PERMISSIONS);
 
-  const canCreateVendor = useHasPermission(P.PROCUREMENT.VENDORS_CREATE);
-  const canCreatePo = useHasPermission(P.PROCUREMENT.PO_CREATE);
-  const canCreateGrn = useHasPermission(P.PROCUREMENT.GRN_CREATE);
-  const canManageRc = useHasPermission(P.PROCUREMENT.RC_MANAGE);
+  const canViewVendors = useHasPermission(P.PROCUREMENT.VENDORS_LIST);
+  const canViewPo = useHasPermission(P.PROCUREMENT.PO_LIST);
+  const canViewGrn = useHasPermission(P.PROCUREMENT.GRN_LIST);
+  const canViewRc = useHasPermission(P.PROCUREMENT.RC_LIST);
+  const canViewBatchStock = useHasPermission(P.INDENT.STOCK_MANAGE);
+  const canViewStores = useHasAnyPermission([
+    P.PROCUREMENT.STORES_LIST,
+    P.PROCUREMENT.STORES_MANAGE,
+  ]);
+  const canCreateVendorPermission = useHasPermission(P.PROCUREMENT.VENDORS_CREATE);
+  const canCreatePoPermission = useHasPermission(P.PROCUREMENT.PO_CREATE);
+  const canCreateGrnPermission = useHasPermission(P.PROCUREMENT.GRN_CREATE);
+  const canManageRcPermission = useHasPermission(P.PROCUREMENT.RC_MANAGE);
   const canManageStores = useHasPermission(P.PROCUREMENT.STORES_MANAGE);
-  const canViewPerformance = useHasPermission(P.PROCUREMENT.PERFORMANCE_VIEW);
+  const canViewPerformancePermission = useHasPermission(P.PROCUREMENT.PERFORMANCE_VIEW);
   const canViewPayments = useHasPermission(P.PROCUREMENT.PAYMENTS_LIST);
+  const canManagePaymentsPermission = useHasPermission(P.PROCUREMENT.PAYMENTS_MANAGE);
+  const canCreateVendor = canViewVendors && canCreateVendorPermission;
+  const canCreatePo = canViewVendors && canViewPo && canCreatePoPermission;
+  const canCreateGrn = canViewPo && canCreateGrnPermission;
+  const canManageRc = canViewVendors && canManageRcPermission;
+  const canViewPerformance = canViewVendors && canViewPerformancePermission;
+  const canManagePayments = canViewVendors && canManagePaymentsPermission;
 
-  const [activeTab, setActiveTab] = useState<string | null>("vendors");
+  const visibleTabs: ProcurementTabConfig[] = [];
+  if (canViewVendors) {
+    visibleTabs.push({
+      value: "vendors",
+      label: "Vendors",
+      icon: <IconUsers size={16} />,
+    });
+  }
+  if (canViewPo) {
+    visibleTabs.push({
+      value: "purchase-orders",
+      label: "Purchase Orders",
+      icon: <IconFileInvoice size={16} />,
+    });
+  }
+  if (canViewGrn) {
+    visibleTabs.push({
+      value: "grn",
+      label: "GRN",
+      icon: <IconPackage size={16} />,
+    });
+  }
+  if (canViewRc) {
+    visibleTabs.push({
+      value: "rate-contracts",
+      label: "Rate Contracts",
+      icon: <IconContract size={16} />,
+    });
+  }
+  if (canViewBatchStock) {
+    visibleTabs.push({
+      value: "batch-stock",
+      label: "Batch Stock",
+      icon: <IconBuildingWarehouse size={16} />,
+    });
+  }
+  if (canViewStores) {
+    visibleTabs.push({
+      value: "store-locations",
+      label: "Store Locations",
+      icon: <IconBuildingWarehouse size={16} />,
+    });
+  }
+  if (canViewPerformance) {
+    visibleTabs.push({
+      value: "vendor-performance",
+      label: "Vendor Performance",
+      icon: <IconChartBar size={16} />,
+    });
+  }
+  if (canViewPayments) {
+    visibleTabs.push({
+      value: "supplier-payments",
+      label: "Supplier Payments",
+      icon: <IconCash size={16} />,
+    });
+  }
+
+  const [selectedTab, setSelectedTab] = useState<string | null>(null);
+  const activeTab = visibleTabs.some((tab) => tab.value === selectedTab)
+    ? selectedTab
+    : (visibleTabs[0]?.value ?? null);
 
   return (
     <div>
@@ -226,58 +321,43 @@ export function ProcurementPage() {
         color="violet"
       />
 
-      <Tabs value={activeTab} onChange={setActiveTab}>
+      <Tabs value={activeTab} onChange={setSelectedTab}>
         <Tabs.List mb="md">
-          <Tabs.Tab value="vendors" leftSection={<IconUsers size={16} />}>
-            Vendors
-          </Tabs.Tab>
-          <Tabs.Tab value="purchase-orders" leftSection={<IconFileInvoice size={16} />}>
-            Purchase Orders
-          </Tabs.Tab>
-          <Tabs.Tab value="grn" leftSection={<IconPackage size={16} />}>
-            GRN
-          </Tabs.Tab>
-          <Tabs.Tab value="rate-contracts" leftSection={<IconContract size={16} />}>
-            Rate Contracts
-          </Tabs.Tab>
-          <Tabs.Tab value="batch-stock" leftSection={<IconBuildingWarehouse size={16} />}>
-            Batch Stock
-          </Tabs.Tab>
-          {canManageStores && (
-            <Tabs.Tab value="store-locations" leftSection={<IconBuildingWarehouse size={16} />}>
-              Store Locations
+          {visibleTabs.map((tab) => (
+            <Tabs.Tab key={tab.value} value={tab.value} leftSection={tab.icon}>
+              {tab.label}
             </Tabs.Tab>
-          )}
-          {canViewPerformance && (
-            <Tabs.Tab value="vendor-performance" leftSection={<IconChartBar size={16} />}>
-              Vendor Performance
-            </Tabs.Tab>
-          )}
-          {canViewPayments && (
-            <Tabs.Tab value="supplier-payments" leftSection={<IconCash size={16} />}>
-              Supplier Payments
-            </Tabs.Tab>
-          )}
+          ))}
         </Tabs.List>
 
-        <Tabs.Panel value="vendors">
-          <VendorPanel canCreate={canCreateVendor} />
-        </Tabs.Panel>
-        <Tabs.Panel value="purchase-orders">
-          <PurchaseOrderPanel canCreate={canCreatePo} />
-        </Tabs.Panel>
-        <Tabs.Panel value="grn">
-          <GrnPanel canCreate={canCreateGrn} />
-        </Tabs.Panel>
-        <Tabs.Panel value="rate-contracts">
-          <RateContractPanel canManage={canManageRc} />
-        </Tabs.Panel>
-        <Tabs.Panel value="batch-stock">
-          <BatchStockPanel />
-        </Tabs.Panel>
-        {canManageStores && (
+        {canViewVendors && (
+          <Tabs.Panel value="vendors">
+            <VendorPanel canCreate={canCreateVendor} />
+          </Tabs.Panel>
+        )}
+        {canViewPo && (
+          <Tabs.Panel value="purchase-orders">
+            <PurchaseOrderPanel canCreate={canCreatePo} />
+          </Tabs.Panel>
+        )}
+        {canViewGrn && (
+          <Tabs.Panel value="grn">
+            <GrnPanel canCreate={canCreateGrn} />
+          </Tabs.Panel>
+        )}
+        {canViewRc && (
+          <Tabs.Panel value="rate-contracts">
+            <RateContractPanel canManage={canManageRc} />
+          </Tabs.Panel>
+        )}
+        {canViewBatchStock && (
+          <Tabs.Panel value="batch-stock">
+            <BatchStockPanel />
+          </Tabs.Panel>
+        )}
+        {canViewStores && (
           <Tabs.Panel value="store-locations">
-            <StoreLocationPanel />
+            <StoreLocationPanel canManage={canManageStores} />
           </Tabs.Panel>
         )}
         {canViewPerformance && (
@@ -287,7 +367,7 @@ export function ProcurementPage() {
         )}
         {canViewPayments && (
           <Tabs.Panel value="supplier-payments">
-            <SupplierPaymentsPanel />
+            <SupplierPaymentsPanel canManage={canManagePayments} />
           </Tabs.Panel>
         )}
       </Tabs>
@@ -342,6 +422,7 @@ function VendorPanel({ canCreate }: { canCreate: boolean }) {
         <Tooltip label="View details">
           <ActionIcon
             variant="subtle"
+            size={44}
             onClick={() => {
               setDetailVendor(row);
               openDetail();
@@ -377,6 +458,7 @@ function VendorPanel({ canCreate }: { canCreate: boolean }) {
         opened={createOpened}
         onClose={closeCreate}
         title="Register New Vendor"
+        closeButtonProps={{ "aria-label": "Close Register New Vendor" }}
         position="right"
         size="lg"
       >
@@ -392,6 +474,7 @@ function VendorPanel({ canCreate }: { canCreate: boolean }) {
         opened={detailOpened}
         onClose={closeDetail}
         title="Vendor Details"
+        closeButtonProps={{ "aria-label": "Close Vendor Details" }}
         position="right"
         size="lg"
       >
@@ -673,6 +756,7 @@ function PurchaseOrderPanel({ canCreate }: { canCreate: boolean }) {
           <Tooltip label="View">
             <ActionIcon
               variant="subtle"
+              size={44}
               onClick={() => {
                 setDetailId(row.id);
                 openDetail();
@@ -734,6 +818,7 @@ function PurchaseOrderPanel({ canCreate }: { canCreate: boolean }) {
         opened={createOpened}
         onClose={closeCreate}
         title="Create Purchase Order"
+        closeButtonProps={{ "aria-label": "Close Create Purchase Order" }}
         position="right"
         size="xl"
       >
@@ -749,6 +834,7 @@ function PurchaseOrderPanel({ canCreate }: { canCreate: boolean }) {
         opened={detailOpened}
         onClose={closeDetail}
         title="Purchase Order Details"
+        closeButtonProps={{ "aria-label": "Close Purchase Order Details" }}
         position="right"
         size="lg"
       >
@@ -1122,7 +1208,8 @@ function CreatePoForm({ onSuccess }: { onSuccess: () => void }) {
                 <ActionIcon
                   variant="subtle"
                   color="danger"
-                  size="sm"
+                  size={44}
+                  aria-label={`Remove purchase order item ${idx + 1}`}
                   onClick={() => removeItem(idx)}
                 >
                   ×
@@ -1205,6 +1292,7 @@ function GrnPanel({ canCreate }: { canCreate: boolean }) {
         <Tooltip label="View">
           <ActionIcon
             variant="subtle"
+            size={44}
             onClick={() => {
               setDetailId(row.id);
               openDetail();
@@ -1243,6 +1331,7 @@ function GrnPanel({ canCreate }: { canCreate: boolean }) {
         opened={createOpened}
         onClose={closeCreate}
         title="Create GRN"
+        closeButtonProps={{ "aria-label": "Close Create GRN" }}
         position="right"
         size="xl"
       >
@@ -1259,6 +1348,7 @@ function GrnPanel({ canCreate }: { canCreate: boolean }) {
         opened={detailOpened}
         onClose={closeDetail}
         title="GRN Details"
+        closeButtonProps={{ "aria-label": "Close GRN Details" }}
         position="right"
         size="lg"
       >
@@ -1579,6 +1669,7 @@ function RateContractPanel({ canManage }: { canManage: boolean }) {
         opened={createOpened}
         onClose={closeCreate}
         title="Create Rate Contract"
+        closeButtonProps={{ "aria-label": "Close Create Rate Contract" }}
         position="right"
         size="lg"
       >
@@ -1706,8 +1797,9 @@ function CreateRcForm({ onSuccess }: { onSuccess: () => void }) {
           <ActionIcon
             variant="subtle"
             color="danger"
-            size="sm"
+            size={44}
             mt={24}
+            aria-label={`Remove rate contract item ${idx + 1}`}
             onClick={() => {
               if (fields.length > 1) remove(idx);
             }}
@@ -1796,7 +1888,7 @@ function BatchStockPanel() {
 //  Store Locations Panel
 // ══════════════════════════════════════════════════════════
 
-function StoreLocationPanel() {
+function StoreLocationPanel({ canManage }: { canManage: boolean }) {
   const queryClient = useQueryClient();
   const [createOpened, { open: openCreate, close: closeCreate }] = useDisclosure(false);
 
@@ -1836,11 +1928,13 @@ function StoreLocationPanel() {
 
   return (
     <>
-      <Group justify="flex-end" mb="md">
-        <Button leftSection={<IconPlus size={16} />} onClick={openCreate}>
-          Add Location
-        </Button>
-      </Group>
+      {canManage && (
+        <Group justify="flex-end" mb="md">
+          <Button leftSection={<IconPlus size={16} />} onClick={openCreate}>
+            Add Location
+          </Button>
+        </Group>
+      )}
 
       <DataTable
         columns={columns}
@@ -1854,6 +1948,7 @@ function StoreLocationPanel() {
         opened={createOpened}
         onClose={closeCreate}
         title="Add Store Location"
+        closeButtonProps={{ "aria-label": "Close Add Store Location" }}
         position="right"
         size="xl"
       >
@@ -2009,6 +2104,7 @@ function VendorPerformancePanel() {
         opened={compareOpened}
         onClose={closeCompare}
         title="Compare Vendors by Item"
+        closeButtonProps={{ "aria-label": "Close Compare Vendors" }}
         size="lg"
       >
         <VendorComparisonView itemId={compareItemId} onItemChange={setCompareItemId} />
@@ -2108,9 +2204,8 @@ const paymentStatusColors: Record<string, string> = {
   disputed: "violet",
 };
 
-function SupplierPaymentsPanel() {
+function SupplierPaymentsPanel({ canManage }: { canManage: boolean }) {
   const queryClient = useQueryClient();
-  const canManage = useHasPermission(P.PROCUREMENT.PAYMENTS_MANAGE);
   const [createOpened, { open: openCreate, close: closeCreate }] = useDisclosure(false);
 
   const { data, isLoading } = useQuery({
@@ -2192,6 +2287,7 @@ function SupplierPaymentsPanel() {
         opened={createOpened}
         onClose={closeCreate}
         title="Record Payment"
+        closeButtonProps={{ "aria-label": "Close Record Payment" }}
         position="right"
         size="xl"
       >

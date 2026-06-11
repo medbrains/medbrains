@@ -30,6 +30,7 @@ pub mod hospital_time;
 pub mod middleware;
 pub mod orchestration;
 pub mod routes;
+pub mod s3_presign;
 pub mod seed;
 pub mod services;
 pub mod signing;

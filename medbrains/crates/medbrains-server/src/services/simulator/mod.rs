@@ -423,8 +423,9 @@ async fn run_opd_episode(
     }
 
     // Lab order branch
-    if chance(rng, profile.branches.lab_pct) && !labs.is_empty() {
-        let test_id = *labs.choose(rng).expect("non-empty");
+    if chance(rng, profile.branches.lab_pct)
+        && let Some(&test_id) = labs.choose(rng)
+    {
         let lab_id: Uuid = sqlx::query_scalar(
             "INSERT INTO lab_orders \
              (tenant_id, encounter_id, patient_id, test_id, ordered_by, \
@@ -450,8 +451,9 @@ async fn run_opd_episode(
     }
 
     // Radiology order branch
-    if chance(rng, profile.branches.rad_pct) && !modalities.is_empty() {
-        let modality_id = *modalities.choose(rng).expect("non-empty");
+    if chance(rng, profile.branches.rad_pct)
+        && let Some(&modality_id) = modalities.choose(rng)
+    {
         let rad_id: Uuid = sqlx::query_scalar(
             "INSERT INTO radiology_orders \
              (tenant_id, patient_id, encounter_id, modality_id, ordered_by, \
@@ -570,7 +572,7 @@ async fn run_er_episode(
     let doctor_id = doctors.choose(rng).map(|d| d.id);
     let arrival_time = encounter_date
         .and_hms_opt(rng.random_range(0..24) as u32, 0, 0)
-        .expect("valid time")
+        .unwrap_or_else(|| encounter_date.and_time(chrono::NaiveTime::MIN))
         .and_utc();
 
     let er_id: Uuid = sqlx::query_scalar(
@@ -815,7 +817,7 @@ fn random_timestamp_in_range(
     let second = rng.random_range(0..60);
     let naive = date
         .and_hms_opt(hour, minute, second)
-        .unwrap_or_else(|| date.and_hms_opt(start, 0, 0).expect("valid"));
+        .unwrap_or_else(|| date.and_time(chrono::NaiveTime::MIN));
     DateTime::<Utc>::from_naive_utc_and_offset(naive, Utc)
 }
 

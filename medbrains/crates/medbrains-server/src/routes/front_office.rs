@@ -766,9 +766,9 @@ pub async fn get_queue_stats(
     let rows = if let Some(dept_id) = params.department_id {
         sqlx::query_as::<_, StatsRow>(
             "SELECT department_id, \
-             COUNT(*) FILTER (WHERE queue_status = 'waiting') AS waiting_count, \
-             EXTRACT(EPOCH FROM AVG(now() - created_at) FILTER (WHERE queue_status = 'waiting')) / 60.0 AS avg_wait_minutes \
-             FROM opd_queues WHERE department_id = $1 AND DATE(created_at) = CURRENT_DATE \
+             COUNT(*) FILTER (WHERE status = 'waiting'::queue_status) AS waiting_count, \
+             (EXTRACT(EPOCH FROM AVG(now() - created_at) FILTER (WHERE status = 'waiting'::queue_status)) / 60.0)::double precision AS avg_wait_minutes \
+             FROM opd_queues WHERE department_id = $1 AND queue_date = CURRENT_DATE \
              GROUP BY department_id",
         )
         .bind(dept_id)
@@ -777,9 +777,9 @@ pub async fn get_queue_stats(
     } else {
         sqlx::query_as::<_, StatsRow>(
             "SELECT department_id, \
-             COUNT(*) FILTER (WHERE queue_status = 'waiting') AS waiting_count, \
-             EXTRACT(EPOCH FROM AVG(now() - created_at) FILTER (WHERE queue_status = 'waiting')) / 60.0 AS avg_wait_minutes \
-             FROM opd_queues WHERE DATE(created_at) = CURRENT_DATE \
+             COUNT(*) FILTER (WHERE status = 'waiting'::queue_status) AS waiting_count, \
+             (EXTRACT(EPOCH FROM AVG(now() - created_at) FILTER (WHERE status = 'waiting'::queue_status)) / 60.0)::double precision AS avg_wait_minutes \
+             FROM opd_queues WHERE queue_date = CURRENT_DATE \
              GROUP BY department_id",
         )
         .fetch_all(&mut *tx)

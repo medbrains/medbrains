@@ -196,3 +196,21 @@ variable "kms_key_arns" {
   type        = map(string)
   default     = {}
 }
+
+variable "uploads_bucket_arn" {
+  description = "ARN of the patient-uploads S3 bucket. When provided, attaches an IAM policy granting the EC2 instance role permission to generate presigned URLs on that bucket."
+  type        = string
+  default     = ""
+}
+
+variable "ssh_allowed_cidrs" {
+  description = "CIDRs allowed to reach SSH on the aws-ec2 kind. Empty = auto-detect the operator's current egress IP (never 0.0.0.0/0)."
+  type        = list(string)
+  default     = []
+}
+
+variable "alarm_email" {
+  description = "Email for CloudWatch alarm notifications (aws-ec2 kind)."
+  type        = string
+  default     = ""
+}

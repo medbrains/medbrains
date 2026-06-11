@@ -192,16 +192,29 @@ async fn lock_available_bed_for_assignment(
     Ok(bed)
 }
 
-async fn occupy_admission_bed(
-    conn: &mut sqlx::PgConnection,
+struct BedOccupancy<'a> {
     tenant_id: Uuid,
     bed_id: Uuid,
     patient_id: Uuid,
     admission_id: Uuid,
     ward_id: Option<Uuid>,
     changed_by: Uuid,
-    reason: &str,
+    reason: &'a str,
+}
+
+async fn occupy_admission_bed(
+    conn: &mut sqlx::PgConnection,
+    occupancy: BedOccupancy<'_>,
 ) -> Result<(), AppError> {
+    let BedOccupancy {
+        tenant_id,
+        bed_id,
+        patient_id,
+        admission_id,
+        ward_id,
+        changed_by,
+        reason,
+    } = occupancy;
     sqlx::query(
         "UPDATE bed_states SET \
            status = 'occupied'::bed_status, \
@@ -1362,7 +1375,7 @@ pub async fn create_admission(
     let is_dummy = body.is_dummy.unwrap_or(false) && is_bypass_role(&claims);
     let target_bed = if let Some(bed_id) = body.bed_id {
         Some(
-            lock_available_bed_for_assignment(&mut *tx, claims.tenant_id, bed_id, body.patient_id)
+            lock_available_bed_for_assignment(&mut tx, claims.tenant_id, bed_id, body.patient_id)
                 .await?,
         )
     } else {
@@ -1438,14 +1451,16 @@ pub async fn create_admission(
 
     if let Some(bid) = body.bed_id {
         occupy_admission_bed(
-            &mut *tx,
-            claims.tenant_id,
-            bid,
-            admission.patient_id,
-            admission.id,
-            effective_ward_id,
-            claims.sub,
-            "IPD admission",
+            &mut tx,
+            BedOccupancy {
+                tenant_id: claims.tenant_id,
+                bed_id: bid,
+                patient_id: admission.patient_id,
+                admission_id: admission.id,
+                ward_id: effective_ward_id,
+                changed_by: claims.sub,
+                reason: "IPD admission",
+            },
         )
         .await?;
     }
@@ -1699,7 +1714,7 @@ pub async fn transfer_bed(
     }
 
     let target_bed = lock_available_bed_for_assignment(
-        &mut *tx,
+        &mut tx,
         claims.tenant_id,
         body.bed_id,
         previous.patient_id,
@@ -1709,7 +1724,7 @@ pub async fn transfer_bed(
 
     if let Some(from_bed_id) = previous.from_bed_id {
         release_admission_bed(
-            &mut *tx,
+            &mut tx,
             claims.tenant_id,
             from_bed_id,
             id,
@@ -1736,14 +1751,16 @@ pub async fn transfer_bed(
     .ok_or_else(|| AppError::NotFound)?;
 
     occupy_admission_bed(
-        &mut *tx,
-        claims.tenant_id,
-        body.bed_id,
-        admission.patient_id,
-        admission.id,
-        target_ward_id,
-        claims.sub,
-        "IPD bed transfer",
+        &mut tx,
+        BedOccupancy {
+            tenant_id: claims.tenant_id,
+            bed_id: body.bed_id,
+            patient_id: admission.patient_id,
+            admission_id: admission.id,
+            ward_id: target_ward_id,
+            changed_by: claims.sub,
+            reason: "IPD bed transfer",
+        },
     )
     .await?;
 
@@ -1866,7 +1883,7 @@ pub async fn discharge_patient(
 
     if let Some(bed_id) = admission.bed_id {
         release_admission_bed(
-            &mut *tx,
+            &mut tx,
             claims.tenant_id,
             bed_id,
             admission.id,
@@ -6673,7 +6690,7 @@ pub async fn bed_transfer(
         ));
     }
     let target_bed = lock_available_bed_for_assignment(
-        &mut *tx,
+        &mut tx,
         claims.tenant_id,
         body.to_bed_id,
         adm.patient_id,
@@ -6705,7 +6722,7 @@ pub async fn bed_transfer(
 
     if let Some(old_bed_id) = from_bed_id {
         release_admission_bed(
-            &mut *tx,
+            &mut tx,
             claims.tenant_id,
             old_bed_id,
             admission_id,
@@ -6732,14 +6749,16 @@ pub async fn bed_transfer(
     .await?;
 
     occupy_admission_bed(
-        &mut *tx,
-        claims.tenant_id,
-        body.to_bed_id,
-        updated.patient_id,
-        updated.id,
-        target_ward_id,
-        claims.sub,
-        "IPD bed transfer",
+        &mut tx,
+        BedOccupancy {
+            tenant_id: claims.tenant_id,
+            bed_id: body.to_bed_id,
+            patient_id: updated.patient_id,
+            admission_id: updated.id,
+            ward_id: target_ward_id,
+            changed_by: claims.sub,
+            reason: "IPD bed transfer",
+        },
     )
     .await?;
 

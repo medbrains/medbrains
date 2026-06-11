@@ -360,8 +360,8 @@ async fn search_icd11_official_query(
         .map_err(|error| AppError::Internal(format!("WHO ICD-11 search JSON failed: {error}")))?;
     Ok(parse_who_icd11_search_response_bundle(
         &payload,
-        &release,
-        &provider_mode,
+        release,
+        provider_mode,
         limit,
     ))
 }

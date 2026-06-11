@@ -443,6 +443,7 @@ pub struct BridgeRegisterRequest {
 #[derive(Debug, Deserialize)]
 pub struct BridgeHeartbeatRequest {
     pub agent_id: Uuid,
+    pub agent_key: String,
     pub devices_connected: i32,
     pub devices_errored: Option<i32>,
     pub messages_processed: Option<i64>,

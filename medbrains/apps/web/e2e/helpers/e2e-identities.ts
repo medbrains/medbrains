@@ -64,6 +64,7 @@ export const E2E_ROLE_DEFINITIONS: E2ERoleDefinition[] = [
   { role: "hr_officer", label: "HR Officer" },
   { role: "camp_coordinator", label: "Camp Coordinator" },
   { role: "insurance_officer", label: "Insurance Officer" },
+  { role: "quality_officer", label: "Quality Officer" },
   { role: "ot_staff", label: "OT Staff" },
 ];
 

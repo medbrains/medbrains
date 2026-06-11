@@ -272,7 +272,7 @@ fn event_metadata_for_report(id: &str) -> ReportEventMetadata {
     let mut indicator_targets = Vec::new();
 
     for source in REPORT_EVENT_SOURCES {
-        if !source.report_targets.iter().any(|target| *target == id) {
+        if !source.report_targets.contains(&id) {
             continue;
         }
 

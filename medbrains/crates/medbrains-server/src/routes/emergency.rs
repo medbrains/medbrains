@@ -204,9 +204,8 @@ fn mlc_document_create_permission(document_type: &str) -> Result<&'static str, A
     }
 }
 
-fn trim_optional_text(value: Option<String>) -> Option<String> {
+fn trim_optional_text(value: Option<&str>) -> Option<String> {
     value
-        .as_deref()
         .map(str::trim)
         .filter(|value| !value.is_empty())
         .map(ToOwned::to_owned)
@@ -1000,15 +999,15 @@ pub async fn create_resuscitation_log(
             ));
         }
     };
-    let mut medication_name = trim_optional_text(body.medication_name);
-    let mut dose = trim_optional_text(body.dose);
-    let mut route = trim_optional_text(body.route);
-    let mut fluid_name = trim_optional_text(body.fluid_name);
+    let mut medication_name = trim_optional_text(body.medication_name.as_deref());
+    let mut dose = trim_optional_text(body.dose.as_deref());
+    let mut route = trim_optional_text(body.route.as_deref());
+    let mut fluid_name = trim_optional_text(body.fluid_name.as_deref());
     let mut fluid_volume_ml = body.fluid_volume_ml;
-    let mut procedure_name = trim_optional_text(body.procedure_name);
-    let mut procedure_notes = trim_optional_text(body.procedure_notes);
+    let mut procedure_name = trim_optional_text(body.procedure_name.as_deref());
+    let mut procedure_notes = trim_optional_text(body.procedure_notes.as_deref());
     let vitals_snapshot = body.vitals_snapshot;
-    let notes = trim_optional_text(body.notes);
+    let notes = trim_optional_text(body.notes.as_deref());
 
     if fluid_volume_ml.is_some_and(|volume| volume < 0) {
         return Err(AppError::BadRequest(

@@ -149,3 +149,53 @@ async fn test_ingest() {
     );
     assert!(body["message_id"].is_string());
 }
+
+#[tokio::test]
+async fn test_heartbeat_rejects_wrong_agent_key() {
+    let app = common::spawn_app().await;
+
+    let reg_a = app
+        .post_json(
+            &app.client,
+            "/api/bridge/register",
+            &serde_json::json!({
+                "agent_key": "key-tenant-a",
+                "name": "agent-a",
+                "capabilities": ["hl7_v2"],
+                "deployment_mode": "on_premise",
+            }),
+        )
+        .await;
+    assert_eq!(reg_a.status(), StatusCode::OK);
+    let agent_a: serde_json::Value = reg_a.json().await.expect("json");
+    let agent_a_id = agent_a["agent_id"].as_str().expect("agent_id");
+
+    // Another agent's key must not be able to update agent A's row.
+    let hijack = app
+        .post_json(
+            &app.client,
+            "/api/bridge/heartbeat",
+            &serde_json::json!({
+                "agent_id": agent_a_id,
+                "agent_key": "key-tenant-b",
+                "devices_connected": 99,
+                "buffer_depth": 0,
+            }),
+        )
+        .await;
+    assert_eq!(hijack.status(), StatusCode::UNAUTHORIZED);
+
+    let legit = app
+        .post_json(
+            &app.client,
+            "/api/bridge/heartbeat",
+            &serde_json::json!({
+                "agent_id": agent_a_id,
+                "agent_key": "key-tenant-a",
+                "devices_connected": 1,
+                "buffer_depth": 0,
+            }),
+        )
+        .await;
+    assert_eq!(legit.status(), StatusCode::OK);
+}

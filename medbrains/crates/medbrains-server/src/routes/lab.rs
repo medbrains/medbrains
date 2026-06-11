@@ -22,7 +22,7 @@ use crate::{
     error::AppError,
     middleware::{
         auth::Claims,
-        authorization::{require_any_permission, require_permission},
+        authorization::{is_bypass_role, require_any_permission, require_permission},
     },
     state::AppState,
 };
@@ -83,6 +83,57 @@ fn normalize_lab_priority(priority: Option<&str>) -> Result<&'static str, AppErr
 pub struct OrderDetailResponse {
     pub order: LabOrder,
     pub results: Vec<LabResult>,
+}
+
+const LAB_OPERATIONAL_ORDER_SCOPE_PERMISSIONS: &[&str] = &[
+    permissions::lab::results::CREATE,
+    permissions::lab::results::UPDATE,
+    permissions::lab::results::AMEND,
+    permissions::lab::phlebotomy::MANAGE,
+    permissions::lab::outsourced::MANAGE,
+    permissions::lab::samples::MANAGE,
+    permissions::lab::dispatch::MANAGE,
+    permissions::lab::specialized::CREATE,
+    permissions::lab::b2b::MANAGE,
+];
+
+fn claims_have_any_permission(claims: &Claims, permissions: &[&str]) -> bool {
+    is_bypass_role(claims)
+        || claims
+            .permissions
+            .iter()
+            .any(|granted| permissions.iter().any(|permission| granted == permission))
+}
+
+fn has_operational_lab_order_scope(claims: &Claims) -> bool {
+    claims_have_any_permission(claims, LAB_OPERATIONAL_ORDER_SCOPE_PERMISSIONS)
+}
+
+pub(crate) async fn grant_lab_order_creator_viewer(
+    state: &AppState,
+    claims: &Claims,
+    order_id: Uuid,
+    reason: &str,
+) -> Result<(), AppError> {
+    if is_bypass_role(claims) {
+        return Ok(());
+    }
+
+    let authz_ctx = crate::middleware::authorization::authz_context(claims);
+    state
+        .authz
+        .write_tuple(
+            &authz_ctx,
+            "lab_order",
+            order_id,
+            medbrains_authz::Relation::Viewer,
+            medbrains_authz::Subject::User(claims.sub),
+            None,
+            Some(reason.to_owned()),
+        )
+        .await
+        .map(|_| ())
+        .map_err(|e| AppError::Internal(format!("lab order authz grant failed: {e}")))
 }
 
 #[derive(Debug, Deserialize)]
@@ -331,17 +382,18 @@ pub async fn list_orders(
 
     // ── ReBAC scope — only lab orders caller has `view` on ────
     let authz_ctx = crate::middleware::authorization::authz_context(&claims);
-    let visible_ids: Option<Vec<Uuid>> = if authz_ctx.is_bypass {
-        None
-    } else {
-        Some(
-            state
-                .authz
-                .list_accessible(&authz_ctx, "lab_order", medbrains_authz::Relation::Viewer)
-                .await
-                .unwrap_or_default(),
-        )
-    };
+    let visible_ids: Option<Vec<Uuid>> =
+        if authz_ctx.is_bypass || has_operational_lab_order_scope(&claims) {
+            None
+        } else {
+            Some(
+                state
+                    .authz
+                    .list_accessible(&authz_ctx, "lab_order", medbrains_authz::Relation::Viewer)
+                    .await
+                    .unwrap_or_default(),
+            )
+        };
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -461,6 +513,7 @@ pub async fn create_order(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let order = create_order_in_tx(&mut tx, &claims, &body).await?;
     tx.commit().await?;
+    grant_lab_order_creator_viewer(&state, &claims, order.id, "lab_order_created").await?;
     Ok(Json(order))
 }
 
@@ -509,8 +562,7 @@ pub(crate) async fn create_order_in_tx_with_options(
         ));
     }
 
-    let is_dummy =
-        body.is_dummy.unwrap_or(false) && crate::middleware::authorization::is_bypass_role(claims);
+    let is_dummy = body.is_dummy.unwrap_or(false) && is_bypass_role(claims);
 
     let order = sqlx::query_as::<_, LabOrder>(
         "INSERT INTO lab_orders \
@@ -633,18 +685,20 @@ pub async fn get_order(
 
     // ── ReBAC pre-check — must hold `view` on the lab_order ───
     let authz_ctx = crate::middleware::authorization::authz_context(&claims);
-    let allowed = state
-        .authz
-        .check(
-            &authz_ctx,
-            medbrains_authz::Relation::Viewer,
-            "lab_order",
-            id,
-        )
-        .await
-        .unwrap_or(false);
-    if !allowed {
-        return Err(AppError::NotFound);
+    if !has_operational_lab_order_scope(&claims) {
+        let allowed = state
+            .authz
+            .check(
+                &authz_ctx,
+                medbrains_authz::Relation::Viewer,
+                "lab_order",
+                id,
+            )
+            .await
+            .unwrap_or(false);
+        if !allowed {
+            return Err(AppError::NotFound);
+        }
     }
 
     let mut tx = state.db.begin().await?;
@@ -2353,6 +2407,7 @@ pub async fn add_on_test(
     .await?;
 
     tx.commit().await?;
+    grant_lab_order_creator_viewer(&state, &claims, order.id, "lab_add_on_order_created").await?;
     Ok(Json(order))
 }
 

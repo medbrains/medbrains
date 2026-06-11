@@ -32,9 +32,14 @@ APPLY_CONFIRMATION ?= deploy-$(TF_VAR_domain)
 # x86_64-unknown-linux-gnu if you switched to a t3.* instance.
 STARTER_TARGET ?= aarch64-unknown-linux-gnu
 
-.PHONY: help check check-db-reset-guard check-destroy-guard init plan apply destroy outputs tail-app rebuild \
+.PHONY: help check check-db-reset-guard check-destroy-guard init init-state-backend plan apply destroy outputs tail-app rebuild \
         build build-starter build-image build-image-local kubeconfig \
         helm-render helm-test pre-apply-backup
+
+# Remote terraform state: S3 (versioned + encrypted) with a DynamoDB
+# lock table. Created idempotently on first `make init`.
+TFSTATE_KEY        := standalone/alagappa/terraform.tfstate
+TFSTATE_LOCK_TABLE := medbrains-tfstate-lock
 
 help:
 	@echo "MedBrains standalone deploy targets (tier=$(TIER)):"
@@ -132,8 +137,39 @@ build-image-local:
 
 # ── terraform ──────────────────────────────────────────────────────────
 
-init:
-	terraform init
+init-state-backend:
+	@ACCOUNT=$$(aws sts get-caller-identity --query Account --output text) && \
+	BUCKET=medbrains-tfstate-$$ACCOUNT && \
+	if ! aws s3api head-bucket --bucket $$BUCKET 2>/dev/null; then \
+	    echo "==> creating terraform state bucket s3://$$BUCKET"; \
+	    aws s3api create-bucket --bucket $$BUCKET --region $(AWS_REGION) \
+	        --create-bucket-configuration LocationConstraint=$(AWS_REGION); \
+	    aws s3api put-bucket-versioning --bucket $$BUCKET \
+	        --versioning-configuration Status=Enabled; \
+	    aws s3api put-bucket-encryption --bucket $$BUCKET \
+	        --server-side-encryption-configuration '{"Rules":[{"ApplyServerSideEncryptionByDefault":{"SSEAlgorithm":"AES256"}}]}'; \
+	    aws s3api put-public-access-block --bucket $$BUCKET \
+	        --public-access-block-configuration BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true; \
+	fi && \
+	if ! aws dynamodb describe-table --table-name $(TFSTATE_LOCK_TABLE) >/dev/null 2>&1; then \
+	    echo "==> creating terraform lock table $(TFSTATE_LOCK_TABLE)"; \
+	    aws dynamodb create-table --table-name $(TFSTATE_LOCK_TABLE) \
+	        --attribute-definitions AttributeName=LockID,AttributeType=S \
+	        --key-schema AttributeName=LockID,KeyType=HASH \
+	        --billing-mode PAY_PER_REQUEST >/dev/null; \
+	    aws dynamodb wait table-exists --table-name $(TFSTATE_LOCK_TABLE); \
+	fi
+
+# -force-copy migrates any existing local terraform.tfstate into S3
+# on the first init after the backend switch; later runs are no-ops.
+init: init-state-backend
+	@ACCOUNT=$$(aws sts get-caller-identity --query Account --output text) && \
+	terraform init -force-copy \
+	    -backend-config="bucket=medbrains-tfstate-$$ACCOUNT" \
+	    -backend-config="key=$(TFSTATE_KEY)" \
+	    -backend-config="region=$(AWS_REGION)" \
+	    -backend-config="dynamodb_table=$(TFSTATE_LOCK_TABLE)" \
+	    -backend-config="encrypt=true"
 
 plan: check init
 	terraform plan -out=$(PLAN_FILE)

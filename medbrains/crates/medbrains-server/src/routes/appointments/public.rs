@@ -254,28 +254,48 @@ async fn find_or_create_patient(
     tenant_id: Uuid,
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
 ) -> Result<Uuid, AppError> {
-    let existing =
-        sqlx::query_scalar::<_, Uuid>("SELECT id FROM patients WHERE phone_primary = $1 LIMIT 1")
-            .bind(&body.patient_phone)
-            .fetch_optional(&mut **tx)
-            .await?;
+    let existing = sqlx::query_scalar::<_, Uuid>(
+        "SELECT id FROM patients WHERE tenant_id = $1 AND phone = $2 LIMIT 1",
+    )
+    .bind(tenant_id)
+    .bind(&body.patient_phone)
+    .fetch_optional(&mut **tx)
+    .await?;
 
     if let Some(patient_id) = existing {
         return Ok(patient_id);
     }
 
+    let uhid = crate::routes::patients::generate_uhid(tx, &tenant_id).await?;
+
+    let (first_name, last_name) = split_public_patient_name(&body.patient_name);
+
     sqlx::query_scalar::<_, Uuid>(
-        "INSERT INTO patients (tenant_id, first_name, phone_primary, date_of_birth) \
-         VALUES ($1, $2, $3, $4) \
+        "INSERT INTO patients (tenant_id, uhid, first_name, last_name, gender, phone, date_of_birth) \
+         VALUES ($1, $2, $3, $4, 'unknown'::gender, $5, $6) \
          RETURNING id",
     )
     .bind(tenant_id)
-    .bind(&body.patient_name)
+    .bind(&uhid)
+    .bind(&first_name)
+    .bind(&last_name)
     .bind(&body.patient_phone)
     .bind(body.patient_dob)
     .fetch_one(&mut **tx)
     .await
     .map_err(Into::into)
+}
+
+fn split_public_patient_name(name: &str) -> (String, String) {
+    let mut parts = name.split_whitespace();
+    let first_name = parts.next().unwrap_or("Public").to_owned();
+    let last_name = parts.collect::<Vec<_>>().join(" ");
+    let last_name = if last_name.is_empty() {
+        "Patient".to_owned()
+    } else {
+        last_name
+    };
+    (first_name, last_name)
 }
 
 async fn ensure_public_slot_capacity(

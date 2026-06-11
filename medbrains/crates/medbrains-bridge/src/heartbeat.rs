@@ -45,6 +45,7 @@ pub async fn heartbeat_loop(client: &reqwest::Client, cfg: &BridgeConfig, agent_
 
         let body = serde_json::json!({
             "agent_id": agent_id,
+            "agent_key": cfg.agent_key,
             "devices_connected": 1,
             "buffer_depth": 0,
         });

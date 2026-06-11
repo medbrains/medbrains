@@ -1551,6 +1551,7 @@ pub async fn create_consultation(
     .fetch_one(&mut *tx)
     .await?;
 
+    let mut created_lab_order_ids = Vec::with_capacity(body.lab_orders.len());
     for lab in &body.lab_orders {
         let req = super::lab::CreateOrderRequest {
             encounter_id,
@@ -1560,7 +1561,8 @@ pub async fn create_consultation(
             notes: lab.notes.clone(),
             is_dummy: None,
         };
-        super::lab::create_order_in_tx(&mut tx, &claims, &req).await?;
+        let lab_order = super::lab::create_order_in_tx(&mut tx, &claims, &req).await?;
+        created_lab_order_ids.push(lab_order.id);
     }
 
     for rad in &body.radiology_orders {
@@ -1582,6 +1584,16 @@ pub async fn create_consultation(
     }
 
     tx.commit().await?;
+
+    for lab_order_id in created_lab_order_ids {
+        super::lab::grant_lab_order_creator_viewer(
+            &state,
+            &claims,
+            lab_order_id,
+            "opd_consultation_lab_order_created",
+        )
+        .await?;
+    }
 
     tracing::info!(
         encounter_id = %encounter_id,
@@ -2868,13 +2880,10 @@ pub async fn void_certificate(
     .fetch_optional(&mut *tx)
     .await?;
 
-    let row = match row {
-        Some(row) => row,
-        None => {
-            return Err(AppError::BadRequest(
-                "certificate is already voided or was not found".to_owned(),
-            ));
-        }
+    let Some(row) = row else {
+        return Err(AppError::BadRequest(
+            "certificate is already voided or was not found".to_owned(),
+        ));
     };
 
     let audit_values = serde_json::json!({
@@ -4352,13 +4361,10 @@ pub async fn revoke_consent(
     .fetch_optional(&mut *tx)
     .await?;
 
-    let row = match row {
-        Some(row) => row,
-        None => {
-            return Err(AppError::BadRequest(
-                "consent is not revocable or was not found".to_owned(),
-            ));
-        }
+    let Some(row) = row else {
+        return Err(AppError::BadRequest(
+            "consent is not revocable or was not found".to_owned(),
+        ));
     };
 
     let audit_values = serde_json::json!({

@@ -1178,6 +1178,11 @@ pub mod mrd {
     pub mod storage {
         pub const MANAGE: &str = "mrd.storage.manage";
     }
+
+    pub mod forms {
+        pub const VIEW: &str = "mrd.forms.view";
+        pub const MANAGE: &str = "mrd.forms.manage";
+    }
 }
 
 pub mod facilities {

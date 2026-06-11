@@ -120,6 +120,7 @@ pub mod specialty_psychiatry;
 pub mod storage;
 pub mod terminology;
 pub mod tv;
+pub mod upload;
 pub mod utilization_review;
 pub mod ws;
 
@@ -3984,6 +3985,22 @@ pub fn build_router(state: AppState) -> Router {
             "/api/mrd/stats/admission-discharge",
             get(mrd::stats_admission_discharge),
         )
+        .route(
+            "/api/mrd/form-records",
+            get(mrd::list_form_records),
+        )
+        .route(
+            "/api/mrd/form-records/{id}/complete",
+            post(mrd::complete_form_record),
+        )
+        .route(
+            "/api/mrd/form-records/{id}/verify",
+            post(mrd::verify_form_record),
+        )
+        .route(
+            "/api/mrd/form-records/{id}/attach-document",
+            post(mrd::attach_form_document),
+        )
         // ── Consent Management ───────────────────────────────
         .route(
             "/api/consent/templates",
@@ -6755,6 +6772,9 @@ pub fn build_router(state: AppState) -> Router {
             "/api/admin/storage/sweep-now",
             post(storage::trigger_sweep),
         )
+        // S3 presigned upload / download URL endpoints
+        .route("/api/upload/presign", post(upload::presign_upload))
+        .route("/api/upload/download-url", get(upload::presign_download))
         // Sprint A.6 — system_state middleware short-circuits non-GET when
         // tenant is in read_only/degraded mode. Innermost so claims + path
         // are populated and 503 response carries no audit weight.

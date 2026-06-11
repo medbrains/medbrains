@@ -202,7 +202,7 @@ describe("/api endpoints", () => {
     await api.listVisitors();
     expect(mockFetch).toHaveBeenCalledTimes(1);
     const [url, opts] = mockFetch.mock.calls[0];
-    expect(url.split("?")[0]).toBe("/api/api/front-office/visitors");
+    expect(url.split("?")[0]).toBe("/api/front-office/visitors");
   });
 
   it("listVisitorPasses → GET /api/front-office/passes", async () => {
@@ -210,7 +210,7 @@ describe("/api endpoints", () => {
     await api.listVisitorPasses();
     expect(mockFetch).toHaveBeenCalledTimes(1);
     const [url, opts] = mockFetch.mock.calls[0];
-    expect(url.split("?")[0]).toBe("/api/api/front-office/passes");
+    expect(url.split("?")[0]).toBe("/api/front-office/passes");
   });
 
   it("listVisitorLogs → GET /api/front-office/visitor-logs", async () => {
@@ -218,7 +218,7 @@ describe("/api endpoints", () => {
     await api.listVisitorLogs();
     expect(mockFetch).toHaveBeenCalledTimes(1);
     const [url, opts] = mockFetch.mock.calls[0];
-    expect(url.split("?")[0]).toBe("/api/api/front-office/visitor-logs");
+    expect(url.split("?")[0]).toBe("/api/front-office/visitor-logs");
   });
 
   it("listEnquiries → GET /api/front-office/enquiries", async () => {
@@ -226,7 +226,7 @@ describe("/api endpoints", () => {
     await api.listEnquiries();
     expect(mockFetch).toHaveBeenCalledTimes(1);
     const [url, opts] = mockFetch.mock.calls[0];
-    expect(url.split("?")[0]).toBe("/api/api/front-office/enquiries");
+    expect(url.split("?")[0]).toBe("/api/front-office/enquiries");
   });
 
   it("getQueueStats → GET /api/front-office/queue-stats", async () => {
@@ -234,7 +234,7 @@ describe("/api endpoints", () => {
     await api.getQueueStats();
     expect(mockFetch).toHaveBeenCalledTimes(1);
     const [url, opts] = mockFetch.mock.calls[0];
-    expect(url.split("?")[0]).toBe("/api/api/front-office/queue-stats");
+    expect(url.split("?")[0]).toBe("/api/front-office/queue-stats");
   });
 
   it("listBmeVendorEvaluations → GET /api/bme/vendor-evaluations", async () => {
@@ -242,7 +242,7 @@ describe("/api endpoints", () => {
     await api.listBmeVendorEvaluations();
     expect(mockFetch).toHaveBeenCalledTimes(1);
     const [url, opts] = mockFetch.mock.calls[0];
-    expect(url.split("?")[0]).toBe("/api/api/bme/vendor-evaluations");
+    expect(url.split("?")[0]).toBe("/api/bme/vendor-evaluations");
   });
 
   it("listFmsFireInspections → GET /api/facilities/fire-inspections", async () => {
@@ -250,7 +250,7 @@ describe("/api endpoints", () => {
     await api.listFmsFireInspections();
     expect(mockFetch).toHaveBeenCalledTimes(1);
     const [url, opts] = mockFetch.mock.calls[0];
-    expect(url.split("?")[0]).toBe("/api/api/facilities/fire-inspections");
+    expect(url.split("?")[0]).toBe("/api/facilities/fire-inspections");
   });
 });
 
@@ -6081,13 +6081,13 @@ describe("/ipd endpoints", () => {
     expect(opts.method).toBe("POST");
   });
 
-  it("bedTransfer → PUT /ipd/admissions/{param_1}/transfer", async () => {
+  it("bedTransfer → POST /ipd/admissions/{param_1}/transfer", async () => {
     mockOk({});
     await api.bedTransfer(UUID, { test: "data" });
     expect(mockFetch).toHaveBeenCalledTimes(1);
     const [url, opts] = mockFetch.mock.calls[0];
     expect(url).toContain("/api/ipd/admissions");
-    expect(opts.method).toBe("PUT");
+    expect(opts.method).toBe("POST");
     expect(opts.body).toBeDefined();
     expect(() => JSON.parse(opts.body)).not.toThrow();
   });

@@ -53,6 +53,8 @@ schemars = { workspace = true }
 mlua = { workspace = true }
 anyhow = { workspace = true }
 medbrains-authz = { version = "0.1.0", path = "../medbrains-authz" }
+aws-sdk-s3 = { version = "1", default-features = false, features = ["rt-tokio"] }
+aws-config = { version = "1", default-features = false, features = ["rt-tokio"] }
 
 [dev-dependencies]
 reqwest = { version = "0.12", features = ["json", "cookies", "rustls-tls-native-roots"], default-features = false }

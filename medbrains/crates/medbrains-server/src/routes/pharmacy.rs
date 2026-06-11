@@ -4816,10 +4816,7 @@ pub async fn list_rx_queue(
          JOIN users u ON u.id = pr.doctor_id"
         .to_owned();
 
-    if params.rx_queue_id.is_none() {
-        conditions.push(format!("pr.status::text = ${bind_idx}"));
-        bind_idx += 1;
-    } else if params.status.is_some() {
+    if params.rx_queue_id.is_none() || params.status.is_some() {
         conditions.push(format!("pr.status::text = ${bind_idx}"));
         bind_idx += 1;
     }

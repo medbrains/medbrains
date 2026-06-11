@@ -54,6 +54,7 @@ import {
   IconArrowRight,
   IconBabyCarriage,
   IconChartBar,
+  IconClipboardCheck,
   IconClipboardList,
   IconFileCertificate,
   IconMapPin,
@@ -535,6 +536,7 @@ const FILING_METHOD_OPTIONS = [
 const MRD_TAB_VALUES = [
   "records",
   "case-sheets",
+  "forms",
   "storage",
   "births",
   "deaths",
@@ -548,6 +550,7 @@ const MRD_PAGE_PERMISSIONS = [
   P.MRD.CASE_SHEETS_VIEW,
   P.MRD.BIRTHS_LIST,
   P.MRD.DEATHS_LIST,
+  P.MRD.FORMS_VIEW,
 ] as const;
 
 // ══════════════════════════════════════════════════════════
@@ -569,18 +572,22 @@ function MrdPageInner() {
   const canViewCaseSheets = useHasPermission(P.MRD.CASE_SHEETS_VIEW);
   const canViewBirths = useHasPermission(P.MRD.BIRTHS_LIST);
   const canViewDeaths = useHasPermission(P.MRD.DEATHS_LIST);
+  const canViewForms = useHasPermission(P.MRD.FORMS_VIEW);
   const defaultTab = canViewRecords
     ? "records"
     : canViewCaseSheets
       ? "case-sheets"
-      : canViewBirths
-        ? "births"
-        : canViewDeaths
-          ? "deaths"
-          : "retention";
+      : canViewForms
+        ? "forms"
+        : canViewBirths
+          ? "births"
+          : canViewDeaths
+            ? "deaths"
+            : "retention";
   const accessibleTabs = new Set<string>([
     ...(canViewRecords ? ["records", "storage", "stats"] : []),
     ...(canViewCaseSheets ? ["case-sheets"] : []),
+    ...(canViewForms ? ["forms"] : []),
     ...(canViewBirths ? ["births"] : []),
     ...(canViewDeaths ? ["deaths"] : []),
     ...(canManageRecords ? ["retention"] : []),
@@ -604,6 +611,11 @@ function MrdPageInner() {
           {canViewCaseSheets && (
             <Tabs.Tab value="case-sheets" leftSection={<IconClipboardList size={16} />}>
               Case Sheets
+            </Tabs.Tab>
+          )}
+          {canViewForms && (
+            <Tabs.Tab value="forms" leftSection={<IconClipboardCheck size={16} />}>
+              Form Records
             </Tabs.Tab>
           )}
           {canViewRecords && (

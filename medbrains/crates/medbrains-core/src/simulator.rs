@@ -91,17 +91,12 @@ pub struct Profile {
     pub approval_mode: ApprovalMode,
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum ApprovalMode {
+    #[default]
     Auto,
     Manual,
-}
-
-impl Default for ApprovalMode {
-    fn default() -> Self {
-        Self::Auto
-    }
 }
 
 impl Default for Profile {

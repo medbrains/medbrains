@@ -16,7 +16,14 @@ variable "kms_key_arns" {
 }
 variable "account_id" {
   type        = string
-  description = "AWS account ID for bucket policy principals"
+  description = "AWS account ID for bucket policy principals. Defaults to current caller identity."
+  default     = ""
+}
+
+variable "uploads_cors_origins" {
+  type        = list(string)
+  description = "Allowed origins for S3 CORS on the uploads bucket (e.g. https://medbrains.example.com)"
+  default     = ["https://medbrains.localhost", "https://localhost:5173"]
 }
 
 # 1. Audit archive — Object Lock compliance, 7-year retention
@@ -131,6 +138,26 @@ resource "aws_s3_bucket_public_access_block" "uploads" {
   block_public_policy     = true
   ignore_public_acls      = true
   restrict_public_buckets = true
+}
+
+# CORS — allows the hospital frontend to PUT objects directly via presigned URLs
+resource "aws_s3_bucket_cors_configuration" "uploads" {
+  bucket = aws_s3_bucket.uploads.id
+
+  cors_rule {
+    allowed_headers = ["Content-Type", "Content-MD5", "x-amz-server-side-encryption"]
+    allowed_methods = ["PUT"]
+    allowed_origins = var.uploads_cors_origins
+    expose_headers  = ["ETag"]
+    max_age_seconds = 3600
+  }
+
+  cors_rule {
+    allowed_headers = ["*"]
+    allowed_methods = ["GET"]
+    allowed_origins = var.uploads_cors_origins
+    max_age_seconds = 86400
+  }
 }
 
 # Outputs

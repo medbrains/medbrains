@@ -15,6 +15,12 @@ import type { ApiCallOptions, AuthContext } from "./types";
 export const E2E_BACKEND_URL =
   process.env.E2E_BACKEND_URL ?? "http://127.0.0.1:3000";
 
+type ApiMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+type ApiResult<T> = { ok: true; data: T } | { ok: false; status: number; bodyText: string };
+interface PublicApiOptions {
+  expectStatus?: number | number[];
+}
+
 /** Login as admin and capture auth context (CSRF + user metadata). */
 export async function loginAsAdmin(
   request: APIRequestContext,
@@ -24,6 +30,26 @@ export async function loginAsAdmin(
     data: { username: admin.username, password: admin.password },
   });
   expect(resp.status(), `login expected 200, got ${resp.status()}`).toBe(200);
+  const body = await resp.json();
+  return {
+    csrfToken: body.csrf_token ?? "",
+    cookieHeader: cookieHeaderFromResponse(resp),
+    request,
+    userId: body.user?.id ?? "",
+    tenantId: body.user?.tenant_id ?? "",
+  };
+}
+
+/** Login as a concrete E2E role and capture an isolated auth context. */
+export async function loginAsRoleApi(
+  request: APIRequestContext,
+  role: string,
+): Promise<AuthContext> {
+  const identity = getE2EIdentity(role);
+  const resp = await request.post(`${E2E_BACKEND_URL}/api/auth/login`, {
+    data: { username: identity.username, password: identity.password },
+  });
+  expect(resp.status(), `${role} login expected 200, got ${resp.status()}`).toBe(200);
   const body = await resp.json();
   return {
     csrfToken: body.csrf_token ?? "",
@@ -48,18 +74,19 @@ export async function getAuthContextFromCookies(
   const state = await request.storageState();
   const csrf = state.cookies.find((c) => c.name === "csrf_token")?.value ?? "";
   if (!csrf) return loginAsAdmin(request);
-  const ctx = {
-    csrfToken: csrf,
-    cookieHeader: cookieHeaderFromStorageState(state.cookies),
-    request,
-    userId: "",
-    tenantId: "",
-  };
+  const cookieHeader = cookieHeaderFromStorageState(state.cookies);
   const me = await request.get(`${E2E_BACKEND_URL}/api/auth/me`, {
-    headers: { "x-csrf-token": csrf },
+    headers: { "x-csrf-token": csrf, cookie: cookieHeader },
   });
-  if (me.ok()) return ctx;
-  return loginAsAdmin(request);
+  if (!me.ok()) return loginAsAdmin(request);
+  const body = await me.json().catch(() => ({}));
+  return {
+    csrfToken: csrf,
+    cookieHeader,
+    request,
+    userId: body.user?.id ?? body.id ?? "",
+    tenantId: body.user?.tenant_id ?? body.tenant_id ?? "",
+  };
 }
 
 function statusOk(status: number, expected?: number | number[]): boolean {
@@ -74,7 +101,7 @@ function statusOk(status: number, expected?: number | number[]): boolean {
  */
 export async function api<T = unknown>(
   ctx: AuthContext,
-  method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE",
+  method: ApiMethod,
   path: string,
   body?: unknown,
   options: ApiCallOptions = {},
@@ -103,13 +130,56 @@ export async function api<T = unknown>(
   );
 }
 
+/** Make an unauthenticated public API call. */
+export async function publicApi<T = unknown>(
+  request: APIRequestContext,
+  method: ApiMethod,
+  path: string,
+  body?: unknown,
+  options: PublicApiOptions = {},
+): Promise<T> {
+  const headers: Record<string, string> = {};
+  if (body !== undefined) headers["content-type"] = "application/json";
+
+  const resp = await request.fetch(`${E2E_BACKEND_URL}${path}`, {
+    method,
+    headers,
+    data: body !== undefined ? JSON.stringify(body) : undefined,
+  });
+
+  if (!statusOk(resp.status(), options.expectStatus)) {
+    throw new Error(
+      `${method} ${path} → ${resp.status()}\nbody: ${await resp.text()}`,
+    );
+  }
+  if (resp.status() === 204) return undefined as T;
+  const text = await resp.text();
+  if (!text) return undefined as T;
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    return text as unknown as T;
+  }
+}
+
+/** Alias for unauthenticated machine-to-machine integration endpoints. */
+export async function externalApi<T = unknown>(
+  request: APIRequestContext,
+  method: ApiMethod,
+  path: string,
+  body?: unknown,
+  options: PublicApiOptions = {},
+): Promise<T> {
+  return publicApi<T>(request, method, path, body, options);
+}
+
 async function tryApi<T>(
   ctx: AuthContext,
   method: string,
   path: string,
   body: unknown,
   options: ApiCallOptions,
-): Promise<{ ok: true; data: T } | { ok: false; status: number; bodyText: string }> {
+): Promise<ApiResult<T>> {
   const headers: Record<string, string> = {};
   if (ctx.cookieHeader) headers.cookie = ctx.cookieHeader;
   if (!options.skipCsrf) headers["x-csrf-token"] = ctx.csrfToken;

@@ -249,6 +249,12 @@ export function PatientJourneyActions({
   );
   const readinessSummary = summarizeClinicalJourneyActions(actions);
 
+  // In inline layout (directory tables), hide disabled actions to keep rows compact.
+  // Rail layout always shows all resolved actions with their state.
+  const visibleActions = layout === "inline" && !showUnavailable
+    ? actions.filter((a) => a.enabled)
+    : actions;
+
   function handleAction(actionId: ClinicalJourneyActionId) {
     if (actionId === "patient.edit" && onEdit) {
       onEdit();
@@ -317,9 +323,17 @@ export function PatientJourneyActions({
     );
   }
 
+  if (visibleActions.length === 0 && emptyLabel !== undefined) {
+    return (
+      <Text size="xs" c="dimmed">
+        {emptyLabel}
+      </Text>
+    );
+  }
+
   return (
-    <Group gap="xs" wrap="wrap">
-      {actions.map((action) => (
+    <Group gap={6} wrap="wrap" style={{ maxWidth: 320 }}>
+      {visibleActions.map((action) => (
         <PatientJourneyActionButton
           key={action.id}
           action={action}

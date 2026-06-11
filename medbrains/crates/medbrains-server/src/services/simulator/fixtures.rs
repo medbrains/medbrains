@@ -71,7 +71,7 @@ pub const RX_DRUGS: &[(&str, &str, &str, &str)] = &[
 ];
 
 pub fn random_diagnosis(rng: &mut StdRng) -> (&'static str, &'static str) {
-    *ICD10_OPD.choose(rng).expect("non-empty pool")
+    ICD10_OPD.choose(rng).copied().unwrap_or(ICD10_OPD[0])
 }
 
 /// Weighted diagnosis pick — favours ICDs that match the current season,

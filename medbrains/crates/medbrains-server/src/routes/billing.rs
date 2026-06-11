@@ -1362,6 +1362,21 @@ pub async fn create_invoice(
 
     tx.commit().await?;
 
+    // Grant the creating user viewer access to this invoice in SpiceDB
+    let authz_ctx = authz_context(&claims);
+    let _ = state
+        .authz
+        .write_tuple(
+            &authz_ctx,
+            "invoice",
+            invoice.id,
+            medbrains_authz::Relation::Viewer,
+            medbrains_authz::Subject::User(claims.sub),
+            None,
+            Some("invoice creator".to_owned()),
+        )
+        .await;
+
     let _ = crate::orchestration::lifecycle::emit_after_event(
         &state.db,
         claims.tenant_id,
@@ -4268,10 +4283,10 @@ pub async fn create_interim_invoice(
     .await?;
 
     let seq_num = last.as_ref().and_then(|l| l.sequence_number).unwrap_or(0) + 1;
-    let period_start = last.and_then(|l| l.billing_period_end).unwrap_or_else(|| {
-        // Use encounter creation time as the first period start.
-        encounter.created_at
-    });
+    // Falls back to encounter creation time as the first period start.
+    let period_start = last
+        .and_then(|l| l.billing_period_end)
+        .unwrap_or(encounter.created_at);
     let period_end = chrono::Utc::now();
 
     let inv_number = generate_invoice_number(&mut tx, &claims.tenant_id).await?;
@@ -8258,7 +8273,7 @@ pub async fn er_fast_invoice(
          END",
     )
     .bind(claims.tenant_id)
-    .bind(&["REG_EMERGENCY", "CON_EMERGENCY"])
+    .bind(["REG_EMERGENCY", "CON_EMERGENCY"])
     .fetch_all(&mut *tx)
     .await?;
     if charge_rows.is_empty() {

@@ -72,6 +72,7 @@ export default defineConfig(async () => {
   }
 
   return {
+    cacheDir: process.env.VITE_CACHE_DIR ?? path.resolve(__dirname, "node_modules/.vite"),
     plugins,
     resolve: {
       dedupe: ["react", "react-dom", "react-hook-form"],

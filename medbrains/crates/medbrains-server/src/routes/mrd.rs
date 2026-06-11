@@ -7,8 +7,8 @@ use axum::{
 use chrono::{NaiveDate, NaiveTime, Utc};
 use medbrains_core::clinical_events::{ClinicalEventEnvelope, ClinicalEventName};
 use medbrains_core::mrd::{
-    MrdBirthRegister, MrdCaseSheetPacket, MrdCaseSheetPage, MrdDeathRegister, MrdMedicalRecord,
-    MrdRecordMovement, MrdRetentionPolicy, MrdStorageLocation,
+    MrdBirthRegister, MrdCaseSheetPacket, MrdCaseSheetPage, MrdDeathRegister, MrdFormRecord,
+    MrdMedicalRecord, MrdRecordMovement, MrdRetentionPolicy, MrdStorageLocation,
 };
 use medbrains_core::permissions;
 use serde::{Deserialize, Serialize};
@@ -2519,4 +2519,136 @@ pub async fn stats_admission_discharge(
         total_deaths,
         overall_avg_los_days,
     }))
+}
+
+// ══════════════════════════════════════════════════════════
+//  Form Records
+// ══════════════════════════════════════════════════════════
+
+#[derive(Debug, Deserialize)]
+pub struct ListFormRecordsQuery {
+    pub admission_id: Option<Uuid>,
+    pub form_type: Option<String>,
+}
+
+pub async fn list_form_records(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Query(params): Query<ListFormRecordsQuery>,
+) -> Result<Json<Vec<MrdFormRecord>>, AppError> {
+    require_permission(&claims, permissions::mrd::forms::VIEW)?;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let rows = sqlx::query_as::<_, MrdFormRecord>(
+        "SELECT f.*,
+                uc.full_name AS completed_by_name,
+                uv.full_name AS verified_by_name
+         FROM mrd_form_records f
+         LEFT JOIN users uc ON uc.id = f.completed_by
+         LEFT JOIN users uv ON uv.id = f.verified_by
+         WHERE ($1::uuid IS NULL OR f.admission_id = $1)
+           AND ($2::text  IS NULL OR f.form_type   = $2)
+         ORDER BY f.form_date DESC, f.form_type",
+    )
+    .bind(params.admission_id)
+    .bind(params.form_type)
+    .fetch_all(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+    Ok(Json(rows))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CompleteFormRecordBody {
+    pub notes: Option<String>,
+}
+
+pub async fn complete_form_record(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+    Json(_body): Json<CompleteFormRecordBody>,
+) -> Result<Json<MrdFormRecord>, AppError> {
+    require_permission(&claims, permissions::mrd::forms::MANAGE)?;
+    let user_id = claims.sub;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let row = sqlx::query_as::<_, MrdFormRecord>(
+        "UPDATE mrd_form_records
+            SET completed_by = $2, completed_at = NOW()
+          WHERE id = $1
+          RETURNING *, NULL::text AS completed_by_name, NULL::text AS verified_by_name",
+    )
+    .bind(id)
+    .bind(user_id)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+    Ok(Json(row))
+}
+
+pub async fn verify_form_record(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<MrdFormRecord>, AppError> {
+    require_permission(&claims, permissions::mrd::forms::MANAGE)?;
+    let user_id = claims.sub;
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let row = sqlx::query_as::<_, MrdFormRecord>(
+        "UPDATE mrd_form_records
+            SET verified_by = $2, verified_at = NOW()
+          WHERE id = $1
+          RETURNING *, NULL::text AS completed_by_name, NULL::text AS verified_by_name",
+    )
+    .bind(id)
+    .bind(user_id)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+    Ok(Json(row))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct AttachDocumentBody {
+    pub s3_key: String,
+}
+
+pub async fn attach_form_document(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<AttachDocumentBody>,
+) -> Result<Json<MrdFormRecord>, AppError> {
+    require_permission(&claims, permissions::mrd::forms::MANAGE)?;
+    // Enforce tenant isolation: key must start with tenant prefix
+    let prefix = format!("{}/", claims.tenant_id);
+    if !body.s3_key.starts_with(&prefix) {
+        return Err(AppError::BadRequest(
+            "s3_key must belong to your tenant".to_string(),
+        ));
+    }
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let row = sqlx::query_as::<_, MrdFormRecord>(
+        "UPDATE mrd_form_records
+            SET pdf_url = $2
+          WHERE id = $1
+          RETURNING *, NULL::text AS completed_by_name, NULL::text AS verified_by_name",
+    )
+    .bind(id)
+    .bind(&body.s3_key)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+    Ok(Json(row))
 }

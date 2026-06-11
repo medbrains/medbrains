@@ -455,7 +455,13 @@ function PatientsPageInner() {
       requiredPermissions: [P.PATIENTS.VIEW],
       render: (row: Patient) => (
         <Tooltip label={t("label.fullProfile")}>
-          <ActionIcon variant="subtle" color="teal" onClick={() => navigate(`/patients/${row.id}`)}>
+          <ActionIcon
+            variant="subtle"
+            color="teal"
+            size={44}
+            aria-label={t("label.fullProfile")}
+            onClick={() => navigate(`/patients/${row.id}`)}
+          >
             <IconUsers size={16} />
           </ActionIcon>
         </Tooltip>
@@ -985,7 +991,8 @@ function PatientRegisterPageInner() {
                 <Table.Td>
                   <ActionIcon
                     variant="light"
-                    size="sm"
+                    size={44}
+                    aria-label={t("aria.viewDetails")}
                     onClick={() => {
                       dupModalHandlers.close();
                       navigate(`/patients/${m.id}`);

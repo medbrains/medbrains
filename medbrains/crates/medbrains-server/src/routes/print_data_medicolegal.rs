@@ -40,16 +40,28 @@ const MLC_POLICE_INTIMATION_PRINT_CONTEXT_PERMISSIONS: &[&str] = &[
     permissions::emergency::mlc_police_intimations::REPRINT,
 ];
 
-async fn record_mlc_print_output(
-    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
-    claims: &Claims,
+struct MlcPrintOutput<'a> {
     source_id: Uuid,
     patient_id: Uuid,
     admission_id: Option<Uuid>,
     document_type: &'static str,
     title: &'static str,
-    reprint_reason: Option<&str>,
+    reprint_reason: Option<&'a str>,
+}
+
+async fn record_mlc_print_output(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    claims: &Claims,
+    output: MlcPrintOutput<'_>,
 ) -> Result<(), AppError> {
+    let MlcPrintOutput {
+        source_id,
+        patient_id,
+        admission_id,
+        document_type,
+        title,
+        reprint_reason,
+    } = output;
     let prior_print_count: i64 = sqlx::query_scalar(
         "SELECT COALESCE(SUM(print_count), 0)::bigint \
          FROM document_outputs \
@@ -555,12 +567,14 @@ pub async fn get_mlc_register_print_data(
     record_mlc_print_output(
         &mut tx,
         &claims,
-        case_id,
-        row.patient_id,
-        row.admission_id,
-        "mlc_register",
-        "MLC Register Extract",
-        reprint_reason,
+        MlcPrintOutput {
+            source_id: case_id,
+            patient_id: row.patient_id,
+            admission_id: row.admission_id,
+            document_type: "mlc_register",
+            title: "MLC Register Extract",
+            reprint_reason,
+        },
     )
     .await?;
 
@@ -1324,12 +1338,14 @@ pub async fn get_mlc_documentation_print_data(
     record_mlc_print_output(
         &mut tx,
         &claims,
-        case_id,
-        row.patient_id,
-        row.admission_id,
-        "mlc_documentation",
-        "MLC Documentation Packet",
-        reprint_reason,
+        MlcPrintOutput {
+            source_id: case_id,
+            patient_id: row.patient_id,
+            admission_id: row.admission_id,
+            document_type: "mlc_documentation",
+            title: "MLC Documentation Packet",
+            reprint_reason,
+        },
     )
     .await?;
 

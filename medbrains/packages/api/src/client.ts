@@ -1163,6 +1163,8 @@ import type {
   MrdRecordMovement,
   MrdRetentionPolicy,
   MrdStorageLocation,
+  MrdFormRecord,
+  AttachFormDocumentRequest,
   MyDayResponse,
   MyTasksResponse,
   // Phase 4 Print Data - Regulatory
@@ -2269,6 +2271,7 @@ export interface LoginResponse {
     email: string;
     full_name: string;
     role: string;
+    must_change_password: boolean;
   };
   csrf_token: string;
   permissions: string[];
@@ -2283,6 +2286,7 @@ export interface MeResponse {
   email: string;
   full_name: string;
   role: string;
+  must_change_password: boolean;
   permissions: string[];
   field_access: Record<string, FieldAccessLevel>;
 }
@@ -7656,7 +7660,7 @@ export const api = {
   // Visitor Registrations
   listVisitors: (params?: { patient_id?: string; category?: string }) =>
     request<VisitorRegistration[]>(
-      `/api/front-office/visitors${params ? `?${new URLSearchParams(params as Record<string, string>).toString()}` : ""}`,
+      `/front-office/visitors${params ? `?${new URLSearchParams(params as Record<string, string>).toString()}` : ""}`,
     ),
 
   createVisitor: (data: CreateVisitorRequest) =>
@@ -7668,7 +7672,7 @@ export const api = {
   // Visitor Passes
   listVisitorPasses: (params?: { status?: string; registration_id?: string }) =>
     request<VisitorPass[]>(
-      `/api/front-office/passes${params ? `?${new URLSearchParams(params as Record<string, string>).toString()}` : ""}`,
+      `/front-office/passes${params ? `?${new URLSearchParams(params as Record<string, string>).toString()}` : ""}`,
     ),
 
   createVisitorPass: (data: CreateVisitorPassRequest) =>
@@ -7686,7 +7690,7 @@ export const api = {
   // Visitor Logs
   listVisitorLogs: (params?: { pass_id?: string; active_only?: string }) =>
     request<VisitorLog[]>(
-      `/api/front-office/visitor-logs${params ? `?${new URLSearchParams(params as Record<string, string>).toString()}` : ""}`,
+      `/front-office/visitor-logs${params ? `?${new URLSearchParams(params as Record<string, string>).toString()}` : ""}`,
     ),
 
   checkInVisitor: (passId: string) =>
@@ -7720,7 +7724,7 @@ export const api = {
   // Enquiries
   listEnquiries: (params?: { enquiry_type?: string; resolved?: string }) =>
     request<FrontOfficeEnquiryLog[]>(
-      `/api/front-office/enquiries${params ? `?${new URLSearchParams(params as Record<string, string>).toString()}` : ""}`,
+      `/front-office/enquiries${params ? `?${new URLSearchParams(params as Record<string, string>).toString()}` : ""}`,
     ),
 
   createEnquiry: (data: CreateEnquiryRequest) =>
@@ -7737,7 +7741,7 @@ export const api = {
   // Queue Stats
   getQueueStats: (params?: { department_id?: string }) =>
     request<QueueStatsResponse[]>(
-      `/api/front-office/queue-stats${params?.department_id ? `?department_id=${params.department_id}` : ""}`,
+      `/front-office/queue-stats${params?.department_id ? `?department_id=${params.department_id}` : ""}`,
     ),
 
   // ═══════════════════════════════════════════════════════
@@ -7875,7 +7879,7 @@ export const api = {
   // Vendor Evaluations
   listBmeVendorEvaluations: (params?: { vendor_id?: string }) =>
     request<BmeVendorEvaluation[]>(
-      `/api/bme/vendor-evaluations${params?.vendor_id ? `?vendor_id=${params.vendor_id}` : ""}`,
+      `/bme/vendor-evaluations${params?.vendor_id ? `?vendor_id=${params.vendor_id}` : ""}`,
     ),
   createBmeVendorEvaluation: (body: CreateBmeVendorEvaluationRequest) =>
     request<BmeVendorEvaluation>("/bme/vendor-evaluations", {
@@ -7949,7 +7953,7 @@ export const api = {
   // Fire Inspections
   listFmsFireInspections: (params?: { equipment_id?: string }) =>
     request<FmsFireInspection[]>(
-      `/api/facilities/fire-inspections${params?.equipment_id ? `?equipment_id=${params.equipment_id}` : ""}`,
+      `/facilities/fire-inspections${params?.equipment_id ? `?equipment_id=${params.equipment_id}` : ""}`,
     ),
   createFmsFireInspection: (body: CreateFmsFireInspectionRequest) =>
     request<FmsFireInspection>("/facilities/fire-inspections", {
@@ -8343,6 +8347,24 @@ export const api = {
       `/mrd/stats/admission-discharge${qs ? `?${qs}` : ""}`,
     );
   },
+
+  // Form Records
+  listMrdFormRecords: (params: { admission_id?: string; form_type?: string }) => {
+    const sp = new URLSearchParams();
+    if (params.admission_id) sp.set("admission_id", params.admission_id);
+    if (params.form_type) sp.set("form_type", params.form_type);
+    const qs = sp.toString();
+    return request<MrdFormRecord[]>(`/mrd/form-records${qs ? `?${qs}` : ""}`);
+  },
+  completeMrdFormRecord: (id: string) =>
+    request<MrdFormRecord>(`/mrd/form-records/${id}/complete`, { method: "POST", body: "{}" }),
+  verifyMrdFormRecord: (id: string) =>
+    request<MrdFormRecord>(`/mrd/form-records/${id}/verify`, { method: "POST" }),
+  attachMrdFormDocument: (id: string, body: AttachFormDocumentRequest) =>
+    request<MrdFormRecord>(`/mrd/form-records/${id}/attach-document`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
 
   // ── Specialty Clinical: Cath Lab ────────────────────────────
 
@@ -13641,4 +13663,18 @@ export const api = {
       method: "PUT",
       body: JSON.stringify(data),
     }),
+  presignUpload: (data: {
+    category: string;
+    filename: string;
+    mime_type?: string;
+    expires_in?: number;
+  }) =>
+    request<{ key: string; upload_url: string; expires_at: string }>("/upload/presign", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  presignDownload: (key: string, expiresIn?: number) =>
+    request<{ download_url: string; expires_at: string }>(
+      `/upload/download-url?key=${encodeURIComponent(key)}${expiresIn ? `&expires_in=${expiresIn}` : ""}`,
+    ),
 };

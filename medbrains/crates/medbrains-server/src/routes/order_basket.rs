@@ -396,6 +396,16 @@ pub async fn sign_basket(
 
     tx.commit().await?;
 
+    for created_order in created.iter().filter(|item| item.order_type == "lab") {
+        super::lab::grant_lab_order_creator_viewer(
+            &state,
+            &claims,
+            created_order.order_id,
+            "order_basket_lab_order_created",
+        )
+        .await?;
+    }
+
     // Post-commit side-effects via outbox (durable, non-blocking).
     // SMS to patient + pharmacy notification queued; failures here do not
     // affect the sign response — they retry async per outbox backoff.

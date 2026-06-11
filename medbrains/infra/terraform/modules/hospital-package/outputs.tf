@@ -70,3 +70,13 @@ output "kms_key_arns" {
   description = "Hospital-scoped KMS CMKs by purpose: app, db, audit, secrets."
   value       = local.kms_key_arns
 }
+
+output "uploads_bucket" {
+  description = "S3 bucket name for patient document uploads (PHI). Set S3_BUCKET env var on the app server to this value."
+  value       = aws_s3_bucket.uploads.id
+}
+
+output "uploads_bucket_arn" {
+  description = "ARN of the patient-uploads S3 bucket."
+  value       = aws_s3_bucket.uploads.arn
+}

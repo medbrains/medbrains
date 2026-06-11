@@ -39,6 +39,18 @@ pub struct UserInfo {
     pub email: String,
     pub full_name: String,
     pub role: String,
+    pub must_change_password: bool,
+}
+
+/// Runtime query (no .sqlx metadata) — column added in 0144.
+async fn fetch_must_change_password(db: &PgPool, user_id: Uuid) -> Result<bool, AppError> {
+    Ok(
+        sqlx::query_scalar::<_, bool>("SELECT must_change_password FROM users WHERE id = $1")
+            .bind(user_id)
+            .fetch_optional(db)
+            .await?
+            .unwrap_or(false),
+    )
 }
 
 #[derive(Debug, Serialize)]
@@ -224,6 +236,8 @@ pub async fn login(
         .add(build_refresh_cookie(&refresh_raw, cfg))
         .add(build_csrf_cookie(&csrf_token, cfg));
 
+    let must_change_password = fetch_must_change_password(&state.db, row.id).await?;
+
     let body = LoginResponse {
         token: include_native_tokens.then(|| access_token.clone()),
         refresh_token: include_native_tokens.then(|| refresh_raw.clone()),
@@ -234,6 +248,7 @@ pub async fn login(
             email: row.email,
             full_name: row.full_name,
             role: row.role,
+            must_change_password,
         },
         csrf_token,
         permissions,
@@ -494,6 +509,8 @@ pub async fn refresh_token(
         .add(build_refresh_cookie(&new_refresh_raw, cfg))
         .add(build_csrf_cookie(&csrf_token, cfg));
 
+    let must_change_password = fetch_must_change_password(&state.db, row.user_id).await?;
+
     let resp_body = RefreshResponse {
         token: include_native_tokens.then(|| access_token.clone()),
         refresh_token: include_native_tokens.then(|| new_refresh_raw.clone()),
@@ -504,6 +521,7 @@ pub async fn refresh_token(
             email: row.email,
             full_name: row.full_name,
             role: row.role,
+            must_change_password,
         },
         csrf_token,
         permissions,
@@ -687,6 +705,8 @@ pub async fn me(
             .await?,
     );
 
+    let must_change_password = fetch_must_change_password(&state.db, row.id).await?;
+
     Ok(Json(MeResponse {
         user: UserInfo {
             id: row.id,
@@ -695,6 +715,7 @@ pub async fn me(
             email: row.email,
             full_name: row.full_name,
             role: row.role,
+            must_change_password,
         },
         permissions,
         field_access,
@@ -754,6 +775,12 @@ pub async fn change_password(
     )
     .execute(&mut *tx)
     .await?;
+
+    // Runtime query: column not in .sqlx offline metadata yet (0144).
+    sqlx::query("UPDATE users SET must_change_password = false WHERE id = $1")
+        .bind(claims.sub)
+        .execute(&mut *tx)
+        .await?;
 
     // Revoke every active refresh token for this user — a password change
     // implies any token previously issued is potentially compromised.

@@ -215,3 +215,27 @@ pub struct MrdCaseSheetPage {
     pub created_at: chrono::DateTime<chrono::Utc>,
     pub updated_at: chrono::DateTime<chrono::Utc>,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct MrdFormRecord {
+    pub id: Uuid,
+    pub tenant_id: Uuid,
+    pub admission_id: Uuid,
+    pub form_type: String,
+    pub template_id: Option<Uuid>,
+    pub form_date: NaiveDate,
+    pub form_time: Option<NaiveTime>,
+    pub shift: Option<String>,
+    pub form_data: Value,
+    pub completed_by: Option<Uuid>,
+    pub completed_at: Option<chrono::DateTime<chrono::Utc>>,
+    pub verified_by: Option<Uuid>,
+    pub verified_at: Option<chrono::DateTime<chrono::Utc>>,
+    pub pdf_url: Option<String>,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+    pub created_by: Uuid,
+    pub updated_at: chrono::DateTime<chrono::Utc>,
+    // joined
+    pub completed_by_name: Option<String>,
+    pub verified_by_name: Option<String>,
+}

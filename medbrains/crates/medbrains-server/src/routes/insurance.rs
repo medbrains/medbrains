@@ -215,11 +215,11 @@ async fn generate_number(
     prefix: &str,
 ) -> Result<String, AppError> {
     let row: (i64,) = sqlx::query_as(
-        "INSERT INTO sequences (tenant_id, seq_type, current_value) \
+        "INSERT INTO sequences (tenant_id, seq_type, current_val) \
          VALUES ($1, $2, 1) \
          ON CONFLICT (tenant_id, seq_type) \
-         DO UPDATE SET current_value = sequences.current_value + 1 \
-         RETURNING current_value",
+         DO UPDATE SET current_val = sequences.current_val + 1 \
+         RETURNING current_val",
     )
     .bind(tenant_id)
     .bind(seq_type)
@@ -249,11 +249,9 @@ pub async fn run_verification(
         Option<NaiveDate>,
         Option<NaiveDate>,
         Option<rust_decimal::Decimal>,
-        Option<String>,
     );
     let policy: Option<PolicyRow> = sqlx::query_as(
-        "SELECT insurance_provider, member_id, valid_from, valid_until, \
-                sum_insured, scheme_type::text \
+        "SELECT insurance_provider, member_id, valid_from, valid_until, sum_insured \
          FROM patient_insurance \
          WHERE id = $1 AND tenant_id = $2 AND patient_id = $3",
     )
@@ -263,9 +261,7 @@ pub async fn run_verification(
     .fetch_optional(&mut *tx)
     .await?;
 
-    let Some((payer_name, member_id, coverage_start, coverage_end, scheme_balance, scheme_type)) =
-        policy
-    else {
+    let Some((payer_name, member_id, coverage_start, coverage_end, scheme_balance)) = policy else {
         // No policy found — create error verification
         let row: InsuranceVerification = sqlx::query_as(
             "INSERT INTO insurance_verifications \
@@ -300,9 +296,8 @@ pub async fn run_verification(
         "INSERT INTO insurance_verifications \
              (tenant_id, patient_id, patient_insurance_id, trigger_point, \
               trigger_entity_id, status, verified_at, payer_name, member_id, \
-              coverage_start, coverage_end, scheme_type, scheme_balance, \
-              verified_by) \
-         VALUES ($1, $2, $3, $4, $5, $6, now(), $7, $8, $9, $10, $11::insurance_scheme_type, $12, $13) \
+              coverage_start, coverage_end, scheme_balance, verified_by) \
+         VALUES ($1, $2, $3, $4, $5, $6, now(), $7, $8, $9, $10, $11, $12) \
          RETURNING *",
     )
     .bind(claims.tenant_id)
@@ -315,7 +310,6 @@ pub async fn run_verification(
     .bind(&member_id)
     .bind(coverage_start)
     .bind(coverage_end)
-    .bind(&scheme_type)
     .bind(scheme_balance)
     .bind(claims.sub)
     .fetch_one(&mut *tx)
@@ -741,8 +735,8 @@ pub async fn check_pa_required(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     // Look up patient's active insurance
-    let insurance: Option<(Option<String>, Option<String>, Option<String>)> = sqlx::query_as(
-        "SELECT insurance_provider, scheme_type::text, tpa_name \
+    let insurance: Option<(Option<String>, Option<String>)> = sqlx::query_as(
+        "SELECT insurance_provider, tpa_name \
          FROM patient_insurance \
          WHERE tenant_id = $1 AND patient_id = $2 AND is_active = true \
          ORDER BY priority ASC LIMIT 1",
@@ -752,7 +746,7 @@ pub async fn check_pa_required(
     .fetch_optional(&mut *tx)
     .await?;
 
-    let Some((provider, scheme, tpa)) = insurance else {
+    let Some((provider, tpa)) = insurance else {
         tx.commit().await?;
         return Ok(Json(PaCheckResult {
             required: false,
@@ -766,18 +760,16 @@ pub async fn check_pa_required(
         "SELECT * FROM pa_requirement_rules \
          WHERE tenant_id = $1 AND is_active = true \
            AND (insurance_provider IS NULL OR insurance_provider = $2) \
-           AND (scheme_type IS NULL OR scheme_type::text = $3) \
-           AND (tpa_name IS NULL OR tpa_name = $4) \
-           AND (service_type IS NULL OR service_type = $5) \
-           AND (charge_code IS NULL OR charge_code = $6) \
-           AND (cost_threshold IS NULL OR $7 >= cost_threshold) \
-           AND (los_threshold IS NULL OR $8 >= los_threshold) \
+           AND (tpa_name IS NULL OR tpa_name = $3) \
+           AND (service_type IS NULL OR service_type = $4) \
+           AND (charge_code IS NULL OR charge_code = $5) \
+           AND (cost_threshold IS NULL OR $6 >= cost_threshold) \
+           AND (los_threshold IS NULL OR $7 >= los_threshold) \
          ORDER BY priority DESC \
          LIMIT 1",
     )
     .bind(claims.tenant_id)
     .bind(&provider)
-    .bind(&scheme)
     .bind(&tpa)
     .bind(&body.service_type)
     .bind(&body.charge_code)

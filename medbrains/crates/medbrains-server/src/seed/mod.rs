@@ -70,11 +70,24 @@ pub async fn run_seed(pool: &PgPool) -> Result<(), Box<dyn std::error::Error>> {
         .execute(pool)
         .await?;
 
-        // Hash the default password
+        // Admin password: explicit via env, or dev-only default. Production
+        // refuses the default so admin/admin123 can never reach a real tenant.
+        let admin_password = match std::env::var("MEDBRAINS_SEED_ADMIN_PASSWORD") {
+            Ok(value) if !value.trim().is_empty() => value,
+            _ if production_env() => {
+                return Err(
+                    "MEDBRAINS_SEED_ADMIN_PASSWORD must be set when MEDBRAINS_ENV=production — \
+                     refusing to seed the default admin credential"
+                        .into(),
+                );
+            }
+            _ => "admin123".to_owned(),
+        };
+
         let salt = SaltString::generate(&mut OsRng);
         let argon2 = Argon2::default();
         let password_hash = argon2
-            .hash_password(b"admin123", &salt)
+            .hash_password(admin_password.as_bytes(), &salt)
             .map_err(|e| format!("password hash error: {e}"))?
             .to_string();
 
@@ -87,12 +100,14 @@ pub async fn run_seed(pool: &PgPool) -> Result<(), Box<dyn std::error::Error>> {
             .await?;
 
         sqlx::query(
-            "INSERT INTO users (tenant_id, username, email, password_hash, full_name, role) \
+            "INSERT INTO users (tenant_id, username, email, password_hash, full_name, role, \
+             must_change_password) \
              VALUES ($1, 'admin', 'admin@medbrains.local', $2, \
-             'System Administrator', 'super_admin')",
+             'System Administrator', 'super_admin', $3)",
         )
         .bind(tenant_id)
         .bind(&password_hash)
+        .bind(production_env())
         .execute(&mut *tx)
         .await?;
 
@@ -112,7 +127,7 @@ pub async fn run_seed(pool: &PgPool) -> Result<(), Box<dyn std::error::Error>> {
 
         tx.commit().await?;
 
-        tracing::info!(%tenant_id, "Seed complete — admin/admin123");
+        tracing::info!(%tenant_id, "Seed complete — admin user created");
     }
 
     // Idempotent seeds — always run (ON CONFLICT DO NOTHING / DO UPDATE)
@@ -133,7 +148,13 @@ pub async fn run_seed(pool: &PgPool) -> Result<(), Box<dyn std::error::Error>> {
     default_dashboard::seed_default_dashboard(pool, tenant_id).await?;
     role_dashboards::seed_role_dashboards(pool, tenant_id).await?;
 
-    if demo_fixture_seed_enabled() {
+    if demo_fixture_seed_enabled() && production_env() {
+        tracing::warn!(
+            "MEDBRAINS_SEED_DEMO_DATA ignored — demo fixtures are never seeded in production"
+        );
+    }
+
+    if demo_fixture_seed_enabled() && !production_env() {
         // Demo patients + OPD visits for explicit demo/test environments.
         demo_patients::seed_demo_patients(pool, tenant_id).await?;
         device_integration_fixtures::seed_device_integration_fixtures(pool, tenant_id).await?;
@@ -156,6 +177,12 @@ pub async fn run_seed(pool: &PgPool) -> Result<(), Box<dyn std::error::Error>> {
     let _ = pool;
 
     Ok(())
+}
+
+fn production_env() -> bool {
+    std::env::var("MEDBRAINS_ENV")
+        .map(|value| value.eq_ignore_ascii_case("production"))
+        .unwrap_or(false)
 }
 
 fn demo_fixture_seed_enabled() -> bool {

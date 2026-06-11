@@ -74,6 +74,7 @@ pub async fn update_tenant(
     Extension(claims): Extension<Claims>,
     Json(body): Json<UpdateTenantRequest>,
 ) -> Result<Json<TenantSummary>, AppError> {
+    require_permission(&claims, permissions::admin::settings::general::MANAGE)?;
     let mut errors = ValidationErrors::new();
 
     if let Some(ref email) = body.email {
@@ -215,6 +216,7 @@ pub async fn create_compliance(
     Extension(claims): Extension<Claims>,
     Json(body): Json<CreateComplianceRequest>,
 ) -> Result<Json<ComplianceRow>, AppError> {
+    require_permission(&claims, permissions::admin::settings::facilities::UPDATE)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -2339,6 +2341,7 @@ pub async fn update_setting(
     Extension(claims): Extension<Claims>,
     Json(body): Json<UpdateSettingRequest>,
 ) -> Result<Json<TenantSettings>, AppError> {
+    require_permission(&claims, permissions::admin::settings::general::MANAGE)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
@@ -2875,6 +2878,7 @@ pub async fn update_tenant_geo_with_presets(
     Extension(claims): Extension<Claims>,
     Json(body): Json<UpdateTenantGeoRequest>,
 ) -> Result<Json<Value>, AppError> {
+    require_permission(&claims, permissions::admin::settings::general::MANAGE)?;
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;

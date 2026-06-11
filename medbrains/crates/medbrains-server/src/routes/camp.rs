@@ -1773,19 +1773,35 @@ async fn soft_clear_materialized_camp_plan(
     Ok(())
 }
 
-async fn upsert_camp_approval_item(
-    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+struct CampApprovalItemUpsert<'a> {
     tenant_id: Uuid,
     camp_id: Uuid,
-    source_key: &str,
-    approval_type: &str,
-    linked_entity_type: &str,
+    source_key: &'a str,
+    approval_type: &'a str,
+    linked_entity_type: &'a str,
     linked_entity_id: Option<Uuid>,
     requested_by: Uuid,
-    reason: &str,
+    reason: &'a str,
     blocks_activation: bool,
     blocks_closeout: bool,
+}
+
+async fn upsert_camp_approval_item(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    item: CampApprovalItemUpsert<'_>,
 ) -> Result<(), AppError> {
+    let CampApprovalItemUpsert {
+        tenant_id,
+        camp_id,
+        source_key,
+        approval_type,
+        linked_entity_type,
+        linked_entity_id,
+        requested_by,
+        reason,
+        blocks_activation,
+        blocks_closeout,
+    } = item;
     sqlx::query(
         "INSERT INTO camp_approval_items \
          (tenant_id, camp_id, source_key, approval_type, linked_entity_type, linked_entity_id, \
@@ -2138,16 +2154,18 @@ async fn materialize_camp_plan_from_value(
         ) {
             upsert_camp_approval_item(
                 tx,
-                tenant_id,
-                camp_id,
-                &format!("{source_key}:approval"),
-                approval_type,
-                "camp_service_pricing_rules",
-                Some(row.id),
-                user_id,
-                "Camp service pricing requires approval",
-                true,
-                false,
+                CampApprovalItemUpsert {
+                    tenant_id,
+                    camp_id,
+                    source_key: &format!("{source_key}:approval"),
+                    approval_type,
+                    linked_entity_type: "camp_service_pricing_rules",
+                    linked_entity_id: Some(row.id),
+                    requested_by: user_id,
+                    reason: "Camp service pricing requires approval",
+                    blocks_activation: true,
+                    blocks_closeout: false,
+                },
             )
             .await?;
         }
@@ -2221,16 +2239,18 @@ async fn materialize_camp_plan_from_value(
         if let Some(approval_type) = approval_type_for_line(&charge_mode, approval_required, true) {
             upsert_camp_approval_item(
                 tx,
-                tenant_id,
-                camp_id,
-                &format!("{source_key}:approval"),
-                approval_type,
-                "camp_medicine_pricing_rules",
-                Some(row.id),
-                user_id,
-                "Camp medicine pricing or free issue requires approval",
-                true,
-                false,
+                CampApprovalItemUpsert {
+                    tenant_id,
+                    camp_id,
+                    source_key: &format!("{source_key}:approval"),
+                    approval_type,
+                    linked_entity_type: "camp_medicine_pricing_rules",
+                    linked_entity_id: Some(row.id),
+                    requested_by: user_id,
+                    reason: "Camp medicine pricing or free issue requires approval",
+                    blocks_activation: true,
+                    blocks_closeout: false,
+                },
             )
             .await?;
         }
@@ -2267,16 +2287,18 @@ async fn materialize_camp_plan_from_value(
         {
             upsert_camp_approval_item(
                 tx,
-                tenant_id,
-                camp_id,
-                &format!("{source_key}:approval"),
-                approval_type,
-                "camp_medicine_pricing_rules",
-                Some(row.id),
-                user_id,
-                "Camp medicine issue requires approval",
-                true,
-                false,
+                CampApprovalItemUpsert {
+                    tenant_id,
+                    camp_id,
+                    source_key: &format!("{source_key}:approval"),
+                    approval_type,
+                    linked_entity_type: "camp_medicine_pricing_rules",
+                    linked_entity_id: Some(row.id),
+                    requested_by: user_id,
+                    reason: "Camp medicine issue requires approval",
+                    blocks_activation: true,
+                    blocks_closeout: false,
+                },
             )
             .await?;
         }

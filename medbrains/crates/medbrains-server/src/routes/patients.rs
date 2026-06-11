@@ -641,7 +641,7 @@ struct SequenceResult {
     pad_width: i32,
 }
 
-async fn generate_uhid(
+pub(crate) async fn generate_uhid(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     tenant_id: &Uuid,
 ) -> Result<String, AppError> {
