@@ -344,7 +344,7 @@ struct SequenceResult {
     current_val: i64,
 }
 
-async fn generate_opd_token(
+pub(crate) async fn generate_opd_token(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     tenant_id: &Uuid,
 ) -> Result<i32, AppError> {

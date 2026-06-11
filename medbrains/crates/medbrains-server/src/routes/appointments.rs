@@ -23,3 +23,37 @@ pub use types::{
     PublicBookingResponse, PublicSlotsQuery, ReminderConfig, RescheduleRequest,
     UpdateScheduleRequest,
 };
+
+/// Issue the next OPD queue token for a department (today's sequence)
+/// and return its display number. Shared by kiosk and receptionist
+/// check-in so both paths land the patient in the doctor's queue.
+pub(crate) async fn issue_queue_token(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: uuid::Uuid,
+    department_id: uuid::Uuid,
+    patient_id: uuid::Uuid,
+) -> Result<String, crate::error::AppError> {
+    let token_seq: i32 = sqlx::query_scalar(
+        "SELECT COALESCE(MAX(token_seq), 0) + 1 FROM queue_tokens \
+         WHERE department_id = $1 AND token_date = CURRENT_DATE",
+    )
+    .bind(department_id)
+    .fetch_one(&mut **tx)
+    .await?;
+    let token_number = format!("T-{token_seq:03}");
+
+    sqlx::query(
+        "INSERT INTO queue_tokens \
+         (tenant_id, department_id, patient_id, token_date, token_seq, token_number, status) \
+         VALUES ($1, $2, $3, CURRENT_DATE, $4, $5, 'waiting')",
+    )
+    .bind(tenant_id)
+    .bind(department_id)
+    .bind(patient_id)
+    .bind(token_seq)
+    .bind(&token_number)
+    .execute(&mut **tx)
+    .await?;
+
+    Ok(token_number)
+}
