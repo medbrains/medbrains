@@ -4,6 +4,7 @@
 //! returns a shutdown handle. `main.rs` drives them all on startup
 //! and joins them on graceful shutdown.
 
+pub mod appointment_reminders;
 pub mod bridge_pusher;
 pub mod room_rent;
 pub mod simulator;
