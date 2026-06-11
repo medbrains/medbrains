@@ -426,6 +426,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         medbrains_server::services::simulator::scheduler::spawn(db_pool.clone());
     }
 
+    // Room-rent auto-billing — hourly idempotent pass posting one
+    // bed charge per occupied admission per hospital-local day.
+    medbrains_server::services::room_rent::spawn(db_pool.clone());
+
     // Start server
     let addr: SocketAddr = config.bind_addr().parse()?;
     let listener = tokio::net::TcpListener::bind(addr).await?;
