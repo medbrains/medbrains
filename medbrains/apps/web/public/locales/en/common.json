@@ -56,5 +56,9 @@
   "aria.settings": "Settings",
   "aria.filter": "Filter",
   "aria.expand": "Expand",
-  "aria.collapse": "Collapse"
+  "aria.collapse": "Collapse",
+  "notifications": {
+    "actionFailed": "Action failed",
+    "tryAgain": "Please try again."
+  }
 }

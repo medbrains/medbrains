@@ -1,4 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
+import { confirmDestructive } from "@/lib/confirm-destructive";
 import {
   ActionIcon,
   Alert,
@@ -1462,7 +1463,14 @@ function PharmacyOrdersTab({
                     variant="subtle"
                     color="danger"
                     aria-label="Cancel pharmacy order"
-                    onClick={() => cancelMutation.mutate(row.id)}
+                    onClick={() =>
+                      confirmDestructive({
+                        title: "Cancel order",
+                        message: "Cancel this pharmacy order? This cannot be undone.",
+                        confirmLabel: "Cancel order",
+                        onConfirm: () => cancelMutation.mutate(row.id),
+                      })
+                    }
                   >
                     <IconX size={16} />
                   </ActionIcon>
@@ -2777,7 +2785,14 @@ function PharmacyOrderDetail({
                         variant="subtle"
                         color="danger"
                         disabled={detail.items.length <= 1 || removeItemMutation.isPending}
-                        onClick={() => removeItemMutation.mutate(item.id)}
+                        onClick={() =>
+                          confirmDestructive({
+                            title: "Remove drug",
+                            message: `Remove ${item.drug_name} from this order?`,
+                            confirmLabel: "Remove drug",
+                            onConfirm: () => removeItemMutation.mutate(item.id),
+                          })
+                        }
                         aria-label={`Remove ${item.drug_name}`}
                       >
                         <IconTrash size={14} />
