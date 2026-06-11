@@ -4,6 +4,10 @@ Documentation=https://github.com/DomnicAmalan/MedBrains
 After=network-online.target docker.service
 Wants=network-online.target
 Requires=docker.service
+# Crash-loop guard: 5 restarts in 10 min then stop thrashing —
+# CloudWatch/Uptime alerts take over from there.
+StartLimitIntervalSec=600
+StartLimitBurst=5
 
 [Service]
 Type=simple

@@ -42,6 +42,13 @@ terraform {
 
 # Both providers read credentials from env vars set by `make apply`.
 provider "aws" {}
+
+# Route53 health-check metrics exist only in us-east-1 — used solely
+# by the uptime module's alarm.
+provider "aws" {
+  alias  = "us_east_1"
+  region = "us-east-1"
+}
 provider "godaddy-dns" {}
 
 module "hospital" {
@@ -67,6 +74,19 @@ module "hospital" {
   ghcr_pull_token = var.ghcr_pull_token
   github_username = var.github_username
   reset_pgdata    = var.reset_pgdata
+}
+
+# Outside-in uptime monitoring on /api/health (Route53 checkers).
+module "uptime" {
+  source = "../../../modules/uptime-route53"
+  providers = {
+    aws           = aws
+    aws.us_east_1 = aws.us_east_1
+  }
+
+  name        = "alagappa-hims"
+  domain      = var.domain
+  alarm_email = var.admin_email
 }
 
 # DNS — single GoDaddy A record. Skipped for tiers whose endpoint is

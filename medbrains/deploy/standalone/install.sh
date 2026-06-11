@@ -288,6 +288,16 @@ if [[ -n "${BACKUP_BUCKET:-}" ]]; then
     fi
 fi
 
+# Bound journald so logs can never fill the root volume silently.
+mkdir -p /etc/systemd/journald.conf.d
+cat > /etc/systemd/journald.conf.d/medbrains.conf <<'JOURNALD'
+[Journal]
+SystemMaxUse=1G
+SystemKeepFree=2G
+MaxRetentionSec=30day
+JOURNALD
+systemctl restart systemd-journald || true
+
 systemctl daemon-reload
 systemctl enable --now medbrains-server.service
 # Restart explicitly so re-runs pick up new env (JWT keys, DATABASE_URL,
