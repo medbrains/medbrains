@@ -1854,6 +1854,39 @@ pub async fn discharge_patient(
         ))
     })?;
 
+    // Configurable settlement gate: tenants that bill before the patient
+    // leaves set billing.block_discharge_unsettled = true. LAMA/absconded/
+    // deceased discharges are never blocked — the patient is gone either way.
+    let block_unsettled = sqlx::query_scalar::<_, serde_json::Value>(
+        "SELECT value FROM tenant_settings \
+         WHERE tenant_id = $1 AND category = 'billing' AND key = 'block_discharge_unsettled'",
+    )
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .map(|v| v.as_bool().unwrap_or(v.as_str() == Some("true")))
+    .unwrap_or(false);
+
+    if block_unsettled && matches!(dt, DischargeType::Normal | DischargeType::Referred) {
+        let outstanding = sqlx::query_scalar::<_, Decimal>(
+            "SELECT COALESCE(SUM(total_amount - paid_amount), 0) FROM invoices \
+             WHERE tenant_id = $1 AND encounter_id = \
+               (SELECT encounter_id FROM admissions WHERE id = $2 AND tenant_id = $1) \
+               AND status NOT IN ('cancelled'::invoice_status, 'refunded'::invoice_status)",
+        )
+        .bind(claims.tenant_id)
+        .bind(id)
+        .fetch_one(&mut *tx)
+        .await?;
+
+        if outstanding > Decimal::ZERO {
+            return Err(AppError::Conflict(format!(
+                "Outstanding balance of {outstanding} must be settled before discharge \
+                 (billing.block_discharge_unsettled is enabled)"
+            )));
+        }
+    }
+
     let admission = sqlx::query_as::<_, Admission>(
         "UPDATE admissions SET \
            status = 'discharged'::admission_status, \
@@ -1893,8 +1926,25 @@ pub async fn discharge_patient(
         .await?;
     }
 
+    // The hourly room-rent accrual job (services::room_rent) posts one
+    // ROOM_RENT line per occupied day. When it has billed this stay,
+    // the legacy whole-LOS charge below would double-bill — skip it.
+    let daily_rent_billed = sqlx::query_scalar::<_, bool>(
+        "SELECT EXISTS( \
+           SELECT 1 FROM invoice_items it \
+           JOIN invoices i ON i.id = it.invoice_id \
+           WHERE i.tenant_id = $1 AND i.encounter_id = $2 \
+             AND it.charge_code = 'ROOM_RENT' AND it.source = 'ipd'::charge_source)",
+    )
+    .bind(claims.tenant_id)
+    .bind(admission.encounter_id)
+    .fetch_one(&mut *tx)
+    .await?;
+
     // Auto-billing: charge room/bed for length of stay
-    if super::billing::is_auto_billing_enabled(&mut tx, &claims.tenant_id, "ipd_room").await? {
+    if !daily_rent_billed
+        && super::billing::is_auto_billing_enabled(&mut tx, &claims.tenant_id, "ipd_room").await?
+    {
         let los_hours = (Utc::now() - admission.admitted_at).num_hours();
         #[allow(clippy::cast_precision_loss)]
         let los_days = ((los_hours as f64) / 24.0).ceil() as i32;
@@ -1956,6 +2006,32 @@ pub async fn discharge_patient(
             },
         )
         .await;
+    }
+
+    // Finalize billing: every draft invoice for this stay becomes
+    // 'issued' so discharge ends with a settled-or-collectable bill
+    // instead of an editable draft nobody revisits. Opt-out via
+    // billing.auto_charge_discharge_finalize = false.
+    if super::billing::is_auto_billing_enabled(&mut tx, &claims.tenant_id, "discharge_finalize")
+        .await?
+    {
+        let finalized = sqlx::query(
+            "UPDATE invoices SET status = 'issued'::invoice_status, \
+             issued_at = now(), updated_at = now() \
+             WHERE tenant_id = $1 AND encounter_id = $2 \
+               AND status = 'draft'::invoice_status",
+        )
+        .bind(claims.tenant_id)
+        .bind(admission.encounter_id)
+        .execute(&mut *tx)
+        .await?;
+        if finalized.rows_affected() > 0 {
+            tracing::info!(
+                admission_id = %admission.id,
+                count = finalized.rows_affected(),
+                "discharge finalized draft invoices"
+            );
+        }
     }
 
     let event = ClinicalEventEnvelope::new(
