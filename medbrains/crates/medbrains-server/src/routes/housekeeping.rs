@@ -223,14 +223,14 @@ pub async fn list_cleaning_schedules(
     let rows = if let Some(area_type) = params.area_type {
         sqlx::query_as::<_, CleaningSchedule>(
             "SELECT * FROM cleaning_schedules WHERE area_type::text = $1 \
-             ORDER BY created_at DESC",
+             ORDER BY created_at DESC LIMIT 5000",
         )
         .bind(area_type)
         .fetch_all(&mut *tx)
         .await?
     } else {
         sqlx::query_as::<_, CleaningSchedule>(
-            "SELECT * FROM cleaning_schedules ORDER BY created_at DESC",
+            "SELECT * FROM cleaning_schedules ORDER BY created_at DESC LIMIT 5000",
         )
         .fetch_all(&mut *tx)
         .await?
@@ -329,7 +329,7 @@ pub async fn list_cleaning_tasks(
          WHERE ($1::text IS NULL OR task_date::text = $1) \
            AND ($2::text IS NULL OR status::text = $2) \
            AND ($3::text IS NULL OR area_type::text = $3) \
-         ORDER BY task_date DESC, created_at DESC",
+         ORDER BY task_date DESC, created_at DESC LIMIT 5000",
     )
     .bind(&params.date)
     .bind(&params.status)
@@ -448,7 +448,7 @@ pub async fn list_turnarounds(
         "SELECT * FROM room_turnarounds \
          WHERE ($1::date IS NULL OR discharge_at::date >= $1::date) \
            AND ($2::date IS NULL OR discharge_at::date <= $2::date) \
-         ORDER BY created_at DESC",
+         ORDER BY created_at DESC LIMIT 5000",
     )
     .bind(&params.from_date)
     .bind(&params.to_date)
@@ -542,7 +542,7 @@ pub async fn list_pest_control_schedules(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, PestControlSchedule>(
-        "SELECT * FROM pest_control_schedules ORDER BY next_due ASC NULLS LAST",
+        "SELECT * FROM pest_control_schedules ORDER BY next_due ASC NULLS LAST LIMIT 5000",
     )
     .fetch_all(&mut *tx)
     .await?;
@@ -633,7 +633,7 @@ pub async fn list_pest_control_logs(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, PestControlLog>(
-        "SELECT * FROM pest_control_logs ORDER BY treatment_date DESC",
+        "SELECT * FROM pest_control_logs ORDER BY treatment_date DESC LIMIT 5000",
     )
     .fetch_all(&mut *tx)
     .await?;
@@ -695,7 +695,7 @@ pub async fn list_linen_items(
         "SELECT * FROM linen_items \
          WHERE ($1::text IS NULL OR current_status::text = $1) \
            AND ($2::text IS NULL OR item_type = $2) \
-         ORDER BY created_at DESC",
+         ORDER BY created_at DESC LIMIT 5000",
     )
     .bind(&params.status)
     .bind(&params.item_type)
@@ -782,7 +782,7 @@ pub async fn list_linen_movements(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, LinenMovement>(
-        "SELECT * FROM linen_movements ORDER BY movement_date DESC",
+        "SELECT * FROM linen_movements ORDER BY movement_date DESC LIMIT 5000",
     )
     .fetch_all(&mut *tx)
     .await?;
@@ -840,10 +840,11 @@ pub async fn list_laundry_batches(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let rows =
-        sqlx::query_as::<_, LaundryBatch>("SELECT * FROM laundry_batches ORDER BY created_at DESC")
-            .fetch_all(&mut *tx)
-            .await?;
+    let rows = sqlx::query_as::<_, LaundryBatch>(
+        "SELECT * FROM laundry_batches ORDER BY created_at DESC LIMIT 5000",
+    )
+    .fetch_all(&mut *tx)
+    .await?;
 
     tx.commit().await?;
     Ok(Json(rows))
@@ -927,7 +928,7 @@ pub async fn list_par_levels(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, LinenParLevel>(
-        "SELECT * FROM linen_par_levels ORDER BY item_type, ward_id",
+        "SELECT * FROM linen_par_levels ORDER BY item_type, ward_id LIMIT 5000",
     )
     .fetch_all(&mut *tx)
     .await?;
@@ -983,7 +984,7 @@ pub async fn list_condemnations(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, LinenCondemnation>(
-        "SELECT * FROM linen_condemnations ORDER BY condemned_date DESC",
+        "SELECT * FROM linen_condemnations ORDER BY condemned_date DESC LIMIT 5000",
     )
     .fetch_all(&mut *tx)
     .await?;

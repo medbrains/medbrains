@@ -203,7 +203,7 @@ pub async fn list_visiting_hours(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, VisitingHours>(
-        "SELECT * FROM visiting_hours ORDER BY ward_id NULLS FIRST, day_of_week, start_time",
+        "SELECT * FROM visiting_hours ORDER BY ward_id NULLS FIRST, day_of_week, start_time LIMIT 5000",
     )
     .fetch_all(&mut *tx)
     .await?;
@@ -260,7 +260,7 @@ pub async fn list_visitors(
     let rows = if let Some(pid) = params.patient_id {
         sqlx::query_as::<_, VisitorRegistration>(
             "SELECT * FROM visitor_registrations WHERE patient_id = $1 \
-             ORDER BY created_at DESC",
+             ORDER BY created_at DESC LIMIT 5000",
         )
         .bind(pid)
         .fetch_all(&mut *tx)
@@ -268,7 +268,7 @@ pub async fn list_visitors(
     } else if let Some(cat) = params.category {
         sqlx::query_as::<_, VisitorRegistration>(
             "SELECT * FROM visitor_registrations WHERE category::text = $1 \
-             ORDER BY created_at DESC",
+             ORDER BY created_at DESC LIMIT 5000",
         )
         .bind(cat)
         .fetch_all(&mut *tx)
@@ -339,7 +339,7 @@ pub async fn list_passes(
     let rows = if let Some(status) = params.status {
         sqlx::query_as::<_, VisitorPass>(
             "SELECT * FROM visitor_passes WHERE status::text = $1 \
-             ORDER BY created_at DESC",
+             ORDER BY created_at DESC LIMIT 5000",
         )
         .bind(status)
         .fetch_all(&mut *tx)
@@ -347,7 +347,7 @@ pub async fn list_passes(
     } else if let Some(reg_id) = params.registration_id {
         sqlx::query_as::<_, VisitorPass>(
             "SELECT * FROM visitor_passes WHERE registration_id = $1 \
-             ORDER BY created_at DESC",
+             ORDER BY created_at DESC LIMIT 5000",
         )
         .bind(reg_id)
         .fetch_all(&mut *tx)
@@ -443,7 +443,7 @@ pub async fn list_visitor_logs(
 
     let rows = if let Some(pass_id) = params.pass_id {
         sqlx::query_as::<_, VisitorLog>(
-            "SELECT * FROM visitor_logs WHERE pass_id = $1 ORDER BY check_in_at DESC",
+            "SELECT * FROM visitor_logs WHERE pass_id = $1 ORDER BY check_in_at DESC LIMIT 5000",
         )
         .bind(pass_id)
         .fetch_all(&mut *tx)
@@ -451,7 +451,7 @@ pub async fn list_visitor_logs(
     } else if params.active_only.unwrap_or(false) {
         sqlx::query_as::<_, VisitorLog>(
             "SELECT * FROM visitor_logs WHERE check_out_at IS NULL \
-             ORDER BY check_in_at DESC",
+             ORDER BY check_in_at DESC LIMIT 5000",
         )
         .fetch_all(&mut *tx)
         .await?
@@ -539,7 +539,7 @@ pub async fn list_queue_priority_rules(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, QueuePriorityRule>(
-        "SELECT * FROM queue_priority_rules ORDER BY weight DESC, priority",
+        "SELECT * FROM queue_priority_rules ORDER BY weight DESC, priority LIMIT 5000",
     )
     .fetch_all(&mut *tx)
     .await?;
@@ -598,7 +598,7 @@ pub async fn list_display_config(
            AS show_patient_name, \
          show_wait_time, language, announcement_enabled, scroll_speed, \
          created_at, updated_at \
-         FROM queue_display_config ORDER BY location_name",
+         FROM queue_display_config ORDER BY location_name LIMIT 5000",
     )
     .fetch_all(&mut *tx)
     .await?;
@@ -834,7 +834,7 @@ pub async fn visitor_analytics(
          WHERE vr.tenant_id = $1 \
            AND vr.created_at >= CURRENT_DATE - INTERVAL '30 days' \
          GROUP BY vr.ward_id \
-         ORDER BY total_visitors DESC",
+         ORDER BY total_visitors DESC LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -913,7 +913,7 @@ pub async fn queue_metrics(
          WHERE DATE(created_at) = COALESCE($1, CURRENT_DATE) \
            AND ($2::uuid IS NULL OR department_id = $2) \
          GROUP BY department_id, EXTRACT(HOUR FROM called_at) \
-         ORDER BY department_id, hour_of_day",
+         ORDER BY department_id, hour_of_day LIMIT 5000",
     )
     .bind(params.date)
     .bind(params.department_id)

@@ -1597,7 +1597,7 @@ pub async fn get_admission(
     let tasks = if claims_have_any_permission(&claims, IPD_ADMISSION_TASK_CONTEXT_PERMISSIONS) {
         sqlx::query_as::<_, NursingTask>(
             "SELECT * FROM nursing_tasks WHERE admission_id = $1 AND tenant_id = $2 \
-             ORDER BY created_at ASC",
+             ORDER BY created_at ASC LIMIT 5000",
         )
         .bind(id)
         .bind(claims.tenant_id)
@@ -2036,7 +2036,7 @@ pub async fn list_nursing_tasks(
     let tasks = sqlx::query_as::<_, NursingTask>(
         "SELECT * FROM nursing_tasks \
          WHERE admission_id = $1 AND tenant_id = $2 \
-         ORDER BY created_at ASC",
+         ORDER BY created_at ASC LIMIT 5000",
     )
     .bind(id)
     .bind(claims.tenant_id)
@@ -2209,7 +2209,7 @@ pub async fn list_progress_notes(
     let notes = sqlx::query_as::<_, IpdProgressNote>(
         "SELECT * FROM ipd_progress_notes \
          WHERE admission_id = $1 AND tenant_id = $2 \
-         ORDER BY note_date DESC, created_at DESC",
+         ORDER BY note_date DESC, created_at DESC LIMIT 5000",
     )
     .bind(id)
     .bind(claims.tenant_id)
@@ -2405,7 +2405,7 @@ pub async fn list_assessments(
     let rows = sqlx::query_as::<_, IpdClinicalAssessment>(
         "SELECT * FROM ipd_clinical_assessments \
          WHERE admission_id = $1 AND tenant_id = $2 \
-         ORDER BY assessed_at DESC",
+         ORDER BY assessed_at DESC LIMIT 5000",
     )
     .bind(id)
     .bind(claims.tenant_id)
@@ -2486,7 +2486,7 @@ pub async fn list_mar(
     let rows = sqlx::query_as::<_, IpdMedicationAdministration>(
         "SELECT * FROM ipd_medication_administration \
          WHERE admission_id = $1 AND tenant_id = $2 \
-         ORDER BY scheduled_at ASC",
+         ORDER BY scheduled_at ASC LIMIT 5000",
     )
     .bind(id)
     .bind(claims.tenant_id)
@@ -2614,7 +2614,7 @@ pub async fn list_intake_output(
     let rows = sqlx::query_as::<_, IpdIntakeOutput>(
         "SELECT * FROM ipd_intake_output \
          WHERE admission_id = $1 AND tenant_id = $2 \
-         ORDER BY recorded_at DESC",
+         ORDER BY recorded_at DESC LIMIT 5000",
     )
     .bind(id)
     .bind(claims.tenant_id)
@@ -2738,7 +2738,7 @@ pub async fn list_nursing_assessments(
     let rows = sqlx::query_as::<_, IpdNursingAssessment>(
         "SELECT * FROM ipd_nursing_assessments \
          WHERE admission_id = $1 AND tenant_id = $2 \
-         ORDER BY assessed_at DESC",
+         ORDER BY assessed_at DESC LIMIT 5000",
     )
     .bind(id)
     .bind(claims.tenant_id)
@@ -2875,7 +2875,7 @@ pub async fn list_care_plans(
     let rows = sqlx::query_as::<_, IpdCarePlan>(
         "SELECT * FROM ipd_care_plans \
          WHERE admission_id = $1 AND tenant_id = $2 \
-         ORDER BY initiated_at DESC",
+         ORDER BY initiated_at DESC LIMIT 5000",
     )
     .bind(id)
     .bind(claims.tenant_id)
@@ -2998,7 +2998,7 @@ pub async fn list_handovers(
     let rows = sqlx::query_as::<_, IpdHandoverReport>(
         "SELECT * FROM ipd_handover_reports \
          WHERE admission_id = $1 AND tenant_id = $2 \
-         ORDER BY handover_date DESC, created_at DESC",
+         ORDER BY handover_date DESC, created_at DESC LIMIT 5000",
     )
     .bind(id)
     .bind(claims.tenant_id)
@@ -3108,7 +3108,7 @@ pub async fn list_discharge_checklist(
     let rows = sqlx::query_as::<_, IpdDischargeChecklist>(
         "SELECT * FROM ipd_discharge_checklists \
          WHERE admission_id = $1 AND tenant_id = $2 \
-         ORDER BY sort_order ASC",
+         ORDER BY sort_order ASC LIMIT 5000",
     )
     .bind(id)
     .bind(claims.tenant_id)
@@ -3243,7 +3243,7 @@ pub async fn list_wards(
          FROM wards w \
          LEFT JOIN departments d ON d.id = w.department_id \
          WHERE w.tenant_id = $1 \
-         ORDER BY w.name",
+         ORDER BY w.name LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -3386,7 +3386,7 @@ pub async fn list_ward_beds(
          LEFT JOIN admissions a ON a.id = bs.admission_id AND a.status = 'admitted'::admission_status \
          LEFT JOIN patients p ON p.id = a.patient_id \
          WHERE wbm.ward_id = $1 AND wbm.tenant_id = $2 AND wbm.is_active = true \
-         ORDER BY wbm.sort_order, l.name",
+         ORDER BY wbm.sort_order, l.name LIMIT 5000",
     )
     .bind(id)
     .bind(claims.tenant_id)
@@ -3574,7 +3574,7 @@ pub async fn bed_dashboard_summary(
          LEFT JOIN wards w ON w.id = bs.ward_id \
          WHERE bs.tenant_id = $1 \
          GROUP BY bs.ward_id, w.name \
-         ORDER BY w.name NULLS LAST",
+         ORDER BY w.name NULLS LAST LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -3623,7 +3623,7 @@ pub async fn bed_dashboard_beds(
              AND a.status = 'admitted'::admission_status \
          LEFT JOIN patients p ON p.id = a.patient_id \
          WHERE {where_clause} \
-         ORDER BY w.name NULLS LAST, l.name"
+         ORDER BY w.name NULLS LAST, l.name LIMIT 5000"
     );
 
     let mut q = sqlx::query_as::<_, BedDashboardRow>(&sql)
@@ -3705,7 +3705,7 @@ pub async fn list_attenders(
     let rows = sqlx::query_as::<_, AdmissionAttender>(
         "SELECT * FROM admission_attenders \
          WHERE admission_id = $1 AND tenant_id = $2 \
-         ORDER BY is_primary DESC, created_at",
+         ORDER BY is_primary DESC, created_at LIMIT 5000",
     )
     .bind(admission_id)
     .bind(claims.tenant_id)
@@ -3808,7 +3808,7 @@ pub async fn list_discharge_templates(
     let rows = sqlx::query_as::<_, DischargeSummaryTemplate>(
         "SELECT * FROM discharge_summary_templates \
          WHERE tenant_id = $1 AND is_active = true \
-         ORDER BY is_default DESC, name",
+         ORDER BY is_default DESC, name LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -4121,7 +4121,7 @@ pub async fn report_census(
          LEFT JOIN wards w ON w.id = bs.ward_id \
          WHERE bs.tenant_id = $1 \
          GROUP BY bs.ward_id, w.name \
-         ORDER BY w.name NULLS LAST",
+         ORDER BY w.name NULLS LAST LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -4178,7 +4178,7 @@ pub async fn report_occupancy(
                 (wb.total_beds * ($3::date - $2::date + 1)) AS total_bed_days \
          FROM ward_beds wb \
          LEFT JOIN occupied o ON o.ward_id = wb.ward_id \
-         ORDER BY wb.ward_name NULLS LAST",
+         ORDER BY wb.ward_name NULLS LAST LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .bind(from)
@@ -4222,7 +4222,7 @@ pub async fn report_alos(
            AND a.discharged_at >= $2::date::timestamptz \
            AND a.discharged_at < ($3::date + 1)::timestamptz \
          GROUP BY d.name, a.discharge_type \
-         ORDER BY d.name, a.discharge_type",
+         ORDER BY d.name, a.discharge_type LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .bind(from)
@@ -4261,7 +4261,7 @@ pub async fn report_discharge_stats(
            AND a.discharged_at >= $2::date::timestamptz \
            AND a.discharged_at < ($3::date + 1)::timestamptz \
          GROUP BY a.discharge_type \
-         ORDER BY count DESC",
+         ORDER BY count DESC LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .bind(from)
@@ -4543,7 +4543,7 @@ pub async fn list_ip_types(
     let rows = sqlx::query_as::<_, IpTypeConfiguration>(
         "SELECT * FROM ip_type_configurations \
          WHERE tenant_id = $1 \
-         ORDER BY ip_type",
+         ORDER BY ip_type LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -4681,7 +4681,7 @@ pub async fn list_admission_checklist(
     let rows = sqlx::query_as::<_, AdmissionChecklist>(
         "SELECT * FROM admission_checklists \
          WHERE admission_id = $1 AND tenant_id = $2 \
-         ORDER BY sort_order, created_at",
+         ORDER BY sort_order, created_at LIMIT 5000",
     )
     .bind(admission_id)
     .bind(claims.tenant_id)
@@ -4809,8 +4809,9 @@ pub async fn list_bed_reservations(
     }
 
     let where_clause = conditions.join(" AND ");
-    let sql =
-        format!("SELECT * FROM bed_reservations WHERE {where_clause} ORDER BY reserved_from DESC");
+    let sql = format!(
+        "SELECT * FROM bed_reservations WHERE {where_clause} ORDER BY reserved_from DESC LIMIT 5000"
+    );
 
     let mut q = sqlx::query_as::<_, BedReservation>(&sql).bind(claims.tenant_id);
     if let Some(ref s) = params.status {
@@ -4922,7 +4923,7 @@ pub async fn list_bed_reservations_for_bed(
         "SELECT * FROM bed_reservations \
          WHERE bed_id = $1 AND tenant_id = $2 \
            AND status IN ('active', 'confirmed') \
-         ORDER BY reserved_from",
+         ORDER BY reserved_from LIMIT 5000",
     )
     .bind(bed_id)
     .bind(claims.tenant_id)
@@ -4954,7 +4955,7 @@ pub async fn list_bed_turnaround(
              WHERE tenant_id = $1 \
                AND vacated_at >= $2::date::timestamptz \
                AND vacated_at < ($3::date + 1)::timestamptz \
-             ORDER BY vacated_at DESC",
+             ORDER BY vacated_at DESC LIMIT 5000",
         )
         .bind(claims.tenant_id)
         .bind(from)
@@ -5059,7 +5060,7 @@ pub async fn list_clinical_docs(
             "SELECT * FROM ipd_clinical_documentations \
              WHERE admission_id = $1 AND tenant_id = $2 \
                AND doc_type = $3::ipd_clinical_doc_type \
-             ORDER BY recorded_at DESC",
+             ORDER BY recorded_at DESC LIMIT 5000",
         )
         .bind(admission_id)
         .bind(claims.tenant_id)
@@ -5070,7 +5071,7 @@ pub async fn list_clinical_docs(
         sqlx::query_as::<_, IpdClinicalDocumentation>(
             "SELECT * FROM ipd_clinical_documentations \
              WHERE admission_id = $1 AND tenant_id = $2 \
-             ORDER BY recorded_at DESC",
+             ORDER BY recorded_at DESC LIMIT 5000",
         )
         .bind(admission_id)
         .bind(claims.tenant_id)
@@ -5212,7 +5213,7 @@ pub async fn list_restraint_checks(
     let rows = sqlx::query_as::<_, RestraintMonitoringLog>(
         "SELECT * FROM restraint_monitoring_logs \
          WHERE clinical_doc_id = $1 AND tenant_id = $2 \
-         ORDER BY check_time DESC",
+         ORDER BY check_time DESC LIMIT 5000",
     )
     .bind(doc_id)
     .bind(claims.tenant_id)
@@ -5282,7 +5283,7 @@ pub async fn list_transfers(
     let rows = sqlx::query_as::<_, IpdTransferLog>(
         "SELECT * FROM ipd_transfer_logs \
          WHERE admission_id = $1 AND tenant_id = $2 \
-         ORDER BY transferred_at DESC",
+         ORDER BY transferred_at DESC LIMIT 5000",
     )
     .bind(admission_id)
     .bind(claims.tenant_id)
@@ -5535,7 +5536,7 @@ pub async fn list_birth_records(
     let rows = sqlx::query_as::<_, IpdBirthRecord>(
         "SELECT * FROM ipd_birth_records \
          WHERE admission_id = $1 AND tenant_id = $2 \
-         ORDER BY date_of_birth, time_of_birth",
+         ORDER BY date_of_birth, time_of_birth LIMIT 5000",
     )
     .bind(admission_id)
     .bind(claims.tenant_id)
@@ -5875,7 +5876,7 @@ pub async fn list_available_beds(
                AND br.status IN ('active', 'confirmed') \
                AND br.reserved_until > NOW() \
            ) \
-         ORDER BY w.name, l.name",
+         ORDER BY w.name, l.name LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .bind(q.ward_id)
@@ -5931,7 +5932,7 @@ pub async fn get_investigations(
          JOIN lab_test_catalog ltc ON ltc.id = lo.test_id AND ltc.tenant_id = lo.tenant_id \
          WHERE lo.patient_id = $1 AND lo.tenant_id = $2 \
            AND lo.created_at >= $3 \
-         ORDER BY lo.created_at DESC",
+         ORDER BY lo.created_at DESC LIMIT 5000",
     )
     .bind(adm.patient_id)
     .bind(claims.tenant_id)
@@ -5948,7 +5949,7 @@ pub async fn get_investigations(
          JOIN lab_orders lo ON lo.id = lr.order_id AND lo.tenant_id = lr.tenant_id \
          WHERE lo.patient_id = $1 AND lr.tenant_id = $2 \
            AND lo.created_at >= $3 \
-         ORDER BY lr.created_at DESC",
+         ORDER BY lr.created_at DESC LIMIT 5000",
     )
     .bind(adm.patient_id)
     .bind(claims.tenant_id)
@@ -5967,7 +5968,7 @@ pub async fn get_investigations(
               AND rr.tenant_id = ro.tenant_id \
          WHERE ro.patient_id = $1 AND ro.tenant_id = $2 \
            AND ro.created_at >= $3 \
-         ORDER BY ro.created_at DESC",
+         ORDER BY ro.created_at DESC LIMIT 5000",
     )
     .bind(adm.patient_id)
     .bind(claims.tenant_id)
@@ -6072,7 +6073,7 @@ pub async fn get_admission_advances(
         "SELECT r.* FROM receipts r \
          JOIN invoices i ON i.id = r.invoice_id AND i.tenant_id = r.tenant_id \
          WHERE i.encounter_id = $1 AND r.tenant_id = $2 \
-         ORDER BY r.receipt_date DESC",
+         ORDER BY r.receipt_date DESC LIMIT 5000",
     )
     .bind(adm.encounter_id)
     .bind(claims.tenant_id)
@@ -6111,7 +6112,7 @@ pub async fn get_admission_prior_auth(
         "SELECT * FROM prior_auth_requests \
          WHERE patient_id = $1 AND tenant_id = $2 \
            AND created_at >= $3 \
-         ORDER BY created_at DESC",
+         ORDER BY created_at DESC LIMIT 5000",
     )
     .bind(adm.patient_id)
     .bind(claims.tenant_id)
@@ -6241,7 +6242,7 @@ pub async fn get_billing_summary(
          JOIN invoices i ON i.id = ii.invoice_id AND i.tenant_id = ii.tenant_id \
          WHERE i.encounter_id = $1 AND ii.tenant_id = $2 \
          GROUP BY ii.description \
-         ORDER BY total DESC",
+         ORDER BY total DESC LIMIT 5000",
     )
     .bind(adm.encounter_id)
     .bind(claims.tenant_id)
@@ -6487,7 +6488,7 @@ pub async fn get_admission_diet_orders(
     let rows = sqlx::query_as::<_, medbrains_core::diet::DietOrder>(
         "SELECT * FROM diet_orders \
          WHERE admission_id = $1 AND tenant_id = $2 \
-         ORDER BY created_at DESC",
+         ORDER BY created_at DESC LIMIT 5000",
     )
     .bind(id)
     .bind(claims.tenant_id)
@@ -6520,7 +6521,7 @@ pub async fn get_admission_consents(
     let rows = sqlx::query_as::<_, medbrains_core::consultation::ProcedureConsent>(
         "SELECT * FROM procedure_consents \
          WHERE encounter_id = $1 AND tenant_id = $2 \
-         ORDER BY created_at DESC",
+         ORDER BY created_at DESC LIMIT 5000",
     )
     .bind(adm.encounter_id)
     .bind(claims.tenant_id)
@@ -6559,7 +6560,7 @@ pub async fn generate_discharge_summary(
     let diagnoses = sqlx::query_as::<_, medbrains_core::consultation::Diagnosis>(
         "SELECT * FROM diagnoses \
          WHERE encounter_id = $1 AND tenant_id = $2 \
-         ORDER BY is_primary DESC, created_at",
+         ORDER BY is_primary DESC, created_at LIMIT 5000",
     )
     .bind(adm.encounter_id)
     .bind(claims.tenant_id)
@@ -6570,7 +6571,7 @@ pub async fn generate_discharge_summary(
     let prescriptions = sqlx::query_as::<_, medbrains_core::consultation::Prescription>(
         "SELECT * FROM prescriptions \
          WHERE encounter_id = $1 AND tenant_id = $2 \
-         ORDER BY created_at DESC",
+         ORDER BY created_at DESC LIMIT 5000",
     )
     .bind(adm.encounter_id)
     .bind(claims.tenant_id)
@@ -6581,7 +6582,7 @@ pub async fn generate_discharge_summary(
     let nursing_tasks = sqlx::query_as::<_, NursingTask>(
         "SELECT * FROM nursing_tasks \
          WHERE admission_id = $1 AND tenant_id = $2 \
-         ORDER BY created_at DESC",
+         ORDER BY created_at DESC LIMIT 5000",
     )
     .bind(admission_id)
     .bind(claims.tenant_id)
@@ -6592,7 +6593,7 @@ pub async fn generate_discharge_summary(
     let progress_notes = sqlx::query_as::<_, IpdProgressNote>(
         "SELECT * FROM ipd_progress_notes \
          WHERE admission_id = $1 AND tenant_id = $2 \
-         ORDER BY note_date DESC",
+         ORDER BY note_date DESC LIMIT 5000",
     )
     .bind(admission_id)
     .bind(claims.tenant_id)
@@ -6848,7 +6849,7 @@ pub async fn expected_discharges(
            AND a.status = 'admitted'::admission_status \
            AND a.expected_discharge_date IS NOT NULL \
            AND a.expected_discharge_date BETWEEN $2 AND $2 + INTEGER '2' \
-         ORDER BY a.expected_discharge_date ASC",
+         ORDER BY a.expected_discharge_date ASC LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .bind(today)

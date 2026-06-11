@@ -90,7 +90,7 @@ pub async fn hourly_flow(
            COALESCE((SELECT COUNT(*) FROM opd_queues \
              WHERE tenant_id = $1 AND queue_date = CURRENT_DATE \
              AND EXTRACT(HOUR FROM created_at) = h.hour), 0) AS opd_visits \
-         FROM hours h ORDER BY h.hour",
+         FROM hours h ORDER BY h.hour LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -191,7 +191,7 @@ pub async fn department_load(
              AND oq.queue_date = CURRENT_DATE \
          ) q ON true \
          WHERE d.tenant_id = $1 \
-         ORDER BY d.name",
+         ORDER BY d.name LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -274,7 +274,7 @@ pub async fn list_thresholds(
          FROM department_alert_thresholds t \
          JOIN departments d ON d.id = t.department_id \
          WHERE t.tenant_id = $1 \
-         ORDER BY d.name, t.metric_code",
+         ORDER BY d.name, t.metric_code LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -503,7 +503,7 @@ pub async fn turnaround_stats(
          LEFT JOIN wards w ON w.id = b.ward_id \
          WHERE b.tenant_id = $1 \
          GROUP BY w.name \
-         ORDER BY w.name",
+         ORDER BY w.name LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -855,7 +855,7 @@ pub async fn kpi_detail(
                      AND discharged_at::date = (CURRENT_DATE - d.d * INTERVAL '1 day')::date), 0) \
                      AS discharges, \
                    0::int8 AS er_arrivals, 0::int8 AS opd_visits \
-                 FROM days d ORDER BY d.d",
+                 FROM days d ORDER BY d.d LIMIT 5000",
             )
             .bind(claims.tenant_id)
             .fetch_all(&mut *tx)
@@ -876,7 +876,7 @@ pub async fn kpi_detail(
                  LEFT JOIN wards w ON w.department_id = d.id AND w.tenant_id = $1 \
                  LEFT JOIN beds b ON b.ward_id = w.id AND b.tenant_id = $1 \
                  WHERE d.tenant_id = $1 \
-                 GROUP BY d.id, d.name ORDER BY d.name",
+                 GROUP BY d.id, d.name ORDER BY d.name LIMIT 5000",
             )
             .bind(claims.tenant_id)
             .fetch_all(&mut *tx)

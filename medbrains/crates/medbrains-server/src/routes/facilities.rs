@@ -421,7 +421,7 @@ pub async fn list_gas_compliance(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, FmsGasCompliance>(
-        "SELECT * FROM fms_gas_compliance ORDER BY gas_type, facility_id",
+        "SELECT * FROM fms_gas_compliance ORDER BY gas_type, facility_id LIMIT 5000",
     )
     .fetch_all(&mut *tx)
     .await?;
@@ -532,7 +532,7 @@ pub async fn list_fire_equipment(
          WHERE ($1::text IS NULL OR equipment_type::text = $1) \
          AND ($2::uuid IS NULL OR location_id = $2) \
          AND ($3::bool IS NULL OR is_active = $3) \
-         ORDER BY name",
+         ORDER BY name LIMIT 5000",
     )
     .bind(&params.equipment_type)
     .bind(params.location_id)
@@ -780,7 +780,7 @@ pub async fn list_fire_noc(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, FmsFireNoc>(
-        "SELECT * FROM fms_fire_noc ORDER BY valid_to DESC NULLS LAST",
+        "SELECT * FROM fms_fire_noc ORDER BY valid_to DESC NULLS LAST LIMIT 5000",
     )
     .fetch_all(&mut *tx)
     .await?;
@@ -948,7 +948,7 @@ pub async fn list_water_schedules(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, FmsWaterSchedule>(
-        "SELECT * FROM fms_water_schedules ORDER BY next_due_date NULLS LAST",
+        "SELECT * FROM fms_water_schedules ORDER BY next_due_date NULLS LAST LIMIT 5000",
     )
     .fetch_all(&mut *tx)
     .await?;
@@ -1424,7 +1424,7 @@ pub async fn energy_analytics(
            AND reading_at >= CURRENT_DATE - ($2 || ' days')::interval \
            AND ($3::text IS NULL OR source_type::text = $3) \
          GROUP BY source_type \
-         ORDER BY total_readings DESC",
+         ORDER BY total_readings DESC LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .bind(days)

@@ -205,7 +205,7 @@ pub async fn list_screenings(
         sqlx::query_as::<_, OccHealthScreening>(
             "SELECT * FROM occ_health_screenings \
              WHERE tenant_id = $1 AND employee_id = $2 \
-             ORDER BY screening_date DESC",
+             ORDER BY screening_date DESC LIMIT 5000",
         )
         .bind(claims.tenant_id)
         .bind(emp_id)
@@ -215,7 +215,7 @@ pub async fn list_screenings(
         sqlx::query_as::<_, OccHealthScreening>(
             "SELECT * FROM occ_health_screenings \
              WHERE tenant_id = $1 AND screening_type = $2 \
-             ORDER BY screening_date DESC",
+             ORDER BY screening_date DESC LIMIT 5000",
         )
         .bind(claims.tenant_id)
         .bind(stype)
@@ -286,7 +286,7 @@ pub async fn list_due_screenings(
         "SELECT * FROM occ_health_screenings \
          WHERE tenant_id = $1 \
          AND next_due_date <= CURRENT_DATE + interval '30 days' \
-         ORDER BY next_due_date ASC",
+         ORDER BY next_due_date ASC LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -377,7 +377,7 @@ pub async fn list_drug_screens(
         sqlx::query_as::<_, OccHealthDrugScreen>(
             "SELECT * FROM occ_health_drug_screens \
              WHERE tenant_id = $1 AND employee_id = $2 \
-             ORDER BY created_at DESC",
+             ORDER BY created_at DESC LIMIT 5000",
         )
         .bind(claims.tenant_id)
         .bind(emp_id)
@@ -387,7 +387,7 @@ pub async fn list_drug_screens(
         sqlx::query_as::<_, OccHealthDrugScreen>(
             "SELECT * FROM occ_health_drug_screens \
              WHERE tenant_id = $1 AND status = $2::drug_screen_status \
-             ORDER BY created_at DESC",
+             ORDER BY created_at DESC LIMIT 5000",
         )
         .bind(claims.tenant_id)
         .bind(status)
@@ -498,7 +498,7 @@ pub async fn list_vaccinations(
         sqlx::query_as::<_, OccHealthVaccination>(
             "SELECT * FROM occ_health_vaccinations \
              WHERE tenant_id = $1 AND employee_id = $2 \
-             ORDER BY administered_date DESC",
+             ORDER BY administered_date DESC LIMIT 5000",
         )
         .bind(claims.tenant_id)
         .bind(emp_id)
@@ -508,7 +508,7 @@ pub async fn list_vaccinations(
         sqlx::query_as::<_, OccHealthVaccination>(
             "SELECT * FROM occ_health_vaccinations \
              WHERE tenant_id = $1 AND vaccine_name = $2 \
-             ORDER BY administered_date DESC",
+             ORDER BY administered_date DESC LIMIT 5000",
         )
         .bind(claims.tenant_id)
         .bind(vname)
@@ -637,7 +637,7 @@ pub async fn vaccination_compliance(
          FROM occ_health_vaccinations \
          WHERE tenant_id = $1 \
          GROUP BY vaccine_name \
-         ORDER BY vaccine_name",
+         ORDER BY vaccine_name LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -665,7 +665,7 @@ pub async fn list_injuries(
         sqlx::query_as::<_, OccHealthInjuryReport>(
             "SELECT * FROM occ_health_injury_reports \
              WHERE tenant_id = $1 AND employee_id = $2 \
-             ORDER BY injury_date DESC",
+             ORDER BY injury_date DESC LIMIT 5000",
         )
         .bind(claims.tenant_id)
         .bind(emp_id)
@@ -675,7 +675,7 @@ pub async fn list_injuries(
         sqlx::query_as::<_, OccHealthInjuryReport>(
             "SELECT * FROM occ_health_injury_reports \
              WHERE tenant_id = $1 AND rtw_status = $2::rtw_clearance_status \
-             ORDER BY injury_date DESC",
+             ORDER BY injury_date DESC LIMIT 5000",
         )
         .bind(claims.tenant_id)
         .bind(rtw)
@@ -685,7 +685,7 @@ pub async fn list_injuries(
         sqlx::query_as::<_, OccHealthInjuryReport>(
             "SELECT * FROM occ_health_injury_reports \
              WHERE tenant_id = $1 AND is_osha_recordable = $2 \
-             ORDER BY injury_date DESC",
+             ORDER BY injury_date DESC LIMIT 5000",
         )
         .bind(claims.tenant_id)
         .bind(osha)
@@ -873,7 +873,7 @@ pub async fn list_hazards(
              WHERE s.tenant_id = $1 \
              AND s.screening_type = 'hazard_assessment' \
              AND e.department_id = $2 \
-             ORDER BY s.screening_date DESC",
+             ORDER BY s.screening_date DESC LIMIT 5000",
         )
         .bind(claims.tenant_id)
         .bind(dept_id)
@@ -1005,7 +1005,7 @@ pub async fn health_analytics(
          WHERE tenant_id = $1 \
          AND screening_date >= CURRENT_DATE - interval '12 months' \
          GROUP BY TO_CHAR(screening_date, 'YYYY-MM'), screening_type \
-         ORDER BY month DESC, screening_count DESC",
+         ORDER BY month DESC, screening_count DESC LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)

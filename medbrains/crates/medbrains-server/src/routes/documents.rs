@@ -546,7 +546,7 @@ pub async fn list_default_templates(
     let rows = sqlx::query_as::<_, DocumentTemplate>(
         "SELECT DISTINCT ON (category) * FROM document_templates \
          WHERE is_default = true AND is_active = true \
-         ORDER BY category, updated_at DESC",
+         ORDER BY category, updated_at DESC LIMIT 5000",
     )
     .fetch_all(&mut *tx)
     .await?;
@@ -969,7 +969,7 @@ pub async fn output_stats(
         "SELECT category::text AS category, COUNT(*)::bigint AS count \
          FROM document_outputs \
          GROUP BY category \
-         ORDER BY count DESC",
+         ORDER BY count DESC LIMIT 5000",
     )
     .fetch_all(&mut *tx)
     .await?;
@@ -979,7 +979,7 @@ pub async fn output_stats(
         "SELECT status::text AS status, COUNT(*)::bigint AS count \
          FROM document_outputs \
          GROUP BY status \
-         ORDER BY count DESC",
+         ORDER BY count DESC LIMIT 5000",
     )
     .fetch_all(&mut *tx)
     .await?;
@@ -1020,7 +1020,7 @@ pub async fn list_output_signatures(
     let rows = sqlx::query_as::<_, DocumentOutputSignature>(
         "SELECT * FROM document_output_signatures \
          WHERE document_output_id = $1 \
-         ORDER BY signed_at DESC",
+         ORDER BY signed_at DESC LIMIT 5000",
     )
     .bind(document_output_id)
     .fetch_all(&mut *tx)
@@ -1224,7 +1224,7 @@ pub async fn list_printers(
          department_id, default_format, capabilities, is_active, created_at, updated_at \
          FROM printer_configs \
          WHERE tenant_id = $1 AND is_active = true \
-         ORDER BY name",
+         ORDER BY name LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)

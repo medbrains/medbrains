@@ -321,7 +321,7 @@ pub async fn list_vendors(
         sqlx::query_as::<_, Vendor>(
             "SELECT * FROM vendors WHERE tenant_id = $1 \
              AND (name ILIKE $2 OR code ILIKE $2 OR contact_person ILIKE $2) \
-             ORDER BY name",
+             ORDER BY name LIMIT 5000",
         )
         .bind(claims.tenant_id)
         .bind(&pattern)
@@ -329,17 +329,19 @@ pub async fn list_vendors(
         .await?
     } else if let Some(ref status) = params.status {
         sqlx::query_as::<_, Vendor>(
-            "SELECT * FROM vendors WHERE tenant_id = $1 AND status = $2::vendor_status ORDER BY name",
+            "SELECT * FROM vendors WHERE tenant_id = $1 AND status = $2::vendor_status ORDER BY name LIMIT 5000",
         )
         .bind(claims.tenant_id)
         .bind(status)
         .fetch_all(&mut *tx)
         .await?
     } else {
-        sqlx::query_as::<_, Vendor>("SELECT * FROM vendors WHERE tenant_id = $1 ORDER BY name")
-            .bind(claims.tenant_id)
-            .fetch_all(&mut *tx)
-            .await?
+        sqlx::query_as::<_, Vendor>(
+            "SELECT * FROM vendors WHERE tenant_id = $1 ORDER BY name LIMIT 5000",
+        )
+        .bind(claims.tenant_id)
+        .fetch_all(&mut *tx)
+        .await?
     };
 
     tx.commit().await?;
@@ -535,7 +537,7 @@ pub async fn list_store_locations(
         .await?;
 
     let locations = sqlx::query_as::<_, StoreLocation>(
-        "SELECT * FROM store_locations WHERE tenant_id = $1 ORDER BY name",
+        "SELECT * FROM store_locations WHERE tenant_id = $1 ORDER BY name LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -710,7 +712,7 @@ pub async fn get_purchase_order(
     .ok_or_else(|| AppError::NotFound)?;
 
     let items = sqlx::query_as::<_, PurchaseOrderItem>(
-        "SELECT * FROM purchase_order_items WHERE po_id = $1 AND tenant_id = $2 ORDER BY created_at",
+        "SELECT * FROM purchase_order_items WHERE po_id = $1 AND tenant_id = $2 ORDER BY created_at LIMIT 5000",
     )
     .bind(id)
     .bind(claims.tenant_id)
@@ -826,7 +828,7 @@ pub async fn create_purchase_order(
     .await?;
 
     let items = sqlx::query_as::<_, PurchaseOrderItem>(
-        "SELECT * FROM purchase_order_items WHERE po_id = $1 AND tenant_id = $2 ORDER BY created_at",
+        "SELECT * FROM purchase_order_items WHERE po_id = $1 AND tenant_id = $2 ORDER BY created_at LIMIT 5000",
     )
     .bind(po.id)
     .bind(claims.tenant_id)
@@ -1013,7 +1015,7 @@ pub async fn get_grn(
     .ok_or_else(|| AppError::NotFound)?;
 
     let items = sqlx::query_as::<_, GrnItem>(
-        "SELECT * FROM grn_items WHERE grn_id = $1 AND tenant_id = $2 ORDER BY created_at",
+        "SELECT * FROM grn_items WHERE grn_id = $1 AND tenant_id = $2 ORDER BY created_at LIMIT 5000",
     )
     .bind(id)
     .bind(claims.tenant_id)
@@ -1309,7 +1311,7 @@ pub async fn create_grn(
     .await?;
 
     let items = sqlx::query_as::<_, GrnItem>(
-        "SELECT * FROM grn_items WHERE grn_id = $1 AND tenant_id = $2 ORDER BY created_at",
+        "SELECT * FROM grn_items WHERE grn_id = $1 AND tenant_id = $2 ORDER BY created_at LIMIT 5000",
     )
     .bind(grn.id)
     .bind(claims.tenant_id)
@@ -1365,7 +1367,7 @@ pub async fn list_rate_contracts(
 
     let contracts = if let Some(vendor_id) = params.vendor_id {
         sqlx::query_as::<_, RateContract>(
-            "SELECT * FROM rate_contracts WHERE tenant_id = $1 AND vendor_id = $2 ORDER BY end_date DESC",
+            "SELECT * FROM rate_contracts WHERE tenant_id = $1 AND vendor_id = $2 ORDER BY end_date DESC LIMIT 5000",
         )
         .bind(claims.tenant_id)
         .bind(vendor_id)
@@ -1373,7 +1375,7 @@ pub async fn list_rate_contracts(
         .await?
     } else {
         sqlx::query_as::<_, RateContract>(
-            "SELECT * FROM rate_contracts WHERE tenant_id = $1 ORDER BY end_date DESC",
+            "SELECT * FROM rate_contracts WHERE tenant_id = $1 ORDER BY end_date DESC LIMIT 5000",
         )
         .bind(claims.tenant_id)
         .fetch_all(&mut *tx)
@@ -1405,7 +1407,7 @@ pub async fn get_rate_contract(
     .ok_or_else(|| AppError::NotFound)?;
 
     let items = sqlx::query_as::<_, RateContractItem>(
-        "SELECT * FROM rate_contract_items WHERE contract_id = $1 AND tenant_id = $2 ORDER BY created_at",
+        "SELECT * FROM rate_contract_items WHERE contract_id = $1 AND tenant_id = $2 ORDER BY created_at LIMIT 5000",
     )
     .bind(id)
     .bind(claims.tenant_id)
@@ -1468,7 +1470,7 @@ pub async fn create_rate_contract(
     }
 
     let items = sqlx::query_as::<_, RateContractItem>(
-        "SELECT * FROM rate_contract_items WHERE contract_id = $1 AND tenant_id = $2 ORDER BY created_at",
+        "SELECT * FROM rate_contract_items WHERE contract_id = $1 AND tenant_id = $2 ORDER BY created_at LIMIT 5000",
     )
     .bind(contract.id)
     .bind(claims.tenant_id)
@@ -1497,7 +1499,7 @@ pub async fn list_batch_stock(
     let batches = if let Some(catalog_id) = params.catalog_item_id {
         sqlx::query_as::<_, BatchStock>(
             "SELECT * FROM batch_stock WHERE tenant_id = $1 AND catalog_item_id = $2 AND quantity > 0 \
-             ORDER BY expiry_date ASC NULLS LAST",
+             ORDER BY expiry_date ASC NULLS LAST LIMIT 5000",
         )
         .bind(claims.tenant_id)
         .bind(catalog_id)
@@ -1506,7 +1508,7 @@ pub async fn list_batch_stock(
     } else if params.consignment_only.unwrap_or(false) {
         sqlx::query_as::<_, BatchStock>(
             "SELECT * FROM batch_stock WHERE tenant_id = $1 AND is_consignment = true AND quantity > 0 \
-             ORDER BY expiry_date ASC NULLS LAST",
+             ORDER BY expiry_date ASC NULLS LAST LIMIT 5000",
         )
         .bind(claims.tenant_id)
         .fetch_all(&mut *tx)
@@ -1556,7 +1558,7 @@ pub async fn vendor_performance(
          LEFT JOIN goods_receipt_notes g ON g.po_id = po.id AND g.tenant_id = v.tenant_id \
          LEFT JOIN grn_items gi ON gi.grn_id = g.id AND gi.tenant_id = v.tenant_id \
          WHERE v.tenant_id = $1 AND v.is_active = true \
-         GROUP BY v.id, v.name ORDER BY total_orders DESC",
+         GROUP BY v.id, v.name ORDER BY total_orders DESC LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -1602,7 +1604,7 @@ pub async fn vendor_comparison(
          WHERE v.tenant_id = $1 AND v.is_active = true \
          AND (rci.id IS NOT NULL OR poi.id IS NOT NULL) \
          GROUP BY v.id, v.name, sc.name, rci.contracted_price, poi.unit_price \
-         ORDER BY unit_price ASC NULLS LAST",
+         ORDER BY unit_price ASC NULLS LAST LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .bind(params.catalog_item_id)
@@ -1724,7 +1726,7 @@ pub async fn create_emergency_po(
     .await?;
 
     let items = sqlx::query_as::<_, PurchaseOrderItem>(
-        "SELECT * FROM purchase_order_items WHERE po_id = $1 AND tenant_id = $2 ORDER BY created_at",
+        "SELECT * FROM purchase_order_items WHERE po_id = $1 AND tenant_id = $2 ORDER BY created_at LIMIT 5000",
     )
     .bind(po.id)
     .bind(claims.tenant_id)
@@ -1782,7 +1784,7 @@ pub async fn list_supplier_payments(
 
     let rows = if let Some(vendor_id) = params.vendor_id {
         sqlx::query_as::<_, SupplierPayment>(
-            "SELECT * FROM supplier_payments WHERE tenant_id = $1 AND vendor_id = $2 ORDER BY created_at DESC",
+            "SELECT * FROM supplier_payments WHERE tenant_id = $1 AND vendor_id = $2 ORDER BY created_at DESC LIMIT 5000",
         )
         .bind(claims.tenant_id)
         .bind(vendor_id)
@@ -1790,7 +1792,7 @@ pub async fn list_supplier_payments(
         .await?
     } else if let Some(ref status) = params.status {
         sqlx::query_as::<_, SupplierPayment>(
-            "SELECT * FROM supplier_payments WHERE tenant_id = $1 AND status = $2::supplier_payment_status ORDER BY created_at DESC",
+            "SELECT * FROM supplier_payments WHERE tenant_id = $1 AND status = $2::supplier_payment_status ORDER BY created_at DESC LIMIT 5000",
         )
         .bind(claims.tenant_id)
         .bind(status)
@@ -2004,7 +2006,7 @@ pub async fn vendor_ledger(
          FROM pharmacy_credit_notes \
          WHERE supplier_id = $1 AND tenant_id = $2 \
            AND note_type = 'supplier_return' \
-         ORDER BY txn_date ASC",
+         ORDER BY txn_date ASC LIMIT 5000",
     )
     .bind(vendor_id)
     .bind(claims.tenant_id)

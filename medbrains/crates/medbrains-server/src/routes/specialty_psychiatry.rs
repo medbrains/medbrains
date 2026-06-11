@@ -259,7 +259,7 @@ pub async fn list_assessments(
 
     let rows = sqlx::query_as::<_, PsychAssessment>(
         "SELECT * FROM psych_assessments WHERE psych_patient_id = $1 \
-         ORDER BY assessed_at DESC",
+         ORDER BY assessed_at DESC LIMIT 5000",
     )
     .bind(psych_patient_id)
     .fetch_all(&mut *tx)
@@ -322,7 +322,7 @@ pub async fn list_ect_sessions(
 
     let rows = sqlx::query_as::<_, PsychEctRegister>(
         "SELECT * FROM psych_ect_register WHERE psych_patient_id = $1 \
-         ORDER BY session_number",
+         ORDER BY session_number LIMIT 5000",
     )
     .bind(psych_patient_id)
     .fetch_all(&mut *tx)
@@ -386,7 +386,7 @@ pub async fn list_restraints(
 
     let rows = sqlx::query_as::<_, PsychSeclusionRestraint>(
         "SELECT * FROM psych_seclusion_restraint WHERE psych_patient_id = $1 \
-         ORDER BY start_time DESC",
+         ORDER BY start_time DESC LIMIT 5000",
     )
     .bind(psych_patient_id)
     .fetch_all(&mut *tx)
@@ -478,7 +478,7 @@ pub async fn list_mhrb_notifications(
 
     let rows = sqlx::query_as::<_, PsychMhrbNotification>(
         "SELECT * FROM psych_mhrb_notifications WHERE psych_patient_id = $1 \
-         ORDER BY created_at DESC",
+         ORDER BY created_at DESC LIMIT 5000",
     )
     .bind(psych_patient_id)
     .fetch_all(&mut *tx)
@@ -563,7 +563,7 @@ pub async fn list_counseling_sessions(
 
     let rows = sqlx::query_as::<_, PsychCounselingSession>(
         "SELECT * FROM psych_counseling_sessions WHERE psych_patient_id = $1 \
-         ORDER BY session_date DESC",
+         ORDER BY session_date DESC LIMIT 5000",
     )
     .bind(psych_patient_id)
     .fetch_all(&mut *tx)

@@ -261,7 +261,7 @@ pub async fn list_facilities(
         .await?;
 
     let rows = sqlx::query_as::<_, Facility>(
-        "SELECT * FROM facilities WHERE tenant_id = $1 ORDER BY created_at",
+        "SELECT * FROM facilities WHERE tenant_id = $1 ORDER BY created_at LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -454,7 +454,7 @@ pub async fn list_locations(
 
     let rows = sqlx::query_as::<_, LocationRow>(
         "SELECT id, tenant_id, parent_id, level::text, code, name, is_active \
-         FROM locations WHERE tenant_id = $1 ORDER BY created_at",
+         FROM locations WHERE tenant_id = $1 ORDER BY created_at LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -642,7 +642,7 @@ pub async fn list_departments(
 
     let rows = sqlx::query_as::<_, DepartmentRow>(
         "SELECT id, tenant_id, parent_id, code, name, department_type::text, working_hours, is_active \
-         FROM departments WHERE tenant_id = $1 ORDER BY name",
+         FROM departments WHERE tenant_id = $1 ORDER BY name LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -796,7 +796,7 @@ pub async fn list_roles(
         .await?;
 
     let rows = sqlx::query_as::<_, CustomRole>(
-        "SELECT * FROM roles WHERE tenant_id = $1 ORDER BY is_system DESC, name",
+        "SELECT * FROM roles WHERE tenant_id = $1 ORDER BY is_system DESC, name LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -882,7 +882,7 @@ pub async fn list_users(
         "SELECT id, tenant_id, username, email, full_name, role::text, \
          specialization, medical_registration_number, qualification, \
          consultation_fee, department_ids, is_active, access_matrix \
-         FROM users WHERE tenant_id = $1 ORDER BY created_at",
+         FROM users WHERE tenant_id = $1 ORDER BY created_at LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -935,7 +935,7 @@ pub async fn list_doctors(
              specialization, medical_registration_number, qualification, \
              consultation_fee, department_ids, is_active, access_matrix \
              FROM users WHERE tenant_id = $1 AND role = 'doctor' AND is_active = true \
-             ORDER BY full_name",
+             ORDER BY full_name LIMIT 5000",
         )
         .bind(claims.tenant_id)
         .fetch_all(&mut *tx)
@@ -946,7 +946,7 @@ pub async fn list_doctors(
              specialization, medical_registration_number, qualification, \
              consultation_fee, department_ids, is_active, '{}'::jsonb AS access_matrix \
              FROM users WHERE tenant_id = $1 AND role = 'doctor' AND is_active = true \
-             ORDER BY full_name",
+             ORDER BY full_name LIMIT 5000",
         )
         .bind(claims.tenant_id)
         .fetch_all(&mut *tx)
@@ -1626,7 +1626,7 @@ pub async fn list_modules(
         .await?;
 
     let rows = sqlx::query_as::<_, ModuleConfig>(
-        "SELECT * FROM module_config WHERE tenant_id = $1 ORDER BY name",
+        "SELECT * FROM module_config WHERE tenant_id = $1 ORDER BY name LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -1692,7 +1692,7 @@ pub async fn list_sequences(
 
     let rows = sqlx::query_as::<_, SequenceRow>(
         "SELECT id, tenant_id, seq_type, prefix, current_val, pad_width \
-         FROM sequences WHERE tenant_id = $1 ORDER BY seq_type",
+         FROM sequences WHERE tenant_id = $1 ORDER BY seq_type LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -1762,7 +1762,7 @@ pub async fn get_branding(
 
     let rows = sqlx::query_as::<_, TenantSettings>(
         "SELECT * FROM tenant_settings WHERE tenant_id = $1 AND category = 'branding' \
-         ORDER BY key",
+         ORDER BY key LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -1917,7 +1917,7 @@ pub async fn list_services(
 
     let rows = sqlx::query_as::<_, ServiceRow>(
         "SELECT id, tenant_id, code, name, service_type::text, base_price, department_id, description, is_active \
-         FROM services WHERE tenant_id = $1 ORDER BY name",
+         FROM services WHERE tenant_id = $1 ORDER BY name LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -2054,11 +2054,12 @@ pub async fn list_bed_types(
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
-    let rows =
-        sqlx::query_as::<_, BedType>("SELECT * FROM bed_types WHERE tenant_id = $1 ORDER BY name")
-            .bind(claims.tenant_id)
-            .fetch_all(&mut *tx)
-            .await?;
+    let rows = sqlx::query_as::<_, BedType>(
+        "SELECT * FROM bed_types WHERE tenant_id = $1 ORDER BY name LIMIT 5000",
+    )
+    .bind(claims.tenant_id)
+    .fetch_all(&mut *tx)
+    .await?;
 
     tx.commit().await?;
 
@@ -2173,7 +2174,7 @@ pub async fn list_tax_categories(
         .await?;
 
     let rows = sqlx::query_as::<_, TaxCategory>(
-        "SELECT * FROM tax_categories WHERE tenant_id = $1 ORDER BY name",
+        "SELECT * FROM tax_categories WHERE tenant_id = $1 ORDER BY name LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -2296,7 +2297,7 @@ pub async fn list_payment_methods(
         .await?;
 
     let rows = sqlx::query_as::<_, PaymentMethod>(
-        "SELECT * FROM payment_methods WHERE tenant_id = $1 ORDER BY name",
+        "SELECT * FROM payment_methods WHERE tenant_id = $1 ORDER BY name LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -2414,7 +2415,7 @@ pub async fn get_settings(
 
     let rows = sqlx::query_as::<_, TenantSettings>(
         "SELECT * FROM tenant_settings WHERE tenant_id = $1 AND category = $2 \
-         ORDER BY key",
+         ORDER BY key LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .bind(&params.category)
@@ -2617,7 +2618,7 @@ pub async fn get_secure_device_settings(
     let rows = sqlx::query_as::<_, TenantSettings>(
         "SELECT * FROM tenant_settings \
          WHERE tenant_id = $1 AND category = $2 \
-         ORDER BY key",
+         ORDER BY key LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .bind(DEVICE_SETTINGS_CATEGORY)
@@ -3113,7 +3114,7 @@ pub async fn list_master_religions(
     let rows = sqlx::query_as::<_, MasterReligion>(
         "SELECT * FROM master_religions \
          WHERE (tenant_id = $1 OR tenant_id IS NULL) \
-         ORDER BY sort_order, name",
+         ORDER BY sort_order, name LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&state.db)
@@ -3216,7 +3217,7 @@ pub async fn list_master_occupations(
     let rows = sqlx::query_as::<_, MasterOccupation>(
         "SELECT * FROM master_occupations \
          WHERE (tenant_id = $1 OR tenant_id IS NULL) \
-         ORDER BY sort_order, name",
+         ORDER BY sort_order, name LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&state.db)
@@ -3319,7 +3320,7 @@ pub async fn list_master_relations(
     let rows = sqlx::query_as::<_, MasterRelation>(
         "SELECT * FROM master_relations \
          WHERE (tenant_id = $1 OR tenant_id IS NULL) \
-         ORDER BY sort_order, name",
+         ORDER BY sort_order, name LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&state.db)
@@ -3445,7 +3446,7 @@ pub async fn list_insurance_providers(
         .await?;
 
     let rows = sqlx::query_as::<_, MasterInsuranceProvider>(
-        "SELECT * FROM master_insurance_providers ORDER BY name",
+        "SELECT * FROM master_insurance_providers ORDER BY name LIMIT 5000",
     )
     .fetch_all(&mut *tx)
     .await?;
@@ -4225,7 +4226,7 @@ pub async fn get_print_templates(
     let rows = sqlx::query_as::<_, TenantSettings>(
         "SELECT id, tenant_id, category, key, value, created_at, updated_at \
          FROM tenant_settings WHERE tenant_id = $1 AND category = 'print_templates' \
-         ORDER BY key",
+         ORDER BY key LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -4334,7 +4335,7 @@ pub async fn list_user_facilities(
         "SELECT id, tenant_id, user_id, facility_id, is_primary, assigned_at \
          FROM user_facility_assignments \
          WHERE tenant_id = $1 AND user_id = $2 \
-         ORDER BY is_primary DESC, assigned_at",
+         ORDER BY is_primary DESC, assigned_at LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .bind(user_id)
@@ -4399,7 +4400,7 @@ pub async fn assign_user_facilities(
         "SELECT id, tenant_id, user_id, facility_id, is_primary, assigned_at \
          FROM user_facility_assignments \
          WHERE tenant_id = $1 AND user_id = $2 \
-         ORDER BY is_primary DESC, assigned_at",
+         ORDER BY is_primary DESC, assigned_at LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .bind(user_id)
@@ -4478,7 +4479,7 @@ pub async fn auto_create_compliance(
         "SELECT id, tenant_id, facility_id, regulatory_body_id, license_number, status \
          FROM facility_regulatory_compliance \
          WHERE tenant_id = $1 AND facility_id = $2 \
-         ORDER BY created_at",
+         ORDER BY created_at LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .bind(facility_id)
@@ -4829,14 +4830,14 @@ pub async fn export_config(
     let departments = sqlx::query_as::<_, DepartmentRow>(
         "SELECT id, tenant_id, parent_id, code, name, department_type::text, \
          working_hours, is_active \
-         FROM departments WHERE tenant_id = $1 ORDER BY name",
+         FROM departments WHERE tenant_id = $1 ORDER BY name LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
     .await?;
 
     let roles = sqlx::query_as::<_, CustomRole>(
-        "SELECT * FROM roles WHERE tenant_id = $1 ORDER BY is_system DESC, name",
+        "SELECT * FROM roles WHERE tenant_id = $1 ORDER BY is_system DESC, name LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -4844,7 +4845,7 @@ pub async fn export_config(
 
     let services = sqlx::query_as::<_, ExportServiceRow>(
         "SELECT id, code, name, service_type::text AS service_type, is_active \
-         FROM services WHERE tenant_id = $1 ORDER BY name",
+         FROM services WHERE tenant_id = $1 ORDER BY name LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -4852,7 +4853,7 @@ pub async fn export_config(
 
     let payment_methods = sqlx::query_as::<_, ExportPaymentMethodRow>(
         "SELECT id, code, name, is_active \
-         FROM payment_methods WHERE tenant_id = $1 ORDER BY name",
+         FROM payment_methods WHERE tenant_id = $1 ORDER BY name LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -4982,7 +4983,7 @@ pub async fn list_brand_entities(
         ),
     >(
         "SELECT id, code, name, short_name, logo_url, registration_no, is_default, is_active \
-         FROM brand_entities ORDER BY is_default DESC, name",
+         FROM brand_entities ORDER BY is_default DESC, name LIMIT 5000",
     )
     .fetch_all(&mut *tx)
     .await?;
@@ -5126,7 +5127,7 @@ pub async fn list_access_groups(
 
     let rows = sqlx::query_as::<_, AccessGroupRow>(
         "SELECT id, tenant_id, code, name, description, permissions, is_active \
-         FROM access_groups WHERE tenant_id = $1 AND is_active = true ORDER BY name",
+         FROM access_groups WHERE tenant_id = $1 AND is_active = true ORDER BY name LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -5256,7 +5257,7 @@ pub async fn list_access_group_members(
          FROM access_group_members m \
          JOIN users u ON u.id = m.user_id \
          WHERE m.group_id = $1 AND u.tenant_id = $2 \
-         ORDER BY u.full_name",
+         ORDER BY u.full_name LIMIT 5000",
     )
     .bind(group_id)
     .bind(claims.tenant_id)

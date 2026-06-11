@@ -257,7 +257,7 @@ pub async fn get_template(
             .await?;
 
     let items = sqlx::query_as::<_, OrderSetTemplateItem>(
-        "SELECT * FROM order_set_template_items WHERE template_id = $1 ORDER BY sort_order",
+        "SELECT * FROM order_set_template_items WHERE template_id = $1 ORDER BY sort_order LIMIT 5000",
     )
     .bind(id)
     .fetch_all(&mut *tx)
@@ -557,7 +557,7 @@ pub async fn create_new_version(
 
     // Clone items from old template to new
     let old_items = sqlx::query_as::<_, OrderSetTemplateItem>(
-        "SELECT * FROM order_set_template_items WHERE template_id = $1 ORDER BY sort_order",
+        "SELECT * FROM order_set_template_items WHERE template_id = $1 ORDER BY sort_order LIMIT 5000",
     )
     .bind(id)
     .fetch_all(&mut *tx)
@@ -602,7 +602,7 @@ pub async fn create_new_version(
 
     // Re-fetch cloned items
     let new_items = sqlx::query_as::<_, OrderSetTemplateItem>(
-        "SELECT * FROM order_set_template_items WHERE template_id = $1 ORDER BY sort_order",
+        "SELECT * FROM order_set_template_items WHERE template_id = $1 ORDER BY sort_order LIMIT 5000",
     )
     .bind(new_template.id)
     .fetch_all(&mut *tx)
@@ -662,7 +662,7 @@ pub async fn list_versions(
          UNION \
          SELECT t2.* FROM order_set_templates t2 \
          WHERE t2.id = (SELECT parent_template_id FROM order_set_templates WHERE id = $1) \
-         ORDER BY version DESC",
+         ORDER BY version DESC LIMIT 5000",
     )
     .bind(id)
     .fetch_all(&mut *tx)
@@ -731,7 +731,7 @@ pub async fn activate_order_set(
 
     // 2. Fetch all template items
     let template_items = sqlx::query_as::<_, OrderSetTemplateItem>(
-        "SELECT * FROM order_set_template_items WHERE template_id = $1 ORDER BY sort_order",
+        "SELECT * FROM order_set_template_items WHERE template_id = $1 ORDER BY sort_order LIMIT 5000",
     )
     .bind(body.template_id)
     .fetch_all(&mut *tx)

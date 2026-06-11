@@ -322,7 +322,7 @@ pub async fn list_paired_devices(
                 paired_at, last_seen_at, revoked_at \
          FROM paired_devices \
          WHERE tenant_id = $1 \
-         ORDER BY paired_at DESC",
+         ORDER BY paired_at DESC LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)

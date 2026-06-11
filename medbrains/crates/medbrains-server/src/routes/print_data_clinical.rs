@@ -604,7 +604,7 @@ pub async fn get_wristband_print_data(
          WHERE patient_id = $1 \
            AND tenant_id = $2 \
            AND is_active = true \
-         ORDER BY created_at",
+         ORDER BY created_at LIMIT 5000",
     )
     .bind(row.patient_id)
     .bind(claims.tenant_id)
@@ -1043,7 +1043,7 @@ pub async fn get_treatment_chart_print_data(
          JOIN prescriptions pr ON pr.id = pi.prescription_id AND pr.tenant_id = pi.tenant_id \
          WHERE pr.admission_id = $1 AND pr.tenant_id = $2 \
            AND pi.status = 'active' \
-         ORDER BY pi.created_at",
+         ORDER BY pi.created_at LIMIT 5000",
     )
     .bind(admission_id)
     .bind(claims.tenant_id)
@@ -1062,7 +1062,7 @@ pub async fn get_treatment_chart_print_data(
          FROM iv_fluid_orders \
          WHERE admission_id = $1 AND tenant_id = $2 \
            AND status = 'active' \
-         ORDER BY created_at",
+         ORDER BY created_at LIMIT 5000",
     )
     .bind(admission_id)
     .bind(claims.tenant_id)
@@ -1080,7 +1080,7 @@ pub async fn get_treatment_chart_print_data(
          LEFT JOIN users u ON u.id = so.ordered_by \
          WHERE so.admission_id = $1 AND so.tenant_id = $2 \
            AND so.created_at::date = CURRENT_DATE \
-         ORDER BY so.created_at DESC",
+         ORDER BY so.created_at DESC LIMIT 5000",
     )
     .bind(admission_id)
     .bind(claims.tenant_id)
@@ -1334,7 +1334,7 @@ pub async fn get_patient_education_print_data(
          FROM education_material_sections \
          WHERE material_id = (SELECT material_id FROM patient_education WHERE id = $1) \
            AND tenant_id = $2 \
-         ORDER BY sort_order",
+         ORDER BY sort_order LIMIT 5000",
     )
     .bind(material_id)
     .bind(claims.tenant_id)
@@ -1421,7 +1421,7 @@ pub async fn get_registration_card_print_data(
     let allergies: Vec<String> = sqlx::query_scalar(
         "SELECT allergen_name FROM patient_allergies \
          WHERE patient_id = $1 AND tenant_id = $2 AND is_active = true \
-         ORDER BY severity DESC",
+         ORDER BY severity DESC LIMIT 5000",
     )
     .bind(patient_id)
     .bind(claims.tenant_id)
@@ -1671,7 +1671,7 @@ pub async fn get_opd_prescription_print_data(
          FROM prescription_medications pm \
          LEFT JOIN drug_catalog dc ON dc.id = pm.drug_catalog_id AND dc.tenant_id = pm.tenant_id \
          WHERE pm.encounter_id = $1 AND pm.tenant_id = $2 \
-         ORDER BY pm.created_at",
+         ORDER BY pm.created_at LIMIT 5000",
     )
     .bind(encounter_id)
     .bind(claims.tenant_id)
@@ -1681,7 +1681,7 @@ pub async fn get_opd_prescription_print_data(
     let icd_codes: Vec<String> = sqlx::query_scalar(
         "SELECT icd_code FROM encounter_diagnoses \
          WHERE encounter_id = $1 AND tenant_id = $2 AND icd_code IS NOT NULL \
-         ORDER BY is_primary DESC",
+         ORDER BY is_primary DESC LIMIT 5000",
     )
     .bind(encounter_id)
     .bind(claims.tenant_id)
@@ -1887,7 +1887,7 @@ pub async fn get_lab_report_full_print_data(
            lr.method \
          FROM lab_results lr \
          WHERE lr.order_id = $1 AND lr.tenant_id = $2 \
-         ORDER BY lr.display_order, lr.parameter_name",
+         ORDER BY lr.display_order, lr.parameter_name LIMIT 5000",
     )
     .bind(order_id)
     .bind(claims.tenant_id)
@@ -2037,7 +2037,7 @@ pub async fn get_cumulative_lab_report_print_data(
          WHERE lo.patient_id = $1 AND lo.tenant_id = $2 \
            AND lo.report_date >= NOW() - INTERVAL '6 months' \
            AND lo.status = 'verified' \
-         ORDER BY lr.parameter_name, lo.report_date",
+         ORDER BY lr.parameter_name, lo.report_date LIMIT 5000",
     )
     .bind(patient_id)
     .bind(claims.tenant_id)
@@ -2214,7 +2214,7 @@ pub async fn get_radiology_report_full_print_data(
         "SELECT image_url, series_description, annotation \
          FROM radiology_key_images \
          WHERE order_id = $1 AND tenant_id = $2 \
-         ORDER BY display_order",
+         ORDER BY display_order LIMIT 5000",
     )
     .bind(order_id)
     .bind(claims.tenant_id)

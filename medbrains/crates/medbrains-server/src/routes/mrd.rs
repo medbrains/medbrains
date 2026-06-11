@@ -449,7 +449,7 @@ pub async fn list_movements(
     let rows = sqlx::query_as::<_, MrdRecordMovement>(
         "SELECT * FROM mrd_record_movements \
          WHERE medical_record_id = $1 \
-         ORDER BY issued_at DESC",
+         ORDER BY issued_at DESC LIMIT 5000",
     )
     .bind(record_id)
     .fetch_all(&mut *tx)
@@ -781,7 +781,7 @@ pub async fn list_retention_policies(
         .await?;
 
     let rows = sqlx::query_as::<_, MrdRetentionPolicy>(
-        "SELECT * FROM mrd_retention_policies ORDER BY record_type, category",
+        "SELECT * FROM mrd_retention_policies ORDER BY record_type, category LIMIT 5000",
     )
     .fetch_all(&mut *tx)
     .await?;
@@ -1206,7 +1206,7 @@ pub async fn list_storage_locations(
 
     let rows = sqlx::query_as::<_, MrdStorageLocation>(
         "SELECT * FROM mrd_storage_locations \
-         WHERE tenant_id = $1 ORDER BY is_active DESC, code",
+         WHERE tenant_id = $1 ORDER BY is_active DESC, code LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -1373,7 +1373,7 @@ pub async fn list_case_sheet_pages(
 
     let rows = sqlx::query_as::<_, MrdCaseSheetPage>(
         "SELECT * FROM mrd_case_sheet_pages \
-         WHERE tenant_id = $1 AND packet_id = $2 ORDER BY page_order",
+         WHERE tenant_id = $1 AND packet_id = $2 ORDER BY page_order LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .bind(packet_id)
@@ -1398,7 +1398,7 @@ pub async fn get_case_sheet_completeness(
     let packet = fetch_case_sheet_packet(&mut tx, claims.tenant_id, packet_id).await?;
     let pages = sqlx::query_as::<_, MrdCaseSheetPage>(
         "SELECT * FROM mrd_case_sheet_pages \
-         WHERE tenant_id = $1 AND packet_id = $2 ORDER BY page_order",
+         WHERE tenant_id = $1 AND packet_id = $2 ORDER BY page_order LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .bind(packet_id)
@@ -1886,7 +1886,7 @@ pub async fn generate_opd_case_sheet_packet(
 
     let diagnoses: Vec<String> = sqlx::query_scalar(
         "SELECT COALESCE(icd_code || ' ', '') || description \
-         FROM diagnoses WHERE tenant_id = $1 AND encounter_id = $2 ORDER BY is_primary DESC, created_at",
+         FROM diagnoses WHERE tenant_id = $1 AND encounter_id = $2 ORDER BY is_primary DESC, created_at LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .bind(encounter_id)
@@ -2478,7 +2478,7 @@ pub async fn stats_admission_discharge(
          WHERE ($1::date IS NULL OR a.admitted_at::date >= $1) \
            AND ($2::date IS NULL OR a.admitted_at::date <= $2) \
          GROUP BY dep.name \
-         ORDER BY total_admitted DESC",
+         ORDER BY total_admitted DESC LIMIT 5000",
     )
     .bind(q.from_date)
     .bind(q.to_date)
@@ -2549,7 +2549,7 @@ pub async fn list_form_records(
          LEFT JOIN users uv ON uv.id = f.verified_by
          WHERE ($1::uuid IS NULL OR f.admission_id = $1)
            AND ($2::text  IS NULL OR f.form_type   = $2)
-         ORDER BY f.form_date DESC, f.form_type",
+         ORDER BY f.form_date DESC, f.form_type LIMIT 5000",
     )
     .bind(params.admission_id)
     .bind(params.form_type)

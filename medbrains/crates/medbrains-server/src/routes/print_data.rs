@@ -77,7 +77,7 @@ pub async fn get_prescription_print_data(
          JOIN prescriptions pr ON pr.id = pi.prescription_id \
                                AND pr.tenant_id = pi.tenant_id \
          WHERE pr.encounter_id = $1 AND pr.tenant_id = $2 \
-         ORDER BY pi.created_at",
+         ORDER BY pi.created_at LIMIT 5000",
     )
     .bind(encounter_id)
     .bind(claims.tenant_id)
@@ -145,7 +145,7 @@ pub async fn get_lab_report_print_data(
         "SELECT parameter_name, value, unit, normal_range, flag::text AS flag \
          FROM lab_results \
          WHERE order_id = $1 AND tenant_id = $2 \
-         ORDER BY created_at",
+         ORDER BY created_at LIMIT 5000",
     )
     .bind(order_id)
     .bind(claims.tenant_id)
@@ -410,7 +410,7 @@ pub async fn get_culture_sensitivity_print_data(
            zone_size \
          FROM antibiotic_sensitivities \
          WHERE order_id = $1 AND tenant_id = $2 \
-         ORDER BY antibiotic_class, antibiotic_name",
+         ORDER BY antibiotic_class, antibiotic_name LIMIT 5000",
     )
     .bind(order_id)
     .bind(claims.tenant_id)
@@ -542,7 +542,7 @@ pub async fn get_histopath_report_print_data(
         "SELECT marker_name, result, intensity, percentage \
          FROM ihc_markers \
          WHERE order_id = $1 AND tenant_id = $2 \
-         ORDER BY marker_name",
+         ORDER BY marker_name LIMIT 5000",
     )
     .bind(order_id)
     .bind(claims.tenant_id)
@@ -682,7 +682,7 @@ pub async fn get_crossmatch_report_print_data(
          FROM crossmatch_results cm \
          JOIN blood_units bu ON bu.id = cm.unit_id AND bu.tenant_id = cm.tenant_id \
          WHERE cm.request_id = $1 AND cm.tenant_id = $2 \
-         ORDER BY cm.created_at",
+         ORDER BY cm.created_at LIMIT 5000",
     )
     .bind(request_id)
     .bind(claims.tenant_id)
@@ -892,7 +892,7 @@ pub async fn get_investigation_requisition_print_data(
          FROM lab_order_items loi \
          JOIN lab_test_catalog tc ON tc.id = loi.test_id AND tc.tenant_id = loi.tenant_id \
          WHERE loi.order_id = $1 AND loi.tenant_id = $2 \
-         ORDER BY tc.name",
+         ORDER BY tc.name LIMIT 5000",
     )
     .bind(order_id)
     .bind(claims.tenant_id)

@@ -694,7 +694,7 @@ pub async fn list_asset_categories(
     let rows = sqlx::query_as::<_, AssetCategory>(
         "SELECT * FROM asset_categories \
          WHERE tenant_id IS NULL OR tenant_id = $1 \
-         ORDER BY sort_order, asset_domain, name",
+         ORDER BY sort_order, asset_domain, name LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -812,7 +812,7 @@ pub async fn list_store_categories(
     let rows = sqlx::query_as::<_, StoreCategory>(
         "SELECT * FROM store_categories \
          WHERE tenant_id IS NULL OR tenant_id = $1 \
-         ORDER BY sort_order, store_domain, name",
+         ORDER BY sort_order, store_domain, name LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -1038,7 +1038,7 @@ pub async fn list_camp_asset_reservations(
     let rows = sqlx::query_as::<_, CampAssetReservation>(
         "SELECT * FROM camp_asset_reservations \
          WHERE tenant_id = $1 AND camp_id = $2 \
-         ORDER BY created_at DESC",
+         ORDER BY created_at DESC LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .bind(camp_id)

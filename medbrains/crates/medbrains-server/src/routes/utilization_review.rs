@@ -400,7 +400,7 @@ pub async fn list_by_admission(
     let rows = sqlx::query_as::<_, UtilizationReview>(
         "SELECT * FROM utilization_reviews \
          WHERE admission_id = $1 \
-         ORDER BY review_date ASC, created_at ASC",
+         ORDER BY review_date ASC, created_at ASC LIMIT 5000",
     )
     .bind(admission_id)
     .fetch_all(&mut *tx)
@@ -676,7 +676,7 @@ pub async fn los_comparison(
          JOIN admissions a ON a.id = ur.admission_id AND a.tenant_id = ur.tenant_id \
          JOIN departments d ON d.id = a.department_id AND d.tenant_id = a.tenant_id \
          GROUP BY d.name \
-         ORDER BY review_count DESC",
+         ORDER BY review_count DESC LIMIT 5000",
     )
     .fetch_all(&mut *tx)
     .await?;

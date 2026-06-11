@@ -811,7 +811,7 @@ pub async fn list_documents(
     let rows: Vec<PriorAuthDocument> = sqlx::query_as(
         "SELECT * FROM prior_auth_documents \
          WHERE prior_auth_id = $1 AND tenant_id = $2 \
-         ORDER BY created_at DESC",
+         ORDER BY created_at DESC LIMIT 5000",
     )
     .bind(pa_id)
     .bind(claims.tenant_id)
@@ -1079,7 +1079,7 @@ pub async fn list_rules(
 
     let rows: Vec<PaRequirementRule> = sqlx::query_as(
         "SELECT * FROM pa_requirement_rules \
-         WHERE tenant_id = $1 ORDER BY priority DESC, rule_name",
+         WHERE tenant_id = $1 ORDER BY priority DESC, rule_name LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)

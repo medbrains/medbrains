@@ -987,7 +987,7 @@ pub async fn list_outbreaks(
         sqlx::query_as::<_, OutbreakEvent>(
             "SELECT * FROM outbreak_events \
              WHERE tenant_id = $1 AND outbreak_status = $2::outbreak_status \
-             ORDER BY detected_date DESC",
+             ORDER BY detected_date DESC LIMIT 5000",
         )
         .bind(claims.tenant_id)
         .bind(status)
@@ -1120,7 +1120,7 @@ pub async fn list_outbreak_contacts(
     let rows = sqlx::query_as::<_, OutbreakContact>(
         "SELECT * FROM outbreak_contacts \
          WHERE tenant_id = $1 AND outbreak_id = $2 \
-         ORDER BY created_at DESC",
+         ORDER BY created_at DESC LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .bind(outbreak_id)
@@ -1337,7 +1337,7 @@ pub async fn hai_rates(
                   THEN (e.event_count::float8 / p.total_patient_days::float8) * 1000.0 \
                   ELSE NULL END AS rate_per_1000 \
          FROM events e, pdays p \
-         ORDER BY e.event_count DESC",
+         ORDER BY e.event_count DESC LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .bind(from)
@@ -1384,7 +1384,7 @@ pub async fn device_utilization(
            AND ($2::date IS NULL OR record_date >= $2::date) \
            AND ($3::date IS NULL OR record_date <= $3::date) \
          GROUP BY location_id \
-         ORDER BY total_patient_days DESC",
+         ORDER BY total_patient_days DESC LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .bind(from)
@@ -1478,7 +1478,7 @@ pub async fn surgical_prophylaxis(
                   THEN (COALESCE(s.total_ssi_events, 0)::float8 / a.total_surgical_admissions::float8) * 100.0 \
                   ELSE NULL END AS ssi_rate \
          FROM ssi s FULL OUTER JOIN admissions a ON s.department_id = a.department_id \
-         ORDER BY total_ssi_events DESC",
+         ORDER BY total_ssi_events DESC LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .bind(from)
@@ -1561,7 +1561,7 @@ pub async fn mdro_tracking(
                 OR UPPER(organism) LIKE '%MDRO%' \
                 OR UPPER(organism) LIKE '%MDR%') \
          GROUP BY organism \
-         ORDER BY sample_count DESC",
+         ORDER BY sample_count DESC LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .bind(from)

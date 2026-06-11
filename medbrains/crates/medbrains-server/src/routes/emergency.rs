@@ -853,7 +853,7 @@ pub async fn list_triage(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let rows = sqlx::query_as::<_, ErTriageAssessment>(
-        "SELECT * FROM er_triage_assessments WHERE er_visit_id = $1 AND tenant_id = $2 ORDER BY assessed_at DESC",
+        "SELECT * FROM er_triage_assessments WHERE er_visit_id = $1 AND tenant_id = $2 ORDER BY assessed_at DESC LIMIT 5000",
     )
     .bind(visit_id)
     .bind(claims.tenant_id)
@@ -1597,7 +1597,7 @@ pub async fn list_mlc_documents(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let rows = sqlx::query_as::<_, MlcDocument>(
-        "SELECT * FROM mlc_documents WHERE mlc_case_id = $1 AND tenant_id = $2 ORDER BY created_at DESC",
+        "SELECT * FROM mlc_documents WHERE mlc_case_id = $1 AND tenant_id = $2 ORDER BY created_at DESC LIMIT 5000",
     )
     .bind(mlc_id)
     .bind(claims.tenant_id)
@@ -1699,7 +1699,7 @@ pub async fn list_police_intimations(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let rows = sqlx::query_as::<_, MlcPoliceIntimation>(
-        "SELECT * FROM mlc_police_intimations WHERE mlc_case_id = $1 AND tenant_id = $2 ORDER BY sent_at DESC",
+        "SELECT * FROM mlc_police_intimations WHERE mlc_case_id = $1 AND tenant_id = $2 ORDER BY sent_at DESC LIMIT 5000",
     )
     .bind(mlc_id)
     .bind(claims.tenant_id)

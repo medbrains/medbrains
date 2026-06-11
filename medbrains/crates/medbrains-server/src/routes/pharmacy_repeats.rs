@@ -200,7 +200,7 @@ pub async fn list_repeats_for_rx(
     let rows = sqlx::query_as::<_, RepeatRow>(
         "SELECT * FROM pharmacy_repeats \
          WHERE tenant_id = $1 AND prescription_id = $2 \
-         ORDER BY dispensed_at",
+         ORDER BY dispensed_at LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .bind(prescription_id)

@@ -124,7 +124,7 @@ pub async fn list_for_patient(
     let subs = sqlx::query_as::<_, PatientPackageSubscription>(
         "SELECT * FROM patient_package_subscriptions \
          WHERE tenant_id = $1 AND patient_id = $2 \
-         ORDER BY purchased_at DESC",
+         ORDER BY purchased_at DESC LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .bind(patient_id)
@@ -154,7 +154,7 @@ pub async fn list_for_patient(
                AND c.inclusion_type = i.inclusion_type \
              WHERE i.tenant_id = $1 AND i.package_id = $3 \
              GROUP BY i.id \
-             ORDER BY i.sort_order, i.id",
+             ORDER BY i.sort_order, i.id LIMIT 5000",
         )
         .bind(claims.tenant_id)
         .bind(sub.id)

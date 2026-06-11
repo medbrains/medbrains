@@ -57,7 +57,7 @@ pub async fn list_policies(
                 archive_to_delete_days, retention_years, description, updated_at \
          FROM object_storage_policies \
          WHERE tenant_id = $1 \
-         ORDER BY document_category",
+         ORDER BY document_category LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -158,7 +158,7 @@ pub async fn get_usage(
          FROM patient_documents \
          WHERE tenant_id = $1 \
          GROUP BY storage_tier \
-         ORDER BY storage_tier",
+         ORDER BY storage_tier LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -170,7 +170,7 @@ pub async fn get_usage(
          FROM patient_documents \
          WHERE tenant_id = $1 \
          GROUP BY document_type, storage_tier \
-         ORDER BY document_type, storage_tier",
+         ORDER BY document_type, storage_tier LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)

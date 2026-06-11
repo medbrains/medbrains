@@ -888,7 +888,7 @@ pub async fn list_tat_benchmarks(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, TatBenchmark>(
-        "SELECT * FROM tat_benchmarks WHERE is_active = true ORDER BY category, sub_category",
+        "SELECT * FROM tat_benchmarks WHERE is_active = true ORDER BY category, sub_category LIMIT 5000",
     )
     .fetch_all(&mut *tx)
     .await?;
@@ -1321,7 +1321,7 @@ pub async fn list_dq_rules(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, DataQualityRule>(
-        "SELECT * FROM data_quality_rules WHERE is_active = true ORDER BY entity_type, category",
+        "SELECT * FROM data_quality_rules WHERE is_active = true ORDER BY entity_type, category LIMIT 5000",
     )
     .fetch_all(&mut *tx)
     .await?;
@@ -1743,7 +1743,7 @@ pub async fn get_incident_updates(
          FROM security_incident_updates su
          LEFT JOIN users u ON u.id = su.updated_by
          WHERE su.incident_id = $1
-         ORDER BY su.created_at DESC",
+         ORDER BY su.created_at DESC LIMIT 5000",
     )
     .bind(id)
     .fetch_all(&mut *tx)
@@ -1885,7 +1885,7 @@ pub async fn list_compliance_requirements(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, ComplianceRequirement>(
-        "SELECT * FROM compliance_requirements ORDER BY framework, requirement_code",
+        "SELECT * FROM compliance_requirements ORDER BY framework, requirement_code LIMIT 5000",
     )
     .fetch_all(&mut *tx)
     .await?;
@@ -2127,7 +2127,7 @@ pub async fn list_incentive_plans(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, IncentivePlan>(
-        "SELECT * FROM incentive_plans ORDER BY effective_from DESC",
+        "SELECT * FROM incentive_plans ORDER BY effective_from DESC LIMIT 5000",
     )
     .fetch_all(&mut *tx)
     .await?;
@@ -2243,7 +2243,7 @@ pub async fn list_doctor_incentive_assignments(
          FROM doctor_incentive_assignments a
          JOIN users u ON u.id = a.doctor_id
          JOIN incentive_plans p ON p.id = a.plan_id
-         ORDER BY a.effective_from DESC",
+         ORDER BY a.effective_from DESC LIMIT 5000",
     )
     .fetch_all(&mut *tx)
     .await?;
@@ -2298,7 +2298,7 @@ pub async fn list_incentive_calculations(
         "SELECT c.*, u.full_name AS doctor_name
          FROM incentive_calculations c
          JOIN users u ON u.id = c.doctor_id
-         ORDER BY c.period_start DESC",
+         ORDER BY c.period_start DESC LIMIT 5000",
     )
     .fetch_all(&mut *tx)
     .await?;

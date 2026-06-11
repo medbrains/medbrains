@@ -311,7 +311,7 @@ pub async fn caseload_summary(
            COUNT(*) AS total_cases \
          FROM case_assignments \
          GROUP BY case_manager_id \
-         ORDER BY active_cases DESC",
+         ORDER BY active_cases DESC LIMIT 5000",
     )
     .fetch_all(&mut *tx)
     .await?;
@@ -632,7 +632,7 @@ pub async fn disposition_analytics(
          FROM case_assignments \
          WHERE discharge_disposition IS NOT NULL \
          GROUP BY discharge_disposition \
-         ORDER BY count DESC",
+         ORDER BY count DESC LIMIT 5000",
     )
     .fetch_all(&mut *tx)
     .await?;
@@ -660,7 +660,7 @@ pub async fn barrier_analytics(
          FROM discharge_barriers \
          WHERE is_resolved = false \
          GROUP BY barrier_type \
-         ORDER BY count DESC",
+         ORDER BY count DESC LIMIT 5000",
     )
     .fetch_all(&mut *tx)
     .await?;

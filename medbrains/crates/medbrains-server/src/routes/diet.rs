@@ -186,9 +186,10 @@ pub async fn list_templates(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let rows = sqlx::query_as::<_, DietTemplate>("SELECT * FROM diet_templates ORDER BY name")
-        .fetch_all(&mut *tx)
-        .await?;
+    let rows =
+        sqlx::query_as::<_, DietTemplate>("SELECT * FROM diet_templates ORDER BY name LIMIT 5000")
+            .fetch_all(&mut *tx)
+            .await?;
 
     tx.commit().await?;
     Ok(Json(rows))
@@ -426,10 +427,11 @@ pub async fn list_menus(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let rows =
-        sqlx::query_as::<_, KitchenMenu>("SELECT * FROM kitchen_menus ORDER BY week_number, name")
-            .fetch_all(&mut *tx)
-            .await?;
+    let rows = sqlx::query_as::<_, KitchenMenu>(
+        "SELECT * FROM kitchen_menus ORDER BY week_number, name LIMIT 5000",
+    )
+    .fetch_all(&mut *tx)
+    .await?;
 
     tx.commit().await?;
     Ok(Json(rows))
@@ -474,7 +476,7 @@ pub async fn list_menu_items(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, KitchenMenuItem>(
-        "SELECT * FROM kitchen_menu_items WHERE menu_id = $1 ORDER BY day_of_week, meal_type",
+        "SELECT * FROM kitchen_menu_items WHERE menu_id = $1 ORDER BY day_of_week, meal_type LIMIT 5000",
     )
     .bind(menu_id)
     .fetch_all(&mut *tx)
@@ -706,10 +708,11 @@ pub async fn list_inventory(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let rows =
-        sqlx::query_as::<_, KitchenInventory>("SELECT * FROM kitchen_inventory ORDER BY item_name")
-            .fetch_all(&mut *tx)
-            .await?;
+    let rows = sqlx::query_as::<_, KitchenInventory>(
+        "SELECT * FROM kitchen_inventory ORDER BY item_name LIMIT 5000",
+    )
+    .fetch_all(&mut *tx)
+    .await?;
 
     tx.commit().await?;
     Ok(Json(rows))

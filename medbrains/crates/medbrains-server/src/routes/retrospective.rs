@@ -288,7 +288,7 @@ pub async fn list_retro_entries(
          LEFT JOIN users ru ON ru.id = re.reviewed_by \
          WHERE ($1::text IS NULL OR re.status::text = $1) \
            AND ($2::text IS NULL OR re.source_table = $2) \
-         ORDER BY re.created_at DESC",
+         ORDER BY re.created_at DESC LIMIT 5000",
     )
     .bind(&q.status)
     .bind(&q.source_table)
@@ -423,7 +423,7 @@ pub async fn retro_audit_trail(
          JOIN users u ON u.id = re.entered_by \
          LEFT JOIN users ru ON ru.id = re.reviewed_by \
          WHERE re.source_table = $1 AND re.source_record_id = $2 \
-         ORDER BY re.created_at DESC",
+         ORDER BY re.created_at DESC LIMIT 5000",
     )
     .bind(&source_table)
     .bind(source_id)

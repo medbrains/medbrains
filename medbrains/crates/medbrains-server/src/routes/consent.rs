@@ -488,7 +488,7 @@ pub async fn patient_summary(
                 valid_until, revoked_at \
          FROM patient_consents \
          WHERE patient_id = $1 \
-         ORDER BY created_at DESC",
+         ORDER BY created_at DESC LIMIT 5000",
     )
     .bind(patient_id)
     .fetch_all(&mut *tx)
@@ -517,7 +517,7 @@ pub async fn patient_summary(
         "SELECT id, consent_type, status, expires_at, withdrawn_at \
          FROM procedure_consents \
          WHERE patient_id = $1 \
-         ORDER BY created_at DESC",
+         ORDER BY created_at DESC LIMIT 5000",
     )
     .bind(patient_id)
     .fetch_all(&mut *tx)

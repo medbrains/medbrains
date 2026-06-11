@@ -2091,7 +2091,7 @@ pub async fn get_order(
     let items = sqlx::query_as::<_, PharmacyOrderItem>(
         "SELECT * FROM pharmacy_order_items \
          WHERE order_id = $1 AND tenant_id = $2 AND removed_at IS NULL \
-         ORDER BY created_at",
+         ORDER BY created_at LIMIT 5000",
     )
     .bind(id)
     .bind(claims.tenant_id)
@@ -2123,7 +2123,7 @@ async fn fetch_order_detail_in_tx(
     let items = sqlx::query_as::<_, PharmacyOrderItem>(
         "SELECT * FROM pharmacy_order_items \
          WHERE order_id = $1 AND tenant_id = $2 AND removed_at IS NULL \
-         ORDER BY created_at",
+         ORDER BY created_at LIMIT 5000",
     )
     .bind(order_id)
     .bind(tenant_id)
@@ -3405,11 +3405,11 @@ pub async fn list_stock(
     let sql = if params.low_stock.unwrap_or(false) {
         "SELECT * FROM pharmacy_catalog \
          WHERE tenant_id = $1 AND is_active = true AND current_stock < reorder_level \
-         ORDER BY current_stock ASC"
+         ORDER BY current_stock ASC LIMIT 5000"
     } else {
         "SELECT * FROM pharmacy_catalog \
          WHERE tenant_id = $1 AND is_active = true \
-         ORDER BY name"
+         ORDER BY name LIMIT 5000"
     };
 
     let rows = sqlx::query_as::<_, PharmacyCatalog>(sql)
@@ -3690,7 +3690,7 @@ pub async fn ndps_balance(
          JOIN pharmacy_catalog c ON c.id = n.catalog_item_id AND c.tenant_id = n.tenant_id \
          WHERE n.tenant_id = $1 \
          GROUP BY n.catalog_item_id, c.name \
-         ORDER BY c.name",
+         ORDER BY c.name LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -3954,7 +3954,7 @@ pub async fn list_store_assignments(
         .await?;
 
     let rows = sqlx::query_as::<_, PharmacyStoreAssignment>(
-        "SELECT * FROM pharmacy_store_assignments WHERE tenant_id = $1 ORDER BY created_at",
+        "SELECT * FROM pharmacy_store_assignments WHERE tenant_id = $1 ORDER BY created_at LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -4078,7 +4078,7 @@ pub async fn list_transfers(
     let rows = if let Some(ref status) = params.status {
         sqlx::query_as::<_, PharmacyTransferRequest>(
             "SELECT * FROM pharmacy_transfer_requests \
-             WHERE tenant_id = $1 AND status = $2 ORDER BY created_at DESC",
+             WHERE tenant_id = $1 AND status = $2 ORDER BY created_at DESC LIMIT 5000",
         )
         .bind(claims.tenant_id)
         .bind(status)
@@ -4087,7 +4087,7 @@ pub async fn list_transfers(
     } else {
         sqlx::query_as::<_, PharmacyTransferRequest>(
             "SELECT * FROM pharmacy_transfer_requests \
-             WHERE tenant_id = $1 ORDER BY created_at DESC",
+             WHERE tenant_id = $1 ORDER BY created_at DESC LIMIT 5000",
         )
         .bind(claims.tenant_id)
         .fetch_all(&mut *tx)
@@ -4630,7 +4630,7 @@ pub async fn check_drug_interactions(
            AND o.status IN ('ordered', 'dispensed') \
            AND o.created_at >= now() - interval '30 days' \
            AND di.id IS NOT NULL \
-         ORDER BY di.severity DESC",
+         ORDER BY di.severity DESC LIMIT 5000",
     )
     .bind(body.patient_id)
     .bind(claims.tenant_id)
@@ -5812,7 +5812,7 @@ pub async fn list_pos_sale_items(
 
     let rows = sqlx::query_as::<_, PharmacyPosSaleItem>(
         "SELECT * FROM pharmacy_pos_sale_items WHERE pos_sale_id = $1 AND tenant_id = $2 \
-         ORDER BY created_at, drug_name",
+         ORDER BY created_at, drug_name LIMIT 5000",
     )
     .bind(id)
     .bind(claims.tenant_id)

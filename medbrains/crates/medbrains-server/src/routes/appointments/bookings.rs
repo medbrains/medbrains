@@ -81,7 +81,7 @@ pub async fn list_appointments(
          AND ($3::uuid IS NULL OR a.department_id = $3) \
          AND ($4::uuid IS NULL OR a.patient_id = $4) \
          AND ($5::text IS NULL OR a.status::text = $5) \
-         ORDER BY a.appointment_date, a.slot_start",
+         ORDER BY a.appointment_date, a.slot_start LIMIT 5000",
     )
     .bind(query.date)
     .bind(query.doctor_id)

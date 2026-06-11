@@ -369,7 +369,7 @@ pub async fn list_equipment(
     let rows = if let Some(dept_id) = params.department_id {
         sqlx::query_as::<_, BmeEquipment>(
             "SELECT * FROM bme_equipment WHERE department_id = $1 \
-             ORDER BY name",
+             ORDER BY name LIMIT 5000",
         )
         .bind(dept_id)
         .fetch_all(&mut *tx)
@@ -377,7 +377,7 @@ pub async fn list_equipment(
     } else if let Some(status) = params.status {
         sqlx::query_as::<_, BmeEquipment>(
             "SELECT * FROM bme_equipment WHERE status::text = $1 \
-             ORDER BY name",
+             ORDER BY name LIMIT 5000",
         )
         .bind(status)
         .fetch_all(&mut *tx)
@@ -385,7 +385,7 @@ pub async fn list_equipment(
     } else if let Some(risk) = params.risk_category {
         sqlx::query_as::<_, BmeEquipment>(
             "SELECT * FROM bme_equipment WHERE risk_category::text = $1 \
-             ORDER BY name",
+             ORDER BY name LIMIT 5000",
         )
         .bind(risk)
         .fetch_all(&mut *tx)
@@ -579,7 +579,7 @@ pub async fn list_pm_schedules(
     let rows = if let Some(equip_id) = params.equipment_id {
         sqlx::query_as::<_, BmePmSchedule>(
             "SELECT * FROM bme_pm_schedules WHERE equipment_id = $1 \
-             ORDER BY next_due_date NULLS LAST",
+             ORDER BY next_due_date NULLS LAST LIMIT 5000",
         )
         .bind(equip_id)
         .fetch_all(&mut *tx)
@@ -587,7 +587,7 @@ pub async fn list_pm_schedules(
     } else {
         sqlx::query_as::<_, BmePmSchedule>(
             "SELECT * FROM bme_pm_schedules WHERE is_active = COALESCE($1, true) \
-             ORDER BY next_due_date NULLS LAST",
+             ORDER BY next_due_date NULLS LAST LIMIT 5000",
         )
         .bind(params.is_active)
         .fetch_all(&mut *tx)
@@ -681,7 +681,7 @@ pub async fn list_work_orders(
     let rows = if let Some(equip_id) = params.equipment_id {
         sqlx::query_as::<_, BmeWorkOrder>(
             "SELECT * FROM bme_work_orders WHERE equipment_id = $1 \
-             ORDER BY created_at DESC",
+             ORDER BY created_at DESC LIMIT 5000",
         )
         .bind(equip_id)
         .fetch_all(&mut *tx)
@@ -689,7 +689,7 @@ pub async fn list_work_orders(
     } else if let Some(status) = params.status {
         sqlx::query_as::<_, BmeWorkOrder>(
             "SELECT * FROM bme_work_orders WHERE status::text = $1 \
-             ORDER BY created_at DESC",
+             ORDER BY created_at DESC LIMIT 5000",
         )
         .bind(status)
         .fetch_all(&mut *tx)
@@ -697,7 +697,7 @@ pub async fn list_work_orders(
     } else if let Some(order_type) = params.order_type {
         sqlx::query_as::<_, BmeWorkOrder>(
             "SELECT * FROM bme_work_orders WHERE order_type::text = $1 \
-             ORDER BY created_at DESC",
+             ORDER BY created_at DESC LIMIT 5000",
         )
         .bind(order_type)
         .fetch_all(&mut *tx)
@@ -868,7 +868,7 @@ pub async fn list_calibrations(
     let rows = if let Some(equip_id) = params.equipment_id {
         sqlx::query_as::<_, BmeCalibration>(
             "SELECT * FROM bme_calibrations WHERE equipment_id = $1 \
-             ORDER BY next_due_date NULLS LAST",
+             ORDER BY next_due_date NULLS LAST LIMIT 5000",
         )
         .bind(equip_id)
         .fetch_all(&mut *tx)
@@ -876,7 +876,7 @@ pub async fn list_calibrations(
     } else if let Some(status) = params.calibration_status {
         sqlx::query_as::<_, BmeCalibration>(
             "SELECT * FROM bme_calibrations WHERE calibration_status::text = $1 \
-             ORDER BY next_due_date NULLS LAST",
+             ORDER BY next_due_date NULLS LAST LIMIT 5000",
         )
         .bind(status)
         .fetch_all(&mut *tx)
@@ -1016,7 +1016,7 @@ pub async fn list_contracts(
     let rows = if let Some(equip_id) = params.equipment_id {
         sqlx::query_as::<_, BmeContract>(
             "SELECT * FROM bme_contracts WHERE equipment_id = $1 \
-             ORDER BY end_date",
+             ORDER BY end_date LIMIT 5000",
         )
         .bind(equip_id)
         .fetch_all(&mut *tx)
@@ -1024,7 +1024,7 @@ pub async fn list_contracts(
     } else if let Some(ct) = params.contract_type {
         sqlx::query_as::<_, BmeContract>(
             "SELECT * FROM bme_contracts WHERE contract_type::text = $1 \
-             ORDER BY end_date",
+             ORDER BY end_date LIMIT 5000",
         )
         .bind(ct)
         .fetch_all(&mut *tx)
@@ -1157,7 +1157,7 @@ pub async fn list_breakdowns(
     let rows = if let Some(equip_id) = params.equipment_id {
         sqlx::query_as::<_, BmeBreakdown>(
             "SELECT * FROM bme_breakdowns WHERE equipment_id = $1 \
-             ORDER BY reported_at DESC",
+             ORDER BY reported_at DESC LIMIT 5000",
         )
         .bind(equip_id)
         .fetch_all(&mut *tx)
@@ -1165,7 +1165,7 @@ pub async fn list_breakdowns(
     } else if let Some(status) = params.status {
         sqlx::query_as::<_, BmeBreakdown>(
             "SELECT * FROM bme_breakdowns WHERE status::text = $1 \
-             ORDER BY reported_at DESC",
+             ORDER BY reported_at DESC LIMIT 5000",
         )
         .bind(status)
         .fetch_all(&mut *tx)
@@ -1173,7 +1173,7 @@ pub async fn list_breakdowns(
     } else if let Some(priority) = params.priority {
         sqlx::query_as::<_, BmeBreakdown>(
             "SELECT * FROM bme_breakdowns WHERE priority::text = $1 \
-             ORDER BY reported_at DESC",
+             ORDER BY reported_at DESC LIMIT 5000",
         )
         .bind(priority)
         .fetch_all(&mut *tx)
@@ -1302,7 +1302,7 @@ pub async fn list_vendor_evaluations(
     let rows = if let Some(vendor_id) = params.vendor_id {
         sqlx::query_as::<_, BmeVendorEvaluation>(
             "SELECT * FROM bme_vendor_evaluations WHERE vendor_id = $1 \
-             ORDER BY evaluation_date DESC",
+             ORDER BY evaluation_date DESC LIMIT 5000",
         )
         .bind(vendor_id)
         .fetch_all(&mut *tx)

@@ -598,7 +598,7 @@ pub async fn patient_enrollments(
          JOIN chronic_programs cp ON cp.id = ce.program_id \
          LEFT JOIN users u ON u.id = ce.primary_doctor_id \
          WHERE ce.patient_id = $1 \
-         ORDER BY ce.enrollment_date DESC",
+         ORDER BY ce.enrollment_date DESC LIMIT 5000",
     )
     .bind(patient_id)
     .fetch_all(&mut *tx)
@@ -745,7 +745,7 @@ pub async fn drug_timeline(
          AND ($2::date IS NULL OR mte.effective_date >= $2) \
          AND ($3::date IS NULL OR mte.effective_date <= $3) \
          AND ($4::uuid IS NULL OR mte.enrollment_id = $4) \
-         ORDER BY mte.effective_date ASC, mte.created_at ASC",
+         ORDER BY mte.effective_date ASC, mte.created_at ASC LIMIT 5000",
     )
     .bind(patient_id)
     .bind(params.from_date)
@@ -784,7 +784,7 @@ pub async fn drug_timeline_with_labs(
          WHERE mte.patient_id = $1 \
          AND ($2::date IS NULL OR mte.effective_date >= $2) \
          AND ($3::date IS NULL OR mte.effective_date <= $3) \
-         ORDER BY mte.effective_date ASC, mte.created_at ASC",
+         ORDER BY mte.effective_date ASC, mte.created_at ASC LIMIT 5000",
     )
     .bind(patient_id)
     .bind(params.from_date)
@@ -804,7 +804,7 @@ pub async fn drug_timeline_with_labs(
          AND lo.status IN ('completed', 'verified') \
          AND ($2::date IS NULL OR lr.created_at::date >= $2) \
          AND ($3::date IS NULL OR lr.created_at::date <= $3) \
-         ORDER BY lr.created_at ASC",
+         ORDER BY lr.created_at ASC LIMIT 5000",
     )
     .bind(patient_id)
     .bind(params.from_date)
@@ -830,7 +830,7 @@ pub async fn drug_timeline_with_labs(
          AND ($2::date IS NULL OR v.recorded_at::date >= $2) \
          AND ($3::date IS NULL OR v.recorded_at::date <= $3) \
          AND (v.systolic_bp IS NOT NULL OR v.weight_kg IS NOT NULL OR v.pulse IS NOT NULL) \
-         ORDER BY v.recorded_at ASC",
+         ORDER BY v.recorded_at ASC LIMIT 5000",
     )
     .bind(patient_id)
     .bind(params.from_date)
@@ -843,7 +843,7 @@ pub async fn drug_timeline_with_labs(
         "SELECT id, parameter_name, loinc_code, target_value, unit, comparison, \
          effective_from, notes, enrollment_id \
          FROM patient_outcome_targets WHERE patient_id = $1 \
-         ORDER BY parameter_name",
+         ORDER BY parameter_name LIMIT 5000",
     )
     .bind(patient_id)
     .fetch_all(&mut *tx)
@@ -864,7 +864,7 @@ pub async fn drug_timeline_with_labs(
            AND mte2.event_type IN ('discontinued', 'switched') \
            AND mte2.effective_date > medication_timeline_events.effective_date \
          ) \
-         ORDER BY drug_name, effective_date DESC",
+         ORDER BY drug_name, effective_date DESC LIMIT 5000",
     )
     .bind(patient_id)
     .fetch_all(&mut *tx)
@@ -1127,7 +1127,7 @@ pub async fn list_outcome_targets(
         "SELECT id, parameter_name, loinc_code, target_value, unit, comparison, \
          effective_from, notes, enrollment_id \
          FROM patient_outcome_targets WHERE patient_id = $1 \
-         ORDER BY parameter_name",
+         ORDER BY parameter_name LIMIT 5000",
     )
     .bind(patient_id)
     .fetch_all(&mut *tx)
@@ -1216,7 +1216,7 @@ pub async fn outcome_dashboard(
         "SELECT id, parameter_name, loinc_code, target_value, unit, comparison, \
          effective_from, notes, enrollment_id \
          FROM patient_outcome_targets WHERE patient_id = $1 \
-         ORDER BY parameter_name",
+         ORDER BY parameter_name LIMIT 5000",
     )
     .bind(patient_id)
     .fetch_all(&mut *tx)
@@ -1382,7 +1382,7 @@ pub async fn check_polypharmacy(
            AND mte2.event_type IN ('discontinued', 'switched') \
            AND mte2.effective_date > medication_timeline_events.effective_date \
          ) \
-         ORDER BY drug_name, effective_date DESC",
+         ORDER BY drug_name, effective_date DESC LIMIT 5000",
     )
     .bind(patient_id)
     .fetch_all(&mut *tx)
@@ -1514,7 +1514,7 @@ pub async fn treatment_summary(
          FROM diagnoses d \
          JOIN encounters e ON e.id = d.encounter_id AND e.tenant_id = d.tenant_id \
          WHERE e.patient_id = $1 AND d.tenant_id = $2 AND d.resolved_date IS NULL \
-         ORDER BY diagnosed_date DESC NULLS LAST, d.created_at DESC",
+         ORDER BY diagnosed_date DESC NULLS LAST, d.created_at DESC LIMIT 5000",
     )
     .bind(patient_id)
     .bind(claims.tenant_id)
@@ -1536,7 +1536,7 @@ pub async fn treatment_summary(
            AND mte2.event_type IN ('discontinued', 'switched') \
            AND mte2.effective_date > medication_timeline_events.effective_date \
          ) \
-         ORDER BY drug_name, effective_date DESC",
+         ORDER BY drug_name, effective_date DESC LIMIT 5000",
     )
     .bind(patient_id)
     .fetch_all(&mut *tx)
@@ -1597,7 +1597,7 @@ pub async fn treatment_summary(
          FROM chronic_enrollments ce \
          JOIN chronic_programs cp ON cp.id = ce.program_id \
          WHERE ce.patient_id = $1 \
-         ORDER BY ce.enrollment_date DESC",
+         ORDER BY ce.enrollment_date DESC LIMIT 5000",
     )
     .bind(patient_id)
     .fetch_all(&mut *tx)

@@ -504,7 +504,7 @@ pub async fn get_anesthesia_record_print_data(
         "SELECT drug_name, dose, route, time::text \
          FROM anesthesia_drugs \
          WHERE surgery_id = $1 AND tenant_id = $2 AND drug_category = 'induction' \
-         ORDER BY time",
+         ORDER BY time LIMIT 5000",
     )
     .bind(surgery_id)
     .bind(claims.tenant_id)
@@ -515,7 +515,7 @@ pub async fn get_anesthesia_record_print_data(
         "SELECT drug_name, dose, route, time::text \
          FROM anesthesia_drugs \
          WHERE surgery_id = $1 AND tenant_id = $2 AND drug_category = 'maintenance' \
-         ORDER BY time",
+         ORDER BY time LIMIT 5000",
     )
     .bind(surgery_id)
     .bind(claims.tenant_id)
@@ -526,7 +526,7 @@ pub async fn get_anesthesia_record_print_data(
         "SELECT drug_name, dose, route, time::text \
          FROM anesthesia_drugs \
          WHERE surgery_id = $1 AND tenant_id = $2 AND drug_category = 'muscle_relaxant' \
-         ORDER BY time",
+         ORDER BY time LIMIT 5000",
     )
     .bind(surgery_id)
     .bind(claims.tenant_id)
@@ -537,7 +537,7 @@ pub async fn get_anesthesia_record_print_data(
         "SELECT drug_name, dose, route, time::text \
          FROM anesthesia_drugs \
          WHERE surgery_id = $1 AND tenant_id = $2 AND drug_category = 'analgesic' \
-         ORDER BY time",
+         ORDER BY time LIMIT 5000",
     )
     .bind(surgery_id)
     .bind(claims.tenant_id)
@@ -548,7 +548,7 @@ pub async fn get_anesthesia_record_print_data(
         "SELECT drug_name, dose, route, time::text \
          FROM anesthesia_drugs \
          WHERE surgery_id = $1 AND tenant_id = $2 AND drug_category = 'other' \
-         ORDER BY time",
+         ORDER BY time LIMIT 5000",
     )
     .bind(surgery_id)
     .bind(claims.tenant_id)
@@ -559,7 +559,7 @@ pub async fn get_anesthesia_record_print_data(
         "SELECT recorded_at::text AS time, bp_systolic, bp_diastolic, pulse, spo2, etco2, temperature AS temp \
          FROM anesthesia_vitals \
          WHERE surgery_id = $1 AND tenant_id = $2 \
-         ORDER BY recorded_at",
+         ORDER BY recorded_at LIMIT 5000",
     )
     .bind(surgery_id)
     .bind(claims.tenant_id)
@@ -570,7 +570,7 @@ pub async fn get_anesthesia_record_print_data(
         "SELECT fluid_type, volume_ml, start_time::text \
          FROM anesthesia_fluids \
          WHERE surgery_id = $1 AND tenant_id = $2 \
-         ORDER BY start_time",
+         ORDER BY start_time LIMIT 5000",
     )
     .bind(surgery_id)
     .bind(claims.tenant_id)
@@ -581,7 +581,7 @@ pub async fn get_anesthesia_record_print_data(
         "SELECT product_type, bag_number, volume_ml, start_time::text \
          FROM anesthesia_blood_products \
          WHERE surgery_id = $1 AND tenant_id = $2 \
-         ORDER BY start_time",
+         ORDER BY start_time LIMIT 5000",
     )
     .bind(surgery_id)
     .bind(claims.tenant_id)
@@ -846,7 +846,7 @@ pub async fn get_postop_orders_print_data(
         "SELECT fluid_type, rate_ml_hr, duration_hours \
          FROM postop_iv_fluids \
          WHERE surgery_id = $1 AND tenant_id = $2 \
-         ORDER BY created_at",
+         ORDER BY created_at LIMIT 5000",
     )
     .bind(surgery_id)
     .bind(claims.tenant_id)
@@ -857,7 +857,7 @@ pub async fn get_postop_orders_print_data(
         "SELECT drug_name, dose, route, frequency, duration, special_instructions \
          FROM postop_medications \
          WHERE surgery_id = $1 AND tenant_id = $2 \
-         ORDER BY created_at",
+         ORDER BY created_at LIMIT 5000",
     )
     .bind(surgery_id)
     .bind(claims.tenant_id)
@@ -867,7 +867,7 @@ pub async fn get_postop_orders_print_data(
     let monitoring_orders: Vec<String> = sqlx::query_scalar(
         "SELECT order_text FROM postop_monitoring_orders \
          WHERE surgery_id = $1 AND tenant_id = $2 \
-         ORDER BY created_at",
+         ORDER BY created_at LIMIT 5000",
     )
     .bind(surgery_id)
     .bind(claims.tenant_id)
@@ -877,7 +877,7 @@ pub async fn get_postop_orders_print_data(
     let lab_orders: Vec<String> = sqlx::query_scalar(
         "SELECT test_name FROM postop_lab_orders \
          WHERE surgery_id = $1 AND tenant_id = $2 \
-         ORDER BY created_at",
+         ORDER BY created_at LIMIT 5000",
     )
     .bind(surgery_id)
     .bind(claims.tenant_id)
@@ -887,7 +887,7 @@ pub async fn get_postop_orders_print_data(
     let imaging_orders: Vec<String> = sqlx::query_scalar(
         "SELECT study_name FROM postop_imaging_orders \
          WHERE surgery_id = $1 AND tenant_id = $2 \
-         ORDER BY created_at",
+         ORDER BY created_at LIMIT 5000",
     )
     .bind(surgery_id)
     .bind(claims.tenant_id)
@@ -897,7 +897,7 @@ pub async fn get_postop_orders_print_data(
     let warning_signs: Vec<String> = sqlx::query_scalar(
         "SELECT warning_text FROM postop_warning_signs \
          WHERE surgery_id = $1 AND tenant_id = $2 \
-         ORDER BY created_at",
+         ORDER BY created_at LIMIT 5000",
     )
     .bind(surgery_id)
     .bind(claims.tenant_id)
@@ -1030,7 +1030,7 @@ pub async fn get_transfusion_monitoring_print_data(
          FROM transfusion_monitoring tm \
          LEFT JOIN users recorder ON recorder.id = tm.recorded_by_id \
          WHERE tm.transfusion_id = $1 AND tm.tenant_id = $2 \
-         ORDER BY tm.recorded_at",
+         ORDER BY tm.recorded_at LIMIT 5000",
     )
     .bind(transfusion_id)
     .bind(claims.tenant_id)

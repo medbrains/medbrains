@@ -16,7 +16,7 @@ pub async fn list_countries(
     State(state): State<AppState>,
 ) -> Result<Json<Vec<GeoCountry>>, AppError> {
     let rows = sqlx::query_as::<_, GeoCountry>(
-        "SELECT * FROM geo_countries WHERE is_active = true ORDER BY name",
+        "SELECT * FROM geo_countries WHERE is_active = true ORDER BY name LIMIT 5000",
     )
     .fetch_all(&state.db)
     .await?;
@@ -31,7 +31,7 @@ pub async fn list_states(
     Path(country_id): Path<Uuid>,
 ) -> Result<Json<Vec<GeoState>>, AppError> {
     let rows = sqlx::query_as::<_, GeoState>(
-        "SELECT * FROM geo_states WHERE country_id = $1 AND is_active = true ORDER BY name",
+        "SELECT * FROM geo_states WHERE country_id = $1 AND is_active = true ORDER BY name LIMIT 5000",
     )
     .bind(country_id)
     .fetch_all(&state.db)
@@ -47,7 +47,7 @@ pub async fn list_districts(
     Path(state_id): Path<Uuid>,
 ) -> Result<Json<Vec<GeoDistrict>>, AppError> {
     let rows = sqlx::query_as::<_, GeoDistrict>(
-        "SELECT * FROM geo_districts WHERE state_id = $1 AND is_active = true ORDER BY name",
+        "SELECT * FROM geo_districts WHERE state_id = $1 AND is_active = true ORDER BY name LIMIT 5000",
     )
     .bind(state_id)
     .fetch_all(&state.db)
@@ -62,7 +62,7 @@ pub async fn list_regulators(
     State(state): State<AppState>,
 ) -> Result<Json<Vec<RegulatoryBody>>, AppError> {
     let rows = sqlx::query_as::<_, RegulatoryBody>(
-        "SELECT * FROM regulatory_bodies WHERE is_active = true ORDER BY level, name",
+        "SELECT * FROM regulatory_bodies WHERE is_active = true ORDER BY level, name LIMIT 5000",
     )
     .fetch_all(&state.db)
     .await?;
@@ -93,7 +93,7 @@ pub async fn auto_detect_regulators(
          WHERE is_active = true \
          AND (country_id IS NULL OR country_id = $1) \
          AND (state_id IS NULL OR state_id = $2) \
-         ORDER BY level, name",
+         ORDER BY level, name LIMIT 5000",
     )
     .bind(params.country_id)
     .bind(params.state_id)
@@ -110,7 +110,7 @@ pub async fn list_subdistricts(
     Path(district_id): Path<Uuid>,
 ) -> Result<Json<Vec<GeoSubdistrict>>, AppError> {
     let rows = sqlx::query_as::<_, GeoSubdistrict>(
-        "SELECT * FROM geo_subdistricts WHERE district_id = $1 AND is_active = true ORDER BY name",
+        "SELECT * FROM geo_subdistricts WHERE district_id = $1 AND is_active = true ORDER BY name LIMIT 5000",
     )
     .bind(district_id)
     .fetch_all(&state.db)
@@ -126,7 +126,7 @@ pub async fn list_towns(
     Path(subdistrict_id): Path<Uuid>,
 ) -> Result<Json<Vec<GeoTown>>, AppError> {
     let rows = sqlx::query_as::<_, GeoTown>(
-        "SELECT * FROM geo_towns WHERE subdistrict_id = $1 AND is_active = true ORDER BY name",
+        "SELECT * FROM geo_towns WHERE subdistrict_id = $1 AND is_active = true ORDER BY name LIMIT 5000",
     )
     .bind(subdistrict_id)
     .fetch_all(&state.db)
@@ -160,7 +160,7 @@ pub async fn search_pincode(
          JOIN geo_states s        ON s.id  = d.state_id \
          JOIN geo_countries c     ON c.id  = s.country_id \
          WHERE t.pincode = $1 AND t.is_active = true \
-         ORDER BY t.name",
+         ORDER BY t.name LIMIT 5000",
     )
     .bind(&pincode)
     .fetch_all(&state.db)

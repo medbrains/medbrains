@@ -274,7 +274,7 @@ pub async fn list_drug_interactions(
     let rows = sqlx::query_as::<_, DrugInteraction>(
         "SELECT * FROM drug_interactions \
          WHERE tenant_id = $1 AND is_active = true \
-         ORDER BY drug_a_name, drug_b_name",
+         ORDER BY drug_a_name, drug_b_name LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -361,7 +361,7 @@ pub async fn list_critical_value_rules(
     let rows = sqlx::query_as::<_, CriticalValueRule>(
         "SELECT * FROM critical_value_rules \
          WHERE tenant_id = $1 AND is_active = true \
-         ORDER BY test_name",
+         ORDER BY test_name LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -452,7 +452,7 @@ pub async fn list_protocols(
     let rows = sqlx::query_as::<_, ClinicalProtocol>(
         "SELECT * FROM clinical_protocols \
          WHERE tenant_id = $1 AND is_active = true \
-         ORDER BY category, name",
+         ORDER BY category, name LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -676,7 +676,7 @@ pub async fn list_pre_auth_requests(
         sqlx::query_as::<_, PreAuthorizationRequest>(
             "SELECT * FROM pre_authorization_requests \
              WHERE tenant_id = $1 AND patient_id = $2 \
-             ORDER BY created_at DESC",
+             ORDER BY created_at DESC LIMIT 5000",
         )
         .bind(claims.tenant_id)
         .bind(pid)

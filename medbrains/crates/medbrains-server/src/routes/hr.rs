@@ -309,7 +309,7 @@ pub async fn list_designations(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, Designation>(
-        "SELECT * FROM designations WHERE tenant_id = $1 ORDER BY level, name",
+        "SELECT * FROM designations WHERE tenant_id = $1 ORDER BY level, name LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -397,7 +397,7 @@ pub async fn list_employees(
             "SELECT * FROM employees WHERE tenant_id = $1 \
              AND (first_name ILIKE $2 OR last_name ILIKE $2 \
              OR employee_code ILIKE $2 OR phone ILIKE $2 OR email ILIKE $2) \
-             ORDER BY first_name, last_name",
+             ORDER BY first_name, last_name LIMIT 5000",
         )
         .bind(claims.tenant_id)
         .bind(&pattern)
@@ -406,7 +406,7 @@ pub async fn list_employees(
     } else if let Some(dept_id) = params.department_id {
         sqlx::query_as::<_, Employee>(
             "SELECT * FROM employees WHERE tenant_id = $1 AND department_id = $2 \
-             ORDER BY first_name, last_name",
+             ORDER BY first_name, last_name LIMIT 5000",
         )
         .bind(claims.tenant_id)
         .bind(dept_id)
@@ -416,7 +416,7 @@ pub async fn list_employees(
         sqlx::query_as::<_, Employee>(
             "SELECT * FROM employees WHERE tenant_id = $1 \
              AND status = $2::employee_status \
-             ORDER BY first_name, last_name",
+             ORDER BY first_name, last_name LIMIT 5000",
         )
         .bind(claims.tenant_id)
         .bind(status)
@@ -425,7 +425,7 @@ pub async fn list_employees(
     } else {
         sqlx::query_as::<_, Employee>(
             "SELECT * FROM employees WHERE tenant_id = $1 \
-             ORDER BY first_name, last_name",
+             ORDER BY first_name, last_name LIMIT 5000",
         )
         .bind(claims.tenant_id)
         .fetch_all(&mut *tx)
@@ -608,7 +608,7 @@ pub async fn list_credentials(
     let rows = sqlx::query_as::<_, EmployeeCredential>(
         "SELECT * FROM employee_credentials \
          WHERE tenant_id = $1 AND employee_id = $2 \
-         ORDER BY expiry_date NULLS LAST",
+         ORDER BY expiry_date NULLS LAST LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .bind(employee_id)
@@ -704,7 +704,7 @@ pub async fn list_shifts(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, ShiftDefinition>(
-        "SELECT * FROM shift_definitions WHERE tenant_id = $1 ORDER BY start_time",
+        "SELECT * FROM shift_definitions WHERE tenant_id = $1 ORDER BY start_time LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -802,7 +802,7 @@ pub async fn list_rosters(
         sqlx::query_as::<_, DutyRoster>(
             "SELECT * FROM duty_rosters WHERE tenant_id = $1 \
              AND roster_date BETWEEN $2::date AND $3::date \
-             ORDER BY roster_date, employee_id",
+             ORDER BY roster_date, employee_id LIMIT 5000",
         )
         .bind(claims.tenant_id)
         .bind(from)
@@ -915,7 +915,7 @@ pub async fn list_attendance(
         sqlx::query_as::<_, AttendanceRecord>(
             "SELECT * FROM attendance_records WHERE tenant_id = $1 \
              AND attendance_date BETWEEN $2::date AND $3::date \
-             ORDER BY attendance_date, employee_id",
+             ORDER BY attendance_date, employee_id LIMIT 5000",
         )
         .bind(claims.tenant_id)
         .bind(from)
@@ -988,7 +988,7 @@ pub async fn list_leave_balances(
     let rows = sqlx::query_as::<_, LeaveBalance>(
         "SELECT * FROM leave_balances \
          WHERE tenant_id = $1 AND employee_id = $2 \
-         ORDER BY year DESC, leave_type",
+         ORDER BY year DESC, leave_type LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .bind(employee_id)
@@ -1013,7 +1013,7 @@ pub async fn list_leave_requests(
         sqlx::query_as::<_, LeaveRequest>(
             "SELECT * FROM leave_requests \
              WHERE tenant_id = $1 AND employee_id = $2 \
-             ORDER BY created_at DESC",
+             ORDER BY created_at DESC LIMIT 5000",
         )
         .bind(claims.tenant_id)
         .bind(emp_id)
@@ -1023,7 +1023,7 @@ pub async fn list_leave_requests(
         sqlx::query_as::<_, LeaveRequest>(
             "SELECT * FROM leave_requests \
              WHERE tenant_id = $1 AND status = $2::leave_status \
-             ORDER BY created_at DESC",
+             ORDER BY created_at DESC LIMIT 5000",
         )
         .bind(claims.tenant_id)
         .bind(status)
@@ -1167,7 +1167,7 @@ pub async fn list_on_call(
         sqlx::query_as::<_, OnCallSchedule>(
             "SELECT * FROM on_call_schedules \
              WHERE tenant_id = $1 AND schedule_date = $2::date \
-             ORDER BY department_id, start_time",
+             ORDER BY department_id, start_time LIMIT 5000",
         )
         .bind(claims.tenant_id)
         .bind(date)
@@ -1236,7 +1236,7 @@ pub async fn list_training_programs(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, TrainingProgram>(
-        "SELECT * FROM training_programs WHERE tenant_id = $1 ORDER BY name",
+        "SELECT * FROM training_programs WHERE tenant_id = $1 ORDER BY name LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -1292,7 +1292,7 @@ pub async fn list_training_records(
     let rows = sqlx::query_as::<_, TrainingRecord>(
         "SELECT * FROM training_records \
          WHERE tenant_id = $1 AND employee_id = $2 \
-         ORDER BY training_date DESC",
+         ORDER BY training_date DESC LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .bind(employee_id)
@@ -1356,7 +1356,7 @@ pub async fn list_appraisals(
     let rows = sqlx::query_as::<_, Appraisal>(
         "SELECT * FROM appraisals \
          WHERE tenant_id = $1 AND employee_id = $2 \
-         ORDER BY appraisal_year DESC",
+         ORDER BY appraisal_year DESC LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .bind(employee_id)
@@ -1417,7 +1417,7 @@ pub async fn list_statutory_records(
     let rows = sqlx::query_as::<_, StatutoryRecord>(
         "SELECT * FROM statutory_records \
          WHERE tenant_id = $1 AND employee_id = $2 \
-         ORDER BY compliance_date DESC NULLS LAST",
+         ORDER BY compliance_date DESC NULLS LAST LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .bind(employee_id)
@@ -1523,7 +1523,7 @@ pub async fn training_compliance(
              AND tr.status = 'completed' \
          WHERE tp.tenant_id = $1 AND tp.is_mandatory = true \
          GROUP BY tp.id, tp.name \
-         ORDER BY completion_pct ASC",
+         ORDER BY completion_pct ASC LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)

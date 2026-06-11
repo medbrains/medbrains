@@ -212,7 +212,7 @@ pub async fn get_daily_schedule(
                   status::text AS status \
            FROM diet_orders WHERE admission_id = $1 \
                 AND status = 'active' \
-         ) combined ORDER BY scheduled_at ASC NULLS LAST",
+         ) combined ORDER BY scheduled_at ASC NULLS LAST LIMIT 5000",
     )
     .bind(admission_id)
     .fetch_all(&mut *tx)
@@ -494,7 +494,7 @@ pub async fn list_videos(
         "SELECT * FROM bedside_education_videos \
          WHERE is_active = TRUE \
          AND ($1::text IS NULL OR category = $1) \
-         ORDER BY sort_order ASC, title ASC",
+         ORDER BY sort_order ASC, title ASC LIMIT 5000",
     )
     .bind(&params.category)
     .fetch_all(&mut *tx)

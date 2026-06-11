@@ -103,7 +103,7 @@ pub async fn get_incident_report_print_data(
          FROM incident_staff_involved si \
          LEFT JOIN users u ON u.id = si.staff_id \
          WHERE si.incident_id = $1 AND si.tenant_id = $2 \
-         ORDER BY si.created_at",
+         ORDER BY si.created_at LIMIT 5000",
     )
     .bind(incident_id)
     .bind(claims.tenant_id)
@@ -113,7 +113,7 @@ pub async fn get_incident_report_print_data(
     let witnesses: Vec<String> = sqlx::query_scalar(
         "SELECT witness_name FROM incident_witnesses \
          WHERE incident_id = $1 AND tenant_id = $2 \
-         ORDER BY created_at",
+         ORDER BY created_at LIMIT 5000",
     )
     .bind(incident_id)
     .bind(claims.tenant_id)
@@ -123,7 +123,7 @@ pub async fn get_incident_report_print_data(
     let notification_list: Vec<String> = sqlx::query_scalar(
         "SELECT notified_person FROM incident_notifications \
          WHERE incident_id = $1 AND tenant_id = $2 \
-         ORDER BY notified_at",
+         ORDER BY notified_at LIMIT 5000",
     )
     .bind(incident_id)
     .bind(claims.tenant_id)
@@ -133,7 +133,7 @@ pub async fn get_incident_report_print_data(
     let contributing_factors: Vec<String> = sqlx::query_scalar(
         "SELECT factor_description FROM incident_contributing_factors \
          WHERE incident_id = $1 AND tenant_id = $2 \
-         ORDER BY created_at",
+         ORDER BY created_at LIMIT 5000",
     )
     .bind(incident_id)
     .bind(claims.tenant_id)
@@ -235,7 +235,7 @@ pub async fn get_rca_template_print_data(
          LEFT JOIN users u ON u.id = rt.user_id \
          LEFT JOIN departments dept ON dept.id = rt.department_id AND dept.tenant_id = rt.tenant_id \
          WHERE rt.incident_id = $1 AND rt.tenant_id = $2 \
-         ORDER BY rt.created_at",
+         ORDER BY rt.created_at LIMIT 5000",
     )
     .bind(incident_id)
     .bind(claims.tenant_id)
@@ -245,7 +245,7 @@ pub async fn get_rca_template_print_data(
     let data_sources: Vec<String> = sqlx::query_scalar(
         "SELECT source_description FROM rca_data_sources \
          WHERE incident_id = $1 AND tenant_id = $2 \
-         ORDER BY created_at",
+         ORDER BY created_at LIMIT 5000",
     )
     .bind(incident_id)
     .bind(claims.tenant_id)
@@ -256,7 +256,7 @@ pub async fn get_rca_template_print_data(
         "SELECT event_time::text, event_description, who_involved \
          FROM rca_timeline_events \
          WHERE incident_id = $1 AND tenant_id = $2 \
-         ORDER BY event_time",
+         ORDER BY event_time LIMIT 5000",
     )
     .bind(incident_id)
     .bind(claims.tenant_id)
@@ -267,7 +267,7 @@ pub async fn get_rca_template_print_data(
         "SELECT level, question, answer \
          FROM rca_five_whys \
          WHERE incident_id = $1 AND tenant_id = $2 \
-         ORDER BY level",
+         ORDER BY level LIMIT 5000",
     )
     .bind(incident_id)
     .bind(claims.tenant_id)
@@ -284,7 +284,7 @@ pub async fn get_rca_template_print_data(
         "SELECT category, cause \
          FROM rca_fishbone_causes \
          WHERE incident_id = $1 AND tenant_id = $2 \
-         ORDER BY category, created_at",
+         ORDER BY category, created_at LIMIT 5000",
     )
     .bind(incident_id)
     .bind(claims.tenant_id)
@@ -309,7 +309,7 @@ pub async fn get_rca_template_print_data(
     let root_causes_identified: Vec<String> = sqlx::query_scalar(
         "SELECT root_cause FROM rca_root_causes \
          WHERE incident_id = $1 AND tenant_id = $2 \
-         ORDER BY created_at",
+         ORDER BY created_at LIMIT 5000",
     )
     .bind(incident_id)
     .bind(claims.tenant_id)
@@ -319,7 +319,7 @@ pub async fn get_rca_template_print_data(
     let contributing_factors: Vec<String> = sqlx::query_scalar(
         "SELECT factor_description FROM rca_contributing_factors \
          WHERE incident_id = $1 AND tenant_id = $2 \
-         ORDER BY created_at",
+         ORDER BY created_at LIMIT 5000",
     )
     .bind(incident_id)
     .bind(claims.tenant_id)
@@ -330,7 +330,7 @@ pub async fn get_rca_template_print_data(
         "SELECT action_description, responsible_person, target_date::text, status, completion_date::text \
          FROM rca_corrective_actions \
          WHERE incident_id = $1 AND tenant_id = $2 \
-         ORDER BY created_at",
+         ORDER BY created_at LIMIT 5000",
     )
     .bind(incident_id)
     .bind(claims.tenant_id)
@@ -341,7 +341,7 @@ pub async fn get_rca_template_print_data(
         "SELECT action_description, responsible_person, target_date::text, status \
          FROM rca_preventive_actions \
          WHERE incident_id = $1 AND tenant_id = $2 \
-         ORDER BY created_at",
+         ORDER BY created_at LIMIT 5000",
     )
     .bind(incident_id)
     .bind(claims.tenant_id)
@@ -351,7 +351,7 @@ pub async fn get_rca_template_print_data(
     let effectiveness_measures: Vec<String> = sqlx::query_scalar(
         "SELECT measure_description FROM rca_effectiveness_measures \
          WHERE incident_id = $1 AND tenant_id = $2 \
-         ORDER BY created_at",
+         ORDER BY created_at LIMIT 5000",
     )
     .bind(incident_id)
     .bind(claims.tenant_id)
@@ -361,7 +361,7 @@ pub async fn get_rca_template_print_data(
     let follow_up_dates: Vec<String> = sqlx::query_scalar(
         "SELECT follow_up_date::text FROM rca_follow_up_dates \
          WHERE incident_id = $1 AND tenant_id = $2 \
-         ORDER BY follow_up_date",
+         ORDER BY follow_up_date LIMIT 5000",
     )
     .bind(incident_id)
     .bind(claims.tenant_id)
@@ -484,7 +484,7 @@ pub async fn get_capa_form_print_data(
     let affected_processes: Vec<String> = sqlx::query_scalar(
         "SELECT process_name FROM capa_affected_processes \
          WHERE capa_id = $1 AND tenant_id = $2 \
-         ORDER BY created_at",
+         ORDER BY created_at LIMIT 5000",
     )
     .bind(capa_id)
     .bind(claims.tenant_id)
@@ -496,7 +496,7 @@ pub async fn get_capa_form_print_data(
            target_date::text, actual_date::text, status, remarks \
          FROM capa_actions \
          WHERE capa_id = $1 AND tenant_id = $2 \
-         ORDER BY action_number",
+         ORDER BY action_number LIMIT 5000",
     )
     .bind(capa_id)
     .bind(claims.tenant_id)
@@ -634,7 +634,7 @@ pub async fn get_adr_report_print_data(
     let seriousness_criteria: Vec<String> = sqlx::query_scalar(
         "SELECT criterion FROM adr_seriousness_criteria \
          WHERE adr_report_id = $1 AND tenant_id = $2 \
-         ORDER BY created_at",
+         ORDER BY created_at LIMIT 5000",
     )
     .bind(report_id)
     .bind(claims.tenant_id)
@@ -646,7 +646,7 @@ pub async fn get_adr_report_print_data(
            dose, route, frequency, start_date::text, end_date::text, indication \
          FROM adr_suspected_drugs \
          WHERE adr_report_id = $1 AND tenant_id = $2 \
-         ORDER BY created_at",
+         ORDER BY created_at LIMIT 5000",
     )
     .bind(report_id)
     .bind(claims.tenant_id)
@@ -657,7 +657,7 @@ pub async fn get_adr_report_print_data(
         "SELECT drug_name, dose, route, indication \
          FROM adr_concomitant_drugs \
          WHERE adr_report_id = $1 AND tenant_id = $2 \
-         ORDER BY created_at",
+         ORDER BY created_at LIMIT 5000",
     )
     .bind(report_id)
     .bind(claims.tenant_id)
@@ -831,7 +831,7 @@ pub async fn get_transfusion_reaction_print_data(
     let symptoms: Vec<String> = sqlx::query_scalar(
         "SELECT symptom FROM transfusion_reaction_symptoms \
          WHERE reaction_id = $1 AND tenant_id = $2 \
-         ORDER BY created_at",
+         ORDER BY created_at LIMIT 5000",
     )
     .bind(reaction_id)
     .bind(claims.tenant_id)

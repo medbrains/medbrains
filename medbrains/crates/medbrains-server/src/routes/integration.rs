@@ -496,7 +496,7 @@ pub async fn list_node_templates(
     let templates = sqlx::query_as::<_, IntegrationNodeTemplate>(
         "SELECT * FROM integration_node_templates \
          WHERE tenant_id IS NULL OR tenant_id = $1 \
-         ORDER BY category, name",
+         ORDER BY category, name LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)

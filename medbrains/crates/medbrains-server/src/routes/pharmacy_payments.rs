@@ -136,7 +136,7 @@ pub async fn list_payments(
         "SELECT * FROM pharmacy_payment_transactions \
          WHERE tenant_id = $1 \
            AND ($2::text IS NULL OR reconciliation_status = $2) \
-         ORDER BY created_at DESC",
+         ORDER BY created_at DESC LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .bind(&params.status)
