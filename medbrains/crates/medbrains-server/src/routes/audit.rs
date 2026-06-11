@@ -112,7 +112,7 @@ pub async fn entity_audit_trail(
          FROM audit_log a \
          LEFT JOIN users u ON u.id = a.user_id \
          WHERE a.entity_type = $1 AND a.entity_id = $2 \
-         ORDER BY a.created_at DESC",
+         ORDER BY a.created_at DESC LIMIT 5000",
     )
     .bind(&entity_type)
     .bind(entity_id)
@@ -166,7 +166,7 @@ pub async fn audit_stats(
 
     let action_breakdown = sqlx::query_as::<_, ActionCount>(
         "SELECT action, COUNT(*)::bigint AS count FROM audit_log \
-         GROUP BY action ORDER BY count DESC",
+         GROUP BY action ORDER BY count DESC LIMIT 5000",
     )
     .fetch_all(&mut *tx)
     .await?;
@@ -296,7 +296,7 @@ pub async fn list_modules(
 
     let rows = sqlx::query_as::<_, DistinctValue>(
         "SELECT DISTINCT module AS value FROM audit_log \
-         WHERE module IS NOT NULL ORDER BY module",
+         WHERE module IS NOT NULL ORDER BY module LIMIT 5000",
     )
     .fetch_all(&mut *tx)
     .await?;
@@ -318,7 +318,7 @@ pub async fn list_entity_types(
 
     let rows = sqlx::query_as::<_, DistinctValue>(
         "SELECT DISTINCT entity_type AS value FROM audit_log \
-         ORDER BY entity_type",
+         ORDER BY entity_type LIMIT 5000",
     )
     .fetch_all(&mut *tx)
     .await?;
@@ -431,7 +431,7 @@ pub async fn verify_integrity(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, AuditHashRow>(
-        "SELECT id, prev_hash, hash FROM audit_log ORDER BY created_at ASC",
+        "SELECT id, prev_hash, hash FROM audit_log ORDER BY created_at ASC LIMIT 5000",
     )
     .fetch_all(&mut *tx)
     .await?;
@@ -511,7 +511,7 @@ pub async fn entity_timeline(
          FROM audit_log a \
          LEFT JOIN users u ON u.id = a.user_id \
          WHERE a.entity_type = $1 AND a.entity_id = $2 \
-         ORDER BY a.created_at ASC",
+         ORDER BY a.created_at ASC LIMIT 5000",
     )
     .bind(&entity_type)
     .bind(entity_id)

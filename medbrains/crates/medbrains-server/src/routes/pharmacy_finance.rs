@@ -437,7 +437,7 @@ pub async fn list_credit_notes(
         "SELECT * FROM pharmacy_credit_notes \
          WHERE tenant_id = $1 \
            AND ($2::text IS NULL OR status = $2) \
-         ORDER BY created_at DESC",
+         ORDER BY created_at DESC LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .bind(&params.status)
@@ -724,7 +724,7 @@ pub async fn list_store_indents(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, PharmacyStoreIndent>(
-        "SELECT * FROM pharmacy_store_indents WHERE tenant_id = $1 ORDER BY created_at DESC",
+        "SELECT * FROM pharmacy_store_indents WHERE tenant_id = $1 ORDER BY created_at DESC LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)

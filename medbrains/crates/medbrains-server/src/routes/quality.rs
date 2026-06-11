@@ -323,7 +323,7 @@ pub async fn list_indicators(
         sqlx::query_as::<_, QualityIndicator>(
             "SELECT * FROM quality_indicators \
              WHERE tenant_id = $1 AND category = $2 \
-             ORDER BY code",
+             ORDER BY code LIMIT 5000",
         )
         .bind(claims.tenant_id)
         .bind(category)
@@ -333,7 +333,7 @@ pub async fn list_indicators(
         sqlx::query_as::<_, QualityIndicator>(
             "SELECT * FROM quality_indicators \
              WHERE tenant_id = $1 \
-             ORDER BY code",
+             ORDER BY code LIMIT 5000",
         )
         .bind(claims.tenant_id)
         .fetch_all(&mut *tx)
@@ -400,7 +400,7 @@ pub async fn list_indicator_values(
         sqlx::query_as::<_, QualityIndicatorValue>(
             "SELECT * FROM quality_indicator_values \
              WHERE tenant_id = $1 AND indicator_id = $2 \
-             ORDER BY period_start DESC",
+             ORDER BY period_start DESC LIMIT 5000",
         )
         .bind(claims.tenant_id)
         .bind(indicator_id)
@@ -486,7 +486,7 @@ pub async fn list_documents(
             sqlx::query_as::<_, QualityDocument>(
                 "SELECT * FROM quality_documents \
                  WHERE tenant_id = $1 AND status = $2::document_status AND category = $3 \
-                 ORDER BY updated_at DESC",
+                 ORDER BY updated_at DESC LIMIT 5000",
             )
             .bind(claims.tenant_id)
             .bind(status)
@@ -498,7 +498,7 @@ pub async fn list_documents(
             sqlx::query_as::<_, QualityDocument>(
                 "SELECT * FROM quality_documents \
                  WHERE tenant_id = $1 AND status = $2::document_status \
-                 ORDER BY updated_at DESC",
+                 ORDER BY updated_at DESC LIMIT 5000",
             )
             .bind(claims.tenant_id)
             .bind(status)
@@ -509,7 +509,7 @@ pub async fn list_documents(
             sqlx::query_as::<_, QualityDocument>(
                 "SELECT * FROM quality_documents \
                  WHERE tenant_id = $1 AND category = $2 \
-                 ORDER BY updated_at DESC",
+                 ORDER BY updated_at DESC LIMIT 5000",
             )
             .bind(claims.tenant_id)
             .bind(category)
@@ -520,7 +520,7 @@ pub async fn list_documents(
             sqlx::query_as::<_, QualityDocument>(
                 "SELECT * FROM quality_documents \
                  WHERE tenant_id = $1 \
-                 ORDER BY updated_at DESC",
+                 ORDER BY updated_at DESC LIMIT 5000",
             )
             .bind(claims.tenant_id)
             .fetch_all(&mut *tx)
@@ -719,7 +719,7 @@ pub async fn list_incidents(
                  WHERE tenant_id = $1 \
                  AND status = $2::incident_status \
                  AND severity = $3::incident_severity \
-                 ORDER BY incident_date DESC",
+                 ORDER BY incident_date DESC LIMIT 5000",
             )
             .bind(claims.tenant_id)
             .bind(status)
@@ -731,7 +731,7 @@ pub async fn list_incidents(
             sqlx::query_as::<_, QualityIncident>(
                 "SELECT * FROM quality_incidents \
                  WHERE tenant_id = $1 AND status = $2::incident_status \
-                 ORDER BY incident_date DESC",
+                 ORDER BY incident_date DESC LIMIT 5000",
             )
             .bind(claims.tenant_id)
             .bind(status)
@@ -742,7 +742,7 @@ pub async fn list_incidents(
             sqlx::query_as::<_, QualityIncident>(
                 "SELECT * FROM quality_incidents \
                  WHERE tenant_id = $1 AND severity = $2::incident_severity \
-                 ORDER BY incident_date DESC",
+                 ORDER BY incident_date DESC LIMIT 5000",
             )
             .bind(claims.tenant_id)
             .bind(severity)
@@ -955,7 +955,7 @@ pub async fn list_capa(
                 "SELECT * FROM quality_capa \
                  WHERE tenant_id = $1 AND incident_id = $2 \
                  AND status = $3::capa_status \
-                 ORDER BY due_date ASC",
+                 ORDER BY due_date ASC LIMIT 5000",
             )
             .bind(claims.tenant_id)
             .bind(incident_id)
@@ -967,7 +967,7 @@ pub async fn list_capa(
             sqlx::query_as::<_, QualityCapa>(
                 "SELECT * FROM quality_capa \
                  WHERE tenant_id = $1 AND incident_id = $2 \
-                 ORDER BY due_date ASC",
+                 ORDER BY due_date ASC LIMIT 5000",
             )
             .bind(claims.tenant_id)
             .bind(incident_id)
@@ -978,7 +978,7 @@ pub async fn list_capa(
             sqlx::query_as::<_, QualityCapa>(
                 "SELECT * FROM quality_capa \
                  WHERE tenant_id = $1 AND status = $2::capa_status \
-                 ORDER BY due_date ASC",
+                 ORDER BY due_date ASC LIMIT 5000",
             )
             .bind(claims.tenant_id)
             .bind(status)
@@ -1104,7 +1104,7 @@ pub async fn list_committees(
     let rows = sqlx::query_as::<_, QualityCommittee>(
         "SELECT * FROM quality_committees \
          WHERE tenant_id = $1 \
-         ORDER BY name",
+         ORDER BY name LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -1172,7 +1172,7 @@ pub async fn list_meetings(
         sqlx::query_as::<_, QualityCommitteeMeeting>(
             "SELECT * FROM quality_committee_meetings \
              WHERE tenant_id = $1 AND committee_id = $2 \
-             ORDER BY scheduled_date DESC",
+             ORDER BY scheduled_date DESC LIMIT 5000",
         )
         .bind(claims.tenant_id)
         .bind(committee_id)
@@ -1307,7 +1307,7 @@ pub async fn list_action_items(
             sqlx::query_as::<_, QualityActionItem>(
                 "SELECT * FROM quality_action_items \
                  WHERE tenant_id = $1 AND source_type = $2 AND status = $3 \
-                 ORDER BY due_date ASC",
+                 ORDER BY due_date ASC LIMIT 5000",
             )
             .bind(claims.tenant_id)
             .bind(source_type)
@@ -1319,7 +1319,7 @@ pub async fn list_action_items(
             sqlx::query_as::<_, QualityActionItem>(
                 "SELECT * FROM quality_action_items \
                  WHERE tenant_id = $1 AND source_type = $2 \
-                 ORDER BY due_date ASC",
+                 ORDER BY due_date ASC LIMIT 5000",
             )
             .bind(claims.tenant_id)
             .bind(source_type)
@@ -1330,7 +1330,7 @@ pub async fn list_action_items(
             sqlx::query_as::<_, QualityActionItem>(
                 "SELECT * FROM quality_action_items \
                  WHERE tenant_id = $1 AND status = $2 \
-                 ORDER BY due_date ASC",
+                 ORDER BY due_date ASC LIMIT 5000",
             )
             .bind(claims.tenant_id)
             .bind(status)
@@ -1405,7 +1405,7 @@ pub async fn list_standards(
         sqlx::query_as::<_, QualityAccreditationStandard>(
             "SELECT * FROM quality_accreditation_standards \
              WHERE tenant_id = $1 AND body = $2::accreditation_body \
-             ORDER BY standard_code",
+             ORDER BY standard_code LIMIT 5000",
         )
         .bind(claims.tenant_id)
         .bind(body)
@@ -1415,7 +1415,7 @@ pub async fn list_standards(
         sqlx::query_as::<_, QualityAccreditationStandard>(
             "SELECT * FROM quality_accreditation_standards \
              WHERE tenant_id = $1 \
-             ORDER BY body, standard_code",
+             ORDER BY body, standard_code LIMIT 5000",
         )
         .bind(claims.tenant_id)
         .fetch_all(&mut *tx)
@@ -1482,7 +1482,7 @@ pub async fn list_compliance(
         sqlx::query_as::<_, QualityAccreditationCompliance>(
             "SELECT * FROM quality_accreditation_compliance \
              WHERE tenant_id = $1 AND standard_id = $2 \
-             ORDER BY created_at DESC",
+             ORDER BY created_at DESC LIMIT 5000",
         )
         .bind(claims.tenant_id)
         .bind(standard_id)
@@ -1580,7 +1580,7 @@ pub async fn list_audits(
             sqlx::query_as::<_, QualityAudit>(
                 "SELECT * FROM quality_audits \
                  WHERE tenant_id = $1 AND status = $2 AND department_id = $3 \
-                 ORDER BY audit_date DESC",
+                 ORDER BY audit_date DESC LIMIT 5000",
             )
             .bind(claims.tenant_id)
             .bind(status)
@@ -1592,7 +1592,7 @@ pub async fn list_audits(
             sqlx::query_as::<_, QualityAudit>(
                 "SELECT * FROM quality_audits \
                  WHERE tenant_id = $1 AND status = $2 \
-                 ORDER BY audit_date DESC",
+                 ORDER BY audit_date DESC LIMIT 5000",
             )
             .bind(claims.tenant_id)
             .bind(status)
@@ -1603,7 +1603,7 @@ pub async fn list_audits(
             sqlx::query_as::<_, QualityAudit>(
                 "SELECT * FROM quality_audits \
                  WHERE tenant_id = $1 AND department_id = $2 \
-                 ORDER BY audit_date DESC",
+                 ORDER BY audit_date DESC LIMIT 5000",
             )
             .bind(claims.tenant_id)
             .bind(dept_id)
@@ -1840,7 +1840,7 @@ pub async fn list_pending_acks(
              SELECT a.user_id FROM quality_document_acknowledgments a \
              WHERE a.document_id = $2 \
            ) \
-         ORDER BY u.full_name",
+         ORDER BY u.full_name LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .bind(id)
@@ -1978,7 +1978,7 @@ pub async fn compile_evidence(
          JOIN quality_accreditation_standards s ON s.id = c.standard_id \
          WHERE s.tenant_id = $1 AND s.body = $2::accreditation_body \
          AND c.compliance != 'compliant'::compliance_status \
-         ORDER BY c.updated_at DESC",
+         ORDER BY c.updated_at DESC LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .bind(&body)
@@ -2288,7 +2288,7 @@ pub async fn committee_dashboard(
          LEFT JOIN quality_committee_meetings m ON m.committee_id = c.id AND m.tenant_id = c.tenant_id \
          WHERE c.tenant_id = $1 \
          GROUP BY c.id, c.name \
-         ORDER BY c.name",
+         ORDER BY c.name LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -2431,7 +2431,7 @@ pub async fn patient_safety_indicators(
                   THEN (e.event_count::float8 / p.total_patient_days::float8) * 1000.0 \
                   ELSE NULL END AS rate_per_1000 \
          FROM psi_events e, pdays p \
-         ORDER BY e.event_count DESC",
+         ORDER BY e.event_count DESC LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .bind(from)
@@ -2486,7 +2486,7 @@ pub async fn department_scorecard(
            AND ($3::date IS NULL OR v.period_end <= $3::date) \
            AND ($4::uuid IS NULL OR v.department_id = $4) \
          GROUP BY v.department_id \
-         ORDER BY avg_value DESC NULLS LAST",
+         ORDER BY avg_value DESC NULLS LAST LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .bind(from)

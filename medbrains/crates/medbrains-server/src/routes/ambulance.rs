@@ -807,7 +807,7 @@ pub async fn list_trip_logs(
 
     let rows = sqlx::query_as::<_, AmbulanceTripLog>(
         "SELECT * FROM ambulance_trip_logs \
-         WHERE trip_id = $1 ORDER BY recorded_at ASC",
+         WHERE trip_id = $1 ORDER BY recorded_at ASC LIMIT 5000",
     )
     .bind(trip_id)
     .fetch_all(&mut *tx)

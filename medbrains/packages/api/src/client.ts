@@ -2361,6 +2361,16 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
+  requestPasswordReset: (data: { username: string }) =>
+    request<{ status: string; message: string }>("/auth/password-reset/request", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  confirmPasswordReset: (data: { username: string; otp: string; new_password: string }) =>
+    request<{ status: string }>("/auth/password-reset/confirm", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 
   // ── Access manifest (single-source-of-truth for roles/groups/screens/policies) ──
   getAccessManifest: () =>
@@ -2747,6 +2757,11 @@ export const api = {
     }),
   deleteSetupUser: (id: string) =>
     request<{ status: string }>(`/setup/users/${id}`, { method: "DELETE" }),
+  resetSetupUserPassword: (id: string, data: { new_password?: string }) =>
+    request<{ status: string; temp_password?: string }>(`/setup/users/${id}/reset-password`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
 
   // Setup — user-facility assignments
   listUserFacilities: (userId: string) =>

@@ -155,9 +155,11 @@ pub async fn list_instruments(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let rows = sqlx::query_as::<_, CssdInstrument>("SELECT * FROM cssd_instruments ORDER BY name")
-        .fetch_all(&mut *tx)
-        .await?;
+    let rows = sqlx::query_as::<_, CssdInstrument>(
+        "SELECT * FROM cssd_instruments ORDER BY name LIMIT 5000",
+    )
+    .fetch_all(&mut *tx)
+    .await?;
 
     tx.commit().await?;
     Ok(Json(rows))
@@ -244,7 +246,7 @@ pub async fn list_sets(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, CssdInstrumentSet>(
-        "SELECT * FROM cssd_instrument_sets ORDER BY set_name",
+        "SELECT * FROM cssd_instrument_sets ORDER BY set_name LIMIT 5000",
     )
     .fetch_all(&mut *tx)
     .await?;
@@ -328,9 +330,11 @@ pub async fn list_sterilizers(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let rows = sqlx::query_as::<_, CssdSterilizer>("SELECT * FROM cssd_sterilizers ORDER BY name")
-        .fetch_all(&mut *tx)
-        .await?;
+    let rows = sqlx::query_as::<_, CssdSterilizer>(
+        "SELECT * FROM cssd_sterilizers ORDER BY name LIMIT 5000",
+    )
+    .fetch_all(&mut *tx)
+    .await?;
 
     tx.commit().await?;
     Ok(Json(rows))
@@ -559,7 +563,7 @@ pub async fn list_indicators(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, CssdIndicatorResult>(
-        "SELECT * FROM cssd_indicator_results WHERE load_id = $1 ORDER BY created_at",
+        "SELECT * FROM cssd_indicator_results WHERE load_id = $1 ORDER BY created_at LIMIT 5000",
     )
     .bind(load_id)
     .fetch_all(&mut *tx)
@@ -742,7 +746,7 @@ pub async fn list_maintenance_logs(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, CssdMaintenanceLog>(
-        "SELECT * FROM cssd_maintenance_logs WHERE sterilizer_id = $1 ORDER BY performed_at DESC",
+        "SELECT * FROM cssd_maintenance_logs WHERE sterilizer_id = $1 ORDER BY performed_at DESC LIMIT 5000",
     )
     .bind(sterilizer_id)
     .fetch_all(&mut *tx)

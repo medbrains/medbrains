@@ -493,7 +493,7 @@ pub async fn get_order(
 
     let dose_records = sqlx::query_as::<_, RadiationDoseRecord>(
         "SELECT * FROM radiation_dose_records WHERE order_id = $1 AND tenant_id = $2 \
-         ORDER BY recorded_at",
+         ORDER BY recorded_at LIMIT 5000",
     )
     .bind(id)
     .bind(claims.tenant_id)
@@ -849,7 +849,7 @@ pub async fn list_modalities(
         .await?;
 
     let modalities = sqlx::query_as::<_, RadiologyModality>(
-        "SELECT * FROM radiology_modalities WHERE tenant_id = $1 ORDER BY name",
+        "SELECT * FROM radiology_modalities WHERE tenant_id = $1 ORDER BY name LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -1125,7 +1125,7 @@ pub async fn get_radiology_tat(
          JOIN radiology_modalities rm ON rm.id = ro.modality_id \
          WHERE ro.tenant_id = $1 \
            AND ro.created_at >= CURRENT_DATE - INTERVAL '30 days' \
-         GROUP BY rm.name ORDER BY total_orders DESC",
+         GROUP BY rm.name ORDER BY total_orders DESC LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)

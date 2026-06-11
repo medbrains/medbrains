@@ -266,9 +266,11 @@ pub async fn list_zones(
     medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
         .await?;
 
-    let rows = sqlx::query_as::<_, SecurityZone>("SELECT * FROM security_zones ORDER BY zone_code")
-        .fetch_all(&mut *tx)
-        .await?;
+    let rows = sqlx::query_as::<_, SecurityZone>(
+        "SELECT * FROM security_zones ORDER BY zone_code LIMIT 5000",
+    )
+    .fetch_all(&mut *tx)
+    .await?;
 
     tx.commit().await?;
     Ok(Json(rows))
@@ -449,7 +451,7 @@ pub async fn list_access_cards(
         "SELECT * FROM security_access_cards \
          WHERE ($1::uuid IS NULL OR employee_id = $1) \
          AND ($2::bool IS NULL OR is_active = $2) \
-         ORDER BY card_number",
+         ORDER BY card_number LIMIT 5000",
     )
     .bind(params.employee_id)
     .bind(params.is_active)
@@ -571,7 +573,7 @@ pub async fn list_cameras(
         "SELECT * FROM security_cameras \
          WHERE ($1::uuid IS NULL OR zone_id = $1) \
          AND ($2::bool IS NULL OR is_active = $2) \
-         ORDER BY name",
+         ORDER BY name LIMIT 5000",
     )
     .bind(params.zone_id)
     .bind(params.is_active)

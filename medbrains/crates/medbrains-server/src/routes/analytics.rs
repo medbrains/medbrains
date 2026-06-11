@@ -49,7 +49,7 @@ pub async fn dept_revenue(
          LEFT JOIN encounters e ON e.id = i.encounter_id \
          LEFT JOIN departments d ON d.id = e.department_id \
          WHERE i.created_at::date >= $1::date AND i.created_at::date <= $2::date \
-         GROUP BY d.name ORDER BY revenue DESC",
+         GROUP BY d.name ORDER BY revenue DESC LIMIT 5000",
     )
     .bind(&from)
     .bind(&to)
@@ -80,7 +80,7 @@ pub async fn doctor_revenue(
          LEFT JOIN departments d ON d.id = e.department_id \
          WHERE i.created_at::date >= $1::date AND i.created_at::date <= $2::date \
            AND e.doctor_id IS NOT NULL \
-         GROUP BY u.full_name, d.name ORDER BY revenue DESC",
+         GROUP BY u.full_name, d.name ORDER BY revenue DESC LIMIT 5000",
     )
     .bind(&from)
     .bind(&to)
@@ -111,7 +111,7 @@ pub async fn ipd_census(
            COALESCE(SUM(CASE WHEN a.admitted_at::date <= dates.date AND (a.discharged_at IS NULL OR a.discharged_at::date > dates.date) THEN 1 ELSE 0 END), 0)::bigint AS active \
          FROM dates \
          LEFT JOIN admissions a ON a.admitted_at::date <= dates.date AND (a.discharged_at IS NULL OR a.discharged_at::date >= dates.date) \
-         GROUP BY dates.date ORDER BY dates.date",
+         GROUP BY dates.date ORDER BY dates.date LIMIT 5000",
     )
     .bind(&from).bind(&to).fetch_all(&mut *tx).await?;
     tx.commit().await?;
@@ -136,7 +136,7 @@ pub async fn lab_tat(
          MAX(EXTRACT(EPOCH FROM (lo.completed_at - lo.created_at)) / 60)::float8 AS max_tat_mins \
          FROM lab_orders lo JOIN lab_test_catalog tc ON tc.id = lo.test_id \
          WHERE lo.completed_at IS NOT NULL AND lo.created_at::date >= $1::date AND lo.created_at::date <= $2::date \
-         GROUP BY tc.name ORDER BY avg_tat_mins DESC",
+         GROUP BY tc.name ORDER BY avg_tat_mins DESC LIMIT 5000",
     )
     .bind(&from).bind(&to).fetch_all(&mut *tx).await?;
     tx.commit().await?;
@@ -160,7 +160,7 @@ pub async fn pharmacy_sales(
          JOIN pharmacy_order_items poi ON poi.order_id = po.id \
          LEFT JOIN pharmacy_catalog pc ON pc.id = poi.catalog_item_id \
          WHERE po.status = 'dispensed' AND po.created_at::date >= $1::date AND po.created_at::date <= $2::date \
-         GROUP BY poi.drug_name, pc.category ORDER BY total_revenue DESC",
+         GROUP BY poi.drug_name, pc.category ORDER BY total_revenue DESC LIMIT 5000",
     )
     .bind(&from).bind(&to).fetch_all(&mut *tx).await?;
     tx.commit().await?;
@@ -188,7 +188,7 @@ pub async fn ot_utilization(
          END AS utilization_pct \
          FROM ot_rooms r \
          LEFT JOIN ot_bookings b ON b.ot_room_id = r.id AND b.scheduled_date >= $1::date AND b.scheduled_date <= $2::date \
-         WHERE r.is_active = true GROUP BY r.name ORDER BY total_bookings DESC",
+         WHERE r.is_active = true GROUP BY r.name ORDER BY total_bookings DESC LIMIT 5000",
     )
     .bind(&from).bind(&to).fetch_all(&mut *tx).await?;
     tx.commit().await?;
@@ -215,7 +215,7 @@ pub async fn er_volume(
          COALESCE(AVG(door_to_doctor_mins), 0)::float8 AS avg_door_to_doctor_mins \
          FROM er_visits \
          WHERE arrival_time::date >= $1::date AND arrival_time::date <= $2::date \
-         GROUP BY arrival_time::date ORDER BY date",
+         GROUP BY arrival_time::date ORDER BY date LIMIT 5000",
     )
     .bind(&from)
     .bind(&to)
@@ -256,7 +256,7 @@ pub async fn clinical_indicators(
            CASE WHEN total_discharged = 0 THEN 0.0 ELSE (infections::float8 / total_discharged::float8 * 100.0) END AS infection_rate, \
            CASE WHEN total_discharged = 0 THEN 0.0 ELSE (readmits::float8 / total_discharged::float8 * 100.0) END AS readmission_rate, \
            COALESCE(avg_los, 0)::float8 AS avg_los_days \
-         FROM monthly ORDER BY period",
+         FROM monthly ORDER BY period LIMIT 5000",
     )
     .bind(&from).bind(&to).fetch_all(&mut *tx).await?;
     tx.commit().await?;
@@ -286,7 +286,7 @@ pub async fn opd_footfall(
          ))::bigint AS follow_ups \
          FROM encounters e LEFT JOIN departments d ON d.id = e.department_id \
          WHERE e.encounter_type = 'opd' AND e.encounter_date >= $1::date AND e.encounter_date <= $2::date \
-         GROUP BY e.encounter_date, d.name ORDER BY date, department_name",
+         GROUP BY e.encounter_date, d.name ORDER BY date, department_name LIMIT 5000",
     )
     .bind(&from).bind(&to).fetch_all(&mut *tx).await?;
     tx.commit().await?;
@@ -311,7 +311,7 @@ pub async fn bed_occupancy(
          FROM wards w \
          LEFT JOIN ward_bed_mappings wbm ON wbm.ward_id = w.id \
          LEFT JOIN bed_states bs ON bs.location_id = wbm.bed_location_id \
-         WHERE w.is_active = true GROUP BY w.id, w.name, w.total_beds ORDER BY occupancy_pct DESC",
+         WHERE w.is_active = true GROUP BY w.id, w.name, w.total_beds ORDER BY occupancy_pct DESC LIMIT 5000",
     )
     .fetch_all(&mut *tx).await?;
     tx.commit().await?;

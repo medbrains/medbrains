@@ -131,7 +131,7 @@ pub async fn list_subjects(
         "SELECT code AS id, name AS label, description AS subtitle \
          FROM roles \
          WHERE tenant_id = $1 AND is_active = true \
-         ORDER BY name",
+         ORDER BY name LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -141,7 +141,7 @@ pub async fn list_subjects(
         "SELECT id::text AS id, name AS label, code AS subtitle \
          FROM departments \
          WHERE tenant_id = $1 AND is_active = true \
-         ORDER BY name",
+         ORDER BY name LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -151,7 +151,7 @@ pub async fn list_subjects(
         "SELECT id::text AS id, name AS label, code AS subtitle \
          FROM access_groups \
          WHERE tenant_id = $1 AND is_active = true \
-         ORDER BY name",
+         ORDER BY name LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)

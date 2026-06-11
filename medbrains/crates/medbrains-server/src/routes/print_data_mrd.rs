@@ -196,7 +196,7 @@ pub async fn get_nursing_assessment_print_data(
          WHERE patient_id = (SELECT patient_id FROM admissions WHERE id = $1) \
            AND tenant_id = $2 \
            AND is_active = true \
-         ORDER BY created_at",
+         ORDER BY created_at LIMIT 5000",
     )
     .bind(admission_id)
     .bind(claims.tenant_id)
@@ -331,7 +331,7 @@ pub async fn get_mar_print_data(
          WHERE patient_id = (SELECT patient_id FROM admissions WHERE id = $1) \
            AND tenant_id = $2 \
            AND is_active = true \
-         ORDER BY created_at",
+         ORDER BY created_at LIMIT 5000",
     )
     .bind(admission_id)
     .bind(claims.tenant_id)
@@ -357,7 +357,7 @@ pub async fn get_mar_print_data(
          WHERE io.admission_id = $1 AND io.tenant_id = $2 \
            AND io.order_type = 'medication' \
            AND io.status = 'active' \
-         ORDER BY io.created_at",
+         ORDER BY io.created_at LIMIT 5000",
     )
     .bind(admission_id)
     .bind(claims.tenant_id)
@@ -488,7 +488,7 @@ pub async fn get_vitals_chart_print_data(
          WHERE v.patient_id = (SELECT patient_id FROM admissions WHERE id = $1) \
            AND v.tenant_id = $2 \
            AND v.recorded_at::date = CURRENT_DATE \
-         ORDER BY v.recorded_at",
+         ORDER BY v.recorded_at LIMIT 5000",
     )
     .bind(admission_id)
     .bind(claims.tenant_id)
@@ -596,7 +596,7 @@ pub async fn get_io_chart_print_data(
          WHERE io.admission_id = $1 \
            AND io.tenant_id = $2 \
            AND io.recorded_at::date = CURRENT_DATE \
-         ORDER BY io.recorded_at",
+         ORDER BY io.recorded_at LIMIT 5000",
     )
     .bind(admission_id)
     .bind(claims.tenant_id)
@@ -718,7 +718,7 @@ pub async fn get_discharge_checklist_print_data(
          WHERE admission_id = $1 AND tenant_id = $2 \
            AND order_type = 'medication' \
            AND is_discharge_medication = true \
-         ORDER BY created_at",
+         ORDER BY created_at LIMIT 5000",
     )
     .bind(admission_id)
     .bind(claims.tenant_id)
@@ -907,7 +907,7 @@ pub async fn get_fluid_balance_chart_print_data(
          LEFT JOIN users recorder ON recorder.id = fi.recorded_by_id \
          WHERE fi.admission_id = $1 AND fi.tenant_id = $2 \
            AND fi.recorded_at::date = CURRENT_DATE \
-         ORDER BY fi.recorded_at",
+         ORDER BY fi.recorded_at LIMIT 5000",
     )
     .bind(admission_id)
     .bind(claims.tenant_id)
@@ -926,7 +926,7 @@ pub async fn get_fluid_balance_chart_print_data(
          LEFT JOIN users recorder ON recorder.id = fo.recorded_by_id \
          WHERE fo.admission_id = $1 AND fo.tenant_id = $2 \
            AND fo.recorded_at::date = CURRENT_DATE \
-         ORDER BY fo.recorded_at",
+         ORDER BY fo.recorded_at LIMIT 5000",
     )
     .bind(admission_id)
     .bind(claims.tenant_id)
@@ -1010,7 +1010,7 @@ pub async fn get_pain_assessment_print_data(
          LEFT JOIN users assessor ON assessor.id = pa.assessed_by_id \
          WHERE pa.admission_id = $1 AND pa.tenant_id = $2 \
            AND pa.recorded_at::date = CURRENT_DATE \
-         ORDER BY pa.recorded_at",
+         ORDER BY pa.recorded_at LIMIT 5000",
     )
     .bind(admission_id)
     .bind(claims.tenant_id)
@@ -1124,7 +1124,7 @@ pub async fn get_fall_risk_assessment_print_data(
     let interventions: Vec<String> = sqlx::query_scalar(
         "SELECT intervention_text FROM fall_risk_interventions \
          WHERE admission_id = $1 AND tenant_id = $2 \
-         ORDER BY created_at",
+         ORDER BY created_at LIMIT 5000",
     )
     .bind(admission_id)
     .bind(claims.tenant_id)
@@ -1240,7 +1240,7 @@ pub async fn get_pressure_ulcer_risk_print_data(
         "SELECT body_area, skin_condition, stage, wound_size_cm, notes \
          FROM skin_assessments \
          WHERE admission_id = $1 AND tenant_id = $2 \
-         ORDER BY created_at DESC",
+         ORDER BY created_at DESC LIMIT 5000",
     )
     .bind(admission_id)
     .bind(claims.tenant_id)
@@ -1250,7 +1250,7 @@ pub async fn get_pressure_ulcer_risk_print_data(
     let other_interventions: Vec<String> = sqlx::query_scalar(
         "SELECT intervention_text FROM pressure_ulcer_interventions \
          WHERE admission_id = $1 AND tenant_id = $2 \
-         ORDER BY created_at",
+         ORDER BY created_at LIMIT 5000",
     )
     .bind(admission_id)
     .bind(claims.tenant_id)
@@ -1356,7 +1356,7 @@ pub async fn get_gcs_chart_print_data(
          LEFT JOIN users assessor ON assessor.id = ga.assessed_by_id \
          WHERE ga.admission_id = $1 AND ga.tenant_id = $2 \
            AND ga.recorded_at::date = CURRENT_DATE \
-         ORDER BY ga.recorded_at",
+         ORDER BY ga.recorded_at LIMIT 5000",
     )
     .bind(admission_id)
     .bind(claims.tenant_id)

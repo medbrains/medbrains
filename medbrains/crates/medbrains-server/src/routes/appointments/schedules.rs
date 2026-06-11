@@ -36,7 +36,7 @@ pub async fn list_schedules(
         "SELECT * FROM doctor_schedules \
          WHERE ($1::uuid IS NULL OR doctor_id = $1) \
          AND ($2::uuid IS NULL OR department_id = $2) \
-         ORDER BY doctor_id, day_of_week, start_time",
+         ORDER BY doctor_id, day_of_week, start_time LIMIT 5000",
     )
     .bind(query.doctor_id)
     .bind(query.department_id)
@@ -163,7 +163,7 @@ pub async fn list_exceptions(
          WHERE doctor_id = $1 \
          AND ($2::date IS NULL OR exception_date >= $2) \
          AND ($3::date IS NULL OR exception_date <= $3) \
-         ORDER BY exception_date",
+         ORDER BY exception_date LIMIT 5000",
     )
     .bind(query.doctor_id)
     .bind(query.from)

@@ -232,7 +232,7 @@ pub async fn list_courses(
          WHERE ($1::text IS NULL OR title ILIKE $1 OR code ILIKE $1)
            AND ($2::text IS NULL OR category = $2)
            AND ($3::bool IS NULL OR is_mandatory = $3)
-         ORDER BY title",
+         ORDER BY title LIMIT 5000",
     )
     .bind(&search)
     .bind(&q.category)
@@ -262,14 +262,14 @@ pub async fn get_course(
         .ok_or(AppError::NotFound)?;
 
     let modules = sqlx::query_as::<_, LmsCourseModule>(
-        "SELECT * FROM lms_course_modules WHERE course_id = $1 ORDER BY sort_order",
+        "SELECT * FROM lms_course_modules WHERE course_id = $1 ORDER BY sort_order LIMIT 5000",
     )
     .bind(id)
     .fetch_all(&mut *tx)
     .await?;
 
     let quizzes = sqlx::query_as::<_, LmsQuiz>(
-        "SELECT * FROM lms_quizzes WHERE course_id = $1 ORDER BY created_at",
+        "SELECT * FROM lms_quizzes WHERE course_id = $1 ORDER BY created_at LIMIT 5000",
     )
     .bind(id)
     .fetch_all(&mut *tx)
@@ -524,7 +524,7 @@ pub async fn list_quizzes(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let quizzes = sqlx::query_as::<_, LmsQuiz>(
-        "SELECT * FROM lms_quizzes WHERE course_id = $1 ORDER BY created_at",
+        "SELECT * FROM lms_quizzes WHERE course_id = $1 ORDER BY created_at LIMIT 5000",
     )
     .bind(course_id)
     .fetch_all(&mut *tx)
@@ -719,7 +719,7 @@ pub async fn list_enrollments(
          WHERE ($1::uuid IS NULL OR e.user_id = $1)
            AND ($2::uuid IS NULL OR e.course_id = $2)
            AND ($3::text IS NULL OR e.status::text = $3)
-         ORDER BY e.assigned_at DESC",
+         ORDER BY e.assigned_at DESC LIMIT 5000",
     )
     .bind(q.user_id)
     .bind(q.course_id)
@@ -873,7 +873,7 @@ pub async fn my_enrollments(
          WHERE e.user_id = $1 AND e.status != 'cancelled'
          ORDER BY
            CASE e.status WHEN 'in_progress' THEN 0 WHEN 'assigned' THEN 1 ELSE 2 END,
-           e.due_date NULLS LAST",
+           e.due_date NULLS LAST LIMIT 5000",
     )
     .bind(claims.sub)
     .fetch_all(&mut *tx)
@@ -919,7 +919,7 @@ pub async fn my_course_detail(
         .await?;
 
     let modules = sqlx::query_as::<_, LmsCourseModule>(
-        "SELECT * FROM lms_course_modules WHERE course_id = $1 AND is_active = true ORDER BY sort_order",
+        "SELECT * FROM lms_course_modules WHERE course_id = $1 AND is_active = true ORDER BY sort_order LIMIT 5000",
     )
     .bind(enrollment.course_id)
     .fetch_all(&mut *tx)
@@ -1032,7 +1032,7 @@ pub async fn start_quiz_attempt(
     // Fetch questions WITHOUT correct_answer
     let questions = sqlx::query_as::<_, LmsQuizQuestionPublic>(
         "SELECT id, quiz_id, question_text, question_type, options, points, sort_order
-         FROM lms_quiz_questions WHERE quiz_id = $1 ORDER BY sort_order",
+         FROM lms_quiz_questions WHERE quiz_id = $1 ORDER BY sort_order LIMIT 5000",
     )
     .bind(req.quiz_id)
     .fetch_all(&mut *tx)
@@ -1157,7 +1157,7 @@ pub async fn list_paths(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let paths = sqlx::query_as::<_, LmsLearningPath>(
-        "SELECT * FROM lms_learning_paths WHERE is_active = true ORDER BY title",
+        "SELECT * FROM lms_learning_paths WHERE is_active = true ORDER BY title LIMIT 5000",
     )
     .fetch_all(&mut *tx)
     .await?;
@@ -1190,7 +1190,7 @@ pub async fn get_path(
          FROM lms_learning_path_courses lpc
          JOIN lms_courses c ON c.id = lpc.course_id
          WHERE lpc.path_id = $1
-         ORDER BY lpc.sort_order",
+         ORDER BY lpc.sort_order LIMIT 5000",
     )
     .bind(id)
     .fetch_all(&mut *tx)
@@ -1335,7 +1335,7 @@ pub async fn list_certificates(
         "SELECT * FROM lms_certificates
          WHERE ($1::uuid IS NULL OR user_id = $1)
            AND ($2::uuid IS NULL OR course_id = $2)
-         ORDER BY issued_at DESC",
+         ORDER BY issued_at DESC LIMIT 5000",
     )
     .bind(q.user_id)
     .bind(q.course_id)
@@ -1357,7 +1357,7 @@ pub async fn my_certificates(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let certs = sqlx::query_as::<_, LmsCertificate>(
-        "SELECT * FROM lms_certificates WHERE user_id = $1 ORDER BY issued_at DESC",
+        "SELECT * FROM lms_certificates WHERE user_id = $1 ORDER BY issued_at DESC LIMIT 5000",
     )
     .bind(claims.sub)
     .fetch_all(&mut *tx)
@@ -1438,7 +1438,7 @@ pub async fn compliance_overview(
          LEFT JOIN lms_enrollments e ON e.course_id = c.id
          WHERE c.is_active = true
          GROUP BY c.id, c.title, c.is_mandatory
-         ORDER BY c.is_mandatory DESC, c.title",
+         ORDER BY c.is_mandatory DESC, c.title LIMIT 5000",
     )
     .fetch_all(&mut *tx)
     .await?;
@@ -1465,7 +1465,7 @@ pub async fn compliance_by_course(
          FROM lms_enrollments e
          JOIN lms_courses c ON c.id = e.course_id
          WHERE e.course_id = $1
-         ORDER BY e.status, e.due_date NULLS LAST",
+         ORDER BY e.status, e.due_date NULLS LAST LIMIT 5000",
     )
     .bind(course_id)
     .fetch_all(&mut *tx)
@@ -1493,7 +1493,7 @@ pub async fn compliance_by_user(
          FROM lms_enrollments e
          JOIN lms_courses c ON c.id = e.course_id
          WHERE e.user_id = $1
-         ORDER BY c.is_mandatory DESC, e.status",
+         ORDER BY c.is_mandatory DESC, e.status LIMIT 5000",
     )
     .bind(user_id)
     .fetch_all(&mut *tx)

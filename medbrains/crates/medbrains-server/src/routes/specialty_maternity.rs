@@ -239,7 +239,7 @@ pub async fn list_anc_visits(
         .await?;
 
     let rows = sqlx::query_as::<_, AncVisit>(
-        "SELECT * FROM anc_visits WHERE registration_id = $1 ORDER BY visit_number",
+        "SELECT * FROM anc_visits WHERE registration_id = $1 ORDER BY visit_number LIMIT 5000",
     )
     .bind(registration_id)
     .fetch_all(&mut *tx)
@@ -310,7 +310,7 @@ pub async fn list_labor_records(
         .await?;
 
     let rows = sqlx::query_as::<_, LaborRecord>(
-        "SELECT * FROM labor_records WHERE registration_id = $1 ORDER BY created_at DESC",
+        "SELECT * FROM labor_records WHERE registration_id = $1 ORDER BY created_at DESC LIMIT 5000",
     )
     .bind(registration_id)
     .fetch_all(&mut *tx)
@@ -417,7 +417,7 @@ pub async fn list_newborns(
         .await?;
 
     let rows = sqlx::query_as::<_, NewbornRecord>(
-        "SELECT * FROM newborn_records WHERE labor_id = $1 ORDER BY birth_date",
+        "SELECT * FROM newborn_records WHERE labor_id = $1 ORDER BY birth_date LIMIT 5000",
     )
     .bind(labor_id)
     .fetch_all(&mut *tx)
@@ -489,7 +489,7 @@ pub async fn list_postnatal(
 
     let rows = sqlx::query_as::<_, PostnatalRecord>(
         "SELECT * FROM postnatal_records WHERE registration_id = $1 \
-         ORDER BY day_postpartum",
+         ORDER BY day_postpartum LIMIT 5000",
     )
     .bind(registration_id)
     .fetch_all(&mut *tx)

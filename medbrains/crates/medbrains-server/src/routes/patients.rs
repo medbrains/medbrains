@@ -3202,7 +3202,7 @@ pub async fn list_patient_consultations(
          LEFT JOIN users u ON u.id = c.doctor_id
          LEFT JOIN departments d ON d.id = e.department_id
          WHERE e.patient_id = $1 AND c.tenant_id = $2
-         ORDER BY e.encounter_date DESC, c.updated_at DESC",
+         ORDER BY e.encounter_date DESC, c.updated_at DESC LIMIT 5000",
     )
     .bind(patient_id)
     .bind(claims.tenant_id)
@@ -4058,7 +4058,7 @@ pub async fn get_patient_context(
                  reaction
             FROM patient_allergies
            WHERE patient_id = $1 AND tenant_id = $2 AND is_active = true
-           ORDER BY created_at DESC",
+           ORDER BY created_at DESC LIMIT 5000",
     )
     .bind(id)
     .bind(claims.tenant_id)

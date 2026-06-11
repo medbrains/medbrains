@@ -281,7 +281,7 @@ pub async fn list_rooms(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, OtRoom>(
-        "SELECT * FROM ot_rooms WHERE tenant_id = $1 ORDER BY name ASC",
+        "SELECT * FROM ot_rooms WHERE tenant_id = $1 ORDER BY name ASC LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -830,7 +830,7 @@ pub async fn get_checklists(
 
     let rows = sqlx::query_as::<_, OtSurgicalSafetyChecklist>(
         "SELECT * FROM ot_surgical_safety_checklists \
-         WHERE booking_id = $1 AND tenant_id = $2 ORDER BY created_at ASC",
+         WHERE booking_id = $1 AND tenant_id = $2 ORDER BY created_at ASC LIMIT 5000",
     )
     .bind(booking_id)
     .bind(claims.tenant_id)
@@ -1274,7 +1274,7 @@ pub async fn list_surgeon_preferences(
         sqlx::query_as::<_, OtSurgeonPreference>(
             "SELECT * FROM ot_surgeon_preferences \
              WHERE tenant_id = $1 AND surgeon_id = $2 AND is_active = true \
-             ORDER BY procedure_name ASC",
+             ORDER BY procedure_name ASC LIMIT 5000",
         )
         .bind(claims.tenant_id)
         .bind(sid)
@@ -1284,7 +1284,7 @@ pub async fn list_surgeon_preferences(
         sqlx::query_as::<_, OtSurgeonPreference>(
             "SELECT * FROM ot_surgeon_preferences \
              WHERE tenant_id = $1 AND is_active = true \
-             ORDER BY procedure_name ASC",
+             ORDER BY procedure_name ASC LIMIT 5000",
         )
         .bind(claims.tenant_id)
         .fetch_all(&mut *tx)
@@ -1422,7 +1422,7 @@ pub async fn get_schedule(
         sqlx::query_as::<_, OtBooking>(
             "SELECT * FROM ot_bookings \
              WHERE tenant_id = $1 AND scheduled_date = $2 AND ot_room_id = $3 \
-             ORDER BY scheduled_start ASC",
+             ORDER BY scheduled_start ASC LIMIT 5000",
         )
         .bind(claims.tenant_id)
         .bind(date)
@@ -1433,7 +1433,7 @@ pub async fn get_schedule(
         sqlx::query_as::<_, OtBooking>(
             "SELECT * FROM ot_bookings \
              WHERE tenant_id = $1 AND scheduled_date = $2 \
-             ORDER BY scheduled_start ASC",
+             ORDER BY scheduled_start ASC LIMIT 5000",
         )
         .bind(claims.tenant_id)
         .bind(date)
@@ -1473,7 +1473,7 @@ pub async fn list_consumables(
     let rows = sqlx::query_as::<_, OtConsumableUsage>(
         "SELECT * FROM ot_consumable_usage \
          WHERE tenant_id = $1 AND booking_id = $2 \
-         ORDER BY created_at ASC",
+         ORDER BY created_at ASC LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .bind(booking_id)
@@ -1589,7 +1589,7 @@ pub async fn ot_utilization(
            AND b.scheduled_date BETWEEN $2 AND $3 \
          WHERE r.tenant_id = $1 AND r.is_active = true \
          GROUP BY r.id, r.name \
-         ORDER BY r.name",
+         ORDER BY r.name LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .bind(from)
@@ -1635,7 +1635,7 @@ pub async fn get_surgeon_caseload(
          LEFT JOIN users u ON u.id = cr.surgeon_id \
          WHERE cr.tenant_id = $1 AND b.scheduled_date BETWEEN $2 AND $3 \
          GROUP BY cr.surgeon_id, u.full_name \
-         ORDER BY total_cases DESC",
+         ORDER BY total_cases DESC LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .bind(from)
@@ -1680,7 +1680,7 @@ pub async fn list_anesthesia_complications(
            AND b.scheduled_date BETWEEN $2 AND $3 \
            AND (ar.complications IS NOT NULL AND ar.complications <> '' \
                 OR ar.adverse_events IS NOT NULL AND ar.adverse_events <> 'null'::jsonb) \
-         ORDER BY b.scheduled_date DESC",
+         ORDER BY b.scheduled_date DESC LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .bind(from)

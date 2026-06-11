@@ -926,7 +926,7 @@ pub async fn get_research_consent_print_data(
         "SELECT procedure_description FROM research_study_procedures \
          WHERE study_id = (SELECT study_id FROM research_enrollments WHERE id = $1) \
            AND tenant_id = $2 \
-         ORDER BY sort_order",
+         ORDER BY sort_order LIMIT 5000",
     )
     .bind(enrollment_id)
     .bind(claims.tenant_id)

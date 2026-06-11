@@ -221,7 +221,7 @@ export function LoginPage() {
                     />
                   )}
                 />
-                <Anchor size="xs" c="primary">
+                <Anchor component={Link} to="/forgot-password" size="xs" c="primary">
                   Forgot password?
                 </Anchor>
               </div>

@@ -73,7 +73,7 @@ pub async fn my_day(
          FROM doctor_coverage_assignments \
          WHERE tenant_id = $1 AND covering_doctor_id = $2 \
            AND start_at <= now() AND end_at > now() \
-         ORDER BY start_at",
+         ORDER BY start_at LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .bind(claims.sub)

@@ -125,7 +125,7 @@ pub async fn list_flowsheets(
 
     let rows = sqlx::query_as::<_, IcuFlowsheet>(
         "SELECT * FROM icu_flowsheets WHERE admission_id = $1 AND tenant_id = $2 \
-         ORDER BY recorded_at DESC",
+         ORDER BY recorded_at DESC LIMIT 5000",
     )
     .bind(admission_id)
     .bind(claims.tenant_id)
@@ -195,7 +195,7 @@ pub async fn list_ventilator_records(
 
     let rows = sqlx::query_as::<_, IcuVentilatorRecord>(
         "SELECT * FROM icu_ventilator_records WHERE admission_id = $1 AND tenant_id = $2 \
-         ORDER BY recorded_at DESC",
+         ORDER BY recorded_at DESC LIMIT 5000",
     )
     .bind(admission_id)
     .bind(claims.tenant_id)
@@ -265,7 +265,7 @@ pub async fn list_scores(
 
     let rows = sqlx::query_as::<_, IcuScore>(
         "SELECT * FROM icu_scores WHERE admission_id = $1 AND tenant_id = $2 \
-         ORDER BY scored_at DESC",
+         ORDER BY scored_at DESC LIMIT 5000",
     )
     .bind(admission_id)
     .bind(claims.tenant_id)
@@ -325,7 +325,7 @@ pub async fn list_devices(
 
     let rows = sqlx::query_as::<_, IcuDevice>(
         "SELECT * FROM icu_devices WHERE admission_id = $1 AND tenant_id = $2 \
-         ORDER BY inserted_at DESC",
+         ORDER BY inserted_at DESC LIMIT 5000",
     )
     .bind(admission_id)
     .bind(claims.tenant_id)
@@ -405,7 +405,7 @@ pub async fn list_bundle_checks(
 
     let rows = sqlx::query_as::<_, IcuBundleCheck>(
         "SELECT * FROM icu_bundle_checks WHERE device_id = $1 AND tenant_id = $2 \
-         ORDER BY checked_at DESC",
+         ORDER BY checked_at DESC LIMIT 5000",
     )
     .bind(device_id)
     .bind(claims.tenant_id)
@@ -463,7 +463,7 @@ pub async fn list_nutrition(
 
     let rows = sqlx::query_as::<_, IcuNutrition>(
         "SELECT * FROM icu_nutrition WHERE admission_id = $1 AND tenant_id = $2 \
-         ORDER BY recorded_at DESC",
+         ORDER BY recorded_at DESC LIMIT 5000",
     )
     .bind(admission_id)
     .bind(claims.tenant_id)
@@ -525,7 +525,7 @@ pub async fn list_neonatal_records(
 
     let rows = sqlx::query_as::<_, IcuNeonatalRecord>(
         "SELECT * FROM icu_neonatal_records WHERE admission_id = $1 AND tenant_id = $2 \
-         ORDER BY recorded_at DESC",
+         ORDER BY recorded_at DESC LIMIT 5000",
     )
     .bind(admission_id)
     .bind(claims.tenant_id)
@@ -676,7 +676,7 @@ pub async fn get_device_infection_rates(
         FROM icu_devices d \
         WHERE d.inserted_at >= CURRENT_DATE - INTERVAL '90 days' \
         GROUP BY d.device_type \
-        ORDER BY total_device_days DESC",
+        ORDER BY total_device_days DESC LIMIT 5000",
     )
     .fetch_all(&mut *tx)
     .await?;

@@ -192,26 +192,12 @@ pub async fn kiosk_checkin(
     .execute(&mut *tx)
     .await?;
 
-    let token_seq: i32 = sqlx::query_scalar(
-        "SELECT COALESCE(MAX(token_seq), 0) + 1 FROM queue_tokens \
-         WHERE department_id = $1 AND token_date = CURRENT_DATE",
+    let token_number = super::issue_queue_token(
+        &mut tx,
+        appointment.tenant_id,
+        appointment.department_id,
+        appointment.patient_id,
     )
-    .bind(appointment.department_id)
-    .fetch_one(&mut *tx)
-    .await?;
-    let token_number = format!("T-{token_seq:03}");
-
-    sqlx::query(
-        "INSERT INTO queue_tokens \
-         (tenant_id, department_id, patient_id, token_date, token_seq, token_number, status) \
-         VALUES ($1, $2, $3, CURRENT_DATE, $4, $5, 'waiting')",
-    )
-    .bind(appointment.tenant_id)
-    .bind(appointment.department_id)
-    .bind(appointment.patient_id)
-    .bind(token_seq)
-    .bind(&token_number)
-    .execute(&mut *tx)
     .await?;
 
     let patient_name: String = sqlx::query_scalar(

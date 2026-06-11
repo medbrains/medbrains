@@ -98,7 +98,7 @@ pub async fn list_substitutions_for_item(
     let rows = sqlx::query_as::<_, Substitution>(
         "SELECT * FROM pharmacy_substitutions \
          WHERE tenant_id = $1 AND pharmacy_order_item_id = $2 \
-         ORDER BY substituted_at DESC",
+         ORDER BY substituted_at DESC LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .bind(item_id)
@@ -184,7 +184,7 @@ pub async fn list_counseling_for_order(
     let rows = sqlx::query_as::<_, Counseling>(
         "SELECT * FROM pharmacy_counseling \
          WHERE tenant_id = $1 AND pharmacy_order_id = $2 \
-         ORDER BY counselled_at DESC",
+         ORDER BY counselled_at DESC LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .bind(order_id)
@@ -264,7 +264,7 @@ pub async fn list_coverage_for_order(
     let rows = sqlx::query_as::<_, CoverageCheck>(
         "SELECT * FROM pharmacy_coverage_checks \
          WHERE tenant_id = $1 AND pharmacy_order_id = $2 \
-         ORDER BY checked_at DESC",
+         ORDER BY checked_at DESC LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .bind(order_id)

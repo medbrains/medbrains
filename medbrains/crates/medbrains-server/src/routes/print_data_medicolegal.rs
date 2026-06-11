@@ -393,7 +393,7 @@ pub async fn get_ama_form_print_data(
     let risks_explained: Vec<String> = sqlx::query_scalar(
         "SELECT risk_text FROM ama_risks_explained \
          WHERE admission_id = $1 AND tenant_id = $2 \
-         ORDER BY created_at",
+         ORDER BY created_at LIMIT 5000",
     )
     .bind(admission_id)
     .bind(claims.tenant_id)
@@ -542,7 +542,7 @@ pub async fn get_mlc_register_print_data(
            probable_weapon \
          FROM mlc_injuries \
          WHERE mlc_case_id = $1 AND tenant_id = $2 \
-         ORDER BY injury_number",
+         ORDER BY injury_number LIMIT 5000",
     )
     .bind(case_id)
     .bind(claims.tenant_id)
@@ -552,7 +552,7 @@ pub async fn get_mlc_register_print_data(
     let samples_collected: Vec<String> = sqlx::query_scalar(
         "SELECT sample_description FROM mlc_samples \
          WHERE mlc_case_id = $1 AND tenant_id = $2 \
-         ORDER BY created_at",
+         ORDER BY created_at LIMIT 5000",
     )
     .bind(case_id)
     .bind(claims.tenant_id)
@@ -830,7 +830,7 @@ pub async fn get_wound_certificate_print_data(
            probable_age_of_wound \
          FROM wound_certificate_injuries \
          WHERE wound_certificate_id = $1 AND tenant_id = $2 \
-         ORDER BY wound_number",
+         ORDER BY wound_number LIMIT 5000",
     )
     .bind(case_id)
     .bind(claims.tenant_id)
@@ -981,7 +981,7 @@ pub async fn get_age_estimation_print_data(
     let identification_marks: Vec<String> = sqlx::query_scalar(
         "SELECT mark_description FROM age_estimation_marks \
          WHERE age_estimation_id = $1 AND tenant_id = $2 \
-         ORDER BY created_at",
+         ORDER BY created_at LIMIT 5000",
     )
     .bind(case_id)
     .bind(claims.tenant_id)
@@ -992,7 +992,7 @@ pub async fn get_age_estimation_print_data(
         "SELECT joint, bone, fusion_status, typical_age_range \
          FROM age_estimation_epiphyseal \
          WHERE age_estimation_id = $1 AND tenant_id = $2 \
-         ORDER BY created_at",
+         ORDER BY created_at LIMIT 5000",
     )
     .bind(case_id)
     .bind(claims.tenant_id)
@@ -1271,7 +1271,7 @@ pub async fn get_mlc_documentation_print_data(
     let operative_procedures: Vec<String> = sqlx::query_scalar(
         "SELECT procedure_name FROM mlc_procedures \
          WHERE mlc_case_id = $1 AND tenant_id = $2 \
-         ORDER BY performed_at",
+         ORDER BY performed_at LIMIT 5000",
     )
     .bind(case_id)
     .bind(claims.tenant_id)
@@ -1282,7 +1282,7 @@ pub async fn get_mlc_documentation_print_data(
         "SELECT visit_date::text, officer_name, officer_rank, purpose, statement_recorded \
          FROM mlc_police_visits \
          WHERE mlc_case_id = $1 AND tenant_id = $2 \
-         ORDER BY visit_date",
+         ORDER BY visit_date LIMIT 5000",
     )
     .bind(case_id)
     .bind(claims.tenant_id)
@@ -1294,7 +1294,7 @@ pub async fn get_mlc_documentation_print_data(
            collected_date::text, handed_to, handed_date::text \
          FROM mlc_samples \
          WHERE mlc_case_id = $1 AND tenant_id = $2 \
-         ORDER BY collected_date",
+         ORDER BY collected_date LIMIT 5000",
     )
     .bind(case_id)
     .bind(claims.tenant_id)
@@ -1304,7 +1304,7 @@ pub async fn get_mlc_documentation_print_data(
     let certificates_issued: Vec<String> = sqlx::query_scalar(
         "SELECT certificate_type FROM mlc_certificates \
          WHERE mlc_case_id = $1 AND tenant_id = $2 \
-         ORDER BY issued_date",
+         ORDER BY issued_date LIMIT 5000",
     )
     .bind(case_id)
     .bind(claims.tenant_id)
@@ -1315,7 +1315,7 @@ pub async fn get_mlc_documentation_print_data(
         "SELECT event_date::text, event_description \
          FROM mlc_important_dates \
          WHERE mlc_case_id = $1 AND tenant_id = $2 \
-         ORDER BY event_date",
+         ORDER BY event_date LIMIT 5000",
     )
     .bind(case_id)
     .bind(claims.tenant_id)

@@ -78,7 +78,7 @@ pub async fn list_templates(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, DltTemplate>(
-        "SELECT * FROM dlt_templates WHERE tenant_id = $1 ORDER BY scope, language, template_name",
+        "SELECT * FROM dlt_templates WHERE tenant_id = $1 ORDER BY scope, language, template_name LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)

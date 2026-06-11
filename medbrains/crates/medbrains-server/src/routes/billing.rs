@@ -1432,7 +1432,7 @@ pub async fn get_invoice(
 
     let items = sqlx::query_as::<_, InvoiceItem>(
         "SELECT * FROM invoice_items WHERE invoice_id = $1 AND tenant_id = $2 \
-         ORDER BY created_at",
+         ORDER BY created_at LIMIT 5000",
     )
     .bind(id)
     .bind(claims.tenant_id)
@@ -1441,7 +1441,7 @@ pub async fn get_invoice(
 
     let payments = sqlx::query_as::<_, Payment>(
         "SELECT * FROM payments WHERE invoice_id = $1 AND tenant_id = $2 \
-         ORDER BY paid_at DESC",
+         ORDER BY paid_at DESC LIMIT 5000",
     )
     .bind(id)
     .bind(claims.tenant_id)
@@ -1895,7 +1895,7 @@ pub async fn list_payments(
 
     let payments = sqlx::query_as::<_, Payment>(
         "SELECT * FROM payments WHERE invoice_id = $1 AND tenant_id = $2 \
-         ORDER BY paid_at DESC",
+         ORDER BY paid_at DESC LIMIT 5000",
     )
     .bind(invoice_id)
     .bind(claims.tenant_id)
@@ -1931,7 +1931,7 @@ pub async fn list_charge_master(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, ChargeMaster>(
-        "SELECT * FROM charge_master WHERE tenant_id = $1 ORDER BY category, name",
+        "SELECT * FROM charge_master WHERE tenant_id = $1 ORDER BY category, name LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -2108,7 +2108,7 @@ pub async fn list_packages(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, BillingPackage>(
-        "SELECT * FROM billing_packages WHERE tenant_id = $1 ORDER BY name",
+        "SELECT * FROM billing_packages WHERE tenant_id = $1 ORDER BY name LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -2343,7 +2343,7 @@ pub async fn list_rate_plans(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, RatePlan>(
-        "SELECT * FROM rate_plans WHERE tenant_id = $1 ORDER BY name",
+        "SELECT * FROM rate_plans WHERE tenant_id = $1 ORDER BY name LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -2522,7 +2522,7 @@ pub async fn list_discounts(
 
     let rows = sqlx::query_as::<_, InvoiceDiscount>(
         "SELECT * FROM invoice_discounts \
-         WHERE invoice_id = $1 AND tenant_id = $2 ORDER BY created_at",
+         WHERE invoice_id = $1 AND tenant_id = $2 ORDER BY created_at LIMIT 5000",
     )
     .bind(invoice_id)
     .bind(claims.tenant_id)
@@ -2677,7 +2677,7 @@ pub async fn list_refunds(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, Refund>(
-        "SELECT * FROM refunds WHERE tenant_id = $1 ORDER BY created_at DESC",
+        "SELECT * FROM refunds WHERE tenant_id = $1 ORDER BY created_at DESC LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -2858,7 +2858,7 @@ pub async fn list_credit_notes(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, CreditNote>(
-        "SELECT * FROM credit_notes WHERE tenant_id = $1 ORDER BY created_at DESC",
+        "SELECT * FROM credit_notes WHERE tenant_id = $1 ORDER BY created_at DESC LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -3102,7 +3102,7 @@ pub async fn list_receipts(
 
     let rows = sqlx::query_as::<_, Receipt>(
         "SELECT * FROM receipts \
-         WHERE invoice_id = $1 AND tenant_id = $2 ORDER BY created_at DESC",
+         WHERE invoice_id = $1 AND tenant_id = $2 ORDER BY created_at DESC LIMIT 5000",
     )
     .bind(invoice_id)
     .bind(claims.tenant_id)
@@ -3211,7 +3211,7 @@ pub async fn list_insurance_claims(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, InsuranceClaim>(
-        "SELECT * FROM insurance_claims WHERE tenant_id = $1 ORDER BY created_at DESC",
+        "SELECT * FROM insurance_claims WHERE tenant_id = $1 ORDER BY created_at DESC LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -3856,7 +3856,7 @@ pub async fn list_advances(
     let rows = if let Some(pid) = params.patient_id {
         sqlx::query_as::<_, PatientAdvance>(
             "SELECT * FROM patient_advances \
-             WHERE tenant_id = $1 AND patient_id = $2 ORDER BY created_at DESC",
+             WHERE tenant_id = $1 AND patient_id = $2 ORDER BY created_at DESC LIMIT 5000",
         )
         .bind(claims.tenant_id)
         .bind(pid)
@@ -4411,7 +4411,7 @@ pub async fn list_corporates(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, CorporateClient>(
-        "SELECT * FROM corporate_clients WHERE tenant_id = $1 ORDER BY name",
+        "SELECT * FROM corporate_clients WHERE tenant_id = $1 ORDER BY name LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -4533,7 +4533,7 @@ pub async fn list_enrollments(
 
     let rows = sqlx::query_as::<_, CorporateEnrollment>(
         "SELECT * FROM corporate_enrollments \
-         WHERE tenant_id = $1 AND corporate_id = $2 ORDER BY enrolled_at DESC",
+         WHERE tenant_id = $1 AND corporate_id = $2 ORDER BY enrolled_at DESC LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .bind(corporate_id)
@@ -4611,7 +4611,7 @@ pub async fn list_corporate_invoices(
 
     let rows = sqlx::query_as::<_, Invoice>(
         "SELECT * FROM invoices \
-         WHERE tenant_id = $1 AND corporate_id = $2 ORDER BY created_at DESC",
+         WHERE tenant_id = $1 AND corporate_id = $2 ORDER BY created_at DESC LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .bind(corporate_id)
@@ -4757,7 +4757,7 @@ pub async fn report_summary(
          FROM payments \
          WHERE tenant_id = $1 AND paid_at >= $2::date \
            AND paid_at < ($3::date + interval '1 day') \
-         GROUP BY mode ORDER BY total DESC",
+         GROUP BY mode ORDER BY total DESC LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .bind(params.from)
@@ -4799,7 +4799,7 @@ pub async fn report_department_revenue(
            AND inv.status != 'cancelled'::invoice_status \
            AND inv.created_at >= $2::date \
            AND inv.created_at < ($3::date + interval '1 day') \
-         GROUP BY ii.charge_code ORDER BY total_revenue DESC",
+         GROUP BY ii.charge_code ORDER BY total_revenue DESC LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .bind(params.from)
@@ -4834,7 +4834,7 @@ pub async fn report_collection_efficiency(
            AND status != 'cancelled'::invoice_status \
            AND created_at >= $2::date \
            AND created_at < ($3::date + interval '1 day') \
-         GROUP BY to_char(created_at, 'YYYY-MM') ORDER BY month",
+         GROUP BY to_char(created_at, 'YYYY-MM') ORDER BY month LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .bind(params.from)
@@ -4881,7 +4881,7 @@ pub async fn report_aging(
          WHERE tenant_id = $1 \
            AND status IN ('issued'::invoice_status, 'partially_paid'::invoice_status) \
            AND issued_at IS NOT NULL \
-         GROUP BY bucket ORDER BY bucket",
+         GROUP BY bucket ORDER BY bucket LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -4942,7 +4942,7 @@ pub async fn report_daily(
         "SELECT mode::text AS mode, COALESCE(SUM(amount), 0) AS total, COUNT(*) AS count \
          FROM payments \
          WHERE tenant_id = $1 AND paid_at::date = $2 \
-         GROUP BY mode ORDER BY total DESC",
+         GROUP BY mode ORDER BY total DESC LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .bind(params.date)
@@ -5035,7 +5035,7 @@ pub async fn list_day_closes(
             sqlx::query_as::<_, DayEndClose>(
                 "SELECT * FROM day_end_closes \
                  WHERE tenant_id = $1 AND close_date >= $2 AND close_date <= $3 \
-                 ORDER BY close_date DESC",
+                 ORDER BY close_date DESC LIMIT 5000",
             )
             .bind(claims.tenant_id)
             .bind(from)
@@ -5297,7 +5297,7 @@ pub async fn list_write_offs(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, BadDebtWriteOff>(
-        "SELECT * FROM bad_debt_write_offs WHERE tenant_id = $1 ORDER BY created_at DESC",
+        "SELECT * FROM bad_debt_write_offs WHERE tenant_id = $1 ORDER BY created_at DESC LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -5527,7 +5527,7 @@ pub async fn list_tpa_rate_cards(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, TpaRateCard>(
-        "SELECT * FROM tpa_rate_cards WHERE tenant_id = $1 ORDER BY tpa_name",
+        "SELECT * FROM tpa_rate_cards WHERE tenant_id = $1 ORDER BY tpa_name LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -5990,7 +5990,7 @@ pub async fn report_doctor_revenue(
            AND i.issued_at >= $2::date AND i.issued_at < ($3::date + 1) \
            AND i.status NOT IN ('draft'::invoice_status, 'cancelled'::invoice_status) \
          GROUP BY ii.ordering_doctor_id, u.full_name \
-         ORDER BY total_revenue DESC",
+         ORDER BY total_revenue DESC LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .bind(params.from)
@@ -6033,7 +6033,7 @@ pub async fn report_insurance_panel(
          COALESCE(SUM(settled_amount), 0) AS total_settled, \
          COUNT(*) FILTER (WHERE status NOT IN ('settled', 'partially_settled', 'claim_rejected')) AS pending_count \
          FROM insurance_claims WHERE tenant_id = $1 \
-         GROUP BY insurance_provider ORDER BY total_claims DESC",
+         GROUP BY insurance_provider ORDER BY total_claims DESC LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -6251,7 +6251,7 @@ pub async fn get_invoice_print_data(
 
     let items = sqlx::query_as::<_, InvoiceItem>(
         "SELECT * FROM invoice_items WHERE invoice_id = $1 AND tenant_id = $2 \
-         ORDER BY created_at",
+         ORDER BY created_at LIMIT 5000",
     )
     .bind(id)
     .bind(claims.tenant_id)
@@ -6259,7 +6259,7 @@ pub async fn get_invoice_print_data(
     .await?;
 
     let payments = sqlx::query_as::<_, Payment>(
-        "SELECT * FROM payments WHERE invoice_id = $1 AND tenant_id = $2 ORDER BY paid_at",
+        "SELECT * FROM payments WHERE invoice_id = $1 AND tenant_id = $2 ORDER BY paid_at LIMIT 5000",
     )
     .bind(id)
     .bind(claims.tenant_id)
@@ -6303,7 +6303,7 @@ pub async fn get_invoice_print_data(
          COALESCE(SUM(cgst_amount + sgst_amount + igst_amount), 0) AS total_tax, \
          COUNT(*) AS item_count \
          FROM invoice_items WHERE invoice_id = $1 AND tenant_id = $2 \
-         GROUP BY hsn_sac_code ORDER BY hsn_code",
+         GROUP BY hsn_sac_code ORDER BY hsn_code LIMIT 5000",
     )
     .bind(id)
     .bind(claims.tenant_id)
@@ -6497,7 +6497,7 @@ pub async fn list_credit_patients(
     let rows = sqlx::query_as::<_, CreditPatient>(
         "SELECT * FROM credit_patients WHERE tenant_id = $1 \
          AND ($2::text IS NULL OR status::text = $2) \
-         ORDER BY updated_at DESC",
+         ORDER BY updated_at DESC LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .bind(params.status.as_deref())
@@ -6900,7 +6900,7 @@ pub async fn list_gl_accounts(
     let rows = sqlx::query_as::<_, GlAccount>(
         "SELECT * FROM gl_accounts WHERE tenant_id = $1 \
          AND ($2::text IS NULL OR account_type = $2) \
-         ORDER BY code",
+         ORDER BY code LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .bind(params.account_type.as_deref())
@@ -7050,7 +7050,7 @@ pub async fn get_journal_entry(
 
     let lines = sqlx::query_as::<_, JournalEntryLine>(
         "SELECT * FROM journal_entry_lines \
-         WHERE journal_entry_id = $1 AND tenant_id = $2 ORDER BY created_at",
+         WHERE journal_entry_id = $1 AND tenant_id = $2 ORDER BY created_at LIMIT 5000",
     )
     .bind(id)
     .bind(claims.tenant_id)
@@ -7534,7 +7534,7 @@ pub async fn list_tds_deductions(
          AND ($2::text IS NULL OR financial_year = $2) \
          AND ($3::text IS NULL OR quarter = $3) \
          AND ($4::text IS NULL OR status::text = $4) \
-         ORDER BY deducted_date DESC",
+         ORDER BY deducted_date DESC LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .bind(params.financial_year.as_deref())
@@ -7784,7 +7784,7 @@ pub async fn list_gstr_summaries(
 
     let rows = sqlx::query_as::<_, GstReturnSummary>(
         "SELECT * FROM gst_return_summaries WHERE tenant_id = $1 \
-         ORDER BY period DESC, return_type",
+         ORDER BY period DESC, return_type LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -7852,7 +7852,7 @@ pub async fn report_hsn_summary(
          WHERE ii.tenant_id = $1 \
          AND i.status IN ('issued', 'partially_paid', 'paid') \
          AND TO_CHAR(i.issued_at, 'YYYY-MM') = $2 \
-         GROUP BY ii.hsn_sac_code ORDER BY hsn_code",
+         GROUP BY ii.hsn_sac_code ORDER BY hsn_code LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .bind(&params.period)
@@ -8017,7 +8017,7 @@ pub async fn report_profit_loss(
          FROM dept_revenue r \
          FULL OUTER JOIN dept_expense e ON r.department_id = e.department_id \
          LEFT JOIN departments d ON d.id = COALESCE(r.department_id, e.department_id) \
-         ORDER BY profit DESC",
+         ORDER BY profit DESC LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .bind(params.date_from)
@@ -8270,7 +8270,7 @@ pub async fn er_fast_invoice(
            WHEN 'REG_EMERGENCY' THEN 1 \
            WHEN 'CON_EMERGENCY' THEN 2 \
            ELSE 99 \
-         END",
+         END LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .bind(["REG_EMERGENCY", "CON_EMERGENCY"])
@@ -9271,7 +9271,7 @@ pub async fn insurance_receivables_aging(
                AND COALESCE(approved_amount, 0) > COALESCE(settled_amount, 0) \
          ) sub \
          GROUP BY tpa_name \
-         ORDER BY total_outstanding DESC",
+         ORDER BY total_outstanding DESC LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&state.db)

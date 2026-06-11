@@ -299,7 +299,7 @@ pub async fn dashboard(
          LEFT JOIN departments d ON d.id = cl.department_id \
          WHERE cl.tenant_id = $1 \
          GROUP BY cl.department_id, d.name \
-         ORDER BY d.name",
+         ORDER BY d.name LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -395,7 +395,7 @@ pub async fn department_dashboard(
     let rows = sqlx::query_as::<_, ComplianceChecklist>(
         "SELECT * FROM compliance_checklists \
          WHERE tenant_id = $1 AND department_id = $2 \
-         ORDER BY assessment_period_start DESC",
+         ORDER BY assessment_period_start DESC LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .bind(dept_id)
@@ -565,7 +565,7 @@ pub async fn get_checklist(
     let items = sqlx::query_as::<_, ComplianceChecklistItem>(
         "SELECT * FROM compliance_checklist_items \
          WHERE checklist_id = $1 AND tenant_id = $2 \
-         ORDER BY item_number",
+         ORDER BY item_number LIMIT 5000",
     )
     .bind(id)
     .bind(claims.tenant_id)
@@ -1304,7 +1304,7 @@ pub async fn pcpndt_quarterly_summary(
          WHERE tenant_id = $1 \
          AND created_at >= date_trunc('quarter', CURRENT_DATE) \
          GROUP BY procedure_type \
-         ORDER BY procedure_type",
+         ORDER BY procedure_type LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -1623,7 +1623,7 @@ pub async fn auto_populate_checklist(
     let items = sqlx::query_as::<_, ComplianceChecklistItem>(
         "SELECT * FROM compliance_checklist_items \
          WHERE checklist_id = $1 AND tenant_id = $2 \
-         ORDER BY item_number",
+         ORDER BY item_number LIMIT 5000",
     )
     .bind(checklist_id)
     .bind(claims.tenant_id)

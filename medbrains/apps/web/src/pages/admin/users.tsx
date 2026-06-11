@@ -4,6 +4,7 @@ import {
   Alert,
   Badge,
   Button,
+  CopyButton,
   Group,
   Loader,
   Modal,
@@ -31,6 +32,7 @@ import { P } from "@medbrains/types";
 import {
   IconCheck,
   IconInfoCircle,
+  IconKey,
   IconPencil,
   IconPlus,
   IconShield,
@@ -462,6 +464,96 @@ function UserModal({
   );
 }
 
+// ── Admin Password Reset Modal ─────────────────────────────
+
+function ResetPasswordModal({
+  opened,
+  onClose,
+  user,
+}: {
+  opened: boolean;
+  onClose: () => void;
+  user: SetupUser | null;
+}) {
+  const [tempPassword, setTempPassword] = useState<string | null>(null);
+
+  const resetMutation = useMutation({
+    mutationFn: () => {
+      if (!user) throw new Error("No user selected");
+      return adminAccessService.resetUserPassword(user.id);
+    },
+    onSuccess: (data) => {
+      setTempPassword(data.temp_password ?? null);
+      notifications.show({
+        title: "Password reset",
+        message: `${user?.full_name} must set a new password on next login`,
+        color: "success",
+        icon: <IconCheck size={16} />,
+      });
+    },
+    onError: (err: Error) => {
+      notifications.show({
+        title: "Reset failed",
+        message: err.message,
+        color: "danger",
+      });
+    },
+  });
+
+  const close = () => {
+    setTempPassword(null);
+    onClose();
+  };
+
+  return (
+    <Modal opened={opened} onClose={close} title="Reset Password" size="sm">
+      <Stack gap="md">
+        {tempPassword === null ? (
+          <>
+            <Text size="sm">
+              Generate a temporary password for{" "}
+              <Text span fw={600}>
+                {user?.full_name}
+              </Text>{" "}
+              ({user?.username})? All their sessions will be signed out and they must choose a
+              new password on next login.
+            </Text>
+            <Group justify="flex-end">
+              <Button variant="light" onClick={close}>
+                Cancel
+              </Button>
+              <Button onClick={() => resetMutation.mutate()} loading={resetMutation.isPending}>
+                Generate temporary password
+              </Button>
+            </Group>
+          </>
+        ) : (
+          <>
+            <Text size="sm">
+              Share this temporary password with the user — it is shown only once:
+            </Text>
+            <Group justify="space-between" align="center">
+              <Text ff="monospace" fw={600} size="lg">
+                {tempPassword}
+              </Text>
+              <CopyButton value={tempPassword}>
+                {({ copied, copy }) => (
+                  <Button size="xs" variant="light" onClick={copy}>
+                    {copied ? "Copied" : "Copy"}
+                  </Button>
+                )}
+              </CopyButton>
+            </Group>
+            <Group justify="flex-end">
+              <Button onClick={close}>Done</Button>
+            </Group>
+          </>
+        )}
+      </Stack>
+    </Modal>
+  );
+}
+
 // ── Delete User Confirmation Modal ────────────────────────
 
 function DeleteUserModal({
@@ -681,6 +773,8 @@ export function UsersPage() {
   const [editingUser, setEditingUser] = useState<SetupUser | null>(null);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [deletingUser, setDeletingUser] = useState<SetupUser | null>(null);
+  const [resetModalOpen, setResetModalOpen] = useState(false);
+  const [resettingUser, setResettingUser] = useState<SetupUser | null>(null);
   const [bulkImportOpen, setBulkImportOpen] = useState(false);
 
   const { data: users, isLoading } = useQuery({
@@ -700,6 +794,11 @@ export function UsersPage() {
   const openDelete = (user: SetupUser) => {
     setDeletingUser(user);
     setDeleteModalOpen(true);
+  };
+
+  const openReset = (user: SetupUser) => {
+    setResettingUser(user);
+    setResetModalOpen(true);
   };
 
   const openPermissions = (user: SetupUser) => {
@@ -788,6 +887,18 @@ export function UsersPage() {
               </ActionIcon>
             </Tooltip>
           )}
+          {canUpdate && (
+            <Tooltip label="Reset password">
+              <ActionIcon
+                variant="subtle"
+                color="copper"
+                onClick={() => openReset(row)}
+                aria-label="Reset password"
+              >
+                <IconKey size={16} />
+              </ActionIcon>
+            </Tooltip>
+          )}
           {canDelete && (
             <Tooltip label="Delete user">
               <ActionIcon
@@ -857,6 +968,12 @@ export function UsersPage() {
         opened={deleteModalOpen}
         onClose={() => setDeleteModalOpen(false)}
         user={deletingUser}
+      />
+
+      <ResetPasswordModal
+        opened={resetModalOpen}
+        onClose={() => setResetModalOpen(false)}
+        user={resettingUser}
       />
 
       <BulkImportModal opened={bulkImportOpen} onClose={() => setBulkImportOpen(false)} />

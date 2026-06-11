@@ -714,7 +714,7 @@ pub async fn get_order(
 
     let results = sqlx::query_as::<_, LabResult>(
         "SELECT * FROM lab_results WHERE order_id = $1 AND tenant_id = $2 \
-         ORDER BY created_at",
+         ORDER BY created_at LIMIT 5000",
     )
     .bind(id)
     .bind(claims.tenant_id)
@@ -1174,7 +1174,7 @@ pub async fn list_results(
 
     let rows = sqlx::query_as::<_, LabResult>(
         "SELECT * FROM lab_results WHERE order_id = $1 AND tenant_id = $2 \
-         ORDER BY created_at",
+         ORDER BY created_at LIMIT 5000",
     )
     .bind(order_id)
     .bind(claims.tenant_id)
@@ -1206,7 +1206,7 @@ pub async fn list_catalog(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, LabTestCatalog>(
-        "SELECT * FROM lab_test_catalog WHERE tenant_id = $1 ORDER BY name",
+        "SELECT * FROM lab_test_catalog WHERE tenant_id = $1 ORDER BY name LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -1334,7 +1334,7 @@ pub async fn list_panels(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, LabTestPanel>(
-        "SELECT * FROM lab_test_panels WHERE tenant_id = $1 ORDER BY name",
+        "SELECT * FROM lab_test_panels WHERE tenant_id = $1 ORDER BY name LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -1365,7 +1365,7 @@ pub async fn get_panel(
 
     let tests = sqlx::query_as::<_, LabPanelTest>(
         "SELECT * FROM lab_panel_tests WHERE panel_id = $1 AND tenant_id = $2 \
-         ORDER BY sort_order",
+         ORDER BY sort_order LIMIT 5000",
     )
     .bind(id)
     .bind(claims.tenant_id)
@@ -1477,7 +1477,7 @@ pub async fn update_panel(
 
     let tests = sqlx::query_as::<_, LabPanelTest>(
         "SELECT * FROM lab_panel_tests WHERE panel_id = $1 AND tenant_id = $2 \
-         ORDER BY sort_order",
+         ORDER BY sort_order LIMIT 5000",
     )
     .bind(id)
     .bind(claims.tenant_id)
@@ -1662,7 +1662,7 @@ pub async fn list_amendments(
 
     let rows = sqlx::query_as::<_, LabResultAmendment>(
         "SELECT * FROM lab_result_amendments \
-         WHERE order_id = $1 AND tenant_id = $2 ORDER BY amended_at DESC",
+         WHERE order_id = $1 AND tenant_id = $2 ORDER BY amended_at DESC LIMIT 5000",
     )
     .bind(order_id)
     .bind(claims.tenant_id)
@@ -1871,7 +1871,7 @@ pub async fn list_reagent_lots(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, LabReagentLot>(
-        "SELECT * FROM lab_reagent_lots WHERE tenant_id = $1 ORDER BY created_at DESC",
+        "SELECT * FROM lab_reagent_lots WHERE tenant_id = $1 ORDER BY created_at DESC LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -2080,7 +2080,7 @@ pub async fn list_calibrations(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, LabCalibration>(
-        "SELECT * FROM lab_calibrations WHERE tenant_id = $1 ORDER BY created_at DESC",
+        "SELECT * FROM lab_calibrations WHERE tenant_id = $1 ORDER BY created_at DESC LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -2144,7 +2144,7 @@ pub async fn list_phlebotomy_queue(
            CASE priority WHEN 'stat'::lab_priority THEN 0 \
                          WHEN 'urgent'::lab_priority THEN 1 \
                          ELSE 2 END, \
-           queued_at ASC",
+           queued_at ASC LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -2263,7 +2263,7 @@ pub async fn list_outsourced_orders(
 
     let rows = sqlx::query_as::<_, LabOutsourcedOrder>(
         "SELECT * FROM lab_outsourced_orders WHERE tenant_id = $1 \
-         ORDER BY created_at DESC",
+         ORDER BY created_at DESC LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -2724,7 +2724,7 @@ pub async fn list_home_collections(
         sqlx::query_as::<_, LabHomeCollection>(
             "SELECT * FROM lab_home_collections \
              WHERE tenant_id = $1 AND status::text = $2 \
-             ORDER BY scheduled_date, created_at DESC",
+             ORDER BY scheduled_date, created_at DESC LIMIT 5000",
         )
         .bind(claims.tenant_id)
         .bind(status)
@@ -2734,7 +2734,7 @@ pub async fn list_home_collections(
         sqlx::query_as::<_, LabHomeCollection>(
             "SELECT * FROM lab_home_collections \
              WHERE tenant_id = $1 AND scheduled_date = $2 \
-             ORDER BY created_at DESC",
+             ORDER BY created_at DESC LIMIT 5000",
         )
         .bind(claims.tenant_id)
         .bind(date)
@@ -2861,7 +2861,7 @@ pub async fn get_home_collection_stats(
     let rows = sqlx::query_as::<_, HomeCollectionStatsRow>(
         "SELECT status::text AS status, COUNT(*) AS count \
          FROM lab_home_collections WHERE tenant_id = $1 \
-         GROUP BY status ORDER BY status",
+         GROUP BY status ORDER BY status LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -2883,7 +2883,7 @@ pub async fn list_collection_centers(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let rows = sqlx::query_as::<_, LabCollectionCenter>(
-        "SELECT * FROM lab_collection_centers WHERE tenant_id = $1 ORDER BY name",
+        "SELECT * FROM lab_collection_centers WHERE tenant_id = $1 ORDER BY name LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -3062,7 +3062,7 @@ pub async fn list_report_dispatches(
     let rows = if let Some(order_id) = params.order_id {
         sqlx::query_as::<_, LabReportDispatch>(
             "SELECT * FROM lab_report_dispatches WHERE tenant_id = $1 AND order_id = $2 \
-             ORDER BY dispatched_at DESC",
+             ORDER BY dispatched_at DESC LIMIT 5000",
         )
         .bind(claims.tenant_id)
         .bind(order_id)
@@ -3143,7 +3143,7 @@ pub async fn list_report_templates(
     let rows = if let Some(dept_id) = params.department_id {
         sqlx::query_as::<_, LabReportTemplate>(
             "SELECT * FROM lab_report_templates WHERE tenant_id = $1 AND department_id = $2 \
-             ORDER BY template_name",
+             ORDER BY template_name LIMIT 5000",
         )
         .bind(claims.tenant_id)
         .bind(dept_id)
@@ -3151,7 +3151,7 @@ pub async fn list_report_templates(
         .await?
     } else {
         sqlx::query_as::<_, LabReportTemplate>(
-            "SELECT * FROM lab_report_templates WHERE tenant_id = $1 ORDER BY template_name",
+            "SELECT * FROM lab_report_templates WHERE tenant_id = $1 ORDER BY template_name LIMIT 5000",
         )
         .bind(claims.tenant_id)
         .fetch_all(&mut *tx)
@@ -3269,7 +3269,7 @@ pub async fn list_eqas(
     let rows = if let Some(test_id) = params.test_id {
         sqlx::query_as::<_, LabEqasResult>(
             "SELECT * FROM lab_eqas_results WHERE tenant_id = $1 AND test_id = $2 \
-             ORDER BY created_at DESC",
+             ORDER BY created_at DESC LIMIT 5000",
         )
         .bind(claims.tenant_id)
         .bind(test_id)
@@ -3427,7 +3427,7 @@ pub async fn list_nabl_documents(
             sqlx::query_as::<_, LabNablDocument>(
                 "SELECT * FROM lab_nabl_documents \
                  WHERE tenant_id = $1 AND document_type = $2 AND is_current = true \
-                 ORDER BY effective_date DESC",
+                 ORDER BY effective_date DESC LIMIT 5000",
             )
             .bind(claims.tenant_id)
             .bind(doc_type)
@@ -3437,7 +3437,7 @@ pub async fn list_nabl_documents(
         (Some(doc_type), false) => {
             sqlx::query_as::<_, LabNablDocument>(
                 "SELECT * FROM lab_nabl_documents \
-                 WHERE tenant_id = $1 AND document_type = $2 ORDER BY effective_date DESC",
+                 WHERE tenant_id = $1 AND document_type = $2 ORDER BY effective_date DESC LIMIT 5000",
             )
             .bind(claims.tenant_id)
             .bind(doc_type)
@@ -3448,7 +3448,7 @@ pub async fn list_nabl_documents(
             sqlx::query_as::<_, LabNablDocument>(
                 "SELECT * FROM lab_nabl_documents \
                  WHERE tenant_id = $1 AND is_current = true \
-                 ORDER BY document_type, effective_date DESC",
+                 ORDER BY document_type, effective_date DESC LIMIT 5000",
             )
             .bind(claims.tenant_id)
             .fetch_all(&mut *tx)
@@ -3457,7 +3457,7 @@ pub async fn list_nabl_documents(
         (None, false) => {
             sqlx::query_as::<_, LabNablDocument>(
                 "SELECT * FROM lab_nabl_documents WHERE tenant_id = $1 \
-                 ORDER BY document_type, effective_date DESC",
+                 ORDER BY document_type, effective_date DESC LIMIT 5000",
             )
             .bind(claims.tenant_id)
             .fetch_all(&mut *tx)
@@ -3547,7 +3547,7 @@ pub async fn get_reagent_consumption(
         "SELECT id, reagent_name, lot_number, quantity, quantity_unit, \
          reorder_level, consumption_per_test, expiry_date, is_active \
          FROM lab_reagent_lots WHERE tenant_id = $1 AND is_active = true \
-         ORDER BY reagent_name",
+         ORDER BY reagent_name LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -3737,7 +3737,7 @@ pub async fn list_b2b_clients(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let rows = sqlx::query_as::<_, LabB2bClient>(
-        "SELECT * FROM lab_b2b_clients WHERE tenant_id = $1 ORDER BY name",
+        "SELECT * FROM lab_b2b_clients WHERE tenant_id = $1 ORDER BY name LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -3826,7 +3826,7 @@ pub async fn list_b2b_rates(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
     let rows = sqlx::query_as::<_, LabB2bRate>(
         "SELECT * FROM lab_b2b_rates WHERE tenant_id = $1 AND client_id = $2 \
-         ORDER BY created_at DESC",
+         ORDER BY created_at DESC LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .bind(client_id)
@@ -3998,7 +3998,7 @@ pub async fn get_tat_analytics(
          WHERE lo.completed_at IS NOT NULL \
            AND lo.completed_at >= CURRENT_DATE - INTERVAL '30 days' \
          GROUP BY tc.name \
-         ORDER BY total_orders DESC",
+         ORDER BY total_orders DESC LIMIT 5000",
     )
     .fetch_all(&mut *tx)
     .await?;
@@ -4235,7 +4235,7 @@ pub async fn list_referral_doctors(
         ),
     >(
         "SELECT id, name, phone, specialization, hospital_name, commission_pct, is_active \
-         FROM lab_referral_doctors ORDER BY name",
+         FROM lab_referral_doctors ORDER BY name LIMIT 5000",
     )
     .fetch_all(&mut *tx)
     .await?;

@@ -108,7 +108,7 @@ pub async fn list_packages(
          WHERE tenant_id = $1 \
            AND ($2::boolean IS NULL OR is_active = $2) \
            AND ($3::text IS NULL OR name ILIKE '%' || $3 || '%' OR code ILIKE '%' || $3 || '%') \
-         ORDER BY name",
+         ORDER BY name LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .bind(q.is_active)
@@ -141,7 +141,7 @@ pub async fn get_package(
     let inclusions = sqlx::query_as::<_, DoctorPackageInclusion>(
         "SELECT * FROM doctor_package_inclusions \
          WHERE tenant_id = $1 AND package_id = $2 \
-         ORDER BY sort_order, id",
+         ORDER BY sort_order, id LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .bind(id)

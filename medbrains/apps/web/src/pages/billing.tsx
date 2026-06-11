@@ -1,4 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
+import { confirmDestructive } from "@/lib/confirm-destructive";
 import {
   ActionIcon,
   Alert,
@@ -1778,7 +1779,14 @@ function InvoiceDetail({
                     variant="light"
                     leftSection={<IconX size={14} />}
                     loading={cancelMutation.isPending}
-                    onClick={() => cancelMutation.mutate()}
+                    onClick={() =>
+                      confirmDestructive({
+                        title: "Cancel invoice",
+                        message: "Cancel this draft invoice? Its line items will no longer be billable from this draft.",
+                        confirmLabel: "Cancel invoice",
+                        onConfirm: () => cancelMutation.mutate(),
+                      })
+                    }
                   >
                     Cancel
                   </Button>
@@ -1922,7 +1930,14 @@ function InvoiceDetail({
                             <ActionIcon
                               variant="subtle"
                               color="danger"
-                              onClick={() => removeItemMutation.mutate(item.id)}
+                              onClick={() =>
+                                confirmDestructive({
+                                  title: "Remove item",
+                                  message: "Remove this line item from the invoice?",
+                                  confirmLabel: "Remove item",
+                                  onConfirm: () => removeItemMutation.mutate(item.id),
+                                })
+                              }
                             >
                               <IconTrash size={14} />
                             </ActionIcon>
@@ -2193,7 +2208,14 @@ function InvoiceDetail({
                                 variant="subtle"
                                 color="danger"
                                 size="sm"
-                                onClick={() => removeDiscountMutation.mutate(d.id)}
+                                onClick={() =>
+                                  confirmDestructive({
+                                    title: "Remove discount",
+                                    message: "Remove this discount from the invoice? Totals will be recalculated.",
+                                    confirmLabel: "Remove discount",
+                                    onConfirm: () => removeDiscountMutation.mutate(d.id),
+                                  })
+                                }
                               >
                                 <IconTrash size={14} />
                               </ActionIcon>
@@ -2551,7 +2573,18 @@ function ChargeMasterTab({ canCreate }: { canCreate: boolean }) {
       label: "",
       render: (row: ChargeMaster) =>
         canCreate ? (
-          <ActionIcon variant="subtle" color="danger" onClick={() => deleteMutation.mutate(row.id)}>
+          <ActionIcon
+            variant="subtle"
+            color="danger"
+            onClick={() =>
+              confirmDestructive({
+                title: "Delete charge",
+                message: `Delete charge "${row.name}" from the charge master? This cannot be undone.`,
+                confirmLabel: "Delete charge",
+                onConfirm: () => deleteMutation.mutate(row.id),
+              })
+            }
+          >
             <IconTrash size={14} />
           </ActionIcon>
         ) : null,
@@ -2979,7 +3012,18 @@ function PackagesTab({ canCreate }: { canCreate: boolean }) {
       label: "",
       render: (row: BillingPackage) =>
         canCreate ? (
-          <ActionIcon variant="subtle" color="danger" onClick={() => deleteMutation.mutate(row.id)}>
+          <ActionIcon
+            variant="subtle"
+            color="danger"
+            onClick={() =>
+              confirmDestructive({
+                title: "Delete package",
+                message: `Delete package "${row.name}"? This cannot be undone.`,
+                confirmLabel: "Delete package",
+                onConfirm: () => deleteMutation.mutate(row.id),
+              })
+            }
+          >
             <IconTrash size={14} />
           </ActionIcon>
         ) : null,
@@ -3249,7 +3293,18 @@ function RatePlansTab({ canCreate }: { canCreate: boolean }) {
       label: "",
       render: (row: RatePlan) =>
         canCreate ? (
-          <ActionIcon variant="subtle" color="danger" onClick={() => deleteMutation.mutate(row.id)}>
+          <ActionIcon
+            variant="subtle"
+            color="danger"
+            onClick={() =>
+              confirmDestructive({
+                title: "Delete rate plan",
+                message: `Delete rate plan "${row.name}"? This cannot be undone.`,
+                confirmLabel: "Delete rate plan",
+                onConfirm: () => deleteMutation.mutate(row.id),
+              })
+            }
+          >
             <IconTrash size={14} />
           </ActionIcon>
         ) : null,
@@ -3977,7 +4032,14 @@ function InsuranceClaimsTab({
               color="danger"
               variant="subtle"
               size="sm"
-              onClick={() => deleteTpaMutation.mutate(row.id)}
+              onClick={() =>
+                confirmDestructive({
+                  title: "Delete TPA rate card",
+                  message: "Delete this TPA rate card? Insurance billing will fall back to standard rates.",
+                  confirmLabel: "Delete rate card",
+                  onConfirm: () => deleteTpaMutation.mutate(row.id),
+                })
+              }
             >
               <IconTrash size={14} />
             </ActionIcon>

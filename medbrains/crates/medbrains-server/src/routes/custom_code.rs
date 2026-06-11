@@ -100,7 +100,7 @@ pub async fn list_snippets(
     let rows = sqlx::query_as::<_, CustomCodeSnippet>(
         "SELECT * FROM custom_code_snippets \
          WHERE tenant_id = $1 AND is_active = true \
-         ORDER BY name",
+         ORDER BY name LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)

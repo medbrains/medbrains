@@ -61,7 +61,7 @@ pub async fn list_coverage(
            AND ($2::uuid IS NULL OR absent_doctor_id = $2) \
            AND ($3::uuid IS NULL OR covering_doctor_id = $3) \
            AND (NOT $4 OR (start_at <= now() AND end_at > now())) \
-         ORDER BY start_at DESC",
+         ORDER BY start_at DESC LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .bind(q.absent_doctor_id)

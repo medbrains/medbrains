@@ -42,6 +42,57 @@ pub struct UserInfo {
     pub must_change_password: bool,
 }
 
+const MAX_FAILED_LOGINS: i32 = 5;
+const LOCKOUT_MINUTES: i32 = 15;
+
+/// Increment the per-account failure counter; lock the account once the
+/// threshold is reached and write an audit entry for the lockout.
+async fn record_failed_login(
+    state: &AppState,
+    user_id: Uuid,
+    tenant_id: Uuid,
+) -> Result<(), AppError> {
+    let now_locked: bool = sqlx::query_scalar(
+        "UPDATE users SET \
+           failed_login_attempts = failed_login_attempts + 1, \
+           locked_until = CASE \
+             WHEN failed_login_attempts + 1 >= $2 \
+             THEN now() + make_interval(mins => $3) \
+             ELSE locked_until END \
+         WHERE id = $1 \
+         RETURNING failed_login_attempts >= $2",
+    )
+    .bind(user_id)
+    .bind(MAX_FAILED_LOGINS)
+    .bind(LOCKOUT_MINUTES)
+    .fetch_one(&state.db)
+    .await?;
+
+    if now_locked {
+        let mut tx = state.db.begin().await?;
+        medbrains_db::pool::set_tenant_context(&mut tx, &tenant_id).await?;
+        medbrains_db::audit::AuditLogger::log(
+            &mut tx,
+            &medbrains_db::audit::AuditEntry {
+                tenant_id,
+                user_id: Some(user_id),
+                action: "account_locked",
+                entity_type: "user",
+                entity_id: Some(user_id),
+                old_values: None,
+                new_values: None,
+                ip_address: None,
+            },
+        )
+        .await
+        .map_err(AppError::from)?;
+        tx.commit().await?;
+        tracing::warn!(%user_id, "account locked after repeated failed logins");
+    }
+
+    Ok(())
+}
+
 /// Runtime query (no .sqlx metadata) — column added in 0144.
 async fn fetch_must_change_password(db: &PgPool, user_id: Uuid) -> Result<bool, AppError> {
     Ok(
@@ -128,11 +179,38 @@ pub async fn login(
         return Err(AppError::Unauthorized);
     }
 
+    // Per-account lockout — independent of the per-IP rate limit so a
+    // distributed credential-stuffing run still locks the account.
+    let locked: bool = sqlx::query_scalar(
+        "SELECT locked_until IS NOT NULL AND locked_until > now() FROM users WHERE id = $1",
+    )
+    .bind(row.id)
+    .fetch_one(&state.db)
+    .await?;
+    if locked {
+        return Err(AppError::BadRequest(
+            "Account temporarily locked after repeated failed logins. Try again later.".to_owned(),
+        ));
+    }
+
     // Verify password
     let parsed_hash = PasswordHash::new(&row.password_hash).map_err(|_| AppError::Unauthorized)?;
-    Argon2::default()
+    if Argon2::default()
         .verify_password(body.password.as_bytes(), &parsed_hash)
-        .map_err(|_| AppError::Unauthorized)?;
+        .is_err()
+    {
+        record_failed_login(&state, row.id, row.tenant_id).await?;
+        return Err(AppError::Unauthorized);
+    }
+
+    // Successful login clears the failure counter.
+    sqlx::query(
+        "UPDATE users SET failed_login_attempts = 0, locked_until = NULL \
+         WHERE id = $1 AND (failed_login_attempts > 0 OR locked_until IS NOT NULL)",
+    )
+    .bind(row.id)
+    .execute(&state.db)
+    .await?;
 
     // Resolve effective permissions from role
     let permissions = resolve_permissions(&state.db, row.tenant_id, row.id, &row.role).await?;
@@ -810,6 +888,212 @@ pub async fn change_password(
 
     tx.commit().await?;
 
+    Ok(Json(serde_json::json!({ "status": "ok" })))
+}
+
+// ── Password Reset (self-service via SMS OTP) ───────────────
+
+const RESET_OTP_TTL_MINUTES: i32 = 10;
+const RESET_OTP_MAX_ATTEMPTS: i32 = 5;
+
+fn hash_otp(otp: &str) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(otp.as_bytes());
+    hex::encode(hasher.finalize())
+}
+
+#[derive(Debug, Deserialize)]
+pub struct PasswordResetRequestBody {
+    pub username: String,
+}
+
+/// Public, rate-limited. Always returns the same 200 body so account
+/// names cannot be enumerated. Delivery rides the outbox → Twilio
+/// handler (retry + DLQ for free); without a configured SMS connector
+/// the request is a silent no-op.
+pub async fn request_password_reset(
+    State(state): State<AppState>,
+    Json(body): Json<PasswordResetRequestBody>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let ack = Json(serde_json::json!({
+        "status": "ok",
+        "message": "If the account exists and has a phone on file, an OTP has been sent."
+    }));
+
+    let Some((user_id, tenant_id, phone)) = sqlx::query_as::<_, (Uuid, Uuid, Option<String>)>(
+        "SELECT id, tenant_id, phone FROM users WHERE username = $1 AND is_active = true",
+    )
+    .bind(&body.username)
+    .fetch_optional(&state.db)
+    .await?
+    else {
+        return Ok(ack);
+    };
+
+    let Some(phone) = phone.filter(|p| !p.trim().is_empty()) else {
+        tracing::info!(%user_id, "password reset requested but no phone on file");
+        return Ok(ack);
+    };
+
+    let mut buf = [0u8; 4];
+    getrandom::fill(&mut buf)
+        .map_err(|e| AppError::Internal(format!("otp generation failed: {e}")))?;
+    let otp = format!("{:06}", u32::from_le_bytes(buf) % 1_000_000);
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &tenant_id).await?;
+
+    sqlx::query(
+        "UPDATE password_reset_otps SET used_at = now() WHERE user_id = $1 AND used_at IS NULL",
+    )
+    .bind(user_id)
+    .execute(&mut *tx)
+    .await?;
+
+    sqlx::query(
+        "INSERT INTO password_reset_otps (tenant_id, user_id, otp_hash, expires_at) \
+         VALUES ($1, $2, $3, now() + make_interval(mins => $4))",
+    )
+    .bind(tenant_id)
+    .bind(user_id)
+    .bind(hash_otp(&otp))
+    .bind(RESET_OTP_TTL_MINUTES)
+    .execute(&mut *tx)
+    .await?;
+
+    medbrains_outbox::queue::queue_in_tx(
+        &mut tx,
+        medbrains_outbox::queue::OutboxRow {
+            tenant_id,
+            aggregate_type: "user",
+            aggregate_id: Some(user_id),
+            event_type: "sms.password_reset_otp",
+            payload: serde_json::json!({
+                "to": phone,
+                "body": format!(
+                    "Your MedBrains password reset code is {otp}. \
+                     Valid for {RESET_OTP_TTL_MINUTES} minutes."
+                ),
+            }),
+            idempotency_key: None,
+        },
+    )
+    .await
+    .map_err(|e| AppError::Internal(format!("failed to queue reset OTP: {e}")))?;
+
+    tx.commit().await?;
+    Ok(ack)
+}
+
+#[derive(Debug, Deserialize)]
+pub struct PasswordResetConfirmBody {
+    pub username: String,
+    pub otp: String,
+    pub new_password: String,
+}
+
+pub async fn confirm_password_reset(
+    State(state): State<AppState>,
+    Json(body): Json<PasswordResetConfirmBody>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    if body.new_password.len() < 8 {
+        return Err(AppError::BadRequest(
+            "New password must be at least 8 characters".to_owned(),
+        ));
+    }
+
+    let Some((user_id, tenant_id)) = sqlx::query_as::<_, (Uuid, Uuid)>(
+        "SELECT id, tenant_id FROM users WHERE username = $1 AND is_active = true",
+    )
+    .bind(&body.username)
+    .fetch_optional(&state.db)
+    .await?
+    else {
+        return Err(AppError::Unauthorized);
+    };
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &tenant_id).await?;
+
+    let row: Option<(Uuid, bool, bool, i32)> = sqlx::query_as(
+        "SELECT id, expires_at > now(), otp_hash = $2, attempts \
+         FROM password_reset_otps \
+         WHERE user_id = $1 AND used_at IS NULL \
+         ORDER BY created_at DESC LIMIT 1 \
+         FOR UPDATE",
+    )
+    .bind(user_id)
+    .bind(hash_otp(&body.otp))
+    .fetch_optional(&mut *tx)
+    .await?;
+
+    let Some((otp_id, in_window, otp_matches, attempts)) = row else {
+        return Err(AppError::Unauthorized);
+    };
+
+    if !in_window || attempts >= RESET_OTP_MAX_ATTEMPTS {
+        sqlx::query("UPDATE password_reset_otps SET used_at = now() WHERE id = $1")
+            .bind(otp_id)
+            .execute(&mut *tx)
+            .await?;
+        tx.commit().await?;
+        return Err(AppError::BadRequest(
+            "Reset code expired — request a new one".to_owned(),
+        ));
+    }
+
+    if !otp_matches {
+        sqlx::query("UPDATE password_reset_otps SET attempts = attempts + 1 WHERE id = $1")
+            .bind(otp_id)
+            .execute(&mut *tx)
+            .await?;
+        tx.commit().await?;
+        return Err(AppError::Unauthorized);
+    }
+
+    let salt = SaltString::generate(&mut OsRng);
+    let new_hash = Argon2::default()
+        .hash_password(body.new_password.as_bytes(), &salt)
+        .map_err(|e| AppError::Internal(format!("password hash error: {e}")))?
+        .to_string();
+
+    sqlx::query("UPDATE password_reset_otps SET used_at = now() WHERE id = $1")
+        .bind(otp_id)
+        .execute(&mut *tx)
+        .await?;
+
+    sqlx::query(
+        "UPDATE users SET password_hash = $1, must_change_password = false, \
+         failed_login_attempts = 0, locked_until = NULL, \
+         perm_version = perm_version + 1 WHERE id = $2",
+    )
+    .bind(&new_hash)
+    .bind(user_id)
+    .execute(&mut *tx)
+    .await?;
+
+    sqlx::query("UPDATE refresh_tokens SET revoked = true WHERE user_id = $1 AND revoked = false")
+        .bind(user_id)
+        .execute(&mut *tx)
+        .await?;
+
+    medbrains_db::audit::AuditLogger::log(
+        &mut tx,
+        &medbrains_db::audit::AuditEntry {
+            tenant_id,
+            user_id: Some(user_id),
+            action: "password_reset",
+            entity_type: "user",
+            entity_id: Some(user_id),
+            old_values: None,
+            new_values: None,
+            ip_address: None,
+        },
+    )
+    .await
+    .map_err(AppError::from)?;
+
+    tx.commit().await?;
     Ok(Json(serde_json::json!({ "status": "ok" })))
 }
 

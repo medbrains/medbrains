@@ -135,7 +135,7 @@ pub async fn list_manufacturers(
     let rows = sqlx::query_as::<_, ManufacturerSummary>(
         "SELECT manufacturer_code AS code, manufacturer AS name, COUNT(*) AS model_count \
          FROM device_adapter_catalog WHERE is_active = true \
-         GROUP BY manufacturer_code, manufacturer ORDER BY manufacturer",
+         GROUP BY manufacturer_code, manufacturer ORDER BY manufacturer LIMIT 5000",
     )
     .fetch_all(&state.db)
     .await?;
@@ -544,7 +544,7 @@ pub async fn list_bridge_agents(
         "SELECT id, tenant_id, name, deployment_mode, version, hostname, \
          capabilities, status, last_heartbeat, devices_connected, \
          buffer_depth, is_active, created_at \
-         FROM bridge_agents WHERE is_active = true ORDER BY created_at DESC",
+         FROM bridge_agents WHERE is_active = true ORDER BY created_at DESC LIMIT 5000",
     )
     .fetch_all(&mut *tx)
     .await?;

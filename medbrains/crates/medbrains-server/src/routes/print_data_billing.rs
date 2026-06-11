@@ -313,7 +313,7 @@ pub async fn get_estimate_print_data(
                 total_price::text AS total_price \
          FROM invoice_items \
          WHERE invoice_id = $1 AND tenant_id = $2 \
-         ORDER BY created_at",
+         ORDER BY created_at LIMIT 5000",
     )
     .bind(invoice_id)
     .bind(claims.tenant_id)
@@ -409,7 +409,7 @@ pub async fn get_gst_invoice_print_data(
                 total_price::text AS total_price \
          FROM invoice_items \
          WHERE invoice_id = $1 AND tenant_id = $2 \
-         ORDER BY created_at",
+         ORDER BY created_at LIMIT 5000",
     )
     .bind(invoice_id)
     .bind(claims.tenant_id)
@@ -517,7 +517,7 @@ pub async fn get_opd_bill_print_data(
            total_price::text AS total \
          FROM invoice_items \
          WHERE invoice_id = $1 AND tenant_id = $2 \
-         ORDER BY created_at",
+         ORDER BY created_at LIMIT 5000",
     )
     .bind(invoice_id)
     .bind(claims.tenant_id)
@@ -675,7 +675,7 @@ pub async fn get_ipd_interim_bill_print_data(
            amount::text AS total \
          FROM ipd_charges \
          WHERE admission_id = $1 AND tenant_id = $2 \
-         ORDER BY created_at",
+         ORDER BY created_at LIMIT 5000",
     )
     .bind(admission_id)
     .bind(claims.tenant_id)
@@ -849,7 +849,7 @@ pub async fn get_ipd_final_bill_print_data(
          FROM invoice_items \
          WHERE invoice_id = $1 AND tenant_id = $2 \
          GROUP BY category \
-         ORDER BY category",
+         ORDER BY category LIMIT 5000",
     )
     .bind(invoice_id)
     .bind(claims.tenant_id)
@@ -869,7 +869,7 @@ pub async fn get_ipd_final_bill_print_data(
            total_price::text AS total \
          FROM invoice_items \
          WHERE invoice_id = $1 AND tenant_id = $2 \
-         ORDER BY category, created_at",
+         ORDER BY category, created_at LIMIT 5000",
     )
     .bind(invoice_id)
     .bind(claims.tenant_id)
@@ -1392,7 +1392,7 @@ pub async fn get_package_estimate_print_data(
         "SELECT item_description FROM package_inclusions \
          WHERE package_id = (SELECT package_id FROM package_estimates WHERE id = $1) \
            AND tenant_id = $2 \
-         ORDER BY sort_order",
+         ORDER BY sort_order LIMIT 5000",
     )
     .bind(estimate_id)
     .bind(claims.tenant_id)
@@ -1404,7 +1404,7 @@ pub async fn get_package_estimate_print_data(
         "SELECT item_description FROM package_exclusions \
          WHERE package_id = (SELECT package_id FROM package_estimates WHERE id = $1) \
            AND tenant_id = $2 \
-         ORDER BY sort_order",
+         ORDER BY sort_order LIMIT 5000",
     )
     .bind(estimate_id)
     .bind(claims.tenant_id)
@@ -1416,7 +1416,7 @@ pub async fn get_package_estimate_print_data(
         "SELECT term_text FROM package_terms \
          WHERE package_id = (SELECT package_id FROM package_estimates WHERE id = $1) \
            AND tenant_id = $2 \
-         ORDER BY sort_order",
+         ORDER BY sort_order LIMIT 5000",
     )
     .bind(estimate_id)
     .bind(claims.tenant_id)
@@ -1633,7 +1633,7 @@ pub async fn get_credit_note_print_data(
            cni.tax_amount \
          FROM credit_note_items cni \
          WHERE cni.credit_note_id = $1 AND cni.tenant_id = $2 \
-         ORDER BY cni.display_order",
+         ORDER BY cni.display_order LIMIT 5000",
     )
     .bind(credit_note_id)
     .bind(claims.tenant_id)
@@ -1784,7 +1784,7 @@ pub async fn get_package_bill_print_data(
     let inclusions: Vec<String> = sqlx::query_scalar(
         "SELECT description FROM package_inclusions \
          WHERE package_bill_id = $1 AND tenant_id = $2 \
-         ORDER BY display_order",
+         ORDER BY display_order LIMIT 5000",
     )
     .bind(package_id)
     .bind(claims.tenant_id)
@@ -1795,7 +1795,7 @@ pub async fn get_package_bill_print_data(
         "SELECT description, amount, reason \
          FROM package_additional_charges \
          WHERE package_bill_id = $1 AND tenant_id = $2 \
-         ORDER BY display_order",
+         ORDER BY display_order LIMIT 5000",
     )
     .bind(package_id)
     .bind(claims.tenant_id)
@@ -1806,7 +1806,7 @@ pub async fn get_package_bill_print_data(
         "SELECT description, amount \
          FROM package_exclusions_used \
          WHERE package_bill_id = $1 AND tenant_id = $2 \
-         ORDER BY display_order",
+         ORDER BY display_order LIMIT 5000",
     )
     .bind(package_id)
     .bind(claims.tenant_id)
@@ -1988,7 +1988,7 @@ pub async fn get_insurance_claim_print_data(
     let icd_codes: Vec<String> = sqlx::query_scalar(
         "SELECT icd_code FROM insurance_claim_diagnoses \
          WHERE claim_id = $1 AND tenant_id = $2 AND icd_code IS NOT NULL \
-         ORDER BY is_primary DESC",
+         ORDER BY is_primary DESC LIMIT 5000",
     )
     .bind(claim_id)
     .bind(claims.tenant_id)
@@ -1998,7 +1998,7 @@ pub async fn get_insurance_claim_print_data(
     let procedure_codes: Vec<String> = sqlx::query_scalar(
         "SELECT procedure_code FROM insurance_claim_procedures \
          WHERE claim_id = $1 AND tenant_id = $2 \
-         ORDER BY display_order",
+         ORDER BY display_order LIMIT 5000",
     )
     .bind(claim_id)
     .bind(claims.tenant_id)
@@ -2171,7 +2171,7 @@ pub async fn get_tds_certificate_print_data(
            tds_amount \
          FROM tds_entries \
          WHERE tds_certificate_id = $1 AND tenant_id = $2 \
-         ORDER BY invoice_date",
+         ORDER BY invoice_date LIMIT 5000",
     )
     .bind(tds_id)
     .bind(claims.tenant_id)

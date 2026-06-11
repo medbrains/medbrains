@@ -128,7 +128,7 @@ pub async fn fetch_all_signatures_for_print(
          WHERE sr.tenant_id = $1 \
            AND sr.record_type = $2 \
            AND sr.record_id = $3 \
-         ORDER BY sr.signed_at",
+         ORDER BY sr.signed_at LIMIT 5000",
     )
     .bind(tenant_id)
     .bind(record_type)

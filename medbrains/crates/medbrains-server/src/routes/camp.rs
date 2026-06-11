@@ -4362,7 +4362,7 @@ pub async fn get_camp_packet(
 
     let team = sqlx::query_as::<_, CampTeamMember>(
         "SELECT * FROM camp_team_members WHERE camp_id = $1 AND tenant_id = $2 \
-         ORDER BY role_in_camp, created_at",
+         ORDER BY role_in_camp, created_at LIMIT 5000",
     )
     .bind(id)
     .bind(claims.tenant_id)
@@ -4371,7 +4371,7 @@ pub async fn get_camp_packet(
 
     let registrations = sqlx::query_as::<_, CampRegistration>(
         "SELECT * FROM camp_registrations WHERE camp_id = $1 AND tenant_id = $2 \
-         ORDER BY created_at",
+         ORDER BY created_at LIMIT 5000",
     )
     .bind(id)
     .bind(claims.tenant_id)
@@ -4382,7 +4382,7 @@ pub async fn get_camp_packet(
         "SELECT s.* FROM camp_screenings s \
          JOIN camp_registrations r ON r.id = s.registration_id \
          WHERE r.camp_id = $1 AND s.tenant_id = $2 \
-         ORDER BY s.created_at",
+         ORDER BY s.created_at LIMIT 5000",
     )
     .bind(id)
     .bind(claims.tenant_id)
@@ -4393,7 +4393,7 @@ pub async fn get_camp_packet(
         "SELECT ls.* FROM camp_lab_samples ls \
          JOIN camp_registrations r ON r.id = ls.registration_id \
          WHERE r.camp_id = $1 AND ls.tenant_id = $2 \
-         ORDER BY ls.created_at",
+         ORDER BY ls.created_at LIMIT 5000",
     )
     .bind(id)
     .bind(claims.tenant_id)
@@ -4411,7 +4411,7 @@ pub async fn get_camp_packet(
     let remote_checklist = sqlx::query_as::<_, CampRemoteChecklistItem>(
         "SELECT * FROM camp_remote_checklist_items \
          WHERE camp_id = $1 AND tenant_id = $2 \
-         ORDER BY category, code",
+         ORDER BY category, code LIMIT 5000",
     )
     .bind(id)
     .bind(claims.tenant_id)
@@ -4421,7 +4421,7 @@ pub async fn get_camp_packet(
     let supplies = sqlx::query_as::<_, CampSupplyItem>(
         "SELECT * FROM camp_supply_items \
          WHERE camp_id = $1 AND tenant_id = $2 \
-         ORDER BY is_critical DESC, category, item_name",
+         ORDER BY is_critical DESC, category, item_name LIMIT 5000",
     )
     .bind(id)
     .bind(claims.tenant_id)
@@ -4446,7 +4446,7 @@ pub async fn get_camp_packet(
          FROM patients p \
          JOIN camp_registrations r ON r.patient_id = p.id \
          WHERE r.camp_id = $1 AND p.tenant_id = $2 AND p.is_active = true \
-         ORDER BY display_name",
+         ORDER BY display_name LIMIT 5000",
     )
     .bind(id)
     .bind(claims.tenant_id)
@@ -4468,7 +4468,7 @@ pub async fn get_camp_packet(
              SELECT DISTINCT patient_id FROM camp_registrations \
              WHERE camp_id = $1 AND tenant_id = $2 AND patient_id IS NOT NULL \
            ) \
-         ORDER BY pa.patient_id, pa.severity DESC NULLS LAST, pa.allergen_name",
+         ORDER BY pa.patient_id, pa.severity DESC NULLS LAST, pa.allergen_name LIMIT 5000",
     )
     .bind(id)
     .bind(claims.tenant_id)
@@ -4504,7 +4504,7 @@ pub async fn get_camp_packet(
                 respiratory_rate, spo2, weight_kg, height_cm, bmi, notes, recorded_at \
          FROM ranked_vitals \
          WHERE rn <= 3 \
-         ORDER BY patient_id, recorded_at DESC",
+         ORDER BY patient_id, recorded_at DESC LIMIT 5000",
     )
     .bind(id)
     .bind(claims.tenant_id)
@@ -4548,7 +4548,7 @@ pub async fn get_camp_packet(
                 venue_state, registered_at, current_camp \
          FROM ranked \
          WHERE current_camp = true OR rn <= 5 \
-         ORDER BY current_camp DESC, registered_at DESC",
+         ORDER BY current_camp DESC, registered_at DESC LIMIT 5000",
     )
     .bind(id)
     .bind(claims.tenant_id)
@@ -4600,7 +4600,7 @@ pub async fn get_camp_packet(
                 department_name, doctor_name, notes, diagnosis_summary, prescription_summary \
          FROM ranked \
          WHERE rn <= 5 \
-         ORDER BY patient_id, encounter_date DESC",
+         ORDER BY patient_id, encounter_date DESC LIMIT 5000",
     )
     .bind(id)
     .bind(claims.tenant_id)
@@ -4634,7 +4634,7 @@ pub async fn get_camp_packet(
                 certainty, onset_date, created_at \
          FROM ranked \
          WHERE rn <= 10 \
-         ORDER BY patient_id, created_at DESC",
+         ORDER BY patient_id, created_at DESC LIMIT 5000",
     )
     .bind(id)
     .bind(claims.tenant_id)
@@ -4674,7 +4674,7 @@ pub async fn get_camp_packet(
                 duration, route, instructions, item_status, prescribed_at \
          FROM ranked \
          WHERE rn <= 12 \
-         ORDER BY patient_id, prescribed_at DESC",
+         ORDER BY patient_id, prescribed_at DESC LIMIT 5000",
     )
     .bind(id)
     .bind(claims.tenant_id)
@@ -4685,7 +4685,7 @@ pub async fn get_camp_packet(
         "SELECT id, code, name, department_type::text AS department_type \
          FROM departments \
          WHERE tenant_id = $1 AND is_active = true \
-         ORDER BY name",
+         ORDER BY name LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -4697,7 +4697,7 @@ pub async fn get_camp_packet(
          WHERE tenant_id = $1 \
            AND is_active = true \
            AND (role::text ILIKE '%doctor%' OR medical_registration_number IS NOT NULL) \
-         ORDER BY full_name",
+         ORDER BY full_name LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -5108,7 +5108,7 @@ pub async fn get_remote_operations(
     let checklist = sqlx::query_as::<_, CampRemoteChecklistItem>(
         "SELECT * FROM camp_remote_checklist_items \
          WHERE camp_id = $1 AND tenant_id = $2 \
-         ORDER BY category, code",
+         ORDER BY category, code LIMIT 5000",
     )
     .bind(camp_id)
     .bind(claims.tenant_id)
@@ -5130,7 +5130,7 @@ pub async fn get_remote_operations(
     let supplies = sqlx::query_as::<_, CampSupplyItem>(
         "SELECT * FROM camp_supply_items \
          WHERE camp_id = $1 AND tenant_id = $2 \
-         ORDER BY is_critical DESC, category, item_name",
+         ORDER BY is_critical DESC, category, item_name LIMIT 5000",
     )
     .bind(camp_id)
     .bind(claims.tenant_id)
@@ -5140,7 +5140,7 @@ pub async fn get_remote_operations(
     let referrals = sqlx::query_as::<_, CampReferral>(
         "SELECT * FROM camp_referrals \
          WHERE camp_id = $1 AND tenant_id = $2 \
-         ORDER BY created_at DESC",
+         ORDER BY created_at DESC LIMIT 5000",
     )
     .bind(camp_id)
     .bind(claims.tenant_id)
@@ -5150,7 +5150,7 @@ pub async fn get_remote_operations(
     let incidents = sqlx::query_as::<_, CampIncident>(
         "SELECT * FROM camp_incidents \
          WHERE camp_id = $1 AND tenant_id = $2 \
-         ORDER BY created_at DESC",
+         ORDER BY created_at DESC LIMIT 5000",
     )
     .bind(camp_id)
     .bind(claims.tenant_id)
@@ -6088,7 +6088,7 @@ pub async fn list_team_members(
          LEFT JOIN employees e ON e.id = ctm.employee_id AND e.tenant_id = ctm.tenant_id \
          LEFT JOIN departments d ON d.id = e.department_id AND d.tenant_id = e.tenant_id \
          WHERE ctm.camp_id = $1 AND ctm.tenant_id = $2 AND ctm.deleted_at IS NULL \
-         ORDER BY ctm.role_in_camp, e.first_name, e.last_name, ctm.created_at",
+         ORDER BY ctm.role_in_camp, e.first_name, e.last_name, ctm.created_at LIMIT 5000",
     )
     .bind(camp_id)
     .bind(claims.tenant_id)
@@ -7624,7 +7624,7 @@ pub async fn camp_report(
 
     let registrations = sqlx::query_as::<_, CampRegistration>(
         "SELECT * FROM camp_registrations WHERE camp_id = $1 AND tenant_id = $2 \
-         ORDER BY created_at",
+         ORDER BY created_at LIMIT 5000",
     )
     .bind(id)
     .bind(claims.tenant_id)

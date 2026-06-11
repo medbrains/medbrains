@@ -464,7 +464,7 @@ pub async fn handover_summary(
          JOIN patients p ON p.id = a.patient_id
          LEFT JOIN beds bl ON bl.id = a.bed_id
          WHERE a.status = 'admitted' AND a.ward_id = $1
-         ORDER BY a.is_critical DESC, bl.bed_number",
+         ORDER BY a.is_critical DESC, bl.bed_number LIMIT 5000",
     )
     .bind(params.ward_id)
     .fetch_all(&mut *tx)
@@ -579,7 +579,7 @@ pub async fn discharge_readiness(
                OR tat.discharge_initiated_at IS NOT NULL
            )
            AND ($1::uuid IS NULL OR a.ward_id = $1)
-         ORDER BY a.expected_discharge_date ASC NULLS LAST",
+         ORDER BY a.expected_discharge_date ASC NULLS LAST LIMIT 5000",
     )
     .bind(params.ward_id)
     .fetch_all(&mut *tx)

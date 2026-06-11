@@ -25,6 +25,9 @@ const OnboardingPage = lazy(() =>
 const ForcePasswordChangePage = lazy(() =>
   import("./pages/force-password-change").then((m) => ({ default: m.ForcePasswordChangePage })),
 );
+const ForgotPasswordPage = lazy(() =>
+  import("./pages/forgot-password").then((m) => ({ default: m.ForgotPasswordPage })),
+);
 const AppsPage = lazy(() => import("./pages/apps").then((m) => ({ default: m.AppsPage })));
 const WorkspaceLandingPage = lazy(() =>
   import("./pages/apps").then((m) => ({ default: m.WorkspaceLandingPage })),
@@ -284,6 +287,7 @@ export function App() {
             <Route path="/login" element={<LoginPage />} />
             <Route path="/onboarding" element={<OnboardingPage />} />
             <Route path="/force-password-change" element={<ForcePasswordChangePage />} />
+            <Route path="/forgot-password" element={<ForgotPasswordPage />} />
 
             {/* Protected */}
             <Route

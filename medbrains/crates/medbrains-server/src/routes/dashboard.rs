@@ -265,7 +265,7 @@ pub async fn list_dashboards(
            AND (d.user_id IS NULL OR d.user_id = $1)
            AND (d.role_codes = '[]'::jsonb OR d.role_codes @> $2::jsonb)
            AND (d.department_ids = '[]'::jsonb OR d.department_ids ?| ARRAY(SELECT jsonb_array_elements_text($3)))
-         ORDER BY d.user_id IS NOT NULL DESC, d.is_default DESC, d.name",
+         ORDER BY d.user_id IS NOT NULL DESC, d.is_default DESC, d.name LIMIT 5000",
     )
     .bind(claims.sub)
     .bind(serde_json::json!([role]))
@@ -867,7 +867,7 @@ pub async fn admin_list_widget_templates(
 
     let rows = sqlx::query_as::<_, WidgetTemplate>(
         "SELECT * FROM widget_templates
-         ORDER BY is_system DESC, category, name",
+         ORDER BY is_system DESC, category, name LIMIT 5000",
     )
     .fetch_all(&mut *tx)
     .await?;
@@ -893,7 +893,7 @@ pub async fn list_widget_templates(
 
     let all = sqlx::query_as::<_, WidgetTemplate>(
         "SELECT * FROM widget_templates
-         ORDER BY is_system DESC, category, name",
+         ORDER BY is_system DESC, category, name LIMIT 5000",
     )
     .fetch_all(&mut *tx)
     .await?;
@@ -1114,7 +1114,7 @@ async fn fetch_visible_widgets(
     let all_widgets = sqlx::query_as::<_, DashboardWidget>(
         "SELECT * FROM dashboard_widgets
          WHERE dashboard_id = $1 AND is_visible = true
-         ORDER BY sort_order, position_y, position_x",
+         ORDER BY sort_order, position_y, position_x LIMIT 5000",
     )
     .bind(dashboard_id)
     .fetch_all(&mut **tx)
@@ -1408,7 +1408,7 @@ async fn resolve_module_query(
                        AND i.status != 'cancelled'
                        AND e.department_id = ANY($1)
                      GROUP BY DATE(i.created_at)
-                     ORDER BY day",
+                     ORDER BY day LIMIT 5000",
                 )
                 .bind(&filters.department_ids)
                 .fetch_all(&mut **tx)
@@ -1421,7 +1421,7 @@ async fn resolve_module_query(
                      WHERE created_at >= CURRENT_DATE - INTERVAL '7 days'
                        AND status != 'cancelled'
                      GROUP BY DATE(created_at)
-                     ORDER BY day",
+                     ORDER BY day LIMIT 5000",
                 )
                 .fetch_all(&mut **tx)
                 .await?

@@ -344,7 +344,7 @@ struct SequenceResult {
     current_val: i64,
 }
 
-async fn generate_opd_token(
+pub(crate) async fn generate_opd_token(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     tenant_id: &Uuid,
 ) -> Result<i32, AppError> {
@@ -1031,7 +1031,7 @@ pub async fn list_queue(
          JOIN patients p ON p.id = e.patient_id \
          LEFT JOIN appointments a ON a.tenant_id = q.tenant_id AND a.encounter_id = e.id \
          WHERE {where_clause} \
-         ORDER BY q.token_number ASC"
+         ORDER BY q.token_number ASC LIMIT 5000"
     );
 
     let mut query = sqlx::query_as::<_, QueueEntry>(&sql)
@@ -1335,7 +1335,7 @@ pub async fn list_vitals(
 
     let rows = sqlx::query_as::<_, Vital>(
         "SELECT * FROM vitals WHERE encounter_id = $1 AND tenant_id = $2 \
-         ORDER BY recorded_at DESC",
+         ORDER BY recorded_at DESC LIMIT 5000",
     )
     .bind(encounter_id)
     .bind(claims.tenant_id)
@@ -1799,7 +1799,7 @@ pub async fn list_diagnoses(
 
     let rows = sqlx::query_as::<_, Diagnosis>(
         "SELECT * FROM diagnoses WHERE encounter_id = $1 AND tenant_id = $2 \
-         ORDER BY is_primary DESC, created_at",
+         ORDER BY is_primary DESC, created_at LIMIT 5000",
     )
     .bind(encounter_id)
     .bind(claims.tenant_id)
@@ -2025,7 +2025,7 @@ pub async fn list_prescriptions(
 
     let prescriptions = sqlx::query_as::<_, Prescription>(
         "SELECT * FROM prescriptions WHERE encounter_id = $1 AND tenant_id = $2 \
-         ORDER BY created_at DESC",
+         ORDER BY created_at DESC LIMIT 5000",
     )
     .bind(encounter_id)
     .bind(claims.tenant_id)
@@ -2042,7 +2042,7 @@ pub async fn list_prescriptions(
             "SELECT * FROM prescription_items \
              WHERE prescription_id = ANY($1) AND tenant_id = $2 \
                AND item_status = 'active' \
-             ORDER BY prescription_id, created_at",
+             ORDER BY prescription_id, created_at LIMIT 5000",
         )
         .bind(&prescription_ids)
         .bind(claims.tenant_id)
@@ -2107,7 +2107,7 @@ pub async fn get_prescription(
     let items = sqlx::query_as::<_, PrescriptionItem>(
         "SELECT * FROM prescription_items \
          WHERE prescription_id = $1 AND tenant_id = $2 AND item_status = 'active' \
-         ORDER BY created_at",
+         ORDER BY created_at LIMIT 5000",
     )
     .bind(rx.id)
     .bind(claims.tenant_id)
@@ -2448,7 +2448,7 @@ pub async fn list_prescription_templates(
     let rows = sqlx::query_as::<_, PrescriptionTemplate>(
         "SELECT * FROM prescription_templates \
          WHERE tenant_id = $1 AND (created_by = $2 OR is_shared = true) \
-         ORDER BY name",
+         ORDER BY name LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .bind(claims.sub)
@@ -2569,7 +2569,7 @@ pub async fn list_patient_prescriptions(
         let items = sqlx::query_as::<_, PrescriptionItem>(
             "SELECT * FROM prescription_items \
              WHERE prescription_id = $1 AND tenant_id = $2 AND item_status = 'active' \
-             ORDER BY created_at",
+             ORDER BY created_at LIMIT 5000",
         )
         .bind(rx.id)
         .bind(claims.tenant_id)
@@ -2756,7 +2756,7 @@ pub async fn list_certificates(
     let rows = sqlx::query_as::<_, MedicalCertificate>(
         "SELECT * FROM medical_certificates \
          WHERE patient_id = $1 AND tenant_id = $2 AND is_void = false \
-         ORDER BY created_at DESC",
+         ORDER BY created_at DESC LIMIT 5000",
     )
     .bind(patient_id)
     .bind(claims.tenant_id)
@@ -3027,7 +3027,7 @@ pub async fn list_patient_referrals(
          LEFT JOIN users fu ON fu.id = r.from_doctor_id \
          LEFT JOIN users tu ON tu.id = r.to_doctor_id \
          WHERE r.patient_id = $1 AND r.tenant_id = $2 \
-         ORDER BY r.created_at DESC",
+         ORDER BY r.created_at DESC LIMIT 5000",
     )
     .bind(patient_id)
     .bind(claims.tenant_id)
@@ -3139,7 +3139,7 @@ pub async fn list_procedure_catalog(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let rows = sqlx::query_as::<_, ProcedureCatalog>(
-        "SELECT * FROM procedure_catalog WHERE is_active = true ORDER BY category, name",
+        "SELECT * FROM procedure_catalog WHERE is_active = true ORDER BY category, name LIMIT 5000",
     )
     .fetch_all(&mut *tx)
     .await?;
@@ -3200,7 +3200,7 @@ pub async fn list_procedure_orders(
          FROM procedure_orders po \
          JOIN procedure_catalog pc ON pc.id = po.procedure_id \
          WHERE po.encounter_id = $1 AND po.tenant_id = $2 \
-         ORDER BY po.created_at DESC",
+         ORDER BY po.created_at DESC LIMIT 5000",
     )
     .bind(encounter_id)
     .bind(claims.tenant_id)
@@ -3330,7 +3330,7 @@ pub async fn check_duplicate_orders(
              WHERE lo.patient_id = $1 AND lo.test_id = $2 \
                AND lo.status NOT IN ('cancelled') \
                AND lo.created_at > now() - make_interval(hours => $3) \
-             ORDER BY lo.created_at DESC",
+             ORDER BY lo.created_at DESC LIMIT 5000",
         )
         .bind(q.patient_id)
         .bind(test_id)
@@ -3349,7 +3349,7 @@ pub async fn check_duplicate_orders(
              WHERE po.patient_id = $1 AND po.procedure_id = $2 \
                AND po.status NOT IN ('cancelled') \
                AND po.created_at > now() - make_interval(hours => $3) \
-             ORDER BY po.created_at DESC",
+             ORDER BY po.created_at DESC LIMIT 5000",
         )
         .bind(q.patient_id)
         .bind(proc_id)
@@ -3846,7 +3846,7 @@ pub async fn list_chief_complaints(
     let rows = sqlx::query_as::<_, ChiefComplaintMaster>(
         "SELECT * FROM chief_complaint_masters \
          WHERE tenant_id = $1 AND is_active = true \
-         ORDER BY category, name",
+         ORDER BY category, name LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -3991,7 +3991,7 @@ pub async fn list_reminders(
            AND ($4::text IS NULL OR status = $4) \
            AND ($5::date IS NULL OR reminder_date >= $5) \
            AND ($6::date IS NULL OR reminder_date <= $6) \
-         ORDER BY reminder_date, priority DESC",
+         ORDER BY reminder_date, priority DESC LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .bind(claims.sub)
@@ -4127,7 +4127,7 @@ pub async fn list_feedback(
 
     let rows = sqlx::query_as::<_, PatientFeedback>(
         "SELECT * FROM patient_feedback WHERE tenant_id = $1 AND patient_id = $2 \
-         ORDER BY submitted_at DESC",
+         ORDER BY submitted_at DESC LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .bind(patient_id)
@@ -4222,7 +4222,7 @@ pub async fn list_consents(
 
     let rows = sqlx::query_as::<_, ProcedureConsent>(
         "SELECT * FROM procedure_consents WHERE tenant_id = $1 AND patient_id = $2 \
-         ORDER BY created_at DESC",
+         ORDER BY created_at DESC LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .bind(patient_id)
@@ -4433,7 +4433,7 @@ pub async fn list_consultation_templates(
         "SELECT * FROM consultation_templates \
          WHERE tenant_id = $1 AND is_active = true \
          AND (is_shared = true OR created_by = $2) \
-         ORDER BY name",
+         ORDER BY name LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .bind(claims.sub)
@@ -4650,7 +4650,7 @@ pub async fn list_appointment_group(
     let rows = sqlx::query_as::<_, Appointment>(
         "SELECT * FROM appointments \
          WHERE tenant_id = $1 AND appointment_group_id = $2 \
-         ORDER BY slot_start",
+         ORDER BY slot_start LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .bind(group_id)
@@ -5038,7 +5038,7 @@ pub async fn pharmacy_dispatch_status(
          FROM pharmacy_orders o \
          JOIN pharmacy_order_items oi ON oi.order_id = o.id AND oi.tenant_id = o.tenant_id \
          WHERE o.encounter_id = $1 AND o.tenant_id = $2 \
-         ORDER BY oi.drug_name",
+         ORDER BY oi.drug_name LIMIT 5000",
     )
     .bind(encounter_id)
     .bind(claims.tenant_id)

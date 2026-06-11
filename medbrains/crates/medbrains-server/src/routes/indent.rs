@@ -432,7 +432,7 @@ pub async fn get_requisition(
     let items = sqlx::query_as::<_, IndentItem>(
         "SELECT * FROM indent_items \
          WHERE requisition_id = $1 AND tenant_id = $2 \
-         ORDER BY created_at",
+         ORDER BY created_at LIMIT 5000",
     )
     .bind(id)
     .bind(claims.tenant_id)
@@ -623,7 +623,7 @@ pub async fn approve_requisition(
 
     let items = sqlx::query_as::<_, IndentItem>(
         "SELECT * FROM indent_items \
-         WHERE requisition_id = $1 AND tenant_id = $2 ORDER BY created_at",
+         WHERE requisition_id = $1 AND tenant_id = $2 ORDER BY created_at LIMIT 5000",
     )
     .bind(id)
     .bind(claims.tenant_id)
@@ -894,7 +894,7 @@ pub async fn issue_requisition(
 
     let items = sqlx::query_as::<_, IndentItem>(
         "SELECT * FROM indent_items \
-         WHERE requisition_id = $1 AND tenant_id = $2 ORDER BY created_at",
+         WHERE requisition_id = $1 AND tenant_id = $2 ORDER BY created_at LIMIT 5000",
     )
     .bind(id)
     .bind(claims.tenant_id)
@@ -988,7 +988,7 @@ pub async fn list_catalog(
             format!(
                 "SELECT * FROM store_catalog WHERE tenant_id = $1 \
                  AND (name ILIKE $2 OR code ILIKE $2) AND category = $3{active_filter} \
-                 ORDER BY name"
+                 ORDER BY name LIMIT 5000"
             ),
             true,
             true,
@@ -996,7 +996,7 @@ pub async fn list_catalog(
         (Some(_), None) => (
             format!(
                 "SELECT * FROM store_catalog WHERE tenant_id = $1 \
-                 AND (name ILIKE $2 OR code ILIKE $2){active_filter} ORDER BY name"
+                 AND (name ILIKE $2 OR code ILIKE $2){active_filter} ORDER BY name LIMIT 5000"
             ),
             true,
             false,
@@ -1004,7 +1004,7 @@ pub async fn list_catalog(
         (None, Some(_)) => (
             format!(
                 "SELECT * FROM store_catalog WHERE tenant_id = $1 \
-                 AND category = $2{active_filter} ORDER BY name"
+                 AND category = $2{active_filter} ORDER BY name LIMIT 5000"
             ),
             false,
             true,
@@ -1012,7 +1012,7 @@ pub async fn list_catalog(
         (None, None) => (
             format!(
                 "SELECT * FROM store_catalog WHERE tenant_id = $1{active_filter} \
-                 ORDER BY name"
+                 ORDER BY name LIMIT 5000"
             ),
             false,
             false,
@@ -1406,7 +1406,7 @@ pub async fn consumption_analysis(
              WHERE m.tenant_id = $1 AND m.movement_type = 'issue' \
              AND m.created_at >= $2::TIMESTAMPTZ AND m.created_at <= $3::TIMESTAMPTZ \
              AND m.department_id = $4 \
-             GROUP BY sc.name, d.name ORDER BY total_value DESC",
+             GROUP BY sc.name, d.name ORDER BY total_value DESC LIMIT 5000",
         )
         .bind(claims.tenant_id)
         .bind(from)
@@ -1424,7 +1424,7 @@ pub async fn consumption_analysis(
              LEFT JOIN departments d ON d.id = m.department_id \
              WHERE m.tenant_id = $1 AND m.movement_type = 'issue' \
              AND m.created_at >= $2::TIMESTAMPTZ AND m.created_at <= $3::TIMESTAMPTZ \
-             GROUP BY sc.name, d.name ORDER BY total_value DESC",
+             GROUP BY sc.name, d.name ORDER BY total_value DESC LIMIT 5000",
         )
         .bind(claims.tenant_id)
         .bind(from)
@@ -1461,7 +1461,7 @@ pub async fn dead_stock_report(
          FROM store_catalog sc \
          WHERE sc.tenant_id = $1 AND sc.current_stock > 0 \
          AND (sc.last_issue_date IS NULL OR sc.last_issue_date < now() - ($2 || ' days')::INTERVAL) \
-         ORDER BY stock_value DESC",
+         ORDER BY stock_value DESC LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .bind(days.to_string())
@@ -1497,7 +1497,7 @@ pub async fn purchase_consumption_trend(
          FROM store_stock_movements \
          WHERE tenant_id = $1 AND movement_type IN ('receipt', 'issue') \
          AND created_at >= $2::TIMESTAMPTZ AND created_at <= $3::TIMESTAMPTZ \
-         GROUP BY TO_CHAR(created_at, 'YYYY-MM') ORDER BY period",
+         GROUP BY TO_CHAR(created_at, 'YYYY-MM') ORDER BY period LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .bind(from)
@@ -1530,7 +1530,7 @@ pub async fn inventory_valuation(
          LEFT JOIN batch_stock bs ON bs.catalog_item_id = sc.id AND bs.tenant_id = sc.tenant_id AND bs.quantity > 0 \
          WHERE sc.tenant_id = $1 AND sc.current_stock > 0 \
          GROUP BY sc.id, sc.name, sc.category, sc.current_stock, sc.base_price \
-         ORDER BY total_value DESC",
+         ORDER BY total_value DESC LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -1641,7 +1641,7 @@ pub async fn fsn_analysis(
          END AS fsn_class \
          FROM store_catalog sc \
          WHERE sc.tenant_id = $1 AND sc.is_active = true \
-         ORDER BY days_since_last_issue ASC NULLS LAST",
+         ORDER BY days_since_last_issue ASC NULLS LAST LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .bind(fast_days.to_string())
@@ -1679,7 +1679,7 @@ pub async fn abc_analysis(
            AND m.tenant_id = sc.tenant_id AND m.movement_type = 'issue' \
            AND m.created_at >= now() - INTERVAL '1 year' \
          WHERE sc.tenant_id = $1 AND sc.is_active = true \
-         GROUP BY sc.id, sc.name ORDER BY annual_value DESC",
+         GROUP BY sc.id, sc.name ORDER BY annual_value DESC LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -1737,7 +1737,7 @@ pub async fn ved_analysis(
          current_stock, reorder_level \
          FROM store_catalog \
          WHERE tenant_id = $1 AND is_active = true \
-         ORDER BY ved_class NULLS LAST, name",
+         ORDER BY ved_class NULLS LAST, name LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -1890,7 +1890,7 @@ pub async fn list_patient_consumables(
     let rows = if let Some(patient_id) = params.patient_id {
         sqlx::query_as::<_, PatientConsumableIssue>(
             "SELECT * FROM patient_consumable_issues \
-             WHERE tenant_id = $1 AND patient_id = $2 ORDER BY created_at DESC",
+             WHERE tenant_id = $1 AND patient_id = $2 ORDER BY created_at DESC LIMIT 5000",
         )
         .bind(claims.tenant_id)
         .bind(patient_id)
@@ -1899,7 +1899,7 @@ pub async fn list_patient_consumables(
     } else if let Some(dept_id) = params.department_id {
         sqlx::query_as::<_, PatientConsumableIssue>(
             "SELECT * FROM patient_consumable_issues \
-             WHERE tenant_id = $1 AND department_id = $2 ORDER BY created_at DESC",
+             WHERE tenant_id = $1 AND department_id = $2 ORDER BY created_at DESC LIMIT 5000",
         )
         .bind(claims.tenant_id)
         .bind(dept_id)
@@ -1997,7 +1997,7 @@ pub async fn list_consignment_stock(
 
     let batches = sqlx::query_as::<_, medbrains_core::procurement::BatchStock>(
         "SELECT * FROM batch_stock WHERE tenant_id = $1 AND is_consignment = true AND quantity > 0 \
-         ORDER BY expiry_date ASC NULLS LAST",
+         ORDER BY expiry_date ASC NULLS LAST LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -2103,7 +2103,7 @@ pub async fn list_implant_registry(
     let rows = if let Some(patient_id) = params.patient_id {
         sqlx::query_as::<_, ImplantRegistryEntry>(
             "SELECT * FROM implant_registry WHERE tenant_id = $1 AND patient_id = $2 \
-             ORDER BY implant_date DESC",
+             ORDER BY implant_date DESC LIMIT 5000",
         )
         .bind(claims.tenant_id)
         .bind(patient_id)
@@ -2244,7 +2244,7 @@ pub async fn list_condemnations(
         sqlx::query_as::<_, EquipmentCondemnation>(
             "SELECT * FROM equipment_condemnations \
              WHERE tenant_id = $1 AND status = $2::condemnation_status \
-             ORDER BY created_at DESC",
+             ORDER BY created_at DESC LIMIT 5000",
         )
         .bind(claims.tenant_id)
         .bind(status)
@@ -2253,7 +2253,7 @@ pub async fn list_condemnations(
     } else {
         sqlx::query_as::<_, EquipmentCondemnation>(
             "SELECT * FROM equipment_condemnations WHERE tenant_id = $1 \
-             ORDER BY created_at DESC",
+             ORDER BY created_at DESC LIMIT 5000",
         )
         .bind(claims.tenant_id)
         .fetch_all(&mut *tx)
@@ -2375,7 +2375,7 @@ pub async fn check_reorder_alerts(
 
     let alerts = sqlx::query_as::<_, ReorderAlert>(
         "SELECT * FROM reorder_alerts WHERE tenant_id = $1 AND is_acknowledged = false \
-         ORDER BY created_at DESC",
+         ORDER BY created_at DESC LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -2395,7 +2395,7 @@ pub async fn list_reorder_alerts(
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
     let alerts = sqlx::query_as::<_, ReorderAlert>(
-        "SELECT * FROM reorder_alerts WHERE tenant_id = $1 ORDER BY is_acknowledged, created_at DESC",
+        "SELECT * FROM reorder_alerts WHERE tenant_id = $1 ORDER BY is_acknowledged, created_at DESC LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)

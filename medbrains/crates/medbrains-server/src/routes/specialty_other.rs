@@ -331,7 +331,7 @@ pub async fn list_rehab_sessions(
         .await?;
 
     let rows = sqlx::query_as::<_, RehabSession>(
-        "SELECT * FROM rehab_sessions WHERE plan_id = $1 ORDER BY session_number",
+        "SELECT * FROM rehab_sessions WHERE plan_id = $1 ORDER BY session_number LIMIT 5000",
     )
     .bind(plan_id)
     .fetch_all(&mut *tx)
@@ -762,7 +762,7 @@ pub async fn list_nuclear_sources(
         .await?;
 
     let rows = sqlx::query_as::<_, NuclearMedSource>(
-        "SELECT * FROM nuclear_med_sources ORDER BY created_at DESC",
+        "SELECT * FROM nuclear_med_sources ORDER BY created_at DESC LIMIT 5000",
     )
     .fetch_all(&mut *tx)
     .await?;
@@ -872,7 +872,7 @@ pub async fn list_specialty_templates(
     let rows = sqlx::query_as::<_, SpecialtyTemplate>(
         "SELECT * FROM specialty_templates \
          WHERE ($1::text IS NULL OR specialty = $1) \
-         ORDER BY specialty, template_name",
+         ORDER BY specialty, template_name LIMIT 5000",
     )
     .bind(&params.specialty)
     .fetch_all(&mut *tx)

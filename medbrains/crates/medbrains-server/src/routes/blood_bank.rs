@@ -333,7 +333,7 @@ pub async fn list_donations(
 
     let donations = sqlx::query_as::<_, BloodDonation>(
         "SELECT * FROM blood_donations WHERE donor_id = $1 AND tenant_id = $2 \
-         ORDER BY donated_at DESC",
+         ORDER BY donated_at DESC LIMIT 5000",
     )
     .bind(donor_id)
     .bind(claims.tenant_id)
@@ -410,7 +410,9 @@ pub async fn list_components(
     let _ = bind_idx; // suppress unused warning
 
     let where_clause = conditions.join(" AND ");
-    let sql = format!("SELECT * FROM blood_components WHERE {where_clause} ORDER BY expiry_at ASC");
+    let sql = format!(
+        "SELECT * FROM blood_components WHERE {where_clause} ORDER BY expiry_at ASC LIMIT 5000"
+    );
 
     let mut q = sqlx::query_as::<_, BloodComponent>(&sql).bind(claims.tenant_id);
     for s in &string_binds {
@@ -512,7 +514,7 @@ pub async fn list_crossmatch_requests(
 
     let requests = sqlx::query_as::<_, CrossmatchRequest>(
         "SELECT * FROM crossmatch_requests WHERE tenant_id = $1 \
-         ORDER BY created_at DESC",
+         ORDER BY created_at DESC LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -737,7 +739,7 @@ pub async fn list_transfusions(
 
     let records = sqlx::query_as::<_, TransfusionRecord>(
         "SELECT * FROM transfusion_records WHERE tenant_id = $1 \
-         ORDER BY created_at DESC",
+         ORDER BY created_at DESC LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -770,7 +772,7 @@ pub async fn get_tti_report(
         "SELECT COALESCE(tti_status::text, 'pending') AS tti_status, \
          COUNT(*)::bigint AS count \
          FROM blood_components WHERE tenant_id = $1 \
-         GROUP BY tti_status ORDER BY count DESC",
+         GROUP BY tti_status ORDER BY count DESC LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -954,7 +956,7 @@ pub async fn list_campaigns(
     let rows = if let Some(ref status) = params.status {
         sqlx::query_as::<_, BbRecruitmentCampaign>(
             "SELECT * FROM bb_recruitment_campaigns \
-             WHERE tenant_id = $1 AND status = $2 ORDER BY start_date DESC",
+             WHERE tenant_id = $1 AND status = $2 ORDER BY start_date DESC LIMIT 5000",
         )
         .bind(claims.tenant_id)
         .bind(status)
@@ -963,7 +965,7 @@ pub async fn list_campaigns(
     } else {
         sqlx::query_as::<_, BbRecruitmentCampaign>(
             "SELECT * FROM bb_recruitment_campaigns \
-             WHERE tenant_id = $1 ORDER BY start_date DESC",
+             WHERE tenant_id = $1 ORDER BY start_date DESC LIMIT 5000",
         )
         .bind(claims.tenant_id)
         .fetch_all(&mut *tx)
@@ -1055,7 +1057,7 @@ pub async fn list_devices(
 
     let rows = sqlx::query_as::<_, BbColdChainDevice>(
         "SELECT * FROM bb_cold_chain_devices \
-         WHERE tenant_id = $1 ORDER BY device_name ASC",
+         WHERE tenant_id = $1 ORDER BY device_name ASC LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -1287,7 +1289,7 @@ pub async fn list_msbos(
 
     let rows = sqlx::query_as::<_, BbMsbosGuideline>(
         "SELECT * FROM bb_msbos_guidelines \
-         WHERE tenant_id = $1 ORDER BY procedure_name ASC",
+         WHERE tenant_id = $1 ORDER BY procedure_name ASC LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -1344,7 +1346,7 @@ pub async fn list_lookback(
 
     let rows = sqlx::query_as::<_, BbLookbackEvent>(
         "SELECT * FROM bb_lookback_events \
-         WHERE tenant_id = $1 ORDER BY created_at DESC",
+         WHERE tenant_id = $1 ORDER BY created_at DESC LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -1468,8 +1470,9 @@ pub async fn list_billing(
     let _ = bind_idx;
 
     let where_clause = conditions.join(" AND ");
-    let sql =
-        format!("SELECT * FROM bb_billing_items WHERE {where_clause} ORDER BY created_at DESC");
+    let sql = format!(
+        "SELECT * FROM bb_billing_items WHERE {where_clause} ORDER BY created_at DESC LIMIT 5000"
+    );
 
     let mut q = sqlx::query_as::<_, BbBillingItem>(&sql).bind(claims.tenant_id);
     for s in &string_binds {

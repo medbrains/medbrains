@@ -61,7 +61,7 @@ pub async fn list_schedules(
     let rows: Vec<SimulatorSchedule> = sqlx::query_as(
         "SELECT * FROM simulator_schedules \
          WHERE deleted_at IS NULL \
-         ORDER BY created_at DESC",
+         ORDER BY created_at DESC LIMIT 5000",
     )
     .fetch_all(&mut *tx)
     .await?;
@@ -552,7 +552,7 @@ pub async fn get_run(
         .ok_or(AppError::NotFound)?;
     let steps: Vec<SimulatorRunStep> = sqlx::query_as(
         "SELECT * FROM simulator_run_steps \
-         WHERE run_id = $1 ORDER BY created_at ASC",
+         WHERE run_id = $1 ORDER BY created_at ASC LIMIT 5000",
     )
     .bind(id)
     .fetch_all(&mut *tx)

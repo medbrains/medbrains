@@ -5,5 +5,6 @@
 //! and joins them on graceful shutdown.
 
 pub mod bridge_pusher;
+pub mod room_rent;
 pub mod simulator;
 pub mod spicedb_watch;

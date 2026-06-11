@@ -1,4 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
+import { confirmDestructive } from "@/lib/confirm-destructive";
 import {
   ActionIcon,
   Alert,
@@ -3003,7 +3004,14 @@ function AttendersTab({ admissionId, canCreate }: { admissionId: string; canCrea
                   <ActionIcon
                     variant="subtle"
                     color="danger"
-                    onClick={() => deleteMutation.mutate(a.id)}
+                    onClick={() =>
+                      confirmDestructive({
+                        title: "Delete attender",
+                        message: `Remove attender "${a.name}" from this admission?`,
+                        confirmLabel: "Delete attender",
+                        onConfirm: () => deleteMutation.mutate(a.id),
+                      })
+                    }
                   >
                     <IconTrash size={14} />
                   </ActionIcon>
@@ -3849,7 +3857,14 @@ function WardBedsPanel({ wardId, canManage }: { wardId: string; canManage: boole
                       <ActionIcon
                         variant="subtle"
                         color="danger"
-                        onClick={() => removeMutation.mutate(b.mapping_id)}
+                        onClick={() =>
+                          confirmDestructive({
+                            title: "Remove bed",
+                            message: `Remove bed ${b.bed_name} from this ward?`,
+                            confirmLabel: "Remove bed",
+                            onConfirm: () => removeMutation.mutate(b.mapping_id),
+                          })
+                        }
                         disabled={b.status === "occupied"}
                       >
                         <IconTrash size={14} />

@@ -68,7 +68,7 @@ pub async fn get_nabh_quality_report_print_data(
          FROM quality_indicator_data qid \
          JOIN quality_indicators qi ON qi.id = qid.indicator_id AND qi.tenant_id = qid.tenant_id \
          WHERE qid.period = $1 AND qid.tenant_id = $2 \
-         ORDER BY qi.category, qi.display_order",
+         ORDER BY qi.category, qi.display_order LIMIT 5000",
     )
     .bind(&period)
     .bind(claims.tenant_id)
@@ -85,7 +85,7 @@ pub async fn get_nabh_quality_report_print_data(
     let action_items: Vec<String> = sqlx::query_scalar(
         "SELECT action_item FROM quality_action_items \
          WHERE period = $1 AND tenant_id = $2 AND status = 'open' \
-         ORDER BY priority",
+         ORDER BY priority LIMIT 5000",
     )
     .bind(&period)
     .bind(claims.tenant_id)
@@ -164,7 +164,7 @@ pub async fn get_nmc_compliance_report_print_data(
            compliance_percentage \
          FROM nmc_compliance_sections \
          WHERE period = $1 AND tenant_id = $2 \
-         ORDER BY display_order",
+         ORDER BY display_order LIMIT 5000",
     )
     .bind(&period)
     .bind(claims.tenant_id)
@@ -174,7 +174,7 @@ pub async fn get_nmc_compliance_report_print_data(
     let non_compliance_items: Vec<String> = sqlx::query_scalar(
         "SELECT item_description FROM nmc_non_compliance_items \
          WHERE period = $1 AND tenant_id = $2 \
-         ORDER BY severity DESC",
+         ORDER BY severity DESC LIMIT 5000",
     )
     .bind(&period)
     .bind(claims.tenant_id)
@@ -185,7 +185,7 @@ pub async fn get_nmc_compliance_report_print_data(
     let corrective_actions: Vec<String> = sqlx::query_scalar(
         "SELECT action_description FROM nmc_corrective_actions \
          WHERE period = $1 AND tenant_id = $2 \
-         ORDER BY due_date",
+         ORDER BY due_date LIMIT 5000",
     )
     .bind(&period)
     .bind(claims.tenant_id)
@@ -275,7 +275,7 @@ pub async fn get_nabl_quality_report_print_data(
         "SELECT analyte, mean, sd, cv, westgard_violations \
          FROM lab_qc_metrics \
          WHERE period = $1 AND tenant_id = $2 \
-         ORDER BY analyte",
+         ORDER BY analyte LIMIT 5000",
     )
     .bind(&period)
     .bind(claims.tenant_id)
@@ -286,7 +286,7 @@ pub async fn get_nabl_quality_report_print_data(
         "SELECT program_name, analyte, result, status \
          FROM lab_pt_results \
          WHERE period = $1 AND tenant_id = $2 \
-         ORDER BY program_name, analyte",
+         ORDER BY program_name, analyte LIMIT 5000",
     )
     .bind(&period)
     .bind(claims.tenant_id)
@@ -297,7 +297,7 @@ pub async fn get_nabl_quality_report_print_data(
         "SELECT test_category, target_tat_hours, actual_tat_hours, compliance_percentage \
          FROM lab_tat_metrics \
          WHERE period = $1 AND tenant_id = $2 \
-         ORDER BY test_category",
+         ORDER BY test_category LIMIT 5000",
     )
     .bind(&period)
     .bind(claims.tenant_id)
@@ -329,7 +329,7 @@ pub async fn get_nabl_quality_report_print_data(
     let scope: Vec<String> = sqlx::query_scalar(
         "SELECT scope_description FROM nabl_scope_of_accreditation \
          WHERE tenant_id = $1 AND is_active = true \
-         ORDER BY display_order",
+         ORDER BY display_order LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -434,7 +434,7 @@ pub async fn get_spcb_bmw_returns_print_data(
         "SELECT category, color_code, description, quantity_kg, disposal_method \
          FROM bmw_quarterly_data \
          WHERE quarter = $1 AND tenant_id = $2 \
-         ORDER BY category",
+         ORDER BY category LIMIT 5000",
     )
     .bind(&quarter)
     .bind(claims.tenant_id)
@@ -445,7 +445,7 @@ pub async fn get_spcb_bmw_returns_print_data(
         "SELECT disposal_date, category, quantity_kg, vehicle_number, manifest_number \
          FROM bmw_disposal_records \
          WHERE quarter = $1 AND tenant_id = $2 \
-         ORDER BY disposal_date",
+         ORDER BY disposal_date LIMIT 5000",
     )
     .bind(&quarter)
     .bind(claims.tenant_id)
@@ -581,7 +581,7 @@ pub async fn get_peso_compliance_print_data(
         "SELECT gas_type, source_type, location, capacity, last_tested, next_test_due, status \
          FROM medical_gas_systems \
          WHERE tenant_id = $1 AND is_active = true \
-         ORDER BY gas_type, location",
+         ORDER BY gas_type, location LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -602,7 +602,7 @@ pub async fn get_peso_compliance_print_data(
         "SELECT inspection_date, inspector, findings, status \
          FROM peso_inspections \
          WHERE tenant_id = $1 AND EXTRACT(YEAR FROM inspection_date) = $2 \
-         ORDER BY inspection_date DESC",
+         ORDER BY inspection_date DESC LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .bind(year)
@@ -613,7 +613,7 @@ pub async fn get_peso_compliance_print_data(
         "SELECT incident_date, gas_type, description, action_taken \
          FROM gas_incidents \
          WHERE tenant_id = $1 AND EXTRACT(YEAR FROM incident_date) = $2 \
-         ORDER BY incident_date DESC",
+         ORDER BY incident_date DESC LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .bind(year)
@@ -738,7 +738,7 @@ pub async fn get_drug_license_report_print_data(
          FROM pharmacy_inventory \
          WHERE tenant_id = $1 \
          GROUP BY category \
-         ORDER BY category",
+         ORDER BY category LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -782,7 +782,7 @@ pub async fn get_drug_license_report_print_data(
     .await?;
 
     let authorized_categories: Vec<String> = sqlx::query_scalar(
-        "SELECT category FROM drug_license_categories WHERE tenant_id = $1 ORDER BY category",
+        "SELECT category FROM drug_license_categories WHERE tenant_id = $1 ORDER BY category LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -893,7 +893,7 @@ pub async fn get_pcpndt_report_print_data(
         "SELECT equipment_name, registration_number, location \
          FROM pcpndt_equipment \
          WHERE tenant_id = $1 AND is_active = true \
-         ORDER BY equipment_name",
+         ORDER BY equipment_name LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -903,7 +903,7 @@ pub async fn get_pcpndt_report_print_data(
         "SELECT name, qualification, registration_number, role \
          FROM pcpndt_qualified_personnel \
          WHERE tenant_id = $1 AND is_active = true \
-         ORDER BY role, name",
+         ORDER BY role, name LIMIT 5000",
     )
     .bind(claims.tenant_id)
     .fetch_all(&mut *tx)
@@ -913,7 +913,7 @@ pub async fn get_pcpndt_report_print_data(
         "SELECT procedure_type, total_count, male_fetus, female_fetus, indeterminate \
          FROM pcpndt_procedure_summary \
          WHERE period = $1 AND tenant_id = $2 \
-         ORDER BY procedure_type",
+         ORDER BY procedure_type LIMIT 5000",
     )
     .bind(&period)
     .bind(claims.tenant_id)
@@ -1057,7 +1057,7 @@ pub async fn get_birth_register_print_data(
            attending_doctor \
          FROM birth_records \
          WHERE period = $1 AND tenant_id = $2 \
-         ORDER BY date_of_birth, time_of_birth",
+         ORDER BY date_of_birth, time_of_birth LIMIT 5000",
     )
     .bind(&period)
     .bind(claims.tenant_id)
@@ -1169,7 +1169,7 @@ pub async fn get_death_register_print_data(
            mlc_case \
          FROM death_records \
          WHERE period = $1 AND tenant_id = $2 \
-         ORDER BY date_of_death, time_of_death",
+         ORDER BY date_of_death, time_of_death LIMIT 5000",
     )
     .bind(&period)
     .bind(claims.tenant_id)
@@ -1274,7 +1274,7 @@ pub async fn get_mlc_register_summary_print_data(
            current_status \
          FROM mlc_cases \
          WHERE period = $1 AND tenant_id = $2 \
-         ORDER BY registration_date",
+         ORDER BY registration_date LIMIT 5000",
     )
     .bind(&period)
     .bind(claims.tenant_id)
@@ -1286,7 +1286,7 @@ pub async fn get_mlc_register_summary_print_data(
          FROM mlc_cases \
          WHERE period = $1 AND tenant_id = $2 \
          GROUP BY case_type \
-         ORDER BY count DESC",
+         ORDER BY count DESC LIMIT 5000",
     )
     .bind(&period)
     .bind(claims.tenant_id)
@@ -1298,7 +1298,7 @@ pub async fn get_mlc_register_summary_print_data(
          FROM mlc_cases \
          WHERE period = $1 AND tenant_id = $2 \
          GROUP BY outcome \
-         ORDER BY count DESC",
+         ORDER BY count DESC LIMIT 5000",
     )
     .bind(&period)
     .bind(claims.tenant_id)
@@ -1398,7 +1398,7 @@ pub async fn get_aebas_attendance_print_data(
            attendance_percentage \
          FROM aebas_department_attendance \
          WHERE period = $1 AND tenant_id = $2 \
-         ORDER BY department_name",
+         ORDER BY department_name LIMIT 5000",
     )
     .bind(&period)
     .bind(claims.tenant_id)
@@ -1484,7 +1484,7 @@ pub async fn get_nmc_narf_assessment_print_data(
         "SELECT section_name, max_score, achieved_score, percentage \
          FROM narf_assessment_sections \
          WHERE assessment_year = $1 AND tenant_id = $2 \
-         ORDER BY display_order",
+         ORDER BY display_order LIMIT 5000",
     )
     .bind(year)
     .bind(claims.tenant_id)
@@ -1495,7 +1495,7 @@ pub async fn get_nmc_narf_assessment_print_data(
         "SELECT section_name, criterion, max_marks, achieved_marks, evidence \
          FROM narf_assessment_criteria \
          WHERE assessment_year = $1 AND tenant_id = $2 \
-         ORDER BY section_name, display_order",
+         ORDER BY section_name, display_order LIMIT 5000",
     )
     .bind(year)
     .bind(claims.tenant_id)
@@ -1514,7 +1514,7 @@ pub async fn get_nmc_narf_assessment_print_data(
     .unwrap_or((0.0, 100.0, 0.0, "N/A".to_string()));
 
     let strengths: Vec<String> = sqlx::query_scalar(
-        "SELECT item FROM narf_strengths WHERE assessment_year = $1 AND tenant_id = $2 ORDER BY display_order",
+        "SELECT item FROM narf_strengths WHERE assessment_year = $1 AND tenant_id = $2 ORDER BY display_order LIMIT 5000",
     )
     .bind(year)
     .bind(claims.tenant_id)
@@ -1523,7 +1523,7 @@ pub async fn get_nmc_narf_assessment_print_data(
     .unwrap_or_default();
 
     let improvements: Vec<String> = sqlx::query_scalar(
-        "SELECT item FROM narf_improvements WHERE assessment_year = $1 AND tenant_id = $2 ORDER BY display_order",
+        "SELECT item FROM narf_improvements WHERE assessment_year = $1 AND tenant_id = $2 ORDER BY display_order LIMIT 5000",
     )
     .bind(year)
     .bind(claims.tenant_id)
@@ -1532,7 +1532,7 @@ pub async fn get_nmc_narf_assessment_print_data(
     .unwrap_or_default();
 
     let action_plan: Vec<String> = sqlx::query_scalar(
-        "SELECT item FROM narf_action_plan WHERE assessment_year = $1 AND tenant_id = $2 ORDER BY display_order",
+        "SELECT item FROM narf_action_plan WHERE assessment_year = $1 AND tenant_id = $2 ORDER BY display_order LIMIT 5000",
     )
     .bind(year)
     .bind(claims.tenant_id)

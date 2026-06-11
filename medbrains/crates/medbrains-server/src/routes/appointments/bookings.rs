@@ -81,7 +81,7 @@ pub async fn list_appointments(
          AND ($3::uuid IS NULL OR a.department_id = $3) \
          AND ($4::uuid IS NULL OR a.patient_id = $4) \
          AND ($5::text IS NULL OR a.status::text = $5) \
-         ORDER BY a.appointment_date, a.slot_start",
+         ORDER BY a.appointment_date, a.slot_start LIMIT 5000",
     )
     .bind(query.date)
     .bind(query.doctor_id)
@@ -337,41 +337,102 @@ pub async fn check_in_appointment(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let appointment_date = sqlx::query_scalar::<_, NaiveDate>(
-        "SELECT appointment_date FROM appointments \
-         WHERE id = $1 AND tenant_id = $2 AND status IN ('scheduled', 'confirmed')",
-    )
-    .bind(id)
-    .bind(claims.tenant_id)
-    .fetch_optional(&mut *tx)
-    .await?
-    .ok_or(AppError::NotFound)?;
-
-    // token_number column is INTEGER (INT4) — cast result so sqlx
-    // can decode into i64 cleanly. The sequence is scoped to the appointment's
-    // hospital-local date, not the database server's current date.
-    let token: i64 = sqlx::query_scalar(
-        "SELECT (COALESCE(MAX(token_number), 0) + 1)::BIGINT FROM appointments \
-         WHERE tenant_id = $1 AND appointment_date = $2 AND token_number IS NOT NULL",
-    )
-    .bind(claims.tenant_id)
-    .bind(appointment_date)
-    .fetch_one(&mut *tx)
-    .await?;
-
-    let row = sqlx::query_as::<_, Appointment>(
+    let mut row = sqlx::query_as::<_, Appointment>(
         "UPDATE appointments SET \
-         status = 'checked_in', token_number = $1, \
-         checked_in_at = now(), updated_at = now() \
-         WHERE id = $2 AND tenant_id = $3 AND status IN ('scheduled', 'confirmed') \
+         status = 'checked_in', checked_in_at = now(), updated_at = now() \
+         WHERE id = $1 AND tenant_id = $2 AND status IN ('scheduled', 'confirmed') \
          RETURNING *",
     )
-    .bind(token as i32)
     .bind(id)
     .bind(claims.tenant_id)
     .fetch_optional(&mut *tx)
     .await?
     .ok_or(AppError::NotFound)?;
+
+    // Check-in must land the patient in the doctor's OPD queue — until
+    // now this was a separate manual receptionist step. opd_queues needs
+    // an encounter, so create one unless the appointment already has it.
+    if row.encounter_id.is_none() {
+        let visit_type = if row.appointment_type == AppointmentType::FollowUp {
+            "follow_up"
+        } else {
+            "booked"
+        };
+
+        let encounter_id = sqlx::query_scalar::<_, Uuid>(
+            "INSERT INTO encounters \
+             (tenant_id, patient_id, encounter_type, status, department_id, doctor_id, \
+              encounter_date, visit_type) \
+             VALUES ($1, $2, 'opd'::encounter_type, 'open'::encounter_status, $3, $4, \
+              $5, $6) \
+             RETURNING id",
+        )
+        .bind(claims.tenant_id)
+        .bind(row.patient_id)
+        .bind(row.department_id)
+        .bind(row.doctor_id)
+        .bind(row.appointment_date)
+        .bind(visit_type)
+        .fetch_one(&mut *tx)
+        .await?;
+
+        let token = crate::routes::opd::generate_opd_token(&mut tx, &claims.tenant_id).await?;
+
+        let queue_id = sqlx::query_scalar::<_, Uuid>(
+            "INSERT INTO opd_queues \
+             (tenant_id, encounter_id, department_id, doctor_id, token_number, \
+              status, queue_date) \
+             VALUES ($1, $2, $3, $4, $5, 'waiting'::queue_status, $6) \
+             RETURNING id",
+        )
+        .bind(claims.tenant_id)
+        .bind(encounter_id)
+        .bind(row.department_id)
+        .bind(row.doctor_id)
+        .bind(token)
+        .bind(row.appointment_date)
+        .fetch_one(&mut *tx)
+        .await?;
+
+        row = sqlx::query_as::<_, Appointment>(
+            "UPDATE appointments SET encounter_id = $1, token_number = $2, updated_at = now() \
+             WHERE id = $3 AND tenant_id = $4 RETURNING *",
+        )
+        .bind(encounter_id)
+        .bind(token)
+        .bind(id)
+        .bind(claims.tenant_id)
+        .fetch_one(&mut *tx)
+        .await?;
+
+        let event = medbrains_core::clinical_events::ClinicalEventEnvelope::new(
+            claims.tenant_id,
+            medbrains_core::clinical_events::ClinicalEventName::OpdEncounterCreated,
+            encounter_id,
+            claims.sub,
+            serde_json::json!({
+                "encounter_id": encounter_id,
+                "patient_id": row.patient_id,
+                "queue_id": queue_id,
+                "token_number": token,
+                "visit_type": visit_type,
+                "appointment_id": row.id,
+            }),
+        )
+        .with_patient(row.patient_id)
+        .with_encounter(encounter_id)
+        .with_department(row.department_id);
+        crate::events::queue_clinical_event_in_tx(&mut tx, &event).await?;
+    }
+
+    // TV token board entry + broadcast (same path the kiosk uses).
+    let queue_token =
+        super::issue_queue_token(&mut tx, claims.tenant_id, row.department_id, row.patient_id)
+            .await?;
+    state
+        .queue_broadcaster
+        .broadcast_token_called(row.department_id, &queue_token)
+        .await;
 
     tx.commit().await?;
     Ok(Json(row))
