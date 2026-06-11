@@ -323,6 +323,75 @@ pub async fn cancel_appointment(
     .await?
     .ok_or(AppError::NotFound)?;
 
+    // Checked-in appointments have an encounter, a queue entry, and
+    // possibly an auto-charged consultation fee — unwind all of it so
+    // cancellation doesn't leave the patient billed for a visit that
+    // never happened (audit P1: manual reversal only).
+    if let Some(encounter_id) = row.encounter_id {
+        let queue: Option<(Uuid, String)> = sqlx::query_as(
+            "SELECT id, status::text FROM opd_queues \
+             WHERE tenant_id = $1 AND encounter_id = $2 \
+             ORDER BY created_at DESC LIMIT 1",
+        )
+        .bind(claims.tenant_id)
+        .bind(encounter_id)
+        .fetch_optional(&mut *tx)
+        .await?;
+
+        if let Some((queue_id, queue_status)) = queue {
+            if queue_status == "in_consultation" || queue_status == "completed" {
+                return Err(AppError::Conflict(
+                    "Consultation already started — complete or close the OPD visit instead \
+                     of cancelling the appointment"
+                        .to_owned(),
+                ));
+            }
+
+            sqlx::query(
+                "UPDATE opd_queues SET status = 'cancelled'::queue_status, updated_at = now() \
+                 WHERE id = $1 AND tenant_id = $2",
+            )
+            .bind(queue_id)
+            .bind(claims.tenant_id)
+            .execute(&mut *tx)
+            .await?;
+
+            // Reverse the consultation auto-charge if one was posted
+            // (source 'opd' keyed on the queue row). No-op when unbilled.
+            crate::routes::billing::reverse_auto_charge_for_source(
+                &mut tx,
+                &claims.tenant_id,
+                "opd",
+                queue_id,
+                claims.sub,
+                body.cancel_reason
+                    .as_deref()
+                    .unwrap_or("Appointment cancelled"),
+            )
+            .await?;
+        }
+
+        sqlx::query(
+            "UPDATE encounters SET status = 'cancelled'::encounter_status \
+             WHERE id = $1 AND tenant_id = $2 AND status = 'open'::encounter_status",
+        )
+        .bind(encounter_id)
+        .bind(claims.tenant_id)
+        .execute(&mut *tx)
+        .await?;
+
+        // TV token board cleanup — drop any live token for this patient.
+        sqlx::query(
+            "UPDATE queue_tokens SET status = 'cancelled' \
+             WHERE tenant_id = $1 AND patient_id = $2 AND token_date = CURRENT_DATE \
+               AND status IN ('waiting', 'called')",
+        )
+        .bind(claims.tenant_id)
+        .bind(row.patient_id)
+        .execute(&mut *tx)
+        .await?;
+    }
+
     tx.commit().await?;
     Ok(Json(row))
 }
