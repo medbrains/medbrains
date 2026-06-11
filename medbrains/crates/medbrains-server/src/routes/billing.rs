@@ -1629,15 +1629,134 @@ pub async fn remove_invoice_item(
 //  POST /api/billing/invoices/{id}/issue
 // ══════════════════════════════════════════════════════════
 
+#[derive(Debug, Default, serde::Deserialize)]
+pub struct IssueInvoiceRequest {
+    /// Issue despite a failed TPA pre-auth check. Requires a reason;
+    /// the override is written to the audit log.
+    #[serde(default)]
+    pub preauth_override: bool,
+    pub override_reason: Option<String>,
+}
+
+/// TPA pre-auth gate (opt-in: billing.enforce_preauth = true). For
+/// patients with an active insurance policy, the invoice total must be
+/// covered by approved prior-auth amounts — issuing beyond that is what
+/// produces claim denials. Cash patients and tenants without the PA
+/// workflow are unaffected.
+async fn enforce_preauth_limit(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    claims: &Claims,
+    invoice_id: Uuid,
+    body: &IssueInvoiceRequest,
+) -> Result<(), AppError> {
+    let enforce = sqlx::query_scalar::<_, serde_json::Value>(
+        "SELECT value FROM tenant_settings \
+         WHERE tenant_id = $1 AND category = 'billing' AND key = 'enforce_preauth'",
+    )
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut **tx)
+    .await?
+    .map(|v| v.as_bool().unwrap_or(v.as_str() == Some("true")))
+    .unwrap_or(false);
+    if !enforce {
+        return Ok(());
+    }
+
+    let Some((patient_id, encounter_id, total_amount)) =
+        sqlx::query_as::<_, (Uuid, Option<Uuid>, Decimal)>(
+            "SELECT patient_id, encounter_id, total_amount FROM invoices \
+             WHERE id = $1 AND tenant_id = $2 AND status = 'draft'::invoice_status",
+        )
+        .bind(invoice_id)
+        .bind(claims.tenant_id)
+        .fetch_optional(&mut **tx)
+        .await?
+    else {
+        return Ok(()); // not a draft — the UPDATE below will no-op anyway
+    };
+
+    let insured: bool = sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM patient_insurance \
+         WHERE tenant_id = $1 AND patient_id = $2 AND is_active = true \
+           AND CURRENT_DATE BETWEEN valid_from AND valid_until)",
+    )
+    .bind(claims.tenant_id)
+    .bind(patient_id)
+    .fetch_one(&mut **tx)
+    .await?;
+    if !insured {
+        return Ok(());
+    }
+
+    let approved: Decimal = sqlx::query_scalar(
+        "SELECT COALESCE(SUM(approved_amount), 0) FROM prior_auth_requests \
+         WHERE tenant_id = $1 AND patient_id = $2 AND status = 'approved' \
+           AND ($3::uuid IS NULL OR encounter_id IS NULL OR encounter_id = $3) \
+           AND (expires_at IS NULL OR expires_at > now())",
+    )
+    .bind(claims.tenant_id)
+    .bind(patient_id)
+    .bind(encounter_id)
+    .fetch_one(&mut **tx)
+    .await?;
+
+    if total_amount <= approved {
+        return Ok(());
+    }
+
+    if body.preauth_override {
+        let reason = body
+            .override_reason
+            .as_deref()
+            .map(str::trim)
+            .filter(|reason| reason.len() >= 5)
+            .ok_or_else(|| {
+                AppError::BadRequest(
+                    "Pre-auth override requires a reason (min 5 characters)".to_owned(),
+                )
+            })?;
+        let override_details = serde_json::json!({
+            "reason": reason,
+            "invoice_total": total_amount,
+            "approved_preauth": approved,
+        });
+        medbrains_db::audit::AuditLogger::log(
+            tx,
+            &medbrains_db::audit::AuditEntry {
+                tenant_id: claims.tenant_id,
+                user_id: Some(claims.sub),
+                action: "preauth_override",
+                entity_type: "invoice",
+                entity_id: Some(invoice_id),
+                old_values: None,
+                new_values: Some(&override_details),
+                ip_address: None,
+            },
+        )
+        .await
+        .map_err(AppError::from)?;
+        return Ok(());
+    }
+
+    Err(AppError::Conflict(format!(
+        "Invoice total {total_amount} exceeds approved pre-authorization {approved}. \
+         Obtain additional pre-auth or issue with preauth_override + reason."
+    )))
+}
+
 pub async fn issue_invoice(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
+    body: Option<Json<IssueInvoiceRequest>>,
 ) -> Result<Json<Invoice>, AppError> {
     require_permission(&claims, permissions::billing::invoices::UPDATE)?;
+    let body = body.map(|Json(body)| body).unwrap_or_default();
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    enforce_preauth_limit(&mut tx, &claims, id, &body).await?;
 
     let inv = sqlx::query_as::<_, Invoice>(
         "UPDATE invoices SET status = 'issued'::invoice_status, \

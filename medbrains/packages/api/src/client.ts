@@ -3790,8 +3790,11 @@ export const api = {
     request<{ status: string }>(`/billing/invoices/${invoiceId}/items/${itemId}`, {
       method: "DELETE",
     }),
-  issueInvoice: (id: string) =>
-    request<Invoice>(`/billing/invoices/${id}/issue`, { method: "POST" }),
+  issueInvoice: (id: string, data?: { preauth_override: boolean; override_reason: string }) =>
+    request<Invoice>(`/billing/invoices/${id}/issue`, {
+      method: "POST",
+      ...(data ? { body: JSON.stringify(data) } : {}),
+    }),
   cancelInvoice: (id: string) =>
     request<Invoice>(`/billing/invoices/${id}/cancel`, { method: "POST" }),
   recordPayment: (invoiceId: string, data: RecordPaymentRequest) =>
