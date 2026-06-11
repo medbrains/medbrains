@@ -506,6 +506,7 @@ fn build_outbox_registry() -> Arc<medbrains_outbox::Registry> {
     registry.register(twilio::SmsSendHandler::new("sms.cds_critical_interaction"));
     registry.register(twilio::SmsSendHandler::new("sms.payment_failed"));
     registry.register(twilio::SmsSendHandler::new("sms.password_reset_otp"));
+    registry.register(twilio::SmsSendHandler::new("sms.public_booking_otp"));
 
     // Email — real SendGrid HTTP API (falls back to stub if creds unset).
     registry.register(email_stub::SmtpSendHandler::new("email.discharge_summary"));

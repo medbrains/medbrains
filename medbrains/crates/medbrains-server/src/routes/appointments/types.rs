@@ -107,6 +107,14 @@ pub struct PublicBookingRequest {
     pub patient_phone: String,
     pub patient_dob: Option<NaiveDate>,
     pub reason: Option<String>,
+    /// Required when the tenant enables appointments.public_booking_otp_required.
+    pub otp: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct PublicBookingOtpRequest {
+    pub tenant_code: String,
+    pub patient_phone: String,
 }
 
 #[derive(Debug, Serialize)]

@@ -28,6 +28,14 @@ pub async fn public_book_appointment(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &tenant_id).await?;
 
+    verify_booking_otp(
+        &mut tx,
+        tenant_id,
+        body.patient_phone.trim(),
+        body.otp.as_deref(),
+    )
+    .await?;
+
     let patient_id = find_or_create_patient(&body, tenant_id, &mut tx).await?;
     ensure_public_slot_capacity(&body, &mut tx).await?;
 
@@ -240,11 +248,18 @@ async fn find_or_create_patient(
     tenant_id: Uuid,
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
 ) -> Result<Uuid, AppError> {
+    // Family members share phones — phone alone booked into the wrong
+    // record (audit P1). Match phone + first name; anything else gets a
+    // fresh patient record that MRD can merge later.
+    let (first_name_match, _) = split_public_patient_name(&body.patient_name);
     let existing = sqlx::query_scalar::<_, Uuid>(
-        "SELECT id FROM patients WHERE tenant_id = $1 AND phone = $2 LIMIT 1",
+        "SELECT id FROM patients \
+         WHERE tenant_id = $1 AND phone = $2 AND lower(first_name) = lower($3) \
+         LIMIT 1",
     )
     .bind(tenant_id)
     .bind(&body.patient_phone)
+    .bind(&first_name_match)
     .fetch_optional(&mut **tx)
     .await?;
 
@@ -315,5 +330,168 @@ async fn ensure_public_slot_capacity(
         }
     }
 
+    Ok(())
+}
+
+// ── Public booking phone verification ───────────────────────
+
+const BOOKING_OTP_TTL_MINUTES: i32 = 10;
+const BOOKING_OTP_MAX_ATTEMPTS: i32 = 5;
+
+fn hash_booking_otp(otp: &str) -> String {
+    use sha2::{Digest, Sha256};
+    let mut hasher = Sha256::new();
+    hasher.update(otp.as_bytes());
+    hex::encode(hasher.finalize())
+}
+
+/// POST /api/public/appointments/otp — request a booking OTP by phone.
+/// Always answers 200 (no phone-number enumeration); delivery rides the
+/// outbox → Twilio handler.
+pub async fn request_public_booking_otp(
+    State(state): State<AppState>,
+    Json(body): Json<super::PublicBookingOtpRequest>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let ack = Json(serde_json::json!({
+        "status": "ok",
+        "message": "If SMS is configured, a verification code has been sent."
+    }));
+
+    let phone = body.patient_phone.trim();
+    if phone.len() < 8 {
+        return Ok(ack);
+    }
+
+    let Some(tenant_id) = sqlx::query_scalar::<_, Uuid>(
+        "SELECT id FROM tenants WHERE code = $1 AND is_active = true",
+    )
+    .bind(&body.tenant_code)
+    .fetch_optional(&state.db)
+    .await?
+    else {
+        return Ok(ack);
+    };
+
+    let mut buf = [0u8; 4];
+    getrandom::fill(&mut buf)
+        .map_err(|e| AppError::Internal(format!("otp generation failed: {e}")))?;
+    let otp = format!("{:06}", u32::from_le_bytes(buf) % 1_000_000);
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &tenant_id).await?;
+
+    sqlx::query(
+        "UPDATE public_booking_otps SET used_at = now() \
+         WHERE tenant_id = $1 AND phone = $2 AND used_at IS NULL",
+    )
+    .bind(tenant_id)
+    .bind(phone)
+    .execute(&mut *tx)
+    .await?;
+
+    sqlx::query(
+        "INSERT INTO public_booking_otps (tenant_id, phone, otp_hash, expires_at) \
+         VALUES ($1, $2, $3, now() + make_interval(mins => $4))",
+    )
+    .bind(tenant_id)
+    .bind(phone)
+    .bind(hash_booking_otp(&otp))
+    .bind(BOOKING_OTP_TTL_MINUTES)
+    .execute(&mut *tx)
+    .await?;
+
+    medbrains_outbox::queue::queue_in_tx(
+        &mut tx,
+        medbrains_outbox::queue::OutboxRow {
+            tenant_id,
+            aggregate_type: "public_booking",
+            aggregate_id: None,
+            event_type: "sms.public_booking_otp",
+            payload: serde_json::json!({
+                "to": phone,
+                "body": format!(
+                    "Your appointment booking verification code is {otp}. \
+                     Valid for {BOOKING_OTP_TTL_MINUTES} minutes."
+                ),
+            }),
+            idempotency_key: None,
+        },
+    )
+    .await
+    .map_err(|e| AppError::Internal(format!("failed to queue booking OTP: {e}")))?;
+
+    tx.commit().await?;
+    Ok(ack)
+}
+
+/// Verify a booking OTP inside the booking transaction. Errors when the
+/// tenant requires verification and the code is absent/wrong/expired.
+pub(super) async fn verify_booking_otp(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: Uuid,
+    phone: &str,
+    otp: Option<&str>,
+) -> Result<(), AppError> {
+    let required = sqlx::query_scalar::<_, serde_json::Value>(
+        "SELECT value FROM tenant_settings \
+         WHERE tenant_id = $1 AND category = 'appointments' \
+           AND key = 'public_booking_otp_required'",
+    )
+    .bind(tenant_id)
+    .fetch_optional(&mut **tx)
+    .await?
+    .map(|v| v.as_bool().unwrap_or(v.as_str() == Some("true")))
+    .unwrap_or(false);
+    if !required {
+        return Ok(());
+    }
+
+    let Some(otp) = otp.map(str::trim).filter(|value| !value.is_empty()) else {
+        return Err(AppError::BadRequest(
+            "Phone verification required: request an OTP and include it in the booking".to_owned(),
+        ));
+    };
+
+    let row: Option<(Uuid, bool, bool, i32)> = sqlx::query_as(
+        "SELECT id, expires_at > now(), otp_hash = $3, attempts \
+         FROM public_booking_otps \
+         WHERE tenant_id = $1 AND phone = $2 AND used_at IS NULL \
+         ORDER BY created_at DESC LIMIT 1 \
+         FOR UPDATE",
+    )
+    .bind(tenant_id)
+    .bind(phone)
+    .bind(hash_booking_otp(otp))
+    .fetch_optional(&mut **tx)
+    .await?;
+
+    let Some((otp_id, in_window, otp_matches, attempts)) = row else {
+        return Err(AppError::BadRequest(
+            "Invalid or expired verification code — request a new one".to_owned(),
+        ));
+    };
+
+    if !in_window || attempts >= BOOKING_OTP_MAX_ATTEMPTS {
+        sqlx::query("UPDATE public_booking_otps SET used_at = now() WHERE id = $1")
+            .bind(otp_id)
+            .execute(&mut **tx)
+            .await?;
+        return Err(AppError::BadRequest(
+            "Verification code expired — request a new one".to_owned(),
+        ));
+    }
+
+    if !otp_matches {
+        sqlx::query("UPDATE public_booking_otps SET attempts = attempts + 1 WHERE id = $1")
+            .bind(otp_id)
+            .execute(&mut **tx)
+            .await?;
+        return Err(AppError::BadRequest("Invalid verification code".to_owned()));
+    }
+
+    sqlx::query("UPDATE public_booking_otps SET used_at = now() WHERE id = $1")
+        .bind(otp_id)
+        .execute(&mut **tx)
+        .await?;
     Ok(())
 }

@@ -13621,6 +13621,11 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
+  requestPublicBookingOtp: (data: { tenant_code: string; patient_phone: string }) =>
+    request<{ status: string; message: string }>("/public/appointments/otp", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
   publicKioskCheckin: (data: Record<string, unknown>) =>
     request<unknown>("/public/kiosk/checkin", {
       method: "POST",

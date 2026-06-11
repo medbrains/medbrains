@@ -6824,6 +6824,10 @@ pub fn build_router(state: AppState) -> Router {
             post(appointments::public_book_appointment),
         )
         .route(
+            "/api/public/appointments/otp",
+            post(appointments::request_public_booking_otp),
+        )
+        .route(
             "/api/public/kiosk/checkin",
             post(appointments::kiosk_checkin),
         )
