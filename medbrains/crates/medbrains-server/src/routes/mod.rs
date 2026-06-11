@@ -138,7 +138,7 @@ use crate::{
         client_ip::client_ip_middleware,
         csrf::csrf_middleware,
         ip_restrict::ip_restrict_middleware,
-        rate_limit::{RateLimiter, rate_limit_middleware},
+        rate_limit::{RateLimiter, rate_limit_middleware, tiered_rate_limit_middleware},
         system_state::system_state_layer,
     },
     state::AppState,
@@ -6802,6 +6802,13 @@ pub fn build_router(state: AppState) -> Router {
         // auth → client_ip → audit_layer → access_log_layer → handler.
         // audit needs auth + client_ip already populated, so it sits inside.
         .layer(from_fn_with_state(state.clone(), audit_layer))
+        // Tiered per-IP rate limiting: heavy read paths (reports,
+        // analytics, exports, print-data) 30/min; everything else a
+        // 600/min runaway-client safety net (audit P1 #170).
+        .layer(from_fn_with_state(
+            RateLimiter::new(),
+            tiered_rate_limit_middleware,
+        ))
         .layer(from_fn_with_state(state.clone(), access_log_layer))
         .layer(from_fn_with_state(state.clone(), ip_restrict_middleware))
         .layer(from_fn(csrf_middleware))

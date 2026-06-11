@@ -1,8 +1,9 @@
-//! Simple in-memory rate limiter for login attempts.
+//! In-memory sliding-window rate limiting.
 //!
-//! Uses a sliding window counter per IP address. Limits to
-//! `MAX_ATTEMPTS` requests per `WINDOW_SECS` seconds.
-//! Returns 429 Too Many Requests when exceeded.
+//! Two uses: the strict per-IP login/OTP limiter (`MAX_ATTEMPTS` per
+//! `WINDOW_SECS`) and the tiered API limiter that protects expensive
+//! read paths (exports, analytics, print-data) from a single client
+//! saturating the server. Returns 429 when exceeded.
 
 use std::{
     collections::HashMap,
@@ -28,9 +29,11 @@ const WINDOW_SECS: u64 = 60;
 const CLEANUP_AFTER_SECS: u64 = 300;
 
 /// Shared rate limiter state.
+type AttemptLog = HashMap<(IpAddr, &'static str), Vec<Instant>>;
+
 #[derive(Clone, Debug)]
 pub struct RateLimiter {
-    attempts: Arc<Mutex<HashMap<IpAddr, Vec<Instant>>>>,
+    attempts: Arc<Mutex<AttemptLog>>,
     last_cleanup: Arc<Mutex<Instant>>,
 }
 
@@ -43,10 +46,21 @@ impl RateLimiter {
     }
 
     /// Record an attempt and return whether the request is allowed.
-    #[allow(clippy::significant_drop_tightening)]
     pub fn check_and_record(&self, ip: IpAddr) -> bool {
+        self.check_and_record_class(ip, "default", MAX_ATTEMPTS, WINDOW_SECS)
+    }
+
+    /// Class-scoped variant — distinct sliding windows per (ip, class).
+    #[allow(clippy::significant_drop_tightening)]
+    pub fn check_and_record_class(
+        &self,
+        ip: IpAddr,
+        class: &'static str,
+        max_attempts: usize,
+        window_secs: u64,
+    ) -> bool {
         let now = Instant::now();
-        let window = Duration::from_secs(WINDOW_SECS);
+        let window = Duration::from_secs(window_secs);
         let mut map = self
             .attempts
             .lock()
@@ -73,10 +87,10 @@ impl RateLimiter {
             *last = now;
         }
 
-        let timestamps = map.entry(ip).or_default();
+        let timestamps = map.entry((ip, class)).or_default();
         timestamps.retain(|t| now.duration_since(*t) < window);
 
-        if timestamps.len() >= MAX_ATTEMPTS {
+        if timestamps.len() >= max_attempts {
             return false;
         }
 
@@ -106,6 +120,41 @@ pub async fn rate_limit_middleware(
                 axum::Json(serde_json::json!({
                     "error": "too_many_requests",
                     "detail": "Too many login attempts. Please try again later.",
+                })),
+            )
+                .into_response();
+        }
+    }
+
+    next.run(request).await
+}
+
+/// Tiered limiter for the authenticated API: heavy read paths
+/// (exports, analytics, reports, print-data) get a tight budget; the
+/// rest get a generous safety net that only trips on runaway clients.
+pub async fn tiered_rate_limit_middleware(
+    State(limiter): State<RateLimiter>,
+    request: Request,
+    next: Next,
+) -> Response {
+    let path = request.uri().path();
+    let (class, max, window) = if path.starts_with("/api/reports")
+        || path.starts_with("/api/analytics")
+        || path.starts_with("/api/print-data")
+        || path.contains("/export")
+    {
+        ("heavy", 30, 60)
+    } else {
+        ("api", 600, 60)
+    };
+
+    if let Some(ip) = extract_client_ip(&request) {
+        if !limiter.check_and_record_class(ip, class, max, window) {
+            return (
+                StatusCode::TOO_MANY_REQUESTS,
+                axum::Json(serde_json::json!({
+                    "error": "too_many_requests",
+                    "detail": "Request rate limit exceeded. Please slow down.",
                 })),
             )
                 .into_response();

@@ -48,11 +48,15 @@ pub async fn audit_layer(
 
     // GET on a *detail* route (path ends with /{uuid}) is also auditable —
     // HIPAA §164.312(b) requires read-tracking for clinical resources.
-    // List endpoints (e.g. /api/patients) are skipped: too noisy and the
-    // scoped result already filters PHI by SpiceDB.
     let is_detail_read = method == Method::GET && path_is_detail_route(request.uri().path());
 
-    if !is_state_change && !is_detail_read {
+    // List reads on PHI-bearing resources are audited too: a mass
+    // export of patient data must leave a trail even when each row was
+    // individually authorized (HIPAA read-tracking, audit P1 #171).
+    let is_phi_list =
+        method == Method::GET && !is_detail_read && path_is_phi_list(request.uri().path());
+
+    if !is_state_change && !is_detail_read && !is_phi_list {
         return next.run(request).await;
     }
 
@@ -90,7 +94,11 @@ pub async fn audit_layer(
         tenant_id: claims.tenant_id,
         user_id: Some(claims.sub),
         correlation_id,
-        action: derive_action(&method_str, &path),
+        action: if is_phi_list {
+            "list".to_owned()
+        } else {
+            derive_action(&method_str, &path)
+        },
         entity_type: derive_entity_type(&path),
         entity_id: derive_entity_id(&path),
         ip_address: ip_opt,
@@ -121,6 +129,24 @@ pub async fn audit_layer(
 ///
 /// Examples (true):  /api/patients/abc-1234..., /api/lab/orders/{id}
 /// Examples (false): /api/patients (list), /api/health, /api/auth/me
+/// PHI-bearing list resources whose bulk reads must be auditable.
+const PHI_LIST_PREFIXES: &[&str] = &[
+    "/api/patients",
+    "/api/opd/encounters",
+    "/api/ipd/admissions",
+    "/api/lab/orders",
+    "/api/pharmacy/prescriptions",
+    "/api/mrd/records",
+    "/api/emergency/cases",
+    "/api/billing/invoices",
+];
+
+fn path_is_phi_list(path: &str) -> bool {
+    PHI_LIST_PREFIXES
+        .iter()
+        .any(|prefix| path.starts_with(prefix))
+}
+
 fn path_is_detail_route(path: &str) -> bool {
     let last = path.rsplit('/').next().unwrap_or("");
     // UUID is 36 chars with dashes at fixed positions; cheap pre-filter.
