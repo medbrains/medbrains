@@ -296,21 +296,47 @@ async fn on_lab_result_posted(
     let Some(order) = order_id else { return Ok(()) };
     let mut tx = pool.begin().await?;
 
-    let _ = enqueue(
-        &mut tx,
-        tenant_id,
-        "lab_order",
-        Some(order),
-        "sms.cds_critical_interaction",
-        json!({
-            "order_id": order,
-            "ordering_doctor_id": ordering_doctor_id,
-            "critical_count": critical_count,
-            "body": format!("Critical lab values on order {order} — review immediately"),
-        }),
-        Some(format!("crit:{order}")),
-    )
-    .await;
+    // The Twilio handler needs payload.to — without the doctor's phone
+    // the event dead-letters and the alert silently never leaves the
+    // building (audit P0 #16).
+    let doctor_phone: Option<String> = match ordering_doctor_id {
+        Some(doctor_id) => {
+            sqlx::query_scalar("SELECT phone FROM users WHERE id = $1 AND tenant_id = $2")
+                .bind(doctor_id)
+                .bind(tenant_id)
+                .fetch_optional(&mut *tx)
+                .await?
+                .flatten()
+        }
+        None => None,
+    };
+
+    match doctor_phone.filter(|phone| !phone.trim().is_empty()) {
+        Some(phone) => {
+            let _ = enqueue(
+                &mut tx,
+                tenant_id,
+                "lab_order",
+                Some(order),
+                "sms.cds_critical_interaction",
+                json!({
+                    "to": phone,
+                    "order_id": order,
+                    "ordering_doctor_id": ordering_doctor_id,
+                    "critical_count": critical_count,
+                    "body": format!("Critical lab values on order {order} — review immediately"),
+                }),
+                Some(format!("crit:{order}")),
+            )
+            .await;
+        }
+        None => {
+            tracing::warn!(
+                %order, ?ordering_doctor_id,
+                "critical lab SMS skipped — ordering doctor has no phone on file"
+            );
+        }
+    }
 
     tx.commit().await?;
     Ok(())

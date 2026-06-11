@@ -434,6 +434,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // for appointments entering their reminder windows.
     medbrains_server::services::appointment_reminders::spawn(db_pool.clone());
 
+    // Critical-value escalation — unacknowledged lab alerts escalate
+    // to the doctor's supervisor after the tenant's ack window.
+    medbrains_server::services::critical_alert_escalation::spawn(db_pool.clone());
+
     // Start server
     let addr: SocketAddr = config.bind_addr().parse()?;
     let listener = tokio::net::TcpListener::bind(addr).await?;

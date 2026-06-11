@@ -1116,11 +1116,17 @@ pub async fn add_results(
         if let Some(ref flag_str) = r.flag {
             if flag_str == "critical_low" || flag_str == "critical_high" {
                 critical_count += 1;
+                // notified_to drives the SMS + escalation chain: the
+                // encounter's doctor when set, else whoever ordered.
                 sqlx::query(
                     "INSERT INTO lab_critical_alerts \
                      (tenant_id, order_id, result_id, patient_id, \
-                      parameter_name, value, flag) \
-                     VALUES ($1, $2, $3, $4, $5, $6, $7::lab_result_flag)",
+                      parameter_name, value, flag, notified_to, notified_at) \
+                     VALUES ($1, $2, $3, $4, $5, $6, $7::lab_result_flag, \
+                       COALESCE( \
+                         (SELECT doctor_id FROM encounters WHERE id = $8 AND tenant_id = $1), \
+                         $9), \
+                       now())",
                 )
                 .bind(claims.tenant_id)
                 .bind(order_id)
@@ -1129,6 +1135,8 @@ pub async fn add_results(
                 .bind(&r.parameter_name)
                 .bind(&r.value)
                 .bind(flag_str)
+                .bind(order.encounter_id)
+                .bind(order.ordered_by)
                 .execute(&mut *tx)
                 .await?;
             }
