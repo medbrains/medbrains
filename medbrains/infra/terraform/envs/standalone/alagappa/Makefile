@@ -32,7 +32,7 @@ APPLY_CONFIRMATION ?= deploy-$(TF_VAR_domain)
 # x86_64-unknown-linux-gnu if you switched to a t3.* instance.
 STARTER_TARGET ?= aarch64-unknown-linux-gnu
 
-.PHONY: help check check-db-reset-guard check-destroy-guard init init-state-backend plan apply destroy outputs tail-app rebuild \
+.PHONY: help check check-db-reset-guard check-destroy-guard init init-state-backend plan apply destroy outputs tail-app rebuild rollback \
         build build-starter build-image build-image-local kubeconfig \
         helm-render helm-test pre-apply-backup
 
@@ -54,6 +54,7 @@ help:
 	@echo "  make tail-app          — tail medbrains-server logs (tier-aware)"
 	@echo "  make helm-render       — render the helm chart locally for review"
 	@echo "  make helm-test         — helm lint + helm template (no apply)"
+	@echo "  make rollback          — swap previous binaries + SPA back on the host"
 	@echo "  make destroy           — tear down everything"
 
 check:
@@ -227,6 +228,18 @@ pre-apply-backup:
 
 rebuild:
 	@$(MAKE) -s apply
+
+# One-command rollback: the host keeps the previous binaries (*.prev)
+# and SPA (/var/www/medbrains.prev) from the last deploy.
+rollback:
+	@SSH_ENDPOINT=$$(terraform output -raw ssh_endpoint 2>/dev/null || true) && \
+	  if [ -z "$$SSH_ENDPOINT" ] || [ "$$SSH_ENDPOINT" = "null" ]; then \
+	      echo "ERROR: no ssh_endpoint output — is the starter tier deployed?"; exit 1; \
+	  fi && \
+	  echo "==> rolling back on $$SSH_ENDPOINT" && \
+	  ssh -i $(TF_VAR_ssh_private_key_path) -o StrictHostKeyChecking=no $$SSH_ENDPOINT \
+	      'sudo /usr/local/bin/medbrains-rollback' && \
+	  echo "==> rollback done — check https://$(TF_VAR_domain)/api/health"
 
 destroy: check check-destroy-guard pre-apply-backup
 	terraform destroy

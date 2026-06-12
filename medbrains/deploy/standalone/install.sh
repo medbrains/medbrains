@@ -225,12 +225,52 @@ for bin in medbrains-server medbrains-archive medbrains-proxy medbrains-edge; do
         echo "ERROR: /tmp/$bin missing. Build and copy target/release/$bin to /tmp/$bin on this host."
         exit 1
     fi
+    # Keep the running version for one-command rollback (medbrains-rollback).
+    if [[ -f "/usr/local/bin/$bin" ]]; then
+        cp -p "/usr/local/bin/$bin" "/usr/local/bin/$bin.prev"
+    fi
     install -m 0755 "/tmp/$bin" "/usr/local/bin/$bin"
 done
 
+# Host-side rollback helper — swaps every .prev binary and the previous
+# SPA back into place and restarts services. Invoked via `make rollback`.
+cat > /usr/local/bin/medbrains-rollback <<'ROLLBACK'
+#!/usr/bin/env bash
+set -euo pipefail
+swapped=0
+for bin in medbrains-server medbrains-archive medbrains-proxy medbrains-edge; do
+    if [[ -f "/usr/local/bin/$bin.prev" ]]; then
+        cp -p "/usr/local/bin/$bin" "/usr/local/bin/$bin.rolledback" || true
+        cp -p "/usr/local/bin/$bin.prev" "/usr/local/bin/$bin"
+        swapped=1
+        echo "rolled back $bin"
+    fi
+done
+if [[ -d /var/www/medbrains.prev ]]; then
+    rm -rf /var/www/medbrains.rolledback
+    mv /var/www/medbrains /var/www/medbrains.rolledback || true
+    cp -r /var/www/medbrains.prev /var/www/medbrains
+    chown -R medbrains:medbrains /var/www/medbrains
+    swapped=1
+    echo "rolled back SPA"
+fi
+if [[ "$swapped" == "0" ]]; then
+    echo "nothing to roll back — no .prev artifacts found"
+    exit 1
+fi
+systemctl restart medbrains-server.service
+systemctl restart medbrains-proxy.service || true
+systemctl restart medbrains-edge.service || true
+echo "rollback complete — verify /api/health"
+ROLLBACK
+chmod 0755 /usr/local/bin/medbrains-rollback
+
 echo "==> [6/9] Installing SPA static files to /var/www/medbrains"
 if [[ -d /tmp/medbrains-web ]]; then
-    rm -rf /var/www/medbrains
+    if [[ -d /var/www/medbrains ]]; then
+        rm -rf /var/www/medbrains.prev
+        mv /var/www/medbrains /var/www/medbrains.prev
+    fi
     mkdir -p /var/www/medbrains
     cp -r /tmp/medbrains-web/. /var/www/medbrains/
     chown -R medbrains:medbrains /var/www/medbrains
