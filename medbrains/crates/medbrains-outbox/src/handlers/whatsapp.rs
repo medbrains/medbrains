@@ -15,11 +15,18 @@
 //! Or text message (only allowed within 24h of last user message — the
 //! "service window"):
 //!   { "to": "+91...", "text": "..." }
+//!
+//! SMS fallback: when WhatsApp is unconfigured or Meta rejects the
+//! message permanently (no WhatsApp account, expired template), and
+//! the payload carries `sms_fallback_body` (or `text`), the handler
+//! enqueues the matching `sms.*` event so the patient still gets the
+//! message. The fallback row is idempotent on the original event id.
 
 use async_trait::async_trait;
 use serde_json::{Value, json};
 
 use crate::handler::{Handler, HandlerCtx, HandlerError};
+use crate::queue::{OutboxRow, queue_in_tx};
 
 const META_GRAPH_BASE: &str = "https://graph.facebook.com/v20.0";
 
@@ -31,6 +38,53 @@ pub struct WhatsAppSendHandler {
 impl WhatsAppSendHandler {
     pub const fn new(event_type: &'static str) -> Self {
         Self { event_type }
+    }
+}
+
+/// Enqueue the matching `sms.*` event when the payload carries a
+/// plain-text body. Returns true when a fallback was queued.
+async fn enqueue_sms_fallback(ctx: &HandlerCtx, payload: &Value, to: &str) -> bool {
+    let Some(body) = payload
+        .get("sms_fallback_body")
+        .or_else(|| payload.get("text"))
+        .and_then(Value::as_str)
+        .filter(|text| !text.trim().is_empty())
+    else {
+        return false;
+    };
+    let Some(suffix) = ctx.event_type.strip_prefix("whatsapp.") else {
+        return false;
+    };
+    let sms_event = format!("sms.{suffix}");
+    // Leak: event types are a small fixed set, each leaked once per
+    // process — required because OutboxRow stores &'static str.
+    let sms_event: &'static str = Box::leak(sms_event.into_boxed_str());
+
+    let mut tx = match ctx.pool.begin().await {
+        Ok(tx) => tx,
+        Err(error) => {
+            tracing::error!(%error, "whatsapp fallback: tx begin failed");
+            return false;
+        }
+    };
+    let queued = queue_in_tx(
+        &mut tx,
+        OutboxRow {
+            tenant_id: ctx.tenant_id,
+            aggregate_type: "whatsapp_fallback",
+            aggregate_id: Some(ctx.event_id),
+            event_type: sms_event,
+            payload: json!({ "to": to, "body": body }),
+            idempotency_key: Some(format!("wafb:{}", ctx.event_id)),
+        },
+    )
+    .await;
+    match queued {
+        Ok(_) => tx.commit().await.is_ok(),
+        Err(error) => {
+            tracing::error!(%error, "whatsapp fallback: enqueue failed");
+            false
+        }
     }
 }
 
@@ -49,15 +103,19 @@ impl Handler for WhatsAppSendHandler {
         let phone_number_id = match ctx.secret_resolver.get("WHATSAPP_PHONE_NUMBER_ID").await {
             Ok(v) if !v.is_empty() => v,
             _ => {
+                // Unconfigured tenant: deliver over SMS when possible.
+                let fell_back = enqueue_sms_fallback(ctx, payload, to).await;
                 tracing::warn!(
                     tenant_id = %ctx.tenant_id,
                     event_id = %ctx.event_id,
-                    "whatsapp: WHATSAPP_PHONE_NUMBER_ID unset — running as stub"
+                    fell_back,
+                    "whatsapp: WHATSAPP_PHONE_NUMBER_ID unset"
                 );
                 return Ok(json!({
                     "provider": "whatsapp_cloud",
                     "stub": true,
                     "reason": "creds_unset",
+                    "sms_fallback": fell_back,
                 }));
             }
         };
@@ -138,8 +196,22 @@ impl Handler for WhatsAppSendHandler {
                 "status": "sent",
             }))
         } else if status.is_client_error() {
-            // 4xx — bad number, expired template, outside service window.
-            // Meta returns code+message body — surface for DLQ inspection.
+            // 4xx — bad number, no WhatsApp account, expired template,
+            // outside service window. Try SMS before giving up: a
+            // delivered fallback is a success, not a DLQ entry.
+            if enqueue_sms_fallback(ctx, payload, to).await {
+                tracing::warn!(
+                    tenant_id = %ctx.tenant_id,
+                    event_id = %ctx.event_id,
+                    status = status.as_u16(),
+                    "whatsapp rejected — delivered via SMS fallback"
+                );
+                return Ok(json!({
+                    "provider": "whatsapp_cloud",
+                    "status": "sms_fallback",
+                    "whatsapp_error": body_text,
+                }));
+            }
             Err(HandlerError::Permanent(format!(
                 "whatsapp {}: {body_text}",
                 status.as_u16()
