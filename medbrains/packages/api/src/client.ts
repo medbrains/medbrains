@@ -3837,7 +3837,7 @@ export const api = {
   issueInvoice: (id: string, data?: { preauth_override: boolean; override_reason: string }) =>
     request<Invoice>(`/billing/invoices/${id}/issue`, {
       method: "POST",
-      ...(data ? { body: JSON.stringify(data) } : {}),
+      body: JSON.stringify(data ?? {}),
     }),
   cancelInvoice: (id: string) =>
     request<Invoice>(`/billing/invoices/${id}/cancel`, { method: "POST" }),

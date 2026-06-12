@@ -928,7 +928,7 @@ function BillingPageInner() {
 
       {patientFilterId && (
         <Stack gap="xs" mb="md">
-          <PatientContextBanner patientId={patientFilterId} hideLoadingState />
+          <PatientContextBanner patientId={patientFilterId} hideLoadingState variant="financial" />
           <Group justify="space-between" align="center">
             <PatientFlowNavigator
               patientId={patientFilterId}
@@ -1338,7 +1338,9 @@ function CreateInvoiceDrawer({
           {invoiceFieldError("patient_id")}
         </Text>
       )}
-      {contextPatientId && <PatientContextBanner patientId={contextPatientId} hideLoadingState />}
+      {contextPatientId && (
+        <PatientContextBanner patientId={contextPatientId} hideLoadingState variant="financial" />
+      )}
       <TextInput
         label={t("label.encounterId")}
         error={invoiceFieldError("encounter_id")}
@@ -1482,6 +1484,11 @@ function InvoiceDetail({
         patient_id: result.patient_id,
         status: result.status,
       });
+      // Cashier flow: issuing is almost always followed by collecting —
+      // land straight on the payment panel via the ?action=payment link.
+      if (canPay && invoiceBalance(result) > 0) {
+        navigate(billingInvoicePaymentRoute(invoiceId), { replace: true });
+      }
     },
   });
 
@@ -1716,7 +1723,7 @@ function InvoiceDetail({
     <Stack className={classes.invoiceWorkspace}>
       <Card withBorder className={classes.commandBar}>
         <Stack gap="xs">
-          <PatientContextBanner patientId={inv.patient_id} hideLoadingState />
+          <PatientContextBanner patientId={inv.patient_id} hideLoadingState variant="financial" />
           <PatientFlowNavigator
             patientId={inv.patient_id}
             active="billing"

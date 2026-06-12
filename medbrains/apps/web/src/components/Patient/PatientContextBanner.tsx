@@ -33,16 +33,26 @@ import { OperationalSignal } from "@/components/OperationalSignal";
 import { useProtectedFieldValue } from "@/components/PermissionedFieldValue";
 import { usePatientContext } from "@/hooks/usePatientContext";
 
+/** Which chips a screen cares about. Safety/identity chips
+ * (deceased, MLC, VIP, insurance, balance) show everywhere;
+ * clinical-only chips (vitals, allergies, consents) are noise at a
+ * cash counter and stay off financial screens. */
+type PatientContextVariant = "clinical" | "financial";
+
+type PatientContextChipScope = "all" | "clinical";
+
 interface PatientContextBannerProps {
   patientId: string | null | undefined;
   /** When true, hide the loading skeleton. Useful when the parent
    * screen already shows a header skeleton. */
   hideLoadingState?: boolean;
+  variant?: PatientContextVariant;
 }
 
 interface PatientContextChip {
   key: string;
   node: ReactNode;
+  scope: PatientContextChipScope;
   severity: "critical" | "info" | "warning";
 }
 
@@ -100,6 +110,7 @@ function ProtectedBalanceAmount({ balance }: { balance: number }) {
 export function PatientContextBanner({
   patientId,
   hideLoadingState = false,
+  variant = "clinical",
 }: PatientContextBannerProps) {
   const { t } = useTranslation("patients");
   const { data, isLoading, isError } = usePatientContext(patientId);
@@ -129,10 +140,12 @@ export function PatientContextBanner({
     label: ReactNode,
     icon?: ComponentType<{ className?: string; size?: number; stroke?: number }>,
     value?: ReactNode,
+    scope: PatientContextChipScope = "all",
   ) => {
     const signal = patientContextSignal(kind);
     chips.push({
       key,
+      scope,
       severity: signal.severity,
       node: (
         <OperationalSignal
@@ -165,6 +178,7 @@ export function PatientContextBanner({
     const signal = patientContextSignal("drug_allergy");
     chips.push({
       key: "drug-allergies",
+      scope: "clinical",
       severity: signal.severity,
       node: (
         <Tooltip label={data.drug_allergies.join(", ")} multiline w={260}>
@@ -184,6 +198,7 @@ export function PatientContextBanner({
     const signal = patientContextSignal("allergy");
     chips.push({
       key: "allergies",
+      scope: "clinical",
       severity: signal.severity,
       node: (
         <Tooltip
@@ -217,6 +232,7 @@ export function PatientContextBanner({
     const signal = patientContextSignal("consent_pending");
     chips.push({
       key: "consents",
+      scope: "clinical",
       severity: signal.severity,
       node: (
         <Tooltip
@@ -236,7 +252,14 @@ export function PatientContextBanner({
   }
 
   if (!data.last_vitals) {
-    pushChip("vitals_missing", "no-vitals", t("contextSignals.noVitals"), IconHeartbeat);
+    pushChip(
+      "vitals_missing",
+      "no-vitals",
+      t("contextSignals.noVitals"),
+      IconHeartbeat,
+      undefined,
+      "clinical",
+    );
   }
 
   if (data.is_vip) {
@@ -248,15 +271,25 @@ export function PatientContextBanner({
   }
 
   if (data.no_known_allergies && !hasDrugAllergies) {
-    pushChip("no_known_allergies", "nka", t("contextSignals.noKnownAllergies"));
+    pushChip(
+      "no_known_allergies",
+      "nka",
+      t("contextSignals.noKnownAllergies"),
+      undefined,
+      undefined,
+      "clinical",
+    );
   }
 
-  if (chips.length === 0) return null;
+  const visibleChips =
+    variant === "financial" ? chips.filter((chip) => chip.scope === "all") : chips;
+
+  if (visibleChips.length === 0) return null;
 
   // Use the highest severity present to colour the alert frame.
-  const alertColor = chips.some((chip) => chip.severity === "critical")
+  const alertColor = visibleChips.some((chip) => chip.severity === "critical")
     ? "red"
-    : chips.some((chip) => chip.severity === "warning")
+    : visibleChips.some((chip) => chip.severity === "warning")
       ? "yellow"
       : "brand";
 
@@ -264,7 +297,7 @@ export function PatientContextBanner({
     <Alert color={alertColor} variant="light" mb="sm" radius="sm" withCloseButton={false}>
       <Group gap="xs" wrap="wrap" align="center">
         <PatientContextIdentity data={data} />
-        {chips.map((chip) => (
+        {visibleChips.map((chip) => (
           <span key={chip.key}>{chip.node}</span>
         ))}
       </Group>
