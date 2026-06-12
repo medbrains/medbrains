@@ -9,6 +9,7 @@ members = [
     "crates/medbrains-loadtest",
     "crates/medbrains-adapter-sdk",
     "crates/medbrains-bridge",
+    "crates/medbrains-print",
     "crates/medbrains-proxy",
     "crates/medbrains-authz",
     "crates/medbrains-crypto",

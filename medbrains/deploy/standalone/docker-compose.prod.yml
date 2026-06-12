@@ -9,6 +9,20 @@
 # pilot.
 
 services:
+  # Headless-Chrome PDF rendering for server-side documents (bills,
+  # labels, discharge summaries). Stateless; bound to localhost only.
+  gotenberg:
+    image: gotenberg/gotenberg:8.21
+    container_name: medbrains-gotenberg
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3005:3000"
+    command:
+      - gotenberg
+      - --api-timeout=30s
+      - --chromium-restart-after=50
+    mem_limit: 600m
+
   postgres:
     image: postgres:17-alpine
     container_name: medbrains-postgres

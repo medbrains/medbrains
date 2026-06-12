@@ -13652,6 +13652,19 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
+  // ── Server-side document rendering (epic #267) ──
+  renderDocument: (data: { template_code: string; source_id: string; watermark?: string }) =>
+    request<{ document_output_id: string; file_key: string; download_url: string }>(
+      "/documents/render",
+      { method: "POST", body: JSON.stringify(data) },
+    ),
+  downloadDocumentUrl: (id: string) => `/api/documents/${id}/download`,
+  queueDocumentPrint: (id: string, data: { printer_id?: string; copies?: number }) =>
+    request<{ print_job_id: string; status: string }>(`/documents/${id}/queue-print`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  previewDocumentTemplateUrl: (code: string) => `/api/documents/templates/${code}/preview`,
   requestPublicBookingOtp: (data: { tenant_code: string; patient_phone: string }) =>
     request<{ status: string; message: string }>("/public/appointments/otp", {
       method: "POST",

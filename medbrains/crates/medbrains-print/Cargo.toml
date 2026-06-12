@@ -1,0 +1,18 @@
+[package]
+name = "medbrains-print"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+
+[dependencies]
+tera = { version = "1.20", default-features = false }
+qrcode = { version = "0.14", default-features = false, features = ["svg"] }
+barcoders = { version = "2.0", default-features = false }
+reqwest = { workspace = true, features = ["multipart"] }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+
+[lints]
+workspace = true

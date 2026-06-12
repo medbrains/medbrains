@@ -53,6 +53,12 @@ pub struct AppState {
     /// S3-compatible presigned URL generator. None when S3_BUCKET is not configured
     /// (dev/on-prem deployments that use local file storage).
     pub s3: Option<Arc<S3PresignClient>>,
+    /// Headless-Chrome PDF renderer (None = documents API disabled).
+    pub gotenberg: Option<medbrains_print::gotenberg::GotenbergClient>,
+    /// Object storage for generated documents (LocalFs by default —
+    /// zero-cost and on-prem native; S3-compatible adapter is a
+    /// follow-up). Downloads stream through the authenticated API.
+    pub documents_store: Arc<dyn medbrains_core::object_store::ObjectStore>,
 }
 
 impl std::fmt::Debug for AppState {

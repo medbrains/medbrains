@@ -61,6 +61,10 @@ struct RawConfig {
     s3_access_key_id: Option<String>,
     #[serde(default)]
     s3_secret_access_key: Option<String>,
+    /// Gotenberg (headless Chrome) base URL for server-side PDF
+    /// rendering, e.g. http://127.0.0.1:3005. Unset = PDF endpoints 503.
+    #[serde(default)]
+    gotenberg_url: Option<String>,
 }
 
 fn default_host() -> String {
@@ -141,6 +145,7 @@ pub struct AppConfig {
     pub s3_endpoint: Option<String>,
     pub s3_access_key_id: Option<String>,
     pub s3_secret_access_key: Option<String>,
+    pub gotenberg_url: Option<String>,
 }
 
 impl AppConfig {
@@ -172,6 +177,7 @@ impl AppConfig {
                 s3_endpoint: None,
                 s3_access_key_id: None,
                 s3_secret_access_key: None,
+                gotenberg_url: None,
             }))
             .merge(Toml::file("config.toml"))
             .merge(Env::raw())
@@ -250,6 +256,7 @@ impl AppConfig {
             s3_endpoint: raw.s3_endpoint,
             s3_access_key_id: raw.s3_access_key_id,
             s3_secret_access_key: raw.s3_secret_access_key,
+            gotenberg_url: raw.gotenberg_url,
             db_pool_max_connections: raw.db_pool_max_connections,
             db_pool_min_connections: raw.db_pool_min_connections,
             db_pool_acquire_timeout_secs: raw.db_pool_acquire_timeout_secs,

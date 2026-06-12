@@ -15,6 +15,21 @@ services:
       timeout: 5s
       retries: 5
 
+  # Headless-Chrome PDF rendering (document templating engine).
+  gotenberg:
+    image: gotenberg/gotenberg:8.21
+    ports:
+      - "127.0.0.1:3005:3000"
+    command:
+      - gotenberg
+      - --api-timeout=30s
+      - --chromium-restart-after=50
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   yottadb:
     image: yottadb/yottadb-debian:latest-master
     ports:

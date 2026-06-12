@@ -211,6 +211,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Arc::new(medbrains_core::secrets::EnvSecretResolver::new());
 
     let s3_client = S3PresignClient::from_config(&config).await.map(Arc::new);
+
+    // Generated-document storage: MEDBRAINS_OBJECTS_HOT (deploy kit
+    // convention) else a dev-local directory.
+    let documents_root =
+        std::env::var("MEDBRAINS_OBJECTS_HOT").unwrap_or_else(|_| "./data/objects".to_owned());
+    let documents_store: Arc<dyn medbrains_core::object_store::ObjectStore> = Arc::new(
+        medbrains_core::object_store::LocalFsObjectStore::new(&documents_root),
+    );
+    tracing::info!(root = %documents_root, "documents object store (local fs)");
+
+    let gotenberg_client = config.gotenberg_url.as_deref().map(|url| {
+        tracing::info!(%url, "gotenberg PDF renderer configured");
+        medbrains_print::gotenberg::GotenbergClient::new(url, reqwest::Client::new())
+    });
+    if gotenberg_client.is_none() {
+        tracing::info!("GOTENBERG_URL unset — document PDF rendering disabled");
+    }
     if s3_client.is_none() {
         tracing::info!("S3_BUCKET not configured — presigned upload/download endpoints disabled");
     }
@@ -229,6 +246,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         authz,
         secret_resolver: state_secret_resolver,
         s3: s3_client,
+        gotenberg: gotenberg_client,
+        documents_store,
     };
 
     // Run seed (insert default tenant + super_admin if not exists)

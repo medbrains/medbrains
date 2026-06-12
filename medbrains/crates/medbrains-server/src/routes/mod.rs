@@ -40,6 +40,7 @@ pub mod doctor_dashboard;
 pub mod doctor_packages;
 pub mod doctor_profile;
 pub mod documents;
+pub mod documents_render;
 pub mod emergency;
 pub mod facilities;
 pub mod fhir;
@@ -385,6 +386,23 @@ pub fn build_router(state: AppState) -> Router {
         .route(
             "/api/setup/users/{id}",
             put(setup::update_user).delete(setup::delete_user),
+        )
+        // Server-side document rendering (epic #267)
+        .route(
+            "/api/documents/render",
+            post(documents_render::render_document),
+        )
+        .route(
+            "/api/documents/{id}/download",
+            get(documents_render::download_document),
+        )
+        .route(
+            "/api/documents/{id}/queue-print",
+            post(documents_render::queue_print),
+        )
+        .route(
+            "/api/documents/templates/{code}/preview",
+            get(documents_render::preview_template),
         )
         .route(
             "/api/setup/users/{id}/reset-password",
