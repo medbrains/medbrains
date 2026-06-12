@@ -215,6 +215,7 @@ export function PatientFlowNavigator({
           const visual = FLOW_VISUALS[item.id];
           const signal = patientFlowReadinessSignal(item);
           const signalLabel = journeyActionSignalLabel(t, signal);
+          const signalNominal = signal.tone === "ready";
           const button = (
             <Button
               key={item.id}
@@ -232,12 +233,14 @@ export function PatientFlowNavigator({
           return (
             <Tooltip key={item.id} label={<FlowTooltip item={item} />} multiline w={280}>
               <span className={styles.flowItem}>
-                <OperationalSignal
-                  label={signalLabel}
-                  shape={signal.shape}
-                  size="xs"
-                  tone={signal.tone}
-                />
+                {!signalNominal && (
+                  <OperationalSignal
+                    label={signalLabel}
+                    shape={signal.shape}
+                    size="xs"
+                    tone={signal.tone}
+                  />
+                )}
                 {button}
               </span>
             </Tooltip>

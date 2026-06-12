@@ -1358,6 +1358,28 @@ function CreateInvoiceDrawer({
   );
 }
 
+// Cashiers work the invoice, not the clinical journey — the flow
+// navigator above already covers cross-module navigation, so the
+// action row keeps only billing moves (payment, discharge bill).
+const BILLING_DETAIL_HIDDEN_ACTIONS = [
+  "patient.edit",
+  "patient.share",
+  "patient.print_card",
+  "opd.open_visit",
+  "orders.medication",
+  "orders.lab",
+  "orders.radiology",
+  "ipd.open_admission",
+  "ipd.admit",
+  "emergency.open_visit",
+  "emergency.open_mlc",
+  "camp.open_context",
+  "pharmacy.dispense_order",
+  "pharmacy.open_patient_queue",
+  "mrd.open_case_sheet",
+  "billing.open_ledger",
+] as const;
+
 function InvoiceDetail({
   invoiceId,
   canCreate,
@@ -1737,11 +1759,16 @@ function InvoiceDetail({
               </Group>
               <PatientJourneyActions
                 context={journeyContext}
-                hiddenActionIds={["billing.open_ledger"]}
+                hiddenActionIds={BILLING_DETAIL_HIDDEN_ACTIONS}
                 size="xs"
               />
             </Stack>
             <Group gap="xs" justify="flex-end">
+              {canRecordPayment && (
+                <Button size="xs" leftSection={<IconCash size={14} />} onClick={openPaymentForm}>
+                  {t("button.recordPayment")}
+                </Button>
+              )}
               {canPrintBillingDocs && (
                 <Tooltip
                   label={

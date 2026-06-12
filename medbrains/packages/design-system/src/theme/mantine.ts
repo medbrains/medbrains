@@ -398,7 +398,7 @@ export function createMedBrainsTheme(opts: CreateMedBrainsThemeOptions = {}): Ma
       Badge: {
         defaultProps: {
           variant: "light",
-          radius: "xl",
+          radius: "sm",
           size: "md",
           fw: 600,
         },
