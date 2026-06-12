@@ -11,7 +11,7 @@ use uuid::Uuid;
 
 use crate::{
     error::AppError, middleware::auth::Claims, middleware::authorization::require_permission,
-    state::AppState,
+    state::AppState, tenant_config,
 };
 
 use super::{
@@ -21,6 +21,7 @@ use super::{
 
 const DEFAULT_SLOT_DURATION_MINS: i32 = 15;
 const DEFAULT_SLOT_CAPACITY: i32 = 1;
+const DEFAULT_SCHEDULE_MAX_PATIENTS: i32 = 20;
 
 /// GET /`api/opd/schedules?doctor_id=&department_id`=
 pub async fn list_schedules(
@@ -67,6 +68,21 @@ pub async fn create_schedule(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
+    let default_duration = tenant_config::setting_i32(
+        &mut tx,
+        &claims.tenant_id,
+        tenant_config::keys::SLOT_DURATION_MINS,
+        DEFAULT_SLOT_DURATION_MINS,
+    )
+    .await?;
+    let default_max_patients = tenant_config::setting_i32(
+        &mut tx,
+        &claims.tenant_id,
+        tenant_config::keys::SCHEDULE_MAX_PATIENTS,
+        DEFAULT_SCHEDULE_MAX_PATIENTS,
+    )
+    .await?;
+
     let row = sqlx::query_as::<_, DoctorSchedule>(
         "INSERT INTO doctor_schedules \
          (tenant_id, doctor_id, department_id, day_of_week, start_time, end_time, \
@@ -80,8 +96,8 @@ pub async fn create_schedule(
     .bind(body.day_of_week)
     .bind(body.start_time)
     .bind(body.end_time)
-    .bind(body.slot_duration_mins.unwrap_or(15))
-    .bind(body.max_patients.unwrap_or(20))
+    .bind(body.slot_duration_mins.unwrap_or(default_duration))
+    .bind(body.max_patients.unwrap_or(default_max_patients))
     .fetch_one(&mut *tx)
     .await?;
 
@@ -269,6 +285,15 @@ pub async fn get_available_slots(
         }
     }
 
+    // Hospital holiday: no slots unless the doctor has an explicit
+    // available exception for the date.
+    if exception.is_none()
+        && tenant_config::is_holiday(&mut tx, &claims.tenant_id, query.date).await?
+    {
+        tx.commit().await?;
+        return Ok(Json(vec![]));
+    }
+
     let schedule = sqlx::query_as::<_, DoctorSchedule>(
         "SELECT * FROM doctor_schedules \
          WHERE doctor_id = $1 AND day_of_week = $2 AND is_active = true",
@@ -280,6 +305,20 @@ pub async fn get_available_slots(
 
     let fallback_periods =
         fallback_working_periods(&mut tx, &claims.tenant_id, doctor_id, day_of_week).await?;
+    let default_duration = tenant_config::setting_i32(
+        &mut tx,
+        &claims.tenant_id,
+        tenant_config::keys::SLOT_DURATION_MINS,
+        DEFAULT_SLOT_DURATION_MINS,
+    )
+    .await?;
+    let default_capacity = tenant_config::setting_i32(
+        &mut tx,
+        &claims.tenant_id,
+        tenant_config::keys::SLOT_CAPACITY,
+        DEFAULT_SLOT_CAPACITY,
+    )
+    .await?;
 
     let (periods, duration, max) = match (&exception, &schedule) {
         (Some(exc), _) if exc.is_available => {
@@ -289,10 +328,10 @@ pub async fn get_available_slots(
                 .unwrap_or_else(default_primary_period);
             let dur = schedule
                 .as_ref()
-                .map_or(DEFAULT_SLOT_DURATION_MINS, |entry| entry.slot_duration_mins);
+                .map_or(default_duration, |entry| entry.slot_duration_mins);
             let max_patients = schedule
                 .as_ref()
-                .map_or(DEFAULT_SLOT_CAPACITY, |entry| entry.max_patients);
+                .map_or(default_capacity, |entry| entry.max_patients);
             (
                 vec![(
                     exc.start_time.unwrap_or(fallback_start),
@@ -307,11 +346,7 @@ pub async fn get_available_slots(
             schedule_entry.slot_duration_mins,
             schedule_entry.max_patients,
         ),
-        _ => (
-            fallback_periods,
-            DEFAULT_SLOT_DURATION_MINS,
-            DEFAULT_SLOT_CAPACITY,
-        ),
+        _ => (fallback_periods, default_duration, default_capacity),
     };
 
     #[derive(sqlx::FromRow)]

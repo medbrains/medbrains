@@ -5,6 +5,7 @@ import {
   IconBuildingCommunity,
   IconCash,
   IconChartBar,
+  IconClockCog,
   IconCloudOff,
   IconHash,
   IconHeartbeat,
@@ -45,6 +46,7 @@ import { LocationsSettings } from "@/pages/admin/settings/LocationsSettings";
 import { MasterDataStatusSettings } from "@/pages/admin/settings/MasterDataStatusSettings";
 import { ModulesSettings } from "@/pages/admin/settings/ModulesSettings";
 import { OfflineModeSettings } from "@/pages/admin/settings/OfflineModeSettings";
+import { OperationsSettings } from "@/pages/admin/settings/OperationsSettings";
 import { PrintTemplateSettings } from "@/pages/admin/settings/PrintTemplateSettings";
 import { SequencesSettings } from "@/pages/admin/settings/SequencesSettings";
 import { ServicesSettings } from "@/pages/admin/settings/ServicesSettings";
@@ -70,6 +72,13 @@ export const SETTINGS_TABS: SettingsTabConfig[] = [
     icon: "IconSettings",
     requiredPermission: "admin.settings.general.manage",
     component: GeneralSettings,
+  },
+  {
+    value: "operations",
+    i18nKey: "settings.operations",
+    icon: "IconClockCog",
+    requiredPermission: "admin.settings.general.manage",
+    component: OperationsSettings,
   },
   {
     value: "master-data",
@@ -297,6 +306,7 @@ export const SETTINGS_TABS: SettingsTabConfig[] = [
 ];
 
 export const SETTINGS_TAB_ICON_MAP: Record<string, ComponentType<{ size?: number }>> = {
+  IconClockCog,
   IconSettings,
   IconWorld,
   IconRuler2,

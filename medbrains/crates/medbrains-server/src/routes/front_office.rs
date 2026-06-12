@@ -222,11 +222,19 @@ pub async fn upsert_visiting_hours(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
+    let default_max_visitors = crate::tenant_config::setting_i32(
+        &mut tx,
+        &claims.tenant_id,
+        crate::tenant_config::keys::MAX_VISITORS_PER_PATIENT,
+        2,
+    )
+    .await?;
+
     let row = sqlx::query_as::<_, VisitingHours>(
         "INSERT INTO visiting_hours \
          (tenant_id, ward_id, day_of_week, start_time, end_time, \
           max_visitors_per_patient, is_active) \
-         VALUES ($1, $2, $3, $4::time, $5::time, COALESCE($6, 2), COALESCE($7, true)) \
+         VALUES ($1, $2, $3, $4::time, $5::time, COALESCE($6, $8), COALESCE($7, true)) \
          RETURNING *",
     )
     .bind(claims.tenant_id)
@@ -236,6 +244,7 @@ pub async fn upsert_visiting_hours(
     .bind(&body.end_time)
     .bind(body.max_visitors_per_patient)
     .bind(body.is_active)
+    .bind(default_max_visitors)
     .fetch_one(&mut *tx)
     .await?;
 
@@ -374,7 +383,18 @@ pub async fn create_pass(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    let valid_hours = body.valid_hours.unwrap_or(2);
+    let valid_hours = match body.valid_hours {
+        Some(hours) => hours,
+        None => {
+            crate::tenant_config::setting_i32(
+                &mut tx,
+                &claims.tenant_id,
+                crate::tenant_config::keys::VISITOR_PASS_VALID_HOURS,
+                2,
+            )
+            .await?
+        }
+    };
     let pass_number = format!(
         "VP-{}-{}",
         chrono::Utc::now().format("%Y%m%d%H%M"),
