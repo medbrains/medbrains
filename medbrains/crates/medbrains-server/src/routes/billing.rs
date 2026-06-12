@@ -6836,7 +6836,7 @@ pub async fn coordinate_dual_insurance(
                  (tenant_id, invoice_id, patient_id, insurance_provider, \
                   claim_type, status, is_secondary, primary_claim_id, \
                   claim_amount, coordination_of_benefits, created_by, scheme_type) \
-                 VALUES ($1, $2, $3, $4, 'cashless', 'submitted', true, $5, $6, \
+                 VALUES ($1, $2, $3, $4, 'cashless', 'claim_submitted', true, $5, $6, \
                   'Secondary payer for remaining balance after primary', $7, 'private') \
                  RETURNING *",
             )

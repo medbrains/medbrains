@@ -148,10 +148,12 @@ pub async fn receive_callback(
     //    whichever table the correlation matches.
     let new_status = envelope.status.as_deref().unwrap_or("response_received");
 
+    // Gateway transport status is NOT the claim lifecycle — it lands in
+    // nhcx_status; lifecycle transitions happen via adjudication flows.
     let updated_claims: u64 = sqlx::query(
         "UPDATE insurance_claims \
          SET nhcx_response_payload = $1, nhcx_response_at = now(), \
-             status = COALESCE($2, status), updated_at = now() \
+             nhcx_status = COALESCE($2, nhcx_status), updated_at = now() \
          WHERE nhcx_correlation_id = $3 AND tenant_id = $4",
     )
     .bind(&signed_payload)
