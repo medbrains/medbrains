@@ -137,6 +137,7 @@ import {
   StatusDot,
   useClinicalEmit,
   CsvImportModal,
+  DocumentActions,
 } from "@/components";
 import { Icd11CodeSelect } from "@/components/Clinical/Icd11CodeSelect";
 import { EncounterSelect } from "@/components/EncounterSelect";
@@ -1138,6 +1139,9 @@ function LabOrderDetail({
         >
           Print report
         </Button>
+      )}
+      {canPrintReports && order.status === "verified" && (
+        <DocumentActions templateCode="lab_report" sourceId={order.id} />
       )}
 
       {/* Report status controls */}

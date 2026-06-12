@@ -247,6 +247,11 @@ const AccessRequestsPage = lazy(() =>
 const SettingsPage = lazy(() =>
   import("./pages/admin/settings").then((m) => ({ default: m.SettingsPage })),
 );
+const DocumentTemplatesPage = lazy(() =>
+  import("./pages/admin/document-templates").then((m) => ({
+    default: m.DocumentTemplatesPage,
+  })),
+);
 const IntegrationHubPage = lazy(() =>
   import("./pages/admin/integration-hub").then((m) => ({ default: m.IntegrationHubPage })),
 );
@@ -411,6 +416,7 @@ export function App() {
                 <Route path="groups" element={<GroupsPage />} />
                 <Route path="access-requests" element={<AccessRequestsPage />} />
                 <Route path="settings" element={<SettingsPage />} />
+                <Route path="document-templates" element={<DocumentTemplatesPage />} />
                 <Route
                   path="device-integrations"
                   element={<Navigate to="/admin/settings#device-integrations" replace />}

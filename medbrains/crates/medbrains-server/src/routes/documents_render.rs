@@ -408,3 +408,109 @@ pub async fn queue_print(
         serde_json::json!({ "print_job_id": job_id, "status": "queued" }),
     ))
 }
+
+// ── Template management (admin) ─────────────────────────────
+
+/// GET /api/documents/templates — built-in registry + override flags.
+pub async fn list_templates(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    require_permission(&claims, permissions::admin::settings::general::MANAGE)?;
+
+    let overridden: Vec<String> = sqlx::query_scalar(
+        "SELECT code FROM document_templates WHERE tenant_id = $1 AND is_active = true",
+    )
+    .bind(claims.tenant_id)
+    .fetch_all(&state.db)
+    .await?;
+
+    let templates: Vec<serde_json::Value> = SYSTEM_TEMPLATES
+        .iter()
+        .map(|t| {
+            let (w, h) = t.paper.size_mm();
+            serde_json::json!({
+                "code": t.code,
+                "title": t.title,
+                "module_code": t.module_code,
+                "paper_mm": { "width": w, "height": h },
+                "has_override": overridden.iter().any(|c| c == t.code),
+                "default_html": t.html,
+            })
+        })
+        .collect();
+
+    Ok(Json(serde_json::json!({ "templates": templates })))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SaveTemplateRequest {
+    /// Tera HTML override. Null/empty clears the override (back to built-in).
+    pub html: Option<String>,
+}
+
+/// PUT /api/documents/templates/{code} — save or clear a tenant override.
+pub async fn save_template(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(code): Path<String>,
+    Json(body): Json<SaveTemplateRequest>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    require_permission(&claims, permissions::admin::settings::general::MANAGE)?;
+    let builtin = SYSTEM_TEMPLATES
+        .iter()
+        .find(|t| t.code == code)
+        .ok_or_else(|| AppError::BadRequest(format!("unknown template_code '{code}'")))?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_full_context(&mut tx, &claims.tenant_id, &claims.department_ids)
+        .await?;
+
+    match body
+        .html
+        .as_deref()
+        .map(str::trim)
+        .filter(|h| !h.is_empty())
+    {
+        Some(html) => {
+            // Validate before saving — a broken template must never
+            // reach render time.
+            medbrains_print::engine::render_html(
+                html,
+                &serde_json::from_str(builtin.sample_context)
+                    .map_err(|e| AppError::Internal(e.to_string()))?,
+            )
+            .map_err(|e| AppError::BadRequest(format!("template does not compile: {e}")))?;
+
+            sqlx::query(
+                "INSERT INTO document_templates \
+                   (tenant_id, code, name, module_code, body_layout, created_by) \
+                 VALUES ($1, $2, $3, $4, jsonb_build_object('html', $5::text), $6) \
+                 ON CONFLICT (tenant_id, code) DO UPDATE SET \
+                   body_layout = jsonb_build_object('html', $5::text), \
+                   version = document_templates.version + 1, \
+                   is_active = true, updated_at = now()",
+            )
+            .bind(claims.tenant_id)
+            .bind(&code)
+            .bind(builtin.title)
+            .bind(builtin.module_code)
+            .bind(html)
+            .bind(claims.sub)
+            .execute(&mut *tx)
+            .await?;
+        }
+        None => {
+            sqlx::query(
+                "UPDATE document_templates SET is_active = false, updated_at = now() \
+                 WHERE tenant_id = $1 AND code = $2",
+            )
+            .bind(claims.tenant_id)
+            .bind(&code)
+            .execute(&mut *tx)
+            .await?;
+        }
+    }
+    tx.commit().await?;
+    Ok(Json(serde_json::json!({ "status": "ok" })))
+}

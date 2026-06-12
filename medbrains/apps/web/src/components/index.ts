@@ -18,6 +18,7 @@ export {
   useClinicalEmit,
 } from "./ClinicalEventProvider";
 export { CsvImportModal } from "./CsvImportModal";
+export { DocumentActions } from "./DocumentActions";
 export type { Column, ColumnAccessState } from "./DataTable";
 export { DataTable } from "./DataTable";
 export { DepartmentSelect } from "./DepartmentSelect";

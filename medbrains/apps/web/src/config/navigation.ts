@@ -35,6 +35,7 @@ import {
   IconMicroscope,
   IconPackage,
   IconPill,
+  IconFileTypePdf,
   IconPlug,
   IconQrcode,
   IconRadioactive,
@@ -135,6 +136,7 @@ const ICON_MAP: Record<string, React.ComponentType<{ size?: number; stroke?: num
   IconLayoutDashboard,
   IconPackage,
   IconPill,
+  IconFileTypePdf,
   IconPlug,
   IconQrcode,
   IconRadioactive,
@@ -1208,6 +1210,12 @@ export const NAV_GROUPS: NavGroupConfig[] = [
             icon: "IconSettings",
             requiredPermission: "admin.settings.general.manage",
             requiredPermissions: SETTINGS_NAV_PERMISSIONS,
+          },
+          {
+            i18nKey: "documentTemplates",
+            path: "/admin/document-templates",
+            icon: "IconFileTypePdf",
+            requiredPermission: "admin.settings.general.manage",
           },
           {
             i18nKey: "integrationHub",

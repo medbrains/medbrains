@@ -221,6 +221,7 @@ import {
   PageHeader,
   useClinicalEmit,
   useProtectedFieldAccess,
+  DocumentActions,
 } from "@/components";
 import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
@@ -1761,6 +1762,9 @@ function InvoiceDetail({
                     Print packet
                   </Button>
                 </Tooltip>
+              )}
+              {inv.status !== "draft" && (
+                <DocumentActions templateCode="invoice_gst" sourceId={inv.id} />
               )}
               {canCreate && inv.status === "draft" && (
                 <>

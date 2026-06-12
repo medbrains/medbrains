@@ -13664,7 +13664,23 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
-  previewDocumentTemplateUrl: (code: string) => `/api/documents/templates/${code}/preview`,
+  previewRenderTemplateUrl: (code: string) => `/api/documents/render/templates/${code}/preview`,
+  listRenderTemplates: () =>
+    request<{
+      templates: {
+        code: string;
+        title: string;
+        module_code: string;
+        paper_mm: { width: number; height: number };
+        has_override: boolean;
+        default_html: string;
+      }[];
+    }>("/documents/render/templates"),
+  saveRenderTemplate: (code: string, data: { html: string | null }) =>
+    request<{ status: string }>(`/documents/render/templates/${code}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
   requestPublicBookingOtp: (data: { tenant_code: string; patient_phone: string }) =>
     request<{ status: string; message: string }>("/public/appointments/otp", {
       method: "POST",

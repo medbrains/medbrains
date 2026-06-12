@@ -162,6 +162,7 @@ import {
   StatusDot,
   useClinicalEmit,
   useProtectedFieldAccess,
+  DocumentActions,
 } from "@/components";
 import { BedSelect } from "@/components/BedSelect";
 import { DepartmentSelect } from "@/components/DepartmentSelect";
@@ -1862,6 +1863,16 @@ function AdmissionDetail({
                     leftSection={<IconPrinter size={14} />}
                     onClick={openWristband}
                   />
+                  <Group gap="xs">
+                    <DocumentActions
+                      templateCode="patient_wristband"
+                      sourceId={admissionId}
+                    />
+                    <DocumentActions
+                      templateCode="discharge_summary"
+                      sourceId={admissionId}
+                    />
+                  </Group>
                   <ActionRailActionButton
                     action={referOutAction}
                     color="primary"

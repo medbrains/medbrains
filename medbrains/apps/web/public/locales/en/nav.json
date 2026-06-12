@@ -92,5 +92,6 @@
   "reports": "Reports Center",
   "audit": "Audit Trail",
   "utilizationReview": "Utilization Review",
-  "bedsidePortal": "Bedside Portal"
+  "bedsidePortal": "Bedside Portal",
+  "documentTemplates": "Document Templates"
 }

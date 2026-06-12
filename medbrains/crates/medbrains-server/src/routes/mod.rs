@@ -401,8 +401,16 @@ pub fn build_router(state: AppState) -> Router {
             post(documents_render::queue_print),
         )
         .route(
-            "/api/documents/templates/{code}/preview",
+            "/api/documents/render/templates/{code}/preview",
             get(documents_render::preview_template),
+        )
+        .route(
+            "/api/documents/render/templates",
+            get(documents_render::list_templates),
+        )
+        .route(
+            "/api/documents/render/templates/{code}",
+            put(documents_render::save_template),
         )
         .route(
             "/api/setup/users/{id}/reset-password",
