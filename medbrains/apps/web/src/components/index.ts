@@ -29,6 +29,7 @@ export { DrugSearchSelect } from "./DrugSearchSelect";
 export { EmployeeSearchSelect } from "./EmployeeSearchSelect";
 export { EmptyState } from "./EmptyState";
 export { EncounterSelect } from "./EncounterSelect";
+export { FormModal } from "./FormModal";
 export type { IpdLinkedContext } from "./IpdContextStrip";
 export {
   IpdContextStrip,

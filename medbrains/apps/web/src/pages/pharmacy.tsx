@@ -1,5 +1,4 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { confirmDestructive } from "@/lib/confirm-destructive";
 import {
   ActionIcon,
   Alert,
@@ -111,12 +110,12 @@ import {
   IconPencil,
   IconPill,
   IconPlus,
-  IconUpload,
   IconPrescription,
   IconReceipt,
   IconShieldCheck,
   IconShoppingCart,
   IconTrash,
+  IconUpload,
   IconX,
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -128,14 +127,15 @@ import { useNavigate, useParams, useSearchParams } from "react-router";
 import {
   ClinicalEventProvider,
   type Column,
+  CsvImportModal,
   DataTable,
+  FormModal,
   OperationalSignal,
   PageHeader,
   PrescriptionViews,
   StatusDot,
   TableValueBadge,
   useClinicalEmit,
-  CsvImportModal,
 } from "@/components";
 import { DrugSearchSelect } from "@/components/DrugSearchSelect";
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
@@ -163,6 +163,7 @@ import {
 } from "@/forms/pharmacy.form";
 import { usePatientName } from "@/hooks/usePatientName";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
+import { confirmDestructive } from "@/lib/confirm-destructive";
 import { instructionsDisplayText } from "@/lib/medication-timing-utils";
 import { pharmacyService } from "@/services/pharmacy.service";
 import styles from "./pharmacy.module.scss";
@@ -5493,87 +5494,79 @@ function RxQueueTab({
         )}
       </Drawer>
 
-      <Modal
+      <FormModal
         opened={reviewOpened}
         onClose={closeReviewModal}
         title={t(`rxReviewModal.title.${reviewAction}`)}
         size="min(100%, 980px)"
+        onSubmit={handleSubmitReviewForm(handleSubmitReview)}
+        submitLabel={
+          reviewAction === "approved"
+            ? t("rxReviewModal.approveAndCreateBillingIndent")
+            : reviewAction === "on_hold"
+              ? t("rxReviewModal.putOnHold")
+              : t("rxReviewModal.reject")
+        }
+        submitColor={
+          reviewAction === "rejected"
+            ? "danger"
+            : reviewAction === "on_hold"
+              ? "warning"
+              : "success"
+        }
+        submitting={reviewMutation.isPending}
+        submitDisabled={needsPriceOverrideReason || Boolean(reviewErrors.items?.message)}
       >
-        <Stack component="form" onSubmit={handleSubmitReviewForm(handleSubmitReview)}>
+        <Controller
+          control={reviewControl}
+          name="notes"
+          render={({ field, fieldState }) => (
+            <Textarea
+              label={
+                reviewAction === "approved"
+                  ? t("rxReviewModal.reviewNotesPriceOverride")
+                  : t("label.notes")
+              }
+              value={field.value}
+              onChange={field.onChange}
+              error={fieldState.error?.message}
+            />
+          )}
+        />
+        {reviewAction === "rejected" && (
           <Controller
             control={reviewControl}
-            name="notes"
+            name="rejection_reason"
             render={({ field, fieldState }) => (
               <Textarea
-                label={
-                  reviewAction === "approved"
-                    ? t("rxReviewModal.reviewNotesPriceOverride")
-                    : t("label.notes")
-                }
+                label={t("rxReviewModal.rejectionReason")}
+                required
                 value={field.value}
                 onChange={field.onChange}
                 error={fieldState.error?.message}
               />
             )}
           />
-          {reviewAction === "rejected" && (
-            <Controller
-              control={reviewControl}
-              name="rejection_reason"
-              render={({ field, fieldState }) => (
-                <Textarea
-                  label={t("rxReviewModal.rejectionReason")}
-                  required
-                  value={field.value}
-                  onChange={field.onChange}
-                  error={fieldState.error?.message}
-                />
-              )}
-            />
-          )}
-          {reviewAction === "approved" && (
-            <RxBillingEstimate
-              items={applyRxReviewItems(reviewDetail?.items ?? [], reviewItems)}
-              loading={reviewDetailLoading}
-              editable
-              reviewItems={
-                reviewItems.length > 0
-                  ? reviewItems
-                  : (reviewDetail?.items ?? []).map(rxReviewInputFromItem)
-              }
-              onReviewItemsChange={setReviewItems}
-            />
-          )}
-          {needsPriceOverrideReason && (
-            <Alert color="orange" variant="light" icon={<IconAlertTriangle size={16} />}>
-              {t("rxReviewModal.priceOverrideReasonRequired")}
-            </Alert>
-          )}
-          <Group justify="flex-end">
-            <Button variant="default" onClick={closeReviewModal}>
-              {t("label.cancel")}
-            </Button>
-            <Button
-              type="submit"
-              color={
-                reviewAction === "rejected"
-                  ? "danger"
-                  : reviewAction === "on_hold"
-                    ? "warning"
-                    : "success"
-              }
-              loading={reviewMutation.isPending}
-              disabled={needsPriceOverrideReason || Boolean(reviewErrors.items?.message)}
-            >
-              {reviewAction === "approved"
-                ? t("rxReviewModal.approveAndCreateBillingIndent")
-                : reviewAction === "on_hold"
-                  ? t("rxReviewModal.putOnHold")
-                  : t("rxReviewModal.reject")}
-            </Button>
-          </Group>
-        </Stack>
-      </Modal>
+        )}
+        {reviewAction === "approved" && (
+          <RxBillingEstimate
+            items={applyRxReviewItems(reviewDetail?.items ?? [], reviewItems)}
+            loading={reviewDetailLoading}
+            editable
+            reviewItems={
+              reviewItems.length > 0
+                ? reviewItems
+                : (reviewDetail?.items ?? []).map(rxReviewInputFromItem)
+            }
+            onReviewItemsChange={setReviewItems}
+          />
+        )}
+        {needsPriceOverrideReason && (
+          <Alert color="orange" variant="light" icon={<IconAlertTriangle size={16} />}>
+            {t("rxReviewModal.priceOverrideReasonRequired")}
+          </Alert>
+        )}
+      </FormModal>
     </Stack>
   );
 }

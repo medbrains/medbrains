@@ -1,6 +1,4 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { confirmDestructive } from "@/lib/confirm-destructive";
-import { statusColor } from "@/lib/status-colors";
 import {
   ActionIcon,
   Alert,
@@ -155,6 +153,8 @@ import {
   ClinicalEventProvider,
   type Column,
   DataTable,
+  DocumentActions,
+  FormModal,
   OperationalSignal,
   type OperationalSignalShape,
   type OperationalSignalTone,
@@ -163,7 +163,6 @@ import {
   StatusDot,
   useClinicalEmit,
   useProtectedFieldAccess,
-  DocumentActions,
 } from "@/components";
 import { BedSelect } from "@/components/BedSelect";
 import { DepartmentSelect } from "@/components/DepartmentSelect";
@@ -209,6 +208,8 @@ import {
 } from "@/forms/ipd.form";
 import { useHashTabs } from "@/hooks/useHashTabs";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
+import { confirmDestructive } from "@/lib/confirm-destructive";
+import { statusColor } from "@/lib/status-colors";
 import { billingService } from "@/services/billing.service";
 import { ipdService } from "@/services/ipd.service";
 import { mrdService } from "@/services/mrd.service";
@@ -239,7 +240,6 @@ import {
   summarizeIpdActionRailSections,
   summarizeIpdWorkspaceTabReadiness,
 } from "./ipd-workspace";
-
 
 const bedStatusColors: Record<string, string> = {
   vacant_clean: "success",
@@ -1858,14 +1858,8 @@ function AdmissionDetail({
                     onClick={openWristband}
                   />
                   <Group gap="xs">
-                    <DocumentActions
-                      templateCode="patient_wristband"
-                      sourceId={admissionId}
-                    />
-                    <DocumentActions
-                      templateCode="discharge_summary"
-                      sourceId={admissionId}
-                    />
+                    <DocumentActions templateCode="patient_wristband" sourceId={admissionId} />
+                    <DocumentActions templateCode="discharge_summary" sourceId={admissionId} />
                   </Group>
                   <ActionRailActionButton
                     action={referOutAction}
@@ -7163,38 +7157,39 @@ function BedTransferModal({
   });
 
   return (
-    <Modal opened={opened} onClose={onClose} title={t("title.bedTransfer")} size="md">
-      <Stack>
-        <BedSelect
-          label={t("label.targetBed")}
-          value={toBedId}
-          onChange={(id) => setToBedId(id)}
-          required
-        />
-        <TextInput
-          label={t("label.reason")}
-          placeholder={t("placeholder.reasonForTransfer")}
-          value={reason}
-          onChange={(e) => setReason(e.currentTarget.value)}
-          required
-        />
-        <Textarea
-          label={t("label.notes")}
-          placeholder={t("placeholder.optionalTransferNotes")}
-          value={notes}
-          onChange={(e) => setNotes(e.currentTarget.value)}
-        />
-        <Button
-          onClick={() =>
-            transferMutation.mutate({ to_bed_id: toBedId, reason, notes: notes || undefined })
-          }
-          loading={transferMutation.isPending}
-          disabled={!toBedId.trim() || !reason.trim()}
-        >
-          {t("transfer")}
-        </Button>
-      </Stack>
-    </Modal>
+    <FormModal
+      opened={opened}
+      onClose={onClose}
+      title={t("title.bedTransfer")}
+      size="md"
+      onSubmit={(e) => {
+        e.preventDefault();
+        transferMutation.mutate({ to_bed_id: toBedId, reason, notes: notes || undefined });
+      }}
+      submitLabel={t("transfer")}
+      submitting={transferMutation.isPending}
+      submitDisabled={!toBedId.trim() || !reason.trim()}
+    >
+      <BedSelect
+        label={t("label.targetBed")}
+        value={toBedId}
+        onChange={(id) => setToBedId(id)}
+        required
+      />
+      <TextInput
+        label={t("label.reason")}
+        placeholder={t("placeholder.reasonForTransfer")}
+        value={reason}
+        onChange={(e) => setReason(e.currentTarget.value)}
+        required
+      />
+      <Textarea
+        label={t("label.notes")}
+        placeholder={t("placeholder.optionalTransferNotes")}
+        value={notes}
+        onChange={(e) => setNotes(e.currentTarget.value)}
+      />
+    </FormModal>
   );
 }
 

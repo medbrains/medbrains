@@ -119,6 +119,7 @@ import { useTranslation } from "react-i18next";
 import { useNavigate, useParams, useSearchParams } from "react-router";
 import {
   DataTable,
+  FormModal,
   OperationalSignal,
   type OperationalSignalShape,
   type OperationalSignalTone,
@@ -1931,7 +1932,7 @@ function EmergencyVisitCommandBar({
           )}
         </Group>
       </Stack>
-      <Modal
+      <FormModal
         opened={admitOpen}
         onClose={() => {
           admitHandlers.close();
@@ -1939,59 +1940,54 @@ function EmergencyVisitCommandBar({
         }}
         title={t("title.admitPatientToIpd")}
         size="md"
+        onSubmit={handleSubmit(submitAdmit)}
+        submitLabel={t("label.confirmAdmission")}
+        submitColor="teal"
+        submitIcon={<IconBuildingHospital size={16} />}
+        submitting={admitMutation.isPending}
       >
-        <Stack component="form" onSubmit={handleSubmit(submitAdmit)}>
-          <Controller
-            name="bed_id"
-            control={control}
-            render={({ field }) => (
-              <BedSelect value={field.value} onChange={field.onChange} required />
-            )}
-          />
-          {errors.bed_id?.message && (
-            <Text size="xs" c="danger">
-              {errors.bed_id.message}
-            </Text>
+        <Controller
+          name="bed_id"
+          control={control}
+          render={({ field }) => (
+            <BedSelect value={field.value} onChange={field.onChange} required />
           )}
-          <Controller
-            name="admitting_doctor_id"
-            control={control}
-            render={({ field }) => (
-              <DoctorSearchSelect
-                label={t("label.admittingDoctor")}
-                value={field.value}
-                onChange={field.onChange}
-                required
-              />
-            )}
-          />
-          {errors.admitting_doctor_id?.message && (
-            <Text size="xs" c="danger">
-              {errors.admitting_doctor_id.message}
-            </Text>
+        />
+        {errors.bed_id?.message && (
+          <Text size="xs" c="danger">
+            {errors.bed_id.message}
+          </Text>
+        )}
+        <Controller
+          name="admitting_doctor_id"
+          control={control}
+          render={({ field }) => (
+            <DoctorSearchSelect
+              label={t("label.admittingDoctor")}
+              value={field.value}
+              onChange={field.onChange}
+              required
+            />
           )}
-          <Controller
-            name="admission_notes"
-            control={control}
-            render={({ field }) => (
-              <Textarea
-                label={t("label.admissionNotes")}
-                {...field}
-                placeholder={t("placeholder.reasonForAdmission,ClinicalNotes...")}
-                minRows={3}
-              />
-            )}
-          />
-          <Button
-            type="submit"
-            color="teal"
-            leftSection={<IconBuildingHospital size={16} />}
-            loading={admitMutation.isPending}
-          >
-            {t("label.confirmAdmission")}
-          </Button>
-        </Stack>
-      </Modal>
+        />
+        {errors.admitting_doctor_id?.message && (
+          <Text size="xs" c="danger">
+            {errors.admitting_doctor_id.message}
+          </Text>
+        )}
+        <Controller
+          name="admission_notes"
+          control={control}
+          render={({ field }) => (
+            <Textarea
+              label={t("label.admissionNotes")}
+              {...field}
+              placeholder={t("placeholder.reasonForAdmission,ClinicalNotes...")}
+              minRows={3}
+            />
+          )}
+        />
+      </FormModal>
     </Card>
   );
 }

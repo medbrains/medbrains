@@ -1,6 +1,4 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { confirmDestructive } from "@/lib/confirm-destructive";
-import { statusColor } from "@/lib/status-colors";
 import {
   ActionIcon,
   Alert,
@@ -218,11 +216,12 @@ import {
   ClinicalEventProvider,
   type Column,
   DataTable,
+  DocumentActions,
+  FormModal,
   OperationalSignal,
   PageHeader,
   useClinicalEmit,
   useProtectedFieldAccess,
-  DocumentActions,
 } from "@/components";
 import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
@@ -253,6 +252,8 @@ import {
   billingTdsSectionOptions,
 } from "@/forms/billing.form";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
+import { confirmDestructive } from "@/lib/confirm-destructive";
+import { statusColor } from "@/lib/status-colors";
 import { billingService } from "@/services/billing.service";
 import {
   buildCopyPrintHtml,
@@ -1315,47 +1316,45 @@ function CreateInvoiceDrawer({
   });
 
   return (
-    <Drawer
+    <FormModal
       opened={opened}
       onClose={closeDrawer}
       title={t("title.createInvoice")}
-      position="right"
+      variant="drawer"
       size="xl"
+      onSubmit={submitInvoice}
+      submitLabel={t("button.createDraftInvoice")}
+      submitting={createMutation.isPending}
     >
-      <Stack component="form" onSubmit={submitInvoice}>
-        <Controller
-          control={control}
-          name="patient_id"
-          render={({ field }) => (
-            <PatientSearchSelect value={field.value} onChange={field.onChange} required />
-          )}
-        />
-        {errors.patient_id?.message && (
-          <Text size="xs" c="danger">
-            {invoiceFieldError("patient_id")}
-          </Text>
+      <Controller
+        control={control}
+        name="patient_id"
+        render={({ field }) => (
+          <PatientSearchSelect value={field.value} onChange={field.onChange} required />
         )}
-        {contextPatientId && <PatientContextBanner patientId={contextPatientId} hideLoadingState />}
-        <TextInput
-          label={t("label.encounterId")}
-          error={invoiceFieldError("encounter_id")}
-          {...register("encounter_id")}
-        />
-        <TextInput
-          label={t("label.admissionId")}
-          error={invoiceFieldError("admission_id")}
-          {...register("admission_id")}
-        />
-        <Textarea
-          label={t("label.notes")}
-          error={invoiceFieldError("notes")}
-          {...register("notes")}
-        />
-        <Button type="submit" loading={createMutation.isPending}>
-          {t("button.createDraftInvoice")}
-        </Button>
-      </Stack>
-    </Drawer>
+      />
+      {errors.patient_id?.message && (
+        <Text size="xs" c="danger">
+          {invoiceFieldError("patient_id")}
+        </Text>
+      )}
+      {contextPatientId && <PatientContextBanner patientId={contextPatientId} hideLoadingState />}
+      <TextInput
+        label={t("label.encounterId")}
+        error={invoiceFieldError("encounter_id")}
+        {...register("encounter_id")}
+      />
+      <TextInput
+        label={t("label.admissionId")}
+        error={invoiceFieldError("admission_id")}
+        {...register("admission_id")}
+      />
+      <Textarea
+        label={t("label.notes")}
+        error={invoiceFieldError("notes")}
+        {...register("notes")}
+      />
+    </FormModal>
   );
 }
 
@@ -1787,7 +1786,8 @@ function InvoiceDetail({
                     onClick={() =>
                       confirmDestructive({
                         title: "Cancel invoice",
-                        message: "Cancel this draft invoice? Its line items will no longer be billable from this draft.",
+                        message:
+                          "Cancel this draft invoice? Its line items will no longer be billable from this draft.",
                         confirmLabel: "Cancel invoice",
                         onConfirm: () => cancelMutation.mutate(),
                       })
@@ -2216,7 +2216,8 @@ function InvoiceDetail({
                                 onClick={() =>
                                   confirmDestructive({
                                     title: "Remove discount",
-                                    message: "Remove this discount from the invoice? Totals will be recalculated.",
+                                    message:
+                                      "Remove this discount from the invoice? Totals will be recalculated.",
                                     confirmLabel: "Remove discount",
                                     onConfirm: () => removeDiscountMutation.mutate(d.id),
                                   })
@@ -4040,7 +4041,8 @@ function InsuranceClaimsTab({
               onClick={() =>
                 confirmDestructive({
                   title: "Delete TPA rate card",
-                  message: "Delete this TPA rate card? Insurance billing will fall back to standard rates.",
+                  message:
+                    "Delete this TPA rate card? Insurance billing will fall back to standard rates.",
                   confirmLabel: "Delete rate card",
                   onConfirm: () => deleteTpaMutation.mutate(row.id),
                 })
@@ -4736,7 +4738,6 @@ function BillingSettingsTab() {
 }
 
 // ── Advances Tab ────────────────────────────────────────
-
 
 function AdvancesTab() {
   const canCreate = useHasPermission(P.BILLING.ADVANCES_CREATE);
@@ -6251,7 +6252,6 @@ function DayCloseTab() {
     },
   });
 
-  
   const columns = [
     {
       key: "close_date",
@@ -6380,7 +6380,6 @@ function AuditLogTab() {
     queryFn: () => billingService.listBillingAuditLog(params),
   });
 
-  
   const columns = [
     {
       key: "created_at",
@@ -7106,7 +7105,6 @@ function TdsSubView({ canManage }: { canManage: boolean }) {
     },
   });
 
-  
   const columns = [
     {
       key: "deductee_name",
@@ -7548,7 +7546,6 @@ function JournalEntriesTab() {
       notifications.show({ title: "Error", message: "Reversal failed", color: "danger" }),
   });
 
-  
   const columns = [
     {
       key: "entry_number",
@@ -7886,7 +7883,6 @@ function BankReconTab() {
     queryFn: () => billingService.listInsuranceReceivablesAging(),
   });
 
-  
   const columns = [
     {
       key: "transaction_date",
