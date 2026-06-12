@@ -1,0 +1,482 @@
+//! Built-in document templates: pure presentation (Tera HTML extending
+//! `base.html`) plus a sample context per template for previews and the
+//! render harness. Live data binding lives in the server's context
+//! builders — field names here match the `*PrintData` structs verbatim.
+
+use crate::paper::{MarginsMm, Paper};
+
+pub struct SystemTemplate {
+    pub code: &'static str,
+    pub title: &'static str,
+    pub module_code: &'static str,
+    pub source_table: &'static str,
+    pub number_prefix: &'static str,
+    pub paper: Paper,
+    pub margins: MarginsMm,
+    pub html: &'static str,
+    pub sample_context: &'static str,
+}
+
+const A4_MARGINS: MarginsMm = MarginsMm {
+    top: 12.0,
+    right: 12.0,
+    bottom: 14.0,
+    left: 12.0,
+};
+
+pub const SYSTEM_TEMPLATES: &[SystemTemplate] = &[
+    SystemTemplate {
+        code: "invoice_gst",
+        title: "GST Invoice",
+        module_code: "billing",
+        source_table: "invoices",
+        number_prefix: "BIL-GST",
+        paper: Paper::A4,
+        margins: A4_MARGINS,
+        html: INVOICE_GST_HTML,
+        sample_context: INVOICE_GST_SAMPLE,
+    },
+    SystemTemplate {
+        code: "payment_receipt",
+        title: "Payment Receipt",
+        module_code: "billing",
+        source_table: "payments",
+        number_prefix: "BIL-RCT",
+        paper: Paper::A5,
+        margins: A4_MARGINS,
+        html: RECEIPT_HTML,
+        sample_context: RECEIPT_SAMPLE,
+    },
+    SystemTemplate {
+        code: "prescription",
+        title: "Prescription",
+        module_code: "opd",
+        source_table: "encounters",
+        number_prefix: "OPD-RX",
+        paper: Paper::A4,
+        margins: A4_MARGINS,
+        html: PRESCRIPTION_HTML,
+        sample_context: PRESCRIPTION_SAMPLE,
+    },
+    SystemTemplate {
+        code: "discharge_summary",
+        title: "Discharge Summary",
+        module_code: "ipd",
+        source_table: "admissions",
+        number_prefix: "IPD-DSC",
+        paper: Paper::A4,
+        margins: A4_MARGINS,
+        html: DISCHARGE_HTML,
+        sample_context: DISCHARGE_SAMPLE,
+    },
+    SystemTemplate {
+        code: "lab_report",
+        title: "Laboratory Report",
+        module_code: "lab",
+        source_table: "lab_orders",
+        number_prefix: "LAB-RPT",
+        paper: Paper::A4,
+        margins: A4_MARGINS,
+        html: LAB_REPORT_HTML,
+        sample_context: LAB_REPORT_SAMPLE,
+    },
+    SystemTemplate {
+        code: "pharmacy_label",
+        title: "Dispensing Label",
+        module_code: "pharmacy",
+        source_table: "prescription_items",
+        number_prefix: "PH-LBL",
+        paper: Paper::Label50x25,
+        margins: MarginsMm::zero(),
+        html: PHARMACY_LABEL_HTML,
+        sample_context: PHARMACY_LABEL_SAMPLE,
+    },
+    SystemTemplate {
+        code: "patient_wristband",
+        title: "Patient Wristband",
+        module_code: "ipd",
+        source_table: "admissions",
+        number_prefix: "IPD-WB",
+        paper: Paper::Wristband25x280,
+        margins: MarginsMm::zero(),
+        html: WRISTBAND_HTML,
+        sample_context: WRISTBAND_SAMPLE,
+    },
+    SystemTemplate {
+        code: "insurance_cashless_claim",
+        title: "Cashless Claim Summary",
+        module_code: "insurance",
+        source_table: "insurance_claims",
+        number_prefix: "INS-CLM",
+        paper: Paper::A4,
+        margins: A4_MARGINS,
+        html: CASHLESS_CLAIM_HTML,
+        sample_context: CASHLESS_CLAIM_SAMPLE,
+    },
+];
+
+#[must_use]
+pub fn find_template(code: &str) -> Option<&'static SystemTemplate> {
+    SYSTEM_TEMPLATES.iter().find(|t| t.code == code)
+}
+
+// ── Billing ─────────────────────────────────────────────────
+
+const INVOICE_GST_HTML: &str = r#"{% extends "base.html" %}
+{% block content %}
+<h2 class="brand" style="margin-bottom:2px;">TAX INVOICE</h2>
+<table style="margin-bottom:8px;"><tr>
+  <td>
+    <div><strong>Invoice:</strong> <span class="mono">{{ invoice.invoice_number }}</span></div>
+    <div><strong>Date:</strong> {{ invoice.date }}</div>
+    {% if invoice.hospital_gstin %}<div><strong>GSTIN:</strong> <span class="mono">{{ invoice.hospital_gstin }}</span></div>{% endif %}
+  </td>
+  <td class="right">
+    <div><strong>Patient:</strong> {{ invoice.patient_name }}</div>
+    <div><strong>UHID:</strong> <span class="mono">{{ invoice.uhid }}</span></div>
+  </td>
+</tr></table>
+<table>
+  <thead><tr>
+    <th>#</th><th>Description</th><th>HSN/SAC</th>
+    <th class="right">Qty</th><th class="right">Rate</th>
+    <th class="right">GST %</th><th class="right">Amount</th>
+  </tr></thead>
+  <tbody>
+  {% for item in invoice.items %}
+    <tr>
+      <td>{{ loop.index }}</td>
+      <td>{{ item.description }}</td>
+      <td class="mono">{{ item.hsn_code | default(value="9993") }}</td>
+      <td class="right">{{ item.quantity }}</td>
+      <td class="right">{{ item.unit_price }}</td>
+      <td class="right">{{ item.tax_percent }}</td>
+      <td class="right">{{ item.total_price }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+<table style="margin-top:8px;"><tr><td></td><td style="width:38%;">
+  <table>
+    <tr><td>Subtotal</td><td class="right">{{ invoice.subtotal }}</td></tr>
+    <tr><td>GST</td><td class="right">{{ invoice.tax_amount }}</td></tr>
+    <tr><td><strong>Total</strong></td><td class="right"><strong>{{ invoice.total_amount }}</strong></td></tr>
+  </table>
+</td></tr></table>
+<p class="muted small" style="margin-top:10px;">
+  Healthcare services are exempt under GST Notification 12/2017 where applicable.
+  This is a system-generated invoice.
+</p>
+{% endblock content %}"#;
+
+const INVOICE_GST_SAMPLE: &str = r#"{
+  "invoice": {
+    "invoice_number": "INV-000123", "date": "2026-06-12",
+    "patient_name": "R. Lakshmi", "uhid": "ACMS-2026-00042",
+    "hospital_gstin": "33AAAAA0000A1Z5",
+    "subtotal": "1,500.00", "tax_amount": "0.00", "total_amount": "1,500.00",
+    "items": [
+      {"description": "OPD Consultation — General Medicine", "hsn_code": "9993", "quantity": 1, "unit_price": "500.00", "tax_percent": "0", "total_price": "500.00"},
+      {"description": "Complete Blood Count", "hsn_code": "9993", "quantity": 1, "unit_price": "350.00", "tax_percent": "0", "total_price": "350.00"},
+      {"description": "Room charges (1 day)", "hsn_code": "9993", "quantity": 1, "unit_price": "650.00", "tax_percent": "0", "total_price": "650.00"}
+    ]
+  },
+  "document_number": "BIL-GST-20260612-0001"
+}"#;
+
+const RECEIPT_HTML: &str = r#"{% extends "base.html" %}
+{% block content %}
+<h2 class="brand">PAYMENT RECEIPT</h2>
+<table style="margin-top:6px;">
+  <tr><td style="width:40%;"><strong>Receipt No.</strong></td><td class="mono">{{ receipt.receipt_number | default(value=receipt.document_number) }}</td></tr>
+  <tr><td><strong>Date</strong></td><td>{{ receipt.paid_at }}</td></tr>
+  <tr><td><strong>Patient</strong></td><td>{{ receipt.patient_name }} <span class="mono">({{ receipt.uhid }})</span></td></tr>
+  <tr><td><strong>Against Invoice</strong></td><td class="mono">{{ receipt.invoice_number }}</td></tr>
+  <tr><td><strong>Payment Mode</strong></td><td>{{ receipt.payment_mode }}</td></tr>
+  {% if receipt.reference_number %}<tr><td><strong>Reference</strong></td><td class="mono">{{ receipt.reference_number }}</td></tr>{% endif %}
+  <tr><td><strong>Amount Received</strong></td><td style="font-size:13pt;"><strong>₹ {{ receipt.amount }}</strong></td></tr>
+  {% if receipt.received_by %}<tr><td><strong>Received By</strong></td><td>{{ receipt.received_by }}</td></tr>{% endif %}
+</table>
+<p class="muted small" style="margin-top:10px;">Subject to realisation of instrument. System-generated receipt.</p>
+{% endblock content %}"#;
+
+const RECEIPT_SAMPLE: &str = r#"{
+  "receipt": {
+    "document_number": "BIL-RCT-20260612-0001", "receipt_number": "RCT-00891",
+    "patient_name": "R. Lakshmi", "uhid": "ACMS-2026-00042",
+    "invoice_number": "INV-000123", "amount": "1,500.00",
+    "payment_mode": "UPI", "reference_number": "UPI/512345678901",
+    "received_by": "Cashier Desk 1", "paid_at": "2026-06-12 10:42"
+  },
+  "document_number": "BIL-RCT-20260612-0001"
+}"#;
+
+// ── Clinical ────────────────────────────────────────────────
+
+const PRESCRIPTION_HTML: &str = r#"{% extends "base.html" %}
+{% block content %}
+<table style="margin-bottom:6px;"><tr>
+  <td>
+    <div><strong>{{ rx.patient_name }}</strong> <span class="mono">({{ rx.uhid }})</span></div>
+    <div class="muted">{{ rx.age | default(value="") }} {{ rx.gender }} · {{ rx.phone }}</div>
+  </td>
+  <td class="right">
+    <div>{{ rx.date }}</div>
+    <div class="muted">{{ rx.doctor_name }}{% if rx.department %} · {{ rx.department }}{% endif %}</div>
+  </td>
+</tr></table>
+{% if rx.diagnosis %}<div style="margin-bottom:6px;"><strong>Diagnosis:</strong> {{ rx.diagnosis }}</div>{% endif %}
+<div style="font-size:18pt;" class="brand">℞</div>
+<table>
+  <thead><tr><th>#</th><th>Medication</th><th>Dose</th><th>Route</th><th>Frequency</th><th>Duration</th><th>Instructions</th></tr></thead>
+  <tbody>
+  {% for med in rx.medications %}
+    <tr>
+      <td>{{ loop.index }}</td>
+      <td><strong>{{ med.drug_name }}</strong></td>
+      <td>{{ med.dosage }}</td>
+      <td>{{ med.route | default(value="PO") }}</td>
+      <td>{{ med.frequency }}</td>
+      <td>{{ med.duration }}</td>
+      <td>{{ med.instructions | default(value="") }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% if rx.advice %}<p style="margin-top:8px;"><strong>Advice:</strong> {{ rx.advice }}</p>{% endif %}
+{% if rx.follow_up %}<p><strong>Follow-up:</strong> {{ rx.follow_up }}</p>{% endif %}
+{% endblock content %}"#;
+
+const PRESCRIPTION_SAMPLE: &str = r#"{
+  "rx": {
+    "patient_name": "R. Lakshmi", "uhid": "ACMS-2026-00042",
+    "age": "42y", "gender": "F", "phone": "+91 98400 12345",
+    "doctor_name": "Dr. S. Ravi", "department": "General Medicine",
+    "diagnosis": "Acute pharyngitis (J02.9)", "date": "2026-06-12",
+    "medications": [
+      {"drug_name": "Amoxicillin 500mg", "dosage": "1 cap", "route": "PO", "frequency": "TID", "duration": "5 days", "instructions": "After food"},
+      {"drug_name": "Paracetamol 650mg", "dosage": "1 tab", "route": "PO", "frequency": "SOS", "duration": "3 days", "instructions": "If fever > 100°F"}
+    ],
+    "advice": "Warm saline gargles. Adequate hydration.",
+    "follow_up": "Review after 5 days or earlier if symptoms worsen"
+  },
+  "document_number": "OPD-RX-20260612-0001"
+}"#;
+
+const DISCHARGE_HTML: &str = r#"{% extends "base.html" %}
+{% block content %}
+<h2 class="brand">DISCHARGE SUMMARY</h2>
+<table style="margin:6px 0;">
+  <tr>
+    <td><strong>Patient:</strong> {{ discharge.patient_name }} <span class="mono">({{ discharge.uhid }})</span></td>
+    <td class="right">{{ discharge.age | default(value="") }} {{ discharge.gender }}</td>
+  </tr>
+  <tr>
+    <td><strong>Admitted:</strong> {{ discharge.admission_date }}</td>
+    <td class="right"><strong>Discharged:</strong> {{ discharge.discharge_date | default(value="—") }}</td>
+  </tr>
+  <tr>
+    <td>{% if discharge.ward_name %}<strong>Ward:</strong> {{ discharge.ward_name }}{% endif %}
+        {% if discharge.bed_number %} · Bed {{ discharge.bed_number }}{% endif %}</td>
+    <td class="right">{% if discharge.doctor_name %}<strong>Consultant:</strong> {{ discharge.doctor_name }}{% endif %}</td>
+  </tr>
+  {% if discharge.discharge_type %}<tr><td colspan="2"><strong>Discharge type:</strong> {{ discharge.discharge_type }}</td></tr>{% endif %}
+</table>
+{% if discharge.diagnosis %}
+<h3 class="brand" style="margin-top:8px;">Diagnosis</h3>
+<p>{{ discharge.diagnosis }}</p>
+{% endif %}
+{% if discharge.discharge_summary %}
+<h3 class="brand" style="margin-top:8px;">Course in Hospital & Summary</h3>
+<p style="white-space:pre-wrap;">{{ discharge.discharge_summary }}</p>
+{% endif %}
+{% endblock content %}"#;
+
+const DISCHARGE_SAMPLE: &str = r#"{
+  "discharge": {
+    "patient_name": "R. Lakshmi", "uhid": "ACMS-2026-00042",
+    "age": "42y", "gender": "F",
+    "admission_date": "2026-06-08", "discharge_date": "2026-06-12",
+    "department": "General Medicine", "doctor_name": "Dr. S. Ravi",
+    "bed_number": "GW-12", "ward_name": "General Ward A",
+    "discharge_type": "Normal",
+    "diagnosis": "Community-acquired pneumonia (J18.9)",
+    "discharge_summary": "Admitted with fever, productive cough and breathlessness. CXR showed right lower zone consolidation. Treated with IV ceftriaxone for 4 days, switched to oral amoxicillin-clavulanate. Afebrile for 48h, oxygen saturation 98% on room air at discharge.\n\nMedications on discharge: Amoxicillin-clavulanate 625mg TID x 5 days.\nAdvice: Review in OPD after 1 week with repeat CXR."
+  },
+  "watermark": "draft",
+  "document_number": "IPD-DSC-20260612-0001"
+}"#;
+
+const LAB_REPORT_HTML: &str = r#"{% extends "base.html" %}
+{% block extra_css %}
+  .flag-high, .flag-critical_high { color: #b42828; font-weight: 700; }
+  .flag-low, .flag-critical_low { color: #1e63b8; font-weight: 700; }
+{% endblock extra_css %}
+{% block content %}
+<h2 class="brand">LABORATORY REPORT</h2>
+<table style="margin:6px 0;">
+  <tr>
+    <td><strong>Patient:</strong> {{ lab.patient_name }} <span class="mono">({{ lab.uhid }})</span></td>
+    <td class="right">{{ lab.age | default(value="") }} {{ lab.gender }}</td>
+  </tr>
+  <tr>
+    <td><strong>Test:</strong> {{ lab.test_name }}{% if lab.sample_type %} ({{ lab.sample_type }}){% endif %}</td>
+    <td class="right">{% if lab.order_number %}<span class="mono">{{ lab.order_number }}</span>{% endif %}</td>
+  </tr>
+  <tr>
+    <td class="muted">Collected: {{ lab.collected_at | default(value="—") }}</td>
+    <td class="right muted">Reported: {{ lab.reported_at | default(value="—") }}</td>
+  </tr>
+</table>
+<table>
+  <thead><tr><th>Parameter</th><th class="right">Result</th><th>Unit</th><th>Reference Range</th><th>Flag</th></tr></thead>
+  <tbody>
+  {% for r in lab.results %}
+    <tr>
+      <td>{{ r.parameter_name }}</td>
+      <td class="right flag-{{ r.flag | default(value='normal') }}">{{ r.value }}</td>
+      <td>{{ r.unit | default(value="") }}</td>
+      <td>{{ r.normal_range | default(value="") }}</td>
+      <td class="flag-{{ r.flag | default(value='normal') }}">{{ r.flag | default(value="") | upper }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% if lab.pathologist_name %}<p class="right" style="margin-top:14px;">{{ lab.pathologist_name }}<br><span class="muted small">Pathologist</span></p>{% endif %}
+{% endblock content %}"#;
+
+const LAB_REPORT_SAMPLE: &str = r#"{
+  "lab": {
+    "patient_name": "R. Lakshmi", "uhid": "ACMS-2026-00042",
+    "age": "42y", "gender": "F",
+    "order_number": "LAB-2026-08812", "test_name": "Complete Blood Count",
+    "sample_type": "EDTA Whole Blood",
+    "collected_at": "2026-06-12 08:10", "reported_at": "2026-06-12 11:30",
+    "referring_doctor": "Dr. S. Ravi",
+    "pathologist_name": "Dr. K. Meena, MD (Path)",
+    "results": [
+      {"parameter_name": "Haemoglobin", "value": "9.8", "unit": "g/dL", "normal_range": "12.0 – 15.5", "flag": "low"},
+      {"parameter_name": "Total WBC", "value": "11,400", "unit": "/µL", "normal_range": "4,000 – 11,000", "flag": "high"},
+      {"parameter_name": "Platelets", "value": "2.4", "unit": "lakh/µL", "normal_range": "1.5 – 4.5", "flag": null},
+      {"parameter_name": "Neutrophils", "value": "78", "unit": "%", "normal_range": "40 – 70", "flag": "high"}
+    ]
+  },
+  "document_number": "LAB-RPT-20260612-0001"
+}"#;
+
+// ── Pharmacy / IPD labels ───────────────────────────────────
+
+const PHARMACY_LABEL_HTML: &str = r#"{% extends "base.html" %}
+{% block extra_css %}
+  html, body { font-size: 6.5pt; }
+  .label { padding: 1.5mm 2mm; display: flex; gap: 1.5mm; height: 25mm; }
+  .label .info { flex: 1; overflow: hidden; }
+  .label .qr svg { width: 13mm; height: 13mm; }
+  .drug { font-size: 8pt; font-weight: 700; }
+{% endblock extra_css %}
+{% block letterhead %}{% endblock letterhead %}
+{% block content %}
+<div class="label">
+  <div class="info">
+    <div class="drug">{{ label.drug_name }}</div>
+    <div>{{ label.dosage }} · {{ label.frequency }} · {{ label.duration }}</div>
+    {% if label.instructions %}<div class="muted">{{ label.instructions }}</div>{% endif %}
+    <div style="margin-top:1mm;">{{ label.patient_name }} <span class="mono">{{ label.uhid }}</span></div>
+    <div class="muted">{{ label.dispensed_date }} · {{ branding.hospital_name }}</div>
+  </div>
+  <div class="qr">{{ label.qr_svg | safe }}</div>
+</div>
+{% endblock content %}
+{% block footer %}{% endblock footer %}"#;
+
+const PHARMACY_LABEL_SAMPLE: &str = r#"{
+  "label": {
+    "drug_name": "Amoxicillin 500mg", "dosage": "1 cap", "frequency": "TID",
+    "duration": "5 days", "instructions": "After food",
+    "patient_name": "R. Lakshmi", "uhid": "ACMS-2026-00042",
+    "dispensed_date": "2026-06-12",
+    "qr_svg": "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'><rect width='10' height='10' fill='#eee'/></svg>"
+  }
+}"#;
+
+const WRISTBAND_HTML: &str = r#"{% extends "base.html" %}
+{% block extra_css %}
+  html, body { font-size: 7pt; }
+  .band { display: flex; align-items: center; gap: 3mm; height: 25mm; padding: 1.5mm 3mm; }
+  .band .who { min-width: 52mm; }
+  .band .name { font-size: 9.5pt; font-weight: 700; }
+  .band .barcode { flex: 1; }
+  .band .barcode svg { width: 100%; height: 12mm; }
+  .band .qr svg { width: 16mm; height: 16mm; }
+  .alert { color: #b42828; font-weight: 700; }
+{% endblock extra_css %}
+{% block letterhead %}{% endblock letterhead %}
+{% block content %}
+<div class="band">
+  <div class="who">
+    <div class="name">{{ band.patient_name }}</div>
+    <div><span class="mono">{{ band.uhid }}</span> · {{ band.age | default(value="") }} {{ band.gender }}{% if band.blood_group %} · <strong>{{ band.blood_group }}</strong>{% endif %}</div>
+    <div class="muted">Adm {{ band.admission_date }}{% if band.ward_name %} · {{ band.ward_name }}{% endif %}{% if band.bed_number %} · {{ band.bed_number }}{% endif %}</div>
+    {% if band.allergies and band.allergies | length > 0 %}<div class="alert">⚠ {{ band.allergies | join(sep=", ") }}</div>{% endif %}
+  </div>
+  <div class="barcode">{{ band.barcode_svg | safe }}</div>
+  <div class="qr">{{ band.qr_svg | safe }}</div>
+</div>
+{% endblock content %}
+{% block footer %}{% endblock footer %}"#;
+
+const WRISTBAND_SAMPLE: &str = r#"{
+  "band": {
+    "patient_name": "R. Lakshmi", "uhid": "ACMS-2026-00042",
+    "age": "42y", "gender": "F", "blood_group": "B+",
+    "admission_date": "2026-06-08", "ward_name": "GW-A", "bed_number": "12",
+    "allergies": ["Penicillin"],
+    "barcode_svg": "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 20'><rect width='100' height='20' fill='#eee'/></svg>",
+    "qr_svg": "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'><rect width='10' height='10' fill='#eee'/></svg>"
+  }
+}"#;
+
+// ── Insurance ───────────────────────────────────────────────
+
+const CASHLESS_CLAIM_HTML: &str = r#"{% extends "base.html" %}
+{% block content %}
+<h2 class="brand">CASHLESS CLAIM SUMMARY</h2>
+<table style="margin:6px 0;">
+  <tr><td><strong>Claim No.</strong></td><td class="mono">{{ claim.claim_number }}</td>
+      <td class="right"><strong>Date</strong></td><td class="right">{{ claim.claim_date }}</td></tr>
+  <tr><td><strong>Patient</strong></td><td>{{ claim.patient_name }} <span class="mono">({{ claim.uhid }})</span></td>
+      <td class="right"><strong>Status</strong></td><td class="right">{{ claim.claim_status | upper }}</td></tr>
+  <tr><td><strong>Insurer</strong></td><td>{{ claim.insurance_company }}</td>
+      <td class="right"><strong>Policy</strong></td><td class="right mono">{{ claim.policy_number }}</td></tr>
+  {% if claim.tpa_name %}<tr><td><strong>TPA</strong></td><td colspan="3">{{ claim.tpa_name }}</td></tr>{% endif %}
+  <tr><td><strong>Admitted</strong></td><td>{{ claim.admission_date }}</td>
+      <td class="right"><strong>Discharged</strong></td><td class="right">{{ claim.discharge_date | default(value="—") }}</td></tr>
+  {% if claim.treating_doctor %}<tr><td><strong>Treating Doctor</strong></td><td colspan="3">{{ claim.treating_doctor }}</td></tr>{% endif %}
+</table>
+{% if claim.diagnosis %}<p><strong>Diagnosis:</strong> {{ claim.diagnosis }}</p>{% endif %}
+{% if claim.procedures_performed and claim.procedures_performed | length > 0 %}
+<p><strong>Procedures:</strong> {{ claim.procedures_performed | join(sep="; ") }}</p>
+{% endif %}
+<table style="margin-top:10px; width:55%;">
+  <tr><td>Total Bill Amount</td><td class="right">₹ {{ claim.total_bill_amount }}</td></tr>
+  <tr><td>Approved Amount</td><td class="right">₹ {{ claim.approved_amount }}</td></tr>
+  <tr><td>Deductions</td><td class="right">₹ {{ claim.deductions }}</td></tr>
+  <tr><td><strong>Patient Payable</strong></td><td class="right"><strong>₹ {{ claim.patient_payable }}</strong></td></tr>
+</table>
+{% endblock content %}"#;
+
+const CASHLESS_CLAIM_SAMPLE: &str = r#"{
+  "claim": {
+    "claim_number": "CLM-2026-04471", "claim_date": "2026-06-12",
+    "patient_name": "R. Lakshmi", "uhid": "ACMS-2026-00042",
+    "policy_number": "POL-88412290", "insurance_company": "Star Health Insurance",
+    "tpa_name": "MediAssist TPA", "claim_status": "approved",
+    "admission_date": "2026-06-08", "discharge_date": "2026-06-12",
+    "diagnosis": "Community-acquired pneumonia (J18.9)",
+    "procedures_performed": ["Chest X-ray PA", "IV antibiotic therapy"],
+    "total_bill_amount": "48,500.00", "approved_amount": "42,000.00",
+    "deductions": "6,500.00", "patient_payable": "6,500.00",
+    "treating_doctor": "Dr. S. Ravi"
+  },
+  "document_number": "INS-CLM-20260612-0001"
+}"#;

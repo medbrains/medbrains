@@ -23,7 +23,7 @@ use crate::{
 use medbrains_core::permissions;
 
 mod templates;
-pub(crate) use templates::{SAMPLE_CONTEXTS, SYSTEM_TEMPLATES, SystemTemplate};
+pub(crate) use templates::{SYSTEM_TEMPLATES, SystemTemplate};
 
 #[derive(Debug, Deserialize)]
 pub struct RenderRequest {
@@ -320,11 +320,7 @@ pub async fn preview_template(
         .iter()
         .find(|t| t.code == code)
         .ok_or_else(|| AppError::BadRequest(format!("unknown template_code '{code}'")))?;
-    let sample = SAMPLE_CONTEXTS
-        .iter()
-        .find(|(c, _)| *c == code)
-        .map(|(_, v)| v)
-        .ok_or_else(|| AppError::Internal("missing sample context".to_owned()))?;
+    let sample = template.sample_context;
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;

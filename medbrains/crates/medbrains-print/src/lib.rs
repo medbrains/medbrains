@@ -12,6 +12,7 @@ pub mod codes;
 pub mod engine;
 pub mod gotenberg;
 pub mod paper;
+pub mod templates;
 
 #[derive(Debug, thiserror::Error)]
 pub enum PrintError {
