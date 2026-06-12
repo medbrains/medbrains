@@ -26,6 +26,8 @@ export const pharmacyService = {
   formularyCheck: (...args: Parameters<typeof api.formularyCheck>) => api.formularyCheck(...args),
   listPharmacyCatalog: (...args: Parameters<typeof api.listPharmacyCatalog>) =>
     api.listPharmacyCatalog(...args),
+  importPharmacyCatalog: (...args: Parameters<typeof api.importPharmacyCatalog>) =>
+    api.importPharmacyCatalog(...args),
   createPharmacyCatalog: (...args: Parameters<typeof api.createPharmacyCatalog>) =>
     api.createPharmacyCatalog(...args),
   listStock: (...args: Parameters<typeof api.listStock>) => api.listStock(...args),

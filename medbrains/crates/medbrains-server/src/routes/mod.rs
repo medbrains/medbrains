@@ -18,6 +18,7 @@ pub mod bme;
 pub mod camp;
 pub mod care_view;
 pub mod case_mgmt;
+pub mod catalog_import;
 pub mod cds;
 pub mod chronic_care;
 pub mod client_errors;
@@ -1692,6 +1693,10 @@ pub fn build_router(state: AppState) -> Router {
             get(lab::list_catalog).post(lab::create_catalog_entry),
         )
         .route(
+            "/api/lab/catalog/import",
+            post(catalog_import::import_lab_catalog),
+        )
+        .route(
             "/api/lab/catalog/{id}",
             put(lab::update_catalog_entry),
         )
@@ -1796,6 +1801,10 @@ pub fn build_router(state: AppState) -> Router {
         .route(
             "/api/pharmacy/catalog",
             get(pharmacy::list_catalog).post(pharmacy::create_catalog_entry),
+        )
+        .route(
+            "/api/pharmacy/catalog/import",
+            post(catalog_import::import_pharmacy_catalog),
         )
         .route(
             "/api/pharmacy/catalog/{id}",

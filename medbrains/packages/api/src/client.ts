@@ -2940,6 +2940,16 @@ export const api = {
     }),
 
   // Setup — CSV import
+  importLabCatalog: (data: CsvImportRequest) =>
+    request<CsvImportResult>("/lab/catalog/import", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  importPharmacyCatalog: (data: CsvImportRequest) =>
+    request<CsvImportResult>("/pharmacy/catalog/import", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
   importLocations: (data: CsvImportRequest) =>
     request<CsvImportResult>("/setup/locations/import", {
       method: "POST",

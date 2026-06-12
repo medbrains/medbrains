@@ -120,6 +120,7 @@ import {
   IconFlask,
   IconLock,
   IconPlus,
+  IconUpload,
   IconPrinter,
   IconRefresh,
   IconRobot,
@@ -135,6 +136,7 @@ import {
   PageHeader,
   StatusDot,
   useClinicalEmit,
+  CsvImportModal,
 } from "@/components";
 import { Icd11CodeSelect } from "@/components/Clinical/Icd11CodeSelect";
 import { EncounterSelect } from "@/components/EncounterSelect";
@@ -1428,6 +1430,7 @@ function LabCatalogTab({ canCreate }: { canCreate: boolean }) {
 
   const queryClient = useQueryClient();
   const [formOpen, formHandlers] = useDisclosure(false);
+  const [importOpen, importHandlers] = useDisclosure(false);
   const catalogDefaults: LabCatalogFormInput = {
     code: "",
     name: "",
@@ -1556,8 +1559,36 @@ function LabCatalogTab({ canCreate }: { canCreate: boolean }) {
           >
             Add Test
           </Button>
+          <Button
+            size="xs"
+            variant="light"
+            leftSection={<IconUpload size={14} />}
+            onClick={importHandlers.open}
+          >
+            Import CSV
+          </Button>
         </Group>
       )}
+      <CsvImportModal
+        opened={importOpen}
+        onClose={() => {
+          importHandlers.close();
+          void queryClient.invalidateQueries({ queryKey: ["lab-catalog"] });
+        }}
+        title="Import lab test catalog"
+        requiredColumns={["code", "name"]}
+        optionalColumns={[
+          "sample_type",
+          "normal_range",
+          "unit",
+          "price",
+          "tat_hours",
+          "loinc_code",
+          "critical_low",
+          "critical_high",
+        ]}
+        onImport={(data) => labService.importLabCatalog(data)}
+      />
       {formOpen && (
         <Stack component="form" gap="xs" onSubmit={handleSubmit(handleCreateCatalog)}>
           <Group grow>

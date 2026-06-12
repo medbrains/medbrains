@@ -111,6 +111,7 @@ import {
   IconPencil,
   IconPill,
   IconPlus,
+  IconUpload,
   IconPrescription,
   IconReceipt,
   IconShieldCheck,
@@ -134,6 +135,7 @@ import {
   StatusDot,
   TableValueBadge,
   useClinicalEmit,
+  CsvImportModal,
 } from "@/components";
 import { DrugSearchSelect } from "@/components/DrugSearchSelect";
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
@@ -3114,6 +3116,7 @@ function PharmacyCatalogTab({
 }) {
   const queryClient = useQueryClient();
   const [formOpened, formHandlers] = useDisclosure(false);
+  const [importOpened, importHandlers] = useDisclosure(false);
   const [formularyFilter, setFormularyFilter] = useState<string | null>(null);
   const priceAccess = useFieldAccess("pharmacy.catalog.base_price");
   const catalogDefaults: PharmacyCatalogFormInput = {
@@ -3300,6 +3303,16 @@ function PharmacyCatalogTab({
             Add formulary medicine
           </Button>
         )}
+        {canManage && (
+          <Button
+            size="xs"
+            variant="light"
+            leftSection={<IconUpload size={14} />}
+            onClick={importHandlers.open}
+          >
+            Import CSV
+          </Button>
+        )}
         <Select
           placeholder="Formulary filter"
           data={[
@@ -3313,6 +3326,29 @@ function PharmacyCatalogTab({
           w={180}
         />
       </Group>
+      <CsvImportModal
+        opened={importOpened}
+        onClose={() => {
+          importHandlers.close();
+          void queryClient.invalidateQueries({ queryKey: ["pharmacy-catalog"] });
+        }}
+        title="Import drug formulary"
+        requiredColumns={["code", "name"]}
+        optionalColumns={[
+          "generic_name",
+          "category",
+          "manufacturer",
+          "unit",
+          "base_price",
+          "tax_percent",
+          "reorder_level",
+          "drug_schedule",
+          "inn_name",
+          "atc_code",
+          "mrp",
+        ]}
+        onImport={(data) => pharmacyService.importPharmacyCatalog(data)}
+      />
       {formOpened && (
         <Stack component="form" gap="xs" onSubmit={handleSubmit(handleCreateCatalog)}>
           <Group grow>
