@@ -70,6 +70,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { useSearchParams } from "react-router";
 import { DataTable, IpdContextStrip, ipdContextFromSearchParams, PageHeader } from "@/components";
+import { statusColor } from "@/lib/status-colors";
 import { DepartmentSelect } from "@/components/DepartmentSelect";
 import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
@@ -78,21 +79,7 @@ import { infectionControlService } from "@/services/infectionControl.service";
 
 // ── Color Maps ──────────────────────────────────────────
 
-const haiColors: Record<string, string> = {
-  clabsi: "danger",
-  cauti: "orange",
-  vap: "violet",
-  ssi: "warning",
-  cdiff: "danger",
-  mrsa: "violet",
-  other: "slate",
-};
 
-const infectionStatusColors: Record<string, string> = {
-  suspected: "warning",
-  confirmed: "danger",
-  ruled_out: "success",
-};
 
 const requestStatusColors: Record<string, string> = {
   pending: "warning",
@@ -101,22 +88,7 @@ const requestStatusColors: Record<string, string> = {
   expired: "slate",
 };
 
-const wasteColors: Record<string, string> = {
-  yellow: "warning",
-  red: "danger",
-  white_translucent: "slate",
-  blue: "primary",
-  cytotoxic: "violet",
-  chemical: "orange",
-  radioactive: "violet",
-};
 
-const outbreakStatusColors: Record<string, string> = {
-  suspected: "warning",
-  confirmed: "danger",
-  contained: "teal",
-  closed: "success",
-};
 
 // Dropdown options for categorical fields
 const DEVICE_TYPES = [
@@ -200,14 +172,14 @@ function SurveillanceTab() {
       key: "hai_type" as const,
       label: "HAI Type",
       render: (r: InfectionSurveillanceEvent) => (
-        <Badge color={haiColors[r.hai_type] ?? "slate"}>{r.hai_type.toUpperCase()}</Badge>
+        <Badge color={statusColor(r.hai_type) ?? "slate"}>{r.hai_type.toUpperCase()}</Badge>
       ),
     },
     {
       key: "infection_status" as const,
       label: "Status",
       render: (r: InfectionSurveillanceEvent) => (
-        <Badge color={infectionStatusColors[r.infection_status] ?? "slate"}>
+        <Badge color={statusColor(r.infection_status) ?? "slate"}>
           {r.infection_status.replace(/_/g, " ")}
         </Badge>
       ),
@@ -239,7 +211,7 @@ function SurveillanceTab() {
       key: "infection_status" as const,
       label: "Status",
       render: (r: InfectionSurveillanceEvent) => (
-        <Badge color={infectionStatusColors[r.infection_status] ?? "slate"}>
+        <Badge color={statusColor(r.infection_status) ?? "slate"}>
           {r.infection_status.replace(/_/g, " ")}
         </Badge>
       ),
@@ -764,7 +736,7 @@ function BiowasteTab() {
       key: "waste_category" as const,
       label: "Category",
       render: (r: BiowasteRecord) => (
-        <Badge color={wasteColors[r.waste_category] ?? "slate"}>
+        <Badge color={statusColor(r.waste_category) ?? "slate"}>
           {r.waste_category.replace(/_/g, " ")}
         </Badge>
       ),
@@ -880,7 +852,7 @@ function BiowasteTab() {
                 {Object.entries(monthlyReport).map(([cat, data]) => (
                   <Table.Tr key={cat}>
                     <Table.Td>
-                      <Badge color={wasteColors[cat] ?? "slate"}>{cat.replace(/_/g, " ")}</Badge>
+                      <Badge color={statusColor(cat) ?? "slate"}>{cat.replace(/_/g, " ")}</Badge>
                     </Table.Td>
                     <Table.Td>{data.weight.toFixed(2)}</Table.Td>
                     <Table.Td>{data.containers}</Table.Td>
@@ -1422,7 +1394,7 @@ function OutbreakTab() {
       key: "outbreak_status" as const,
       label: "Status",
       render: (r: OutbreakEvent) => (
-        <Badge color={outbreakStatusColors[r.outbreak_status] ?? "slate"}>
+        <Badge color={statusColor(r.outbreak_status) ?? "slate"}>
           {r.outbreak_status}
         </Badge>
       ),
@@ -1474,7 +1446,7 @@ function OutbreakTab() {
                 key={next}
                 size="compact-xs"
                 variant="light"
-                color={outbreakStatusColors[next] ?? "slate"}
+                color={statusColor(next) ?? "slate"}
                 onClick={() =>
                   updateMut.mutate({
                     id: r.id,
@@ -1563,7 +1535,7 @@ function OutbreakTab() {
           <Stack>
             <Text fw={600}>{selected.organism}</Text>
             <Group>
-              <Badge color={outbreakStatusColors[selected.outbreak_status] ?? "slate"}>
+              <Badge color={statusColor(selected.outbreak_status) ?? "slate"}>
                 {selected.outbreak_status}
               </Badge>
               <Text size="sm">Cases: {selected.total_cases}</Text>

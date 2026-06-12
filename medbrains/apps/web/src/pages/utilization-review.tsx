@@ -54,6 +54,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { DataTable, PageHeader } from "@/components";
+import { statusColor } from "@/lib/status-colors";
 import type { Column } from "@/components/DataTable";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
@@ -73,22 +74,7 @@ const reviewTypeColors: Record<string, string> = {
   retrospective: "slate",
 };
 
-const decisionColors: Record<string, string> = {
-  approved: "success",
-  denied: "danger",
-  pending_info: "warning",
-  modified: "orange",
-  escalated: "danger",
-};
 
-const commTypeColors: Record<string, string> = {
-  initial_auth: "primary",
-  continued_stay: "orange",
-  denial_appeal: "danger",
-  peer_review: "violet",
-  info_request: "warning",
-  response: "success",
-};
 
 type ReviewViewMode = "list" | "timeline";
 
@@ -292,7 +278,7 @@ function ReviewsTab() {
       key: "decision",
       label: "Decision",
       render: (r) => (
-        <Badge color={decisionColors[r.decision] ?? "slate"}>{r.decision.replace(/_/g, " ")}</Badge>
+        <Badge color={statusColor(r.decision) ?? "slate"}>{r.decision.replace(/_/g, " ")}</Badge>
       ),
     },
     {
@@ -433,7 +419,7 @@ function ReviewsTab() {
                   title={
                     <Group gap="xs">
                       <Text fw={600}>{r.review_type.replace(/_/g, " ")}</Text>
-                      <Badge color={decisionColors[r.decision] ?? "slate"} size="sm">
+                      <Badge color={statusColor(r.decision) ?? "slate"} size="sm">
                         {r.decision.replace(/_/g, " ")}
                       </Badge>
                     </Group>
@@ -639,7 +625,7 @@ function LosMonitoringTab() {
       key: "decision",
       label: "Decision",
       render: (r) => (
-        <Badge color={decisionColors[r.decision] ?? "slate"}>{r.decision.replace(/_/g, " ")}</Badge>
+        <Badge color={statusColor(r.decision) ?? "slate"}>{r.decision.replace(/_/g, " ")}</Badge>
       ),
     },
     {
@@ -916,7 +902,7 @@ function PayerLogTab() {
       key: "communication_type",
       label: "Type",
       render: (r) => (
-        <Badge color={commTypeColors[r.communication_type] ?? "slate"}>
+        <Badge color={statusColor(r.communication_type) ?? "slate"}>
           {r.communication_type.replace(/_/g, " ")}
         </Badge>
       ),

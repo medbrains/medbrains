@@ -65,6 +65,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { DataTable, PageHeader, StatusDot } from "@/components";
+import { statusColor } from "@/lib/status-colors";
 import { PatientNameCell } from "@/components/PatientNameCell";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
@@ -2443,12 +2444,6 @@ function ColdChainTab() {
 //  Compliance Tab (Lookback, SBTC, Recruitment)
 // ══════════════════════════════════════════════════════════
 
-const lookbackStatusColors: Record<string, string> = {
-  detected: "danger",
-  investigating: "warning",
-  notified: "info",
-  closed: "success",
-};
 
 function ComplianceTab() {
   const [compView, setCompView] = useState("lookback");
@@ -2526,7 +2521,7 @@ function LookbackSection() {
       key: "status" as const,
       label: "Status",
       render: (r: BbLookbackEventRow) => (
-        <Badge color={lookbackStatusColors[r.status] ?? "slate"}>{r.status}</Badge>
+        <Badge color={statusColor(r.status) ?? "slate"}>{r.status}</Badge>
       ),
     },
     {

@@ -23,6 +23,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { type Column, DataTable } from "@/components/DataTable";
+import { statusColor } from "@/lib/status-colors";
 import { PageHeader } from "@/components/PageHeader";
 import {
   DEFAULT_RETROSPECTIVE_REVIEW_FORM_VALUES,
@@ -40,11 +41,6 @@ import { retrospectiveService } from "@/services/retrospective.service";
 
 // ── Status badge helpers ──
 
-const STATUS_COLORS: Record<string, string> = {
-  pending: "warning",
-  approved: "success",
-  rejected: "danger",
-};
 
 type ReviewAction = "approve" | "reject";
 
@@ -55,7 +51,7 @@ type ReviewTarget = {
 
 function StatusBadge({ status }: { status: string }) {
   return (
-    <Badge color={STATUS_COLORS[status] ?? "slate"} variant="light">
+    <Badge color={statusColor(status) ?? "slate"} variant="light">
       {status}
     </Badge>
   );

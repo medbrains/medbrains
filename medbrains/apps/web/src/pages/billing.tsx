@@ -1,5 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { confirmDestructive } from "@/lib/confirm-destructive";
+import { statusColor } from "@/lib/status-colors";
 import {
   ActionIcon,
   Alert,
@@ -4736,12 +4737,6 @@ function BillingSettingsTab() {
 
 // ── Advances Tab ────────────────────────────────────────
 
-const advanceStatusColors: Record<string, string> = {
-  active: "success",
-  partially_used: "warning",
-  fully_used: "primary",
-  refunded: "orange",
-};
 
 function AdvancesTab() {
   const canCreate = useHasPermission(P.BILLING.ADVANCES_CREATE);
@@ -4887,7 +4882,7 @@ function AdvancesTab() {
       key: "status",
       label: "Status",
       render: (row: PatientAdvance) => (
-        <Badge variant="light" color={advanceStatusColors[row.status] ?? "slate"}>
+        <Badge variant="light" color={statusColor(row.status) ?? "slate"}>
           {row.status.replace(/_/g, " ")}
         </Badge>
       ),
@@ -6256,12 +6251,7 @@ function DayCloseTab() {
     },
   });
 
-  const dayCloseStatusColors: Record<string, string> = {
-    open: "primary",
-    verified: "success",
-    discrepancy: "danger",
-  };
-
+  
   const columns = [
     {
       key: "close_date",
@@ -6304,7 +6294,7 @@ function DayCloseTab() {
       key: "status",
       label: "Status",
       render: (row: DayEndClose) => (
-        <Badge color={dayCloseStatusColors[row.status] ?? "slate"} variant="light">
+        <Badge color={statusColor(row.status) ?? "slate"} variant="light">
           {row.status}
         </Badge>
       ),
@@ -6390,28 +6380,7 @@ function AuditLogTab() {
     queryFn: () => billingService.listBillingAuditLog(params),
   });
 
-  const actionColors: Record<string, string> = {
-    invoice_created: "primary",
-    invoice_issued: "teal",
-    invoice_cancelled: "danger",
-    payment_recorded: "success",
-    payment_voided: "orange",
-    refund_created: "orange",
-    discount_applied: "violet",
-    discount_removed: "slate",
-    advance_collected: "info",
-    advance_adjusted: "warning",
-    advance_refunded: "danger",
-    credit_note_created: "primary",
-    credit_note_applied: "primary",
-    claim_created: "primary",
-    claim_updated: "primary",
-    day_closed: "teal",
-    write_off_created: "orange",
-    write_off_approved: "success",
-    invoice_cloned: "violet",
-  };
-
+  
   const columns = [
     {
       key: "created_at",
@@ -6424,7 +6393,7 @@ function AuditLogTab() {
       key: "action",
       label: "Action",
       render: (row: BillingAuditEntry) => (
-        <Badge size="sm" variant="light" color={actionColors[row.action] ?? "slate"}>
+        <Badge size="sm" variant="light" color={statusColor(row.action) ?? "slate"}>
           {row.action.replace(/_/g, " ")}
         </Badge>
       ),
@@ -7137,12 +7106,7 @@ function TdsSubView({ canManage }: { canManage: boolean }) {
     },
   });
 
-  const tdsStatusColors: Record<string, string> = {
-    deducted: "primary",
-    deposited: "teal",
-    certificate_issued: "success",
-  };
-
+  
   const columns = [
     {
       key: "deductee_name",
@@ -7190,7 +7154,7 @@ function TdsSubView({ canManage }: { canManage: boolean }) {
       key: "status",
       label: "Status",
       render: (r: TdsDeduction) => (
-        <Badge size="sm" color={tdsStatusColors[r.status] ?? "slate"}>
+        <Badge size="sm" color={statusColor(r.status) ?? "slate"}>
           {r.status.replace(/_/g, " ")}
         </Badge>
       ),
@@ -7584,12 +7548,7 @@ function JournalEntriesTab() {
       notifications.show({ title: "Error", message: "Reversal failed", color: "danger" }),
   });
 
-  const jeStatusColors: Record<string, string> = {
-    draft: "slate",
-    posted: "success",
-    reversed: "danger",
-  };
-
+  
   const columns = [
     {
       key: "entry_number",
@@ -7620,7 +7579,7 @@ function JournalEntriesTab() {
       key: "status",
       label: "Status",
       render: (r: JournalEntry) => (
-        <Badge size="sm" color={jeStatusColors[r.status] ?? "slate"}>
+        <Badge size="sm" color={statusColor(r.status) ?? "slate"}>
           {r.status}
         </Badge>
       ),
@@ -7927,13 +7886,7 @@ function BankReconTab() {
     queryFn: () => billingService.listInsuranceReceivablesAging(),
   });
 
-  const reconStatusColors: Record<string, string> = {
-    unmatched: "orange",
-    matched: "success",
-    discrepancy: "danger",
-    excluded: "slate",
-  };
-
+  
   const columns = [
     {
       key: "transaction_date",
@@ -7983,7 +7936,7 @@ function BankReconTab() {
       key: "recon_status",
       label: "Status",
       render: (r: BankTransaction) => (
-        <Badge size="sm" color={reconStatusColors[r.recon_status] ?? "slate"}>
+        <Badge size="sm" color={statusColor(r.recon_status) ?? "slate"}>
           {r.recon_status}
         </Badge>
       ),

@@ -67,6 +67,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { DataTable, PageHeader } from "@/components";
+import { statusColor } from "@/lib/status-colors";
 import { DoctorSearchSelect } from "@/components/DoctorSearchSelect";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
@@ -1478,13 +1479,7 @@ function PcpndtTab() {
     queryFn: () => regulatoryService.listPcpndtForms(),
   });
 
-  const pcpndtStatusColors: Record<string, string> = {
-    draft: "slate",
-    submitted: "primary",
-    registered: "success",
-    expired: "danger",
-  };
-
+  
   const [form, setForm] = useState<CreatePcpndtRequest>({
     patient_id: "",
     performing_doctor_id: "",
@@ -1561,7 +1556,7 @@ function PcpndtTab() {
           {
             key: "status",
             label: "Status",
-            render: (r) => <Badge color={pcpndtStatusColors[r.status]}>{r.status}</Badge>,
+            render: (r) => <Badge color={statusColor(r.status)}>{r.status}</Badge>,
           },
           {
             key: "gender_blocked",
@@ -2587,13 +2582,7 @@ function StaffCredentialsTab() {
     queryFn: () => regulatoryService.staffCredentials(),
   });
 
-  const credentialStatusColors: Record<string, string> = {
-    valid: "success",
-    expiring_soon: "orange",
-    expired: "danger",
-    not_verified: "slate",
-  };
-
+  
   return (
     <Stack gap="md">
       <PageHeader
@@ -2665,7 +2654,7 @@ function StaffCredentialsTab() {
             key: "status",
             label: "Status",
             render: (r: StaffCredentialSummary) => (
-              <Badge color={credentialStatusColors[r.status] ?? "slate"}>
+              <Badge color={statusColor(r.status) ?? "slate"}>
                 {r.status.replace(/_/g, " ")}
               </Badge>
             ),

@@ -72,6 +72,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { DataTable, PageHeader } from "@/components";
+import { statusColor } from "@/lib/status-colors";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
 import {
   cssdIndicatorTypeOptions,
@@ -97,12 +98,6 @@ const statusColors: Record<string, string> = {
   condemned: "slate",
 };
 
-const loadStatusColors: Record<string, string> = {
-  loading: "slate",
-  running: "primary",
-  completed: "success",
-  failed: "danger",
-};
 
 const methodLabels: Record<SterilizationMethod, string> = {
   steam: "Steam (Autoclave)",
@@ -527,7 +522,7 @@ function SterilizationTab() {
       key: "status" as const,
       label: "Status",
       render: (l: CssdSterilizationLoad) => (
-        <Badge color={loadStatusColors[l.status] ?? "slate"}>{l.status}</Badge>
+        <Badge color={statusColor(l.status) ?? "slate"}>{l.status}</Badge>
       ),
     },
     {
@@ -689,7 +684,7 @@ function SterilizationTab() {
               <Card withBorder>
                 <Stack gap="xs">
                   <Group>
-                    <Badge color={loadStatusColors[selectedLoad.status]}>
+                    <Badge color={statusColor(selectedLoad.status)}>
                       {selectedLoad.status}
                     </Badge>
                     {selectedLoad.is_flash && <Badge color="orange">Flash</Badge>}

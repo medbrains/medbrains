@@ -52,6 +52,7 @@ import {
   useClinicalEmit,
 } from "@/components";
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
+import { statusColor } from "@/lib/status-colors";
 import { PatientNameCell } from "@/components/PatientNameCell";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
 import { radiologyOptionalText, radiologyPriorityOptions } from "@/forms/radiology.form";
@@ -69,11 +70,6 @@ const statusColors: Record<string, string> = {
   cancelled: "danger",
 };
 
-const priorityColors: Record<string, string> = {
-  routine: "slate",
-  urgent: "orange",
-  stat: "danger",
-};
 
 const RADIOLOGY_REPORT_PRINT_COPIES = PRINT_COPY_PACKETS.radiologyReport;
 
@@ -316,7 +312,7 @@ function RadiologyOrdersTab() {
       key: "priority" as const,
       label: "Priority",
       render: (o: RadiologyOrder) => (
-        <Badge size="xs" color={priorityColors[o.priority] ?? "slate"}>
+        <Badge size="xs" color={statusColor(o.priority) ?? "slate"}>
           {o.priority}
         </Badge>
       ),
@@ -759,7 +755,7 @@ function OrderDetailDrawer({
             <Text fw={600}>Status:</Text>
             <Badge color={statusColors[order.status] ?? "slate"}>{order.status}</Badge>
             <Text fw={600}>Priority:</Text>
-            <Badge color={priorityColors[order.priority] ?? "slate"}>{order.priority}</Badge>
+            <Badge color={statusColor(order.priority) ?? "slate"}>{order.priority}</Badge>
           </Group>
           {order.body_part && <Text size="sm">Body Part: {order.body_part}</Text>}
           {order.clinical_indication && (
@@ -1177,7 +1173,7 @@ function AppointmentsTab() {
       render: (r: Record<string, unknown>) => {
         const p = String(r.priority ?? "routine");
         return (
-          <Badge size="xs" color={priorityColors[p] ?? "slate"}>
+          <Badge size="xs" color={statusColor(p) ?? "slate"}>
             {p}
           </Badge>
         );

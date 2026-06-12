@@ -31,6 +31,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { settingsSetupService } from "@/services/settingsSetup.service";
+import { statusColor } from "@/lib/status-colors";
 
 // ── Constants ─────────────────────────────────────────────
 
@@ -40,11 +41,6 @@ const APPLICABILITY_OPTIONS = [
   { value: "zero_rated", label: "Zero Rated" },
 ] satisfies Array<{ value: TaxApplicabilityFormValue; label: string }>;
 
-const APPLICABILITY_COLORS: Record<string, string> = {
-  taxable: "primary",
-  exempt: "success",
-  zero_rated: "slate",
-};
 
 const EMPTY_TAX_FORM: TaxCategorySettingsFormInput = {
   code: "",
@@ -514,7 +510,7 @@ export function BillingTaxSettings() {
         <Text size="sm">{Number(row.rate_percent).toFixed(2)}%</Text>
       </Table.Td>
       <Table.Td>
-        <Badge size="sm" variant="light" color={APPLICABILITY_COLORS[row.applicability] ?? "slate"}>
+        <Badge size="sm" variant="light" color={statusColor(row.applicability) ?? "slate"}>
           {row.applicability.replace(/_/g, " ")}
         </Badge>
       </Table.Td>

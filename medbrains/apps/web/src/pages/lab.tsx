@@ -140,6 +140,7 @@ import {
   DocumentActions,
 } from "@/components";
 import { Icd11CodeSelect } from "@/components/Clinical/Icd11CodeSelect";
+import { statusColor } from "@/lib/status-colors";
 import { EncounterSelect } from "@/components/EncounterSelect";
 import { LabTestSearchSelect } from "@/components/LabTestSearchSelect";
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
@@ -173,11 +174,6 @@ const statusColors: Record<string, string> = {
   cancelled: "danger",
 };
 
-const priorityColors: Record<string, string> = {
-  routine: "slate",
-  urgent: "orange",
-  stat: "danger",
-};
 
 function toLabPriority(value: string | null): LabPriority {
   if (value === "urgent" || value === "stat") return value;
@@ -207,18 +203,7 @@ const flagColors: Record<string, string> = {
   abnormal: "warning",
 };
 
-const qcStatusColors: Record<string, string> = {
-  accepted: "success",
-  rejected: "danger",
-  warning: "warning",
-};
 
-const outsourceStatusColors: Record<string, string> = {
-  pending_send: "slate",
-  sent: "primary",
-  result_received: "success",
-  cancelled: "danger",
-};
 
 const phlebotomyStatusColors: Record<string, string> = {
   waiting: "warning",
@@ -435,7 +420,7 @@ function LabPageInner() {
       key: "priority",
       label: "Priority",
       render: (row: LabOrder) => (
-        <StatusDot color={priorityColors[row.priority] ?? "slate"} label={row.priority} />
+        <StatusDot color={statusColor(row.priority) ?? "slate"} label={row.priority} />
       ),
     },
     {
@@ -1015,7 +1000,7 @@ function LabOrderDetail({
       </Group>
       <PatientContextBanner patientId={order.patient_id} hideLoadingState />
       <Group>
-        <Badge color={priorityColors[order.priority] ?? "slate"} variant="dot">
+        <Badge color={statusColor(order.priority) ?? "slate"} variant="dot">
           Priority: {order.priority}
         </Badge>
         {order.report_status && (
@@ -2021,7 +2006,7 @@ function PhlebotomyTab() {
       key: "priority",
       label: "Priority",
       render: (row: LabPhlebotomyQueueItem) => (
-        <StatusDot color={priorityColors[row.priority] ?? "slate"} label={row.priority} />
+        <StatusDot color={statusColor(row.priority) ?? "slate"} label={row.priority} />
       ),
     },
     {
@@ -2432,7 +2417,7 @@ function QcResultsSection() {
       key: "status",
       label: "Status",
       render: (row: LabQcResult) => (
-        <Badge color={qcStatusColors[row.status] ?? "slate"} variant="light" size="sm">
+        <Badge color={statusColor(row.status) ?? "slate"} variant="light" size="sm">
           {row.status}
         </Badge>
       ),
@@ -2957,7 +2942,7 @@ function OutsourcedTab() {
       key: "status",
       label: "Status",
       render: (row: LabOutsourcedOrder) => (
-        <Badge color={outsourceStatusColors[row.status] ?? "slate"} variant="light" size="sm">
+        <Badge color={statusColor(row.status) ?? "slate"} variant="light" size="sm">
           {row.status.replace(/_/g, " ")}
         </Badge>
       ),
@@ -3102,12 +3087,6 @@ const homeCollectionStatusColors: Record<string, string> = {
   cancelled: "danger",
 };
 
-const archiveStatusColors: Record<string, string> = {
-  stored: "primary",
-  retrieved: "success",
-  discarded: "slate",
-  expired: "danger",
-};
 
 function SampleManagementTab() {
   const [subTab, setSubTab] = useState("home-collections");
@@ -3576,7 +3555,7 @@ function SampleArchiveSection() {
       key: "status",
       label: "Status",
       render: (row: LabSampleArchive) => (
-        <Badge color={archiveStatusColors[row.status] ?? "slate"} variant="light" size="sm">
+        <Badge color={statusColor(row.status) ?? "slate"} variant="light" size="sm">
           {row.status}
         </Badge>
       ),

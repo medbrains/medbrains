@@ -27,6 +27,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { CreateFacilityModal, SelectLabel } from "@/components";
+import { statusColor } from "@/lib/status-colors";
 import { useCreateInline } from "@/hooks/useCreateInline";
 import { settingsSetupService } from "@/services/settingsSetup.service";
 
@@ -65,38 +66,6 @@ const FACILITY_TYPE_OPTIONS = [
   { value: "other", label: "Other" },
 ] satisfies Array<{ value: FacilityTypeFormValue; label: string }>;
 
-const FACILITY_TYPE_COLORS: Record<string, string> = {
-  main_hospital: "primary",
-  medical_college: "violet",
-  dental_college: "grape",
-  nursing_college: "indigo",
-  pharmacy_college: "teal",
-  ayush_hospital: "green",
-  research_center: "cyan",
-  blood_bank: "danger",
-  dialysis_center: "blue",
-  trauma_center: "red",
-  burn_center: "orange",
-  rehabilitation_center: "lime",
-  palliative_care: "green",
-  psychiatric_hospital: "pink",
-  eye_hospital: "yellow",
-  maternity_hospital: "pink",
-  pediatric_hospital: "cyan",
-  cancer_center: "violet",
-  cardiac_center: "red",
-  neuro_center: "indigo",
-  ortho_center: "orange",
-  day_care_center: "blue",
-  diagnostic_center: "info",
-  telemedicine_hub: "blue",
-  community_health_center: "success",
-  primary_health_center: "green",
-  sub_center: "gray",
-  urban_health_center: "teal",
-  mobile_health_unit: "cyan",
-  other: "slate",
-};
 
 const EMPTY_FORM: FacilitySettingsFormInput = {
   code: "",
@@ -505,7 +474,7 @@ export function FacilitiesSettings() {
         <Badge
           size="sm"
           variant="light"
-          color={FACILITY_TYPE_COLORS[facility.facility_type] ?? "slate"}
+          color={statusColor(facility.facility_type) ?? "slate"}
         >
           {facility.facility_type.replace(/_/g, " ")}
         </Badge>

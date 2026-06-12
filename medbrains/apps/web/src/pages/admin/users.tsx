@@ -53,6 +53,7 @@ import {
   StatusDot,
 } from "@/components";
 import { UserCreateDrawer } from "@/components/admin/UserCreateDrawer";
+import { statusColor } from "@/lib/status-colors";
 import { OfflineWriteBanner } from "@/components/OfflineWriteBanner";
 import { useCreateInline } from "@/hooks/useCreateInline";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
@@ -74,19 +75,6 @@ const BUILT_IN_ROLES = [
   { value: "audit_officer", label: "Audit Officer" },
 ];
 
-const ROLE_COLORS: Record<string, string> = {
-  super_admin: "danger",
-  hospital_admin: "violet",
-  doctor: "primary",
-  nurse: "teal",
-  receptionist: "success",
-  lab_technician: "orange",
-  pharmacist: "info",
-  billing_clerk: "warning",
-  housekeeping_staff: "slate",
-  facilities_manager: "primary",
-  audit_officer: "danger",
-};
 
 // ── User Create/Edit Modal ────────────────────────────────
 
@@ -833,7 +821,7 @@ export function UsersPage() {
       key: "role",
       label: "Role",
       render: (row: SetupUser) => (
-        <Badge size="sm" variant="light" color={ROLE_COLORS[row.role] ?? "slate"}>
+        <Badge size="sm" variant="light" color={statusColor(row.role) ?? "slate"}>
           {row.role.replace(/_/g, " ")}
         </Badge>
       ),

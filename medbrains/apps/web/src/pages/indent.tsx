@@ -75,6 +75,7 @@ import {
   useClinicalEmit,
 } from "@/components";
 import { PatientNameCell } from "@/components/PatientNameCell";
+import { statusColor } from "@/lib/status-colors";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { indentService } from "@/services/indent.service";
@@ -1822,12 +1823,7 @@ function VedView() {
     queryFn: () => indentService.getVedAnalysis(),
   });
 
-  const vedColors: Record<string, string> = {
-    vital: "danger",
-    essential: "orange",
-    desirable: "success",
-  };
-
+  
   const classified = (data ?? []).filter((r) => r.ved_class);
   const unclassified = (data ?? []).filter((r) => !r.ved_class);
 
@@ -1838,7 +1834,7 @@ function VedView() {
       label: "VED Class",
       render: (row: VedAnalysisRow) =>
         row.ved_class ? (
-          <Badge color={vedColors[row.ved_class] ?? "slate"} variant="filled" size="sm">
+          <Badge color={statusColor(row.ved_class) ?? "slate"} variant="filled" size="sm">
             {row.ved_class}
           </Badge>
         ) : (
@@ -1899,12 +1895,7 @@ function FsnView() {
     queryFn: () => indentService.getFsnAnalysis(params),
   });
 
-  const fsnColors: Record<string, string> = {
-    fast: "success",
-    slow: "warning",
-    non_moving: "danger",
-  };
-
+  
   const columns = [
     { key: "item_name", label: "Item", render: (row: FsnAnalysisRow) => row.item_name },
     {
@@ -1922,7 +1913,7 @@ function FsnView() {
       key: "fsn_class",
       label: "Class",
       render: (row: FsnAnalysisRow) => (
-        <Badge color={fsnColors[row.fsn_class] ?? "slate"} variant="filled" size="sm">
+        <Badge color={statusColor(row.fsn_class) ?? "slate"} variant="filled" size="sm">
           {row.fsn_class.replace(/_/g, " ")}
         </Badge>
       ),
@@ -2572,14 +2563,7 @@ function CondemnationsView() {
     queryFn: () => indentService.listCondemnations(),
   });
 
-  const condemnationStatusColors: Record<string, string> = {
-    initiated: "primary",
-    committee_review: "orange",
-    approved: "success",
-    condemned: "dark",
-    rejected: "danger",
-  };
-
+  
   const columns = [
     {
       key: "condemnation_number",
@@ -2603,7 +2587,7 @@ function CondemnationsView() {
       key: "status",
       label: "Status",
       render: (row: EquipmentCondemnation) => (
-        <Badge color={condemnationStatusColors[row.status] ?? "slate"} variant="filled" size="sm">
+        <Badge color={statusColor(row.status) ?? "slate"} variant="filled" size="sm">
           {row.status.replace(/_/g, " ")}
         </Badge>
       ),

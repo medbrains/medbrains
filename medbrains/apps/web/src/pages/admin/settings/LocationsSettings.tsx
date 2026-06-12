@@ -17,6 +17,7 @@ import { IconCheck, IconPencil, IconPlus, IconTrash } from "@tabler/icons-react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { CreateLocationModal, SelectLabel } from "@/components";
+import { statusColor } from "@/lib/status-colors";
 import { useCreateInline } from "@/hooks/useCreateInline";
 import { settingsSetupService } from "@/services/settingsSetup.service";
 
@@ -32,15 +33,6 @@ const LEVEL_OPTIONS = [
   { value: "bed", label: "Bed" },
 ];
 
-const LEVEL_COLORS: Record<string, string> = {
-  campus: "primary",
-  building: "violet",
-  floor: "info",
-  wing: "teal",
-  zone: "orange",
-  room: "success",
-  bed: "slate",
-};
 
 const QUERY_KEY = ["setup-locations"];
 
@@ -340,7 +332,7 @@ export function LocationsSettings() {
         <Text size="sm">{loc.name}</Text>
       </Table.Td>
       <Table.Td>
-        <Badge size="sm" variant="light" color={LEVEL_COLORS[loc.level] ?? "slate"}>
+        <Badge size="sm" variant="light" color={statusColor(loc.level) ?? "slate"}>
           {loc.level}
         </Badge>
       </Table.Td>

@@ -29,6 +29,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useSearchParams } from "react-router";
 import { DataTable, PageHeader } from "@/components";
+import { statusColor } from "@/lib/status-colors";
 import type { Column } from "@/components/DataTable";
 import { PatientNameCell } from "@/components/PatientNameCell";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
@@ -38,16 +39,6 @@ const DNR_COLORS: Record<string, string> = {
   active: "danger",
   expired: "slate",
   revoked: "warning",
-};
-const BODY_COLORS: Record<string, string> = {
-  received: "primary",
-  cold_storage: "info",
-  inquest_pending: "orange",
-  pm_scheduled: "warning",
-  pm_completed: "teal",
-  released: "success",
-  unclaimed: "danger",
-  disposed: "slate",
 };
 
 const PALLIATIVE_PAGE_PERMISSIONS = [
@@ -284,7 +275,7 @@ export function PalliativePage() {
       key: "status",
       label: "Status",
       render: (r) => (
-        <Badge color={BODY_COLORS[r.status] ?? "slate"}>{r.status.replace(/_/g, " ")}</Badge>
+        <Badge color={statusColor(r.status) ?? "slate"}>{r.status.replace(/_/g, " ")}</Badge>
       ),
     },
     {

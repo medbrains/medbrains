@@ -60,6 +60,7 @@ import {
   useClinicalEmit,
 } from "@/components";
 import { PatientJourneyActions } from "@/components/Patient/PatientJourneyActions";
+import { statusColor } from "@/lib/status-colors";
 import {
   PatientRegisterForm,
   type PatientRegistrationLinkedServicesOptions,
@@ -93,22 +94,6 @@ const genderColors: Record<string, string> = {
   unknown: "warning",
 };
 
-const categoryColors: Record<string, string> = {
-  general: "slate",
-  private: "teal",
-  insurance: "primary",
-  pmjay: "orange",
-  cghs: "info",
-  staff: "success",
-  vip: "warning",
-  mlc: "danger",
-  esi: "lime",
-  corporate: "violet",
-  free: "primary",
-  charity: "danger",
-  research_subject: "violet",
-  staff_dependent: "green.3",
-};
 
 const bloodGroupLabels: Record<string, string> = {
   a_positive: "A+",
@@ -381,7 +366,7 @@ function PatientsPageInner() {
       label: t("label.category"),
       render: (row: Patient) => (
         <StatusDot
-          color={categoryColors[row.category] ?? "slate"}
+          color={statusColor(row.category) ?? "slate"}
           label={t(`options.category.${row.category}`, {
             defaultValue: row.category.replace(/_/g, " "),
           })}

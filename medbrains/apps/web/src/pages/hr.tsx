@@ -51,21 +51,13 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { DataTable, PageHeader } from "@/components";
+import { statusColor } from "@/lib/status-colors";
 import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { hrService } from "@/services/hr.service";
 
 // ── Status colors ────────────────────────────────────────────
 
-const employeeStatusColors: Record<string, string> = {
-  active: "success",
-  on_leave: "warning",
-  suspended: "orange",
-  resigned: "slate",
-  terminated: "danger",
-  retired: "dark",
-  absconding: "danger",
-};
 
 const leaveStatusColors: Record<string, string> = {
   draft: "slate",
@@ -76,13 +68,6 @@ const leaveStatusColors: Record<string, string> = {
   cancelled: "dark",
 };
 
-const credentialStatusColors: Record<string, string> = {
-  active: "success",
-  expired: "danger",
-  suspended: "orange",
-  revoked: "danger",
-  pending_renewal: "warning",
-};
 
 // ══════════════════════════════════════════════════════════
 //  Main Page
@@ -343,7 +328,7 @@ function EmployeesTab({
             key: "status",
             label: "Status",
             render: (r: Employee) => (
-              <Badge color={employeeStatusColors[r.status] || "slate"} size="sm">
+              <Badge color={statusColor(r.status) || "slate"} size="sm">
                 {r.status.replace(/_/g, " ")}
               </Badge>
             ),
@@ -611,7 +596,7 @@ function EmployeeDetailDrawer({
                 <Text fw={500} size="sm" w={140}>
                   Status:
                 </Text>
-                <Badge color={employeeStatusColors[employee.status] || "slate"} size="sm">
+                <Badge color={statusColor(employee.status) || "slate"} size="sm">
                   {employee.status.replace(/_/g, " ")}
                 </Badge>
               </Group>
@@ -710,7 +695,7 @@ function EmployeeDetailDrawer({
                 key: "status",
                 label: "Status",
                 render: (r: EmployeeCredential) => (
-                  <Badge color={credentialStatusColors[r.status] || "slate"} size="sm">
+                  <Badge color={statusColor(r.status) || "slate"} size="sm">
                     {r.status.replace(/_/g, " ")}
                   </Badge>
                 ),
@@ -2513,7 +2498,7 @@ function ComplianceTab({
               key: "status",
               label: "Status",
               render: (r: Employee) => (
-                <Badge color={employeeStatusColors[r.status] || "slate"} size="sm">
+                <Badge color={statusColor(r.status) || "slate"} size="sm">
                   {r.status.replace(/_/g, " ")}
                 </Badge>
               ),

@@ -23,14 +23,10 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { auditService } from "@/services/audit.service";
+import { statusColor } from "@/lib/status-colors";
 
 // ── Constants ──────────────────────────────────────────
 
-const ACTION_COLORS: Record<string, string> = {
-  create: "success",
-  update: "primary",
-  delete: "danger",
-};
 
 const ACTION_ICONS: Record<string, React.ReactNode> = {
   create: <IconPlus size={14} />,
@@ -127,10 +123,10 @@ export function EntityTimelineTab() {
               <Timeline.Item
                 key={entry.id}
                 bullet={ACTION_ICONS[entry.action] ?? <IconPencil size={14} />}
-                color={ACTION_COLORS[entry.action] ?? "slate"}
+                color={statusColor(entry.action) ?? "slate"}
                 title={
                   <Group gap="xs">
-                    <Badge color={ACTION_COLORS[entry.action] ?? "slate"} variant="light" size="sm">
+                    <Badge color={statusColor(entry.action) ?? "slate"} variant="light" size="sm">
                       {entry.action}
                     </Badge>
                     <Text size="sm" c="dimmed">

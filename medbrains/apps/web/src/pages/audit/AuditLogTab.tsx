@@ -20,6 +20,7 @@ import { IconDownload, IconSearch, IconShieldCheck } from "@tabler/icons-react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { DataTable } from "@/components";
+import { statusColor } from "@/lib/status-colors";
 import type { Column } from "@/components/DataTable";
 import { auditService } from "@/services/audit.service";
 
@@ -31,11 +32,6 @@ const ACTION_OPTIONS = [
   { value: "delete", label: "Delete" },
 ];
 
-const ACTION_COLORS: Record<string, string> = {
-  create: "success",
-  update: "primary",
-  delete: "danger",
-};
 
 const PER_PAGE = 50;
 
@@ -160,7 +156,7 @@ export function AuditLogTab() {
       key: "action",
       label: "Action",
       render: (r) => (
-        <Badge color={ACTION_COLORS[r.action] ?? "slate"} variant="light" size="sm">
+        <Badge color={statusColor(r.action) ?? "slate"} variant="light" size="sm">
           {r.action}
         </Badge>
       ),
@@ -332,7 +328,7 @@ function AuditDetailDrawer({
             <Text fw={600} size="sm" w={100}>
               Action:
             </Text>
-            <Badge color={ACTION_COLORS[entry.action] ?? "slate"} variant="light">
+            <Badge color={statusColor(entry.action) ?? "slate"} variant="light">
               {entry.action}
             </Badge>
           </Group>

@@ -44,6 +44,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { DataTable, PageHeader } from "@/components";
+import { statusColor } from "@/lib/status-colors";
 import { Icd11CodeSelect } from "@/components/Clinical/Icd11CodeSelect";
 import type { Column } from "@/components/DataTable";
 import { PatientNameCell } from "@/components/PatientNameCell";
@@ -59,20 +60,7 @@ import { orderSetsService } from "@/services/order-sets.service";
 
 // ── Constants ──────────────────────────────────────────
 
-const CONTEXT_COLORS: Record<string, string> = {
-  general: "slate",
-  admission: "primary",
-  pre_operative: "orange",
-  diagnosis_specific: "violet",
-  department_specific: "teal",
-};
 
-const ITEM_TYPE_COLORS: Record<string, string> = {
-  lab: "primary",
-  medication: "success",
-  nursing: "orange",
-  diet: "info",
-};
 
 const emptyTemplateForm: OrderSetTemplateFormInput = {
   name: "",
@@ -274,7 +262,7 @@ function TemplatesTab({
       key: "context",
       label: "Context",
       render: (r) => (
-        <Badge color={CONTEXT_COLORS[r.context] ?? "slate"} variant="light" size="sm">
+        <Badge color={statusColor(r.context) ?? "slate"} variant="light" size="sm">
           {r.context.replace(/_/g, " ")}
         </Badge>
       ),
@@ -587,7 +575,7 @@ function BuilderTab({ canUpdate }: { canUpdate: boolean }) {
       key: "item_type",
       label: "Type",
       render: (r) => (
-        <Badge color={ITEM_TYPE_COLORS[r.item_type] ?? "slate"} variant="light" size="sm">
+        <Badge color={statusColor(r.item_type) ?? "slate"} variant="light" size="sm">
           {r.item_type}
         </Badge>
       ),
@@ -689,7 +677,7 @@ function BuilderTab({ canUpdate }: { canUpdate: boolean }) {
                 </Text>
               </div>
               <Badge
-                color={CONTEXT_COLORS[templateDetail.template.context] ?? "slate"}
+                color={statusColor(templateDetail.template.context) ?? "slate"}
                 variant="light"
               >
                 {templateDetail.template.context.replace(/_/g, " ")}
@@ -1003,7 +991,7 @@ function ActivationsTab() {
                 <Group justify="space-between">
                   <Group>
                     <Badge
-                      color={ITEM_TYPE_COLORS[item.item_type] ?? "slate"}
+                      color={statusColor(item.item_type) ?? "slate"}
                       variant="light"
                       size="sm"
                     >

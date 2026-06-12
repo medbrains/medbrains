@@ -68,6 +68,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type ReactNode, useState } from "react";
 import { Controller, useFieldArray, useForm, useWatch } from "react-hook-form";
 import { DataTable, PageHeader, TableValueBadge, VendorSearchSelect } from "@/components";
+import { statusColor } from "@/lib/status-colors";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { procurementService } from "@/services/procurement.service";
 
@@ -93,12 +94,6 @@ const grnStatusColors: Record<string, string> = {
   completed: "violet",
 };
 
-const vendorStatusColors: Record<string, string> = {
-  active: "success",
-  inactive: "slate",
-  blacklisted: "danger",
-  pending_approval: "orange",
-};
 
 const rcStatusColors: Record<string, string> = {
   draft: "slate",
@@ -400,7 +395,7 @@ function VendorPanel({ canCreate }: { canCreate: boolean }) {
         <TableValueBadge
           value={row.status}
           kind="status"
-          color={vendorStatusColors[row.status] ?? "slate"}
+          color={statusColor(row.status) ?? "slate"}
         />
       ),
     },
@@ -481,7 +476,7 @@ function VendorPanel({ canCreate }: { canCreate: boolean }) {
         {detailVendor && (
           <Stack>
             <Group>
-              <Badge color={vendorStatusColors[detailVendor.status]} variant="filled">
+              <Badge color={statusColor(detailVendor.status)} variant="filled">
                 {detailVendor.status}
               </Badge>
               <Badge variant="outline">{detailVendor.vendor_type}</Badge>

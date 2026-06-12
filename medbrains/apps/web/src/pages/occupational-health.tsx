@@ -57,6 +57,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { DataTable, PageHeader } from "@/components";
+import { statusColor } from "@/lib/status-colors";
 import type { Column } from "@/components/DataTable";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { occupationalHealthService } from "@/services/occupationalHealth.service";
@@ -70,12 +71,6 @@ const SCREENING_TYPES = [
   { value: "exit", label: "Exit" },
 ];
 
-const SCREENING_TYPE_COLORS: Record<string, string> = {
-  pre_employment: "primary",
-  periodic: "info",
-  special: "orange",
-  exit: "gray",
-};
 
 const FITNESS_STATUS_OPTIONS = [
   { value: "fit", label: "Fit" },
@@ -135,13 +130,6 @@ const RTW_STATUS_OPTIONS = [
   { value: "follow_up_required", label: "Follow-up Required" },
 ];
 
-const RTW_STATUS_COLORS: Record<string, string> = {
-  pending_evaluation: "warning",
-  cleared_full: "success",
-  cleared_with_restrictions: "orange",
-  not_cleared: "danger",
-  follow_up_required: "primary",
-};
 
 // ── Main Page ──────────────────────────────────────────
 
@@ -330,7 +318,7 @@ function ScreeningsPanel() {
       key: "screening_type",
       label: "Type",
       render: (r) => (
-        <Badge color={SCREENING_TYPE_COLORS[r.screening_type] ?? "gray"} variant="light" size="sm">
+        <Badge color={statusColor(r.screening_type) ?? "gray"} variant="light" size="sm">
           {SCREENING_TYPES.find((t) => t.value === r.screening_type)?.label ?? r.screening_type}
         </Badge>
       ),
@@ -766,7 +754,7 @@ function ScreeningsPanel() {
                   </Group>
                   <Group>
                     <Text fw={600}>Examination Type:</Text>
-                    <Badge color={SCREENING_TYPE_COLORS[selected.screening_type] ?? "gray"}>
+                    <Badge color={statusColor(selected.screening_type) ?? "gray"}>
                       {SCREENING_TYPES.find((t) => t.value === selected.screening_type)?.label}
                     </Badge>
                   </Group>
@@ -1370,7 +1358,7 @@ function InjuriesPanel() {
       key: "rtw_status",
       label: "RTW Status",
       render: (r) => (
-        <Badge color={RTW_STATUS_COLORS[r.rtw_status] ?? "gray"} variant="filled" size="sm">
+        <Badge color={statusColor(r.rtw_status) ?? "gray"} variant="filled" size="sm">
           {RTW_STATUS_OPTIONS.find((s) => s.value === r.rtw_status)?.label ?? r.rtw_status}
         </Badge>
       ),
@@ -1608,12 +1596,6 @@ const HAZARD_TYPES = [
   { value: "other", label: "Other" },
 ];
 
-const HAZARD_RISK_COLORS: Record<string, string> = {
-  low: "success",
-  medium: "warning",
-  high: "orange",
-  critical: "danger",
-};
 
 function HazardRegistryPanel() {
   const canCreate = useHasPermission(P.OCC_HEALTH.SCREENINGS_CREATE);
@@ -1673,7 +1655,7 @@ function HazardRegistryPanel() {
       key: "risk_level",
       label: "Risk Level",
       render: (r) => (
-        <Badge color={HAZARD_RISK_COLORS[r.risk_level] ?? "gray"} variant="filled" size="sm">
+        <Badge color={statusColor(r.risk_level) ?? "gray"} variant="filled" size="sm">
           {r.risk_level}
         </Badge>
       ),

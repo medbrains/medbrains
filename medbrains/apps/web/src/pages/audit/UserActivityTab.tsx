@@ -4,18 +4,12 @@ import { IconSearch, IconUserSearch } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { type Column, DataTable } from "@/components/DataTable";
+import { statusColor } from "@/lib/status-colors";
 import { formatDateTime } from "@/lib/date-utils";
 import { auditService } from "@/services/audit.service";
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-const ACTION_COLORS: Record<string, string> = {
-  create: "success",
-  update: "primary",
-  delete: "danger",
-  login: "info",
-  logout: "slate",
-};
 
 export function UserActivityTab() {
   const [userId, setUserId] = useState("");
@@ -39,7 +33,7 @@ export function UserActivityTab() {
       key: "action",
       label: "Action",
       render: (row) => (
-        <Badge color={ACTION_COLORS[row.action] ?? "slate"} variant="light" size="sm">
+        <Badge color={statusColor(row.action) ?? "slate"} variant="light" size="sm">
           {row.action}
         </Badge>
       ),

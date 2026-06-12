@@ -172,6 +172,7 @@ import {
   VitalsRecorder,
 } from "@/components";
 import { BedSelect } from "@/components/BedSelect";
+import { statusColor } from "@/lib/status-colors";
 import { Icd11CodeSelect } from "@/components/Clinical/Icd11CodeSelect";
 import { OrderBasketChip } from "@/components/OrderBasket/OrderBasketChip";
 import {
@@ -2950,11 +2951,6 @@ const LAB_STATUS_COLORS: Record<string, string> = {
   cancelled: "danger",
 };
 
-const LAB_PRIORITY_COLORS: Record<string, string> = {
-  routine: "slate",
-  urgent: "orange",
-  stat: "danger",
-};
 
 const LAB_RESULT_FLAG_COLORS: Record<string, string> = {
   normal: "success",
@@ -3361,7 +3357,7 @@ function InvestigationsTab({
                   )}
                 </Table.Td>
                 <Table.Td>
-                  <Badge size="xs" color={LAB_PRIORITY_COLORS[order.priority] ?? "slate"}>
+                  <Badge size="xs" color={statusColor(order.priority) ?? "slate"}>
                     {order.priority.toUpperCase()}
                   </Badge>
                 </Table.Td>
@@ -4662,7 +4658,7 @@ function ProceduresTab({
                   )}
                 </Table.Td>
                 <Table.Td>
-                  <Badge size="xs" color={LAB_PRIORITY_COLORS[order.priority] ?? "slate"}>
+                  <Badge size="xs" color={statusColor(order.priority) ?? "slate"}>
                     {order.priority.toUpperCase()}
                   </Badge>
                 </Table.Td>

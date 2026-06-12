@@ -1,5 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { confirmDestructive } from "@/lib/confirm-destructive";
+import { statusColor } from "@/lib/status-colors";
 import {
   ActionIcon,
   Alert,
@@ -239,13 +240,6 @@ import {
   summarizeIpdWorkspaceTabReadiness,
 } from "./ipd-workspace";
 
-const statusColors: Record<string, string> = {
-  admitted: "success",
-  transferred: "primary",
-  discharged: "slate",
-  absconded: "danger",
-  deceased: "dark",
-};
 
 const bedStatusColors: Record<string, string> = {
   vacant_clean: "success",
@@ -738,7 +732,7 @@ function AdmissionsTab() {
       key: "status",
       label: "Status",
       render: (row: AdmissionRow) => (
-        <StatusDot color={statusColors[row.status] ?? "slate"} label={row.status} />
+        <StatusDot color={statusColor(row.status) ?? "slate"} label={row.status} />
       ),
     },
     {

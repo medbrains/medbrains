@@ -64,6 +64,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { DataTable, PageHeader } from "@/components";
+import { statusColor } from "@/lib/status-colors";
 import { DocumentPreviewModal } from "@/components/DocumentPreview/DocumentPreviewModal";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { documentsService } from "@/services/documents.service";
@@ -211,11 +212,6 @@ const statusColors: Record<string, string> = {
   superseded: "orange",
 };
 
-const reviewStatusColors: Record<string, string> = {
-  pending: "warning",
-  reviewed: "success",
-  overdue: "danger",
-};
 
 const printJobStatusColors: Record<PrintJob["status"], string> = {
   queued: "warning",
@@ -1289,7 +1285,7 @@ function ReviewScheduleTab() {
       render: (row: DocumentFormReviewSchedule) => (
         <Badge
           size="sm"
-          color={reviewStatusColors[row.review_status ?? "pending"] ?? "slate"}
+          color={statusColor(row.review_status ?? "pending") ?? "slate"}
           variant="light"
         >
           {row.review_status ?? "pending"}

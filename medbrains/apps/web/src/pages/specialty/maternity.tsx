@@ -28,17 +28,12 @@ import { IconPencil, IconPlus } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { DataTable, PageHeader } from "@/components";
+import { statusColor } from "@/lib/status-colors";
 import type { Column } from "@/components/DataTable";
 import { PatientNameCell } from "@/components/PatientNameCell";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { specialtyService } from "@/services/specialty.service";
 
-const RISK_COLORS: Record<string, string> = {
-  low: "success",
-  moderate: "warning",
-  high: "orange",
-  very_high: "danger",
-};
 const RISK_CATEGORIES: { value: AncRiskCategory; label: string }[] = [
   { value: "low", label: "Low" },
   { value: "moderate", label: "Moderate" },
@@ -147,7 +142,7 @@ export function MaternityPage() {
       key: "risk",
       label: "Risk",
       render: (r) => (
-        <Badge color={RISK_COLORS[r.risk_category] ?? "slate"}>
+        <Badge color={statusColor(r.risk_category) ?? "slate"}>
           {r.risk_category.replace(/_/g, " ")}
         </Badge>
       ),

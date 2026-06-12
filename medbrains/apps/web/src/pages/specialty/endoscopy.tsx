@@ -25,20 +25,13 @@ import { IconPlus } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { DataTable, PageHeader } from "@/components";
+import { statusColor } from "@/lib/status-colors";
 import type { Column } from "@/components/DataTable";
 import { PatientNameCell } from "@/components/PatientNameCell";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { specialtyService } from "@/services/specialty.service";
 
-const SCOPE_STATUS_COLORS: Record<string, string> = {
-  available: "success",
-  in_use: "primary",
-  reprocessing: "orange",
-  quarantine: "danger",
-  decommissioned: "slate",
-};
 
-const HLD_COLORS: Record<string, string> = { pass: "success", fail: "danger", pending: "warning" };
 
 export function EndoscopyPage() {
   useRequirePermission(P.SPECIALTY.ENDOSCOPY.PROCEDURES_LIST);
@@ -142,7 +135,7 @@ export function EndoscopyPage() {
     {
       key: "status",
       label: "Status",
-      render: (r) => <Badge color={SCOPE_STATUS_COLORS[r.status] ?? "slate"}>{r.status}</Badge>,
+      render: (r) => <Badge color={statusColor(r.status) ?? "slate"}>{r.status}</Badge>,
     },
     { key: "total_uses", label: "Uses", render: (r) => <Text size="sm">{r.total_uses}</Text> },
     {
@@ -190,7 +183,7 @@ export function EndoscopyPage() {
     {
       key: "result",
       label: "HLD Result",
-      render: (r) => <Badge color={HLD_COLORS[r.hld_result] ?? "slate"}>{r.hld_result}</Badge>,
+      render: (r) => <Badge color={statusColor(r.hld_result) ?? "slate"}>{r.hld_result}</Badge>,
     },
     {
       key: "date",

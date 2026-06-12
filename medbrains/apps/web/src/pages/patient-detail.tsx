@@ -94,6 +94,7 @@ import { type ReactNode, useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { useNavigate, useParams, useSearchParams } from "react-router";
 import { PrescriptionViews } from "@/components/Clinical";
+import { statusColor } from "@/lib/status-colors";
 import { ClinicalEventProvider, useClinicalEmit } from "@/components/ClinicalEventProvider";
 import { NotesPanel } from "@/components/crdt/NotesPanel";
 import { DrugSearchSelect } from "@/components/DrugSearchSelect";
@@ -377,12 +378,6 @@ function InfoRow({ label, value }: { label: string; value: string }) {
 
 // ── Allergies Tab ─────────────────────────────────────────
 
-const SEVERITY_COLORS: Record<string, string> = {
-  mild: "success",
-  moderate: "warning",
-  severe: "orange",
-  life_threatening: "danger",
-};
 
 function AllergiesTab({ patient }: { patient: Patient }) {
   const canUpdate = useHasPermission(P.PATIENTS.UPDATE);
@@ -484,7 +479,7 @@ function AllergiesTab({ patient }: { patient: Patient }) {
                 </Table.Td>
                 <Table.Td>
                   {a.severity ? (
-                    <Badge color={SEVERITY_COLORS[a.severity] ?? "gray"} variant="light" size="sm">
+                    <Badge color={statusColor(a.severity) ?? "gray"} variant="light" size="sm">
                       {a.severity.replace(/_/g, " ")}
                     </Badge>
                   ) : (

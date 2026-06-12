@@ -32,6 +32,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { PageHeader } from "@/components/PageHeader";
+import { statusColor } from "@/lib/status-colors";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { adminDevicesService } from "@/services/adminDevices.service";
 
@@ -625,15 +626,6 @@ interface RoutingRule {
   created_at: string;
 }
 
-const MODULE_COLORS: Record<string, string> = {
-  lab: "primary",
-  radiology: "violet",
-  vitals: "success",
-  pharmacy: "orange",
-  blood_bank: "danger",
-  icu: "info",
-  generic: "slate",
-};
 
 function RoutingRulesTab() {
   const queryClient = useQueryClient();
@@ -714,7 +706,7 @@ function RoutingRulesTab() {
                     </Text>
                   </Table.Td>
                   <Table.Td>
-                    <Badge size="sm" color={MODULE_COLORS[r.target_module] ?? "gray"}>
+                    <Badge size="sm" color={statusColor(r.target_module) ?? "gray"}>
                       {r.target_module}
                     </Badge>
                   </Table.Td>

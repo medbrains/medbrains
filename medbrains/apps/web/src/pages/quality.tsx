@@ -88,6 +88,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { DataTable, PageHeader } from "@/components";
+import { statusColor } from "@/lib/status-colors";
 import { Icd11CodeSelect } from "@/components/Clinical/Icd11CodeSelect";
 import { DepartmentSelect } from "@/components/DepartmentSelect";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
@@ -97,13 +98,6 @@ import classes from "./quality.module.scss";
 
 // ── Color Maps ──────────────────────────────────────────
 
-const severityColors: Record<string, string> = {
-  sentinel: "danger",
-  major: "orange",
-  moderate: "warning",
-  minor: "primary",
-  near_miss: "slate",
-};
 
 const incidentStatusColors: Record<string, string> = {
   reported: "slate",
@@ -133,12 +127,6 @@ const capaStatusColors: Record<string, string> = {
   overdue: "danger",
 };
 
-const complianceColors: Record<string, string> = {
-  compliant: "success",
-  partially_compliant: "warning",
-  non_compliant: "danger",
-  not_applicable: "slate",
-};
 
 const auditStatusColors: Record<string, string> = {
   planned: "slate",
@@ -1267,7 +1255,7 @@ function IncidentsTab() {
       key: "severity" as const,
       label: "Severity",
       render: (i: QualityIncident) => (
-        <Badge color={severityColors[i.severity] ?? "slate"}>{i.severity.replace(/_/g, " ")}</Badge>
+        <Badge color={statusColor(i.severity) ?? "slate"}>{i.severity.replace(/_/g, " ")}</Badge>
       ),
     },
     {
@@ -1497,7 +1485,7 @@ function IncidentsTab() {
         {selectedIncident && (
           <Stack>
             <Group>
-              <Badge color={severityColors[selectedIncident.severity] ?? "slate"} size="lg">
+              <Badge color={statusColor(selectedIncident.severity) ?? "slate"} size="lg">
                 {selectedIncident.severity.replace(/_/g, " ")}
               </Badge>
               <Badge color={incidentStatusColors[selectedIncident.status] ?? "slate"} size="lg">
@@ -2512,7 +2500,7 @@ function AccreditationTab() {
         const c = complianceMap.get(s.id);
         if (!c) return <Badge color="slate">Not Assessed</Badge>;
         return (
-          <Badge color={complianceColors[c.compliance] ?? "slate"}>
+          <Badge color={statusColor(c.compliance) ?? "slate"}>
             {c.compliance.replace(/_/g, " ")}
           </Badge>
         );
@@ -3278,7 +3266,7 @@ function AuditsTab() {
                         </Text>
                       </Table.Td>
                       <Table.Td>
-                        <Badge color={severityColors[f.severity] ?? "slate"}>{f.severity}</Badge>
+                        <Badge color={statusColor(f.severity) ?? "slate"}>{f.severity}</Badge>
                       </Table.Td>
                       <Table.Td>
                         <Text size="sm" lineClamp={1}>
