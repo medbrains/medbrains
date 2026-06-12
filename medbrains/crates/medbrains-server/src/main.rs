@@ -247,7 +247,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         secret_resolver: state_secret_resolver,
         s3: s3_client,
         gotenberg: gotenberg_client,
-        documents_store,
+        documents_store: Arc::clone(&documents_store),
     };
 
     // Run seed (insert default tenant + super_admin if not exists)
@@ -428,8 +428,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let secret_resolver: Arc<dyn medbrains_core::secrets::SecretResolver> =
             Arc::new(medbrains_core::secrets::EnvSecretResolver::new());
 
-        let worker_config =
-            medbrains_outbox::WorkerConfig::with_substrate(secret_resolver, http_client);
+        let worker_config = medbrains_outbox::WorkerConfig::with_substrate(
+            secret_resolver,
+            http_client,
+            Arc::clone(&documents_store),
+        );
 
         let outbox_worker =
             medbrains_outbox::Worker::new(db_pool.clone(), outbox_registry, worker_config);

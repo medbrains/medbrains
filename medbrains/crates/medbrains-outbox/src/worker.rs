@@ -38,6 +38,9 @@ pub struct WorkerConfig {
     pub secret_resolver: Arc<dyn medbrains_core::secrets::SecretResolver>,
     /// Shared HTTPS client for outbound integrations.
     pub http_client: reqwest::Client,
+    /// Object storage — handlers that attach stored documents
+    /// (email attachments) read through this.
+    pub object_store: Arc<dyn medbrains_core::object_store::ObjectStore>,
 }
 
 impl std::fmt::Debug for WorkerConfig {
@@ -61,6 +64,7 @@ impl WorkerConfig {
     pub fn with_substrate(
         secret_resolver: Arc<dyn medbrains_core::secrets::SecretResolver>,
         http_client: reqwest::Client,
+        object_store: Arc<dyn medbrains_core::object_store::ObjectStore>,
     ) -> Self {
         Self {
             poll_interval: StdDuration::from_secs(2),
@@ -70,6 +74,7 @@ impl WorkerConfig {
             stale_claim_threshold: StdDuration::from_secs(10 * 60),
             secret_resolver,
             http_client,
+            object_store,
         }
     }
 }
@@ -209,6 +214,7 @@ async fn drain_once(
         let pool_clone = pool.clone();
         let worker_id = config.worker_id.clone();
         let secret_resolver = Arc::clone(&config.secret_resolver);
+        let object_store = Arc::clone(&config.object_store);
         let http_client = config.http_client.clone();
         tokio::spawn(async move {
             dispatch_one(
@@ -222,6 +228,7 @@ async fn drain_once(
                 actor_user_id,
                 worker_id,
                 secret_resolver,
+                object_store,
                 http_client,
             )
             .await;
@@ -252,6 +259,7 @@ async fn dispatch_one(
     actor_user_id: Option<Uuid>,
     _worker_id: String,
     secret_resolver: Arc<dyn medbrains_core::secrets::SecretResolver>,
+    object_store: Arc<dyn medbrains_core::object_store::ObjectStore>,
     http_client: reqwest::Client,
 ) {
     let ctx = HandlerCtx {
@@ -262,6 +270,7 @@ async fn dispatch_one(
         actor_user_id,
         attempts,
         secret_resolver,
+        object_store,
         http_client,
     };
 

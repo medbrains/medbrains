@@ -24,6 +24,7 @@ tokio = { workspace = true }
 tracing = { workspace = true }
 uuid = { workspace = true }
 lettre = { version = "0.11.22", default-features = false, features = ["tokio1-rustls-tls", "smtp-transport", "builder"] }
+base64.workspace = true
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["macros", "rt-multi-thread", "test-util"] }

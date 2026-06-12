@@ -18,12 +18,60 @@
 //! retry per outbox backoff.
 //!
 //! Payload shape:
-//!   { "to": "user@example.com", "subject": "...", "html": "...", "text": "..." }
+//!   { "to": "user@example.com", "subject": "...", "html": "...", "text": "...",
+//!     "attachments": [{ "object_key": "...", "filename": "invoice.pdf", "mime": "application/pdf" }] }
+//! Attachments are fetched from the worker's object store at dispatch
+//! time — outbox rows carry keys, never document bytes.
 
 use async_trait::async_trait;
 use serde_json::{Value, json};
 
 use crate::handler::{Handler, HandlerCtx, HandlerError};
+
+pub(crate) struct EmailAttachment {
+    pub filename: String,
+    pub mime: String,
+    pub bytes: Vec<u8>,
+}
+
+/// Resolve payload.attachments against the object store. A missing
+/// object is permanent — retrying won't make the document appear.
+async fn load_attachments(
+    ctx: &HandlerCtx,
+    payload: &Value,
+) -> Result<Vec<EmailAttachment>, HandlerError> {
+    let Some(entries) = payload.get("attachments").and_then(Value::as_array) else {
+        return Ok(Vec::new());
+    };
+    let mut attachments = Vec::with_capacity(entries.len());
+    for entry in entries {
+        let key = entry
+            .get("object_key")
+            .and_then(Value::as_str)
+            .ok_or_else(|| HandlerError::Permanent("attachment.object_key missing".to_owned()))?;
+        let filename = entry
+            .get("filename")
+            .and_then(Value::as_str)
+            .unwrap_or("document.pdf")
+            .to_owned();
+        let mime = entry
+            .get("mime")
+            .and_then(Value::as_str)
+            .unwrap_or("application/pdf")
+            .to_owned();
+        let bytes = ctx
+            .object_store
+            .get(key)
+            .await
+            .map_err(|e| HandlerError::Permanent(format!("attachment fetch {key}: {e}")))?;
+        attachments.push(EmailAttachment {
+            filename,
+            mime,
+            bytes,
+        });
+    }
+    Ok(attachments)
+}
 
 const SENDGRID_API: &str = "https://api.sendgrid.com/v3/mail/send";
 
@@ -88,6 +136,8 @@ impl Handler for SmtpSendHandler {
             .ok()
             .filter(|s| !s.is_empty());
 
+        let attachments = load_attachments(ctx, payload).await?;
+
         match provider.as_str() {
             "sendgrid" => {
                 send_via_sendgrid(
@@ -98,6 +148,7 @@ impl Handler for SmtpSendHandler {
                     subject,
                     html,
                     text,
+                    &attachments,
                 )
                 .await
             }
@@ -110,6 +161,7 @@ impl Handler for SmtpSendHandler {
                     subject,
                     html,
                     text,
+                    &attachments,
                 )
                 .await
             }
@@ -133,6 +185,7 @@ impl Handler for SmtpSendHandler {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn send_via_sendgrid(
     ctx: &HandlerCtx,
     from_addr: &str,
@@ -141,6 +194,7 @@ async fn send_via_sendgrid(
     subject: &str,
     html: Option<&str>,
     text: Option<&str>,
+    attachments: &[EmailAttachment],
 ) -> Result<Value, HandlerError> {
     let api_key = match ctx.secret_resolver.get("SENDGRID_API_KEY").await {
         Ok(v) if !v.is_empty() => v,
@@ -171,12 +225,27 @@ async fn send_via_sendgrid(
         from["name"] = json!(name);
     }
 
-    let body = json!({
+    let mut body = json!({
         "personalizations": [{ "to": [{ "email": to }] }],
         "from": from,
         "subject": subject,
         "content": content,
     });
+    if !attachments.is_empty() {
+        use base64::Engine;
+        let encoded: Vec<Value> = attachments
+            .iter()
+            .map(|a| {
+                json!({
+                    "content": base64::engine::general_purpose::STANDARD.encode(&a.bytes),
+                    "filename": a.filename,
+                    "type": a.mime,
+                    "disposition": "attachment",
+                })
+            })
+            .collect();
+        body["attachments"] = json!(encoded);
+    }
 
     let resp = ctx
         .http_client
@@ -222,7 +291,7 @@ async fn send_via_sendgrid(
     }
 }
 
-#[allow(clippy::too_many_lines)]
+#[allow(clippy::too_many_lines, clippy::too_many_arguments)]
 async fn send_via_smtp(
     ctx: &HandlerCtx,
     from_addr: &str,
@@ -231,8 +300,9 @@ async fn send_via_smtp(
     subject: &str,
     html: Option<&str>,
     text: Option<&str>,
+    attachments: &[EmailAttachment],
 ) -> Result<Value, HandlerError> {
-    use lettre::message::{Mailbox, MultiPart, SinglePart};
+    use lettre::message::{Attachment, Mailbox, MultiPart, SinglePart};
     use lettre::transport::smtp::AsyncSmtpTransport;
     use lettre::transport::smtp::authentication::Credentials;
     use lettre::{AsyncTransport, Message, Tokio1Executor};
@@ -279,14 +349,24 @@ async fn send_via_smtp(
         .from(from)
         .to(to_mailbox)
         .subject(subject);
-    let message = match (html, text) {
-        (Some(h), Some(t)) => builder.multipart(MultiPart::alternative_plain_html(
-            t.to_owned(),
-            h.to_owned(),
-        )),
-        (Some(h), None) => builder.singlepart(SinglePart::html(h.to_owned())),
-        (None, Some(t)) => builder.singlepart(SinglePart::plain(t.to_owned())),
+    let body_part = match (html, text) {
+        (Some(h), Some(t)) => MultiPart::alternative_plain_html(t.to_owned(), h.to_owned()),
+        (Some(h), None) => MultiPart::mixed().singlepart(SinglePart::html(h.to_owned())),
+        (None, Some(t)) => MultiPart::mixed().singlepart(SinglePart::plain(t.to_owned())),
         (None, None) => unreachable!("validated above"),
+    };
+    let message = if attachments.is_empty() {
+        builder.multipart(body_part)
+    } else {
+        let mut mixed = MultiPart::mixed().multipart(body_part);
+        for a in attachments {
+            let content_type = lettre::message::header::ContentType::parse(&a.mime)
+                .map_err(|e| HandlerError::Permanent(format!("smtp: attachment mime: {e}")))?;
+            mixed = mixed.singlepart(
+                Attachment::new(a.filename.clone()).body(a.bytes.clone(), content_type),
+            );
+        }
+        builder.multipart(mixed)
     }
     .map_err(|e| HandlerError::Permanent(format!("smtp: message build: {e}")))?;
 

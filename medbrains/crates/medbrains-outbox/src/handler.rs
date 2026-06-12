@@ -26,6 +26,8 @@ pub struct HandlerCtx {
     pub secret_resolver: Arc<dyn medbrains_core::secrets::SecretResolver>,
     /// Shared HTTPS client for outbound integrations.
     pub http_client: reqwest::Client,
+    /// Object storage — attachments etc.
+    pub object_store: Arc<dyn medbrains_core::object_store::ObjectStore>,
 }
 
 impl std::fmt::Debug for HandlerCtx {
