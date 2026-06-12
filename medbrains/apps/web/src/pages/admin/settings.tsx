@@ -25,7 +25,7 @@ import {
 } from "@tabler/icons-react";
 import { createElement, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { PageHeader } from "@/components";
+import { ConfigTransferButtons, PageHeader } from "@/components";
 import { SETTINGS_TAB_ICON_MAP, SETTINGS_TABS } from "@/config/settings-tabs";
 import { useHashTabs } from "@/hooks/useHashTabs";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
@@ -373,7 +373,11 @@ export function SettingsPage() {
 
   return (
     <Stack className={classes.settingsWorkspace}>
-      <PageHeader title={t("settings.title")} subtitle={t("settings.subtitle")} />
+      <PageHeader
+        title={t("settings.title")}
+        subtitle={t("settings.subtitle")}
+        actions={<ConfigTransferButtons />}
+      />
 
       <Card withBorder className={classes.settingsCommandBar}>
         <Group justify="space-between" align="flex-start" gap="md">

@@ -93,6 +93,7 @@ import type {
   AssignTransportRequest,
   AssignUserFacilitiesRequest,
   AttachDocumentRequest,
+  AttachFormDocumentRequest,
   AttendanceRecord,
   AudiologyTest,
   AuditFinding,
@@ -1157,14 +1158,13 @@ import type {
   MrdCaseSheetPacket,
   MrdCaseSheetPage,
   MrdDeathRegister,
+  MrdFormRecord,
   // MRD
   MrdMedicalRecord,
   MrdMorbidityMortalityResponse,
   MrdRecordMovement,
   MrdRetentionPolicy,
   MrdStorageLocation,
-  MrdFormRecord,
-  AttachFormDocumentRequest,
   MyDayResponse,
   MyTasksResponse,
   // Phase 4 Print Data - Regulatory
@@ -2778,6 +2778,19 @@ export const api = {
     }),
   deleteSetupUser: (id: string) =>
     request<{ status: string }>(`/setup/users/${id}`, { method: "DELETE" }),
+  exportTenantConfig: () =>
+    request<{
+      bundle_version: number;
+      exported_at: string;
+      settings: { category: string; key: string; value: unknown }[];
+      document_templates: unknown[];
+    }>("/setup/config-export"),
+  importTenantConfig: (data: { bundle: unknown; dry_run?: boolean }) =>
+    request<{
+      dry_run: boolean;
+      total_changes: number;
+      changes: { kind: string; item: string; action: string }[];
+    }>("/setup/config-import", { method: "POST", body: JSON.stringify(data) }),
   resetSetupUserPassword: (id: string, data: { new_password?: string }) =>
     request<{ status: string; temp_password?: string }>(`/setup/users/${id}/reset-password`, {
       method: "POST",

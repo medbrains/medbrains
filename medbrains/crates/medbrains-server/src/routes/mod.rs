@@ -26,6 +26,7 @@ pub mod clinical_offline;
 pub mod cms;
 pub mod command_center;
 pub mod communications;
+pub mod config_transfer;
 pub mod consent;
 pub mod coverage;
 pub mod cssd;
@@ -411,6 +412,14 @@ pub fn build_router(state: AppState) -> Router {
         .route(
             "/api/documents/render/templates/{code}",
             put(documents_render::save_template),
+        )
+        .route(
+            "/api/setup/config-export",
+            get(config_transfer::export_config),
+        )
+        .route(
+            "/api/setup/config-import",
+            post(config_transfer::import_config),
         )
         .route(
             "/api/setup/users/{id}/reset-password",
