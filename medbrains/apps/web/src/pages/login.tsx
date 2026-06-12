@@ -53,10 +53,21 @@ export function LoginPage() {
     defaultValues: DEFAULT_LOGIN_FORM_VALUES,
   });
 
+  const [mfaStep, setMfaStep] = useState(false);
+  const [mfaCode, setMfaCode] = useState("");
+
   const loginMutation = useMutation({
-    mutationFn: (values: LoginFormInput) =>
-      sessionService.login({ username: values.username, password: values.password }),
+    mutationFn: (values: LoginFormInput & { mfa_code?: string }) =>
+      sessionService.login({
+        username: values.username,
+        password: values.password,
+        ...(values.mfa_code ? { mfa_code: values.mfa_code } : {}),
+      }),
     onSuccess: (data) => {
+      if (data.mfa_required) {
+        setMfaStep(true);
+        return;
+      }
       const authUser = userSchema.parse({
         ...data.user,
         access_matrix: {},
@@ -187,7 +198,11 @@ export function LoginPage() {
             </Text>
           </Stack>
 
-          <form onSubmit={loginForm.handleSubmit((values) => loginMutation.mutate(values))}>
+          <form
+            onSubmit={loginForm.handleSubmit((values) =>
+              loginMutation.mutate(mfaStep ? { ...values, mfa_code: mfaCode } : values),
+            )}
+          >
             <Stack gap="md">
               <TextInput
                 label="Username"
@@ -232,8 +247,20 @@ export function LoginPage() {
                 </Alert>
               )}
 
+              {mfaStep && (
+                <TextInput
+                  label="Two-factor code"
+                  placeholder="6-digit code or recovery code"
+                  value={mfaCode}
+                  onChange={(event) => setMfaCode(event.currentTarget.value)}
+                  inputMode="numeric"
+                  autoFocus
+                  size="md"
+                />
+              )}
+
               <Button type="submit" fullWidth loading={loginMutation.isPending} size="md">
-                Sign In
+                {mfaStep ? "Verify & Sign In" : "Sign In"}
               </Button>
             </Stack>
           </form>

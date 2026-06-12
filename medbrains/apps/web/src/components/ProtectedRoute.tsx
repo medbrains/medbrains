@@ -24,6 +24,7 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const clearPermissions = usePermissionStore((s) => s.clearPermissions);
   const [verified, setVerified] = useState<boolean | null>(null);
   const [mustChangePassword, setMustChangePassword] = useState(false);
+  const [mfaEnrollmentRequired, setMfaEnrollmentRequired] = useState(false);
   const refreshTimer = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // ── Initial session verification ──
@@ -41,6 +42,7 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
       .then(async (resp) => {
         if (cancelled) return;
         setMustChangePassword(resp.must_change_password);
+        setMfaEnrollmentRequired(resp.mfa_enrollment_required);
         setPermissions(resp.role, resp.permissions, resp.field_access);
 
         // Load locale/units settings for the tenant
@@ -137,6 +139,11 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
   // Seeded/provisioned credential — block the app until the password is rotated
   if (mustChangePassword) {
     return <Navigate to="/force-password-change" replace />;
+  }
+
+  // Tenant policy mandates MFA for this role — block until enrolled
+  if (mfaEnrollmentRequired) {
+    return <Navigate to="/mfa-enroll" replace />;
   }
 
   return <>{children}</>;

@@ -58,6 +58,7 @@ pub mod ipd_post_discharge;
 pub mod it_security;
 pub mod lab;
 pub mod lms;
+pub mod mfa;
 pub mod mrd;
 pub mod multi_hospital;
 pub mod nabh_evidence;
@@ -292,6 +293,9 @@ pub fn build_router(state: AppState) -> Router {
         .route("/api/auth/logout", post(auth::logout))
         .route("/api/auth/logout-all", post(auth::logout_all))
         .route("/api/auth/change-password", post(auth::change_password))
+        .route("/api/auth/mfa/enroll", post(mfa::enroll))
+        .route("/api/auth/mfa/activate", post(mfa::activate))
+        .route("/api/auth/mfa/disable", post(mfa::disable))
         // Phase A.1 — offline JWT revocation feed for mobile/TV/edge
         .route("/api/auth/revocations", get(auth::list_revocations))
         // Onboarding progress

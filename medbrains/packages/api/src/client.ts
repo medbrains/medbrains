@@ -2259,9 +2259,13 @@ async function refreshSession(): Promise<RefreshResponse | null> {
 export interface LoginRequest {
   username: string;
   password: string;
+  mfa_code?: string;
 }
 
 export interface LoginResponse {
+  /** Present (true) when credentials are valid but a TOTP code is needed —
+   *  resubmit login with mfa_code. All other fields absent in that case. */
+  mfa_required?: boolean;
   token?: string;
   refresh_token?: string;
   user: {
@@ -2287,6 +2291,8 @@ export interface MeResponse {
   full_name: string;
   role: string;
   must_change_password: boolean;
+  mfa_enabled: boolean;
+  mfa_enrollment_required: boolean;
   permissions: string[];
   field_access: Record<string, FieldAccessLevel>;
 }
@@ -2368,6 +2374,21 @@ export const api = {
     }),
   confirmPasswordReset: (data: { username: string; otp: string; new_password: string }) =>
     request<{ status: string }>("/auth/password-reset/confirm", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  enrollMfa: () =>
+    request<{ secret: string; otpauth_url: string; qr_png_base64: string }>("/auth/mfa/enroll", {
+      method: "POST",
+      body: "{}",
+    }),
+  activateMfa: (data: { code: string }) =>
+    request<{ status: string; recovery_codes: string[] }>("/auth/mfa/activate", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  disableMfa: (data: { code: string }) =>
+    request<{ status: string }>("/auth/mfa/disable", {
       method: "POST",
       body: JSON.stringify(data),
     }),

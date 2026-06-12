@@ -29,6 +29,9 @@ use crate::{
 pub struct LoginRequest {
     pub username: String,
     pub password: String,
+    /// TOTP or recovery code — required on resubmit when the first
+    /// attempt answers `mfa_required`.
+    pub mfa_code: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -160,7 +163,7 @@ pub async fn login(
     State(state): State<AppState>,
     headers: HeaderMap,
     Json(body): Json<LoginRequest>,
-) -> Result<impl IntoResponse, AppError> {
+) -> Result<axum::response::Response, AppError> {
     // Find user by username (across all tenants — login does not require tenant context)
     let row = sqlx::query!(
         "SELECT id, tenant_id, username, email, password_hash, full_name, \
@@ -201,6 +204,31 @@ pub async fn login(
     {
         record_failed_login(&state, row.id, row.tenant_id).await?;
         return Err(AppError::Unauthorized);
+    }
+
+    // MFA gate — when enabled, credentials alone never open a session.
+    // The client resubmits the same credentials with mfa_code.
+    let mfa_enabled: bool = sqlx::query_scalar("SELECT mfa_enabled FROM users WHERE id = $1")
+        .bind(row.id)
+        .fetch_one(&state.db)
+        .await?;
+    if mfa_enabled {
+        match body
+            .mfa_code
+            .as_deref()
+            .map(str::trim)
+            .filter(|code| !code.is_empty())
+        {
+            None => {
+                return Ok(Json(serde_json::json!({ "mfa_required": true })).into_response());
+            }
+            Some(code) => {
+                if !crate::routes::mfa::verify_mfa_code(&state.db, row.id, code).await? {
+                    record_failed_login(&state, row.id, row.tenant_id).await?;
+                    return Err(AppError::Unauthorized);
+                }
+            }
+        }
     }
 
     // Successful login clears the failure counter.
@@ -334,7 +362,7 @@ pub async fn login(
         field_access,
     };
 
-    Ok((jar, Json(body)))
+    Ok((jar, Json(body)).into_response())
 }
 
 // ── Refresh Token ───────────────────────────────────────────
@@ -752,6 +780,10 @@ pub struct MeResponse {
     pub user: UserInfo,
     pub permissions: Vec<String>,
     pub field_access: HashMap<String, String>,
+    pub mfa_enabled: bool,
+    /// Tenant policy mandates MFA for this role and it isn't set up yet
+    /// — the frontend blocks the app until enrollment completes.
+    pub mfa_enrollment_required: bool,
 }
 
 pub async fn me(
@@ -785,6 +817,13 @@ pub async fn me(
 
     let must_change_password = fetch_must_change_password(&state.db, row.id).await?;
 
+    let mfa_enabled: bool = sqlx::query_scalar("SELECT mfa_enabled FROM users WHERE id = $1")
+        .bind(row.id)
+        .fetch_one(&state.db)
+        .await?;
+    let mfa_enrollment_required = !mfa_enabled
+        && crate::routes::mfa::mfa_required_for_role(&state.db, row.tenant_id, &row.role).await?;
+
     Ok(Json(MeResponse {
         user: UserInfo {
             id: row.id,
@@ -797,6 +836,8 @@ pub async fn me(
         },
         permissions,
         field_access,
+        mfa_enabled,
+        mfa_enrollment_required,
     }))
 }
 
