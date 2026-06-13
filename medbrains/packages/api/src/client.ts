@@ -3841,6 +3841,8 @@ export const api = {
     }),
   cancelInvoice: (id: string) =>
     request<Invoice>(`/billing/invoices/${id}/cancel`, { method: "POST" }),
+  closeZeroInvoice: (id: string) =>
+    request<Invoice>(`/billing/invoices/${id}/close-zero`, { method: "POST" }),
   recordPayment: (invoiceId: string, data: RecordPaymentRequest) =>
     request<Payment>(`/billing/invoices/${invoiceId}/payments`, {
       method: "POST",

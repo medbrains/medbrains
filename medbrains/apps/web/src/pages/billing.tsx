@@ -1501,6 +1501,22 @@ function InvoiceDetail({
       void queryClient.invalidateQueries({ queryKey: ["invoice-detail", invoiceId] }),
   });
 
+  const closeZeroMutation = useMutation({
+    mutationFn: () => billingService.closeZeroInvoice(invoiceId),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["invoice-detail", invoiceId] });
+      void queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      notifications.show({
+        title: "Invoice closed",
+        message: "Zero-balance bill settled.",
+        color: "success",
+      });
+    },
+    onError: (error: Error) => {
+      notifications.show({ title: "Could not close", message: error.message, color: "danger" });
+    },
+  });
+
   const invoicePrintMutation = useMutation({
     mutationFn: () => billingService.getInvoicePrintData(invoiceId),
     onSuccess: (printData) => {
@@ -1764,6 +1780,20 @@ function InvoiceDetail({
                 <Button size="xs" leftSection={<IconCash size={14} />} onClick={openPaymentForm}>
                   {t("button.recordPayment")}
                 </Button>
+              )}
+              {canPay && displayStatus === "issued" && balance === 0 && (
+                <Tooltip label="No money to collect — record this free / scheme bill as settled">
+                  <Button
+                    size="xs"
+                    variant="light"
+                    color="primary"
+                    leftSection={<IconCheck size={14} />}
+                    loading={closeZeroMutation.isPending}
+                    onClick={() => closeZeroMutation.mutate()}
+                  >
+                    Close ₹0 bill
+                  </Button>
+                </Tooltip>
               )}
               {canPrintBillingDocs && (
                 <Tooltip

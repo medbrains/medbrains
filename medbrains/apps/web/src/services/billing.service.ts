@@ -9,6 +9,8 @@ export const billingService = {
     api.getInvoicePrintData(...args),
   issueInvoice: (...args: Parameters<typeof api.issueInvoice>) => api.issueInvoice(...args),
   cancelInvoice: (...args: Parameters<typeof api.cancelInvoice>) => api.cancelInvoice(...args),
+  closeZeroInvoice: (...args: Parameters<typeof api.closeZeroInvoice>) =>
+    api.closeZeroInvoice(...args),
   addInvoiceItem: (...args: Parameters<typeof api.addInvoiceItem>) => api.addInvoiceItem(...args),
   removeInvoiceItem: (...args: Parameters<typeof api.removeInvoiceItem>) =>
     api.removeInvoiceItem(...args),

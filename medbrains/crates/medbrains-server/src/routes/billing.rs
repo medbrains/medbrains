@@ -1758,8 +1758,13 @@ pub async fn issue_invoice(
 
     enforce_preauth_limit(&mut tx, &claims, id, &body).await?;
 
+    // A zero-total invoice (free / medical-college / charity) has
+    // nothing to collect, so it settles the moment it is issued
+    // rather than sitting in 'issued' with no completion path (#293).
     let inv = sqlx::query_as::<_, Invoice>(
-        "UPDATE invoices SET status = 'issued'::invoice_status, \
+        "UPDATE invoices SET \
+         status = CASE WHEN total_amount = 0 THEN 'paid'::invoice_status \
+                       ELSE 'issued'::invoice_status END, \
          issued_at = now(), updated_at = now() \
          WHERE id = $1 AND tenant_id = $2 AND status = 'draft'::invoice_status \
          RETURNING *",
@@ -1844,6 +1849,64 @@ pub async fn cancel_invoice(
 
     tx.commit().await?;
     inv.map_or_else(|| Err(AppError::NotFound), |i| Ok(Json(i)))
+}
+
+// ══════════════════════════════════════════════════════════
+//  POST /api/billing/invoices/{id}/close-zero
+// ══════════════════════════════════════════════════════════
+
+/// Settle an issued zero-total invoice (free / scheme / charity) that
+/// has no outstanding balance. Mirrors what issuing now does for new
+/// zero-total invoices, but rescues ones already stuck in 'issued'
+/// with no payment path (#293). Requires the payment permission since
+/// it completes the bill.
+pub async fn close_zero_invoice(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<Invoice>, AppError> {
+    require_permission(&claims, permissions::billing::payments::CREATE)?;
+
+    let mut tx = state.db.begin().await?;
+    medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
+
+    let inv = sqlx::query_as::<_, Invoice>(
+        "UPDATE invoices SET status = 'paid'::invoice_status, updated_at = now() \
+         WHERE id = $1 AND tenant_id = $2 \
+           AND status = 'issued'::invoice_status \
+           AND total_amount = 0 AND paid_amount = 0 \
+         RETURNING *",
+    )
+    .bind(id)
+    .bind(claims.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?;
+
+    let Some(invoice) = inv else {
+        tx.commit().await?;
+        return Err(AppError::BadRequest(
+            "Only an issued invoice with a zero balance can be closed this way".to_owned(),
+        ));
+    };
+
+    medbrains_db::audit::AuditLogger::log(
+        &mut tx,
+        &medbrains_db::audit::AuditEntry {
+            tenant_id: claims.tenant_id,
+            user_id: Some(claims.sub),
+            action: "invoice_close_zero",
+            entity_type: "invoice",
+            entity_id: Some(invoice.id),
+            old_values: None,
+            new_values: None,
+            ip_address: None,
+        },
+    )
+    .await
+    .map_err(AppError::from)?;
+
+    tx.commit().await?;
+    Ok(Json(invoice))
 }
 
 // ══════════════════════════════════════════════════════════

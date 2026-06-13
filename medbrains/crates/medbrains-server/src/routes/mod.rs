@@ -1122,6 +1122,10 @@ pub fn build_router(state: AppState) -> Router {
             post(billing::cancel_invoice),
         )
         .route(
+            "/api/billing/invoices/{id}/close-zero",
+            post(billing::close_zero_invoice),
+        )
+        .route(
             "/api/billing/invoices/{id}/payments",
             get(billing::list_payments).post(billing::record_payment),
         )
