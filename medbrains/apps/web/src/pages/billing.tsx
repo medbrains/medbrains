@@ -189,6 +189,7 @@ import {
   IconDiscount2,
   IconEye,
   IconFileInvoice,
+  IconListCheck,
   IconMoneybag,
   IconPackage,
   IconPencil,
@@ -909,6 +910,13 @@ function BillingPageInner() {
         color="orange"
         actions={
           <Group gap="xs">
+            <Button
+              variant="subtle"
+              leftSection={<IconListCheck size={16} />}
+              onClick={() => navigate("/billing/worklist")}
+            >
+              Worklist
+            </Button>
             {canPay && (
               <Button
                 variant="light"

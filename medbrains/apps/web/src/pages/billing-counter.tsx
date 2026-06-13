@@ -14,7 +14,7 @@ import { notifications } from "@mantine/notifications";
 import { useHasPermission } from "@medbrains/stores";
 import type { Invoice, PatientAdvance, PaymentMode } from "@medbrains/types";
 import { P } from "@medbrains/types";
-import { IconCash, IconReceipt, IconWallet } from "@tabler/icons-react";
+import { IconCash, IconListCheck, IconReceipt, IconWallet } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router";
@@ -197,9 +197,18 @@ export function BillingCounterPage() {
         icon={<IconReceipt size={20} stroke={1.5} />}
         color="orange"
         actions={
-          <Button variant="subtle" onClick={() => navigate("/billing")}>
-            Back office
-          </Button>
+          <Group gap="xs">
+            <Button
+              variant="subtle"
+              leftSection={<IconListCheck size={16} />}
+              onClick={() => navigate("/billing/worklist")}
+            >
+              Worklist
+            </Button>
+            <Button variant="subtle" onClick={() => navigate("/billing")}>
+              Back office
+            </Button>
+          </Group>
         }
       />
 
