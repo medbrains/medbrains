@@ -48,7 +48,6 @@ import type {
   BillingJournalLineFormInput,
   BillingPackageFormInput,
   BillingPackageItemFormInput,
-  BillingPaymentFormInput,
   BillingRatePlanFormInput,
   BillingRatePlanItemFormInput,
   BillingRefundFormInput,
@@ -76,7 +75,6 @@ import {
   billingJournalEntryFormSchema,
   billingPackageFormSchema,
   billingPackageItemFormSchema,
-  billingPaymentFormSchema,
   billingRatePlanFormSchema,
   billingRatePlanItemFormSchema,
   billingRefundFormSchema,
@@ -221,6 +219,7 @@ import {
   FormModal,
   OperationalSignal,
   PageHeader,
+  PaymentCollectPanel,
   useClinicalEmit,
   useProtectedFieldAccess,
 } from "@/components";
@@ -1443,11 +1442,6 @@ function InvoiceDetail({
     unit_price: 0,
     tax_percent: 0,
   };
-  const paymentDefaults: BillingPaymentFormInput = {
-    amount: 0,
-    mode: "cash",
-    reference_number: "",
-  };
   const discountDefaults: BillingDiscountFormInput = {
     discount_type: "percentage",
     discount_value: 0,
@@ -1462,16 +1456,6 @@ function InvoiceDetail({
   } = useForm<BillingInvoiceItemFormInput>({
     resolver: zodResolver(billingInvoiceItemFormSchema),
     defaultValues: itemDefaults,
-  });
-  const {
-    control: paymentControl,
-    register: registerPayment,
-    reset: resetPayment,
-    handleSubmit: handleSubmitPayment,
-    formState: { errors: paymentErrors },
-  } = useForm<BillingPaymentFormInput>({
-    resolver: zodResolver(billingPaymentFormSchema),
-    defaultValues: paymentDefaults,
   });
   const {
     control: discountControl,
@@ -1565,7 +1549,6 @@ function InvoiceDetail({
       });
       closePaymentPanel();
       onClearAction?.();
-      resetPayment(paymentDefaults);
     },
   });
 
@@ -1643,13 +1626,8 @@ function InvoiceDetail({
       return;
     }
 
-    resetPayment({
-      amount: invoiceBalanceAmount,
-      mode: "cash",
-      reference_number: "",
-    });
     openPaymentPanel();
-  }, [amountAccess, canPay, data, initialAction, openPaymentPanel, paymentOpened, resetPayment]);
+  }, [amountAccess, canPay, data, initialAction, openPaymentPanel, paymentOpened]);
 
   if (!data) return <Text c="dimmed">Loading...</Text>;
 
@@ -1695,7 +1673,6 @@ function InvoiceDetail({
       onClearAction?.();
       return;
     }
-    resetPayment({ ...paymentDefaults, amount: balance });
     navigate(billingInvoicePaymentRoute(invoiceId), { replace: true });
     openPaymentPanel();
   };
@@ -1707,13 +1684,6 @@ function InvoiceDetail({
       quantity: billingIntegerOrFallback(values.quantity, 1),
       unit_price: billingNumberOrFallback(values.unit_price, 0),
       tax_percent: billingNumberOrFallback(values.tax_percent, 0),
-    });
-  };
-  const handleRecordPayment = (values: BillingPaymentFormInput) => {
-    payMutation.mutate({
-      amount: billingNumberOrFallback(values.amount, 0),
-      mode: values.mode,
-      reference_number: billingOptionalText(values.reference_number),
     });
   };
   const handleAddDiscount = (values: BillingDiscountFormInput) => {
@@ -2152,63 +2122,44 @@ function InvoiceDetail({
                 </Table>
 
                 {canRecordPayment && paymentOpened && (
-                  <Stack
-                    component="form"
-                    gap="xs"
-                    onSubmit={handleSubmitPayment(handleRecordPayment)}
-                  >
-                    <Controller
-                      control={paymentControl}
-                      name="amount"
-                      render={({ field }) => (
-                        <NumberInput
-                          label={t("label.amount")}
-                          required
-                          min={0.01}
-                          max={balance}
-                          decimalScale={2}
-                          value={field.value}
-                          onChange={field.onChange}
-                          error={paymentErrors.amount?.message}
-                        />
-                      )}
-                    />
-                    <Controller
-                      control={paymentControl}
-                      name="mode"
-                      render={({ field }) => (
-                        <Select
-                          label={t("label.mode")}
-                          data={billingPaymentModeOptions}
-                          value={field.value}
-                          onChange={(value) => field.onChange(value ?? "cash")}
-                          error={paymentErrors.mode?.message}
-                        />
-                      )}
-                    />
-                    <TextInput
-                      label={t("label.reference#")}
-                      error={paymentErrors.reference_number?.message}
-                      {...registerPayment("reference_number")}
-                    />
-                    <Group justify="space-between">
-                      <Text size="xs" c="dimmed">
-                        {t("label.outstandingAmount", {
-                          amount: billingAmountText(balance, amountAccess),
-                        })}
-                      </Text>
-                      <Button
-                        size="xs"
-                        variant="subtle"
-                        onClick={() => resetPayment({ ...paymentDefaults, amount: balance })}
-                      >
-                        {t("button.useBalance")}
-                      </Button>
-                    </Group>
-                    <Button size="xs" type="submit" loading={payMutation.isPending}>
-                      {t("button.savePayment")}
-                    </Button>
-                  </Stack>
+                  <PaymentCollectPanel
+                    invoiceId={invoiceId}
+                    balance={balance}
+                    onRecorded={(payments) => {
+                      for (const payment of payments) {
+                        emit("billing.payment.received", {
+                          amount: Number(payment.amount),
+                          admission_id: inv.admission_id,
+                          encounter_id: inv.encounter_id,
+                          invoice_id: payment.invoice_id,
+                          mode: payment.mode,
+                          patient_id: inv.patient_id,
+                          payment_id: payment.id,
+                        });
+                      }
+                      void queryClient.invalidateQueries({
+                        queryKey: ["invoice-detail", invoiceId],
+                      });
+                      void queryClient.invalidateQueries({ queryKey: ["invoices"] });
+                      void queryClient.invalidateQueries({
+                        queryKey: ["patient-context", inv.patient_id],
+                      });
+                      void queryClient.invalidateQueries({
+                        queryKey: ["patient-invoices", inv.patient_id],
+                      });
+                      closePaymentPanel();
+                      onClearAction?.();
+                    }}
+                    onPrint={
+                      canPrintBillingDocs
+                        ? (payments) => {
+                            const last = payments.at(-1);
+                            if (last) receiptMutation.mutate(last.id);
+                          }
+                        : undefined
+                    }
+                    autoFocus
+                  />
                 )}
                 {canRecordPayment && (
                   <PaymentModal

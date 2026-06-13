@@ -1,34 +1,16 @@
-import {
-  Alert,
-  Badge,
-  Button,
-  Card,
-  Group,
-  NumberInput,
-  SegmentedControl,
-  Stack,
-  Text,
-  Title,
-} from "@mantine/core";
-import { notifications } from "@mantine/notifications";
+import { Alert, Badge, Button, Card, Group, Stack, Text, Title } from "@mantine/core";
 import { useHasPermission } from "@medbrains/stores";
-import type { Invoice, PatientAdvance, PaymentMode } from "@medbrains/types";
+import type { Invoice, PatientAdvance } from "@medbrains/types";
 import { P } from "@medbrains/types";
 import { IconCash, IconListCheck, IconReceipt, IconWallet } from "@tabler/icons-react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router";
-import { PageHeader, PatientSearchSelect } from "@/components";
+import { PageHeader, PatientSearchSelect, PaymentCollectPanel } from "@/components";
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { billingService } from "@/services/billing.service";
 import { billingInvoicePaymentRoute } from "./billing-workspace";
-
-const PAYMENT_MODES: { value: PaymentMode; label: string }[] = [
-  { value: "cash", label: "Cash" },
-  { value: "upi", label: "UPI" },
-  { value: "card", label: "Card" },
-];
 
 function money(value: number | string | null | undefined): string {
   const parsed = Number(value ?? 0);
@@ -42,37 +24,8 @@ function invoiceBalance(invoice: Invoice): number {
   return Number(invoice.total_amount) - Number(invoice.paid_amount);
 }
 
-/** A counter-paced collect panel: amount, cash tendered, change due. */
+/** A counter-paced collect panel: keyboard-first, mixed-mode split. */
 function CollectPanel({ invoice, onCollected }: { invoice: Invoice; onCollected: () => void }) {
-  const balance = invoiceBalance(invoice);
-  const [amount, setAmount] = useState<number | string>(balance);
-  const [mode, setMode] = useState<PaymentMode>("cash");
-  const [tendered, setTendered] = useState<number | string>(balance);
-
-  const payMutation = useMutation({
-    mutationFn: () =>
-      billingService.recordPayment(invoice.id, {
-        amount: typeof amount === "number" ? amount : Number(amount) || 0,
-        mode,
-      }),
-    onSuccess: () => {
-      notifications.show({
-        title: "Payment recorded",
-        message: `${invoice.invoice_number} — ₹${money(amount)} ${mode}`,
-        color: "success",
-      });
-      onCollected();
-    },
-    onError: (error: Error) => {
-      notifications.show({ title: "Payment failed", message: error.message, color: "danger" });
-    },
-  });
-
-  const amountNum = typeof amount === "number" ? amount : Number(amount) || 0;
-  const tenderedNum = typeof tendered === "number" ? tendered : Number(tendered) || 0;
-  const changeDue = mode === "cash" ? Math.max(0, tenderedNum - amountNum) : 0;
-  const shortfall = amountNum > balance;
-
   return (
     <Card withBorder bg="var(--fc-panel, #f7f8f6)">
       <Stack gap="sm">
@@ -81,53 +34,15 @@ function CollectPanel({ invoice, onCollected }: { invoice: Invoice; onCollected:
             Collect for {invoice.invoice_number}
           </Text>
           <Text size="sm" c="dimmed">
-            Balance ₹{money(balance)}
+            Balance ₹{money(invoiceBalance(invoice))}
           </Text>
         </Group>
-        <SegmentedControl
-          size="xs"
-          value={mode}
-          onChange={(value) => setMode(value as PaymentMode)}
-          data={PAYMENT_MODES}
+        <PaymentCollectPanel
+          invoiceId={invoice.id}
+          balance={invoiceBalance(invoice)}
+          onRecorded={onCollected}
+          autoFocus
         />
-        <Group grow align="flex-start">
-          <NumberInput
-            label="Amount"
-            value={amount}
-            onChange={setAmount}
-            min={0}
-            max={balance}
-            decimalScale={2}
-            error={shortfall ? "Exceeds balance" : undefined}
-          />
-          {mode === "cash" && (
-            <NumberInput
-              label="Cash tendered"
-              value={tendered}
-              onChange={setTendered}
-              min={0}
-              decimalScale={2}
-            />
-          )}
-        </Group>
-        {mode === "cash" && (
-          <Group justify="space-between">
-            <Text size="sm" c="dimmed">
-              Change due
-            </Text>
-            <Text size="lg" fw={700} c={changeDue > 0 ? "copper" : undefined}>
-              ₹{money(changeDue)}
-            </Text>
-          </Group>
-        )}
-        <Button
-          leftSection={<IconCash size={16} />}
-          loading={payMutation.isPending}
-          disabled={amountNum <= 0 || shortfall}
-          onClick={() => payMutation.mutate()}
-        >
-          Record ₹{money(amountNum)} payment
-        </Button>
       </Stack>
     </Card>
   );
