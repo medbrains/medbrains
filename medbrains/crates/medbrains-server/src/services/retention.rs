@@ -28,6 +28,9 @@ const PASS_INTERVAL_SECS: u64 = 24 * 3600;
 const DEFAULT_TOKEN_DAYS: i32 = 30;
 const DEFAULT_OTP_DAYS: i32 = 7;
 const DEFAULT_OUTBOX_DAYS: i32 = 90;
+const DEFAULT_DLQ_DAYS: i32 = 90;
+const DEFAULT_JOB_DAYS: i32 = 30;
+const DEFAULT_CAMP_SYNC_DAYS: i32 = 60;
 
 pub fn spawn(pool: PgPool) {
     tokio::spawn(async move {
@@ -79,6 +82,10 @@ async fn run_retention_pass(pool: &PgPool) -> Result<(), AppError> {
         let otp_days = tenant_setting_days(pool, tenant_id, "otp_days", DEFAULT_OTP_DAYS).await?;
         let outbox_days =
             tenant_setting_days(pool, tenant_id, "outbox_days", DEFAULT_OUTBOX_DAYS).await?;
+        let dlq_days = tenant_setting_days(pool, tenant_id, "dlq_days", DEFAULT_DLQ_DAYS).await?;
+        let job_days = tenant_setting_days(pool, tenant_id, "job_days", DEFAULT_JOB_DAYS).await?;
+        let camp_sync_days =
+            tenant_setting_days(pool, tenant_id, "camp_sync_days", DEFAULT_CAMP_SYNC_DAYS).await?;
 
         let mut tx = pool.begin().await?;
         medbrains_db::pool::set_tenant_context(&mut tx, &tenant_id).await?;
@@ -115,6 +122,35 @@ async fn run_retention_pass(pool: &PgPool) -> Result<(), AppError> {
                     "DELETE FROM outbox_events WHERE tenant_id = $1 \
                      AND status = 'sent' \
                      AND created_at < now() - make_interval(days => {outbox_days})"
+                ),
+            ),
+            // Dead-letter events: keep a review window, then drop.
+            (
+                "outbox_dlq",
+                format!(
+                    "DELETE FROM outbox_dlq WHERE tenant_id = $1 \
+                     AND moved_at < now() - make_interval(days => {dlq_days})"
+                ),
+            ),
+            // Integration job history in a terminal state. 'failed' is
+            // transient (the worker resets it to 'pending' for retry),
+            // so only 'completed'/'dead_letter' are purged.
+            (
+                "job_queue",
+                format!(
+                    "DELETE FROM job_queue WHERE tenant_id = $1 \
+                     AND status IN ('completed', 'dead_letter') \
+                     AND created_at < now() - make_interval(days => {job_days})"
+                ),
+            ),
+            // Camp sync events that reached a settled state. 'received'
+            // and 'failed' are still in-flight / need attention.
+            (
+                "camp_sync_events",
+                format!(
+                    "DELETE FROM camp_sync_events WHERE tenant_id = $1 \
+                     AND status IN ('applied', 'duplicate') \
+                     AND received_at < now() - make_interval(days => {camp_sync_days})"
                 ),
             ),
         ];

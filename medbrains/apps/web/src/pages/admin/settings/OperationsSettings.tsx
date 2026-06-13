@@ -89,6 +89,27 @@ const NUMBER_SETTINGS: NumberSettingDef[] = [
     description: "Delivered notification events are purged after this window.",
     fallback: 90,
   },
+  {
+    key: "dlq_days",
+    category: "retention",
+    label: "Dead-letter retention (days)",
+    description: "Failed outbox events kept for review, then purged.",
+    fallback: 90,
+  },
+  {
+    key: "job_days",
+    category: "retention",
+    label: "Job history retention (days)",
+    description: "Completed and dead-lettered integration jobs are purged after this window.",
+    fallback: 30,
+  },
+  {
+    key: "camp_sync_days",
+    category: "retention",
+    label: "Camp sync event retention (days)",
+    description: "Settled camp sync events (applied/duplicate) are purged after this window.",
+    fallback: 60,
+  },
 ];
 
 function settingNumber(rows: { key: string; value: unknown }[] | undefined, key: string) {
