@@ -126,7 +126,6 @@ import type {
   DayEndClose,
   DepartmentRevenueRow,
   DoctorRevenueRow,
-  ErFastInvoiceRequest,
   ErpExportLog,
   ErpExportRequest,
   FieldAccessLevel,
@@ -172,7 +171,6 @@ import {
 } from "@medbrains/types";
 import { fieldAccessText } from "@medbrains/utils";
 import {
-  IconAmbulance,
   IconBuildingBank,
   IconCalendarCheck,
   IconCash,
@@ -665,7 +663,6 @@ function BillingPageInner() {
 
   const [page, setPage] = useState(1);
   const [createOpened, { open: openCreate, close: closeCreate }] = useDisclosure(false);
-  const [erInvoiceOpened, { open: openErInvoice, close: closeErInvoice }] = useDisclosure(false);
   const visibleBillingTabs = new Set<string>([
     "invoices",
     "charge-master",
@@ -926,19 +923,9 @@ function BillingPageInner() {
               </Button>
             )}
             {canCreate && (
-              <>
-                <Button leftSection={<IconPlus size={16} />} onClick={openCreate}>
-                  {t("button.newInvoice")}
-                </Button>
-                <Button
-                  variant="light"
-                  color="danger"
-                  leftSection={<IconAmbulance size={16} />}
-                  onClick={openErInvoice}
-                >
-                  {t("title.erFastInvoice")}
-                </Button>
-              </>
+              <Button leftSection={<IconPlus size={16} />} onClick={openCreate}>
+                {t("button.newInvoice")}
+              </Button>
             )}
           </Group>
         }
@@ -1233,7 +1220,6 @@ function BillingPageInner() {
         initialEncounterId={encounterFilterId ?? ""}
         initialAdmissionId={admissionFilterId ?? ""}
       />
-      <ErFastInvoiceModal opened={erInvoiceOpened} onClose={closeErInvoice} />
     </div>
   );
 }
@@ -2817,115 +2803,6 @@ function CopayBreakdown({ invoiceId }: { invoiceId: string }) {
 }
 
 // ── ER Fast Invoice Modal ─────────────────────────────────
-
-function ErFastInvoiceModal({ opened, onClose }: { opened: boolean; onClose: () => void }) {
-  const queryClient = useQueryClient();
-  const emit = useClinicalEmit();
-  const {
-    control,
-    register,
-    handleSubmit,
-    reset,
-    watch,
-    formState: { errors },
-  } = useForm<ErFastInvoiceRequest>({
-    defaultValues: {
-      emergency_visit_id: "",
-      patient_id: "",
-      notes: "",
-    },
-  });
-  const emergencyVisitId = watch("emergency_visit_id");
-  const patientId = watch("patient_id");
-
-  const createMutation = useMutation({
-    mutationFn: (data: ErFastInvoiceRequest) => billingService.erFastInvoice(data),
-    onSuccess: (result) => {
-      void queryClient.invalidateQueries({ queryKey: ["invoices"] });
-      void queryClient.invalidateQueries({ queryKey: ["patient-invoices", result.patient_id] });
-      notifications.show({
-        title: "ER Invoice Created",
-        message: `Invoice ${result.invoice_number} created`,
-        color: "success",
-      });
-      emit("billing.invoice.created", {
-        admission_id: result.admission_id,
-        encounter_id: result.encounter_id,
-        invoice_id: result.id,
-        patient_id: result.patient_id,
-        total_amount: result.total_amount,
-      });
-      onClose();
-      reset();
-    },
-    onError: () => {
-      notifications.show({
-        title: "Error",
-        message: "Failed to create ER invoice",
-        color: "danger",
-      });
-    },
-  });
-  const submitFastInvoice = handleSubmit((values) => {
-    createMutation.mutate({
-      emergency_visit_id: values.emergency_visit_id.trim(),
-      patient_id: values.patient_id.trim(),
-      notes: values.notes?.trim() || null,
-    });
-  });
-
-  return (
-    <Drawer
-      opened={opened}
-      onClose={() => {
-        onClose();
-        reset();
-      }}
-      title="ER Fast Invoice"
-      position="right"
-      size="xl"
-    >
-      <Stack component="form" onSubmit={submitFastInvoice}>
-        <Alert color="danger" variant="light" title="Emergency Department Fast Billing">
-          <Text size="sm">
-            Creates an invoice with standard ER charges for the specified emergency visit.
-            Additional charges can be added later.
-          </Text>
-        </Alert>
-        <TextInput
-          label="Emergency Visit ID"
-          placeholder="Enter emergency visit UUID"
-          error={errors.emergency_visit_id?.message}
-          {...register("emergency_visit_id", { required: "Emergency visit is required" })}
-          required
-        />
-        <Controller
-          control={control}
-          name="patient_id"
-          rules={{ required: "Patient is required" }}
-          render={({ field }) => (
-            <PatientSearchSelect
-              value={field.value}
-              onChange={field.onChange}
-              error={errors.patient_id?.message}
-              required
-            />
-          )}
-        />
-        <Textarea label="Notes" {...register("notes")} />
-        <Button
-          type="submit"
-          color="danger"
-          loading={createMutation.isPending}
-          disabled={!emergencyVisitId.trim() || !patientId.trim()}
-          leftSection={<IconAmbulance size={16} />}
-        >
-          Create ER Invoice
-        </Button>
-      </Stack>
-    </Drawer>
-  );
-}
 
 function PackagesTab({ canCreate }: { canCreate: boolean }) {
   const queryClient = useQueryClient();

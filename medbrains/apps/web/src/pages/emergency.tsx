@@ -107,6 +107,7 @@ import {
   IconPencil,
   IconPlus,
   IconPrinter,
+  IconReceipt,
   IconScale,
   IconShieldCheck,
   IconUrgent,
@@ -151,6 +152,7 @@ import {
   emergencyResuscitationLogTypeOptions,
 } from "@/forms/emergency.form";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
+import { billingService } from "@/services/billing.service";
 import {
   type ConfirmPoliceReceiptInput,
   type CreateMlcDocumentInput,
@@ -164,6 +166,7 @@ import {
   type PrintCopyRoute,
   printCopyRouteLabel,
 } from "@/utils/printCopies";
+import { billingInvoiceWorkspaceRoute } from "./billing-workspace";
 import classes from "./emergency.module.scss";
 import { emergencyTabFromSearch, emergencyVisibleTab } from "./emergency-workspace";
 
@@ -1140,6 +1143,7 @@ export function EmergencyVisitDetailPage() {
     canPrintMlcPoliceIntimation ||
     canReprintMlcPoliceIntimation;
   const canAdmit = canUpdateVisit && canCreateIpdAdmission;
+  const canCreateInvoice = useHasPermission(P.BILLING.INVOICES_CREATE);
   const { data: visit, isLoading } = useQuery({
     queryKey: ["er-visit", visitId],
     queryFn: () => {
@@ -1147,6 +1151,34 @@ export function EmergencyVisitDetailPage() {
       return emergencyService.getErVisit(visitId);
     },
     enabled: Boolean(visitId),
+  });
+
+  // Deferred ER billing from the point of care: the visit and patient
+  // come straight off the loaded visit, so the clerk never types a
+  // raw UUID (#298). Lands on the created invoice.
+  const erInvoiceMutation = useMutation({
+    mutationFn: () => {
+      if (!visit) throw new Error("Visit not loaded");
+      return billingService.erFastInvoice({
+        emergency_visit_id: visit.id,
+        patient_id: visit.patient_id,
+      });
+    },
+    onSuccess: (invoice) => {
+      notifications.show({
+        title: "ER invoice created",
+        message: `Invoice ${invoice.invoice_number} created.`,
+        color: "success",
+      });
+      navigate(billingInvoiceWorkspaceRoute(invoice.id));
+    },
+    onError: (error: Error) => {
+      notifications.show({
+        title: "Could not create ER invoice",
+        message: error.message,
+        color: "danger",
+      });
+    },
   });
   const { data: mlcCases = [], isLoading: mlcCasesLoading } = useQuery({
     queryKey: ["mlc-cases"],
@@ -1190,6 +1222,17 @@ export function EmergencyVisitDetailPage() {
                 onClick={() => navigate("/emergency/visits/new")}
               >
                 New Visit
+              </Button>
+            )}
+            {canCreateInvoice && visit && (
+              <Button
+                variant="light"
+                color="danger"
+                leftSection={<IconReceipt size={14} />}
+                loading={erInvoiceMutation.isPending}
+                onClick={() => erInvoiceMutation.mutate()}
+              >
+                Fast invoice
               </Button>
             )}
           </Group>
