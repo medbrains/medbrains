@@ -136,8 +136,10 @@ export function createMedBrainsTheme(opts: CreateMedBrainsThemeOptions = {}): Ma
     ? {
         Loader: Loader.extend({
           defaultProps: {
+            // ECG stays registered for explicit use; the default is a
+            // plain console spinner.
             loaders: { ...Loader.defaultLoaders, ecg: opts.loaders.ecg },
-            type: "ecg",
+            type: "oval",
           },
         }),
       }
@@ -194,7 +196,8 @@ export function createMedBrainsTheme(opts: CreateMedBrainsThemeOptions = {}): Ma
       "3xl": rem(space["3xl"]),
     },
 
-    defaultRadius: "md",
+    // Console look: squared corners over the previous soft 8px.
+    defaultRadius: "sm",
 
     radius: {
       xs: rem(radius.xs),
@@ -205,18 +208,19 @@ export function createMedBrainsTheme(opts: CreateMedBrainsThemeOptions = {}): Ma
     },
 
     headings: {
-      fontFamily: fontFamily.display,
+      // Enterprise-console typography is all-sans — no editorial serif.
+      fontFamily: fontFamily.sans,
       fontWeight: fontWeight.semibold,
       sizes: {
         h1: {
-          fontSize: rem(fontSize["4xl"]),
-          lineHeight: lineHeight.display,
-          fontWeight: fontWeight.regular,
-        },
-        h2: {
           fontSize: rem(fontSize["3xl"]),
           lineHeight: lineHeight.tight,
-          fontWeight: fontWeight.regular,
+          fontWeight: fontWeight.bold,
+        },
+        h2: {
+          fontSize: rem(fontSize["2xl"]),
+          lineHeight: lineHeight.tight,
+          fontWeight: fontWeight.semibold,
         },
         h3: {
           fontSize: rem(fontSize["2xl"]),
@@ -264,21 +268,22 @@ export function createMedBrainsTheme(opts: CreateMedBrainsThemeOptions = {}): Ma
         }),
       }),
 
+      // Console surfaces are border-first with no resting shadow.
       Paper: Paper.extend({
         defaultProps: {
           p: "md",
-          shadow: "sm",
-          radius: "md",
-          withBorder: false,
+          shadow: undefined,
+          radius: "sm",
+          withBorder: true,
         },
       }),
 
       Card: Card.extend({
         defaultProps: {
           p: "md",
-          shadow: "sm",
-          radius: "md",
-          withBorder: false,
+          shadow: undefined,
+          radius: "sm",
+          withBorder: true,
         },
       }),
 
@@ -381,7 +386,7 @@ export function createMedBrainsTheme(opts: CreateMedBrainsThemeOptions = {}): Ma
       Title: {
         defaultProps: {
           c: "var(--mb-text-heading)",
-          ff: fontFamily.display,
+          ff: fontFamily.sans,
         },
       },
 
