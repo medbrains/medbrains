@@ -908,21 +908,32 @@ function BillingPageInner() {
         icon={<IconReceipt size={20} stroke={1.5} />}
         color="orange"
         actions={
-          canCreate ? (
-            <Group gap="xs">
-              <Button leftSection={<IconPlus size={16} />} onClick={openCreate}>
-                {t("button.newInvoice")}
-              </Button>
+          <Group gap="xs">
+            {canPay && (
               <Button
                 variant="light"
-                color="danger"
-                leftSection={<IconAmbulance size={16} />}
-                onClick={openErInvoice}
+                leftSection={<IconCash size={16} />}
+                onClick={() => navigate("/billing/counter")}
               >
-                {t("title.erFastInvoice")}
+                Cashier counter
               </Button>
-            </Group>
-          ) : undefined
+            )}
+            {canCreate && (
+              <>
+                <Button leftSection={<IconPlus size={16} />} onClick={openCreate}>
+                  {t("button.newInvoice")}
+                </Button>
+                <Button
+                  variant="light"
+                  color="danger"
+                  leftSection={<IconAmbulance size={16} />}
+                  onClick={openErInvoice}
+                >
+                  {t("title.erFastInvoice")}
+                </Button>
+              </>
+            )}
+          </Group>
         }
       />
 

@@ -84,6 +84,9 @@ const RadiologyPage = lazy(() =>
   import("./pages/radiology").then((m) => ({ default: m.RadiologyPage })),
 );
 const BillingPage = lazy(() => import("./pages/billing").then((m) => ({ default: m.BillingPage })));
+const BillingCounterPage = lazy(() =>
+  import("./pages/billing-counter").then((m) => ({ default: m.BillingCounterPage })),
+);
 const BillingInvoiceDetailPage = lazy(() =>
   import("./pages/billing").then((m) => ({ default: m.BillingInvoiceDetailPage })),
 );
@@ -332,6 +335,7 @@ export function App() {
               <Route path="pharmacy/orders/:orderId" element={<PharmacyOrderDetailPage />} />
               <Route path="pharmacy/finance" element={<PharmacyFinancePage />} />
               <Route path="billing" element={<BillingPage />} />
+              <Route path="billing/counter" element={<BillingCounterPage />} />
               <Route path="billing/invoices/:invoiceId" element={<BillingInvoiceDetailPage />} />
               <Route path="indent/*" element={<IndentPage />} />
               <Route path="procurement" element={<ProcurementPage />} />
