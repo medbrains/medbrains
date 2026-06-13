@@ -1,4 +1,4 @@
-import { Alert, Badge, Button, Card, Group, Stack, Text, Title } from "@mantine/core";
+import { Alert, Badge, Button, Card, Group, Stack, Text, TextInput, Title } from "@mantine/core";
 import { useHasPermission } from "@medbrains/stores";
 import type { Invoice, PatientAdvance } from "@medbrains/types";
 import { P } from "@medbrains/types";
@@ -25,7 +25,15 @@ function invoiceBalance(invoice: Invoice): number {
 }
 
 /** A counter-paced collect panel: keyboard-first, mixed-mode split. */
-function CollectPanel({ invoice, onCollected }: { invoice: Invoice; onCollected: () => void }) {
+function CollectPanel({
+  invoice,
+  onCollected,
+  counterId,
+}: {
+  invoice: Invoice;
+  onCollected: () => void;
+  counterId: string;
+}) {
   return (
     <Card withBorder bg="var(--fc-panel, #f7f8f6)">
       <Stack gap="sm">
@@ -41,6 +49,7 @@ function CollectPanel({ invoice, onCollected }: { invoice: Invoice; onCollected:
           invoiceId={invoice.id}
           balance={invoiceBalance(invoice)}
           onRecorded={onCollected}
+          counterId={counterId}
           autoFocus
         />
       </Stack>
@@ -73,6 +82,13 @@ export function BillingCounterPage() {
   const queryClient = useQueryClient();
   const [patientId, setPatientId] = useState("");
   const [collectingId, setCollectingId] = useState<string | null>(null);
+  // Active counter label tags every payment for the day-close tally;
+  // persisted so the cashier sets it once per shift.
+  const [counterId, setCounterId] = useState(() => localStorage.getItem("billing.counter") ?? "");
+  const onCounterChange = (value: string) => {
+    setCounterId(value);
+    localStorage.setItem("billing.counter", value);
+  };
 
   const invoicesQuery = useQuery({
     queryKey: ["counter-invoices", patientId],
@@ -128,16 +144,25 @@ export function BillingCounterPage() {
       />
 
       <Card withBorder>
-        <PatientSearchSelect
-          value={patientId}
-          onChange={(id) => {
-            setPatientId(id);
-            setCollectingId(null);
-          }}
-          label="Patient"
-          placeholder="Search by name, UHID, or phone…"
-          size="md"
-        />
+        <Group align="flex-end" gap="sm">
+          <PatientSearchSelect
+            value={patientId}
+            onChange={(id) => {
+              setPatientId(id);
+              setCollectingId(null);
+            }}
+            label="Patient"
+            placeholder="Search by name, UHID, or phone…"
+            size="md"
+          />
+          <TextInput
+            label="Counter"
+            placeholder="e.g. OPD-1"
+            value={counterId}
+            onChange={(e) => onCounterChange(e.currentTarget.value)}
+            w={140}
+          />
+        </Group>
       </Card>
 
       {patientId && (
@@ -209,7 +234,11 @@ export function BillingCounterPage() {
                   </Group>
                   {collectingId === invoice.id && (
                     <Stack mt="sm">
-                      <CollectPanel invoice={invoice} onCollected={() => onCollected(invoice.id)} />
+                      <CollectPanel
+                        invoice={invoice}
+                        onCollected={() => onCollected(invoice.id)}
+                        counterId={counterId}
+                      />
                     </Stack>
                   )}
                 </Card>

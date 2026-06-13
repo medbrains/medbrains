@@ -32,6 +32,9 @@ interface PaymentCollectPanelProps {
   onRecorded: (payments: Payment[]) => void;
   /** Optional: print after a successful record (Enter = save + print). */
   onPrint?: (payments: Payment[]) => void;
+  /** Cash counter / shift to tag payments with, for day-close tally. */
+  counterId?: string;
+  shift?: string;
   autoFocus?: boolean;
 }
 
@@ -62,6 +65,8 @@ export function PaymentCollectPanel({
   balance,
   onRecorded,
   onPrint,
+  counterId,
+  shift,
   autoFocus,
 }: PaymentCollectPanelProps) {
   const [lines, setLines] = useState<PaymentLine[]>(() => [makeLine(balance)]);
@@ -93,6 +98,8 @@ export function PaymentCollectPanel({
           amount,
           mode: line.mode,
           reference_number: line.reference.trim() || undefined,
+          counter_id: counterId?.trim() || undefined,
+          shift: shift?.trim() || undefined,
         });
         recorded.push(payment);
       }

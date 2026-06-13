@@ -5144,6 +5144,8 @@ export interface RecordPaymentRequest {
   mode: string;
   reference_number?: string;
   notes?: string;
+  counter_id?: string;
+  shift?: string;
 }
 
 export interface InvoiceDetailResponse {
@@ -5672,6 +5674,14 @@ export interface DayEndClose {
   refunds_total: string;
   advances_total: string;
   status: DayCloseStatus;
+  counter_id: string | null;
+  shift: string | null;
+  denominations: Record<string, number> | null;
+  actual_card: string;
+  actual_upi: string;
+  card_difference: string;
+  upi_difference: string;
+  verification_notes: string | null;
   verified_by: string | null;
   verified_at: string | null;
   notes: string | null;
@@ -5729,6 +5739,11 @@ export interface CreateDayCloseRequest {
   close_date: string;
   actual_cash: number;
   notes?: string;
+  counter_id?: string;
+  shift?: string;
+  denominations?: Record<string, number>;
+  actual_card?: number;
+  actual_upi?: number;
 }
 
 export interface CreateWriteOffRequest {

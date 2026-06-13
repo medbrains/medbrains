@@ -815,6 +815,10 @@ pub struct RecordPaymentRequest {
     pub mode: String,
     pub reference_number: Option<String>,
     pub notes: Option<String>,
+    /// Cash counter / shift the payment was taken at, for day-close
+    /// tallying. Free-text labels supplied by the desk.
+    pub counter_id: Option<String>,
+    pub shift: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1977,8 +1981,9 @@ pub async fn record_payment(
 
     let payment = sqlx::query_as::<_, Payment>(
         "INSERT INTO payments \
-         (tenant_id, invoice_id, amount, mode, reference_number, received_by, notes, paid_at) \
-         VALUES ($1, $2, $3, $4::payment_mode, $5, $6, $7, now()) \
+         (tenant_id, invoice_id, amount, mode, reference_number, received_by, notes, \
+          counter_id, shift, paid_at) \
+         VALUES ($1, $2, $3, $4::payment_mode, $5, $6, $7, $8, $9, now()) \
          RETURNING *",
     )
     .bind(claims.tenant_id)
@@ -1988,6 +1993,18 @@ pub async fn record_payment(
     .bind(&body.reference_number)
     .bind(claims.sub)
     .bind(&body.notes)
+    .bind(
+        body.counter_id
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty()),
+    )
+    .bind(
+        body.shift
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty()),
+    )
     .fetch_one(&mut *tx)
     .await?;
 
@@ -5188,6 +5205,16 @@ pub struct CreateDayCloseRequest {
     pub close_date: NaiveDate,
     pub actual_cash: Decimal,
     pub notes: Option<String>,
+    /// When set, the tally counts only payments tagged to this counter.
+    pub counter_id: Option<String>,
+    pub shift: Option<String>,
+    /// Note-count by denomination, e.g. {"500": 4, "100": 7}.
+    pub denominations: Option<serde_json::Value>,
+    /// Card / UPI figures from the POS / bank settlement report.
+    #[serde(default)]
+    pub actual_card: Decimal,
+    #[serde(default)]
+    pub actual_upi: Decimal,
 }
 
 #[derive(Debug, Deserialize)]
@@ -5257,15 +5284,25 @@ pub async fn create_day_close(
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
 
-    // Auto-calculate expected totals from payments on this date
+    // Auto-calculate expected totals from payments on this date,
+    // scoped to the counter when one is given (NULL counter filter =
+    // tally everything, preserving pre-counter behaviour).
+    let counter_filter = body
+        .counter_id
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(str::to_owned);
     let mode_totals = sqlx::query_as::<_, PaymentModeTotal>(
         "SELECT mode::text AS mode, COALESCE(SUM(amount), 0) AS total, COUNT(*) AS cnt \
          FROM payments \
          WHERE tenant_id = $1 AND paid_at::date = $2 \
+           AND ($3::text IS NULL OR counter_id = $3) \
          GROUP BY mode",
     )
     .bind(claims.tenant_id)
     .bind(body.close_date)
+    .bind(counter_filter.as_deref())
     .fetch_all(&mut *tx)
     .await?;
 
@@ -5293,6 +5330,10 @@ pub async fn create_day_close(
     let total_collected =
         expected_cash + total_card + total_upi + total_cheque + total_bank + total_insurance;
     let cash_difference = body.actual_cash - expected_cash;
+    // Settlement reconciliation: a non-zero figure means the desk
+    // entered a POS/bank total to match against the system.
+    let card_difference = body.actual_card - total_card;
+    let upi_difference = body.actual_upi - total_upi;
 
     let invoices_count = sqlx::query_scalar::<_, i64>(
         "SELECT COUNT(*) FROM invoices \
@@ -5327,14 +5368,21 @@ pub async fn create_day_close(
     let inv_count_i32 = i32::try_from(invoices_count).unwrap_or(0);
     let pay_count_i32 = i32::try_from(payments_count).unwrap_or(0);
 
+    let shift_label = body
+        .shift
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(str::to_owned);
     let row = sqlx::query_as::<_, DayEndClose>(
         "INSERT INTO day_end_closes \
          (tenant_id, close_date, cashier_id, expected_cash, actual_cash, cash_difference, \
           total_card, total_upi, total_cheque, total_bank_transfer, total_insurance, \
           total_collected, invoices_count, payments_count, refunds_total, advances_total, \
-          status, notes) \
+          status, notes, counter_id, shift, denominations, actual_card, actual_upi, \
+          card_difference, upi_difference) \
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, \
-          'open'::day_close_status, $17) \
+          'open'::day_close_status, $17, $18, $19, $20, $21, $22, $23, $24) \
          RETURNING *",
     )
     .bind(claims.tenant_id)
@@ -5354,6 +5402,13 @@ pub async fn create_day_close(
     .bind(refunds_total)
     .bind(advances_total)
     .bind(&body.notes)
+    .bind(counter_filter.as_deref())
+    .bind(shift_label.as_deref())
+    .bind(&body.denominations)
+    .bind(body.actual_card)
+    .bind(body.actual_upi)
+    .bind(card_difference)
+    .bind(upi_difference)
     .fetch_one(&mut *tx)
     .await?;
 
@@ -5375,12 +5430,19 @@ pub async fn create_day_close(
     Ok(Json(row))
 }
 
+#[derive(Debug, Deserialize, Default)]
+pub struct VerifyDayCloseRequest {
+    pub verification_notes: Option<String>,
+}
+
 pub async fn verify_day_close(
     State(state): State<AppState>,
     Extension(claims): Extension<Claims>,
     Path(id): Path<Uuid>,
+    body: Option<Json<VerifyDayCloseRequest>>,
 ) -> Result<Json<DayEndClose>, AppError> {
     require_permission(&claims, permissions::billing::day_close::VERIFY)?;
+    let body = body.map(|Json(body)| body).unwrap_or_default();
 
     let mut tx = state.db.begin().await?;
     medbrains_db::pool::set_tenant_context(&mut tx, &claims.tenant_id).await?;
@@ -5394,16 +5456,16 @@ pub async fn verify_day_close(
     .await?
     .ok_or(AppError::NotFound)?;
 
-    let new_status = if existing.cash_difference == Decimal::ZERO {
-        "verified"
-    } else {
-        "discrepancy"
-    };
+    // Any cash, card or UPI variance leaves the close in discrepancy.
+    let balanced = existing.cash_difference == Decimal::ZERO
+        && existing.card_difference == Decimal::ZERO
+        && existing.upi_difference == Decimal::ZERO;
+    let new_status = if balanced { "verified" } else { "discrepancy" };
 
     let row = sqlx::query_as::<_, DayEndClose>(
         "UPDATE day_end_closes SET \
          status = $1::day_close_status, verified_by = $2, verified_at = now(), \
-         updated_at = now() \
+         verification_notes = COALESCE($5, verification_notes), updated_at = now() \
          WHERE id = $3 AND tenant_id = $4 \
          RETURNING *",
     )
@@ -5411,6 +5473,12 @@ pub async fn verify_day_close(
     .bind(claims.sub)
     .bind(id)
     .bind(claims.tenant_id)
+    .bind(
+        body.verification_notes
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty()),
+    )
     .fetch_one(&mut *tx)
     .await?;
 

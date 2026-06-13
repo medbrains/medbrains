@@ -4101,8 +4101,11 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
-  verifyDayClose: (id: string) =>
-    request<DayEndClose>(`/billing/day-closes/${id}/verify`, { method: "POST" }),
+  verifyDayClose: (id: string, data?: { verification_notes?: string }) =>
+    request<DayEndClose>(`/billing/day-closes/${id}/verify`, {
+      method: "POST",
+      body: JSON.stringify(data ?? {}),
+    }),
 
   // -- Write-Offs --
   listWriteOffs: (params?: Record<string, string>) => {
