@@ -1,6 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
-  Accordion,
   ActionIcon,
   Alert,
   Badge,
@@ -18,7 +17,6 @@ import {
   Text,
   Textarea,
   TextInput,
-  ThemeIcon,
   Timeline,
   Tooltip,
 } from "@mantine/core";
@@ -110,7 +108,6 @@ import {
   IconTimeline,
   IconTransferIn,
   IconTrash,
-  IconUser,
   IconUserOff,
   IconUsers,
   IconX,
@@ -431,19 +428,19 @@ export function OpdEncounterPage() {
 
   return (
     <ClinicalEventProvider moduleCode="opd" contextCode={`opd-encounter-${encounter.id}`}>
-      <Stack gap="sm" h="calc(100vh - 112px)">
+      <Stack gap="xs" h="calc(100vh - 96px)">
         <Group justify="space-between" align="center">
-          <div>
-            <Text size="lg" fw={700}>
-              OPD Visit - {displayPatientName}
+          <Group gap="xs" align="baseline">
+            <Text size="md" fw={700}>
+              OPD Visit
             </Text>
-            <Text size="sm" c="dimmed">
-              UHID: {displayUhid} | {encounter.status.replace(/_/g, " ")}
-            </Text>
-          </div>
+            <Badge variant="light" color="primary" size="sm" tt="capitalize">
+              {encounter.status.replace(/_/g, " ")}
+            </Badge>
+          </Group>
           <Button
             variant="subtle"
-            size="sm"
+            size="xs"
             leftSection={<IconArrowRight size={14} style={{ transform: "rotate(180deg)" }} />}
             onClick={() => navigate("/opd")}
           >
@@ -1834,23 +1831,6 @@ export function EncounterDetail({
             flexDirection: "column",
           }}
         >
-          {/* Patient card */}
-          <Card padding="sm" mb="xs" withBorder>
-            <Group gap="sm" wrap="nowrap">
-              <ThemeIcon size="lg" radius="sm" color="primary" variant="light">
-                <IconUser size={18} />
-              </ThemeIcon>
-              <div style={{ minWidth: 0 }}>
-                <Text size="sm" fw={700} truncate>
-                  {patientName}
-                </Text>
-                <Text size="xs" c="dimmed" ff="var(--mb-font-mono, monospace)">
-                  {uhid}
-                </Text>
-              </div>
-            </Group>
-          </Card>
-
           {/* Allergies */}
           {activeAllergies.length > 0 && (
             <Card
@@ -1897,72 +1877,6 @@ export function EncounterDetail({
             </Card>
           )}
 
-          {/* Quick Actions */}
-          <Text size="xs" fw={700} c="dimmed" tt="uppercase" mb={4}>
-            Actions
-          </Text>
-          <Stack gap={4} mb="xs">
-            <Button
-              variant="default"
-              size="xs"
-              fullWidth
-              justify="flex-start"
-              leftSection={<IconPrinter size={14} />}
-              onClick={openSummary}
-            >
-              Print Summary
-            </Button>
-            {canGenerateMrdCaseSheet && (
-              <Button
-                variant="default"
-                size="xs"
-                fullWidth
-                justify="flex-start"
-                leftSection={<IconClipboardList size={14} />}
-                onClick={() => generateMrdCaseSheetMutation.mutate()}
-                loading={generateMrdCaseSheetMutation.isPending}
-              >
-                {latestMrdCaseSheet ? "Update MRD Case Sheet" : "Send Case Sheet to MRD"}
-              </Button>
-            )}
-            {canViewMrdCaseSheets && latestMrdCaseSheet && (
-              <Button
-                variant="subtle"
-                size="compact-xs"
-                fullWidth
-                leftSection={<IconArrowRight size={12} />}
-                onClick={() =>
-                  navigate(`/mrd?packet_type=opd&encounter_id=${encounterId}#case-sheets`)
-                }
-              >
-                Open MRD Packet
-              </Button>
-            )}
-            {canOrder && <OrderBasketChip onClick={() => openOrderBasket("drug")} />}
-            {canOrder && (
-              <Group gap={4} grow>
-                <Button
-                  variant="default"
-                  size="xs"
-                  leftSection={<IconFlask size={12} />}
-                  onClick={() => openOrderBasket("lab")}
-                >
-                  Lab
-                </Button>
-                <Button
-                  variant="default"
-                  size="xs"
-                  leftSection={<IconEye size={12} />}
-                  onClick={() => openOrderBasket("radiology")}
-                >
-                  Imaging
-                </Button>
-              </Group>
-            )}
-            <AdmitToIpdButton encounterId={encounterId} patientName={patientName} />
-            <GroupAppointmentModal patientId={patientId} />
-          </Stack>
-
           {/* Chronic Conditions */}
           {chronicConditions.length > 0 && (
             <Card padding="xs" mb="xs" withBorder>
@@ -1991,120 +1905,97 @@ export function EncounterDetail({
               overflowY: "auto",
             }}
           >
-            <Accordion multiple defaultValue={["clinical"]} variant="contained">
-              <Accordion.Item value="patient-context">
-                <Accordion.Control>Patient context</Accordion.Control>
-                <Accordion.Panel>
-                  <Tabs.List
-                    style={{ border: "none", display: "flex", flexDirection: "column", gap: 4 }}
-                  >
-                    <Tabs.Tab value="rx-history" leftSection={<IconClipboardList size={14} />}>
-                      Rx History
+            {[
+              {
+                label: "Clinical workup",
+                tabs: [
+                  { value: "vitals", icon: <IconHeartbeat size={14} />, label: "Vitals" },
+                  {
+                    value: "consultation",
+                    icon: <IconNotebook size={14} />,
+                    label: "Consultation",
+                  },
+                  { value: "history", icon: <IconHistory size={14} />, label: "History" },
+                  { value: "ros", icon: <IconClipboardList size={14} />, label: "ROS" },
+                  {
+                    value: "physical-exam",
+                    icon: <IconStethoscope size={14} />,
+                    label: "Physical Exam",
+                  },
+                ],
+              },
+              {
+                label: "Assessment & orders",
+                tabs: [
+                  { value: "diagnoses", icon: <IconStar size={14} />, label: "Diagnoses" },
+                  {
+                    value: "investigations",
+                    icon: <IconFlask size={14} />,
+                    label: "Investigations",
+                  },
+                  {
+                    value: "procedures",
+                    icon: <IconMedicalCross size={14} />,
+                    label: "Procedures",
+                  },
+                  { value: "prescriptions", icon: <IconPill size={14} />, label: "Prescriptions" },
+                  { value: "referrals", icon: <IconArrowRight size={14} />, label: "Referrals" },
+                ],
+              },
+              {
+                label: "Patient context",
+                tabs: [
+                  {
+                    value: "rx-history",
+                    icon: <IconClipboardList size={14} />,
+                    label: "Rx History",
+                  },
+                  { value: "charts", icon: <IconChartLine size={14} />, label: "Charts" },
+                  { value: "timeline", icon: <IconTimeline size={14} />, label: "Timeline" },
+                ],
+              },
+              {
+                label: "Closure",
+                tabs: [
+                  {
+                    value: "certificates",
+                    icon: <IconCertificate size={14} />,
+                    label: "Certificates",
+                  },
+                  { value: "followup", icon: <IconCalendarPlus size={14} />, label: "Follow-up" },
+                  { value: "reminders", icon: <IconNotebook size={14} />, label: "Reminders" },
+                  { value: "consents", icon: <IconFileCheck size={14} />, label: "Consents" },
+                ],
+              },
+              {
+                label: "Support / admin",
+                tabs: [
+                  { value: "pre-auth", icon: <IconShieldCheck size={14} />, label: "Pre-Auth" },
+                  { value: "docket", icon: <IconStar size={14} />, label: "Docket" },
+                  {
+                    value: "pharmacy-dispatch",
+                    icon: <IconPill size={14} />,
+                    label: "Pharmacy Dispatch",
+                  },
+                  { value: "feedback", icon: <IconMessage size={14} />, label: "Feedback" },
+                ],
+              },
+            ].map((section) => (
+              <div key={section.label} style={{ marginBottom: 10 }}>
+                <Text size="xs" fw={700} c="dimmed" tt="uppercase" mb={4} px={4}>
+                  {section.label}
+                </Text>
+                <Tabs.List
+                  style={{ border: "none", display: "flex", flexDirection: "column", gap: 2 }}
+                >
+                  {section.tabs.map((tab) => (
+                    <Tabs.Tab key={tab.value} value={tab.value} leftSection={tab.icon}>
+                      {tab.label}
                     </Tabs.Tab>
-                    <Tabs.Tab value="charts" leftSection={<IconChartLine size={14} />}>
-                      Charts
-                    </Tabs.Tab>
-                    <Tabs.Tab value="timeline" leftSection={<IconTimeline size={14} />}>
-                      Timeline
-                    </Tabs.Tab>
-                  </Tabs.List>
-                </Accordion.Panel>
-              </Accordion.Item>
-
-              <Accordion.Item value="clinical">
-                <Accordion.Control>Clinical workup</Accordion.Control>
-                <Accordion.Panel>
-                  <Tabs.List
-                    style={{ border: "none", display: "flex", flexDirection: "column", gap: 4 }}
-                  >
-                    <Tabs.Tab value="vitals" leftSection={<IconHeartbeat size={14} />}>
-                      Vitals
-                    </Tabs.Tab>
-                    <Tabs.Tab value="consultation" leftSection={<IconNotebook size={14} />}>
-                      Consultation
-                    </Tabs.Tab>
-                    <Tabs.Tab value="history" leftSection={<IconHistory size={14} />}>
-                      History
-                    </Tabs.Tab>
-                    <Tabs.Tab value="ros" leftSection={<IconClipboardList size={14} />}>
-                      ROS
-                    </Tabs.Tab>
-                    <Tabs.Tab value="physical-exam" leftSection={<IconStethoscope size={14} />}>
-                      Physical Exam
-                    </Tabs.Tab>
-                  </Tabs.List>
-                </Accordion.Panel>
-              </Accordion.Item>
-
-              <Accordion.Item value="orders">
-                <Accordion.Control>Assessment & orders</Accordion.Control>
-                <Accordion.Panel>
-                  <Tabs.List
-                    style={{ border: "none", display: "flex", flexDirection: "column", gap: 4 }}
-                  >
-                    <Tabs.Tab value="diagnoses" leftSection={<IconStar size={14} />}>
-                      Diagnoses
-                    </Tabs.Tab>
-                    <Tabs.Tab value="investigations" leftSection={<IconFlask size={14} />}>
-                      Investigations
-                    </Tabs.Tab>
-                    <Tabs.Tab value="procedures" leftSection={<IconMedicalCross size={14} />}>
-                      Procedures
-                    </Tabs.Tab>
-                    <Tabs.Tab value="prescriptions" leftSection={<IconPill size={14} />}>
-                      Prescriptions
-                    </Tabs.Tab>
-                    <Tabs.Tab value="referrals" leftSection={<IconArrowRight size={14} />}>
-                      Referrals
-                    </Tabs.Tab>
-                  </Tabs.List>
-                </Accordion.Panel>
-              </Accordion.Item>
-
-              <Accordion.Item value="closure">
-                <Accordion.Control>Closure</Accordion.Control>
-                <Accordion.Panel>
-                  <Tabs.List
-                    style={{ border: "none", display: "flex", flexDirection: "column", gap: 4 }}
-                  >
-                    <Tabs.Tab value="certificates" leftSection={<IconCertificate size={14} />}>
-                      Certificates
-                    </Tabs.Tab>
-                    <Tabs.Tab value="followup" leftSection={<IconCalendarPlus size={14} />}>
-                      Follow-up
-                    </Tabs.Tab>
-                    <Tabs.Tab value="reminders" leftSection={<IconNotebook size={14} />}>
-                      Reminders
-                    </Tabs.Tab>
-                    <Tabs.Tab value="consents" leftSection={<IconFileCheck size={14} />}>
-                      Consents
-                    </Tabs.Tab>
-                  </Tabs.List>
-                </Accordion.Panel>
-              </Accordion.Item>
-
-              <Accordion.Item value="support">
-                <Accordion.Control>Support / admin</Accordion.Control>
-                <Accordion.Panel>
-                  <Tabs.List
-                    style={{ border: "none", display: "flex", flexDirection: "column", gap: 4 }}
-                  >
-                    <Tabs.Tab value="pre-auth" leftSection={<IconShieldCheck size={14} />}>
-                      Pre-Auth
-                    </Tabs.Tab>
-                    <Tabs.Tab value="docket" leftSection={<IconStar size={14} />}>
-                      Docket
-                    </Tabs.Tab>
-                    <Tabs.Tab value="pharmacy-dispatch" leftSection={<IconPill size={14} />}>
-                      Pharmacy Dispatch
-                    </Tabs.Tab>
-                    <Tabs.Tab value="feedback" leftSection={<IconMessage size={14} />}>
-                      Feedback
-                    </Tabs.Tab>
-                  </Tabs.List>
-                </Accordion.Panel>
-              </Accordion.Item>
-            </Accordion>
+                  ))}
+                </Tabs.List>
+              </div>
+            ))}
           </div>
         </div>
 
@@ -2118,6 +2009,74 @@ export function EncounterDetail({
             padding: "16px 24px",
           }}
         >
+          <Group
+            gap="xs"
+            mb="md"
+            wrap="wrap"
+            style={{
+              position: "sticky",
+              top: -16,
+              zIndex: 2,
+              background: "var(--mb-card-bg, #fff)",
+              paddingBottom: 8,
+              borderBottom: "1px solid var(--mb-border-subtle)",
+            }}
+          >
+            {canOrder && <OrderBasketChip onClick={() => openOrderBasket("drug")} />}
+            {canOrder && (
+              <Button
+                variant="default"
+                size="xs"
+                leftSection={<IconFlask size={14} />}
+                onClick={() => openOrderBasket("lab")}
+              >
+                Lab
+              </Button>
+            )}
+            {canOrder && (
+              <Button
+                variant="default"
+                size="xs"
+                leftSection={<IconEye size={14} />}
+                onClick={() => openOrderBasket("radiology")}
+              >
+                Imaging
+              </Button>
+            )}
+            <AdmitToIpdButton encounterId={encounterId} patientName={patientName} />
+            <GroupAppointmentModal patientId={patientId} />
+            <Button
+              variant="default"
+              size="xs"
+              leftSection={<IconPrinter size={14} />}
+              onClick={openSummary}
+            >
+              Print
+            </Button>
+            {canGenerateMrdCaseSheet && (
+              <Button
+                variant="default"
+                size="xs"
+                leftSection={<IconClipboardList size={14} />}
+                onClick={() => generateMrdCaseSheetMutation.mutate()}
+                loading={generateMrdCaseSheetMutation.isPending}
+              >
+                {latestMrdCaseSheet ? "Update MRD" : "Send to MRD"}
+              </Button>
+            )}
+            {canViewMrdCaseSheets && latestMrdCaseSheet && (
+              <Button
+                variant="subtle"
+                size="xs"
+                leftSection={<IconArrowRight size={14} />}
+                onClick={() =>
+                  navigate(`/mrd?packet_type=opd&encounter_id=${encounterId}#case-sheets`)
+                }
+              >
+                MRD Packet
+              </Button>
+            )}
+          </Group>
           <Tabs.Panel value="vitals">
             <VitalsTab encounterId={encounterId} patientId={patientId} canUpdate={canUpdate} />
           </Tabs.Panel>

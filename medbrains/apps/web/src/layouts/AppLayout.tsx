@@ -32,7 +32,7 @@ import {
   User,
 } from "lucide-react";
 import type { ReactNode } from "react";
-import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Outlet, useLocation, useNavigate } from "react-router";
 import { AnimatedIcon } from "@/components/AnimatedIcon";
@@ -119,11 +119,22 @@ export function AppLayout() {
   const isExpanded = sidebarOpen;
   const navbarWidth = isAppLauncher ? 0 : isExpanded ? EXPANDED_WIDTH : RAIL_WIDTH;
 
+  // Focus routes carry their own contextual side pane (e.g. the OPD
+  // encounter's clinical-tab rail), so the global nav steps back to
+  // the icon rail to avoid two stacked left rails. Collapse on enter,
+  // restore on leave — only on the transition, so a manual toggle made
+  // while inside the view is respected.
+  const isFocusRoute =
+    /^\/opd\/encounters\/[^/]+/.test(location.pathname) || location.pathname.startsWith("/reports");
+  const wasFocusRoute = useRef(false);
   useEffect(() => {
-    if (location.pathname.startsWith("/reports")) {
+    if (isFocusRoute && !wasFocusRoute.current) {
       setSidebarOpen(false);
+    } else if (!isFocusRoute && wasFocusRoute.current) {
+      setSidebarOpen(true);
     }
-  }, [location.pathname]);
+    wasFocusRoute.current = isFocusRoute;
+  }, [isFocusRoute]);
 
   const handleLogout = async () => {
     try {

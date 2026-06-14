@@ -607,29 +607,13 @@ a[href]:not(.mantine-Button-root) {
 // No border, pill shape, clean status indication
 //
 
-// Signature chip: JetBrains Mono micro-type + leading status dot +
-// squared corners — the metadata identity applied to every status
-// chip, instead of the generic SaaS rounded pill.
+// Console chip: squared corners, restrained weight, semantic tints —
+// clean status pill, no leading dot or forced mono.
 .mantine-Badge-root {
-  font-family: var(--fc-font-mono, "JetBrains Mono", ui-monospace, monospace);
   font-weight: 600;
-  letter-spacing: 0.07em;
-  text-transform: uppercase;
+  letter-spacing: 0.01em;
   border-radius: 6px;
-  transition: transform 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease;
-
-  // Leading dot marker — skipped when the badge already has a left
-  // section (icon), or when it renders as a counting dot itself.
-  &:not(:has(.mantine-Badge-section[data-position="left"])):not([data-variant="dot"])::before {
-    content: "";
-    flex: 0 0 auto;
-    width: 5px;
-    height: 5px;
-    margin-inline-end: 6px;
-    border-radius: 50%;
-    background: currentColor;
-    opacity: 0.8;
-  }
+  transition: filter 0.15s ease;
 
   &[data-variant="light"] {
     border: 1px solid var(--mb-chip-border);
