@@ -42,7 +42,6 @@ import type {
   BookAppointmentGroupRequest,
   BookAppointmentRequest,
   Camp,
-  ClinicalJourneyContext,
   Consultation,
   ConsultationTemplate,
   CreateConsultationRequest,
@@ -149,7 +148,6 @@ import {
 } from "@/components/OrderBasket/OrderBasketWorkspace";
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
 import { PatientFlowNavigator } from "@/components/Patient/PatientFlowNavigator";
-import { PatientJourneyActions } from "@/components/Patient/PatientJourneyActions";
 import {
   DEFAULT_OPD_FOLLOW_UP_FORM_VALUES,
   DEFAULT_OPD_LAB_ORDER_FORM_VALUES,
@@ -1779,15 +1777,6 @@ export function EncounterDetail({
     // Show unresolved diagnoses from previous encounters
     return dx.filter((d) => !d.resolved_date && d.encounter_id !== encounterId);
   }, [patientDiagnoses, encounterId]);
-  const journeyContext: ClinicalJourneyContext = {
-    patientId,
-    activeEncounterId: encounterId,
-    activePharmacyOrderId,
-    activePharmacyRxQueueId,
-    activeOrderContext: "opd",
-    completedEvents: journeyCompletedEvents,
-  };
-
   const getSetting = (key: string) => {
     const row = hospitalSettings.find((s) => s.key === key);
     return row ? String(row.value) : undefined;
@@ -1824,32 +1813,13 @@ export function EncounterDetail({
         completedEvents={journeyCompletedEvents}
         compact
       />
-      <Card withBorder padding="sm">
-        <Group justify="space-between" gap="sm" align="center">
-          <Stack gap={2}>
-            <Text size="xs" fw={700} c="dimmed" tt="uppercase">
-              Next actions
-            </Text>
-            <Text size="xs" c="dimmed">
-              Available from the active OPD encounter, patient state, and permissions.
-            </Text>
-          </Stack>
-          <PatientJourneyActions
-            context={journeyContext}
-            localOrderContext="opd"
-            hiddenActionIds={["opd.open_visit"]}
-            size="xs"
-            onOpenOrderBasket={openOrderBasket}
-          />
-        </Group>
-      </Card>
 
       <Tabs
         value={activeEncounterTab}
         onChange={setActiveEncounterTab}
         keepMounted={false}
         orientation="vertical"
-        style={{ display: "flex", height: "100%" }}
+        style={{ display: "flex", height: "100%", width: "100%", minWidth: 0 }}
       >
         {/* ── Left Sidebar: Patient + Nav ── */}
         <div
@@ -1928,11 +1898,15 @@ export function EncounterDetail({
           )}
 
           {/* Quick Actions */}
+          <Text size="xs" fw={700} c="dimmed" tt="uppercase" mb={4}>
+            Actions
+          </Text>
           <Stack gap={4} mb="xs">
             <Button
-              variant="light"
+              variant="default"
               size="xs"
               fullWidth
+              justify="flex-start"
               leftSection={<IconPrinter size={14} />}
               onClick={openSummary}
             >
@@ -1940,9 +1914,10 @@ export function EncounterDetail({
             </Button>
             {canGenerateMrdCaseSheet && (
               <Button
-                variant={latestMrdCaseSheet ? "subtle" : "light"}
+                variant="default"
                 size="xs"
                 fullWidth
+                justify="flex-start"
                 leftSection={<IconClipboardList size={14} />}
                 onClick={() => generateMrdCaseSheetMutation.mutate()}
                 loading={generateMrdCaseSheetMutation.isPending}
@@ -1967,16 +1942,16 @@ export function EncounterDetail({
             {canOrder && (
               <Group gap={4} grow>
                 <Button
-                  variant="subtle"
-                  size="compact-xs"
+                  variant="default"
+                  size="xs"
                   leftSection={<IconFlask size={12} />}
                   onClick={() => openOrderBasket("lab")}
                 >
                   Lab
                 </Button>
                 <Button
-                  variant="subtle"
-                  size="compact-xs"
+                  variant="default"
+                  size="xs"
                   leftSection={<IconEye size={12} />}
                   onClick={() => openOrderBasket("radiology")}
                 >
@@ -2134,7 +2109,15 @@ export function EncounterDetail({
         </div>
 
         {/* ── Right: Content panels ── */}
-        <div style={{ flex: 1, overflowY: "auto", padding: "16px 24px" }}>
+        <div
+          style={{
+            flex: 1,
+            minWidth: 0,
+            overflowY: "auto",
+            overflowX: "hidden",
+            padding: "16px 24px",
+          }}
+        >
           <Tabs.Panel value="vitals">
             <VitalsTab encounterId={encounterId} patientId={patientId} canUpdate={canUpdate} />
           </Tabs.Panel>
@@ -3680,9 +3663,10 @@ function AdmitToIpdButton({
   return (
     <>
       <Button
-        variant="light"
-        color="teal"
+        variant="default"
         size="xs"
+        fullWidth
+        justify="flex-start"
         leftSection={<IconMedicalCross size={14} />}
         onClick={open}
       >
@@ -3874,7 +3858,14 @@ function GroupAppointmentModal({ patientId }: { patientId: string }) {
 
   return (
     <>
-      <Button variant="light" size="xs" leftSection={<IconUsers size={14} />} onClick={open}>
+      <Button
+        variant="default"
+        size="xs"
+        fullWidth
+        justify="flex-start"
+        leftSection={<IconUsers size={14} />}
+        onClick={open}
+      >
         Group Appointment
       </Button>
       <Modal opened={opened} onClose={close} title="Book Multi-Doctor Appointment" size="lg">
