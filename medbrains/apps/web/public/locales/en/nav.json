@@ -93,5 +93,6 @@
   "audit": "Audit Trail",
   "utilizationReview": "Utilization Review",
   "bedsidePortal": "Bedside Portal",
-  "documentTemplates": "Document Templates"
+  "documentTemplates": "Document Templates",
+  "groupFavorites": "Favorites"
 }

@@ -147,8 +147,24 @@
   font-weight: 800;
   line-height: 1;
   text-transform: uppercase;
-  letter-spacing: 0;
+  letter-spacing: 0.04em;
   color: var(--mb-text-muted);
+}
+
+// Pin/favorite star: hidden until the row is hovered; pinned star
+// stays visible.
+.favStar {
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+
+.expandedItem:hover .favStar,
+.expandedItemActive:hover .favStar {
+  opacity: 0.7;
+}
+
+.favStarOn {
+  opacity: 1;
 }
 
 // ── Expanded items (240px mode) ──

@@ -2,7 +2,6 @@ import {
   ActionIcon,
   AppShell,
   Avatar,
-  Badge,
   Box,
   Breadcrumbs,
   Burger,
@@ -22,7 +21,6 @@ import { spotlight } from "@mantine/spotlight";
 import { useAuthStore, usePermissionStore } from "@medbrains/stores";
 import {
   Bell,
-  ChevronDown,
   ChevronRight,
   Languages,
   LogOut,
@@ -30,6 +28,7 @@ import {
   PanelLeftOpen,
   Search,
   Settings,
+  Star,
   User,
 } from "lucide-react";
 import type { ReactNode } from "react";
@@ -38,17 +37,7 @@ import { useTranslation } from "react-i18next";
 import { Outlet, useLocation, useNavigate } from "react-router";
 import { AnimatedIcon } from "@/components/AnimatedIcon";
 import { PageSkeleton } from "@/components/PageSkeleton";
-import {
-  APP_WORKSPACES,
-  type AppWorkspaceConfig,
-  type AppWorkspaceKey,
-  buildPathLabels,
-  NAV_GROUPS,
-  type NavItemConfig,
-  resolveIcon,
-  WORKSPACE_STORAGE_KEY,
-  workspaceHasPermission,
-} from "@/config/navigation";
+import { buildPathLabels, NAV_GROUPS, type NavItemConfig, resolveIcon } from "@/config/navigation";
 import { preloadRoute } from "@/lib/route-preload";
 import { sessionService } from "@/services/session.service";
 import classes from "./AppLayout.module.scss";
@@ -80,17 +69,6 @@ const GROUP_LABEL_KEYS = {
   admin: "groupAdmin",
 } satisfies Record<string, string>;
 
-const DEFAULT_WORKSPACE: AppWorkspaceConfig = {
-  key: "hims",
-  i18nKey: "workspaceHims",
-  description: "Patient flow, OPD, ER, IPD, ward and nursing work",
-  icon: "IconBuildingHospital",
-  color: "linear-gradient(135deg, #0f766e 0%, #38bdf8 100%)",
-  defaultPath: "/dashboard",
-  pathPrefixes: ["/dashboard"],
-  permissionModules: ["dashboard"],
-};
-
 function routeObjectLabel(previousSegment: string | undefined, nextSegment: string | undefined) {
   if (previousSegment === "patients") return nextSegment === "edit" ? "Patient" : "Patient";
   if (previousSegment === "encounters") return "OPD Visit";
@@ -104,44 +82,31 @@ function groupLabelKey(key: string) {
   return entry?.[1] ?? key;
 }
 
-function pathMatchesWorkspacePattern(path: string, pattern: string) {
-  if (pattern.endsWith("/*")) {
-    const basePath = pattern.slice(0, -2);
-    return path === basePath || path.startsWith(`${basePath}/`);
-  }
-  return path === pattern;
-}
+const FAVORITES_STORAGE_KEY = "medbrains.favnav";
 
-function itemBelongsToWorkspace(item: ResolvedNavItem, workspace: AppWorkspaceConfig): boolean {
-  if (workspace.pathPrefixes.some((pattern) => pathMatchesWorkspacePattern(item.path, pattern))) {
-    return true;
+function storedFavorites(): string[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(FAVORITES_STORAGE_KEY) ?? "[]");
+    return Array.isArray(parsed) ? parsed.filter((p): p is string => typeof p === "string") : [];
+  } catch {
+    return [];
   }
-  return item.children?.some((child) => itemBelongsToWorkspace(child, workspace)) ?? false;
-}
-
-function workspaceForPath(path: string): AppWorkspaceKey | null {
-  if (path.startsWith("/apps/")) {
-    const workspaceKey = path.split("/")[2];
-    return APP_WORKSPACES.find((workspace) => workspace.key === workspaceKey)?.key ?? null;
-  }
-  return (
-    APP_WORKSPACES.find((workspace) =>
-      workspace.pathPrefixes.some((pattern) => pathMatchesWorkspacePattern(path, pattern)),
-    )?.key ?? null
-  );
-}
-
-function storedWorkspace(): AppWorkspaceKey {
-  if (typeof window === "undefined") return "hims";
-  const stored = window.localStorage.getItem(WORKSPACE_STORAGE_KEY);
-  const workspace = APP_WORKSPACES.find((candidate) => candidate.key === stored);
-  return workspace?.key ?? "hims";
 }
 
 export function AppLayout() {
   const [mobileOpened, { toggle: toggleMobile, close: closeMobile }] = useDisclosure();
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [preferredWorkspace, setPreferredWorkspace] = useState<AppWorkspaceKey>(storedWorkspace);
+  const [favorites, setFavorites] = useState<string[]>(storedFavorites);
+
+  const favoriteSet = useMemo(() => new Set(favorites), [favorites]);
+  const toggleFavorite = useCallback((path: string) => {
+    setFavorites((prev) => {
+      const next = prev.includes(path) ? prev.filter((p) => p !== path) : [...prev, path];
+      window.localStorage.setItem(FAVORITES_STORAGE_KEY, JSON.stringify(next));
+      return next;
+    });
+  }, []);
 
   const location = useLocation();
   const navigate = useNavigate();
@@ -172,17 +137,6 @@ export function AppLayout() {
 
   const handleNavigate = useCallback(
     (path: string) => {
-      preloadRoute(path);
-      navigate(path);
-      closeMobile();
-    },
-    [navigate, closeMobile],
-  );
-
-  const handleWorkspaceSelect = useCallback(
-    (workspace: AppWorkspaceConfig, path: string) => {
-      setPreferredWorkspace(workspace.key);
-      window.localStorage.setItem(WORKSPACE_STORAGE_KEY, workspace.key);
       preloadRoute(path);
       navigate(path);
       closeMobile();
@@ -225,6 +179,19 @@ export function AppLayout() {
     [resolveItem],
   );
 
+  // Flattened leaf modules (children replace their parent) — used to
+  // resolve pinned favorites back to renderable items.
+  const allLeafItems = useMemo(() => {
+    const out: ResolvedNavItem[] = [];
+    for (const group of navGroups) {
+      for (const item of group.items) {
+        if (item.children && item.children.length > 0) out.push(...item.children);
+        else out.push(item);
+      }
+    }
+    return out;
+  }, [navGroups]);
+
   const itemHasPermission = useCallback(
     (item: ResolvedNavItem): boolean =>
       (!item.requiredPermission || hasPermission(item.requiredPermission)) &&
@@ -232,40 +199,6 @@ export function AppLayout() {
         item.requiredPermissions.some((permission) => hasPermission(permission))),
     [hasPermission],
   );
-
-  const workspaceStartPath = useCallback(
-    (workspace: AppWorkspaceConfig): string | null => {
-      for (const group of navGroups) {
-        for (const item of group.items) {
-          if (!itemBelongsToWorkspace(item, workspace)) continue;
-          const visibleChild = item.children?.find(
-            (child) => itemHasPermission(child) && itemBelongsToWorkspace(child, workspace),
-          );
-          if (visibleChild) return visibleChild.path;
-          if (itemHasPermission(item)) return item.path;
-        }
-      }
-      return null;
-    },
-    [itemHasPermission, navGroups],
-  );
-
-  const availableWorkspaces = useMemo(() => {
-    const workspaces = APP_WORKSPACES.filter((workspace) =>
-      workspaceHasPermission(workspace, hasPermission),
-    );
-    return workspaces.length > 0 ? workspaces : APP_WORKSPACES.slice(0, 1);
-  }, [hasPermission]);
-
-  const routeWorkspace = useMemo(() => workspaceForPath(location.pathname), [location.pathname]);
-  const activeWorkspaceKey = useMemo(() => {
-    const candidate = routeWorkspace ?? preferredWorkspace;
-    return availableWorkspaces.some((workspace) => workspace.key === candidate)
-      ? candidate
-      : (availableWorkspaces[0]?.key ?? "hims");
-  }, [availableWorkspaces, preferredWorkspace, routeWorkspace]);
-  const activeWorkspace =
-    APP_WORKSPACES.find((workspace) => workspace.key === activeWorkspaceKey) ?? DEFAULT_WORKSPACE;
 
   // Breadcrumbs
   const pathLabelMap = useMemo(() => buildPathLabels(NAV_GROUPS, t), [t]);
@@ -292,9 +225,9 @@ export function AppLayout() {
   );
   const isAdminActive = isActive("/admin");
 
-  // ── Filter nav items by permission and selected app workspace ──
-  const filterItem = (item: ResolvedNavItem): boolean =>
-    itemHasPermission(item) && itemBelongsToWorkspace(item, activeWorkspace);
+  // ── Filter nav items by permission only — the sidebar is a flat,
+  //    categorized console service-nav (no workspace gating). ──
+  const filterItem = (item: ResolvedNavItem): boolean => itemHasPermission(item);
 
   // ── Render a single rail icon ──
   const renderRailItem = (item: ResolvedNavItem, active: boolean) => (
@@ -350,11 +283,33 @@ export function AppLayout() {
     }
 
     const active = isActive(item.path);
+    const pinned = favoriteSet.has(item.path);
     return (
       <NavLink
         key={item.path}
         label={item.label}
         leftSection={<span className={classes.navIcon}>{item.icon}</span>}
+        rightSection={
+          <Tooltip label={pinned ? "Unpin" : "Pin to favorites"} withArrow openDelay={400}>
+            <ActionIcon
+              component="div"
+              role="button"
+              tabIndex={-1}
+              size="sm"
+              variant="subtle"
+              color={pinned ? "warning" : "gray"}
+              className={pinned ? classes.favStarOn : classes.favStar}
+              aria-label={pinned ? "Unpin from favorites" : "Pin to favorites"}
+              onClick={(event) => {
+                event.stopPropagation();
+                event.preventDefault();
+                toggleFavorite(item.path);
+              }}
+            >
+              <Star size={13} fill={pinned ? "currentColor" : "none"} />
+            </ActionIcon>
+          </Tooltip>
+        }
         active={active}
         aria-current={active ? "page" : undefined}
         onFocus={() => handleNavigationIntent(item.path)}
@@ -374,14 +329,29 @@ export function AppLayout() {
       }))
       .filter((g) => g.items.length > 0);
 
+    const favoriteItems = allLeafItems.filter(
+      (item) => favoriteSet.has(item.path) && filterItem(item),
+    );
+
     if (isExpanded) {
-      return groups.map((group, gi) => (
-        <div key={group.key}>
-          {gi > 0 && <Divider my={4} className={classes.railDivider} />}
-          <Text className={classes.navGroupLabel}>{t(groupLabelKey(group.key))}</Text>
-          {group.items.map(renderExpandedItem)}
-        </div>
-      ));
+      return (
+        <>
+          {favoriteItems.length > 0 && (
+            <div>
+              <Text className={classes.navGroupLabel}>{t("groupFavorites")}</Text>
+              {favoriteItems.map(renderExpandedItem)}
+              <Divider my={4} className={classes.railDivider} />
+            </div>
+          )}
+          {groups.map((group, gi) => (
+            <div key={group.key}>
+              {gi > 0 && <Divider my={4} className={classes.railDivider} />}
+              <Text className={classes.navGroupLabel}>{t(groupLabelKey(group.key))}</Text>
+              {group.items.map(renderExpandedItem)}
+            </div>
+          ))}
+        </>
+      );
     }
 
     // Rail mode
@@ -419,7 +389,7 @@ export function AppLayout() {
             {!isAppLauncher && (
               <Burger opened={mobileOpened} onClick={toggleMobile} hiddenFrom="sm" size="sm" />
             )}
-            <Group gap={8} className={classes.logoArea} onClick={() => navigate("/apps")}>
+            <Group gap={8} className={classes.logoArea} onClick={() => navigate("/dashboard")}>
               <img
                 src="/logo/medbrains-mark.svg"
                 alt=""
@@ -439,69 +409,6 @@ export function AppLayout() {
                 HMS
               </Text>
             </Group>
-            <Menu shadow="lg" width={340} position="bottom-start" withinPortal>
-              <Menu.Target>
-                <UnstyledButton className={classes.workspaceSelector} aria-label="Select app">
-                  <span
-                    className={classes.workspaceIconWrap}
-                    style={{ background: activeWorkspace.color }}
-                  >
-                    <span className={classes.workspaceIcon}>
-                      {resolveIcon(activeWorkspace.icon, 18, 1.65)}
-                    </span>
-                  </span>
-                  <Box visibleFrom="sm" className={classes.workspaceText}>
-                    <Text size="xs" fw={800} c="var(--mb-text-primary)" lh={1.1}>
-                      {t(activeWorkspace.i18nKey)}
-                    </Text>
-                    <Text size="xs" c="var(--mb-text-muted)" lh={1.1}>
-                      App workspace
-                    </Text>
-                  </Box>
-                  <AnimatedIcon icon={ChevronDown} size={14} motion="float" />
-                </UnstyledButton>
-              </Menu.Target>
-              <Menu.Dropdown className={classes.workspaceDropdown}>
-                <Menu.Label>Apps</Menu.Label>
-                {availableWorkspaces.map((workspace) => {
-                  const active = workspace.key === activeWorkspace.key;
-                  const path = workspaceStartPath(workspace) ?? `/apps/${workspace.key}`;
-                  return (
-                    <Menu.Item
-                      key={workspace.key}
-                      className={
-                        active ? classes.workspaceMenuItemActive : classes.workspaceMenuItem
-                      }
-                      leftSection={
-                        <span
-                          className={classes.workspaceMenuIcon}
-                          style={{ background: workspace.color }}
-                        >
-                          {resolveIcon(workspace.icon, 18, 1.65)}
-                        </span>
-                      }
-                      rightSection={
-                        active ? (
-                          <Badge size="xs" variant="light">
-                            Open
-                          </Badge>
-                        ) : undefined
-                      }
-                      onClick={() => handleWorkspaceSelect(workspace, path)}
-                    >
-                      <Box>
-                        <Text size="sm" fw={700}>
-                          {t(workspace.i18nKey)}
-                        </Text>
-                        <Text size="xs" c="dimmed" lineClamp={1}>
-                          {workspace.description}
-                        </Text>
-                      </Box>
-                    </Menu.Item>
-                  );
-                })}
-              </Menu.Dropdown>
-            </Menu>
           </Group>
 
           <Group gap="sm">
