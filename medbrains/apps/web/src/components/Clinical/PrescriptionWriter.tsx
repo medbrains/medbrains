@@ -44,6 +44,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { SignatureHero } from "@/components/ui";
 import { instructionsDisplayText } from "@/lib/medication-timing-utils";
 import { clinicalSupportService } from "@/services/clinicalSupport.service";
 import { PrescriptionItemEntry } from "./PrescriptionItemEntry";
@@ -270,6 +271,17 @@ export function PrescriptionWriter({
 
   return (
     <Stack gap="sm">
+      <SignatureHero
+        compact
+        eyebrow={t("prescription.newPrescription")}
+        title="Prescription writer"
+        subtitle={
+          prescriptions.length > 0
+            ? `${prescriptions.length} prescription${prescriptions.length === 1 ? "" : "s"} on this visit`
+            : "Compose, check interactions, and sign"
+        }
+        icon={<IconPill size={20} />}
+      />
       {/* Toolbar */}
       {canWritePrescription && (
         <Group>

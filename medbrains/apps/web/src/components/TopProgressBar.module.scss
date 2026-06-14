@@ -1,7 +1,7 @@
 // ── Top Progress Bar — single heartbeat, slowed at spike, glowing dot ──
 
-$trace: #34d399;
-$forest: #1F4332;
+$trace: #5b4bc4; // Signature Spectrum indigo
+$beacon: #e8895a; // Signature Spectrum coral
 
 .track {
   position: fixed;
@@ -26,7 +26,7 @@ $forest: #1F4332;
   left: 0;
   width: 100%;
   height: 2px;
-  background: rgba($forest, 0.1);
+  background: rgba($trace, 0.1);
 }
 
 // Glowing dot at the spike position — pulses once when scan reaches it
@@ -36,10 +36,10 @@ $forest: #1F4332;
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: $trace;
+  background: $beacon;
   opacity: 0;
   transform: translate(-3px, -2px);
-  box-shadow: 0 0 6px rgba($trace, 0.8), 0 0 12px rgba($trace, 0.4);
+  box-shadow: 0 0 6px rgba($beacon, 0.8), 0 0 12px rgba($beacon, 0.4);
   animation: dotPulse 2.4s ease forwards;
 }
 

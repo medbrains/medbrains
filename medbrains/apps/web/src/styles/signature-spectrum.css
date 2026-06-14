@@ -1,0 +1,76 @@
+/* Signature Spectrum — global CSS layer.
+   Import once after MantineProvider styles.
+   Covers tokens Mantine's theme object can't express directly:
+   semantic text-decoration, zebra rows, gradient + status utilities. */
+
+:root {
+  /* spectrum */
+  --ss-indigo-deep: #3a2e8c;
+  --ss-indigo: #5b4bc4;
+  --ss-rose: #c85b7e;
+  --ss-coral: #e8895a;
+  --ss-coral-text: #a33e4f; /* AA on white */
+  --ss-link: #463aa8;        /* AAA on white */
+  --ss-gradient: linear-gradient(100deg, #3a2e8c 0%, #5b4bc4 40%, #c85b7e 78%, #e8895a 100%);
+
+  /* surfaces */
+  --ss-zebra: #fafafd;
+  --ss-hairline: #eceaf7;
+
+  /* status (reserved) */
+  --ss-stable: #1e7a45;
+  --ss-caution: #a6730a;
+  --ss-critical: #c0322e;
+  --ss-info: #2a6a9e;
+
+  /* loader hooks */
+  --ss-brand: var(--ss-indigo-deep);
+  --ss-accent: var(--ss-coral);
+  --ss-rule: var(--ss-hairline);
+}
+
+[data-mantine-color-scheme="dark"] {
+  --ss-zebra: #211b3d;
+  --ss-hairline: #2a2350;
+  --ss-link: #b3abe0;
+  --ss-brand: #b3abe0;
+}
+
+/* ── Gradient utilities ── */
+.ssGradientBar {
+  height: 4px;
+  border-radius: 999px;
+  background: var(--ss-gradient);
+}
+.ssGradientText {
+  background: var(--ss-gradient);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* ── Semantic text decoration (clinical meaning) ── */
+.ssDiscontinued {
+  text-decoration: line-through;
+  text-decoration-color: var(--ss-critical);
+  text-decoration-thickness: 1.5px;
+  color: var(--mantine-color-dimmed);
+}
+.ssAmended {
+  text-decoration: line-through;
+  text-decoration-color: var(--ss-caution);
+  color: var(--mantine-color-dimmed);
+}
+
+/* ── Status dot (always paired with a text label) ── */
+.ssDot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  margin-right: 6px;
+  vertical-align: 0.5px;
+}
+.ssDot--stable { background: var(--ss-stable); }
+.ssDot--caution { background: var(--ss-caution); }
+.ssDot--critical { background: var(--ss-critical); }

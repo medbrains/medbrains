@@ -195,7 +195,7 @@ export function ProseView({
                     </Text>
                   )}
                   {allergyMatch && (
-                    <Badge size="xs" color="var(--fc-copper, #B8924A)" variant="filled">
+                    <Badge size="xs" color="var(--fc-copper, #C85B7E)" variant="filled">
                       {t("prescriptionViews.prosePanel.allergy", { allergy: allergyMatch })}
                     </Badge>
                   )}

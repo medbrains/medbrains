@@ -24,16 +24,16 @@
     top: 0;
     left: 0;
     right: 0;
-    height: 3px;
-    background: var(--mb-selected-edge);
+    height: 4px;
+    background: var(--mb-accent-gradient);
   }
 
   &::after {
     content: "";
     position: absolute;
     inset: 0;
-    background: var(--mb-accent-gradient-soft);
-    opacity: 0.72;
+    background: var(--mb-signature-spectrum-soft);
+    opacity: 0.9;
     pointer-events: none;
   }
 

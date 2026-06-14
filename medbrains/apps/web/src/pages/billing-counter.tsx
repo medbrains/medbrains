@@ -1,4 +1,4 @@
-import { Alert, Badge, Button, Card, Group, Stack, Text, TextInput, Title } from "@mantine/core";
+import { Alert, Group, Stack, Text, Title } from "@mantine/core";
 import { useHasPermission } from "@medbrains/stores";
 import type { Invoice, PatientAdvance } from "@medbrains/types";
 import { P } from "@medbrains/types";
@@ -8,6 +8,7 @@ import { useMemo, useState } from "react";
 import { useNavigate } from "react-router";
 import { PageHeader, PatientSearchSelect, PaymentCollectPanel } from "@/components";
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
+import { Badge, Button, Card, Input } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { billingService } from "@/services/billing.service";
 import { billingInvoicePaymentRoute } from "./billing-workspace";
@@ -35,7 +36,7 @@ function CollectPanel({
   counterId: string;
 }) {
   return (
-    <Card withBorder bg="var(--fc-panel, #f7f8f6)">
+    <Card withBorder bg="var(--mb-bg-subtle)">
       <Stack gap="sm">
         <Group justify="space-between">
           <Text size="sm" fw={700}>
@@ -67,7 +68,7 @@ function AdvanceSummary({ advances }: { advances: PatientAdvance[] }) {
         <Text size="sm" fw={600}>
           Advance balance
         </Text>
-        <Badge color="success" variant="light" ff="monospace">
+        <Badge tone="success" ff="monospace">
           ₹{money(totalBalance)}
         </Badge>
       </Group>
@@ -130,13 +131,13 @@ export function BillingCounterPage() {
         actions={
           <Group gap="xs">
             <Button
-              variant="subtle"
+              tone="ghost"
               leftSection={<IconListCheck size={16} />}
               onClick={() => navigate("/billing/worklist")}
             >
               Worklist
             </Button>
-            <Button variant="subtle" onClick={() => navigate("/billing")}>
+            <Button tone="ghost" onClick={() => navigate("/billing")}>
               Back office
             </Button>
           </Group>
@@ -155,7 +156,7 @@ export function BillingCounterPage() {
             placeholder="Search by name, UHID, or phone…"
             size="md"
           />
-          <TextInput
+          <Input
             label="Counter"
             placeholder="e.g. OPD-1"
             value={counterId}
@@ -177,7 +178,7 @@ export function BillingCounterPage() {
                 {canCreate && (
                   <Button
                     size="xs"
-                    variant="light"
+                    tone="secondary"
                     onClick={() => navigate(`/billing?patient_id=${patientId}`)}
                   >
                     New invoice
@@ -199,11 +200,11 @@ export function BillingCounterPage() {
                     <Stack gap={2}>
                       <Group gap="xs">
                         <Text fw={700}>{invoice.invoice_number}</Text>
-                        <Badge size="xs" variant="light" color="warning">
+                        <Badge size="xs" tone="warning">
                           {invoice.status}
                         </Badge>
                         {invoice.is_er_deferred && (
-                          <Badge size="xs" variant="light" color="danger">
+                          <Badge size="xs" tone="danger">
                             ER deferred
                           </Badge>
                         )}
@@ -216,13 +217,14 @@ export function BillingCounterPage() {
                     <Group gap="xs">
                       <Button
                         size="xs"
-                        variant="subtle"
+                        tone="ghost"
                         onClick={() => navigate(billingInvoicePaymentRoute(invoice.id))}
                       >
                         Open
                       </Button>
                       <Button
                         size="xs"
+                        tone="primary"
                         leftSection={<IconCash size={14} />}
                         onClick={() =>
                           setCollectingId(collectingId === invoice.id ? null : invoice.id)

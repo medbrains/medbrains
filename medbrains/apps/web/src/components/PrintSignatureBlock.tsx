@@ -117,7 +117,7 @@ function SingleSignature({ sig, index }: { sig: PrintSignatureData; index: numbe
           style={{
             fontFamily: "'Brush Script MT', cursive",
             fontSize: 24,
-            color: "#1f4332",
+            color: "#5b4bc4",
             lineHeight: 1.1,
             marginBottom: 4,
             minHeight: 32,
@@ -255,7 +255,7 @@ export const SIGNATURE_BLOCK_CSS = `
   .sig-legal-statutory_export { border-top-color: #d97706; }
   .sig-legal-clinical { border-top-color: #2563eb; }
   .sig-img { max-height: 56px; max-width: 200px; display: block; margin-bottom: 4px; object-fit: contain; }
-  .sig-cursive { font-family: 'Brush Script MT', cursive; font-size: 24px; color: #1f4332; line-height: 1.1; min-height: 32px; margin-bottom: 4px; }
+  .sig-cursive { font-family: 'Brush Script MT', cursive; font-size: 24px; color: #5b4bc4; line-height: 1.1; min-height: 32px; margin-bottom: 4px; }
   .sig-name { font-size: 11px; font-weight: 600; }
   .sig-role { font-size: 10px; color: #555; }
   .sig-block { font-size: 9px; color: #666; margin-top: 2px; font-family: monospace; line-height: 1.2; }

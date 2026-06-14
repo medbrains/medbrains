@@ -22,33 +22,36 @@ import type { MantineColorsTuple } from "@mantine/core";
 // ── Color Ramps
 // ═══════════════════════════════════════════════════════════════════
 
-/** Blue — System Blue brand. Anchor: blue[5] = #0066CC. */
+/** Indigo — Signature Spectrum brand. Anchor: blue[5] = #5B4BC4. */
 export const blue = [
-  "#E6F1FF", // 50
-  "#BCDAFF", // 100
-  "#80B8FF", // 200
-  "#4495FF", // 300 — dark-mode brand fg
-  "#1A7CFF", // 400 — dark-mode brand emphasis
-  "#0066CC", // 500 — LIGHT brand (LOCKED anchor)
-  "#0052A3", // 600 — light hover, dark fg
-  "#003E7A", // 700 — pressed
-  "#002B54", // 800
-  "#00182F", // 900
+  "#EFEDFA", // 50
+  "#D7D2F2", // 100
+  "#B3ABE0", // 200 — dark-mode brand fg (--primary-2)
+  "#8E82D6", // 300
+  "#7160CC", // 400 — dark-mode brand emphasis
+  "#5B4BC4", // 500 — LIGHT brand (SS indigo)
+  "#463AA8", // 600 — link / light hover (AAA on white)
+  "#3A2E8C", // 700 — SS indigo-deep / pressed
+  "#2B2269", // 800
+  "#1D1747", // 900
 ] as const satisfies readonly string[];
 
-/** Cinnabar — reserved accent. Anchor: cinnabar[5] = #B7322E. */
+/** Rose/Coral — Signature Spectrum accent. Anchor: cinnabar[5] = #C85B7E. */
 export const cinnabar = [
-  "#FDE9E6", // 50
-  "#FBC8C0", // 100
-  "#F29C8E", // 200
-  "#E9705B", // 300 — dark-mode accent fg
-  "#D44A36", // 400 — dark-mode accent emphasis
-  "#B7322E", // 500 — LIGHT accent (LOCKED anchor)
-  "#962623", // 600
-  "#6F1C1A", // 700
-  "#491110", // 800
-  "#260807", // 900
+  "#FBEEF2", // 50
+  "#F4CFDB", // 100
+  "#E8A3B8", // 200
+  "#DB7795", // 300 — dark-mode accent fg
+  "#D26687", // 400 — dark-mode accent emphasis
+  "#C85B7E", // 500 — LIGHT accent (SS rose)
+  "#A33E4F", // 600 — coral-text (AA on white)
+  "#84324F", // 700
+  "#5E2439", // 800
+  "#3D1726", // 900
 ] as const satisfies readonly string[];
+
+/** Signature Spectrum stops — indigo-deep → indigo → rose → coral. */
+export const signatureSpectrumStops = ["#3A2E8C", "#5B4BC4", "#C85B7E", "#E8895A"] as const;
 
 /** Mint — Apple Health vital sign / success. Anchor: mint[4] = #34D69D. */
 export const mint = [

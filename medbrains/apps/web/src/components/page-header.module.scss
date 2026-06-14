@@ -1,13 +1,27 @@
 // ─── PageHeader — flat console style ───
 
 .card {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 4px;
   margin-bottom: var(--mantine-spacing-sm);
+  padding-top: 10px;
   padding-bottom: var(--mantine-spacing-sm);
   border-bottom: 1px solid var(--mb-border-subtle);
   color: var(--mb-text-body);
+}
+
+// Experian signature: a short gradient accent bar above the title.
+.card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 48px;
+  height: 3px;
+  border-radius: 0 0 3px 0;
+  background: var(--mb-accent-gradient);
 }
 
 .breadcrumbs {

@@ -2175,7 +2175,7 @@ function ProgressNotesTab({ admissionId }: { admissionId: string }) {
                   gap={4}
                   p="xs"
                   style={{
-                    borderLeft: "3px solid var(--fc-brand, #1F4332)",
+                    borderLeft: "3px solid var(--fc-brand, #5B4BC4)",
                     background: "var(--fc-panel, #f7f8f6)",
                     borderRadius: 4,
                   }}

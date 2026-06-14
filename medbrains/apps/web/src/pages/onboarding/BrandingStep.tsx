@@ -18,8 +18,8 @@ export function BrandingStep({ onNext, onBack }: Props) {
   const form = useForm<BrandingInput>({
     resolver: zodResolver(brandingSchema),
     defaultValues: {
-      primary_color: stored?.primary_color ?? "#1F4332",
-      secondary_color: stored?.secondary_color ?? "#B8924A",
+      primary_color: stored?.primary_color ?? "#5B4BC4",
+      secondary_color: stored?.secondary_color ?? "#C85B7E",
       logo_url: stored?.logo_url ?? "",
     },
   });

@@ -24,6 +24,7 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { SignatureHero } from "@/components/ui";
 import {
   getHeightConfig,
   getTemperatureConfig,
@@ -313,6 +314,13 @@ export function VitalsRecorder({
 
   return (
     <Stack gap="md">
+      <SignatureHero
+        compact
+        eyebrow={t("vitals.title", "Vitals")}
+        title={t("vitals.recordVitals", "Record vitals")}
+        subtitle={t("vitals.subtitle", "Capture the encounter's vital signs")}
+        icon={<IconHeartRateMonitor size={20} />}
+      />
       <SimpleGrid cols={{ base: 2, sm: 4 }} spacing="sm">
         {filteredVitalConfigs.map((config) => {
           const val = values[config.key];

@@ -221,7 +221,7 @@ export function PaymentModal({
           name: patientName ?? "",
         },
         theme: {
-          color: "#1F4332",
+          color: "#5B4BC4",
         },
         modal: {
           ondismiss: () => {

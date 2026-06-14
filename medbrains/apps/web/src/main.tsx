@@ -28,6 +28,7 @@ import "@mantine/core/styles.css";
 import "@mantine/notifications/styles.css";
 import "@mantine/dates/styles.css";
 import "@medbrains/design-system/styles/global.scss";
+import "./styles/signature-spectrum.css";
 
 const theme = createMedBrainsTheme({ loaders: { ecg: EcgLoader } });
 

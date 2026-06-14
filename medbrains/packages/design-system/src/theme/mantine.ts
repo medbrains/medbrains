@@ -136,10 +136,9 @@ export function createMedBrainsTheme(opts: CreateMedBrainsThemeOptions = {}): Ma
     ? {
         Loader: Loader.extend({
           defaultProps: {
-            // ECG stays registered for explicit use; the default is a
-            // plain console spinner.
+            // Signature Spectrum ECG loader is the default.
             loaders: { ...Loader.defaultLoaders, ecg: opts.loaders.ecg },
-            type: "oval",
+            type: "ecg",
           },
         }),
       }
@@ -850,7 +849,7 @@ function buildSchemePalette(scheme: typeof lightScheme, name: SchemeName) {
     "--fc-outline": scheme.brand.outline,
     "--fc-copper": scheme.accent.emphasis,
     "--fc-copper-tint": scheme.accent.tint,
-    "--fc-copper-deep": isLight ? "#6F1C1A" : "#F29C8E",
+    "--fc-copper-deep": isLight ? "#84324F" : "#E8A3B8",
   };
 }
 
@@ -869,9 +868,18 @@ export const cssVariableResolver: CSSVariablesResolver = (t) => {
       // Page header background composed at consume time using mode-specific bgs
       "--mb-page-header-bg": "linear-gradient(135deg, var(--mb-bg-default), var(--mb-bg-subtle))",
       "--mb-table-toolbar-bg": "var(--mb-bg-default)",
-      "--mb-accent-gradient": "linear-gradient(135deg, var(--fc-brand) 0%, var(--fc-copper) 100%)",
+      // Signature Spectrum — indigo-deep → indigo → rose → coral. The
+      // brand gradient across the whole system.
+      "--mb-accent-gradient":
+        "linear-gradient(100deg, #3A2E8C 0%, #5B4BC4 40%, #C85B7E 78%, #E8895A 100%)",
       "--mb-accent-gradient-soft":
-        "linear-gradient(135deg, var(--fc-tint) 0%, var(--fc-copper-tint) 100%)",
+        "linear-gradient(100deg, #EFEDFA 0%, #FBEEF2 100%)",
+      // Hero alias for flagship clinical surfaces (prescription writer,
+      // pharmacy workspace) — same Signature Spectrum.
+      "--mb-signature-spectrum":
+        "linear-gradient(120deg, #3A2E8C 0%, #5B4BC4 38%, #C85B7E 74%, #E8895A 100%)",
+      "--mb-signature-spectrum-soft":
+        "linear-gradient(120deg, rgba(58,46,140,0.10) 0%, rgba(200,91,126,0.08) 60%, rgba(232,137,90,0.08) 100%)",
 
       // ── Motion (mode-agnostic) ───────────────────────────────
       "--mb-duration-instant": duration.instant,

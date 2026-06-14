@@ -159,29 +159,29 @@ export interface StatusScale {
 
 export const lightScheme: SemanticScheme = {
   bg: {
-    canvas: ink[0], // #FFFFFF
-    default: ink[0],
-    subtle: ink[1], // #F8F8F7 — paper
-    muted: ink[2], // #EDEDEC — fog panel
-    emphasis: blue[5], // System Blue brand surface
-    inverse: ink[9], // #0D0D0C
-    overlay: "rgba(13, 13, 12, 0.36)",
+    canvas: "#FFFFFF",
+    default: "#FFFFFF",
+    subtle: "#F4F5F8", // Experian cool panel
+    muted: "#ECEEF3", // fog panel
+    emphasis: blue[5], // Experian blue surface
+    inverse: "#1A1A2E",
+    overlay: "rgba(26, 26, 46, 0.36)",
   },
   fg: {
-    default: ink[9], // #0D0D0C — body ink
-    muted: ink[6], // #3D3D3A
-    subtle: ink[5], // #5B5B57
-    faint: ink[4], // #8A8A86 — placeholder
+    default: "#1A1A2E", // Experian near-black body text
+    muted: "#5F6B7A", // secondary gray
+    subtle: "#5F6B7A",
+    faint: "#9AA4B2", // placeholder
     onEmphasis: "#FFFFFF",
     onAccent: "#FFFFFF",
-    onInverse: ink[1],
-    link: blue[5],
-    linkHover: blue[6],
+    onInverse: "#F4F5F8",
+    link: blue[6], // #463AA8 — AAA link
+    linkHover: blue[7],
   },
   border: {
-    default: "#E7E7E3", // hairline (warm-cool tuned)
-    muted: "#F0F0EC",
-    strong: ink[3], // #B8B8B5
+    default: "#D5DBDB", // Experian hairline
+    muted: "#E7EAEF",
+    strong: "#B6BFC9",
     focus: blue[5],
   },
   brand: {
@@ -192,7 +192,7 @@ export const lightScheme: SemanticScheme = {
     emphasisPressed: blue[7],
     muted: blue[0],
     onEmphasis: "#FFFFFF",
-    tint: "#EEF4FC", // active nav pill
+    tint: "#ECF1F8", // active nav pill (Experian blue tint)
     tintStrong: blue[1],
     outline: blue[2],
   },

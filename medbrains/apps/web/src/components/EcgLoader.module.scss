@@ -1,6 +1,6 @@
-// ── ECG Loader — Forest + Copper design system ──
-// One forest stroke, one copper beacon, one P-QRS-T cycle per traverse.
-// Cadence: 1.8s inline, 1.6s top-bar. stroke-width: 1.75.
+// ── ECG Loader — Signature Spectrum design system ──
+// One indigo stroke, one coral beacon, one P-QRS-T cycle per traverse.
+// Cadence: 1.8s inline, 1.6s top-bar, 1.4s button. stroke-width 1.75.
 
 .ecgLoader {
   display: inline-block;
@@ -8,85 +8,90 @@
   overflow: visible;
 }
 
-// Dim baseline rule
 .baseline {
-  stroke: var(--fc-rule, #e7ebe8);
+  stroke: var(--ss-rule, #eceaf7);
   stroke-width: 1;
 }
 
-// Forest stroke — dash-travel animation
 .trace {
   fill: none;
-  stroke: var(--fc-brand, #1F4332);
+  stroke: var(--ss-brand, #3a2e8c);
   stroke-width: 1.75;
   stroke-linecap: round;
   stroke-linejoin: round;
-  stroke-dasharray: 200;
-  stroke-dashoffset: 200;
-  animation: ecg-travel 1.8s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  // dash length = measured path length (~248) + slack so the lead/tail
+  // clear the viewBox edges and the loop seam is invisible.
+  stroke-dasharray: 260;
+  stroke-dashoffset: 260;
+  animation: ecg-travel var(--ecg-cadence, 1.8s) cubic-bezier(0.45, 0, 0.25, 1) infinite;
 }
 
-// Copper beacon — pulses at QRS peak
 .beacon {
-  fill: var(--fc-copper, #B8924A);
+  fill: var(--ss-accent, #e8895a);
   opacity: 0;
-  animation: ecg-beacon 1.8s ease-in-out infinite;
+  transform-box: fill-box;
+  transform-origin: center;
+  // beacon shares the trace cadence so the pulse lands on the R-wave
+  // every cycle regardless of speed override.
+  animation: ecg-beacon var(--ecg-cadence, 1.8s) ease-in-out infinite;
 }
 
-// Stroke travels through the PQRST cycle
+// The stroke reaches the R-wave apex at ~52% of its travel, so the
+// beacon fires there. Keep these keyframes in sync with ecg-travel.
 @keyframes ecg-travel {
   0% {
-    stroke-dashoffset: 200;
+    stroke-dashoffset: 260;
   }
-  60% {
+  62% {
     stroke-dashoffset: 0;
   }
   100% {
-    stroke-dashoffset: -200;
+    stroke-dashoffset: -260;
   }
 }
 
-// Copper beacon pulses once at the R-wave (QRS peak)
 @keyframes ecg-beacon {
   0%,
-  35% {
+  46% {
     opacity: 0;
     transform: scale(0.8);
   }
-  42% {
+  52% {
     opacity: 1;
-    transform: scale(1.35);
+    transform: scale(1.4);
   }
-  55%,
+  64%,
   100% {
     opacity: 0;
     transform: scale(0.8);
   }
 }
 
-// Dark theme: stroke shifts to lighter forest
+// Dark theme: stroke shifts to light indigo
 :global([data-mantine-color-scheme="dark"]) {
   .trace {
-    stroke: var(--primary-2, #c4d5cc);
+    stroke: var(--primary-2, #b3abe0);
   }
-
   .baseline {
-    stroke: #1e2823;
+    stroke: #2a2350;
   }
 }
 
-// Button variant: white stroke, no beacon
+// Top-bar / global progress context
+:global(.app-topbar) {
+  .trace {
+    --ecg-cadence: 1.6s;
+  }
+}
+
+// Button variant: white stroke, no beacon or baseline
 :global(.mantine-Button-root) {
   .trace {
     stroke: #fff;
     stroke-width: 2;
-    animation-duration: 1.4s;
+    --ecg-cadence: 1.4s;
   }
-
-  .beacon {
-    display: none;
-  }
-
+  .beacon,
   .baseline {
     display: none;
   }
@@ -97,7 +102,6 @@
     animation: none;
     stroke-dashoffset: 0;
   }
-
   .beacon {
     animation: none;
     opacity: 0.6;

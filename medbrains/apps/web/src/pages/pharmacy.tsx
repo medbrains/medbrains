@@ -151,6 +151,7 @@ import {
 import { PharmacyDispensingView } from "@/components/Pharmacy/PharmacyDispensingView";
 import { PharmacyLabel } from "@/components/Pharmacy/PharmacyLabel";
 import { StoreIndentsTab } from "@/components/Pharmacy/StoreIndentsTab";
+import { SignatureHero } from "@/components/ui";
 import {
   awareCategoryOptions,
   drugScheduleOptions,
@@ -2393,6 +2394,13 @@ function PharmacyOrderForm({
   return (
     <Card withBorder>
       <Stack component="form" onSubmit={submitOrder}>
+        <SignatureHero
+          compact
+          eyebrow="Pharmacy"
+          title="Medicine order"
+          subtitle="Pick drugs with safety + billing checks, then submit"
+          icon={<IconPill size={20} />}
+        />
         <Controller
           control={control}
           name="patient_id"
