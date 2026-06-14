@@ -60,13 +60,13 @@ import {
   useClinicalEmit,
 } from "@/components";
 import { PatientJourneyActions } from "@/components/Patient/PatientJourneyActions";
-import { statusColor } from "@/lib/status-colors";
 import {
   PatientRegisterForm,
   type PatientRegistrationLinkedServicesOptions,
 } from "@/components/Patient/PatientRegisterForm";
 import { usePacedQueryValue } from "@/hooks/usePacedQueryValue";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
+import { statusColor } from "@/lib/status-colors";
 import { campService } from "@/services/camp.service";
 import { opdService } from "@/services/opd.service";
 import { patientsService } from "@/services/patients.service";
@@ -93,7 +93,6 @@ const genderColors: Record<string, string> = {
   other: "violet",
   unknown: "warning",
 };
-
 
 const bloodGroupLabels: Record<string, string> = {
   a_positive: "A+",
@@ -817,35 +816,14 @@ function PatientRegisterPageInner() {
         }
       />
 
-      <Card withBorder className={classes.registrationCommandBar}>
-        <Group justify="space-between" align="flex-start" gap="sm">
-          <Stack gap={4}>
-            <Text size="xs" fw={700} c="dimmed" tt="uppercase">
-              {t("registrationPage.contextTitle")}
-            </Text>
-            <Group gap="xs">
-              <Badge color={isCampRegistration ? "green" : "teal"} variant="light">
-                {registrationModeLabel}
-              </Badge>
-              <Badge color="blue" variant="light">
-                {t("registrationPage.badge.mpiDuplicateCheck")}
-              </Badge>
-              <Badge color="orange" variant="light">
-                {t("registrationPage.badge.opdQueueLink")}
-              </Badge>
-            </Group>
-          </Stack>
-        </Group>
-      </Card>
-
       <Grid align="flex-start" className={classes.registrationGrid}>
         <Grid.Col span={{ base: 12, lg: 8 }}>
-          <Stack className={classes.registrationMain}>
-            {isCampRegistration && campContextLoading ? (
-              <Card withBorder>
-                <Text c="dimmed">{t("registrationPage.loadingCampContext")}</Text>
-              </Card>
-            ) : (
+          {isCampRegistration && campContextLoading ? (
+            <Card withBorder>
+              <Text c="dimmed">{t("registrationPage.loadingCampContext")}</Text>
+            </Card>
+          ) : (
+            <Card withBorder p={0}>
               <PatientRegisterForm
                 onSubmit={handleRegisterSubmit}
                 onCancel={() => navigate(backTarget)}
@@ -853,78 +831,65 @@ function PatientRegisterPageInner() {
                 submitLabel={t("actions.register")}
                 initialValues={campInitialValues}
               />
-            )}
-          </Stack>
+            </Card>
+          )}
         </Grid.Col>
 
         <Grid.Col span={{ base: 12, lg: 4 }}>
           <Card withBorder className={classes.registrationRail}>
             <Stack gap="sm">
-              <Stack gap={2}>
-                <Text size="xs" fw={700} c="dimmed" tt="uppercase">
-                  {t("registrationPage.checklistTitle")}
-                </Text>
-                <Text size="sm" fw={700}>
+              <Group gap="xs">
+                <Badge color={isCampRegistration ? "green" : "primary"} variant="light">
                   {registrationModeLabel}
-                </Text>
+                </Badge>
                 {isCampRegistration && selectedCamp?.venue_name && (
                   <Text size="xs" c="dimmed">
                     {selectedCamp.venue_name}
                   </Text>
                 )}
-              </Stack>
+              </Group>
               <Divider />
-              <Stack gap="xs">
-                <Group gap="xs" align="flex-start" className={classes.railItem}>
-                  <IconClipboardCheck size={16} />
-                  <Stack gap={0}>
-                    <Text size="sm" fw={600}>
-                      {t("registrationPage.checklist.minimumSave.title")}
+              <Text size="xs" fw={700} c="dimmed" tt="uppercase">
+                {t("registrationPage.checklistTitle")}
+              </Text>
+              <Stack gap="sm">
+                {[
+                  {
+                    icon: <IconClipboardCheck size={15} />,
+                    title: t("registrationPage.checklist.minimumSave.title"),
+                    desc: t("registrationPage.checklist.minimumSave.description"),
+                  },
+                  {
+                    icon: <IconShieldCheck size={15} />,
+                    title: t("registrationPage.checklist.duplicateGuard.title"),
+                    desc: t("registrationPage.checklist.duplicateGuard.description"),
+                  },
+                  {
+                    icon: <IconStethoscope size={15} />,
+                    title: t("registrationPage.checklist.opdHandoff.title"),
+                    desc: t("registrationPage.checklist.opdHandoff.description"),
+                  },
+                ].map((item) => (
+                  <Group key={item.title} gap="xs" align="flex-start" wrap="nowrap">
+                    <Text c="var(--mb-text-muted)" mt={2}>
+                      {item.icon}
                     </Text>
-                    <Text size="xs" c="dimmed">
-                      {t("registrationPage.checklist.minimumSave.description")}
-                    </Text>
-                  </Stack>
-                </Group>
-                <Group gap="xs" align="flex-start" className={classes.railItem}>
-                  <IconShieldCheck size={16} />
-                  <Stack gap={0}>
-                    <Text size="sm" fw={600}>
-                      {t("registrationPage.checklist.duplicateGuard.title")}
-                    </Text>
-                    <Text size="xs" c="dimmed">
-                      {t("registrationPage.checklist.duplicateGuard.description")}
-                    </Text>
-                  </Stack>
-                </Group>
-                <Group gap="xs" align="flex-start" className={classes.railItem}>
-                  <IconStethoscope size={16} />
-                  <Stack gap={0}>
-                    <Text size="sm" fw={600}>
-                      {t("registrationPage.checklist.opdHandoff.title")}
-                    </Text>
-                    <Text size="xs" c="dimmed">
-                      {t("registrationPage.checklist.opdHandoff.description")}
-                    </Text>
-                  </Stack>
-                </Group>
+                    <div>
+                      <Text size="sm" fw={600}>
+                        {item.title}
+                      </Text>
+                      <Text size="xs" c="dimmed">
+                        {item.desc}
+                      </Text>
+                    </div>
+                  </Group>
+                ))}
               </Stack>
               {isCampRegistration && (
-                <>
-                  <Divider />
-                  <Alert color="green" variant="light" icon={<IconUsers size={16} />}>
-                    {t("registrationPage.campLinkedAlert")}
-                  </Alert>
-                </>
+                <Alert color="green" variant="light" icon={<IconUsers size={16} />}>
+                  {t("registrationPage.campLinkedAlert")}
+                </Alert>
               )}
-              <Button
-                variant="light"
-                leftSection={<IconArrowLeft size={16} />}
-                onClick={() => navigate(backTarget)}
-                fullWidth
-              >
-                {backLabel}
-              </Button>
             </Stack>
           </Card>
         </Grid.Col>
