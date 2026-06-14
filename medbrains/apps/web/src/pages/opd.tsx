@@ -1394,7 +1394,7 @@ function QueuePatientCell({
       <Text size="sm" fw={600} lineClamp={1}>
         {identity.name}
       </Text>
-      <Text size="xs" c="dimmed" ff="var(--fc-font-mono, monospace)">
+      <Text size="xs" c="dimmed" ff="var(--mb-font-mono, monospace)">
         {identity.uhid}
       </Text>
     </Stack>
@@ -1857,24 +1857,24 @@ export function EncounterDetail({
             width: 240,
             flexShrink: 0,
             overflowY: "auto",
-            borderRight: "1px solid var(--fc-rule, #e7ebe8)",
-            padding: "12px",
-            background: "var(--fc-panel, #f7f8f6)",
+            borderRight: "1px solid var(--mb-border-subtle)",
+            padding: "10px",
+            background: "var(--mb-bg-subtle)",
             display: "flex",
             flexDirection: "column",
           }}
         >
           {/* Patient card */}
-          <Card padding="sm" mb="xs" bg="var(--fc-canvas, #fff)" withBorder>
-            <Group gap="sm">
-              <ThemeIcon size="lg" radius="xl" color="primary" variant="light">
+          <Card padding="sm" mb="xs" withBorder>
+            <Group gap="sm" wrap="nowrap">
+              <ThemeIcon size="lg" radius="sm" color="primary" variant="light">
                 <IconUser size={18} />
               </ThemeIcon>
-              <div>
-                <Text size="sm" fw={700}>
+              <div style={{ minWidth: 0 }}>
+                <Text size="sm" fw={700} truncate>
                   {patientName}
                 </Text>
-                <Text size="xs" c="dimmed" ff="var(--font-mono, monospace)">
+                <Text size="xs" c="dimmed" ff="var(--mb-font-mono, monospace)">
                   {uhid}
                 </Text>
               </div>
@@ -1886,12 +1886,14 @@ export function EncounterDetail({
             <Card
               padding="xs"
               mb="xs"
-              bg="var(--mb-danger-bg, #fff1f2)"
               withBorder
-              style={{ borderColor: "var(--mb-danger-accent, #f43f5e)" }}
+              style={{
+                background: "var(--mb-danger-bg)",
+                borderColor: "var(--mb-danger-border)",
+              }}
             >
               <Group gap={4} mb={4}>
-                <IconAlertTriangle size={14} color="var(--mb-danger-accent, #f43f5e)" />
+                <IconAlertTriangle size={14} color="var(--mb-danger-fg)" />
                 <Text size="xs" fw={700} c="danger">
                   Allergies
                 </Text>
@@ -2008,7 +2010,7 @@ export function EncounterDetail({
           {/* Clinical tabs — grouped for doctor workflow without hiding HMS modules */}
           <div
             style={{
-              borderTop: "1px solid var(--fc-rule, #e7ebe8)",
+              borderTop: "1px solid var(--mb-border-subtle)",
               paddingTop: 8,
               flex: 1,
               overflowY: "auto",
