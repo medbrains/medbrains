@@ -220,9 +220,8 @@ export function PatientFlowNavigator({
             <Button
               key={item.id}
               size="xs"
-              radius="xl"
-              color={visual.color}
-              variant={isActive ? "filled" : "light"}
+              color={isActive ? "primary" : "gray"}
+              variant={isActive ? "filled" : "default"}
               leftSection={visual.icon}
               disabled={!item.enabled}
               onClick={() => navigate(item.href)}
