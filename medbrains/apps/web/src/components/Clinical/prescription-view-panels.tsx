@@ -4,6 +4,7 @@ import type { TFunction } from "i18next";
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { frequencyToDefaultSlots, parseInstructions } from "@/lib/medication-timing-utils";
+import { prescriptionStatusClass } from "@/lib/prescription-display";
 
 // ── Shared types & helpers ─────────────────────────────────────
 
@@ -177,7 +178,7 @@ export function ProseView({
                   <Text size="xs" ff="var(--fc-font-mono, monospace)" c="dimmed" w={20} ta="right">
                     {String(idx + 1).padStart(2, "0")}
                   </Text>
-                  <Text size="sm" fw={500}>
+                  <Text size="sm" fw={500} className={prescriptionStatusClass(item.item_status)}>
                     {item.drug_name}
                   </Text>
                   <Text size="sm" c="var(--mantine-color-primary-5)">
@@ -292,7 +293,12 @@ export function TimelineView({ items }: { items: FlatItem[] }) {
           {drugSlots.map(({ item, slots }) => (
             <Table.Tr key={item.id}>
               <Table.Td>
-                <Text size="xs" fw={500} truncate="end">
+                <Text
+                  size="xs"
+                  fw={500}
+                  truncate="end"
+                  className={prescriptionStatusClass(item.item_status)}
+                >
                   {item.drug_name}
                 </Text>
               </Table.Td>
