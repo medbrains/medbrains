@@ -2580,20 +2580,36 @@ function ChargeMasterTab({ canCreate }: { canCreate: boolean }) {
   });
 
   const columns = [
-    { key: "code", label: "Code", render: (row: ChargeMaster) => <Text fw={500}>{row.code}</Text> },
+    {
+      key: "code",
+      label: "Code",
+      sortable: true,
+      searchable: true,
+      accessor: (row: ChargeMaster) => row.code,
+      render: (row: ChargeMaster) => <Text fw={500}>{row.code}</Text>,
+    },
     {
       key: "name",
       label: "Name",
+      sortable: true,
+      searchable: true,
+      accessor: (row: ChargeMaster) => row.name,
       render: (row: ChargeMaster) => <Text size="sm">{row.name}</Text>,
     },
     {
       key: "category",
       label: "Category",
+      sortable: true,
+      searchable: true,
+      accessor: (row: ChargeMaster) => row.category || "—",
       render: (row: ChargeMaster) => <Text size="sm">{row.category || "—"}</Text>,
     },
     {
       key: "base_price",
       label: "Price",
+      sortable: true,
+      sortValue: (row: ChargeMaster) => Number(row.base_price),
+      accessor: (row: ChargeMaster) => row.base_price,
       render: (row: ChargeMaster) => <Text size="sm">₹{row.base_price}</Text>,
     },
     {
@@ -2733,7 +2749,16 @@ function ChargeMasterTab({ canCreate }: { canCreate: boolean }) {
           </Button>
         </Stack>
       )}
-      <DataTable columns={columns} data={charges} loading={isLoading} rowKey={(row) => row.id} />
+      <DataTable
+        columns={columns}
+        data={charges}
+        loading={isLoading}
+        rowKey={(row) => row.id}
+        searchable
+        searchPlaceholder="Search code, name or category"
+        exportable
+        exportFileName="charge-master"
+      />
     </Stack>
   );
 }
@@ -2921,16 +2946,25 @@ function PackagesTab({ canCreate }: { canCreate: boolean }) {
     {
       key: "code",
       label: "Code",
+      sortable: true,
+      searchable: true,
+      accessor: (row: BillingPackage) => row.code,
       render: (row: BillingPackage) => <Text fw={500}>{row.code}</Text>,
     },
     {
       key: "name",
       label: "Name",
+      sortable: true,
+      searchable: true,
+      accessor: (row: BillingPackage) => row.name,
       render: (row: BillingPackage) => <Text size="sm">{row.name}</Text>,
     },
     {
       key: "total_price",
       label: "Price",
+      sortable: true,
+      sortValue: (row: BillingPackage) => Number(row.total_price),
+      accessor: (row: BillingPackage) => row.total_price,
       render: (row: BillingPackage) => <Text size="sm">₹{row.total_price}</Text>,
     },
     {
@@ -3117,7 +3151,16 @@ function PackagesTab({ canCreate }: { canCreate: boolean }) {
           </Button>
         </Stack>
       )}
-      <DataTable columns={columns} data={packages} loading={isLoading} rowKey={(row) => row.id} />
+      <DataTable
+        columns={columns}
+        data={packages}
+        loading={isLoading}
+        rowKey={(row) => row.id}
+        searchable
+        searchPlaceholder="Search code or name"
+        exportable
+        exportFileName="billing-packages"
+      />
     </Stack>
   );
 }
@@ -3204,10 +3247,20 @@ function RatePlansTab({ canCreate }: { canCreate: boolean }) {
   };
 
   const columns = [
-    { key: "name", label: "Name", render: (row: RatePlan) => <Text fw={500}>{row.name}</Text> },
+    {
+      key: "name",
+      label: "Name",
+      sortable: true,
+      searchable: true,
+      accessor: (row: RatePlan) => row.name,
+      render: (row: RatePlan) => <Text fw={500}>{row.name}</Text>,
+    },
     {
       key: "patient_category",
       label: "Category",
+      sortable: true,
+      searchable: true,
+      accessor: (row: RatePlan) => row.patient_category ?? "All",
       render: (row: RatePlan) => <Text size="sm">{row.patient_category ?? "All"}</Text>,
     },
     {
@@ -3360,7 +3413,16 @@ function RatePlansTab({ canCreate }: { canCreate: boolean }) {
           </Button>
         </Stack>
       )}
-      <DataTable columns={columns} data={plans} loading={isLoading} rowKey={(row) => row.id} />
+      <DataTable
+        columns={columns}
+        data={plans}
+        loading={isLoading}
+        rowKey={(row) => row.id}
+        searchable
+        searchPlaceholder="Search name or category"
+        exportable
+        exportFileName="rate-plans"
+      />
     </Stack>
   );
 }
@@ -3513,21 +3575,31 @@ function RefundsCreditsTab({
     {
       key: "write_off_number",
       label: "WO #",
+      sortable: true,
+      searchable: true,
+      accessor: (row: BadDebtWriteOff) => row.write_off_number,
       render: (row: BadDebtWriteOff) => <Text fw={500}>{row.write_off_number}</Text>,
     },
     {
       key: "amount",
       label: "Amount",
+      sortable: true,
+      sortValue: (row: BadDebtWriteOff) => Number(row.amount),
+      accessor: (row: BadDebtWriteOff) => row.amount,
       render: (row: BadDebtWriteOff) => <Text size="sm">₹{row.amount}</Text>,
     },
     {
       key: "reason",
       label: "Reason",
+      searchable: true,
+      accessor: (row: BadDebtWriteOff) => row.reason,
       render: (row: BadDebtWriteOff) => <Text size="sm">{row.reason}</Text>,
     },
     {
       key: "status",
       label: "Status",
+      sortable: true,
+      accessor: (row: BadDebtWriteOff) => row.status,
       render: (row: BadDebtWriteOff) => (
         <Badge
           tone={
@@ -3577,16 +3649,24 @@ function RefundsCreditsTab({
     {
       key: "refund_number",
       label: "Refund #",
+      sortable: true,
+      searchable: true,
+      accessor: (row: Refund) => row.refund_number,
       render: (row: Refund) => <Text fw={500}>{row.refund_number}</Text>,
     },
     {
       key: "amount",
       label: "Amount",
+      sortable: true,
+      sortValue: (row: Refund) => Number(row.amount),
+      accessor: (row: Refund) => row.amount,
       render: (row: Refund) => <Text size="sm">₹{row.amount}</Text>,
     },
     {
       key: "reason",
       label: "Reason",
+      searchable: true,
+      accessor: (row: Refund) => row.reason,
       render: (row: Refund) => <Text size="sm">{row.reason}</Text>,
     },
     {
@@ -3597,6 +3677,9 @@ function RefundsCreditsTab({
     {
       key: "refunded_at",
       label: "Date",
+      sortable: true,
+      sortValue: (row: Refund) => new Date(row.refunded_at).getTime(),
+      accessor: (row: Refund) => new Date(row.refunded_at).toLocaleDateString(),
       render: (row: Refund) => (
         <Text size="sm">{new Date(row.refunded_at).toLocaleDateString()}</Text>
       ),
@@ -3607,21 +3690,31 @@ function RefundsCreditsTab({
     {
       key: "credit_note_number",
       label: "CN #",
+      sortable: true,
+      searchable: true,
+      accessor: (row: CreditNote) => row.credit_note_number,
       render: (row: CreditNote) => <Text fw={500}>{row.credit_note_number}</Text>,
     },
     {
       key: "amount",
       label: "Amount",
+      sortable: true,
+      sortValue: (row: CreditNote) => Number(row.amount),
+      accessor: (row: CreditNote) => row.amount,
       render: (row: CreditNote) => <Text size="sm">₹{row.amount}</Text>,
     },
     {
       key: "reason",
       label: "Reason",
+      searchable: true,
+      accessor: (row: CreditNote) => row.reason,
       render: (row: CreditNote) => <Text size="sm">{row.reason}</Text>,
     },
     {
       key: "status",
       label: "Status",
+      sortable: true,
+      accessor: (row: CreditNote) => row.status,
       render: (row: CreditNote) => (
         <Badge
           tone={row.status === "active" ? "success" : row.status === "used" ? "primary" : "danger"}
@@ -3718,7 +3811,15 @@ function RefundsCreditsTab({
           )}
         </>
       )}
-      <DataTable columns={refundColumns} data={refunds} rowKey={(row) => row.id} />
+      <DataTable
+        columns={refundColumns}
+        data={refunds}
+        rowKey={(row) => row.id}
+        searchable
+        searchPlaceholder="Search refund # or reason"
+        exportable
+        exportFileName="refunds"
+      />
 
       <Text fw={600} mt="lg">
         Credit Notes
@@ -3769,7 +3870,15 @@ function RefundsCreditsTab({
           )}
         </>
       )}
-      <DataTable columns={creditColumns} data={creditNotes} rowKey={(row) => row.id} />
+      <DataTable
+        columns={creditColumns}
+        data={creditNotes}
+        rowKey={(row) => row.id}
+        searchable
+        searchPlaceholder="Search CN # or reason"
+        exportable
+        exportFileName="credit-notes"
+      />
 
       <Text fw={600} mt="lg">
         Write-Offs
@@ -3825,7 +3934,15 @@ function RefundsCreditsTab({
           )}
         </>
       )}
-      <DataTable columns={writeOffColumns} data={writeOffs} rowKey={(row) => row.id} />
+      <DataTable
+        columns={writeOffColumns}
+        data={writeOffs}
+        rowKey={(row) => row.id}
+        searchable
+        searchPlaceholder="Search WO # or reason"
+        exportable
+        exportFileName="write-offs"
+      />
     </Stack>
   );
 }
@@ -3937,16 +4054,24 @@ function InsuranceClaimsTab({
     {
       key: "tpa_name",
       label: "TPA Name",
+      sortable: true,
+      searchable: true,
+      accessor: (row: TpaRateCard) => row.tpa_name,
       render: (row: TpaRateCard) => <Text fw={500}>{row.tpa_name}</Text>,
     },
     {
       key: "insurance_provider",
       label: "Provider",
+      sortable: true,
+      searchable: true,
+      accessor: (row: TpaRateCard) => row.insurance_provider,
       render: (row: TpaRateCard) => <Text size="sm">{row.insurance_provider}</Text>,
     },
     {
       key: "scheme_type",
       label: "Scheme",
+      sortable: true,
+      accessor: (row: TpaRateCard) => row.scheme_type ?? "—",
       render: (row: TpaRateCard) => <Badge tone="neutral">{row.scheme_type ?? "—"}</Badge>,
     },
     {
@@ -4041,16 +4166,24 @@ function InsuranceClaimsTab({
     {
       key: "insurance_provider",
       label: "Provider",
+      sortable: true,
+      searchable: true,
+      accessor: (row: InsuranceClaim) => row.insurance_provider,
       render: (row: InsuranceClaim) => <Text fw={500}>{row.insurance_provider}</Text>,
     },
     {
       key: "claim_type",
       label: "Type",
+      sortable: true,
+      searchable: true,
+      accessor: (row: InsuranceClaim) => row.claim_type,
       render: (row: InsuranceClaim) => <Badge tone="neutral">{row.claim_type}</Badge>,
     },
     {
       key: "status",
       label: "Status",
+      sortable: true,
+      accessor: (row: InsuranceClaim) => row.status.replace(/_/g, " "),
       render: (row: InsuranceClaim) => (
         <Badge tone={claimStatusColors[row.status] ?? "neutral"}>
           {row.status.replace(/_/g, " ")}
@@ -4060,6 +4193,9 @@ function InsuranceClaimsTab({
     {
       key: "pre_auth_amount",
       label: "Pre-Auth",
+      sortable: true,
+      sortValue: (row: InsuranceClaim) => Number(row.pre_auth_amount ?? 0),
+      accessor: (row: InsuranceClaim) => (row.pre_auth_amount ? `₹${row.pre_auth_amount}` : "—"),
       render: (row: InsuranceClaim) => (
         <Text size="sm">{row.pre_auth_amount ? `₹${row.pre_auth_amount}` : "—"}</Text>
       ),
@@ -4254,6 +4390,10 @@ function InsuranceClaimsTab({
         loading={isLoading}
         rowKey={(row) => row.id}
         onRowClick={(row) => setDetailClaim(row)}
+        searchable
+        searchPlaceholder="Search provider or claim type"
+        exportable
+        exportFileName="insurance-claims"
       />
 
       <ClaimDetailDrawer
@@ -4348,7 +4488,15 @@ function InsuranceClaimsTab({
           )}
         </>
       )}
-      <DataTable columns={tpaColumns} data={tpaCards} rowKey={(row) => row.id} />
+      <DataTable
+        columns={tpaColumns}
+        data={tpaCards}
+        rowKey={(row) => row.id}
+        searchable
+        searchPlaceholder="Search TPA or provider"
+        exportable
+        exportFileName="tpa-rate-cards"
+      />
     </Stack>
   );
 }
@@ -4792,16 +4940,25 @@ function AdvancesTab() {
     {
       key: "advance_number",
       label: "Advance #",
+      sortable: true,
+      searchable: true,
+      accessor: (row: PatientAdvance) => row.advance_number,
       render: (row: PatientAdvance) => <Text fw={600}>{row.advance_number}</Text>,
     },
     {
       key: "amount",
       label: "Amount",
+      sortable: true,
+      sortValue: (row: PatientAdvance) => Number(row.amount),
+      accessor: (row: PatientAdvance) => row.amount,
       render: (row: PatientAdvance) => <Text size="sm">₹{row.amount}</Text>,
     },
     {
       key: "balance",
       label: "Balance",
+      sortable: true,
+      sortValue: (row: PatientAdvance) => Number(row.balance),
+      accessor: (row: PatientAdvance) => row.balance,
       render: (row: PatientAdvance) => (
         <Text size="sm" c={Number(row.balance) > 0 ? "success" : "dimmed"}>
           ₹{row.balance}
@@ -4811,6 +4968,8 @@ function AdvancesTab() {
     {
       key: "purpose",
       label: "Purpose",
+      searchable: true,
+      accessor: (row: PatientAdvance) => row.purpose,
       render: (row: PatientAdvance) => <Badge tone="neutral">{row.purpose}</Badge>,
     },
     {
@@ -4821,6 +4980,8 @@ function AdvancesTab() {
     {
       key: "status",
       label: "Status",
+      sortable: true,
+      accessor: (row: PatientAdvance) => row.status.replace(/_/g, " "),
       render: (row: PatientAdvance) => (
         <Badge tone={toBadgeTone(statusColor(row.status))}>{row.status.replace(/_/g, " ")}</Badge>
       ),
@@ -4828,6 +4989,9 @@ function AdvancesTab() {
     {
       key: "created_at",
       label: "Date",
+      sortable: true,
+      sortValue: (row: PatientAdvance) => new Date(row.created_at).getTime(),
+      accessor: (row: PatientAdvance) => new Date(row.created_at).toLocaleDateString(),
       render: (row: PatientAdvance) => (
         <Text size="sm">{new Date(row.created_at).toLocaleDateString()}</Text>
       ),
@@ -4982,7 +5146,16 @@ function AdvancesTab() {
         </Stack>
       )}
 
-      <DataTable columns={columns} data={advances} loading={isLoading} rowKey={(row) => row.id} />
+      <DataTable
+        columns={columns}
+        data={advances}
+        loading={isLoading}
+        rowKey={(row) => row.id}
+        searchable
+        searchPlaceholder="Search advance # or purpose"
+        exportable
+        exportFileName="patient-advances"
+      />
 
       <Drawer
         opened={adjustId !== null}
@@ -5155,21 +5328,32 @@ function CorporateTab() {
     {
       key: "code",
       label: "Code",
+      sortable: true,
+      searchable: true,
+      accessor: (row: CorporateClient) => row.code,
       render: (row: CorporateClient) => <Text fw={600}>{row.code}</Text>,
     },
     {
       key: "name",
       label: "Name",
+      sortable: true,
+      searchable: true,
+      accessor: (row: CorporateClient) => row.name,
       render: (row: CorporateClient) => <Text size="sm">{row.name}</Text>,
     },
     {
       key: "gst_number",
       label: "GSTIN",
+      searchable: true,
+      accessor: (row: CorporateClient) => row.gst_number ?? "—",
       render: (row: CorporateClient) => <Text size="sm">{row.gst_number ?? "—"}</Text>,
     },
     {
       key: "credit_limit",
       label: "Credit Limit",
+      sortable: true,
+      sortValue: (row: CorporateClient) => Number(row.credit_limit),
+      accessor: (row: CorporateClient) => row.credit_limit,
       render: (row: CorporateClient) => <Text size="sm">₹{row.credit_limit}</Text>,
     },
     {
@@ -5312,7 +5496,16 @@ function CorporateTab() {
         </Stack>
       )}
 
-      <DataTable columns={columns} data={corporates} loading={isLoading} rowKey={(row) => row.id} />
+      <DataTable
+        columns={columns}
+        data={corporates}
+        loading={isLoading}
+        rowKey={(row) => row.id}
+        searchable
+        searchPlaceholder="Search code, name or GSTIN"
+        exportable
+        exportFileName="corporate-clients"
+      />
 
       <Drawer
         opened={detailOpened}
@@ -6272,6 +6465,10 @@ function DayCloseTab() {
     {
       key: "close_date",
       label: "Date",
+      sortable: true,
+      searchable: true,
+      sortValue: (row: DayEndClose) => new Date(row.close_date).getTime(),
+      accessor: (row: DayEndClose) => row.close_date,
       render: (row: DayEndClose) => (
         <Stack gap={0}>
           <Text fw={600} size="sm">
@@ -6312,6 +6509,9 @@ function DayCloseTab() {
     {
       key: "total_collected",
       label: "Collected",
+      sortable: true,
+      sortValue: (row: DayEndClose) => Number(row.total_collected),
+      accessor: (row: DayEndClose) => row.total_collected,
       render: (row: DayEndClose) => (
         <Text size="sm" ff="monospace">
           ₹{money(row.total_collected)}
@@ -6321,6 +6521,8 @@ function DayCloseTab() {
     {
       key: "status",
       label: "Status",
+      sortable: true,
+      accessor: (row: DayEndClose) => row.status,
       render: (row: DayEndClose) => (
         <Badge tone={toBadgeTone(statusColor(row.status))}>{row.status}</Badge>
       ),
@@ -6434,7 +6636,16 @@ function DayCloseTab() {
         </Card>
       )}
 
-      <DataTable columns={columns} data={dayCloses} loading={isLoading} rowKey={(row) => row.id} />
+      <DataTable
+        columns={columns}
+        data={dayCloses}
+        loading={isLoading}
+        rowKey={(row) => row.id}
+        searchable
+        searchPlaceholder="Search by close date"
+        exportable
+        exportFileName="day-end-close"
+      />
 
       <Modal
         opened={verifyTarget !== null}

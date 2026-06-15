@@ -126,6 +126,7 @@ import {
   type Column,
   CsvImportModal,
   DataTable,
+  type DataTableFilter,
   FormModal,
   OperationalSignal,
   PageHeader,
@@ -1797,6 +1798,7 @@ function PharmacyReturnsTab({
     {
       key: "patient_id",
       label: "Patient",
+      searchable: true,
       fieldAccessKeys: PATIENT_BASIC_IDENTITY_FIELD_ACCESS_KEYS,
       accessor: (row: PharmacyReturn) => row.patient_id,
       fieldKind: "identifier",
@@ -1820,6 +1822,9 @@ function PharmacyReturnsTab({
     {
       key: "quantity_returned",
       label: "Qty",
+      sortable: true,
+      sortValue: (row: PharmacyReturn) => row.quantity_returned,
+      accessor: (row: PharmacyReturn) => row.quantity_returned,
       render: (row: PharmacyReturn) => <Text size="sm">{row.quantity_returned}</Text>,
     },
     {
@@ -1834,6 +1839,8 @@ function PharmacyReturnsTab({
     {
       key: "status",
       label: "Status",
+      sortable: true,
+      accessor: (row: PharmacyReturn) => returnStatusLabels[row.status] ?? row.status,
       render: (row: PharmacyReturn) => (
         <Badge size="xs" tone={sharedColorBadgeTone(returnStatusColors[row.status])}>
           {returnStatusLabels[row.status]}
@@ -1843,6 +1850,9 @@ function PharmacyReturnsTab({
     {
       key: "created_at",
       label: "Requested",
+      sortable: true,
+      sortValue: (row: PharmacyReturn) => row.created_at,
+      accessor: (row: PharmacyReturn) => new Date(row.created_at).toLocaleString(),
       render: (row: PharmacyReturn) => (
         <Text size="sm">{new Date(row.created_at).toLocaleString()}</Text>
       ),
@@ -1943,6 +1953,10 @@ function PharmacyReturnsTab({
         data={filteredReturns}
         loading={canViewQueue && isLoading}
         rowKey={(row) => row.id}
+        searchable
+        searchPlaceholder="Search returns"
+        exportable
+        exportFileName="pharmacy-returns"
         toolbar={
           <SegmentedControl
             size="xs"
@@ -3216,16 +3230,24 @@ function PharmacyCatalogTab({
     {
       key: "code",
       label: "Code",
+      sortable: true,
+      searchable: true,
+      accessor: (row: PharmacyCatalog) => row.code,
       render: (row: PharmacyCatalog) => <Text fw={500}>{row.code}</Text>,
     },
     {
       key: "name",
       label: "Name",
+      sortable: true,
+      searchable: true,
+      accessor: (row: PharmacyCatalog) => row.name,
       render: (row: PharmacyCatalog) => <Text size="sm">{row.name}</Text>,
     },
     {
       key: "generic_name",
       label: "Generic",
+      searchable: true,
+      accessor: (row: PharmacyCatalog) => row.generic_name ?? "",
       render: (row: PharmacyCatalog) => <Text size="sm">{row.generic_name ?? "\u2014"}</Text>,
     },
     {
@@ -3237,6 +3259,9 @@ function PharmacyCatalogTab({
     {
       key: "base_price",
       label: "Price",
+      sortable: true,
+      sortValue: (row: PharmacyCatalog) => Number(row.base_price),
+      accessor: (row: PharmacyCatalog) => Number(row.base_price),
       render: (row: PharmacyCatalog) => (
         <Text size="sm">{renderPharmacySensitiveCurrency(priceAccess, row.base_price)}</Text>
       ),
@@ -3244,6 +3269,9 @@ function PharmacyCatalogTab({
     {
       key: "current_stock",
       label: "Stock",
+      sortable: true,
+      sortValue: (row: PharmacyCatalog) => row.current_stock,
+      accessor: (row: PharmacyCatalog) => row.current_stock,
       render: (row: PharmacyCatalog) => (
         <Text
           size="sm"
@@ -3537,7 +3565,16 @@ function PharmacyCatalogTab({
           </Button>
         </Stack>
       )}
-      <DataTable columns={columns} data={filtered} loading={isLoading} rowKey={(row) => row.id} />
+      <DataTable
+        columns={columns}
+        data={filtered}
+        loading={isLoading}
+        rowKey={(row) => row.id}
+        searchable
+        searchPlaceholder="Search formulary"
+        exportable
+        exportFileName="pharmacy-catalog"
+      />
     </Stack>
   );
 }
@@ -3657,16 +3694,25 @@ function StockTab({ canManage }: { canManage: boolean }) {
     {
       key: "code",
       label: "Code",
+      sortable: true,
+      searchable: true,
+      accessor: (row: PharmacyCatalog) => row.code,
       render: (row: PharmacyCatalog) => <Text fw={500}>{row.code}</Text>,
     },
     {
       key: "name",
       label: "Drug Name",
+      sortable: true,
+      searchable: true,
+      accessor: (row: PharmacyCatalog) => row.name,
       render: (row: PharmacyCatalog) => <Text size="sm">{row.name}</Text>,
     },
     {
       key: "current_stock",
       label: "Current Stock",
+      sortable: true,
+      sortValue: (row: PharmacyCatalog) => row.current_stock,
+      accessor: (row: PharmacyCatalog) => row.current_stock,
       render: (row: PharmacyCatalog) => (
         <TableValueBadge
           value={row.current_stock < row.reorder_level ? "low_stock" : "stock"}
@@ -3679,6 +3725,9 @@ function StockTab({ canManage }: { canManage: boolean }) {
     {
       key: "reorder_level",
       label: "Reorder Level",
+      sortable: true,
+      sortValue: (row: PharmacyCatalog) => row.reorder_level,
+      accessor: (row: PharmacyCatalog) => row.reorder_level,
       render: (row: PharmacyCatalog) => <Text size="sm">{row.reorder_level}</Text>,
     },
     {
@@ -3743,7 +3792,16 @@ function StockTab({ canManage }: { canManage: boolean }) {
           </Button>
         </Group>
       )}
-      <DataTable columns={columns} data={stock} loading={isLoading} rowKey={(row) => row.id} />
+      <DataTable
+        columns={columns}
+        data={stock}
+        loading={isLoading}
+        rowKey={(row) => row.id}
+        searchable
+        searchPlaceholder="Search stock"
+        exportable
+        exportFileName="pharmacy-stock"
+      />
       <Modal
         opened={batchModalOpened}
         onClose={batchModalHandlers.close}
@@ -4363,6 +4421,8 @@ function NdpsRegisterTab() {
     {
       key: "action",
       label: "Action",
+      sortable: true,
+      accessor: (row: NdpsRegisterEntry) => row.action,
       render: (row: NdpsRegisterEntry) => (
         <Badge size="xs" tone={actionColors[row.action] ?? "neutral"}>
           {row.action}
@@ -4372,6 +4432,9 @@ function NdpsRegisterTab() {
     {
       key: "quantity",
       label: "Qty",
+      sortable: true,
+      sortValue: (row: NdpsRegisterEntry) => row.quantity,
+      accessor: (row: NdpsRegisterEntry) => row.quantity,
       render: (row: NdpsRegisterEntry) => <Text size="sm">{row.quantity}</Text>,
     },
     {
@@ -4404,9 +4467,21 @@ function NdpsRegisterTab() {
     {
       key: "created_at",
       label: "Date",
+      sortable: true,
+      sortValue: (row: NdpsRegisterEntry) => row.created_at,
+      accessor: (row: NdpsRegisterEntry) => new Date(row.created_at).toLocaleDateString(),
       render: (row: NdpsRegisterEntry) => (
         <Text size="sm">{new Date(row.created_at).toLocaleDateString()}</Text>
       ),
+    },
+  ];
+
+  const ndpsFilters: DataTableFilter<NdpsRegisterEntry>[] = [
+    {
+      key: "action",
+      label: "Action",
+      options: ndpsActionOptions.map((option) => ({ value: option.value, label: option.label })),
+      matches: (row, value) => row.action === value,
     },
   ];
 
@@ -4493,6 +4568,11 @@ function NdpsRegisterTab() {
         data={data?.entries ?? []}
         loading={isLoading}
         rowKey={(row) => row.id}
+        searchable
+        searchPlaceholder="Search register"
+        exportable
+        exportFileName="ndps-register"
+        filters={ndpsFilters}
       />
     </Stack>
   );
@@ -4534,6 +4614,8 @@ function BatchLedgerView() {
     {
       key: "batch_number",
       label: "Batch #",
+      searchable: true,
+      accessor: (row: PharmacyBatch) => row.batch_number,
       render: (row: PharmacyBatch) => (
         <Text fw={500} size="sm">
           {renderPharmacySensitiveValue(batchNumberAccess, row.batch_number)}
@@ -4543,6 +4625,9 @@ function BatchLedgerView() {
     {
       key: "expiry_date",
       label: "Expiry",
+      sortable: true,
+      sortValue: (row: PharmacyBatch) => row.expiry_date,
+      accessor: (row: PharmacyBatch) => row.expiry_date,
       render: (row: PharmacyBatch) => {
         const days = Math.ceil((new Date(row.expiry_date).getTime() - Date.now()) / 86400000);
         return (
@@ -4565,6 +4650,9 @@ function BatchLedgerView() {
     {
       key: "quantity_on_hand",
       label: "On Hand",
+      sortable: true,
+      sortValue: (row: PharmacyBatch) => row.quantity_on_hand,
+      accessor: (row: PharmacyBatch) => row.quantity_on_hand,
       render: (row: PharmacyBatch) => (
         <Badge size="sm" tone={row.quantity_on_hand <= 0 ? "danger" : "success"}>
           {row.quantity_on_hand}
@@ -4581,7 +4669,16 @@ function BatchLedgerView() {
   ];
 
   return (
-    <DataTable columns={columns} data={batches} loading={isLoading} rowKey={(row) => row.id} />
+    <DataTable
+      columns={columns}
+      data={batches}
+      loading={isLoading}
+      rowKey={(row) => row.id}
+      searchable
+      searchPlaceholder="Search batches"
+      exportable
+      exportFileName="pharmacy-batches"
+    />
   );
 }
 
@@ -4653,11 +4750,16 @@ function NearExpiryView() {
     {
       key: "drug_name",
       label: "Drug",
+      sortable: true,
+      searchable: true,
+      accessor: (row: NearExpiryRow) => row.drug_name,
       render: (row: NearExpiryRow) => <Text size="sm">{row.drug_name}</Text>,
     },
     {
       key: "batch_number",
       label: "Batch #",
+      searchable: true,
+      accessor: (row: NearExpiryRow) => row.batch_number,
       render: (row: NearExpiryRow) => (
         <Text size="sm">{renderPharmacySensitiveValue(batchNumberAccess, row.batch_number)}</Text>
       ),
@@ -4665,6 +4767,9 @@ function NearExpiryView() {
     {
       key: "expiry_date",
       label: "Expiry",
+      sortable: true,
+      sortValue: (row: NearExpiryRow) => row.expiry_date,
+      accessor: (row: NearExpiryRow) => row.expiry_date,
       render: (row: NearExpiryRow) => (
         <Text
           size="sm"
@@ -4689,6 +4794,9 @@ function NearExpiryView() {
     {
       key: "days_until_expiry",
       label: "Days Left",
+      sortable: true,
+      sortValue: (row: NearExpiryRow) => row.days_until_expiry,
+      accessor: (row: NearExpiryRow) => row.days_until_expiry,
       render: (row: NearExpiryRow) => (
         <Badge
           size="sm"
@@ -4712,6 +4820,10 @@ function NearExpiryView() {
       data={rows}
       loading={isLoading}
       rowKey={(row) => `${row.batch_number}-${row.expiry_date}`}
+      searchable
+      searchPlaceholder="Search near-expiry"
+      exportable
+      exportFileName="pharmacy-near-expiry"
     />
   );
 }
@@ -4727,16 +4839,25 @@ function DeadStockView() {
     {
       key: "drug_name",
       label: "Drug",
+      sortable: true,
+      searchable: true,
+      accessor: (row: PharmacyDeadStockRow) => row.drug_name,
       render: (row: PharmacyDeadStockRow) => <Text size="sm">{row.drug_name}</Text>,
     },
     {
       key: "current_stock",
       label: "Stock",
+      sortable: true,
+      sortValue: (row: PharmacyDeadStockRow) => row.current_stock,
+      accessor: (row: PharmacyDeadStockRow) => row.current_stock,
       render: (row: PharmacyDeadStockRow) => <Text size="sm">{row.current_stock}</Text>,
     },
     {
       key: "stock_value",
       label: "Value",
+      sortable: true,
+      sortValue: (row: PharmacyDeadStockRow) => Number(row.stock_value),
+      accessor: (row: PharmacyDeadStockRow) => Number(row.stock_value),
       render: (row: PharmacyDeadStockRow) => (
         <Text size="sm">{renderPharmacySensitiveCurrency(valueAccess, row.stock_value)}</Text>
       ),
@@ -4755,6 +4876,9 @@ function DeadStockView() {
     {
       key: "days_idle",
       label: "Days Idle",
+      sortable: true,
+      sortValue: (row: PharmacyDeadStockRow) => row.days_idle ?? -1,
+      accessor: (row: PharmacyDeadStockRow) => row.days_idle ?? "",
       render: (row: PharmacyDeadStockRow) => (
         <Badge size="sm" tone="warning">
           {row.days_idle ?? "N/A"}
@@ -4764,7 +4888,16 @@ function DeadStockView() {
   ];
 
   return (
-    <DataTable columns={columns} data={rows} loading={isLoading} rowKey={(row) => row.drug_name} />
+    <DataTable
+      columns={columns}
+      data={rows}
+      loading={isLoading}
+      rowKey={(row) => row.drug_name}
+      searchable
+      searchPlaceholder="Search dead stock"
+      exportable
+      exportFileName="pharmacy-dead-stock"
+    />
   );
 }
 
@@ -4815,6 +4948,8 @@ function PharmacyLocationsView({ canViewStores }: { canViewStores: boolean }) {
     {
       key: "store_location_id",
       label: "Location",
+      searchable: true,
+      accessor: (row: PharmacyStoreAssignment) => row.store_location_id,
       render: (row: PharmacyStoreAssignment) => (
         <Text size="sm">{row.store_location_id.slice(0, 8)}...</Text>
       ),
@@ -4834,6 +4969,9 @@ function PharmacyLocationsView({ canViewStores }: { canViewStores: boolean }) {
     {
       key: "serves_departments",
       label: "Departments",
+      sortable: true,
+      sortValue: (row: PharmacyStoreAssignment) => row.serves_departments?.length ?? 0,
+      accessor: (row: PharmacyStoreAssignment) => row.serves_departments?.length ?? 0,
       render: (row: PharmacyStoreAssignment) => (
         <Text size="sm">{row.serves_departments?.length ?? 0} depts</Text>
       ),
@@ -4841,6 +4979,9 @@ function PharmacyLocationsView({ canViewStores }: { canViewStores: boolean }) {
     {
       key: "created_at",
       label: "Created",
+      sortable: true,
+      sortValue: (row: PharmacyStoreAssignment) => row.created_at,
+      accessor: (row: PharmacyStoreAssignment) => new Date(row.created_at).toLocaleDateString(),
       render: (row: PharmacyStoreAssignment) => (
         <Text size="sm">{new Date(row.created_at).toLocaleDateString()}</Text>
       ),
@@ -4848,7 +4989,16 @@ function PharmacyLocationsView({ canViewStores }: { canViewStores: boolean }) {
   ];
 
   return canViewStores ? (
-    <DataTable columns={columns} data={assignments} loading={isLoading} rowKey={(row) => row.id} />
+    <DataTable
+      columns={columns}
+      data={assignments}
+      loading={isLoading}
+      rowKey={(row) => row.id}
+      searchable
+      searchPlaceholder="Search stores"
+      exportable
+      exportFileName="pharmacy-stores"
+    />
   ) : (
     <Alert color="warning" variant="light">
       Store assignment locations require `pharmacy.stores.list` or `pharmacy.stores.manage`.
@@ -4894,6 +5044,8 @@ function TransfersView({
     {
       key: "from_location_id",
       label: "From",
+      searchable: true,
+      accessor: (row: PharmacyTransferRequest) => row.from_location_id,
       render: (row: PharmacyTransferRequest) => (
         <Text size="sm">{row.from_location_id.slice(0, 8)}...</Text>
       ),
@@ -4901,6 +5053,8 @@ function TransfersView({
     {
       key: "to_location_id",
       label: "To",
+      searchable: true,
+      accessor: (row: PharmacyTransferRequest) => row.to_location_id,
       render: (row: PharmacyTransferRequest) => (
         <Text size="sm">{row.to_location_id.slice(0, 8)}...</Text>
       ),
@@ -4908,6 +5062,8 @@ function TransfersView({
     {
       key: "status",
       label: "Status",
+      sortable: true,
+      accessor: (row: PharmacyTransferRequest) => row.status,
       render: (row: PharmacyTransferRequest) => (
         <TableValueBadge
           value={row.status}
@@ -4921,6 +5077,9 @@ function TransfersView({
     {
       key: "created_at",
       label: "Date",
+      sortable: true,
+      sortValue: (row: PharmacyTransferRequest) => row.created_at,
+      accessor: (row: PharmacyTransferRequest) => new Date(row.created_at).toLocaleDateString(),
       render: (row: PharmacyTransferRequest) => (
         <Text size="sm">{new Date(row.created_at).toLocaleDateString()}</Text>
       ),
@@ -4948,7 +5107,16 @@ function TransfersView({
   ];
 
   return canViewStores ? (
-    <DataTable columns={columns} data={transfers} loading={isLoading} rowKey={(row) => row.id} />
+    <DataTable
+      columns={columns}
+      data={transfers}
+      loading={isLoading}
+      rowKey={(row) => row.id}
+      searchable
+      searchPlaceholder="Search transfers"
+      exportable
+      exportFileName="pharmacy-transfers"
+    />
   ) : (
     <Alert color="warning" variant="light">
       Transfer queue requires `pharmacy.stores.list` or `pharmacy.stores.manage`.
@@ -4992,17 +5160,25 @@ function ConsumptionView() {
     {
       key: "drug_name",
       label: "Drug",
+      sortable: true,
+      searchable: true,
+      accessor: (row: PharmacyConsumptionRow) => row.drug_name,
       render: (row: PharmacyConsumptionRow) => <Text size="sm">{row.drug_name}</Text>,
     },
     {
       key: "category",
       label: "Category",
+      searchable: true,
+      accessor: (row: PharmacyConsumptionRow) => row.category ?? "",
       render: (row: PharmacyConsumptionRow) =>
         row.category ? <TableValueBadge value={row.category} kind="pharmacy" /> : "\u2014",
     },
     {
       key: "total_dispensed",
       label: "Total Dispensed",
+      sortable: true,
+      sortValue: (row: PharmacyConsumptionRow) => row.total_dispensed,
+      accessor: (row: PharmacyConsumptionRow) => row.total_dispensed,
       render: (row: PharmacyConsumptionRow) => (
         <Text size="sm" fw={700}>
           {row.total_dispensed}
@@ -5012,6 +5188,9 @@ function ConsumptionView() {
     {
       key: "total_value",
       label: "Total Value",
+      sortable: true,
+      sortValue: (row: PharmacyConsumptionRow) => Number(row.total_value),
+      accessor: (row: PharmacyConsumptionRow) => Number(row.total_value),
       render: (row: PharmacyConsumptionRow) => (
         <Text size="sm">{renderPharmacySensitiveCurrency(valueAccess, row.total_value)}</Text>
       ),
@@ -5019,7 +5198,16 @@ function ConsumptionView() {
   ];
 
   return (
-    <DataTable columns={columns} data={rows} loading={isLoading} rowKey={(row) => row.drug_name} />
+    <DataTable
+      columns={columns}
+      data={rows}
+      loading={isLoading}
+      rowKey={(row) => row.drug_name}
+      searchable
+      searchPlaceholder="Search consumption"
+      exportable
+      exportFileName="pharmacy-consumption"
+    />
   );
 }
 
@@ -5037,11 +5225,17 @@ function AbcVedView() {
     {
       key: "drug_name",
       label: "Drug",
+      sortable: true,
+      searchable: true,
+      accessor: (row: PharmacyAbcVedRow) => row.drug_name,
       render: (row: PharmacyAbcVedRow) => <Text size="sm">{row.drug_name}</Text>,
     },
     {
       key: "annual_value",
       label: "Annual Value",
+      sortable: true,
+      sortValue: (row: PharmacyAbcVedRow) => Number(row.annual_value),
+      accessor: (row: PharmacyAbcVedRow) => Number(row.annual_value),
       render: (row: PharmacyAbcVedRow) => (
         <Text size="sm">{renderPharmacySensitiveCurrency(valueAccess, row.annual_value)}</Text>
       ),
@@ -5049,6 +5243,8 @@ function AbcVedView() {
     {
       key: "abc_class",
       label: "ABC",
+      sortable: true,
+      accessor: (row: PharmacyAbcVedRow) => row.abc_class,
       render: (row: PharmacyAbcVedRow) => (
         <Badge size="xs" tone={abcColors[row.abc_class] ?? "neutral"}>
           {row.abc_class}
@@ -5070,7 +5266,16 @@ function AbcVedView() {
   ];
 
   return (
-    <DataTable columns={columns} data={rows} loading={isLoading} rowKey={(row) => row.drug_name} />
+    <DataTable
+      columns={columns}
+      data={rows}
+      loading={isLoading}
+      rowKey={(row) => row.drug_name}
+      searchable
+      searchPlaceholder="Search ABC-VED"
+      exportable
+      exportFileName="pharmacy-abc-ved"
+    />
   );
 }
 
@@ -5084,11 +5289,16 @@ function UtilizationView() {
     {
       key: "drug_name",
       label: "Drug",
+      sortable: true,
+      searchable: true,
+      accessor: (row: DrugUtilizationRow) => row.drug_name,
       render: (row: DrugUtilizationRow) => <Text size="sm">{row.drug_name}</Text>,
     },
     {
       key: "generic_name",
       label: "Generic",
+      searchable: true,
+      accessor: (row: DrugUtilizationRow) => row.generic_name ?? "",
       render: (row: DrugUtilizationRow) => <Text size="sm">{row.generic_name ?? "\u2014"}</Text>,
     },
     {
@@ -5115,6 +5325,9 @@ function UtilizationView() {
     {
       key: "total_dispensed",
       label: "Dispensed",
+      sortable: true,
+      sortValue: (row: DrugUtilizationRow) => row.total_dispensed,
+      accessor: (row: DrugUtilizationRow) => row.total_dispensed,
       render: (row: DrugUtilizationRow) => (
         <Text size="sm" fw={700}>
           {row.total_dispensed}
@@ -5124,12 +5337,24 @@ function UtilizationView() {
     {
       key: "unique_patients",
       label: "Patients",
+      sortable: true,
+      sortValue: (row: DrugUtilizationRow) => row.unique_patients,
+      accessor: (row: DrugUtilizationRow) => row.unique_patients,
       render: (row: DrugUtilizationRow) => <Text size="sm">{row.unique_patients}</Text>,
     },
   ];
 
   return (
-    <DataTable columns={columns} data={rows} loading={isLoading} rowKey={(row) => row.drug_name} />
+    <DataTable
+      columns={columns}
+      data={rows}
+      loading={isLoading}
+      rowKey={(row) => row.drug_name}
+      searchable
+      searchPlaceholder="Search utilization"
+      exportable
+      exportFileName="pharmacy-utilization"
+    />
   );
 }
 
@@ -5304,6 +5529,8 @@ function RxQueueTab({
     {
       key: "patient_name",
       label: t("rxQueue.columns.patient"),
+      sortable: true,
+      searchable: true,
       fieldAccessKeys: PATIENT_BASIC_IDENTITY_FIELD_ACCESS_KEYS,
       accessor: (row: RxQueueRow) => row.patient_name,
       fieldKind: "name",
@@ -5318,6 +5545,9 @@ function RxQueueTab({
     {
       key: "doctor_name",
       label: t("rxQueue.columns.doctor"),
+      sortable: true,
+      searchable: true,
+      accessor: (row: RxQueueRow) => row.doctor_name,
       render: (row: RxQueueRow) => <Text size="sm">{row.doctor_name}</Text>,
     },
     {
@@ -5362,6 +5592,9 @@ function RxQueueTab({
     {
       key: "allergy_count",
       label: t("rxQueue.columns.allergies"),
+      sortable: true,
+      sortValue: (row: RxQueueRow) => row.allergy_count,
+      accessor: (row: RxQueueRow) => row.allergy_count,
       render: (row: RxQueueRow) =>
         row.allergy_count > 0 ? (
           <OperationalSignal
@@ -5385,6 +5618,9 @@ function RxQueueTab({
     {
       key: "received_at",
       label: t("rxQueue.columns.received"),
+      sortable: true,
+      sortValue: (row: RxQueueRow) => row.received_at,
+      accessor: (row: RxQueueRow) => new Date(row.received_at).toLocaleTimeString(),
       render: (row: RxQueueRow) => (
         <Text size="sm">{new Date(row.received_at).toLocaleTimeString()}</Text>
       ),
@@ -5497,7 +5733,16 @@ function RxQueueTab({
           </Group>
         </Alert>
       )}
-      <DataTable columns={columns} data={queue} loading={isLoading} rowKey={(row) => row.id} />
+      <DataTable
+        columns={columns}
+        data={queue}
+        loading={isLoading}
+        rowKey={(row) => row.id}
+        searchable
+        searchPlaceholder={t("rxQueue.searchPlaceholder", "Search patient or doctor")}
+        exportable
+        exportFileName="pharmacy-rx-queue"
+      />
 
       {/* Prescription Detail Drawer */}
       <Drawer
@@ -6359,6 +6604,9 @@ function PosCounterTab({
     {
       key: "sale_number",
       label: "Sale #",
+      sortable: true,
+      searchable: true,
+      accessor: (row: PharmacyPosSale) => row.sale_number,
       render: (row: PharmacyPosSale) => (
         <Text size="sm" fw={600}>
           {row.sale_number}
@@ -6368,6 +6616,8 @@ function PosCounterTab({
     {
       key: "patient_name",
       label: "Customer",
+      searchable: true,
+      accessor: (row: PharmacyPosSale) => row.patient_name ?? "",
       render: (row: PharmacyPosSale) =>
         row.patient_id ? (
           <PharmacyPatientCell
@@ -6392,6 +6642,9 @@ function PosCounterTab({
     {
       key: "total_amount",
       label: "Total",
+      sortable: true,
+      sortValue: (row: PharmacyPosSale) => Number(row.total_amount),
+      accessor: (row: PharmacyPosSale) => Number(row.total_amount),
       render: (row: PharmacyPosSale) => (
         <Text size="sm" fw={700}>
           {renderPharmacySensitiveCurrency(priceAccess, row.total_amount)}
@@ -6401,6 +6654,7 @@ function PosCounterTab({
     {
       key: "payment_mode",
       label: "Payment",
+      accessor: (row: PharmacyPosSale) => row.payment_mode,
       render: (row: PharmacyPosSale) => <Badge size="xs">{row.payment_mode}</Badge>,
     },
     {
@@ -6457,6 +6711,9 @@ function PosCounterTab({
     {
       key: "created_at",
       label: "Time",
+      sortable: true,
+      sortValue: (row: PharmacyPosSale) => row.created_at,
+      accessor: (row: PharmacyPosSale) => new Date(row.created_at).toLocaleTimeString(),
       render: (row: PharmacyPosSale) => (
         <Text size="sm">{new Date(row.created_at).toLocaleTimeString()}</Text>
       ),
@@ -6505,6 +6762,18 @@ function PosCounterTab({
           </Text>
         );
       },
+    },
+  ];
+
+  const saleFilters: DataTableFilter<PharmacyPosSale>[] = [
+    {
+      key: "payment_mode",
+      label: "Payment",
+      options: pharmacyPosPaymentModeOptions.map((option) => ({
+        value: option.value,
+        label: option.label,
+      })),
+      matches: (row, value) => row.payment_mode === value,
     },
   ];
 
@@ -6771,6 +7040,11 @@ function PosCounterTab({
             data={sales}
             loading={salesLoading}
             rowKey={(row) => row.id}
+            searchable
+            searchPlaceholder="Search sales"
+            exportable
+            exportFileName="pharmacy-pos-sales"
+            filters={saleFilters}
           />
         </>
       ) : (
