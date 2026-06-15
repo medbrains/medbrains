@@ -53,6 +53,7 @@ import {
   type Column,
   DataTable,
   PageHeader,
+  type SortState,
   StatusDot,
   useClinicalEmit,
 } from "@/components";
@@ -231,6 +232,7 @@ function PatientsPageInner() {
   const [search, setSearch] = useState("");
   const debouncedSearch = usePacedQueryValue(search, 300);
   const [page, setPage] = useState(1);
+  const [sort, setSort] = useState<SortState | null>(null);
 
   const handleSearchChange = (val: string) => {
     setSearch(val);
@@ -239,12 +241,14 @@ function PatientsPageInner() {
 
   // Queries
   const { data, isLoading } = useQuery({
-    queryKey: ["patients", page, debouncedSearch],
+    queryKey: ["patients", page, debouncedSearch, sort],
     queryFn: async () => {
       const response = await patientsService.listPatients({
         page,
         per_page: PER_PAGE,
         search: debouncedSearch || undefined,
+        sort: sort?.key,
+        order: sort?.dir,
       });
       const trimmedSearch = debouncedSearch.trim();
       if (trimmedSearch.length > 0) {
@@ -270,6 +274,7 @@ function PatientsPageInner() {
     {
       key: "uhid",
       label: t("label.uhid"),
+      sortable: true,
       fieldAccessKey: PATIENT_UHID_FIELD_ACCESS_KEY,
       accessor: (row: Patient) => row.uhid,
       fieldKind: "identifier",
@@ -282,6 +287,7 @@ function PatientsPageInner() {
     {
       key: "name",
       label: t("name"),
+      sortable: true,
       fieldAccessKeys: PATIENT_NAME_FIELD_ACCESS_KEYS,
       accessor: buildFullName,
       fieldKind: "name",
@@ -322,6 +328,7 @@ function PatientsPageInner() {
     {
       key: "phone",
       label: t("phone"),
+      sortable: true,
       fieldAccessKey: "patients.phone",
       accessor: (row: Patient) => row.phone,
       fieldKind: "phone",
@@ -342,6 +349,7 @@ function PatientsPageInner() {
     {
       key: "blood_group",
       label: t("label.bloodGroup"),
+      sortable: true,
       render: (row: Patient) =>
         row.blood_group && row.blood_group !== "unknown" ? (
           <StatusDot
@@ -361,6 +369,7 @@ function PatientsPageInner() {
     {
       key: "category",
       label: t("label.category"),
+      sortable: true,
       render: (row: Patient) => (
         <StatusDot
           color={statusColor(row.category) ?? "slate"}
@@ -374,6 +383,7 @@ function PatientsPageInner() {
     {
       key: "registration_type",
       label: t("status"),
+      sortable: true,
       render: (row: Patient) => {
         const label = t(`directory.registrationStatus.${row.registration_type}`, {
           defaultValue: row.registration_type,
@@ -520,6 +530,11 @@ function PatientsPageInner() {
         totalPages={totalPages}
         perPage={PER_PAGE}
         onPageChange={setPage}
+        sort={sort}
+        onSortChange={(next) => {
+          setSort(next);
+          setPage(1);
+        }}
         virtualized="auto"
         virtualizeAt={40}
         virtualRowHeight={72}

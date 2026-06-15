@@ -80,6 +80,10 @@ pub struct ListPatientsQuery {
     pub is_active: Option<bool>,
     pub blood_group: Option<String>,
     pub registration_type: Option<String>,
+    /// Column key to sort by (allowlisted server-side). Defaults to created_at.
+    pub sort: Option<String>,
+    /// Sort direction: "asc" or "desc" (default desc).
+    pub order: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -1131,10 +1135,20 @@ pub async fn list_patients(
     }
     let total: i64 = count_query.fetch_one(&mut *tx).await?;
 
-    // Data query
+    // Data query — ORDER BY built from an allowlist (never raw user input).
+    let sort_dir = if params.order.as_deref() == Some("asc") { "ASC" } else { "DESC" };
+    let order_by = match params.sort.as_deref() {
+        Some("uhid") => format!("uhid {sort_dir}"),
+        Some("name") => format!("last_name {sort_dir}, first_name {sort_dir}"),
+        Some("phone") => format!("phone {sort_dir}"),
+        Some("category") => format!("category {sort_dir}"),
+        Some("registration_type") => format!("registration_type {sort_dir}"),
+        Some("blood_group") => format!("blood_group {sort_dir}"),
+        _ => format!("created_at {sort_dir}"),
+    };
     let data_sql = format!(
         "SELECT * FROM patients WHERE {where_clause} \
-         ORDER BY created_at DESC LIMIT ${bind_idx} OFFSET ${}",
+         ORDER BY {order_by} LIMIT ${bind_idx} OFFSET ${}",
         bind_idx + 1
     );
     let mut data_query = sqlx::query_as::<_, Patient>(&data_sql).bind(claims.tenant_id);

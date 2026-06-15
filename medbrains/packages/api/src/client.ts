@@ -2988,11 +2988,19 @@ export const api = {
     }),
 
   // Patients
-  listPatients: (params?: { page?: number; per_page?: number; search?: string }) => {
+  listPatients: (params?: {
+    page?: number;
+    per_page?: number;
+    search?: string;
+    sort?: string;
+    order?: "asc" | "desc";
+  }) => {
     const qs = new URLSearchParams();
     if (params?.page) qs.set("page", String(params.page));
     if (params?.per_page) qs.set("per_page", String(params.per_page));
     if (params?.search) qs.set("search", params.search);
+    if (params?.sort) qs.set("sort", params.sort);
+    if (params?.order) qs.set("order", params.order);
     const query = qs.toString();
     return request<PatientListResponse>(`/patients${query ? `?${query}` : ""}`);
   },

@@ -19,7 +19,7 @@ export {
 } from "./ClinicalEventProvider";
 export { ConfigTransferButtons } from "./ConfigTransferButtons";
 export { CsvImportModal } from "./CsvImportModal";
-export type { Column, ColumnAccessState, DataTableFilter } from "./DataTable";
+export type { Column, ColumnAccessState, DataTableFilter, SortState } from "./DataTable";
 export { DataTable } from "./DataTable";
 export { DepartmentSelect } from "./DepartmentSelect";
 export { DetailSection } from "./DetailSection";
