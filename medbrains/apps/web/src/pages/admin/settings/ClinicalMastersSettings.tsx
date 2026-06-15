@@ -1,8 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   ActionIcon,
-  Badge,
-  Button,
   Group,
   Loader,
   Modal,
@@ -39,6 +37,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
+import { Badge, type BadgeTone, Button } from "@/components/ui";
 import {
   type CreateMasterItemInput,
   clinicalMastersService,
@@ -190,10 +189,11 @@ function MasterItemModal({
           )}
         />
         <Group justify="flex-end" mt="md">
-          <Button variant="light" onClick={onClose}>
+          <Button tone="secondary" onClick={onClose}>
             Cancel
           </Button>
           <Button
+            tone="primary"
             onClick={() => void submitMasterItem()}
             loading={createMutation.isPending || updateMutation.isPending}
           >
@@ -296,7 +296,12 @@ function MasterTable({
       <Group justify="space-between" mb="md">
         <Text fw={600}>{masterType}s</Text>
         {canCreate && (
-          <Button size="sm" leftSection={<IconPlus size={14} />} onClick={openCreate}>
+          <Button
+            tone="primary"
+            size="sm"
+            leftSection={<IconPlus size={14} />}
+            onClick={openCreate}
+          >
             Add {masterType}
           </Button>
         )}
@@ -329,12 +334,12 @@ function MasterTable({
                   <Text size="sm">{item.sort_order}</Text>
                 </Table.Td>
                 <Table.Td>
-                  <Badge color={item.is_active ? "success" : "danger"} variant="light" size="sm">
+                  <Badge tone={item.is_active ? "success" : "danger"} size="sm">
                     {item.is_active ? "Active" : "Inactive"}
                   </Badge>
                 </Table.Td>
                 <Table.Td>
-                  <Badge color={item.tenant_id ? "primary" : "slate"} variant="light" size="sm">
+                  <Badge tone={item.tenant_id ? "primary" : "neutral"} size="sm">
                     {item.tenant_id ? "Custom" : "Global"}
                   </Badge>
                 </Table.Td>
@@ -409,11 +414,11 @@ function MasterTable({
             ({deleteTarget?.code})?
           </Text>
           <Group justify="flex-end">
-            <Button variant="light" onClick={() => setDeleteTarget(null)}>
+            <Button tone="secondary" onClick={() => setDeleteTarget(null)}>
               Cancel
             </Button>
             <Button
-              color="danger"
+              tone="danger"
               onClick={() => deleteTarget && deleteMutation.mutate(deleteTarget.id)}
               loading={deleteMutation.isPending}
             >
@@ -434,10 +439,10 @@ const PROVIDER_TYPE_OPTIONS = [
   { value: "tpa", label: "TPA" },
 ] satisfies Array<{ value: InsuranceProviderTypeFormValue; label: string }>;
 
-const PROVIDER_TYPE_COLORS: Record<string, string> = {
+const PROVIDER_TYPE_TONES: Record<string, BadgeTone> = {
   private: "primary",
   government: "success",
-  tpa: "violet",
+  tpa: "accent",
 };
 
 const EMPTY_INSURANCE_FORM: InsuranceProviderSettingsFormInput = {
@@ -616,10 +621,11 @@ function InsuranceProviderModal({
           {...register("website")}
         />
         <Group justify="flex-end" mt="md">
-          <Button variant="light" onClick={onClose}>
+          <Button tone="secondary" onClick={onClose}>
             Cancel
           </Button>
           <Button
+            tone="primary"
             onClick={() => void submitInsuranceProvider()}
             loading={createMutation.isPending || updateMutation.isPending}
           >
@@ -697,6 +703,7 @@ function InsuranceProvidersTable() {
         <Text fw={600}>Insurance Providers</Text>
         {canCreate && (
           <Button
+            tone="primary"
             size="sm"
             leftSection={<IconPlus size={14} />}
             onClick={() => {
@@ -734,11 +741,7 @@ function InsuranceProvidersTable() {
                   <Text size="sm">{provider.name}</Text>
                 </Table.Td>
                 <Table.Td>
-                  <Badge
-                    color={PROVIDER_TYPE_COLORS[provider.provider_type] ?? "slate"}
-                    variant="light"
-                    size="sm"
-                  >
+                  <Badge tone={PROVIDER_TYPE_TONES[provider.provider_type] ?? "neutral"} size="sm">
                     {provider.provider_type}
                   </Badge>
                 </Table.Td>
@@ -753,11 +756,7 @@ function InsuranceProvidersTable() {
                   </Text>
                 </Table.Td>
                 <Table.Td>
-                  <Badge
-                    color={provider.is_active ? "success" : "danger"}
-                    variant="light"
-                    size="sm"
-                  >
+                  <Badge tone={provider.is_active ? "success" : "danger"} size="sm">
                     {provider.is_active ? "Active" : "Inactive"}
                   </Badge>
                 </Table.Td>
@@ -825,11 +824,11 @@ function InsuranceProvidersTable() {
             ({deleteTarget?.code})?
           </Text>
           <Group justify="flex-end">
-            <Button variant="light" onClick={() => setDeleteTarget(null)}>
+            <Button tone="secondary" onClick={() => setDeleteTarget(null)}>
               Cancel
             </Button>
             <Button
-              color="danger"
+              tone="danger"
               onClick={() => deleteTarget && deleteMutation.mutate(deleteTarget.id)}
               loading={deleteMutation.isPending}
             >

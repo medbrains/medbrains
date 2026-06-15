@@ -1,8 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   ActionIcon,
-  Badge,
-  Button,
   Group,
   Loader,
   Modal,
@@ -20,6 +18,7 @@ import { IconCheck, IconPencil, IconPlus, IconTrash } from "@tabler/icons-react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
+import { Badge, Button } from "@/components/ui";
 import { settingsSetupService } from "@/services/settingsSetup.service";
 
 const EMPTY_FORM: BedTypeSettingsFormInput = {
@@ -213,7 +212,7 @@ export function BedTypesSettings() {
         <Text fw={600} size="lg">
           Bed Types
         </Text>
-        <Button leftSection={<IconPlus size={16} />} onClick={openCreateModal}>
+        <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={openCreateModal}>
           Add Bed Type
         </Button>
       </Group>
@@ -250,7 +249,7 @@ export function BedTypesSettings() {
                   </Text>
                 </Table.Td>
                 <Table.Td>
-                  <Badge color={bt.is_active ? "success" : "slate"} variant="light" size="sm">
+                  <Badge tone={bt.is_active ? "success" : "neutral"} size="sm">
                     {bt.is_active ? "Active" : "Inactive"}
                   </Badge>
                 </Table.Td>
@@ -340,10 +339,10 @@ export function BedTypesSettings() {
             maxRows={4}
           />
           <Group justify="flex-end" mt="sm">
-            <Button variant="default" onClick={closeModal}>
+            <Button tone="secondary" onClick={closeModal}>
               Cancel
             </Button>
-            <Button onClick={() => void submitBedType()} loading={isMutating}>
+            <Button tone="primary" onClick={() => void submitBedType()} loading={isMutating}>
               {editingId ? "Save Changes" : "Create"}
             </Button>
           </Group>
@@ -364,11 +363,11 @@ export function BedTypesSettings() {
             Are you sure you want to delete this bed type? This action cannot be undone.
           </Text>
           <Group justify="flex-end">
-            <Button variant="default" onClick={() => setDeleteConfirmId(null)}>
+            <Button tone="secondary" onClick={() => setDeleteConfirmId(null)}>
               Cancel
             </Button>
             <Button
-              color="danger"
+              tone="danger"
               onClick={() => {
                 if (deleteConfirmId) {
                   handleDelete(deleteConfirmId);

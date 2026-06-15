@@ -1,7 +1,5 @@
 import {
   Alert,
-  Badge,
-  Button,
   Card,
   Grid,
   Group,
@@ -54,6 +52,7 @@ import {
 } from "@tabler/icons-react";
 import { useQueries } from "@tanstack/react-query";
 import { type ReactNode, useMemo, useState } from "react";
+import { Badge, type BadgeTone, Button } from "@/components/ui";
 import { adminAccessService } from "@/services/adminAccess.service";
 import { adminDoctorsService } from "@/services/adminDoctors.service";
 import { assetsService } from "@/services/assets.service";
@@ -709,6 +708,26 @@ function settingsCleanupColor(status: SettingsCleanupStatus) {
   if (status === "advanced") return "grape";
   if (status === "move") return "blue";
   return "gray";
+}
+
+const COLOR_TONE: Record<string, BadgeTone> = {
+  teal: "success",
+  green: "success",
+  success: "success",
+  blue: "info",
+  grape: "accent",
+  violet: "accent",
+  red: "danger",
+  danger: "danger",
+  orange: "warning",
+  yellow: "warning",
+  gray: "neutral",
+  slate: "neutral",
+  primary: "primary",
+};
+
+function colorToTone(color: string): BadgeTone {
+  return COLOR_TONE[color] ?? "neutral";
 }
 
 export function MasterDataStatusSettings() {
@@ -2043,17 +2062,17 @@ export function MasterDataStatusSettings() {
           Master Data Configuration
         </Text>
         {needsSetupCount > 0 && (
-          <Badge color="orange" variant="light" size="lg">
+          <Badge tone="warning" size="lg">
             {needsSetupCount} items need setup
           </Badge>
         )}
         {moduleOwnedCount > 0 && (
-          <Badge color="blue" variant="light" size="lg">
+          <Badge tone="info" size="lg">
             {moduleOwnedCount} outside settings
           </Badge>
         )}
         {missingMasterCount > 0 && (
-          <Badge color="red" variant="light" size="lg">
+          <Badge tone="danger" size="lg">
             {missingMasterCount} not wired
           </Badge>
         )}
@@ -2109,9 +2128,7 @@ export function MasterDataStatusSettings() {
               <ThemeIcon color="teal" variant="light" radius="xl">
                 <IconChecklist size={18} />
               </ThemeIcon>
-              <Badge color="teal" variant="light">
-                {settingsOwnedCount}
-              </Badge>
+              <Badge tone="success">{settingsOwnedCount}</Badge>
             </Group>
             <div style={{ flex: 1 }}>
               <Text fw={700}>Editable in Settings</Text>
@@ -2119,7 +2136,7 @@ export function MasterDataStatusSettings() {
                 {settingsOwnedReadyCount} ready / {settingsOwnedNeedsSetupCount} need attention.
               </Text>
             </div>
-            <Button size="xs" variant="light" onClick={() => setFilter("settings")}>
+            <Button tone="secondary" size="xs" onClick={() => setFilter("settings")}>
               Show Settings masters
             </Button>
           </Stack>
@@ -2131,9 +2148,7 @@ export function MasterDataStatusSettings() {
               <ThemeIcon color="blue" variant="light" radius="xl">
                 <IconBuildingWarehouse size={18} />
               </ThemeIcon>
-              <Badge color="blue" variant="light">
-                {moduleOwnedCount}
-              </Badge>
+              <Badge tone="info">{moduleOwnedCount}</Badge>
             </Group>
             <div style={{ flex: 1 }}>
               <Text fw={700}>Owned by modules</Text>
@@ -2141,7 +2156,7 @@ export function MasterDataStatusSettings() {
                 {moduleOwnedNeedsSetupCount} module catalogs are empty or failing.
               </Text>
             </div>
-            <Button size="xs" variant="light" onClick={() => setFilter("module")}>
+            <Button tone="secondary" size="xs" onClick={() => setFilter("module")}>
               Show module masters
             </Button>
           </Stack>
@@ -2153,9 +2168,7 @@ export function MasterDataStatusSettings() {
               <ThemeIcon color="orange" variant="light" radius="xl">
                 <IconAlertTriangle size={18} />
               </ThemeIcon>
-              <Badge color="orange" variant="light">
-                {missingMasterCount}
-              </Badge>
+              <Badge tone="warning">{missingMasterCount}</Badge>
             </Group>
             <div style={{ flex: 1 }}>
               <Text fw={700}>Not wired yet</Text>
@@ -2164,7 +2177,7 @@ export function MasterDataStatusSettings() {
                 screens or clear ownership.
               </Text>
             </div>
-            <Button size="xs" variant="light" color="orange" onClick={() => setFilter("missing")}>
+            <Button tone="secondary" size="xs" onClick={() => setFilter("missing")}>
               Show missing masters
             </Button>
           </Stack>
@@ -2176,9 +2189,7 @@ export function MasterDataStatusSettings() {
               <ThemeIcon color="grape" variant="light" radius="xl">
                 <IconSettings size={18} />
               </ThemeIcon>
-              <Badge color="grape" variant="light">
-                {SETTINGS_NON_MASTER_PANELS.length}
-              </Badge>
+              <Badge tone="accent">{SETTINGS_NON_MASTER_PANELS.length}</Badge>
             </Group>
             <div style={{ flex: 1 }}>
               <Text fw={700}>Not master data</Text>
@@ -2187,7 +2198,7 @@ export function MasterDataStatusSettings() {
                 retired.
               </Text>
             </div>
-            <Button component="a" href="#settings-support-panels" size="xs" variant="light">
+            <Button tone="secondary" component="a" href="#settings-support-panels" size="xs">
               Show config panels
             </Button>
           </Stack>
@@ -2204,16 +2215,12 @@ export function MasterDataStatusSettings() {
                 catalogs.
               </Text>
             </div>
-            <Badge color="red" variant="light">
-              {missingP0Count} P0 gaps
-            </Badge>
+            <Badge tone="danger">{missingP0Count} P0 gaps</Badge>
           </Group>
           <SimpleGrid cols={{ base: 1, md: 3 }} spacing="sm">
             <Stack gap="xs">
               <Group gap="xs">
-                <Badge color="red" variant="light">
-                  Missing P0
-                </Badge>
+                <Badge tone="danger">Missing P0</Badge>
                 <Text size="xs" c="dimmed">
                   needs screens or ownership
                 </Text>
@@ -2229,7 +2236,7 @@ export function MasterDataStatusSettings() {
                         {item.targetOwner}
                       </Text>
                     </Stack>
-                    <Button component="a" href={item.actionHref} size="compact-xs" variant="subtle">
+                    <Button tone="ghost" component="a" href={item.actionHref} size="compact-xs">
                       Open
                     </Button>
                   </Group>
@@ -2239,9 +2246,7 @@ export function MasterDataStatusSettings() {
 
             <Stack gap="xs">
               <Group gap="xs">
-                <Badge color="teal" variant="light">
-                  Settings-owned
-                </Badge>
+                <Badge tone="success">Settings-owned</Badge>
                 <Text size="xs" c="dimmed">
                   editable here
                 </Text>
@@ -2258,12 +2263,7 @@ export function MasterDataStatusSettings() {
                           {masterStatusLabel(item.status)} · {item.owner}
                         </Text>
                       </Stack>
-                      <Button
-                        component="a"
-                        href={item.actionHref}
-                        size="compact-xs"
-                        variant="subtle"
-                      >
+                      <Button tone="ghost" component="a" href={item.actionHref} size="compact-xs">
                         Open
                       </Button>
                     </Group>
@@ -2280,9 +2280,7 @@ export function MasterDataStatusSettings() {
 
             <Stack gap="xs">
               <Group gap="xs">
-                <Badge color="blue" variant="light">
-                  Module-owned
-                </Badge>
+                <Badge tone="info">Module-owned</Badge>
                 <Text size="xs" c="dimmed">
                   configure in owning module
                 </Text>
@@ -2299,12 +2297,7 @@ export function MasterDataStatusSettings() {
                           {masterStatusLabel(item.status)} · {item.owner}
                         </Text>
                       </Stack>
-                      <Button
-                        component="a"
-                        href={item.actionHref}
-                        size="compact-xs"
-                        variant="subtle"
-                      >
+                      <Button tone="ghost" component="a" href={item.actionHref} size="compact-xs">
                         Open
                       </Button>
                     </Group>
@@ -2326,9 +2319,7 @@ export function MasterDataStatusSettings() {
         {SETTINGS_SCOPE_NOTES.map((note) => (
           <Card key={note.label} withBorder padding="sm" radius="md">
             <Group gap="xs" mb={4}>
-              <Badge color={note.color} variant="light">
-                {note.label}
-              </Badge>
+              <Badge tone={colorToTone(note.color)}>{note.label}</Badge>
             </Group>
             <Text size="sm" c="dimmed">
               {note.text}
@@ -2346,9 +2337,7 @@ export function MasterDataStatusSettings() {
                 Follow this order before treating module workflows as production-ready.
               </Text>
             </div>
-            <Badge color="teal" variant="light">
-              RFC onboarding flow
-            </Badge>
+            <Badge tone="success">RFC onboarding flow</Badge>
           </Group>
           <SimpleGrid cols={{ base: 1, md: 5 }} spacing="xs">
             {MASTER_SETUP_PATH.map((step, index) => (
@@ -2360,7 +2349,7 @@ export function MasterDataStatusSettings() {
                   padding: "var(--mantine-spacing-sm)",
                 }}
               >
-                <Badge size="xs" variant="light" color="teal">
+                <Badge size="xs" tone="success">
                   Step {index + 1}
                 </Badge>
                 <Text size="sm" mt={6}>
@@ -2407,10 +2396,10 @@ export function MasterDataStatusSettings() {
               </Text>
             </div>
             <Group gap="xs">
-              <Badge color="red" variant="light" size="lg">
+              <Badge tone="danger" size="lg">
                 {missingP0Count} P0
               </Badge>
-              <Badge color="orange" variant="light" size="lg">
+              <Badge tone="warning" size="lg">
                 {filteredGapItems.length} shown
               </Badge>
             </Group>
@@ -2424,15 +2413,13 @@ export function MasterDataStatusSettings() {
                       <ThemeIcon size="xl" radius="xl" color="orange" variant="light">
                         {item.icon}
                       </ThemeIcon>
-                      <Badge color="orange" variant="light">
-                        Not wired
-                      </Badge>
+                      <Badge tone="warning">Not wired</Badge>
                     </Group>
                     <Group gap={6}>
-                      <Badge color={gapPriorityColor(gapPriority(item))} variant="light">
+                      <Badge tone={colorToTone(gapPriorityColor(gapPriority(item)))}>
                         {gapPriority(item)}
                       </Badge>
-                      <Badge color={gapTargetTypeColor(item.targetType)} variant="light">
+                      <Badge tone={colorToTone(gapTargetTypeColor(item.targetType))}>
                         {gapTargetTypeLabel(item.targetType)}
                       </Badge>
                     </Group>
@@ -2448,7 +2435,7 @@ export function MasterDataStatusSettings() {
                     <Text size="xs" c="dimmed">
                       Target owner: {item.targetOwner}
                     </Text>
-                    <Button component="a" href={item.actionHref} size="xs" variant="light">
+                    <Button tone="secondary" component="a" href={item.actionHref} size="xs">
                       {item.actionLabel}
                     </Button>
                   </Stack>
@@ -2493,7 +2480,7 @@ export function MasterDataStatusSettings() {
                     >
                       {item.icon}
                     </ThemeIcon>
-                    <Badge color={masterStatusColor(item.status)} variant="light" size="sm">
+                    <Badge tone={colorToTone(masterStatusColor(item.status))} size="sm">
                       {masterStatusLabel(item.status)}
                     </Badge>
                   </Group>
@@ -2509,11 +2496,7 @@ export function MasterDataStatusSettings() {
 
                   <Stack gap={2} style={{ flex: 1 }}>
                     <Group gap={6}>
-                      <Badge
-                        size="xs"
-                        variant="light"
-                        color={item.location === "module" ? "blue" : "gray"}
-                      >
+                      <Badge size="xs" tone={item.location === "module" ? "info" : "neutral"}>
                         {item.location === "module" ? "Module-owned" : "Settings-owned"}
                       </Badge>
                       <Text size="xs" c="dimmed">
@@ -2528,10 +2511,10 @@ export function MasterDataStatusSettings() {
 
                   <Group justify="space-between" gap="xs">
                     <Button
+                      tone="secondary"
                       component="a"
                       href={item.actionHref}
                       size="xs"
-                      variant="light"
                       disabled={item.status === "restricted"}
                     >
                       {item.actionLabel}
@@ -2586,9 +2569,7 @@ export function MasterDataStatusSettings() {
                 cleanup notes. They should not be treated as missing operational masters.
               </Text>
             </div>
-            <Badge color="grape" variant="light">
-              {SETTINGS_NON_MASTER_PANELS.length} config panels
-            </Badge>
+            <Badge tone="accent">{SETTINGS_NON_MASTER_PANELS.length} config panels</Badge>
           </Group>
           <SimpleGrid cols={{ base: 1, md: 2, lg: 4 }} spacing="xs">
             {SETTINGS_NON_MASTER_PANELS.map((panel) => (
@@ -2611,12 +2592,7 @@ export function MasterDataStatusSettings() {
                     <Text size="xs" c="dimmed">
                       {panel.purpose}
                     </Text>
-                    <Button
-                      component="a"
-                      href={panel.actionHref}
-                      size="compact-xs"
-                      variant="subtle"
-                    >
+                    <Button tone="ghost" component="a" href={panel.actionHref} size="compact-xs">
                       Open
                     </Button>
                   </Stack>
@@ -2632,9 +2608,7 @@ export function MasterDataStatusSettings() {
                 Ownership map for panels that looked unused, duplicated or misplaced.
               </Text>
             </div>
-            <Badge color="teal" variant="light">
-              {SETTINGS_CLEANUP_DECISIONS.length} decisions
-            </Badge>
+            <Badge tone="success">{SETTINGS_CLEANUP_DECISIONS.length} decisions</Badge>
           </Group>
           <SimpleGrid cols={{ base: 1, md: 2 }} spacing="xs">
             {SETTINGS_CLEANUP_DECISIONS.map((panel) => (
@@ -2652,7 +2626,7 @@ export function MasterDataStatusSettings() {
                       <Text fw={700} size="sm">
                         {panel.label}
                       </Text>
-                      <Badge size="xs" color={settingsCleanupColor(panel.status)} variant="light">
+                      <Badge size="xs" tone={colorToTone(settingsCleanupColor(panel.status))}>
                         {panel.decision}
                       </Badge>
                     </Group>
@@ -2660,7 +2634,7 @@ export function MasterDataStatusSettings() {
                       {panel.reason}
                     </Text>
                   </Stack>
-                  <Button component="a" href={panel.actionHref} size="compact-xs" variant="subtle">
+                  <Button tone="ghost" component="a" href={panel.actionHref} size="compact-xs">
                     {panel.actionLabel}
                   </Button>
                 </Group>
@@ -2675,9 +2649,7 @@ export function MasterDataStatusSettings() {
                 These duplicate entries should not come back as separate Settings tabs.
               </Text>
             </div>
-            <Badge color="gray" variant="light">
-              {SETTINGS_RETIRED_PANELS.length} cleaned up
-            </Badge>
+            <Badge tone="neutral">{SETTINGS_RETIRED_PANELS.length} cleaned up</Badge>
           </Group>
           <SimpleGrid cols={{ base: 1, md: 2 }} spacing="xs">
             {SETTINGS_RETIRED_PANELS.map((panel) => (
@@ -2695,7 +2667,7 @@ export function MasterDataStatusSettings() {
                       <Text fw={700} size="sm">
                         {panel.label}
                       </Text>
-                      <Badge size="xs" color="gray" variant="light">
+                      <Badge size="xs" tone="neutral">
                         {panel.status}
                       </Badge>
                     </Group>
@@ -2703,7 +2675,7 @@ export function MasterDataStatusSettings() {
                       {panel.reason}
                     </Text>
                   </Stack>
-                  <Button component="a" href={panel.actionHref} size="compact-xs" variant="subtle">
+                  <Button tone="ghost" component="a" href={panel.actionHref} size="compact-xs">
                     {panel.actionLabel}
                   </Button>
                 </Group>

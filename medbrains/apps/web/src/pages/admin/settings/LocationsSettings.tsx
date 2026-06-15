@@ -1,7 +1,5 @@
 import {
   ActionIcon,
-  Badge,
-  Button,
   Group,
   Loader,
   Modal,
@@ -17,7 +15,7 @@ import { IconCheck, IconPencil, IconPlus, IconTrash } from "@tabler/icons-react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { CreateLocationModal, SelectLabel } from "@/components";
-import { statusColor } from "@/lib/status-colors";
+import { Badge, Button } from "@/components/ui";
 import { useCreateInline } from "@/hooks/useCreateInline";
 import { settingsSetupService } from "@/services/settingsSetup.service";
 
@@ -32,7 +30,6 @@ const LEVEL_OPTIONS = [
   { value: "room", label: "Room" },
   { value: "bed", label: "Bed" },
 ];
-
 
 const QUERY_KEY = ["setup-locations"];
 
@@ -201,10 +198,11 @@ function LocationModal({
           description={level !== "campus" ? "Required for non-campus locations" : undefined}
         />
         <Group justify="flex-end" mt="md">
-          <Button variant="light" onClick={onClose}>
+          <Button tone="secondary" onClick={onClose}>
             Cancel
           </Button>
           <Button
+            tone="primary"
             onClick={handleSubmit}
             loading={createMutation.isPending || updateMutation.isPending}
           >
@@ -248,10 +246,10 @@ function DeleteConfirmModal({
           ({location?.code})? This action cannot be undone.
         </Text>
         <Group justify="flex-end">
-          <Button variant="light" onClick={onClose}>
+          <Button tone="secondary" onClick={onClose}>
             Cancel
           </Button>
-          <Button color="danger" onClick={onConfirm} loading={isDeleting}>
+          <Button tone="danger" onClick={onConfirm} loading={isDeleting}>
             Delete
           </Button>
         </Group>
@@ -332,7 +330,7 @@ export function LocationsSettings() {
         <Text size="sm">{loc.name}</Text>
       </Table.Td>
       <Table.Td>
-        <Badge size="sm" variant="light" color={statusColor(loc.level) ?? "slate"}>
+        <Badge size="sm" tone="neutral">
           {loc.level}
         </Badge>
       </Table.Td>
@@ -342,7 +340,7 @@ export function LocationsSettings() {
         </Text>
       </Table.Td>
       <Table.Td>
-        <Badge size="sm" variant="light" color={loc.is_active ? "success" : "danger"}>
+        <Badge size="sm" tone={loc.is_active ? "success" : "danger"}>
           {loc.is_active ? "Active" : "Inactive"}
         </Badge>
       </Table.Td>
@@ -375,7 +373,7 @@ export function LocationsSettings() {
         <Text size="lg" fw={600}>
           Locations
         </Text>
-        <Button size="sm" leftSection={<IconPlus size={14} />} onClick={openCreate}>
+        <Button tone="primary" size="sm" leftSection={<IconPlus size={14} />} onClick={openCreate}>
           Add Location
         </Button>
       </Group>

@@ -1,8 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   ActionIcon,
-  Badge,
-  Button,
   Group,
   Loader,
   Modal,
@@ -30,8 +28,8 @@ import { IconCheck, IconPencil, IconPlus, IconTrash } from "@tabler/icons-react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
+import { Badge, type BadgeTone, Button } from "@/components/ui";
 import { settingsSetupService } from "@/services/settingsSetup.service";
-import { statusColor } from "@/lib/status-colors";
 
 // ── Constants ─────────────────────────────────────────────
 
@@ -41,6 +39,11 @@ const APPLICABILITY_OPTIONS = [
   { value: "zero_rated", label: "Zero Rated" },
 ] satisfies Array<{ value: TaxApplicabilityFormValue; label: string }>;
 
+const APPLICABILITY_TONE: Record<string, BadgeTone> = {
+  taxable: "primary",
+  exempt: "success",
+  zero_rated: "neutral",
+};
 
 const EMPTY_TAX_FORM: TaxCategorySettingsFormInput = {
   code: "",
@@ -245,10 +248,11 @@ function TaxCategoryModal({
         />
 
         <Group justify="flex-end" mt="md">
-          <Button variant="light" onClick={onClose}>
+          <Button tone="secondary" onClick={onClose}>
             Cancel
           </Button>
           <Button
+            tone="primary"
             onClick={() => void submitTaxCategory()}
             loading={createMutation.isPending || updateMutation.isPending}
           >
@@ -376,10 +380,11 @@ function PaymentMethodModal({
         />
 
         <Group justify="flex-end" mt="md">
-          <Button variant="light" onClick={onClose}>
+          <Button tone="secondary" onClick={onClose}>
             Cancel
           </Button>
           <Button
+            tone="primary"
             onClick={() => void submitPaymentMethod()}
             loading={createMutation.isPending || updateMutation.isPending}
           >
@@ -510,7 +515,7 @@ export function BillingTaxSettings() {
         <Text size="sm">{Number(row.rate_percent).toFixed(2)}%</Text>
       </Table.Td>
       <Table.Td>
-        <Badge size="sm" variant="light" color={statusColor(row.applicability) ?? "slate"}>
+        <Badge size="sm" tone={APPLICABILITY_TONE[row.applicability] ?? "neutral"}>
           {row.applicability.replace(/_/g, " ")}
         </Badge>
       </Table.Td>
@@ -520,7 +525,7 @@ export function BillingTaxSettings() {
         </Text>
       </Table.Td>
       <Table.Td>
-        <Badge size="sm" variant="light" color={row.is_active ? "success" : "slate"}>
+        <Badge size="sm" tone={row.is_active ? "success" : "neutral"}>
           {row.is_active ? "Active" : "Inactive"}
         </Badge>
       </Table.Td>
@@ -562,7 +567,7 @@ export function BillingTaxSettings() {
       </Table.Td>
       <Table.Td>
         {row.is_default ? (
-          <Badge size="sm" variant="light" color="primary">
+          <Badge size="sm" tone="primary">
             Default
           </Badge>
         ) : (
@@ -572,7 +577,7 @@ export function BillingTaxSettings() {
         )}
       </Table.Td>
       <Table.Td>
-        <Badge size="sm" variant="light" color={row.is_active ? "success" : "slate"}>
+        <Badge size="sm" tone={row.is_active ? "success" : "neutral"}>
           {row.is_active ? "Active" : "Inactive"}
         </Badge>
       </Table.Td>
@@ -608,7 +613,12 @@ export function BillingTaxSettings() {
       <div>
         <Group justify="space-between" mb="md">
           <Title order={5}>Tax Categories</Title>
-          <Button size="sm" leftSection={<IconPlus size={14} />} onClick={openCreateTax}>
+          <Button
+            tone="primary"
+            size="sm"
+            leftSection={<IconPlus size={14} />}
+            onClick={openCreateTax}
+          >
             Add Tax Category
           </Button>
         </Group>
@@ -654,7 +664,12 @@ export function BillingTaxSettings() {
       <div>
         <Group justify="space-between" mb="md">
           <Title order={5}>Payment Methods</Title>
-          <Button size="sm" leftSection={<IconPlus size={14} />} onClick={openCreatePayment}>
+          <Button
+            tone="primary"
+            size="sm"
+            leftSection={<IconPlus size={14} />}
+            onClick={openCreatePayment}
+          >
             Add Payment Method
           </Button>
         </Group>

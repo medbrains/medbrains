@@ -17,18 +17,7 @@
  */
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import {
-  Alert,
-  Button,
-  Card,
-  Code,
-  Group,
-  Loader,
-  Stack,
-  Switch,
-  Text,
-  TextInput,
-} from "@mantine/core";
+import { Alert, Card, Code, Group, Loader, Stack, Switch, Text, TextInput } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import {
   type OfflineModeSettingsFormInput,
@@ -39,6 +28,7 @@ import { IconAlertCircle, IconCheck, IconCloudOff, IconDeviceFloppy } from "@tab
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { Controller, useForm } from "react-hook-form";
+import { Button } from "@/components/ui";
 import { tenantSettingsService } from "@/services/tenantSettings.service";
 
 const EMPTY_FORM: OfflineModeSettingsFormInput = {
@@ -218,6 +208,7 @@ export function OfflineModeSettings() {
 
       <Group>
         <Button
+          tone="primary"
           leftSection={<IconDeviceFloppy size={16} />}
           loading={mutation.isPending}
           onClick={() => void submitOfflineSettings()}

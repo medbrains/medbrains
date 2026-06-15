@@ -1,7 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Box,
-  Button,
   Checkbox,
   Divider,
   Grid,
@@ -27,6 +26,7 @@ import { IconCheck, IconDeviceFloppy } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
+import { Button } from "@/components/ui";
 import { tenantSettingsService } from "@/services/tenantSettings.service";
 
 // ── Constants ──────────────────────────────────────────────
@@ -565,6 +565,7 @@ export function PrintTemplateSettings() {
 
       <Group mt="md">
         <Button
+          tone="primary"
           leftSection={<IconDeviceFloppy size={16} />}
           onClick={() => void submitTemplate()}
           loading={mutation.isPending}

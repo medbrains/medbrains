@@ -1,7 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   ActionIcon,
-  Button,
   Group,
   Modal,
   NumberInput,
@@ -21,6 +20,7 @@ import { P } from "@medbrains/types";
 import { IconPlus, IconTrash } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Controller, useForm } from "react-hook-form";
+import { Button } from "@/components/ui";
 import {
   CRITICAL_VALUE_GENDER_OPTIONS,
   DEFAULT_CRITICAL_VALUE_RULE_FORM_VALUES,
@@ -77,7 +77,7 @@ export function CriticalValueRulesSettings() {
       <Group justify="space-between">
         <Text fw={600}>Critical Value Rules ({rules.length})</Text>
         {canManage && (
-          <Button size="xs" leftSection={<IconPlus size={14} />} onClick={open}>
+          <Button tone="primary" size="xs" leftSection={<IconPlus size={14} />} onClick={open}>
             Add Rule
           </Button>
         )}
@@ -260,10 +260,11 @@ export function CriticalValueRulesSettings() {
             )}
           />
           <Group justify="flex-end">
-            <Button variant="subtle" onClick={handleClose}>
+            <Button tone="ghost" onClick={handleClose}>
               Cancel
             </Button>
             <Button
+              tone="primary"
               type="submit"
               loading={createMutation.isPending}
               disabled={createMutation.isPending}

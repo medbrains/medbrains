@@ -1,8 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   ActionIcon,
-  Badge,
-  Button,
   Group,
   Modal,
   Select,
@@ -24,6 +22,7 @@ import { IconPlus, IconTrash } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
+import { Badge, Button } from "@/components/ui";
 import { clinicalTemplatesService } from "@/services/clinicalTemplates.service";
 import { settingsSetupService } from "@/services/settingsSetup.service";
 
@@ -151,7 +150,12 @@ export function ConsultationTemplatesSettings() {
       <Group justify="space-between">
         <Text fw={600}>Consultation Templates</Text>
         {canCreate && (
-          <Button size="xs" leftSection={<IconPlus size={14} />} onClick={openCreateModal}>
+          <Button
+            tone="primary"
+            size="xs"
+            leftSection={<IconPlus size={14} />}
+            onClick={openCreateModal}
+          >
             Add Template
           </Button>
         )}
@@ -197,14 +201,14 @@ export function ConsultationTemplatesSettings() {
                   <Text size="sm">{getDeptName(tmpl.department_id)}</Text>
                 </Table.Td>
                 <Table.Td>
-                  <Badge color={tmpl.is_shared ? "success" : "slate"} variant="light" size="sm">
+                  <Badge tone={tmpl.is_shared ? "success" : "neutral"} size="sm">
                     {tmpl.is_shared ? "Shared" : "Private"}
                   </Badge>
                 </Table.Td>
                 <Table.Td>
                   <Group gap={4} wrap="wrap">
                     {tmpl.chief_complaints.slice(0, 3).map((cc) => (
-                      <Badge key={cc} size="xs" variant="dot">
+                      <Badge key={cc} tone="neutral" size="xs">
                         {cc}
                       </Badge>
                     ))}
@@ -311,10 +315,14 @@ export function ConsultationTemplatesSettings() {
             {...register("common_diagnoses")}
           />
           <Group justify="flex-end" mt="md">
-            <Button variant="light" onClick={closeCreateModal}>
+            <Button tone="secondary" onClick={closeCreateModal}>
               Cancel
             </Button>
-            <Button onClick={() => void submitTemplate()} loading={createMutation.isPending}>
+            <Button
+              tone="primary"
+              onClick={() => void submitTemplate()}
+              loading={createMutation.isPending}
+            >
               Create Template
             </Button>
           </Group>

@@ -1,8 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   ActionIcon,
-  Badge,
-  Button,
   Group,
   Modal,
   Select,
@@ -21,6 +19,7 @@ import { P } from "@medbrains/types";
 import { IconPlus, IconTrash } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Controller, useForm } from "react-hook-form";
+import { Badge, Button } from "@/components/ui";
 import {
   CLINICAL_PROTOCOL_CATEGORY_OPTIONS,
   DEFAULT_CLINICAL_PROTOCOL_FORM_VALUES,
@@ -77,7 +76,7 @@ export function ClinicalProtocolsSettings() {
       <Group justify="space-between">
         <Text fw={600}>Clinical Protocols ({protocols.length})</Text>
         {canManage && (
-          <Button size="xs" leftSection={<IconPlus size={14} />} onClick={open}>
+          <Button tone="primary" size="xs" leftSection={<IconPlus size={14} />} onClick={open}>
             Add Protocol
           </Button>
         )}
@@ -107,7 +106,7 @@ export function ClinicalProtocolsSettings() {
                 </Text>
               </Table.Td>
               <Table.Td>
-                <Badge size="sm" variant="light">
+                <Badge tone="neutral" size="sm">
                   {p.category}
                 </Badge>
               </Table.Td>
@@ -207,10 +206,11 @@ export function ClinicalProtocolsSettings() {
             )}
           />
           <Group justify="flex-end">
-            <Button variant="subtle" onClick={handleClose}>
+            <Button tone="ghost" onClick={handleClose}>
               Cancel
             </Button>
             <Button
+              tone="primary"
               type="submit"
               loading={createMutation.isPending}
               disabled={createMutation.isPending}

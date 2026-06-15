@@ -1,8 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   ActionIcon,
-  Badge,
-  Button,
   Group,
   Loader,
   Modal,
@@ -21,6 +19,7 @@ import { IconCheck, IconPencil, IconPlus, IconTrash } from "@tabler/icons-react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
+import { Badge, type BadgeTone, Button } from "@/components/ui";
 import { settingsSetupService } from "@/services/settingsSetup.service";
 
 const SERVICE_TYPE_OPTIONS = [
@@ -32,13 +31,13 @@ const SERVICE_TYPE_OPTIONS = [
   { value: "other", label: "Other" },
 ];
 
-const SERVICE_TYPE_COLORS: Record<string, string> = {
+const SERVICE_TYPE_COLORS: Record<string, BadgeTone> = {
   consultation: "primary",
-  procedure: "violet",
-  investigation: "orange",
-  nursing: "teal",
+  procedure: "accent",
+  investigation: "warning",
+  nursing: "success",
   diet: "success",
-  other: "slate",
+  other: "neutral",
 };
 
 const EMPTY_FORM: ServiceSettingsFormInput = {
@@ -240,10 +239,11 @@ function ServiceModal({
           minRows={3}
         />
         <Group justify="flex-end" mt="md">
-          <Button variant="light" onClick={onClose}>
+          <Button tone="secondary" onClick={onClose}>
             Cancel
           </Button>
           <Button
+            tone="primary"
             onClick={() => void submitService()}
             loading={createMutation.isPending || updateMutation.isPending}
           >
@@ -340,7 +340,7 @@ export function ServicesSettings() {
         <Text fw={600} size="lg">
           Services
         </Text>
-        <Button size="sm" leftSection={<IconPlus size={14} />} onClick={openCreate}>
+        <Button tone="primary" size="sm" leftSection={<IconPlus size={14} />} onClick={openCreate}>
           Add Service
         </Button>
       </Group>
@@ -370,11 +370,7 @@ export function ServicesSettings() {
                   <Text size="sm">{service.name}</Text>
                 </Table.Td>
                 <Table.Td>
-                  <Badge
-                    color={SERVICE_TYPE_COLORS[service.service_type] ?? "slate"}
-                    variant="light"
-                    size="sm"
-                  >
+                  <Badge tone={SERVICE_TYPE_COLORS[service.service_type] ?? "neutral"} size="sm">
                     {service.service_type}
                   </Badge>
                 </Table.Td>
@@ -391,7 +387,7 @@ export function ServicesSettings() {
                   </Text>
                 </Table.Td>
                 <Table.Td>
-                  <Badge color={service.is_active ? "success" : "danger"} variant="light" size="sm">
+                  <Badge tone={service.is_active ? "success" : "danger"} size="sm">
                     {service.is_active ? "Active" : "Inactive"}
                   </Badge>
                 </Table.Td>
@@ -450,10 +446,10 @@ export function ServicesSettings() {
             ({deleteTarget?.code})? This action cannot be undone.
           </Text>
           <Group justify="flex-end">
-            <Button variant="light" onClick={() => setDeleteTarget(null)}>
+            <Button tone="secondary" onClick={() => setDeleteTarget(null)}>
               Cancel
             </Button>
-            <Button color="danger" onClick={confirmDelete} loading={deleteMutation.isPending}>
+            <Button tone="danger" onClick={confirmDelete} loading={deleteMutation.isPending}>
               Delete
             </Button>
           </Group>

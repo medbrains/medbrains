@@ -1,15 +1,4 @@
-import {
-  Alert,
-  Badge,
-  Button,
-  Card,
-  FileInput,
-  Group,
-  SimpleGrid,
-  Stack,
-  Text,
-  ThemeIcon,
-} from "@mantine/core";
+import { Alert, Card, FileInput, Group, SimpleGrid, Stack, Text, ThemeIcon } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import type { CompletenessCheck } from "@medbrains/types";
 import {
@@ -24,6 +13,7 @@ import {
 } from "@tabler/icons-react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
+import { Badge, Button } from "@/components/ui";
 import { settingsSetupService } from "@/services/settingsSetup.service";
 
 // ── Completeness thresholds ──────────────────────────────
@@ -126,7 +116,12 @@ export function SystemHealthSettings() {
           <Text fw={600} size="lg">
             System Health
           </Text>
-          <Button variant="light" size="xs" onClick={() => refetchHealth()} loading={healthLoading}>
+          <Button
+            tone="secondary"
+            size="xs"
+            onClick={() => refetchHealth()}
+            loading={healthLoading}
+          >
             Refresh
           </Button>
         </Group>
@@ -212,7 +207,7 @@ export function SystemHealthSettings() {
                     <Text size="xs" c="dimmed" style={{ minWidth: 120 }}>
                       {table}
                     </Text>
-                    <Badge variant="light" size="sm">
+                    <Badge tone="neutral" size="sm">
                       {String(count)}
                     </Badge>
                   </Group>
@@ -229,7 +224,7 @@ export function SystemHealthSettings() {
             Setup Completeness
           </Text>
           <Button
-            variant="light"
+            tone="secondary"
             size="xs"
             onClick={() => refetchCompleteness()}
             loading={completenessLoading}
@@ -255,7 +250,7 @@ export function SystemHealthSettings() {
                         {item.label}
                       </Text>
                     </Group>
-                    <Badge color={ok ? "success" : "danger"} variant="light" size="sm">
+                    <Badge tone={ok ? "success" : "danger"} size="sm">
                       {count} {item.min > 0 ? `(min: ${item.min})` : ""}
                     </Badge>
                   </Group>
@@ -283,6 +278,7 @@ export function SystemHealthSettings() {
         </Alert>
         <Group gap="md">
           <Button
+            tone="primary"
             leftSection={<IconDownload size={16} />}
             onClick={() => exportMut.mutate()}
             loading={exportMut.isPending}
@@ -298,8 +294,8 @@ export function SystemHealthSettings() {
               style={{ width: 260 }}
             />
             <Button
+              tone="secondary"
               leftSection={<IconUpload size={16} />}
-              variant="light"
               onClick={() => importMut.mutate()}
               loading={importMut.isPending}
               disabled={!importFile}

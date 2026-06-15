@@ -1,6 +1,5 @@
 import {
   Alert,
-  Button,
   Card,
   Group,
   Loader,
@@ -28,6 +27,7 @@ import { useMemo } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { OperationalSignal } from "@/components/OperationalSignal";
+import { Button } from "@/components/ui";
 import { settingsSetupService } from "@/services/settingsSetup.service";
 import { DEVICE_CONNECTOR_DEFINITIONS, deviceConnectorTitleKey } from "./device-integrations-i18n";
 
@@ -316,6 +316,7 @@ export function DeviceIntegrationsSettings() {
 
                 <Group justify="flex-end">
                   <Button
+                    tone="primary"
                     leftSection={<IconDeviceFloppy size={14} />}
                     onClick={() => saveConnector(definition.key)}
                     loading={mutation.isPending}

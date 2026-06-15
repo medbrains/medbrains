@@ -1,7 +1,6 @@
 import {
   ActionIcon,
   Alert,
-  Button,
   Card,
   Group,
   Loader,
@@ -18,6 +17,7 @@ import { IconArrowRight, IconHeartbeat, IconPlus, IconTrash } from "@tabler/icon
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router";
+import { Button } from "@/components/ui";
 import { tenantSettingsService } from "@/services/tenantSettings.service";
 
 /* ------------------------------------------------------------------ */
@@ -154,7 +154,7 @@ function RosSystemsCard({
             Define body system categories for the ROS section in consultations.
           </Text>
         </div>
-        <Button size="xs" variant="light" leftSection={<IconPlus size={14} />} onClick={handleAdd}>
+        <Button tone="secondary" size="xs" leftSection={<IconPlus size={14} />} onClick={handleAdd}>
           Add System
         </Button>
       </Group>
@@ -188,7 +188,7 @@ function RosSystemsCard({
       </Stack>
       {isDirty && (
         <Group justify="flex-end" mt="sm">
-          <Button size="xs" onClick={() => onSave(local)} loading={isPending}>
+          <Button tone="primary" size="xs" onClick={() => onSave(local)} loading={isPending}>
             Save ROS Systems
           </Button>
         </Group>
@@ -243,8 +243,8 @@ function OrderSetTemplatesCard() {
           </Text>
         </div>
         <Button
+          tone="secondary"
           size="sm"
-          variant="light"
           rightSection={<IconArrowRight size={14} />}
           onClick={() => navigate("/admin/order-sets")}
         >
@@ -292,7 +292,7 @@ function DischargeChecklistCard({
             Define items that must be completed before a patient can be discharged.
           </Text>
         </div>
-        <Button size="xs" variant="light" leftSection={<IconPlus size={14} />} onClick={handleAdd}>
+        <Button tone="secondary" size="xs" leftSection={<IconPlus size={14} />} onClick={handleAdd}>
           Add Item
         </Button>
       </Group>
@@ -325,7 +325,7 @@ function DischargeChecklistCard({
       </Stack>
       {isDirty && (
         <Group justify="flex-end" mt="sm">
-          <Button size="xs" onClick={() => onSave(local)} loading={isPending}>
+          <Button tone="primary" size="xs" onClick={() => onSave(local)} loading={isPending}>
             Save Checklist
           </Button>
         </Group>
@@ -363,7 +363,7 @@ function RecordingFrequencyCard({
           style={{ flex: 1, maxWidth: 240 }}
         />
         {isDirty && (
-          <Button size="sm" onClick={() => onSave(local)} loading={isPending}>
+          <Button tone="primary" size="sm" onClick={() => onSave(local)} loading={isPending}>
             Save
           </Button>
         )}

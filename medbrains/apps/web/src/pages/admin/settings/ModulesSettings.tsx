@@ -1,18 +1,9 @@
-import {
-  Badge,
-  Card,
-  Group,
-  Loader,
-  SimpleGrid,
-  Stack,
-  Switch,
-  Text,
-  Tooltip,
-} from "@mantine/core";
+import { Card, Group, Loader, SimpleGrid, Stack, Switch, Text, Tooltip } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import type { ModuleConfig } from "@medbrains/types";
 import { IconCheck } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Badge } from "@/components/ui";
 import { settingsSetupService } from "@/services/settingsSetup.service";
 
 // Core modules that cannot be disabled by the user.
@@ -116,7 +107,7 @@ export function ModulesSettings() {
                   <Text fw={600} size="sm" lineClamp={1}>
                     {mod.name}
                   </Text>
-                  <Badge color={isEnabled ? "success" : "slate"} variant="light" size="sm">
+                  <Badge tone={isEnabled ? "success" : "neutral"} size="sm">
                     {isEnabled ? "Enabled" : "Disabled"}
                   </Badge>
                 </Group>

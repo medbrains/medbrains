@@ -1,8 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   ActionIcon,
-  Badge,
-  Button,
   Group,
   Loader,
   Modal,
@@ -27,7 +25,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { CreateFacilityModal, SelectLabel } from "@/components";
-import { statusColor } from "@/lib/status-colors";
+import { Badge, type BadgeTone, Button } from "@/components/ui";
 import { useCreateInline } from "@/hooks/useCreateInline";
 import { settingsSetupService } from "@/services/settingsSetup.service";
 
@@ -66,6 +64,38 @@ const FACILITY_TYPE_OPTIONS = [
   { value: "other", label: "Other" },
 ] satisfies Array<{ value: FacilityTypeFormValue; label: string }>;
 
+const FACILITY_TYPE_TONES: Record<string, BadgeTone> = {
+  main_hospital: "primary",
+  medical_college: "accent",
+  dental_college: "accent",
+  nursing_college: "accent",
+  pharmacy_college: "success",
+  ayush_hospital: "success",
+  research_center: "info",
+  blood_bank: "danger",
+  dialysis_center: "info",
+  trauma_center: "danger",
+  burn_center: "warning",
+  rehabilitation_center: "success",
+  palliative_care: "success",
+  psychiatric_hospital: "accent",
+  eye_hospital: "warning",
+  maternity_hospital: "accent",
+  pediatric_hospital: "info",
+  cancer_center: "accent",
+  cardiac_center: "danger",
+  neuro_center: "accent",
+  ortho_center: "warning",
+  day_care_center: "info",
+  diagnostic_center: "info",
+  telemedicine_hub: "info",
+  community_health_center: "success",
+  primary_health_center: "success",
+  sub_center: "neutral",
+  urban_health_center: "success",
+  mobile_health_unit: "info",
+  other: "neutral",
+};
 
 const EMPTY_FORM: FacilitySettingsFormInput = {
   code: "",
@@ -380,10 +410,11 @@ function FacilityModal({
         </Group>
 
         <Group justify="flex-end" mt="md">
-          <Button variant="light" onClick={onClose}>
+          <Button tone="secondary" onClick={onClose}>
             Cancel
           </Button>
           <Button
+            tone="primary"
             onClick={() => void submitFacility()}
             loading={createMutation.isPending || updateMutation.isPending}
           >
@@ -471,11 +502,7 @@ export function FacilitiesSettings() {
         <Text size="sm">{facility.name}</Text>
       </Table.Td>
       <Table.Td>
-        <Badge
-          size="sm"
-          variant="light"
-          color={statusColor(facility.facility_type) ?? "slate"}
-        >
+        <Badge size="sm" tone={FACILITY_TYPE_TONES[facility.facility_type] ?? "neutral"}>
           {facility.facility_type.replace(/_/g, " ")}
         </Badge>
       </Table.Td>
@@ -488,7 +515,7 @@ export function FacilitiesSettings() {
         <Text size="sm">{facility.bed_count ?? "-"}</Text>
       </Table.Td>
       <Table.Td>
-        <Badge size="sm" variant="light" color={facility.is_active ? "success" : "slate"}>
+        <Badge size="sm" tone={facility.is_active ? "success" : "neutral"}>
           {facility.is_active ? "Active" : "Inactive"}
         </Badge>
       </Table.Td>
@@ -522,7 +549,7 @@ export function FacilitiesSettings() {
         <Text size="lg" fw={600}>
           Facilities
         </Text>
-        <Button size="sm" leftSection={<IconPlus size={14} />} onClick={openCreate}>
+        <Button tone="primary" size="sm" leftSection={<IconPlus size={14} />} onClick={openCreate}>
           Add Facility
         </Button>
       </Group>

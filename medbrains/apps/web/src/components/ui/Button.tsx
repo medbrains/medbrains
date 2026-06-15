@@ -1,5 +1,5 @@
 import { Button as MantineButton, type ButtonProps as MantineButtonProps } from "@mantine/core";
-import { forwardRef } from "react";
+import { type ElementType, forwardRef } from "react";
 
 /**
  * Our canonical button tones. They map to Mantine variants/colours so
@@ -24,12 +24,21 @@ export interface ButtonProps extends Omit<MantineButtonProps, "variant" | "color
   form?: string;
   name?: string;
   value?: string;
+  /** Polymorphic render — e.g. `component="a"` or `component={Link}` for link buttons. */
+  component?: ElementType;
+  href?: string;
+  target?: string;
+  rel?: string;
 }
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
   { tone = "secondary", size = "sm", ...rest },
   ref,
 ) {
-  return <MantineButton ref={ref} size={size} {...TONE_PROPS[tone]} {...rest} />;
+  // Cast keeps the public ButtonProps polymorphic (component/href) while
+  // satisfying Mantine's overloaded factory typing; props forward at runtime.
+  return (
+    <MantineButton ref={ref} size={size} {...TONE_PROPS[tone]} {...(rest as MantineButtonProps)} />
+  );
 });
 Button.displayName = "Button";

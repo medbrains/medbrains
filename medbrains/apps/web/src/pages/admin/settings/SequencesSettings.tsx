@@ -1,7 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   ActionIcon,
-  Button,
   Group,
   Loader,
   Modal,
@@ -18,6 +17,7 @@ import { IconCheck, IconPencil, IconPlus, IconTrash } from "@tabler/icons-react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
+import { Button } from "@/components/ui";
 import { settingsSetupService } from "@/services/settingsSetup.service";
 
 // ── Helpers ──────────────────────────────────────────────
@@ -240,7 +240,7 @@ export function SequencesSettings() {
             Manage auto-increment sequences for UHID, invoices, lab orders, and more.
           </Text>
         </div>
-        <Button leftSection={<IconPlus size={16} />} onClick={openAddModal}>
+        <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={openAddModal}>
           Add Sequence
         </Button>
       </Group>
@@ -358,10 +358,10 @@ export function SequencesSettings() {
           )}
 
           <Group justify="flex-end" mt="sm">
-            <Button variant="default" onClick={closeModal}>
+            <Button tone="secondary" onClick={closeModal}>
               Cancel
             </Button>
-            <Button onClick={() => void submitSequence()} loading={isMutating}>
+            <Button tone="primary" onClick={() => void submitSequence()} loading={isMutating}>
               {modalMode === "add" ? "Create" : "Save Changes"}
             </Button>
           </Group>

@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Button, Group, Loader, Select, Stack, Text, TextInput } from "@mantine/core";
+import { Group, Loader, Select, Stack, Text, TextInput } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { type GeneralSettingsFormInput, generalSettingsFormSchema } from "@medbrains/schemas";
 import type { TenantSummary } from "@medbrains/types";
@@ -7,6 +7,7 @@ import { IconCheck, IconDeviceFloppy } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { Controller, useForm } from "react-hook-form";
+import { Button } from "@/components/ui";
 import { tenantSettingsService } from "@/services/tenantSettings.service";
 
 const TIMEZONE_OPTIONS = [
@@ -326,6 +327,7 @@ export function GeneralSettings() {
 
       <Group mt="md">
         <Button
+          tone="primary"
           leftSection={<IconDeviceFloppy size={16} />}
           onClick={() => void submitSettings()}
           loading={mutation.isPending}

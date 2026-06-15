@@ -1,6 +1,5 @@
 import {
   ActionIcon,
-  Button,
   Card,
   Checkbox,
   Group,
@@ -16,6 +15,7 @@ import { notifications } from "@mantine/notifications";
 import { IconCheck, IconPlus, IconTrash } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
+import { Button } from "@/components/ui";
 import { tenantSettingsService } from "@/services/tenantSettings.service";
 
 interface HolidayEntry {
@@ -147,8 +147,8 @@ function NumberSettingRow({
       <Group gap="xs" wrap="nowrap">
         <NumberInput value={draft} onChange={setDraft} min={1} w={110} size="xs" />
         <Button
+          tone="secondary"
           size="xs"
-          variant="light"
           loading={saving}
           disabled={typeof draft !== "number" || draft === current}
           onClick={() => typeof draft === "number" && onSave(draft)}
@@ -252,6 +252,7 @@ function HolidaysCard({
             mb={6}
           />
           <Button
+            tone="primary"
             size="xs"
             leftSection={<IconPlus size={14} />}
             loading={saving}

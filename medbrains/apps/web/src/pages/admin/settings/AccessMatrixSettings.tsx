@@ -1,7 +1,5 @@
 import {
   Alert,
-  Badge,
-  Button,
   Card,
   Group,
   Loader,
@@ -50,6 +48,7 @@ import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useSearchParams } from "react-router";
 import { OperationalSignal } from "@/components/OperationalSignal";
+import { Badge, type BadgeTone, Button } from "@/components/ui";
 import { NAV_GROUPS } from "@/config/navigation";
 import { usePacedQueryValue } from "@/hooks/usePacedQueryValue";
 import { adminAccessService } from "@/services/adminAccess.service";
@@ -367,16 +366,16 @@ function journeyBlockingControlLabel(control: ClinicalJourneyBlockingControl) {
   }
 }
 
-function journeyBlockingControlColor(control: ClinicalJourneyBlockingControl) {
+function journeyBlockingControlTone(control: ClinicalJourneyBlockingControl): BadgeTone {
   switch (control) {
     case "configuration":
-      return "grape";
+      return "accent";
     case "context":
-      return "orange";
+      return "warning";
     case "masking":
-      return "violet";
+      return "accent";
     case "regulatory":
-      return "yellow";
+      return "warning";
   }
 }
 
@@ -694,6 +693,7 @@ function RoleMatrixEditor({
               />
             </Group>
             <Button
+              tone="primary"
               leftSection={<IconDeviceFloppy size={16} />}
               onClick={() => saveMutation.mutate()}
               loading={saveMutation.isPending}
@@ -736,7 +736,7 @@ function RoleMatrixEditor({
                             </Text>
                           </Table.Td>
                           <Table.Td>
-                            <Badge variant="light">{moduleFromPermission(permission.code)}</Badge>
+                            <Badge tone="neutral">{moduleFromPermission(permission.code)}</Badge>
                           </Table.Td>
                           <Table.Td>
                             <Text size="sm">{actionFromPermission(permission.code)}</Text>
@@ -758,14 +758,10 @@ function RoleMatrixEditor({
                           <Table.Td>
                             {sharingRoles.length > 1 ? (
                               <Tooltip label={roleNames(sharingRoles)} multiline w={280}>
-                                <Badge color="orange" variant="light">
-                                  {sharingRoles.length} roles
-                                </Badge>
+                                <Badge tone="warning">{sharingRoles.length} roles</Badge>
                               </Tooltip>
                             ) : (
-                              <Badge color="gray" variant="light">
-                                Unique
-                              </Badge>
+                              <Badge tone="neutral">Unique</Badge>
                             )}
                           </Table.Td>
                         </Table.Tr>
@@ -811,7 +807,7 @@ function RoleMatrixEditor({
                               </Text>
                             </Table.Td>
                             <Table.Td>
-                              <Badge variant="light">{fieldModule(field)}</Badge>
+                              <Badge tone="neutral">{fieldModule(field)}</Badge>
                             </Table.Td>
                             <Table.Td>
                               <Text size="sm">{field.data_type}</Text>
@@ -830,14 +826,10 @@ function RoleMatrixEditor({
                             <Table.Td>
                               {restrictedRoles.length > 0 ? (
                                 <Tooltip label={roleNames(restrictedRoles)} multiline w={280}>
-                                  <Badge color="orange" variant="light">
-                                    {restrictedRoles.length} roles
-                                  </Badge>
+                                  <Badge tone="warning">{restrictedRoles.length} roles</Badge>
                                 </Tooltip>
                               ) : (
-                                <Badge color="gray" variant="light">
-                                  None
-                                </Badge>
+                                <Badge tone="neutral">None</Badge>
                               )}
                             </Table.Td>
                           </Table.Tr>
@@ -868,19 +860,15 @@ function RoleMatrixEditor({
                         </Text>
                       </Table.Td>
                       <Table.Td>
-                        <Badge variant="light">
+                        <Badge tone="neutral">
                           {summary.selected}/{summary.total}
                         </Badge>
                       </Table.Td>
                       <Table.Td>
-                        <Badge color="orange" variant="light">
-                          {summary.overlapping}
-                        </Badge>
+                        <Badge tone="warning">{summary.overlapping}</Badge>
                       </Table.Td>
                       <Table.Td>
-                        <Badge color="red" variant="light">
-                          {summary.restrictedFields}
-                        </Badge>
+                        <Badge tone="danger">{summary.restrictedFields}</Badge>
                       </Table.Td>
                     </Table.Tr>
                   ))}
@@ -1242,6 +1230,7 @@ function EffectiveUserAccessMatrix({
               />
             </Group>
             <Button
+              tone="primary"
               leftSection={<IconDeviceFloppy size={16} />}
               onClick={() => saveMutation.mutate()}
               loading={saveMutation.isPending}
@@ -1282,17 +1271,16 @@ function EffectiveUserAccessMatrix({
               </Stack>
               <Group gap="xs">
                 <Button
+                  tone="secondary"
                   size="xs"
-                  variant="light"
                   disabled={!canUpdate || bypassRole || redundantExtraPermissions.length === 0}
                   onClick={removeRedundantExtras}
                 >
                   Remove duplicate extras
                 </Button>
                 <Button
+                  tone="subtle-danger"
                   size="xs"
-                  variant="light"
-                  color="red"
                   disabled={!canUpdate || bypassRole || deniedActiveGrantPermissions.length === 0}
                   onClick={clearDeniedActiveGrants}
                 >
@@ -1342,23 +1330,15 @@ function EffectiveUserAccessMatrix({
                           </Table.Td>
                           <Table.Td>
                             <Group gap={4}>
-                              {bypassRole && (
-                                <Badge color="green" variant="light">
-                                  Bypass
-                                </Badge>
-                              )}
-                              {!bypassRole && source.roleGrant && (
-                                <Badge color="blue" variant="light">
-                                  Role
-                                </Badge>
-                              )}
+                              {bypassRole && <Badge tone="success">Bypass</Badge>}
+                              {!bypassRole && source.roleGrant && <Badge tone="info">Role</Badge>}
                               {!bypassRole && groupGrant && (
                                 <Tooltip
                                   label={source.groupGrantNames.join(", ")}
                                   multiline
                                   w={280}
                                 >
-                                  <Badge color="cyan" variant="light">
+                                  <Badge tone="info">
                                     {source.groupGrantCount > 1
                                       ? `Groups ${source.groupGrantCount}`
                                       : "Group"}
@@ -1366,31 +1346,19 @@ function EffectiveUserAccessMatrix({
                                 </Tooltip>
                               )}
                               {!bypassRole && source.extraGrant && (
-                                <Badge color="teal" variant="light">
-                                  Individual
-                                </Badge>
+                                <Badge tone="success">Individual</Badge>
                               )}
                               {!bypassRole && source.temporaryGrant && (
-                                <Badge color="grape" variant="light">
-                                  Temporary
-                                </Badge>
+                                <Badge tone="accent">Temporary</Badge>
                               )}
-                              {!bypassRole && source.denied && (
-                                <Badge color="red" variant="light">
-                                  Denied
-                                </Badge>
-                              )}
+                              {!bypassRole && source.denied && <Badge tone="danger">Denied</Badge>}
                               {!bypassRole && userGroups.length > 0 && !groupGrant && (
                                 <Tooltip label={groupNames(userGroups)} multiline w={280}>
-                                  <Badge color="cyan" variant="light">
-                                    Group scope
-                                  </Badge>
+                                  <Badge tone="info">Group scope</Badge>
                                 </Tooltip>
                               )}
                               {!bypassRole && source.sourceCount === 0 && !source.denied && (
-                                <Badge color="gray" variant="light">
-                                  None
-                                </Badge>
+                                <Badge tone="neutral">None</Badge>
                               )}
                             </Group>
                           </Table.Td>
@@ -1408,23 +1376,17 @@ function EffectiveUserAccessMatrix({
                             />
                           </Table.Td>
                           <Table.Td>
-                            <Badge color={source.effective ? "green" : "gray"} variant="light">
+                            <Badge tone={source.effective ? "success" : "neutral"}>
                               {source.effective ? "Allowed" : "Not granted"}
                             </Badge>
                           </Table.Td>
                           <Table.Td>
                             {source.duplicateGrant ? (
-                              <Badge color="orange" variant="light">
-                                Duplicate grant
-                              </Badge>
+                              <Badge tone="warning">Duplicate grant</Badge>
                             ) : source.deniedOverlap ? (
-                              <Badge color="red" variant="light">
-                                Deny overrides
-                              </Badge>
+                              <Badge tone="danger">Deny overrides</Badge>
                             ) : (
-                              <Badge color="gray" variant="light">
-                                Clean
-                              </Badge>
+                              <Badge tone="neutral">Clean</Badge>
                             )}
                           </Table.Td>
                         </Table.Tr>
@@ -1468,40 +1430,22 @@ function EffectiveUserAccessMatrix({
                             </Table.Td>
                             <Table.Td>
                               <Group gap={4}>
-                                {row.roleGrant && (
-                                  <Badge color="blue" variant="light">
-                                    Role
-                                  </Badge>
-                                )}
+                                {row.roleGrant && <Badge tone="info">Role</Badge>}
                                 {row.groupGrantCount > 0 && (
                                   <Tooltip label={row.groupGrantNames.join(", ")} multiline w={280}>
-                                    <Badge color="cyan" variant="light">
+                                    <Badge tone="info">
                                       {row.groupGrantCount > 1
                                         ? `Groups ${row.groupGrantCount}`
                                         : "Group"}
                                     </Badge>
                                   </Tooltip>
                                 )}
-                                {row.extraGrant && (
-                                  <Badge color="teal" variant="light">
-                                    Individual
-                                  </Badge>
-                                )}
-                                {row.temporaryGrant && (
-                                  <Badge color="grape" variant="light">
-                                    Temporary
-                                  </Badge>
-                                )}
-                                {row.denied && (
-                                  <Badge color="red" variant="light">
-                                    Denied
-                                  </Badge>
-                                )}
+                                {row.extraGrant && <Badge tone="success">Individual</Badge>}
+                                {row.temporaryGrant && <Badge tone="accent">Temporary</Badge>}
+                                {row.denied && <Badge tone="danger">Denied</Badge>}
                                 {userGroups.length > 0 && row.groupGrantCount === 0 && (
                                   <Tooltip label={groupNames(userGroups)} multiline w={280}>
-                                    <Badge color="cyan" variant="light">
-                                      Group scope
-                                    </Badge>
+                                    <Badge tone="info">Group scope</Badge>
                                   </Tooltip>
                                 )}
                               </Group>
@@ -1509,19 +1453,15 @@ function EffectiveUserAccessMatrix({
                             <Table.Td>
                               <Group gap={4}>
                                 {row.duplicateGrant && (
-                                  <Badge color="orange" variant="light">
-                                    Duplicate grant
-                                  </Badge>
+                                  <Badge tone="warning">Duplicate grant</Badge>
                                 )}
                                 {row.deniedOverlap && (
-                                  <Badge color="red" variant="light">
-                                    Deny overrides grant
-                                  </Badge>
+                                  <Badge tone="danger">Deny overrides grant</Badge>
                                 )}
                               </Group>
                             </Table.Td>
                             <Table.Td>
-                              <Badge color={row.effective ? "green" : "gray"} variant="light">
+                              <Badge tone={row.effective ? "success" : "neutral"}>
                                 {row.effective ? "Allowed" : "Not granted"}
                               </Badge>
                             </Table.Td>
@@ -1529,8 +1469,8 @@ function EffectiveUserAccessMatrix({
                               <Group gap="xs">
                                 {row.extraGrant && row.sourceCount > 1 && (
                                   <Button
+                                    tone="secondary"
                                     size="xs"
-                                    variant="light"
                                     disabled={!canUpdate || bypassRole}
                                     onClick={() => removeExtraPermission(row.permission.code)}
                                   >
@@ -1539,9 +1479,8 @@ function EffectiveUserAccessMatrix({
                                 )}
                                 {row.deniedOverlap && (
                                   <Button
+                                    tone="subtle-danger"
                                     size="xs"
-                                    variant="light"
-                                    color="red"
                                     disabled={!canUpdate || bypassRole}
                                     onClick={() => clearDeniedPermission(row.permission.code)}
                                   >
@@ -1595,10 +1534,7 @@ function EffectiveUserAccessMatrix({
                               </Text>
                             </Table.Td>
                             <Table.Td>
-                              <Badge
-                                color={roleLevel === "edit" ? "gray" : "orange"}
-                                variant="light"
-                              >
+                              <Badge tone={roleLevel === "edit" ? "neutral" : "warning"}>
                                 {roleLevel}
                               </Badge>
                             </Table.Td>
@@ -1612,10 +1548,7 @@ function EffectiveUserAccessMatrix({
                               />
                             </Table.Td>
                             <Table.Td>
-                              <Badge
-                                color={effectiveLevel === "edit" ? "green" : "red"}
-                                variant="light"
-                              >
+                              <Badge tone={effectiveLevel === "edit" ? "success" : "danger"}>
                                 {effectiveLevel}
                               </Badge>
                             </Table.Td>
@@ -1995,10 +1928,7 @@ function SurfaceCoverageMatrix() {
                 governance evidence.
               </Text>
             </Stack>
-            <Badge
-              color={patientFlowGovernanceSummary.gaps > 0 ? "orange" : "green"}
-              variant="light"
-            >
+            <Badge tone={patientFlowGovernanceSummary.gaps > 0 ? "warning" : "success"}>
               {patientFlowGovernanceSummary.gaps} flow gaps
             </Badge>
           </Group>
@@ -2025,22 +1955,19 @@ function SurfaceCoverageMatrix() {
                       </Text>
                       <Group gap={4} mt={4}>
                         {row.modules.map((module) => (
-                          <Badge key={module} variant="light">
+                          <Badge tone="neutral" key={module}>
                             {module}
                           </Badge>
                         ))}
-                        <Badge color="gray" variant="light">
-                          {row.surfaces.length} surfaces
-                        </Badge>
+                        <Badge tone="neutral">{row.surfaces.length} surfaces</Badge>
                       </Group>
                     </Table.Td>
                     <Table.Td>
                       <Group gap={4}>
                         {row.requiredPlatforms.map((platform) => (
                           <Badge
+                            tone={row.missingPlatforms.includes(platform) ? "warning" : "info"}
                             key={platform}
-                            color={row.missingPlatforms.includes(platform) ? "orange" : "blue"}
-                            variant="light"
                           >
                             {platform}
                           </Badge>
@@ -2051,13 +1978,12 @@ function SurfaceCoverageMatrix() {
                       <Group gap={4}>
                         {row.requiredPlatforms.map((platform) => (
                           <Badge
-                            key={platform}
-                            color={
+                            tone={
                               row.missingLaunchTargetPlatforms.includes(platform)
-                                ? "orange"
-                                : "green"
+                                ? "warning"
+                                : "success"
                             }
-                            variant="light"
+                            key={platform}
                           >
                             {platform}
                           </Badge>
@@ -2069,9 +1995,8 @@ function SurfaceCoverageMatrix() {
                         <Group gap={4}>
                           {row.requiredKinds.map((kind) => (
                             <Badge
+                              tone={row.missingKinds.includes(kind) ? "warning" : "neutral"}
                               key={kind}
-                              color={row.missingKinds.includes(kind) ? "orange" : "gray"}
-                              variant="light"
                             >
                               {kind}
                             </Badge>
@@ -2084,32 +2009,31 @@ function SurfaceCoverageMatrix() {
                     </Table.Td>
                     <Table.Td>
                       <Stack gap={4}>
-                        <Badge color={row.permissionMapped > 0 ? "teal" : "orange"} variant="light">
+                        <Badge tone={row.permissionMapped > 0 ? "success" : "warning"}>
                           {row.permissionMapped} permission
                         </Badge>
-                        <Badge color={row.fieldMapped > 0 ? "blue" : "orange"} variant="light">
+                        <Badge tone={row.fieldMapped > 0 ? "info" : "warning"}>
                           {row.fieldMapped} field maps
                         </Badge>
-                        <Badge color={row.maskingMapped > 0 ? "violet" : "orange"} variant="light">
+                        <Badge tone={row.maskingMapped > 0 ? "accent" : "warning"}>
                           {row.maskingMapped} masking
                         </Badge>
-                        <Badge color={row.eventActivated > 0 ? "green" : "orange"} variant="light">
+                        <Badge tone={row.eventActivated > 0 ? "success" : "warning"}>
                           {row.eventActivated} events
                         </Badge>
                       </Stack>
                     </Table.Td>
                     <Table.Td>
                       <Stack gap={4}>
-                        <Badge color={row.printSurfaces > 0 ? "blue" : "gray"} variant="light">
+                        <Badge tone={row.printSurfaces > 0 ? "info" : "neutral"}>
                           {row.printSurfaces} print
                         </Badge>
                         <Badge
-                          color={
+                          tone={
                             !row.requiresPublicDisplayPolicy || row.publicDisclosureMapped > 0
-                              ? "green"
-                              : "orange"
+                              ? "success"
+                              : "warning"
                           }
-                          variant="light"
                         >
                           {row.publicDisclosureMapped}/{row.publicDisplaySurfaces} public-safe
                         </Badge>
@@ -2119,15 +2043,13 @@ function SurfaceCoverageMatrix() {
                       {row.gaps.length > 0 ? (
                         <Group gap={4}>
                           {row.gaps.map((gap) => (
-                            <Badge key={gap} color="orange" variant="light">
+                            <Badge tone="warning" key={gap}>
                               {PATIENT_FLOW_GOVERNANCE_GAP_LABELS[gap]}
                             </Badge>
                           ))}
                         </Group>
                       ) : (
-                        <Badge color="green" variant="light">
-                          complete
-                        </Badge>
+                        <Badge tone="success">complete</Badge>
                       )}
                     </Table.Td>
                   </Table.Tr>
@@ -2147,10 +2069,7 @@ function SurfaceCoverageMatrix() {
                 {t("accessMatrix.shapeGovernance.description")}
               </Text>
             </Stack>
-            <Badge
-              color={workflowShapeGovernanceSummary.gaps > 0 ? "orange" : "green"}
-              variant="light"
-            >
+            <Badge tone={workflowShapeGovernanceSummary.gaps > 0 ? "warning" : "success"}>
               {t("accessMatrix.shapeGovernance.gapBadge", {
                 count: workflowShapeGovernanceSummary.gaps,
               })}
@@ -2181,7 +2100,7 @@ function SurfaceCoverageMatrix() {
                       </Text>
                       <Group gap={4} mt={4}>
                         {row.modules.map((module) => (
-                          <Badge key={module} variant="light">
+                          <Badge tone="neutral" key={module}>
                             {module}
                           </Badge>
                         ))}
@@ -2204,9 +2123,8 @@ function SurfaceCoverageMatrix() {
                       <Stack gap={4}>
                         {row.requiredSemantics.map((semantic) => (
                           <Badge
+                            tone={row.missingSemantics.includes(semantic) ? "warning" : "info"}
                             key={semantic}
-                            color={row.missingSemantics.includes(semantic) ? "orange" : "blue"}
-                            variant="light"
                           >
                             {t(`accessMatrix.shapeGovernance.semantics.${semantic}`)}
                           </Badge>
@@ -2217,9 +2135,8 @@ function SurfaceCoverageMatrix() {
                       <Group gap={4}>
                         {row.requiredPlatforms.map((platform) => (
                           <Badge
+                            tone={row.missingPlatforms.includes(platform) ? "warning" : "success"}
                             key={platform}
-                            color={row.missingPlatforms.includes(platform) ? "orange" : "green"}
-                            variant="light"
                           >
                             {platform}
                           </Badge>
@@ -2228,20 +2145,17 @@ function SurfaceCoverageMatrix() {
                     </Table.Td>
                     <Table.Td>
                       <Stack gap={4}>
-                        <Badge
-                          color={row.accessSurfaceCount > 0 ? "blue" : "orange"}
-                          variant="light"
-                        >
+                        <Badge tone={row.accessSurfaceCount > 0 ? "info" : "warning"}>
                           {t("accessMatrix.shapeGovernance.evidence.surfaces", {
                             count: row.accessSurfaceCount,
                           })}
                         </Badge>
-                        <Badge color={row.maskingMapped > 0 ? "violet" : "orange"} variant="light">
+                        <Badge tone={row.maskingMapped > 0 ? "accent" : "warning"}>
                           {t("accessMatrix.shapeGovernance.evidence.masking", {
                             count: row.maskingMapped,
                           })}
                         </Badge>
-                        <Badge color={row.eventActivated > 0 ? "green" : "orange"} variant="light">
+                        <Badge tone={row.eventActivated > 0 ? "success" : "warning"}>
                           {t("accessMatrix.shapeGovernance.evidence.events", {
                             count: row.eventActivated,
                           })}
@@ -2252,15 +2166,13 @@ function SurfaceCoverageMatrix() {
                       {row.gaps.length > 0 ? (
                         <Group gap={4}>
                           {row.gaps.map((gap) => (
-                            <Badge key={gap} color="orange" variant="light">
+                            <Badge tone="warning" key={gap}>
                               {t(WORKFLOW_SHAPE_GOVERNANCE_GAP_KEYS[gap])}
                             </Badge>
                           ))}
                         </Group>
                       ) : (
-                        <Badge color="green" variant="light">
-                          {t("accessMatrix.shapeGovernance.complete")}
-                        </Badge>
+                        <Badge tone="success">{t("accessMatrix.shapeGovernance.complete")}</Badge>
                       )}
                     </Table.Td>
                   </Table.Tr>
@@ -2281,7 +2193,7 @@ function SurfaceCoverageMatrix() {
                 actions, print surfaces, widgets, permissions, and event activations.
               </Text>
             </Stack>
-            <Badge color={workflowCoverageSummary.gaps > 0 ? "orange" : "green"} variant="light">
+            <Badge tone={workflowCoverageSummary.gaps > 0 ? "warning" : "success"}>
               {workflowCoverageSummary.gaps} workflow gaps
             </Badge>
           </Group>
@@ -2310,46 +2222,38 @@ function SurfaceCoverageMatrix() {
                     <Table.Td>
                       <Group gap={4}>
                         {workflow.modules.map((module) => (
-                          <Badge key={module} variant="light">
+                          <Badge tone="neutral" key={module}>
                             {module}
                           </Badge>
                         ))}
                       </Group>
                     </Table.Td>
                     <Table.Td>
-                      <Badge color={workflow.surfaces.length > 0 ? "blue" : "red"} variant="light">
+                      <Badge tone={workflow.surfaces.length > 0 ? "info" : "danger"}>
                         {workflow.surfaces.length}
                       </Badge>
                     </Table.Td>
                     <Table.Td>
                       <Group gap={4}>
                         {workflow.presentKinds.map((kind) => (
-                          <Badge key={kind} color="gray" variant="light">
+                          <Badge tone="neutral" key={kind}>
                             {kind}
                           </Badge>
                         ))}
                       </Group>
                     </Table.Td>
                     <Table.Td>
-                      <Badge
-                        color={workflow.activatedSurfaces > 0 ? "green" : "orange"}
-                        variant="light"
-                      >
+                      <Badge tone={workflow.activatedSurfaces > 0 ? "success" : "warning"}>
                         {workflow.activatedSurfaces}
                       </Badge>
                     </Table.Td>
                     <Table.Td>
                       <Group gap={4}>
-                        <Badge
-                          color={workflow.printSurfaces > 0 ? "violet" : "gray"}
-                          variant="light"
-                        >
+                        <Badge tone={workflow.printSurfaces > 0 ? "accent" : "neutral"}>
                           {workflow.printSurfaces} print
                         </Badge>
                         {workflow.printerRequired > 0 && (
-                          <Badge color="blue" variant="light">
-                            {workflow.printerRequired} printer
-                          </Badge>
+                          <Badge tone="info">{workflow.printerRequired} printer</Badge>
                         )}
                       </Group>
                     </Table.Td>
@@ -2357,19 +2261,17 @@ function SurfaceCoverageMatrix() {
                       {workflow.missingKinds.length > 0 ? (
                         <Group gap={4}>
                           {workflow.missingKinds.map((kind) => (
-                            <Badge key={kind} color="orange" variant="light">
+                            <Badge tone="warning" key={kind}>
                               {kind}
                             </Badge>
                           ))}
                         </Group>
                       ) : (
-                        <Badge color="green" variant="light">
-                          complete
-                        </Badge>
+                        <Badge tone="success">complete</Badge>
                       )}
                     </Table.Td>
                     <Table.Td>
-                      <Badge color={workflow.permissions.size > 0 ? "teal" : "red"} variant="light">
+                      <Badge tone={workflow.permissions.size > 0 ? "success" : "danger"}>
                         {workflow.permissions.size}
                       </Badge>
                     </Table.Td>
@@ -2392,7 +2294,7 @@ function SurfaceCoverageMatrix() {
                 billing and NABH evidence.
               </Text>
             </Stack>
-            <Badge color={reportEventCoverageSummary.gaps > 0 ? "orange" : "green"} variant="light">
+            <Badge tone={reportEventCoverageSummary.gaps > 0 ? "warning" : "success"}>
               {reportEventCoverageSummary.gaps} event source gaps
             </Badge>
           </Group>
@@ -2414,8 +2316,8 @@ function SurfaceCoverageMatrix() {
                   <Table.Tr key={row.id}>
                     <Table.Td>
                       <Group gap={6} mb={2}>
-                        <Badge variant="light">{row.family}</Badge>
-                        <Badge color={row.readiness === "event_backed" ? "green" : "orange"}>
+                        <Badge tone="neutral">{row.family}</Badge>
+                        <Badge tone={row.readiness === "event_backed" ? "success" : "warning"}>
                           {row.readiness === "event_backed" ? "event backed" : "capture needed"}
                         </Badge>
                       </Group>
@@ -2430,9 +2332,8 @@ function SurfaceCoverageMatrix() {
                       <Group gap={4}>
                         {row.sourceEvents.map((eventName) => (
                           <Badge
+                            tone={row.missingEvents.includes(eventName) ? "warning" : "info"}
                             key={eventName}
-                            color={row.missingEvents.includes(eventName) ? "orange" : "blue"}
-                            variant="light"
                           >
                             {eventName}
                           </Badge>
@@ -2443,17 +2344,16 @@ function SurfaceCoverageMatrix() {
                       <Stack gap={4}>
                         <Group gap={4}>
                           {row.journeyActionIds.length === 0 ? (
-                            <Badge color="gray" variant="light">
-                              direct event source
-                            </Badge>
+                            <Badge tone="neutral">direct event source</Badge>
                           ) : (
                             row.journeyActionIds.map((actionId) => (
                               <Badge
-                                key={actionId}
-                                color={
-                                  row.missingJourneyActionIds.includes(actionId) ? "orange" : "teal"
+                                tone={
+                                  row.missingJourneyActionIds.includes(actionId)
+                                    ? "warning"
+                                    : "success"
                                 }
-                                variant="light"
+                                key={actionId}
                               >
                                 {actionId}
                               </Badge>
@@ -2464,13 +2364,12 @@ function SurfaceCoverageMatrix() {
                           <Group gap={4}>
                             {row.journeyActionEvents.map((eventName) => (
                               <Badge
-                                key={eventName}
-                                color={
+                                tone={
                                   row.missingJourneyActionEvents.includes(eventName)
-                                    ? "orange"
-                                    : "blue"
+                                    ? "warning"
+                                    : "info"
                                 }
-                                variant="light"
+                                key={eventName}
                               >
                                 emits {eventName}
                               </Badge>
@@ -2484,9 +2383,8 @@ function SurfaceCoverageMatrix() {
                         <Group gap={4}>
                           {row.requiredPayloadKeys.map((key) => (
                             <Badge
+                              tone={row.missingPayloadKeys.includes(key) ? "warning" : "success"}
                               key={key}
-                              color={row.missingPayloadKeys.includes(key) ? "orange" : "teal"}
-                              variant="light"
                             >
                               {key}
                             </Badge>
@@ -2501,14 +2399,14 @@ function SurfaceCoverageMatrix() {
                       <Stack gap={4}>
                         <Group gap={4}>
                           {row.reportTargets.map((reportId) => (
-                            <Badge key={reportId} color="violet" variant="light">
+                            <Badge tone="accent" key={reportId}>
                               {reportId}
                             </Badge>
                           ))}
                         </Group>
                         <Group gap={4}>
                           {row.indicatorTargets.map((indicatorId) => (
-                            <Badge key={indicatorId} color="cyan" variant="light">
+                            <Badge tone="info" key={indicatorId}>
                               {indicatorId}
                             </Badge>
                           ))}
@@ -2519,15 +2417,13 @@ function SurfaceCoverageMatrix() {
                       {row.gaps.length > 0 ? (
                         <Group gap={4}>
                           {row.gaps.map((gap) => (
-                            <Badge key={gap} color="orange" variant="light">
+                            <Badge tone="warning" key={gap}>
                               {REPORT_EVENT_COVERAGE_GAP_LABELS[gap]}
                             </Badge>
                           ))}
                         </Group>
                       ) : (
-                        <Badge color="green" variant="light">
-                          complete
-                        </Badge>
+                        <Badge tone="success">complete</Badge>
                       )}
                     </Table.Td>
                   </Table.Tr>
@@ -2549,10 +2445,8 @@ function SurfaceCoverageMatrix() {
               </Text>
             </Stack>
             <Group gap={6}>
-              <Badge color="blue" variant="light">
-                {visibleFieldCoverageRows.length} visible
-              </Badge>
-              <Badge color={fieldCoverageSummary.gaps > 0 ? "orange" : "green"} variant="light">
+              <Badge tone="info">{visibleFieldCoverageRows.length} visible</Badge>
+              <Badge tone={fieldCoverageSummary.gaps > 0 ? "warning" : "success"}>
                 {fieldCoverageSummary.gaps} field gaps
               </Badge>
             </Group>
@@ -2575,10 +2469,8 @@ function SurfaceCoverageMatrix() {
                   <Table.Tr key={row.key}>
                     <Table.Td>
                       <Group gap={6} mb={2}>
-                        <Badge variant="light">{row.module}</Badge>
-                        <Badge color="gray" variant="light">
-                          {row.dataType}
-                        </Badge>
+                        <Badge tone="neutral">{row.module}</Badge>
+                        <Badge tone="neutral">{row.dataType}</Badge>
                       </Group>
                       <Text size="sm" fw={600}>
                         {row.name}
@@ -2592,7 +2484,7 @@ function SurfaceCoverageMatrix() {
                         {Object.entries(row.kindCounts)
                           .filter(([, count]) => count > 0)
                           .map(([kind, count]) => (
-                            <Badge key={kind} color="gray" variant="light">
+                            <Badge tone="neutral" key={kind}>
                               {kind}: {count}
                             </Badge>
                           ))}
@@ -2602,19 +2494,18 @@ function SurfaceCoverageMatrix() {
                       <Stack gap={4}>
                         <Group gap={4}>
                           {row.platforms.map((platform) => (
-                            <Badge key={platform} color="blue" variant="light">
+                            <Badge tone="info" key={platform}>
                               {platform}
                             </Badge>
                           ))}
                         </Group>
                         <Group gap={4}>
                           <Badge
-                            color={row.routeMapped === row.surfaces.length ? "green" : "orange"}
-                            variant="light"
+                            tone={row.routeMapped === row.surfaces.length ? "success" : "warning"}
                           >
                             {row.routeMapped}/{row.surfaces.length} routes
                           </Badge>
-                          <Badge color={row.edgeMapped > 0 ? "blue" : "gray"} variant="light">
+                          <Badge tone={row.edgeMapped > 0 ? "info" : "neutral"}>
                             {row.edgeMapped} edge
                           </Badge>
                         </Group>
@@ -2624,25 +2515,22 @@ function SurfaceCoverageMatrix() {
                       <Stack gap={4}>
                         <Group gap={4}>
                           {row.maskingBehaviors.map((masking) => (
-                            <Badge key={masking} color="violet" variant="light">
+                            <Badge tone="accent" key={masking}>
                               {masking}
                             </Badge>
                           ))}
                         </Group>
-                        <Badge color={row.printMapped > 0 ? "blue" : "gray"} variant="light">
+                        <Badge tone={row.printMapped > 0 ? "info" : "neutral"}>
                           {row.printMapped} print
                         </Badge>
                       </Stack>
                     </Table.Td>
                     <Table.Td>
                       <Stack gap={4}>
-                        <Badge
-                          color={row.permissions.length > 0 ? "teal" : "orange"}
-                          variant="light"
-                        >
+                        <Badge tone={row.permissions.length > 0 ? "success" : "warning"}>
                           {row.permissions.length} permissions
                         </Badge>
-                        <Badge color={row.eventActivated > 0 ? "blue" : "gray"} variant="light">
+                        <Badge tone={row.eventActivated > 0 ? "info" : "neutral"}>
                           {row.eventActivated} event surfaces
                         </Badge>
                       </Stack>
@@ -2651,15 +2539,13 @@ function SurfaceCoverageMatrix() {
                       {row.gaps.length > 0 ? (
                         <Group gap={4}>
                           {row.gaps.map((gap) => (
-                            <Badge key={gap} color="orange" variant="light">
+                            <Badge tone="warning" key={gap}>
                               {ACCESS_FIELD_COVERAGE_GAP_LABELS[gap]}
                             </Badge>
                           ))}
                         </Group>
                       ) : (
-                        <Badge color="green" variant="light">
-                          complete
-                        </Badge>
+                        <Badge tone="success">complete</Badge>
                       )}
                     </Table.Td>
                   </Table.Tr>
@@ -2681,7 +2567,7 @@ function SurfaceCoverageMatrix() {
                 and masking metadata.
               </Text>
             </Stack>
-            <Badge color={platformCoverageSummary.gaps > 0 ? "orange" : "green"} variant="light">
+            <Badge tone={platformCoverageSummary.gaps > 0 ? "warning" : "success"}>
               {platformCoverageSummary.gaps} platform gaps
             </Badge>
           </Group>
@@ -2704,15 +2590,13 @@ function SurfaceCoverageMatrix() {
                 {platformCoverageRows.map((row) => (
                   <Table.Tr key={row.platform}>
                     <Table.Td>
-                      <Badge color="blue" variant="light">
-                        {row.platform}
-                      </Badge>
+                      <Badge tone="info">{row.platform}</Badge>
                     </Table.Td>
                     <Table.Td>{row.surfaces.length}</Table.Td>
                     <Table.Td>
                       <Group gap={4}>
                         {row.modules.map((module) => (
-                          <Badge key={module} color="gray" variant="light">
+                          <Badge tone="neutral" key={module}>
                             {module}
                           </Badge>
                         ))}
@@ -2723,7 +2607,7 @@ function SurfaceCoverageMatrix() {
                         {Object.entries(row.kindCounts)
                           .filter(([, count]) => count > 0)
                           .map(([kind, count]) => (
-                            <Badge key={kind} color="gray" variant="light">
+                            <Badge tone="neutral" key={kind}>
                               {kind}: {count}
                             </Badge>
                           ))}
@@ -2732,22 +2616,21 @@ function SurfaceCoverageMatrix() {
                     <Table.Td>
                       <Stack gap={4}>
                         <Badge
-                          color={row.routeMapped === row.surfaces.length ? "green" : "gray"}
-                          variant="light"
+                          tone={row.routeMapped === row.surfaces.length ? "success" : "neutral"}
                         >
                           {row.routeMapped} routes
                         </Badge>
                         <Badge
-                          color={
-                            row.platformRouteMapped === row.surfaces.length ? "green" : "orange"
+                          tone={
+                            row.platformRouteMapped === row.surfaces.length ? "success" : "warning"
                           }
-                          variant="light"
                         >
                           {row.platformRouteMapped} launch targets
                         </Badge>
                         <Badge
-                          color={row.permissionMapped === row.surfaces.length ? "green" : "orange"}
-                          variant="light"
+                          tone={
+                            row.permissionMapped === row.surfaces.length ? "success" : "warning"
+                          }
                         >
                           {row.permissionMapped} permissions
                         </Badge>
@@ -2756,29 +2639,24 @@ function SurfaceCoverageMatrix() {
                     <Table.Td>
                       <Stack gap={4}>
                         <Badge
-                          color={row.fieldMapped === row.surfaces.length ? "green" : "gray"}
-                          variant="light"
+                          tone={row.fieldMapped === row.surfaces.length ? "success" : "neutral"}
                         >
                           {row.fieldMapped} field maps
                         </Badge>
                         <Badge
-                          color={row.maskingMapped === row.surfaces.length ? "green" : "orange"}
-                          variant="light"
+                          tone={row.maskingMapped === row.surfaces.length ? "success" : "warning"}
                         >
                           {row.maskingMapped} masking
                         </Badge>
                       </Stack>
                     </Table.Td>
                     <Table.Td>
-                      <Badge color={row.eventActivated > 0 ? "blue" : "gray"} variant="light">
+                      <Badge tone={row.eventActivated > 0 ? "info" : "neutral"}>
                         {row.eventActivated}
                       </Badge>
                     </Table.Td>
                     <Table.Td>
-                      <Badge
-                        color={row.governanceGapSurfaces > 0 ? "orange" : "green"}
-                        variant="light"
-                      >
+                      <Badge tone={row.governanceGapSurfaces > 0 ? "warning" : "success"}>
                         {row.governanceGapSurfaces}
                       </Badge>
                     </Table.Td>
@@ -2801,7 +2679,7 @@ function SurfaceCoverageMatrix() {
                 have permissions, field-access keys, masking behavior and event activation.
               </Text>
             </Stack>
-            <Badge color={surfaceGovernanceSummary.gaps > 0 ? "orange" : "green"} variant="light">
+            <Badge tone={surfaceGovernanceSummary.gaps > 0 ? "warning" : "success"}>
               {surfaceGovernanceSummary.gaps} governance gaps
             </Badge>
           </Group>
@@ -2824,9 +2702,7 @@ function SurfaceCoverageMatrix() {
                 {surfaceGovernanceRows.map((row) => (
                   <Table.Tr key={row.kind}>
                     <Table.Td>
-                      <Badge color="gray" variant="light">
-                        {row.kind}
-                      </Badge>
+                      <Badge tone="neutral">{row.kind}</Badge>
                     </Table.Td>
                     <Table.Td>{row.total}</Table.Td>
                     <Table.Td>{row.routeMapped}</Table.Td>
@@ -2835,7 +2711,7 @@ function SurfaceCoverageMatrix() {
                     <Table.Td>{row.maskingMapped}</Table.Td>
                     <Table.Td>{row.eventActivated}</Table.Td>
                     <Table.Td>
-                      <Badge color={row.gapSurfaces > 0 ? "orange" : "green"} variant="light">
+                      <Badge tone={row.gapSurfaces > 0 ? "warning" : "success"}>
                         {row.gapSurfaces}
                       </Badge>
                     </Table.Td>
@@ -2860,10 +2736,8 @@ function SurfaceCoverageMatrix() {
                     <Table.Tr key={row.surfaceId}>
                       <Table.Td>
                         <Group gap={4} mb={2}>
-                          <Badge variant="light">{row.module}</Badge>
-                          <Badge color="gray" variant="light">
-                            {row.kind}
-                          </Badge>
+                          <Badge tone="neutral">{row.module}</Badge>
+                          <Badge tone="neutral">{row.kind}</Badge>
                         </Group>
                         <Text size="sm" fw={600}>
                           {row.label}
@@ -2892,7 +2766,7 @@ function SurfaceCoverageMatrix() {
                       <Table.Td>
                         <Group gap={4}>
                           {row.gaps.map((gap) => (
-                            <Badge key={gap} color="orange" variant="light">
+                            <Badge tone="warning" key={gap}>
                               {ACCESS_SURFACE_GAP_LABELS[gap]}
                             </Badge>
                           ))}
@@ -2923,30 +2797,21 @@ function SurfaceCoverageMatrix() {
                 billing.
               </Text>
             </Stack>
-            <Badge
-              color={journeyActionCoverageSummary.gaps > 0 ? "orange" : "green"}
-              variant="light"
-            >
+            <Badge tone={journeyActionCoverageSummary.gaps > 0 ? "warning" : "success"}>
               {journeyActionCoverageSummary.gaps} action gaps
             </Badge>
           </Group>
           <Group gap={6}>
-            <Badge color="slate" variant="light">
+            <Badge tone="neutral">
               {journeyActionCoverageSummary.guardedActions} guarded actions
             </Badge>
-            <Badge color="blue" variant="light">
-              {journeyActionCoverageSummary.routeLinked} route targets
-            </Badge>
-            <Badge color="orange" variant="light">
-              {journeyActionCoverageSummary.contextControls} context
-            </Badge>
-            <Badge color="grape" variant="light">
+            <Badge tone="info">{journeyActionCoverageSummary.routeLinked} route targets</Badge>
+            <Badge tone="warning">{journeyActionCoverageSummary.contextControls} context</Badge>
+            <Badge tone="accent">
               {journeyActionCoverageSummary.configurationControls} configuration
             </Badge>
-            <Badge color="violet" variant="light">
-              {journeyActionCoverageSummary.maskingControls} masking
-            </Badge>
-            <Badge color="yellow" variant="light">
+            <Badge tone="accent">{journeyActionCoverageSummary.maskingControls} masking</Badge>
+            <Badge tone="warning">
               {journeyActionCoverageSummary.regulatoryControls} regulatory
             </Badge>
           </Group>
@@ -2969,9 +2834,9 @@ function SurfaceCoverageMatrix() {
                   <Table.Tr key={row.actionId}>
                     <Table.Td>
                       <Group gap={6} mb={2}>
-                        <Badge variant="light">{row.module}</Badge>
+                        <Badge tone="neutral">{row.module}</Badge>
                         {row.surfaces.map((surface) => (
-                          <Badge key={surface} color="gray" variant="light">
+                          <Badge tone="neutral" key={surface}>
                             {surface}
                           </Badge>
                         ))}
@@ -2987,33 +2852,30 @@ function SurfaceCoverageMatrix() {
                       {row.routeTargets.length > 0 ? (
                         <Stack gap={4}>
                           {row.routeTargets.map((route) => (
-                            <Badge key={route} color="blue" variant="light">
+                            <Badge tone="info" key={route}>
                               {route}
                             </Badge>
                           ))}
                         </Stack>
                       ) : (
-                        <Badge color="gray" variant="light">
-                          component handler
-                        </Badge>
+                        <Badge tone="neutral">component handler</Badge>
                       )}
                     </Table.Td>
                     <Table.Td>
                       <Stack gap={4}>
                         {row.permissionCoverage.map((coverage) => (
                           <Group key={coverage.scope} gap={4} align="center">
-                            <Badge color={coverage.covered ? "gray" : "orange"} variant="light">
+                            <Badge tone={coverage.covered ? "neutral" : "warning"}>
                               {journeyPermissionScopeLabel(coverage.scope, coverage.permissionMode)}
                             </Badge>
                             {coverage.requiredPermissions.map((permission) => (
                               <Tooltip key={permission} label={permissionLabel(permission)}>
                                 <Badge
-                                  color={
+                                  tone={
                                     coverage.missingPermissions.includes(permission)
-                                      ? "orange"
-                                      : "teal"
+                                      ? "warning"
+                                      : "success"
                                   }
-                                  variant="light"
                                 >
                                   {permission}
                                 </Badge>
@@ -3027,11 +2889,10 @@ function SurfaceCoverageMatrix() {
                       <Group gap={4}>
                         {row.activationEvents.map((eventName) => (
                           <Badge
-                            key={eventName}
-                            color={
-                              row.missingActivationEvents.includes(eventName) ? "orange" : "blue"
+                            tone={
+                              row.missingActivationEvents.includes(eventName) ? "warning" : "info"
                             }
-                            variant="light"
+                            key={eventName}
                           >
                             {eventName}
                           </Badge>
@@ -3042,19 +2903,13 @@ function SurfaceCoverageMatrix() {
                       {row.blockingControls.length > 0 ? (
                         <Group gap={4}>
                           {row.blockingControls.map((control) => (
-                            <Badge
-                              key={control}
-                              color={journeyBlockingControlColor(control)}
-                              variant="light"
-                            >
+                            <Badge tone={journeyBlockingControlTone(control)} key={control}>
                               {journeyBlockingControlLabel(control)}
                             </Badge>
                           ))}
                         </Group>
                       ) : (
-                        <Badge color="gray" variant="light">
-                          event/permission only
-                        </Badge>
+                        <Badge tone="neutral">event/permission only</Badge>
                       )}
                     </Table.Td>
                     <Table.Td>
@@ -3062,38 +2917,34 @@ function SurfaceCoverageMatrix() {
                         <Stack gap={4}>
                           <Group gap={4}>
                             {row.matchedSurfaceKinds.map((kind) => (
-                              <Badge key={kind} color="gray" variant="light">
+                              <Badge tone="neutral" key={kind}>
                                 {kind}
                               </Badge>
                             ))}
                           </Group>
                           <Group gap={4}>
                             {row.matchedSurfaceIds.map((surfaceId) => (
-                              <Badge key={surfaceId} color="blue" variant="light">
+                              <Badge tone="info" key={surfaceId}>
                                 {surfaceId}
                               </Badge>
                             ))}
                           </Group>
                         </Stack>
                       ) : (
-                        <Badge color="red" variant="light">
-                          no surface
-                        </Badge>
+                        <Badge tone="danger">no surface</Badge>
                       )}
                     </Table.Td>
                     <Table.Td>
                       {row.gaps.length > 0 ? (
                         <Group gap={4}>
                           {row.gaps.map((gap) => (
-                            <Badge key={gap} color="orange" variant="light">
+                            <Badge tone="warning" key={gap}>
                               {JOURNEY_ACTION_COVERAGE_GAP_LABELS[gap]}
                             </Badge>
                           ))}
                         </Group>
                       ) : (
-                        <Badge color="green" variant="light">
-                          complete
-                        </Badge>
+                        <Badge tone="success">complete</Badge>
                       )}
                     </Table.Td>
                   </Table.Tr>
@@ -3114,7 +2965,7 @@ function SurfaceCoverageMatrix() {
                 routing so front-desk, pharmacy, billing, MRD and ward outputs stay explicit.
               </Text>
             </Stack>
-            <Badge color={printableCoverageSummary.gaps > 0 ? "orange" : "green"} variant="light">
+            <Badge tone={printableCoverageSummary.gaps > 0 ? "warning" : "success"}>
               {printableCoverageSummary.gaps} printable gaps
             </Badge>
           </Group>
@@ -3135,11 +2986,9 @@ function SurfaceCoverageMatrix() {
                   <Table.Tr key={row.surfaceId}>
                     <Table.Td>
                       <Group gap={6} mb={2}>
-                        <Badge variant="light">{row.module}</Badge>
+                        <Badge tone="neutral">{row.module}</Badge>
                         {row.customerOfficeRequired && (
-                          <Badge color="violet" variant="light">
-                            customer + office
-                          </Badge>
+                          <Badge tone="accent">customer + office</Badge>
                         )}
                       </Group>
                       <Text size="sm" fw={600}>
@@ -3153,47 +3002,43 @@ function SurfaceCoverageMatrix() {
                       {row.artifacts.length > 0 ? (
                         <Group gap={4}>
                           {row.artifacts.map((artifact) => (
-                            <Badge key={artifact} color="gray" variant="light">
+                            <Badge tone="neutral" key={artifact}>
                               {artifact}
                             </Badge>
                           ))}
                         </Group>
                       ) : (
-                        <Badge color="orange" variant="light">
-                          sheet not mapped
-                        </Badge>
+                        <Badge tone="warning">sheet not mapped</Badge>
                       )}
                     </Table.Td>
                     <Table.Td>
                       {row.copies.length > 0 ? (
                         <Group gap={4}>
                           {row.copies.map((copy) => (
-                            <Badge key={copy} color="violet" variant="light">
+                            <Badge tone="accent" key={copy}>
                               {printCopyLabel(copy)}
                             </Badge>
                           ))}
                         </Group>
                       ) : (
-                        <Badge color="orange" variant="light">
-                          copy not mapped
-                        </Badge>
+                        <Badge tone="warning">copy not mapped</Badge>
                       )}
                     </Table.Td>
                     <Table.Td>
                       <Stack gap={4}>
-                        <Badge color={row.requiresPrinter ? "blue" : "gray"} variant="light">
+                        <Badge tone={row.requiresPrinter ? "info" : "neutral"}>
                           {row.requiresPrinter ? "printer required" : "printer optional"}
                         </Badge>
                         {row.printerProfiles.length > 0 ? (
                           <Group gap={4}>
                             {row.printerProfiles.map((profile) => (
-                              <Badge key={profile} color="blue" variant="light">
+                              <Badge tone="info" key={profile}>
                                 {profile}
                               </Badge>
                             ))}
                           </Group>
                         ) : (
-                          <Badge color={row.requiresPrinter ? "red" : "gray"} variant="light">
+                          <Badge tone={row.requiresPrinter ? "danger" : "neutral"}>
                             no printer profile
                           </Badge>
                         )}
@@ -3203,15 +3048,13 @@ function SurfaceCoverageMatrix() {
                       {row.gaps.length > 0 ? (
                         <Group gap={4}>
                           {row.gaps.map((gap) => (
-                            <Badge key={gap} color="orange" variant="light">
+                            <Badge tone="warning" key={gap}>
                               {PRINTABLE_COVERAGE_GAP_LABELS[gap]}
                             </Badge>
                           ))}
                         </Group>
                       ) : (
-                        <Badge color="green" variant="light">
-                          complete
-                        </Badge>
+                        <Badge tone="success">complete</Badge>
                       )}
                     </Table.Td>
                   </Table.Tr>
@@ -3232,7 +3075,7 @@ function SurfaceCoverageMatrix() {
                 outside role, group, individual, masking, printable, and printer governance.
               </Text>
             </Stack>
-            <Badge color={routeCoverageSummary.blocked > 0 ? "orange" : "green"} variant="light">
+            <Badge tone={routeCoverageSummary.blocked > 0 ? "warning" : "success"}>
               {routeCoverageSummary.blocked} route gaps
             </Badge>
           </Group>
@@ -3268,9 +3111,7 @@ function SurfaceCoverageMatrix() {
                         <Group gap={4}>
                           {row.requiredPermissions.map((permission) => (
                             <Tooltip key={permission} label={permissionLabel(permission)}>
-                              <Badge color="teal" variant="light">
-                                {permission}
-                              </Badge>
+                              <Badge tone="success">{permission}</Badge>
                             </Tooltip>
                           ))}
                         </Group>
@@ -3279,31 +3120,26 @@ function SurfaceCoverageMatrix() {
                         {row.surfaceIds.length > 0 ? (
                           <Group gap={4}>
                             {row.surfaceIds.map((surfaceId) => (
-                              <Badge key={surfaceId} color="blue" variant="light">
+                              <Badge tone="info" key={surfaceId}>
                                 {surfaceId}
                               </Badge>
                             ))}
                           </Group>
                         ) : (
-                          <Badge color="red" variant="light">
-                            no surface
-                          </Badge>
+                          <Badge tone="danger">no surface</Badge>
                         )}
                       </Table.Td>
                       <Table.Td>
                         {row.missingPermissions.length > 0 ? (
                           <Group gap={4}>
                             {row.missingPermissions.map((permission) => (
-                              <Badge key={permission} color="orange" variant="light">
+                              <Badge tone="warning" key={permission}>
                                 {permission}
                               </Badge>
                             ))}
                           </Group>
                         ) : (
-                          <Badge
-                            color={row.status === "unmapped" ? "red" : "green"}
-                            variant="light"
-                          >
+                          <Badge tone={row.status === "unmapped" ? "danger" : "success"}>
                             {row.status}
                           </Badge>
                         )}
@@ -3358,9 +3194,7 @@ function SurfaceCoverageMatrix() {
                 clearable
               />
             </Group>
-            <Badge color="blue" variant="light">
-              {visibleSurfaces.length} visible
-            </Badge>
+            <Badge tone="info">{visibleSurfaces.length} visible</Badge>
           </Group>
 
           <ScrollArea.Autosize mah="58vh">
@@ -3382,10 +3216,8 @@ function SurfaceCoverageMatrix() {
                   <Table.Tr key={surface.id}>
                     <Table.Td>
                       <Group gap={6} mb={2}>
-                        <Badge variant="light">{surface.module}</Badge>
-                        <Badge color="gray" variant="light">
-                          {surface.kind}
-                        </Badge>
+                        <Badge tone="neutral">{surface.module}</Badge>
+                        <Badge tone="neutral">{surface.kind}</Badge>
                       </Group>
                       <Text size="sm" fw={600}>
                         {surface.label}
@@ -3397,7 +3229,7 @@ function SurfaceCoverageMatrix() {
                     <Table.Td>
                       <Group gap={4}>
                         {surface.platforms.map((platform) => (
-                          <Badge key={platform} color="blue" variant="light">
+                          <Badge tone="info" key={platform}>
                             {platform}
                           </Badge>
                         ))}
@@ -3430,9 +3262,7 @@ function SurfaceCoverageMatrix() {
                             )
                             .map((item) => (
                               <Tooltip key={item.platform} label={item.target}>
-                                <Badge color="blue" variant="light">
-                                  {item.platform} target
-                                </Badge>
+                                <Badge tone="info">{item.platform} target</Badge>
                               </Tooltip>
                             ))}
                         </Group>
@@ -3442,9 +3272,7 @@ function SurfaceCoverageMatrix() {
                       <Stack gap={4}>
                         {surface.requiredPermissions.map((permission) => (
                           <Tooltip key={permission} label={permissionLabel(permission)}>
-                            <Badge color="teal" variant="light">
-                              {permission}
-                            </Badge>
+                            <Badge tone="success">{permission}</Badge>
                           </Tooltip>
                         ))}
                       </Stack>
@@ -3459,32 +3287,26 @@ function SurfaceCoverageMatrix() {
                                 key={key}
                                 label={field ? field.name : "Not registered in FIELD_ACCESS_FIELDS"}
                               >
-                                <Badge color={field ? "orange" : "red"} variant="light">
-                                  {key}
-                                </Badge>
+                                <Badge tone={field ? "warning" : "danger"}>{key}</Badge>
                               </Tooltip>
                             );
                           })}
                         </Stack>
                       ) : (
-                        <Badge color="gray" variant="light">
-                          none
-                        </Badge>
+                        <Badge tone="neutral">none</Badge>
                       )}
                     </Table.Td>
                     <Table.Td>
                       {surface.activatesAfter.length > 0 ? (
                         <Stack gap={4}>
                           {surface.activatesAfter.map((eventName) => (
-                            <Badge key={eventName} color="blue" variant="light">
+                            <Badge tone="info" key={eventName}>
                               {eventName}
                             </Badge>
                           ))}
                         </Stack>
                       ) : (
-                        <Badge color="gray" variant="light">
-                          always
-                        </Badge>
+                        <Badge tone="neutral">always</Badge>
                       )}
                     </Table.Td>
                     <Table.Td>
@@ -3493,57 +3315,46 @@ function SurfaceCoverageMatrix() {
                           <Group gap={4}>
                             {surface.printArtifacts.length > 0 ? (
                               surface.printArtifacts.map((artifact) => (
-                                <Badge key={artifact} color="gray" variant="light">
+                                <Badge tone="neutral" key={artifact}>
                                   {artifact}
                                 </Badge>
                               ))
                             ) : (
-                              <Badge color="orange" variant="light">
-                                sheet not mapped
-                              </Badge>
+                              <Badge tone="warning">sheet not mapped</Badge>
                             )}
                           </Group>
                           <Group gap={4}>
                             {surface.printCopies.length > 0 ? (
                               surface.printCopies.map((copy) => (
-                                <Badge key={copy} color="violet" variant="light">
+                                <Badge tone="accent" key={copy}>
                                   {printCopyLabel(copy)}
                                 </Badge>
                               ))
                             ) : (
-                              <Badge color="orange" variant="light">
-                                copy not mapped
-                              </Badge>
+                              <Badge tone="warning">copy not mapped</Badge>
                             )}
                           </Group>
                           <Group gap={4}>
                             {surface.printerProfiles.length > 0 ? (
                               surface.printerProfiles.map((profile) => (
-                                <Badge key={profile} color="blue" variant="light">
+                                <Badge tone="info" key={profile}>
                                   {profile}
                                 </Badge>
                               ))
                             ) : (
-                              <Badge
-                                color={surface.requiresPrinter ? "red" : "gray"}
-                                variant="light"
-                              >
+                              <Badge tone={surface.requiresPrinter ? "danger" : "neutral"}>
                                 no printer profile
                               </Badge>
                             )}
                           </Group>
                         </Stack>
                       ) : (
-                        <Badge color="gray" variant="light">
-                          none
-                        </Badge>
+                        <Badge tone="neutral">none</Badge>
                       )}
                     </Table.Td>
                     <Table.Td>
                       <Stack gap={4}>
-                        <Badge color="violet" variant="light">
-                          {surface.masking}
-                        </Badge>
+                        <Badge tone="accent">{surface.masking}</Badge>
                         {surface.standardRefs.slice(0, 2).map((standard) => (
                           <Text key={standard} size="xs" c="dimmed" lineClamp={1}>
                             {standard}
@@ -3576,7 +3387,7 @@ function SurfaceCoverageMatrix() {
                 {moduleSummaries.map(([module, summary]) => (
                   <Table.Tr key={module}>
                     <Table.Td>
-                      <Badge variant="light">{module}</Badge>
+                      <Badge tone="neutral">{module}</Badge>
                     </Table.Td>
                     <Table.Td>{summary.surfaces}</Table.Td>
                     <Table.Td>{summary.permissions.size}</Table.Td>
@@ -3597,14 +3408,12 @@ function SurfaceCoverageMatrix() {
             <Group gap={4}>
               {registeredFieldsNotMapped.length > 0 ? (
                 registeredFieldsNotMapped.slice(0, 12).map((field) => (
-                  <Badge key={field.id} color="orange" variant="light">
+                  <Badge tone="warning" key={field.id}>
                     {fieldKey(field)}
                   </Badge>
                 ))
               ) : (
-                <Badge color="green" variant="light">
-                  all registered fields mapped
-                </Badge>
+                <Badge tone="success">all registered fields mapped</Badge>
               )}
             </Group>
             {registeredFieldsNotMapped.length > 12 && (
@@ -3712,40 +3521,30 @@ function GroupScopeMatrix({
                         </Text>
                       </Table.Td>
                       <Table.Td>
-                        <Badge color={group.is_active ? "green" : "gray"} variant="light">
+                        <Badge tone={group.is_active ? "success" : "neutral"}>
                           {group.is_active ? "Active" : "Inactive"}
                         </Badge>
                       </Table.Td>
                       <Table.Td>
-                        <Badge color="cyan" variant="light">
-                          {members.length} members
-                        </Badge>
+                        <Badge tone="info">{members.length} members</Badge>
                       </Table.Td>
                       <Table.Td>
                         {permissions.length > 0 ? (
                           <Stack gap={4}>
-                            <Badge color="teal" variant="light">
-                              {permissions.length} grants
-                            </Badge>
+                            <Badge tone="success">{permissions.length} grants</Badge>
                             <Group gap={4}>
                               {permissions.slice(0, 4).map((permission) => (
                                 <Tooltip key={permission} label={permissionLabel(permission)}>
-                                  <Badge color="gray" variant="light">
-                                    {permission}
-                                  </Badge>
+                                  <Badge tone="neutral">{permission}</Badge>
                                 </Tooltip>
                               ))}
                               {permissions.length > 4 && (
-                                <Badge color="gray" variant="light">
-                                  +{permissions.length - 4}
-                                </Badge>
+                                <Badge tone="neutral">+{permissions.length - 4}</Badge>
                               )}
                             </Group>
                           </Stack>
                         ) : (
-                          <Badge color="gray" variant="light">
-                            Resource scope only
-                          </Badge>
+                          <Badge tone="neutral">Resource scope only</Badge>
                         )}
                       </Table.Td>
                       <Table.Td>
@@ -3773,9 +3572,7 @@ function GroupScopeMatrix({
                 objects are visible.
               </Text>
             </Stack>
-            <Badge color="cyan" variant="light">
-              ReBAC scope
-            </Badge>
+            <Badge tone="info">ReBAC scope</Badge>
           </Group>
           {manifest && manifest.resources.length > 0 ? (
             <ScrollArea.Autosize mah={360}>
@@ -3798,7 +3595,7 @@ function GroupScopeMatrix({
                       <Table.Td>
                         <Group gap={4}>
                           {resource.relations.map((relation) => (
-                            <Badge key={relation} color="cyan" variant="light">
+                            <Badge tone="info" key={relation}>
                               {relation}
                             </Badge>
                           ))}
@@ -3807,7 +3604,7 @@ function GroupScopeMatrix({
                       <Table.Td>
                         <Group gap={4}>
                           {resource.permissions.map((permission) => (
-                            <Badge key={permission} color="blue" variant="light">
+                            <Badge tone="info" key={permission}>
                               {permission}
                             </Badge>
                           ))}
@@ -3913,15 +3710,9 @@ export function AccessMatrixSettings() {
             </Stack>
           </Group>
           <Group gap="xs">
-            <Badge color="blue" variant="light">
-              Role defaults
-            </Badge>
-            <Badge color="teal" variant="light">
-              User overrides
-            </Badge>
-            <Badge color="cyan" variant="light">
-              Group scope
-            </Badge>
+            <Badge tone="info">Role defaults</Badge>
+            <Badge tone="success">User overrides</Badge>
+            <Badge tone="info">Group scope</Badge>
           </Group>
         </Group>
       </Card>

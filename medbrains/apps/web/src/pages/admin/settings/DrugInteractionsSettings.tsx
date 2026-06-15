@@ -1,8 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   ActionIcon,
-  Badge,
-  Button,
   Group,
   Modal,
   Select,
@@ -21,6 +19,7 @@ import { P } from "@medbrains/types";
 import { IconPlus, IconTrash } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Controller, useForm } from "react-hook-form";
+import { Badge, type BadgeTone, Button } from "@/components/ui";
 import {
   DEFAULT_DRUG_INTERACTION_FORM_VALUES,
   DRUG_INTERACTION_SEVERITY_OPTIONS,
@@ -28,11 +27,11 @@ import {
 } from "@/forms/clinical-settings.form";
 import { clinicalMastersService } from "@/services/clinicalMasters.service";
 
-const SEVERITY_COLORS: Record<string, string> = {
+const SEVERITY_TONES: Record<string, BadgeTone> = {
   minor: "warning",
-  moderate: "orange",
+  moderate: "warning",
   major: "danger",
-  contraindicated: "violet",
+  contraindicated: "accent",
 };
 
 export function DrugInteractionsSettings() {
@@ -92,7 +91,7 @@ export function DrugInteractionsSettings() {
       <Group justify="space-between">
         <Text fw={600}>Drug Interaction Rules ({interactions.length})</Text>
         {canManage && (
-          <Button size="xs" leftSection={<IconPlus size={14} />} onClick={open}>
+          <Button tone="primary" size="xs" leftSection={<IconPlus size={14} />} onClick={open}>
             Add Interaction
           </Button>
         )}
@@ -123,7 +122,7 @@ export function DrugInteractionsSettings() {
                 </Text>
               </Table.Td>
               <Table.Td>
-                <Badge size="sm" color={SEVERITY_COLORS[row.severity] ?? "slate"}>
+                <Badge size="sm" tone={SEVERITY_TONES[row.severity] ?? "neutral"}>
                   {row.severity}
                 </Badge>
               </Table.Td>
@@ -254,10 +253,11 @@ export function DrugInteractionsSettings() {
             )}
           />
           <Group justify="flex-end">
-            <Button variant="subtle" onClick={handleClose}>
+            <Button tone="ghost" onClick={handleClose}>
               Cancel
             </Button>
             <Button
+              tone="primary"
               type="submit"
               loading={createMutation.isPending}
               disabled={createMutation.isPending}

@@ -1,4 +1,4 @@
-import { Button, Divider, Group, Loader, Select, Stack, Text } from "@mantine/core";
+import { Divider, Group, Loader, Select, Stack, Text } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { useLocaleStore } from "@medbrains/stores";
 import type { GeoCountry, GeoDistrict, GeoState } from "@medbrains/types";
@@ -12,6 +12,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { PinCodeInput } from "@/components/PinCodeInput";
+import { Button } from "@/components/ui";
 import { tenantSettingsService } from "@/services/tenantSettings.service";
 
 // ── GeoSettings ──────────────────────────────────────────
@@ -206,6 +207,7 @@ export function GeoSettings() {
 
       <Group>
         <Button
+          tone="primary"
           leftSection={<IconDeviceFloppy size={16} />}
           onClick={handleSave}
           loading={saveGeoMutation.isPending}

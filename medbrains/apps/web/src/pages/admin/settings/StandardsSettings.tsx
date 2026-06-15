@@ -1,7 +1,5 @@
 import {
   Alert,
-  Badge,
-  Button,
   Card,
   Code,
   Group,
@@ -27,6 +25,7 @@ import {
 } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
+import { Badge, type BadgeTone, Button } from "@/components/ui";
 import { clinicalSupportService } from "@/services/clinicalSupport.service";
 import { labCatalogService } from "@/services/labCatalog.service";
 import { pharmacyCatalogService } from "@/services/pharmacyCatalog.service";
@@ -52,6 +51,14 @@ const STATUS_META: Record<ReadinessStatus, { label: string; color: string }> = {
   missing: { label: "Needs setup", color: "danger" },
   blocked: { label: "Permission needed", color: "gray" },
   loading: { label: "Checking", color: "blue" },
+};
+
+const STATUS_TONE: Record<ReadinessStatus, BadgeTone> = {
+  ready: "success",
+  partial: "warning",
+  missing: "danger",
+  blocked: "neutral",
+  loading: "info",
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -114,9 +121,7 @@ function ReadinessCard({ item }: { item: StandardCard }) {
           <ThemeIcon variant="light" color={meta.color} size="lg">
             {item.status === "ready" ? <IconCheck size={18} /> : <IconAlertCircle size={18} />}
           </ThemeIcon>
-          <Badge color={meta.color} variant="light">
-            {meta.label}
-          </Badge>
+          <Badge tone={STATUS_TONE[item.status]}>{meta.label}</Badge>
         </Group>
 
         <div>
@@ -132,12 +137,12 @@ function ReadinessCard({ item }: { item: StandardCard }) {
           <Code>{item.metric}</Code>
           {item.actionHref && item.actionLabel ? (
             <Button
+              tone="secondary"
               component="a"
               href={item.actionHref}
               target={item.actionHref.startsWith("http") ? "_blank" : undefined}
               rel={item.actionHref.startsWith("http") ? "noreferrer" : undefined}
               size="xs"
-              variant="light"
               rightSection={<IconExternalLink size={14} />}
             >
               {item.actionLabel}
@@ -443,7 +448,7 @@ export function StandardsSettings() {
           </Text>
         </div>
         <Button
-          variant="light"
+          tone="secondary"
           leftSection={anyLoading ? <Loader size={14} /> : <IconRefresh size={16} />}
           onClick={refreshAll}
         >
@@ -454,7 +459,7 @@ export function StandardsSettings() {
       <Card withBorder padding="md" radius="md">
         <Group justify="space-between" mb="xs">
           <Text fw={600}>Go-live readiness</Text>
-          <Badge color={readinessPercent >= 80 ? "success" : "orange"}>{readinessPercent}%</Badge>
+          <Badge tone={readinessPercent >= 80 ? "success" : "warning"}>{readinessPercent}%</Badge>
         </Group>
         <Progress value={readinessPercent} color={readinessPercent >= 80 ? "success" : "orange"} />
         <Text size="xs" c="dimmed" mt="xs">
@@ -511,30 +516,25 @@ export function StandardsSettings() {
             <Title order={5}>Reference Baselines</Title>
           </Group>
           <Stack gap="xs">
-            <Button component="a" href="https://hl7.org/fhir/R4/" target="_blank" variant="subtle">
+            <Button tone="ghost" component="a" href="https://hl7.org/fhir/R4/" target="_blank">
               HL7 FHIR R4
             </Button>
-            <Button
-              component="a"
-              href="https://icd.who.int/icdapi"
-              target="_blank"
-              variant="subtle"
-            >
+            <Button tone="ghost" component="a" href="https://icd.who.int/icdapi" target="_blank">
               WHO ICD API
             </Button>
             <Button
+              tone="ghost"
               component="a"
               href="https://www.snomedctnrc.in/standards/snomed-ct"
               target="_blank"
-              variant="subtle"
             >
               NRCeS CSNOtk / SNOMED CT
             </Button>
             <Button
+              tone="ghost"
               component="a"
               href="https://www.dicomstandard.org/using/dicomweb/"
               target="_blank"
-              variant="subtle"
             >
               DICOMweb
             </Button>

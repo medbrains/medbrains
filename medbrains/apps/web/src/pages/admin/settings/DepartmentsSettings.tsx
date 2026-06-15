@@ -1,7 +1,5 @@
 import {
   ActionIcon,
-  Badge,
-  Button,
   Grid,
   Group,
   Loader,
@@ -18,6 +16,7 @@ import { IconCheck, IconClock, IconPencil, IconPlus, IconTrash } from "@tabler/i
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { CreateDepartmentModal, SelectLabel } from "@/components";
+import { Badge, type BadgeTone, Button } from "@/components/ui";
 import { useCreateInline } from "@/hooks/useCreateInline";
 import { settingsSetupService } from "@/services/settingsSetup.service";
 
@@ -32,13 +31,13 @@ const DEPARTMENT_TYPE_OPTIONS = [
   { value: "academic", label: "Academic" },
 ];
 
-const TYPE_COLORS: Record<string, string> = {
+const TYPE_TONES: Record<string, BadgeTone> = {
   clinical: "primary",
   pre_clinical: "info",
-  para_clinical: "teal",
-  administrative: "orange",
-  support: "slate",
-  academic: "violet",
+  para_clinical: "success",
+  administrative: "warning",
+  support: "neutral",
+  academic: "accent",
 };
 
 const WEEKDAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
@@ -296,7 +295,7 @@ function DepartmentModal({
                   {day}
                 </Text>
                 {isSunday && (
-                  <Button variant="subtle" size="compact-xs" onClick={toggleSunday}>
+                  <Button tone="ghost" size="compact-xs" onClick={toggleSunday}>
                     {isOff ? "Enable" : "Set Off"}
                   </Button>
                 )}
@@ -355,10 +354,11 @@ function DepartmentModal({
         })}
 
         <Group justify="flex-end" mt="md">
-          <Button variant="light" onClick={onClose}>
+          <Button tone="secondary" onClick={onClose}>
             Cancel
           </Button>
           <Button
+            tone="primary"
             onClick={handleSubmit}
             loading={createMutation.isPending || updateMutation.isPending}
           >
@@ -402,10 +402,10 @@ function DeleteConfirmModal({
           ({department?.code})? This action cannot be undone.
         </Text>
         <Group justify="flex-end">
-          <Button variant="light" onClick={onClose}>
+          <Button tone="secondary" onClick={onClose}>
             Cancel
           </Button>
-          <Button color="danger" onClick={onConfirm} loading={isDeleting}>
+          <Button tone="danger" onClick={onConfirm} loading={isDeleting}>
             Delete
           </Button>
         </Group>
@@ -490,7 +490,7 @@ export function DepartmentsSettings() {
         <Text size="sm">{dept.name}</Text>
       </Table.Td>
       <Table.Td>
-        <Badge size="sm" variant="light" color={TYPE_COLORS[dept.department_type] ?? "slate"}>
+        <Badge size="sm" tone={TYPE_TONES[dept.department_type] ?? "neutral"}>
           {dept.department_type.replace(/_/g, " ")}
         </Badge>
       </Table.Td>
@@ -502,11 +502,11 @@ export function DepartmentsSettings() {
       </Table.Td>
       <Table.Td>
         {dept.is_active ? (
-          <Badge size="sm" variant="light" color="success">
+          <Badge size="sm" tone="success">
             Active
           </Badge>
         ) : (
-          <Badge size="sm" variant="light" color="danger">
+          <Badge size="sm" tone="danger">
             Inactive
           </Badge>
         )}
@@ -540,7 +540,7 @@ export function DepartmentsSettings() {
         <Text size="sm" c="dimmed">
           Manage hospital departments and their working hours.
         </Text>
-        <Button size="sm" leftSection={<IconPlus size={14} />} onClick={openCreate}>
+        <Button tone="primary" size="sm" leftSection={<IconPlus size={14} />} onClick={openCreate}>
           Add Department
         </Button>
       </Group>

@@ -3,8 +3,8 @@
 import { describe, expect, it } from "vitest";
 import {
   groupsGrantingPermission,
-  resolvePermissionSources,
   type PermissionSourceGroup,
+  resolvePermissionSources,
 } from "./access-matrix-permission-sources";
 
 function group(input: Partial<PermissionSourceGroup>): PermissionSourceGroup {

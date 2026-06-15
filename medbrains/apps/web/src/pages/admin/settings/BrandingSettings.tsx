@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Button, ColorInput, Group, Loader, Stack, Text, TextInput } from "@mantine/core";
+import { ColorInput, Group, Loader, Stack, Text, TextInput } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { type BrandingSettingsFormInput, brandingSettingsFormSchema } from "@medbrains/schemas";
 import type { TenantSettingsRow } from "@medbrains/types";
@@ -7,6 +7,7 @@ import { IconCheck, IconDeviceFloppy } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo } from "react";
 import { Controller, useForm } from "react-hook-form";
+import { Button } from "@/components/ui";
 import { tenantSettingsService } from "@/services/tenantSettings.service";
 
 // ── Constants ──────────────────────────────────────────────
@@ -237,6 +238,7 @@ export function BrandingSettings() {
 
       <Group mt="md">
         <Button
+          tone="primary"
           leftSection={<IconDeviceFloppy size={16} />}
           onClick={() => void submitBranding()}
           loading={mutation.isPending}
