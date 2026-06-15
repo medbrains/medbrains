@@ -11,22 +11,35 @@ import {
 } from "@mantine/core";
 import { usePermissionStore } from "@medbrains/stores";
 import { IconDownload } from "@tabler/icons-react";
-import { type CSSProperties, type ReactNode, useCallback, useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import { Checkbox, IconButton } from "@/components/ui";
 import { DataTableBulkBar } from "./DataTableBulkBar";
 import { DataTableColumnsMenu } from "./DataTableColumnsMenu";
 import { DataTableHeader } from "./DataTableHeader";
+import { DataTableToolbar } from "./DataTableToolbar";
 import styles from "./data-table.module.scss";
 import { isColumnVisible, resolveColumnAccess } from "./data-table-access";
-import { buildCsv, downloadCsv, type SortState } from "./data-table-features";
-import type { Column, ColumnAccessState, DataTableDensity } from "./data-table-types";
+import { buildCsv, downloadCsv } from "./data-table-features";
+import type {
+  Column,
+  ColumnAccessState,
+  DataTableDensity,
+  DataTableProps,
+} from "./data-table-types";
 import { EmptyState } from "./EmptyState";
 import { PermissionedFieldValue } from "./PermissionedFieldValue";
+import { useDataTableFilter } from "./use-data-table-filter";
 import { useDataTableState } from "./use-data-table-state";
 import { useDataTableVirtual } from "./use-data-table-virtual";
 
 export type { SortState } from "./data-table-features";
-export type { Column, ColumnAccessState, DataTableDensity } from "./data-table-types";
+export type {
+  Column,
+  ColumnAccessState,
+  DataTableDensity,
+  DataTableFilter,
+  DataTableProps,
+} from "./data-table-types";
 
 const SKELETON_ROW_KEYS = ["skeleton-a", "skeleton-b", "skeleton-c", "skeleton-d", "skeleton-e"];
 const DEFAULT_VIRTUALIZE_AT = 80;
@@ -43,50 +56,6 @@ const TABLE_VERTICAL_SPACING_BY_DENSITY: Record<DataTableDensity, number> = {
   default: 7,
   comfortable: 10,
 };
-
-interface DataTableProps<T> {
-  columns: Column<T>[];
-  data: T[];
-  loading?: boolean;
-  total?: number;
-  emptyIcon?: ReactNode;
-  emptyTitle?: string;
-  emptyDescription?: string;
-  emptyAction?: { label: string; onClick: () => void };
-  page?: number;
-  totalPages?: number;
-  perPage?: number;
-  onPageChange?: (page: number) => void;
-  rowKey: (row: T) => string;
-  toolbar?: ReactNode;
-  tableActions?: ReactNode;
-  rowStyle?: (row: T) => CSSProperties | undefined;
-  onRowClick?: (row: T) => void;
-  caption?: ReactNode;
-  captionVisuallyHidden?: boolean;
-  density?: DataTableDensity;
-  virtualized?: boolean | "auto";
-  virtualizeAt?: number;
-  virtualRowHeight?: number;
-  virtualOverscan?: number;
-  tableMaxHeight?: CSSProperties["maxHeight"];
-  // ── Sorting (opt-in) ──────────────────────────────────────────
-  defaultSort?: SortState;
-  /** Controlled sort (server-side). Provide with `onSortChange`. */
-  sort?: SortState | null;
-  onSortChange?: (sort: SortState | null) => void;
-  // ── Row selection (opt-in) ────────────────────────────────────
-  selectable?: boolean;
-  selectedKeys?: string[];
-  onSelectionChange?: (keys: string[], rows: T[]) => void;
-  /** Rendered in the bulk bar when rows are selected. */
-  bulkActions?: (rows: T[], clear: () => void) => ReactNode;
-  // ── Column visibility + export (opt-in) ───────────────────────
-  /** Persistence key for hideable-column state (localStorage). */
-  storageKey?: string;
-  exportable?: boolean;
-  exportFileName?: string;
-}
 
 function renderCell<T>(row: T, column: Column<T>, access: ColumnAccessState) {
   if (!access.permissionsAllowed) {
@@ -161,10 +130,23 @@ export function DataTable<T>({
   storageKey,
   exportable,
   exportFileName,
+  searchable,
+  searchPlaceholder,
+  filters,
 }: DataTableProps<T>) {
   const hasAllPermissions = usePermissionStore((state) => state.hasAllPermissions);
   const hasAnyPermission = usePermissionStore((state) => state.hasAnyPermission);
   const getFieldAccess = usePermissionStore((state) => state.getFieldAccess);
+
+  const {
+    query,
+    setQuery,
+    filterValues,
+    setFilterValue,
+    clearFilters,
+    filteredData,
+    activeFilterCount,
+  } = useDataTableFilter({ data, columns, searchable, filters });
 
   const {
     activeSort,
@@ -181,7 +163,7 @@ export function DataTable<T>({
     toggleColumn,
   } = useDataTableState({
     columns,
-    data,
+    data: filteredData,
     rowKey,
     sort,
     defaultSort,
@@ -273,21 +255,28 @@ export function DataTable<T>({
       </>
     ) : null;
 
-  const headerToolbar =
-    toolbar || tableActions || builtInActions ? (
-      <>
-        <Box px="md" py="sm" className={styles.toolbar}>
-          <Group justify="space-between" align="center" gap="sm" wrap="wrap">
-            {toolbar && <Box className={styles.toolbarContent}>{toolbar}</Box>}
-            <Group gap="xs" className={styles.tableActions}>
-              {tableActions}
-              {builtInActions}
-            </Group>
-          </Group>
-        </Box>
-        <Divider />
-      </>
-    ) : null;
+  const headerToolbar = (
+    <DataTableToolbar
+      toolbar={toolbar}
+      actions={
+        tableActions || builtInActions ? (
+          <>
+            {tableActions}
+            {builtInActions}
+          </>
+        ) : null
+      }
+      searchable={searchable}
+      searchPlaceholder={searchPlaceholder}
+      query={query}
+      onQueryChange={setQuery}
+      filters={filters}
+      filterValues={filterValues}
+      onFilterChange={setFilterValue}
+      activeFilterCount={activeFilterCount}
+      onClearFilters={clearFilters}
+    />
+  );
 
   const bulkBar =
     selectable && selectedRows.length > 0 ? (
