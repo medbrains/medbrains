@@ -1,7 +1,5 @@
 import {
   ActionIcon,
-  Badge,
-  Button,
   Drawer,
   Select,
   Stack,
@@ -30,6 +28,7 @@ import { useState } from "react";
 import { DataTable, PageHeader } from "@/components";
 import type { Column } from "@/components/DataTable";
 import { PatientNameCell } from "@/components/PatientNameCell";
+import { Badge, Button } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { specialtyService } from "@/services/specialty.service";
 
@@ -125,19 +124,19 @@ export function PsychiatryPage() {
     {
       key: "category",
       label: "Category",
-      render: (r) => <Badge>{r.admission_category.replace(/_/g, " ")}</Badge>,
+      render: (r) => <Badge tone="neutral">{r.admission_category.replace(/_/g, " ")}</Badge>,
     },
     {
       key: "substance",
       label: "Substance Abuse",
       render: (r) =>
-        r.substance_abuse_flag ? <Badge color="orange">Yes</Badge> : <Text size="sm">No</Text>,
+        r.substance_abuse_flag ? <Badge tone="warning">Yes</Badge> : <Text size="sm">No</Text>,
     },
     {
       key: "restricted",
       label: "Restricted",
       render: (r) =>
-        r.is_restricted ? <Badge color="danger">RESTRICTED</Badge> : <Text size="sm">No</Text>,
+        r.is_restricted ? <Badge tone="danger">RESTRICTED</Badge> : <Text size="sm">No</Text>,
     },
     {
       key: "nominated",
@@ -156,7 +155,11 @@ export function PsychiatryPage() {
   ];
 
   const assessCols: Column<PsychAssessment>[] = [
-    { key: "type", label: "Type", render: (r) => <Badge>{r.assessment_type}</Badge> },
+    {
+      key: "type",
+      label: "Type",
+      render: (r) => <Badge tone="neutral">{r.assessment_type}</Badge>,
+    },
     {
       key: "ham_d",
       label: "HAM-D",
@@ -179,13 +182,13 @@ export function PsychiatryPage() {
     {
       key: "laterality",
       label: "Laterality",
-      render: (r) => <Badge>{r.laterality.replace(/_/g, " ")}</Badge>,
+      render: (r) => <Badge tone="neutral">{r.laterality.replace(/_/g, " ")}</Badge>,
     },
     {
       key: "consent",
       label: "Consent",
       render: (r) =>
-        r.consent_obtained ? <Badge color="success">Yes</Badge> : <Badge color="danger">No</Badge>,
+        r.consent_obtained ? <Badge tone="success">Yes</Badge> : <Badge tone="danger">No</Badge>,
     },
     {
       key: "stimulus",
@@ -210,11 +213,11 @@ export function PsychiatryPage() {
       label: "Type",
       render: (r) => (
         <Badge
-          color={
+          tone={
             r.restraint_type === "seclusion"
               ? "danger"
               : r.restraint_type === "chemical"
-                ? "orange"
+                ? "warning"
                 : "warning"
           }
         >
@@ -243,7 +246,7 @@ export function PsychiatryPage() {
       key: "released",
       label: "Released",
       render: (r) =>
-        r.released_at ? <Badge color="success">Yes</Badge> : <Badge color="danger">Active</Badge>,
+        r.released_at ? <Badge tone="success">Yes</Badge> : <Badge tone="danger">Active</Badge>,
     },
     {
       key: "actions",
@@ -269,7 +272,7 @@ export function PsychiatryPage() {
         subtitle="MHCA 2017 compliant psychiatric care management"
         actions={
           canCreate ? (
-            <Button leftSection={<IconPlus size={16} />} onClick={patHandlers.open}>
+            <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={patHandlers.open}>
               Register Patient
             </Button>
           ) : undefined
@@ -326,7 +329,9 @@ export function PsychiatryPage() {
                 {
                   key: "type",
                   label: "Type",
-                  render: (r: PsychMhrbNotification) => <Badge>{r.notification_type}</Badge>,
+                  render: (r: PsychMhrbNotification) => (
+                    <Badge tone="neutral">{r.notification_type}</Badge>
+                  ),
                 },
                 {
                   key: "ref",
@@ -338,7 +343,7 @@ export function PsychiatryPage() {
                 {
                   key: "status",
                   label: "Status",
-                  render: (r: PsychMhrbNotification) => <Badge>{r.status}</Badge>,
+                  render: (r: PsychMhrbNotification) => <Badge tone="neutral">{r.status}</Badge>,
                 },
                 {
                   key: "date",
@@ -419,7 +424,11 @@ export function PsychiatryPage() {
               setPatForm((p) => ({ ...p, substance_abuse_flag: e.currentTarget.checked }))
             }
           />
-          <Button onClick={() => createPat.mutate(patForm)} loading={createPat.isPending}>
+          <Button
+            tone="primary"
+            onClick={() => createPat.mutate(patForm)}
+            loading={createPat.isPending}
+          >
             Register Patient
           </Button>
         </Stack>

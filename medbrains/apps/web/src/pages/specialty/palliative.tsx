@@ -1,7 +1,5 @@
 import {
   ActionIcon,
-  Badge,
-  Button,
   Drawer,
   Group,
   NumberInput,
@@ -29,17 +27,39 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useSearchParams } from "react-router";
 import { DataTable, PageHeader } from "@/components";
-import { statusColor } from "@/lib/status-colors";
 import type { Column } from "@/components/DataTable";
 import { PatientNameCell } from "@/components/PatientNameCell";
+import { Badge, type BadgeTone, Button } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
+import { statusColor } from "@/lib/status-colors";
 import { specialtyService } from "@/services/specialty.service";
 
-const DNR_COLORS: Record<string, string> = {
+const DNR_TONES: Record<string, BadgeTone> = {
   active: "danger",
-  expired: "slate",
+  expired: "neutral",
   revoked: "warning",
 };
+
+const STATUS_TONE: Record<string, BadgeTone> = {
+  success: "success",
+  warning: "warning",
+  danger: "danger",
+  info: "info",
+  primary: "primary",
+  blue: "info",
+  teal: "success",
+  green: "success",
+  orange: "warning",
+  violet: "accent",
+  grape: "accent",
+  red: "danger",
+  gray: "neutral",
+  slate: "neutral",
+};
+
+function statusTone(status: string): BadgeTone {
+  return STATUS_TONE[statusColor(status) ?? "slate"] ?? "neutral";
+}
 
 const PALLIATIVE_PAGE_PERMISSIONS = [
   P.SPECIALTY.PALLIATIVE.DNR_LIST,
@@ -183,7 +203,7 @@ export function PalliativePage() {
       key: "status",
       label: "Status",
       render: (r) => (
-        <Badge color={DNR_COLORS[r.status] ?? "slate"}>{r.status.toUpperCase()}</Badge>
+        <Badge tone={DNR_TONES[r.status] ?? "neutral"}>{r.status.toUpperCase()}</Badge>
       ),
     },
     {
@@ -228,7 +248,7 @@ export function PalliativePage() {
       key: "pain_score",
       label: "Pain Score",
       render: (r) => (
-        <Badge color={r.pain_score >= 7 ? "danger" : r.pain_score >= 4 ? "orange" : "success"}>
+        <Badge tone={r.pain_score >= 7 ? "danger" : r.pain_score >= 4 ? "warning" : "success"}>
           {r.pain_score}/10
         </Badge>
       ),
@@ -269,14 +289,12 @@ export function PalliativePage() {
     {
       key: "mlc",
       label: "MLC",
-      render: (r) => (r.is_mlc ? <Badge color="danger">MLC</Badge> : <Text size="sm">No</Text>),
+      render: (r) => (r.is_mlc ? <Badge tone="danger">MLC</Badge> : <Text size="sm">No</Text>),
     },
     {
       key: "status",
       label: "Status",
-      render: (r) => (
-        <Badge color={statusColor(r.status) ?? "slate"}>{r.status.replace(/_/g, " ")}</Badge>
-      ),
+      render: (r) => <Badge tone={statusTone(r.status)}>{r.status.replace(/_/g, " ")}</Badge>,
     },
     {
       key: "storage",
@@ -319,7 +337,7 @@ export function PalliativePage() {
       key: "active",
       label: "Active",
       render: (r) =>
-        r.is_active ? <Badge color="success">Yes</Badge> : <Badge color="slate">No</Badge>,
+        r.is_active ? <Badge tone="success">Yes</Badge> : <Badge tone="neutral">No</Badge>,
     },
   ];
 
@@ -331,13 +349,17 @@ export function PalliativePage() {
         actions={
           <Group>
             {canDnr && (
-              <Button leftSection={<IconPlus size={16} />} onClick={dnrHandlers.open}>
+              <Button
+                tone="primary"
+                leftSection={<IconPlus size={16} />}
+                onClick={dnrHandlers.open}
+              >
                 New DNR
               </Button>
             )}
             {canPain && (
               <Button
-                variant="light"
+                tone="secondary"
                 leftSection={<IconPlus size={16} />}
                 onClick={painHandlers.open}
               >
@@ -346,7 +368,7 @@ export function PalliativePage() {
             )}
             {canMortuary && (
               <Button
-                variant="light"
+                tone="secondary"
                 leftSection={<IconPlus size={16} />}
                 onClick={mortuaryHandlers.open}
               >
@@ -450,7 +472,11 @@ export function PalliativePage() {
             value={dnrForm.scope ?? ""}
             onChange={(e) => setDnrForm((p) => ({ ...p, scope: e.currentTarget.value }))}
           />
-          <Button onClick={() => createDnr.mutate(dnrForm)} loading={createDnr.isPending}>
+          <Button
+            tone="primary"
+            onClick={() => createDnr.mutate(dnrForm)}
+            loading={createDnr.isPending}
+          >
             Create DNR Order
           </Button>
         </Stack>
@@ -508,7 +534,11 @@ export function PalliativePage() {
               }))
             }
           />
-          <Button onClick={() => createPain.mutate(painForm)} loading={createPain.isPending}>
+          <Button
+            tone="primary"
+            onClick={() => createPain.mutate(painForm)}
+            loading={createPain.isPending}
+          >
             Record Assessment
           </Button>
         </Stack>
@@ -552,7 +582,11 @@ export function PalliativePage() {
               setMortForm((p) => ({ ...p, cold_storage_slot: e.currentTarget.value }))
             }
           />
-          <Button onClick={() => createMort.mutate(mortForm)} loading={createMort.isPending}>
+          <Button
+            tone="primary"
+            onClick={() => createMort.mutate(mortForm)}
+            loading={createMort.isPending}
+          >
             Create Record
           </Button>
         </Stack>

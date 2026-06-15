@@ -1,7 +1,5 @@
 import {
   ActionIcon,
-  Badge,
-  Button,
   Drawer,
   Group,
   NumberInput,
@@ -28,11 +26,33 @@ import { IconPencil, IconPlus } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { DataTable, PageHeader } from "@/components";
-import { statusColor } from "@/lib/status-colors";
 import type { Column } from "@/components/DataTable";
 import { PatientNameCell } from "@/components/PatientNameCell";
+import { Badge, type BadgeTone, Button } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
+import { statusColor } from "@/lib/status-colors";
 import { specialtyService } from "@/services/specialty.service";
+
+const STATUS_TONE: Record<string, BadgeTone> = {
+  success: "success",
+  warning: "warning",
+  danger: "danger",
+  info: "info",
+  primary: "primary",
+  blue: "info",
+  teal: "success",
+  green: "success",
+  orange: "warning",
+  violet: "accent",
+  grape: "accent",
+  red: "danger",
+  gray: "neutral",
+  slate: "neutral",
+};
+
+function statusTone(status: string): BadgeTone {
+  return STATUS_TONE[statusColor(status) ?? "slate"] ?? "neutral";
+}
 
 const RISK_CATEGORIES: { value: AncRiskCategory; label: string }[] = [
   { value: "low", label: "Low" },
@@ -142,16 +162,14 @@ export function MaternityPage() {
       key: "risk",
       label: "Risk",
       render: (r) => (
-        <Badge color={statusColor(r.risk_category) ?? "slate"}>
-          {r.risk_category.replace(/_/g, " ")}
-        </Badge>
+        <Badge tone={statusTone(r.risk_category)}>{r.risk_category.replace(/_/g, " ")}</Badge>
       ),
     },
     {
       key: "high_risk",
       label: "High Risk",
       render: (r) =>
-        r.is_high_risk ? <Badge color="danger">HIGH RISK</Badge> : <Text size="sm">No</Text>,
+        r.is_high_risk ? <Badge tone="danger">HIGH RISK</Badge> : <Text size="sm">No</Text>,
     },
     {
       key: "blood",
@@ -197,9 +215,9 @@ export function MaternityPage() {
       label: "PCPNDT Form F",
       render: (r) =>
         r.pcpndt_form_f_filed ? (
-          <Badge color="success">Filed</Badge>
+          <Badge tone="success">Filed</Badge>
         ) : (
-          <Badge color="slate">No</Badge>
+          <Badge tone="neutral">No</Badge>
         ),
     },
     {
@@ -213,7 +231,7 @@ export function MaternityPage() {
     {
       key: "stage",
       label: "Stage",
-      render: (r) => <Badge>{r.current_stage.replace(/_/g, " ")}</Badge>,
+      render: (r) => <Badge tone="neutral">{r.current_stage.replace(/_/g, " ")}</Badge>,
     },
     {
       key: "delivery",
@@ -261,7 +279,7 @@ export function MaternityPage() {
       label: "Birth Date",
       render: (r) => <Text size="sm">{new Date(r.birth_date).toLocaleDateString()}</Text>,
     },
-    { key: "gender", label: "Gender", render: (r) => <Badge>{r.gender}</Badge> },
+    { key: "gender", label: "Gender", render: (r) => <Badge tone="neutral">{r.gender}</Badge> },
     { key: "weight", label: "Weight (g)", render: (r) => <Text size="sm">{r.weight_gm}</Text> },
     {
       key: "apgar1",
@@ -277,7 +295,7 @@ export function MaternityPage() {
       key: "nicu",
       label: "NICU",
       render: (r) =>
-        r.nicu_admission_needed ? <Badge color="danger">Yes</Badge> : <Text size="sm">No</Text>,
+        r.nicu_admission_needed ? <Badge tone="danger">Yes</Badge> : <Text size="sm">No</Text>,
     },
     {
       key: "cert",
@@ -293,7 +311,7 @@ export function MaternityPage() {
         subtitle="Antenatal care, labor & delivery, newborn and postnatal records"
         actions={
           canCreate ? (
-            <Button leftSection={<IconPlus size={16} />} onClick={regHandlers.open}>
+            <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={regHandlers.open}>
               New Registration
             </Button>
           ) : undefined
@@ -454,7 +472,11 @@ export function MaternityPage() {
             value={regForm.blood_group ?? ""}
             onChange={(e) => setRegForm((p) => ({ ...p, blood_group: e.currentTarget.value }))}
           />
-          <Button onClick={() => createReg.mutate(regForm)} loading={createReg.isPending}>
+          <Button
+            tone="primary"
+            onClick={() => createReg.mutate(regForm)}
+            loading={createReg.isPending}
+          >
             Register
           </Button>
         </Stack>

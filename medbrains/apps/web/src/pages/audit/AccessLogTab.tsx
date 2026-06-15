@@ -1,4 +1,4 @@
-import { Button, Drawer, Group, Select, Stack, Text, TextInput } from "@mantine/core";
+import { Drawer, Group, Select, Stack, Text, TextInput } from "@mantine/core";
 import { DateInput } from "@mantine/dates";
 import { useDisclosure } from "@mantine/hooks";
 import type { AccessLogEntry, AccessLogQuery } from "@medbrains/types";
@@ -7,6 +7,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { DataTable } from "@/components";
 import type { Column } from "@/components/DataTable";
+import { Button } from "@/components/ui";
 import { auditService } from "@/services/audit.service";
 
 // ── Constants ──────────────────────────────────────────
@@ -226,7 +227,7 @@ export function AccessLogTab() {
           size="sm"
           w={150}
         />
-        <Button variant="subtle" size="sm" onClick={handleClearFilters}>
+        <Button tone="ghost" size="sm" onClick={handleClearFilters}>
           Clear
         </Button>
       </Group>

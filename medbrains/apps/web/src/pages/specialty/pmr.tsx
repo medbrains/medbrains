@@ -1,15 +1,4 @@
-import {
-  Badge,
-  Button,
-  Drawer,
-  NumberInput,
-  Select,
-  Stack,
-  Tabs,
-  Text,
-  Textarea,
-  TextInput,
-} from "@mantine/core";
+import { Drawer, NumberInput, Select, Stack, Tabs, Text, Textarea, TextInput } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import { useHasPermission } from "@medbrains/stores";
@@ -27,6 +16,7 @@ import { useState } from "react";
 import { DataTable, PageHeader } from "@/components";
 import type { Column } from "@/components/DataTable";
 import { PatientNameCell } from "@/components/PatientNameCell";
+import { Badge, Button } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { specialtyService } from "@/services/specialty.service";
 
@@ -96,7 +86,7 @@ export function PmrPage() {
     {
       key: "discipline",
       label: "Discipline",
-      render: (r) => <Badge>{r.discipline.replace(/_/g, " ")}</Badge>,
+      render: (r) => <Badge tone="neutral">{r.discipline.replace(/_/g, " ")}</Badge>,
     },
     {
       key: "fim_initial",
@@ -146,17 +136,21 @@ export function PmrPage() {
       label: "Patient",
       render: (r) => <PatientNameCell patientId={r.patient_id} showUhid={false} />,
     },
-    { key: "test_type", label: "Test", render: (r) => <Badge>{r.test_type.toUpperCase()}</Badge> },
+    {
+      key: "test_type",
+      label: "Test",
+      render: (r) => <Badge tone="neutral">{r.test_type.toUpperCase()}</Badge>,
+    },
     {
       key: "nhsp",
       label: "NHSP",
-      render: (r) => (r.is_nhsp ? <Badge color="primary">NHSP</Badge> : <Text size="sm">No</Text>),
+      render: (r) => (r.is_nhsp ? <Badge tone="primary">NHSP</Badge> : <Text size="sm">No</Text>),
     },
     {
       key: "referral",
       label: "Referral Needed",
       render: (r) =>
-        r.nhsp_referral_needed ? <Badge color="orange">Yes</Badge> : <Text size="sm">No</Text>,
+        r.nhsp_referral_needed ? <Badge tone="warning">Yes</Badge> : <Text size="sm">No</Text>,
     },
     {
       key: "date",
@@ -172,7 +166,7 @@ export function PmrPage() {
         subtitle="Physical medicine, rehabilitation, and hearing assessment"
         actions={
           canPlan ? (
-            <Button leftSection={<IconPlus size={16} />} onClick={planHandlers.open}>
+            <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={planHandlers.open}>
               New Rehab Plan
             </Button>
           ) : undefined
@@ -244,7 +238,11 @@ export function PmrPage() {
               }))
             }
           />
-          <Button onClick={() => createPlan.mutate(planForm)} loading={createPlan.isPending}>
+          <Button
+            tone="primary"
+            onClick={() => createPlan.mutate(planForm)}
+            loading={createPlan.isPending}
+          >
             Create Plan
           </Button>
         </Stack>

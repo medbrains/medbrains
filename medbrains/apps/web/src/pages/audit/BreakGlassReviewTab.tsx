@@ -1,14 +1,4 @@
-import {
-  Badge,
-  Button,
-  Drawer,
-  Group,
-  Select,
-  Stack,
-  Text,
-  Textarea,
-  Tooltip,
-} from "@mantine/core";
+import { Drawer, Group, Select, Stack, Text, Textarea, Tooltip } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import { useHasPermission } from "@medbrains/stores";
@@ -17,6 +7,7 @@ import { IconEye, IconShieldLock } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { type Column, DataTable } from "@/components/DataTable";
+import { Badge, type BadgeTone, Button } from "@/components/ui";
 import { formatDateTime } from "@/lib/date-utils";
 import { auditService } from "@/services/audit.service";
 
@@ -29,30 +20,30 @@ const FILTER_OPTIONS = [
   { value: "all", label: "All" },
 ];
 
-const lifecycleBadge = (event: BreakGlassEventSummary) => {
-  if (event.is_active) return { color: "danger", label: "Active" };
-  if (event.end_time) return { color: "slate", label: "Ended" };
+const lifecycleBadge = (event: BreakGlassEventSummary): { tone: BadgeTone; label: string } => {
+  if (event.is_active) return { tone: "danger", label: "Active" };
+  if (event.end_time) return { tone: "neutral", label: "Ended" };
   if (new Date(event.expires_at).getTime() <= Date.now()) {
-    return { color: "orange", label: "Expired" };
+    return { tone: "warning", label: "Expired" };
   }
-  return { color: "slate", label: "Inactive" };
+  return { tone: "neutral", label: "Inactive" };
 };
 
-const reviewBadge = (event: BreakGlassEventSummary) =>
+const reviewBadge = (event: BreakGlassEventSummary): { tone: BadgeTone; label: string } =>
   event.reviewed_at
-    ? { color: "success", label: "Reviewed" }
-    : { color: "warning", label: "Needs review" };
+    ? { tone: "success", label: "Reviewed" }
+    : { tone: "warning", label: "Needs review" };
 
 const moduleBadges = (modules: string[]) =>
   modules.length > 0 ? (
     <Group gap={4}>
       {modules.slice(0, 3).map((module) => (
-        <Badge key={module} size="xs" variant="light">
+        <Badge key={module} size="xs">
           {module}
         </Badge>
       ))}
       {modules.length > 3 && (
-        <Badge size="xs" color="slate" variant="light">
+        <Badge size="xs" tone="neutral">
           +{modules.length - 3}
         </Badge>
       )}
@@ -148,7 +139,7 @@ export function BreakGlassReviewTab() {
       label: "Access",
       render: (event) => {
         const badge = lifecycleBadge(event);
-        return <Badge color={badge.color}>{badge.label}</Badge>;
+        return <Badge tone={badge.tone}>{badge.label}</Badge>;
       },
     },
     {
@@ -156,7 +147,7 @@ export function BreakGlassReviewTab() {
       label: "Review",
       render: (event) => {
         const badge = reviewBadge(event);
-        return <Badge color={badge.color}>{badge.label}</Badge>;
+        return <Badge tone={badge.tone}>{badge.label}</Badge>;
       },
     },
     {
@@ -192,7 +183,7 @@ export function BreakGlassReviewTab() {
       key: "phi_access_count",
       label: "PHI reads",
       render: (event) => (
-        <Badge color={event.phi_access_count > 0 ? "orange" : "slate"} variant="light">
+        <Badge tone={event.phi_access_count > 0 ? "warning" : "neutral"}>
           {event.phi_access_count}
         </Badge>
       ),
@@ -215,8 +206,8 @@ export function BreakGlassReviewTab() {
       render: (event) => (
         <Tooltip label="View review evidence">
           <Button
+            tone="secondary"
             size="xs"
-            variant="light"
             leftSection={<IconEye size={14} />}
             onClick={() => openEvent(event)}
           >
@@ -270,10 +261,10 @@ export function BreakGlassReviewTab() {
         ) : (
           <Stack>
             <Group>
-              <Badge color={selectedEvent.is_active ? "danger" : "slate"}>
+              <Badge tone={selectedEvent.is_active ? "danger" : "neutral"}>
                 {selectedEvent.is_active ? "Active" : "Inactive"}
               </Badge>
-              <Badge color={selectedEvent.reviewed_at ? "success" : "warning"}>
+              <Badge tone={selectedEvent.reviewed_at ? "success" : "warning"}>
                 {selectedEvent.reviewed_at ? "Reviewed" : "Needs review"}
               </Badge>
             </Group>
@@ -356,6 +347,7 @@ export function BreakGlassReviewTab() {
                     required
                   />
                   <Button
+                    tone="primary"
                     loading={reviewMutation.isPending}
                     disabled={!reviewNotes.trim()}
                     onClick={() =>

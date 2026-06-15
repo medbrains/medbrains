@@ -1,8 +1,9 @@
-import { Alert, Badge, Card, Group, Stack, Table, Text } from "@mantine/core";
+import { Alert, Card, Group, Stack, Table, Text } from "@mantine/core";
 import { P } from "@medbrains/types";
 import { IconInfoCircle } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { PageHeader } from "@/components/PageHeader";
+import { Badge } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { integrationService } from "@/services/integration.service";
 
@@ -39,7 +40,7 @@ export function IntegrationHubPage() {
         <Card.Section withBorder inheritPadding py="xs">
           <Group justify="space-between">
             <Text fw={600}>Active subscribers</Text>
-            <Badge variant="light">{pipelines.length} built-in</Badge>
+            <Badge>{pipelines.length} built-in</Badge>
           </Group>
         </Card.Section>
 
@@ -82,13 +83,9 @@ export function IntegrationHubPage() {
                 </Table.Td>
                 <Table.Td>
                   {p.disabled_for_tenant ? (
-                    <Badge color="gray" variant="light">
-                      Disabled
-                    </Badge>
+                    <Badge tone="neutral">Disabled</Badge>
                   ) : (
-                    <Badge color="green" variant="light">
-                      Active
-                    </Badge>
+                    <Badge tone="success">Active</Badge>
                   )}
                 </Table.Td>
               </Table.Tr>

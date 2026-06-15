@@ -1,24 +1,13 @@
-import {
-  Alert,
-  Badge,
-  Button,
-  Flex,
-  Group,
-  Paper,
-  ScrollArea,
-  Stack,
-  Text,
-  Textarea,
-  Title,
-} from "@mantine/core";
+import { Alert, Flex, Group, Paper, ScrollArea, Stack, Text, Textarea, Title } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { api } from "@medbrains/api";
-import { P } from "@medbrains/types";
 import { useHasPermission } from "@medbrains/stores";
+import { P } from "@medbrains/types";
 import { IconCheck, IconRefresh, IconRestore } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { PageHeader } from "@/components";
+import { Badge, Button } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 
 interface TemplateInfo {
@@ -98,7 +87,7 @@ export function DocumentTemplatesPage() {
                     </Text>
                   </div>
                   {t.has_override && (
-                    <Badge size="xs" color="copper" variant="light">
+                    <Badge size="xs" tone="accent">
                       custom
                     </Badge>
                   )}
@@ -114,8 +103,8 @@ export function DocumentTemplatesPage() {
                 <Title order={5}>{current.title}</Title>
                 <Group gap="xs">
                   <Button
+                    tone="ghost"
                     size="xs"
-                    variant="subtle"
                     leftSection={<IconRefresh size={14} />}
                     onClick={() => setPreviewNonce((n) => n + 1)}
                   >
@@ -134,9 +123,8 @@ export function DocumentTemplatesPage() {
               />
               <Group justify="space-between">
                 <Button
+                  tone="subtle-danger"
                   size="xs"
-                  variant="light"
-                  color="danger"
                   leftSection={<IconRestore size={14} />}
                   disabled={!current.has_override || saveMutation.isPending}
                   onClick={() => saveMutation.mutate({ code: current.code, html: null })}
@@ -144,6 +132,7 @@ export function DocumentTemplatesPage() {
                   Reset to built-in
                 </Button>
                 <Button
+                  tone="primary"
                   size="xs"
                   loading={saveMutation.isPending}
                   disabled={!canManage}

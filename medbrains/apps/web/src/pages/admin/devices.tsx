@@ -1,6 +1,4 @@
 import {
-  Badge,
-  Button,
   Card,
   Group,
   Loader,
@@ -32,7 +30,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { PageHeader } from "@/components/PageHeader";
-import { statusColor } from "@/lib/status-colors";
+import { Badge, type BadgeTone, Button } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { adminDevicesService } from "@/services/adminDevices.service";
 
@@ -160,15 +158,25 @@ function isDeviceFieldMapping(value: unknown): value is DeviceFieldMapping {
 
 // ── Status badge color map ──
 
-const STATUS_COLOR: Record<string, string> = {
+const STATUS_COLOR: Record<string, BadgeTone> = {
   active: "success",
   testing: "info",
   pending_setup: "warning",
   configuring: "warning",
-  degraded: "orange",
+  degraded: "warning",
   disconnected: "danger",
-  maintenance: "slate",
-  decommissioned: "slate",
+  maintenance: "neutral",
+  decommissioned: "neutral",
+};
+
+const MODULE_TONE: Record<string, BadgeTone> = {
+  lab: "info",
+  radiology: "accent",
+  vitals: "success",
+  pharmacy: "warning",
+  blood_bank: "danger",
+  icu: "primary",
+  generic: "neutral",
 };
 
 // ── Main Page ──────────────────────────────────────────────────
@@ -186,7 +194,7 @@ export function DevicesPage() {
         subtitle="Connect medical devices, manage adapters, monitor bridge agents"
         actions={
           canCreate ? (
-            <Button leftSection={<IconPlus size={16} />} onClick={openWizard}>
+            <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={openWizard}>
               Add Device
             </Button>
           ) : undefined
@@ -277,7 +285,7 @@ function DeviceListTab() {
                 <Text size="sm">{d.adapter_code}</Text>
               </Table.Td>
               <Table.Td>
-                <Badge size="sm" variant="light" color="slate">
+                <Badge size="sm" tone="neutral">
                   {((d.protocol_config as Record<string, unknown>).type as string) ??
                     d.adapter_code.split("_")[0]}
                 </Badge>
@@ -288,7 +296,7 @@ function DeviceListTab() {
                 </Text>
               </Table.Td>
               <Table.Td>
-                <Badge size="sm" color={STATUS_COLOR[d.status] ?? "gray"}>
+                <Badge size="sm" tone={STATUS_COLOR[d.status] ?? "neutral"}>
                   {d.status.replace(/_/g, " ")}
                 </Badge>
               </Table.Td>
@@ -299,8 +307,7 @@ function DeviceListTab() {
                 {d.ai_confidence != null ? (
                   <Badge
                     size="sm"
-                    variant="light"
-                    color={
+                    tone={
                       d.ai_confidence > 0.9
                         ? "success"
                         : d.ai_confidence > 0.7
@@ -428,7 +435,7 @@ function CatalogTab() {
                   <Tooltip label="Verified by MedBrains">
                     <Badge
                       size="xs"
-                      color="success"
+                      tone="success"
                       variant="filled"
                       leftSection={<IconCheck size={10} />}
                     >
@@ -438,20 +445,18 @@ function CatalogTab() {
                 )}
               </Group>
               <Group gap="xs" mb="sm">
-                <Badge size="xs" variant="light">
-                  {a.device_category.replace(/_/g, " ")}
-                </Badge>
-                <Badge size="xs" variant="outline" color="slate">
+                <Badge size="xs">{a.device_category.replace(/_/g, " ")}</Badge>
+                <Badge size="xs" variant="outline" tone="neutral">
                   {a.protocol.replace(/_/g, " ")}
                 </Badge>
                 <Badge
                   size="xs"
                   variant="filled"
-                  color={
+                  tone={
                     (a as unknown as Record<string, string>).data_direction === "consumer"
                       ? "info"
                       : (a as unknown as Record<string, string>).data_direction === "bidirectional"
-                        ? "violet"
+                        ? "accent"
                         : "success"
                   }
                 >
@@ -461,7 +466,7 @@ function CatalogTab() {
                   )}
                 </Badge>
                 {a.default_port && (
-                  <Badge size="xs" variant="dot" color="slate">
+                  <Badge size="xs" variant="dot" tone="neutral">
                     Port {a.default_port}
                   </Badge>
                 )}
@@ -479,7 +484,7 @@ function CatalogTab() {
                     {((a.default_config as Record<string, unknown>).features as string[])
                       .slice(0, 4)
                       .map((f: string) => (
-                        <Badge key={f} size="xs" variant="dot" color="slate">
+                        <Badge key={f} size="xs" variant="dot" tone="neutral">
                           {f.replace(/_/g, " ")}
                         </Badge>
                       ))}
@@ -557,14 +562,12 @@ function AgentsTab() {
                 </Text>
               </Table.Td>
               <Table.Td>
-                <Badge size="sm" variant="light">
-                  {a.deployment_mode}
-                </Badge>
+                <Badge size="sm">{a.deployment_mode}</Badge>
               </Table.Td>
               <Table.Td>
                 <Group gap={4}>
                   {a.capabilities.map((c: string) => (
-                    <Badge key={c} size="xs" variant="outline" color="slate">
+                    <Badge key={c} size="xs" variant="outline" tone="neutral">
                       {c}
                     </Badge>
                   ))}
@@ -575,7 +578,7 @@ function AgentsTab() {
               <Table.Td>
                 <Badge
                   size="sm"
-                  color={
+                  tone={
                     a.status === "online"
                       ? "success"
                       : a.status === "degraded"
@@ -626,7 +629,6 @@ interface RoutingRule {
   created_at: string;
 }
 
-
 function RoutingRulesTab() {
   const queryClient = useQueryClient();
   const [addOpened, { open: openAdd, close: closeAdd }] = useDisclosure(false);
@@ -652,7 +654,7 @@ function RoutingRulesTab() {
             Configure how incoming device data maps to MedBrains modules
           </Text>
         </div>
-        <Button size="sm" leftSection={<IconPlus size={14} />} variant="light" onClick={openAdd}>
+        <Button tone="secondary" size="sm" leftSection={<IconPlus size={14} />} onClick={openAdd}>
           Add Rule
         </Button>
       </Group>
@@ -706,12 +708,12 @@ function RoutingRulesTab() {
                     </Text>
                   </Table.Td>
                   <Table.Td>
-                    <Badge size="sm" color={statusColor(r.target_module) ?? "gray"}>
+                    <Badge size="sm" tone={MODULE_TONE[r.target_module] ?? "neutral"}>
                       {r.target_module}
                     </Badge>
                   </Table.Td>
                   <Table.Td>
-                    <Badge size="xs" variant="outline" color="slate">
+                    <Badge size="xs" variant="outline" tone="neutral">
                       {r.match_strategy.replace(/_/g, " ")}
                     </Badge>
                   </Table.Td>
@@ -721,29 +723,24 @@ function RoutingRulesTab() {
                     </Text>
                   </Table.Td>
                   <Table.Td>
-                    <Badge size="xs" color={r.auto_verify ? "danger" : "slate"} variant="light">
+                    <Badge size="xs" tone={r.auto_verify ? "danger" : "neutral"}>
                       {r.auto_verify ? "Yes" : "No"}
                     </Badge>
                   </Table.Td>
                   <Table.Td>
-                    <Badge
-                      size="xs"
-                      color={r.notify_on_critical ? "success" : "slate"}
-                      variant="light"
-                    >
+                    <Badge size="xs" tone={r.notify_on_critical ? "success" : "neutral"}>
                       {r.notify_on_critical ? "On" : "Off"}
                     </Badge>
                   </Table.Td>
                   <Table.Td>
-                    <Badge size="xs" color={r.is_active ? "success" : "slate"}>
+                    <Badge size="xs" tone={r.is_active ? "success" : "neutral"}>
                       {r.is_active ? "Active" : "Off"}
                     </Badge>
                   </Table.Td>
                   <Table.Td>
                     <Button
+                      tone="subtle-danger"
                       size="xs"
-                      variant="subtle"
-                      color="danger"
                       onClick={() => deleteMutation.mutate(r.id)}
                       loading={deleteMutation.isPending}
                     >
@@ -877,6 +874,7 @@ function AddRoutingRuleModal({ opened, onClose }: { opened: boolean; onClose: ()
           required
         />
         <Button
+          tone="primary"
           onClick={() => createMutation.mutate()}
           loading={createMutation.isPending}
           disabled={!name || !matchField || !targetEntity}
@@ -1010,14 +1008,12 @@ function AddDeviceWizard({ opened, onClose }: { opened: boolean; onClose: () => 
                   {a.manufacturer}
                 </Text>
                 <Group gap={4} mt={4}>
-                  <Badge size="xs" variant="light">
-                    {a.device_category.replace(/_/g, " ")}
-                  </Badge>
-                  <Badge size="xs" variant="outline" color="slate">
+                  <Badge size="xs">{a.device_category.replace(/_/g, " ")}</Badge>
+                  <Badge size="xs" variant="outline" tone="neutral">
                     {a.protocol}
                   </Badge>
                   {a.is_verified && (
-                    <Badge size="xs" color="success">
+                    <Badge size="xs" tone="success">
                       Verified
                     </Badge>
                   )}
@@ -1050,7 +1046,7 @@ function AddDeviceWizard({ opened, onClose }: { opened: boolean; onClose: () => 
                 Protocol: {selectedAdapter.protocol} | Transport: {selectedAdapter.transport}
               </Text>
             </div>
-            <Badge size="md" color={aiConfig.confidence > 0.9 ? "success" : "warning"}>
+            <Badge size="md" tone={aiConfig.confidence > 0.9 ? "success" : "warning"}>
               {Math.round(aiConfig.confidence * 100)}% auto-configured
             </Badge>
           </Group>
@@ -1079,7 +1075,7 @@ function AddDeviceWizard({ opened, onClose }: { opened: boolean; onClose: () => 
                 <Text size="xs" c="dimmed">
                   &rarr;
                 </Text>
-                <Badge size="xs" variant="light" color="primary" ff="var(--font-mono)">
+                <Badge size="xs" tone="primary" ff="var(--font-mono)">
                   {m.target}
                 </Badge>
               </Group>
@@ -1087,10 +1083,12 @@ function AddDeviceWizard({ opened, onClose }: { opened: boolean; onClose: () => 
           </Card>
 
           <Group justify="flex-end" mt="md">
-            <Button variant="subtle" onClick={() => setStep(0)}>
+            <Button tone="ghost" onClick={() => setStep(0)}>
               Back
             </Button>
-            <Button onClick={() => setStep(3)}>Continue</Button>
+            <Button tone="primary" onClick={() => setStep(3)}>
+              Continue
+            </Button>
           </Group>
         </Stack>
       )}
@@ -1142,10 +1140,11 @@ function AddDeviceWizard({ opened, onClose }: { opened: boolean; onClose: () => 
           />
 
           <Group justify="flex-end" mt="md">
-            <Button variant="subtle" onClick={() => setStep(2)}>
+            <Button tone="ghost" onClick={() => setStep(2)}>
               Back
             </Button>
             <Button
+              tone="primary"
               onClick={handleSave}
               loading={createMutation.isPending}
               leftSection={<IconCheck size={16} />}

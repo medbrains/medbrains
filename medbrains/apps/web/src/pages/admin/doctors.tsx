@@ -10,8 +10,6 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Alert,
   Avatar,
-  Badge,
-  Button,
   Card,
   Divider,
   FileInput,
@@ -63,6 +61,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { PageHeader } from "@/components/PageHeader";
+import { Badge, type BadgeTone, Button } from "@/components/ui";
 import { usePacedQueryValue } from "@/hooks/usePacedQueryValue";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { adminDoctorsService } from "@/services/adminDoctors.service";
@@ -143,7 +142,12 @@ export function AdminDoctorsPage() {
               onChange={(e) => setSearch(e.currentTarget.value)}
               style={{ minWidth: 260 }}
             />
-            <Button size="xs" leftSection={<IconPlus size={14} />} onClick={createHandlers.open}>
+            <Button
+              tone="primary"
+              size="xs"
+              leftSection={<IconPlus size={14} />}
+              onClick={createHandlers.open}
+            >
               Add doctor
             </Button>
           </Group>
@@ -247,7 +251,7 @@ function DoctorProfileCard({
                   {displayName}
                 </Text>
                 {!doctor.is_active && (
-                  <Badge color="red" size="xs">
+                  <Badge tone="danger" size="xs">
                     Inactive
                   </Badge>
                 )}
@@ -257,23 +261,17 @@ function DoctorProfileCard({
               </Text>
               <Group gap={4}>
                 {doctor.is_visiting ? (
-                  <Badge size="xs" color="warning">
+                  <Badge size="xs" tone="warning">
                     Visiting
                   </Badge>
                 ) : (
-                  <Badge size="xs" color="primary">
+                  <Badge size="xs" tone="primary">
                     Full-time
                   </Badge>
                 )}
-                {doctor.subspecialty && (
-                  <Badge size="xs" variant="light">
-                    {doctor.subspecialty}
-                  </Badge>
-                )}
+                {doctor.subspecialty && <Badge size="xs">{doctor.subspecialty}</Badge>}
                 {doctor.years_experience !== null && (
-                  <Badge size="xs" variant="light">
-                    {doctor.years_experience} yrs
-                  </Badge>
+                  <Badge size="xs">{doctor.years_experience} yrs</Badge>
                 )}
               </Group>
             </Stack>
@@ -281,8 +279,8 @@ function DoctorProfileCard({
 
           <Tooltip label="Credential audit">
             <Button
+              tone="ghost"
               size="xs"
-              variant="subtle"
               leftSection={<IconKey size={14} />}
               onClick={onOpenCredentials}
             >
@@ -316,12 +314,12 @@ function DoctorProfileCard({
               {doctor.can_prescribe_schedule_x && <Badge size="xs">Schedule X</Badge>}
               {doctor.can_perform_surgery && <Badge size="xs">Surgery</Badge>}
               {doctor.can_sign_mlc && (
-                <Badge size="xs" color="red">
+                <Badge size="xs" tone="danger">
                   MLC
                 </Badge>
               )}
               {doctor.can_sign_death_certificate && (
-                <Badge size="xs" color="red">
+                <Badge size="xs" tone="danger">
                   Death certificate
                 </Badge>
               )}
@@ -329,9 +327,7 @@ function DoctorProfileCard({
                 !doctor.can_perform_surgery &&
                 !doctor.can_sign_mlc &&
                 !doctor.can_sign_death_certificate && (
-                  <Badge size="xs" variant="light">
-                    Standard clinical signing
-                  </Badge>
+                  <Badge size="xs">Standard clinical signing</Badge>
                 )}
             </Group>
           </Stack>
@@ -345,8 +341,7 @@ function DoctorProfileCard({
 
         {!hasDefaultCredential && (
           <Button
-            variant="light"
-            color="warning"
+            tone="secondary"
             leftSection={<IconSignature size={14} />}
             onClick={onOpenCredentials}
           >
@@ -358,7 +353,7 @@ function DoctorProfileCard({
   );
 }
 
-function MetricCard({ label, value, tone }: { label: string; value: number; tone: string }) {
+function MetricCard({ label, value, tone }: { label: string; value: number; tone: BadgeTone }) {
   return (
     <Card withBorder padding="sm">
       <Group justify="space-between">
@@ -370,9 +365,7 @@ function MetricCard({ label, value, tone }: { label: string; value: number; tone
             {value}
           </Text>
         </Stack>
-        <Badge color={tone} variant="light">
-          Doctors
-        </Badge>
+        <Badge tone={tone}>Doctors</Badge>
       </Group>
     </Card>
   );
@@ -414,7 +407,7 @@ function CredentialStatus({
   if (hasDefault) {
     return (
       <Stack gap={2} align="flex-end">
-        <Badge size="sm" color="success" leftSection={<IconCircleCheck size={12} />}>
+        <Badge size="sm" tone="success" leftSection={<IconCircleCheck size={12} />}>
           Ready to sign
         </Badge>
         <Text size="xs" c="dimmed">
@@ -426,7 +419,7 @@ function CredentialStatus({
 
   return (
     <Stack gap={2} align="flex-end">
-      <Badge size="sm" color="warning" leftSection={<IconAlertTriangle size={12} />}>
+      <Badge size="sm" tone="warning" leftSection={<IconAlertTriangle size={12} />}>
         Credential missing
       </Badge>
       <Text size="xs" c="dimmed">
@@ -581,7 +574,7 @@ function CreateDoctorModal({
               )}
             />
             <Button
-              variant="light"
+              tone="secondary"
               leftSection={<IconPlus size={14} />}
               onClick={createUserHandlers.open}
             >
@@ -723,10 +716,10 @@ function CreateDoctorModal({
             />
           </Group>
           <Group justify="flex-end">
-            <Button variant="subtle" onClick={onClose}>
+            <Button tone="ghost" onClick={onClose}>
               Cancel
             </Button>
-            <Button loading={submitting} onClick={() => void submitProfile()}>
+            <Button tone="primary" loading={submitting} onClick={() => void submitProfile()}>
               Create profile
             </Button>
           </Group>
@@ -943,10 +936,11 @@ function CreateLinkedDoctorUserModal({
           )}
         />
         <Group justify="flex-end">
-          <Button variant="subtle" onClick={handleClose}>
+          <Button tone="ghost" onClick={handleClose}>
             Cancel
           </Button>
           <Button
+            tone="primary"
             loading={createUser.isPending}
             leftSection={<IconPlus size={14} />}
             onClick={() => void submitUser()}
@@ -1073,7 +1067,7 @@ function CredentialsModal({ doctor, onClose }: { doctor: DoctorProfile; onClose:
                 </Text>
               </Stack>
               <Badge
-                color={
+                tone={
                   creds.some((credential) => credential.is_default && !credential.revoked_at)
                     ? "success"
                     : "warning"
@@ -1100,8 +1094,8 @@ function CredentialsModal({ doctor, onClose }: { doctor: DoctorProfile; onClose:
                 <Group justify="space-between" align="center">
                   <Image src={imageUrl} alt="Signature preview" h={56} fit="contain" w={220} />
                   <Button
+                    tone="ghost"
                     size="xs"
-                    variant="subtle"
                     leftSection={<IconRefresh size={12} />}
                     onClick={() => {
                       setValue("display_image_url", "", {
@@ -1133,6 +1127,7 @@ function CredentialsModal({ doctor, onClose }: { doctor: DoctorProfile; onClose:
             />
             <Group justify="flex-end">
               <Button
+                tone="primary"
                 size="xs"
                 loading={issue.isPending}
                 leftSection={<IconShieldCheck size={14} />}
@@ -1164,12 +1159,12 @@ function CredentialsModal({ doctor, onClose }: { doctor: DoctorProfile; onClose:
                   <Group gap="xs">
                     <Badge size="xs">{credential.credential_type}</Badge>
                     {credential.is_default && (
-                      <Badge size="xs" color="primary">
+                      <Badge size="xs" tone="primary">
                         Default
                       </Badge>
                     )}
                     {credential.revoked_at && (
-                      <Badge size="xs" color="red">
+                      <Badge size="xs" tone="danger">
                         Revoked
                       </Badge>
                     )}
@@ -1192,9 +1187,8 @@ function CredentialsModal({ doctor, onClose }: { doctor: DoctorProfile; onClose:
                 </Stack>
                 {!credential.revoked_at && (
                   <Button
+                    tone="subtle-danger"
                     size="xs"
-                    color="red"
-                    variant="subtle"
                     onClick={() => {
                       const reason = window.prompt("Reason for revocation?");
                       if (reason) revoke.mutate({ id: credential.id, reason });

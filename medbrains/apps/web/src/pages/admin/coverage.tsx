@@ -4,8 +4,6 @@
  */
 import {
   ActionIcon,
-  Badge,
-  Button,
   Card,
   Group,
   Modal,
@@ -24,6 +22,7 @@ import { IconPlus, IconTrash, IconUserCheck } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { PageHeader } from "@/components/PageHeader";
+import { Badge, type BadgeTone, Button } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { adminDoctorsService } from "@/services/adminDoctors.service";
 
@@ -70,7 +69,12 @@ export function AdminCoveragePage() {
               checked={activeOnly}
               onChange={(e) => setActiveOnly(e.currentTarget.checked)}
             />
-            <Button size="xs" leftSection={<IconPlus size={14} />} onClick={createHandlers.open}>
+            <Button
+              tone="primary"
+              size="xs"
+              leftSection={<IconPlus size={14} />}
+              onClick={createHandlers.open}
+            >
               New assignment
             </Button>
           </Group>
@@ -118,7 +122,7 @@ export function AdminCoveragePage() {
                     </Text>
                   </Table.Td>
                   <Table.Td>
-                    <Badge size="xs" color={statusColor(status)}>
+                    <Badge size="xs" tone={statusColor(status)}>
                       {status}
                     </Badge>
                   </Table.Td>
@@ -246,10 +250,15 @@ function CreateCoverageModal({
           minRows={2}
         />
         <Group justify="flex-end">
-          <Button variant="subtle" onClick={onClose}>
+          <Button tone="ghost" onClick={onClose}>
             Cancel
           </Button>
-          <Button loading={create.isPending} disabled={!canSubmit} onClick={() => create.mutate()}>
+          <Button
+            tone="primary"
+            loading={create.isPending}
+            disabled={!canSubmit}
+            onClick={() => create.mutate()}
+          >
             Assign
           </Button>
         </Group>
@@ -258,15 +267,15 @@ function CreateCoverageModal({
   );
 }
 
-function statusColor(s: string): string {
+function statusColor(s: string): BadgeTone {
   switch (s) {
     case "active":
       return "primary";
     case "scheduled":
       return "info";
     case "ended":
-      return "gray";
+      return "neutral";
     default:
-      return "gray";
+      return "neutral";
   }
 }

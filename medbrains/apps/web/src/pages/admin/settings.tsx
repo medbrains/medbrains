@@ -1,7 +1,5 @@
 import {
-  Badge,
   Box,
-  Button,
   Card,
   Grid,
   Group,
@@ -26,6 +24,7 @@ import {
 import { createElement, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ConfigTransferButtons, PageHeader } from "@/components";
+import { Badge, type BadgeTone, Button } from "@/components/ui";
 import { SETTINGS_TAB_ICON_MAP, SETTINGS_TABS } from "@/config/settings-tabs";
 import { useHashTabs } from "@/hooks/useHashTabs";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
@@ -218,6 +217,15 @@ function settingsKindColor(kind: SettingsNavKind) {
   return "gray";
 }
 
+function settingsKindTone(kind: SettingsNavKind): BadgeTone {
+  if (kind === "overview") return "info";
+  if (kind === "master") return "success";
+  if (kind === "rule") return "warning";
+  if (kind === "template") return "accent";
+  if (kind === "support") return "accent";
+  return "neutral";
+}
+
 function settingsKindLabel(kind: SettingsNavKind) {
   if (kind === "overview") return "Overview";
   if (kind === "master") return "Master";
@@ -386,16 +394,14 @@ export function SettingsPage() {
               Configuration command center
             </Text>
             <Group gap="xs">
-              <Badge color="teal" variant="light">
-                {visibleTabs.length} visible panels
-              </Badge>
-              <Badge color={settingsKindColor(activeMeta.kind)} variant="light">
+              <Badge tone="success">{visibleTabs.length} visible panels</Badge>
+              <Badge tone={settingsKindTone(activeMeta.kind)}>
                 {activeMeta.group} · {settingsKindLabel(activeMeta.kind)}
               </Badge>
-              <Badge color="blue" variant="light">
+              <Badge tone="info">
                 {settingsKindCounts.master + settingsKindCounts.overview} setup panels
               </Badge>
-              <Badge color="orange" variant="light">
+              <Badge tone="warning">
                 {settingsKindCounts.rule + settingsKindCounts.template} rules/templates
               </Badge>
             </Group>
@@ -405,11 +411,10 @@ export function SettingsPage() {
               "href" in link ? (
                 <Button
                   key={link.label}
+                  tone="secondary"
                   component="a"
                   href={link.href}
                   size="xs"
-                  variant="light"
-                  color={link.color}
                   leftSection={link.icon}
                   title={link.description}
                 >
@@ -418,9 +423,8 @@ export function SettingsPage() {
               ) : (
                 <Button
                   key={link.label}
+                  tone="secondary"
                   size="xs"
-                  variant="light"
-                  color={link.color}
                   leftSection={link.icon}
                   title={link.description}
                   onClick={link.onClick}
@@ -459,7 +463,7 @@ export function SettingsPage() {
                   ["overview", "master", "configuration", "rule", "template", "support"] as const
                 ).map((kind) =>
                   settingsKindCounts[kind] > 0 ? (
-                    <Badge key={kind} size="xs" variant="light" color={settingsKindColor(kind)}>
+                    <Badge key={kind} size="xs" tone={settingsKindTone(kind)}>
                       {settingsKindCounts[kind]} {settingsKindCountLabel(kind)}
                     </Badge>
                   ) : null,
@@ -542,7 +546,7 @@ export function SettingsPage() {
                     {settingsMeta(activeConfig.value).description}
                   </Text>
                 </Box>
-                <Badge color={settingsKindColor(activeMeta.kind)} variant="light">
+                <Badge tone={settingsKindTone(activeMeta.kind)}>
                   {settingsKindLabel(activeMeta.kind)}
                 </Badge>
               </Group>

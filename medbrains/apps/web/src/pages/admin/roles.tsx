@@ -1,8 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   ActionIcon,
-  Badge,
-  Button,
   Group,
   Menu,
   Modal,
@@ -25,6 +23,7 @@ import { Controller, useForm } from "react-hook-form";
 import { useNavigate } from "react-router";
 import { PageHeader } from "@/components";
 import { OfflineWriteBanner } from "@/components/OfflineWriteBanner";
+import { Badge, Button } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { adminAccessService } from "@/services/adminAccess.service";
 
@@ -109,10 +108,14 @@ function EditRoleModal({
         )}
 
         <Group justify="flex-end" gap="sm" mt="md">
-          <Button variant="default" onClick={onClose}>
+          <Button tone="secondary" onClick={onClose}>
             Cancel
           </Button>
-          <Button onClick={() => void submitRole()} loading={updateMutation.isPending}>
+          <Button
+            tone="primary"
+            onClick={() => void submitRole()}
+            loading={updateMutation.isPending}
+          >
             Save
           </Button>
         </Group>
@@ -245,10 +248,14 @@ function CreateRoleModal({ opened, onClose }: { opened: boolean; onClose: () => 
         )}
 
         <Group justify="flex-end" gap="sm">
-          <Button variant="default" onClick={onClose}>
+          <Button tone="secondary" onClick={onClose}>
             Cancel
           </Button>
-          <Button onClick={() => void submitRole()} loading={createMutation.isPending}>
+          <Button
+            tone="primary"
+            onClick={() => void submitRole()}
+            loading={createMutation.isPending}
+          >
             Create
           </Button>
         </Group>
@@ -307,7 +314,12 @@ export function RolesPage() {
       <OfflineWriteBanner resource="role permission" />
 
       <Group justify="flex-end" mb="md">
-        <Button leftSection={<IconPlus size={16} />} onClick={openCreate} disabled={!canCreate}>
+        <Button
+          tone="primary"
+          leftSection={<IconPlus size={16} />}
+          onClick={openCreate}
+          disabled={!canCreate}
+        >
           Add Role
         </Button>
       </Group>
@@ -344,7 +356,7 @@ export function RolesPage() {
                 <Group gap="xs">
                   <Text size="sm">{role.name}</Text>
                   {role.is_system && (
-                    <Badge size="xs" variant="light" color="primary">
+                    <Badge size="xs" tone="primary">
                       System
                     </Badge>
                   )}
@@ -358,8 +370,7 @@ export function RolesPage() {
               <Table.Td>
                 <Badge
                   size="sm"
-                  variant="light"
-                  color={getPermissionCount(role) > 0 ? "success" : "slate"}
+                  tone={getPermissionCount(role) > 0 ? "success" : "neutral"}
                   style={{ cursor: canUpdate ? "pointer" : "default" }}
                   onClick={() => canUpdate && handleEditPermissions(role)}
                 >
@@ -367,7 +378,7 @@ export function RolesPage() {
                 </Badge>
               </Table.Td>
               <Table.Td>
-                <Badge size="sm" variant="light" color={role.is_active ? "success" : "danger"}>
+                <Badge size="sm" tone={role.is_active ? "success" : "danger"}>
                   {role.is_active ? "Active" : "Inactive"}
                 </Badge>
               </Table.Td>

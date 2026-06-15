@@ -24,6 +24,7 @@ export interface ButtonProps extends Omit<MantineButtonProps, "variant" | "color
   form?: string;
   name?: string;
   value?: string;
+  title?: string;
   /** Polymorphic render — e.g. `component="a"` or `component={Link}` for link buttons. */
   component?: ElementType;
   href?: string;

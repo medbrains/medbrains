@@ -9,8 +9,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   ActionIcon,
-  Badge,
-  Button,
   Card,
   Group,
   Modal,
@@ -34,8 +32,8 @@ import { IconPencil, IconPlus, IconTrash, IconUsers } from "@tabler/icons-react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
-
 import { PageHeader } from "@/components";
+import { Badge, Button } from "@/components/ui";
 import {
   accessGroupFormToRequest,
   accessGroupMemberFormToRequest,
@@ -88,7 +86,7 @@ export default function GroupsPage() {
         title="Access Groups"
         subtitle="Care teams, on-call rotations, and privilege escalations. Membership feeds SpiceDB tuples for resource scoping."
         actions={
-          <Button leftSection={<IconPlus size={16} />} onClick={openCreate}>
+          <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={openCreate}>
             New group
           </Button>
         }
@@ -129,13 +127,13 @@ export default function GroupsPage() {
                   multiline
                   w={320}
                 >
-                  <Badge color={g.permissions.length > 0 ? "teal" : "gray"} variant="light">
+                  <Badge tone={g.permissions.length > 0 ? "success" : "neutral"}>
                     {g.permissions.length} grants
                   </Badge>
                 </Tooltip>
               </Table.Td>
               <Table.Td>
-                <Badge color={g.is_active ? "green" : "gray"} variant="light">
+                <Badge tone={g.is_active ? "success" : "neutral"}>
                   {g.is_active ? "active" : "deactivated"}
                 </Badge>
               </Table.Td>
@@ -285,10 +283,11 @@ function GroupFormModal({
           )}
         />
         <Group justify="flex-end" mt="sm">
-          <Button variant="default" onClick={onClose}>
+          <Button tone="secondary" onClick={onClose}>
             Cancel
           </Button>
           <Button
+            tone="primary"
             type="submit"
             loading={createMutation.isPending || updateMutation.isPending}
             disabled={!form.formState.isValid}
@@ -353,7 +352,7 @@ function GroupMembersPanel({ group, onClose }: { group: GroupRow; onClose: () =>
             </Text>
           </Stack>
           <Button
-            variant="default"
+            tone="secondary"
             onClick={() => {
               form.reset(defaultAccessGroupMemberFormValues);
               onClose();
@@ -404,6 +403,7 @@ function GroupMembersPanel({ group, onClose }: { group: GroupRow; onClose: () =>
             />
             <Group justify="flex-end">
               <Button
+                tone="primary"
                 type="submit"
                 loading={addMutation.isPending}
                 disabled={!form.formState.isValid}
@@ -443,8 +443,7 @@ function GroupMembersPanel({ group, onClose }: { group: GroupRow; onClose: () =>
                     </Table.Td>
                     <Table.Td>
                       <Button
-                        variant="subtle"
-                        color="red"
+                        tone="subtle-danger"
                         size="xs"
                         onClick={() => removeMutation.mutate(m.user_id)}
                         loading={removeMutation.isPending}

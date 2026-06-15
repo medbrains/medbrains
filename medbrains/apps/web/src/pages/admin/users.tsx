@@ -2,8 +2,6 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import {
   ActionIcon,
   Alert,
-  Badge,
-  Button,
   CopyButton,
   Group,
   Loader,
@@ -53,8 +51,8 @@ import {
   StatusDot,
 } from "@/components";
 import { UserCreateDrawer } from "@/components/admin/UserCreateDrawer";
-import { statusColor } from "@/lib/status-colors";
 import { OfflineWriteBanner } from "@/components/OfflineWriteBanner";
+import { Badge, type BadgeTone, Button } from "@/components/ui";
 import { useCreateInline } from "@/hooks/useCreateInline";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { adminAccessService, type CreateSetupUserInput } from "@/services/adminAccess.service";
@@ -75,6 +73,19 @@ const BUILT_IN_ROLES = [
   { value: "audit_officer", label: "Audit Officer" },
 ];
 
+const ROLE_TONE: Record<string, BadgeTone> = {
+  super_admin: "danger",
+  hospital_admin: "primary",
+  doctor: "info",
+  nurse: "success",
+  receptionist: "neutral",
+  lab_technician: "accent",
+  pharmacist: "warning",
+  billing_clerk: "neutral",
+  housekeeping_staff: "neutral",
+  facilities_manager: "neutral",
+  audit_officer: "accent",
+};
 
 // ── User Create/Edit Modal ────────────────────────────────
 
@@ -425,10 +436,11 @@ function UserModal({
         )}
 
         <Group justify="flex-end" mt="md">
-          <Button variant="light" onClick={onClose}>
+          <Button tone="secondary" onClick={onClose}>
             Cancel
           </Button>
           <Button
+            tone="primary"
             onClick={() => void submitUser()}
             loading={createMutation.isPending || updateMutation.isPending}
           >
@@ -503,14 +515,18 @@ function ResetPasswordModal({
               <Text span fw={600}>
                 {user?.full_name}
               </Text>{" "}
-              ({user?.username})? All their sessions will be signed out and they must choose a
-              new password on next login.
+              ({user?.username})? All their sessions will be signed out and they must choose a new
+              password on next login.
             </Text>
             <Group justify="flex-end">
-              <Button variant="light" onClick={close}>
+              <Button tone="secondary" onClick={close}>
                 Cancel
               </Button>
-              <Button onClick={() => resetMutation.mutate()} loading={resetMutation.isPending}>
+              <Button
+                tone="primary"
+                onClick={() => resetMutation.mutate()}
+                loading={resetMutation.isPending}
+              >
                 Generate temporary password
               </Button>
             </Group>
@@ -526,14 +542,16 @@ function ResetPasswordModal({
               </Text>
               <CopyButton value={tempPassword}>
                 {({ copied, copy }) => (
-                  <Button size="xs" variant="light" onClick={copy}>
+                  <Button tone="secondary" size="xs" onClick={copy}>
                     {copied ? "Copied" : "Copy"}
                   </Button>
                 )}
               </CopyButton>
             </Group>
             <Group justify="flex-end">
-              <Button onClick={close}>Done</Button>
+              <Button tone="primary" onClick={close}>
+                Done
+              </Button>
             </Group>
           </>
         )}
@@ -590,11 +608,11 @@ function DeleteUserModal({
           ({user?.username})? This action cannot be undone.
         </Text>
         <Group justify="flex-end">
-          <Button variant="light" onClick={onClose}>
+          <Button tone="secondary" onClick={onClose}>
             Cancel
           </Button>
           <Button
-            color="danger"
+            tone="danger"
             onClick={() => deleteMutation.mutate()}
             loading={deleteMutation.isPending}
           >
@@ -731,10 +749,11 @@ function BulkImportModal({ opened, onClose }: { opened: boolean; onClose: () => 
           )}
         />
         <Group justify="flex-end">
-          <Button variant="light" onClick={onClose}>
+          <Button tone="secondary" onClick={onClose}>
             Cancel
           </Button>
           <Button
+            tone="primary"
             leftSection={<IconUpload size={16} />}
             onClick={() => void submitImport()}
             loading={bulkMutation.isPending}
@@ -821,7 +840,7 @@ export function UsersPage() {
       key: "role",
       label: "Role",
       render: (row: SetupUser) => (
-        <Badge size="sm" variant="light" color={statusColor(row.role) ?? "slate"}>
+        <Badge size="sm" tone={ROLE_TONE[row.role] ?? "neutral"}>
           {row.role.replace(/_/g, " ")}
         </Badge>
       ),
@@ -915,13 +934,13 @@ export function UsersPage() {
           canCreate ? (
             <Group gap="sm">
               <Button
-                variant="light"
+                tone="secondary"
                 leftSection={<IconUpload size={16} />}
                 onClick={() => setBulkImportOpen(true)}
               >
                 Bulk Import
               </Button>
-              <Button leftSection={<IconPlus size={16} />} onClick={openCreate}>
+              <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={openCreate}>
                 Add User
               </Button>
             </Group>

@@ -1,7 +1,5 @@
 import {
   ActionIcon,
-  Badge,
-  Button,
   Card,
   Checkbox,
   Group,
@@ -21,6 +19,7 @@ import {
 } from "@mantine/core";
 import { DatePickerInput } from "@mantine/dates";
 import { notifications } from "@mantine/notifications";
+import { Badge, Button } from "@/components/ui";
 import "@mantine/schedule/styles.css";
 import type { ScheduleEventData } from "@mantine/schedule";
 import { WeekView } from "@mantine/schedule";
@@ -177,20 +176,20 @@ function ScheduleFormModal({
             </Text>
             <Group gap={4} mb={4}>
               <Button
+                tone="secondary"
                 size="compact-xs"
-                variant="light"
                 onClick={() => setSelectedDays(["1", "2", "3", "4", "5"])}
               >
                 Mon–Fri
               </Button>
               <Button
+                tone="secondary"
                 size="compact-xs"
-                variant="light"
                 onClick={() => setSelectedDays(["0", "1", "2", "3", "4", "5", "6"])}
               >
                 All Days
               </Button>
-              <Button size="compact-xs" variant="subtle" onClick={() => setSelectedDays([])}>
+              <Button tone="ghost" size="compact-xs" onClick={() => setSelectedDays([])}>
                 Clear
               </Button>
             </Group>
@@ -257,10 +256,11 @@ function ScheduleFormModal({
           />
         )}
         <Group justify="flex-end" mt="md">
-          <Button variant="light" onClick={onClose}>
+          <Button tone="secondary" onClick={onClose}>
             Cancel
           </Button>
           <Button
+            tone="primary"
             onClick={() => (editSchedule ? updateMutation.mutate() : createMutation.mutate())}
             disabled={!canSubmit}
             loading={createMutation.isPending || updateMutation.isPending}
@@ -398,7 +398,7 @@ function ExceptionFormModal({
                 },
               },
             ].map((p) => (
-              <Button key={p.label} size="compact-xs" variant="light" onClick={p.fn}>
+              <Button key={p.label} tone="secondary" size="compact-xs" onClick={p.fn}>
                 {p.label}
               </Button>
             ))}
@@ -446,10 +446,11 @@ function ExceptionFormModal({
           minRows={2}
         />
         <Group justify="flex-end" mt="md">
-          <Button variant="light" onClick={onClose}>
+          <Button tone="secondary" onClick={onClose}>
             Cancel
           </Button>
           <Button
+            tone="primary"
             onClick={() => createMutation.mutate()}
             disabled={!exceptionDate}
             loading={createMutation.isPending}
@@ -656,7 +657,7 @@ export function DoctorSchedulesPage() {
               >
                 <Group justify="space-between" mb="xs">
                   <Text fw={600}>{doc.full_name}</Text>
-                  <Badge color={doc.is_active ? "success" : "slate"} variant="light" size="sm">
+                  <Badge tone={doc.is_active ? "success" : "neutral"} size="sm">
                     {doc.is_active ? "Active" : "Inactive"}
                   </Badge>
                 </Group>
@@ -668,12 +669,12 @@ export function DoctorSchedulesPage() {
                 {doc.department_ids.length > 0 && (
                   <Group gap={4} mt="xs">
                     {doc.department_ids.slice(0, 3).map((dId) => (
-                      <Badge key={dId} variant="outline" size="xs">
+                      <Badge key={dId} variant="outline" tone="neutral" size="xs">
                         {deptMap.get(dId) ?? "Dept"}
                       </Badge>
                     ))}
                     {doc.department_ids.length > 3 && (
-                      <Badge variant="outline" size="xs">
+                      <Badge variant="outline" tone="neutral" size="xs">
                         +{doc.department_ids.length - 3}
                       </Badge>
                     )}
@@ -696,7 +697,7 @@ export function DoctorSchedulesPage() {
         subtitle={selectedDoctor.specialization ?? "Doctor schedule management"}
         actions={
           <Group>
-            <Button variant="light" onClick={() => setSelectedDoctor(null)}>
+            <Button tone="secondary" onClick={() => setSelectedDoctor(null)}>
               Back to Doctors
             </Button>
           </Group>
@@ -734,6 +735,7 @@ export function DoctorSchedulesPage() {
         {canManage && (
           <Group>
             <Button
+              tone="primary"
               size="xs"
               leftSection={<IconPlus size={14} />}
               onClick={() => {
@@ -744,9 +746,8 @@ export function DoctorSchedulesPage() {
               Add Slot
             </Button>
             <Button
+              tone="secondary"
               size="xs"
-              variant="light"
-              color="orange"
               leftSection={<IconCalendarOff size={14} />}
               onClick={() => setExceptionModal(true)}
             >
@@ -845,7 +846,7 @@ export function DoctorSchedulesPage() {
                         <Text size="sm">{s.max_patients}</Text>
                       </Table.Td>
                       <Table.Td>
-                        <Badge color={s.is_active ? "success" : "slate"} variant="light" size="sm">
+                        <Badge tone={s.is_active ? "success" : "neutral"} size="sm">
                           {s.is_active ? "Active" : "Inactive"}
                         </Badge>
                       </Table.Td>
@@ -916,7 +917,7 @@ export function DoctorSchedulesPage() {
                   </Text>
                 </Table.Td>
                 <Table.Td>
-                  <Badge color={ex.is_available ? "primary" : "danger"} variant="light" size="sm">
+                  <Badge tone={ex.is_available ? "primary" : "danger"} size="sm">
                     {ex.is_available ? "Custom Hours" : "Unavailable"}
                   </Badge>
                 </Table.Td>

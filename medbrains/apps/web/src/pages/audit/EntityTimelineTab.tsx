@@ -1,6 +1,4 @@
 import {
-  Badge,
-  Button,
   Card,
   Code,
   Collapse,
@@ -22,17 +20,38 @@ import {
 } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { auditService } from "@/services/audit.service";
+import { Badge, type BadgeTone, Button } from "@/components/ui";
 import { statusColor } from "@/lib/status-colors";
+import { auditService } from "@/services/audit.service";
 
 // ── Constants ──────────────────────────────────────────
-
 
 const ACTION_ICONS: Record<string, React.ReactNode> = {
   create: <IconPlus size={14} />,
   update: <IconPencil size={14} />,
   delete: <IconTrash size={14} />,
 };
+
+const STATUS_TONE: Record<string, BadgeTone> = {
+  success: "success",
+  warning: "warning",
+  danger: "danger",
+  info: "info",
+  primary: "primary",
+  blue: "info",
+  teal: "success",
+  green: "success",
+  orange: "warning",
+  violet: "accent",
+  grape: "accent",
+  red: "danger",
+  gray: "neutral",
+  slate: "neutral",
+};
+
+function statusTone(status: string): BadgeTone {
+  return STATUS_TONE[statusColor(status) ?? "slate"] ?? "neutral";
+}
 
 // ── Component ──────────────────────────────────────────
 
@@ -93,7 +112,12 @@ export function EntityTimelineTab() {
           size="sm"
           w={320}
         />
-        <Button size="sm" onClick={handleSearch} disabled={!entityType || !entityId.trim()}>
+        <Button
+          tone="primary"
+          size="sm"
+          onClick={handleSearch}
+          disabled={!entityType || !entityId.trim()}
+        >
           Search
         </Button>
       </Group>
@@ -126,7 +150,7 @@ export function EntityTimelineTab() {
                 color={statusColor(entry.action) ?? "slate"}
                 title={
                   <Group gap="xs">
-                    <Badge color={statusColor(entry.action) ?? "slate"} variant="light" size="sm">
+                    <Badge tone={statusTone(entry.action)} size="sm">
                       {entry.action}
                     </Badge>
                     <Text size="sm" c="dimmed">

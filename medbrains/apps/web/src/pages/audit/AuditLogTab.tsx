@@ -1,15 +1,4 @@
-import {
-  Badge,
-  Button,
-  Code,
-  Drawer,
-  Group,
-  Loader,
-  Select,
-  Stack,
-  Text,
-  TextInput,
-} from "@mantine/core";
+import { Code, Drawer, Group, Loader, Select, Stack, Text, TextInput } from "@mantine/core";
 import { DateInput } from "@mantine/dates";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
@@ -20,8 +9,9 @@ import { IconDownload, IconSearch, IconShieldCheck } from "@tabler/icons-react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { DataTable } from "@/components";
-import { statusColor } from "@/lib/status-colors";
 import type { Column } from "@/components/DataTable";
+import { Badge, type BadgeTone, Button } from "@/components/ui";
+import { statusColor } from "@/lib/status-colors";
 import { auditService } from "@/services/audit.service";
 
 // ── Constants ──────────────────────────────────────────
@@ -32,6 +22,26 @@ const ACTION_OPTIONS = [
   { value: "delete", label: "Delete" },
 ];
 
+const STATUS_TONE: Record<string, BadgeTone> = {
+  success: "success",
+  warning: "warning",
+  danger: "danger",
+  info: "info",
+  primary: "primary",
+  blue: "info",
+  teal: "success",
+  green: "success",
+  orange: "warning",
+  violet: "accent",
+  grape: "accent",
+  red: "danger",
+  gray: "neutral",
+  slate: "neutral",
+};
+
+function statusTone(status: string): BadgeTone {
+  return STATUS_TONE[statusColor(status) ?? "slate"] ?? "neutral";
+}
 
 const PER_PAGE = 50;
 
@@ -156,7 +166,7 @@ export function AuditLogTab() {
       key: "action",
       label: "Action",
       render: (r) => (
-        <Badge color={statusColor(r.action) ?? "slate"} variant="light" size="sm">
+        <Badge tone={statusTone(r.action)} size="sm">
           {r.action}
         </Badge>
       ),
@@ -248,12 +258,12 @@ export function AuditLogTab() {
           size="sm"
           w={180}
         />
-        <Button variant="subtle" size="sm" onClick={handleClearFilters}>
+        <Button tone="ghost" size="sm" onClick={handleClearFilters}>
           Clear
         </Button>
         {canExport && (
           <Button
-            variant="light"
+            tone="secondary"
             size="sm"
             leftSection={<IconDownload size={14} />}
             onClick={handleExport}
@@ -262,9 +272,8 @@ export function AuditLogTab() {
           </Button>
         )}
         <Button
-          variant="light"
+          tone="secondary"
           size="sm"
-          color="teal"
           leftSection={
             integrityMutation.isPending ? <Loader size={14} /> : <IconShieldCheck size={14} />
           }
@@ -328,9 +337,7 @@ function AuditDetailDrawer({
             <Text fw={600} size="sm" w={100}>
               Action:
             </Text>
-            <Badge color={statusColor(entry.action) ?? "slate"} variant="light">
-              {entry.action}
-            </Badge>
+            <Badge tone={statusTone(entry.action)}>{entry.action}</Badge>
           </Group>
           <Group gap="xs">
             <Text fw={600} size="sm" w={100}>

@@ -1,11 +1,32 @@
-import { Badge, Card, SimpleGrid, Stack, Table, Text } from "@mantine/core";
+import { Card, SimpleGrid, Stack, Table, Text } from "@mantine/core";
 import type { ActionCount, ModuleCount, UserActionCount } from "@medbrains/types";
 import { useQuery } from "@tanstack/react-query";
-import { auditService } from "@/services/audit.service";
+import { Badge, type BadgeTone } from "@/components/ui";
 import { statusColor } from "@/lib/status-colors";
+import { auditService } from "@/services/audit.service";
+
+const STATUS_TONE: Record<string, BadgeTone> = {
+  success: "success",
+  warning: "warning",
+  danger: "danger",
+  info: "info",
+  primary: "primary",
+  blue: "info",
+  teal: "success",
+  green: "success",
+  orange: "warning",
+  violet: "accent",
+  grape: "accent",
+  red: "danger",
+  gray: "neutral",
+  slate: "neutral",
+};
+
+function statusTone(status: string): BadgeTone {
+  return STATUS_TONE[statusColor(status) ?? "slate"] ?? "neutral";
+}
 
 // ── Constants ──────────────────────────────────────────
-
 
 // ── Component ──────────────────────────────────────────
 
@@ -165,7 +186,7 @@ function ActionTable({ data }: { data: ActionCount[] }) {
         {data.map((row) => (
           <Table.Tr key={row.action}>
             <Table.Td>
-              <Badge color={statusColor(row.action) ?? "slate"} variant="light" size="sm">
+              <Badge tone={statusTone(row.action)} size="sm">
                 {row.action}
               </Badge>
             </Table.Td>

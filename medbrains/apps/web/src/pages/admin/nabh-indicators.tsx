@@ -1,9 +1,7 @@
 // NABH KPI dashboard: official 2025 KPI catalog with live values and
 // pending source-data gaps.
 import {
-  Badge,
   Box,
-  Button,
   Card,
   Grid,
   Group,
@@ -21,16 +19,17 @@ import { IconChartBar, IconSearch, IconSettings, IconShieldCheck } from "@tabler
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { PageHeader } from "@/components";
+import { Badge, type BadgeTone, Button } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { reportsService } from "@/services/reports.service";
 import classes from "./nabh-indicators.module.scss";
 
-const CATEGORY_LABELS: Record<string, { label: string; tone: string }> = {
+const CATEGORY_LABELS: Record<string, { label: string; tone: BadgeTone }> = {
   access: { label: "Access & flow", tone: "primary" },
-  clinical: { label: "Clinical", tone: "teal" },
+  clinical: { label: "Clinical", tone: "success" },
   safety: { label: "Patient safety", tone: "danger" },
-  experience: { label: "Patient experience", tone: "violet" },
-  operations: { label: "Operations", tone: "slate" },
+  experience: { label: "Patient experience", tone: "accent" },
+  operations: { label: "Operations", tone: "neutral" },
 };
 
 function formatValue(v: number | null | undefined, unit: string): string {
@@ -205,15 +204,9 @@ export default function NabhIndicatorsPage() {
               Indicator evidence workspace
             </Text>
             <Group gap="xs">
-              <Badge color="success" variant="light">
-                {data?.coverage.computed ?? 0} live
-              </Badge>
-              <Badge color="orange" variant="light">
-                {pendingCount} pending
-              </Badge>
-              <Badge color="blue" variant="light">
-                {filteredIndicators.length} visible
-              </Badge>
+              <Badge tone="success">{data?.coverage.computed ?? 0} live</Badge>
+              <Badge tone="warning">{pendingCount} pending</Badge>
+              <Badge tone="info">{filteredIndicators.length} visible</Badge>
             </Group>
           </Stack>
           <Group gap="xs" className={classes.commandControls}>
@@ -236,11 +229,10 @@ export default function NabhIndicatorsPage() {
             />
             {canViewReports && (
               <Button
+                tone="secondary"
                 component="a"
                 href="/reports"
                 size="sm"
-                variant="light"
-                color="blue"
                 leftSection={<IconChartBar size={16} />}
               >
                 Reports
@@ -248,11 +240,10 @@ export default function NabhIndicatorsPage() {
             )}
             {canOpenSettings && (
               <Button
+                tone="secondary"
                 component="a"
                 href="/admin/settings#master-data"
                 size="sm"
-                variant="light"
-                color="teal"
                 leftSection={<IconSettings size={16} />}
               >
                 Settings
@@ -268,14 +259,12 @@ export default function NabhIndicatorsPage() {
         <Grid.Col span={{ base: 12, lg: 8 }}>
           <Stack gap="md">
             {Object.entries(grouped).map(([cat, items]) => {
-              const meta = CATEGORY_LABELS[cat] ?? { label: cat, tone: "slate" };
+              const meta = CATEGORY_LABELS[cat] ?? { label: cat, tone: "neutral" };
               return (
                 <Stack key={cat} gap="xs">
                   <Group justify="space-between">
                     <Title order={4}>{meta.label}</Title>
-                    <Badge color={meta.tone} variant="light">
-                      {items.length}
-                    </Badge>
+                    <Badge tone={meta.tone}>{items.length}</Badge>
                   </Group>
                   <Group align="stretch" gap="md" wrap="wrap">
                     {items.map((ind) => (
@@ -308,13 +297,13 @@ export default function NabhIndicatorsPage() {
                 </Text>
               </Stack>
               <Group gap="xs">
-                <Badge color="success" size="lg" variant="light">
+                <Badge tone="success" size="lg">
                   {data?.coverage.computed ?? 0} live
                 </Badge>
-                <Badge color="orange" size="lg" variant="light">
+                <Badge tone="warning" size="lg">
                   {pendingCount} pending
                 </Badge>
-                <Badge color="slate" size="lg" variant="light">
+                <Badge tone="neutral" size="lg">
                   {data?.coverage.total_indicators ?? 0} total
                 </Badge>
               </Group>
@@ -334,10 +323,9 @@ export default function NabhIndicatorsPage() {
               </Card>
               {canViewReports && (
                 <Button
+                  tone="secondary"
                   component="a"
                   href="/reports"
-                  variant="light"
-                  color="blue"
                   leftSection={<IconChartBar size={16} />}
                   fullWidth
                 >
@@ -346,10 +334,9 @@ export default function NabhIndicatorsPage() {
               )}
               {canOpenSettings && (
                 <Button
+                  tone="secondary"
                   component="a"
                   href="/admin/settings#master-data"
-                  variant="light"
-                  color="teal"
                   leftSection={<IconSettings size={16} />}
                   fullWidth
                 >

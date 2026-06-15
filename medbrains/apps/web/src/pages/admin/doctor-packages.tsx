@@ -4,8 +4,6 @@
  */
 import {
   ActionIcon,
-  Badge,
-  Button,
   Card,
   Drawer,
   Group,
@@ -29,6 +27,7 @@ import { IconList, IconPackage, IconPlus, IconTrash } from "@tabler/icons-react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { PageHeader } from "@/components/PageHeader";
+import { Badge, Button } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { patientPackagesService } from "@/services/patientPackages.service";
 
@@ -119,7 +118,12 @@ export function AdminDoctorPackagesPage() {
               onChange={(e) => setShowInactive(e.currentTarget.checked)}
             />
             {canCreatePackages && (
-              <Button size="xs" leftSection={<IconPlus size={14} />} onClick={createHandlers.open}>
+              <Button
+                tone="primary"
+                size="xs"
+                leftSection={<IconPlus size={14} />}
+                onClick={createHandlers.open}
+              >
                 New package
               </Button>
             )}
@@ -162,7 +166,7 @@ export function AdminDoctorPackagesPage() {
                   <Text size="sm">{p.validity_days}d</Text>
                 </Table.Td>
                 <Table.Td>
-                  <Badge size="sm" color={p.is_active ? "primary" : "gray"}>
+                  <Badge size="sm" tone={p.is_active ? "primary" : "neutral"}>
                     {p.is_active ? "Active" : "Inactive"}
                   </Badge>
                 </Table.Td>
@@ -258,10 +262,11 @@ function CreatePackageDrawer({
           required
         />
         <Group justify="flex-end">
-          <Button variant="subtle" onClick={onClose}>
+          <Button tone="ghost" onClick={onClose}>
             Cancel
           </Button>
           <Button
+            tone="primary"
             loading={submitting}
             disabled={!code || !name || price === ""}
             onClick={() =>
@@ -354,6 +359,7 @@ function InclusionsDrawer({ packageId, onClose }: { packageId: string; onClose: 
             />
             <Group justify="flex-end">
               <Button
+                tone="primary"
                 size="xs"
                 loading={add.isPending}
                 onClick={() => {

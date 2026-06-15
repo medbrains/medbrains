@@ -9,8 +9,6 @@ import "@mantine/charts/styles.css";
 import { DonutChart } from "@mantine/charts";
 import {
   Alert,
-  Badge,
-  Button,
   Drawer,
   Group,
   NumberInput,
@@ -27,6 +25,7 @@ import { IconArchive, IconChartDonut, IconHistory, IconSettings } from "@tabler/
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { DataTable, PageHeader } from "@/components";
+import { Badge, type BadgeTone, Button } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import {
   type StoragePolicy as Policy,
@@ -41,8 +40,15 @@ const TIER_TONE: Record<string, string> = {
   deleted: "gray",
 };
 
+const TIER_BADGE_TONE: Record<string, BadgeTone> = {
+  hot: "success",
+  cold: "info",
+  archive: "warning",
+  deleted: "neutral",
+};
+
 function tierBadge(tier: string) {
-  return <Badge color={TIER_TONE[tier] ?? "gray"}>{tier}</Badge>;
+  return <Badge tone={TIER_BADGE_TONE[tier] ?? "neutral"}>{tier}</Badge>;
 }
 
 function formatBytes(b: number): string {
@@ -68,7 +74,11 @@ export function StoragePage() {
         subtitle="Hot / cold / archive tiers, retention policies, and the hash-chained transition log."
         actions={
           canSweep ? (
-            <Button loading={sweepMutation.isPending} onClick={() => sweepMutation.mutate()}>
+            <Button
+              tone="primary"
+              loading={sweepMutation.isPending}
+              onClick={() => sweepMutation.mutate()}
+            >
               Run sweep now
             </Button>
           ) : undefined
@@ -189,8 +199,8 @@ function PoliciesTab() {
             render: (r) =>
               canManage ? (
                 <Button
+                  tone="ghost"
                   size="xs"
-                  variant="subtle"
                   onClick={() => {
                     setEditing(r);
                     open();
@@ -290,7 +300,7 @@ function PolicyEditForm({ policy, onSaved }: { policy: Policy; onSaved: () => vo
       />
       {error && <Alert color="red">{error}</Alert>}
       <Group justify="flex-end">
-        <Button loading={update.isPending} onClick={() => update.mutate()}>
+        <Button tone="primary" loading={update.isPending} onClick={() => update.mutate()}>
           Save
         </Button>
       </Group>

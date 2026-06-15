@@ -9,8 +9,6 @@
 
 import {
   Alert,
-  Badge,
-  Button,
   Group,
   Loader,
   Modal,
@@ -29,6 +27,7 @@ import { P } from "@medbrains/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { PageHeader } from "@/components";
+import { Badge, Button } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { adminDevicesService, type PairingToken } from "@/services/adminDevices.service";
 
@@ -76,7 +75,13 @@ export function PairedDevicesPage() {
       <PageHeader
         title="Paired devices"
         subtitle="Mobile, TV, and vendor devices paired into this tenant via QR + mTLS."
-        actions={canMintToken ? <Button onClick={openMint}>Mint pairing token</Button> : undefined}
+        actions={
+          canMintToken ? (
+            <Button tone="primary" onClick={openMint}>
+              Mint pairing token
+            </Button>
+          ) : undefined
+        }
       />
 
       {isLoading && <Loader />}
@@ -101,7 +106,7 @@ export function PairedDevicesPage() {
                 <Table.Tr key={row.id}>
                   <Table.Td>{row.label}</Table.Td>
                   <Table.Td>
-                    <Badge variant="light">{row.app_variant}</Badge>
+                    <Badge>{row.app_variant}</Badge>
                   </Table.Td>
                   <Table.Td>
                     <Tooltip label={row.cert_fingerprint}>
@@ -122,17 +127,16 @@ export function PairedDevicesPage() {
                   </Table.Td>
                   <Table.Td>
                     {revoked ? (
-                      <Badge color="red">revoked</Badge>
+                      <Badge tone="danger">revoked</Badge>
                     ) : (
-                      <Badge color="green">active</Badge>
+                      <Badge tone="success">active</Badge>
                     )}
                   </Table.Td>
                   <Table.Td>
                     {!revoked && canRevoke && (
                       <Button
+                        tone="subtle-danger"
                         size="xs"
-                        color="red"
-                        variant="outline"
                         loading={revokeMutation.isPending}
                         onClick={() => revokeMutation.mutate({ id: row.id })}
                       >
@@ -221,6 +225,7 @@ function MintTokenForm({
       {error && <Alert color="red">{error}</Alert>}
       <Group justify="flex-end">
         <Button
+          tone="primary"
           loading={busy}
           disabled={!label || busy}
           onClick={() =>
@@ -258,7 +263,9 @@ function PairingTokenView({ token, onDone }: { token: PairingToken; onDone: () =
         {token.token}
       </Text>
       <Group justify="flex-end">
-        <Button onClick={onDone}>Done</Button>
+        <Button tone="primary" onClick={onDone}>
+          Done
+        </Button>
       </Group>
     </Stack>
   );

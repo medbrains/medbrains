@@ -1,7 +1,5 @@
 import {
   ActionIcon,
-  Badge,
-  Button,
   Card,
   Drawer,
   Group,
@@ -35,17 +33,17 @@ import {
 } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-
 import { PageHeader } from "@/components";
+import { Badge, type BadgeTone, Button } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { adminAccessService } from "@/services/adminAccess.service";
 
-const STATUS_COLOR: Record<IamAccessRequest["status"], string> = {
+const STATUS_COLOR: Record<IamAccessRequest["status"], BadgeTone> = {
   pending: "warning",
   approved: "success",
   rejected: "danger",
-  revoked: "gray",
-  expired: "orange",
+  revoked: "neutral",
+  expired: "warning",
 };
 
 const STATUS_OPTIONS = [
@@ -169,22 +167,20 @@ export function AccessRequestsPage() {
         title="IAM Access Requests"
         subtitle="Time-bound module permissions with approval, expiry, and audit trail. Record-level sharing remains Zanzibar/ReBAC."
         actions={
-          <Button leftSection={<IconPlus size={16} />} onClick={openCreate}>
+          <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={openCreate}>
             Request access
           </Button>
         }
       />
 
       <Group gap="sm">
-        <Badge leftSection={<IconClockHour4 size={12} />} variant="light" color="warning">
+        <Badge leftSection={<IconClockHour4 size={12} />} tone="warning">
           {pendingCount} pending
         </Badge>
-        <Badge leftSection={<IconShieldLock size={12} />} variant="light" color="success">
+        <Badge leftSection={<IconShieldLock size={12} />} tone="success">
           {approvedCount} active grants
         </Badge>
-        <Badge variant="light" color="primary">
-          Default request window: 8 hours
-        </Badge>
+        <Badge tone="primary">Default request window: 8 hours</Badge>
       </Group>
 
       <SimpleGrid cols={{ base: 1, md: 3 }}>
@@ -198,12 +194,8 @@ export function AccessRequestsPage() {
                 </Text>
               </Group>
               <Group gap={6}>
-                <Badge variant="light" leftSection={<IconUserCheck size={12} />}>
-                  {lane.actor}
-                </Badge>
-                <Badge variant="light" color="primary">
-                  {lane.approver}
-                </Badge>
+                <Badge leftSection={<IconUserCheck size={12} />}>{lane.actor}</Badge>
+                <Badge tone="primary">{lane.approver}</Badge>
               </Group>
               <Text size="xs" c="dimmed">
                 {lane.scope}
@@ -247,12 +239,12 @@ export function AccessRequestsPage() {
               <Table.Td>
                 <Group gap={4}>
                   {request.requested_modules.slice(0, 3).map((module) => (
-                    <Badge key={module} size="xs" variant="light">
+                    <Badge key={module} size="xs">
                       {module}
                     </Badge>
                   ))}
                   {request.requested_modules.length > 3 && (
-                    <Badge size="xs" variant="light" color="gray">
+                    <Badge size="xs" tone="neutral">
                       +{request.requested_modules.length - 3}
                     </Badge>
                   )}
@@ -265,9 +257,7 @@ export function AccessRequestsPage() {
                 <Text size="sm">{formatDateTime(request.requested_expires_at)}</Text>
               </Table.Td>
               <Table.Td>
-                <Badge color={STATUS_COLOR[request.status]} variant="light">
-                  {request.status}
-                </Badge>
+                <Badge tone={STATUS_COLOR[request.status]}>{request.status}</Badge>
               </Table.Td>
               <Table.Td>
                 {canManage && (
@@ -345,10 +335,14 @@ export function AccessRequestsPage() {
             minRows={3}
           />
           <Group justify="flex-end">
-            <Button variant="subtle" onClick={() => setReviewTarget(null)}>
+            <Button tone="ghost" onClick={() => setReviewTarget(null)}>
               Cancel
             </Button>
-            <Button loading={reviewMutation.isPending} onClick={() => reviewMutation.mutate()}>
+            <Button
+              tone="primary"
+              loading={reviewMutation.isPending}
+              onClick={() => reviewMutation.mutate()}
+            >
               Confirm
             </Button>
           </Group>
@@ -450,10 +444,11 @@ function CreateAccessRequestDrawer({
         />
 
         <Group justify="flex-end">
-          <Button variant="subtle" onClick={onClose}>
+          <Button tone="ghost" onClick={onClose}>
             Cancel
           </Button>
           <Button
+            tone="primary"
             loading={createMutation.isPending}
             disabled={permissions.length === 0 || reason.trim().length < 3 || !expiresAt}
             onClick={() => createMutation.mutate()}

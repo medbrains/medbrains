@@ -1,6 +1,4 @@
 import {
-  Badge,
-  Button,
   Drawer,
   Group,
   JsonInput,
@@ -33,6 +31,7 @@ import { DataTable, PageHeader } from "@/components";
 import type { Column } from "@/components/DataTable";
 import { PatientNameCell } from "@/components/PatientNameCell";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
+import { Badge, Button } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { specialtyService } from "@/services/specialty.service";
 
@@ -124,7 +123,11 @@ export function OtherSpecialtiesPage() {
   });
 
   const tmplCols: Column<SpecialtyTemplate>[] = [
-    { key: "specialty", label: "Specialty", render: (r) => <Badge>{r.specialty}</Badge> },
+    {
+      key: "specialty",
+      label: "Specialty",
+      render: (r) => <Badge tone="neutral">{r.specialty}</Badge>,
+    },
     {
       key: "name",
       label: "Template",
@@ -143,7 +146,11 @@ export function OtherSpecialtiesPage() {
   ];
 
   const recCols: Column<SpecialtyRecord>[] = [
-    { key: "specialty", label: "Specialty", render: (r) => <Badge>{r.specialty}</Badge> },
+    {
+      key: "specialty",
+      label: "Specialty",
+      render: (r) => <Badge tone="neutral">{r.specialty}</Badge>,
+    },
     {
       key: "patient_id",
       label: "Patient",
@@ -239,9 +246,9 @@ export function OtherSpecialtiesPage() {
       label: "Tumor Board",
       render: (r) =>
         r.tumor_board_reviewed ? (
-          <Badge color="success">Reviewed</Badge>
+          <Badge tone="success">Reviewed</Badge>
         ) : (
-          <Badge color="slate">Pending</Badge>
+          <Badge tone="neutral">Pending</Badge>
         ),
     },
   ];
@@ -254,13 +261,17 @@ export function OtherSpecialtiesPage() {
         actions={
           <Group>
             {canTemplates && (
-              <Button leftSection={<IconPlus size={16} />} onClick={tmplHandlers.open}>
+              <Button
+                tone="primary"
+                leftSection={<IconPlus size={16} />}
+                onClick={tmplHandlers.open}
+              >
                 New Template
               </Button>
             )}
             {canRecords && (
               <Button
-                variant="light"
+                tone="secondary"
                 leftSection={<IconPlus size={16} />}
                 onClick={recHandlers.open}
               >
@@ -291,7 +302,11 @@ export function OtherSpecialtiesPage() {
         <Tabs.Panel value="dialysis" pt="md">
           <Group justify="flex-end" mb="md">
             {canDialysis && (
-              <Button leftSection={<IconPlus size={16} />} onClick={dialHandlers.open}>
+              <Button
+                tone="primary"
+                leftSection={<IconPlus size={16} />}
+                onClick={dialHandlers.open}
+              >
                 New Session
               </Button>
             )}
@@ -301,7 +316,11 @@ export function OtherSpecialtiesPage() {
         <Tabs.Panel value="chemo" pt="md">
           <Group justify="flex-end" mb="md">
             {canChemo && (
-              <Button leftSection={<IconPlus size={16} />} onClick={chemoHandlers.open}>
+              <Button
+                tone="primary"
+                leftSection={<IconPlus size={16} />}
+                onClick={chemoHandlers.open}
+              >
                 New Protocol
               </Button>
             )}
@@ -348,7 +367,11 @@ export function OtherSpecialtiesPage() {
               }
             }}
           />
-          <Button onClick={() => createTmpl.mutate(tmplForm)} loading={createTmpl.isPending}>
+          <Button
+            tone="primary"
+            onClick={() => createTmpl.mutate(tmplForm)}
+            loading={createTmpl.isPending}
+          >
             Create Template
           </Button>
         </Stack>
@@ -393,7 +416,11 @@ export function OtherSpecialtiesPage() {
               }
             }}
           />
-          <Button onClick={() => createRec.mutate(recForm)} loading={createRec.isPending}>
+          <Button
+            tone="primary"
+            onClick={() => createRec.mutate(recForm)}
+            loading={createRec.isPending}
+          >
             Create Record
           </Button>
         </Stack>
@@ -435,7 +462,11 @@ export function OtherSpecialtiesPage() {
               setDialForm((p) => ({ ...p, uf_goal_ml: typeof v === "number" ? v : undefined }))
             }
           />
-          <Button onClick={() => createDial.mutate(dialForm)} loading={createDial.isPending}>
+          <Button
+            tone="primary"
+            onClick={() => createDial.mutate(dialForm)}
+            loading={createDial.isPending}
+          >
             Start Session
           </Button>
         </Stack>
@@ -483,7 +514,11 @@ export function OtherSpecialtiesPage() {
               setChemoForm((p) => ({ ...p, tumor_board_reviewed: e.currentTarget.checked }))
             }
           />
-          <Button onClick={() => createChemo.mutate(chemoForm)} loading={createChemo.isPending}>
+          <Button
+            tone="primary"
+            onClick={() => createChemo.mutate(chemoForm)}
+            loading={createChemo.isPending}
+          >
             Create Protocol
           </Button>
         </Stack>

@@ -24,6 +24,8 @@ const TONE_COLOR: Record<BadgeTone, string> = {
 export interface BadgeProps extends Omit<MantineBadgeProps, "color"> {
   tone?: BadgeTone;
   children?: ReactNode;
+  onClick?: React.MouseEventHandler<HTMLDivElement>;
+  title?: string;
 }
 
 /** Clean squared status pill (no leading dot / forced mono). */

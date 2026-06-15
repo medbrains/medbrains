@@ -1,7 +1,5 @@
 import {
   ActionIcon,
-  Badge,
-  Button,
   Drawer,
   NumberInput,
   Select,
@@ -32,6 +30,7 @@ import type { Column } from "@/components/DataTable";
 import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
 import { PatientNameCell } from "@/components/PatientNameCell";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
+import { Badge, Button } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { specialtyService } from "@/services/specialty.service";
 
@@ -133,7 +132,7 @@ export function CathLabPage() {
     {
       key: "is_stemi",
       label: "STEMI",
-      render: (r) => (r.is_stemi ? <Badge color="danger">STEMI</Badge> : <Text size="sm">No</Text>),
+      render: (r) => (r.is_stemi ? <Badge tone="danger">STEMI</Badge> : <Text size="sm">No</Text>),
     },
     {
       key: "door_to_balloon",
@@ -198,13 +197,13 @@ export function CathLabPage() {
       key: "consignment",
       label: "Consignment",
       render: (r) =>
-        r.is_consignment ? <Badge color="orange">Yes</Badge> : <Text size="sm">No</Text>,
+        r.is_consignment ? <Badge tone="warning">Yes</Badge> : <Text size="sm">No</Text>,
     },
     {
       key: "billed",
       label: "Billed",
       render: (r) =>
-        r.billed ? <Badge color="success">Yes</Badge> : <Badge color="slate">No</Badge>,
+        r.billed ? <Badge tone="success">Yes</Badge> : <Badge tone="neutral">No</Badge>,
     },
   ];
 
@@ -243,9 +242,9 @@ export function CathLabPage() {
       label: "Ambulation",
       render: (r) =>
         r.ambulation_started ? (
-          <Badge color="success">Started</Badge>
+          <Badge tone="success">Started</Badge>
         ) : (
-          <Badge color="slate">Pending</Badge>
+          <Badge tone="neutral">Pending</Badge>
         ),
     },
   ];
@@ -257,7 +256,7 @@ export function CathLabPage() {
         subtitle="Interventional cardiology procedures and STEMI pathway"
         actions={
           canCreate ? (
-            <Button leftSection={<IconPlus size={16} />} onClick={procHandlers.open}>
+            <Button tone="primary" leftSection={<IconPlus size={16} />} onClick={procHandlers.open}>
               New Procedure
             </Button>
           ) : undefined
@@ -396,7 +395,11 @@ export function CathLabPage() {
               }))
             }
           />
-          <Button onClick={() => createProc.mutate(procForm)} loading={createProc.isPending}>
+          <Button
+            tone="primary"
+            onClick={() => createProc.mutate(procForm)}
+            loading={createProc.isPending}
+          >
             Create Procedure
           </Button>
         </Stack>

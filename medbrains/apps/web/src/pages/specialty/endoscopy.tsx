@@ -1,15 +1,4 @@
-import {
-  Badge,
-  Button,
-  Drawer,
-  Group,
-  NumberInput,
-  Select,
-  Stack,
-  Tabs,
-  Text,
-  TextInput,
-} from "@mantine/core";
+import { Drawer, Group, NumberInput, Select, Stack, Tabs, Text, TextInput } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import { useHasPermission } from "@medbrains/stores";
@@ -25,13 +14,33 @@ import { IconPlus } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { DataTable, PageHeader } from "@/components";
-import { statusColor } from "@/lib/status-colors";
 import type { Column } from "@/components/DataTable";
 import { PatientNameCell } from "@/components/PatientNameCell";
+import { Badge, type BadgeTone, Button } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
+import { statusColor } from "@/lib/status-colors";
 import { specialtyService } from "@/services/specialty.service";
 
+const STATUS_TONE: Record<string, BadgeTone> = {
+  success: "success",
+  warning: "warning",
+  danger: "danger",
+  info: "info",
+  primary: "primary",
+  blue: "info",
+  teal: "success",
+  green: "success",
+  orange: "warning",
+  violet: "accent",
+  grape: "accent",
+  red: "danger",
+  gray: "neutral",
+  slate: "neutral",
+};
 
+function statusTone(status: string): BadgeTone {
+  return STATUS_TONE[statusColor(status) ?? "slate"] ?? "neutral";
+}
 
 export function EndoscopyPage() {
   useRequirePermission(P.SPECIALTY.ENDOSCOPY.PROCEDURES_LIST);
@@ -102,7 +111,7 @@ export function EndoscopyPage() {
       key: "biopsy",
       label: "Biopsy",
       render: (r) =>
-        r.biopsy_taken ? <Badge color="orange">Yes</Badge> : <Text size="sm">No</Text>,
+        r.biopsy_taken ? <Badge tone="warning">Yes</Badge> : <Text size="sm">No</Text>,
     },
     {
       key: "aldrete",
@@ -135,7 +144,7 @@ export function EndoscopyPage() {
     {
       key: "status",
       label: "Status",
-      render: (r) => <Badge color={statusColor(r.status) ?? "slate"}>{r.status}</Badge>,
+      render: (r) => <Badge tone={statusTone(r.status)}>{r.status}</Badge>,
     },
     { key: "total_uses", label: "Uses", render: (r) => <Text size="sm">{r.total_uses}</Text> },
     {
@@ -164,11 +173,7 @@ export function EndoscopyPage() {
       key: "leak_test",
       label: "Leak Test",
       render: (r) =>
-        r.leak_test_passed ? (
-          <Badge color="success">Pass</Badge>
-        ) : (
-          <Badge color="danger">Fail</Badge>
-        ),
+        r.leak_test_passed ? <Badge tone="success">Pass</Badge> : <Badge tone="danger">Fail</Badge>,
     },
     {
       key: "chemical",
@@ -183,7 +188,7 @@ export function EndoscopyPage() {
     {
       key: "result",
       label: "HLD Result",
-      render: (r) => <Badge color={statusColor(r.hld_result) ?? "slate"}>{r.hld_result}</Badge>,
+      render: (r) => <Badge tone={statusTone(r.hld_result)}>{r.hld_result}</Badge>,
     },
     {
       key: "date",
@@ -200,13 +205,17 @@ export function EndoscopyPage() {
         actions={
           <Group>
             {canCreate && (
-              <Button leftSection={<IconPlus size={16} />} onClick={procHandlers.open}>
+              <Button
+                tone="primary"
+                leftSection={<IconPlus size={16} />}
+                onClick={procHandlers.open}
+              >
                 New Procedure
               </Button>
             )}
             {canScopes && (
               <Button
-                variant="light"
+                tone="secondary"
                 leftSection={<IconPlus size={16} />}
                 onClick={scopeHandlers.open}
               >
@@ -305,7 +314,11 @@ export function EndoscopyPage() {
               }))
             }
           />
-          <Button onClick={() => createProc.mutate(procForm)} loading={createProc.isPending}>
+          <Button
+            tone="primary"
+            onClick={() => createProc.mutate(procForm)}
+            loading={createProc.isPending}
+          >
             Create Procedure
           </Button>
         </Stack>
@@ -335,7 +348,11 @@ export function EndoscopyPage() {
             value={scopeForm.scope_type ?? ""}
             onChange={(e) => setScopeForm((p) => ({ ...p, scope_type: e.currentTarget.value }))}
           />
-          <Button onClick={() => createScope.mutate(scopeForm)} loading={createScope.isPending}>
+          <Button
+            tone="primary"
+            onClick={() => createScope.mutate(scopeForm)}
+            loading={createScope.isPending}
+          >
             Register Scope
           </Button>
         </Stack>

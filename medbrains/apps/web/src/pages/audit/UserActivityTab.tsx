@@ -1,15 +1,36 @@
-import { Badge, Button, Group, Stack, Text, TextInput } from "@mantine/core";
+import { Group, Stack, Text, TextInput } from "@mantine/core";
 import type { AuditLogSummary } from "@medbrains/types";
 import { IconSearch, IconUserSearch } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { type Column, DataTable } from "@/components/DataTable";
-import { statusColor } from "@/lib/status-colors";
+import { Badge, type BadgeTone, Button } from "@/components/ui";
 import { formatDateTime } from "@/lib/date-utils";
+import { statusColor } from "@/lib/status-colors";
 import { auditService } from "@/services/audit.service";
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
+const STATUS_TONE: Record<string, BadgeTone> = {
+  success: "success",
+  warning: "warning",
+  danger: "danger",
+  info: "info",
+  primary: "primary",
+  blue: "info",
+  teal: "success",
+  green: "success",
+  orange: "warning",
+  violet: "accent",
+  grape: "accent",
+  red: "danger",
+  gray: "neutral",
+  slate: "neutral",
+};
+
+function statusTone(status: string): BadgeTone {
+  return STATUS_TONE[statusColor(status) ?? "slate"] ?? "neutral";
+}
 
 export function UserActivityTab() {
   const [userId, setUserId] = useState("");
@@ -33,7 +54,7 @@ export function UserActivityTab() {
       key: "action",
       label: "Action",
       render: (row) => (
-        <Badge color={statusColor(row.action) ?? "slate"} variant="light" size="sm">
+        <Badge tone={statusTone(row.action)} size="sm">
           {row.action}
         </Badge>
       ),
@@ -90,6 +111,7 @@ export function UserActivityTab() {
             w={320}
           />
           <Button
+            tone="primary"
             leftSection={<IconSearch size={14} />}
             disabled={!canSearch}
             onClick={() => setSubmittedUserId(trimmedUserId)}
