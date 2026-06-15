@@ -97,6 +97,8 @@ Import our primitives, **not** raw `@mantine/core`, for these:
 | Text input | `ui/Input` `NumberField` `PasswordField` `TextArea` | |
 | Select | `ui/Select` | |
 | Toggle | `ui/Switch` | sm by default |
+| Data grid | `DataTable` | columns + loading/empty — the default for lists |
+| Ad-hoc table | `ui/Table` | bespoke layouts; compound `Table.Thead/Tr/Th`, hover rows, no column borders |
 | Tooltip | `ui/Tooltip` | a hint, never the only place info lives |
 | Modal | `ui/Modal` | short self-contained tasks; centered, dimmed |
 | Drawer | `ui/Drawer` | work *alongside* content (order basket); right by default |

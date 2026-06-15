@@ -16,4 +16,5 @@ export { Panel, type PanelProps } from "./Panel";
 export { Select, type SelectProps } from "./Select";
 export { SignatureHero, type SignatureHeroProps } from "./SignatureHero";
 export { Switch } from "./Switch";
+export { Table } from "./Table";
 export { Tooltip } from "./Tooltip";
