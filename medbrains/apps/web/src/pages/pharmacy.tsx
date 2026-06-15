@@ -131,6 +131,7 @@ import {
   OperationalSignal,
   PageHeader,
   PrescriptionViews,
+  type SortState,
   StatusDot,
   TableValueBadge,
   useClinicalEmit,
@@ -1308,6 +1309,7 @@ function PharmacyOrdersTab({
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [page, setPage] = useState(1);
+  const [orderSort, setOrderSort] = useState<SortState | null>(null);
   const [filterStatus, setFilterStatus] = useState<string | null>(null);
   const [otcOpened, { open: openOtc, close: closeOtc }] = useDisclosure(false);
   const patientIdFilter = searchParams.get("patient_id") ?? "";
@@ -1328,6 +1330,10 @@ function PharmacyOrdersTab({
   const params: Record<string, string> = { page: String(page), per_page: "20" };
   if (effectiveFilterStatus) params.status = effectiveFilterStatus;
   if (patientIdFilter) params.patient_id = patientIdFilter;
+  if (orderSort) {
+    params.sort = orderSort.key;
+    params.order = orderSort.dir;
+  }
 
   const { data, isLoading } = useQuery({
     queryKey: ["pharmacy-orders", params],
@@ -1428,6 +1434,7 @@ function PharmacyOrdersTab({
     {
       key: "status",
       label: "Status",
+      sortable: true,
       render: (row: PharmacyOrder) => (
         <StatusDot color={statusColors[row.status] ?? "gray"} label={row.status} />
       ),
@@ -1603,6 +1610,11 @@ function PharmacyOrdersTab({
             page={page}
             totalPages={data ? Math.ceil(data.total / data.per_page) : 1}
             onPageChange={setPage}
+            sort={orderSort}
+            onSortChange={(next) => {
+              setOrderSort(next);
+              setPage(1);
+            }}
             rowKey={(row) => row.id}
             virtualized="auto"
             virtualizeAt={40}

@@ -434,6 +434,10 @@ pub struct ListInvoicesQuery {
     pub admission_id: Option<Uuid>,
     pub search: Option<String>,
     pub service_lane: Option<String>,
+    /// Column key to sort by (allowlisted server-side). Defaults to created_at.
+    pub sort: Option<String>,
+    /// Sort direction: "asc" or "desc" (default desc).
+    pub order: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -1249,9 +1253,17 @@ pub async fn list_invoices(
     }
     let total = cq.fetch_one(&mut *tx).await?;
 
+    // ORDER BY built from an allowlist (never raw user input).
+    let sort_dir = if params.order.as_deref() == Some("asc") { "ASC" } else { "DESC" };
+    let order_by = match params.sort.as_deref() {
+        Some("invoice_number") => format!("invoice_number {sort_dir}"),
+        Some("status") => format!("status {sort_dir}"),
+        Some("total_amount") => format!("total_amount {sort_dir}"),
+        _ => format!("created_at {sort_dir}"),
+    };
     let data_sql = format!(
         "SELECT * FROM invoices WHERE {where_clause} \
-         ORDER BY created_at DESC LIMIT ${bind_idx} OFFSET ${}",
+         ORDER BY {order_by} LIMIT ${bind_idx} OFFSET ${}",
         bind_idx + 1
     );
     let mut dq = sqlx::query_as::<_, Invoice>(&data_sql).bind(claims.tenant_id);

@@ -189,6 +189,7 @@ import {
   OperationalSignal,
   PageHeader,
   PaymentCollectPanel,
+  type SortState,
   useClinicalEmit,
   useProtectedFieldAccess,
 } from "@/components";
@@ -667,6 +668,7 @@ function BillingPageInner() {
   const canApproveConcessions = useHasPermission(P.BILLING.CONCESSIONS_APPROVE);
 
   const [page, setPage] = useState(1);
+  const [invoiceSort, setInvoiceSort] = useState<SortState | null>(null);
   const [createOpened, { open: openCreate, close: closeCreate }] = useDisclosure(false);
   const visibleBillingTabs = new Set<string>([
     "invoices",
@@ -733,6 +735,10 @@ function BillingPageInner() {
   if (patientFilterId) params.patient_id = patientFilterId;
   if (encounterFilterId) params.encounter_id = encounterFilterId;
   if (admissionFilterId) params.admission_id = admissionFilterId;
+  if (invoiceSort) {
+    params.sort = invoiceSort.key;
+    params.order = invoiceSort.dir;
+  }
 
   const queryClient = useQueryClient();
 
@@ -761,11 +767,13 @@ function BillingPageInner() {
     {
       key: "invoice_number",
       label: "Invoice #",
+      sortable: true,
       render: (row: Invoice) => <Text fw={600}>{row.invoice_number}</Text>,
     },
     {
       key: "status",
       label: "Status",
+      sortable: true,
       render: (row: Invoice) => {
         const displayStatus = invoiceDisplayStatus(row);
         const statusSignal = billingInvoiceStatusSignal(displayStatus);
@@ -799,6 +807,7 @@ function BillingPageInner() {
     {
       key: "total_amount",
       label: "Total",
+      sortable: true,
       fieldAccessKey: "billing.amount",
       accessor: (row: Invoice) => row.total_amount,
       fieldKind: "money",
@@ -1127,6 +1136,11 @@ function BillingPageInner() {
             page={page}
             totalPages={data ? Math.ceil(data.total / data.per_page) : 1}
             onPageChange={setPage}
+            sort={invoiceSort}
+            onSortChange={(next) => {
+              setInvoiceSort(next);
+              setPage(1);
+            }}
             rowKey={(row) => row.id}
             virtualized="auto"
             virtualizeAt={40}

@@ -50,6 +50,10 @@ pub struct ListOrdersQuery {
     pub per_page: Option<i64>,
     pub status: Option<String>,
     pub patient_id: Option<Uuid>,
+    /// Column key to sort by (allowlisted server-side). Defaults to created_at.
+    pub sort: Option<String>,
+    /// Sort direction: "asc" or "desc" (default desc).
+    pub order: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -1589,9 +1593,16 @@ pub async fn list_orders(
     }
     let total = cq.fetch_one(&mut *tx).await?;
 
+    // ORDER BY built from an allowlist (never raw user input).
+    let sort_dir = if params.order.as_deref() == Some("asc") { "ASC" } else { "DESC" };
+    let order_by = match params.sort.as_deref() {
+        Some("status") => format!("status {sort_dir}"),
+        Some("total_price") => format!("total_price {sort_dir}"),
+        _ => format!("created_at {sort_dir}"),
+    };
     let data_sql = format!(
         "SELECT * FROM pharmacy_orders WHERE {where_clause} \
-         ORDER BY created_at DESC LIMIT ${bind_idx} OFFSET ${}",
+         ORDER BY {order_by} LIMIT ${bind_idx} OFFSET ${}",
         bind_idx + 1
     );
     let mut dq = sqlx::query_as::<_, PharmacyOrder>(&data_sql).bind(claims.tenant_id);
