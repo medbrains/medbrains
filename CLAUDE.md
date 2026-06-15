@@ -250,6 +250,9 @@ medbrains/
 
 ### TypeScript / React
 
+- **Plan UI before build** — for any story that adds/changes a screen, write a short UI plan (placement, layout, primitives, surface, all states, permissions) and agree it BEFORE coding. Use plan mode for non-trivial screens. See `medbrains/docs/ui-plan-before-build.md`. Pairs with the design rules in `medbrains/docs/UI_GUIDELINES.md`.
+- Build UI from the **`@/components/ui` seam** (Button/IconButton/Badge/Alert/Card/Input/Select/Switch/Checkbox/Table/Tooltip/Modal/Drawer/Panel/ThemeIcon/SignatureHero), not raw `@mantine/core`. Buttons/badges use semantic `tone=...`. New page leaks are blocked by `make check-ui-seam`.
+- **Light theme only** — `forceColorScheme="light"`; do not add dark-mode styles or `data-mantine-color-scheme="dark"` branches.
 - Strict TypeScript (`strict: true`)
 - **Biome** for linting and formatting (`biome check`, `biome format`)
 - Mantine v7 components — do not use raw HTML elements when a Mantine component exists
