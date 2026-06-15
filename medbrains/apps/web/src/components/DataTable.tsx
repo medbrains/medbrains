@@ -10,28 +10,27 @@ import {
   VisuallyHidden,
 } from "@mantine/core";
 import { usePermissionStore } from "@medbrains/stores";
-import type { FieldAccessLevel } from "@medbrains/types";
-import { mostRestrictedFieldAccess } from "@medbrains/utils";
-import {
-  type CSSProperties,
-  type ReactNode,
-  type UIEvent,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { IconDownload } from "@tabler/icons-react";
+import { type CSSProperties, type ReactNode, useCallback, useMemo } from "react";
+import { Checkbox, IconButton } from "@/components/ui";
+import { DataTableBulkBar } from "./DataTableBulkBar";
+import { DataTableColumnsMenu } from "./DataTableColumnsMenu";
+import { DataTableHeader } from "./DataTableHeader";
 import styles from "./data-table.module.scss";
-import { resolveDataTableVirtualWindow } from "./data-table-virtualization";
+import { isColumnVisible, resolveColumnAccess } from "./data-table-access";
+import { buildCsv, downloadCsv, type SortState } from "./data-table-features";
+import type { Column, ColumnAccessState, DataTableDensity } from "./data-table-types";
 import { EmptyState } from "./EmptyState";
-import { type PermissionedFieldKind, PermissionedFieldValue } from "./PermissionedFieldValue";
+import { PermissionedFieldValue } from "./PermissionedFieldValue";
+import { useDataTableState } from "./use-data-table-state";
+import { useDataTableVirtual } from "./use-data-table-virtual";
+
+export type { SortState } from "./data-table-features";
+export type { Column, ColumnAccessState, DataTableDensity } from "./data-table-types";
 
 const SKELETON_ROW_KEYS = ["skeleton-a", "skeleton-b", "skeleton-c", "skeleton-d", "skeleton-e"];
 const DEFAULT_VIRTUALIZE_AT = 80;
 const DEFAULT_VIRTUAL_OVERSCAN = 8;
-
-type DataTableDensity = "compact" | "default" | "comfortable";
 
 const VIRTUAL_ROW_HEIGHT_BY_DENSITY: Record<DataTableDensity, number> = {
   compact: 44,
@@ -44,29 +43,6 @@ const TABLE_VERTICAL_SPACING_BY_DENSITY: Record<DataTableDensity, number> = {
   default: 7,
   comfortable: 10,
 };
-
-export interface Column<T> {
-  key: string;
-  label: string;
-  icon?: ReactNode;
-  requiredPermissions?: readonly string[];
-  permissionMode?: "all" | "any";
-  hideWhenDenied?: boolean;
-  fieldAccessKey?: string;
-  fieldAccessKeys?: readonly string[];
-  hideWhenFieldHidden?: boolean;
-  accessor?: (row: T) => number | string | null | undefined;
-  fieldKind?: PermissionedFieldKind;
-  hiddenLabel?: string;
-  render: (row: T, access: ColumnAccessState) => ReactNode;
-}
-
-export interface ColumnAccessState {
-  permissionsAllowed: boolean;
-  fieldAccess: FieldAccessLevel;
-  isMasked: boolean;
-  isHidden: boolean;
-}
 
 interface DataTableProps<T> {
   columns: Column<T>[];
@@ -94,54 +70,22 @@ interface DataTableProps<T> {
   virtualRowHeight?: number;
   virtualOverscan?: number;
   tableMaxHeight?: CSSProperties["maxHeight"];
-}
-
-function normalizeFieldCodes<T>(column: Column<T>) {
-  const codes = new Set<string>();
-  if (column.fieldAccessKey) {
-    codes.add(column.fieldAccessKey);
-  }
-  for (const code of column.fieldAccessKeys ?? []) {
-    codes.add(code);
-  }
-  return [...codes];
-}
-
-function resolveColumnAccess<T>(
-  column: Column<T>,
-  hasAllPermissions: (codes: string[]) => boolean,
-  hasAnyPermission: (codes: string[]) => boolean,
-  getFieldAccess: (code: string) => FieldAccessLevel,
-): ColumnAccessState {
-  const requiredPermissions = [...(column.requiredPermissions ?? [])];
-  const permissionsAllowed =
-    requiredPermissions.length === 0
-      ? true
-      : column.permissionMode === "any"
-        ? hasAnyPermission(requiredPermissions)
-        : hasAllPermissions(requiredPermissions);
-  const fieldCodes = normalizeFieldCodes(column);
-  const fieldAccess =
-    fieldCodes.length > 0
-      ? mostRestrictedFieldAccess(fieldCodes.map((fieldCode) => getFieldAccess(fieldCode)))
-      : "edit";
-
-  return {
-    permissionsAllowed,
-    fieldAccess,
-    isMasked: fieldAccess === "mask",
-    isHidden: !permissionsAllowed || fieldAccess === "hidden",
-  };
-}
-
-function isColumnVisible<T>(column: Column<T>, access: ColumnAccessState) {
-  if (!access.permissionsAllowed && (column.hideWhenDenied ?? true)) {
-    return false;
-  }
-  if (access.fieldAccess === "hidden" && (column.hideWhenFieldHidden ?? true)) {
-    return false;
-  }
-  return true;
+  // ── Sorting (opt-in) ──────────────────────────────────────────
+  defaultSort?: SortState;
+  /** Controlled sort (server-side). Provide with `onSortChange`. */
+  sort?: SortState | null;
+  onSortChange?: (sort: SortState | null) => void;
+  // ── Row selection (opt-in) ────────────────────────────────────
+  selectable?: boolean;
+  selectedKeys?: string[];
+  onSelectionChange?: (keys: string[], rows: T[]) => void;
+  /** Rendered in the bulk bar when rows are selected. */
+  bulkActions?: (rows: T[], clear: () => void) => ReactNode;
+  // ── Column visibility + export (opt-in) ───────────────────────
+  /** Persistence key for hideable-column state (localStorage). */
+  storageKey?: string;
+  exportable?: boolean;
+  exportFileName?: string;
 }
 
 function renderCell<T>(row: T, column: Column<T>, access: ColumnAccessState) {
@@ -207,20 +151,54 @@ export function DataTable<T>({
   virtualRowHeight,
   virtualOverscan = DEFAULT_VIRTUAL_OVERSCAN,
   tableMaxHeight,
+  defaultSort,
+  sort,
+  onSortChange,
+  selectable,
+  selectedKeys,
+  onSelectionChange,
+  bulkActions,
+  storageKey,
+  exportable,
+  exportFileName,
 }: DataTableProps<T>) {
   const hasAllPermissions = usePermissionStore((state) => state.hasAllPermissions);
   const hasAnyPermission = usePermissionStore((state) => state.hasAnyPermission);
   const getFieldAccess = usePermissionStore((state) => state.getFieldAccess);
-  const tableWrapperRef = useRef<HTMLDivElement | null>(null);
-  const scrollFrameRef = useRef<number | null>(null);
-  const pendingScrollPositionRef = useRef({ scrollTop: 0, viewportHeight: 0 });
-  const [virtualViewport, setVirtualViewport] = useState({ scrollTop: 0, viewportHeight: 0 });
+
+  const {
+    activeSort,
+    handleSort,
+    sortedData,
+    selectedSet,
+    toggleRow,
+    toggleAll,
+    clearSelection,
+    allSelected,
+    someSelected,
+    selectedRows,
+    hidden,
+    toggleColumn,
+  } = useDataTableState({
+    columns,
+    data,
+    rowKey,
+    sort,
+    defaultSort,
+    onSortChange,
+    selectedKeys,
+    onSelectionChange,
+    storageKey,
+  });
+
   const resolvedVirtualRowHeight = virtualRowHeight ?? VIRTUAL_ROW_HEIGHT_BY_DENSITY[density];
   const startItem = (page - 1) * perPage + 1;
-  const endItem = Math.min(page * perPage, total ?? data.length);
-  const totalItems = total ?? data.length;
+  const totalItems = total ?? sortedData.length;
+  const endItem = Math.min(page * perPage, totalItems);
   const shouldVirtualize =
-    !loading && (virtualized === true || (virtualized === "auto" && data.length >= virtualizeAt));
+    !loading &&
+    (virtualized === true || (virtualized === "auto" && sortedData.length >= virtualizeAt));
+
   const columnsWithAccess = useMemo(
     () =>
       columns
@@ -228,174 +206,99 @@ export function DataTable<T>({
           access: resolveColumnAccess(column, hasAllPermissions, hasAnyPermission, getFieldAccess),
           column,
         }))
-        .filter(({ access, column }) => isColumnVisible(column, access)),
-    [columns, getFieldAccess, hasAllPermissions, hasAnyPermission],
+        .filter(({ access, column }) => isColumnVisible(column, access) && !hidden.has(column.key)),
+    [columns, getFieldAccess, hasAllPermissions, hasAnyPermission, hidden],
   );
-  const visibleColumnCount = columnsWithAccess.length;
-  const virtualWindow = useMemo(() => {
-    return resolveDataTableVirtualWindow({
-      data,
-      enabled: shouldVirtualize,
-      overscan: virtualOverscan,
-      rowHeight: resolvedVirtualRowHeight,
-      scrollTop: virtualViewport.scrollTop,
-      viewportHeight: virtualViewport.viewportHeight,
-    });
-  }, [
-    data,
-    resolvedVirtualRowHeight,
-    shouldVirtualize,
-    virtualOverscan,
-    virtualViewport.scrollTop,
-    virtualViewport.viewportHeight,
-  ]);
-  const commitVirtualViewport = useCallback((nextViewport: typeof virtualViewport) => {
-    setVirtualViewport((currentViewport) =>
-      currentViewport.scrollTop === nextViewport.scrollTop &&
-      currentViewport.viewportHeight === nextViewport.viewportHeight
-        ? currentViewport
-        : nextViewport,
-    );
-  }, []);
-  const setTableWrapperRef = useCallback(
-    (node: HTMLDivElement | null) => {
-      tableWrapperRef.current = node;
-      if (node) {
-        commitVirtualViewport({
-          scrollTop: node.scrollTop,
-          viewportHeight: node.clientHeight,
-        });
-      }
-    },
-    [commitVirtualViewport],
-  );
-  const flushPendingScrollPosition = useCallback(() => {
-    scrollFrameRef.current = null;
-    commitVirtualViewport(pendingScrollPositionRef.current);
-  }, [commitVirtualViewport]);
-  const handleTableScroll = useCallback(
-    (event: UIEvent<HTMLDivElement>) => {
-      pendingScrollPositionRef.current = {
-        scrollTop: event.currentTarget.scrollTop,
-        viewportHeight: event.currentTarget.clientHeight,
-      };
+  const dataColumnCount = columnsWithAccess.length;
+  const totalColumnCount = dataColumnCount + (selectable ? 1 : 0);
 
-      if (typeof window === "undefined" || typeof window.requestAnimationFrame !== "function") {
-        flushPendingScrollPosition();
-        return;
-      }
-
-      if (scrollFrameRef.current === null) {
-        scrollFrameRef.current = window.requestAnimationFrame(flushPendingScrollPosition);
-      }
-    },
-    [flushPendingScrollPosition],
-  );
-  useEffect(() => {
-    return () => {
-      if (scrollFrameRef.current !== null && typeof window !== "undefined") {
-        window.cancelAnimationFrame(scrollFrameRef.current);
-      }
-    };
-  }, []);
-  const tableWrapperStyle = tableMaxHeight ? { maxHeight: tableMaxHeight } : undefined;
-  const tableCaption = useMemo(() => {
-    if (!caption) {
-      return null;
-    }
-
-    return (
-      <Table.Caption>
-        {captionVisuallyHidden ? <VisuallyHidden>{caption}</VisuallyHidden> : caption}
-      </Table.Caption>
-    );
-  }, [caption, captionVisuallyHidden]);
-
-  useEffect(() => {
-    const node = tableWrapperRef.current;
-    if (!node) {
-      return undefined;
-    }
-
-    commitVirtualViewport({
-      scrollTop: node.scrollTop,
-      viewportHeight: node.clientHeight,
-    });
-    if (typeof ResizeObserver === "undefined") {
-      return undefined;
-    }
-
-    const observer = new ResizeObserver(() => {
-      commitVirtualViewport({
-        scrollTop: node.scrollTop,
-        viewportHeight: node.clientHeight,
-      });
-    });
-    observer.observe(node);
-    return () => observer.disconnect();
-  }, [commitVirtualViewport]);
-
-  useEffect(() => {
-    const node = tableWrapperRef.current;
-    if (!shouldVirtualize || !node) {
-      return;
-    }
-
-    const maxScrollTop = Math.max(0, data.length * resolvedVirtualRowHeight - node.clientHeight);
-    if (node.scrollTop <= maxScrollTop) {
-      return;
-    }
-
-    node.scrollTop = maxScrollTop;
-    commitVirtualViewport({
-      scrollTop: maxScrollTop,
-      viewportHeight: node.clientHeight,
-    });
-  }, [commitVirtualViewport, data.length, resolvedVirtualRowHeight, shouldVirtualize]);
-
-  const headerRow = useMemo(
-    () => (
-      <Table.Thead className={styles.stickyHead}>
-        <Table.Tr>
-          {columnsWithAccess.map(({ column: col }) => (
-            <Table.Th key={col.key} scope="col">
-              {col.icon ? (
-                <span className={styles.columnHeader}>
-                  <span className={styles.columnIcon}>{col.icon}</span>
-                  {col.label}
-                </span>
-              ) : (
-                col.label
-              )}
-            </Table.Th>
-          ))}
-        </Table.Tr>
-      </Table.Thead>
-    ),
-    [columnsWithAccess],
-  );
-
-  const headerToolbar = useMemo(
+  const columnMenuItems = useMemo(
     () =>
-      toolbar || tableActions ? (
-        <>
-          <Box px="md" py="sm" className={styles.toolbar}>
-            <Group justify="space-between" align="center" gap="sm" wrap="wrap">
-              {toolbar && <Box className={styles.toolbarContent}>{toolbar}</Box>}
-              {tableActions && (
-                <Group gap="xs" className={styles.tableActions}>
-                  {tableActions}
-                </Group>
-              )}
-            </Group>
-          </Box>
-          <Divider />
-        </>
-      ) : null,
-    [tableActions, toolbar],
+      columns
+        .filter((column) => column.hideable)
+        .map((column) => ({
+          key: column.key,
+          label: column.label,
+          hidden: hidden.has(column.key),
+        })),
+    [columns, hidden],
   );
 
-  if (columnsWithAccess.length === 0) {
+  const handleExport = useCallback(() => {
+    const headers = columnsWithAccess.map(({ column }) => column.label);
+    const rows = sortedData.map((row) =>
+      columnsWithAccess.map(({ access, column }) => {
+        if (!access.permissionsAllowed || access.isHidden || access.isMasked) return "";
+        const getValue = column.exportValue ?? column.accessor;
+        return getValue ? (getValue(row) ?? "") : "";
+      }),
+    );
+    downloadCsv(exportFileName ?? "export", buildCsv(headers, rows));
+  }, [columnsWithAccess, sortedData, exportFileName]);
+
+  const { virtualWindow, setTableWrapperRef, handleTableScroll } = useDataTableVirtual({
+    data: sortedData,
+    enabled: shouldVirtualize,
+    rowHeight: resolvedVirtualRowHeight,
+    overscan: virtualOverscan,
+  });
+
+  const tableCaption = caption ? (
+    <Table.Caption>
+      {captionVisuallyHidden ? <VisuallyHidden>{caption}</VisuallyHidden> : caption}
+    </Table.Caption>
+  ) : null;
+
+  const header = (
+    <DataTableHeader
+      columns={columnsWithAccess}
+      selectable={selectable}
+      allSelected={allSelected}
+      someSelected={someSelected}
+      onToggleAll={toggleAll}
+      activeSort={activeSort}
+      onSort={handleSort}
+    />
+  );
+
+  const builtInActions =
+    exportable || columnMenuItems.length > 0 ? (
+      <>
+        {exportable && (
+          <IconButton aria-label="Export CSV" tone="default" onClick={handleExport}>
+            <IconDownload size={16} />
+          </IconButton>
+        )}
+        <DataTableColumnsMenu items={columnMenuItems} onToggle={toggleColumn} />
+      </>
+    ) : null;
+
+  const headerToolbar =
+    toolbar || tableActions || builtInActions ? (
+      <>
+        <Box px="md" py="sm" className={styles.toolbar}>
+          <Group justify="space-between" align="center" gap="sm" wrap="wrap">
+            {toolbar && <Box className={styles.toolbarContent}>{toolbar}</Box>}
+            <Group gap="xs" className={styles.tableActions}>
+              {tableActions}
+              {builtInActions}
+            </Group>
+          </Group>
+        </Box>
+        <Divider />
+      </>
+    ) : null;
+
+  const bulkBar =
+    selectable && selectedRows.length > 0 ? (
+      <DataTableBulkBar
+        count={selectedRows.length}
+        onClear={clearSelection}
+        actions={bulkActions?.(selectedRows, clearSelection)}
+      />
+    ) : null;
+
+  if (dataColumnCount === 0) {
     return (
       <Card padding={0} className={styles.card}>
         {headerToolbar}
@@ -412,15 +315,13 @@ export function DataTable<T>({
     return (
       <Card padding={0} className={styles.card}>
         {headerToolbar}
-        <Table
-          aria-busy={loading ? "true" : undefined}
-          verticalSpacing={TABLE_VERTICAL_SPACING_BY_DENSITY[density]}
-        >
+        <Table aria-busy="true" verticalSpacing={TABLE_VERTICAL_SPACING_BY_DENSITY[density]}>
           {tableCaption}
-          {headerRow}
+          {header}
           <Table.Tbody>
             {SKELETON_ROW_KEYS.map((key) => (
               <Table.Tr key={key}>
+                {selectable && <Table.Td className={styles.selectCell} />}
                 {columnsWithAccess.map(({ column: col }) => (
                   <Table.Td key={col.key}>
                     <Skeleton height={20} radius="sm" />
@@ -434,7 +335,7 @@ export function DataTable<T>({
     );
   }
 
-  if (data.length === 0 && emptyIcon) {
+  if (sortedData.length === 0 && emptyIcon) {
     return (
       <Card padding={0} className={styles.card}>
         {headerToolbar}
@@ -453,27 +354,29 @@ export function DataTable<T>({
   return (
     <Card padding={0} className={styles.card}>
       {headerToolbar}
+      {bulkBar}
       <Box
         className={styles.tableWrapper}
         ref={setTableWrapperRef}
         onScroll={shouldVirtualize ? handleTableScroll : undefined}
-        style={tableWrapperStyle}
+        style={tableMaxHeight ? { maxHeight: tableMaxHeight } : undefined}
         data-density={density}
         data-virtual-rendered={shouldVirtualize ? virtualWindow.renderedCount : undefined}
         data-virtualized={shouldVirtualize ? "true" : undefined}
       >
         <Table
-          aria-colcount={visibleColumnCount}
+          aria-colcount={totalColumnCount}
           aria-rowcount={totalItems}
           verticalSpacing={TABLE_VERTICAL_SPACING_BY_DENSITY[density]}
         >
           {tableCaption}
-          {headerRow}
+          {header}
           <Table.Tbody>
-            {spacerRow(virtualWindow.topSpacerHeight, visibleColumnCount, "virtual-top-spacer")}
+            {spacerRow(virtualWindow.topSpacerHeight, totalColumnCount, "virtual-top-spacer")}
             {virtualWindow.rows.map((row, visibleIndex) => {
               const rowIndex = virtualWindow.startIndex + visibleIndex;
               const globalRowIndex = (page - 1) * perPage + rowIndex + 1;
+              const isSelected = selectable && selectedSet.has(rowKey(row));
 
               return (
                 <Table.Tr
@@ -481,6 +384,7 @@ export function DataTable<T>({
                   aria-rowindex={globalRowIndex}
                   className={shouldVirtualize ? styles.virtualRow : undefined}
                   data-clickable={onRowClick ? "true" : undefined}
+                  data-selected={isSelected || undefined}
                   style={{
                     height: shouldVirtualize ? resolvedVirtualRowHeight : undefined,
                     ...rowStyle?.(row),
@@ -488,17 +392,26 @@ export function DataTable<T>({
                   }}
                   onClick={onRowClick ? () => onRowClick(row) : undefined}
                 >
+                  {selectable && (
+                    <Table.Td
+                      className={styles.selectCell}
+                      onClick={(event) => event.stopPropagation()}
+                    >
+                      <Checkbox
+                        aria-label="Select row"
+                        checked={!!isSelected}
+                        onChange={() => toggleRow(row)}
+                        size="xs"
+                      />
+                    </Table.Td>
+                  )}
                   {columnsWithAccess.map(({ access, column }) => (
                     <Table.Td key={column.key}>{renderCell(row, column, access)}</Table.Td>
                   ))}
                 </Table.Tr>
               );
             })}
-            {spacerRow(
-              virtualWindow.bottomSpacerHeight,
-              visibleColumnCount,
-              "virtual-bottom-spacer",
-            )}
+            {spacerRow(virtualWindow.bottomSpacerHeight, totalColumnCount, "virtual-bottom-spacer")}
           </Table.Tbody>
         </Table>
       </Box>
@@ -509,7 +422,7 @@ export function DataTable<T>({
           <Group justify="space-between" px="md" py="sm">
             <Text size="xs" c="var(--mb-text-secondary)" className={styles.footerCount}>
               {totalItems > 0
-                ? `Showing ${startItem}\u2013${endItem} of ${totalItems.toLocaleString()} items`
+                ? `Showing ${startItem}–${endItem} of ${totalItems.toLocaleString()} items`
                 : "0 items"}
             </Text>
             {totalPages && totalPages > 1 && onPageChange && (

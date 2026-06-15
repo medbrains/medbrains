@@ -78,3 +78,72 @@
   font-variant-numeric: tabular-nums;
   color: var(--mb-table-text-muted);
 }
+
+// ─── Bolder console restyle ───
+
+// Tinted, weightier header band with a clear bottom rule.
+.stickyHead th {
+  background: var(--mb-bg-subtle, #f4f5f8);
+  color: var(--mb-text-secondary);
+  font-weight: 600;
+  border-bottom: 1px solid var(--mb-border, #d5dbdb);
+}
+
+// Row affordances: smooth hover, distinct selected tint.
+.tableWrapper tbody tr {
+  transition: background-color 120ms ease;
+}
+
+.tableWrapper tbody tr:hover {
+  background: var(--mb-bg-subtle, #f4f5f8);
+}
+
+.tableWrapper tbody tr[data-selected] {
+  background: var(--mb-selected-row-bg, rgba(91, 75, 196, 0.08));
+}
+
+.tableWrapper tbody tr[data-selected]:hover {
+  background: var(--mb-selected-row-bg-hover, rgba(91, 75, 196, 0.12));
+}
+
+// Sortable headers — pointer + hover, with idle/active sort glyphs.
+.sortableHeader {
+  cursor: pointer;
+  user-select: none;
+}
+
+.sortableHeader:hover {
+  background: var(--mb-bg-default, #ffffff);
+  color: var(--mb-text-body);
+}
+
+.sortIconIdle {
+  margin-left: 3px;
+  vertical-align: middle;
+  opacity: 0.4;
+}
+
+.sortIconActive {
+  margin-left: 3px;
+  vertical-align: middle;
+  color: var(--mb-accent-primary, #5b4bc4);
+}
+
+// Selection checkbox column — narrow, centred.
+.selectCell {
+  width: 40px;
+  padding-left: 8px;
+  padding-right: 0;
+  text-align: center;
+  white-space: nowrap;
+}
+
+// Bulk selection strip.
+.bulkBar {
+  background: var(--mb-selected-row-bg, rgba(91, 75, 196, 0.08));
+  border-bottom: 1px solid var(--mb-border, #d5dbdb);
+}
+
+.bulkCount {
+  color: var(--mb-accent-primary, #5b4bc4);
+}

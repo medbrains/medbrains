@@ -1,0 +1,9 @@
+// General Table — matches the DataTable console look: tinted, weightier
+// header band with a clear bottom rule. Hover comes from Mantine's
+// highlightOnHover default.
+.table thead th {
+  background: var(--mb-bg-subtle, #f4f5f8);
+  color: var(--mb-text-secondary);
+  font-weight: 600;
+  border-bottom: 1px solid var(--mb-border, #d5dbdb);
+}
