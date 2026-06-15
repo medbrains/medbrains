@@ -92,7 +92,8 @@ Import our primitives, **not** raw `@mantine/core`, for these:
 | Button | `ui/Button` | `tone="primary\|secondary\|ghost\|danger\|subtle-danger"` — never raw `variant`+`color` |
 | Icon button | `ui/IconButton` | `tone="default\|primary\|danger\|success"`; `aria-label` **required** |
 | Status chip | `ui/Badge` | `tone="neutral\|primary\|success\|warning\|danger\|info\|accent"` |
-| Inline notice | `ui/Alert` | `tone="info\|success\|warning\|danger\|neutral"` |
+| Inline notice | `ui/Alert` | `tone="info\|success\|warning\|danger\|neutral"`; tone accent bar + console style |
+| Toast | `ui/toast` | `toast.success/error/warning/info(msg, {title?})` — not raw `notifications.show` |
 | Surface | `ui/Card` | border-first, no resting shadow |
 | Text input | `ui/Input` `NumberField` `PasswordField` `TextArea` | |
 | Select | `ui/Select` | |

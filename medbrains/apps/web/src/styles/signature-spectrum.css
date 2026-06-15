@@ -67,3 +67,17 @@
 .ssDot--stable { background: var(--ss-stable); }
 .ssDot--caution { background: var(--ss-caution); }
 .ssDot--critical { background: var(--ss-critical); }
+
+/* ── Toasts (global) — new Signature Spectrum notification look ──
+   Squared console card, crisp hairline border, deeper lift. Applies to every
+   notification (incl. raw notifications.show); the ui/toast helper adds
+   tone-typed icons on top. */
+.mantine-Notification-root {
+  border: 1px solid var(--ss-hairline, #e2e3ee);
+  border-radius: 8px;
+  box-shadow: 0 10px 30px rgba(26, 26, 46, 0.14);
+}
+.mantine-Notification-title {
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}

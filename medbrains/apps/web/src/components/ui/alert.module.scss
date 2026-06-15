@@ -1,0 +1,39 @@
+// Signature Spectrum alert — a distinctive console notice. A bold tone
+// accent bar on the left edge, a hairline border, squared corners, and a
+// soft tone-tinted wash. The tone colour comes from Mantine's --alert-color.
+.alert {
+  position: relative;
+  border: 1px solid var(--mb-border, #d5dbdb);
+  border-left: 3px solid var(--alert-color, var(--mb-brand, #5b4bc4));
+  border-radius: var(--mantine-radius-sm);
+  overflow: hidden;
+
+  // Faint sheen sweeping off the accent edge — quiet, not loud.
+  &::before {
+    content: "";
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 64px;
+    background: linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--alert-color, #5b4bc4) 9%, transparent),
+      transparent
+    );
+    pointer-events: none;
+  }
+
+  :global(.mantine-Alert-icon) {
+    margin-right: 12px;
+    color: var(--alert-color, var(--mb-brand, #5b4bc4));
+  }
+
+  :global(.mantine-Alert-title) {
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    color: var(--mb-text-primary, #1a1a2e);
+  }
+
+  :global(.mantine-Alert-message) {
+    color: var(--mb-text-secondary, #5f6b7a);
+  }
+}

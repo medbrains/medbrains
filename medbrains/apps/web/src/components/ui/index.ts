@@ -21,4 +21,5 @@ export { SignatureHero, type SignatureHeroProps } from "./SignatureHero";
 export { Switch } from "./Switch";
 export { Table } from "./Table";
 export { ThemeIcon, type ThemeIconProps, type ThemeIconTone } from "./ThemeIcon";
+export { toast, type ToastOptions } from "./toast";
 export { Tooltip } from "./Tooltip";

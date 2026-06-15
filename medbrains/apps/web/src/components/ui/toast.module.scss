@@ -1,0 +1,23 @@
+// Signature Spectrum toast — squared console card with a crisp hairline
+// border, a deeper lift, and Mantine's tone-coloured left accent bar.
+.root {
+  border: 1px solid var(--mb-border, #d5dbdb);
+  border-radius: var(--mantine-radius-sm);
+  box-shadow: 0 8px 28px rgba(26, 26, 46, 0.14);
+  padding-top: 12px;
+  padding-bottom: 12px;
+}
+
+.icon {
+  margin-right: 12px;
+}
+
+.title {
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--mb-text-primary, #1a1a2e);
+}
+
+.description {
+  color: var(--mb-text-secondary, #5f6b7a);
+}
