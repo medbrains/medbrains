@@ -1,6 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
-  ActionIcon,
   Drawer,
   Group,
   NumberInput,
@@ -62,7 +61,7 @@ import { DataTable, PageHeader } from "@/components";
 import type { Column } from "@/components/DataTable";
 import { PatientNameCell } from "@/components/PatientNameCell";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
-import { Badge, type BadgeTone, Button } from "@/components/ui";
+import { Badge, type BadgeTone, Button, IconButton } from "@/components/ui";
 import {
   defaultSecurityAccessCardFormValues,
   defaultSecurityAccessLogFormValues,
@@ -295,14 +294,13 @@ function AccessControlTab() {
             render: (r: SecurityAccessCard) =>
               r.is_active ? (
                 <Tooltip label="Deactivate">
-                  <ActionIcon
-                    color="danger"
-                    variant="light"
+                  <IconButton
+                    tone="danger"
                     onClick={() => deactivateCardMut.mutate(r.id)}
-                    aria-label="Close"
+                    aria-label="Deactivate"
                   >
                     <IconX size={16} />
-                  </ActionIcon>
+                  </IconButton>
                 </Tooltip>
               ) : (
                 <Text c="dimmed">—</Text>
@@ -908,27 +906,25 @@ function IncidentsTab() {
             render: (r: SecurityIncident) =>
               r.status === "reported" ? (
                 <Tooltip label="Start Investigation">
-                  <ActionIcon
-                    color="warning"
-                    variant="light"
+                  <IconButton
+                    tone="default"
                     onClick={() =>
                       updateMut.mutate({ id: r.id, body: { status: "investigating" } })
                     }
-                    aria-label="Edit"
+                    aria-label="Start Investigation"
                   >
                     <IconPencil size={16} />
-                  </ActionIcon>
+                  </IconButton>
                 </Tooltip>
               ) : r.status === "investigating" ? (
                 <Tooltip label="Resolve">
-                  <ActionIcon
-                    color="success"
-                    variant="light"
+                  <IconButton
+                    tone="success"
                     onClick={() => updateMut.mutate({ id: r.id, body: { status: "resolved" } })}
-                    aria-label="Confirm"
+                    aria-label="Resolve"
                   >
                     <IconCheck size={16} />
-                  </ActionIcon>
+                  </IconButton>
                 </Tooltip>
               ) : (
                 <Text c="dimmed">—</Text>
@@ -1152,14 +1148,13 @@ function PatientSafetyTab() {
             render: (r: SecurityPatientTag) =>
               r.alert_status !== "deactivated" ? (
                 <Tooltip label="Deactivate Tag">
-                  <ActionIcon
-                    color="danger"
-                    variant="light"
+                  <IconButton
+                    tone="danger"
                     onClick={() => deactivateTagMut.mutate(r.id)}
-                    aria-label="Close"
+                    aria-label="Deactivate Tag"
                   >
                     <IconX size={16} />
-                  </ActionIcon>
+                  </IconButton>
                 </Tooltip>
               ) : (
                 <Text c="dimmed">—</Text>
@@ -1219,31 +1214,29 @@ function PatientSafetyTab() {
               !r.is_resolved ? (
                 <Group gap="xs">
                   <Tooltip label="Resolve">
-                    <ActionIcon
-                      color="success"
-                      variant="light"
+                    <IconButton
+                      tone="success"
                       onClick={() =>
                         resolveAlertMut.mutate({ id: r.id, body: { was_false_alarm: false } })
                       }
-                      aria-label="Confirm"
+                      aria-label="Resolve"
                     >
                       <IconCheck size={16} />
-                    </ActionIcon>
+                    </IconButton>
                   </Tooltip>
                   <Tooltip label="False Alarm">
-                    <ActionIcon
-                      color="warning"
-                      variant="light"
+                    <IconButton
+                      tone="default"
                       onClick={() =>
                         resolveAlertMut.mutate({
                           id: r.id,
                           body: { was_false_alarm: true, resolution_notes: "False alarm" },
                         })
                       }
-                      aria-label="Close"
+                      aria-label="False Alarm"
                     >
                       <IconX size={16} />
-                    </ActionIcon>
+                    </IconButton>
                   </Tooltip>
                 </Group>
               ) : (

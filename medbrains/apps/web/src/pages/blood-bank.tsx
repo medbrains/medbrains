@@ -1,5 +1,4 @@
 import {
-  ActionIcon,
   Divider,
   Drawer,
   Group,
@@ -64,7 +63,7 @@ import { useMemo, useState } from "react";
 import { DataTable, PageHeader, StatusDot } from "@/components";
 import { PatientNameCell } from "@/components/PatientNameCell";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
-import { Badge, type BadgeTone, Button, Table } from "@/components/ui";
+import { Badge, type BadgeTone, Button, IconButton, Table } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { statusColor } from "@/lib/status-colors";
 import { bloodBankService } from "@/services/bloodBank.service";
@@ -234,9 +233,9 @@ function DonorsTab() {
       label: "",
       render: (d: BloodDonor) => (
         <Tooltip label="View details">
-          <ActionIcon variant="subtle" onClick={() => setDetailDonor(d)} aria-label="View details">
+          <IconButton tone="default" onClick={() => setDetailDonor(d)} aria-label="View details">
             <IconEye size={16} />
-          </ActionIcon>
+          </IconButton>
         </Tooltip>
       ),
     },
@@ -855,15 +854,14 @@ function InventoryTab() {
                 )}
                 {canDiscard(c) && (
                   <Tooltip label="Discard component">
-                    <ActionIcon
-                      variant="subtle"
-                      color="danger"
+                    <IconButton
+                      tone="danger"
                       size="sm"
                       onClick={() => setDiscardComponent(c)}
                       aria-label="Delete"
                     >
                       <IconTrash size={14} />
-                    </ActionIcon>
+                    </IconButton>
                   </Tooltip>
                 )}
               </Group>

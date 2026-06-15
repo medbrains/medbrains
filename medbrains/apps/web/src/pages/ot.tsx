@@ -1,6 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
-  ActionIcon,
   Alert,
   Card,
   Checkbox,
@@ -86,7 +85,7 @@ import { DoctorSearchSelect } from "@/components/DoctorSearchSelect";
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
 import { PatientNameCell } from "@/components/PatientNameCell";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
-import { Badge, type BadgeTone, Button, Table } from "@/components/ui";
+import { Badge, type BadgeTone, Button, IconButton, Table } from "@/components/ui";
 import {
   DEFAULT_OT_ANESTHESIA_RECORD_FORM_VALUES,
   DEFAULT_OT_BOOKING_FORM_VALUES,
@@ -479,8 +478,8 @@ function BookingsTab({ canCreate, canList }: { canCreate: boolean; canList: bool
       label: "",
       render: (r: OtBooking) => (
         <Tooltip label="View">
-          <ActionIcon
-            variant="subtle"
+          <IconButton
+            tone="default"
             onClick={() => {
               setDetailId(r.id);
               openDetail();
@@ -488,7 +487,7 @@ function BookingsTab({ canCreate, canList }: { canCreate: boolean; canList: bool
             aria-label="View details"
           >
             <IconEye size={16} />
-          </ActionIcon>
+          </IconButton>
         </Tooltip>
       ),
     },
@@ -2586,15 +2585,14 @@ function ConsumablesSubTab({ bookingId }: { bookingId: string }) {
                 </Table.Td>
                 {canManage && (
                   <Table.Td>
-                    <ActionIcon
+                    <IconButton
                       size="sm"
-                      variant="light"
-                      color="danger"
+                      tone="danger"
                       onClick={() => deleteMutation.mutate(c.id)}
                       aria-label="Delete"
                     >
                       <IconTrash size={14} />
-                    </ActionIcon>
+                    </IconButton>
                   </Table.Td>
                 )}
               </Table.Tr>

@@ -2,7 +2,6 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import "@mantine/charts/styles.css";
 import { BarChart } from "@mantine/charts";
 import {
-  ActionIcon,
   Box,
   Card,
   Drawer,
@@ -92,7 +91,7 @@ import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate } from "react-router";
 import { DataTable, PageHeader, TableValueBadge } from "@/components";
 import type { Column } from "@/components/DataTable";
-import { Badge, type BadgeTone, Button } from "@/components/ui";
+import { Badge, type BadgeTone, Button, IconButton } from "@/components/ui";
 import {
   DAY_OPTIONS,
   DEFAULT_DISPLAY_CONFIG_FORM_VALUES,
@@ -1728,17 +1727,16 @@ function VisitorManagementTab({
       render: (r: VisitorRegistration) =>
         canManagePasses ? (
           <Tooltip label="Issue Pass">
-            <ActionIcon
-              variant="light"
-              color="primary"
+            <IconButton
+              tone="primary"
               onClick={() => {
                 setSelectedRegistration(r.id);
                 passDrawerHandlers.open();
               }}
-              aria-label="QR code"
+              aria-label="Issue Pass"
             >
               <IconQrcode size={16} />
-            </ActionIcon>
+            </IconButton>
           </Tooltip>
         ) : null,
     },
@@ -1777,34 +1775,31 @@ function VisitorManagementTab({
           {r.status === "active" && canManagePasses && (
             <>
               <Tooltip label="Check In">
-                <ActionIcon
-                  variant="light"
-                  color="success"
+                <IconButton
+                  tone="success"
                   onClick={() => checkIn.mutate(r.id)}
-                  aria-label="Confirm"
+                  aria-label="Check In"
                 >
                   <IconCheck size={16} />
-                </ActionIcon>
+                </IconButton>
               </Tooltip>
               <Tooltip label="Check Out">
-                <ActionIcon
-                  variant="light"
-                  color="primary"
+                <IconButton
+                  tone="primary"
                   onClick={() => checkOut.mutate(r.id)}
-                  aria-label="Time"
+                  aria-label="Check Out"
                 >
                   <IconClock size={16} />
-                </ActionIcon>
+                </IconButton>
               </Tooltip>
               <Tooltip label="Revoke">
-                <ActionIcon
-                  variant="light"
-                  color="danger"
+                <IconButton
+                  tone="danger"
                   onClick={() => revokePass.mutate(r.id)}
-                  aria-label="Close"
+                  aria-label="Revoke"
                 >
                   <IconX size={16} />
-                </ActionIcon>
+                </IconButton>
               </Tooltip>
             </>
           )}
@@ -2508,14 +2503,13 @@ function EnquiryDeskTab({ canCreate, canManage }: { canCreate: boolean; canManag
       render: (r: FrontOfficeEnquiryLog) =>
         !r.resolved && canManage ? (
           <Tooltip label="Mark Resolved">
-            <ActionIcon
-              variant="light"
-              color="success"
+            <IconButton
+              tone="success"
               onClick={() => resolveEnquiry.mutate(r.id)}
-              aria-label="Confirm"
+              aria-label="Mark Resolved"
             >
               <IconCheck size={16} />
-            </ActionIcon>
+            </IconButton>
           </Tooltip>
         ) : null,
     },

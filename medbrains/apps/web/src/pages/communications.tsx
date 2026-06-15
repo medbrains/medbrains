@@ -1,5 +1,4 @@
 import {
-  ActionIcon,
   Card,
   Drawer,
   Group,
@@ -56,7 +55,7 @@ import { useState } from "react";
 import { DataTable, PageHeader } from "@/components";
 import type { Column } from "@/components/DataTable";
 import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
-import { Badge, type BadgeTone, Button } from "@/components/ui";
+import { Badge, type BadgeTone, Button, IconButton } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { communicationsService } from "@/services/communications.service";
 
@@ -637,15 +636,14 @@ function ClinicalTab() {
       label: "",
       render: (r) =>
         !r.acknowledged_at && canAck ? (
-          <ActionIcon
-            variant="subtle"
-            color="blue"
+          <IconButton
+            tone="primary"
             size="sm"
             onClick={() => ackMut.mutate(r.id)}
             aria-label="Confirm"
           >
             <IconCheck size={14} />
-          </ActionIcon>
+          </IconButton>
         ) : null,
     },
   ];
@@ -820,28 +818,26 @@ function AlertsTab() {
           <Group gap={4}>
             {r.status === "triggered" && (
               <Tooltip label="Acknowledge">
-                <ActionIcon
-                  variant="subtle"
-                  color="blue"
+                <IconButton
+                  tone="primary"
                   size="sm"
                   onClick={() => ackMut.mutate(r.id)}
                   aria-label="Confirm"
                 >
                   <IconCheck size={14} />
-                </ActionIcon>
+                </IconButton>
               </Tooltip>
             )}
             {(r.status === "triggered" || r.status === "acknowledged") && (
               <Tooltip label="Resolve">
-                <ActionIcon
-                  variant="subtle"
-                  color="green"
+                <IconButton
+                  tone="success"
                   size="sm"
                   onClick={() => resolveMut.mutate(r.id)}
                   aria-label="Close"
                 >
                   <IconX size={14} />
-                </ActionIcon>
+                </IconButton>
               </Tooltip>
             )}
           </Group>
@@ -990,15 +986,14 @@ function ComplaintsTab() {
       render: (r) =>
         canManage && r.status !== "resolved" && r.status !== "closed" ? (
           <Tooltip label="Resolve">
-            <ActionIcon
-              variant="subtle"
-              color="green"
+            <IconButton
+              tone="success"
               size="sm"
               onClick={() => resolveMut.mutate(r.id)}
               aria-label="Confirm"
             >
               <IconCheck size={14} />
-            </ActionIcon>
+            </IconButton>
           </Tooltip>
         ) : null,
     },
@@ -1646,14 +1641,14 @@ function DltTab() {
       render: (r) =>
         canManage ? (
           <Tooltip label="Delete">
-            <ActionIcon
-              color="red"
-              variant="subtle"
+            <IconButton
+              tone="danger"
               size="sm"
               onClick={() => deleteMut.mutate(r.id)}
+              aria-label="Delete"
             >
               <IconTrash size={14} />
-            </ActionIcon>
+            </IconButton>
           </Tooltip>
         ) : null,
     },

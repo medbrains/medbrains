@@ -1,7 +1,6 @@
 import "@mantine/charts/styles.css";
 import { BarChart } from "@mantine/charts";
 import {
-  ActionIcon,
   Alert,
   Card,
   Drawer,
@@ -64,7 +63,7 @@ import { useSearchParams } from "react-router";
 import { DataTable, IpdContextStrip, ipdContextFromSearchParams, PageHeader } from "@/components";
 import type { Column } from "@/components/DataTable";
 import type { BadgeTone } from "@/components/ui";
-import { Badge, Button, Table } from "@/components/ui";
+import { Badge, Button, IconButton, Table } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { bmeService } from "@/services/bme.service";
 
@@ -357,9 +356,9 @@ function EquipmentTab() {
       render: (r) =>
         canUpdate ? (
           <Tooltip label="Edit">
-            <ActionIcon variant="subtle" size="sm" onClick={() => openEdit(r)} aria-label="Edit">
+            <IconButton size="sm" onClick={() => openEdit(r)} aria-label="Edit">
               <IconPencil size={16} />
-            </ActionIcon>
+            </IconButton>
           </Tooltip>
         ) : null,
     },
@@ -621,15 +620,14 @@ function PmTab() {
       render: (r) =>
         canManage && r.status !== "completed" && r.status !== "cancelled" ? (
           <Tooltip label="Mark Completed">
-            <ActionIcon
-              variant="subtle"
-              color="success"
+            <IconButton
+              tone="success"
               size="sm"
               onClick={() => updateWoMut.mutate({ id: r.id, body: { status: "completed" } })}
               aria-label="Confirm"
             >
               <IconCheck size={16} />
-            </ActionIcon>
+            </IconButton>
           </Tooltip>
         ) : null,
     },
@@ -1907,9 +1905,8 @@ function BreakdownsTab() {
         if (!canManage || !ns) return null;
         return (
           <Tooltip label={`Move to ${ns.replace(/_/g, " ")}`}>
-            <ActionIcon
-              variant="subtle"
-              color="primary"
+            <IconButton
+              tone="primary"
               size="sm"
               onClick={() =>
                 updateMut.mutate({
@@ -1920,7 +1917,7 @@ function BreakdownsTab() {
               aria-label="Confirm"
             >
               <IconCheck size={16} />
-            </ActionIcon>
+            </IconButton>
           </Tooltip>
         );
       },

@@ -1,6 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
-  ActionIcon,
   Drawer,
   Group,
   Modal,
@@ -65,7 +64,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type ReactNode, useState } from "react";
 import { Controller, useFieldArray, useForm, useWatch } from "react-hook-form";
 import { DataTable, PageHeader, TableValueBadge, VendorSearchSelect } from "@/components";
-import { Badge, type BadgeTone, Button, Table } from "@/components/ui";
+import { Badge, type BadgeTone, Button, IconButton, Table } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { statusColor } from "@/lib/status-colors";
 import { procurementService } from "@/services/procurement.service";
@@ -441,8 +440,7 @@ function VendorPanel({ canCreate }: { canCreate: boolean }) {
       label: "",
       render: (row: Vendor) => (
         <Tooltip label="View details">
-          <ActionIcon
-            variant="subtle"
+          <IconButton
             size={44}
             onClick={() => {
               setDetailVendor(row);
@@ -451,7 +449,7 @@ function VendorPanel({ canCreate }: { canCreate: boolean }) {
             aria-label="View details"
           >
             <IconEye size={16} />
-          </ActionIcon>
+          </IconButton>
         </Tooltip>
       ),
     },
@@ -777,8 +775,7 @@ function PurchaseOrderPanel({ canCreate }: { canCreate: boolean }) {
       render: (row: PurchaseOrder) => (
         <Group gap={4}>
           <Tooltip label="View">
-            <ActionIcon
-              variant="subtle"
+            <IconButton
               size={44}
               onClick={() => {
                 setDetailId(row.id);
@@ -787,7 +784,7 @@ function PurchaseOrderPanel({ canCreate }: { canCreate: boolean }) {
               aria-label="View details"
             >
               <IconEye size={16} />
-            </ActionIcon>
+            </IconButton>
           </Tooltip>
           {row.status === "draft" && canApprove && (
             <Button
@@ -1224,15 +1221,14 @@ function CreatePoForm({ onSuccess }: { onSuccess: () => void }) {
                 />
               </Table.Td>
               <Table.Td>
-                <ActionIcon
-                  variant="subtle"
-                  color="danger"
+                <IconButton
+                  tone="danger"
                   size={44}
                   aria-label={`Remove purchase order item ${idx + 1}`}
                   onClick={() => removeItem(idx)}
                 >
                   ×
-                </ActionIcon>
+                </IconButton>
               </Table.Td>
             </Table.Tr>
           ))}
@@ -1309,8 +1305,7 @@ function GrnPanel({ canCreate }: { canCreate: boolean }) {
       label: "",
       render: (row: GoodsReceiptNote) => (
         <Tooltip label="View">
-          <ActionIcon
-            variant="subtle"
+          <IconButton
             size={44}
             onClick={() => {
               setDetailId(row.id);
@@ -1319,7 +1314,7 @@ function GrnPanel({ canCreate }: { canCreate: boolean }) {
             aria-label="View details"
           >
             <IconEye size={16} />
-          </ActionIcon>
+          </IconButton>
         </Tooltip>
       ),
     },
@@ -1813,9 +1808,8 @@ function CreateRcForm({ onSuccess }: { onSuccess: () => void }) {
               />
             )}
           />
-          <ActionIcon
-            variant="subtle"
-            color="danger"
+          <IconButton
+            tone="danger"
             size={44}
             mt={24}
             aria-label={`Remove rate contract item ${idx + 1}`}
@@ -1824,7 +1818,7 @@ function CreateRcForm({ onSuccess }: { onSuccess: () => void }) {
             }}
           >
             ×
-          </ActionIcon>
+          </IconButton>
         </Group>
       ))}
       <Button tone="secondary" size="xs" onClick={() => append(emptyRcItem())} w="fit-content">

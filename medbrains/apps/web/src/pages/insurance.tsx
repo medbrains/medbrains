@@ -1,5 +1,4 @@
 import {
-  ActionIcon,
   Drawer,
   Grid,
   Group,
@@ -49,7 +48,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { DataTable, PageHeader } from "@/components";
 import { PatientNameCell } from "@/components/PatientNameCell";
-import { Badge, type BadgeTone, Button } from "@/components/ui";
+import { Badge, type BadgeTone, Button, IconButton } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { insuranceService } from "@/services/insurance.service";
 
@@ -282,9 +281,9 @@ function VerificationTab() {
             key: "actions",
             label: "",
             render: (r: InsuranceVerification) => (
-              <ActionIcon variant="subtle" onClick={() => setDetailId(r.id)} aria-label="Document">
+              <IconButton onClick={() => setDetailId(r.id)} aria-label="Document">
                 <IconFileText size={16} />
-              </ActionIcon>
+              </IconButton>
             ),
           },
         ]}
@@ -666,23 +665,18 @@ function PriorAuthTab() {
             label: "",
             render: (r: PriorAuthRequestRow) => (
               <Group gap={4}>
-                <ActionIcon
-                  variant="subtle"
-                  onClick={() => setDetailId(r.id)}
-                  aria-label="Document"
-                >
+                <IconButton onClick={() => setDetailId(r.id)} aria-label="Document">
                   <IconFileText size={16} />
-                </ActionIcon>
+                </IconButton>
                 {canSubmit && (r.status === "draft" || r.status === "pending_info") && (
-                  <ActionIcon
-                    variant="subtle"
-                    color="primary"
+                  <IconButton
+                    tone="primary"
                     onClick={() => submitMut.mutate(r.id)}
                     loading={submitMut.isPending}
                     aria-label="Send"
                   >
                     <IconSend size={16} />
-                  </ActionIcon>
+                  </IconButton>
                 )}
               </Group>
             ),
@@ -1152,14 +1146,13 @@ function AppealsTab() {
             render: (r: PriorAuthAppeal) => (
               <Group gap={4}>
                 {canCreate && r.status === "draft" && (
-                  <ActionIcon
-                    variant="subtle"
-                    color="primary"
+                  <IconButton
+                    tone="primary"
                     onClick={() => updateMut.mutate({ id: r.id, body: { status: "submitted" } })}
                     aria-label="Send"
                   >
                     <IconSend size={16} />
-                  </ActionIcon>
+                  </IconButton>
                 )}
               </Group>
             ),

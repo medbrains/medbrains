@@ -1,4 +1,4 @@
-import { ActionIcon, Group, SegmentedControl, Text, Tooltip } from "@mantine/core";
+import { Group, SegmentedControl, Text, Tooltip } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import type { MedAdminItem, MyTasksResponse, NurseTaskItem } from "@medbrains/types";
 import { IconCheck } from "@tabler/icons-react";
@@ -6,7 +6,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { DataTable } from "@/components";
 import type { Column } from "@/components/DataTable";
-import { Badge } from "@/components/ui";
+import { Badge, IconButton } from "@/components/ui";
 import { careViewService } from "@/services/careView.service";
 
 export function MyTasksTab({ wardId, canManage }: { wardId: string | null; canManage: boolean }) {
@@ -182,16 +182,15 @@ function NursingTasksTable({
       label: "",
       render: (row) => (
         <Tooltip label="Complete task">
-          <ActionIcon
+          <IconButton
             size="sm"
-            color="success"
-            variant="light"
+            tone="success"
             loading={completeMutation.isPending}
             onClick={() => completeMutation.mutate(row.task_id)}
             aria-label="Confirm"
           >
             <IconCheck size={14} />
-          </ActionIcon>
+          </IconButton>
         </Tooltip>
       ),
     });

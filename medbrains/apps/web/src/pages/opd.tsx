@@ -1,6 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
-  ActionIcon,
   Alert,
   Card,
   Group,
@@ -143,7 +142,7 @@ import {
 } from "@/components/OrderBasket/OrderBasketWorkspace";
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
 import { PatientFlowNavigator } from "@/components/Patient/PatientFlowNavigator";
-import { Badge, type BadgeTone, Button, Table } from "@/components/ui";
+import { Badge, type BadgeTone, Button, IconButton, Table } from "@/components/ui";
 import {
   DEFAULT_OPD_FOLLOW_UP_FORM_VALUES,
   DEFAULT_OPD_LAB_ORDER_FORM_VALUES,
@@ -1077,9 +1076,8 @@ function OpdPageInner() {
       switch (action.id) {
         case "record_vitals":
           return (
-            <ActionIcon
-              variant="subtle"
-              color="primary"
+            <IconButton
+              tone="primary"
               disabled={disabled}
               onClick={() => {
                 if (action.enabled) navigate(`/opd/queue/${row.id}/vitals`);
@@ -1087,12 +1085,11 @@ function OpdPageInner() {
               aria-label={actionLabel}
             >
               <IconHeartbeat size={16} />
-            </ActionIcon>
+            </IconButton>
           );
         case "open_visit":
           return (
-            <ActionIcon
-              variant="subtle"
+            <IconButton
               disabled={disabled}
               onClick={() => {
                 if (action.enabled) {
@@ -1102,13 +1099,11 @@ function OpdPageInner() {
               aria-label={actionLabel}
             >
               <IconEye size={16} />
-            </ActionIcon>
+            </IconButton>
           );
         case "call_patient":
           return (
-            <ActionIcon
-              variant="subtle"
-              color="warning"
+            <IconButton
               disabled={disabled}
               onClick={() => {
                 if (action.enabled) callMutation.mutate(row);
@@ -1116,13 +1111,11 @@ function OpdPageInner() {
               aria-label={actionLabel}
             >
               <IconPhone size={16} />
-            </ActionIcon>
+            </IconButton>
           );
         case "start_consultation":
           return (
-            <ActionIcon
-              variant="subtle"
-              color="orange"
+            <IconButton
               disabled={disabled}
               onClick={() => {
                 if (action.enabled) startMutation.mutate(row);
@@ -1130,13 +1123,12 @@ function OpdPageInner() {
               aria-label={actionLabel}
             >
               <IconPlayerPlay size={16} />
-            </ActionIcon>
+            </IconButton>
           );
         case "complete_visit":
           return (
-            <ActionIcon
-              variant="subtle"
-              color="success"
+            <IconButton
+              tone="success"
               disabled={disabled}
               onClick={() => {
                 if (action.enabled) completeMutation.mutate(row);
@@ -1144,13 +1136,12 @@ function OpdPageInner() {
               aria-label={actionLabel}
             >
               <IconCheck size={16} />
-            </ActionIcon>
+            </IconButton>
           );
         case "mark_no_show":
           return (
-            <ActionIcon
-              variant="subtle"
-              color="danger"
+            <IconButton
+              tone="danger"
               disabled={disabled}
               onClick={() => {
                 if (action.enabled) noShowMutation.mutate(row.id);
@@ -1158,7 +1149,7 @@ function OpdPageInner() {
               aria-label={actionLabel}
             >
               <IconUserOff size={16} />
-            </ActionIcon>
+            </IconButton>
           );
       }
     })();
@@ -3126,15 +3117,15 @@ function InvestigationsTab({
                   {canUpdate &&
                     (order.status === "ordered" || order.status === "sample_collected") && (
                       <Tooltip label="Cancel order">
-                        <ActionIcon
-                          variant="subtle"
-                          color="danger"
+                        <IconButton
+                          tone="danger"
                           size="xs"
                           onClick={() => cancelMutation.mutate(order.id)}
                           loading={cancelMutation.isPending}
+                          aria-label="Cancel order"
                         >
                           <IconX size={12} />
-                        </ActionIcon>
+                        </IconButton>
                       </Tooltip>
                     )}
                 </Table.Td>
@@ -3913,15 +3904,15 @@ function GroupAppointmentModal({ patientId }: { patientId: string }) {
                   size="xs"
                 />
                 {rows.length > 2 && (
-                  <ActionIcon
-                    variant="subtle"
-                    color="danger"
+                  <IconButton
+                    tone="danger"
                     size="sm"
                     onClick={() => removeRow(idx)}
                     mt={18}
+                    aria-label="Delete"
                   >
                     <IconTrash size={14} />
-                  </ActionIcon>
+                  </IconButton>
                 )}
               </Group>
             </Card>

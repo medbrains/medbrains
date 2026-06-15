@@ -1,7 +1,6 @@
 import "@mantine/charts/styles.css";
 import { BarChart, LineChart } from "@mantine/charts";
 import {
-  ActionIcon,
   Card,
   Drawer,
   Grid,
@@ -70,7 +69,7 @@ import { DataTable, IpdContextStrip, ipdContextFromSearchParams, PageHeader } fr
 import { DepartmentSelect } from "@/components/DepartmentSelect";
 import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
-import { Badge, type BadgeTone, Button, Table } from "@/components/ui";
+import { Badge, type BadgeTone, Button, IconButton, Table } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { statusColor } from "@/lib/status-colors";
 import { infectionControlService } from "@/services/infectionControl.service";
@@ -1448,8 +1447,7 @@ function OutbreakTab() {
       render: (r: OutbreakEvent) => (
         <Group gap="xs">
           <Tooltip label="View details">
-            <ActionIcon
-              variant="subtle"
+            <IconButton
               onClick={() => {
                 setSelected(r);
                 openDetail();
@@ -1457,7 +1455,7 @@ function OutbreakTab() {
               aria-label="View details"
             >
               <IconEye size={16} />
-            </ActionIcon>
+            </IconButton>
           </Tooltip>
           {canUpdate &&
             (statusTransitions[r.outbreak_status] ?? []).map((next) => (

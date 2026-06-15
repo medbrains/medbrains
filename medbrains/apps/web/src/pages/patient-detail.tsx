@@ -1,6 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
-  ActionIcon,
   Alert,
   Box,
   Card,
@@ -107,7 +106,7 @@ import { deriveCampJourneyCompletedEvents } from "@/components/Patient/patient-j
 import { PatientNameCell } from "@/components/PatientNameCell";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
 import { ShareDrawer } from "@/components/Sharing/ShareDrawer";
-import { Badge, type BadgeTone, Button, Table } from "@/components/ui";
+import { Badge, type BadgeTone, Button, IconButton, Table } from "@/components/ui";
 import {
   DEFAULT_PATIENT_ALLERGY_FORM_VALUES,
   DEFAULT_PATIENT_DOCUMENT_FORM_VALUES,
@@ -509,16 +508,15 @@ function AllergiesTab({ patient }: { patient: Patient }) {
                 </Table.Td>
                 {canUpdate && (
                   <Table.Td>
-                    <ActionIcon
-                      variant="light"
-                      color="danger"
+                    <IconButton
+                      tone="danger"
                       size="sm"
                       onClick={() => deleteMutation.mutate(a.id)}
                       loading={deleteMutation.isPending}
                       aria-label="Delete allergy"
                     >
                       <IconTrash size={14} />
-                    </ActionIcon>
+                    </IconButton>
                   </Table.Td>
                 )}
               </Table.Tr>
@@ -1212,14 +1210,13 @@ function BillingTab({ patientId }: { patientId: string }) {
                 </Table.Td>
                 <Table.Td>
                   <Tooltip label="Print invoice">
-                    <ActionIcon
-                      variant="subtle"
+                    <IconButton
                       onClick={() => void handlePrintInvoice(inv.id)}
                       loading={printingInvoiceId === inv.id}
                       aria-label={`Print invoice ${inv.invoice_number}`}
                     >
                       <IconPrinter size={16} />
-                    </ActionIcon>
+                    </IconButton>
                   </Tooltip>
                 </Table.Td>
               </Table.Tr>
@@ -1424,15 +1421,14 @@ function DetailFamilyLinksTab({ patientId }: { patientId: string }) {
                 </Table.Td>
                 {canUpdate && (
                   <Table.Td>
-                    <ActionIcon
-                      variant="light"
-                      color="danger"
+                    <IconButton
+                      tone="danger"
                       size="sm"
                       onClick={() => deleteMutation.mutate(l.id)}
                       aria-label="Delete"
                     >
                       <IconTrash size={14} />
-                    </ActionIcon>
+                    </IconButton>
                   </Table.Td>
                 )}
               </Table.Tr>
@@ -1636,15 +1632,14 @@ function DetailDocumentsTab({ patientId }: { patientId: string }) {
                 </Table.Td>
                 {canUpdate && (
                   <Table.Td>
-                    <ActionIcon
-                      variant="light"
-                      color="danger"
+                    <IconButton
+                      tone="danger"
                       size="sm"
                       onClick={() => deleteMutation.mutate(d.id)}
                       aria-label="Delete"
                     >
                       <IconTrash size={14} />
-                    </ActionIcon>
+                    </IconButton>
                   </Table.Td>
                 )}
               </Table.Tr>

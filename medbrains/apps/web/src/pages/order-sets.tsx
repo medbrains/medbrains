@@ -1,6 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
-  ActionIcon,
   Card,
   Drawer,
   Group,
@@ -45,7 +44,7 @@ import { DataTable, PageHeader } from "@/components";
 import { Icd11CodeSelect } from "@/components/Clinical/Icd11CodeSelect";
 import type { Column } from "@/components/DataTable";
 import { PatientNameCell } from "@/components/PatientNameCell";
-import { Badge, type BadgeTone, Button } from "@/components/ui";
+import { Badge, type BadgeTone, Button, IconButton } from "@/components/ui";
 import {
   orderSetContextOptions,
   orderSetItemTypeOptions,
@@ -312,41 +311,38 @@ function TemplatesTab({
         <Group gap={4}>
           {canApprove && !r.approved_at && (
             <Tooltip label="Approve">
-              <ActionIcon
+              <IconButton
                 size="sm"
-                variant="subtle"
-                color="success"
+                tone="success"
                 onClick={() => approveMut.mutate(r.id)}
                 aria-label="Confirm"
               >
                 <IconCheck size={14} />
-              </ActionIcon>
+              </IconButton>
             </Tooltip>
           )}
           {canUpdate && (
             <Tooltip label="New Version">
-              <ActionIcon
+              <IconButton
                 size="sm"
-                variant="subtle"
-                color="primary"
+                tone="primary"
                 onClick={() => versionMut.mutate(r.id)}
                 aria-label="Copy"
               >
                 <IconCopy size={14} />
-              </ActionIcon>
+              </IconButton>
             </Tooltip>
           )}
           {canUpdate && (
             <Tooltip label="Deactivate">
-              <ActionIcon
+              <IconButton
                 size="sm"
-                variant="subtle"
-                color="danger"
+                tone="danger"
                 onClick={() => deleteMut.mutate(r.id)}
                 aria-label="Delete"
               >
                 <IconTrash size={14} />
-              </ActionIcon>
+              </IconButton>
             </Tooltip>
           )}
         </Group>
@@ -641,10 +637,9 @@ function BuilderTab({ canUpdate }: { canUpdate: boolean }) {
       render: (r) =>
         canUpdate ? (
           <Tooltip label="Remove">
-            <ActionIcon
+            <IconButton
               size="sm"
-              variant="subtle"
-              color="danger"
+              tone="danger"
               onClick={() => {
                 if (selectedTemplateId) {
                   deleteItemMut.mutate({ templateId: selectedTemplateId, itemId: r.id });
@@ -653,7 +648,7 @@ function BuilderTab({ canUpdate }: { canUpdate: boolean }) {
               aria-label="Delete"
             >
               <IconTrash size={14} />
-            </ActionIcon>
+            </IconButton>
           </Tooltip>
         ) : null,
     },
@@ -950,9 +945,9 @@ function ActivationsTab() {
       label: "",
       render: (r) => (
         <Tooltip label="View Details">
-          <ActionIcon
+          <IconButton
             size="sm"
-            variant="subtle"
+            tone="default"
             onClick={() => {
               setDetailId(r.id);
               openDetail();
@@ -960,7 +955,7 @@ function ActivationsTab() {
             aria-label="List Details"
           >
             <IconListDetails size={14} />
-          </ActionIcon>
+          </IconButton>
         </Tooltip>
       ),
     },

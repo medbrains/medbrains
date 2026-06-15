@@ -1,6 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
-  ActionIcon,
   Card,
   Checkbox,
   Drawer,
@@ -63,7 +62,7 @@ import { useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { DataTable, PageHeader } from "@/components";
 import { DocumentPreviewModal } from "@/components/DocumentPreview/DocumentPreviewModal";
-import { Badge, type BadgeTone, Button } from "@/components/ui";
+import { Badge, type BadgeTone, Button, IconButton } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { documentsService } from "@/services/documents.service";
 
@@ -764,20 +763,19 @@ function TemplatesTab() {
       render: (row: DocumentTemplate) => (
         <Group gap={4}>
           {canUpdate && (
-            <ActionIcon variant="subtle" size="sm" onClick={() => openEdit(row)} aria-label="Edit">
+            <IconButton size="sm" onClick={() => openEdit(row)} aria-label="Edit">
               <IconPencil size={14} />
-            </ActionIcon>
+            </IconButton>
           )}
           {canDelete && (
-            <ActionIcon
-              variant="subtle"
+            <IconButton
               size="sm"
-              color="danger"
+              tone="danger"
               onClick={() => deleteMutation.mutate(row.id)}
               aria-label="Delete"
             >
               <IconTrash size={14} />
-            </ActionIcon>
+            </IconButton>
           )}
         </Group>
       ),
@@ -1122,25 +1120,19 @@ function OutputsTab() {
       label: "",
       render: (row: DocumentOutput) => (
         <Group gap={4}>
-          <ActionIcon
-            variant="subtle"
-            size="sm"
-            onClick={() => setPreviewDocId(row.id)}
-            aria-label="View details"
-          >
+          <IconButton size="sm" onClick={() => setPreviewDocId(row.id)} aria-label="View details">
             <IconEye size={14} />
-          </ActionIcon>
+          </IconButton>
           {canVoid && row.status !== "voided" && (
-            <ActionIcon
-              variant="subtle"
+            <IconButton
               size="sm"
-              color="danger"
+              tone="danger"
               onClick={() => voidMutation.mutate(row.id)}
               loading={voidMutation.isPending}
               aria-label="Delete"
             >
               <IconTrash size={14} />
-            </ActionIcon>
+            </IconButton>
           )}
         </Group>
       ),

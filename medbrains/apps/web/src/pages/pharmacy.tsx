@@ -1,6 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
-  ActionIcon,
   Alert,
   Card,
   Drawer,
@@ -150,7 +149,7 @@ import {
 import { PharmacyDispensingView } from "@/components/Pharmacy/PharmacyDispensingView";
 import { PharmacyLabel } from "@/components/Pharmacy/PharmacyLabel";
 import { StoreIndentsTab } from "@/components/Pharmacy/StoreIndentsTab";
-import { Badge, type BadgeTone, Button, SignatureHero, Table } from "@/components/ui";
+import { Badge, type BadgeTone, Button, IconButton, SignatureHero, Table } from "@/components/ui";
 import {
   awareCategoryOptions,
   drugScheduleOptions,
@@ -1458,9 +1457,8 @@ function PharmacyOrdersTab({
       render: (row: PharmacyOrder) => (
         <Group gap="xs">
           <Tooltip label={canViewOrderDetail ? "View" : "No permission to view order detail"}>
-            <ActionIcon
-              variant="subtle"
-              color="primary"
+            <IconButton
+              tone="primary"
               disabled={!canViewOrderDetail}
               aria-label="View pharmacy order"
               onClick={() => {
@@ -1469,27 +1467,25 @@ function PharmacyOrdersTab({
               }}
             >
               <IconEye size={16} />
-            </ActionIcon>
+            </IconButton>
           </Tooltip>
           {row.status === "ordered" && (
             <Group gap={4} wrap="nowrap">
               {canDispense && (
                 <Tooltip label="Dispense">
-                  <ActionIcon
-                    variant="subtle"
-                    color="success"
+                  <IconButton
+                    tone="success"
                     aria-label="Dispense pharmacy order"
                     onClick={() => dispenseMutation.mutate(row.id)}
                   >
                     <IconCheck size={16} />
-                  </ActionIcon>
+                  </IconButton>
                 </Tooltip>
               )}
               {canCancelOrder && (
                 <Tooltip label="Cancel">
-                  <ActionIcon
-                    variant="subtle"
-                    color="danger"
+                  <IconButton
+                    tone="danger"
                     aria-label="Cancel pharmacy order"
                     onClick={() =>
                       confirmDestructive({
@@ -1501,7 +1497,7 @@ function PharmacyOrdersTab({
                     }
                   >
                     <IconX size={16} />
-                  </ActionIcon>
+                  </IconButton>
                 </Tooltip>
               )}
             </Group>
@@ -1883,38 +1879,35 @@ function PharmacyReturnsTab({
                     : "Return approval and dispensing void permissions required"
                 }
               >
-                <ActionIcon
+                <IconButton
                   size="sm"
-                  variant="subtle"
-                  color="success"
+                  tone="success"
                   disabled={!canApprove || !canVoidDispensing || processMutation.isPending}
                   onClick={() => processMutation.mutate({ id: row.id, status: "approved" })}
                   aria-label="Approve return"
                 >
                   <IconCheck size={14} />
-                </ActionIcon>
+                </IconButton>
               </Tooltip>
               <Tooltip label={canReject ? "Reject return" : "No reject permission"}>
-                <ActionIcon
+                <IconButton
                   size="sm"
-                  variant="subtle"
-                  color="danger"
+                  tone="danger"
                   disabled={!canReject || processMutation.isPending}
                   onClick={() => processMutation.mutate({ id: row.id, status: "rejected" })}
                   aria-label="Reject return"
                 >
                   <IconX size={14} />
-                </ActionIcon>
+                </IconButton>
               </Tooltip>
             </>
           )}
           {row.status === "approved" && (
             <>
               <Tooltip label={canRestock ? "Return usable stock" : "No restock permission"}>
-                <ActionIcon
+                <IconButton
                   size="sm"
-                  variant="subtle"
-                  color="teal"
+                  tone="success"
                   disabled={!canRestock || processMutation.isPending}
                   onClick={() =>
                     processMutation.mutate({ id: row.id, status: "returned_to_stock" })
@@ -1922,19 +1915,18 @@ function PharmacyReturnsTab({
                   aria-label="Return to stock"
                 >
                   <IconPackage size={14} />
-                </ActionIcon>
+                </IconButton>
               </Tooltip>
               <Tooltip label={canDestroy ? "Mark as destroyed" : "No destroy permission"}>
-                <ActionIcon
+                <IconButton
                   size="sm"
-                  variant="subtle"
-                  color="danger"
+                  tone="danger"
                   disabled={!canDestroy || processMutation.isPending}
                   onClick={() => processMutation.mutate({ id: row.id, status: "destroyed" })}
                   aria-label="Destroy returned item"
                 >
                   <IconTrash size={14} />
-                </ActionIcon>
+                </IconButton>
               </Tooltip>
             </>
           )}
@@ -2223,15 +2215,14 @@ function CreatePharmacyReturnModal({
                         </Badge>
                       </Group>
                     </Stack>
-                    <ActionIcon
+                    <IconButton
                       size="sm"
-                      variant="subtle"
-                      color="danger"
+                      tone="danger"
                       aria-label="Remove return line"
                       onClick={() => removeReturnItem(index)}
                     >
                       <IconTrash size={14} />
-                    </ActionIcon>
+                    </IconButton>
                   </Group>
                   <Group grow align="flex-start">
                     <Controller
@@ -2834,10 +2825,9 @@ function PharmacyOrderDetail({
                           : "Remove item before dispense"
                       }
                     >
-                      <ActionIcon
+                      <IconButton
                         size="sm"
-                        variant="subtle"
-                        color="danger"
+                        tone="danger"
                         disabled={detail.items.length <= 1 || removeItemMutation.isPending}
                         onClick={() =>
                           confirmDestructive({
@@ -2850,7 +2840,7 @@ function PharmacyOrderDetail({
                         aria-label={`Remove ${item.drug_name}`}
                       >
                         <IconTrash size={14} />
-                      </ActionIcon>
+                      </IconButton>
                     </Tooltip>
                   </Table.Td>
                 )}
@@ -2933,17 +2923,16 @@ function EditablePharmacyQuantity({
         }}
       />
       <Tooltip label="Save quantity">
-        <ActionIcon
+        <IconButton
           size="sm"
-          variant="light"
-          color="primary"
+          tone="primary"
           disabled={!canSave || isSaving}
           loading={isSaving && canSave}
           onClick={() => onSave(quantity)}
           aria-label={`Save ${item.drug_name} quantity`}
         >
           <IconDeviceFloppy size={14} />
-        </ActionIcon>
+        </IconButton>
       </Tooltip>
     </Group>
   );
@@ -4187,15 +4176,14 @@ function StockTab({ canManage }: { canManage: boolean }) {
                         />
                       </Table.Td>
                       <Table.Td>
-                        <ActionIcon
-                          variant="subtle"
-                          color="danger"
+                        <IconButton
+                          tone="danger"
                           onClick={() => removeBulkRow(row.id)}
                           disabled={bulkRows.length === 1}
                           aria-label="Remove batch row"
                         >
                           <IconTrash size={14} />
-                        </ActionIcon>
+                        </IconButton>
                       </Table.Td>
                     </Table.Tr>
                   ))}
@@ -5103,14 +5091,13 @@ function TransfersView({
         <Group gap="xs">
           {canManage && row.status === "draft" && (
             <Tooltip label="Approve">
-              <ActionIcon
-                variant="subtle"
-                color="success"
+              <IconButton
+                tone="success"
                 aria-label="Approve store transfer"
                 onClick={() => approveMutation.mutate(row.id)}
               >
                 <IconCheck size={16} />
-              </ActionIcon>
+              </IconButton>
             </Tooltip>
           )}
         </Group>
@@ -5643,10 +5630,9 @@ function RxQueueTab({
       render: (row: RxQueueRow) => (
         <Group gap={4}>
           <Tooltip label={t("rxQueue.actions.viewPrescription")}>
-            <ActionIcon
+            <IconButton
               size="sm"
-              variant="subtle"
-              color="primary"
+              tone="primary"
               onClick={() => {
                 setReviewItems([]);
                 setActiveRxQueueId(row.id);
@@ -5654,42 +5640,39 @@ function RxQueueTab({
               aria-label={t("rxQueue.actions.viewPrescriptionDetails")}
             >
               <IconEye size={14} />
-            </ActionIcon>
+            </IconButton>
           </Tooltip>
           {canReview && row.status === "pending_review" && (
             <>
               <Tooltip label={t("rxQueue.actions.approveAndCreateBillingIndent")}>
-                <ActionIcon
+                <IconButton
                   size="sm"
-                  color="success"
-                  variant="light"
+                  tone="success"
                   onClick={() => handleOpenReview(row.id, "approved")}
                   aria-label={t("rxQueue.actions.approvePrescriptionReview")}
                 >
                   <IconCheck size={14} />
-                </ActionIcon>
+                </IconButton>
               </Tooltip>
               <Tooltip label={t("rxQueue.actions.holdForReview")}>
-                <ActionIcon
+                <IconButton
                   size="sm"
-                  color="warning"
-                  variant="light"
+                  tone="default"
                   onClick={() => handleOpenReview(row.id, "on_hold")}
                   aria-label={t("rxQueue.actions.holdPrescriptionForReview")}
                 >
                   <IconClock size={14} />
-                </ActionIcon>
+                </IconButton>
               </Tooltip>
               <Tooltip label={t("rxQueue.actions.rejectPrescription")}>
-                <ActionIcon
+                <IconButton
                   size="sm"
-                  color="danger"
-                  variant="light"
+                  tone="danger"
                   onClick={() => handleOpenReview(row.id, "rejected")}
                   aria-label={t("rxQueue.actions.rejectPrescription")}
                 >
                   <IconX size={14} />
-                </ActionIcon>
+                </IconButton>
               </Tooltip>
             </>
           )}
@@ -6225,10 +6208,9 @@ function RxBillingEstimate({
                             : t("rxBillingEstimate.actions.editQuantityPrice")
                         }
                       >
-                        <ActionIcon
+                        <IconButton
                           size="sm"
-                          variant={isEditing ? "light" : "subtle"}
-                          color={isEditing ? "primary" : "gray"}
+                          tone={isEditing ? "primary" : "default"}
                           onClick={() => setEditingItemId(isEditing ? null : item.id)}
                           aria-label={t(
                             isEditing
@@ -6238,7 +6220,7 @@ function RxBillingEstimate({
                           )}
                         >
                           {isEditing ? <IconDeviceFloppy size={14} /> : <IconPencil size={14} />}
-                        </ActionIcon>
+                        </IconButton>
                       </Tooltip>
                     </Table.Td>
                   )}
@@ -6741,30 +6723,28 @@ function PosCounterTab({
           <Group gap={4} wrap="nowrap">
             {canReturnSale && (
               <Tooltip label="Return selected items">
-                <ActionIcon
+                <IconButton
                   size="sm"
-                  color="orange"
-                  variant="light"
+                  tone="default"
                   onClick={() => {
                     void openReturnSale(row);
                   }}
                   aria-label="Return POS sale items"
                 >
                   <IconReceipt size={14} />
-                </ActionIcon>
+                </IconButton>
               </Tooltip>
             )}
             {canCancelSale && (
               <Tooltip label="Cancel sale and reverse remaining stock/refund">
-                <ActionIcon
+                <IconButton
                   size="sm"
-                  color="danger"
-                  variant="light"
+                  tone="danger"
                   onClick={() => openCancelSale(row)}
                   aria-label="Cancel POS sale"
                 >
                   <IconX size={14} />
-                </ActionIcon>
+                </IconButton>
               </Tooltip>
             )}
           </Group>
@@ -6935,15 +6915,14 @@ function PosCounterTab({
                           </Text>
                         </Table.Td>
                         <Table.Td>
-                          <ActionIcon
+                          <IconButton
                             size="sm"
-                            color="red"
-                            variant="light"
+                            tone="danger"
                             onClick={() => remove(index)}
                             aria-label="Remove sale line"
                           >
                             <IconX size={14} />
-                          </ActionIcon>
+                          </IconButton>
                         </Table.Td>
                       </Table.Tr>
                     );

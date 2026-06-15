@@ -1,5 +1,4 @@
 import {
-  ActionIcon,
   Card,
   Drawer,
   Group,
@@ -50,7 +49,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { DataTable, PageHeader } from "@/components";
 import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
-import { Badge, type BadgeTone, Button } from "@/components/ui";
+import { Badge, type BadgeTone, Button, IconButton } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { statusColor } from "@/lib/status-colors";
 import { hrService } from "@/services/hr.service";
@@ -374,8 +373,7 @@ function EmployeesTab({
             label: "",
             render: (r: Employee) => (
               <Tooltip label="View Details">
-                <ActionIcon
-                  variant="subtle"
+                <IconButton
                   onClick={() => {
                     setDetailId(r.id);
                     openDetail();
@@ -383,7 +381,7 @@ function EmployeesTab({
                   aria-label="Edit"
                 >
                   <IconPencil size={16} />
-                </ActionIcon>
+                </IconButton>
               </Tooltip>
             ),
           },
@@ -1249,37 +1247,30 @@ function LeaveTab({ canCreate, canApprove }: { canCreate: boolean; canApprove: b
                 {canApprove && r.status === "pending_hod" && (
                   <>
                     <Tooltip label="Approve">
-                      <ActionIcon
-                        color="success"
-                        variant="subtle"
+                      <IconButton
+                        tone="success"
                         onClick={() => actionMut.mutate({ id: r.id, action: "approve" })}
                         aria-label="Confirm"
                       >
                         <IconCheck size={16} />
-                      </ActionIcon>
+                      </IconButton>
                     </Tooltip>
                     <Tooltip label="Reject">
-                      <ActionIcon
-                        color="danger"
-                        variant="subtle"
+                      <IconButton
+                        tone="danger"
                         onClick={() => actionMut.mutate({ id: r.id, action: "reject" })}
                         aria-label="Close"
                       >
                         <IconX size={16} />
-                      </ActionIcon>
+                      </IconButton>
                     </Tooltip>
                   </>
                 )}
                 {(r.status === "draft" || r.status === "pending_hod") && (
                   <Tooltip label="Cancel">
-                    <ActionIcon
-                      color="slate"
-                      variant="subtle"
-                      onClick={() => cancelMut.mutate(r.id)}
-                      aria-label="Close"
-                    >
+                    <IconButton onClick={() => cancelMut.mutate(r.id)} aria-label="Close">
                       <IconX size={16} />
-                    </ActionIcon>
+                    </IconButton>
                   </Tooltip>
                 )}
               </Group>
@@ -1615,14 +1606,13 @@ function RosterTab({
                 render: (r: DutyRoster) =>
                   canManage && r.swap_with && !r.swap_approved ? (
                     <Tooltip label="Approve Swap">
-                      <ActionIcon
-                        color="success"
-                        variant="subtle"
+                      <IconButton
+                        tone="success"
                         onClick={() => swapMut.mutate(r.id)}
                         aria-label="Confirm"
                       >
                         <IconCheck size={16} />
-                      </ActionIcon>
+                      </IconButton>
                     </Tooltip>
                   ) : null,
               },

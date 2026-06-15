@@ -1,7 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { BarChart } from "@mantine/charts";
 import {
-  ActionIcon,
   Alert,
   Box,
   Card,
@@ -115,7 +114,7 @@ import { PatientContextBanner } from "@/components/Patient/PatientContextBanner"
 import { PatientFlowNavigator } from "@/components/Patient/PatientFlowNavigator";
 import { PatientJourneyActions } from "@/components/Patient/PatientJourneyActions";
 import { deriveCampJourneyCompletedEvents } from "@/components/Patient/patient-journey-events";
-import { Badge, type BadgeTone, Button } from "@/components/ui";
+import { Badge, type BadgeTone, Button, IconButton } from "@/components/ui";
 import {
   campFollowupTypeOptions,
   campIdProofTypeOptions,
@@ -1142,23 +1141,21 @@ function CampsTab({ onWorkCamp }: { onWorkCamp: (campId: string) => void }) {
       render: (r) => (
         <Group gap={4}>
           <Tooltip label="View Details">
-            <ActionIcon
-              variant="subtle"
+            <IconButton
               size="sm"
               onClick={() => {
                 setSelectedCamp(r);
                 detailHandlers.open();
               }}
-              aria-label="Edit"
+              aria-label="View Details"
             >
               <IconPencil size={14} />
-            </ActionIcon>
+            </IconButton>
           </Tooltip>
           {r.status === "active" && (
             <Tooltip label="Work in this camp" closeDelay={0} withinPortal={false}>
-              <ActionIcon
-                variant="subtle"
-                color="success"
+              <IconButton
+                tone="success"
                 size="sm"
                 onClick={(event) => {
                   event.currentTarget.blur();
@@ -1167,59 +1164,55 @@ function CampsTab({ onWorkCamp }: { onWorkCamp: (campId: string) => void }) {
                 aria-label="Work in this camp"
               >
                 <IconUsers size={14} />
-              </ActionIcon>
+              </IconButton>
             </Tooltip>
           )}
           {canUpdate && r.status === "planned" && (
             <Tooltip label="Approve">
-              <ActionIcon
-                variant="subtle"
-                color="primary"
+              <IconButton
+                tone="primary"
                 size="sm"
                 onClick={() => approveMut.mutate(r.id)}
-                aria-label="Confirm"
+                aria-label="Approve"
               >
                 <IconCheck size={14} />
-              </ActionIcon>
+              </IconButton>
             </Tooltip>
           )}
           {canUpdate && (r.status === "approved" || r.status === "setup") && (
             <Tooltip label="Activate">
-              <ActionIcon
-                variant="subtle"
-                color="success"
+              <IconButton
+                tone="success"
                 size="sm"
                 onClick={() => activateMut.mutate(r.id)}
-                aria-label="Play"
+                aria-label="Activate"
               >
                 <IconPlayerPlay size={14} />
-              </ActionIcon>
+              </IconButton>
             </Tooltip>
           )}
           {canUpdate && r.status === "active" && (
             <Tooltip label="Complete">
-              <ActionIcon
-                variant="subtle"
-                color="teal"
+              <IconButton
+                tone="success"
                 size="sm"
                 onClick={() => completeMut.mutate(r.id)}
-                aria-label="Confirm"
+                aria-label="Complete"
               >
                 <IconCheck size={14} />
-              </ActionIcon>
+              </IconButton>
             </Tooltip>
           )}
           {canUpdate && !["completed", "cancelled"].includes(r.status) && (
             <Tooltip label="Cancel">
-              <ActionIcon
-                variant="subtle"
-                color="danger"
+              <IconButton
+                tone="danger"
                 size="sm"
                 onClick={() => cancelMut.mutate(r.id)}
-                aria-label="Close"
+                aria-label="Cancel"
               >
                 <IconX size={14} />
-              </ActionIcon>
+              </IconButton>
             </Tooltip>
           )}
         </Group>
@@ -1577,15 +1570,14 @@ function CampDetail({ camp }: { camp: Camp }) {
       label: "",
       render: (r) =>
         canUpdate ? (
-          <ActionIcon
-            variant="subtle"
-            color="danger"
+          <IconButton
+            tone="danger"
             size="sm"
             onClick={() => removeMut.mutate(r.id)}
             aria-label="Delete"
           >
             <IconTrash size={14} />
-          </ActionIcon>
+          </IconButton>
         ) : null,
     },
   ];
@@ -2248,9 +2240,8 @@ function RegistrationsTab({
             closeDelay={0}
             withinPortal={false}
           >
-            <ActionIcon
-              variant="subtle"
-              color="primary"
+            <IconButton
+              tone="primary"
               size="sm"
               onClick={(event) => {
                 event.currentTarget.blur();
@@ -2259,7 +2250,7 @@ function RegistrationsTab({
               aria-label={t("registrations.actions.recordScreening")}
             >
               <IconStethoscope size={14} />
-            </ActionIcon>
+            </IconButton>
           </Tooltip>
           {canOpenClinicalVisit && (
             <Tooltip
@@ -2271,9 +2262,8 @@ function RegistrationsTab({
               closeDelay={0}
               withinPortal={false}
             >
-              <ActionIcon
-                variant="subtle"
-                color="success"
+              <IconButton
+                tone="success"
                 size="sm"
                 loading={openClinicalVisitMut.isPending}
                 onClick={(event) => {
@@ -2283,7 +2273,7 @@ function RegistrationsTab({
                 aria-label={t("registrations.actions.openOpd")}
               >
                 <IconArrowRight size={14} />
-              </ActionIcon>
+              </IconButton>
             </Tooltip>
           )}
           {canOpenClinicalVisit && r.clinical_department_id && (
@@ -2292,9 +2282,7 @@ function RegistrationsTab({
               closeDelay={0}
               withinPortal={false}
             >
-              <ActionIcon
-                variant="subtle"
-                color="orange"
+              <IconButton
                 size="sm"
                 onClick={(event) => {
                   event.currentTarget.blur();
@@ -2303,7 +2291,7 @@ function RegistrationsTab({
                 aria-label={t("registrations.actions.changeDepartmentDoctor")}
               >
                 <IconTransferIn size={14} />
-              </ActionIcon>
+              </IconButton>
             </Tooltip>
           )}
         </Group>
@@ -2360,14 +2348,13 @@ function RegistrationsTab({
             leftSection={<IconSearch size={16} />}
             rightSection={
               patientSearch ? (
-                <ActionIcon
-                  variant="subtle"
+                <IconButton
                   size="sm"
                   aria-label={t("registrations.clearSearch")}
                   onClick={() => setPatientSearch("")}
                 >
                   <IconX size={14} />
-                </ActionIcon>
+                </IconButton>
               ) : null
             }
           />
@@ -3396,26 +3383,24 @@ function FollowupsTab({
         canManage && r.status === "scheduled" ? (
           <Group gap={4}>
             <Tooltip label={t("followups.actions.markCompleted")}>
-              <ActionIcon
-                variant="subtle"
-                color="success"
+              <IconButton
+                tone="success"
                 size="sm"
                 onClick={() => completeMut.mutate({ id: r.id, data: { status: "completed" } })}
-                aria-label={t("followups.actions.confirm")}
+                aria-label={t("followups.actions.markCompleted")}
               >
                 <IconCheck size={14} />
-              </ActionIcon>
+              </IconButton>
             </Tooltip>
             <Tooltip label={t("followups.actions.markMissed")}>
-              <ActionIcon
-                variant="subtle"
-                color="danger"
+              <IconButton
+                tone="danger"
                 size="sm"
                 onClick={() => completeMut.mutate({ id: r.id, data: { status: "missed" } })}
-                aria-label={t("followups.actions.close")}
+                aria-label={t("followups.actions.markMissed")}
               >
                 <IconX size={14} />
-              </ActionIcon>
+              </IconButton>
             </Tooltip>
           </Group>
         ) : null,

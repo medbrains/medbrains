@@ -3,7 +3,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { LineChart } from "@mantine/charts";
 import {
-  ActionIcon,
   Alert,
   Card,
   Group,
@@ -70,7 +69,7 @@ import { useTranslation } from "react-i18next";
 import { type Column, DataTable, OperationalSignal, useClinicalEmit } from "@/components";
 import { Icd11CodeSelect } from "@/components/Clinical/Icd11CodeSelect";
 import { PatientNameCell } from "@/components/PatientNameCell";
-import { Badge, type BadgeTone, Button, Table } from "@/components/ui";
+import { Badge, type BadgeTone, Button, IconButton, Table } from "@/components/ui";
 import {
   DEFAULT_OPD_CONSENT_FORM_VALUES,
   DEFAULT_OPD_FEEDBACK_FORM_VALUES,
@@ -1011,14 +1010,14 @@ export function ProceduresTab({
                 <Table.Td>
                   {canUpdate && (order.status === "ordered" || order.status === "scheduled") && (
                     <Tooltip label="Cancel">
-                      <ActionIcon
-                        variant="subtle"
-                        color="danger"
+                      <IconButton
+                        tone="danger"
                         size="xs"
                         onClick={() => cancelMutation.mutate(order.id)}
+                        aria-label="Cancel"
                       >
                         <IconX size={12} />
-                      </ActionIcon>
+                      </IconButton>
                     </Tooltip>
                   )}
                 </Table.Td>
@@ -1390,24 +1389,24 @@ export function RemindersTab({
                   {r.status === "pending" && canUpdate && (
                     <Group gap={4}>
                       <Tooltip label="Complete">
-                        <ActionIcon
+                        <IconButton
                           size="sm"
-                          variant="subtle"
-                          color="success"
+                          tone="success"
                           onClick={() => completeMutation.mutate(r.id)}
+                          aria-label="Complete"
                         >
                           <IconCheck size={14} />
-                        </ActionIcon>
+                        </IconButton>
                       </Tooltip>
                       <Tooltip label="Cancel">
-                        <ActionIcon
+                        <IconButton
                           size="sm"
-                          variant="subtle"
-                          color="danger"
+                          tone="danger"
                           onClick={() => cancelMutation.mutate(r.id)}
+                          aria-label="Cancel"
                         >
                           <IconX size={14} />
-                        </ActionIcon>
+                        </IconButton>
                       </Tooltip>
                     </Group>
                   )}
@@ -1835,14 +1834,14 @@ export function ConsentsTab({
                 <Table.Td>
                   {c.status === "pending" && canUpdate && (
                     <Tooltip label="Sign Consent">
-                      <ActionIcon
+                      <IconButton
                         size="sm"
-                        variant="subtle"
-                        color="success"
+                        tone="success"
                         onClick={() => signMutation.mutate(c.id)}
+                        aria-label="Sign Consent"
                       >
                         <IconFileCheck size={14} />
-                      </ActionIcon>
+                      </IconButton>
                     </Tooltip>
                   )}
                 </Table.Td>

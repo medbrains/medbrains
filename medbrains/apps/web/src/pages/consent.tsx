@@ -1,5 +1,4 @@
 import {
-  ActionIcon,
   Code,
   Divider,
   Drawer,
@@ -48,7 +47,7 @@ import { DataTable, PageHeader } from "@/components";
 import type { Column } from "@/components/DataTable";
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
 import { PatientNameCell } from "@/components/PatientNameCell";
-import { Badge, type BadgeTone, Button } from "@/components/ui";
+import { Badge, type BadgeTone, Button, IconButton } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { consentService } from "@/services/consent.service";
 
@@ -315,8 +314,7 @@ function TemplatesTab({
       render: (r) => (
         <Group gap={4}>
           {canUpdate && (
-            <ActionIcon
-              variant="subtle"
+            <IconButton
               size="sm"
               onClick={() => {
                 setEditing(r);
@@ -325,18 +323,17 @@ function TemplatesTab({
               aria-label="Edit"
             >
               <IconPencil size={14} />
-            </ActionIcon>
+            </IconButton>
           )}
           {canDelete && (
-            <ActionIcon
-              variant="subtle"
-              color="danger"
+            <IconButton
+              tone="danger"
               size="sm"
               onClick={() => deleteMut.mutate(r.id)}
               aria-label="Delete"
             >
               <IconTrash size={14} />
-            </ActionIcon>
+            </IconButton>
           )}
         </Group>
       ),
@@ -1208,14 +1205,9 @@ function AuditTab() {
       key: "detail",
       label: "",
       render: (r) => (
-        <ActionIcon
-          variant="subtle"
-          size="sm"
-          onClick={() => setDetailEntry(r)}
-          aria-label="Search"
-        >
+        <IconButton size="sm" onClick={() => setDetailEntry(r)} aria-label="Search">
           <IconSearch size={14} />
-        </ActionIcon>
+        </IconButton>
       ),
     },
   ];
@@ -1402,16 +1394,14 @@ function VerificationTab({ canRevoke }: { canRevoke: boolean }) {
           return null;
         }
         return (
-          <ActionIcon
-            variant="subtle"
-            color="warning"
+          <IconButton
             size="sm"
             onClick={() => revokeMut.mutate(r)}
             loading={revokeMut.isPending}
             aria-label="Close"
           >
             <IconX size={14} />
-          </ActionIcon>
+          </IconButton>
         );
       },
     },
@@ -1527,24 +1517,18 @@ function SignaturesTab({ canManage }: { canManage: boolean }) {
       label: "",
       render: (r) => (
         <Group gap={4}>
-          <ActionIcon
-            variant="subtle"
-            size="sm"
-            onClick={() => setDetailSig(r)}
-            aria-label="Search"
-          >
+          <IconButton size="sm" onClick={() => setDetailSig(r)} aria-label="Search">
             <IconSearch size={14} />
-          </ActionIcon>
+          </IconButton>
           {canManage && (
-            <ActionIcon
-              variant="subtle"
-              color="danger"
+            <IconButton
+              tone="danger"
               size="sm"
               onClick={() => deleteMut.mutate(r.id)}
               aria-label="Delete"
             >
               <IconTrash size={14} />
-            </ActionIcon>
+            </IconButton>
           )}
         </Group>
       ),

@@ -1,5 +1,4 @@
 import {
-  ActionIcon,
   Card,
   Group,
   Modal,
@@ -39,7 +38,7 @@ import { PageHeader } from "@/components";
 import { NabhIndicatorMatrix } from "@/components/Reports/NabhIndicatorMatrix";
 import { type EChartsCoreOption, ReportChart } from "@/components/Reports/ReportChart";
 import { ReportDetailPanel } from "@/components/Reports/ReportDetailPanel";
-import { Badge, type BadgeTone, Button } from "@/components/ui";
+import { Badge, type BadgeTone, Button, IconButton } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { reportsService } from "@/services/reports.service";
 import styles from "./reports.module.scss";
@@ -2859,14 +2858,13 @@ export function ReportsPage() {
               leftSection={<IconSearch size={16} />}
               rightSection={
                 search ? (
-                  <ActionIcon
-                    variant="subtle"
+                  <IconButton
                     size="sm"
                     aria-label="Clear report search"
                     onClick={() => setReportParam("q", null)}
                   >
                     <IconX size={14} />
-                  </ActionIcon>
+                  </IconButton>
                 ) : undefined
               }
               className={styles.searchInput}

@@ -1,5 +1,4 @@
 import {
-  ActionIcon,
   Drawer,
   Group,
   NumberInput,
@@ -73,7 +72,7 @@ import {
 } from "@/components";
 import { PatientNameCell } from "@/components/PatientNameCell";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
-import { Badge, type BadgeTone, Button, Table } from "@/components/ui";
+import { Badge, type BadgeTone, Button, IconButton, Table } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { statusColor } from "@/lib/status-colors";
 import { indentService } from "@/services/indent.service";
@@ -425,8 +424,7 @@ function IndentListPanel({ status, requestedBy }: { status?: string; requestedBy
       label: "",
       render: (row: IndentRequisition) => (
         <Tooltip label="View details">
-          <ActionIcon
-            variant="subtle"
+          <IconButton
             onClick={() => {
               setDetailId(row.id);
               openDetail();
@@ -434,7 +432,7 @@ function IndentListPanel({ status, requestedBy }: { status?: string; requestedBy
             aria-label="View details"
           >
             <IconEye size={16} />
-          </ActionIcon>
+          </IconButton>
         </Tooltip>
       ),
     },
@@ -866,9 +864,9 @@ function RecentIndentsList({
               <Text size="sm">{new Date(req.created_at).toLocaleDateString()}</Text>
             </Table.Td>
             <Table.Td>
-              <ActionIcon variant="subtle" size="sm" aria-label="View details">
+              <IconButton size="sm" aria-label="View details">
                 <IconEye size={14} />
-              </ActionIcon>
+              </IconButton>
             </Table.Td>
           </Table.Tr>
         ))}
@@ -1278,14 +1276,9 @@ function CreateIndentPanel({ onDone }: { onDone: () => void }) {
                 />
               </Table.Td>
               <Table.Td>
-                <ActionIcon
-                  variant="subtle"
-                  color="danger"
-                  onClick={() => removeItem(idx)}
-                  aria-label="Close"
-                >
+                <IconButton tone="danger" onClick={() => removeItem(idx)} aria-label="Close">
                   <IconX size={14} />
-                </ActionIcon>
+                </IconButton>
               </Table.Td>
             </Table.Tr>
           ))}
@@ -1358,8 +1351,7 @@ function CatalogPanel() {
       key: "actions",
       label: "",
       render: (row: StoreCatalog) => (
-        <ActionIcon
-          variant="subtle"
+        <IconButton
           onClick={() => {
             setEditItem(row);
             openEdit();
@@ -1367,7 +1359,7 @@ function CatalogPanel() {
           aria-label="View details"
         >
           <IconEye size={16} />
-        </ActionIcon>
+        </IconButton>
       ),
     },
   ];
@@ -2640,8 +2632,7 @@ function CondemnationsView() {
       label: "",
       render: (row: EquipmentCondemnation) =>
         canManage && !["condemned", "rejected"].includes(row.status) ? (
-          <ActionIcon
-            variant="subtle"
+          <IconButton
             onClick={() => {
               setStatusItem(row);
               openStatus();
@@ -2649,7 +2640,7 @@ function CondemnationsView() {
             aria-label="View details"
           >
             <IconEye size={16} />
-          </ActionIcon>
+          </IconButton>
         ) : null,
     },
   ];

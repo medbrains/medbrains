@@ -1,7 +1,6 @@
 import "@mantine/charts/styles.css";
 import { BarChart } from "@mantine/charts";
 import {
-  ActionIcon,
   Card,
   Drawer,
   Group,
@@ -59,7 +58,7 @@ import { useState } from "react";
 import { useSearchParams } from "react-router";
 import { DataTable, IpdContextStrip, ipdContextFromSearchParams, PageHeader } from "@/components";
 import type { Column } from "@/components/DataTable";
-import { Badge, type BadgeTone, Button } from "@/components/ui";
+import { Badge, type BadgeTone, Button, IconButton } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { facilitiesService } from "@/services/facilities.service";
 
@@ -1654,8 +1653,7 @@ function WorkOrdersTab() {
       render: (r) =>
         canManage && r.status !== "completed" && r.status !== "cancelled" ? (
           <Tooltip label="Update Status">
-            <ActionIcon
-              variant="subtle"
+            <IconButton
               onClick={() => {
                 setSelectedWo(r);
                 setStatusForm({ status: r.status === "open" ? "assigned" : "in_progress" });
@@ -1664,7 +1662,7 @@ function WorkOrdersTab() {
               aria-label="Edit"
             >
               <IconPencil size={16} />
-            </ActionIcon>
+            </IconButton>
           </Tooltip>
         ) : null,
     },

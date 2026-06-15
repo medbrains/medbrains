@@ -1,6 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
-  ActionIcon,
   Alert,
   Card,
   Drawer,
@@ -70,7 +69,7 @@ import { useSearchParams } from "react-router";
 import { DataTable, PageHeader } from "@/components";
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
-import { Badge, type BadgeTone, Button } from "@/components/ui";
+import { Badge, type BadgeTone, Button, IconButton } from "@/components/ui";
 import {
   dietOptionalInteger,
   dietOptionalNumber,
@@ -1003,8 +1002,7 @@ function KitchenTab() {
         if (!nextStatus) return <Text size="sm">-</Text>;
         return (
           <Tooltip label={`Mark ${nextStatus}`}>
-            <ActionIcon
-              variant="light"
+            <IconButton
               size="sm"
               loading={updatePrepMut.isPending}
               onClick={() =>
@@ -1013,10 +1011,10 @@ function KitchenTab() {
                   data: { status: nextStatus },
                 })
               }
-              aria-label="Edit"
+              aria-label={`Mark ${nextStatus}`}
             >
               <IconPencil size={14} />
-            </ActionIcon>
+            </IconButton>
           </Tooltip>
         );
       },

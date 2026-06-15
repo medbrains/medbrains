@@ -1,5 +1,4 @@
 import {
-  ActionIcon,
   Group,
   Modal,
   Select,
@@ -25,7 +24,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { PageHeader } from "@/components";
 import { Icd11CodeSelect } from "@/components/Clinical/Icd11CodeSelect";
-import { Badge, type BadgeTone, Button, Table } from "@/components/ui";
+import { Badge, type BadgeTone, Button, IconButton, Table } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { pgLogbookService } from "@/services/pgLogbook.service";
 
@@ -336,15 +335,14 @@ function LogbookTable({
               <Table.Td>
                 {!e.supervisor_verified && onVerify && (
                   <Tooltip label="Verify entry">
-                    <ActionIcon
-                      variant="light"
-                      color="success"
+                    <IconButton
+                      tone="success"
                       size="sm"
                       onClick={() => onVerify(e.id)}
                       aria-label="Confirm"
                     >
                       <IconCheck size={14} />
-                    </ActionIcon>
+                    </IconButton>
                   </Tooltip>
                 )}
               </Table.Td>

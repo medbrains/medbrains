@@ -4,14 +4,14 @@
  *
  * Per RFCs/sprints/SPRINT-doctor-activities.md §5.2.
  */
-import { ActionIcon, Card, Group, Stack, Tabs, Text, Tooltip } from "@mantine/core";
+import { Card, Group, Stack, Tabs, Text, Tooltip } from "@mantine/core";
 import { P, type PendingSignoffEntry } from "@medbrains/types";
 import { IconAlertTriangle, IconClipboardCheck, IconSignature } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { SignWorkspace } from "@/components/Doctor/SignWorkspace";
 import { PageHeader } from "@/components/PageHeader";
-import { Badge, type BadgeTone } from "@/components/ui";
+import { Badge, type BadgeTone, IconButton } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { signoffService } from "@/services/signoff.service";
 
@@ -162,9 +162,9 @@ function SignoffList({
                 )}
               </Stack>
               <Tooltip label="Sign">
-                <ActionIcon variant="filled" color="primary" size="lg" onClick={() => onSign(item)}>
+                <IconButton tone="primary" size="lg" onClick={() => onSign(item)} aria-label="Sign">
                   <IconSignature size={18} />
-                </ActionIcon>
+                </IconButton>
               </Tooltip>
             </Group>
           </Card>

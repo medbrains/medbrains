@@ -1,5 +1,4 @@
 import {
-  ActionIcon,
   Alert,
   Card,
   Divider,
@@ -62,7 +61,7 @@ import {
   PatientRegisterForm,
   type PatientRegistrationLinkedServicesOptions,
 } from "@/components/Patient/PatientRegisterForm";
-import { Badge, Button, Table } from "@/components/ui";
+import { Badge, Button, IconButton, Table } from "@/components/ui";
 import { usePacedQueryValue } from "@/hooks/usePacedQueryValue";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { statusColor } from "@/lib/status-colors";
@@ -447,15 +446,14 @@ function PatientsPageInner() {
       requiredPermissions: [P.PATIENTS.VIEW],
       render: (row: Patient) => (
         <Tooltip label={t("label.fullProfile")}>
-          <ActionIcon
-            variant="subtle"
-            color="teal"
+          <IconButton
+            tone="success"
             size={44}
             aria-label={t("label.fullProfile")}
             onClick={() => navigate(`/patients/${row.id}`)}
           >
             <IconUsers size={16} />
-          </ActionIcon>
+          </IconButton>
         </Tooltip>
       ),
     },
@@ -952,8 +950,7 @@ function PatientRegisterPageInner() {
                   </Badge>
                 </Table.Td>
                 <Table.Td>
-                  <ActionIcon
-                    variant="light"
+                  <IconButton
                     size={44}
                     aria-label={t("aria.viewDetails")}
                     onClick={() => {
@@ -962,7 +959,7 @@ function PatientRegisterPageInner() {
                     }}
                   >
                     <IconEye size={14} />
-                  </ActionIcon>
+                  </IconButton>
                 </Table.Td>
               </Table.Tr>
             ))}

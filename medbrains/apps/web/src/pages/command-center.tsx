@@ -1,6 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
-  ActionIcon,
   Card,
   Group,
   Modal,
@@ -61,7 +60,7 @@ import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { DataTable, PageHeader, StatCard } from "@/components";
 import type { Column } from "@/components/DataTable";
-import { Badge, type BadgeTone, Button } from "@/components/ui";
+import { Badge, type BadgeTone, Button, IconButton } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import {
   type AssignTransportInput,
@@ -444,16 +443,15 @@ function OverviewTab() {
       render: (r) =>
         !r.acknowledged_by && canManageAlerts ? (
           <Tooltip label="Acknowledge">
-            <ActionIcon
-              variant="light"
-              color="success"
+            <IconButton
+              tone="success"
               size="sm"
               onClick={() => ackAlert.mutate(r.id)}
               loading={ackAlert.isPending}
-              aria-label="Confirm"
+              aria-label="Acknowledge"
             >
               <IconCheck size={14} />
-            </ActionIcon>
+            </IconButton>
           </Tooltip>
         ) : r.acknowledged_by ? (
           <Badge size="xs" variant="light" tone="success">
@@ -1463,16 +1461,15 @@ function AlertsThresholdsTab() {
         if (!canManage) return null;
         return (
           <Tooltip label="Acknowledge">
-            <ActionIcon
-              variant="light"
-              color="success"
+            <IconButton
+              tone="success"
               size="sm"
               onClick={() => ackAlert.mutate(r.id)}
               loading={ackAlert.isPending}
-              aria-label="Confirm"
+              aria-label="Acknowledge"
             >
               <IconCheck size={14} />
-            </ActionIcon>
+            </IconButton>
           </Tooltip>
         );
       },
@@ -1530,9 +1527,8 @@ function AlertsThresholdsTab() {
         return (
           <Group gap={4}>
             <Tooltip label={r.is_active ? "Deactivate" : "Activate"}>
-              <ActionIcon
-                variant="light"
-                color={r.is_active ? "danger" : "success"}
+              <IconButton
+                tone={r.is_active ? "danger" : "success"}
                 size="sm"
                 onClick={() =>
                   updateThreshold.mutate({
@@ -1540,9 +1536,10 @@ function AlertsThresholdsTab() {
                     data: { is_active: !r.is_active },
                   })
                 }
+                aria-label={r.is_active ? "Deactivate" : "Activate"}
               >
                 {r.is_active ? <IconAlertTriangle size={14} /> : <IconCheck size={14} />}
-              </ActionIcon>
+              </IconButton>
             </Tooltip>
           </Group>
         );

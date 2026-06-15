@@ -1,6 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
-  ActionIcon,
   Alert,
   Box,
   Card,
@@ -73,7 +72,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { DataTable, PageHeader } from "@/components";
-import { Badge, type BadgeTone, Button } from "@/components/ui";
+import { Badge, type BadgeTone, Button, IconButton } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import {
   type CreateBiowasteRecordInput,
@@ -462,14 +461,13 @@ function RoomBedTab({
                       render: (r: RoomTurnaround) =>
                         !r.ready_at ? (
                           <Tooltip label="Mark Ready">
-                            <ActionIcon
-                              color="success"
-                              variant="light"
+                            <IconButton
+                              tone="success"
                               onClick={() => completeTurnaroundM.mutate(r.id)}
                               aria-label="Confirm"
                             >
                               <IconCheck size={16} />
-                            </ActionIcon>
+                            </IconButton>
                           </Tooltip>
                         ) : null,
                     },
@@ -528,40 +526,37 @@ function RoomBedTab({
                     <Group gap={4}>
                       {r.status === "pending" && (
                         <Tooltip label="Start">
-                          <ActionIcon
-                            variant="light"
-                            color="primary"
+                          <IconButton
+                            tone="primary"
                             onClick={() =>
                               updateStatusM.mutate({ id: r.id, status: "in_progress" })
                             }
                             aria-label="Wash"
                           >
                             <IconWash size={16} />
-                          </ActionIcon>
+                          </IconButton>
                         </Tooltip>
                       )}
                       {r.status === "in_progress" && (
                         <Tooltip label="Complete">
-                          <ActionIcon
-                            variant="light"
-                            color="success"
+                          <IconButton
+                            tone="success"
                             onClick={() => updateStatusM.mutate({ id: r.id, status: "completed" })}
                             aria-label="Confirm"
                           >
                             <IconCheck size={16} />
-                          </ActionIcon>
+                          </IconButton>
                         </Tooltip>
                       )}
                       {r.status === "completed" && (
                         <Tooltip label="Verify">
-                          <ActionIcon
-                            variant="light"
-                            color="teal"
+                          <IconButton
+                            tone="success"
                             onClick={() => verifyM.mutate(r.id)}
                             aria-label="Confirm"
                           >
                             <IconCheck size={16} />
-                          </ActionIcon>
+                          </IconButton>
                         </Tooltip>
                       )}
                     </Group>
@@ -1307,14 +1302,13 @@ function LinenTab({
                       render: (r: LaundryBatch) =>
                         r.status !== "completed" ? (
                           <Tooltip label="Complete Batch">
-                            <ActionIcon
-                              color="success"
-                              variant="light"
+                            <IconButton
+                              tone="success"
                               onClick={() => completeBatchM.mutate(r.id)}
                               aria-label="Confirm"
                             >
                               <IconCheck size={16} />
-                            </ActionIcon>
+                            </IconButton>
                           </Tooltip>
                         ) : null,
                     },

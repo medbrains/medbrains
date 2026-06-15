@@ -1,6 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
-  ActionIcon,
   Alert,
   Box,
   Card,
@@ -177,7 +176,7 @@ import { PatientContextBanner } from "@/components/Patient/PatientContextBanner"
 import { PatientFlowNavigator } from "@/components/Patient/PatientFlowNavigator";
 import { PatientJourneyActions } from "@/components/Patient/PatientJourneyActions";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
-import { Badge, type BadgeTone, Button, type ButtonTone, Table } from "@/components/ui";
+import { Badge, type BadgeTone, Button, type ButtonTone, IconButton, Table } from "@/components/ui";
 import { WardSelect } from "@/components/WardSelect";
 import { ALL_TEMPLATES, type ChecklistTemplate } from "@/data/checklist-templates";
 import {
@@ -766,13 +765,12 @@ function AdmissionsTab() {
       requiredPermissions: [P.IPD.ADMISSIONS_VIEW],
       render: (row: AdmissionRow) => (
         <Tooltip label="View details">
-          <ActionIcon
-            variant="subtle"
+          <IconButton
             onClick={() => navigate(`/ipd/admissions/${row.id}`)}
             aria-label={`Open admission ${row.id}`}
           >
             <IconEye size={16} />
-          </ActionIcon>
+          </IconButton>
         </Tooltip>
       ),
     },
@@ -3021,9 +3019,9 @@ function AttendersTab({ admissionId, canCreate }: { admissionId: string; canCrea
               </Table.Td>
               <Table.Td>
                 {canCreate && (
-                  <ActionIcon
-                    variant="subtle"
-                    color="danger"
+                  <IconButton
+                    tone="danger"
+                    aria-label="Delete attender"
                     onClick={() =>
                       confirmDestructive({
                         title: "Delete attender",
@@ -3034,7 +3032,7 @@ function AttendersTab({ admissionId, canCreate }: { admissionId: string; canCrea
                     }
                   >
                     <IconTrash size={14} />
-                  </ActionIcon>
+                  </IconButton>
                 )}
               </Table.Td>
             </Table.Tr>
@@ -3589,15 +3587,15 @@ function WardsTab() {
       render: (row: WardListRow) => (
         <Group gap={4}>
           <Tooltip label="View beds">
-            <ActionIcon variant="subtle" onClick={() => setSelectedWardId(row.id)}>
+            <IconButton aria-label="View beds" onClick={() => setSelectedWardId(row.id)}>
               <IconEye size={14} />
-            </ActionIcon>
+            </IconButton>
           </Tooltip>
           {canManage && (
             <Tooltip label="Edit">
-              <ActionIcon variant="subtle" onClick={() => setEditWard(row)}>
+              <IconButton aria-label="Edit" onClick={() => setEditWard(row)}>
                 <IconPencil size={14} />
-              </ActionIcon>
+              </IconButton>
             </Tooltip>
           )}
         </Group>
@@ -3883,9 +3881,9 @@ function WardBedsPanel({ wardId, canManage }: { wardId: string; canManage: boole
                 {canManage && (
                   <Table.Td>
                     <Tooltip label="Remove from ward">
-                      <ActionIcon
-                        variant="subtle"
-                        color="danger"
+                      <IconButton
+                        tone="danger"
+                        aria-label="Remove from ward"
                         onClick={() =>
                           confirmDestructive({
                             title: "Remove bed",
@@ -3897,7 +3895,7 @@ function WardBedsPanel({ wardId, canManage }: { wardId: string; canManage: boole
                         disabled={b.status === "occupied"}
                       >
                         <IconTrash size={14} />
-                      </ActionIcon>
+                      </IconButton>
                     </Tooltip>
                   </Table.Td>
                 )}
@@ -4054,8 +4052,8 @@ function IpTypeConfigSection() {
                           </Button>
                         </Group>
                       ) : (
-                        <ActionIcon
-                          variant="subtle"
+                        <IconButton
+                          aria-label="Edit"
                           onClick={() => {
                             setEditingId(c.id);
                             setEditThreshold(c.billing_alert_threshold ?? "");
@@ -4063,7 +4061,7 @@ function IpTypeConfigSection() {
                           }}
                         >
                           <IconPencil size={14} />
-                        </ActionIcon>
+                        </IconButton>
                       )}
                     </Table.Td>
                   </Table.Tr>
@@ -4942,14 +4940,14 @@ function ClinicalDocsTab({ admissionId }: { admissionId: string }) {
                 <Table.Td>
                   <Group gap="xs">
                     {!doc.is_resolved && canCreate && (
-                      <ActionIcon
+                      <IconButton
                         size="sm"
-                        variant="light"
-                        color="success"
+                        tone="success"
+                        aria-label="Approve"
                         onClick={() => resolveMutation.mutate(doc.id)}
                       >
                         <IconCheck size={14} />
-                      </ActionIcon>
+                      </IconButton>
                     )}
                     {doc.doc_type === "restraint" && !doc.is_resolved && (
                       <>

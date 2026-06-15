@@ -1,6 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
-  ActionIcon,
   Box,
   Card,
   Divider,
@@ -60,7 +59,7 @@ import { useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { DataTable, PageHeader } from "@/components";
 import type { Column } from "@/components/DataTable";
-import { Badge, type BadgeTone, Button } from "@/components/ui";
+import { Badge, type BadgeTone, Button, IconButton } from "@/components/ui";
 import {
   defaultQueueTokenFormValues,
   defaultTvAnnouncementFormValues,
@@ -472,14 +471,15 @@ export function TvDisplaysPage() {
                               {target.count}
                             </Badge>
                             <Tooltip label={`Open ${target.label}`}>
-                              <ActionIcon
-                                component="a"
-                                href={target.href}
-                                variant="subtle"
+                              <IconButton
+                                onClick={() => {
+                                  window.location.href = target.href;
+                                }}
+                                tone="default"
                                 aria-label={`Open ${target.label}`}
                               >
                                 <IconExternalLink size={14} />
-                              </ActionIcon>
+                              </IconButton>
                             </Tooltip>
                           </Group>
                         </Group>
@@ -699,20 +699,21 @@ function DisplaysTab({
           <Group gap="xs">
             {target && (
               <Tooltip label={`Open ${target.label}`}>
-                <ActionIcon
-                  component="a"
-                  href={target.href}
-                  variant="subtle"
+                <IconButton
+                  onClick={() => {
+                    window.location.href = target.href;
+                  }}
+                  tone="default"
                   aria-label={`Open ${target.label}`}
                 >
                   <IconExternalLink size={16} />
-                </ActionIcon>
+                </IconButton>
               </Tooltip>
             )}
             {canUpdate && (
               <Tooltip label="Edit">
-                <ActionIcon
-                  variant="subtle"
+                <IconButton
+                  tone="default"
                   onClick={() => {
                     setSelectedDisplay(row);
                     displayForm.reset(tvDisplayToForm(row));
@@ -721,19 +722,18 @@ function DisplaysTab({
                   aria-label="Edit"
                 >
                   <IconPencil size={16} />
-                </ActionIcon>
+                </IconButton>
               </Tooltip>
             )}
             {canDelete && (
               <Tooltip label="Delete">
-                <ActionIcon
-                  variant="subtle"
-                  color="danger"
+                <IconButton
+                  tone="danger"
                   onClick={() => deleteMutation.mutate(row.id)}
                   aria-label="Delete"
                 >
                   <IconTrash size={16} />
-                </ActionIcon>
+                </IconButton>
               </Tooltip>
             )}
           </Group>
@@ -1124,40 +1124,37 @@ function QueueTokensTab({ canManage }: { canManage: boolean }) {
           <Group gap="xs">
             {row.status === "waiting" && (
               <Tooltip label="Call">
-                <ActionIcon
-                  variant="filled"
-                  color="primary"
+                <IconButton
+                  tone="primary"
                   onClick={() => callMutation.mutate(row.id)}
                   loading={callMutation.isPending}
-                  aria-label="Play"
+                  aria-label="Call"
                 >
                   <IconPlayerPlay size={16} />
-                </ActionIcon>
+                </IconButton>
               </Tooltip>
             )}
             {(row.status === "called" || row.status === "in_progress") && (
               <>
                 <Tooltip label="Complete">
-                  <ActionIcon
-                    variant="filled"
-                    color="success"
+                  <IconButton
+                    tone="success"
                     onClick={() => completeMutation.mutate(row.id)}
                     loading={completeMutation.isPending}
-                    aria-label="Confirm"
+                    aria-label="Complete"
                   >
                     <IconCheck size={16} />
-                  </ActionIcon>
+                  </IconButton>
                 </Tooltip>
                 <Tooltip label="No Show">
-                  <ActionIcon
-                    variant="filled"
-                    color="danger"
+                  <IconButton
+                    tone="danger"
                     onClick={() => noShowMutation.mutate(row.id)}
                     loading={noShowMutation.isPending}
-                    aria-label="User Off"
+                    aria-label="No Show"
                   >
                     <IconUserOff size={16} />
-                  </ActionIcon>
+                  </IconButton>
                 </Tooltip>
               </>
             )}
@@ -1252,40 +1249,37 @@ function QueueTokensTab({ canManage }: { canManage: boolean }) {
                     <Group gap={4}>
                       {nextToken && (
                         <Tooltip label={`Call ${nextToken.token_number}`}>
-                          <ActionIcon
-                            variant="light"
-                            color="primary"
+                          <IconButton
+                            tone="primary"
                             aria-label={`Call token ${nextToken.token_number}`}
                             onClick={() => callMutation.mutate(nextToken.id)}
                             loading={callMutation.isPending}
                           >
                             <IconPlayerPlay size={16} />
-                          </ActionIcon>
+                          </IconButton>
                         </Tooltip>
                       )}
                       {activeToken && (
                         <>
                           <Tooltip label={`Complete ${activeToken.token_number}`}>
-                            <ActionIcon
-                              variant="light"
-                              color="success"
+                            <IconButton
+                              tone="success"
                               aria-label={`Complete token ${activeToken.token_number}`}
                               onClick={() => completeMutation.mutate(activeToken.id)}
                               loading={completeMutation.isPending}
                             >
                               <IconCheck size={16} />
-                            </ActionIcon>
+                            </IconButton>
                           </Tooltip>
                           <Tooltip label={`No-show ${activeToken.token_number}`}>
-                            <ActionIcon
-                              variant="light"
-                              color="danger"
+                            <IconButton
+                              tone="danger"
                               aria-label={`Mark token ${activeToken.token_number} no-show`}
                               onClick={() => noShowMutation.mutate(activeToken.id)}
                               loading={noShowMutation.isPending}
                             >
                               <IconUserOff size={16} />
-                            </ActionIcon>
+                            </IconButton>
                           </Tooltip>
                         </>
                       )}

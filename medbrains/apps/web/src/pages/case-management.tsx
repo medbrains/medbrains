@@ -1,6 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
-  ActionIcon,
   Card,
   Drawer,
   Group,
@@ -67,7 +66,7 @@ import { Controller, useForm } from "react-hook-form";
 import { DataTable, PageHeader } from "@/components";
 import type { Column } from "@/components/DataTable";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
-import { Badge, type BadgeTone, Button } from "@/components/ui";
+import { Badge, type BadgeTone, Button, IconButton } from "@/components/ui";
 import {
   caseOptionalText,
   casePriorityOptions,
@@ -472,8 +471,8 @@ function CaseBoardTab() {
       label: "",
       render: (r) => (
         <Group gap={4}>
-          <ActionIcon
-            variant="subtle"
+          <IconButton
+            tone="default"
             size="sm"
             onClick={() => {
               setEditing(r);
@@ -483,10 +482,10 @@ function CaseBoardTab() {
             aria-label="Circle Dot"
           >
             <IconCircleDot size={14} />
-          </ActionIcon>
+          </IconButton>
           {canUpdate && (
-            <ActionIcon
-              variant="subtle"
+            <IconButton
+              tone="default"
               size="sm"
               onClick={() => {
                 setEditing(r);
@@ -503,7 +502,7 @@ function CaseBoardTab() {
               aria-label="Edit"
             >
               <IconPencil size={14} />
-            </ActionIcon>
+            </IconButton>
           )}
         </Group>
       ),
@@ -1077,15 +1076,14 @@ function DischargeBarriersTab() {
       label: "",
       render: (r) =>
         canManage && !r.is_resolved ? (
-          <ActionIcon
-            variant="subtle"
-            color="success"
+          <IconButton
+            tone="success"
             size="sm"
             onClick={() => resolveMut.mutate(r.id)}
             aria-label="Confirm"
           >
             <IconCheck size={14} />
-          </ActionIcon>
+          </IconButton>
         ) : null,
     },
   ];
@@ -1317,8 +1315,8 @@ function ReferralsTab() {
       label: "",
       render: (r) =>
         canManage ? (
-          <ActionIcon
-            variant="subtle"
+          <IconButton
+            tone="default"
             size="sm"
             onClick={() => {
               setEditing(r);
@@ -1331,7 +1329,7 @@ function ReferralsTab() {
             aria-label="Edit"
           >
             <IconPencil size={14} />
-          </ActionIcon>
+          </IconButton>
         ) : null,
     },
   ];

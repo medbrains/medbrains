@@ -1,6 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
-  ActionIcon,
   Card,
   Checkbox,
   Drawer,
@@ -70,7 +69,7 @@ import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { DataTable, PageHeader } from "@/components";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
-import { Badge, type BadgeTone, Button, Table } from "@/components/ui";
+import { Badge, type BadgeTone, Button, IconButton, Table } from "@/components/ui";
 import {
   cssdIndicatorTypeOptions,
   cssdInstrumentCategoryOptions,
@@ -569,8 +568,8 @@ function SterilizationTab() {
       render: (l: CssdSterilizationLoad) => (
         <Group gap="xs">
           <Tooltip label="Details & Indicators">
-            <ActionIcon
-              variant="subtle"
+            <IconButton
+              tone="default"
               onClick={() => {
                 setSelectedLoad(l);
                 openDetail();
@@ -578,30 +577,28 @@ function SterilizationTab() {
               aria-label="View details"
             >
               <IconEye size={16} />
-            </ActionIcon>
+            </IconButton>
           </Tooltip>
           {canCreate && l.status === "loading" && (
             <Tooltip label="Start Cycle">
-              <ActionIcon
-                variant="subtle"
-                color="primary"
+              <IconButton
+                tone="primary"
                 onClick={() => updateStatusMut.mutate({ id: l.id, status: "running" })}
                 aria-label="Fire"
               >
                 <IconFlame size={16} />
-              </ActionIcon>
+              </IconButton>
             </Tooltip>
           )}
           {canCreate && l.status === "running" && (
             <Tooltip label="Complete">
-              <ActionIcon
-                variant="subtle"
-                color="success"
+              <IconButton
+                tone="success"
                 onClick={() => updateStatusMut.mutate({ id: l.id, status: "completed" })}
                 aria-label="Edit"
               >
                 <IconPencil size={16} />
-              </ActionIcon>
+              </IconButton>
             </Tooltip>
           )}
         </Group>
@@ -953,24 +950,22 @@ function IssuanceTab() {
           {canCreate && !i.returned_at && !i.is_recalled && (
             <>
               <Tooltip label="Return">
-                <ActionIcon
-                  variant="subtle"
-                  color="primary"
+                <IconButton
+                  tone="primary"
                   onClick={() => returnMut.mutate(i.id)}
                   aria-label="Arrow Back"
                 >
                   <IconArrowBack size={16} />
-                </ActionIcon>
+                </IconButton>
               </Tooltip>
               <Tooltip label="Recall">
-                <ActionIcon
-                  variant="subtle"
-                  color="danger"
+                <IconButton
+                  tone="danger"
                   onClick={() => recallMut.mutate({ id: i.id, reason: "Quality concern" })}
                   aria-label="Warning"
                 >
                   <IconAlertTriangle size={16} />
-                </ActionIcon>
+                </IconButton>
               </Tooltip>
             </>
           )}
@@ -1164,8 +1159,8 @@ function EquipmentTab() {
       label: "Actions",
       render: (s: CssdSterilizer) => (
         <Tooltip label="Maintenance Logs">
-          <ActionIcon
-            variant="subtle"
+          <IconButton
+            tone="default"
             onClick={() => {
               setSelectedSterilizer(s);
               openMaint();
@@ -1173,7 +1168,7 @@ function EquipmentTab() {
             aria-label="Settings"
           >
             <IconSettings size={16} />
-          </ActionIcon>
+          </IconButton>
         </Tooltip>
       ),
     },

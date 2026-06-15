@@ -1,6 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
-  ActionIcon,
   Card,
   Drawer,
   Group,
@@ -62,7 +61,7 @@ import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { DataTable, PageHeader } from "@/components";
 import type { Column } from "@/components/DataTable";
-import { Badge, type BadgeTone, Button } from "@/components/ui";
+import { Badge, type BadgeTone, Button, IconButton } from "@/components/ui";
 import {
   ambulanceFuelTypeOptions,
   ambulanceLicenseTypeOptions,
@@ -327,8 +326,7 @@ function FleetTab() {
       label: "",
       render: (r) =>
         canUpdate ? (
-          <ActionIcon
-            variant="subtle"
+          <IconButton
             size="sm"
             onClick={() => {
               setEditing(r);
@@ -338,7 +336,7 @@ function FleetTab() {
             aria-label="Edit"
           >
             <IconPencil size={14} />
-          </ActionIcon>
+          </IconButton>
         ) : null,
     },
   ];
@@ -693,27 +691,25 @@ function TripsTab() {
         return (
           <Group gap={4}>
             <Tooltip label={next.replace(/_/g, " ")}>
-              <ActionIcon
-                variant="subtle"
-                color="blue"
+              <IconButton
+                tone="primary"
                 size="sm"
                 onClick={() => statusMut.mutate({ id: r.id, status: next })}
                 aria-label="Play"
               >
                 <IconPlayerPlay size={14} />
-              </ActionIcon>
+              </IconButton>
             </Tooltip>
             {r.status !== "completed" && r.status !== "cancelled" && (
               <Tooltip label="Cancel">
-                <ActionIcon
-                  variant="subtle"
-                  color="red"
+                <IconButton
+                  tone="danger"
                   size="sm"
                   onClick={() => statusMut.mutate({ id: r.id, status: "cancelled" })}
-                  aria-label="Close"
+                  aria-label="Cancel"
                 >
                   <IconX size={14} />
-                </ActionIcon>
+                </IconButton>
               </Tooltip>
             )}
           </Group>
@@ -1218,14 +1214,14 @@ function MaintenanceTab() {
         return (
           <Group gap={4}>
             <Tooltip label={next === "in_progress" ? "Start" : "Complete"}>
-              <ActionIcon
-                variant="subtle"
-                color="blue"
+              <IconButton
+                tone="primary"
                 size="sm"
                 onClick={() => updateStatusMut.mutate({ id: r.id, status: next })}
+                aria-label={next === "in_progress" ? "Start" : "Complete"}
               >
                 {next === "in_progress" ? <IconPlayerPlay size={14} /> : <IconCheck size={14} />}
-              </ActionIcon>
+              </IconButton>
             </Tooltip>
           </Group>
         );

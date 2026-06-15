@@ -1,7 +1,6 @@
 import "@mantine/charts/styles.css";
 import { BarChart } from "@mantine/charts";
 import {
-  ActionIcon,
   Box,
   Card,
   Drawer,
@@ -67,7 +66,7 @@ import { useMemo, useState } from "react";
 import { DataTable, PageHeader } from "@/components";
 import { DoctorSearchSelect } from "@/components/DoctorSearchSelect";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
-import { Badge, type BadgeTone, Button } from "@/components/ui";
+import { Badge, type BadgeTone, Button, IconButton } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { statusColor } from "@/lib/status-colors";
 import { regulatoryService } from "@/services/regulatory.service";
@@ -1240,14 +1239,13 @@ function AdrTab() {
                   Submitted
                 </Badge>
               ) : r.status === "draft" && canCreateAdr ? (
-                <ActionIcon
-                  variant="light"
-                  color="primary"
+                <IconButton
+                  tone="primary"
                   onClick={() => submitAdrMut.mutate(r.id)}
                   aria-label="Send"
                 >
                   <IconSend size={14} />
-                </ActionIcon>
+                </IconButton>
               ) : (
                 <Text size="sm" c="dimmed">
                   -
@@ -1310,14 +1308,13 @@ function AdrTab() {
                   Submitted
                 </Badge>
               ) : r.status === "draft" && canCreateMv ? (
-                <ActionIcon
-                  variant="light"
-                  color="primary"
+                <IconButton
+                  tone="primary"
                   onClick={() => submitMvMut.mutate(r.id)}
                   aria-label="Send"
                 >
                   <IconSend size={14} />
-                </ActionIcon>
+                </IconButton>
               ) : (
                 <Text size="sm" c="dimmed">
                   -
@@ -1940,15 +1937,14 @@ function CalendarListView({
             render: (r) =>
               r.status !== "completed" && canManage ? (
                 <Group gap={4}>
-                  <ActionIcon
-                    variant="light"
-                    color="success"
+                  <IconButton
+                    tone="success"
                     onClick={() => completeMut.mutate(r.id)}
                     title="Mark complete"
                     aria-label="Checklist"
                   >
                     <IconChecklist size={14} />
-                  </ActionIcon>
+                  </IconButton>
                 </Group>
               ) : null,
           },

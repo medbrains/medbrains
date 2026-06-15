@@ -2,7 +2,6 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import "@mantine/charts/styles.css";
 import { LineChart } from "@mantine/charts";
 import {
-  ActionIcon,
   Alert,
   Card,
   Drawer,
@@ -142,7 +141,7 @@ import { LabTestSearchSelect } from "@/components/LabTestSearchSelect";
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
 import { PatientNameCell } from "@/components/PatientNameCell";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
-import { Badge, type BadgeTone, Button, Table } from "@/components/ui";
+import { Badge, type BadgeTone, Button, IconButton, Table } from "@/components/ui";
 import {
   labB2bClientTypeOptions,
   labBethesdaCategoryOptions,
@@ -478,8 +477,7 @@ function LabPageInner() {
       render: (row: LabOrder) => (
         <Group gap="xs">
           <Tooltip label={t("label.view")}>
-            <ActionIcon
-              variant="subtle"
+            <IconButton
               onClick={() => {
                 setSelectedOrderId(row.id);
                 openDetail();
@@ -487,20 +485,19 @@ function LabPageInner() {
               aria-label={t("aria.viewDetails")}
             >
               <IconEye size={16} />
-            </ActionIcon>
+            </IconButton>
           </Tooltip>
           {canPrintReports && row.status === "verified" && (
             <Tooltip label="Print report">
-              <ActionIcon
-                variant="subtle"
-                color="teal"
+              <IconButton
+                tone="success"
                 onClick={() => {
                   void printLabReportPacket(row.id);
                 }}
                 aria-label="Print report"
               >
                 <IconPrinter size={16} />
-              </ActionIcon>
+              </IconButton>
             </Tooltip>
           )}
         </Group>
@@ -1215,30 +1212,28 @@ function LabOrderDetail({
                 <Table.Td>
                   {(order.status === "completed" || order.status === "processing") && (
                     <Tooltip label={t("label.autoValidateResult")}>
-                      <ActionIcon
+                      <IconButton
                         size="xs"
-                        variant="subtle"
-                        color="teal"
+                        tone="success"
                         loading={autoValidateMutation.isPending}
                         onClick={() => autoValidateMutation.mutate(r.id)}
                         aria-label={t("aria.robot")}
                       >
                         <IconRobot size={12} />
-                      </ActionIcon>
+                      </IconButton>
                     </Tooltip>
                   )}
                 </Table.Td>
               )}
               {canAmend && !order.is_report_locked && (
                 <Table.Td>
-                  <ActionIcon
+                  <IconButton
                     size="xs"
-                    variant="subtle"
                     onClick={() => setAmendData({ resultId: r.id, value: r.value, reason: "" })}
                     aria-label={t("aria.refresh")}
                   >
                     <IconRefresh size={12} />
-                  </ActionIcon>
+                  </IconButton>
                 </Table.Td>
               )}
             </Table.Tr>
@@ -1855,14 +1850,13 @@ function LabPanelsTab({ canCreate }: { canCreate: boolean }) {
       key: "actions",
       label: "Actions",
       render: (row: LabTestPanel) => (
-        <ActionIcon
-          color="danger"
-          variant="subtle"
+        <IconButton
+          tone="danger"
           onClick={() => deleteMutation.mutate(row.id)}
           aria-label={t("aria.close")}
         >
           <IconX size={14} />
-        </ActionIcon>
+        </IconButton>
       ),
     },
   ];
@@ -1948,14 +1942,13 @@ function LabPanelsTab({ canCreate }: { canCreate: boolean }) {
                 <Badge
                   key={tid}
                   rightSection={
-                    <ActionIcon
+                    <IconButton
                       size="xs"
-                      variant="transparent"
                       onClick={() => removeTestId(i)}
                       aria-label={t("aria.close")}
                     >
                       <IconX size={10} />
-                    </ActionIcon>
+                    </IconButton>
                   }
                 >
                   {tid.slice(0, 8)}...

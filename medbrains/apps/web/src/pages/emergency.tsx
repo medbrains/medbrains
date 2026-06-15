@@ -1,6 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
-  ActionIcon,
   Alert,
   Box,
   Card,
@@ -135,7 +134,7 @@ import { PatientFlowNavigator } from "@/components/Patient/PatientFlowNavigator"
 import { PatientJourneyActions } from "@/components/Patient/PatientJourneyActions";
 import { PatientNameCell } from "@/components/PatientNameCell";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
-import { Badge, type BadgeTone, Button } from "@/components/ui";
+import { Badge, type BadgeTone, Button, IconButton } from "@/components/ui";
 import {
   emergencyArrivalModeOptions,
   emergencyCodeDeactivateOutcomeOptions,
@@ -2560,14 +2559,13 @@ function VisitsTab({
         return (
           <Group gap="xs" wrap="nowrap">
             <Tooltip label={t("actions.openErVisit")}>
-              <ActionIcon
-                variant="subtle"
-                color="primary"
+              <IconButton
+                tone="primary"
                 aria-label={t("actions.openErVisit")}
                 onClick={() => navigate(`/emergency/visits/${r.id}`)}
               >
                 <IconEye size={16} />
-              </ActionIcon>
+              </IconButton>
             </Tooltip>
             {canShowAdmit && (
               <Tooltip label={t("actions.openVisitToAdmit")}>
@@ -2856,25 +2854,23 @@ function CodesTab({
       render: (r: ErCodeActivation) => (
         <Group gap="xs">
           <Tooltip label="View Details">
-            <ActionIcon
-              variant="light"
-              color="primary"
+            <IconButton
+              tone="primary"
               aria-label="View code activation details"
               onClick={() => handleViewDetail(r)}
             >
               <IconFileText size={16} />
-            </ActionIcon>
+            </IconButton>
           </Tooltip>
           {!r.deactivated_at && canUpdate && (
             <Tooltip label="Deactivate">
-              <ActionIcon
-                color="success"
-                variant="light"
+              <IconButton
+                tone="success"
                 aria-label="Deactivate code activation"
                 onClick={() => handleOpenDeactivate(r)}
               >
                 <IconCheck size={16} />
-              </ActionIcon>
+              </IconButton>
             </Tooltip>
           )}
         </Group>
@@ -4239,41 +4235,37 @@ function MlcCaseDetail({
                         <Group gap={4} wrap="nowrap" justify="flex-end">
                           {canPrintPoliceIntimationPacket && (
                             <Tooltip label="Print police intimation">
-                              <ActionIcon
-                                color="teal"
-                                variant="light"
+                              <IconButton
+                                tone="success"
                                 aria-label="Print police intimation"
                                 disabled={policeIntimationPrintMut.isPending}
                                 onClick={() => preparePoliceIntimationPrint(row)}
                               >
                                 <IconPrinter size={16} />
-                              </ActionIcon>
+                              </IconButton>
                             </Tooltip>
                           )}
                           {canReprintPoliceIntimationPacket && (
                             <Tooltip label="Reprint police intimation">
-                              <ActionIcon
-                                color="orange"
-                                variant="light"
+                              <IconButton
                                 aria-label="Reprint police intimation"
                                 disabled={policeIntimationPrintMut.isPending}
                                 onClick={() => openPoliceIntimationReprintModal(row)}
                               >
                                 <IconPrinter size={16} />
-                              </ActionIcon>
+                              </IconButton>
                             </Tooltip>
                           )}
                           {canConfirmPoliceReceipt && !row.receipt_confirmed && (
                             <Tooltip label="Confirm police receipt">
-                              <ActionIcon
-                                color="success"
-                                variant="light"
+                              <IconButton
+                                tone="success"
                                 aria-label="Confirm police receipt"
                                 disabled={confirmPoliceReceiptMut.isPending}
                                 onClick={() => openReceiptConfirmation(row)}
                               >
                                 <IconCheck size={16} />
-                              </ActionIcon>
+                              </IconButton>
                             </Tooltip>
                           )}
                         </Group>
@@ -5319,27 +5311,25 @@ function MlcTab({
         <Group gap="xs">
           {canViewDetails && (
             <Tooltip label="View Details & Documents">
-              <ActionIcon
-                variant="light"
-                color="primary"
+              <IconButton
+                tone="primary"
                 aria-label="View MLC case details and documents"
                 onClick={() => handleViewCase(r)}
               >
                 <IconFileText size={16} />
-              </ActionIcon>
+              </IconButton>
             </Tooltip>
           )}
           {canUpdate && (
             <Tooltip label="Update MLC case">
-              <ActionIcon
-                color="primary"
-                variant="light"
+              <IconButton
+                tone="primary"
                 aria-label="Update MLC case"
                 disabled={updateMutation.isPending}
                 onClick={() => handleOpenUpdateCase(r)}
               >
                 <IconPencil size={16} />
-              </ActionIcon>
+              </IconButton>
             </Tooltip>
           )}
         </Group>
@@ -5857,30 +5847,28 @@ function MassCasualtyTab({
               <Group gap="xs">
                 {canUpdate && r.status !== "deactivated" && (
                   <Tooltip label="Update response">
-                    <ActionIcon
-                      color="primary"
-                      variant="light"
+                    <IconButton
+                      tone="primary"
                       aria-label="Update mass casualty response"
                       disabled={updateMutation.isPending}
                       onClick={() => handleOpenUpdate(r)}
                     >
                       <IconPencil size={16} />
-                    </ActionIcon>
+                    </IconButton>
                   </Tooltip>
                 )}
                 {canClose && (
                   <Tooltip
                     label={r.status === "deactivated" ? "Already deactivated" : "Deactivate event"}
                   >
-                    <ActionIcon
-                      color="success"
-                      variant="light"
+                    <IconButton
+                      tone="success"
                       aria-label="Deactivate mass casualty event"
                       disabled={r.status === "deactivated" || updateMutation.isPending}
                       onClick={() => deactivateMassCasualtyEvent(r)}
                     >
                       <IconCheck size={16} />
-                    </ActionIcon>
+                    </IconButton>
                   </Tooltip>
                 )}
               </Group>

@@ -1,14 +1,4 @@
-import {
-  ActionIcon,
-  Drawer,
-  Group,
-  NumberInput,
-  Select,
-  Stack,
-  Tabs,
-  Text,
-  TextInput,
-} from "@mantine/core";
+import { Drawer, Group, NumberInput, Select, Stack, Tabs, Text, TextInput } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import { useHasPermission } from "@medbrains/stores";
@@ -28,7 +18,7 @@ import { useState } from "react";
 import { DataTable, PageHeader } from "@/components";
 import type { Column } from "@/components/DataTable";
 import { PatientNameCell } from "@/components/PatientNameCell";
-import { Badge, type BadgeTone, Button } from "@/components/ui";
+import { Badge, type BadgeTone, Button, IconButton } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { statusColor } from "@/lib/status-colors";
 import { specialtyService } from "@/services/specialty.service";
@@ -180,9 +170,9 @@ export function MaternityPage() {
       key: "actions",
       label: "",
       render: (r) => (
-        <ActionIcon variant="subtle" onClick={() => setSelectedRegId(r.id)} aria-label="Edit">
+        <IconButton onClick={() => setSelectedRegId(r.id)} aria-label="Edit">
           <IconPencil size={16} />
-        </ActionIcon>
+        </IconButton>
       ),
     },
   ];
@@ -266,9 +256,9 @@ export function MaternityPage() {
       key: "actions",
       label: "",
       render: (r) => (
-        <ActionIcon variant="subtle" onClick={() => setSelectedLaborId(r.id)} aria-label="Edit">
+        <IconButton onClick={() => setSelectedLaborId(r.id)} aria-label="Edit">
           <IconPencil size={16} />
-        </ActionIcon>
+        </IconButton>
       ),
     },
   ];

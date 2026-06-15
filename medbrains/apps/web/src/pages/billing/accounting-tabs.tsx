@@ -2,7 +2,6 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
-  ActionIcon,
   Alert,
   Card,
   Drawer,
@@ -65,7 +64,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Controller, useFieldArray, useForm } from "react-hook-form";
 import { DataTable } from "@/components";
-import { Badge, type BadgeTone, Button, Table } from "@/components/ui";
+import { Badge, type BadgeTone, Button, IconButton, Table } from "@/components/ui";
 import {
   billingErpExportTypeOptions,
   billingErpTargetSystemOptions,
@@ -462,24 +461,24 @@ function TdsSubView({ canManage }: { canManage: boolean }) {
               <Group gap={4}>
                 {r.status === "deducted" && (
                   <Tooltip label="Deposit">
-                    <ActionIcon
-                      variant="subtle"
-                      color="teal"
+                    <IconButton
+                      tone="success"
+                      aria-label="Deposit"
                       onClick={() => depositMut.mutate({ id: r.id, challan: `CH-${Date.now()}` })}
                     >
                       <IconCheck size={16} />
-                    </ActionIcon>
+                    </IconButton>
                   </Tooltip>
                 )}
                 {r.status === "deposited" && (
                   <Tooltip label="Issue Certificate">
-                    <ActionIcon
-                      variant="subtle"
-                      color="success"
+                    <IconButton
+                      tone="success"
+                      aria-label="Issue Certificate"
                       onClick={() => certMut.mutate({ id: r.id, cert: `CERT-${Date.now()}` })}
                     >
                       <IconShieldCheck size={16} />
-                    </ActionIcon>
+                    </IconButton>
                   </Tooltip>
                 )}
               </Group>
@@ -897,24 +896,24 @@ export function JournalEntriesTab() {
               <Group gap={4}>
                 {r.status === "draft" && (
                   <Tooltip label="Post to ledger">
-                    <ActionIcon
-                      variant="subtle"
-                      color="success"
+                    <IconButton
+                      tone="success"
+                      aria-label="Post to ledger"
                       onClick={() => postMut.mutate(r.id)}
                     >
                       <IconCheck size={16} />
-                    </ActionIcon>
+                    </IconButton>
                   </Tooltip>
                 )}
                 {r.status === "posted" && (
                   <Tooltip label="Reverse entry">
-                    <ActionIcon
-                      variant="subtle"
-                      color="danger"
+                    <IconButton
+                      tone="danger"
+                      aria-label="Reverse entry"
                       onClick={() => reverseMut.mutate(r.id)}
                     >
                       <IconX size={16} />
-                    </ActionIcon>
+                    </IconButton>
                   </Tooltip>
                 )}
               </Group>
@@ -1056,13 +1055,13 @@ export function JournalEntriesTab() {
                   )}
                 />
                 {journalLines.length > 2 && (
-                  <ActionIcon
-                    variant="subtle"
-                    color="danger"
+                  <IconButton
+                    tone="danger"
+                    aria-label="Delete"
                     onClick={() => removeJournalLine(idx)}
                   >
                     <IconTrash size={16} />
-                  </ActionIcon>
+                  </IconButton>
                 )}
               </Group>
             </Card>
@@ -1912,14 +1911,18 @@ export function ConcessionsTab({ canApprove }: { canApprove: boolean }) {
         r.status === "pending" && canApprove ? (
           <Group gap={4}>
             <Tooltip label="Approve">
-              <ActionIcon variant="subtle" color="success" onClick={() => approveMut.mutate(r.id)}>
+              <IconButton
+                tone="success"
+                aria-label="Approve"
+                onClick={() => approveMut.mutate(r.id)}
+              >
                 <IconCheck size={16} />
-              </ActionIcon>
+              </IconButton>
             </Tooltip>
             <Tooltip label="Reject">
-              <ActionIcon variant="subtle" color="danger" onClick={() => rejectMut.mutate(r.id)}>
+              <IconButton tone="danger" aria-label="Reject" onClick={() => rejectMut.mutate(r.id)}>
                 <IconX size={16} />
-              </ActionIcon>
+              </IconButton>
             </Tooltip>
           </Group>
         ) : null,

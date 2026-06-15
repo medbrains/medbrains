@@ -2,7 +2,6 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import "@mantine/charts/styles.css";
 import { LineChart } from "@mantine/charts";
 import {
-  ActionIcon,
   Card,
   Drawer,
   Group,
@@ -67,7 +66,7 @@ import { DataTable, PageHeader } from "@/components";
 import { Icd11CodeSelect } from "@/components/Clinical/Icd11CodeSelect";
 import type { Column } from "@/components/DataTable";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
-import { Badge, type BadgeTone, Button } from "@/components/ui";
+import { Badge, type BadgeTone, Button, IconButton } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { chronicCareService } from "@/services/chronicCare.service";
 
@@ -267,8 +266,7 @@ function ProgramsTab({ canCreate }: { canCreate: boolean }) {
         canCreate ? (
           <Group gap={4}>
             <Tooltip label="Edit">
-              <ActionIcon
-                variant="subtle"
+              <IconButton
                 size="sm"
                 onClick={() => {
                   setEditing(r);
@@ -277,18 +275,17 @@ function ProgramsTab({ canCreate }: { canCreate: boolean }) {
                 aria-label="Edit"
               >
                 <IconPencil size={14} />
-              </ActionIcon>
+              </IconButton>
             </Tooltip>
             <Tooltip label="Delete">
-              <ActionIcon
-                variant="subtle"
+              <IconButton
+                tone="danger"
                 size="sm"
-                color="danger"
                 onClick={() => deleteMut.mutate(r.id)}
                 aria-label="Delete"
               >
                 <IconTrash size={14} />
-              </ActionIcon>
+              </IconButton>
             </Tooltip>
           </Group>
         ) : null,

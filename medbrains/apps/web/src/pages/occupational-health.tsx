@@ -1,7 +1,6 @@
 import "@mantine/charts/styles.css";
 import { BarChart, DonutChart } from "@mantine/charts";
 import {
-  ActionIcon,
   Card,
   Checkbox,
   CheckboxGroup,
@@ -56,7 +55,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { DataTable, PageHeader } from "@/components";
 import type { Column } from "@/components/DataTable";
-import { Badge, type BadgeTone, Button } from "@/components/ui";
+import { Badge, type BadgeTone, Button, IconButton } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { statusColor } from "@/lib/status-colors";
 import { occupationalHealthService } from "@/services/occupationalHealth.service";
@@ -377,10 +376,9 @@ function ScreeningsPanel() {
       render: (r) => (
         <Group gap={4}>
           {r.fitness_status === "fit" && (
-            <ActionIcon
-              variant="subtle"
+            <IconButton
+              tone="success"
               size="sm"
-              color="success"
               onClick={() => {
                 setSelected(r);
                 certHandlers.open();
@@ -389,11 +387,11 @@ function ScreeningsPanel() {
               aria-label="Certificate"
             >
               <IconCertificate size={14} />
-            </ActionIcon>
+            </IconButton>
           )}
           {canUpdate && (
-            <ActionIcon
-              variant="subtle"
+            <IconButton
+              tone="default"
               size="sm"
               onClick={() => {
                 setSelected(r);
@@ -407,7 +405,7 @@ function ScreeningsPanel() {
               aria-label="Edit"
             >
               <IconPencil size={14} />
-            </ActionIcon>
+            </IconButton>
           )}
         </Group>
       ),
@@ -950,8 +948,8 @@ function DrugScreensPanel() {
       render: (r) => (
         <Group gap={4}>
           {canManage && (
-            <ActionIcon
-              variant="subtle"
+            <IconButton
+              tone="default"
               size="sm"
               onClick={() => {
                 setSelected(r);
@@ -964,7 +962,7 @@ function DrugScreensPanel() {
               aria-label="Edit"
             >
               <IconPencil size={14} />
-            </ActionIcon>
+            </IconButton>
           )}
         </Group>
       ),
@@ -1409,8 +1407,8 @@ function InjuriesPanel() {
       render: (r) => (
         <Group gap={4}>
           {canManage && (
-            <ActionIcon
-              variant="subtle"
+            <IconButton
+              tone="default"
               size="sm"
               onClick={() => {
                 setSelected(r);
@@ -1429,7 +1427,7 @@ function InjuriesPanel() {
               aria-label="Edit"
             >
               <IconPencil size={14} />
-            </ActionIcon>
+            </IconButton>
           )}
         </Group>
       ),

@@ -2,7 +2,6 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import "@mantine/charts/styles.css";
 import { BarChart } from "@mantine/charts";
 import {
-  ActionIcon,
   Card,
   Drawer,
   Group,
@@ -54,7 +53,7 @@ import { Controller, useForm } from "react-hook-form";
 import { DataTable, PageHeader } from "@/components";
 import type { Column } from "@/components/DataTable";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
-import { Badge, type BadgeTone, Button } from "@/components/ui";
+import { Badge, type BadgeTone, Button, IconButton } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { statusColor } from "@/lib/status-colors";
 import {
@@ -331,14 +330,9 @@ function ReviewsTab() {
       render: (r) => (
         <Group gap="xs">
           {canUpdate && (
-            <ActionIcon
-              variant="subtle"
-              onClick={() => aiMut.mutate(r.id)}
-              title="AI Extract"
-              aria-label="Edit"
-            >
+            <IconButton onClick={() => aiMut.mutate(r.id)} title="AI Extract" aria-label="Edit">
               <IconPencil size={16} />
-            </ActionIcon>
+            </IconButton>
           )}
         </Group>
       ),

@@ -2,7 +2,6 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import "@mantine/charts/styles.css";
 import { LineChart } from "@mantine/charts";
 import {
-  ActionIcon,
   Card,
   Checkbox,
   Drawer,
@@ -72,7 +71,7 @@ import { useMemo, useState } from "react";
 import { Controller, useForm, useWatch } from "react-hook-form";
 import { DataTable, PageHeader } from "@/components";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
-import { Badge, Button, Table } from "@/components/ui";
+import { Badge, Button, IconButton, Table } from "@/components/ui";
 import {
   DEFAULT_ICU_BUNDLE_CHECK_FORM_VALUES,
   DEFAULT_ICU_DEVICE_FORM_VALUES,
@@ -1347,27 +1346,25 @@ function DevicesTab({ admissionId }: { admissionId: string }) {
       render: (d: IcuDevice) => (
         <Group gap="xs">
           <Tooltip label="Bundle Checks">
-            <ActionIcon
-              variant="subtle"
+            <IconButton
               onClick={() => {
                 setSelectedDevice(d);
                 openBundle();
               }}
-              aria-label="Report Medical"
+              aria-label="Bundle Checks"
             >
               <IconReportMedical size={16} />
-            </ActionIcon>
+            </IconButton>
           </Tooltip>
           {canManage && d.is_active && (
             <Tooltip label="Remove Device">
-              <ActionIcon
-                variant="subtle"
-                color="danger"
+              <IconButton
+                tone="danger"
                 onClick={() => removeMut.mutate(d.id)}
-                aria-label="Delete"
+                aria-label="Remove Device"
               >
                 <IconTrash size={16} />
-              </ActionIcon>
+              </IconButton>
             </Tooltip>
           )}
         </Group>

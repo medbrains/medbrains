@@ -1,6 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
-  ActionIcon,
   Card,
   Drawer,
   Group,
@@ -47,7 +46,7 @@ import {
   TableValueBadge,
 } from "@/components";
 import type { Column } from "@/components/DataTable";
-import { Button } from "@/components/ui";
+import { Button, IconButton } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { assetsService } from "@/services/assets.service";
 
@@ -441,8 +440,8 @@ export function AssetsPage() {
       render: (row) =>
         canManage && row.tenant_id ? (
           <Tooltip label="Edit asset category">
-            <ActionIcon
-              variant="subtle"
+            <IconButton
+              aria-label="Edit asset category"
               onClick={() => {
                 setEditingAssetCategory(row);
                 resetAssetCategory(assetCategoryToForm(row));
@@ -450,7 +449,7 @@ export function AssetsPage() {
               }}
             >
               <IconEdit size={16} />
-            </ActionIcon>
+            </IconButton>
           </Tooltip>
         ) : null,
     },
@@ -511,8 +510,8 @@ export function AssetsPage() {
       render: (row) =>
         canManage && row.tenant_id ? (
           <Tooltip label="Edit store category">
-            <ActionIcon
-              variant="subtle"
+            <IconButton
+              aria-label="Edit store category"
               onClick={() => {
                 setEditingStoreCategory(row);
                 resetStoreCategory(storeCategoryToForm(row));
@@ -520,7 +519,7 @@ export function AssetsPage() {
               }}
             >
               <IconEdit size={16} />
-            </ActionIcon>
+            </IconButton>
           </Tooltip>
         ) : null,
     },

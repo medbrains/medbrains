@@ -1,7 +1,6 @@
 import "@mantine/charts/styles.css";
 import { BarChart, DonutChart, LineChart } from "@mantine/charts";
 import {
-  ActionIcon,
   Alert,
   Card,
   Checkbox,
@@ -88,7 +87,7 @@ import { DataTable, PageHeader } from "@/components";
 import { Icd11CodeSelect } from "@/components/Clinical/Icd11CodeSelect";
 import { DepartmentSelect } from "@/components/DepartmentSelect";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
-import { Badge, type BadgeTone, Button, Table } from "@/components/ui";
+import { Badge, type BadgeTone, Button, IconButton, Table } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { statusColor } from "@/lib/status-colors";
 import { qualityService } from "@/services/quality.service";
@@ -350,42 +349,39 @@ function IndicatorsTab() {
       render: (i: QualityIndicator) => (
         <Group gap="xs">
           <Tooltip label="Trend Analysis">
-            <ActionIcon
-              variant="subtle"
-              color="teal"
+            <IconButton
+              tone="success"
               onClick={() => setTrendIndicator(trendIndicator?.id === i.id ? null : i)}
-              aria-label="Trending up"
+              aria-label="Trend Analysis"
             >
               <IconTrendingUp size={16} />
-            </ActionIcon>
+            </IconButton>
           </Tooltip>
           {canManage && i.auto_calculated && (
             <Tooltip label="Auto-Calculate">
-              <ActionIcon
-                variant="subtle"
-                color="orange"
+              <IconButton
+                tone="default"
                 loading={calculateMut.isPending}
                 onClick={() => calculateMut.mutate(i.id)}
-                aria-label="Calculate"
+                aria-label="Auto-Calculate"
               >
                 <IconCalculator size={16} />
-              </ActionIcon>
+              </IconButton>
             </Tooltip>
           )}
           {canManage && (
             <Tooltip label="Record Value">
-              <ActionIcon
-                variant="subtle"
-                color="primary"
+              <IconButton
+                tone="primary"
                 onClick={() => {
                   setSelectedIndicator(i);
                   setRecordForm({ ...recordForm, indicator_id: i.id });
                   openRecord();
                 }}
-                aria-label="Chart"
+                aria-label="Record Value"
               >
                 <IconChartBar size={16} />
-              </ActionIcon>
+              </IconButton>
             </Tooltip>
           )}
         </Group>
@@ -877,14 +873,13 @@ function DocumentsTab() {
           {d.status === "released" && (
             <>
               <Tooltip label="Acknowledge">
-                <ActionIcon
-                  variant="subtle"
-                  color="teal"
+                <IconButton
+                  tone="success"
                   onClick={() => acknowledgeMut.mutate(d.id)}
-                  aria-label="Checklist"
+                  aria-label="Acknowledge"
                 >
                   <IconChecklist size={16} />
-                </ActionIcon>
+                </IconButton>
               </Tooltip>
               <Tooltip label="Pending Acknowledgments">
                 <Badge
@@ -900,17 +895,16 @@ function DocumentsTab() {
                 </Badge>
               </Tooltip>
               <Tooltip label="Version History">
-                <ActionIcon
-                  variant="subtle"
-                  color="violet"
+                <IconButton
+                  tone="default"
                   onClick={() => {
                     setVersionDocCode(d.document_number);
                     openVersionModal();
                   }}
-                  aria-label="History"
+                  aria-label="Version History"
                 >
                   <IconHistory size={16} />
-                </ActionIcon>
+                </IconButton>
               </Tooltip>
             </>
           )}
@@ -1309,17 +1303,16 @@ function IncidentsTab() {
       render: (i: QualityIncident) => (
         <Group gap="xs">
           <Tooltip label="View Details">
-            <ActionIcon
-              variant="subtle"
-              color="primary"
+            <IconButton
+              tone="primary"
               onClick={() => {
                 setSelectedIncident(i);
                 openDetail();
               }}
-              aria-label="View details"
+              aria-label="View Details"
             >
               <IconEye size={16} />
-            </ActionIcon>
+            </IconButton>
           </Tooltip>
         </Group>
       ),
@@ -1608,14 +1601,13 @@ function IncidentsTab() {
                         <Table.Td>{new Date(c.due_date).toLocaleDateString()}</Table.Td>
                         <Table.Td>
                           <Tooltip label="View Effectiveness">
-                            <ActionIcon
-                              variant="subtle"
-                              color="primary"
+                            <IconButton
+                              tone="primary"
                               onClick={() => setSelectedCapa(c)}
-                              aria-label="View details"
+                              aria-label="View Effectiveness"
                             >
                               <IconEye size={16} />
-                            </ActionIcon>
+                            </IconButton>
                           </Tooltip>
                         </Table.Td>
                       </Table.Tr>
@@ -2027,44 +2019,41 @@ function CommitteesTab() {
       render: (c: QualityCommittee) => (
         <Group gap="xs">
           <Tooltip label="View Meetings">
-            <ActionIcon
-              variant="subtle"
-              color="primary"
+            <IconButton
+              tone="primary"
               onClick={() => {
                 setSelectedCommittee(c);
               }}
-              aria-label="Calendar Event"
+              aria-label="View Meetings"
             >
               <IconCalendarEvent size={16} />
-            </ActionIcon>
+            </IconButton>
           </Tooltip>
           {canManage && (
             <Tooltip label="Schedule Meeting">
-              <ActionIcon
-                variant="subtle"
-                color="teal"
+              <IconButton
+                tone="success"
                 onClick={() => {
                   setSelectedCommittee(c);
                   setMeetingForm({ committee_id: c.id, scheduled_date: "" });
                   openMeeting();
                 }}
-                aria-label="Add"
+                aria-label="Schedule Meeting"
               >
                 <IconPlus size={16} />
-              </ActionIcon>
+              </IconButton>
             </Tooltip>
           )}
           {canManage && (
             <Tooltip label="Auto-Schedule 6 Months">
-              <ActionIcon
-                variant="subtle"
-                color="primary"
+              <IconButton
+                tone="primary"
                 loading={autoScheduleMut.isPending}
                 onClick={() => autoScheduleMut.mutate(c.id)}
-                aria-label="Calendar Event"
+                aria-label="Auto-Schedule 6 Months"
               >
                 <IconCalendarEvent size={16} />
-              </ActionIcon>
+              </IconButton>
             </Tooltip>
           )}
         </Group>
@@ -2542,9 +2531,8 @@ function AccreditationTab() {
         <Group gap="xs">
           {canManage && (
             <Tooltip label="Update Compliance">
-              <ActionIcon
-                variant="subtle"
-                color="primary"
+              <IconButton
+                tone="primary"
                 onClick={() => {
                   setSelectedStandard(s);
                   const existing = complianceMap.get(s.id);
@@ -2559,10 +2547,10 @@ function AccreditationTab() {
                   });
                   openCompliance();
                 }}
-                aria-label="Mark complete"
+                aria-label="Update Compliance"
               >
                 <IconClipboardCheck size={16} />
-              </ActionIcon>
+              </IconButton>
             </Tooltip>
           )}
         </Group>
@@ -3043,17 +3031,16 @@ function AuditsTab() {
       render: (a: QualityAudit) => (
         <Group gap="xs">
           <Tooltip label="View Details">
-            <ActionIcon
-              variant="subtle"
-              color="primary"
+            <IconButton
+              tone="primary"
               onClick={() => {
                 setSelectedAudit(a);
                 openDetail();
               }}
-              aria-label="View details"
+              aria-label="View Details"
             >
               <IconEye size={16} />
-            </ActionIcon>
+            </IconButton>
           </Tooltip>
         </Group>
       ),

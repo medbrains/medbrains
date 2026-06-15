@@ -1,6 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
-  ActionIcon,
   Alert,
   Box,
   Card,
@@ -200,7 +199,7 @@ import { PatientJourneyActions } from "@/components/Patient/PatientJourneyAction
 import { PatientNameCell } from "@/components/PatientNameCell";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
 import { PaymentModal, type PaymentModalSettlement } from "@/components/PaymentModal";
-import { Badge, type BadgeTone, Button, Table } from "@/components/ui";
+import { Badge, type BadgeTone, Button, IconButton, Table } from "@/components/ui";
 import {
   billingAdvancePurposeOptions,
   billingChargeSourceOptions,
@@ -874,36 +873,35 @@ function BillingPageInner() {
       render: (row: Invoice) => (
         <Group gap={4}>
           <Tooltip label="View">
-            <ActionIcon
-              variant="subtle"
+            <IconButton
+              tone="default"
               onClick={() => navigate(`/billing/invoices/${row.id}`)}
               aria-label={`Open invoice ${row.invoice_number}`}
             >
               <IconEye size={16} />
-            </ActionIcon>
+            </IconButton>
           </Tooltip>
           {canCreate && (
             <Tooltip label="Clone">
-              <ActionIcon
-                variant="subtle"
-                color="violet"
+              <IconButton
+                tone="default"
+                aria-label="Clone"
                 onClick={() => cloneMutation.mutate(row.id)}
                 loading={cloneMutation.isPending}
               >
                 <IconCopy size={16} />
-              </ActionIcon>
+              </IconButton>
             </Tooltip>
           )}
           {activeHandoff === "payment" && canPay && invoiceIsPayable(row) && (
             <Tooltip label="Collect payment">
-              <ActionIcon
-                variant="subtle"
-                color="orange"
+              <IconButton
+                tone="default"
                 onClick={() => navigate(`/billing/invoices/${row.id}?action=payment`)}
                 aria-label={`Collect payment for invoice ${row.invoice_number}`}
               >
                 <IconCash size={16} />
-              </ActionIcon>
+              </IconButton>
             </Tooltip>
           )}
         </Group>
@@ -2001,9 +1999,9 @@ function InvoiceDetail({
                         <Table.Td>{billingAmountText(item.total_price, amountAccess)}</Table.Td>
                         {canCreate && inv.status === "draft" && (
                           <Table.Td>
-                            <ActionIcon
-                              variant="subtle"
-                              color="danger"
+                            <IconButton
+                              tone="danger"
+                              aria-label="Delete"
                               onClick={() =>
                                 confirmDestructive({
                                   title: "Remove item",
@@ -2014,7 +2012,7 @@ function InvoiceDetail({
                               }
                             >
                               <IconTrash size={14} />
-                            </ActionIcon>
+                            </IconButton>
                           </Table.Td>
                         )}
                       </Table.Tr>
@@ -2157,14 +2155,15 @@ function InvoiceDetail({
                         {canPrintBillingDocs && (
                           <Table.Td>
                             <Tooltip label="Generate + print receipt packet">
-                              <ActionIcon
-                                variant="subtle"
+                              <IconButton
+                                tone="default"
+                                aria-label="Generate + print receipt packet"
                                 size="sm"
                                 loading={receiptMutation.isPending}
                                 onClick={() => receiptMutation.mutate(p.id)}
                               >
                                 <IconReceipt size={14} />
-                              </ActionIcon>
+                              </IconButton>
                             </Tooltip>
                           </Table.Td>
                         )}
@@ -2265,9 +2264,9 @@ function InvoiceDetail({
                           <Table.Td>{d.reason ?? "—"}</Table.Td>
                           {canCreate && (
                             <Table.Td>
-                              <ActionIcon
-                                variant="subtle"
-                                color="danger"
+                              <IconButton
+                                tone="danger"
+                                aria-label="Delete"
                                 size="sm"
                                 onClick={() =>
                                   confirmDestructive({
@@ -2280,7 +2279,7 @@ function InvoiceDetail({
                                 }
                               >
                                 <IconTrash size={14} />
-                              </ActionIcon>
+                              </IconButton>
                             </Table.Td>
                           )}
                         </Table.Tr>
@@ -2651,9 +2650,9 @@ function ChargeMasterTab({ canCreate }: { canCreate: boolean }) {
       label: "",
       render: (row: ChargeMaster) =>
         canCreate ? (
-          <ActionIcon
-            variant="subtle"
-            color="danger"
+          <IconButton
+            tone="danger"
+            aria-label="Delete"
             onClick={() =>
               confirmDestructive({
                 title: "Delete charge",
@@ -2664,7 +2663,7 @@ function ChargeMasterTab({ canCreate }: { canCreate: boolean }) {
             }
           >
             <IconTrash size={14} />
-          </ActionIcon>
+          </IconButton>
         ) : null,
     },
   ];
@@ -3001,9 +3000,9 @@ function PackagesTab({ canCreate }: { canCreate: boolean }) {
       label: "",
       render: (row: BillingPackage) =>
         canCreate ? (
-          <ActionIcon
-            variant="subtle"
-            color="danger"
+          <IconButton
+            tone="danger"
+            aria-label="Delete"
             onClick={() =>
               confirmDestructive({
                 title: "Delete package",
@@ -3014,7 +3013,7 @@ function PackagesTab({ canCreate }: { canCreate: boolean }) {
             }
           >
             <IconTrash size={14} />
-          </ActionIcon>
+          </IconButton>
         ) : null,
     },
   ];
@@ -3099,14 +3098,14 @@ function PackagesTab({ canCreate }: { canCreate: boolean }) {
               <Text size="xs" c="dimmed">
                 {item.charge_code} — {item.description} x{item.quantity} @ ₹{item.unit_price}
               </Text>
-              <ActionIcon
+              <IconButton
                 size="xs"
-                variant="subtle"
-                color="danger"
+                tone="danger"
+                aria-label="Delete"
                 onClick={() => removePackageItem(index)}
               >
                 <IconTrash size={12} />
-              </ActionIcon>
+              </IconButton>
             </Group>
           ))}
           <Group grow>
@@ -3302,9 +3301,9 @@ function RatePlansTab({ canCreate }: { canCreate: boolean }) {
       label: "",
       render: (row: RatePlan) =>
         canCreate ? (
-          <ActionIcon
-            variant="subtle"
-            color="danger"
+          <IconButton
+            tone="danger"
+            aria-label="Delete"
             onClick={() =>
               confirmDestructive({
                 title: "Delete rate plan",
@@ -3315,7 +3314,7 @@ function RatePlansTab({ canCreate }: { canCreate: boolean }) {
             }
           >
             <IconTrash size={14} />
-          </ActionIcon>
+          </IconButton>
         ) : null,
     },
   ];
@@ -3381,14 +3380,14 @@ function RatePlansTab({ canCreate }: { canCreate: boolean }) {
               <Text size="xs" c="dimmed">
                 {item.charge_code} → ₹{item.override_price}
               </Text>
-              <ActionIcon
+              <IconButton
                 size="xs"
-                variant="subtle"
-                color="danger"
+                tone="danger"
+                aria-label="Delete"
                 onClick={() => removeRatePlanItem(index)}
               >
                 <IconTrash size={12} />
-              </ActionIcon>
+              </IconButton>
             </Group>
           ))}
           <Group grow>
@@ -3631,28 +3630,28 @@ function RefundsCreditsTab({
         row.status === "pending" && canApproveWriteOff ? (
           <Group gap={4}>
             <Tooltip label="Approve">
-              <ActionIcon
-                color="success"
-                variant="light"
+              <IconButton
+                tone="success"
+                aria-label="Approve"
                 size="sm"
                 onClick={() =>
                   approveWriteOffMutation.mutate({ id: row.id, data: { approved: true } })
                 }
               >
                 <IconCheck size={14} />
-              </ActionIcon>
+              </IconButton>
             </Tooltip>
             <Tooltip label="Reject">
-              <ActionIcon
-                color="danger"
-                variant="light"
+              <IconButton
+                tone="danger"
+                aria-label="Reject"
                 size="sm"
                 onClick={() =>
                   approveWriteOffMutation.mutate({ id: row.id, data: { approved: false } })
                 }
               >
                 <IconX size={14} />
-              </ActionIcon>
+              </IconButton>
             </Tooltip>
           </Group>
         ) : null,
@@ -4111,9 +4110,9 @@ function InsuranceClaimsTab({
       render: (row: TpaRateCard) =>
         canCreate ? (
           <Tooltip label="Delete">
-            <ActionIcon
-              color="danger"
-              variant="subtle"
+            <IconButton
+              tone="danger"
+              aria-label="Delete"
               size="sm"
               onClick={() =>
                 confirmDestructive({
@@ -4126,7 +4125,7 @@ function InsuranceClaimsTab({
               }
             >
               <IconTrash size={14} />
-            </ActionIcon>
+            </IconButton>
           </Tooltip>
         ) : null,
     },
@@ -5395,15 +5394,16 @@ function CorporateTab() {
       label: "",
       render: (row: CorporateClient) => (
         <Tooltip label="View Details">
-          <ActionIcon
-            variant="subtle"
+          <IconButton
+            tone="default"
+            aria-label="View Details"
             onClick={() => {
               setSelectedId(row.id);
               openDetail();
             }}
           >
             <IconEye size={16} />
-          </ActionIcon>
+          </IconButton>
         </Tooltip>
       ),
     },
@@ -5809,14 +5809,14 @@ function CorporateDetail({ corporateId, canUpdate }: { corporateId: string; canU
               <Table.Td>{new Date(e.enrolled_at).toLocaleDateString()}</Table.Td>
               {canUpdate && (
                 <Table.Td>
-                  <ActionIcon
-                    variant="subtle"
-                    color="danger"
+                  <IconButton
+                    tone="danger"
+                    aria-label="Delete"
                     size="sm"
                     onClick={() => unenrollMutation.mutate(e.id)}
                   >
                     <IconTrash size={14} />
-                  </ActionIcon>
+                  </IconButton>
                 </Table.Td>
               )}
             </Table.Tr>
@@ -6928,8 +6928,9 @@ function CreditPatientsTab() {
             key: "actions",
             label: "",
             render: (r: CreditPatient) => (
-              <ActionIcon
-                variant="subtle"
+              <IconButton
+                tone="default"
+                aria-label="Edit"
                 onClick={() => {
                   setEditId(r.id);
                   reset({
@@ -6942,7 +6943,7 @@ function CreditPatientsTab() {
                 }}
               >
                 <IconPencil size={16} />
-              </ActionIcon>
+              </IconButton>
             ),
           },
         ]

@@ -2,7 +2,6 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import "@mantine/charts/styles.css";
 import { BarChart } from "@mantine/charts";
 import {
-  ActionIcon,
   Card,
   Drawer,
   Group,
@@ -67,7 +66,7 @@ import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { DataTable, PageHeader } from "@/components";
 import type { Column } from "@/components/DataTable";
-import { Badge, type BadgeTone, Button } from "@/components/ui";
+import { Badge, type BadgeTone, Button, IconButton } from "@/components/ui";
 import {
   schedulingInteger,
   schedulingNumber,
@@ -328,16 +327,15 @@ function PredictionsTab({ canScore }: { canScore: boolean }) {
             key: "actions",
             label: "Actions",
             render: (r: NoshowPredictionScore) => (
-              <ActionIcon
-                variant="subtle"
-                color="primary"
+              <IconButton
+                tone="primary"
                 size="sm"
                 onClick={() => scoreOneMut.mutate(r.appointment_id)}
                 loading={scoreOneMut.isPending}
-                aria-label="Play"
+                aria-label="Score appointment"
               >
                 <IconPlayerPlay size={14} />
-              </ActionIcon>
+              </IconButton>
             ),
           },
         ]
@@ -552,9 +550,8 @@ function WaitlistTab({ canManage, canAutoFill }: { canManage: boolean; canAutoFi
             render: (r: SchedulingWaitlistEntry) => (
               <Group gap="xs" wrap="nowrap">
                 {r.status === "waiting" && (
-                  <ActionIcon
-                    variant="subtle"
-                    color="primary"
+                  <IconButton
+                    tone="primary"
                     size="sm"
                     title="Offer Slot"
                     onClick={() => {
@@ -562,35 +559,33 @@ function WaitlistTab({ canManage, canAutoFill }: { canManage: boolean; canAutoFi
                       setOfferedAppointmentId("");
                       openOffer();
                     }}
-                    aria-label="Play"
+                    aria-label="Offer Slot"
                   >
                     <IconPlayerPlay size={14} />
-                  </ActionIcon>
+                  </IconButton>
                 )}
                 {r.status === "offered" && (
                   <>
-                    <ActionIcon
-                      variant="subtle"
-                      color="success"
+                    <IconButton
+                      tone="success"
                       size="sm"
                       title="Accept"
                       onClick={() => respondMut.mutate({ id: r.id, accept: true })}
                       loading={respondMut.isPending}
-                      aria-label="Confirm"
+                      aria-label="Accept"
                     >
                       <IconCheck size={14} />
-                    </ActionIcon>
-                    <ActionIcon
-                      variant="subtle"
-                      color="danger"
+                    </IconButton>
+                    <IconButton
+                      tone="danger"
                       size="sm"
                       title="Decline"
                       onClick={() => respondMut.mutate({ id: r.id, accept: false })}
                       loading={respondMut.isPending}
-                      aria-label="Close"
+                      aria-label="Decline"
                     >
                       <IconX size={14} />
-                    </ActionIcon>
+                    </IconButton>
                   </>
                 )}
               </Group>
@@ -908,25 +903,18 @@ function OverbookingTab({ canManage }: { canManage: boolean }) {
             label: "Actions",
             render: (r: SchedulingOverbookingRule) => (
               <Group gap="xs" wrap="nowrap">
-                <ActionIcon
-                  variant="subtle"
-                  color="primary"
-                  size="sm"
-                  onClick={() => openEdit(r)}
-                  aria-label="Edit"
-                >
+                <IconButton tone="primary" size="sm" onClick={() => openEdit(r)} aria-label="Edit">
                   <IconPencil size={14} />
-                </ActionIcon>
-                <ActionIcon
-                  variant="subtle"
-                  color="danger"
+                </IconButton>
+                <IconButton
+                  tone="danger"
                   size="sm"
                   onClick={() => deleteMut.mutate(r.id)}
                   loading={deleteMut.isPending}
                   aria-label="Delete"
                 >
                   <IconTrash size={14} />
-                </ActionIcon>
+                </IconButton>
               </Group>
             ),
           },

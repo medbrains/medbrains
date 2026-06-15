@@ -1,6 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
-  ActionIcon,
   Checkbox,
   Drawer,
   Group,
@@ -51,7 +50,7 @@ import {
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
 import { PatientNameCell } from "@/components/PatientNameCell";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
-import { Badge, type BadgeTone, Button, Table } from "@/components/ui";
+import { Badge, type BadgeTone, Button, IconButton, Table } from "@/components/ui";
 import { radiologyOptionalText, radiologyPriorityOptions } from "@/forms/radiology.form";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { statusColor } from "@/lib/status-colors";
@@ -388,38 +387,32 @@ function RadiologyOrdersTab() {
       render: (o: RadiologyOrder) => (
         <Group gap={4}>
           <Tooltip label="View">
-            <ActionIcon
-              variant="subtle"
-              onClick={() => setDetailId(o.id)}
-              aria-label="View details"
-            >
+            <IconButton tone="default" onClick={() => setDetailId(o.id)} aria-label="View details">
               <IconEye size={16} />
-            </ActionIcon>
+            </IconButton>
           </Tooltip>
           {o.status === "ordered" && canCancel && (
             <Tooltip label="Cancel">
-              <ActionIcon
-                variant="subtle"
-                color="danger"
+              <IconButton
+                tone="danger"
                 onClick={() => cancelMutation.mutate(o.id)}
                 aria-label="Close"
               >
                 <IconX size={16} />
-              </ActionIcon>
+              </IconButton>
             </Tooltip>
           )}
           {canPrintReports && o.status === "verified" && (
             <Tooltip label="Print report">
-              <ActionIcon
-                variant="subtle"
-                color="teal"
+              <IconButton
+                tone="success"
                 onClick={() => {
                   void printRadiologyReportPacket(o.id);
                 }}
                 aria-label="Print report"
               >
                 <IconPrinter size={16} />
-              </ActionIcon>
+              </IconButton>
             </Tooltip>
           )}
           {o.status === "ordered" && (
@@ -1095,14 +1088,13 @@ function ModalitiesTab() {
                 </Table.Td>
                 {canManage && (
                   <Table.Td>
-                    <ActionIcon
-                      variant="subtle"
-                      color="danger"
+                    <IconButton
+                      tone="danger"
                       onClick={() => deleteMutation.mutate(m.id)}
                       aria-label="Close"
                     >
                       <IconX size={16} />
-                    </ActionIcon>
+                    </IconButton>
                   </Table.Td>
                 )}
               </Table.Tr>

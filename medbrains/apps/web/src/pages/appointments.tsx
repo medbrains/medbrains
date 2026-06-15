@@ -1,15 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import {
-  ActionIcon,
-  Group,
-  Loader,
-  Modal,
-  Select,
-  Stack,
-  Text,
-  Textarea,
-  Tooltip,
-} from "@mantine/core";
+import { Group, Loader, Modal, Select, Stack, Text, Textarea, Tooltip } from "@mantine/core";
 import { DatePickerInput } from "@mantine/dates";
 import { notifications } from "@mantine/notifications";
 import type {
@@ -49,7 +39,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { PageHeader } from "@/components/PageHeader";
-import { Badge, type BadgeTone, Button, Table } from "@/components/ui";
+import { Badge, type BadgeTone, Button, IconButton, Table } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { parseDate, toDateString, todayDateString } from "@/lib/date-utils";
 import { appointmentsService } from "@/services/appointments.service";
@@ -758,21 +748,18 @@ export function AppointmentsPage() {
                           )}
                           {canManageOpenAppointment && (
                             <Tooltip label="Mark appointment as no-show">
-                              <ActionIcon
-                                variant="subtle"
-                                color="slate"
+                              <IconButton
                                 onClick={() => noShowMutation.mutate(appt.id)}
                                 aria-label="Mark appointment as no-show"
                               >
                                 <IconPhone size={16} />
-                              </ActionIcon>
+                              </IconButton>
                             </Tooltip>
                           )}
                           {canManageOpenAppointment && (
                             <Tooltip label="Reschedule appointment">
-                              <ActionIcon
-                                variant="subtle"
-                                color="primary"
+                              <IconButton
+                                tone="primary"
                                 onClick={() => {
                                   setRescheduleTarget(appt);
                                   rescheduleForm.reset({ appointment_date: null });
@@ -781,28 +768,26 @@ export function AppointmentsPage() {
                                 aria-label="Reschedule appointment"
                               >
                                 <IconCalendarEvent size={16} />
-                              </ActionIcon>
+                              </IconButton>
                             </Tooltip>
                           )}
                           {canCompleteAppointment && (
                             <Tooltip label="Mark appointment complete">
-                              <ActionIcon
-                                variant="subtle"
-                                color="success"
+                              <IconButton
+                                tone="success"
                                 onClick={() => completeMutation.mutate(appt.id)}
                                 aria-label="Mark appointment complete"
                               >
                                 <IconCheck size={16} />
-                              </ActionIcon>
+                              </IconButton>
                             </Tooltip>
                           )}
                           {canCancel &&
                             appt.status !== "completed" &&
                             appt.status !== "cancelled" && (
                               <Tooltip label="Cancel appointment">
-                                <ActionIcon
-                                  variant="subtle"
-                                  color="danger"
+                                <IconButton
+                                  tone="danger"
                                   onClick={() => {
                                     setCancelTarget(appt);
                                     cancelForm.reset({ cancel_reason: "" });
@@ -810,7 +795,7 @@ export function AppointmentsPage() {
                                   aria-label="Cancel appointment"
                                 >
                                   <IconX size={16} />
-                                </ActionIcon>
+                                </IconButton>
                               </Tooltip>
                             )}
                         </Group>

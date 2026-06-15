@@ -1,14 +1,4 @@
-import {
-  ActionIcon,
-  Drawer,
-  NumberInput,
-  Select,
-  Stack,
-  Switch,
-  Tabs,
-  Text,
-  TextInput,
-} from "@mantine/core";
+import { Drawer, NumberInput, Select, Stack, Switch, Tabs, Text, TextInput } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import { useHasPermission } from "@medbrains/stores";
@@ -30,7 +20,7 @@ import type { Column } from "@/components/DataTable";
 import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
 import { PatientNameCell } from "@/components/PatientNameCell";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
-import { Badge, Button } from "@/components/ui";
+import { Badge, Button, IconButton } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { specialtyService } from "@/services/specialty.service";
 
@@ -154,9 +144,9 @@ export function CathLabPage() {
       key: "actions",
       label: "",
       render: (r) => (
-        <ActionIcon variant="subtle" onClick={() => setDetailId(r.id)} aria-label="Edit">
+        <IconButton onClick={() => setDetailId(r.id)} aria-label="Edit">
           <IconPencil size={16} />
-        </ActionIcon>
+        </IconButton>
       ),
     },
   ];

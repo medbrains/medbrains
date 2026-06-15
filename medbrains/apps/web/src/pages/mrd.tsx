@@ -1,6 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
-  ActionIcon,
   Box,
   Card,
   Drawer,
@@ -71,7 +70,7 @@ import { DepartmentSelect } from "@/components/DepartmentSelect";
 import { EmployeeSearchSelect } from "@/components/EmployeeSearchSelect";
 import { PatientContextBanner } from "@/components/Patient/PatientContextBanner";
 import { PatientSearchSelect } from "@/components/PatientSearchSelect";
-import { Badge, type BadgeTone, Button } from "@/components/ui";
+import { Badge, type BadgeTone, Button, IconButton } from "@/components/ui";
 import { useHashTabs } from "@/hooks/useHashTabs";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { mrdService } from "@/services/mrd.service";
@@ -777,31 +776,30 @@ function RecordsTab() {
         <Group gap={4}>
           {canManage && (
             <Tooltip label="Issue">
-              <ActionIcon
-                variant="light"
+              <IconButton
+                tone="default"
                 onClick={() => {
                   setSelectedRecord(r);
                   setIssueForm({});
                   openIssue();
                 }}
-                aria-label="Go forward"
+                aria-label="Issue"
               >
                 <IconArrowRight size={16} />
-              </ActionIcon>
+              </IconButton>
             </Tooltip>
           )}
           <Tooltip label="Movements">
-            <ActionIcon
-              variant="light"
-              color="primary"
+            <IconButton
+              tone="primary"
               onClick={() => {
                 setSelectedRecord(r);
                 openMovements();
               }}
-              aria-label="Arrow Back"
+              aria-label="Movements"
             >
               <IconArrowBack size={16} />
-            </ActionIcon>
+            </IconButton>
           </Tooltip>
         </Group>
       ),
@@ -1286,8 +1284,8 @@ function CaseSheetsTab() {
         return (
           <Group gap={4} wrap="nowrap">
             <Tooltip label="Pages">
-              <ActionIcon
-                variant="light"
+              <IconButton
+                tone="default"
                 onClick={() => {
                   setSelectedPacket(packet);
                   openPages();
@@ -1295,38 +1293,35 @@ function CaseSheetsTab() {
                 aria-label="View page checklist"
               >
                 <IconClipboardList size={16} />
-              </ActionIcon>
+              </IconButton>
             </Tooltip>
             {sourceRoute && (
               <Tooltip label={packet.packet_type === "opd" ? "Open OPD encounter" : "Open IPD"}>
-                <ActionIcon
-                  variant="light"
-                  color="slate"
+                <IconButton
+                  tone="default"
                   onClick={() => navigate(sourceRoute)}
                   aria-label="Open source workflow"
                 >
                   <IconArrowRight size={16} />
-                </ActionIcon>
+                </IconButton>
               </Tooltip>
             )}
             {canPrint && (packet.status === "generated" || packet.status === "draft") && (
               <Tooltip label="Prepare MRD, office, and clinical copies">
-                <ActionIcon
-                  variant="light"
-                  color="primary"
+                <IconButton
+                  tone="primary"
                   onClick={() => printMut.mutate(packet)}
                   loading={printMut.isPending}
                   aria-label="Prepare MRD case-sheet copies"
                 >
                   <IconPrinter size={16} />
-                </ActionIcon>
+                </IconButton>
               </Tooltip>
             )}
             {canReprint && packet.printed_at && (
               <Tooltip label="Reprint">
-                <ActionIcon
-                  variant="light"
-                  color="orange"
+                <IconButton
+                  tone="default"
                   onClick={() => {
                     setSelectedPacket(packet);
                     reprintForm.reset(MRD_REPRINT_FORM_DEFAULTS);
@@ -1335,14 +1330,13 @@ function CaseSheetsTab() {
                   aria-label="Reprint case sheet"
                 >
                   <IconPrinter size={16} />
-                </ActionIcon>
+                </IconButton>
               </Tooltip>
             )}
             {canFile && packet.status === "printed" && (
               <Tooltip label="File in MRD">
-                <ActionIcon
-                  variant="light"
-                  color="success"
+                <IconButton
+                  tone="success"
                   onClick={() => {
                     setSelectedPacket(packet);
                     fileForm.reset(MRD_FILE_FORM_DEFAULTS);
@@ -1351,7 +1345,7 @@ function CaseSheetsTab() {
                   aria-label="File case sheet"
                 >
                   <IconMapPin size={16} />
-                </ActionIcon>
+                </IconButton>
               </Tooltip>
             )}
           </Group>

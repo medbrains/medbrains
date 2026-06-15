@@ -1,14 +1,4 @@
-import {
-  ActionIcon,
-  Drawer,
-  Group,
-  NumberInput,
-  Stack,
-  Switch,
-  Tabs,
-  Text,
-  TextInput,
-} from "@mantine/core";
+import { Drawer, Group, NumberInput, Stack, Switch, Tabs, Text, TextInput } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import { notifications } from "@mantine/notifications";
 import { useHasPermission } from "@medbrains/stores";
@@ -29,7 +19,7 @@ import { useSearchParams } from "react-router";
 import { DataTable, PageHeader } from "@/components";
 import type { Column } from "@/components/DataTable";
 import { PatientNameCell } from "@/components/PatientNameCell";
-import { Badge, type BadgeTone, Button } from "@/components/ui";
+import { Badge, type BadgeTone, Button, IconButton } from "@/components/ui";
 import { useRequirePermission } from "@/hooks/useRequirePermission";
 import { statusColor } from "@/lib/status-colors";
 import { specialtyService } from "@/services/specialty.service";
@@ -226,14 +216,9 @@ export function PalliativePage() {
       label: "",
       render: (r) =>
         r.status === "active" && canDnr ? (
-          <ActionIcon
-            variant="subtle"
-            color="danger"
-            onClick={() => revokeDnr.mutate(r.id)}
-            aria-label="Close"
-          >
+          <IconButton tone="danger" onClick={() => revokeDnr.mutate(r.id)} aria-label="Close">
             <IconX size={16} />
-          </ActionIcon>
+          </IconButton>
         ) : null,
     },
   ];
