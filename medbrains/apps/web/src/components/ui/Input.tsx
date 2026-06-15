@@ -21,12 +21,14 @@ export const Input = forwardRef<HTMLInputElement, TextInputProps>(function Input
 ) {
   return <MantineTextInput ref={ref} size={size} {...rest} />;
 });
+Input.displayName = "Input";
 
 export const PasswordField = forwardRef<HTMLInputElement, PasswordInputProps>(
   function PasswordField({ size = "sm", ...rest }, ref) {
     return <MantinePasswordInput ref={ref} size={size} {...rest} />;
   },
 );
+PasswordField.displayName = "PasswordField";
 
 export const NumberField = forwardRef<HTMLInputElement, NumberInputProps>(function NumberField(
   { size = "sm", ...rest },
@@ -34,6 +36,7 @@ export const NumberField = forwardRef<HTMLInputElement, NumberInputProps>(functi
 ) {
   return <MantineNumberInput ref={ref} size={size} {...rest} />;
 });
+NumberField.displayName = "NumberField";
 
 export const TextArea = forwardRef<HTMLTextAreaElement, TextareaProps>(function TextArea(
   { size = "sm", autosize = true, minRows = 2, ...rest },
@@ -41,3 +44,4 @@ export const TextArea = forwardRef<HTMLTextAreaElement, TextareaProps>(function 
 ) {
   return <MantineTextarea ref={ref} size={size} autosize={autosize} minRows={minRows} {...rest} />;
 });
+TextArea.displayName = "TextArea";

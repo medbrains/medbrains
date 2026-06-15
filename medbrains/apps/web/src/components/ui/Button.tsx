@@ -3,8 +3,8 @@ import { forwardRef } from "react";
 
 /**
  * Our canonical button tones. They map to Mantine variants/colours so
- * the Experian standard (gradient primary, neutral secondary, quiet
- * ghost) lives in one place instead of being re-decided per call site.
+ * the Signature Spectrum standard (gradient primary, neutral secondary,
+ * quiet ghost) lives in one place instead of being re-decided per call site.
  */
 export type ButtonTone = "primary" | "secondary" | "ghost" | "danger" | "subtle-danger";
 
@@ -32,3 +32,4 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
 ) {
   return <MantineButton ref={ref} size={size} {...TONE_PROPS[tone]} {...rest} />;
 });
+Button.displayName = "Button";

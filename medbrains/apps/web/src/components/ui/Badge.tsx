@@ -35,3 +35,4 @@ export const Badge = forwardRef<HTMLDivElement, BadgeProps>(function Badge(
     <MantineBadge ref={ref} color={TONE_COLOR[tone]} variant={variant} size={size} {...rest} />
   );
 });
+Badge.displayName = "Badge";

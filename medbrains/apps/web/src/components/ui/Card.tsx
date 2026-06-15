@@ -17,3 +17,4 @@ export const Card = forwardRef<HTMLDivElement, CardProps>(function Card(
 ) {
   return <MantineCard ref={ref} withBorder={withBorder} padding={padding} {...rest} />;
 });
+Card.displayName = "Card";

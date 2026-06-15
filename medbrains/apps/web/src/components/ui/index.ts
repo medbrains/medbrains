@@ -1,7 +1,8 @@
-// MedBrains UI primitives — our canonical components with the standard
-// (Experian) design baked in. Import these instead of @mantine/core for
+// MedBrains UI primitives — our canonical components with the Signature
+// Spectrum design baked in. Import these instead of @mantine/core for
 // buttons, cards, badges, inputs, selects and panels so the look stays
-// consistent and evolves in one place.
+// consistent and evolves in one place. The wrappers are the seam: swapping
+// the underlying kit later means editing these files, not the call sites.
 
 export { Badge, type BadgeProps, type BadgeTone } from "./Badge";
 export { Button, type ButtonProps, type ButtonTone } from "./Button";
