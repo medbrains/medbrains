@@ -67,16 +67,6 @@
   }
 }
 
-// Dark theme: stroke shifts to light indigo
-:global([data-mantine-color-scheme="dark"]) {
-  .trace {
-    stroke: var(--primary-2, #b3abe0);
-  }
-  .baseline {
-    stroke: #2a2350;
-  }
-}
-
 // Top-bar / global progress context
 :global(.app-topbar) {
   .trace {

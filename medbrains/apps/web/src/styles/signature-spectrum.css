@@ -29,13 +29,6 @@
   --ss-rule: var(--ss-hairline);
 }
 
-[data-mantine-color-scheme="dark"] {
-  --ss-zebra: #211b3d;
-  --ss-hairline: #2a2350;
-  --ss-link: #b3abe0;
-  --ss-brand: #b3abe0;
-}
-
 /* ── Gradient utilities ── */
 .ssGradientBar {
   height: 4px;

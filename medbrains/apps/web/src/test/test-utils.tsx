@@ -29,7 +29,7 @@ function makeProviders(client: QueryClient, initialEntries: string[]) {
     <QueryClientProvider client={client}>
       <MantineProvider
         theme={theme}
-        defaultColorScheme="light"
+        forceColorScheme="light"
         cssVariablesResolver={cssVariableResolver}
       >
         <MemoryRouter initialEntries={initialEntries}>{children}</MemoryRouter>
